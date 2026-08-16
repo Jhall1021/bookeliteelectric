@@ -2,12 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
 
-// Returns EVERY active service, grouped by category, that isn't already in
-// the customer's open visit — the homeowner can add anything from any
-// category "while we're there," not just a short pre-picked list. Services
-// with a While We're There price show the discounted add-on price; services
-// without one (remote-quote-only jobs) still show up but are flagged so the
-// UI can route them to a quote request instead of an instant add.
+// Returns EVERY active service, grouped by category, so the homeowner can
+// add anything from any category "while we're there." Services already in
+// the cart are NOT excluded — they're shown with their current quantity so
+// the customer can add another (e.g. a second outlet in a different room)
+// instead of the service just vanishing after the first add.
 export async function GET() {
   const sessionId = getOrCreateSessionId();
 
@@ -16,13 +15,16 @@ export async function GET() {
     include: { lineItems: { select: { serviceId: true } } },
   });
 
-  const excludeIds = visit?.lineItems.map((li) => li.serviceId) ?? [];
+  const quantityByService = new Map<string, number>();
+  for (const li of visit?.lineItems ?? []) {
+    quantityByService.set(li.serviceId, (quantityByService.get(li.serviceId) ?? 0) + 1);
+  }
 
   const categories = await prisma.serviceCategory.findMany({
     orderBy: { sortOrder: "asc" },
     include: {
       services: {
-        where: { active: true, id: { notIn: excludeIds } },
+        where: { active: true },
         orderBy: { name: "asc" },
         select: {
           id: true,
@@ -36,19 +38,19 @@ export async function GET() {
     },
   });
 
-  // Drop categories that have nothing left to offer (everything already in cart).
   const withServices = categories
     .filter((c) => c.services.length > 0)
     .map((c) => ({
       id: c.id,
       slug: c.slug,
       name: c.name,
-      services: c.services.map((s) => ({ ...s, categorySlug: c.slug })),
+      services: c.services.map((s) => ({
+        ...s,
+        categorySlug: c.slug,
+        quantityInVisit: quantityByService.get(s.id) ?? 0,
+      })),
     }));
 
-  // A "quick picks" row — services with a defined While We're There price,
-  // capped for the collapsed view. The full grouped list below it is
-  // always available via "Browse all services."
   const quickPicks = withServices
     .flatMap((c) => c.services.filter((s) => s.whileWeThereBasePrice !== null))
     .slice(0, 6);

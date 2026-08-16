@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@/lib/flow-types";
 
-type LineItem = {
-  id: string;
+type LineItemGroup = {
+  serviceId: string;
   serviceName: string;
   serviceSlug: string;
   isPrimary: boolean;
-  priceCents: number;
+  unitPriceCents: number;
+  quantity: number;
+  totalPriceCents: number;
+  lineItemIds: string[];
 };
 
 type ServiceOption = {
@@ -20,6 +23,7 @@ type ServiceOption = {
   startingPriceLabel: string | null;
   bookingType: string;
   categorySlug: string;
+  quantityInVisit: number;
 };
 
 type CategoryGroup = {
@@ -31,7 +35,7 @@ type CategoryGroup = {
 
 export default function MyVisitPage() {
   const router = useRouter();
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [lineItems, setLineItems] = useState<LineItemGroup[]>([]);
   const [totalCents, setTotalCents] = useState(0);
   const [quickPicks, setQuickPicks] = useState<ServiceOption[]>([]);
   const [categories, setCategories] = useState<CategoryGroup[]>([]);
@@ -56,9 +60,6 @@ export default function MyVisitPage() {
   }, []);
 
   async function addService(s: ServiceOption) {
-    // Services without a preset While We're There price (remote-quote-only
-    // jobs) don't have an instant add-on price to lock in — send the
-    // customer into that service's own flow instead of faking a number.
     if (s.whileWeThereBasePrice === null) {
       router.push(`/services/${s.categorySlug}/${s.slug}`);
       return;
@@ -70,6 +71,26 @@ export default function MyVisitPage() {
         serviceId: s.id,
         computedPriceCents: s.whileWeThereBasePrice,
         isPrimary: false,
+        answersSnapshot: {},
+      }),
+    });
+    refresh();
+  }
+
+  async function removeOne(group: LineItemGroup) {
+    const lastId = group.lineItemIds[group.lineItemIds.length - 1];
+    await fetch(`/api/visit?lineItemId=${lastId}`, { method: "DELETE" });
+    refresh();
+  }
+
+  async function addAnother(group: LineItemGroup) {
+    await fetch("/api/visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        serviceId: group.serviceId,
+        computedPriceCents: group.unitPriceCents,
+        isPrimary: group.isPrimary,
         answersSnapshot: {},
       }),
     });
@@ -92,12 +113,33 @@ export default function MyVisitPage() {
         <>
           <div className="mt-6 divide-y divide-cardline rounded-card border border-cardline bg-white shadow-card">
             {lineItems.map((li) => (
-              <div key={li.id} className="flex items-center justify-between p-4">
+              <div key={`${li.serviceId}:${li.isPrimary}`} className="flex items-center justify-between p-4">
                 <div>
                   <div className="text-sm font-semibold text-navy">{li.serviceName}</div>
                   {!li.isPrimary && <div className="text-xs text-slate">While We're There add-on</div>}
                 </div>
-                <div className="text-sm font-semibold text-navy">{formatCents(li.priceCents)}</div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 rounded-pill border border-cardline">
+                    <button
+                      onClick={() => removeOne(li)}
+                      aria-label={`Remove one ${li.serviceName}`}
+                      className="px-3 py-1 text-navy hover:text-electric"
+                    >
+                      −
+                    </button>
+                    <span className="min-w-[1.5rem] text-center text-sm font-medium text-navy">{li.quantity}</span>
+                    <button
+                      onClick={() => addAnother(li)}
+                      aria-label={`Add another ${li.serviceName}`}
+                      className="px-3 py-1 text-navy hover:text-electric"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="w-20 text-right text-sm font-semibold text-navy">
+                    {formatCents(li.totalPriceCents)}
+                  </div>
+                </div>
               </div>
             ))}
             <div className="flex items-center justify-between bg-warmwhite p-4">
@@ -119,8 +161,13 @@ export default function MyVisitPage() {
                       <button
                         key={s.id}
                         onClick={() => addService(s)}
-                        className="rounded-card border border-cardline bg-white p-4 text-left shadow-card transition hover:border-electric"
+                        className="relative rounded-card border border-cardline bg-white p-4 text-left shadow-card transition hover:border-electric"
                       >
+                        {s.quantityInVisit > 0 && (
+                          <span className="absolute right-3 top-3 rounded-pill bg-electric px-2 py-0.5 text-xs font-semibold text-white">
+                            ×{s.quantityInVisit} added
+                          </span>
+                        )}
                         <div className="text-sm font-semibold text-navy">{s.name}</div>
                         <div className="mt-1 text-sm text-success">
                           +{formatCents(s.whileWeThereBasePrice!)}{" "}
@@ -165,7 +212,14 @@ export default function MyVisitPage() {
                               onClick={() => addService(s)}
                               className="flex w-full items-center justify-between p-4 text-left hover:bg-warmwhite"
                             >
-                              <span className="text-sm text-navy">{s.name}</span>
+                              <span className="text-sm text-navy">
+                                {s.name}
+                                {s.quantityInVisit > 0 && (
+                                  <span className="ml-2 text-xs font-semibold text-electric">
+                                    ×{s.quantityInVisit} added
+                                  </span>
+                                )}
+                              </span>
                               <span className="text-sm font-medium text-success">
                                 {s.whileWeThereBasePrice !== null
                                   ? `+${formatCents(s.whileWeThereBasePrice)}`
