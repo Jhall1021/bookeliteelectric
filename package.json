@@ -10,6 +10,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed-questions": "tsx prisma/seed-questions.ts",
+    "db:cleanup-old-new-outlet": "tsx prisma/cleanup-old-new-outlet.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

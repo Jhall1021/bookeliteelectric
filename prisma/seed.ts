@@ -63,8 +63,11 @@ const CATALOG: SeedCategory[] = [
     // distinct category/service set in the data model per client direction.
     navGroup: "outlets-switches",
     services: [
-      { slug: "new-120v-outlet-accessible", name: "New 120V Outlet — Attic/Basement Access", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 275 },
-      { slug: "new-120v-outlet-finished-wall", name: "New 120V Outlet — Finished-Wall Fishing", bookingType: "ADJUSTED", basePrice: 495, whileWeThereBasePrice: 375 },
+      // Single service, not two — the accessible-vs-finished-wall
+      // distinction is now determined by the decision tree (Question 2/3
+      // in seed-questions.ts), not by the customer pre-selecting a tier
+      // they may not be able to correctly self-classify into.
+      { slug: "new-120v-outlet", name: "New 120V Outlet", bookingType: "ADJUSTED", basePrice: 395, whileWeThereBasePrice: 275 },
       { slug: "dedicated-120v-circuit-outlet", name: "Dedicated 120V Circuit & Outlet", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $795" },
       { slug: "exterior-gfci-standard", name: "Exterior GFCI — Back-to-Back Power", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 275 },
       { slug: "exterior-gfci-other-routing", name: "Exterior GFCI — Other Routing", bookingType: "REMOTE_QUOTE" },

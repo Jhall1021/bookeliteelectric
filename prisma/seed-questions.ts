@@ -62,13 +62,15 @@ async function seedReplaceStandardOutlet() {
 }
 
 async function seedNewOutlet() {
-  // Demonstrates the reroute-to-a-different-service mechanic and the
-  // accessible-vs-finished-wall adjusted pricing branch.
-  const accessible = await prisma.service.findUniqueOrThrow({
-    where: { slug: "new-120v-outlet-accessible" },
-  });
-  const finishedWall = await prisma.service.findUniqueOrThrow({
-    where: { slug: "new-120v-outlet-finished-wall" },
+  // Redesigned per the general principle: don't ask the customer to
+  // self-classify into a pricing tier they can't articulate ("accessible"
+  // vs. "finished-wall fishing" means nothing to most homeowners). Instead,
+  // ask what they can actually observe about their home, and let the
+  // routing logic determine the tier. This collapses what used to be two
+  // separate Service catalog entries into one service with an internal
+  // ADJUSTED-pricing branch.
+  const newOutlet = await prisma.service.findUniqueOrThrow({
+    where: { slug: "new-120v-outlet" },
   });
   const dedicatedCircuit = await prisma.service.findUniqueOrThrow({
     where: { slug: "dedicated-120v-circuit-outlet" },
@@ -76,7 +78,7 @@ async function seedNewOutlet() {
 
   const q1 = await prisma.question.create({
     data: {
-      serviceId: accessible.id,
+      serviceId: newOutlet.id,
       key: "purpose",
       prompt: "What will this outlet power?",
       inputType: "SINGLE_SELECT",
@@ -86,15 +88,27 @@ async function seedNewOutlet() {
 
   const q2 = await prisma.question.create({
     data: {
-      serviceId: accessible.id,
-      key: "wall_access",
-      prompt: "Do you have attic or basement access near where the outlet is going?",
-      helpText: "This affects how the wire is routed to the new outlet.",
+      serviceId: newOutlet.id,
+      key: "below_above_access",
+      prompt: "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
+      helpText: "This is what determines whether we can run the wire without opening up your walls.",
       inputType: "SINGLE_SELECT",
       order: 2,
     },
   });
 
+  const q3 = await prisma.question.create({
+    data: {
+      serviceId: newOutlet.id,
+      key: "finished_space_both_sides",
+      prompt: "Is there finished living space directly above and below this wall?",
+      helpText: "For example, a finished bedroom upstairs and a finished room below, with no open access between them.",
+      inputType: "SINGLE_SELECT",
+      order: 3,
+    },
+  });
+
+  // Q1 — purpose
   await prisma.answerOption.createMany({
     data: [
       {
@@ -110,7 +124,8 @@ async function seedNewOutlet() {
         questionId: q1.id,
         label: "A specific large appliance (window AC, freezer, etc.)",
         value: "large_appliance",
-        // Different pricing/routing rules — reroute preserves nothing lost.
+        // Genuinely a different job — dedicated circuit sizing/breaker
+        // requirements, not just a harder pull. Reroute preserves nothing lost.
         routeAction: "REROUTE_SERVICE",
         rerouteServiceId: dedicatedCircuit.id,
         order: 2,
@@ -119,40 +134,63 @@ async function seedNewOutlet() {
     ],
   });
 
+  // Q2 — attic/basement access
   await prisma.answerOption.createMany({
     data: [
       {
         questionId: q2.id,
-        label: "Yes, it's accessible",
-        value: "accessible",
-        routeAction: "RESOLVE_INSTANT", // uses accessible.basePrice: $395
+        label: "Yes",
+        value: "has_access",
+        routeAction: "RESOLVE_INSTANT", // uses newOutlet.basePrice: $395
         order: 1,
         requiredPhotoLabels: [],
       },
       {
         questionId: q2.id,
-        label: "No — it's a finished wall/ceiling with no access",
-        value: "finished_wall",
-        // Different Service entirely (its own tree root), not just a
-        // price bump, since the finished-wall service has its own
-        // adjusted-pricing questions downstream.
-        routeAction: "REROUTE_SERVICE",
-        rerouteServiceId: finishedWall.id,
+        label: "No",
+        value: "no_access",
+        routeAction: "CONTINUE",
+        nextQuestionId: q3.id,
         order: 2,
         requiredPhotoLabels: [],
-      },
-      {
-        questionId: q2.id,
-        label: "I'm not sure",
-        value: "unsure",
-        routeAction: "PHOTO_REVIEW",
-        order: 3,
-        requiredPhotoLabels: ["Wall or ceiling where the outlet is needed", "Nearest attic/basement access point, if any"],
       },
     ],
   });
 
-  console.log("  ✓ New 120V Outlet tree (with reroute + photo review branches)");
+  // Q3 — finished space both sides (only reached if Q2 was "No")
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: q3.id,
+        label: "Yes",
+        value: "finished_both_sides",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 10000, // $395 -> $495: fishing wire + cutting/patching sheetrock
+        order: 1,
+        requiredPhotoLabels: [],
+      },
+      {
+        questionId: q3.id,
+        label: "No",
+        value: "not_finished_both_sides",
+        // No access AND no confirmed finished space (e.g. slab foundation,
+        // exterior wall) — genuinely ambiguous, don't guess at a price.
+        routeAction: "PHOTO_REVIEW",
+        order: 2,
+        requiredPhotoLabels: ["Wall where the outlet is needed, full height", "Nearest attic or basement access point, if any"],
+      },
+      {
+        questionId: q3.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        order: 3,
+        requiredPhotoLabels: ["Wall where the outlet is needed, full height", "Nearest attic or basement access point, if any"],
+      },
+    ],
+  });
+
+  console.log("  ✓ New 120V Outlet tree (diagnostic questions, single service with adjusted-price branch)");
 }
 
 async function seedTvInstall() {
