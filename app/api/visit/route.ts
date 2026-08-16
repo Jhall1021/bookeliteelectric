@@ -39,6 +39,14 @@ export async function POST(req: Request) {
 // DELETE ?lineItemId=... — removes ONE instance. If the customer added 3
 // outlet replacements and wants 2, this removes a single row, not the
 // whole group.
+//
+// If this delete removes the LAST primary line item while add-ons remain,
+// something still has to be the reason a technician is coming out. Rather
+// than repricing every remaining item to full rate, exactly ONE remaining
+// item is promoted to primary (full standalone price) and becomes the new
+// anchor for the visit — everything else keeps its existing While We're
+// There price, since that discount is still legitimate relative to the new
+// anchor job.
 export async function DELETE(req: Request) {
   const sessionId = getOrCreateSessionId();
   const { searchParams } = new URL(req.url);
@@ -48,8 +56,6 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Missing lineItemId" }, { status: 400 });
   }
 
-  // Confirm the line item belongs to this session's own open visit before
-  // deleting — prevents one customer from deleting another's cart item.
   const lineItem = await prisma.lineItem.findUnique({
     where: { id: lineItemId },
     include: { visit: true },
@@ -59,8 +65,33 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const visitId = lineItem.visitId;
   await prisma.lineItem.delete({ where: { id: lineItemId } });
-  return NextResponse.json({ ok: true });
+
+  const remaining = await prisma.lineItem.findMany({
+    where: { visitId },
+    include: { service: { select: { basePrice: true } } },
+    orderBy: { id: "asc" }, // earliest-added remaining item becomes the new anchor
+  });
+
+  const hasPrimaryLeft = remaining.some((li) => li.isPrimary);
+  let pricingAdjusted = false;
+
+  if (!hasPrimaryLeft && remaining.length > 0) {
+    const newAnchor = remaining[0];
+    // Only a service with its own standalone base price can anchor a visit —
+    // remote-quote-only services shouldn't reach this path since they can't
+    // be added as WWT add-ons in the first place, but this guards against it.
+    if (newAnchor.service.basePrice !== null) {
+      pricingAdjusted = true;
+      await prisma.lineItem.update({
+        where: { id: newAnchor.id },
+        data: { isPrimary: true, computedPriceCents: newAnchor.service.basePrice },
+      });
+    }
+  }
+
+  return NextResponse.json({ ok: true, pricingAdjusted });
 }
 
 // GET the current open visit, grouped by service + primary/add-on so

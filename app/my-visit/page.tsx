@@ -42,6 +42,7 @@ export default function MyVisitPage() {
   const [browsingAll, setBrowsingAll] = useState(false);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pricingNotice, setPricingNotice] = useState<string | null>(null);
 
   async function refresh() {
     const [visitRes, wwtRes] = await Promise.all([
@@ -79,7 +80,13 @@ export default function MyVisitPage() {
 
   async function removeOne(group: LineItemGroup) {
     const lastId = group.lineItemIds[group.lineItemIds.length - 1];
-    await fetch(`/api/visit?lineItemId=${lastId}`, { method: "DELETE" });
+    const res = await fetch(`/api/visit?lineItemId=${lastId}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.pricingAdjusted) {
+      setPricingNotice(
+        "Since that was your last main service, one of your remaining items is now the main service for this visit and is priced at its standalone rate — everything else keeps its While We're There pricing."
+      );
+    }
     refresh();
   }
 
@@ -111,6 +118,12 @@ export default function MyVisitPage() {
         </p>
       ) : (
         <>
+          {pricingNotice && (
+            <div className="mt-4 rounded-card border border-electric/30 bg-electric/5 p-4 text-sm text-navy">
+              {pricingNotice}
+            </div>
+          )}
+
           <div className="mt-6 divide-y divide-cardline rounded-card border border-cardline bg-white shadow-card">
             {lineItems.map((li) => (
               <div key={`${li.serviceId}:${li.isPrimary}`} className="flex items-center justify-between p-4">
