@@ -12,18 +12,31 @@ type LineItem = {
   priceCents: number;
 };
 
-type Suggestion = {
+type ServiceOption = {
   id: string;
   slug: string;
   name: string;
-  whileWeThereBasePrice: number;
+  whileWeThereBasePrice: number | null;
+  startingPriceLabel: string | null;
+  bookingType: string;
+  categorySlug: string;
+};
+
+type CategoryGroup = {
+  id: string;
+  slug: string;
+  name: string;
+  services: ServiceOption[];
 };
 
 export default function MyVisitPage() {
   const router = useRouter();
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [totalCents, setTotalCents] = useState(0);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [quickPicks, setQuickPicks] = useState<ServiceOption[]>([]);
+  const [categories, setCategories] = useState<CategoryGroup[]>([]);
+  const [browsingAll, setBrowsingAll] = useState(false);
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
@@ -33,7 +46,8 @@ export default function MyVisitPage() {
     ]);
     setLineItems(visitRes.lineItems ?? []);
     setTotalCents(visitRes.totalCents ?? 0);
-    setSuggestions(wwtRes.suggestions ?? []);
+    setQuickPicks(wwtRes.quickPicks ?? []);
+    setCategories(wwtRes.categories ?? []);
     setLoading(false);
   }
 
@@ -41,7 +55,14 @@ export default function MyVisitPage() {
     refresh();
   }, []);
 
-  async function addSuggestion(s: Suggestion) {
+  async function addService(s: ServiceOption) {
+    // Services without a preset While We're There price (remote-quote-only
+    // jobs) don't have an instant add-on price to lock in — send the
+    // customer into that service's own flow instead of faking a number.
+    if (s.whileWeThereBasePrice === null) {
+      router.push(`/services/${s.categorySlug}/${s.slug}`);
+      return;
+    }
     await fetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -85,26 +106,79 @@ export default function MyVisitPage() {
             </div>
           </div>
 
-          {suggestions.length > 0 && (
+          {(quickPicks.length > 0 || categories.length > 0) && (
             <div className="mt-10">
               <h2 className="font-display text-lg font-bold text-navy">
                 Would you like us to take care of anything else while we're there?
               </h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {suggestions.map((s) => (
+
+              {!browsingAll && (
+                <>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {quickPicks.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => addService(s)}
+                        className="rounded-card border border-cardline bg-white p-4 text-left shadow-card transition hover:border-electric"
+                      >
+                        <div className="text-sm font-semibold text-navy">{s.name}</div>
+                        <div className="mt-1 text-sm text-success">
+                          +{formatCents(s.whileWeThereBasePrice!)}{" "}
+                          <span className="text-xs text-slate">while we're there</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
                   <button
-                    key={s.id}
-                    onClick={() => addSuggestion(s)}
-                    className="rounded-card border border-cardline bg-white p-4 text-left shadow-card transition hover:border-electric"
+                    onClick={() => setBrowsingAll(true)}
+                    className="mt-4 text-sm font-medium text-electric"
                   >
-                    <div className="text-sm font-semibold text-navy">{s.name}</div>
-                    <div className="mt-1 text-sm text-success">
-                      +{formatCents(s.whileWeThereBasePrice)}{" "}
-                      <span className="text-xs text-slate">while we're there</span>
-                    </div>
+                    Browse all services →
                   </button>
-                ))}
-              </div>
+                </>
+              )}
+
+              {browsingAll && (
+                <div className="mt-4 space-y-2">
+                  <button
+                    onClick={() => setBrowsingAll(false)}
+                    className="mb-2 text-sm font-medium text-electric"
+                  >
+                    ← Back to quick picks
+                  </button>
+
+                  {categories.map((cat) => (
+                    <div key={cat.id} className="rounded-card border border-cardline bg-white shadow-card">
+                      <button
+                        onClick={() => setOpenCategory(openCategory === cat.id ? null : cat.id)}
+                        className="flex w-full items-center justify-between p-4 text-left"
+                      >
+                        <span className="text-sm font-semibold text-navy">{cat.name}</span>
+                        <span className="text-xs text-slate">{cat.services.length} services</span>
+                      </button>
+                      {openCategory === cat.id && (
+                        <div className="divide-y divide-cardline border-t border-cardline">
+                          {cat.services.map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() => addService(s)}
+                              className="flex w-full items-center justify-between p-4 text-left hover:bg-warmwhite"
+                            >
+                              <span className="text-sm text-navy">{s.name}</span>
+                              <span className="text-sm font-medium text-success">
+                                {s.whileWeThereBasePrice !== null
+                                  ? `+${formatCents(s.whileWeThereBasePrice)}`
+                                  : s.startingPriceLabel ?? "Custom quote"}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
