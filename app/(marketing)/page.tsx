@@ -23,25 +23,6 @@ const POPULAR_SERVICES = [
 export default function HomePage() {
   return (
     <main>
-      {/* Header */}
-      <header className="border-b border-cardline bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Image src="/images/elite-logo.png" alt="Elite Electric & Lighting" width={44} height={44} />
-          <nav className="hidden gap-8 text-sm font-medium text-navy md:flex">
-            <Link href="/how-it-works">How It Works</Link>
-            <Link href="/services">Services &amp; Pricing</Link>
-            <Link href="/why-elite">Why Elite</Link>
-            <Link href="/service-area">Service Area</Link>
-          </nav>
-          <Link
-            href="/services"
-            className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover"
-          >
-            Book Service
-          </Link>
-        </div>
-      </header>
-
       {/* Hero */}
       <section className="bg-navy text-white">
         <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:items-center">
