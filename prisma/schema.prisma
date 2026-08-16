@@ -53,6 +53,7 @@ model Service {
 
   questions    Question[]
   pricingRules PricingRule[]
+  lineItems    LineItem[]
 
   @@map("services")
 }
@@ -162,6 +163,7 @@ model LineItem {
   visitId        String
   visit          Visit   @relation(fields: [visitId], references: [id])
   serviceId      String
+  service        Service @relation(fields: [serviceId], references: [id])
   isPrimary      Boolean @default(true) // false = While We're There add-on
   answersSnapshot Json
   computedPriceCents Int
