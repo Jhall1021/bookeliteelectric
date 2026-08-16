@@ -23,6 +23,10 @@ export default function ServiceIntro({ name, description, basePrice, startingPri
           {basePrice ? formatCents(basePrice) : startingPriceLabel ?? "Custom Quote"}
         </span>
       </div>
+      <p className="mt-1 text-xs text-slate">
+        This price includes our visit to your home. Add more services on the next screen and
+        they'll cost less — no second visit fee.
+      </p>
 
       <button
         onClick={onContinue}

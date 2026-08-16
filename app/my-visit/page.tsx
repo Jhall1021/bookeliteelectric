@@ -167,6 +167,10 @@ export default function MyVisitPage() {
               <h2 className="font-display text-lg font-bold text-navy">
                 Would you like us to take care of anything else while we're there?
               </h2>
+              <p className="mt-1 text-sm text-slate">
+                Your visit fee is already covered — anything you add below skips it, so it's
+                priced lower than booking it on its own.
+              </p>
 
               {!browsingAll && (
                 <>

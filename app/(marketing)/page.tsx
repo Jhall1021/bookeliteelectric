@@ -33,6 +33,10 @@ export default function HomePage() {
             <p className="mt-4 text-lg text-slate-light">
               See your price. Pick your time.
             </p>
+            <p className="mt-2 text-sm text-white/60">
+              Your first service includes our visit — everything you add after that costs less,
+              because we're already there.
+            </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -62,6 +66,49 @@ export default function HomePage() {
           <div className="aspect-[4/3] rounded-card bg-navy-light" aria-hidden />
           {/* Replace with real residential-kitchen hero photography before launch —
               per brief: kitchens, living rooms, lighting, TVs, EV chargers, real homes. */}
+        </div>
+      </section>
+
+      {/* How pricing works */}
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <h2 className="font-display text-2xl font-bold text-navy">How Our Pricing Works</h2>
+        <p className="mt-2 max-w-2xl text-slate">
+          One visit fee, not one per job. Here's exactly how that plays out.
+        </p>
+
+        <div className="mt-8 grid gap-6 sm:grid-cols-3">
+          <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+            <div className="ray-accent flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
+              1
+            </div>
+            <h3 className="mt-4 font-display text-base font-bold text-navy">Pick your first service</h3>
+            <p className="mt-2 text-sm text-slate">
+              Its price covers our visit to your home — the technician, the truck, the trip.
+              That fee only gets charged once per visit.
+            </p>
+          </div>
+
+          <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
+              2
+            </div>
+            <h3 className="mt-4 font-display text-base font-bold text-navy">Add anything else, cheaper</h3>
+            <p className="mt-2 text-sm text-slate">
+              Since we're already at your house, every additional service you add is priced
+              lower — no second visit fee tacked on.
+            </p>
+          </div>
+
+          <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
+              3
+            </div>
+            <h3 className="mt-4 font-display text-base font-bold text-navy">One total, no surprises</h3>
+            <p className="mt-2 text-sm text-slate">
+              See the full price for everything before you book — not after we're standing in
+              your kitchen.
+            </p>
+          </div>
         </div>
       </section>
 
