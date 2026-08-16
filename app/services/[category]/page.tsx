@@ -24,7 +24,10 @@ export default async function CategoryPage({ params }: { params: { category: str
             className="rounded-card border border-cardline bg-white p-4 shadow-card transition hover:border-electric"
           >
             <div className="text-sm font-semibold text-navy">{svc.name}</div>
-            <div className="mt-1 text-sm text-slate">
+            {svc.shortDescription && (
+              <p className="mt-1 text-sm text-slate">{svc.shortDescription}</p>
+            )}
+            <div className="mt-2 text-sm font-medium text-navy">
               {svc.basePrice
                 ? `From ${formatCents(svc.basePrice)}`
                 : svc.startingPriceLabel ?? "Custom Quote"}

@@ -24,6 +24,7 @@ type ServiceOption = {
   bookingType: string;
   categorySlug: string;
   quantityInVisit: number;
+  shortDescription: string | null;
 };
 
 type CategoryGroup = {
@@ -182,6 +183,9 @@ export default function MyVisitPage() {
                           </span>
                         )}
                         <div className="text-sm font-semibold text-navy">{s.name}</div>
+                        {s.shortDescription && (
+                          <div className="mt-1 text-xs text-slate line-clamp-2">{s.shortDescription}</div>
+                        )}
                         <div className="mt-1 text-sm text-success">
                           +{formatCents(s.whileWeThereBasePrice!)}{" "}
                           <span className="text-xs text-slate">while we're there</span>
@@ -223,7 +227,7 @@ export default function MyVisitPage() {
                             <button
                               key={s.id}
                               onClick={() => addService(s)}
-                              className="flex w-full items-center justify-between p-4 text-left hover:bg-warmwhite"
+                              className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-warmwhite"
                             >
                               <span className="text-sm text-navy">
                                 {s.name}
@@ -232,8 +236,11 @@ export default function MyVisitPage() {
                                     ×{s.quantityInVisit} added
                                   </span>
                                 )}
+                                {s.shortDescription && (
+                                  <span className="mt-0.5 block text-xs text-slate">{s.shortDescription}</span>
+                                )}
                               </span>
-                              <span className="text-sm font-medium text-success">
+                              <span className="shrink-0 text-sm font-medium text-success">
                                 {s.whileWeThereBasePrice !== null
                                   ? `+${formatCents(s.whileWeThereBasePrice)}`
                                   : s.startingPriceLabel ?? "Custom quote"}

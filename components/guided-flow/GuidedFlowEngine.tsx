@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AnswerOptionDTO, QuestionDTO, ServiceFlowDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
+import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
 import RerouteNotice from "./RerouteNotice";
@@ -14,6 +15,7 @@ type Props = {
 };
 
 type TerminalState =
+  | { kind: "intro" }
   | { kind: "question"; question: QuestionDTO }
   | { kind: "resolved"; priceCents: number }
   | { kind: "reroute"; serviceId: string; reason: string }
@@ -26,6 +28,11 @@ type TerminalState =
  * per the Phase 1 architecture decision. Answers accumulate as the customer
  * moves through the tree; a REROUTE_SERVICE branch carries those answers
  * forward into the new service so nothing is lost (the "no dead ends" rule).
+ *
+ * Every flow opens on an intro screen showing the service's name and
+ * description before any questions are asked — so a customer who clicked
+ * "Replace Standard Outlet" can confirm that's really what they meant
+ * before committing to anything, rather than discovering a mismatch later.
  */
 export default function GuidedFlowEngine({ serviceSlug }: Props) {
   const router = useRouter();
@@ -42,15 +49,20 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       .then((data: ServiceFlowDTO) => {
         setFlow(data);
         setPriceCentsAccrued(data.basePrice ?? 0);
-        if (data.questions.length > 0) {
-          setState({ kind: "question", question: data.questions[0] });
-        } else {
-          // No qualifying questions at all — resolves immediately.
-          setState({ kind: "resolved", priceCents: data.basePrice ?? 0 });
-        }
+        setState({ kind: "intro" });
         setLoading(false);
       });
   }, [serviceSlug]);
+
+  function startQuestions() {
+    if (!flow) return;
+    if (flow.questions.length > 0) {
+      setState({ kind: "question", question: flow.questions[0] });
+    } else {
+      // No qualifying questions at all — resolves immediately.
+      setState({ kind: "resolved", priceCents: flow.basePrice ?? 0 });
+    }
+  }
 
   async function handleAnswer(question: QuestionDTO, option: AnswerOptionDTO) {
     const newAnswers = { ...answers, [question.key]: option.value };
@@ -105,6 +117,18 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
   if (loading || !flow || !state) {
     return <div className="py-16 text-center text-slate">Loading...</div>;
+  }
+
+  if (state.kind === "intro") {
+    return (
+      <ServiceIntro
+        name={flow.name}
+        description={flow.shortDescription}
+        basePrice={flow.basePrice}
+        startingPriceLabel={flow.startingPriceLabel}
+        onContinue={startQuestions}
+      />
+    );
   }
 
   if (state.kind === "question") {

@@ -33,6 +33,7 @@ export async function GET() {
           whileWeThereBasePrice: true,
           startingPriceLabel: true,
           bookingType: true,
+          shortDescription: true,
         },
       },
     },
