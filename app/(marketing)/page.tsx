@@ -1,0 +1,121 @@
+import Image from "next/image";
+import Link from "next/link";
+
+const TRUST_ITEMS = [
+  { label: "Upfront Flat-Rate Pricing" },
+  { label: "Licensed & Insured" },
+  { label: "3-Hour Arrival Windows" },
+  { label: "Professional Electricians" },
+  { label: "No Surprise Pricing" },
+];
+
+// A representative slice — the real Home page pulls "most popular" from the
+// database (booking counts), this is the Phase 1 static placeholder.
+const POPULAR_SERVICES = [
+  { name: "Outlet Replacement", from: "$225", href: "/services/outlets-switches/replace-standard-outlet" },
+  { name: "Light Fixture Replacement", from: "$295", href: "/services/lighting/replace-interior-light-fixture" },
+  { name: "Ceiling Fan Installation", from: "$395", href: "/services/fans/replace-ceiling-fan" },
+  { name: "TV Mount Installation", from: "$495", href: "/services/tv-media/tv-install-up-to-55" },
+  { name: "Recessed Lighting", from: "$995", href: "/services/lighting/recessed-lighting-4" },
+  { name: "EV Charger Installation", from: "$1,295", href: "/services/ev-garage/level-2-ev-charger" },
+];
+
+export default function HomePage() {
+  return (
+    <main>
+      {/* Header */}
+      <header className="border-b border-cardline bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Image src="/images/elite-logo.png" alt="Elite Electric & Lighting" width={44} height={44} />
+          <nav className="hidden gap-8 text-sm font-medium text-navy md:flex">
+            <Link href="/how-it-works">How It Works</Link>
+            <Link href="/services">Services &amp; Pricing</Link>
+            <Link href="/why-elite">Why Elite</Link>
+            <Link href="/service-area">Service Area</Link>
+          </nav>
+          <Link
+            href="/services"
+            className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover"
+          >
+            Book Service
+          </Link>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="bg-navy text-white">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:items-center">
+          <div>
+            <h1 className="font-display text-4xl font-bold leading-tight md:text-5xl">
+              The easier way to hire an electrician.
+            </h1>
+            <p className="mt-4 text-lg text-slate-light">
+              See your price. Pick your time.
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/services"
+                className="ray-accent rounded-pill bg-electric px-7 py-3.5 text-base font-semibold text-white transition hover:bg-electric-hover"
+              >
+                Book Your Service
+              </Link>
+              <Link
+                href="/troubleshooting"
+                className="rounded-pill border border-white/30 px-7 py-3.5 text-base font-semibold text-white transition hover:bg-white/10"
+              >
+                I Don&rsquo;t Know What&rsquo;s Wrong
+              </Link>
+            </div>
+
+            <ul className="mt-10 grid grid-cols-2 gap-x-6 gap-y-3 text-sm text-slate-light">
+              {TRUST_ITEMS.map((item) => (
+                <li key={item.label} className="flex items-center gap-2">
+                  <span className="text-success">✓</span>
+                  {item.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="aspect-[4/3] rounded-card bg-navy-light" aria-hidden />
+          {/* Replace with real residential-kitchen hero photography before launch —
+              per brief: kitchens, living rooms, lighting, TVs, EV chargers, real homes. */}
+        </div>
+      </section>
+
+      {/* Popular services */}
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <h2 className="font-display text-2xl font-bold text-navy">Most Popular Services</h2>
+        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+          {POPULAR_SERVICES.map((svc) => (
+            <Link
+              key={svc.href}
+              href={svc.href}
+              className="rounded-card border border-cardline bg-white p-4 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
+            >
+              <div className="text-sm font-semibold text-navy">{svc.name}</div>
+              <div className="mt-1 text-sm text-slate">From {svc.from}</div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* Service area */}
+      <section className="border-t border-cardline bg-white py-16 text-center">
+        <h2 className="font-display text-2xl font-bold text-navy">
+          Proudly Serving Monmouth &amp; Ocean Counties, NJ
+        </h2>
+        <p className="mt-2 text-slate">...and nearby communities.</p>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-charcoal py-12 text-white">
+        <div className="mx-auto max-w-6xl px-6 text-sm text-white/70">
+          <Image src="/images/elite-logo.png" alt="Elite Electric & Lighting" width={36} height={36} className="mb-4 invert" />
+          © {new Date().getFullYear()} Elite Electric &amp; Lighting. All rights reserved.
+        </div>
+      </footer>
+    </main>
+  );
+}
