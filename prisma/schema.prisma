@@ -1,0 +1,297 @@
+// BookEliteElectric.com — Prisma schema
+// Implements the data architecture from the approved Phase 0 plan.
+// Decision trees, pricing, and routing live as DATA here — not hardcoded pages.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Neon
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+model ServiceCategory {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  icon      String? // icon key, e.g. "outlet", "lighting", "fan"
+  sortOrder Int      @default(0)
+  // Lets New Outlets visually cluster near Outlets & Switches in the UI
+  // without merging the underlying category/service data.
+  navGroup  String?
+  services  Service[]
+
+  @@map("service_categories")
+}
+
+enum BookingType {
+  INSTANT // resolves to a fixed price immediately
+  ADJUSTED // fixed price with defined surcharge branches
+  REMOTE_QUOTE // photos + info -> office prices it -> customer approves
+  TROUBLESHOOT_ONLY // the $249 diagnostic service itself
+}
+
+model Service {
+  id                  String          @id @default(cuid())
+  slug                String          @unique
+  name                String
+  categoryId          String
+  category            ServiceCategory @relation(fields: [categoryId], references: [id])
+  bookingType         BookingType
+  basePrice           Int? // cents; null when Remote Quote has no anchor price
+  startingPriceLabel  String? // e.g. "From $1,295" for remote-quote services
+  whileWeThereBasePrice Int?
+  heroImage           String?
+  shortDescription     String?
+  requiresTechCount   Int             @default(1)
+  active              Boolean         @default(true)
+
+  questions    Question[]
+  pricingRules PricingRule[]
+
+  @@map("services")
+}
+
+enum InputType {
+  SINGLE_SELECT
+  MULTI_SELECT
+  NUMBER
+  PHOTO_UPLOAD
+  TEXT
+}
+
+model Question {
+  id        String        @id @default(cuid())
+  serviceId String
+  service   Service       @relation(fields: [serviceId], references: [id])
+  key       String // e.g. "wall_construction"
+  prompt    String
+  helpText  String?
+  inputType InputType
+  order     Int
+  options   AnswerOption[]
+
+  @@map("questions")
+}
+
+enum RouteAction {
+  CONTINUE // advance to nextQuestionId
+  RESOLVE_INSTANT // lock in Service.basePrice (+ any priceModifier)
+  RESOLVE_ADJUSTED // lock in base + priceModifier
+  REMOTE_QUOTE // collect photos, create a Quote
+  REROUTE_SERVICE // move to a different Service entirely, preserve answers
+  REROUTE_TROUBLESHOOTING // send to the $249 diagnostic flow
+  PHOTO_REVIEW // require photos before a price can be confirmed
+}
+
+model AnswerOption {
+  id                 String      @id @default(cuid())
+  questionId         String
+  question           Question    @relation(fields: [questionId], references: [id])
+  label              String // shown to the homeowner
+  value              String
+  priceModifierCents Int         @default(0)
+  nextQuestionId     String? // for CONTINUE
+  routeAction        RouteAction
+  rerouteServiceId   String? // for REROUTE_SERVICE
+  // Only populated when routeAction = PHOTO_REVIEW or REMOTE_QUOTE, and only
+  // when the photo affects price/eligibility/routing (universal photo rule).
+  requiredPhotoLabels String[]
+  order              Int
+
+  @@map("answer_options")
+}
+
+model PricingRule {
+  id                    String  @id @default(cuid())
+  serviceId             String
+  service               Service @relation(fields: [serviceId], references: [id])
+  condition             String // human-readable / evaluated condition key
+  adjustedPriceCents    Int?
+  adjustedWhileWeThereCents Int?
+  // Cross-service inheritance, e.g. Garage Door Opener Outlet inherits
+  // New 120V Outlet's two-tier pricing instead of duplicating it.
+  inheritsFromServiceId String?
+
+  @@map("pricing_rules")
+}
+
+// ---------------------------------------------------------------------------
+// Cart / Booking
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id        String     @id @default(cuid())
+  name      String?
+  email     String?
+  phone     String?
+  createdAt DateTime   @default(now())
+  visits    Visit[]
+  quotes    Quote[]
+  bookings  Booking[]
+
+  @@map("customers")
+}
+
+enum VisitStatus {
+  OPEN
+  CHECKED_OUT
+  ABANDONED
+}
+
+model Visit {
+  id         String      @id @default(cuid())
+  sessionId  String?
+  customerId String?
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+  status     VisitStatus @default(OPEN)
+  lineItems  LineItem[]
+  booking    Booking?
+  createdAt  DateTime    @default(now())
+
+  @@map("visits")
+}
+
+model LineItem {
+  id             String  @id @default(cuid())
+  visitId        String
+  visit          Visit   @relation(fields: [visitId], references: [id])
+  serviceId      String
+  isPrimary      Boolean @default(true) // false = While We're There add-on
+  answersSnapshot Json
+  computedPriceCents Int
+
+  @@map("line_items")
+}
+
+enum PaymentModel {
+  CARD_ON_FILE_CAPTURE_AFTER_COMPLETION // standard flat-rate bookings
+  TROUBLESHOOTING_CARD_ON_FILE
+  REMOTE_QUOTE_NO_UPFRONT
+}
+
+enum BookingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  visitId         String        @unique
+  visit           Visit         @relation(fields: [visitId], references: [id])
+  customerId      String
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  address         String
+  zipCode         String
+  arrivalWindowId String
+  arrivalWindow   ArrivalWindow @relation(fields: [arrivalWindowId], references: [id])
+  totalCents      Int
+  paymentModel    PaymentModel
+  paymentStatus   String        @default("authorized") // authorized | captured | failed
+  status          BookingStatus @default(SCHEDULED)
+  troubleshootingSession TroubleshootingSession?
+  createdAt       DateTime      @default(now())
+
+  @@map("bookings")
+}
+
+// ---------------------------------------------------------------------------
+// Remote Quotes
+// ---------------------------------------------------------------------------
+
+enum QuoteStatus {
+  SUBMITTED
+  IN_REVIEW
+  PRICED
+  APPROVED
+  EXPIRED
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  serviceId       String
+  answersSnapshot Json
+  status          QuoteStatus @default(SUBMITTED)
+  quotedPriceCents Int?
+  // Decided at approval time, not at submission — larger jobs may require one.
+  depositRequired Boolean?
+  depositCents    Int?
+  photos          Photo[]
+  createdAt       DateTime    @default(now())
+  quotedAt        DateTime?
+  approvedAt      DateTime?
+
+  @@map("quotes")
+}
+
+enum PhotoSource {
+  CUSTOMER_PRE_BOOKING
+  TECHNICIAN_CLOSEOUT
+}
+
+model Photo {
+  id        String      @id @default(cuid())
+  quoteId   String?
+  quote     Quote?      @relation(fields: [quoteId], references: [id])
+  bookingId String?
+  url       String
+  label     String
+  source    PhotoSource
+  uploadedAt DateTime   @default(now())
+
+  @@map("photos")
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling
+// ---------------------------------------------------------------------------
+
+model ServiceArea {
+  id       String   @id @default(cuid())
+  name     String // "Monmouth County, NJ"
+  zipCodes String[]
+  active   Boolean  @default(true)
+
+  @@map("service_areas")
+}
+
+model ArrivalWindow {
+  id             String    @id @default(cuid())
+  date           DateTime
+  startTime      String // "08:00"
+  endTime        String // "11:00"
+  serviceAreaId  String
+  capacityTotal  Int
+  capacityBooked Int       @default(0)
+  bookings       Booking[]
+
+  @@map("arrival_windows")
+}
+
+// ---------------------------------------------------------------------------
+// Troubleshooting ($249 diagnostic service)
+// ---------------------------------------------------------------------------
+
+model TroubleshootingSession {
+  id                String    @id @default(cuid())
+  bookingId         String    @unique
+  booking           Booking   @relation(fields: [bookingId], references: [id])
+  minutesUsed       Int       @default(60) // first 60 min included in $249
+  // Each approved +30-min increment logged with a timestamp. No customer-
+  // facing approval step at launch — documented operationally by the
+  // technician in the field.
+  approvedIncrements Json[]   @default([])
+  resolvedIssue     String?
+  followupServiceId String?
+  createdAt         DateTime  @default(now())
+
+  @@map("troubleshooting_sessions")
+}

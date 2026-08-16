@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+}
+
+body {
+  @apply bg-warmwhite text-navy font-body antialiased;
+}
+
+/* Signature motif: thin radiating lines echoing the Elite bulb mark.
+   Used sparingly — behind a confirmed price, or centered above a section
+   eyebrow. Never more than once per screen. */
+.ray-accent {
+  position: relative;
+}
+.ray-accent::before {
+  content: "";
+  position: absolute;
+  inset: -24px;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(36, 82, 217, 0.06) 0deg 4deg,
+    transparent 4deg 18deg
+  );
+  border-radius: 50%;
+  z-index: -1;
+}
+
+/* Visible keyboard focus everywhere (accessibility floor) */
+:focus-visible {
+  outline: 2px solid theme("colors.electric.DEFAULT");
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

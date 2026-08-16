@@ -1,0 +1,55 @@
+# BookEliteElectric.com — Phase 1 Scaffold
+
+This is the Phase 1 deliverable from the approved architecture: project
+scaffold, database schema, seed data, brand tokens, and the Home page.
+
+It was built in a sandbox with no internet access, so `npm install` hasn't
+been run and nothing has been deployed. Everything here is source code ready
+to drop into your own environment.
+
+## What's included
+
+- **`prisma/schema.prisma`** — the full data model (categories, services,
+  question/answer decision trees, pricing rules, visits, bookings, quotes,
+  photos, arrival windows, troubleshooting sessions) matching the approved
+  architecture doc.
+- **`prisma/seed.ts`** — all 13 service categories and the complete Section 4
+  price book (~65 services) from the master operating doc, ready to load into
+  a fresh database. Question/answer decision trees (Section 6) are **not**
+  seeded yet — that's Phase 2/4 work, entered per-service once the guided-flow
+  engine is built.
+- **`tailwind.config.ts`** + **`styles/globals.css`** — brand tokens (navy /
+  electric blue / warm white palette from your storyboard) plus one signature
+  motif: a thin radiating-line accent pulled from the bulb mark in your logo,
+  used sparingly behind the primary CTA.
+- **`app/(marketing)/page.tsx`** — the Home page, structured to match your
+  approved storyboard (hero, trust bar, popular services, service area,
+  footer with your actual logo).
+
+## Running it locally
+
+```bash
+npm install
+cp .env.example .env      # fill in your Neon connection string
+npx prisma db push        # creates tables from schema.prisma
+npm run db:seed           # loads the 13 categories + price book
+npm run dev                # http://localhost:3000
+```
+
+You'll need:
+- A Neon Postgres project (`DATABASE_URL` in `.env`)
+- Node.js 20+
+
+Cloudflare R2, Stripe, and SMS/email credentials aren't needed until photo
+upload and checkout are built (Phase 3 / Phase 6) — the `.env.example`
+placeholders are there for when you get to them.
+
+## What's next (per the phased plan)
+
+- **Phase 2** — generic guided-flow engine + first decision trees (Outlets &
+  Switches, TV & Media) wired end-to-end through My Visit → checkout.
+- **Phase 3** — remote-quote pilot (photo upload, Quote status page) on one
+  variable category.
+- **Phase 4** — remaining ~11 category trees, using the proven engine.
+
+See the architecture document for full details on each phase.
