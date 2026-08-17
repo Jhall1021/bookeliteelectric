@@ -48,6 +48,10 @@ model Service {
   whileWeThereBasePrice Int?
   heroImage           String?
   shortDescription     String?
+  // Optional override for the category's icon — e.g. "Outlets & Switches"
+  // needs both an outlet icon and a switch icon, not one icon for the
+  // whole category. Falls back to ServiceCategory.icon when null.
+  icon                String?
   requiresTechCount   Int             @default(1)
   active              Boolean         @default(true)
 

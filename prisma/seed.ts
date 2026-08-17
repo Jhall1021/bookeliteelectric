@@ -4,10 +4,12 @@
  *
  * Prices are stored in cents. Run with: npx prisma db seed
  *
- * Every service has a shortDescription — shown on the category browse page,
- * the guided-flow intro screen, and While We're There add-on tiles, so a
- * customer never clicks a service unsure of exactly what it covers (e.g.
- * distinguishing "Replace Standard Outlet" from "New 120V Outlet").
+ * Every service has a shortDescription (shown wherever a customer selects
+ * a service) and an icon — a simple line-art icon key rendered via
+ * components/shared/Icons.tsx. Most services fall back to their category's
+ * icon; a service only sets its own `icon` when the category mixes visually
+ * distinct job types (e.g. "Outlets & Switches" needs both an outlet icon
+ * and a switch icon, not one icon for the whole category).
  *
  * NOTE: this seeds Services and Categories only. Question/AnswerOption trees
  * (Section 6 of the master doc) are entered per-service as Phase 2/4 work.
@@ -29,6 +31,7 @@ type SeedService = {
   startingPriceLabel?: string;
   whileWeThereBasePrice?: number; // dollars
   requiresTechCount?: number;
+  icon?: string; // override; falls back to category icon when omitted
 };
 
 type SeedCategory = {
@@ -47,16 +50,16 @@ const CATALOG: SeedCategory[] = [
     name: "Outlets & Switches",
     icon: "outlet",
     services: [
-      { slug: "replace-standard-outlet", name: "Replace Standard Outlet", bookingType: "INSTANT", basePrice: 225, whileWeThereBasePrice: 75, description: "Swapping out an existing outlet that's already there — cracked, discolored, loose, or just old — for a brand-new one in the same spot. This does NOT add a new outlet anywhere new; see \"New 120V Outlet\" for that." },
-      { slug: "replace-gfci-outlet", name: "Replace GFCI Outlet", bookingType: "INSTANT", basePrice: 275, whileWeThereBasePrice: 125, description: "Swapping an existing GFCI (the outlet with the TEST/RESET buttons, usually in kitchens, bathrooms, or garages) for a new one in the same location." },
-      { slug: "replace-standard-switch", name: "Replace Standard Switch", bookingType: "INSTANT", basePrice: 225, whileWeThereBasePrice: 75, description: "Swapping an existing single light switch for a new one in the same location." },
-      { slug: "replace-3-way-switch", name: "Replace 3-Way Switch", bookingType: "INSTANT", basePrice: 265, whileWeThereBasePrice: 115, description: "Swapping one switch in a pair that controls the same light from two locations (like a hallway or stairwell)." },
-      { slug: "replace-led-dimmer", name: "Replace LED Dimmer", bookingType: "INSTANT", basePrice: 275, whileWeThereBasePrice: 125, description: "Swapping an existing dimmer switch for a new LED-compatible dimmer in the same location." },
-      { slug: "customer-supplied-smart-switch", name: "Customer-Supplied Smart Switch", bookingType: "ADJUSTED", basePrice: 295, whileWeThereBasePrice: 145, description: "Installing a smart switch you've already purchased (Lutron, Kasa, etc.) in place of an existing switch. We'll confirm your wiring has a neutral wire before booking." },
-      { slug: "usb-outlet-upgrade", name: "USB / USB-C Outlet Upgrade", bookingType: "INSTANT", basePrice: 275, whileWeThereBasePrice: 125, description: "Replacing an existing outlet with a combo outlet that includes built-in USB / USB-C charging ports." },
-      { slug: "smart-outlet-upgrade", name: "Smart Outlet Upgrade", bookingType: "ADJUSTED", basePrice: 295, whileWeThereBasePrice: 145, description: "Replacing an existing outlet with a Wi-Fi smart outlet you can control from your phone." },
-      { slug: "occupancy-motion-switch", name: "Occupancy / Motion Sensor Switch", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 145, description: "Replacing an existing switch with one that turns the light on/off automatically based on motion in the room." },
-      { slug: "timer-switch-install", name: "Timer Switch Installation", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 145, description: "Replacing an existing switch with a timer switch that turns the light off automatically after a set time." },
+      { slug: "replace-standard-outlet", name: "Replace Standard Outlet", bookingType: "INSTANT", basePrice: 225, whileWeThereBasePrice: 75, icon: "outlet", description: "Swapping out an existing outlet that's already there — cracked, discolored, loose, or just old — for a brand-new one in the same spot. This does NOT add a new outlet anywhere new; see \"New 120V Outlet\" for that." },
+      { slug: "replace-gfci-outlet", name: "Replace GFCI Outlet", bookingType: "INSTANT", basePrice: 275, whileWeThereBasePrice: 125, icon: "outlet", description: "Swapping an existing GFCI (the outlet with the TEST/RESET buttons, usually in kitchens, bathrooms, or garages) for a new one in the same location." },
+      { slug: "replace-standard-switch", name: "Replace Standard Switch", bookingType: "INSTANT", basePrice: 225, whileWeThereBasePrice: 75, icon: "switch", description: "Swapping an existing single light switch for a new one in the same location." },
+      { slug: "replace-3-way-switch", name: "Replace 3-Way Switch", bookingType: "INSTANT", basePrice: 265, whileWeThereBasePrice: 115, icon: "switch", description: "Swapping one switch in a pair that controls the same light from two locations (like a hallway or stairwell)." },
+      { slug: "replace-led-dimmer", name: "Replace LED Dimmer", bookingType: "INSTANT", basePrice: 275, whileWeThereBasePrice: 125, icon: "switch", description: "Swapping an existing dimmer switch for a new LED-compatible dimmer in the same location." },
+      { slug: "customer-supplied-smart-switch", name: "Customer-Supplied Smart Switch", bookingType: "ADJUSTED", basePrice: 295, whileWeThereBasePrice: 145, icon: "switch", description: "Installing a smart switch you've already purchased (Lutron, Kasa, etc.) in place of an existing switch. We'll confirm your wiring has a neutral wire before booking." },
+      { slug: "usb-outlet-upgrade", name: "USB / USB-C Outlet Upgrade", bookingType: "INSTANT", basePrice: 275, whileWeThereBasePrice: 125, icon: "outlet", description: "Replacing an existing outlet with a combo outlet that includes built-in USB / USB-C charging ports." },
+      { slug: "smart-outlet-upgrade", name: "Smart Outlet Upgrade", bookingType: "ADJUSTED", basePrice: 295, whileWeThereBasePrice: 145, icon: "outlet", description: "Replacing an existing outlet with a Wi-Fi smart outlet you can control from your phone." },
+      { slug: "occupancy-motion-switch", name: "Occupancy / Motion Sensor Switch", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 145, icon: "switch", description: "Replacing an existing switch with one that turns the light on/off automatically based on motion in the room." },
+      { slug: "timer-switch-install", name: "Timer Switch Installation", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 145, icon: "switch", description: "Replacing an existing switch with a timer switch that turns the light off automatically after a set time." },
     ],
   },
   {
@@ -65,28 +68,28 @@ const CATALOG: SeedCategory[] = [
     icon: "new-outlet",
     navGroup: "outlets-switches",
     services: [
-      { slug: "new-120v-outlet", name: "New 120V Outlet", bookingType: "ADJUSTED", basePrice: 395, whileWeThereBasePrice: 275, description: "Adding a brand-new outlet somewhere that doesn't currently have one — a new location on your wall, not a replacement of an existing outlet. Price depends on whether we have attic/basement access or need to open the wall." },
-      { slug: "dedicated-120v-circuit-outlet", name: "Dedicated 120V Circuit & Outlet", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $795", description: "A new outlet run on its own dedicated circuit back to the panel, for a specific large appliance (window AC, freezer, sump pump, etc.) that needs power to itself." },
-      { slug: "exterior-gfci-standard", name: "Exterior GFCI — Back-to-Back Power", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 275, description: "A new outdoor weatherproof GFCI outlet, in a location with power already available directly on the other side of that exterior wall." },
-      { slug: "exterior-gfci-other-routing", name: "Exterior GFCI — Other Routing", bookingType: "REMOTE_QUOTE", description: "A new outdoor weatherproof GFCI outlet where power isn't directly available on the other side of the wall, requiring a longer wire run." },
-      { slug: "garage-door-opener-outlet", name: "Garage Door Opener Outlet", bookingType: "ADJUSTED", startingPriceLabel: "$395–$495", description: "A new outlet installed near your garage door opener motor on the ceiling, so it's no longer running on an extension cord." },
-      { slug: "bidet-smart-toilet-outlet", name: "Bidet / Smart Toilet Outlet", bookingType: "ADJUSTED", startingPriceLabel: "$395–$495", description: "A new outlet installed near the toilet to power a bidet attachment or smart toilet seat." },
+      { slug: "new-120v-outlet", name: "New 120V Outlet", bookingType: "ADJUSTED", basePrice: 395, whileWeThereBasePrice: 275, icon: "new-outlet", description: "Adding a brand-new outlet somewhere that doesn't currently have one — a new location on your wall, not a replacement of an existing outlet. Price depends on whether we have attic/basement access or need to open the wall." },
+      { slug: "dedicated-120v-circuit-outlet", name: "Dedicated 120V Circuit & Outlet", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $795", icon: "circuit", description: "A new outlet run on its own dedicated circuit back to the panel, for a specific large appliance (window AC, freezer, sump pump, etc.) that needs power to itself." },
+      { slug: "exterior-gfci-standard", name: "Exterior GFCI — Back-to-Back Power", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 275, icon: "exterior-outlet", description: "A new outdoor weatherproof GFCI outlet, in a location with power already available directly on the other side of that exterior wall." },
+      { slug: "exterior-gfci-other-routing", name: "Exterior GFCI — Other Routing", bookingType: "REMOTE_QUOTE", icon: "exterior-outlet", description: "A new outdoor weatherproof GFCI outlet where power isn't directly available on the other side of the wall, requiring a longer wire run." },
+      { slug: "garage-door-opener-outlet", name: "Garage Door Opener Outlet", bookingType: "ADJUSTED", startingPriceLabel: "$395–$495", icon: "new-outlet", description: "A new outlet installed near your garage door opener motor on the ceiling, so it's no longer running on an extension cord." },
+      { slug: "bidet-smart-toilet-outlet", name: "Bidet / Smart Toilet Outlet", bookingType: "ADJUSTED", startingPriceLabel: "$395–$495", icon: "new-outlet", description: "A new outlet installed near the toilet to power a bidet attachment or smart toilet seat." },
     ],
   },
   {
     slug: "lighting",
     name: "Lighting",
-    icon: "lighting",
+    icon: "light",
     services: [
-      { slug: "replace-interior-light-fixture", name: "Replace Interior Light Fixture", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 175, description: "Removing your existing interior light fixture and installing a new one you provide, in the same location." },
-      { slug: "replace-exterior-light-fixture", name: "Replace Exterior Light Fixture", bookingType: "INSTANT", basePrice: 325, whileWeThereBasePrice: 195, description: "Removing your existing outdoor light fixture and installing a new one you provide, in the same location." },
-      { slug: "replace-motion-flood-light", name: "Replace Motion / Flood Light", bookingType: "INSTANT", basePrice: 345, whileWeThereBasePrice: 195, description: "Swapping an existing motion-activated or flood light fixture for a new one in the same location." },
-      { slug: "recessed-lighting-4", name: "Install 4 LED Recessed Lights", bookingType: "ADJUSTED", basePrice: 995, description: "Adding 4 new recessed \"can\" lights into an existing ceiling that doesn't currently have them." },
-      { slug: "recessed-lighting-6", name: "Install 6 LED Recessed Lights", bookingType: "ADJUSTED", basePrice: 1395, description: "Adding 6 new recessed \"can\" lights into an existing ceiling that doesn't currently have them." },
-      { slug: "recessed-lighting-8", name: "Install 8 LED Recessed Lights", bookingType: "ADJUSTED", basePrice: 1795, description: "Adding 8 new recessed \"can\" lights into an existing ceiling that doesn't currently have them." },
-      { slug: "under-cabinet-led-lighting", name: "Professional LED Under-Cabinet Lighting", bookingType: "REMOTE_QUOTE", startingPriceLabel: "Custom Quote", description: "Adding LED strip or puck lighting underneath your kitchen (or other) cabinets, wired in rather than battery-powered." },
-      { slug: "outdoor-landscape-lighting", name: "Outdoor Landscape Lighting", bookingType: "REMOTE_QUOTE", description: "Adding low-voltage lighting along walkways, garden beds, or architectural features in your yard." },
-      { slug: "new-exterior-lighting-locations", name: "New Exterior Lighting Locations", bookingType: "REMOTE_QUOTE", description: "Adding a light fixture to an outdoor location that doesn't currently have one or existing wiring." },
+      { slug: "replace-interior-light-fixture", name: "Replace Interior Light Fixture", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 175, icon: "light", description: "Removing your existing interior light fixture and installing a new one you provide, in the same location." },
+      { slug: "replace-exterior-light-fixture", name: "Replace Exterior Light Fixture", bookingType: "INSTANT", basePrice: 325, whileWeThereBasePrice: 195, icon: "light", description: "Removing your existing outdoor light fixture and installing a new one you provide, in the same location." },
+      { slug: "replace-motion-flood-light", name: "Replace Motion / Flood Light", bookingType: "INSTANT", basePrice: 345, whileWeThereBasePrice: 195, icon: "light", description: "Swapping an existing motion-activated or flood light fixture for a new one in the same location." },
+      { slug: "recessed-lighting-4", name: "Install 4 LED Recessed Lights", bookingType: "ADJUSTED", basePrice: 995, icon: "recessed", description: "Adding 4 new recessed \"can\" lights into an existing ceiling that doesn't currently have them." },
+      { slug: "recessed-lighting-6", name: "Install 6 LED Recessed Lights", bookingType: "ADJUSTED", basePrice: 1395, icon: "recessed", description: "Adding 6 new recessed \"can\" lights into an existing ceiling that doesn't currently have them." },
+      { slug: "recessed-lighting-8", name: "Install 8 LED Recessed Lights", bookingType: "ADJUSTED", basePrice: 1795, icon: "recessed", description: "Adding 8 new recessed \"can\" lights into an existing ceiling that doesn't currently have them." },
+      { slug: "under-cabinet-led-lighting", name: "Professional LED Under-Cabinet Lighting", bookingType: "REMOTE_QUOTE", startingPriceLabel: "Custom Quote", icon: "under-cabinet", description: "Adding LED strip or puck lighting underneath your kitchen (or other) cabinets, wired in rather than battery-powered." },
+      { slug: "outdoor-landscape-lighting", name: "Outdoor Landscape Lighting", bookingType: "REMOTE_QUOTE", icon: "landscape", description: "Adding low-voltage lighting along walkways, garden beds, or architectural features in your yard." },
+      { slug: "new-exterior-lighting-locations", name: "New Exterior Lighting Locations", bookingType: "REMOTE_QUOTE", icon: "landscape", description: "Adding a light fixture to an outdoor location that doesn't currently have one or existing wiring." },
     ],
   },
   {
@@ -94,10 +97,10 @@ const CATALOG: SeedCategory[] = [
     name: "Fans",
     icon: "fan",
     services: [
-      { slug: "replace-ceiling-fan", name: "Replace Existing Ceiling Fan", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 275, description: "Removing your existing ceiling fan and installing a new one you provide, in the same location, using the existing electrical box." },
-      { slug: "fan-replacing-light", name: "Fan Replacing Existing Light", bookingType: "ADJUSTED", basePrice: 495, description: "Removing a ceiling light fixture (not a fan) and installing a ceiling fan in its place — this requires confirming the existing box can support a fan's weight." },
-      { slug: "replace-bathroom-exhaust-fan", name: "Replace Bathroom Exhaust Fan", bookingType: "REMOTE_QUOTE", startingPriceLabel: "$525", description: "Removing your existing bathroom exhaust fan and installing a new one in the same location, including ducting checks." },
-      { slug: "bathroom-fan-light-combo", name: "Bathroom Exhaust Fan + Light Combo", bookingType: "ADJUSTED", basePrice: 595, description: "Replacing a bathroom exhaust fan with a combination fan/light unit in the same location." },
+      { slug: "replace-ceiling-fan", name: "Replace Existing Ceiling Fan", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 275, icon: "fan", description: "Removing your existing ceiling fan and installing a new one you provide, in the same location, using the existing electrical box." },
+      { slug: "fan-replacing-light", name: "Fan Replacing Existing Light", bookingType: "ADJUSTED", basePrice: 495, icon: "fan", description: "Removing a ceiling light fixture (not a fan) and installing a ceiling fan in its place — this requires confirming the existing box can support a fan's weight." },
+      { slug: "replace-bathroom-exhaust-fan", name: "Replace Bathroom Exhaust Fan", bookingType: "REMOTE_QUOTE", startingPriceLabel: "$525", icon: "exhaust-fan", description: "Removing your existing bathroom exhaust fan and installing a new one in the same location, including ducting checks." },
+      { slug: "bathroom-fan-light-combo", name: "Bathroom Exhaust Fan + Light Combo", bookingType: "ADJUSTED", basePrice: 595, icon: "exhaust-fan", description: "Replacing a bathroom exhaust fan with a combination fan/light unit in the same location." },
     ],
   },
   {
@@ -105,11 +108,11 @@ const CATALOG: SeedCategory[] = [
     name: "TV & Media",
     icon: "tv",
     services: [
-      { slug: "tv-install-up-to-55", name: "Professional TV Install — Up to 55 in", bookingType: "INSTANT", basePrice: 495, whileWeThereBasePrice: 395, requiresTechCount: 1, description: "Mounting a TV up to 55 inches on your wall, with cable concealment. Does not include the mount itself unless you add one." },
-      { slug: "tv-install-56-85", name: "Professional TV Install — 56–85 in", bookingType: "INSTANT", basePrice: 695, whileWeThereBasePrice: 595, requiresTechCount: 2, description: "Mounting a larger TV (56\"–85\") on your wall — requires two technicians given the size and weight." },
-      { slug: "tv-install-over-85", name: "TV Install — Over 85 in", bookingType: "REMOTE_QUOTE", description: "Mounting an extra-large TV (over 85\") — priced individually given the weight and wall-reinforcement considerations." },
-      { slug: "elite-tilt-mount", name: "Elite Tilt TV Mount", bookingType: "ADJUSTED", basePrice: 99, whileWeThereBasePrice: 99, description: "An Elite-supplied tilting wall mount, added to a TV installation if you don't already have a compatible mount." },
-      { slug: "elite-articulating-mount", name: "Elite Full-Motion Articulating Mount", bookingType: "ADJUSTED", basePrice: 179, whileWeThereBasePrice: 179, description: "An Elite-supplied full-motion (swivel/extend) wall mount, added to a TV installation if you don't already have a compatible mount." },
+      { slug: "tv-install-up-to-55", name: "Professional TV Install — Up to 55 in", bookingType: "INSTANT", basePrice: 495, whileWeThereBasePrice: 395, requiresTechCount: 1, icon: "tv", description: "Mounting a TV up to 55 inches on your wall, with cable concealment. Does not include the mount itself unless you add one." },
+      { slug: "tv-install-56-85", name: "Professional TV Install — 56–85 in", bookingType: "INSTANT", basePrice: 695, whileWeThereBasePrice: 595, requiresTechCount: 2, icon: "tv", description: "Mounting a larger TV (56\"–85\") on your wall — requires two technicians given the size and weight." },
+      { slug: "tv-install-over-85", name: "TV Install — Over 85 in", bookingType: "REMOTE_QUOTE", icon: "tv", description: "Mounting an extra-large TV (over 85\") — priced individually given the weight and wall-reinforcement considerations." },
+      { slug: "elite-tilt-mount", name: "Elite Tilt TV Mount", bookingType: "ADJUSTED", basePrice: 99, whileWeThereBasePrice: 99, icon: "mount", description: "An Elite-supplied tilting wall mount, added to a TV installation if you don't already have a compatible mount." },
+      { slug: "elite-articulating-mount", name: "Elite Full-Motion Articulating Mount", bookingType: "ADJUSTED", basePrice: 179, whileWeThereBasePrice: 179, icon: "mount", description: "An Elite-supplied full-motion (swivel/extend) wall mount, added to a TV installation if you don't already have a compatible mount." },
     ],
   },
   {
@@ -117,14 +120,14 @@ const CATALOG: SeedCategory[] = [
     name: "Appliance Installation",
     icon: "appliance",
     services: [
-      { slug: "otr-microwave-install", name: "Over-the-Range Microwave", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 295, description: "Installing an over-the-range microwave in place of an existing one, or where the electrical is already in place." },
-      { slug: "dishwasher-electrical", name: "Dishwasher Electrical Connection / Replacement", bookingType: "INSTANT", basePrice: 325, whileWeThereBasePrice: 225, description: "The electrical connection for a new or replacement dishwasher, using existing wiring already in place." },
-      { slug: "garbage-disposal-install", name: "Garbage Disposal Install / Electrical Connection", bookingType: "INSTANT", basePrice: 325, whileWeThereBasePrice: 225, description: "The electrical connection for a new or replacement garbage disposal, using existing wiring already in place." },
-      { slug: "range-hood-replacement", name: "Range Hood Replacement", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 295, description: "Removing an existing range hood and installing a new one you provide, using the existing electrical connection." },
-      { slug: "range-receptacle-replacement", name: "Electric Range Receptacle Replacement", bookingType: "REMOTE_QUOTE", startingPriceLabel: "$395", description: "Replacing the existing high-voltage outlet behind your electric range/stove, in the same location." },
-      { slug: "dryer-receptacle-replacement", name: "Electric Dryer Receptacle Replacement", bookingType: "REMOTE_QUOTE", startingPriceLabel: "$395", description: "Replacing the existing high-voltage outlet behind your dryer, in the same location." },
-      { slug: "new-range-circuit", name: "New Range Circuit / Receptacle", bookingType: "REMOTE_QUOTE", description: "Adding a brand-new dedicated circuit and outlet for an electric range, where one doesn't currently exist." },
-      { slug: "new-dryer-circuit", name: "New Dryer Circuit / Receptacle", bookingType: "REMOTE_QUOTE", description: "Adding a brand-new dedicated circuit and outlet for a dryer, where one doesn't currently exist." },
+      { slug: "otr-microwave-install", name: "Over-the-Range Microwave", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 295, icon: "kitchen-appliance", description: "Installing an over-the-range microwave in place of an existing one, or where the electrical is already in place." },
+      { slug: "dishwasher-electrical", name: "Dishwasher Electrical Connection / Replacement", bookingType: "INSTANT", basePrice: 325, whileWeThereBasePrice: 225, icon: "kitchen-appliance", description: "The electrical connection for a new or replacement dishwasher, using existing wiring already in place." },
+      { slug: "garbage-disposal-install", name: "Garbage Disposal Install / Electrical Connection", bookingType: "INSTANT", basePrice: 325, whileWeThereBasePrice: 225, icon: "kitchen-appliance", description: "The electrical connection for a new or replacement garbage disposal, using existing wiring already in place." },
+      { slug: "range-hood-replacement", name: "Range Hood Replacement", bookingType: "INSTANT", basePrice: 395, whileWeThereBasePrice: 295, icon: "kitchen-appliance", description: "Removing an existing range hood and installing a new one you provide, using the existing electrical connection." },
+      { slug: "range-receptacle-replacement", name: "Electric Range Receptacle Replacement", bookingType: "REMOTE_QUOTE", startingPriceLabel: "$395", icon: "kitchen-appliance", description: "Replacing the existing high-voltage outlet behind your electric range/stove, in the same location." },
+      { slug: "dryer-receptacle-replacement", name: "Electric Dryer Receptacle Replacement", bookingType: "REMOTE_QUOTE", startingPriceLabel: "$395", icon: "laundry", description: "Replacing the existing high-voltage outlet behind your dryer, in the same location." },
+      { slug: "new-range-circuit", name: "New Range Circuit / Receptacle", bookingType: "REMOTE_QUOTE", icon: "kitchen-appliance", description: "Adding a brand-new dedicated circuit and outlet for an electric range, where one doesn't currently exist." },
+      { slug: "new-dryer-circuit", name: "New Dryer Circuit / Receptacle", bookingType: "REMOTE_QUOTE", icon: "laundry", description: "Adding a brand-new dedicated circuit and outlet for a dryer, where one doesn't currently exist." },
     ],
   },
   {
@@ -132,10 +135,10 @@ const CATALOG: SeedCategory[] = [
     name: "Safety & Protection",
     icon: "shield",
     services: [
-      { slug: "hardwired-smoke-detector", name: "Hardwired Smoke Detector", bookingType: "INSTANT", basePrice: 225, whileWeThereBasePrice: 85, description: "Replacing an existing hardwired smoke detector in the same location." },
-      { slug: "smoke-co-detector", name: "Smoke / CO Detector", bookingType: "INSTANT", basePrice: 265, whileWeThereBasePrice: 125, description: "Replacing an existing hardwired combination smoke/carbon monoxide detector in the same location." },
-      { slug: "whole-house-surge-protection", name: "Whole-House Surge Protection", bookingType: "ADJUSTED", basePrice: 695, description: "Installing a surge protector directly at your electrical panel to protect everything in your home from power surges." },
-      { slug: "home-electrical-safety-inspection", name: "Home Electrical Safety Inspection", bookingType: "INSTANT", basePrice: 295, description: "A general visual and functional inspection of your home's electrical system, with a written summary of anything that needs attention." },
+      { slug: "hardwired-smoke-detector", name: "Hardwired Smoke Detector", bookingType: "INSTANT", basePrice: 225, whileWeThereBasePrice: 85, icon: "smoke-detector", description: "Replacing an existing hardwired smoke detector in the same location." },
+      { slug: "smoke-co-detector", name: "Smoke / CO Detector", bookingType: "INSTANT", basePrice: 265, whileWeThereBasePrice: 125, icon: "smoke-detector", description: "Replacing an existing hardwired combination smoke/carbon monoxide detector in the same location." },
+      { slug: "whole-house-surge-protection", name: "Whole-House Surge Protection", bookingType: "ADJUSTED", basePrice: 695, icon: "surge", description: "Installing a surge protector directly at your electrical panel to protect everything in your home from power surges." },
+      { slug: "home-electrical-safety-inspection", name: "Home Electrical Safety Inspection", bookingType: "INSTANT", basePrice: 295, icon: "inspection", description: "A general visual and functional inspection of your home's electrical system, with a written summary of anything that needs attention." },
     ],
   },
   {
@@ -143,12 +146,12 @@ const CATALOG: SeedCategory[] = [
     name: "Smart Home & Security",
     icon: "smart-home",
     services: [
-      { slug: "video-doorbell-existing-wiring", name: "Video Doorbell — Existing Wiring", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 175, description: "Installing a video doorbell (Ring, Nest, etc.) you provide, using your existing doorbell wiring." },
-      { slug: "new-video-doorbell-wiring", name: "New Video Doorbell Wiring", bookingType: "REMOTE_QUOTE", description: "Installing a video doorbell in a location that doesn't have existing doorbell wiring or a transformer." },
-      { slug: "floodlight-camera-existing", name: "Floodlight Camera at Existing Fixture", bookingType: "INSTANT", basePrice: 345, whileWeThereBasePrice: 195, description: "Installing a floodlight security camera in place of an existing exterior light fixture." },
-      { slug: "new-exterior-flood-camera", name: "New Exterior Flood / Camera Location", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $495", description: "Installing a floodlight security camera in a new location that doesn't currently have a fixture or wiring." },
-      { slug: "smart-thermostat-install", name: "Smart Thermostat Installation", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 175, description: "Installing a smart thermostat you provide, in place of your existing thermostat." },
-      { slug: "doorbell-transformer-replacement", name: "Doorbell Transformer Replacement", bookingType: "INSTANT", basePrice: 325, whileWeThereBasePrice: 175, description: "Replacing the low-voltage transformer that powers your doorbell system." },
+      { slug: "video-doorbell-existing-wiring", name: "Video Doorbell — Existing Wiring", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 175, icon: "doorbell", description: "Installing a video doorbell (Ring, Nest, etc.) you provide, using your existing doorbell wiring." },
+      { slug: "new-video-doorbell-wiring", name: "New Video Doorbell Wiring", bookingType: "REMOTE_QUOTE", icon: "doorbell", description: "Installing a video doorbell in a location that doesn't have existing doorbell wiring or a transformer." },
+      { slug: "floodlight-camera-existing", name: "Floodlight Camera at Existing Fixture", bookingType: "INSTANT", basePrice: 345, whileWeThereBasePrice: 195, icon: "camera", description: "Installing a floodlight security camera in place of an existing exterior light fixture." },
+      { slug: "new-exterior-flood-camera", name: "New Exterior Flood / Camera Location", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $495", icon: "camera", description: "Installing a floodlight security camera in a new location that doesn't currently have a fixture or wiring." },
+      { slug: "smart-thermostat-install", name: "Smart Thermostat Installation", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 175, icon: "thermostat", description: "Installing a smart thermostat you provide, in place of your existing thermostat." },
+      { slug: "doorbell-transformer-replacement", name: "Doorbell Transformer Replacement", bookingType: "INSTANT", basePrice: 325, whileWeThereBasePrice: 175, icon: "doorbell", description: "Replacing the low-voltage transformer that powers your doorbell system." },
     ],
   },
   {
@@ -156,11 +159,11 @@ const CATALOG: SeedCategory[] = [
     name: "Panels & Troubleshooting",
     icon: "panel",
     services: [
-      { slug: "single-pole-breaker-replacement", name: "Single-Pole Breaker Replacement", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 125, description: "Replacing a single standard breaker in your electrical panel." },
-      { slug: "double-pole-breaker-replacement", name: "Double-Pole Breaker Replacement", bookingType: "INSTANT", basePrice: 345, whileWeThereBasePrice: 175, description: "Replacing a double-pole (240V) breaker in your electrical panel." },
-      { slug: "electrical-troubleshooting", name: "Electrical Troubleshooting", bookingType: "TROUBLESHOOT_ONLY", basePrice: 249, description: "For when something's wrong but you're not sure what — a dead outlet, flickering lights, a tripping breaker. Covers the visit and the first 60 minutes of diagnostic time; the repair itself is quoted separately once we know what's wrong." },
-      { slug: "electrical-panel-replacement", name: "Electrical Panel Replacement", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $3,995", description: "Replacing your entire main electrical panel — for an outdated, damaged, or unsafe panel." },
-      { slug: "200a-service-upgrade", name: "200-Amp Service Upgrade", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $4,995", description: "Upgrading your home's main electrical service to 200 amps, typically needed for additions, EV chargers, or older homes with insufficient capacity." },
+      { slug: "single-pole-breaker-replacement", name: "Single-Pole Breaker Replacement", bookingType: "INSTANT", basePrice: 295, whileWeThereBasePrice: 125, icon: "breaker", description: "Replacing a single standard breaker in your electrical panel." },
+      { slug: "double-pole-breaker-replacement", name: "Double-Pole Breaker Replacement", bookingType: "INSTANT", basePrice: 345, whileWeThereBasePrice: 175, icon: "breaker", description: "Replacing a double-pole (240V) breaker in your electrical panel." },
+      { slug: "electrical-troubleshooting", name: "Electrical Troubleshooting", bookingType: "TROUBLESHOOT_ONLY", basePrice: 249, icon: "troubleshooting", description: "For when something's wrong but you're not sure what — a dead outlet, flickering lights, a tripping breaker. Covers the visit and the first 60 minutes of diagnostic time; the repair itself is quoted separately once we know what's wrong." },
+      { slug: "electrical-panel-replacement", name: "Electrical Panel Replacement", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $3,995", icon: "panel", description: "Replacing your entire main electrical panel — for an outdated, damaged, or unsafe panel." },
+      { slug: "200a-service-upgrade", name: "200-Amp Service Upgrade", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $4,995", icon: "panel", description: "Upgrading your home's main electrical service to 200 amps, typically needed for additions, EV chargers, or older homes with insufficient capacity." },
     ],
   },
   {
@@ -168,9 +171,9 @@ const CATALOG: SeedCategory[] = [
     name: "EV & Garage",
     icon: "ev",
     services: [
-      { slug: "level-2-ev-charger", name: "Level 2 EV Charger Installation", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $1,295", description: "Installing a Level 2 (240V) electric vehicle charger in your garage or driveway." },
-      { slug: "garage-door-opener-outlet-ev", name: "Garage Door Opener Outlet", bookingType: "ADJUSTED", startingPriceLabel: "$395–$495", description: "A new outlet installed near your garage door opener motor on the ceiling, so it's no longer running on an extension cord." },
-      { slug: "240v-garage-outlet", name: "240V Garage Outlet", bookingType: "REMOTE_QUOTE", description: "Adding a new 240V outlet in your garage for equipment other than an EV charger (welder, air compressor, etc.)." },
+      { slug: "level-2-ev-charger", name: "Level 2 EV Charger Installation", bookingType: "REMOTE_QUOTE", startingPriceLabel: "From $1,295", icon: "ev", description: "Installing a Level 2 (240V) electric vehicle charger in your garage or driveway." },
+      { slug: "garage-door-opener-outlet-ev", name: "Garage Door Opener Outlet", bookingType: "ADJUSTED", startingPriceLabel: "$395–$495", icon: "new-outlet", description: "A new outlet installed near your garage door opener motor on the ceiling, so it's no longer running on an extension cord." },
+      { slug: "240v-garage-outlet", name: "240V Garage Outlet", bookingType: "REMOTE_QUOTE", icon: "new-outlet", description: "Adding a new 240V outlet in your garage for equipment other than an EV charger (welder, air compressor, etc.)." },
     ],
   },
   {
@@ -178,10 +181,10 @@ const CATALOG: SeedCategory[] = [
     name: "Dedicated Circuits",
     icon: "circuit",
     services: [
-      { slug: "sump-pump-dedicated-circuit", name: "Sump Pump Dedicated Circuit", bookingType: "REMOTE_QUOTE", description: "A new circuit and outlet run specifically for a sump pump, on its own breaker." },
-      { slug: "freezer-fridge-dedicated-circuit", name: "Freezer / Refrigerator Dedicated Circuit", bookingType: "REMOTE_QUOTE", description: "A new circuit and outlet run specifically for a standalone freezer or refrigerator, on its own breaker." },
-      { slug: "electric-fireplace-circuit", name: "Electric Fireplace Circuit / Outlet", bookingType: "REMOTE_QUOTE", description: "A new dedicated circuit and outlet for an electric fireplace insert or unit." },
-      { slug: "new-240v-appliance-circuit", name: "New 240V Appliance Circuit", bookingType: "REMOTE_QUOTE", description: "A new 240V dedicated circuit for an appliance not covered elsewhere in our catalog." },
+      { slug: "sump-pump-dedicated-circuit", name: "Sump Pump Dedicated Circuit", bookingType: "REMOTE_QUOTE", icon: "circuit", description: "A new circuit and outlet run specifically for a sump pump, on its own breaker." },
+      { slug: "freezer-fridge-dedicated-circuit", name: "Freezer / Refrigerator Dedicated Circuit", bookingType: "REMOTE_QUOTE", icon: "circuit", description: "A new circuit and outlet run specifically for a standalone freezer or refrigerator, on its own breaker." },
+      { slug: "electric-fireplace-circuit", name: "Electric Fireplace Circuit / Outlet", bookingType: "REMOTE_QUOTE", icon: "circuit", description: "A new dedicated circuit and outlet for an electric fireplace insert or unit." },
+      { slug: "new-240v-appliance-circuit", name: "New 240V Appliance Circuit", bookingType: "REMOTE_QUOTE", icon: "circuit", description: "A new 240V dedicated circuit for an appliance not covered elsewhere in our catalog." },
     ],
   },
   {
@@ -189,8 +192,8 @@ const CATALOG: SeedCategory[] = [
     name: "Generator / Backup Power",
     icon: "generator",
     services: [
-      { slug: "generator-inlet-interlock", name: "Generator Inlet + Interlock", bookingType: "REMOTE_QUOTE", description: "Installing a power inlet box and interlock kit at your panel so a portable generator can safely power your home during an outage." },
-      { slug: "transfer-switch", name: "Transfer Switch", bookingType: "REMOTE_QUOTE", description: "Installing a manual or automatic transfer switch for whole-home or partial-home backup power." },
+      { slug: "generator-inlet-interlock", name: "Generator Inlet + Interlock", bookingType: "REMOTE_QUOTE", icon: "generator", description: "Installing a power inlet box and interlock kit at your panel so a portable generator can safely power your home during an outage." },
+      { slug: "transfer-switch", name: "Transfer Switch", bookingType: "REMOTE_QUOTE", icon: "transfer-switch", description: "Installing a manual or automatic transfer switch for whole-home or partial-home backup power." },
     ],
   },
   {
@@ -198,8 +201,8 @@ const CATALOG: SeedCategory[] = [
     name: "Pool / Spa",
     icon: "pool",
     services: [
-      { slug: "hot-tub-spa-electrical", name: "Hot Tub / Spa Electrical", bookingType: "REMOTE_QUOTE", description: "The dedicated electrical circuit and disconnect required for a hot tub or spa." },
-      { slug: "pool-equipment-electrical", name: "Pool Equipment Electrical", bookingType: "REMOTE_QUOTE", description: "Electrical for pool pumps, heaters, and other pool equipment." },
+      { slug: "hot-tub-spa-electrical", name: "Hot Tub / Spa Electrical", bookingType: "REMOTE_QUOTE", icon: "pool", description: "The dedicated electrical circuit and disconnect required for a hot tub or spa." },
+      { slug: "pool-equipment-electrical", name: "Pool Equipment Electrical", bookingType: "REMOTE_QUOTE", icon: "pool", description: "Electrical for pool pumps, heaters, and other pool equipment." },
     ],
   },
 ];
@@ -232,6 +235,7 @@ async function main() {
           whileWeThereBasePrice: svc.whileWeThereBasePrice ? c(svc.whileWeThereBasePrice) : null,
           requiresTechCount: svc.requiresTechCount ?? 1,
           shortDescription: svc.description,
+          icon: svc.icon ?? null,
         },
         create: {
           slug: svc.slug,
@@ -243,6 +247,7 @@ async function main() {
           whileWeThereBasePrice: svc.whileWeThereBasePrice ? c(svc.whileWeThereBasePrice) : null,
           requiresTechCount: svc.requiresTechCount ?? 1,
           shortDescription: svc.description,
+          icon: svc.icon ?? null,
         },
       });
     }

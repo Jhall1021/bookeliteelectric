@@ -126,6 +126,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         description={flow.shortDescription}
         basePrice={flow.basePrice}
         startingPriceLabel={flow.startingPriceLabel}
+        icon={flow.icon}
         onContinue={startQuestions}
       />
     );

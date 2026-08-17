@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { ServiceIcon } from "@/components/shared/Icons";
 
 export default async function ServicesPage() {
   const categories = await prisma.serviceCategory.findMany({
@@ -18,7 +19,8 @@ export default async function ServicesPage() {
             href={`/services/${cat.slug}`}
             className="rounded-card border border-cardline bg-white p-5 text-center shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
           >
-            <div className="text-sm font-semibold text-navy">{cat.name}</div>
+            <ServiceIcon icon={cat.icon} className="mx-auto h-9 w-9 text-electric" />
+            <div className="mt-2 text-sm font-semibold text-navy">{cat.name}</div>
             <div className="mt-1 text-xs text-slate">{cat.services.length} services</div>
           </Link>
         ))}

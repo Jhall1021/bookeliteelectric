@@ -1,19 +1,22 @@
 "use client";
 
 import { formatCents } from "@/lib/flow-types";
+import { ServiceIcon } from "@/components/shared/Icons";
 
 type Props = {
   name: string;
   description: string | null;
   basePrice: number | null;
   startingPriceLabel: string | null;
+  icon: string | null;
   onContinue: () => void;
 };
 
-export default function ServiceIntro({ name, description, basePrice, startingPriceLabel, onContinue }: Props) {
+export default function ServiceIntro({ name, description, basePrice, startingPriceLabel, icon, onContinue }: Props) {
   return (
     <div className="rounded-card border border-cardline bg-white p-8 shadow-card">
-      <h1 className="font-display text-2xl font-bold text-navy">{name}</h1>
+      <ServiceIcon icon={icon} className="h-12 w-12 text-electric" />
+      <h1 className="mt-4 font-display text-2xl font-bold text-navy">{name}</h1>
 
       {description && <p className="mt-3 text-slate">{description}</p>}
 

@@ -34,6 +34,7 @@ export async function GET() {
           startingPriceLabel: true,
           bookingType: true,
           shortDescription: true,
+          icon: true,
         },
       },
     },
@@ -45,8 +46,10 @@ export async function GET() {
       id: c.id,
       slug: c.slug,
       name: c.name,
+      icon: c.icon,
       services: c.services.map((s) => ({
         ...s,
+        icon: s.icon ?? c.icon,
         categorySlug: c.slug,
         quantityInVisit: quantityByService.get(s.id) ?? 0,
       })),

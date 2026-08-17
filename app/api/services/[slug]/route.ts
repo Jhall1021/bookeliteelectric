@@ -9,6 +9,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const service = await prisma.service.findUnique({
     where: { slug: params.slug },
     include: {
+      category: { select: { icon: true } },
       questions: {
         orderBy: { order: "asc" },
         include: { options: { orderBy: { order: "asc" } } },
@@ -29,6 +30,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     whileWeThereBasePrice: service.whileWeThereBasePrice,
     startingPriceLabel: service.startingPriceLabel,
     shortDescription: service.shortDescription,
+    icon: service.icon ?? service.category.icon,
     questions: service.questions.map((q) => ({
       id: q.id,
       key: q.key,

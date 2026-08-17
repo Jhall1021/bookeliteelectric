@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/flow-types";
 import { notFound } from "next/navigation";
+import { ServiceIcon } from "@/components/shared/Icons";
 
 export default async function CategoryPage({ params }: { params: { category: string } }) {
   const category = await prisma.serviceCategory.findUnique({
@@ -21,16 +22,19 @@ export default async function CategoryPage({ params }: { params: { category: str
           <Link
             key={svc.id}
             href={`/services/${category.slug}/${svc.slug}`}
-            className="rounded-card border border-cardline bg-white p-4 shadow-card transition hover:border-electric"
+            className="flex gap-4 rounded-card border border-cardline bg-white p-4 shadow-card transition hover:border-electric"
           >
-            <div className="text-sm font-semibold text-navy">{svc.name}</div>
-            {svc.shortDescription && (
-              <p className="mt-1 text-sm text-slate">{svc.shortDescription}</p>
-            )}
-            <div className="mt-2 text-sm font-medium text-navy">
-              {svc.basePrice
-                ? `From ${formatCents(svc.basePrice)}`
-                : svc.startingPriceLabel ?? "Custom Quote"}
+            <ServiceIcon icon={svc.icon ?? category.icon} className="h-9 w-9 shrink-0 text-electric" />
+            <div>
+              <div className="text-sm font-semibold text-navy">{svc.name}</div>
+              {svc.shortDescription && (
+                <p className="mt-1 text-sm text-slate">{svc.shortDescription}</p>
+              )}
+              <div className="mt-2 text-sm font-medium text-navy">
+                {svc.basePrice
+                  ? `From ${formatCents(svc.basePrice)}`
+                  : svc.startingPriceLabel ?? "Custom Quote"}
+              </div>
             </div>
           </Link>
         ))}

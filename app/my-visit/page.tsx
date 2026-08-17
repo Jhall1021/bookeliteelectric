@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@/lib/flow-types";
+import { ServiceIcon } from "@/components/shared/Icons";
 
 type LineItemGroup = {
   serviceId: string;
@@ -25,6 +26,7 @@ type ServiceOption = {
   categorySlug: string;
   quantityInVisit: number;
   shortDescription: string | null;
+  icon: string | null;
 };
 
 type CategoryGroup = {
@@ -186,7 +188,8 @@ export default function MyVisitPage() {
                             ×{s.quantityInVisit} added
                           </span>
                         )}
-                        <div className="text-sm font-semibold text-navy">{s.name}</div>
+                        <ServiceIcon icon={s.icon} className="h-7 w-7 text-electric" />
+                        <div className="mt-2 text-sm font-semibold text-navy">{s.name}</div>
                         {s.shortDescription && (
                           <div className="mt-1 text-xs text-slate line-clamp-2">{s.shortDescription}</div>
                         )}
@@ -233,17 +236,20 @@ export default function MyVisitPage() {
                               onClick={() => addService(s)}
                               className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-warmwhite"
                             >
-                              <span className="text-sm text-navy">
-                                {s.name}
-                                {s.quantityInVisit > 0 && (
-                                  <span className="ml-2 text-xs font-semibold text-electric">
-                                    ×{s.quantityInVisit} added
-                                  </span>
-                                )}
-                                {s.shortDescription && (
-                                  <span className="mt-0.5 block text-xs text-slate">{s.shortDescription}</span>
-                                )}
-                              </span>
+                              <div className="flex items-start gap-3">
+                                <ServiceIcon icon={s.icon} className="h-6 w-6 shrink-0 text-electric" />
+                                <span className="text-sm text-navy">
+                                  {s.name}
+                                  {s.quantityInVisit > 0 && (
+                                    <span className="ml-2 text-xs font-semibold text-electric">
+                                      ×{s.quantityInVisit} added
+                                    </span>
+                                  )}
+                                  {s.shortDescription && (
+                                    <span className="mt-0.5 block text-xs text-slate">{s.shortDescription}</span>
+                                  )}
+                                </span>
+                              </div>
                               <span className="shrink-0 text-sm font-medium text-success">
                                 {s.whileWeThereBasePrice !== null
                                   ? `+${formatCents(s.whileWeThereBasePrice)}`
