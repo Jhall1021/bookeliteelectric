@@ -23,6 +23,14 @@ export async function POST(req: Request) {
     visit = await prisma.visit.create({ data: { sessionId, status: "OPEN" } });
   }
 
+  // Duration is looked up server-side, never trusted from the client — the
+  // customer never sends or sees this value, it's purely internal dispatch
+  // data snapshotted at add-time, same pattern as price.
+  const service = await prisma.service.findUnique({
+    where: { id: serviceId },
+    select: { estimatedMinutes: true },
+  });
+
   const lineItem = await prisma.lineItem.create({
     data: {
       visitId: visit.id,
@@ -30,6 +38,7 @@ export async function POST(req: Request) {
       isPrimary: isPrimary ?? true,
       answersSnapshot: answersSnapshot ?? {},
       computedPriceCents,
+      estimatedMinutes: service?.estimatedMinutes ?? null,
     },
   });
 

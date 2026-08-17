@@ -54,6 +54,13 @@ model Service {
   icon                String?
   requiresTechCount   Int             @default(1)
   active              Boolean         @default(true)
+  // INTERNAL ONLY — never exposed in any customer-facing API response.
+  // Used to estimate technician time on-site for scheduling/dispatch.
+  // The guided-flow answers can push a job into a harder tier (e.g. New
+  // Outlet's finished-wall-fishing branch), but this single estimate is a
+  // per-service baseline; a future refinement could vary it per branch the
+  // same way pricing does.
+  estimatedMinutes    Int?
 
   questions    Question[]
   pricingRules PricingRule[]
@@ -171,6 +178,10 @@ model LineItem {
   isPrimary      Boolean @default(true) // false = While We're There add-on
   answersSnapshot Json
   computedPriceCents Int
+  // INTERNAL ONLY — snapshotted from Service.estimatedMinutes at add-time,
+  // same pattern as computedPriceCents. Never returned by any customer-
+  // facing API. Used to total up technician time for a Booking.
+  estimatedMinutes Int?
 
   @@map("line_items")
 }
@@ -198,6 +209,11 @@ model Booking {
   arrivalWindowId String
   arrivalWindow   ArrivalWindow @relation(fields: [arrivalWindowId], references: [id])
   totalCents      Int
+  // INTERNAL ONLY — sum of the visit's LineItem.estimatedMinutes at the
+  // moment of booking. Never shown to the customer; this is dispatch/
+  // scheduling data (e.g. flagging a booking that's likely to run past its
+  // 3-hour arrival window). Null if any line item lacked an estimate.
+  estimatedDurationMinutes Int?
   paymentModel    PaymentModel
   paymentStatus   String        @default("authorized") // authorized | captured | failed
   status          BookingStatus @default(SCHEDULED)

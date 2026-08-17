@@ -45,6 +45,14 @@ export async function POST(req: Request) {
 
   const totalCents = visit.lineItems.reduce((sum, li) => sum + li.computedPriceCents, 0);
 
+  // Internal dispatch data — sum of every line item's snapshotted duration.
+  // Null (not 0) if ANY item is missing an estimate, so it's obvious in the
+  // data that the total is incomplete rather than silently under-counting.
+  const hasCompleteEstimates = visit.lineItems.every((li) => li.estimatedMinutes !== null);
+  const estimatedDurationMinutes = hasCompleteEstimates
+    ? visit.lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0)
+    : null;
+
   const booking = await prisma.booking.create({
     data: {
       visitId: visit.id,
@@ -53,6 +61,7 @@ export async function POST(req: Request) {
       zipCode,
       arrivalWindowId: arrivalWindow.id,
       totalCents,
+      estimatedDurationMinutes,
       // Card-on-file, captured after completion — decided in the approved
       // architecture. Real Stripe SetupIntent wiring is Phase 6; for now
       // paymentStatus reflects that no charge has happened yet.
