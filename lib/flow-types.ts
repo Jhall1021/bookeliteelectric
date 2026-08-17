@@ -19,6 +19,7 @@ export type AnswerOptionDTO = {
   routeAction: RouteAction;
   rerouteServiceId: string | null;
   requiredPhotoLabels: string[];
+  disclaimer: string | null;
 };
 
 export type QuestionDTO = {
