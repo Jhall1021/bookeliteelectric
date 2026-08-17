@@ -40,6 +40,7 @@ export type ServiceFlowDTO = {
   whileWeThereBasePrice: number | null;
   startingPriceLabel: string | null;
   shortDescription: string | null;
+  icon: string | null; // service icon, already resolved against category fallback
   questions: QuestionDTO[]; // full tree, first question = questions[0]
 };
 
