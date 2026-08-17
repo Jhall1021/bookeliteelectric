@@ -878,6 +878,57 @@ async function seedApplianceInstallation() {
   console.log("  ✓ Install New Microwave tree (what's above the range → price + $75 hood add-on + no-power disclaimer)");
 }
 
+async function seedSafetyProtection() {
+  // Hardwired Smoke Detector, Smoke/CO Detector, and Home Electrical
+  // Safety Inspection stay flat-price with no tree — straightforward
+  // replace/service jobs with no real branch point, same reasoning as
+  // most of Appliance Installation.
+  //
+  // Whole-House Surge Protection is the one exception: whether the panel
+  // has an open slot for the new breaker is a genuine real-world
+  // constraint that affects whether this is a standard job or needs a
+  // look first — not just a formality question.
+  const service = await prisma.service.findUniqueOrThrow({
+    where: { slug: "whole-house-surge-protection" },
+  });
+  await clearServiceTree(service.id);
+
+  const q = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "panel_has_open_slot",
+      prompt: "Does your electrical panel have an open slot for a new breaker?",
+      helpText: "This is what the surge protector connects to. If your panel is full, we may need a different approach.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: q.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+      {
+        questionId: q.id,
+        label: "No, it's full",
+        value: "full",
+        routeAction: "PHOTO_REVIEW",
+        order: 2,
+        requiredPhotoLabels: ["Panel with the door open", "Breaker directory/label, if there is one"],
+      },
+      {
+        questionId: q.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        order: 3,
+        requiredPhotoLabels: ["Panel with the door open", "Breaker directory/label, if there is one"],
+      },
+    ],
+  });
+
+  console.log("  ✓ Whole-House Surge Protection tree (open panel slot check)");
+}
+
 async function main() {
   console.log("Seeding Phase 2 decision trees...");
   await seedReplaceStandardOutlet();
@@ -888,6 +939,7 @@ async function main() {
   await seedNewCeilingLight();
   await seedNewCeilingFan();
   await seedApplianceInstallation();
+  await seedSafetyProtection();
   console.log("Done.");
 }
 
