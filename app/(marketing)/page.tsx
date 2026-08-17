@@ -151,14 +151,6 @@ export default function HomePage() {
           />
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="bg-charcoal py-12 text-white">
-        <div className="mx-auto max-w-6xl px-6 text-sm text-white/70">
-          <Image src="/images/elite-logo.png" alt="Elite Electric & Lighting" width={36} height={36} className="mb-4 invert" />
-          © {new Date().getFullYear()} Elite Electric &amp; Lighting. All rights reserved.
-        </div>
-      </footer>
     </main>
   );
 }
