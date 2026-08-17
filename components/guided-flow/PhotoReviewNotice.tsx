@@ -90,6 +90,7 @@ export default function PhotoReviewNotice({ serviceName, serviceId, labels, answ
             <input
               type="file"
               accept="image/*"
+              capture="environment"
               onChange={(e) => handleFileChange(label, e.target.files?.[0] ?? null)}
               className="mt-1 block w-full text-sm text-slate file:mr-4 file:rounded-pill file:border-0 file:bg-electric file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
             />
