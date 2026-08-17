@@ -11,10 +11,26 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+// Every seed*Tree function below calls this FIRST, before creating any
+// questions. Without it, re-running this script (e.g. to fix a typo or
+// adjust pricing on an existing tree) just piles a second, duplicate tree
+// on top of the first one instead of replacing it — both sets of questions
+// end up attached to the same service, and which one the customer actually
+// sees becomes a coin-flip based on database row order. This makes the
+// whole script safely rerunnable any time a tree needs editing.
+async function clearServiceTree(serviceId: string) {
+  const questions = await prisma.question.findMany({ where: { serviceId } });
+  for (const q of questions) {
+    await prisma.answerOption.deleteMany({ where: { questionId: q.id } });
+  }
+  await prisma.question.deleteMany({ where: { serviceId } });
+}
+
 async function seedReplaceStandardOutlet() {
   const service = await prisma.service.findUniqueOrThrow({
     where: { slug: "replace-standard-outlet" },
   });
+  await clearServiceTree(service.id);
 
   // Simple instant-book flow — one question, no branching complexity.
   // Demonstrates the minimum viable tree: a single qualifying question
@@ -75,6 +91,7 @@ async function seedNewOutlet() {
   const dedicatedCircuit = await prisma.service.findUniqueOrThrow({
     where: { slug: "dedicated-120v-circuit-outlet" },
   });
+  await clearServiceTree(newOutlet.id);
 
   const q1 = await prisma.question.create({
     data: {
@@ -210,6 +227,7 @@ async function seedTvInstall() {
   const tvInstall = await prisma.service.findUniqueOrThrow({
     where: { slug: "tv-installation" },
   });
+  await clearServiceTree(tvInstall.id);
 
   const qSize = await prisma.question.create({
     data: {
@@ -396,6 +414,7 @@ async function seedTvInstallExistingLocation() {
   const service = await prisma.service.findUniqueOrThrow({
     where: { slug: "tv-install-existing-location" },
   });
+  await clearServiceTree(service.id);
 
   const qSize = await prisma.question.create({
     data: {
