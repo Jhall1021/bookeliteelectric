@@ -10,7 +10,7 @@ type LineItemGroup = {
   serviceName: string;
   serviceSlug: string;
   isPrimary: boolean;
-  unitPriceCents: number;
+  whileWeThereBasePrice: number | null;
   quantity: number;
   totalPriceCents: number;
   lineItemIds: string[];
@@ -94,12 +94,19 @@ export default function MyVisitPage() {
   }
 
   async function addAnother(group: LineItemGroup) {
+    // Every unit after the first is priced at the While We're There rate —
+    // even for the exact same service — since the technician is already
+    // on-site regardless of whether this is a 1st or 2nd outlet replacement.
+    // Falls back to the full price only if this service has no WWT rate on
+    // file at all.
+    const priceForNextUnit = group.whileWeThereBasePrice ?? group.totalPriceCents / group.quantity;
+
     await fetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         serviceId: group.serviceId,
-        computedPriceCents: group.unitPriceCents,
+        computedPriceCents: priceForNextUnit,
         isPrimary: group.isPrimary,
         answersSnapshot: {},
       }),
