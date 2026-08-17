@@ -286,22 +286,13 @@ async function seedTvInstall() {
     },
   });
 
-  // Size branches — now just the first question, not three separate
-  // services. Over 85" still needs individual review given weight/wall
-  // reinforcement, so it exits straight to photo review.
+  // Size branches — simplified to two tiers matching the sibling "Existing
+  // Location" service: Up to 55" at base price, 55"–100" at a flat
+  // upcharge. No separate "Over 85" photo-review branch anymore.
   await prisma.answerOption.createMany({
     data: [
       { questionId: qSize.id, label: "Up to 55\"", value: "up_to_55", routeAction: "CONTINUE", nextQuestionId: qMount.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: qSize.id, label: "56\"–65\"", value: "56_65", routeAction: "CONTINUE", nextQuestionId: qMount.id, priceModifierCents: 20000, order: 2, requiredPhotoLabels: [] },
-      { questionId: qSize.id, label: "66\"–85\"", value: "66_85", routeAction: "CONTINUE", nextQuestionId: qMount.id, priceModifierCents: 20000, order: 3, requiredPhotoLabels: [] },
-      {
-        questionId: qSize.id,
-        label: "Over 85\"",
-        value: "over_85",
-        routeAction: "PHOTO_REVIEW",
-        order: 4,
-        requiredPhotoLabels: ["Full wall where the TV is going", "TV box or spec sheet showing exact size/weight"],
-      },
+      { questionId: qSize.id, label: "55\"–100\"", value: "55_100", routeAction: "CONTINUE", nextQuestionId: qMount.id, priceModifierCents: 20000, order: 2, requiredPhotoLabels: [] },
     ],
   });
 
