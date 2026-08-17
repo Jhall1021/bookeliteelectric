@@ -475,12 +475,340 @@ async function seedTvInstallExistingLocation() {
   console.log("  ✓ Install TV in Existing Location tree (size → mount supplied? → mount type)");
 }
 
+async function seedRecessedLighting() {
+  // Applies the same diagnostic-question principle used everywhere else
+  // (New Outlet, TV Installation) to lighting: ask what's actually
+  // observable about the room, don't make the customer self-classify.
+  //
+  // Pricing structure: the FIRST light resolves at the service's base
+  // price via the guided flow; every ADDITIONAL light in the same visit
+  // uses the existing "units after the first price at the While We're
+  // There rate" cart mechanic (see app/api/visit/route.ts) rather than a
+  // separate in-flow quantity question — $200/light with attic access,
+  // matching the client's number exactly, no new engine feature needed.
+  //
+  // KNOWN LIMITATION: the cart's per-unit discount is a single flat rate
+  // per service. If the first light resolves via the NO-ATTIC-ACCESS
+  // branch (higher price), a second light added afterward via the cart's
+  // "+" button will currently still be discounted at the standard $200
+  // attic-access WWT rate, not a higher no-access repeat rate. Flagging
+  // this rather than silently under-charging on that specific edge case.
+  const service = await prisma.service.findUniqueOrThrow({
+    where: { slug: "recessed-lighting" },
+  });
+  await clearServiceTree(service.id);
+
+  const qAtticAccess = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "attic_access",
+      prompt: "Is there accessible attic space directly above where the light(s) are going?",
+      helpText: "This is what lets us run wiring without opening up your ceiling.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+
+  const qExistingLight = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "existing_light_source",
+      prompt: "Is there an existing light fixture we'll be removing, or one nearby we can tap power from?",
+      inputType: "SINGLE_SELECT",
+      order: 2,
+    },
+  });
+
+  const qSwitchedSource = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "switched_source",
+      prompt: "Is there an existing switch in the room we could use to control the new light(s)?",
+      inputType: "SINGLE_SELECT",
+      order: 3,
+    },
+  });
+
+  // Attic access — the main branch point. No access still resolves to a
+  // real price (not photo review), per the client's direction, with a
+  // disclaimer about sheetrock cutting attached to the price itself.
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qAtticAccess.id, label: "Yes", value: "has_access", routeAction: "CONTINUE", nextQuestionId: qExistingLight.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
+      {
+        questionId: qAtticAccess.id,
+        label: "No",
+        value: "no_access",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 10000, // $395 base -> $495 for the first fixture without attic access
+        order: 2,
+        requiredPhotoLabels: [],
+        disclaimer: "This price includes cutting into the ceiling to run wiring. Elite does not patch or paint drywall — that will need to be arranged separately after installation.",
+      },
+    ],
+  });
+
+  // Existing light to tap from — Yes is the standard (base) price with no
+  // modifier. No continues to check for a switched power source instead.
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qExistingLight.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "CONTINUE", nextQuestionId: qSwitchedSource.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+    ],
+  });
+
+  // Existing switch — Yes adds the $150 wire-snaking charge (switch already
+  // there, just needs a wire run to the ceiling). No existing switch means
+  // that SAME wire run is still needed, PLUS a brand-new switch has to be
+  // installed — that install reuses the standard "Replace Standard Switch"
+  // While We're There rate ($75), so No totals $150 + $75 = $225. Genuine
+  // uncertainty still goes to photo review rather than guessing.
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qSwitchedSource.id,
+        label: "Yes",
+        value: "yes",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 15000, // +$150 to snake a wire from the existing switch up to the ceiling
+        order: 1,
+        requiredPhotoLabels: [],
+        disclaimer: null,
+      },
+      {
+        questionId: qSwitchedSource.id,
+        label: "No",
+        value: "no",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 22500, // +$150 wire run + $75 new switch (Replace Standard Switch WWT rate)
+        order: 2,
+        requiredPhotoLabels: [],
+        disclaimer: null,
+      },
+      {
+        questionId: qSwitchedSource.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        order: 3,
+        requiredPhotoLabels: ["Room where the light(s) are going, full view", "Ceiling area where the fixture will be installed"],
+      },
+    ],
+  });
+
+  console.log("  ✓ Recessed Lighting tree (attic access → existing source → switched source, with disclaimer support)");
+}
+
+async function seedNewCeilingLight() {
+  // Identical structure to Recessed Lighting — same attic-access →
+  // existing-fixture → existing-switch tree, applied to a new ceiling
+  // light fixture instead of a recessed can. Per client direction, this
+  // "existing switch in the room" question is standardized across every
+  // new light/fan installation tree.
+  const service = await prisma.service.findUniqueOrThrow({
+    where: { slug: "new-ceiling-light" },
+  });
+  await clearServiceTree(service.id);
+
+  const qAtticAccess = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "attic_access",
+      prompt: "Is there accessible attic space directly above where the light is going?",
+      helpText: "This is what lets us run wiring without opening up your ceiling.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+
+  const qExistingLight = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "existing_light_source",
+      prompt: "Is there an existing light fixture we'll be removing, or one nearby we can tap power from?",
+      inputType: "SINGLE_SELECT",
+      order: 2,
+    },
+  });
+
+  const qSwitchedSource = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "switched_source",
+      prompt: "Is there an existing switch in the room we could use to control the new light?",
+      inputType: "SINGLE_SELECT",
+      order: 3,
+    },
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qAtticAccess.id, label: "Yes", value: "has_access", routeAction: "CONTINUE", nextQuestionId: qExistingLight.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
+      {
+        questionId: qAtticAccess.id,
+        label: "No",
+        value: "no_access",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 10000, // $395 base -> $495 without attic access
+        order: 2,
+        requiredPhotoLabels: [],
+        disclaimer: "This price includes cutting into the ceiling to run wiring. Elite does not patch or paint drywall — that will need to be arranged separately after installation.",
+      },
+    ],
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qExistingLight.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "CONTINUE", nextQuestionId: qSwitchedSource.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+    ],
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qSwitchedSource.id,
+        label: "Yes",
+        value: "yes",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 15000, // +$150 to snake a wire from the existing switch up to the ceiling
+        order: 1,
+        requiredPhotoLabels: [],
+        disclaimer: null,
+      },
+      {
+        questionId: qSwitchedSource.id,
+        label: "No",
+        value: "no",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 22500, // +$150 wire run + $75 new switch (Replace Standard Switch WWT rate)
+        order: 2,
+        requiredPhotoLabels: [],
+        disclaimer: null,
+      },
+      {
+        questionId: qSwitchedSource.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        order: 3,
+        requiredPhotoLabels: ["Room where the light is going, full view", "Ceiling area where the fixture will be installed"],
+      },
+    ],
+  });
+
+  console.log("  ✓ Install New Ceiling Light tree (same structure as Recessed Lighting)");
+}
+
+async function seedNewCeilingFan() {
+  // Same tree as Install New Ceiling Light and Recessed Lighting — attic
+  // access → existing fixture → existing switch — applied to a new ceiling
+  // fan. Base prices differ ($425 attic access / $525 no access, per
+  // client) but the wire-run and new-switch add-on logic is identical.
+  const service = await prisma.service.findUniqueOrThrow({
+    where: { slug: "new-ceiling-fan" },
+  });
+  await clearServiceTree(service.id);
+
+  const qAtticAccess = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "attic_access",
+      prompt: "Is there accessible attic space directly above where the fan is going?",
+      helpText: "This is what lets us run wiring without opening up your ceiling.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+
+  const qExistingLight = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "existing_light_source",
+      prompt: "Is there an existing light fixture we'll be removing, or one nearby we can tap power from?",
+      inputType: "SINGLE_SELECT",
+      order: 2,
+    },
+  });
+
+  const qSwitchedSource = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "switched_source",
+      prompt: "Is there an existing switch in the room we could use to control the new fan?",
+      inputType: "SINGLE_SELECT",
+      order: 3,
+    },
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qAtticAccess.id, label: "Yes", value: "has_access", routeAction: "CONTINUE", nextQuestionId: qExistingLight.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
+      {
+        questionId: qAtticAccess.id,
+        label: "No",
+        value: "no_access",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 10000, // $425 base -> $525 without attic access
+        order: 2,
+        requiredPhotoLabels: [],
+        disclaimer: "This price includes cutting into the ceiling to run wiring. Elite does not patch or paint drywall — that will need to be arranged separately after installation.",
+      },
+    ],
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qExistingLight.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "CONTINUE", nextQuestionId: qSwitchedSource.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+    ],
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qSwitchedSource.id,
+        label: "Yes",
+        value: "yes",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 15000, // +$150 to snake a wire from the existing switch up to the ceiling
+        order: 1,
+        requiredPhotoLabels: [],
+        disclaimer: null,
+      },
+      {
+        questionId: qSwitchedSource.id,
+        label: "No",
+        value: "no",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 22500, // +$150 wire run + $75 new switch (Replace Standard Switch WWT rate)
+        order: 2,
+        requiredPhotoLabels: [],
+        disclaimer: null,
+      },
+      {
+        questionId: qSwitchedSource.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        order: 3,
+        requiredPhotoLabels: ["Room where the fan is going, full view", "Ceiling area where the fan will be installed"],
+      },
+    ],
+  });
+
+  console.log("  ✓ Install New Ceiling Fan tree (same structure as Recessed Lighting / New Ceiling Light)");
+}
+
 async function main() {
   console.log("Seeding Phase 2 decision trees...");
   await seedReplaceStandardOutlet();
   await seedNewOutlet();
   await seedTvInstall();
   await seedTvInstallExistingLocation();
+  await seedRecessedLighting();
+  await seedNewCeilingLight();
+  await seedNewCeilingFan();
   console.log("Done.");
 }
 

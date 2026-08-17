@@ -31,6 +31,14 @@ async function main() {
     }
 
     await prisma.lineItem.deleteMany({ where: { serviceId: service.id } });
+    // Quotes reference a service too — deleting the service without
+    // handling these first is exactly the bug that caused a broken
+    // foreign key later. Photos must go before their parent Quote.
+    const quotes = await prisma.quote.findMany({ where: { serviceId: service.id } });
+    for (const q of quotes) {
+      await prisma.photo.deleteMany({ where: { quoteId: q.id } });
+    }
+    await prisma.quote.deleteMany({ where: { serviceId: service.id } });
 
     for (const q of service.questions) {
       await prisma.answerOption.deleteMany({ where: { questionId: q.id } });

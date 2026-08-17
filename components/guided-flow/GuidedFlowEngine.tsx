@@ -17,7 +17,7 @@ type Props = {
 type TerminalState =
   | { kind: "intro" }
   | { kind: "question"; question: QuestionDTO }
-  | { kind: "resolved"; priceCents: number }
+  | { kind: "resolved"; priceCents: number; disclaimer: string | null }
   | { kind: "reroute"; serviceId: string; reason: string }
   | { kind: "troubleshooting" }
   | { kind: "photo_review"; labels: string[] };
@@ -60,7 +60,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       setState({ kind: "question", question: flow.questions[0] });
     } else {
       // No qualifying questions at all — resolves immediately.
-      setState({ kind: "resolved", priceCents: flow.basePrice ?? 0 });
+      setState({ kind: "resolved", priceCents: flow.basePrice ?? 0, disclaimer: null });
     }
   }
 
@@ -77,13 +77,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           setState({ kind: "question", question: next });
         } else {
           // Tree misconfigured — fail safe to resolved rather than a dead end.
-          setState({ kind: "resolved", priceCents: newTotal });
+          setState({ kind: "resolved", priceCents: newTotal, disclaimer: null });
         }
         break;
       }
       case "RESOLVE_INSTANT":
       case "RESOLVE_ADJUSTED":
-        setState({ kind: "resolved", priceCents: newTotal });
+        setState({ kind: "resolved", priceCents: newTotal, disclaimer: option.disclaimer });
         break;
       case "REROUTE_TROUBLESHOOTING":
         setState({ kind: "troubleshooting" });
@@ -146,6 +146,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       <PriceConfirmationCard
         serviceName={flow.name}
         priceCents={state.priceCents}
+        disclaimer={state.disclaimer}
         onAddToVisit={handleAddToVisit}
       />
     );

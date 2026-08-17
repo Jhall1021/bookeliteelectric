@@ -12,6 +12,8 @@
     "db:seed-questions": "tsx prisma/seed-questions.ts",
     "db:cleanup-old-new-outlet": "tsx prisma/cleanup-old-new-outlet.ts",
     "db:cleanup-old-tv-install": "tsx prisma/cleanup-old-tv-install.ts",
+    "db:cleanup-old-recessed-lighting": "tsx prisma/cleanup-old-recessed-lighting.ts",
+    "db:cleanup-orphaned-quotes": "tsx prisma/cleanup-orphaned-quotes.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

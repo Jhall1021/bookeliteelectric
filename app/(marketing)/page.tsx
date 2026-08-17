@@ -16,7 +16,7 @@ const POPULAR_SERVICES = [
   { name: "Light Fixture Replacement", from: "$295", href: "/services/lighting/replace-interior-light-fixture" },
   { name: "Ceiling Fan Installation", from: "$395", href: "/services/fans/replace-ceiling-fan" },
   { name: "TV Mount Installation", from: "$495", href: "/services/tv-media/tv-installation" },
-  { name: "Recessed Lighting", from: "$995", href: "/services/lighting/recessed-lighting-4" },
+  { name: "Recessed Lighting", from: "$395", href: "/services/lighting/recessed-lighting" },
   { name: "EV Charger Installation", from: "$1,295", href: "/services/ev-garage/level-2-ev-charger" },
 ];
 

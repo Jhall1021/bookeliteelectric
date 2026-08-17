@@ -116,6 +116,12 @@ model AnswerOption {
   // when the photo affects price/eligibility/routing (universal photo rule).
   requiredPhotoLabels String[]
   order              Int
+  // Shown alongside the price when this branch resolves (RESOLVE_INSTANT
+  // or RESOLVE_ADJUSTED) — for terms the customer needs to see before
+  // booking, e.g. "we cut sheetrock; patching/painting is not included."
+  // Null on the vast majority of options; only set where a real caveat
+  // applies.
+  disclaimer         String?
 
   @@map("answer_options")
 }
