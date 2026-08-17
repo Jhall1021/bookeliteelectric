@@ -54,6 +54,12 @@ model Service {
   icon                String?
   requiresTechCount   Int             @default(1)
   active              Boolean         @default(true)
+  // Shown alongside the price on services with NO question tree at all —
+  // a flat price that still needs a caveat attached (e.g. "we don't move
+  // built-in ovens"). AnswerOption.disclaimer covers the same need for
+  // services that DO branch; this covers the simple flat-price case where
+  // there's no branch to attach it to.
+  disclaimer          String?
   // INTERNAL ONLY — never exposed in any customer-facing API response.
   // Used to estimate technician time on-site for scheduling/dispatch.
   // The guided-flow answers can push a job into a harder tier (e.g. New

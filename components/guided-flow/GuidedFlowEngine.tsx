@@ -68,8 +68,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       });
     } else {
       // No qualifying questions at all, and it's a fixed-price service —
-      // resolves immediately.
-      setState({ kind: "resolved", priceCents: flow.basePrice ?? 0, disclaimer: null });
+      // resolves immediately. Service.disclaimer (not an AnswerOption
+      // disclaimer, since there's no branch here) still gets shown.
+      setState({ kind: "resolved", priceCents: flow.basePrice ?? 0, disclaimer: flow.disclaimer });
     }
   }
 

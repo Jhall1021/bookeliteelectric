@@ -14,6 +14,7 @@
     "db:cleanup-old-tv-install": "tsx prisma/cleanup-old-tv-install.ts",
     "db:cleanup-old-recessed-lighting": "tsx prisma/cleanup-old-recessed-lighting.ts",
     "db:cleanup-orphaned-quotes": "tsx prisma/cleanup-orphaned-quotes.ts",
+    "db:cleanup-old-appliance-services": "tsx prisma/cleanup-old-appliance-services.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

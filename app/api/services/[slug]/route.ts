@@ -31,6 +31,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     startingPriceLabel: service.startingPriceLabel,
     shortDescription: service.shortDescription,
     icon: service.icon ?? service.category.icon,
+    disclaimer: service.disclaimer,
     questions: service.questions.map((q) => ({
       id: q.id,
       key: q.key,

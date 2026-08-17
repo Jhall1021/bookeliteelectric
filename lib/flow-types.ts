@@ -42,6 +42,7 @@ export type ServiceFlowDTO = {
   startingPriceLabel: string | null;
   shortDescription: string | null;
   icon: string | null; // service icon, already resolved against category fallback
+  disclaimer: string | null; // for flat-price services with no question tree
   questions: QuestionDTO[]; // full tree, first question = questions[0]
 };
 

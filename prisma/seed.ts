@@ -42,6 +42,9 @@ type SeedService = {
   // like TV mounts that are only ever selected as a question within
   // another service's flow, never booked directly on their own.
   active?: boolean;
+  // Shown alongside a flat price with no question tree — for the range
+  // and dryer outlet caveats about built-in appliances and stackable units.
+  disclaimer?: string;
 };
 
 type SeedCategory = {
@@ -130,14 +133,12 @@ const CATALOG: SeedCategory[] = [
     name: "Appliance Installation",
     icon: "appliance",
     services: [
-      { slug: "otr-microwave-install", name: "Over-the-Range Microwave", bookingType: "INSTANT", estimatedMinutes: 45, basePrice: 395, whileWeThereBasePrice: 295, icon: "kitchen-appliance", description: "Installing an over-the-range microwave in place of an existing one, or where the electrical is already in place." },
-      { slug: "dishwasher-electrical", name: "Dishwasher Electrical Connection / Replacement", bookingType: "INSTANT", estimatedMinutes: 30, basePrice: 325, whileWeThereBasePrice: 225, icon: "kitchen-appliance", description: "The electrical connection for a new or replacement dishwasher, using existing wiring already in place." },
-      { slug: "garbage-disposal-install", name: "Garbage Disposal Install / Electrical Connection", bookingType: "INSTANT", estimatedMinutes: 30, basePrice: 325, whileWeThereBasePrice: 225, icon: "kitchen-appliance", description: "The electrical connection for a new or replacement garbage disposal, using existing wiring already in place." },
-      { slug: "range-hood-replacement", name: "Range Hood Replacement", bookingType: "INSTANT", estimatedMinutes: 45, basePrice: 395, whileWeThereBasePrice: 295, icon: "kitchen-appliance", description: "Removing an existing range hood and installing a new one you provide, using the existing electrical connection." },
-      { slug: "range-receptacle-replacement", name: "Electric Range Receptacle Replacement", bookingType: "REMOTE_QUOTE", estimatedMinutes: 45, basePrice: 395, icon: "kitchen-appliance", description: "Replacing the existing high-voltage outlet behind your electric range/stove, in the same location." },
-      { slug: "dryer-receptacle-replacement", name: "Electric Dryer Receptacle Replacement", bookingType: "REMOTE_QUOTE", estimatedMinutes: 45, basePrice: 395, icon: "laundry", description: "Replacing the existing high-voltage outlet behind your dryer, in the same location." },
-      { slug: "new-range-circuit", name: "New Range Circuit / Receptacle", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, icon: "kitchen-appliance", description: "Adding a brand-new dedicated circuit and outlet for an electric range, where one doesn't currently exist." },
-      { slug: "new-dryer-circuit", name: "New Dryer Circuit / Receptacle", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, icon: "laundry", description: "Adding a brand-new dedicated circuit and outlet for a dryer, where one doesn't currently exist." },
+      { slug: "otr-microwave-install", name: "Remove and Replace Existing Microwave", bookingType: "INSTANT", estimatedMinutes: 45, basePrice: 395, whileWeThereBasePrice: 295, icon: "kitchen-appliance", description: "Removing your existing over-the-range microwave and installing a new one in the same spot, using the electrical connection that's already there." },
+      { slug: "install-new-microwave", name: "Install New Microwave", bookingType: "ADJUSTED", estimatedMinutes: 60, basePrice: 395, whileWeThereBasePrice: 295, icon: "kitchen-appliance", description: "Installing an over-the-range microwave in a spot that doesn't already have one — for example, above a cooktop with no hood or existing microwave. Price depends on what's currently there." },
+      { slug: "dishwasher-electrical", name: "Dishwasher Electrical Connection / Replacement", bookingType: "INSTANT", estimatedMinutes: 30, basePrice: 325, whileWeThereBasePrice: 225, icon: "kitchen-appliance", description: "The electrical connection for a new or replacement dishwasher, using wiring that's already there." },
+      { slug: "garbage-disposal-install", name: "Disconnect / Reconnect Garbage Disposal", bookingType: "INSTANT", estimatedMinutes: 20, basePrice: 325, whileWeThereBasePrice: 225, icon: "kitchen-appliance", description: "Disconnecting and reconnecting your existing garbage disposal — for example, while a sink or countertop is being replaced. We do not install a new disposal unit." },
+      { slug: "range-receptacle-replacement", name: "Replace 220V Electric Range/Stove Outlet", bookingType: "INSTANT", estimatedMinutes: 45, basePrice: 395, icon: "kitchen-appliance", disclaimer: "We do not move built-in ovens or stoves — this replaces the outlet in its current location only.", description: "Replacing the existing high-voltage outlet behind your electric range/stove, in the same location." },
+      { slug: "dryer-receptacle-replacement", name: "Remove and Replace Existing 220V Dryer Outlet", bookingType: "INSTANT", estimatedMinutes: 45, basePrice: 395, icon: "laundry", disclaimer: "If this is a stackable washer/dryer unit, we do not move it — the outlet will be serviced in its current location.", description: "Replacing the existing high-voltage outlet behind your dryer, in the same location." },
     ],
   },
   {
@@ -246,6 +247,7 @@ async function main() {
           requiresTechCount: svc.requiresTechCount ?? 1,
           estimatedMinutes: svc.estimatedMinutes ?? null,
           active: svc.active ?? true,
+          disclaimer: svc.disclaimer ?? null,
           shortDescription: svc.description,
           icon: svc.icon ?? null,
         },
@@ -260,6 +262,7 @@ async function main() {
           requiresTechCount: svc.requiresTechCount ?? 1,
           estimatedMinutes: svc.estimatedMinutes ?? null,
           active: svc.active ?? true,
+          disclaimer: svc.disclaimer ?? null,
           shortDescription: svc.description,
           icon: svc.icon ?? null,
         },

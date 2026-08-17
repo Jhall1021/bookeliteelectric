@@ -801,117 +801,81 @@ async function seedNewCeilingFan() {
 }
 
 async function seedApplianceInstallation() {
-  // Phase 4 — first of the remaining categories. Same diagnostic-question
-  // principle as everywhere else: each of these instant-book jobs assumes
-  // wiring is already in place per the master doc's description, so the
-  // one real branch point is confirming that's actually true. If it's
-  // not, there's no fixed price for running new wiring here (no number
-  // was ever given for that), so it goes to photo review rather than
-  // silently overcharging or undercharging.
+  // Rebuilt per client direction: everything in this category is a simple
+  // remove-and-replace job using wiring that's already there — no
+  // diagnostic branching needed, just a flat price (with a disclaimer on
+  // two of them). The one genuine exception is a brand-new microwave
+  // install, which really does depend on what's currently above the
+  // range. Anything needing an actual new circuit is handled by the
+  // Dedicated Circuits category instead, not duplicated here.
   //
-  // The two receptacle-swap services (range/dryer) branch on whether the
-  // new receptacle matches the existing plug configuration — a same-type
-  // swap is a simple job; a different configuration (e.g. 3-prong to
-  // 4-prong) usually means panel/wiring changes that need a look first.
-  //
-  // new-range-circuit and new-dryer-circuit are intentionally left with
-  // no tree at all — they're genuinely open-ended custom work with no
-  // fixed anchor price, so the engine's REMOTE_QUOTE fallback (added this
-  // session) routes them straight to photo review.
-
-  async function simpleExistingWiringTree(slug: string, itemLabel: string, photoLabels: string[]) {
+  // Every affected service's tree is explicitly cleared first — several
+  // of these had a 1-question tree from an earlier version of this
+  // function that no longer applies now that they're flat-price.
+  const flatServices = [
+    "otr-microwave-install",
+    "dishwasher-electrical",
+    "garbage-disposal-install",
+    "range-receptacle-replacement",
+    "dryer-receptacle-replacement",
+  ];
+  for (const slug of flatServices) {
     const service = await prisma.service.findUniqueOrThrow({ where: { slug } });
     await clearServiceTree(service.id);
-
-    const q = await prisma.question.create({
-      data: {
-        serviceId: service.id,
-        key: "existing_wiring",
-        prompt: `Is there already an electrical connection in place for the ${itemLabel}?`,
-        helpText: "For example, from a previous unit that used to be there.",
-        inputType: "SINGLE_SELECT",
-        order: 1,
-      },
-    });
-
-    await prisma.answerOption.createMany({
-      data: [
-        { questionId: q.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
-        {
-          questionId: q.id,
-          label: "No",
-          value: "no",
-          routeAction: "PHOTO_REVIEW",
-          order: 2,
-          requiredPhotoLabels: photoLabels,
-        },
-      ],
-    });
-
-    console.log(`  ✓ ${slug} tree (existing wiring check)`);
   }
+  console.log("  ✓ Cleared old trees on flat-price appliance services (now zero-question, price + disclaimer only)");
 
-  await simpleExistingWiringTree("otr-microwave-install", "microwave", [
-    "Cabinet space above the range",
-    "Nearest outlet or electrical panel",
-  ]);
-  await simpleExistingWiringTree("dishwasher-electrical", "dishwasher", [
-    "Under-sink area where the dishwasher connects",
-    "Nearest outlet or panel",
-  ]);
-  await simpleExistingWiringTree("garbage-disposal-install", "garbage disposal", [
-    "Under-sink area",
-    "Nearest switch or outlet",
-  ]);
-  await simpleExistingWiringTree("range-hood-replacement", "range hood", [
-    "Area above the range/cooktop",
-    "Nearest electrical connection",
-  ]);
+  // Install New Microwave — the one real decision tree in this category.
+  const newMicrowave = await prisma.service.findUniqueOrThrow({
+    where: { slug: "install-new-microwave" },
+  });
+  await clearServiceTree(newMicrowave.id);
 
-  // Receptacle swaps — same-type is instant, different configuration or
-  // uncertainty goes to photo review.
-  async function receptacleSwapTree(slug: string, applianceLabel: string) {
-    const service = await prisma.service.findUniqueOrThrow({ where: { slug } });
-    await clearServiceTree(service.id);
+  const qWhatsAbove = await prisma.question.create({
+    data: {
+      serviceId: newMicrowave.id,
+      key: "whats_above_range",
+      prompt: "What's currently above where the microwave will go?",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
 
-    const q = await prisma.question.create({
-      data: {
-        serviceId: service.id,
-        key: "same_receptacle_type",
-        prompt: `Is the new receptacle the same type as what's there now (e.g. swapping a 3-prong for a 3-prong)?`,
-        helpText: `This is about the ${applianceLabel} outlet's plug shape, not just that it's the same brand.`,
-        inputType: "SINGLE_SELECT",
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qWhatsAbove.id,
+        label: "There's already power in the cabinet above",
+        value: "existing_power",
+        routeAction: "RESOLVE_INSTANT",
         order: 1,
+        requiredPhotoLabels: [],
+        disclaimer: null,
       },
-    });
+      {
+        questionId: qWhatsAbove.id,
+        label: "There's an existing hood we're removing",
+        value: "existing_hood",
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: 7500, // +$75 to install an outlet in a box off the hood feed
+        order: 2,
+        requiredPhotoLabels: [],
+        disclaimer: null,
+      },
+      {
+        questionId: qWhatsAbove.id,
+        label: "There's no power or hood there",
+        value: "no_power_no_hood",
+        routeAction: "RESOLVE_ADJUSTED", // same base price — this covers hanging the microwave only
+        order: 3,
+        requiredPhotoLabels: [],
+        disclaimer:
+          "This price covers mounting the microwave itself. Since there's no power source there yet, you'll also need a dedicated circuit run to complete the install — that's priced separately under Dedicated Circuits.",
+      },
+    ],
+  });
 
-    await prisma.answerOption.createMany({
-      data: [
-        { questionId: q.id, label: "Yes, same type", value: "same_type", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
-        {
-          questionId: q.id,
-          label: "No, it's different",
-          value: "different_type",
-          routeAction: "PHOTO_REVIEW",
-          order: 2,
-          requiredPhotoLabels: [`Current ${applianceLabel} receptacle, close-up`, "Breaker panel"],
-        },
-        {
-          questionId: q.id,
-          label: "I'm not sure",
-          value: "unsure",
-          routeAction: "PHOTO_REVIEW",
-          order: 3,
-          requiredPhotoLabels: [`Current ${applianceLabel} receptacle, close-up`, "Breaker panel"],
-        },
-      ],
-    });
-
-    console.log(`  ✓ ${slug} tree (receptacle type check)`);
-  }
-
-  await receptacleSwapTree("range-receptacle-replacement", "range");
-  await receptacleSwapTree("dryer-receptacle-replacement", "dryer");
+  console.log("  ✓ Install New Microwave tree (what's above the range → price + $75 hood add-on + no-power disclaimer)");
 }
 
 async function main() {
