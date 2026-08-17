@@ -177,7 +177,14 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "photo_review") {
-    return <PhotoReviewNotice labels={state.labels} serviceName={flow.name} />;
+    return (
+      <PhotoReviewNotice
+        labels={state.labels}
+        serviceName={flow.name}
+        serviceId={flow.id}
+        answers={answers}
+      />
+    );
   }
 
   return null;
