@@ -1088,6 +1088,164 @@ async function seedPanelsTroubleshooting() {
   ]);
 }
 
+async function seedEvGarage() {
+  // Level 2 EV Charger — the most variable job in this category. All
+  // answers ultimately still route to photo review (no fixed price was
+  // ever given for the different scenarios), but given the value of this
+  // job it's worth collecting real qualifying info upfront rather than a
+  // single "Continue" button, same way a real intake call would.
+  const evCharger = await prisma.service.findUniqueOrThrow({
+    where: { slug: "level-2-ev-charger" },
+  });
+  await clearServiceTree(evCharger.id);
+
+  const qDistance = await prisma.question.create({
+    data: {
+      serviceId: evCharger.id,
+      key: "panel_distance",
+      prompt: "How far is your electrical panel from where the charger will be installed?",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+  const qCapacity = await prisma.question.create({
+    data: {
+      serviceId: evCharger.id,
+      key: "panel_capacity",
+      prompt: "Does your panel have an open double-pole breaker slot for the charger?",
+      inputType: "SINGLE_SELECT",
+      order: 2,
+    },
+  });
+  const qGarageType = await prisma.question.create({
+    data: {
+      serviceId: evCharger.id,
+      key: "garage_type",
+      prompt: "Is this for an attached or detached garage, or an outdoor location like a driveway?",
+      inputType: "SINGLE_SELECT",
+      order: 3,
+    },
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qDistance.id, label: "Same wall or room as the panel", value: "same_room", routeAction: "CONTINUE", nextQuestionId: qCapacity.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qDistance.id, label: "Same floor, different room", value: "same_floor", routeAction: "CONTINUE", nextQuestionId: qCapacity.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qDistance.id, label: "Different floor", value: "different_floor", routeAction: "CONTINUE", nextQuestionId: qCapacity.id, order: 3, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qDistance.id, label: "Detached garage", value: "detached", routeAction: "CONTINUE", nextQuestionId: qCapacity.id, order: 4, requiredPhotoLabels: [], disclaimer: null },
+    ],
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qCapacity.id, label: "Yes", value: "yes", routeAction: "CONTINUE", nextQuestionId: qGarageType.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qCapacity.id, label: "No", value: "no", routeAction: "CONTINUE", nextQuestionId: qGarageType.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qCapacity.id, label: "I'm not sure", value: "unsure", routeAction: "CONTINUE", nextQuestionId: qGarageType.id, order: 3, requiredPhotoLabels: [], disclaimer: null },
+    ],
+  });
+
+  const evPhotoLabels = [
+    "Panel with the door open, showing the amp rating and breakers",
+    "Where the charger will be mounted",
+    "Path between the panel and the charger location (for run distance)",
+  ];
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qGarageType.id, label: "Attached garage", value: "attached", routeAction: "PHOTO_REVIEW", order: 1, requiredPhotoLabels: evPhotoLabels },
+      { questionId: qGarageType.id, label: "Detached garage", value: "detached_confirm", routeAction: "PHOTO_REVIEW", order: 2, requiredPhotoLabels: evPhotoLabels },
+      { questionId: qGarageType.id, label: "Outdoor / driveway", value: "outdoor", routeAction: "PHOTO_REVIEW", order: 3, requiredPhotoLabels: evPhotoLabels },
+    ],
+  });
+  console.log("  ✓ Level 2 EV Charger tree (distance → capacity → location, tailored intake)");
+
+  // Garage Door Opener Outlet — identical logic to the New 120V Outlet
+  // service (same job, same pricing tiers), just listed here too for
+  // discoverability in this category.
+  const garageOutlet = await prisma.service.findUniqueOrThrow({
+    where: { slug: "garage-door-opener-outlet-ev" },
+  });
+  await clearServiceTree(garageOutlet.id);
+
+  const qAccess = await prisma.question.create({
+    data: {
+      serviceId: garageOutlet.id,
+      key: "attic_basement_access",
+      prompt: "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
+      helpText: "This is what determines whether we can run the wire without opening up your walls.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+  const qFinishedSpace = await prisma.question.create({
+    data: {
+      serviceId: garageOutlet.id,
+      key: "finished_space_both_sides",
+      prompt: "Is there finished living space directly above and below this wall?",
+      inputType: "SINGLE_SELECT",
+      order: 2,
+    },
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qAccess.id, label: "Yes", value: "has_access", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+      { questionId: qAccess.id, label: "No", value: "no_access", routeAction: "CONTINUE", nextQuestionId: qFinishedSpace.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+    ],
+  });
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qFinishedSpace.id, label: "Yes", value: "finished_both_sides", routeAction: "RESOLVE_ADJUSTED", priceModifierCents: 10000, order: 1, requiredPhotoLabels: [], disclaimer: null },
+      {
+        questionId: qFinishedSpace.id,
+        label: "No",
+        value: "not_finished_both_sides",
+        routeAction: "PHOTO_REVIEW",
+        order: 2,
+        requiredPhotoLabels: ["Wall where the outlet is needed, full height", "Nearest attic or basement access point, if any"],
+      },
+      {
+        questionId: qFinishedSpace.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        order: 3,
+        requiredPhotoLabels: ["Wall where the outlet is needed, full height", "Nearest attic or basement access point, if any"],
+      },
+    ],
+  });
+  console.log("  ✓ Garage Door Opener Outlet (EV & Garage) tree — same logic as New 120V Outlet");
+
+  // 240V Garage Outlet — lighter tailored-photo-review treatment, same
+  // pattern as the smart-home/panels remote-quote jobs.
+  const garage240 = await prisma.service.findUniqueOrThrow({
+    where: { slug: "240v-garage-outlet" },
+  });
+  await clearServiceTree(garage240.id);
+
+  const qReady = await prisma.question.create({
+    data: {
+      serviceId: garage240.id,
+      key: "ready_for_review",
+      prompt: "Let's get you a price — we'll just need a couple of photos.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qReady.id,
+        label: "Continue",
+        value: "continue",
+        routeAction: "PHOTO_REVIEW",
+        order: 1,
+        requiredPhotoLabels: ["Panel with the door open", "Where the outlet is needed in the garage"],
+      },
+    ],
+  });
+  console.log("  ✓ 240V Garage Outlet tree (tailored photo request)");
+}
+
 async function main() {
   console.log("Seeding Phase 2 decision trees...");
   await seedReplaceStandardOutlet();
@@ -1101,6 +1259,7 @@ async function main() {
   await seedSafetyProtection();
   await seedSmartHomeSecurity();
   await seedPanelsTroubleshooting();
+  await seedEvGarage();
   console.log("Done.");
 }
 
