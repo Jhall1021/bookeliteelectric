@@ -800,6 +800,120 @@ async function seedNewCeilingFan() {
   console.log("  ✓ Install New Ceiling Fan tree (same structure as Recessed Lighting / New Ceiling Light)");
 }
 
+async function seedApplianceInstallation() {
+  // Phase 4 — first of the remaining categories. Same diagnostic-question
+  // principle as everywhere else: each of these instant-book jobs assumes
+  // wiring is already in place per the master doc's description, so the
+  // one real branch point is confirming that's actually true. If it's
+  // not, there's no fixed price for running new wiring here (no number
+  // was ever given for that), so it goes to photo review rather than
+  // silently overcharging or undercharging.
+  //
+  // The two receptacle-swap services (range/dryer) branch on whether the
+  // new receptacle matches the existing plug configuration — a same-type
+  // swap is a simple job; a different configuration (e.g. 3-prong to
+  // 4-prong) usually means panel/wiring changes that need a look first.
+  //
+  // new-range-circuit and new-dryer-circuit are intentionally left with
+  // no tree at all — they're genuinely open-ended custom work with no
+  // fixed anchor price, so the engine's REMOTE_QUOTE fallback (added this
+  // session) routes them straight to photo review.
+
+  async function simpleExistingWiringTree(slug: string, itemLabel: string, photoLabels: string[]) {
+    const service = await prisma.service.findUniqueOrThrow({ where: { slug } });
+    await clearServiceTree(service.id);
+
+    const q = await prisma.question.create({
+      data: {
+        serviceId: service.id,
+        key: "existing_wiring",
+        prompt: `Is there already an electrical connection in place for the ${itemLabel}?`,
+        helpText: "For example, from a previous unit that used to be there.",
+        inputType: "SINGLE_SELECT",
+        order: 1,
+      },
+    });
+
+    await prisma.answerOption.createMany({
+      data: [
+        { questionId: q.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+        {
+          questionId: q.id,
+          label: "No",
+          value: "no",
+          routeAction: "PHOTO_REVIEW",
+          order: 2,
+          requiredPhotoLabels: photoLabels,
+        },
+      ],
+    });
+
+    console.log(`  ✓ ${slug} tree (existing wiring check)`);
+  }
+
+  await simpleExistingWiringTree("otr-microwave-install", "microwave", [
+    "Cabinet space above the range",
+    "Nearest outlet or electrical panel",
+  ]);
+  await simpleExistingWiringTree("dishwasher-electrical", "dishwasher", [
+    "Under-sink area where the dishwasher connects",
+    "Nearest outlet or panel",
+  ]);
+  await simpleExistingWiringTree("garbage-disposal-install", "garbage disposal", [
+    "Under-sink area",
+    "Nearest switch or outlet",
+  ]);
+  await simpleExistingWiringTree("range-hood-replacement", "range hood", [
+    "Area above the range/cooktop",
+    "Nearest electrical connection",
+  ]);
+
+  // Receptacle swaps — same-type is instant, different configuration or
+  // uncertainty goes to photo review.
+  async function receptacleSwapTree(slug: string, applianceLabel: string) {
+    const service = await prisma.service.findUniqueOrThrow({ where: { slug } });
+    await clearServiceTree(service.id);
+
+    const q = await prisma.question.create({
+      data: {
+        serviceId: service.id,
+        key: "same_receptacle_type",
+        prompt: `Is the new receptacle the same type as what's there now (e.g. swapping a 3-prong for a 3-prong)?`,
+        helpText: `This is about the ${applianceLabel} outlet's plug shape, not just that it's the same brand.`,
+        inputType: "SINGLE_SELECT",
+        order: 1,
+      },
+    });
+
+    await prisma.answerOption.createMany({
+      data: [
+        { questionId: q.id, label: "Yes, same type", value: "same_type", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+        {
+          questionId: q.id,
+          label: "No, it's different",
+          value: "different_type",
+          routeAction: "PHOTO_REVIEW",
+          order: 2,
+          requiredPhotoLabels: [`Current ${applianceLabel} receptacle, close-up`, "Breaker panel"],
+        },
+        {
+          questionId: q.id,
+          label: "I'm not sure",
+          value: "unsure",
+          routeAction: "PHOTO_REVIEW",
+          order: 3,
+          requiredPhotoLabels: [`Current ${applianceLabel} receptacle, close-up`, "Breaker panel"],
+        },
+      ],
+    });
+
+    console.log(`  ✓ ${slug} tree (receptacle type check)`);
+  }
+
+  await receptacleSwapTree("range-receptacle-replacement", "range");
+  await receptacleSwapTree("dryer-receptacle-replacement", "dryer");
+}
+
 async function main() {
   console.log("Seeding Phase 2 decision trees...");
   await seedReplaceStandardOutlet();
@@ -809,6 +923,7 @@ async function main() {
   await seedRecessedLighting();
   await seedNewCeilingLight();
   await seedNewCeilingFan();
+  await seedApplianceInstallation();
   console.log("Done.");
 }
 

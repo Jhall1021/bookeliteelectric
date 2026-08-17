@@ -58,8 +58,17 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     if (!flow) return;
     if (flow.questions.length > 0) {
       setState({ kind: "question", question: flow.questions[0] });
+    } else if (flow.bookingType === "REMOTE_QUOTE") {
+      // No tree seeded for this service yet, but it's explicitly a
+      // custom-quote job — route straight to photo review instead of
+      // falsely resolving at $0 just because basePrice is null.
+      setState({
+        kind: "photo_review",
+        labels: ["Photo of the area where the work is needed", "Your electrical panel, door open if possible"],
+      });
     } else {
-      // No qualifying questions at all — resolves immediately.
+      // No qualifying questions at all, and it's a fixed-price service —
+      // resolves immediately.
       setState({ kind: "resolved", priceCents: flow.basePrice ?? 0, disclaimer: null });
     }
   }
