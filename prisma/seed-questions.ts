@@ -929,6 +929,114 @@ async function seedSafetyProtection() {
   console.log("  ✓ Whole-House Surge Protection tree (open panel slot check)");
 }
 
+async function seedSmartHomeSecurity() {
+  // Video Doorbell (Existing Wiring), Floodlight Camera (Existing
+  // Fixture), and Doorbell Transformer Replacement stay flat-price —
+  // straightforward jobs using what's already there, no real branch.
+  //
+  // Smart Thermostat Installation gets a real diagnostic branch: whether
+  // the existing thermostat wiring has a C-wire (common wire) genuinely
+  // changes what the job requires — a well-known variable in smart
+  // thermostat installs, not a formality question.
+  const thermostat = await prisma.service.findUniqueOrThrow({
+    where: { slug: "smart-thermostat-install" },
+  });
+  await clearServiceTree(thermostat.id);
+
+  const qCWire = await prisma.question.create({
+    data: {
+      serviceId: thermostat.id,
+      key: "has_c_wire",
+      prompt: "Does your current thermostat wiring include a C-wire (common wire)?",
+      helpText: "Most smart thermostats need this to work. If you're not sure, take a look behind your existing thermostat — a C-wire is usually labeled \"C\" on the terminal block.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qCWire.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+      {
+        questionId: qCWire.id,
+        label: "No",
+        value: "no",
+        routeAction: "PHOTO_REVIEW",
+        order: 2,
+        requiredPhotoLabels: ["Current thermostat with the cover removed, showing the wiring"],
+      },
+      {
+        questionId: qCWire.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        order: 3,
+        requiredPhotoLabels: ["Current thermostat with the cover removed, showing the wiring"],
+      },
+    ],
+  });
+  console.log("  ✓ Smart Thermostat Installation tree (C-wire check)");
+
+  // The two remote-quote-only jobs get a single lightweight question just
+  // to collect a more useful photo than the engine's generic fallback
+  // would — no price differentiation, since none was ever given for these.
+  const newDoorbell = await prisma.service.findUniqueOrThrow({
+    where: { slug: "new-video-doorbell-wiring" },
+  });
+  await clearServiceTree(newDoorbell.id);
+
+  const qDoorbellReady = await prisma.question.create({
+    data: {
+      serviceId: newDoorbell.id,
+      key: "ready_for_review",
+      prompt: "Let's get you a price — we'll just need a couple of photos.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qDoorbellReady.id,
+        label: "Continue",
+        value: "continue",
+        routeAction: "PHOTO_REVIEW",
+        order: 1,
+        requiredPhotoLabels: ["Where the doorbell will be mounted, from outside", "Nearest indoor outlet or electrical panel"],
+      },
+    ],
+  });
+
+  const newCamera = await prisma.service.findUniqueOrThrow({
+    where: { slug: "new-exterior-flood-camera" },
+  });
+  await clearServiceTree(newCamera.id);
+
+  const qCameraReady = await prisma.question.create({
+    data: {
+      serviceId: newCamera.id,
+      key: "ready_for_review",
+      prompt: "Let's get you a price — we'll just need a couple of photos.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qCameraReady.id,
+        label: "Continue",
+        value: "continue",
+        routeAction: "PHOTO_REVIEW",
+        order: 1,
+        requiredPhotoLabels: ["Full wall where the camera is going", "Nearest existing exterior fixture or outlet, if any"],
+      },
+    ],
+  });
+
+  console.log("  ✓ New Video Doorbell Wiring / New Exterior Flood Camera trees (tailored photo requests)");
+}
+
 async function main() {
   console.log("Seeding Phase 2 decision trees...");
   await seedReplaceStandardOutlet();
@@ -940,6 +1048,7 @@ async function main() {
   await seedNewCeilingFan();
   await seedApplianceInstallation();
   await seedSafetyProtection();
+  await seedSmartHomeSecurity();
   console.log("Done.");
 }
 
