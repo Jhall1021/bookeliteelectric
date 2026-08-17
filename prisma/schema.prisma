@@ -65,6 +65,7 @@ model Service {
   questions    Question[]
   pricingRules PricingRule[]
   lineItems    LineItem[]
+  quotes       Quote[]
 
   @@map("services")
 }
@@ -240,6 +241,7 @@ model Quote {
   customerId      String
   customer        Customer    @relation(fields: [customerId], references: [id])
   serviceId       String
+  service         Service     @relation(fields: [serviceId], references: [id])
   answersSnapshot Json
   status          QuoteStatus @default(SUBMITTED)
   quotedPriceCents Int?
