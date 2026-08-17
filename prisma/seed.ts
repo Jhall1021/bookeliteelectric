@@ -146,8 +146,8 @@ const CATALOG: SeedCategory[] = [
     name: "Safety & Protection",
     icon: "shield",
     services: [
-      { slug: "hardwired-smoke-detector", name: "Hardwired Smoke Detector", bookingType: "INSTANT", estimatedMinutes: 20, basePrice: 225, whileWeThereBasePrice: 85, icon: "smoke-detector", description: "Replacing an existing hardwired smoke detector in the same location." },
-      { slug: "smoke-co-detector", name: "Smoke / CO Detector", bookingType: "INSTANT", estimatedMinutes: 25, basePrice: 265, whileWeThereBasePrice: 125, icon: "smoke-detector", description: "Replacing an existing hardwired combination smoke/carbon monoxide detector in the same location." },
+      { slug: "hardwired-smoke-detector", name: "Hardwired Smoke Detector", bookingType: "INSTANT", estimatedMinutes: 20, basePrice: 300, whileWeThereBasePrice: 165, icon: "smoke-detector", description: "Replacing an existing hardwired smoke detector in the same location." },
+      { slug: "smoke-co-detector", name: "Smoke / CO Detector", bookingType: "INSTANT", estimatedMinutes: 25, basePrice: 405, whileWeThereBasePrice: 255, icon: "smoke-detector", description: "Replacing an existing hardwired combination smoke/carbon monoxide detector in the same location." },
       { slug: "whole-house-surge-protection", name: "Whole-House Surge Protection", bookingType: "ADJUSTED", estimatedMinutes: 45, basePrice: 695, icon: "surge", description: "Installing a surge protector directly at your electrical panel to protect everything in your home from power surges." },
       { slug: "home-electrical-safety-inspection", name: "Home Electrical Safety Inspection", bookingType: "INSTANT", estimatedMinutes: 60, basePrice: 295, icon: "inspection", description: "A general visual and functional inspection of your home's electrical system, with a written summary of anything that needs attention." },
     ],
