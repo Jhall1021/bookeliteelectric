@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ServiceIcon } from "@/components/shared/Icons";
 
 const TRUST_ITEMS = [
   { label: "Upfront Flat-Rate Pricing" },
@@ -63,9 +64,15 @@ export default function HomePage() {
             </ul>
           </div>
 
-          <div className="aspect-[4/3] rounded-card bg-navy-light" aria-hidden />
-          {/* Replace with real residential-kitchen hero photography before launch —
-              per brief: kitchens, living rooms, lighting, TVs, EV chargers, real homes. */}
+          {/* PLACEHOLDER — swap for real photography before launch (kitchens,
+              living rooms, a technician at work, per the brief). Using one
+              of the site's own icons here rather than a flat color block so
+              this doesn't read as a broken image while real photos are sourced. */}
+          <div className="relative aspect-[4/3] overflow-hidden rounded-card bg-navy-light" aria-hidden>
+            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+              <ServiceIcon icon="light" className="h-32 w-32 text-white" />
+            </div>
+          </div>
         </div>
       </section>
 
