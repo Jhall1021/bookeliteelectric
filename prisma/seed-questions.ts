@@ -1037,6 +1037,57 @@ async function seedSmartHomeSecurity() {
   console.log("  ✓ New Video Doorbell Wiring / New Exterior Flood Camera trees (tailored photo requests)");
 }
 
+async function seedPanelsTroubleshooting() {
+  // Single/Double-Pole Breaker Replacement stay flat-price — simple swaps,
+  // no branch point. Electrical Troubleshooting deliberately has NO tree
+  // at all — the entire point of that service is diagnosing an unknown
+  // problem, so there's nothing to ask upfront that would meaningfully
+  // change the $249 starting price.
+  //
+  // Panel Replacement and 200A Service Upgrade both get tailored photo
+  // requests (same pattern as the smart-home remote-quote jobs) instead
+  // of the engine's generic fallback — no price differentiation, since
+  // these are always custom-quoted regardless of the answer, but the
+  // right photos matter a lot for a job this size.
+  async function tailoredPhotoReview(slug: string, photoLabels: string[]) {
+    const service = await prisma.service.findUniqueOrThrow({ where: { slug } });
+    await clearServiceTree(service.id);
+
+    const q = await prisma.question.create({
+      data: {
+        serviceId: service.id,
+        key: "ready_for_review",
+        prompt: "Let's get you a price — we'll just need a few photos.",
+        inputType: "SINGLE_SELECT",
+        order: 1,
+      },
+    });
+    await prisma.answerOption.createMany({
+      data: [
+        {
+          questionId: q.id,
+          label: "Continue",
+          value: "continue",
+          routeAction: "PHOTO_REVIEW",
+          order: 1,
+          requiredPhotoLabels: photoLabels,
+        },
+      ],
+    });
+    console.log(`  ✓ ${slug} tree (tailored photo request)`);
+  }
+
+  await tailoredPhotoReview("electrical-panel-replacement", [
+    "Panel with the door open, showing the amp rating and breakers",
+    "Wide shot of the area around the panel (for access/clearance)",
+  ]);
+  await tailoredPhotoReview("200a-service-upgrade", [
+    "Panel with the door open, showing the current amp rating",
+    "Electric meter",
+    "Wide shot of the panel area and clearance around it",
+  ]);
+}
+
 async function main() {
   console.log("Seeding Phase 2 decision trees...");
   await seedReplaceStandardOutlet();
@@ -1049,6 +1100,7 @@ async function main() {
   await seedApplianceInstallation();
   await seedSafetyProtection();
   await seedSmartHomeSecurity();
+  await seedPanelsTroubleshooting();
   console.log("Done.");
 }
 
