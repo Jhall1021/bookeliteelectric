@@ -7,6 +7,7 @@ const TRUST_ITEMS = [
   { label: "3-Hour Arrival Windows" },
   { label: "Professional Electricians" },
   { label: "No Surprise Pricing" },
+  { label: "All Major Credit Cards Accepted" },
 ];
 
 // A representative slice — the real Home page pulls "most popular" from the
@@ -28,7 +29,7 @@ export default function HomePage() {
         <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:items-center">
           <div>
             <h1 className="font-display text-4xl font-bold leading-tight md:text-5xl">
-              The easier way to hire an electrician.
+              Skip the Estimate. Know Your Price.
             </h1>
             <p className="mt-4 text-lg text-slate-light">
               See your price. Pick your time.
@@ -115,6 +116,35 @@ export default function HomePage() {
               See the full price for everything before you book — not after we're standing in
               your kitchen.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Payment options */}
+      <section className="border-t border-cardline bg-warmwhite py-16">
+        <div className="mx-auto max-w-6xl px-6">
+          <h2 className="font-display text-2xl font-bold text-navy">Flexible Payment Options</h2>
+          <p className="mt-2 max-w-2xl text-slate">
+            Pay however works best for you — all at the same upfront price you saw when you
+            booked.
+          </p>
+
+          <div className="mt-8 grid gap-6 sm:grid-cols-2">
+            <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+              <h3 className="font-display text-base font-bold text-navy">All Major Credit Cards</h3>
+              <p className="mt-2 text-sm text-slate">
+                Visa, Mastercard, American Express, and Discover — pay with the card already in
+                your wallet.
+              </p>
+            </div>
+
+            <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+              <h3 className="font-display text-base font-bold text-navy">Pay Over Time</h3>
+              <p className="mt-2 text-sm text-slate">
+                Split larger jobs into monthly payments through Affirm, with rates shown upfront
+                before you commit — no surprises, same as our pricing.
+              </p>
+            </div>
           </div>
         </div>
       </section>
