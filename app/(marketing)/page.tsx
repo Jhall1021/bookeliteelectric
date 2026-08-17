@@ -15,7 +15,7 @@ const POPULAR_SERVICES = [
   { name: "Outlet Replacement", from: "$225", href: "/services/outlets-switches/replace-standard-outlet" },
   { name: "Light Fixture Replacement", from: "$295", href: "/services/lighting/replace-interior-light-fixture" },
   { name: "Ceiling Fan Installation", from: "$395", href: "/services/fans/replace-ceiling-fan" },
-  { name: "TV Mount Installation", from: "$495", href: "/services/tv-media/tv-install-up-to-55" },
+  { name: "TV Mount Installation", from: "$495", href: "/services/tv-media/tv-installation" },
   { name: "Recessed Lighting", from: "$995", href: "/services/lighting/recessed-lighting-4" },
   { name: "EV Charger Installation", from: "$1,295", href: "/services/ev-garage/level-2-ev-charger" },
 ];

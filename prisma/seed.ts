@@ -36,6 +36,12 @@ type SeedService = {
   // the customer. These are placeholder estimates; refine with real field
   // data once jobs start completing.
   estimatedMinutes?: number;
+  // false = exists in the catalog and is fully priced/usable inside a
+  // guided-flow tree (e.g. as an add-on question), but doesn't show up as
+  // its own browsable tile on category/services pages. Used for things
+  // like TV mounts that are only ever selected as a question within
+  // another service's flow, never booked directly on their own.
+  active?: boolean;
 };
 
 type SeedCategory = {
@@ -112,11 +118,11 @@ const CATALOG: SeedCategory[] = [
     name: "TV & Media",
     icon: "tv",
     services: [
-      { slug: "tv-install-up-to-55", name: "Professional TV Install — Up to 55 in", bookingType: "INSTANT", estimatedMinutes: 60, basePrice: 495, whileWeThereBasePrice: 395, requiresTechCount: 1, icon: "tv", description: "Mounting a TV up to 55 inches on your wall, with cable concealment. Does not include the mount itself unless you add one." },
-      { slug: "tv-install-56-85", name: "Professional TV Install — 56–85 in", bookingType: "INSTANT", estimatedMinutes: 90, basePrice: 695, whileWeThereBasePrice: 595, requiresTechCount: 2, icon: "tv", description: "Mounting a larger TV (56\"–85\") on your wall — requires two technicians given the size and weight." },
-      { slug: "tv-install-over-85", name: "TV Install — Over 85 in", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, icon: "tv", description: "Mounting an extra-large TV (over 85\") — priced individually given the weight and wall-reinforcement considerations." },
-      { slug: "elite-tilt-mount", name: "Elite Tilt TV Mount", bookingType: "ADJUSTED", estimatedMinutes: 15, basePrice: 99, whileWeThereBasePrice: 99, icon: "mount", description: "An Elite-supplied tilting wall mount, added to a TV installation if you don't already have a compatible mount." },
-      { slug: "elite-articulating-mount", name: "Elite Full-Motion Articulating Mount", bookingType: "ADJUSTED", estimatedMinutes: 20, basePrice: 179, whileWeThereBasePrice: 179, icon: "mount", description: "An Elite-supplied full-motion (swivel/extend) wall mount, added to a TV installation if you don't already have a compatible mount." },
+      { slug: "tv-installation", name: "Professional TV Installation", bookingType: "ADJUSTED", estimatedMinutes: 60, basePrice: 495, whileWeThereBasePrice: 395, requiresTechCount: 1, icon: "tv", description: "Mounting your TV on the wall, with cable concealment. Price adjusts based on TV size and what's needed for power. Does not include the mount itself unless you add one." },
+      { slug: "tv-install-existing-location", name: "Install TV in Existing Location", bookingType: "ADJUSTED", estimatedMinutes: 30, basePrice: 315, whileWeThereBasePrice: 255, icon: "tv", description: "Mounting your TV where power and cable routing are already in place — no new outlet or cable concealment needed, so it's faster and less expensive than a full installation." },
+      { slug: "soundbar-installation", name: "Soundbar Installation", bookingType: "REMOTE_QUOTE", icon: "tv", description: "Mounting a soundbar below your TV or on a shelf, with cable concealment." },
+      { slug: "elite-tilt-mount", name: "Elite Tilt TV Mount", bookingType: "ADJUSTED", estimatedMinutes: 15, basePrice: 99, whileWeThereBasePrice: 99, icon: "mount", active: false, description: "An Elite-supplied tilting wall mount, added to a TV installation if you don't already have a compatible mount." },
+      { slug: "elite-articulating-mount", name: "Elite Full-Motion Articulating Mount", bookingType: "ADJUSTED", estimatedMinutes: 20, basePrice: 179, whileWeThereBasePrice: 179, icon: "mount", active: false, description: "An Elite-supplied full-motion (swivel/extend) wall mount, added to a TV installation if you don't already have a compatible mount." },
     ],
   },
   {
@@ -239,6 +245,7 @@ async function main() {
           whileWeThereBasePrice: svc.whileWeThereBasePrice ? c(svc.whileWeThereBasePrice) : null,
           requiresTechCount: svc.requiresTechCount ?? 1,
           estimatedMinutes: svc.estimatedMinutes ?? null,
+          active: svc.active ?? true,
           shortDescription: svc.description,
           icon: svc.icon ?? null,
         },
@@ -252,6 +259,7 @@ async function main() {
           whileWeThereBasePrice: svc.whileWeThereBasePrice ? c(svc.whileWeThereBasePrice) : null,
           requiresTechCount: svc.requiresTechCount ?? 1,
           estimatedMinutes: svc.estimatedMinutes ?? null,
+          active: svc.active ?? true,
           shortDescription: svc.description,
           icon: svc.icon ?? null,
         },
