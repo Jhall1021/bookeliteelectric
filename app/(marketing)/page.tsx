@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { NewJerseyMap } from "@/components/shared/NewJerseyMap";
 
 const TRUST_ITEMS = [
   { label: "Upfront Flat-Rate Pricing" },
@@ -141,7 +142,7 @@ export default function HomePage() {
         <h2 className="font-display text-2xl font-bold text-navy">
           Proudly Serving Monmouth &amp; Ocean Counties, NJ
         </h2>
-        <p className="mt-2 text-slate">...and nearby communities.</p>
+        <NewJerseyMap className="mx-auto mt-6 h-56 w-auto text-navy" />
       </section>
 
       {/* Footer */}

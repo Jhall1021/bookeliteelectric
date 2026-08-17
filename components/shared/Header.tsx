@@ -33,7 +33,7 @@ export default function Header() {
     <header className="sticky top-0 z-40 border-b border-cardline bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/images/elite-logo.png" alt="Elite Electric & Lighting" width={56} height={56} />
+          <Image src="/images/elite-logo.png" alt="Elite Electric & Lighting" width={112} height={112} />
         </Link>
 
         <nav className="hidden gap-8 text-sm font-medium text-navy md:flex">
