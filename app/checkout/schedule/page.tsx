@@ -2,6 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { getWindowAvailabilityForDay } from "@/lib/jobber";
 import ScheduleClient from "@/components/checkout/ScheduleClient";
 
+// Same reasoning as the API route — never statically cache this page.
+// The whole point is a live check every time someone actually looks.
+export const dynamic = "force-dynamic";
+
 function nextWeekdays(count: number): Date[] {
   const days: Date[] = [];
   const cursor = new Date();
@@ -14,22 +18,21 @@ function nextWeekdays(count: number): Date[] {
 }
 
 export default async function SchedulePage() {
+  const days = nextWeekdays(5).map((d) => ({
+    date: d.toISOString(),
+    dateISO: d.toISOString().split("T")[0],
+  }));
+
+  // Only the first (default-selected) day is checked here, on the server,
+  // for a fast initial render with no loading flicker. Every other day —
+  // including this one again if you navigate away and back — gets a
+  // fresh client-side check the moment its tab is actually clicked.
   const eligibleCrews = await prisma.jobberCrewMember.findMany({
     where: { eligibleForWebsiteBookings: true },
     select: { jobberUserId: true },
   });
   const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
+  const firstDayWindows = await getWindowAvailabilityForDay(days[0].dateISO, eligibleIds);
 
-  const days = nextWeekdays(5);
-
-  // Sequential, not Promise.all — Jobber's rate limiting is per
-  // app/account, and this is only 5 calls on a page load, not a hot path.
-  const dayAvailability = [];
-  for (const day of days) {
-    const dateISO = day.toISOString().split("T")[0];
-    const windows = await getWindowAvailabilityForDay(dateISO, eligibleIds);
-    dayAvailability.push({ date: day.toISOString(), dateISO, windows });
-  }
-
-  return <ScheduleClient days={dayAvailability} />;
+  return <ScheduleClient days={days} initialWindows={firstDayWindows} />;
 }
