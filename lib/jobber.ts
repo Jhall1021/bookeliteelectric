@@ -138,8 +138,8 @@ const PROPERTY_CREATE_MUTATION = `
 `;
 
 const JOB_CREATE_MUTATION = `
-  mutation CreateJob($attributes: JobCreateAttributes!) {
-    jobCreate(attributes: $attributes) {
+  mutation CreateJob($input: JobCreateAttributes!) {
+    jobCreate(input: $input) {
       job { id jobNumber title }
       userErrors { message path }
     }
@@ -273,7 +273,7 @@ export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJo
   const jobResult = await jobberGraphQL<{
     jobCreate: { job: { id: string; jobNumber: number } | null; userErrors: { message: string; path: string[] }[] };
   }>(JOB_CREATE_MUTATION, {
-    attributes: {
+    input: {
       propertyId: jobberPropertyId,
       title,
       instructions: `${lineItemSummary}\n\nTotal: ${formatDollars(booking.totalCents)}\nBooked via BookEliteElectric.com`,
