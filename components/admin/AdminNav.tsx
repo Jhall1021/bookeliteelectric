@@ -23,6 +23,9 @@ export default function AdminNav() {
           <Link href="/admin/bookings" className="text-sm text-white/80 hover:text-white">
             Bookings
           </Link>
+          <Link href="/admin/jobber" className="text-sm text-white/80 hover:text-white">
+            Jobber
+          </Link>
           <Link href="/admin/services" className="text-sm text-white/80 hover:text-white">
             Services &amp; Pricing
           </Link>

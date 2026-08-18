@@ -377,3 +377,19 @@ model PricingSettings {
 
   @@map("pricing_settings")
 }
+
+// Single row — stores the OAuth tokens from authorizing this app against
+// the real Elite Electric Jobber account. Access tokens expire hourly and
+// get silently refreshed using the refresh token whenever the integration
+// makes a call; the refresh token itself only changes if Jobber rotates
+// it or the connection is re-authorized.
+model JobberConnection {
+  id           String   @id @default("default")
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  connectedAt  DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("jobber_connections")
+}
