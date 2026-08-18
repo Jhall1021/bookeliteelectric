@@ -123,6 +123,20 @@ const CLIENT_CREATE_MUTATION = `
   }
 `;
 
+// Mutation name and argument shape INFERRED from Jobber's consistent
+// naming convention (ClientCreateInput -> clientCreate, JobCreateInput ->
+// jobCreate), not independently confirmed via the schema explorer like
+// everything else here. If pushing a booking fails specifically at this
+// step, this is the first thing to re-verify.
+const PROPERTY_CREATE_MUTATION = `
+  mutation CreateProperty($clientId: EncodedId!, $input: PropertyCreateInput!) {
+    propertyCreate(clientId: $clientId, input: $input) {
+      properties { id }
+      userErrors { message path }
+    }
+  }
+`;
+
 const JOB_CREATE_MUTATION = `
   mutation CreateJob($input: JobCreateInput!) {
     jobCreate(input: $input) {
@@ -142,13 +156,12 @@ function splitName(fullName: string): { firstName: string; lastName: string } {
   };
 }
 
-// Pushes a completed Booking into Jobber as a new Client + Job. Always
-// creates a NEW client rather than searching for an existing one by email
-// first — a reasonable v1 simplification, but worth knowing: a repeat
-// customer will currently get a duplicate client record in Jobber rather
-// than being matched to their existing one. Flagging this as a known
-// limitation rather than silently building matching logic that might not
-// match how you actually want duplicates handled.
+// Pushes a completed Booking into Jobber as a new Client + Property + Job,
+// with a specific crew auto-assigned (see pickCrewForWindow) — never a
+// customer choice. Always creates a NEW client rather than searching for
+// an existing one by email first — a reasonable v1 simplification, but
+// worth knowing: a repeat customer will currently get a duplicate client
+// record in Jobber rather than being matched to their existing one.
 export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJobId: string; jobNumber: number }> {
   const booking = await prisma.booking.findUniqueOrThrow({
     where: { id: bookingId },
@@ -177,6 +190,36 @@ export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJo
   }
   const jobberClientId = clientResult.clientCreate.client.id;
 
+  // Our own checkout form only ever collected one freeform address line
+  // plus a zip code — never separate street/city/state fields the way
+  // Jobber's AddressAttributes wants. Reasonable simplification: the
+  // whole address string goes in street1, and province/country are
+  // hardcoded since the whole service area is NJ. Flagging this as a
+  // real simplification, not an oversight.
+  const propertyResult = await jobberGraphQL<{
+    propertyCreate: { properties: { id: string }[] | null; userErrors: { message: string; path: string[] }[] };
+  }>(PROPERTY_CREATE_MUTATION, {
+    clientId: jobberClientId,
+    input: {
+      properties: [
+        {
+          address: {
+            street1: booking.address,
+            city: "",
+            province: "NJ",
+            country: "US",
+            postalCode: booking.zipCode,
+          },
+        },
+      ],
+    },
+  });
+
+  if (propertyResult.propertyCreate.userErrors.length > 0 || !propertyResult.propertyCreate.properties?.[0]) {
+    throw new Error(`Jobber rejected the property: ${JSON.stringify(propertyResult.propertyCreate.userErrors)}`);
+  }
+  const jobberPropertyId = propertyResult.propertyCreate.properties[0].id;
+
   const primaryItem = booking.visit.lineItems.find((li) => li.isPrimary);
   const title = primaryItem?.service.name ?? "Elite Electric Service Visit";
 
@@ -184,28 +227,71 @@ export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJo
     .map((li) => `${li.isPrimary ? "" : "+ "}${li.service.name}`)
     .join("\n");
 
-  // Combine the arrival window's date + time strings into full ISO8601
-  // datetimes — Jobber's startAt/endAt expect a real timestamp, not just
-  // a date and a separate time-of-day string like our own schema uses.
   const dateStr = booking.arrivalWindow.date.toISOString().split("T")[0];
-  // Correctly zoned to Eastern (see zonedWallTimeToUtc) — previously
-  // built with no timezone awareness at all, meaning real pushed bookings
-  // were landing on your Jobber calendar hours off from the arrival
-  // window the customer actually picked.
-  const [startH, startM] = to24Hour(booking.arrivalWindow.startTime).split(":").map(Number);
-  const [endH, endM] = to24Hour(booking.arrivalWindow.endTime).split(":").map(Number);
-  const startAt = zonedWallTimeToUtc(dateStr, startH, startM).toISOString();
-  const endAt = zonedWallTimeToUtc(dateStr, endH, endM).toISOString();
+
+  // scheduling.startTime/endTime are wall-clock ISO8601Time (no date, no
+  // timezone) — Jobber interprets these against the account's own
+  // configured timezone, so this is deliberately the raw Eastern time
+  // the customer picked, not a UTC conversion (unlike the availability-
+  // check code elsewhere in this file, which genuinely needs real UTC
+  // instants for comparison).
+  const [startH, startM] = to24Hour(booking.arrivalWindow.startTime).split(":");
+  const [endH, endM] = to24Hour(booking.arrivalWindow.endTime).split(":");
+  const startTime = `${startH}:${startM}:00`;
+  const endTime = `${endH}:${endM}:00`;
+
+  const windowMinutes =
+    (new Date(`2000-01-01T${endTime}`).getTime() - new Date(`2000-01-01T${startTime}`).getTime()) / 60000;
+
+  // Automatic crew assignment — never shown to or chosen by the customer.
+  const eligibleCrews = await prisma.jobberCrewMember.findMany({
+    where: { eligibleForWebsiteBookings: true },
+    select: { jobberUserId: true },
+  });
+  const [windowStartDate, windowEndDate] = windowToDateRange(
+    dateStr,
+    booking.arrivalWindow.startTime,
+    booking.arrivalWindow.endTime
+  );
+  const assignedCrewId = await pickCrewForWindow(
+    dateStr,
+    windowStartDate,
+    windowEndDate,
+    eligibleCrews.map((c) => c.jobberUserId)
+  );
+
+  if (!assignedCrewId) {
+    throw new Error("No eligible crew was actually free for this window — refusing to create an unassigned job.");
+  }
 
   const jobResult = await jobberGraphQL<{
     jobCreate: { job: { id: string; jobNumber: number } | null; userErrors: { message: string; path: string[] }[] };
   }>(JOB_CREATE_MUTATION, {
     input: {
-      clientId: jobberClientId,
+      propertyId: jobberPropertyId,
       title,
-      instructions: `${lineItemSummary}\n\nTotal: ${formatDollars(booking.totalCents)}\nAddress: ${booking.address} ${booking.zipCode}\nBooked via BookEliteElectric.com`,
-      startAt,
-      endAt,
+      instructions: `${lineItemSummary}\n\nTotal: ${formatDollars(booking.totalCents)}\nBooked via BookEliteElectric.com`,
+      timeframe: {
+        startAt: dateStr,
+        durationUnits: "DAYS",
+        durationValue: 1,
+      },
+      scheduling: {
+        createVisits: true,
+        notifyTeam: true,
+        assignedTo: [assignedCrewId],
+        startTime,
+        endTime,
+      },
+      invoicing: {
+        // Payment already happened through our own Stripe checkout —
+        // Jobber should never generate its own invoice for this job.
+        invoicingType: "FIXED_PRICE",
+        invoicingSchedule: "NEVER",
+      },
+      arrivalWindow: {
+        durationInMinutes: Math.round(windowMinutes),
+      },
     },
   });
 
@@ -418,4 +504,56 @@ export async function getWindowAvailabilityForDay(
     const freeCount = eligibleJobberUserIds.filter((id) => !busyUserIds.has(id)).length;
     return { start: w.start, end: w.end, available: freeCount > 0 };
   });
+}
+
+// Picks WHICH eligible, available crew to assign a job to — deliberately
+// automatic, never shown to the customer. Among everyone actually free
+// for this window, assigns whichever has the fewest scheduled minutes
+// already that day (simple load balancing), not just "first in the
+// list" — otherwise whoever happens to sync first would get overloaded.
+// Returns null if nobody's actually free (shouldn't happen if the
+// availability check already confirmed this window as bookable, but
+// checked explicitly rather than assumed).
+export async function pickCrewForWindow(
+  dateISO: string,
+  windowStart: Date,
+  windowEnd: Date,
+  eligibleJobberUserIds: string[]
+): Promise<string | null> {
+  if (eligibleJobberUserIds.length === 0) return null;
+
+  const dayVisits = await fetchJobberVisitsForDay(dateISO);
+
+  const busyUserIds = new Set<string>();
+  const scheduledMinutesByUser = new Map<string, number>();
+  for (const id of eligibleJobberUserIds) scheduledMinutesByUser.set(id, 0);
+
+  for (const visit of dayVisits) {
+    const duration = visit.allDay
+      ? 24 * 60
+      : visit.startAt && visit.endAt
+      ? (new Date(visit.endAt).getTime() - new Date(visit.startAt).getTime()) / 60000
+      : 0;
+
+    for (const userId of visit.assignedUserIds) {
+      if (scheduledMinutesByUser.has(userId)) {
+        scheduledMinutesByUser.set(userId, (scheduledMinutesByUser.get(userId) ?? 0) + duration);
+      }
+    }
+
+    if (visit.allDay) {
+      visit.assignedUserIds.forEach((id) => busyUserIds.add(id));
+      continue;
+    }
+    if (!visit.startAt || !visit.endAt) continue;
+    if (rangesOverlap(windowStart, windowEnd, new Date(visit.startAt), new Date(visit.endAt))) {
+      visit.assignedUserIds.forEach((id) => busyUserIds.add(id));
+    }
+  }
+
+  const freeCrews = eligibleJobberUserIds.filter((id) => !busyUserIds.has(id));
+  if (freeCrews.length === 0) return null;
+
+  freeCrews.sort((a, b) => (scheduledMinutesByUser.get(a) ?? 0) - (scheduledMinutesByUser.get(b) ?? 0));
+  return freeCrews[0];
 }
