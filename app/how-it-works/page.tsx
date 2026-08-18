@@ -14,7 +14,7 @@ const STEPS = [
   {
     number: "3",
     title: "Pick Your Time",
-    body: "Choose a 3-hour arrival window that works for you. Add anything else you need while we're there, at a lower price since we're already on-site.",
+    body: "Choose an arrival window that works for you. Add anything else you need while we're there, at a lower price since we're already on-site.",
   },
 ];
 

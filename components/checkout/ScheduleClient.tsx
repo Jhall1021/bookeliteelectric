@@ -9,9 +9,11 @@ type DayMeta = { date: string; dateISO: string };
 export default function ScheduleClient({
   days,
   initialWindows,
+  estimatedDurationMinutes,
 }: {
   days: DayMeta[];
   initialWindows: Window[];
+  estimatedDurationMinutes: number | null;
 }) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState(0);
@@ -26,7 +28,9 @@ export default function ScheduleClient({
 
     // Fresh check against the real Jobber calendar every time — no
     // caching, no stale snapshot from whenever the page first loaded.
-    const res = await fetch(`/api/availability/${days[i].dateISO}`, { cache: "no-store" });
+    const url = new URL(`/api/availability/${days[i].dateISO}`, window.location.origin);
+    if (estimatedDurationMinutes) url.searchParams.set("duration", String(estimatedDurationMinutes));
+    const res = await fetch(url, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       setWindows(data.windows);
@@ -50,7 +54,7 @@ export default function ScheduleClient({
 
   return (
     <main className="mx-auto max-w-lg px-6 py-12">
-      <h1 className="font-display text-2xl font-bold text-navy">Select a 3-Hour Arrival Window</h1>
+      <h1 className="font-display text-2xl font-bold text-navy">Select an Arrival Window</h1>
       <p className="mt-1 text-sm text-slate">We'll arrive any time within your selected window.</p>
 
       <div className="mt-6 flex gap-2 overflow-x-auto">

@@ -4,7 +4,7 @@ import Link from "next/link";
 const TRUST_ITEMS = [
   { label: "Upfront Flat-Rate Pricing" },
   { label: "Licensed & Insured" },
-  { label: "3-Hour Arrival Windows" },
+  { label: "Narrow Arrival Windows" },
   { label: "Professional Electricians" },
   { label: "No Surprise Pricing" },
   { label: "All Major Credit Cards Accepted" },

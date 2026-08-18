@@ -276,13 +276,20 @@ export async function pushBookingToJobber(
   // the customer picked, not a UTC conversion (unlike the availability-
   // check code elsewhere in this file, which genuinely needs real UTC
   // instants for comparison).
-  const [startH, startM] = to24Hour(booking.arrivalWindow.startTime).split(":");
-  const [endH, endM] = to24Hour(booking.arrivalWindow.endTime).split(":");
-  const startTime = `${startH}:${startM}:00`;
-  const endTime = `${endH}:${endM}:00`;
+  const [startH, startM] = to24Hour(booking.arrivalWindow.startTime).split(":").map(Number);
+  const [rawEndH, rawEndM] = to24Hour(booking.arrivalWindow.endTime).split(":").map(Number);
+  const startTime = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}:00`;
 
-  const windowMinutes =
-    (new Date(`2000-01-01T${endTime}`).getTime() - new Date(`2000-01-01T${startTime}`).getTime()) / 60000;
+  // The arrival WINDOW (customer-facing "someone will arrive between
+  // 2-5pm") stays the raw 3-hour promise — arrivalWindow.durationInMinutes
+  // below uses this. But the JOB's own scheduled end time — how long the
+  // crew's calendar actually shows them busy — reflects the real
+  // estimated job length when it's longer than the window itself, so a
+  // long job doesn't just quietly vanish from the calendar after 3 hours.
+  const rawWindowMinutes = (rawEndH * 60 + rawEndM) - (startH * 60 + startM);
+  const realDurationMinutes = Math.max(rawWindowMinutes, booking.estimatedDurationMinutes ?? rawWindowMinutes);
+  const realEndTotalMinutes = startH * 60 + startM + realDurationMinutes;
+  const endTime = `${String(Math.floor(realEndTotalMinutes / 60)).padStart(2, "0")}:${String(realEndTotalMinutes % 60).padStart(2, "0")}:00`;
 
   // Automatic crew assignment — never shown to or chosen by the customer.
   // Skipped entirely if the caller already determined this (checkout does
@@ -297,10 +304,11 @@ export async function pushBookingToJobber(
       where: { eligibleForWebsiteBookings: true },
       select: { jobberUserId: true },
     });
-    const [windowStartDate, windowEndDate] = windowToDateRange(
+    const [windowStartDate, windowEndDate] = effectiveBusySpan(
       dateStr,
       booking.arrivalWindow.startTime,
-      booking.arrivalWindow.endTime
+      booking.arrivalWindow.endTime,
+      booking.estimatedDurationMinutes
     );
     assignedCrewId = await pickCrewForWindow(
       dateStr,
@@ -346,7 +354,7 @@ export async function pushBookingToJobber(
         invoicingSchedule: "NEVER",
       },
       arrivalWindow: {
-        durationInMinutes: Math.round(windowMinutes),
+        durationInMinutes: Math.round(rawWindowMinutes),
       },
     },
   });
@@ -501,11 +509,14 @@ function zonedWallTimeToUtc(dateISO: string, hours: number, minutes: number): Da
   return new Date(naiveUtcGuess.getTime() - offsetMinutes * 60000);
 }
 
+// Crews work 8am-4:30pm — these windows fit exactly within that, with
+// nothing offered outside it at all. The first two are full 3-hour
+// blocks; the last is the natural 2.5-hour remainder up to the 4:30
+// cutoff, not a fourth window running into the evening.
 export const FIXED_ARRIVAL_WINDOWS = [
   { start: "8:00 AM", end: "11:00 AM" },
   { start: "11:00 AM", end: "2:00 PM" },
-  { start: "2:00 PM", end: "5:00 PM" },
-  { start: "5:00 PM", end: "8:00 PM" },
+  { start: "2:00 PM", end: "4:30 PM" },
 ];
 
 export function windowToDateRange(dateISO: string, startDisplay: string, endDisplay: string): [Date, Date] {
@@ -517,6 +528,35 @@ export function windowToDateRange(dateISO: string, startDisplay: string, endDisp
   ];
 }
 
+// The arrival WINDOW shown to a customer ("someone will arrive between
+// 2-5pm") is a separate promise from how long the job actually takes once
+// they arrive. This computes the REAL span a crew should be considered
+// busy for: starts at the window's start (assumed earliest arrival), but
+// extends past the window's own end if the job is estimated to run
+// longer than the window itself — so a long job correctly blocks a
+// crew's calendar for its real length, not just the 3-hour arrival
+// promise. A short job (shorter than the window) just uses the window
+// as-is, unchanged from before.
+export function effectiveBusySpan(
+  dateISO: string,
+  windowStartDisplay: string,
+  windowEndDisplay: string,
+  estimatedDurationMinutes: number | null | undefined
+): [Date, Date] {
+  const [windowStart, windowEnd] = windowToDateRange(dateISO, windowStartDisplay, windowEndDisplay);
+  if (!estimatedDurationMinutes) return [windowStart, windowEnd];
+
+  const durationBasedEnd = new Date(windowStart.getTime() + estimatedDurationMinutes * 60000);
+  const effectiveEnd = durationBasedEnd.getTime() > windowEnd.getTime() ? durationBasedEnd : windowEnd;
+  return [windowStart, effectiveEnd];
+}
+
+// Crews shouldn't be scheduled to work past 4:30pm — a job long enough to
+// run past that, even starting at the earliest possible arrival, isn't
+// offered at all rather than risking someone still on-site well after
+// their shift should have ended.
+const WORKDAY_END_DISPLAY = "4:30 PM";
+
 // Checks all 4 fixed windows for one calendar day against ONE fetch of
 // that day's real Jobber visits — not 4 separate fetches. Deliberately
 // "fails open" (treats every window as available) if there are no
@@ -526,7 +566,8 @@ export function windowToDateRange(dateISO: string, startDisplay: string, endDisp
 // the problem is still visible to whoever's watching logs.
 export async function getWindowAvailabilityForDay(
   dateISO: string,
-  eligibleJobberUserIds: string[]
+  eligibleJobberUserIds: string[],
+  estimatedDurationMinutes?: number | null
 ): Promise<{ start: string; end: string; available: boolean }[]> {
   if (eligibleJobberUserIds.length === 0) {
     return FIXED_ARRIVAL_WINDOWS.map((w) => ({ ...w, available: true }));
@@ -540,8 +581,17 @@ export async function getWindowAvailabilityForDay(
     return FIXED_ARRIVAL_WINDOWS.map((w) => ({ ...w, available: true }));
   }
 
+  const [, workdayEnd] = windowToDateRange(dateISO, "8:00 AM", WORKDAY_END_DISPLAY);
+
   return FIXED_ARRIVAL_WINDOWS.map((w) => {
-    const [windowStart, windowEnd] = windowToDateRange(dateISO, w.start, w.end);
+    const [windowStart, effectiveEnd] = effectiveBusySpan(dateISO, w.start, w.end, estimatedDurationMinutes);
+
+    // Job's too long to fit even starting at this window's earliest
+    // arrival — don't offer it at all, regardless of crew availability.
+    if (effectiveEnd.getTime() > workdayEnd.getTime()) {
+      return { start: w.start, end: w.end, available: false };
+    }
+
     const busyUserIds = new Set<string>();
     for (const visit of dayVisits) {
       // All-day visits block the entire day regardless of window, and
@@ -553,7 +603,7 @@ export async function getWindowAvailabilityForDay(
         continue;
       }
       if (!visit.startAt || !visit.endAt) continue; // genuinely unscheduled, doesn't block anything
-      if (rangesOverlap(windowStart, windowEnd, new Date(visit.startAt), new Date(visit.endAt))) {
+      if (rangesOverlap(windowStart, effectiveEnd, new Date(visit.startAt), new Date(visit.endAt))) {
         visit.assignedUserIds.forEach((id) => busyUserIds.add(id));
       }
     }
