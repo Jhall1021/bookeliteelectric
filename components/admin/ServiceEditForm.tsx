@@ -13,6 +13,7 @@ type ServiceData = {
   startingPriceLabel: string | null;
   active: boolean;
   bookingType: string;
+  hasTree: boolean;
 };
 
 function centsToDollarsStr(cents: number | null): string {
@@ -135,10 +136,10 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         Visible on the site (uncheck to hide from category/browse pages without deleting it)
       </label>
 
-      {service.bookingType === "ADJUSTED" && (
+      {service.hasTree && (
         <p className="rounded-card bg-warmwhite p-3 text-xs text-slate">
-          This service has answer-branching questions with their own price adjustments — those
-          aren't editable here yet. This form only controls the base price and description.
+          This service has answer-branching questions — edit them in the Decision Tree section
+          below. This form only controls the base price shown before any questions are asked.
         </p>
       )}
 
