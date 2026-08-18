@@ -3,28 +3,43 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type DayAvailability = {
-  date: string;
-  dateISO: string;
-  windows: { start: string; end: string; available: boolean }[];
-};
+type Window = { start: string; end: string; available: boolean };
+type DayMeta = { date: string; dateISO: string };
 
-export default function ScheduleClient({ days }: { days: DayAvailability[] }) {
+export default function ScheduleClient({
+  days,
+  initialWindows,
+}: {
+  days: DayMeta[];
+  initialWindows: Window[];
+}) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedWindow, setSelectedWindow] = useState<number | null>(null);
+  const [windows, setWindows] = useState<Window[]>(initialWindows);
+  const [loading, setLoading] = useState(false);
 
-  const currentDay = days[selectedDay];
-  const anyAvailableThisDay = currentDay.windows.some((w) => w.available);
-
-  function selectDay(i: number) {
+  async function selectDay(i: number) {
     setSelectedDay(i);
     setSelectedWindow(null);
+    setLoading(true);
+
+    // Fresh check against the real Jobber calendar every time — no
+    // caching, no stale snapshot from whenever the page first loaded.
+    const res = await fetch(`/api/availability/${days[i].dateISO}`, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      setWindows(data.windows);
+    }
+    setLoading(false);
   }
+
+  const currentDay = days[selectedDay];
+  const anyAvailableThisDay = windows.some((w) => w.available);
 
   function continueToDetails() {
     if (selectedWindow === null) return;
-    const win = currentDay.windows[selectedWindow];
+    const win = windows[selectedWindow];
     const params = new URLSearchParams({
       date: currentDay.date,
       windowStart: win.start,
@@ -53,30 +68,32 @@ export default function ScheduleClient({ days }: { days: DayAvailability[] }) {
       </div>
 
       <div className="mt-6 space-y-3">
-        {!anyAvailableThisDay && (
+        {loading && <p className="text-sm text-slate">Checking real-time availability...</p>}
+        {!loading && !anyAvailableThisDay && (
           <p className="rounded-card bg-warmwhite p-4 text-sm text-slate">
             Nothing open this day — try another date above.
           </p>
         )}
-        {currentDay.windows.map((w, i) => (
-          <button
-            key={i}
-            onClick={() => w.available && setSelectedWindow(i)}
-            disabled={!w.available}
-            className={`w-full rounded-card border p-4 text-left text-sm font-medium transition ${
-              !w.available
-                ? "cursor-not-allowed border-cardline bg-warmwhite text-slate/50"
-                : selectedWindow === i
-                ? "border-electric bg-electric/5 text-navy"
-                : "border-cardline bg-white text-navy hover:border-electric/40"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span>{w.start} – {w.end}</span>
-              {!w.available && <span className="text-xs">Fully booked</span>}
-            </div>
-          </button>
-        ))}
+        {!loading &&
+          windows.map((w, i) => (
+            <button
+              key={i}
+              onClick={() => w.available && setSelectedWindow(i)}
+              disabled={!w.available}
+              className={`w-full rounded-card border p-4 text-left text-sm font-medium transition ${
+                !w.available
+                  ? "cursor-not-allowed border-cardline bg-warmwhite text-slate/50"
+                  : selectedWindow === i
+                  ? "border-electric bg-electric/5 text-navy"
+                  : "border-cardline bg-white text-navy hover:border-electric/40"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span>{w.start} – {w.end}</span>
+                {!w.available && <span className="text-xs">Fully booked</span>}
+              </div>
+            </button>
+          ))}
       </div>
 
       <button
