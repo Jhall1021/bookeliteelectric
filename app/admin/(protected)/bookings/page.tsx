@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/flow-types";
+import PushToJobberButton from "@/components/admin/PushToJobberButton";
 
 export default async function AdminBookingsPage() {
   const bookings = await prisma.booking.findMany({
@@ -58,6 +59,10 @@ export default async function AdminBookingsPage() {
             {b.paymentModel === "CARD_ON_FILE_CAPTURE_AFTER_COMPLETION" && "Card on file — captured after completion"}
             {" · "}{b.paymentStatus}
           </div>
+        </div>
+
+        <div className="mt-3 border-t border-cardline pt-3">
+          <PushToJobberButton bookingId={b.id} alreadySent={!!b.jobberJobId} />
         </div>
       </div>
     );

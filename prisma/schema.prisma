@@ -255,6 +255,9 @@ model Booking {
   estimatedDurationMinutes Int?
   paymentModel    PaymentModel
   paymentStatus   String        @default("authorized") // authorized | captured | failed
+  // Set once this booking has been pushed to Jobber as a Client + Job —
+  // null means "not sent yet," presence prevents accidentally sending it twice.
+  jobberJobId     String?
   status          BookingStatus @default(SCHEDULED)
   troubleshootingSession TroubleshootingSession?
   createdAt       DateTime      @default(now())

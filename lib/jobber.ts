@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 const TOKEN_URL = "https://api.getjobber.com/api/oauth/token";
 export const JOBBER_AUTH_URL = "https://api.getjobber.com/api/oauth/authorize";
 export const JOBBER_GRAPHQL_URL = "https://api.getjobber.com/api/graphql";
+// Jobber requires this on every GraphQL call, not just the auth token —
+// pins which version of their schema you're targeting. If Jobber
+// deprecates this dated version, requests will start failing with a clear
+// version error; bump the string here when that happens.
+const JOBBER_API_VERSION = "2025-04-16";
 
 export function jobberRedirectUri(): string {
   // Must exactly match the Redirect URI entered when the app was created
@@ -78,4 +83,143 @@ export async function getValidJobberAccessToken(): Promise<string | null> {
   const fresh = await refreshTokens(conn.refreshToken);
   await saveJobberTokens(fresh);
   return fresh.access_token;
+}
+
+// Low-level GraphQL request — handles auth header, version header, and
+// surfaces BOTH transport errors (bad request, network) and GraphQL-level
+// errors (including Jobber's own `userErrors` validation array) so the
+// caller always knows exactly what happened rather than a silent failure.
+export async function jobberGraphQL<T = any>(query: string, variables?: Record<string, unknown>): Promise<T> {
+  const accessToken = await getValidJobberAccessToken();
+  if (!accessToken) {
+    throw new Error("Jobber isn't connected — visit /admin/jobber to connect it first.");
+  }
+
+  const res = await fetch(JOBBER_GRAPHQL_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      "X-JOBBER-GRAPHQL-VERSION": JOBBER_API_VERSION,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  const body = await res.json();
+
+  if (!res.ok || body.errors) {
+    throw new Error(`Jobber API error: ${JSON.stringify(body.errors ?? body)}`);
+  }
+
+  return body.data as T;
+}
+
+const CLIENT_CREATE_MUTATION = `
+  mutation CreateClient($input: ClientCreateInput!) {
+    clientCreate(input: $input) {
+      client { id firstName lastName }
+      userErrors { message path }
+    }
+  }
+`;
+
+const JOB_CREATE_MUTATION = `
+  mutation CreateJob($input: JobCreateInput!) {
+    jobCreate(input: $input) {
+      job { id jobNumber title }
+      userErrors { message path }
+    }
+  }
+`;
+
+// Splits "Joshua Hall" into firstName/lastName the way Jobber's Client
+// object expects — Jobber has no single "full name" field on create.
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/);
+  return {
+    firstName: parts[0] ?? fullName,
+    lastName: parts.slice(1).join(" ") || "-", // Jobber requires a lastName; "-" if none given
+  };
+}
+
+// Pushes a completed Booking into Jobber as a new Client + Job. Always
+// creates a NEW client rather than searching for an existing one by email
+// first — a reasonable v1 simplification, but worth knowing: a repeat
+// customer will currently get a duplicate client record in Jobber rather
+// than being matched to their existing one. Flagging this as a known
+// limitation rather than silently building matching logic that might not
+// match how you actually want duplicates handled.
+export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJobId: string; jobNumber: number }> {
+  const booking = await prisma.booking.findUniqueOrThrow({
+    where: { id: bookingId },
+    include: {
+      customer: true,
+      arrivalWindow: true,
+      visit: { include: { lineItems: { include: { service: { select: { name: true } } } } } },
+    },
+  });
+
+  const { firstName, lastName } = splitName(booking.customer.name ?? "Customer");
+
+  const clientResult = await jobberGraphQL<{
+    clientCreate: { client: { id: string } | null; userErrors: { message: string; path: string[] }[] };
+  }>(CLIENT_CREATE_MUTATION, {
+    input: {
+      firstName,
+      lastName,
+      emails: booking.customer.email ? [{ description: "MAIN", primary: true, address: booking.customer.email }] : [],
+      phones: booking.customer.phone ? [{ description: "MAIN", primary: true, number: booking.customer.phone }] : [],
+    },
+  });
+
+  if (clientResult.clientCreate.userErrors.length > 0 || !clientResult.clientCreate.client) {
+    throw new Error(`Jobber rejected the client: ${JSON.stringify(clientResult.clientCreate.userErrors)}`);
+  }
+  const jobberClientId = clientResult.clientCreate.client.id;
+
+  const primaryItem = booking.visit.lineItems.find((li) => li.isPrimary);
+  const title = primaryItem?.service.name ?? "Elite Electric Service Visit";
+
+  const lineItemSummary = booking.visit.lineItems
+    .map((li) => `${li.isPrimary ? "" : "+ "}${li.service.name}`)
+    .join("\n");
+
+  // Combine the arrival window's date + time strings into full ISO8601
+  // datetimes — Jobber's startAt/endAt expect a real timestamp, not just
+  // a date and a separate time-of-day string like our own schema uses.
+  const dateStr = booking.arrivalWindow.date.toISOString().split("T")[0];
+  const startAt = new Date(`${dateStr}T${to24Hour(booking.arrivalWindow.startTime)}:00`).toISOString();
+  const endAt = new Date(`${dateStr}T${to24Hour(booking.arrivalWindow.endTime)}:00`).toISOString();
+
+  const jobResult = await jobberGraphQL<{
+    jobCreate: { job: { id: string; jobNumber: number } | null; userErrors: { message: string; path: string[] }[] };
+  }>(JOB_CREATE_MUTATION, {
+    input: {
+      clientId: jobberClientId,
+      title,
+      instructions: `${lineItemSummary}\n\nTotal: ${formatDollars(booking.totalCents)}\nAddress: ${booking.address} ${booking.zipCode}\nBooked via BookEliteElectric.com`,
+      startAt,
+      endAt,
+    },
+  });
+
+  if (jobResult.jobCreate.userErrors.length > 0 || !jobResult.jobCreate.job) {
+    throw new Error(`Jobber rejected the job: ${JSON.stringify(jobResult.jobCreate.userErrors)}`);
+  }
+
+  return { jobberJobId: jobResult.jobCreate.job.id, jobNumber: jobResult.jobCreate.job.jobNumber };
+}
+
+// "8:00 AM" -> "08:00", "5:00 PM" -> "17:00" — our windows are stored as
+// display strings; Jobber's timestamps need 24-hour time.
+function to24Hour(display: string): string {
+  const [time, meridiem] = display.split(" ");
+  let [hours, minutes] = time.split(":").map(Number);
+  if (meridiem === "PM" && hours !== 12) hours += 12;
+  if (meridiem === "AM" && hours === 12) hours = 0;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatDollars(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
 }
