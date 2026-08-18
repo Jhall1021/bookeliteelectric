@@ -53,6 +53,19 @@ model Service {
   // whole category. Falls back to ServiceCategory.icon when null.
   icon                String?
   requiresTechCount   Int             @default(1)
+  // Labor/material composition, imported from the client's validated
+  // pricing engine (Excel workbook, external tool). Null on any service
+  // that hasn't been through that validation yet — those are simply
+  // skipped by the "Recalculate All Prices" admin action rather than
+  // guessed at. When present, basePrice/whileWeThereBasePrice are treated
+  // as DERIVED from these numbers via PricingSettings, not independently
+  // authoritative — editing base/WWT price directly in the Service Editor
+  // still works, but a future recalculation will overwrite it using these.
+  primaryLaborUnits   Float?
+  addOnLaborUnits     Float?
+  materialCostCents   Int?
+  materialMultiplier  Float?
+  permitAdminCents    Int?
   active              Boolean         @default(true)
   // Shown alongside the price on services with NO question tree at all —
   // a flat price that still needs a caveat attached (e.g. "we don't move
@@ -343,4 +356,24 @@ model TroubleshootingSession {
   createdAt         DateTime  @default(now())
 
   @@map("troubleshooting_sessions")
+}
+
+// Single global row — the one dial that drives every service with labor
+// composition data. Recalculating applies:
+//   basePrice = CEILING(MAX(primaryLaborUnits*targetRate + materialCost*
+//     materialMultiplier + permitAdmin, primaryLaborUnits>0 ? primaryMinimum
+//     : 0), roundingIncrement)
+//   whileWeThereBasePrice = CEILING(addOnLaborUnits*targetRate + materialCost
+//     *materialMultiplier, roundingIncrement)
+// — the exact formula from the client's validated pricing engine, not a
+// simplified approximation.
+model PricingSettings {
+  id                       String   @id @default("default")
+  targetRateCents          Int // revenue per productive tech-hour
+  primaryMinimumCents      Int // floor for any primary price when labor units > 0
+  roundingIncrementCents   Int // round every computed price up to this increment
+  defaultPermitAdminCents  Int // fallback when a service has no per-row override
+  updatedAt                DateTime @updatedAt
+
+  @@map("pricing_settings")
 }

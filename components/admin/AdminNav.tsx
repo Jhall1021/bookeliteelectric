@@ -23,6 +23,9 @@ export default function AdminNav() {
           <Link href="/admin/services" className="text-sm text-white/80 hover:text-white">
             Services &amp; Pricing
           </Link>
+          <Link href="/admin/pricing-settings" className="text-sm text-white/80 hover:text-white">
+            Pricing Settings
+          </Link>
         </div>
         <button onClick={handleLogout} className="text-sm text-white/60 hover:text-white">
           Log Out
