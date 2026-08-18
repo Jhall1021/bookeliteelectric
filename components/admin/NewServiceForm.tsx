@@ -1,0 +1,199 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+const ICON_OPTIONS = [
+  "bolt", "breaker", "camera", "circuit", "doorbell", "ev", "exhaust-fan",
+  "exterior-outlet", "fan", "generator", "inspection", "kitchen-appliance",
+  "landscape", "laundry", "light", "mount", "new-outlet", "outlet", "panel",
+  "pool", "recessed", "smoke-detector", "surge", "switch", "thermostat",
+  "transfer-switch", "troubleshooting", "tv", "under-cabinet",
+];
+
+const BOOKING_TYPES = [
+  { value: "INSTANT", label: "Instant — flat price, no questions" },
+  { value: "ADJUSTED", label: "Adjusted — flat price, but expects branching questions later" },
+  { value: "REMOTE_QUOTE", label: "Remote Quote — always priced by you after the fact" },
+];
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+export default function NewServiceForm({ categories }: { categories: { id: string; name: string }[] }) {
+  const router = useRouter();
+  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [description, setDescription] = useState("");
+  const [bookingType, setBookingType] = useState("INSTANT");
+  const [basePrice, setBasePrice] = useState("");
+  const [wwtPrice, setWwtPrice] = useState("");
+  const [startingLabel, setStartingLabel] = useState("");
+  const [icon, setIcon] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleNameChange(value: string) {
+    setName(value);
+    if (!slugTouched) setSlug(slugify(value));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    const res = await fetch("/api/admin/services", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        categoryId,
+        name,
+        slug,
+        shortDescription: description || null,
+        bookingType,
+        basePrice: basePrice ? Math.round(parseFloat(basePrice) * 100) : null,
+        whileWeThereBasePrice: wwtPrice ? Math.round(parseFloat(wwtPrice) * 100) : null,
+        startingPriceLabel: startingLabel || null,
+        icon: icon || null,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      router.push(`/admin/services/${data.id}`);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Something went wrong creating this service.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-5 rounded-card border border-cardline bg-white p-6 shadow-card">
+      <div>
+        <label className="text-sm font-medium text-navy">Category</label>
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+        >
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-navy">Service name</label>
+        <input
+          required
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
+          className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-navy">
+          URL slug <span className="font-normal text-slate">(auto-generated, edit if needed)</span>
+        </label>
+        <input
+          required
+          value={slug}
+          onChange={(e) => { setSlug(slugify(e.target.value)); setSlugTouched(true); }}
+          className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm font-mono focus:border-electric"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-navy">Description (shown to customers)</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-navy">Booking type</label>
+        <select
+          value={bookingType}
+          onChange={(e) => setBookingType(e.target.value)}
+          className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+        >
+          {BOOKING_TYPES.map((b) => (
+            <option key={b.value} value={b.value}>{b.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium text-navy">Base price ($)</label>
+          <input
+            type="number" step="0.01" min="0"
+            value={basePrice}
+            onChange={(e) => setBasePrice(e.target.value)}
+            placeholder="Leave blank for Custom Quote"
+            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-navy">While We're There price ($)</label>
+          <input
+            type="number" step="0.01" min="0"
+            value={wwtPrice}
+            onChange={(e) => setWwtPrice(e.target.value)}
+            placeholder="Leave blank if none"
+            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-navy">
+          "Starting price" label <span className="font-normal text-slate">(only shown when there's no base price)</span>
+        </label>
+        <input
+          value={startingLabel}
+          onChange={(e) => setStartingLabel(e.target.value)}
+          placeholder="e.g. From $795, or leave blank for Custom Quote"
+          className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-navy">Icon</label>
+        <select
+          value={icon}
+          onChange={(e) => setIcon(e.target.value)}
+          className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+        >
+          <option value="">— use category's default icon —</option>
+          {ICON_OPTIONS.map((i) => (
+            <option key={i} value={i}>{i}</option>
+          ))}
+        </select>
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
+      >
+        {saving ? "Creating..." : "Create Service"}
+      </button>
+    </form>
+  );
+}
