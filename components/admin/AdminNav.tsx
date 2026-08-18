@@ -20,6 +20,9 @@ export default function AdminNav() {
           <Link href="/admin/quotes" className="text-sm text-white/80 hover:text-white">
             Quote Review
           </Link>
+          <Link href="/admin/services" className="text-sm text-white/80 hover:text-white">
+            Services &amp; Pricing
+          </Link>
         </div>
         <button onClick={handleLogout} className="text-sm text-white/60 hover:text-white">
           Log Out
