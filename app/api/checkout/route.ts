@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
-import { pushBookingToJobber, pickCrewForWindow, windowToDateRange } from "@/lib/jobber";
+import { pushBookingToJobber, pickCrewForWindow, effectiveBusySpan } from "@/lib/jobber";
+import { sendBookingConfirmationEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   const sessionId = getOrCreateSessionId();
@@ -16,6 +17,17 @@ export async function POST(req: Request) {
   if (!visit || visit.lineItems.length === 0) {
     return NextResponse.json({ error: "No items in visit" }, { status: 400 });
   }
+
+  // Internal dispatch data — sum of every line item's snapshotted duration.
+  // Null (not 0) if ANY item is missing an estimate, so it's obvious in the
+  // data that the total is incomplete rather than silently under-counting.
+  // Computed here, before the availability check below, since a job
+  // longer than its arrival window needs to correctly block a crew's
+  // calendar for its real length, not just the 3-hour window.
+  const hasCompleteEstimates = visit.lineItems.every((li) => li.estimatedMinutes !== null);
+  const estimatedDurationMinutes = hasCompleteEstimates
+    ? visit.lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0)
+    : null;
 
   // Final, live availability check — right here, right before anything is
   // created. The schedule page only re-checks Jobber when a day tab is
@@ -33,7 +45,7 @@ export async function POST(req: Request) {
     where: { eligibleForWebsiteBookings: true },
     select: { jobberUserId: true },
   });
-  const [windowStartDate, windowEndDate] = windowToDateRange(dateISO, windowStart, windowEnd);
+  const [windowStartDate, windowEndDate] = effectiveBusySpan(dateISO, windowStart, windowEnd, estimatedDurationMinutes);
   const assignedCrewId = await pickCrewForWindow(
     dateISO,
     windowStartDate,
@@ -76,14 +88,6 @@ export async function POST(req: Request) {
   }
 
   const totalCents = visit.lineItems.reduce((sum, li) => sum + li.computedPriceCents, 0);
-
-  // Internal dispatch data — sum of every line item's snapshotted duration.
-  // Null (not 0) if ANY item is missing an estimate, so it's obvious in the
-  // data that the total is incomplete rather than silently under-counting.
-  const hasCompleteEstimates = visit.lineItems.every((li) => li.estimatedMinutes !== null);
-  const estimatedDurationMinutes = hasCompleteEstimates
-    ? visit.lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0)
-    : null;
 
   const booking = await prisma.booking.create({
     data: {
@@ -133,6 +137,14 @@ export async function POST(req: Request) {
     await prisma.booking.update({ where: { id: booking.id }, data: { jobberJobId: result.jobberJobId } });
   } catch (err) {
     console.error(`Automatic Jobber push failed for booking ${booking.id} after retry — needs manual "Send to Jobber":`, err);
+  }
+
+  // Same non-blocking pattern as the Jobber push — an email hiccup should
+  // never prevent a customer from getting their booking confirmed.
+  try {
+    await sendBookingConfirmationEmail(booking.id);
+  } catch (err) {
+    console.error(`Confirmation email failed for booking ${booking.id}:`, err);
   }
 
   return NextResponse.json({ bookingId: booking.id });
