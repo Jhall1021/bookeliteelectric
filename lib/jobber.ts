@@ -71,18 +71,56 @@ export async function saveJobberTokens(tokens: { access_token: string; refresh_t
 
 // Always call this before making a Jobber API request — it transparently
 // refreshes an expired access token so nothing else has to think about it.
+//
+// Jobber's refresh tokens are single-use: using one invalidates it and
+// issues a new one. If two requests both try to refresh at nearly the
+// same moment, this guards against the race where the second one reads
+// the token before the first one's replacement is saved — a
+// compare-and-swap on the write (only update if the refresh token is
+// still what we read), plus a fallback that checks whether someone else
+// already won the race before treating a refresh failure as real.
 export async function getValidJobberAccessToken(): Promise<string | null> {
   const conn = await prisma.jobberConnection.findUnique({ where: { id: "default" } });
   if (!conn) return null;
 
-  // Refresh a bit early (2 min buffer) rather than right at the expiry instant.
   if (conn.expiresAt.getTime() > Date.now() + 2 * 60 * 1000) {
     return conn.accessToken;
   }
 
-  const fresh = await refreshTokens(conn.refreshToken);
-  await saveJobberTokens(fresh);
-  return fresh.access_token;
+  try {
+    const fresh = await refreshTokens(conn.refreshToken);
+
+    const updateResult = await prisma.jobberConnection.updateMany({
+      where: { id: "default", refreshToken: conn.refreshToken }, // only if unchanged since we read it
+      data: {
+        accessToken: fresh.access_token,
+        refreshToken: fresh.refresh_token,
+        expiresAt: new Date(Date.now() + fresh.expires_in * 1000),
+      },
+    });
+
+    if (updateResult.count === 0) {
+      // Someone else already refreshed first between our read and our
+      // write. Our own refresh call above may have succeeded at Jobber's
+      // end too — wasteful, but not harmful — just use whatever the
+      // winner actually persisted instead of our now-orphaned copy.
+      const latest = await prisma.jobberConnection.findUnique({ where: { id: "default" } });
+      return latest?.accessToken ?? fresh.access_token;
+    }
+
+    return fresh.access_token;
+  } catch (err) {
+    // Our own refresh attempt failed — possibly because a concurrent
+    // request already consumed this exact refresh token first. Check
+    // whether the connection was actually updated successfully by
+    // someone else in the meantime before treating this as a real,
+    // connection-breaking failure.
+    const latest = await prisma.jobberConnection.findUnique({ where: { id: "default" } });
+    if (latest && latest.expiresAt.getTime() > Date.now()) {
+      return latest.accessToken;
+    }
+    throw err;
+  }
 }
 
 // Low-level GraphQL request — handles auth header, version header, and
