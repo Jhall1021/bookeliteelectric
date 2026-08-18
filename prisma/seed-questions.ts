@@ -229,6 +229,11 @@ async function seedTvInstall() {
   });
   await clearServiceTree(tvInstall.id);
 
+  // Fetched so the mount answer options can reference these services'
+  // LIVE prices instead of a frozen number — see AnswerOption.referencedServiceId.
+  const tiltMount = await prisma.service.findUniqueOrThrow({ where: { slug: "elite-tilt-mount" } });
+  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: { slug: "elite-articulating-mount" } });
+
   const qSize = await prisma.question.create({
     data: {
       serviceId: tvInstall.id,
@@ -318,8 +323,8 @@ async function seedTvInstall() {
   await prisma.answerOption.createMany({
     data: [
       { questionId: qMount.id, label: "Yes, I have a mount", value: "has_mount", routeAction: "CONTINUE", nextQuestionId: qWall.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: qMount.id, label: "No — add Elite Tilt Mount ($99)", value: "add_tilt_mount", routeAction: "CONTINUE", nextQuestionId: qWall.id, priceModifierCents: 9900, order: 2, requiredPhotoLabels: [] },
-      { questionId: qMount.id, label: "No — add Elite Full-Motion Mount ($179)", value: "add_articulating_mount", routeAction: "CONTINUE", nextQuestionId: qWall.id, priceModifierCents: 17900, order: 3, requiredPhotoLabels: [] },
+      { questionId: qMount.id, label: "No — add Elite Tilt Mount", value: "add_tilt_mount", routeAction: "CONTINUE", nextQuestionId: qWall.id, referencedServiceId: tiltMount.id, order: 2, requiredPhotoLabels: [] },
+      { questionId: qMount.id, label: "No — add Elite Full-Motion Mount", value: "add_articulating_mount", routeAction: "CONTINUE", nextQuestionId: qWall.id, referencedServiceId: articulatingMount.id, order: 3, requiredPhotoLabels: [] },
     ],
   });
 
@@ -416,6 +421,11 @@ async function seedTvInstallExistingLocation() {
   });
   await clearServiceTree(service.id);
 
+  // Same live-price references as the main TV Installation tree — see
+  // AnswerOption.referencedServiceId.
+  const tiltMount = await prisma.service.findUniqueOrThrow({ where: { slug: "elite-tilt-mount" } });
+  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: { slug: "elite-articulating-mount" } });
+
   const qSize = await prisma.question.create({
     data: {
       serviceId: service.id,
@@ -467,8 +477,8 @@ async function seedTvInstallExistingLocation() {
   // the full TV Installation flow.
   await prisma.answerOption.createMany({
     data: [
-      { questionId: qMountType.id, label: "Elite Tilt Mount ($99)", value: "tilt", routeAction: "RESOLVE_ADJUSTED", priceModifierCents: 9900, order: 1, requiredPhotoLabels: [] },
-      { questionId: qMountType.id, label: "Elite Full-Motion Articulating Mount ($179)", value: "articulating", routeAction: "RESOLVE_ADJUSTED", priceModifierCents: 17900, order: 2, requiredPhotoLabels: [] },
+      { questionId: qMountType.id, label: "Elite Tilt Mount", value: "tilt", routeAction: "RESOLVE_ADJUSTED", referencedServiceId: tiltMount.id, order: 1, requiredPhotoLabels: [] },
+      { questionId: qMountType.id, label: "Elite Full-Motion Articulating Mount", value: "articulating", routeAction: "RESOLVE_ADJUSTED", referencedServiceId: articulatingMount.id, order: 2, requiredPhotoLabels: [] },
     ],
   });
 

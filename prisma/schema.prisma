@@ -72,6 +72,9 @@ model Service {
   pricingRules PricingRule[]
   lineItems    LineItem[]
   quotes       Quote[]
+  // Answer options elsewhere in the catalog that dynamically price
+  // themselves off THIS service (see AnswerOption.referencedServiceId).
+  referencedByAnswerOptions AnswerOption[] @relation("AnswerOptionReferencedService")
 
   @@map("services")
 }
@@ -128,6 +131,16 @@ model AnswerOption {
   // Null on the vast majority of options; only set where a real caveat
   // applies.
   disclaimer         String?
+  // When set, this option's price adjustment comes from the REFERENCED
+  // service's live basePrice at request time — not the static
+  // priceModifierCents value. Use this whenever an answer option is
+  // literally selling another catalog item (e.g. "add Elite Tilt Mount"
+  // inside the TV Installation tree should always reflect whatever the
+  // Elite Tilt Mount service's own price currently is, editable from the
+  // admin panel, not a frozen number baked in at seed time).
+  // priceModifierCents still applies as a fallback if this is null.
+  referencedServiceId String?
+  referencedService   Service?    @relation("AnswerOptionReferencedService", fields: [referencedServiceId], references: [id])
 
   @@map("answer_options")
 }

@@ -12,7 +12,12 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
       category: { select: { icon: true } },
       questions: {
         orderBy: { order: "asc" },
-        include: { options: { orderBy: { order: "asc" } } },
+        include: {
+          options: {
+            orderBy: { order: "asc" },
+            include: { referencedService: { select: { basePrice: true } } },
+          },
+        },
       },
     },
   });
@@ -43,7 +48,10 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         id: o.id,
         label: o.label,
         value: o.value,
-        priceModifierCents: o.priceModifierCents,
+        // Live lookup wins over the frozen seed-time number whenever this
+        // option references another service — this is what makes admin
+        // edits to e.g. Elite Tilt Mount's price actually show up here.
+        priceModifierCents: o.referencedService?.basePrice ?? o.priceModifierCents,
         nextQuestionId: o.nextQuestionId,
         routeAction: o.routeAction,
         rerouteServiceId: o.rerouteServiceId,
