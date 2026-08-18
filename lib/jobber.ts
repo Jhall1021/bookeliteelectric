@@ -200,7 +200,10 @@ function splitName(fullName: string): { firstName: string; lastName: string } {
 // an existing one by email first — a reasonable v1 simplification, but
 // worth knowing: a repeat customer will currently get a duplicate client
 // record in Jobber rather than being matched to their existing one.
-export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJobId: string; jobNumber: number }> {
+export async function pushBookingToJobber(
+  bookingId: string,
+  preSelectedCrewId?: string
+): Promise<{ jobberJobId: string; jobNumber: number }> {
   const booking = await prisma.booking.findUniqueOrThrow({
     where: { id: bookingId },
     include: {
@@ -282,21 +285,30 @@ export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJo
     (new Date(`2000-01-01T${endTime}`).getTime() - new Date(`2000-01-01T${startTime}`).getTime()) / 60000;
 
   // Automatic crew assignment — never shown to or chosen by the customer.
-  const eligibleCrews = await prisma.jobberCrewMember.findMany({
-    where: { eligibleForWebsiteBookings: true },
-    select: { jobberUserId: true },
-  });
-  const [windowStartDate, windowEndDate] = windowToDateRange(
-    dateStr,
-    booking.arrivalWindow.startTime,
-    booking.arrivalWindow.endTime
-  );
-  const assignedCrewId = await pickCrewForWindow(
-    dateStr,
-    windowStartDate,
-    windowEndDate,
-    eligibleCrews.map((c) => c.jobberUserId)
-  );
+  // Skipped entirely if the caller already determined this (checkout does
+  // its own availability check before creating the booking at all, and
+  // passes that same result through here — avoiding a second, redundant
+  // Jobber lookup for the same window).
+  let assignedCrewId = preSelectedCrewId ?? null;
+  let eligibleCrews: { jobberUserId: string }[] = [];
+
+  if (!assignedCrewId) {
+    eligibleCrews = await prisma.jobberCrewMember.findMany({
+      where: { eligibleForWebsiteBookings: true },
+      select: { jobberUserId: true },
+    });
+    const [windowStartDate, windowEndDate] = windowToDateRange(
+      dateStr,
+      booking.arrivalWindow.startTime,
+      booking.arrivalWindow.endTime
+    );
+    assignedCrewId = await pickCrewForWindow(
+      dateStr,
+      windowStartDate,
+      windowEndDate,
+      eligibleCrews.map((c) => c.jobberUserId)
+    );
+  }
 
   if (!assignedCrewId) {
     throw new Error(
@@ -496,7 +508,7 @@ export const FIXED_ARRIVAL_WINDOWS = [
   { start: "5:00 PM", end: "8:00 PM" },
 ];
 
-function windowToDateRange(dateISO: string, startDisplay: string, endDisplay: string): [Date, Date] {
+export function windowToDateRange(dateISO: string, startDisplay: string, endDisplay: string): [Date, Date] {
   const [startH, startM] = to24Hour(startDisplay).split(":").map(Number);
   const [endH, endM] = to24Hour(endDisplay).split(":").map(Number);
   return [

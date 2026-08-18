@@ -7,11 +7,13 @@ export default function CheckoutDetailsForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", address: "", zipCode: "" });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setError(null);
 
     const res = await fetch("/api/checkout", {
       method: "POST",
@@ -26,8 +28,13 @@ export default function CheckoutDetailsForm() {
 
     const data = await res.json();
     setSubmitting(false);
-    if (data.bookingId) {
+
+    if (res.ok && data.bookingId) {
       router.push(`/checkout/confirmation/${data.bookingId}`);
+    } else if (res.status === 409) {
+      setError(data.error ?? "That window was just taken — please pick another time.");
+    } else {
+      setError("Something went wrong — please try again.");
     }
   }
 
@@ -63,6 +70,15 @@ export default function CheckoutDetailsForm() {
         {/* Real card capture (Stripe Elements) is wired in Phase 6 — the
             payment model itself (card-on-file, capture after completion)
             is already decided and reflected in the Booking record below. */}
+
+        {error && (
+          <div className="rounded-card bg-red-50 p-3 text-sm text-red-700">
+            {error}{" "}
+            <button type="button" onClick={() => router.push("/checkout/schedule")} className="font-semibold underline">
+              Pick a different time
+            </button>
+          </div>
+        )}
 
         <button
           type="submit"
