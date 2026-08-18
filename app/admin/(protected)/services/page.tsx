@@ -18,11 +18,21 @@ export default async function AdminServicesPage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-navy">Services &amp; Pricing</h1>
-      <p className="mt-1 text-sm text-slate">
-        Click any service to edit its price, description, or availability. Changes apply
-        immediately — no reseed or redeploy needed.
-      </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-navy">Services &amp; Pricing</h1>
+          <p className="mt-1 text-sm text-slate">
+            Click any service to edit its price, description, or availability. Changes apply
+            immediately — no reseed or redeploy needed.
+          </p>
+        </div>
+        <Link
+          href="/admin/services/new"
+          className="shrink-0 rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover"
+        >
+          + New Service
+        </Link>
+      </div>
 
       <div className="mt-6 space-y-8">
         {categories.map((cat) => (
