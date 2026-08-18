@@ -242,3 +242,76 @@ export async function fetchJobberUsers(): Promise<{ id: string; name: string }[]
   const result = await jobberGraphQL<{ users: { nodes: { id: string; name: { full: string } }[] } }>(USERS_QUERY);
   return result.users.nodes.map((u) => ({ id: u.id, name: u.name.full }));
 }
+
+const VISITS_FOR_DAY_QUERY = `
+  query VisitsForDay($after: ISO8601DateTime!, $before: ISO8601DateTime!) {
+    visits(filter: { startAt: { after: $after, before: $before } }, first: 100) {
+      nodes {
+        id
+        startAt
+        endAt
+        assignedUsers(first: 10) {
+          nodes { id }
+        }
+      }
+    }
+  }
+`;
+
+type JobberVisit = { id: string; startAt: string | null; endAt: string | null; assignedUserIds: string[] };
+
+// Pulls every real Jobber visit scheduled anywhere in the given calendar
+// day — deliberately broad (whole day, not just the candidate window) so
+// overlap can be computed precisely in application code below, rather
+// than trusting a single-field filter to catch every edge case (e.g. a
+// visit that started before the candidate window but runs into it).
+async function fetchJobberVisitsForDay(dateISO: string): Promise<JobberVisit[]> {
+  const dayStart = new Date(`${dateISO}T00:00:00`).toISOString();
+  const dayEnd = new Date(`${dateISO}T23:59:59`).toISOString();
+
+  const result = await jobberGraphQL<{ visits: { nodes: { id: string; startAt: string | null; endAt: string | null; assignedUsers: { nodes: { id: string }[] } }[] } }>(
+    VISITS_FOR_DAY_QUERY,
+    { after: dayStart, before: dayEnd }
+  );
+
+  return result.visits.nodes.map((v) => ({
+    id: v.id,
+    startAt: v.startAt,
+    endAt: v.endAt,
+    assignedUserIds: v.assignedUsers.nodes.map((u) => u.id),
+  }));
+}
+
+function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
+  return aStart < bEnd && bStart < aEnd;
+}
+
+// The actual "is anyone free" check. Returns how many ELIGIBLE crews
+// (per /admin/jobber/crews) have no real Jobber visit overlapping the
+// candidate window — 0 means fully booked, don't offer this window.
+// Deliberately checks true time overlap, not just same-day, so a crew
+// tied up 7am-11am correctly blocks a 10am-1pm candidate window even
+// though neither startAt matches the other's range filter directly.
+export async function countAvailableCrewsForWindow(
+  dateISO: string,
+  windowStart: Date,
+  windowEnd: Date,
+  eligibleJobberUserIds: string[]
+): Promise<number> {
+  if (eligibleJobberUserIds.length === 0) return 0;
+
+  const dayVisits = await fetchJobberVisitsForDay(dateISO);
+
+  const busyUserIds = new Set<string>();
+  for (const visit of dayVisits) {
+    if (!visit.startAt || !visit.endAt) continue; // unscheduled visit, doesn't block anything
+    const vStart = new Date(visit.startAt);
+    const vEnd = new Date(visit.endAt);
+    if (rangesOverlap(windowStart, windowEnd, vStart, vEnd)) {
+      for (const userId of visit.assignedUserIds) busyUserIds.add(userId);
+    }
+  }
+
+  const freeCount = eligibleJobberUserIds.filter((id) => !busyUserIds.has(id)).length;
+  return freeCount;
+}
