@@ -396,3 +396,18 @@ model JobberConnection {
 
   @@map("jobber_connections")
 }
+
+// A local cache of Jobber's Users (crews/technicians), synced on demand
+// via "Sync from Jobber." Jobber has no concept of "eligible for our
+// website" — that flag is purely our own business logic layered on top,
+// since not every Jobber user (e.g. your carpenters) should be counted
+// as available capacity for electrical bookings from the site.
+model JobberCrewMember {
+  id                         String   @id @default(cuid())
+  jobberUserId               String   @unique
+  name                       String
+  eligibleForWebsiteBookings Boolean  @default(false)
+  lastSyncedAt               DateTime @default(now())
+
+  @@map("jobber_crew_members")
+}

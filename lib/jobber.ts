@@ -223,3 +223,22 @@ function to24Hour(display: string): string {
 function formatDollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
+
+const USERS_QUERY = `
+  query ListUsers {
+    users(first: 50) {
+      nodes {
+        id
+        name { full }
+      }
+    }
+  }
+`;
+
+// Pulls the real list of users/crews from Jobber. Used to populate the
+// crew-eligibility admin screen — Jobber doesn't distinguish "electrician
+// crew" from "carpenter" for us, a human has to mark that here.
+export async function fetchJobberUsers(): Promise<{ id: string; name: string }[]> {
+  const result = await jobberGraphQL<{ users: { nodes: { id: string; name: { full: string } }[] } }>(USERS_QUERY);
+  return result.users.nodes.map((u) => ({ id: u.id, name: u.name.full }));
+}
