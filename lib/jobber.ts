@@ -261,7 +261,13 @@ export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJo
   );
 
   if (!assignedCrewId) {
-    throw new Error("No eligible crew was actually free for this window — refusing to create an unassigned job.");
+    throw new Error(
+      `No eligible crew was actually free for ${dateStr} ${startTime}-${endTime}. ` +
+      `Eligible crews checked: [${eligibleCrews.map((c) => c.jobberUserId).join(", ")}]. ` +
+      `If this list is empty, no crews are marked eligible in /admin/jobber/crews. ` +
+      `If it's non-empty, check Jobber directly for what's actually scheduled on each of ` +
+      `those users for this window — including all-day visits, which block the whole day.`
+    );
   }
 
   const jobResult = await jobberGraphQL<{
