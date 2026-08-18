@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getWindowAvailabilityForDay } from "@/lib/jobber";
+import { getOrCreateSessionId } from "@/lib/session";
 import ScheduleClient from "@/components/checkout/ScheduleClient";
 
 // Same reasoning as the API route — never statically cache this page.
@@ -23,6 +24,22 @@ export default async function SchedulePage() {
     dateISO: d.toISOString().split("T")[0],
   }));
 
+  // The customer's current cart already has estimatedMinutes snapshotted
+  // on every line item at add-time — so the real job length is known
+  // before checkout even happens, and windows can correctly reflect it
+  // (a long job blocks longer than the 3-hour arrival window itself; see
+  // effectiveBusySpan in lib/jobber.ts). Missing entirely just means an
+  // empty cart or incomplete estimates — falls back to the flat window.
+  const sessionId = getOrCreateSessionId();
+  const visit = await prisma.visit.findFirst({
+    where: { sessionId, status: "OPEN" },
+    include: { lineItems: true },
+  });
+  const hasCompleteEstimates = !!visit && visit.lineItems.every((li) => li.estimatedMinutes !== null);
+  const estimatedDurationMinutes = hasCompleteEstimates
+    ? visit!.lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0)
+    : null;
+
   // Only the first (default-selected) day is checked here, on the server,
   // for a fast initial render with no loading flicker. Every other day —
   // including this one again if you navigate away and back — gets a
@@ -32,7 +49,13 @@ export default async function SchedulePage() {
     select: { jobberUserId: true },
   });
   const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
-  const firstDayWindows = await getWindowAvailabilityForDay(days[0].dateISO, eligibleIds);
+  const firstDayWindows = await getWindowAvailabilityForDay(days[0].dateISO, eligibleIds, estimatedDurationMinutes);
 
-  return <ScheduleClient days={days} initialWindows={firstDayWindows} />;
+  return (
+    <ScheduleClient
+      days={days}
+      initialWindows={firstDayWindows}
+      estimatedDurationMinutes={estimatedDurationMinutes}
+    />
+  );
 }
