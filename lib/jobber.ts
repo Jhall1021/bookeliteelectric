@@ -188,8 +188,14 @@ export async function pushBookingToJobber(bookingId: string): Promise<{ jobberJo
   // datetimes — Jobber's startAt/endAt expect a real timestamp, not just
   // a date and a separate time-of-day string like our own schema uses.
   const dateStr = booking.arrivalWindow.date.toISOString().split("T")[0];
-  const startAt = new Date(`${dateStr}T${to24Hour(booking.arrivalWindow.startTime)}:00`).toISOString();
-  const endAt = new Date(`${dateStr}T${to24Hour(booking.arrivalWindow.endTime)}:00`).toISOString();
+  // Correctly zoned to Eastern (see zonedWallTimeToUtc) — previously
+  // built with no timezone awareness at all, meaning real pushed bookings
+  // were landing on your Jobber calendar hours off from the arrival
+  // window the customer actually picked.
+  const [startH, startM] = to24Hour(booking.arrivalWindow.startTime).split(":").map(Number);
+  const [endH, endM] = to24Hour(booking.arrivalWindow.endTime).split(":").map(Number);
+  const startAt = zonedWallTimeToUtc(dateStr, startH, startM).toISOString();
+  const endAt = zonedWallTimeToUtc(dateStr, endH, endM).toISOString();
 
   const jobResult = await jobberGraphQL<{
     jobCreate: { job: { id: string; jobNumber: number } | null; userErrors: { message: string; path: string[] }[] };
@@ -250,6 +256,7 @@ const VISITS_FOR_DAY_QUERY = `
         id
         startAt
         endAt
+        allDay
         assignedUsers(first: 10) {
           nodes { id }
         }
@@ -258,7 +265,7 @@ const VISITS_FOR_DAY_QUERY = `
   }
 `;
 
-type JobberVisit = { id: string; startAt: string | null; endAt: string | null; assignedUserIds: string[] };
+type JobberVisit = { id: string; startAt: string | null; endAt: string | null; allDay: boolean; assignedUserIds: string[] };
 
 // Pulls every real Jobber visit scheduled anywhere in the given calendar
 // day — deliberately broad (whole day, not just the candidate window) so
@@ -266,10 +273,13 @@ type JobberVisit = { id: string; startAt: string | null; endAt: string | null; a
 // than trusting a single-field filter to catch every edge case (e.g. a
 // visit that started before the candidate window but runs into it).
 async function fetchJobberVisitsForDay(dateISO: string): Promise<JobberVisit[]> {
-  const dayStart = new Date(`${dateISO}T00:00:00`).toISOString();
-  const dayEnd = new Date(`${dateISO}T23:59:59`).toISOString();
+  // Midnight-to-midnight in Eastern time, not UTC — a visit at 11pm
+  // Eastern is already the next UTC calendar day, and a naive UTC-day
+  // boundary would misattribute or miss it entirely.
+  const dayStart = zonedWallTimeToUtc(dateISO, 0, 0).toISOString();
+  const dayEnd = zonedWallTimeToUtc(dateISO, 23, 59).toISOString();
 
-  const result = await jobberGraphQL<{ visits: { nodes: { id: string; startAt: string | null; endAt: string | null; assignedUsers: { nodes: { id: string }[] } }[] } }>(
+  const result = await jobberGraphQL<{ visits: { nodes: { id: string; startAt: string | null; endAt: string | null; allDay: boolean; assignedUsers: { nodes: { id: string }[] } }[] } }>(
     VISITS_FOR_DAY_QUERY,
     { after: dayStart, before: dayEnd }
   );
@@ -278,6 +288,7 @@ async function fetchJobberVisitsForDay(dateISO: string): Promise<JobberVisit[]> 
     id: v.id,
     startAt: v.startAt,
     endAt: v.endAt,
+    allDay: v.allDay,
     assignedUserIds: v.assignedUsers.nodes.map((u) => u.id),
   }));
 }
@@ -316,6 +327,38 @@ export async function countAvailableCrewsForWindow(
   return freeCount;
 }
 
+// All arrival windows and Jobber visit comparisons need to happen in
+// Elite's actual service-area timezone, not whatever timezone the server
+// happens to run in. Vercel's servers run in UTC — without this, "8:00
+// AM" was silently being treated as 8am UTC (4am Eastern), which meant
+// real Eastern-time Jobber visits weren't lining up with the windows
+// being checked against them at all.
+const SERVICE_AREA_TIMEZONE = "America/New_York";
+
+function getTimeZoneOffsetMinutes(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const parts = dtf.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) map[p.type] = p.value;
+  const asUTC = Date.UTC(+map.year, +map.month - 1, +map.day, +map.hour, +map.minute, +map.second);
+  return (asUTC - date.getTime()) / 60000;
+}
+
+// Converts a wall-clock date + time that's meant in SERVICE_AREA_TIMEZONE
+// into the correct real UTC instant — correctly DST-aware (EST vs EDT)
+// via the ICU timezone database Node ships with, no extra dependency needed.
+function zonedWallTimeToUtc(dateISO: string, hours: number, minutes: number): Date {
+  const [year, month, day] = dateISO.split("-").map(Number);
+  const naiveUtcGuess = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+  const offsetMinutes = getTimeZoneOffsetMinutes(naiveUtcGuess, SERVICE_AREA_TIMEZONE);
+  return new Date(naiveUtcGuess.getTime() - offsetMinutes * 60000);
+}
+
 export const FIXED_ARRIVAL_WINDOWS = [
   { start: "8:00 AM", end: "11:00 AM" },
   { start: "11:00 AM", end: "2:00 PM" },
@@ -324,9 +367,11 @@ export const FIXED_ARRIVAL_WINDOWS = [
 ];
 
 function windowToDateRange(dateISO: string, startDisplay: string, endDisplay: string): [Date, Date] {
+  const [startH, startM] = to24Hour(startDisplay).split(":").map(Number);
+  const [endH, endM] = to24Hour(endDisplay).split(":").map(Number);
   return [
-    new Date(`${dateISO}T${to24Hour(startDisplay)}:00`),
-    new Date(`${dateISO}T${to24Hour(endDisplay)}:00`),
+    zonedWallTimeToUtc(dateISO, startH, startM),
+    zonedWallTimeToUtc(dateISO, endH, endM),
   ];
 }
 
@@ -357,7 +402,15 @@ export async function getWindowAvailabilityForDay(
     const [windowStart, windowEnd] = windowToDateRange(dateISO, w.start, w.end);
     const busyUserIds = new Set<string>();
     for (const visit of dayVisits) {
-      if (!visit.startAt || !visit.endAt) continue;
+      // All-day visits block the entire day regardless of window, and
+      // regardless of whether startAt/endAt happen to be populated —
+      // allDay is the authoritative signal here, not a time comparison
+      // that might behave unexpectedly for a visit with no specific hours.
+      if (visit.allDay) {
+        visit.assignedUserIds.forEach((id) => busyUserIds.add(id));
+        continue;
+      }
+      if (!visit.startAt || !visit.endAt) continue; // genuinely unscheduled, doesn't block anything
       if (rangesOverlap(windowStart, windowEnd, new Date(visit.startAt), new Date(visit.endAt))) {
         visit.assignedUserIds.forEach((id) => busyUserIds.add(id));
       }
