@@ -315,3 +315,54 @@ export async function countAvailableCrewsForWindow(
   const freeCount = eligibleJobberUserIds.filter((id) => !busyUserIds.has(id)).length;
   return freeCount;
 }
+
+export const FIXED_ARRIVAL_WINDOWS = [
+  { start: "8:00 AM", end: "11:00 AM" },
+  { start: "11:00 AM", end: "2:00 PM" },
+  { start: "2:00 PM", end: "5:00 PM" },
+  { start: "5:00 PM", end: "8:00 PM" },
+];
+
+function windowToDateRange(dateISO: string, startDisplay: string, endDisplay: string): [Date, Date] {
+  return [
+    new Date(`${dateISO}T${to24Hour(startDisplay)}:00`),
+    new Date(`${dateISO}T${to24Hour(endDisplay)}:00`),
+  ];
+}
+
+// Checks all 4 fixed windows for one calendar day against ONE fetch of
+// that day's real Jobber visits — not 4 separate fetches. Deliberately
+// "fails open" (treats every window as available) if there are no
+// eligible crews configured yet, or if the Jobber call itself errors —
+// a broken/unconfigured integration should never be able to take down
+// the ability to book a job entirely. Errors are logged server-side so
+// the problem is still visible to whoever's watching logs.
+export async function getWindowAvailabilityForDay(
+  dateISO: string,
+  eligibleJobberUserIds: string[]
+): Promise<{ start: string; end: string; available: boolean }[]> {
+  if (eligibleJobberUserIds.length === 0) {
+    return FIXED_ARRIVAL_WINDOWS.map((w) => ({ ...w, available: true }));
+  }
+
+  let dayVisits: JobberVisit[];
+  try {
+    dayVisits = await fetchJobberVisitsForDay(dateISO);
+  } catch (err) {
+    console.error(`Jobber availability check failed for ${dateISO}, failing open:`, err);
+    return FIXED_ARRIVAL_WINDOWS.map((w) => ({ ...w, available: true }));
+  }
+
+  return FIXED_ARRIVAL_WINDOWS.map((w) => {
+    const [windowStart, windowEnd] = windowToDateRange(dateISO, w.start, w.end);
+    const busyUserIds = new Set<string>();
+    for (const visit of dayVisits) {
+      if (!visit.startAt || !visit.endAt) continue;
+      if (rangesOverlap(windowStart, windowEnd, new Date(visit.startAt), new Date(visit.endAt))) {
+        visit.assignedUserIds.forEach((id) => busyUserIds.add(id));
+      }
+    }
+    const freeCount = eligibleJobberUserIds.filter((id) => !busyUserIds.has(id)).length;
+    return { start: w.start, end: w.end, available: freeCount > 0 };
+  });
+}
