@@ -16,8 +16,8 @@ export default function Footer() {
             <Image
               src="/images/elite-logo-white.png"
               alt="Elite Electric & Lighting"
-              width={44}
-              height={44}
+              width={88}
+              height={88}
               className="mb-4"
             />
             <div className="text-sm font-semibold text-white">Elite Electric &amp; Lighting</div>
