@@ -71,8 +71,8 @@ export default function HomePage() {
 
           <div className="relative aspect-[4/3] overflow-hidden rounded-card">
             <Image
-              src="/images/hero-kitchen.png"
-              alt="An Elite Electric & Lighting technician reviewing a job on a tablet in a client's kitchen"
+              src="/images/hero-kitchen.jpg"
+              alt="An Elite Electric &amp; Lighting technician showing a homeowner a quote on a tablet in her kitchen"
               fill
               priority
               className="object-cover"
