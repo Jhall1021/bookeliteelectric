@@ -110,6 +110,55 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A transfer switch installed next to an electrical panel in a garage",
     aspectRatio: "983/1004",
   },
+
+  // --- Batch 3 (2026-08-19) --------------------------------------------
+  // Photo layer extracted from the comps: card chrome, rounded corners and
+  // the baked-in caption panel removed. Same ~1000px-long-edge caveat as
+  // the batch-2 crops above — still pending a full-resolution re-export.
+  "replace-led-dimmer": {
+    src: "/images/service-dimmer-install.jpg",
+    alt: "A wall dimmer switch beside a warmly lit pendant fixture over a dining table",
+    aspectRatio: "963/982",
+  },
+  "electrical-troubleshooting": {
+    src: "/images/service-electrical-troubleshooting.jpg",
+    alt: "A digital multimeter with test leads resting beside an opened wall switch box",
+    aspectRatio: "981/920",
+  },
+  "outdoor-landscape-lighting": {
+    src: "/images/service-landscape-lighting.jpg",
+    alt: "Path lights and uplighting illuminating a stone walkway and front entry at dusk",
+    aspectRatio: "1033/877",
+  },
+  "smart-thermostat-install": {
+    src: "/images/service-smart-thermostat.jpg",
+    alt: "A round smart thermostat mounted on a wall with an open living room beyond",
+    aspectRatio: "991/957",
+  },
+  "usb-outlet-upgrade": {
+    src: "/images/service-usb-and-smart.jpg",
+    alt: "A combination USB-A and USB-C wall outlet charging a phone on a bedside table",
+    aspectRatio: "1000/928",
+  },
+  "smoke-co-detector": {
+    src: "/images/service-smoke-and-co.jpg",
+    alt: "A combination smoke and carbon monoxide detector mounted on a hallway ceiling",
+    aspectRatio: "1005/824",
+  },
+  "hot-tub-spa-electrical": {
+    src: "/images/service-pool-and-spa.jpg",
+    alt: "An exterior safety disconnect and conduit runs serving a hot tub and pool at dusk",
+    aspectRatio: "1028/971",
+  },
+
+  // Three batch-3 photos are installed in /public/images/ but deliberately
+  // NOT mapped yet, pending a slug decision:
+  //   service-bathroom-exhaust.jpg   (1013/804)  — fan/light combo unit;
+  //     fits replace-bathroom-exhaust-fan or bathroom-fan-light-combo
+  //   service-security-camera.jpg    (1011/867)  — plain bullet camera, not
+  //     a floodlight camera; nearest slug is new-exterior-flood-camera
+  //   service-dedicated-circuit.jpg  (983/941)   — generic "demanding
+  //     equipment" shot, no single service matches; category-level art
 };
 
 export function getServiceImage(slug: string): { src: string; alt: string; aspectRatio: string } | null {

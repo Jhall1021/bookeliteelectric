@@ -166,8 +166,21 @@ export default function HomePage() {
                 href={svc.href}
                 className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
               >
+                {/* This grid deliberately locks every card to 4/3 rather than
+                    using each image's native aspectRatio from SERVICE_IMAGES.
+                    Six cards sitting side by side need a uniform height, and
+                    the source photos range from about 0.87 to 1.78 — letting
+                    them vary made the row ragged. object-cover center-crops to
+                    fit. The icon fallback matches the same 4/3 box so a service
+                    without a photo doesn't render a shorter card than its
+                    neighbors (it previously used aspect-square).
+
+                    ServiceIntro still honors each image's native aspectRatio —
+                    that screen has the room, and preserving the provided crop
+                    is the whole reason the field exists. Only this grid is
+                    constrained. */}
                 {image ? (
-                  <div className="relative w-full" style={{ aspectRatio: image.aspectRatio }}>
+                  <div className="relative aspect-[4/3] w-full">
                     <Image
                       src={image.src}
                       alt={image.alt}
@@ -177,7 +190,7 @@ export default function HomePage() {
                     />
                   </div>
                 ) : (
-                  <div className="flex aspect-square items-center justify-center bg-warmwhite">
+                  <div className="flex aspect-[4/3] items-center justify-center bg-warmwhite">
                     <ServiceIcon icon={svc.icon} className="h-10 w-10 text-electric" />
                   </div>
                 )}
