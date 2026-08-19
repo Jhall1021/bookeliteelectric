@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { AnswerOptionDTO, QuestionDTO, ServiceFlowDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
@@ -45,6 +45,15 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   const [priceCentsAccrued, setPriceCentsAccrued] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [state, setState] = useState<TerminalState | null>(null);
+  // Every step the customer has already passed through, newest last. The
+  // browser's own back button can't serve here: the whole flow lives at one
+  // URL, so going back in history leaves the service entirely and throws
+  // away every answer. Each entry snapshots the three things that change as
+  // the customer moves, so stepping back restores the exact prior state
+  // rather than trying to reverse-calculate it.
+  const [history, setHistory] = useState<
+    { state: TerminalState; priceCentsAccrued: number; answers: Record<string, string> }[]
+  >([]);
 
   useEffect(() => {
     setLoading(true);
@@ -54,12 +63,35 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         setFlow(data);
         setPriceCentsAccrued(data.basePrice ?? 0);
         setState({ kind: "intro" });
+        setHistory([]);
+        setAnswers({});
         setLoading(false);
       });
   }, [serviceSlug]);
 
+  // Snapshot the CURRENT step before moving on. Called at the top of every
+  // transition so the stack always holds where the customer just was.
+  function pushHistory() {
+    if (!state) return;
+    setHistory((h) => [...h, { state, priceCentsAccrued, answers }]);
+  }
+
+  function goBack() {
+    // Read straight from the current render rather than nesting these
+    // setters inside a setHistory updater — React invokes updaters twice
+    // under StrictMode, and an updater that triggers other state changes
+    // is exactly the kind of side effect that makes that visible.
+    if (history.length === 0) return;
+    const previous = history[history.length - 1];
+    setState(previous.state);
+    setPriceCentsAccrued(previous.priceCentsAccrued);
+    setAnswers(previous.answers);
+    setHistory(history.slice(0, -1));
+  }
+
   function startQuestions() {
     if (!flow) return;
+    pushHistory();
     if (flow.questions.length > 0) {
       setState({ kind: "question", question: flow.questions[0] });
     } else if (flow.bookingType === "REMOTE_QUOTE") {
@@ -79,6 +111,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   async function handleAnswer(question: QuestionDTO, option: AnswerOptionDTO) {
+    pushHistory();
     const newAnswers = { ...answers, [question.key]: option.value };
     setAnswers(newAnswers);
     const newTotal = priceCentsAccrued + option.priceModifierCents;
@@ -163,8 +196,27 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     return <div className="py-16 text-center text-slate">Loading...</div>;
   }
 
-  if (state.kind === "intro") {
+  // Wrapping every step here means no child component needs to know about
+  // history — QuestionStep, PriceConfirmationCard and the photo screens are
+  // all rendered through this and stay unchanged.
+  function withBack(content: ReactNode) {
     return (
+      <div>
+        {history.length > 0 && (
+          <button
+            onClick={goBack}
+            className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-electric hover:underline"
+          >
+            <span aria-hidden="true">←</span> Back
+          </button>
+        )}
+        {content}
+      </div>
+    );
+  }
+
+  if (state.kind === "intro") {
+    return withBack(
       <ServiceIntro
         name={flow.name}
         description={flow.shortDescription}
@@ -178,7 +230,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "question") {
-    return (
+    return withBack(
       <QuestionStep
         question={state.question}
         onAnswer={(option) => handleAnswer(state.question, option)}
@@ -187,7 +239,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "resolved") {
-    return (
+    return withBack(
       <PriceConfirmationCard
         serviceName={flow.name}
         priceCents={state.priceCents}
@@ -198,11 +250,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "reroute") {
-    return <RerouteNotice serviceId={state.serviceId} reason={state.reason} />;
+    return withBack(<RerouteNotice serviceId={state.serviceId} reason={state.reason} />);
   }
 
   if (state.kind === "troubleshooting") {
-    return (
+    return withBack(
       <div className="rounded-card border border-cardline bg-white p-8 text-center shadow-card">
         <h2 className="font-display text-xl font-bold text-navy">
           This sounds like a troubleshooting job
@@ -223,7 +275,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "priced_photo_review") {
-    return (
+    return withBack(
       <PricedPhotoReview
         serviceName={flow.name}
         priceCents={state.priceCents}
@@ -235,7 +287,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "photo_review") {
-    return (
+    return withBack(
       <PhotoReviewNotice
         labels={state.labels}
         serviceName={flow.name}

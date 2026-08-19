@@ -95,10 +95,14 @@ export default function PricedPhotoReview({
         {labels.map((label) => (
           <div key={label}>
             <label className="text-sm font-medium text-navy">{label}</label>
+            {/* No `capture` attribute on purpose. Setting it (this used to
+                be capture="environment") makes mobile browsers jump straight
+                into the camera and removes the option to pick an existing
+                photo — and plenty of customers have already photographed the
+                panel or the fixture before they sat down to book. */}
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               onChange={(e) => handleFileChange(label, e.target.files?.[0] ?? null)}
               className="mt-1 block w-full text-sm text-slate file:mr-4 file:rounded-pill file:border-0 file:bg-electric file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
             />
