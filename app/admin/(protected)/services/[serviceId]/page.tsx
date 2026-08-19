@@ -48,28 +48,32 @@ export default async function EditServicePage({ params }: { params: { serviceId:
         }}
       />
 
-      {service.questions.length > 0 && (
-        <TreeEditor
-          serviceId={service.id}
-          questions={service.questions.map((q) => ({
-            id: q.id,
-            prompt: q.prompt,
-            helpText: q.helpText,
-            options: q.options.map((o) => ({
-              id: o.id,
-              label: o.label,
-              routeAction: o.routeAction,
-              priceModifierCents: o.priceModifierCents,
-              referencedServiceId: o.referencedServiceId,
-              referencedServiceName: o.referencedService?.name ?? null,
-              disclaimer: o.disclaimer,
-              requiredPhotoLabels: o.requiredPhotoLabels,
-              photosBlockBooking: o.photosBlockBooking,
-            })),
-          }))}
-          allServices={allServices}
-        />
-      )}
+      {/* Rendered unconditionally now. It used to be hidden when a service
+          had no questions, which meant the one case you'd want a tree builder
+          for — a service with no tree — was the one case it never appeared
+          in. The editor shows its own empty state instead. */}
+      <TreeEditor
+        serviceId={service.id}
+        questions={service.questions.map((q) => ({
+          id: q.id,
+          prompt: q.prompt,
+          helpText: q.helpText,
+          options: q.options.map((o) => ({
+            id: o.id,
+            label: o.label,
+            routeAction: o.routeAction,
+            priceModifierCents: o.priceModifierCents,
+            referencedServiceId: o.referencedServiceId,
+            referencedServiceName: o.referencedService?.name ?? null,
+            rerouteServiceId: o.rerouteServiceId,
+            nextQuestionId: o.nextQuestionId,
+            disclaimer: o.disclaimer,
+            requiredPhotoLabels: o.requiredPhotoLabels,
+            photosBlockBooking: o.photosBlockBooking,
+          })),
+        }))}
+        allServices={allServices}
+      />
     </div>
   );
 }
