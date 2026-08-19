@@ -12,6 +12,17 @@ type Props = {
   startingPriceLabel: string | null;
   icon: string | null;
   serviceSlug: string;
+  // True when this service has NO decision tree and a fixed base price, so
+  // the number on screen is already final. Drives three things at once: the
+  // "Starting at" prefix comes off, the disclaimer moves here, and the
+  // button books instead of advancing. Add a tree in the admin builder and
+  // this flips back on its own — it's derived, never stored.
+  directBook: boolean;
+  // Service-level caveat. Normally shown by PriceConfirmationCard, but a
+  // directBook flow never reaches that screen, so it has to appear here or
+  // it would silently vanish on exactly the flat-price services it exists
+  // for.
+  disclaimer: string | null;
   onContinue: () => void;
 };
 
@@ -22,6 +33,8 @@ export default function ServiceIntro({
   startingPriceLabel,
   icon,
   serviceSlug,
+  directBook,
+  disclaimer,
   onContinue,
 }: Props) {
   // Per the Visual Design Handoff: a bespoke lifestyle image showing the
@@ -52,21 +65,32 @@ export default function ServiceIntro({
         {description && <p className="mt-3 text-slate">{description}</p>}
 
         <div className="mt-6 text-sm text-slate">
-          Starting at{" "}
+          {/* No questions means no branching means nothing can move this
+              number, so "Starting at" would be misleading. Note this
+              deliberately overrides startingPriceLabel for these services —
+              if a label ever looks ignored, this is why. */}
+          {!directBook && "Starting at "}
           <span className="font-display text-lg font-bold text-navy">
-            {basePrice ? formatCents(basePrice) : startingPriceLabel ?? "Custom Quote"}
+            {basePrice !== null ? formatCents(basePrice) : startingPriceLabel ?? "Custom Quote"}
           </span>
         </div>
         <p className="mt-1 text-xs text-slate">
-          This price includes our visit to your home. Add more services on the next screen and
-          they'll cost less — no second visit fee.
+          {directBook
+            ? "This price includes our visit to your home. Add more services after this and they'll cost less — no second visit fee."
+            : "This price includes our visit to your home. Add more services on the next screen and they'll cost less — no second visit fee."}
         </p>
+
+        {directBook && disclaimer && (
+          <p className="mt-4 rounded-card bg-warmwhite p-4 text-xs text-slate">{disclaimer}</p>
+        )}
 
         <button
           onClick={onContinue}
           className="mt-6 w-full rounded-pill bg-electric py-3.5 font-semibold text-white transition hover:bg-electric-hover sm:w-auto sm:px-10"
         >
-          Get My Price
+          {directBook && basePrice !== null
+            ? `Add to My Visit — ${formatCents(basePrice)}`
+            : "Get My Price"}
         </button>
 
         <p className="mt-4 text-xs text-slate">

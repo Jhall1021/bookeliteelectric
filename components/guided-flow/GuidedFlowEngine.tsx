@@ -216,6 +216,16 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "intro") {
+    // A service qualifies for one-tap booking only if there is genuinely
+    // nothing left to determine: no questions to branch on, a real base
+    // price, and not a remote quote (which has no settled price by
+    // definition, however few questions it asks). Anything else keeps the
+    // "Get My Price" step.
+    const directBook =
+      flow.questions.length === 0 &&
+      flow.bookingType !== "REMOTE_QUOTE" &&
+      flow.basePrice !== null;
+
     return withBack(
       <ServiceIntro
         name={flow.name}
@@ -224,7 +234,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         startingPriceLabel={flow.startingPriceLabel}
         icon={flow.icon}
         serviceSlug={serviceSlug}
-        onContinue={startQuestions}
+        directBook={directBook}
+        disclaimer={flow.disclaimer}
+        onContinue={
+          directBook ? () => addToVisit(flow.basePrice ?? 0) : startQuestions
+        }
       />
     );
   }
