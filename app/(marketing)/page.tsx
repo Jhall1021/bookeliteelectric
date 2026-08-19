@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ServiceIcon } from "@/components/shared/Icons";
+import { getServiceImage } from "@/lib/serviceImages";
 
 const TRUST_ITEMS = [
   { label: "Upfront Flat-Rate Pricing" },
@@ -12,13 +14,16 @@ const TRUST_ITEMS = [
 
 // A representative slice — the real Home page pulls "most popular" from the
 // database (booking counts), this is the Phase 1 static placeholder.
+// Prices below re-synced against the live seed data (several had drifted
+// out of date from earlier repricing work, since this static list isn't
+// database-driven and never picks up pricing changes automatically).
 const POPULAR_SERVICES = [
-  { name: "Outlet Replacement", from: "$225", href: "/services/outlets-switches/replace-standard-outlet" },
-  { name: "Light Fixture Replacement", from: "$295", href: "/services/lighting/replace-interior-light-fixture" },
-  { name: "Ceiling Fan Installation", from: "$395", href: "/services/fans/replace-ceiling-fan" },
-  { name: "TV Mount Installation", from: "$495", href: "/services/tv-media/tv-installation" },
-  { name: "Recessed Lighting", from: "$395", href: "/services/lighting/recessed-lighting" },
-  { name: "EV Charger Installation", from: "$1,295", href: "/services/ev-garage/level-2-ev-charger" },
+  { name: "Outlet Replacement", from: "$225", slug: "replace-standard-outlet", icon: "outlet", href: "/services/outlets-switches/replace-standard-outlet" },
+  { name: "Light Fixture Replacement", from: "$250", slug: "replace-interior-light-fixture", icon: "light", href: "/services/lighting/replace-interior-light-fixture" },
+  { name: "Ceiling Fan Installation", from: "$375", slug: "replace-ceiling-fan", icon: "fan", href: "/services/fans/replace-ceiling-fan" },
+  { name: "TV Mount Installation", from: "$500", slug: "tv-installation", icon: "tv", href: "/services/tv-media/tv-installation" },
+  { name: "Recessed Lighting", from: "$375", slug: "recessed-lighting", icon: "recessed", href: "/services/lighting/recessed-lighting" },
+  { name: "EV Charger Installation", from: "$1,295", slug: "level-2-ev-charger", icon: "ev", href: "/services/ev-garage/level-2-ev-charger" },
 ];
 
 export default function HomePage() {
@@ -153,16 +158,36 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-6 py-16">
         <h2 className="font-display text-2xl font-bold text-navy">Most Popular Services</h2>
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          {POPULAR_SERVICES.map((svc) => (
-            <Link
-              key={svc.href}
-              href={svc.href}
-              className="rounded-card border border-cardline bg-white p-4 shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
-            >
-              <div className="text-sm font-semibold text-navy">{svc.name}</div>
-              <div className="mt-1 text-sm text-slate">From {svc.from}</div>
-            </Link>
-          ))}
+          {POPULAR_SERVICES.map((svc) => {
+            const image = getServiceImage(svc.slug);
+            return (
+              <Link
+                key={svc.href}
+                href={svc.href}
+                className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                {image ? (
+                  <div className="relative w-full" style={{ aspectRatio: image.aspectRatio }}>
+                    <Image
+                      src={image.src}
+                      alt={image.alt}
+                      fill
+                      className="object-cover"
+                      sizes="(min-width: 1024px) 180px, (min-width: 768px) 30vw, 45vw"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex aspect-square items-center justify-center bg-warmwhite">
+                    <ServiceIcon icon={svc.icon} className="h-10 w-10 text-electric" />
+                  </div>
+                )}
+                <div className="p-4">
+                  <div className="text-sm font-semibold text-navy">{svc.name}</div>
+                  <div className="mt-1 text-sm text-slate">From {svc.from}</div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
