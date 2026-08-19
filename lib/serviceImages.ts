@@ -150,17 +150,55 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "An exterior safety disconnect and conduit runs serving a hot tub and pool at dusk",
     aspectRatio: "1028/971",
   },
+  // Same file intentionally serves both bathroom fan services — the unit
+  // shown is a fan/light combo, which reads correctly for the combo install
+  // and is still a plain exhaust fan replacement from the customer's view.
+  // Alt text differs per entry to match what each page is actually selling.
+  "replace-bathroom-exhaust-fan": {
+    src: "/images/service-bathroom-exhaust.jpg",
+    alt: "A ceiling-mounted bathroom exhaust fan above a tiled walk-in shower",
+    aspectRatio: "1013/804",
+  },
+  "bathroom-fan-light-combo": {
+    src: "/images/service-bathroom-exhaust.jpg",
+    alt: "A ceiling-mounted bathroom exhaust fan with an integrated light above a tiled walk-in shower",
+    aspectRatio: "1013/804",
+  },
 
-  // Three batch-3 photos are installed in /public/images/ but deliberately
-  // NOT mapped yet, pending a slug decision:
-  //   service-bathroom-exhaust.jpg   (1013/804)  — fan/light combo unit;
-  //     fits replace-bathroom-exhaust-fan or bathroom-fan-light-combo
-  //   service-security-camera.jpg    (1011/867)  — plain bullet camera, not
-  //     a floodlight camera; nearest slug is new-exterior-flood-camera
-  //   service-dedicated-circuit.jpg  (983/941)   — generic "demanding
-  //     equipment" shot, no single service matches; category-level art
+  "floodlight-camera-existing": {
+    src: "/images/service-floodlight-camera.jpg",
+    alt: "A floodlight security camera mounted beside a garage door, both lamps lit at dusk",
+    aspectRatio: "997/878",
+  },
+  "new-exterior-flood-camera": {
+    src: "/images/service-security-camera.jpg",
+    alt: "A bullet security camera mounted on lap siding beside a home's front entry",
+    aspectRatio: "1011/867",
+  },
+};
+
+// Category-level art, kept in a SEPARATE keyed export from SERVICE_IMAGES on
+// purpose. Category slugs and service slugs live in the same namespace shape
+// but are not the same set — "new-outlets" is a category while
+// "new-120v-outlet" is a service under it, and "dedicated-circuits" is a
+// category with no single service that represents it. One merged map would
+// let a category slug silently resolve to a service image (or the reverse)
+// with no type error to catch it. Two maps make that collision impossible.
+//
+// Files use a category- filename prefix to match, so /public/images/ stays
+// readable at a glance.
+export const CATEGORY_IMAGES: Record<string, { src: string; alt: string; aspectRatio: string }> = {
+  "dedicated-circuits": {
+    src: "/images/category-dedicated-circuits.jpg",
+    alt: "A wall-mounted disconnect box feeding a vertical air compressor in a finished garage",
+    aspectRatio: "983/941",
+  },
 };
 
 export function getServiceImage(slug: string): { src: string; alt: string; aspectRatio: string } | null {
   return SERVICE_IMAGES[slug] ?? null;
+}
+
+export function getCategoryImage(slug: string): { src: string; alt: string; aspectRatio: string } | null {
+  return CATEGORY_IMAGES[slug] ?? null;
 }
