@@ -7,12 +7,18 @@ export default function Footer() {
       <div className="mx-auto max-w-6xl px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div>
+            {/* Reversed (white-on-transparent) logo. The default
+                elite-logo.png is black artwork on an OPAQUE white
+                background, so the previous `invert` class flipped that
+                white background to black and rendered a dark box on the
+                charcoal footer. A dedicated reversed asset avoids the
+                filter entirely. */}
             <Image
-              src="/images/elite-logo.png"
+              src="/images/elite-logo-white.png"
               alt="Elite Electric & Lighting"
               width={44}
               height={44}
-              className="mb-4 invert"
+              className="mb-4"
             />
             <div className="text-sm font-semibold text-white">Elite Electric &amp; Lighting</div>
             <address className="mt-2 text-sm not-italic text-white/70">
