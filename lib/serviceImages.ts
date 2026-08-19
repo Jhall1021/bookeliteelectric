@@ -42,8 +42,8 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
   },
   "replace-ceiling-fan": {
     src: "/images/service-ceiling-fan.jpg",
-    alt: "A ceiling fan with integrated light installed above a bed",
-    aspectRatio: "287/331",
+    alt: "A five-blade ceiling fan with integrated light installed above a bed",
+    aspectRatio: "4/3",
   },
   "replace-interior-light-fixture": {
     src: "/images/service-light-fixture.jpg",
@@ -190,6 +190,171 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A wall-mounted soundbar installed below a flat-screen TV on a wood-panelled wall",
     aspectRatio: "1000/935",
   },
+  // --- Batch A1-A9 (2026-08-19) ----------------------------------------
+  // First set delivered to the export spec: full-bleed 1600x1200 photos,
+  // no card chrome, no caption text. All 4/3 natively, so no crop needed
+  // in either grid. Several are shared across services whose finished
+  // result is visually identical — the pattern already used for the outlet
+  // and bathroom-fan photos.
+
+  // A1 ceiling fan — also replaces the old 287x331 file, which was too
+  // soft to use anywhere.
+  "new-ceiling-fan": {
+    src: "/images/service-ceiling-fan.jpg",
+    alt: "A five-blade ceiling fan with integrated light installed above a bed",
+    aspectRatio: "4/3",
+  },
+  "fan-replacing-light": {
+    src: "/images/service-ceiling-fan.jpg",
+    alt: "A ceiling fan with integrated light where a light fixture used to be",
+    aspectRatio: "4/3",
+  },
+
+  // A2 specialty / sensor switch
+  "customer-supplied-smart-switch": {
+    src: "/images/service-smart-switch.jpg",
+    alt: "A smart wall switch installed in a hallway with lit rooms beyond",
+    aspectRatio: "4/3",
+  },
+  "occupancy-motion-switch": {
+    src: "/images/service-smart-switch.jpg",
+    alt: "An occupancy sensor switch on a hallway wall detecting someone walking past",
+    aspectRatio: "4/3",
+  },
+  "timer-switch-install": {
+    src: "/images/service-smart-switch.jpg",
+    alt: "A programmable timer switch installed on a hallway wall",
+    aspectRatio: "4/3",
+  },
+
+  // A3 video doorbell
+  "video-doorbell-existing-wiring": {
+    src: "/images/service-video-doorbell.jpg",
+    alt: "A video doorbell mounted beside a wood front door",
+    aspectRatio: "4/3",
+  },
+  "new-video-doorbell-wiring": {
+    src: "/images/service-video-doorbell.jpg",
+    alt: "A video doorbell newly wired and mounted beside a wood front door",
+    aspectRatio: "4/3",
+  },
+  "doorbell-transformer-replacement": {
+    src: "/images/service-video-doorbell.jpg",
+    alt: "A video doorbell lit and working beside a wood front door",
+    aspectRatio: "4/3",
+  },
+
+  // A4 utility dedicated circuit
+  "sump-pump-dedicated-circuit": {
+    src: "/images/service-dedicated-circuit.jpg",
+    alt: "A dedicated outlet on a basement wall serving a sump pump",
+    aspectRatio: "4/3",
+  },
+  "freezer-fridge-dedicated-circuit": {
+    src: "/images/service-dedicated-circuit.jpg",
+    alt: "A dedicated appliance outlet installed on a utility-room wall",
+    aspectRatio: "4/3",
+  },
+  "dedicated-120v-circuit-outlet": {
+    src: "/images/service-dedicated-circuit.jpg",
+    alt: "A dedicated 120V circuit and outlet serving equipment on a basement wall",
+    aspectRatio: "4/3",
+  },
+
+  // A5 standard wall switch
+  "replace-standard-switch": {
+    src: "/images/service-standard-switch.jpg",
+    alt: "A clean white rocker light switch on a wall beside a living room",
+    aspectRatio: "4/3",
+  },
+  "replace-3-way-switch": {
+    src: "/images/service-standard-switch.jpg",
+    alt: "A white rocker switch controlling a light from one of two locations",
+    aspectRatio: "4/3",
+  },
+
+  // A6 exterior light fixture
+  "replace-exterior-light-fixture": {
+    src: "/images/service-exterior-light.jpg",
+    alt: "A lantern-style exterior wall light beside a garage door at dusk",
+    aspectRatio: "4/3",
+  },
+  "new-exterior-lighting-locations": {
+    src: "/images/service-exterior-light.jpg",
+    alt: "A newly added exterior wall light illuminating a home entry at dusk",
+    aspectRatio: "4/3",
+  },
+
+  // A7 panel replacement
+  "electrical-panel-replacement": {
+    src: "/images/service-panel-replacement.jpg",
+    alt: "A newly installed electrical panel with its door open, breakers labeled",
+    aspectRatio: "4/3",
+  },
+  "200a-service-upgrade": {
+    src: "/images/service-panel-replacement.jpg",
+    alt: "An upgraded electrical service panel mounted on a utility-room wall",
+    aspectRatio: "4/3",
+  },
+
+  // A8 garage ceiling outlet
+  "garage-door-opener-outlet": {
+    src: "/images/service-garage-opener-outlet.jpg",
+    alt: "A ceiling-mounted outlet powering a garage door opener",
+    aspectRatio: "4/3",
+  },
+  "garage-door-opener-outlet-ev": {
+    src: "/images/service-garage-opener-outlet.jpg",
+    alt: "A ceiling outlet installed above a garage door opener",
+    aspectRatio: "4/3",
+  },
+
+  // A9 240V appliance circuit. The photo is specifically a dryer
+  // receptacle, so it covers the dryer service too. It does NOT cover
+  // 240v-garage-outlet (laundry room, not a garage) or
+  // range-receptacle-replacement (different receptacle).
+  "new-240v-appliance-circuit": {
+    src: "/images/service-240v-appliance-circuit.jpg",
+    alt: "A 240V appliance receptacle installed on a laundry-room wall",
+    aspectRatio: "4/3",
+  },
+  "dryer-receptacle-replacement": {
+    src: "/images/service-240v-appliance-circuit.jpg",
+    alt: "A four-prong 240V dryer receptacle beside a clothes dryer",
+    aspectRatio: "4/3",
+  },
+
+  // --- Reuse of existing photography, no new art -------------------------
+  "install-new-microwave": {
+    src: "/images/service-appliance-microwave.jpg",
+    alt: "A stainless steel over-the-range microwave installed above a range",
+    aspectRatio: "976/844",
+  },
+  "tv-install-existing-location": {
+    src: "/images/service-tv-mounting.jpg",
+    alt: "A wall-mounted TV above a media console in a styled living room",
+    aspectRatio: "16/9",
+  },
+  "hardwired-smoke-detector": {
+    src: "/images/service-smoke-and-co.jpg",
+    alt: "A hardwired smoke detector mounted on a hallway ceiling",
+    aspectRatio: "1005/824",
+  },
+  "double-pole-breaker-replacement": {
+    src: "/images/service-breaker.jpg",
+    alt: "An open electrical panel showing neatly organized breakers",
+    aspectRatio: "989/972",
+  },
+  "exterior-gfci-other-routing": {
+    src: "/images/service-exterior-outlet.jpg",
+    alt: "A weatherproof exterior GFCI outlet installed on a home's siding",
+    aspectRatio: "948/1254",
+  },
+  "pool-equipment-electrical": {
+    src: "/images/service-pool-and-spa.jpg",
+    alt: "An exterior disconnect and conduit serving pool equipment",
+    aspectRatio: "1028/971",
+  },
 };
 
 // Category-level art, kept in a SEPARATE keyed export from SERVICE_IMAGES on
@@ -203,10 +368,70 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
 // Files use a category- filename prefix to match, so /public/images/ stays
 // readable at a glance.
 export const CATEGORY_IMAGES: Record<string, { src: string; alt: string; aspectRatio: string }> = {
+  "outlets-switches": {
+    src: "/images/service-dimmer-install.jpg",
+    alt: "A wall dimmer switch beside a warmly lit pendant fixture",
+    aspectRatio: "963/982",
+  },
+  "new-outlets": {
+    src: "/images/service-new-outlet.jpg",
+    alt: "A clean white duplex outlet installed on a bedroom wall",
+    aspectRatio: "4/3",
+  },
+  "lighting": {
+    src: "/images/service-recessed-lighting.jpg",
+    alt: "A living room ceiling with warm recessed lighting installed throughout",
+    aspectRatio: "16/9",
+  },
+  "fans": {
+    src: "/images/service-ceiling-fan.jpg",
+    alt: "A five-blade ceiling fan with integrated light installed above a bed",
+    aspectRatio: "4/3",
+  },
+  "tv-media": {
+    src: "/images/service-tv-mounting.jpg",
+    alt: "A wall-mounted TV above a media console in a styled living room",
+    aspectRatio: "16/9",
+  },
+  "appliance-install": {
+    src: "/images/service-appliance-microwave.jpg",
+    alt: "A stainless steel over-the-range microwave installed above a range",
+    aspectRatio: "976/844",
+  },
+  "safety-protection": {
+    src: "/images/service-smoke-and-co.jpg",
+    alt: "A combination smoke and carbon monoxide detector on a hallway ceiling",
+    aspectRatio: "1005/824",
+  },
+  "smart-home-security": {
+    src: "/images/service-floodlight-camera.jpg",
+    alt: "A floodlight security camera mounted on a home exterior at dusk",
+    aspectRatio: "997/878",
+  },
+  "panels-troubleshooting": {
+    src: "/images/service-panel-replacement.jpg",
+    alt: "A newly installed electrical panel with its door open, breakers labeled",
+    aspectRatio: "4/3",
+  },
+  "ev-garage": {
+    src: "/images/service-ev-charger.jpg",
+    alt: "A Level 2 EV charger mounted on a garage wall",
+    aspectRatio: "977/911",
+  },
   "dedicated-circuits": {
     src: "/images/category-dedicated-circuits.jpg",
     alt: "A wall-mounted disconnect box feeding a vertical air compressor in a finished garage",
     aspectRatio: "983/941",
+  },
+  "generator-backup-power": {
+    src: "/images/service-transfer-switch.jpg",
+    alt: "A transfer switch installed next to an electrical panel in a garage",
+    aspectRatio: "983/1004",
+  },
+  "pool-spa": {
+    src: "/images/service-pool-and-spa.jpg",
+    alt: "An exterior safety disconnect serving a hot tub and pool at dusk",
+    aspectRatio: "1028/971",
   },
 };
 
