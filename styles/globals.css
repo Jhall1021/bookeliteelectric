@@ -3,8 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --font-display: "Inter", system-ui, sans-serif;
-  --font-body: "Inter", system-ui, sans-serif;
+  /* Both point at the same loaded Inter font (see app/layout.tsx) — kept
+     as two separate variables in case a distinct display face is ever
+     wanted later, but for now display and body are intentionally the
+     same typeface, just different weights via Tailwind's font-bold/
+     font-semibold/etc. utilities already used throughout the site. */
+  --font-display: var(--font-inter), system-ui, sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
 }
 
 body {
