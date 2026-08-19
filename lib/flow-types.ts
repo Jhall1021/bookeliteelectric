@@ -20,6 +20,10 @@ export type AnswerOptionDTO = {
   rerouteServiceId: string | null;
   requiredPhotoLabels: string[];
   disclaimer: string | null;
+  // PHOTO_REVIEW only. false = the price is already locked and these photos
+  // are prep for the technician, so the customer can book right away. true
+  // (default) = photos gate the booking; the office prices it and replies.
+  photosBlockBooking: boolean;
 };
 
 export type QuestionDTO = {

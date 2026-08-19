@@ -2,14 +2,20 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
 
-// POST body: { serviceId, computedPriceCents, isPrimary, answersSnapshot }
+// POST body: { serviceId, computedPriceCents, isPrimary, answersSnapshot,
+//              photos?: { url, label }[] }
 // Each call creates a new LineItem row — adding the same service twice
 // (e.g. two outlet replacements in different rooms) is intentional and
 // supported. Quantity is derived by grouping on GET, not stored directly.
+//
+// `photos` is only sent by the price-locked PHOTO_REVIEW path, where the
+// customer uploads prep photos and books in the same step. Those rows are
+// created together with the line item so a partial write can't leave photos
+// orphaned in R2 with nothing pointing at them.
 export async function POST(req: Request) {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
-  const { serviceId, computedPriceCents, isPrimary, answersSnapshot } = body;
+  const { serviceId, computedPriceCents, isPrimary, answersSnapshot, photos } = body;
 
   if (!serviceId || typeof computedPriceCents !== "number") {
     return NextResponse.json({ error: "Missing serviceId or computedPriceCents" }, { status: 400 });
@@ -31,15 +37,43 @@ export async function POST(req: Request) {
     select: { estimatedMinutes: true },
   });
 
-  const lineItem = await prisma.lineItem.create({
-    data: {
-      visitId: visit.id,
-      serviceId,
-      isPrimary: isPrimary ?? true,
-      answersSnapshot: answersSnapshot ?? {},
-      computedPriceCents,
-      estimatedMinutes: service?.estimatedMinutes ?? null,
-    },
+  // Only accept well-formed photo entries — a malformed one would otherwise
+  // create a Photo row with an empty url that renders as a broken image on
+  // the technician's job sheet.
+  const incomingPhotos: { url: string; label: string }[] = Array.isArray(photos)
+    ? photos.filter(
+        (p: unknown): p is { url: string; label: string } =>
+          !!p &&
+          typeof (p as { url?: unknown }).url === "string" &&
+          (p as { url: string }).url.length > 0 &&
+          typeof (p as { label?: unknown }).label === "string"
+      )
+    : [];
+
+  const lineItem = await prisma.$transaction(async (tx) => {
+    const created = await tx.lineItem.create({
+      data: {
+        visitId: visit!.id,
+        serviceId,
+        isPrimary: isPrimary ?? true,
+        answersSnapshot: answersSnapshot ?? {},
+        computedPriceCents,
+        estimatedMinutes: service?.estimatedMinutes ?? null,
+      },
+    });
+
+    if (incomingPhotos.length > 0) {
+      await tx.photo.createMany({
+        data: incomingPhotos.map((p) => ({
+          lineItemId: created.id,
+          url: p.url,
+          label: p.label,
+          source: "CUSTOMER_PRE_BOOKING" as const,
+        })),
+      });
+    }
+
+    return created;
   });
 
   return NextResponse.json({ visitId: visit.id, lineItemId: lineItem.id });

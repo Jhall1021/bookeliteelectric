@@ -9,6 +9,7 @@ import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
 import RerouteNotice from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
+import PricedPhotoReview from "./PricedPhotoReview";
 
 type Props = {
   serviceSlug: string;
@@ -20,7 +21,10 @@ type TerminalState =
   | { kind: "resolved"; priceCents: number; disclaimer: string | null }
   | { kind: "reroute"; serviceId: string; reason: string }
   | { kind: "troubleshooting" }
-  | { kind: "photo_review"; labels: string[] };
+  | { kind: "photo_review"; labels: string[] }
+  // Price already settled; the photos are prep for the technician, not a
+  // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
+  | { kind: "priced_photo_review"; labels: string[]; priceCents: number; disclaimer: string | null };
 
 /**
  * Interprets a Service's Question/AnswerOption tree at runtime. This is the
@@ -98,8 +102,24 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       case "REROUTE_TROUBLESHOOTING":
         setState({ kind: "troubleshooting" });
         break;
-      case "REMOTE_QUOTE":
       case "PHOTO_REVIEW":
+        // Two very different outcomes share this route action. When the
+        // photos don't block booking, the answer has already determined the
+        // price, so we resolve it and collect the photos as prep instead of
+        // handing the job off to the office.
+        if (!option.photosBlockBooking) {
+          setState({
+            kind: "priced_photo_review",
+            labels: option.requiredPhotoLabels,
+            priceCents: newTotal,
+            disclaimer: option.disclaimer,
+          });
+          break;
+        }
+        setState({ kind: "photo_review", labels: option.requiredPhotoLabels });
+        break;
+      case "REMOTE_QUOTE":
+        // Always blocks: a remote quote has no price to lock in by definition.
         setState({ kind: "photo_review", labels: option.requiredPhotoLabels });
         break;
       case "REROUTE_SERVICE":
@@ -110,19 +130,33 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     }
   }
 
-  async function handleAddToVisit() {
-    if (!flow || state?.kind !== "resolved") return;
-    await fetch("/api/visit", {
+  // Shared by the plain resolved path and the price-locked photo path — the
+  // only difference is whether any photos ride along.
+  async function addToVisit(
+    priceCents: number,
+    photos?: { url: string; label: string }[]
+  ) {
+    if (!flow) return;
+    const res = await fetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         serviceId: flow.id,
-        computedPriceCents: state.priceCents,
+        computedPriceCents: priceCents,
         isPrimary: true,
         answersSnapshot: answers,
+        ...(photos && photos.length > 0 ? { photos } : {}),
       }),
     });
+    // Don't navigate on a failed add — that would drop the customer on an
+    // empty visit page with no idea their photos went nowhere.
+    if (!res.ok) throw new Error("Could not add this to your visit");
     router.push("/my-visit");
+  }
+
+  async function handleAddToVisit() {
+    if (!flow || state?.kind !== "resolved") return;
+    await addToVisit(state.priceCents);
   }
 
   if (loading || !flow || !state) {
@@ -185,6 +219,18 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           Book Troubleshooting — {formatCents(24900)}
         </button>
       </div>
+    );
+  }
+
+  if (state.kind === "priced_photo_review") {
+    return (
+      <PricedPhotoReview
+        serviceName={flow.name}
+        priceCents={state.priceCents}
+        disclaimer={state.disclaimer}
+        labels={state.labels}
+        onConfirm={(photos) => addToVisit(state.priceCents, photos)}
+      />
     );
   }
 

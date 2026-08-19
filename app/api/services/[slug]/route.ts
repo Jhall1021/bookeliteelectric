@@ -57,6 +57,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         rerouteServiceId: o.rerouteServiceId,
         requiredPhotoLabels: o.requiredPhotoLabels,
         disclaimer: o.disclaimer,
+        photosBlockBooking: o.photosBlockBooking,
       })),
     })),
   };

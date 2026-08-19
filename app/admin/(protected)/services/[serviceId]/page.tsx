@@ -64,6 +64,7 @@ export default async function EditServicePage({ params }: { params: { serviceId:
               referencedServiceName: o.referencedService?.name ?? null,
               disclaimer: o.disclaimer,
               requiredPhotoLabels: o.requiredPhotoLabels,
+              photosBlockBooking: o.photosBlockBooking,
             })),
           }))}
           allServices={allServices}

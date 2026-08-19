@@ -154,6 +154,17 @@ model AnswerOption {
   // priceModifierCents still applies as a fallback if this is null.
   referencedServiceId String?
   referencedService   Service?    @relation("AnswerOptionReferencedService", fields: [referencedServiceId], references: [id])
+  // Only meaningful when routeAction = PHOTO_REVIEW. True (the default, and
+  // the behaviour every option had before this field existed) means the
+  // photos gate the booking: the customer submits them, the office prices
+  // the job, and no scheduling happens until we reply.
+  //
+  // False means the price is already locked and the photos are PREPARATION,
+  // not a condition — the customer sees their price, uploads the photos, and
+  // books immediately. Use it wherever the answer already determines the
+  // price but the tech still needs to see the space (panel make/model,
+  // access, existing fixture) to arrive with the right parts.
+  photosBlockBooking Boolean     @default(true)
 
   @@map("answer_options")
 }
@@ -221,6 +232,11 @@ model LineItem {
   // same pattern as computedPriceCents. Never returned by any customer-
   // facing API. Used to total up technician time for a Booking.
   estimatedMinutes Int?
+  // Photos collected at add-to-visit time on a price-locked PHOTO_REVIEW
+  // branch. Distinct from Quote photos: there is no Quote in this path —
+  // the price was already settled, so these ride along with the line item
+  // for the technician rather than for the office to price from.
+  photos          Photo[]
 
   @@map("line_items")
 }
@@ -306,6 +322,11 @@ model Photo {
   id        String      @id @default(cuid())
   quoteId   String?
   quote     Quote?      @relation(fields: [quoteId], references: [id])
+  // Set instead of quoteId when the photos came from a price-locked
+  // PHOTO_REVIEW branch, where the customer booked directly and no Quote
+  // was ever created. Exactly one of quoteId / lineItemId is populated.
+  lineItemId String?
+  lineItem   LineItem?  @relation(fields: [lineItemId], references: [id])
   bookingId String?
   url       String
   label     String

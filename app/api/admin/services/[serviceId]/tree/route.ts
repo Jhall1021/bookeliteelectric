@@ -24,12 +24,17 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
 
   // Confirm every question actually belongs to this service before writing
   // anything — prevents a crafted request from editing another service's tree.
+  // routeAction comes along too, because whether photosBlockBooking is even
+  // meaningful depends on it, and the client can't be trusted to say.
   const owned = await prisma.question.findMany({
     where: { serviceId: params.serviceId },
-    select: { id: true, options: { select: { id: true } } },
+    select: { id: true, options: { select: { id: true, routeAction: true } } },
   });
   const ownedQuestionIds = new Set(owned.map((q) => q.id));
   const ownedOptionIds = new Set(owned.flatMap((q) => q.options.map((o) => o.id)));
+  const routeActionById = new Map(
+    owned.flatMap((q) => q.options.map((o) => [o.id, o.routeAction] as const))
+  );
 
   for (const q of questions) {
     if (!ownedQuestionIds.has(q.id)) {
@@ -60,6 +65,12 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
         });
 
         for (const o of q.options ?? []) {
+          // Only a PHOTO_REVIEW branch can have its photos decoupled from
+          // booking. Anywhere else the flag is forced back to the default so
+          // a stale false can't sit in the database waiting to change
+          // behaviour if the route action is later switched to PHOTO_REVIEW.
+          const isPhotoReview = routeActionById.get(o.id) === "PHOTO_REVIEW";
+
           await tx.answerOption.update({
             where: { id: o.id },
             data: {
@@ -71,6 +82,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
               referencedServiceId: o.referencedServiceId || null,
               disclaimer: o.disclaimer || null,
               requiredPhotoLabels: o.requiredPhotoLabels ?? [],
+              photosBlockBooking: isPhotoReview ? o.photosBlockBooking !== false : true,
             },
           });
         }

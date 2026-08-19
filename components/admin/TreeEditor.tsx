@@ -12,6 +12,7 @@ type AnswerOptionData = {
   referencedServiceName: string | null;
   disclaimer: string | null;
   requiredPhotoLabels: string[];
+  photosBlockBooking: boolean;
 };
 
 type QuestionData = {
@@ -82,6 +83,7 @@ export default function TreeEditor({
             referencedServiceId: o.referencedServiceId,
             disclaimer: o.disclaimer,
             requiredPhotoLabels: o.requiredPhotoLabels,
+            photosBlockBooking: o.photosBlockBooking,
           })),
         })),
       }),
@@ -113,7 +115,8 @@ export default function TreeEditor({
       <p className="mt-1 text-sm text-slate">
         Edit the questions and answer options below. Adding or removing questions, or changing
         how answers route through the tree, isn't supported here yet — that still needs a code
-        change.
+        change. Photo-review answers can now either hold the booking for pricing or lock the
+        price and let the customer schedule right away.
       </p>
 
       <div className="mt-4 space-y-6">
@@ -208,6 +211,41 @@ export default function TreeEditor({
                         rows={2}
                         className="mt-1 w-full rounded-card border border-cardline px-3 py-1.5 text-xs focus:border-electric"
                       />
+                    </div>
+                  )}
+
+                  {/* Only offered on PHOTO_REVIEW. A REMOTE_QUOTE branch has
+                      no price to lock in by definition, so the choice would
+                      be meaningless there. */}
+                  {o.routeAction === "PHOTO_REVIEW" && (
+                    <div className="mt-3 rounded-card border border-cardline bg-white p-3">
+                      <label className="flex cursor-pointer items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!o.photosBlockBooking}
+                          onChange={(e) =>
+                            updateOption(q.id, o.id, { photosBlockBooking: !e.target.checked })
+                          }
+                          className="mt-0.5 h-4 w-4 shrink-0 accent-[#1B6BFF]"
+                        />
+                        <span className="text-xs">
+                          <span className="font-semibold text-navy">
+                            Lock the price and let them book now
+                          </span>
+                          <span className="mt-0.5 block text-slate">
+                            {o.photosBlockBooking
+                              ? "Currently: the customer submits photos and waits for the office to price the job. They can't schedule."
+                              : "Currently: the customer sees their price, uploads the photos as prep for the tech, and schedules immediately."}
+                          </span>
+                        </span>
+                      </label>
+                      {!o.photosBlockBooking && o.requiredPhotoLabels.length === 0 && (
+                        <p className="mt-2 text-xs text-amber-700">
+                          No photos are listed above, so this branch will book with no photos at
+                          all. Add at least one, or switch this answer to &ldquo;Resolves to a
+                          price&rdquo; instead.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
