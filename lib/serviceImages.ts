@@ -93,21 +93,15 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A Level 2 EV charger mounted on a garage exterior wall next to a parked electric vehicle",
     aspectRatio: "977/911",
   },
-  // DISABLED 2026-08-19 — content mismatch, not an image-quality problem.
-  // service-generator.jpg shows a permanently installed whole-home standby
-  // generator (Generac unit on a pad). This service is an inlet box plus a
-  // panel interlock kit, which is how a *portable* generator connects —
-  // a different product at a very different price point. Leaving the photo
-  // in place invites a homeowner to book expecting a standby install.
-  // Falls back to icon-only until real inlet/interlock art exists.
-  // The cropped file is still in /public/images/ and ready to re-enable
-  // if that call is reversed; aspectRatio below is the corrected value
-  // (was 1086/991).
-  // "generator-inlet-interlock": {
-  //   src: "/images/service-generator.jpg",
-  //   alt: "A whole-home standby generator installed beside a house at dusk",
-  //   aspectRatio: "980/917",
-  // },
+  // RE-ENABLED with real art. The previous file showed a whole-home standby
+  // generator, a different product from this service (an inlet box plus a
+  // panel interlock, for connecting a *portable* generator).
+  // service-generator.jpg is now unreferenced and can be deleted.
+  "generator-inlet-interlock": {
+    src: "/images/service-generator-inlet-interlock.jpg",
+    alt: "A weatherproof generator inlet box beside an open panel fitted with a breaker interlock",
+    aspectRatio: "1600/1238",
+  },
   // Re-cropped 2026-08-19: was 1122/926 (comp canvas incl. chrome).
   "whole-house-surge-protection": {
     src: "/images/service-surge-protection.jpg",
@@ -319,9 +313,9 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     aspectRatio: "4/3",
   },
   "dryer-receptacle-replacement": {
-    src: "/images/service-240v-appliance-circuit.jpg",
-    alt: "A four-prong 240V dryer receptacle beside a clothes dryer",
-    aspectRatio: "4/3",
+    src: "/images/service-dryer-outlet.jpg",
+    alt: "A four-prong 240V dryer receptacle on a laundry-room wall beside a dryer",
+    aspectRatio: "1371/1600",
   },
 
   // --- Reuse of existing photography, no new art -------------------------
@@ -354,6 +348,65 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     src: "/images/service-pool-and-spa.jpg",
     alt: "An exterior disconnect and conduit serving pool equipment",
     aspectRatio: "1028/971",
+  },
+  // --- Batch A10-A22 (2026-08-19) --------------------------------------
+  // Delivered to spec: full-bleed, no chrome, 1600px long edge. Ten are
+  // ~1.29 landscape; the range, dryer and fireplace shots are portrait and
+  // crop roughly a third off top and bottom in the 4/3 grids.
+  "replace-gfci-outlet": {
+    src: "/images/service-gfci-outlet.jpg",
+    alt: "A white GFCI outlet with test and reset buttons installed on a wall",
+    aspectRatio: "1600/1243",
+  },
+  "smart-outlet-upgrade": {
+    src: "/images/service-smart-outlet.jpg",
+    alt: "A smart wall outlet with a status indicator installed on a wall",
+    aspectRatio: "1600/1246",
+  },
+  "bidet-smart-toilet-outlet": {
+    src: "/images/service-bidet-smart-toilet-outlet.jpg",
+    alt: "A wall outlet installed beside a smart toilet in a bathroom",
+    aspectRatio: "1600/1240",
+  },
+  "new-ceiling-light": {
+    src: "/images/service-new-ceiling-light.jpg",
+    alt: "A round flush-mount ceiling light fixture lit against a ceiling",
+    aspectRatio: "1600/1246",
+  },
+  "replace-motion-flood-light": {
+    src: "/images/service-motion-flood-light.jpg",
+    alt: "A twin-head exterior flood light lit against a home's siding at dusk",
+    aspectRatio: "1600/1239",
+  },
+  "elite-tilt-mount": {
+    src: "/images/service-tilt-tv-mount.jpg",
+    alt: "A flat-screen TV angled on a wall mount in a living room",
+    aspectRatio: "1600/1242",
+  },
+  "elite-articulating-mount": {
+    src: "/images/service-articulating-tv-mount.jpg",
+    alt: "A full-motion articulating TV wall mount with its arm extended",
+    aspectRatio: "1600/1232",
+  },
+  "dishwasher-electrical": {
+    src: "/images/service-dishwasher-connection.jpg",
+    alt: "An outlet and flexible conduit connecting a dishwasher inside a cabinet",
+    aspectRatio: "1600/1239",
+  },
+  "garbage-disposal-install": {
+    src: "/images/service-garbage-disposal.jpg",
+    alt: "A garbage disposal unit plugged into an outlet under a kitchen sink",
+    aspectRatio: "1600/1235",
+  },
+  "range-receptacle-replacement": {
+    src: "/images/service-range-outlet.jpg",
+    alt: "A 240V range receptacle on a tiled wall above a stove",
+    aspectRatio: "1431/1600",
+  },
+  "electric-fireplace-circuit": {
+    src: "/images/service-electric-fireplace.jpg",
+    alt: "An outlet installed on the wall below a wall-mounted electric fireplace",
+    aspectRatio: "1328/1600",
   },
 };
 
