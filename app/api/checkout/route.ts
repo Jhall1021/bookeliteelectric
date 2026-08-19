@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
   const visit = await prisma.visit.findFirst({
     where: { sessionId, status: "OPEN" },
-    include: { lineItems: true },
+    include: { lineItems: { include: { service: { select: { name: true } } } } },
   });
 
   if (!visit || visit.lineItems.length === 0) {
@@ -134,7 +134,14 @@ export async function POST(req: Request) {
     }
   })();
 
-  const confirmationEmail = sendBookingConfirmationEmail(booking.id).catch((err) => {
+  const confirmationEmail = sendBookingConfirmationEmail({
+    address,
+    zipCode,
+    totalCents,
+    customer,
+    arrivalWindow,
+    lineItems: visit.lineItems.map((li) => ({ isPrimary: li.isPrimary, serviceName: li.service.name })),
+  }).catch((err) => {
     console.error(`Confirmation email failed for booking ${booking.id}:`, err);
   });
 

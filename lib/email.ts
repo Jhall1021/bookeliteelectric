@@ -1,5 +1,4 @@
 import { Resend } from "resend";
-import { prisma } from "@/lib/prisma";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -14,19 +13,18 @@ function formatDollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-export async function sendBookingConfirmationEmail(bookingId: string) {
-  console.log(`=== sendBookingConfirmationEmail called for booking ${bookingId} ===`);
-  const booking = await prisma.booking.findUniqueOrThrow({
-    where: { id: bookingId },
-    include: {
-      customer: true,
-      arrivalWindow: true,
-      visit: { include: { lineItems: { include: { service: { select: { name: true } } } } } },
-    },
-  });
+export async function sendBookingConfirmationEmail(booking: {
+  address: string;
+  zipCode: string;
+  totalCents: number;
+  customer: { name: string; email: string | null };
+  arrivalWindow: { date: Date; startTime: string; endTime: string };
+  lineItems: { isPrimary: boolean; serviceName: string }[];
+}) {
+  console.log(`=== sendBookingConfirmationEmail called ===`);
 
   if (!booking.customer.email) {
-    console.log(`=== No customer email on booking ${bookingId} — skipping send ===`);
+    console.log(`=== No customer email — skipping send ===`);
     return;
   }
   console.log(`=== Sending to ${booking.customer.email} from ${FROM_EMAIL} ===`);
@@ -39,8 +37,8 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
     timeZone: "America/New_York",
   });
 
-  const lineItemsHtml = booking.visit.lineItems
-    .map((li) => `<li>${li.isPrimary ? "" : "+ "}${li.service.name}</li>`)
+  const lineItemsHtml = booking.lineItems
+    .map((li) => `<li>${li.isPrimary ? "" : "+ "}${li.serviceName}</li>`)
     .join("");
 
   const html = `
@@ -72,5 +70,5 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
     subject: "Your appointment is confirmed — Elite Electric & Lighting",
     html,
   });
-  console.log(`=== resend.emails.send() completed without throwing for booking ${bookingId} ===`);
+  console.log(`=== resend.emails.send() completed without throwing ===`);
 }
