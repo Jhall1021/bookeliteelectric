@@ -60,6 +60,16 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A clean white duplex outlet freshly installed on a bedroom wall next to a nightstand",
     aspectRatio: "4/3",
   },
+  // Shares service-new-outlet.jpg with new-120v-outlet above. The two stay
+  // separate services in the catalog (a swap vs. a newly run circuit), but
+  // the finished result is identical from the customer's side — the
+  // difference is inside the wall. Reusing the photo is accurate, and it
+  // fills the last icon-only card in the homepage Popular Services grid.
+  "replace-standard-outlet": {
+    src: "/images/service-new-outlet.jpg",
+    alt: "A clean white duplex outlet on a bedroom wall next to a nightstand",
+    aspectRatio: "4/3",
+  },
   "exterior-gfci-standard": {
     src: "/images/service-exterior-outlet.jpg",
     alt: "A weatherproof exterior GFCI outlet, cover open, installed on a home's siding",
