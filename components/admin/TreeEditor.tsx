@@ -93,7 +93,17 @@ export default function TreeEditor({
       router.refresh();
       setTimeout(() => setSaved(false), 2500);
     } else {
-      setError("Something went wrong saving the tree.");
+      // Show what the server actually said. The generic message here used to
+      // hide a 404 (the save route was missing entirely), which made a
+      // routing problem look like a database problem.
+      let detail = `${res.status} ${res.statusText}`;
+      try {
+        const data = await res.json();
+        if (data?.error) detail = data.error;
+      } catch {
+        // Non-JSON response — usually a 404 HTML page. Keep the status line.
+      }
+      setError(`Couldn't save: ${detail}`);
     }
   }
 
