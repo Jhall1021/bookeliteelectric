@@ -185,6 +185,11 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A bullet security camera mounted on lap siding beside a home's front entry",
     aspectRatio: "1011/867",
   },
+  "soundbar-installation": {
+    src: "/images/service-soundbar.jpg",
+    alt: "A wall-mounted soundbar installed below a flat-screen TV on a wood-panelled wall",
+    aspectRatio: "1000/935",
+  },
 };
 
 // Category-level art, kept in a SEPARATE keyed export from SERVICE_IMAGES on
