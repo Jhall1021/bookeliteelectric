@@ -245,8 +245,8 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     aspectRatio: "4/3",
   },
   "freezer-fridge-dedicated-circuit": {
-    src: "/images/service-dedicated-circuit.jpg",
-    alt: "A dedicated appliance outlet installed on a utility-room wall",
+    src: "/images/service-freezer-circuit.jpg",
+    alt: "A chest freezer plugged into a dedicated wall outlet in a finished basement",
     aspectRatio: "4/3",
   },
   "dedicated-120v-circuit-outlet": {
