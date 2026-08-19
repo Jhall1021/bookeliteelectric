@@ -15,6 +15,7 @@ function formatDollars(cents: number): string {
 }
 
 export async function sendBookingConfirmationEmail(bookingId: string) {
+  console.log(`=== sendBookingConfirmationEmail called for booking ${bookingId} ===`);
   const booking = await prisma.booking.findUniqueOrThrow({
     where: { id: bookingId },
     include: {
@@ -24,7 +25,11 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
     },
   });
 
-  if (!booking.customer.email) return; // nothing to send to
+  if (!booking.customer.email) {
+    console.log(`=== No customer email on booking ${bookingId} — skipping send ===`);
+    return;
+  }
+  console.log(`=== Sending to ${booking.customer.email} from ${FROM_EMAIL} ===`);
 
   const dateLabel = booking.arrivalWindow.date.toLocaleDateString("en-US", {
     weekday: "long",
@@ -67,4 +72,5 @@ export async function sendBookingConfirmationEmail(bookingId: string) {
     subject: "Your appointment is confirmed — Elite Electric & Lighting",
     html,
   });
+  console.log(`=== resend.emails.send() completed without throwing for booking ${bookingId} ===`);
 }
