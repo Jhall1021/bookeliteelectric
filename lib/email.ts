@@ -7,7 +7,12 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // and RESEND_FROM_EMAIL is set to use it (e.g. "Elite Electric
 // <bookings@bookeliteelectric.com>"). Switching later is just this one
 // env var, no code change needed.
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "Elite Electric <onboarding@resend.dev>";
+//
+// Uses || not ?? deliberately: an env var saved in Vercel with an EMPTY
+// value is still "set" (a real empty string, not undefined/null), so ??
+// would never fall back to the default — || correctly treats an empty
+// string the same as genuinely unset.
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Elite Electric <onboarding@resend.dev>";
 
 function formatDollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -17,7 +22,7 @@ export async function sendBookingConfirmationEmail(booking: {
   address: string;
   zipCode: string;
   totalCents: number;
-  customer: { name: string; email: string | null };
+  customer: { name: string | null; email: string | null };
   arrivalWindow: { date: Date; startTime: string; endTime: string };
   lineItems: { isPrimary: boolean; serviceName: string }[];
 }) {
@@ -43,7 +48,7 @@ export async function sendBookingConfirmationEmail(booking: {
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 480px; margin: 0 auto; color: #0F1E3C;">
-      <h1 style="font-size: 20px; margin: 0 0 8px;">You're all set, ${booking.customer.name}!</h1>
+      <h1 style="font-size: 20px; margin: 0 0 8px;">You're all set${booking.customer.name ? `, ${booking.customer.name}` : ""}!</h1>
       <p style="margin: 0 0 16px;">Your appointment with Elite Electric &amp; Lighting is confirmed.</p>
 
       <div style="background: #F7F5F0; border-radius: 12px; padding: 16px; margin: 0 0 16px;">
@@ -64,11 +69,19 @@ export async function sendBookingConfirmationEmail(booking: {
     </div>
   `;
 
-  await resend.emails.send({
+  const result = await resend.emails.send({
     from: FROM_EMAIL,
     to: booking.customer.email,
     subject: "Your appointment is confirmed — Elite Electric & Lighting",
     html,
   });
-  console.log(`=== resend.emails.send() completed without throwing ===`);
+
+  // Resend's SDK returns errors as a normal { error } response object
+  // rather than throwing — checking only for a thrown exception (as this
+  // code used to) meant a rejected send could look identical to a
+  // successful one. This is what actually surfaces the real failure.
+  if (result.error) {
+    throw new Error(`Resend rejected the email: ${JSON.stringify(result.error)}`);
+  }
+  console.log(`=== resend.emails.send() succeeded, id: ${result.data?.id} ===`);
 }
