@@ -104,41 +104,47 @@ async function main() {
   const moduleKeys = ["lighting_control", "switch_near_power", "lighting_dimmer_upgrade", "below_above_access", "finished_space_both_sides"];
   const controlQuestion = service.questions.find((q) => q.key === "lighting_control");
 
-  const qCount = await upsertQuestion(prisma, service.id, {
-    key: COUNT_KEY,
-    prompt: "How many recessed lights would you like?",
-    helpText: "The first one covers the setup; the rest are less because we're already up there.",
-    order: 2,
-  });
-
+  // Access FIRST. The per-light components are conditioned on the access
+  // classification, and a component whose condition can't be evaluated yet
+  // matches nothing — which correctly, but uselessly, sends every count
+  // straight to review. Establish the class, then price the count against it.
   const qAccess = await upsertQuestion(prisma, service.id, {
     key: ACCESS_KEY,
     // Same key the Lighting Control module conditions its switch-leg variants
     // on, so answering here selects the right one later without asking twice.
     prompt: "What's directly above that ceiling?",
     helpText: "An open attic lets us run wiring without opening the ceiling up. Finished space above means more work.",
+    order: 2,
+  });
+
+  const qCount = await upsertQuestion(prisma, service.id, {
+    key: COUNT_KEY,
+    prompt: "How many recessed lights would you like?",
+    helpText: "The first one covers the setup; the rest cost less because we're already up there.",
     order: 3,
   });
 
-  // Count first, then access — access determines which component tier the
-  // count uses, and the engine applies components in answer order.
+  const handoff = controlQuestion?.id ?? null;
+  const countProceed = handoff
+    ? { routeAction: "CONTINUE" as const, nextQuestionId: handoff }
+    : { routeAction: "RESOLVE_INSTANT" as const, nextQuestionId: null };
+
   await prisma.answerOption.createMany({
     data: COUNTS.map((c, i) => ({
       questionId: qCount.id,
       label: c.label,
       value: c.value,
-      routeAction: "CONTINUE" as const,
-      nextQuestionId: qAccess.id,
+      ...countProceed,
       order: i + 1,
       requiredPhotoLabels: [],
-      approvedComponentPriceCents: 0,
+      // Null, not zero: the price comes from the per-light components. An
+      // explicit 0 here would override them and make six lights free.
+      // "Just one" carries no components, so it resolves to 0 on its own.
+      approvedComponentPriceCents: c.extra === 0 ? 0 : null,
     })),
   });
 
-  const handoff = controlQuestion?.id ?? null;
-  const proceed = handoff
-    ? { routeAction: "CONTINUE" as const, nextQuestionId: handoff }
-    : { routeAction: "RESOLVE_INSTANT" as const, nextQuestionId: null };
+  const proceed = { routeAction: "CONTINUE" as const, nextQuestionId: qCount.id };
 
   await prisma.answerOption.createMany({
     data: [
@@ -207,7 +213,7 @@ async function main() {
   if (below) {
     await prisma.answerOption.updateMany({
       where: { questionId: below.id, routeAction: "CONTINUE" },
-      data: { nextQuestionId: qCount.id },
+      data: { nextQuestionId: qAccess.id },
     });
   }
 
@@ -222,7 +228,7 @@ async function main() {
     where: { serviceId: service.id },
     orderBy: { order: "asc" },
   });
-  const orderKeys = [...heightKeys, COUNT_KEY, ACCESS_KEY, ...moduleKeys];
+  const orderKeys = [...heightKeys, ACCESS_KEY, COUNT_KEY, ...moduleKeys];
   for (const q of finalQs) {
     const idx = orderKeys.indexOf(q.key);
     if (idx >= 0) await prisma.question.update({ where: { id: q.id }, data: { order: idx } });

@@ -129,6 +129,33 @@ const CONTROL_KEY = "lighting_control";
 const NEAR_POWER_KEY = "switch_near_power";
 const DIMMER_KEY = "lighting_dimmer_upgrade";
 const ACCESS_KEY = "ceiling_access";
+const DISTANCE_KEY = "switch_leg_distance";
+
+/**
+ * Switch-leg labor by access class and run length.
+ *
+ * Another 10 ft through an open attic costs little once the technician is set
+ * up. The same 10 ft through finished construction can mean another framing
+ * bay, more drilling, another access opening. Past 20 ft the variability
+ * outruns a fixed price either way.
+ */
+const SWITCHLEG = [
+  { key: "SWITCHLEG_ACCESSIBLE_UNDER_10", name: "Switch leg — open route, under 10 ft", customerFacingLabel: "New wall switch and control wiring", addFieldLaborHours: 1.0, addMaterialCostCents: 3500, addScheduleMinutes: 60, approvedPriceCents: 30000 },
+  { key: "SWITCHLEG_ACCESSIBLE_10_20", name: "Switch leg — open route, 10 to 20 ft", customerFacingLabel: "New wall switch and control wiring", addFieldLaborHours: 1.25, addMaterialCostCents: 3500, addScheduleMinutes: 75, approvedPriceCents: 36000 },
+  { key: "SWITCHLEG_FINISHED_UNDER_10", name: "Switch leg — finished walls, under 10 ft", customerFacingLabel: "New wall switch and control wiring", addFieldLaborHours: 1.5, addMaterialCostCents: 4500, addScheduleMinutes: 90, approvedPriceCents: 43500 },
+  { key: "SWITCHLEG_FINISHED_10_20", name: "Switch leg — finished walls, 10 to 20 ft", customerFacingLabel: "New wall switch and control wiring", addFieldLaborHours: 2.0, addMaterialCostCents: 4500, addScheduleMinutes: 120, approvedPriceCents: 56000 },
+];
+
+/**
+ * Shown before the customer accepts a finished-space price. Explains WHY the
+ * access question was asked — an open route is cheaper — so it reads as being
+ * on their side rather than as groundwork for a surcharge.
+ */
+const FINISHED_DISCLAIMER = [
+  "There's no attic, basement or drop ceiling to run this through, so your electrician will be fishing the wiring through finished walls or ceilings.",
+  "That usually means one or more small openings in the drywall or plaster. Patching, sanding, painting, wallpaper and trim aren't included unless we've put it in writing.",
+  "That's why we asked about attic and basement access — an open route avoids these openings and takes less time.",
+].join("\n\n");
 // Deliberately the SAME keys the New 120V Outlet tree uses. If the customer
 // has already answered them — including after a reroute from that service —
 // §29 reuse skips them rather than asking twice.
@@ -173,7 +200,10 @@ async function seedComponents() {
       create: c,
     });
   }
-  console.log(`  ✓ ${COMPONENTS.length} job components defined`);
+  for (const c of SWITCHLEG) {
+    await prisma.jobComponent.upsert({ where: { key: c.key }, update: { ...c }, create: c });
+  }
+  console.log(`  ✓ ${COMPONENTS.length + SWITCHLEG.length} job components defined`);
 }
 
 async function attach(slug: string) {
@@ -228,6 +258,13 @@ prompt:
 prompt: "Is there finished living space directly above and below that wall?",
       helpText: "For example, a finished bedroom upstairs and a finished room below, with no open access between them.",
     order: nextOrder + 4,
+  });
+
+  const qDistance = await upsertQuestion(prisma, service.id, {
+    key: DISTANCE_KEY,
+    prompt: "About how far is the new switch from the light?",
+    helpText: "Roughly the path the wire would take, not the straight line across the room.",
+    order: nextOrder + 5,
   });
 
   const qDimmer = await upsertQuestion(prisma, service.id, {
@@ -329,14 +366,17 @@ prompt: "Would you like a dimmer on the new switch?",
   await prisma.answerOption.createMany({
     data: [
       {
+        // Straight to the distance question — the switch-leg price depends on
+        // run length as well as access, and both live in this module so the
+        // wiring can't be broken by running seeds in a different order.
         questionId: qNearPower.id,
         label: "Yes, there's an outlet right there",
         value: "yes",
         routeAction: "CONTINUE",
-        nextQuestionId: qDimmer.id,
+        nextQuestionId: qDistance.id,
         order: 1,
         requiredPhotoLabels: [],
-        approvedComponentPriceCents: null,
+        approvedComponentPriceCents: 0,
       },
       {
         // Previously a dead stop. Running power to the switch is the same job
@@ -450,6 +490,35 @@ prompt: "Would you like a dimmer on the new switch?",
   await prisma.answerOptionComponent.create({
     data: { answerOptionId: finishedYes.id, componentId: await comp("SWITCH_POWER_RUN_FINISHED") },
   });
+
+  // Distance bands. Each answer carries both access variants; the
+  // classification established earlier picks which applies, so the homeowner
+  // is never asked about attic access twice (§29).
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qDistance.id, label: "Less than 10 feet", value: "under_10", routeAction: "CONTINUE", nextQuestionId: qDimmer.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: null, disclaimer: FINISHED_DISCLAIMER },
+      { questionId: qDistance.id, label: "10 to 20 feet", value: "10_to_20", routeAction: "CONTINUE", nextQuestionId: qDimmer.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null, disclaimer: FINISHED_DISCLAIMER },
+      // Past 20 ft the variability outruns a fixed price. Same reasoning as
+      // the dedicated circuit's 50 ft cap.
+      { questionId: qDistance.id, label: "More than 20 feet", value: "over_20", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
+      { questionId: qDistance.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: REVIEW_PHOTOS },
+    ],
+  });
+
+  for (const [value, accKey, finKey] of [
+    ["under_10", "SWITCHLEG_ACCESSIBLE_UNDER_10", "SWITCHLEG_FINISHED_UNDER_10"],
+    ["10_to_20", "SWITCHLEG_ACCESSIBLE_10_20", "SWITCHLEG_FINISHED_10_20"],
+  ] as const) {
+    const opt = await prisma.answerOption.findFirstOrThrow({
+      where: { questionId: qDistance.id, value },
+    });
+    await prisma.answerOptionComponent.createMany({
+      data: [
+        { answerOptionId: opt.id, componentId: await comp(accKey), conditionAccessClass: "ACCESSIBLE" },
+        { answerOptionId: opt.id, componentId: await comp(finKey), conditionAccessClass: "FINISHED" },
+      ],
+    });
+  }
 
   // §14 — dimmer is a material upgrade on a control we're already installing.
   await prisma.answerOption.createMany({
