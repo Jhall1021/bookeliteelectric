@@ -280,6 +280,8 @@ export type BranchContribution = {
     component: {
       key: string;
       customerFacingLabel: string | null;
+      /** Null = not approved; any route using it goes to review. */
+      approvedPriceCents?: number | null;
       addFieldLaborHours: number;
       addMaterialCostCents: number;
       addScheduleMinutes: number;
@@ -332,12 +334,31 @@ export function applyBranch(
     components.push({ key: c.key, label: c.customerFacingLabel, quantity: q });
   }
 
-  const approved = branch.approvedComponentPriceCents;
   // An answer that declares components but matched none of them means the
   // condition was never established — we don't know which variant of the work
   // applies. Book nothing on a guess; send it to review.
   const declaredButUnmatched = declared.length > 0 && selected.length === 0;
-  const selectedComponents = selected.length > 0;
+
+  // Price comes from the components actually selected. An explicit figure on
+  // the answer overrides them, for the simple case where one answer has one
+  // fixed price regardless of variant.
+  let componentPriceCents = 0;
+  let anyComponentUnapproved = false;
+  for (const sel of selected) {
+    const p = sel.component.approvedPriceCents;
+    if (p === null || p === undefined) anyComponentUnapproved = true;
+    else componentPriceCents += p * Math.max(sel.quantity, 1);
+  }
+
+  const answerOverride = branch.approvedComponentPriceCents;
+  const approved =
+    answerOverride !== null && answerOverride !== undefined
+      ? answerOverride
+      : selected.length > 0
+        ? anyComponentUnapproved
+          ? null
+          : componentPriceCents
+        : 0;
 
   return {
     fieldLaborHours: hours,
@@ -351,7 +372,8 @@ export function applyBranch(
     awaitingComponentApproval:
       config.awaitingComponentApproval ||
       declaredButUnmatched ||
-      (selectedComponents && (approved === null || approved === undefined)),
+      approved === null ||
+      approved === undefined,
     approvedIncrementCents: config.approvedIncrementCents + (approved ?? 0),
     legacyModifierCents: config.legacyModifierCents + (branch.priceModifierCents ?? 0),
   };
@@ -421,4 +443,50 @@ export function suggestConfigurationPrice(
     settings,
     isPrimary
   );
+}
+
+/**
+ * What one answer will add to the price, for display BEFORE the customer
+ * picks it.
+ *
+ * Needs the answers collected so far because a conditional component's price
+ * depends on them: "a wall switch controls an outlet" costs $220 with attic
+ * access and $360 through finished space, and which applies was decided
+ * several questions ago.
+ *
+ * Returns null cents when the route can't be priced up front — the customer
+ * should be told that plainly rather than shown a number that might change.
+ */
+export function answerPriceDelta(
+  branch: BranchContribution,
+  answers: Record<string, string> = {}
+): { cents: number | null; needsReview: boolean } {
+  const declared = branch.components ?? [];
+  const selected = declared.filter(
+    (sel) =>
+      !sel.conditionAnswerKey ||
+      answers[sel.conditionAnswerKey] === sel.conditionAnswerValue
+  );
+
+  // Declared components but none matched: we don't know which variant applies.
+  if (declared.length > 0 && selected.length === 0) {
+    return { cents: null, needsReview: true };
+  }
+
+  const override = branch.approvedComponentPriceCents;
+  let componentCents = 0;
+  if (override !== null && override !== undefined) {
+    componentCents = override;
+  } else {
+    for (const sel of selected) {
+      const p = sel.component.approvedPriceCents;
+      if (p === null || p === undefined) return { cents: null, needsReview: true };
+      componentCents += p * Math.max(sel.quantity, 1);
+    }
+  }
+
+  return {
+    cents: componentCents + (branch.priceModifierCents ?? 0),
+    needsReview: false,
+  };
 }

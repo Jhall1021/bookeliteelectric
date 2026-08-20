@@ -413,6 +413,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     return withBack(
       <QuestionStep
         question={state.question}
+        answers={answers}
         onAnswer={(option) => handleAnswer(state.question, option)}
       />
     );

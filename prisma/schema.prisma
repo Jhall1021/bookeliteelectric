@@ -81,6 +81,18 @@ model JobComponent {
   addScheduleMinutes   Int     @default(0)
   /// Rarely used — a component that changes the crew size.
   addTechCount         Int     @default(0)
+  /// Approved customer-facing price for this component, in cents.
+  ///
+  /// Lives here rather than on the answer because the price belongs to the
+  /// WORK, not to the question that selects it. §13.2's two variants —
+  /// accessible and finished — are selected by the same answer but cost
+  /// different amounts, so one figure on the answer could never be right for
+  /// both.
+  ///
+  /// NULL means not yet approved: any route selecting this component goes to
+  /// review instead of publishing a calculated figure. Zero is a valid
+  /// approved value for work that adds no charge.
+  approvedPriceCents   Int?
   active               Boolean @default(true)
   notes                String?
   options              AnswerOptionComponent[]

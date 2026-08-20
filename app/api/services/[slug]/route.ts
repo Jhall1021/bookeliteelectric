@@ -84,6 +84,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
           component: {
             key: sel.component.key,
             customerFacingLabel: sel.component.customerFacingLabel,
+            approvedPriceCents: sel.component.approvedPriceCents,
             addFieldLaborHours: sel.component.addFieldLaborHours,
             addMaterialCostCents: sel.component.addMaterialCostCents,
             addScheduleMinutes: sel.component.addScheduleMinutes,

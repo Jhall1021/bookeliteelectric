@@ -31,9 +31,21 @@ const prisma = new PrismaClient();
  * The launch values below assume one technician working the stated hours, and
  * are editable per component once real job data exists.
  */
+/**
+ * Approved customer-facing price per component, in cents.
+ *
+ * Derived from the §3-§4 model: (hours x $250) + (material x tier multiplier),
+ * rounded up to $5. The $250 service-call minimum is NOT applied — these are
+ * increments inside a primary service, and the minimum is charged once on the
+ * whole job, not per switch leg.
+ *
+ * Set to null to send a route to review instead of pricing it.
+ */
 const COMPONENTS = [
   {
     key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE",
+    // 0.75 hrs = $187.50 + $25 x 1.30 = $32.50 -> $220.
+    approvedPriceCents: 22000,
     name: "Convert switched outlet control to ceiling lighting — accessible",
     customerFacingLabel: "Convert existing switched outlet to control your new light",
     addFieldLaborHours: 0.75,
@@ -43,6 +55,8 @@ const COMPONENTS = [
   },
   {
     key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED",
+    // 1.25 hrs = $312.50 + $35 x 1.30 = $45.50 -> $360.
+    approvedPriceCents: 36000,
     name: "Convert switched outlet control to ceiling lighting — finished space",
     customerFacingLabel: "Convert existing switched outlet to control your new light",
     addFieldLaborHours: 1.25,
@@ -52,6 +66,8 @@ const COMPONENTS = [
   },
   {
     key: "NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE",
+    // 1.0 hr = $250 + $35 x 1.30 = $45.50 -> $300.
+    approvedPriceCents: 30000,
     name: "New wall switch and switch leg — accessible",
     customerFacingLabel: "New wall switch and control wiring",
     addFieldLaborHours: 1.0,
@@ -61,6 +77,8 @@ const COMPONENTS = [
   },
   {
     key: "NEW_SWITCH_AND_SWITCH_LEG_FINISHED",
+    // 1.5 hrs = $375 + $45 x 1.30 = $58.50 -> $435.
+    approvedPriceCents: 43500,
     name: "New wall switch and switch leg — finished space",
     customerFacingLabel: "New wall switch and control wiring",
     addFieldLaborHours: 1.5,
@@ -70,6 +88,8 @@ const COMPONENTS = [
   },
   {
     key: "LED_DIMMER_UPGRADE",
+    // $30 material x 1.30 tier = $39, rounded to $40. No labor (§14).
+    approvedPriceCents: 4000,
     name: "LED dimmer upgrade",
     customerFacingLabel: "LED dimmer upgrade",
     // §14: a material upgrade, not another labor service, unless actual labor
@@ -110,6 +130,7 @@ async function seedComponents() {
         addFieldLaborHours: c.addFieldLaborHours,
         addMaterialCostCents: c.addMaterialCostCents,
         addScheduleMinutes: c.addScheduleMinutes,
+        approvedPriceCents: c.approvedPriceCents,
         notes: c.notes,
       },
       create: c,
@@ -202,9 +223,9 @@ async function attach(slug: string) {
         nextQuestionId: qDimmer.id,
         order: 2,
         requiredPhotoLabels: [],
-        // Left NULL deliberately: no customer-facing price for this work has
-        // been approved yet, so this route goes to review until one is. The
-        // components below still accumulate the real labor and material.
+        // Price comes from whichever component variant the earlier access
+        // answer selects — accessible and finished cost different amounts, so
+        // no single figure on the answer could be right for both.
         approvedComponentPriceCents: null,
       },
       {
@@ -332,6 +353,7 @@ async function attach(slug: string) {
         routeAction: "RESOLVE_INSTANT",
         order: 2,
         requiredPhotoLabels: [],
+        // Priced by the component itself (§14) — a $30 material upgrade.
         approvedComponentPriceCents: null,
       },
     ],

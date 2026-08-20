@@ -43,6 +43,7 @@ export type AnswerOptionDTO = {
     component: {
       key: string;
       customerFacingLabel: string | null;
+      approvedPriceCents: number | null;
       addFieldLaborHours: number;
       addMaterialCostCents: number;
       addScheduleMinutes: number;
