@@ -51,6 +51,29 @@ const COMPONENTS = [
     notes: "§11-§12 accessible tier. 0.35 hrs + $35 material.",
   },
   {
+    // Replaces the inherited flat $100 surcharge. That figure predated the
+    // labor model entirely and undercharged the finished first light by $45:
+    // §11-§12 puts it at 1.75 hours against 1.25 accessible, so the real
+    // difference is half an hour plus $5 of material.
+    //
+    // As a component the inputs are real, so a change to the tech-hour rate
+    // moves this with everything else instead of leaving one hand-set number
+    // stranded in the middle of a derived model.
+    //
+    // Approved at $135 rather than the $140 the tier arithmetic gives: $5 of
+    // material falls under §4's $10 boundary and picks up the 3.00x tier,
+    // which prices five dollars of cable at fifteen. Folded into the base
+    // allowance it would sit at 1.30x. Not worth $5 of distortion.
+    key: "RECESSED_FIRST_LIGHT_FINISHED",
+    name: "First recessed light — finished ceiling premium",
+    customerFacingLabel: "Finished-ceiling installation",
+    approvedPriceCents: 13500,
+    addFieldLaborHours: 0.5,
+    addMaterialCostCents: 500,
+    addScheduleMinutes: 30,
+    notes: "§11-§12: 1.75 hrs finished vs 1.25 accessible, $60 vs $55 material.",
+  },
+  {
     key: "RECESSED_ADDITIONAL_FINISHED",
     name: "Additional recessed light — finished space above",
     customerFacingLabel: "Additional recessed light",
@@ -166,11 +189,8 @@ async function main() {
         ...proceed,
         order: 2,
         requiredPhotoLabels: [],
-        // The existing approved modifier, kept rather than the calculated
-        // $520 first-light figure. Published prices don't move on a
-        // calculation alone.
-        priceModifierCents: 10000,
-        approvedComponentPriceCents: 0,
+        // Priced by the component now, not a flat modifier.
+        approvedComponentPriceCents: null,
         disclaimer:
           "Running wiring above a finished ceiling means we may need to make small openings in the drywall. Patching, sanding and painting aren't included unless we've put it in writing.",
       },
@@ -190,6 +210,20 @@ async function main() {
   // Attach the per-light component to each count answer, quantity = extras.
   // Both tiers are attached and conditioned on the access answer, so the
   // right one applies without asking again.
+  // The finished-ceiling premium on the FIRST light, attached to the access
+  // answer that establishes it.
+  const finishedAccess = await prisma.answerOption.findFirstOrThrow({
+    where: { questionId: qAccess.id, value: "finished" },
+  });
+  await prisma.answerOptionComponent.create({
+    data: {
+      answerOptionId: finishedAccess.id,
+      componentId: (
+        await prisma.jobComponent.findUniqueOrThrow({ where: { key: "RECESSED_FIRST_LIGHT_FINISHED" } })
+      ).id,
+    },
+  });
+
   const accId = (await prisma.jobComponent.findUniqueOrThrow({ where: { key: "RECESSED_ADDITIONAL_ACCESSIBLE" } })).id;
   const finId = (await prisma.jobComponent.findUniqueOrThrow({ where: { key: "RECESSED_ADDITIONAL_FINISHED" } })).id;
 
@@ -237,8 +271,13 @@ async function main() {
   await prisma.service.update({
     where: { id: service.id },
     data: {
+      // Derived, not inherited: 1.25 hrs x $250 = $312.50, plus $55 material
+      // at the §4 tier of 1.30x = $71.50, rounds to $385. The published $375
+      // was a hand-set figure from before the labor model existed.
       fieldLaborHours: 1.25,
       materialCostCents: 5500,
+      basePrice: 38500,
+      publishedPriceApprovedAt: new Date(),
       estimatedMinutes: 75,
       estimatedMinutesReviewed: true,
       shortDescription:
