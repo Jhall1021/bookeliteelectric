@@ -47,6 +47,62 @@ enum PhotoState {
   REVIEW_REQUIRED
 }
 
+/// Reusable named job components (handoff §13-§14).
+///
+/// A component is a bundle of real work — technician-hours, direct material,
+/// and calendar time — that can be attached to a route without duplicating the
+/// figures in every tree that needs it. §13's switch-leg values are used by
+/// recessed lighting, new ceiling lights, new fans and new exterior locations;
+/// defining them once means a labor revision happens in one place.
+///
+/// Deliberately NOT a dollar amount. A flat modifier can't be repriced when the
+/// tech-hour rate changes, can't have the §4 material markup applied to it, and
+/// contributes nothing to the tech-hours the job actually consumes — so
+/// dispatch would stay wrong. Components carry inputs; price is derived.
+model JobComponent {
+  id                   String  @id @default(cuid())
+  /// Stable identifier used in code and seeds, e.g.
+  /// NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE
+  key                  String  @unique
+  /// Internal label for the admin editor.
+  name                 String
+  /// Optional plain-language line for the customer's scope summary, e.g.
+  /// "New wall switch & control wiring". Null hides it from the customer.
+  customerFacingLabel  String?
+  /// Incremental technician-hours this component adds (handoff §3.1).
+  addFieldLaborHours   Float   @default(0)
+  /// Incremental direct material cost in cents, BEFORE markup. The §4 tier is
+  /// applied to the assembled total, not per component.
+  addMaterialCostCents Int     @default(0)
+  /// Incremental calendar minutes. Independent of labor hours on purpose: a
+  /// second technician doubles the hours without changing the clock time, and
+  /// some work adds setup time without adding hours. Never derive one from
+  /// the other.
+  addScheduleMinutes   Int     @default(0)
+  /// Rarely used — a component that changes the crew size.
+  addTechCount         Int     @default(0)
+  active               Boolean @default(true)
+  notes                String?
+  options              AnswerOptionComponent[]
+
+  @@map("job_components")
+}
+
+/// Join: an answer selects one or more components.
+model AnswerOptionComponent {
+  id             String       @id @default(cuid())
+  answerOptionId String
+  answerOption   AnswerOption @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+  componentId    String
+  component      JobComponent @relation(fields: [componentId], references: [id])
+  /// Multiplier for per-unit components — e.g. 5 additional recessed lights
+  /// against a single "additional light" component (§11-§12).
+  quantity       Int          @default(1)
+
+  @@unique([answerOptionId, componentId])
+  @@map("answer_option_components")
+}
+
 model Service {
   id                  String          @id @default(cuid())
   slug                String          @unique
@@ -221,9 +277,28 @@ model AnswerOption {
   // can't be a service-level constant.
   // NULL means "inherit from the Service". Set only where the branch really
   // changes the work.
+  // --- Branch-level ABSOLUTE overrides ----------------------------------
+  // Replace the service's value outright. TV Installation: the 56-85 in answer
+  // sets techCount 2 while calendar duration stays 90 minutes.
   overrideEstimatedMinutes Int?
   overrideTechCount        Int?
   overrideFieldLaborHours  Float?
+
+  // --- Branch-level ADDITIVE deltas -------------------------------------
+  // Stack onto the accumulated configuration rather than replacing it. Use
+  // these for one-off adjustments; use JobComponent for anything reused
+  // across services.
+  //
+  // These are inputs, not prices. The engine accumulates hours, material and
+  // minutes across the whole route and prices the finished configuration once
+  // — so the $250 primary minimum is applied to the complete job, never
+  // separately to each switch leg or dimmer.
+  addFieldLaborHours   Float?
+  addMaterialCostCents Int?
+  addScheduleMinutes   Int?
+
+  /// Named reusable components selected by this answer (§13-§14).
+  components AnswerOptionComponent[]
 
   @@map("answer_options")
 }
