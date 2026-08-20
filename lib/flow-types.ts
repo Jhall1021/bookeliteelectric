@@ -24,6 +24,29 @@ export type AnswerOptionDTO = {
   // are prep for the technician, so the customer can book right away. true
   // (default) = photos gate the booking; the office prices it and replies.
   photosBlockBooking: boolean;
+
+  // --- Component-based configuration (handoff §13-§15) ------------------
+  // Absolute overrides replace the service's value; deltas stack onto it.
+  overrideEstimatedMinutes: number | null;
+  overrideTechCount: number | null;
+  overrideFieldLaborHours: number | null;
+  addFieldLaborHours: number | null;
+  addMaterialCostCents: number | null;
+  addScheduleMinutes: number | null;
+  // Null = no approved customer price for this branch's components, so the
+  // route goes to review. Zero is a valid approved no-charge value.
+  approvedComponentPriceCents: number | null;
+  components: {
+    quantity: number;
+    component: {
+      key: string;
+      customerFacingLabel: string | null;
+      addFieldLaborHours: number;
+      addMaterialCostCents: number;
+      addScheduleMinutes: number;
+      addTechCount: number;
+    };
+  }[];
 };
 
 export type QuestionDTO = {
@@ -46,6 +69,13 @@ export type ServiceFlowDTO = {
   startingPriceLabel: string | null;
   shortDescription: string | null;
   icon: string | null; // service icon, already resolved against category fallback
+  // Inputs for the configuration the engine accumulates. fieldLaborHours may
+  // be null — that suppresses the INTERNAL suggested price but never stops a
+  // customer booking at the published price.
+  fieldLaborHours: number | null;
+  materialCostCents: number | null;
+  estimatedMinutes: number | null;
+  requiresTechCount: number;
   disclaimer: string | null; // for flat-price services with no question tree
   questions: QuestionDTO[]; // full tree, first question = questions[0]
 };

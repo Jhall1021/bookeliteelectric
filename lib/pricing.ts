@@ -205,3 +205,201 @@ export function formatBreakdown(b: PriceBreakdown): string {
   if (b.otherCents) parts.push(`other ${d(b.otherCents)}`);
   return `${d(b.totalCents)} = ${parts.join(" + ")}${b.minimumApplied ? " (service-call minimum applied)" : ""}`;
 }
+
+// ---------------------------------------------------------------------------
+// Component-based configuration (handoff §13-§15)
+// ---------------------------------------------------------------------------
+
+/**
+ * A job as configured by the answers given so far.
+ *
+ * The engine accumulates INPUTS through the tree — technician-hours, direct
+ * material, calendar minutes, crew size — and prices the finished
+ * configuration once at the end. It does not add dollar modifiers and try to
+ * infer labor afterwards.
+ *
+ * That ordering is what makes the $250 service-call minimum behave: it applies
+ * once to the complete primary configuration, never separately to each switch
+ * leg or dimmer along the way.
+ *
+ * Calendar minutes and labor hours are tracked independently and neither is
+ * derived from the other. A second technician doubles the hours at the same
+ * clock duration; a component can add setup time without adding hours.
+ */
+export type JobConfiguration = {
+  fieldLaborHours: number | null;
+  materialCostCents: number;
+  estimatedMinutes: number | null;
+  techCount: number;
+  /** For the customer's scope summary and the technician's job sheet. */
+  components: { key: string; label: string | null; quantity: number }[];
+  /**
+   * True when some answer selected components whose customer-facing increment
+   * hasn't been approved. Such a route must go to review — a calculated price
+   * is a recommendation, not something to publish automatically.
+   */
+  awaitingComponentApproval: boolean;
+  /** Approved customer-facing increments accumulated along the route. */
+  approvedIncrementCents: number;
+  /** Legacy flat modifiers, for trees built before components existed. */
+  legacyModifierCents: number;
+};
+
+export function startConfiguration(svc: {
+  fieldLaborHours: number | null;
+  materialCostCents: number | null;
+  estimatedMinutes: number | null;
+  requiresTechCount: number;
+}): JobConfiguration {
+  return {
+    fieldLaborHours: svc.fieldLaborHours,
+    materialCostCents: svc.materialCostCents ?? 0,
+    estimatedMinutes: svc.estimatedMinutes,
+    techCount: svc.requiresTechCount,
+    components: [],
+    awaitingComponentApproval: false,
+    approvedIncrementCents: 0,
+    legacyModifierCents: 0,
+  };
+}
+
+export type BranchContribution = {
+  overrideEstimatedMinutes?: number | null;
+  overrideTechCount?: number | null;
+  overrideFieldLaborHours?: number | null;
+  addFieldLaborHours?: number | null;
+  addMaterialCostCents?: number | null;
+  addScheduleMinutes?: number | null;
+  priceModifierCents?: number;
+  approvedComponentPriceCents?: number | null;
+  components?: {
+    quantity: number;
+    component: {
+      key: string;
+      customerFacingLabel: string | null;
+      addFieldLaborHours: number;
+      addMaterialCostCents: number;
+      addScheduleMinutes: number;
+      addTechCount: number;
+    };
+  }[];
+};
+
+/** Fold one answer into the running configuration. Pure — returns a new object. */
+export function applyBranch(
+  config: JobConfiguration,
+  branch: BranchContribution
+): JobConfiguration {
+  // Absolute overrides replace; they are not deltas. The TV size answer sets
+  // techCount to 2 outright rather than adding one.
+  let hours = branch.overrideFieldLaborHours ?? config.fieldLaborHours;
+  let minutes = branch.overrideEstimatedMinutes ?? config.estimatedMinutes;
+  let techCount = branch.overrideTechCount ?? config.techCount;
+  let material = config.materialCostCents;
+  const components = [...config.components];
+
+  const addHours = (n: number) => {
+    // Adding hours to a service whose own hours aren't established leaves it
+    // unestablished. A component's hours can't stand in for the base job's.
+    if (hours !== null) hours += n;
+  };
+
+  if (branch.addFieldLaborHours) addHours(branch.addFieldLaborHours);
+  if (branch.addMaterialCostCents) material += branch.addMaterialCostCents;
+  if (branch.addScheduleMinutes && minutes !== null) minutes += branch.addScheduleMinutes;
+
+  for (const sel of branch.components ?? []) {
+    const q = Math.max(sel.quantity, 1);
+    const c = sel.component;
+    addHours(c.addFieldLaborHours * q);
+    material += c.addMaterialCostCents * q;
+    if (c.addScheduleMinutes && minutes !== null) minutes += c.addScheduleMinutes * q;
+    techCount += c.addTechCount * q;
+    components.push({ key: c.key, label: c.customerFacingLabel, quantity: q });
+  }
+
+  const selectedComponents = (branch.components ?? []).length > 0;
+  const approved = branch.approvedComponentPriceCents;
+
+  return {
+    fieldLaborHours: hours,
+    materialCostCents: material,
+    estimatedMinutes: minutes,
+    techCount,
+    components,
+    // Null approval on a component-bearing branch means nobody has signed off
+    // a customer price for that work yet. Zero is fine — that's an approved
+    // no-charge component.
+    awaitingComponentApproval:
+      config.awaitingComponentApproval ||
+      (selectedComponents && (approved === null || approved === undefined)),
+    approvedIncrementCents: config.approvedIncrementCents + (approved ?? 0),
+    legacyModifierCents: config.legacyModifierCents + (branch.priceModifierCents ?? 0),
+  };
+}
+
+/**
+ * What the CUSTOMER is charged.
+ *
+ * Built from the service's published price plus approved increments — never
+ * from the calculated configuration. Handoff §5/§31: a calculated price is a
+ * recommendation until someone approves it, so a service whose field hours
+ * aren't established still sells at its published price rather than falling
+ * back to review.
+ *
+ * Returns null when the route can't be priced for a customer at all, with a
+ * reason the flow can act on.
+ */
+export function customerPrice(
+  config: JobConfiguration,
+  publishedBaseCents: number | null
+): { totalCents: number | null; mustReview: boolean; reason?: string } {
+  if (config.awaitingComponentApproval) {
+    return {
+      totalCents: null,
+      mustReview: true,
+      reason: "This option includes work we price individually",
+    };
+  }
+  if (publishedBaseCents === null) {
+    return {
+      totalCents: null,
+      mustReview: true,
+      reason: "No published price for this service",
+    };
+  }
+  return {
+    totalCents:
+      publishedBaseCents + config.approvedIncrementCents + config.legacyModifierCents,
+    mustReview: false,
+  };
+}
+
+/**
+ * INTERNAL suggested price for the configuration as answered. Admin-facing
+ * only. Returns null when field hours aren't established, rather than
+ * inventing a figure.
+ */
+export function suggestConfigurationPrice(
+  config: JobConfiguration,
+  svc: Pick<ServicePricingInputs, "materialMultiplier" | "permitAdminCents" | "otherDirectCostCents" | "isPrimaryEligible">,
+  settings: PricingSettings,
+  isPrimary = true
+): PriceBreakdown {
+  return compute(
+    config.fieldLaborHours,
+    config.techCount,
+    {
+      fieldLaborHours: config.fieldLaborHours,
+      wwtLaborHours: null,
+      requiresTechCount: config.techCount,
+      materialCostCents: config.materialCostCents,
+      materialMultiplier: svc.materialMultiplier,
+      permitAdminCents: svc.permitAdminCents,
+      otherDirectCostCents: svc.otherDirectCostCents,
+      isPrimaryEligible: svc.isPrimaryEligible,
+    },
+    settings,
+    isPrimary
+  );
+}

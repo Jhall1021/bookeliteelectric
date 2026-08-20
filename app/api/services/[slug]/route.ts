@@ -15,7 +15,13 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         include: {
           options: {
             orderBy: { order: "asc" },
-            include: { referencedService: { select: { basePrice: true } } },
+            include: {
+              referencedService: { select: { basePrice: true } },
+              // Components come down with the tree so the engine can
+              // accumulate a configuration client-side without a round trip
+              // per answer.
+              components: { include: { component: true } },
+            },
           },
         },
       },
@@ -37,6 +43,10 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     shortDescription: service.shortDescription,
     icon: service.icon ?? service.category.icon,
     disclaimer: service.disclaimer,
+    fieldLaborHours: service.fieldLaborHours,
+    materialCostCents: service.materialCostCents,
+    estimatedMinutes: service.estimatedMinutes,
+    requiresTechCount: service.requiresTechCount,
     questions: service.questions.map((q) => ({
       id: q.id,
       key: q.key,
@@ -58,6 +68,24 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         requiredPhotoLabels: o.requiredPhotoLabels,
         disclaimer: o.disclaimer,
         photosBlockBooking: o.photosBlockBooking,
+        overrideEstimatedMinutes: o.overrideEstimatedMinutes,
+        overrideTechCount: o.overrideTechCount,
+        overrideFieldLaborHours: o.overrideFieldLaborHours,
+        addFieldLaborHours: o.addFieldLaborHours,
+        addMaterialCostCents: o.addMaterialCostCents,
+        addScheduleMinutes: o.addScheduleMinutes,
+        approvedComponentPriceCents: o.approvedComponentPriceCents,
+        components: o.components.map((sel) => ({
+          quantity: sel.quantity,
+          component: {
+            key: sel.component.key,
+            customerFacingLabel: sel.component.customerFacingLabel,
+            addFieldLaborHours: sel.component.addFieldLaborHours,
+            addMaterialCostCents: sel.component.addMaterialCostCents,
+            addScheduleMinutes: sel.component.addScheduleMinutes,
+            addTechCount: sel.component.addTechCount,
+          },
+        })),
       })),
     })),
   };

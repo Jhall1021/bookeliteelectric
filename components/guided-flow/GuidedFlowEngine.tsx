@@ -4,6 +4,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { AnswerOptionDTO, QuestionDTO, ServiceFlowDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
+import {
+  startConfiguration,
+  applyBranch,
+  customerPrice,
+  type JobConfiguration,
+} from "@/lib/pricing";
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
@@ -42,7 +48,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   const router = useRouter();
   const [flow, setFlow] = useState<ServiceFlowDTO | null>(null);
   const [loading, setLoading] = useState(true);
-  const [priceCentsAccrued, setPriceCentsAccrued] = useState(0);
+  // Handoff §13-§15: accumulate the JOB — technician-hours, material, calendar
+  // minutes, crew size — and price the finished configuration once. Summing
+  // dollar modifiers and inferring labor afterwards is what this replaces.
+  const [config, setConfig] = useState<JobConfiguration | null>(null);
   // Whether this customer already has services in their visit. If they do,
   // this service is an add-on: it anchors on whileWeThereBasePrice and is
   // NOT the primary job. Previously the flow always assumed it was the first
@@ -65,7 +74,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // the customer moves, so stepping back restores the exact prior state
   // rather than trying to reverse-calculate it.
   const [history, setHistory] = useState<
-    { state: TerminalState; priceCentsAccrued: number; answers: Record<string, string> }[]
+    { state: TerminalState; config: JobConfiguration | null; answers: Record<string, string> }[]
   >([]);
 
   useEffect(() => {
@@ -82,9 +91,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       const addOn = (visit?.lineItems?.length ?? 0) > 0 && data.whileWeThereBasePrice !== null;
       setFlow(data);
       setIsAddOn(addOn);
-      setPriceCentsAccrued(
-        addOn ? data.whileWeThereBasePrice ?? 0 : data.basePrice ?? 0
-      );
+      setConfig(startConfiguration(data));
       setState({ kind: "intro" });
       setHistory([]);
       setAnswers({});
@@ -96,7 +103,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // transition so the stack always holds where the customer just was.
   function pushHistory() {
     if (!state) return;
-    setHistory((h) => [...h, { state, priceCentsAccrued, answers }]);
+    setHistory((h) => [...h, { state, config, answers }]);
   }
 
   function goBack() {
@@ -107,7 +114,6 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     if (history.length === 0) return;
     const previous = history[history.length - 1];
     setState(previous.state);
-    setPriceCentsAccrued(previous.priceCentsAccrued);
     setAnswers(previous.answers);
     setHistory(history.slice(0, -1));
   }
@@ -129,9 +135,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       // No qualifying questions at all, and it's a fixed-price service —
       // resolves immediately. Service.disclaimer (not an AnswerOption
       // disclaimer, since there's no branch here) still gets shown.
-      // priceCentsAccrued already holds the correct anchor (standalone or
-      // While We're There), so don't reach back to basePrice here.
-      setState({ kind: "resolved", priceCents: priceCentsAccrued, disclaimer: flow.disclaimer });
+      // The anchor is the published price — While We're There when this is an
+      // add-on, standalone otherwise.
+      setState({
+        kind: "resolved",
+        priceCents: (isAddOn ? flow.whileWeThereBasePrice : flow.basePrice) ?? 0,
+        disclaimer: flow.disclaimer,
+      });
     }
   }
 
@@ -139,8 +149,35 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     pushHistory();
     const newAnswers = { ...answers, [question.key]: option.value };
     setAnswers(newAnswers);
-    const newTotal = priceCentsAccrued + option.priceModifierCents;
-    setPriceCentsAccrued(newTotal);
+    // Fold this answer's contribution into the running configuration: labor
+    // hours, material, calendar minutes, crew size, and any approved
+    // customer-facing increment.
+    const base = config ?? startConfiguration(flow!);
+    const nextConfig = applyBranch(base, option);
+    setConfig(nextConfig);
+
+    // What the customer pays comes from the PUBLISHED price plus approved
+    // increments — never from the calculated configuration. A service whose
+    // field hours aren't established still sells at its published price;
+    // only the internal suggestion is withheld (handoff §5/§31).
+    const anchor = isAddOn ? flow!.whileWeThereBasePrice : flow!.basePrice;
+    const priced = customerPrice(nextConfig, anchor ?? null);
+    const newTotal = priced.totalCents ?? 0;
+
+    // A branch that selects components with no approved customer price can't
+    // be booked at a number we invented — it goes to review instead. This is
+    // checked BEFORE the route action, so it overrides an otherwise
+    // instant-resolving answer.
+    if (priced.mustReview) {
+      setState({
+        kind: "photo_review",
+        labels:
+          option.requiredPhotoLabels.length > 0
+            ? option.requiredPhotoLabels
+            : ["Photo of the area where the work is needed", "Your electrical panel, door open — leave the panel cover on"],
+      });
+      return;
+    }
 
     switch (option.routeAction) {
       case "CONTINUE": {

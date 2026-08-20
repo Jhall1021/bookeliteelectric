@@ -297,6 +297,19 @@ model AnswerOption {
   addMaterialCostCents Int?
   addScheduleMinutes   Int?
 
+  /// Customer-facing incremental price for this answer's components, in
+  /// cents, once an admin has approved it.
+  ///
+  /// NULL means "not yet approved" — which is NOT the same as zero. A route
+  /// that selects components but has no approved increment must go to review
+  /// rather than publish a calculated figure, because calculated prices are
+  /// recommendations only. Zero is a legitimate approved value: a component
+  /// that adds work but no charge.
+  ///
+  /// Distinct from priceModifierCents, which is the legacy flat modifier and
+  /// stays as-is for trees that predate components.
+  approvedComponentPriceCents Int?
+
   /// Named reusable components selected by this answer (§13-§14).
   components AnswerOptionComponent[]
 
