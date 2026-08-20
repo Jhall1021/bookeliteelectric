@@ -31,6 +31,49 @@ async function clearServiceTree(serviceId: string) {
 // photosBlockBooking is false on that branch, so these are preparation for
 // the technician rather than a pricing gate — the customer schedules
 // immediately. The office can still review them before dispatch.
+/**
+ * Circuit-size components.
+ *
+ * The customer never picks an amperage from a category page — they say what
+ * the circuit is for, and the answer sets the tier. Anyone who does know can
+ * say so and pick directly.
+ *
+ * WIRE_PORTION_CENTS is the 14/2 share of the service's $68 material
+ * allowance for a typical run. 12/2 costs 30% more, per Josh. This is the one
+ * number here that's an assumption rather than a measurement — change it and
+ * re-run to reprice the 20A upcharge.
+ *
+ * Kept above $10 deliberately: §4 charges 3.00x under $10 and 1.30x at or
+ * above it, so a smaller delta can sell for MORE than a larger one. At
+ * $10.50 the upcharge sits safely on the 1.30x side.
+ */
+const WIRE_PORTION_CENTS = 3500;
+const WIRE_20A_DELTA_CENTS = Math.round(WIRE_PORTION_CENTS * 0.30); // 12/2 vs 14/2
+const DOUBLE_POLE_DELTA_CENTS = 1100; // $19 double-pole vs $8 single-pole
+
+const CIRCUIT_COMPONENTS = [
+  {
+    key: "DEDICATED_CIRCUIT_20A",
+    name: "20A circuit — 12 AWG conductors",
+    customerFacingLabel: "20-amp circuit",
+    approvedPriceCents: 1500,
+    addFieldLaborHours: 0,
+    addMaterialCostCents: WIRE_20A_DELTA_CENTS,
+    addScheduleMinutes: 0,
+    notes: "12/2 costs 30% more than 14/2. Pulling it takes no meaningful extra time.",
+  },
+  {
+    key: "DEDICATED_CIRCUIT_240V",
+    name: "240V circuit — double-pole breaker",
+    customerFacingLabel: "240-volt circuit",
+    approvedPriceCents: 1500,
+    addFieldLaborHours: 0,
+    addMaterialCostCents: DOUBLE_POLE_DELTA_CENTS,
+    addScheduleMinutes: 0,
+    notes: "$19 double-pole vs $8 single-pole.",
+  },
+];
+
 const PREP_PHOTOS = [
   "Electrical panel with the door open and breakers visible — leave the panel cover on",
   "Wide photo of the whole wall and area around the electrical panel",
@@ -52,7 +95,40 @@ const EQUIPMENT_PHOTOS = [
   "Electrical panel with the door open and breakers visible — leave the panel cover on",
 ];
 
+/**
+ * The four amperage-specific services are retired rather than deleted. They're
+ * reroute targets and may appear on past bookings; deleting them would break
+ * that history. Inactive removes them from browsing while the records survive.
+ */
+const RETIRED = [
+  "sump-pump-dedicated-circuit",
+  "freezer-fridge-dedicated-circuit",
+  "electric-fireplace-circuit",
+  "new-240v-appliance-circuit",
+];
+
 async function main() {
+  for (const c of CIRCUIT_COMPONENTS) {
+    await prisma.jobComponent.upsert({
+      where: { key: c.key },
+      update: {
+        name: c.name,
+        customerFacingLabel: c.customerFacingLabel,
+        approvedPriceCents: c.approvedPriceCents,
+        addFieldLaborHours: c.addFieldLaborHours,
+        addMaterialCostCents: c.addMaterialCostCents,
+        addScheduleMinutes: c.addScheduleMinutes,
+        notes: c.notes,
+      },
+      create: c,
+    });
+  }
+  console.log(`  ✓ ${CIRCUIT_COMPONENTS.length} circuit-size components defined`);
+
+  const dedicatedCat = await prisma.serviceCategory.findUnique({
+    where: { slug: "dedicated-circuits" },
+  });
+
   const service = await prisma.service.findUniqueOrThrow({
     where: { slug: "dedicated-120v-circuit-outlet" },
   });
@@ -72,6 +148,11 @@ async function main() {
   await prisma.service.update({
     where: { id: service.id },
     data: {
+      // Moved out of New Outlets: a customer browsing "Dedicated Circuits"
+      // couldn't find the one service actually called that.
+      ...(dedicatedCat ? { categoryId: dedicatedCat.id } : {}),
+      // No longer 120V-only now that it covers 240V.
+      name: "Dedicated Circuit & Outlet",
       bookingType: "ADJUSTED",
       basePrice: 79500,
       startingPriceLabel: "From $795",
@@ -106,6 +187,19 @@ async function main() {
     },
   });
 
+  // Only reached by "I know the circuit size I need". Everyone else has the
+  // tier chosen for them by what the circuit is powering.
+  const qAmps = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "dedicated_amperage",
+      prompt: "What size circuit do you need?",
+      helpText: "If you're not certain, go back and tell us what it's powering instead — we'll work it out.",
+      inputType: "SINGLE_SELECT",
+      order: 2,
+    },
+  });
+
   const q2 = await prisma.question.create({
     data: {
       serviceId: service.id,
@@ -115,7 +209,7 @@ async function main() {
       helpText:
         "We're asking about the path between your electrical panel and the new outlet location — this is what decides whether we can give you a price right now.",
       inputType: "SINGLE_SELECT",
-      order: 2,
+      order: 3,
     },
   });
 
@@ -128,7 +222,7 @@ async function main() {
       helpText:
         "Estimate the path the wire actually takes through the basement or attic — not the straight-line distance between the two rooms.",
       inputType: "SINGLE_SELECT",
-      order: 3,
+      order: 4,
     },
   });
 
@@ -139,7 +233,7 @@ async function main() {
       prompt: "Where is your electrical panel?",
       helpText: "This helps us arrive prepared. It won't change your price.",
       inputType: "SINGLE_SELECT",
-      order: 4,
+      order: 5,
     },
   });
 
@@ -151,22 +245,75 @@ async function main() {
       helpText:
         "Even with an accessible basement or attic path, we may need to make a small opening in drywall or plaster directly above, below, or beside your electrical panel and/or at the new outlet, so the cable can enter the finished wall. Patching, spackling, sanding, painting, wallpaper and trim are not included unless we've put it in writing.",
       inputType: "SINGLE_SELECT",
-      order: 5,
+      order: 6,
     },
   });
 
-  // ---- Q1: equipment ---------------------------------------------------
+  // ---- Q1: equipment, which sets the circuit size -----------------------
+  // The homeowner says what it's for; we determine the amperage. Anyone who
+  // already knows can say so and skip to picking it directly.
   await prisma.answerOption.createMany({
     data: [
-      { questionId: q1.id, label: "Refrigerator or freezer", value: "fridge_freezer", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: q1.id, label: "Sump pump", value: "sump_pump", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [] },
-      { questionId: q1.id, label: "Window or through-wall air conditioner", value: "window_ac", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [] },
-      { questionId: q1.id, label: "Bidet or smart toilet", value: "bidet", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 4, requiredPhotoLabels: [] },
-      { questionId: q1.id, label: "Microwave or another 120V appliance", value: "other_120v_appliance", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 5, requiredPhotoLabels: [] },
-      // Anything outside the standard 120V workflow — unusual amperage, 240V,
-      // special receptacles, disconnects, manufacturer requirements.
-      { questionId: q1.id, label: "Something else", value: "other_equipment", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 6, requiredPhotoLabels: EQUIPMENT_PHOTOS },
-      { questionId: q1.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 7, requiredPhotoLabels: EQUIPMENT_PHOTOS },
+      { questionId: q1.id, label: "Refrigerator or freezer", value: "fridge_freezer", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q1.id, label: "Bidet or smart toilet", value: "bidet", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q1.id, label: "Sump pump", value: "sump_pump", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Over-the-range microwave", value: "microwave", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 4, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Window or through-wall air conditioner", value: "window_ac", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 5, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Electric fireplace", value: "electric_fireplace", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 6, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "I already know the circuit size I need", value: "knows_size", routeAction: "CONTINUE", nextQuestionId: qAmps.id, order: 7, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q1.id, label: "Something else", value: "other_equipment", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 8, requiredPhotoLabels: EQUIPMENT_PHOTOS },
+      { questionId: q1.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 9, requiredPhotoLabels: EQUIPMENT_PHOTOS },
+    ],
+  });
+
+  // Attach the 20A component to everything that needs 12 AWG.
+  const twentyAmpComponentId = (
+    await prisma.jobComponent.findUniqueOrThrow({ where: { key: "DEDICATED_CIRCUIT_20A" } })
+  ).id;
+  const twentyAmpAnswers = await prisma.answerOption.findMany({
+    where: { questionId: q1.id, value: { in: ["sump_pump", "microwave", "window_ac", "electric_fireplace"] } },
+  });
+  await prisma.answerOptionComponent.createMany({
+    data: twentyAmpAnswers.map((a) => ({ answerOptionId: a.id, componentId: twentyAmpComponentId })),
+  });
+
+  // ---- Q1b: for customers who already know -----------------------------
+  const doublePoleComponentId = (
+    await prisma.jobComponent.findUniqueOrThrow({ where: { key: "DEDICATED_CIRCUIT_240V" } })
+  ).id;
+
+  await prisma.answerOption.createMany({
+    data: [
+      { questionId: qAmps.id, label: "15 amp, 120 volt", value: "15a_120v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: qAmps.id, label: "20 amp, 120 volt", value: "20a_120v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: qAmps.id, label: "15 or 20 amp, 240 volt", value: "20a_240v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      {
+        // 30A and above is remote quote: conductor sizing, breaker and
+        // receptacle all change, and the equipment varies too much to price
+        // sight-unseen. The questions still run so the office gets the same
+        // information.
+        questionId: qAmps.id,
+        label: "30 amp or more",
+        value: "30a_plus",
+        routeAction: "CONTINUE",
+        nextQuestionId: q2.id,
+        order: 4,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: null,
+        disclaimer:
+          "Circuits of 30 amps and above are priced individually. We'll ask the same questions, then send you a fixed price once we've reviewed your photos.",
+      },
+      { questionId: qAmps.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: EQUIPMENT_PHOTOS },
+    ],
+  });
+
+  const amp20 = await prisma.answerOption.findFirstOrThrow({ where: { questionId: qAmps.id, value: "20a_120v" } });
+  const amp240 = await prisma.answerOption.findFirstOrThrow({ where: { questionId: qAmps.id, value: "20a_240v" } });
+  await prisma.answerOptionComponent.createMany({
+    data: [
+      { answerOptionId: amp20.id, componentId: twentyAmpComponentId },
+      { answerOptionId: amp240.id, componentId: twentyAmpComponentId },
+      { answerOptionId: amp240.id, componentId: doublePoleComponentId },
     ],
   });
 
@@ -243,7 +390,14 @@ async function main() {
     ],
   });
 
-  console.log("  ✓ Dedicated 120V Circuit & Outlet — 5 questions, 26 answers");
+  const retired = await prisma.service.updateMany({
+    where: { slug: { in: RETIRED } },
+    data: { active: false },
+  });
+
+  console.log(`  ✓ Dedicated Circuit & Outlet — 6 questions, moved to Dedicated Circuits`);
+  console.log(`  ✓ ${retired.count} amperage-specific services retired (inactive, not deleted)`);
+  console.log(`  ✓ 20A upcharge $15 · 240V upcharge $15 · 30A+ routes to remote quote`);
   console.log("  ✓ bookingType REMOTE_QUOTE -> ADJUSTED");
   console.log("  ✓ pricing composition set: 2.5 units + $68 material @ 2.5x = $795.00");
 }
