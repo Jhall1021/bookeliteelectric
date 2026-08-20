@@ -408,6 +408,33 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "An outlet installed on the wall below a wall-mounted electric fireplace",
     aspectRatio: "1328/1600",
   },
+  // --- Services added after the original seed (2026-08-20) --------------
+  // Reusing existing photography: the finished result is identical to the
+  // service each borrows from, and a customer can't tell a customer-supplied
+  // device from one we supplied by looking at the wall.
+  "customer-supplied-non-smart-outlet": {
+    src: "/images/service-new-outlet.jpg",
+    alt: "A clean white duplex outlet installed on a bedroom wall",
+    aspectRatio: "4/3",
+  },
+  "swap-out-customer-supplied-non-smart-switch": {
+    src: "/images/service-standard-switch.jpg",
+    alt: "A clean white rocker light switch on a wall beside a living room",
+    aspectRatio: "4/3",
+  },
+  "smart-switch-upgrade": {
+    src: "/images/service-smart-switch.jpg",
+    alt: "A smart wall switch installed in a hallway with lit rooms beyond",
+    aspectRatio: "4/3",
+  },
+  // A chandelier reads as an interior light fixture swap from the customer's
+  // side. Worth its own photo eventually — a chandelier is the one fixture
+  // people picture specifically.
+  "remove-and-replace-existing-chandelier": {
+    src: "/images/service-light-fixture.jpg",
+    alt: "An elegant pendant light fixture hanging above a dining room table",
+    aspectRatio: "16/9",
+  },
 };
 
 // Category-level art, kept in a SEPARATE keyed export from SERVICE_IMAGES on
