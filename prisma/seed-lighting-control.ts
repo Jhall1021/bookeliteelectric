@@ -130,6 +130,7 @@ const NEAR_POWER_KEY = "switch_near_power";
 const DIMMER_KEY = "lighting_dimmer_upgrade";
 const ACCESS_KEY = "ceiling_access";
 const DISTANCE_KEY = "switch_leg_distance";
+const FINISH_ACK_KEY = "switchleg_finish_ack";
 
 /**
  * Switch-leg labor by access class and run length.
@@ -151,10 +152,24 @@ const SWITCHLEG = [
  * access question was asked — an open route is cheaper — so it reads as being
  * on their side rather than as groundwork for a surcharge.
  */
+/**
+ * Shown once, immediately before the switch-leg price.
+ *
+ * Worded to be true on either route, because an answer can't carry different
+ * text depending on the access class established earlier. Both cases are real:
+ * with no attic or basement there's no way to get a wire up a finished wall
+ * without opening it, and even directly above an outlet the same is true —
+ * "directly above" saves distance, not drywall. With an open route we usually
+ * avoid openings, but not always.
+ *
+ * The closing line explains why we asked about access at all, so it reads as
+ * being on the customer's side rather than as groundwork for a surcharge.
+ */
 const FINISHED_DISCLAIMER = [
-  "There's no attic, basement or drop ceiling to run this through, so your electrician will be fishing the wiring through finished walls or ceilings.",
-  "That usually means one or more small openings in the drywall or plaster. Patching, sanding, painting, wallpaper and trim aren't included unless we've put it in writing.",
-  "That's why we asked about attic and basement access — an open route avoids these openings and takes less time.",
+  "Getting a wire to a new switch usually means opening the wall.",
+  "If there's no attic, basement or drop ceiling to work from, your electrician will be fishing through finished walls, and one or more small openings in the drywall or plaster are very likely — even when the switch sits directly above an outlet. With an open route above or below, we can often avoid them, though a small opening is sometimes still needed.",
+  "Either way, patching, sanding, painting, wallpaper and trim aren't included unless we've put it in writing.",
+  "That's why we ask about attic and basement access — an open route usually means fewer openings and less time.",
 ].join("\n\n");
 // Deliberately the SAME keys the New 120V Outlet tree uses. If the customer
 // has already answered them — including after a reroute from that service —
@@ -216,7 +231,7 @@ async function attach(slug: string) {
     return;
   }
 
-  const moduleKeys = [CONTROL_KEY, NEAR_POWER_KEY, DIMMER_KEY, WALL_ACCESS_KEY, FINISHED_BOTH_KEY];
+  const moduleKeys = [CONTROL_KEY, NEAR_POWER_KEY, DISTANCE_KEY, FINISH_ACK_KEY, DIMMER_KEY, WALL_ACCESS_KEY, FINISHED_BOTH_KEY];
 
   // Questions are upserted by key, never deleted and recreated. Recreating
   // them handed out new ids while other answers still pointed at the old
@@ -237,9 +252,9 @@ prompt: "How would you like the new light controlled?",
 
   const qNearPower = await upsertQuestion(prisma, service.id, {
     key: NEAR_POWER_KEY,
-prompt:
-        "Is there an existing outlet directly below, or very close to, where you'd like the new switch?",
-      helpText: "This is usually how we get power to a new switch without opening up the wall.",
+    prompt: "Could the new switch go directly above an existing outlet?",
+    helpText:
+      "If the switch sits right above an outlet we can bring power straight up inside the same wall cavity. Anywhere else means fishing a wire or opening the wall, which takes longer.",
     order: nextOrder + 1,
   });
 
@@ -265,6 +280,21 @@ prompt: "Is there finished living space directly above and below that wall?",
     prompt: "About how far is the new switch from the light?",
     helpText: "Roughly the path the wire would take, not the straight line across the room.",
     order: nextOrder + 5,
+  });
+
+  // Reached only from an answer that establishes a finished route. Sitting it
+  // here rather than on the price means it fires once, on the path where
+  // cutting is genuinely foreseeable — and never on the attic path, where
+  // warning about drywall would be a lie.
+  //
+  // Applies even when the switch is directly above an outlet: with no attic or
+  // basement to work from, getting a wire from that outlet up to the switch
+  // still means opening the wall.
+  const qFinishAck = await upsertQuestion(prisma, service.id, {
+    key: FINISH_ACK_KEY,
+    prompt: "Before we price this — one thing about access",
+    helpText: FINISHED_DISCLAIMER,
+    order: nextOrder + 6,
   });
 
   const qDimmer = await upsertQuestion(prisma, service.id, {
@@ -366,11 +396,12 @@ prompt: "Would you like a dimmer on the new switch?",
   await prisma.answerOption.createMany({
     data: [
       {
-        // Straight to the distance question — the switch-leg price depends on
-        // run length as well as access, and both live in this module so the
-        // wiring can't be broken by running seeds in a different order.
+        // The only cheap case: switch directly above an outlet, power comes
+        // straight up the same stud bay. "Is there an outlet nearby" used to
+        // invite a yes about an outlet across the room — which is a snake or
+        // a cut, not a grab, and got priced as though it weren't.
         questionId: qNearPower.id,
-        label: "Yes, there's an outlet right there",
+        label: "Yes — I can put it directly above an outlet",
         value: "yes",
         routeAction: "CONTINUE",
         nextQuestionId: qDistance.id,
@@ -379,15 +410,25 @@ prompt: "Would you like a dimmer on the new switch?",
         approvedComponentPriceCents: 0,
       },
       {
-        // Previously a dead stop. Running power to the switch is the same job
-        // as adding a new 120V outlet, so it asks the same access questions
-        // and prices from the same figures.
+        // There IS power in the room, just not under the switch. Same work as
+        // running a new circuit to it — kept separate from "no outlets at all"
+        // because the job sheet benefits from knowing power is close by.
         questionId: qNearPower.id,
-        label: "No, there's no outlet nearby",
-        value: "no",
+        label: "There's an outlet in the room, but not where the switch needs to go",
+        value: "outlet_elsewhere",
         routeAction: "CONTINUE",
         nextQuestionId: qWallAccess.id,
         order: 2,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: 0,
+      },
+      {
+        questionId: qNearPower.id,
+        label: "No outlets nearby at all",
+        value: "no",
+        routeAction: "CONTINUE",
+        nextQuestionId: qWallAccess.id,
+        order: 3,
         requiredPhotoLabels: [],
         approvedComponentPriceCents: 0,
       },
@@ -397,7 +438,7 @@ prompt: "Would you like a dimmer on the new switch?",
         value: "unsure",
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true,
-        order: 3,
+        order: 4,
         requiredPhotoLabels: REVIEW_PHOTOS,
       },
     ],
@@ -453,7 +494,7 @@ prompt: "Would you like a dimmer on the new switch?",
         value: "finished_both_sides",
         accessClassification: "FINISHED",
         routeAction: "CONTINUE",
-        nextQuestionId: qDimmer.id,
+        nextQuestionId: qFinishAck.id,
         order: 1,
         requiredPhotoLabels: [],
         approvedComponentPriceCents: null,
@@ -496,8 +537,8 @@ prompt: "Would you like a dimmer on the new switch?",
   // is never asked about attic access twice (§29).
   await prisma.answerOption.createMany({
     data: [
-      { questionId: qDistance.id, label: "Less than 10 feet", value: "under_10", routeAction: "CONTINUE", nextQuestionId: qDimmer.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: null, disclaimer: FINISHED_DISCLAIMER },
-      { questionId: qDistance.id, label: "10 to 20 feet", value: "10_to_20", routeAction: "CONTINUE", nextQuestionId: qDimmer.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null, disclaimer: FINISHED_DISCLAIMER },
+      { questionId: qDistance.id, label: "Less than 10 feet", value: "under_10", routeAction: "CONTINUE", nextQuestionId: qFinishAck.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: qDistance.id, label: "10 to 20 feet", value: "10_to_20", routeAction: "CONTINUE", nextQuestionId: qFinishAck.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
       // Past 20 ft the variability outruns a fixed price. Same reasoning as
       // the dedicated circuit's 50 ft cap.
       { questionId: qDistance.id, label: "More than 20 feet", value: "over_20", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
@@ -519,6 +560,33 @@ prompt: "Would you like a dimmer on the new switch?",
       ],
     });
   }
+
+  // Two answers, not a checkbox: agreeing is a real choice, so someone who'd
+  // rather have it looked at first needs somewhere to go. The acceptance lands
+  // in answersSnapshot, where it's provable later.
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qFinishAck.id,
+        label: "I understand — go ahead",
+        value: "accepted",
+        routeAction: "CONTINUE",
+        nextQuestionId: qDimmer.id,
+        order: 1,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: 0,
+      },
+      {
+        questionId: qFinishAck.id,
+        label: "I'd rather Elite take a look first",
+        value: "review_first",
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
+        order: 2,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+      },
+    ],
+  });
 
   // §14 — dimmer is a material upgrade on a control we're already installing.
   await prisma.answerOption.createMany({
