@@ -21,6 +21,10 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
               // accumulate a configuration client-side without a round trip
               // per answer.
               components: { include: { component: true } },
+              photoGroups: {
+                orderBy: { order: "asc" },
+                include: { photoGroup: true },
+              },
             },
           },
         },
@@ -65,7 +69,21 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         nextQuestionId: o.nextQuestionId,
         routeAction: o.routeAction,
         rerouteServiceId: o.rerouteServiceId,
-        requiredPhotoLabels: o.requiredPhotoLabels,
+        // Groups expand first, then any loose labels specific to this answer.
+        // The client receives one flat list and stays unaware of the split.
+        requiredPhotoLabels: [
+          ...o.photoGroups.flatMap((g) => g.photoGroup.labels),
+          ...o.requiredPhotoLabels,
+        ],
+        // De-duplicated: two groups may carry the same panel warning, and the
+        // customer should see it once.
+        photoSafetyNotes: [
+          ...new Set(
+            o.photoGroups
+              .map((g) => g.photoGroup.safetyNote)
+              .filter((n): n is string => !!n)
+          ),
+        ],
         disclaimer: o.disclaimer,
         photosBlockBooking: o.photosBlockBooking,
         overrideEstimatedMinutes: o.overrideEstimatedMinutes,

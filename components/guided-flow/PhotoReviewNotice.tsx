@@ -8,6 +8,8 @@ type Props = {
   serviceName: string;
   serviceId: string;
   labels: string[];
+  /** Safety instructions from the photo groups used — shown once, not per label. */
+  safetyNotes?: string[];
   answers: Record<string, string>;
 };
 
@@ -20,7 +22,8 @@ type UploadState = "idle" | "uploading" | "done" | "error";
  * to price this for. Files upload directly to R2 via a presigned URL, then
  * a Quote record is created once everything's in.
  */
-export default function PhotoReviewNotice({ serviceName, serviceId, labels, answers }: Props) {
+export default function PhotoReviewNotice({ serviceName, serviceId, labels,
+  safetyNotes = [], answers }: Props) {
   const router = useRouter();
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>({});
@@ -82,6 +85,16 @@ export default function PhotoReviewNotice({ serviceName, serviceId, labels, answ
         Your answers for {serviceName} mean we need a few photos to confirm the price — no
         estimate visit required. We'll review them and send back a fixed price.
       </p>
+
+      {safetyNotes.length > 0 && (
+        <div className="mt-6 rounded-card border border-amber-200 bg-amber-50 p-4">
+          {safetyNotes.map((note) => (
+            <p key={note} className="text-xs font-medium text-amber-900">
+              {note}
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 space-y-4">
         {labels.map((label) => (

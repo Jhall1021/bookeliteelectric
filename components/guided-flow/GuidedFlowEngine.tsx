@@ -27,10 +27,10 @@ type TerminalState =
   | { kind: "resolved"; priceCents: number; disclaimer: string | null }
   | { kind: "reroute"; serviceId: string; reason: string }
   | { kind: "troubleshooting" }
-  | { kind: "photo_review"; labels: string[] }
+  | { kind: "photo_review"; labels: string[]; safetyNotes?: string[] }
   // Price already settled; the photos are prep for the technician, not a
   // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
-  | { kind: "priced_photo_review"; labels: string[]; priceCents: number; disclaimer: string | null };
+  | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null };
 
 /**
  * Interprets a Service's Question/AnswerOption tree at runtime. This is the
@@ -183,6 +183,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         state: {
           kind: "photo_review",
           labels: option.requiredPhotoLabels.length > 0 ? option.requiredPhotoLabels : fallbackPhotos,
+          safetyNotes: option.photoSafetyNotes,
         },
       };
     }
@@ -210,6 +211,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             state: {
               kind: "priced_photo_review",
               labels: option.requiredPhotoLabels,
+              safetyNotes: option.photoSafetyNotes,
               priceCents: total,
               disclaimer: option.disclaimer,
             },
@@ -218,13 +220,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "photo_review", labels: option.requiredPhotoLabels },
+          state: { kind: "photo_review", labels: option.requiredPhotoLabels, safetyNotes: option.photoSafetyNotes },
         };
       case "REMOTE_QUOTE":
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "photo_review", labels: option.requiredPhotoLabels },
+          state: { kind: "photo_review", labels: option.requiredPhotoLabels, safetyNotes: option.photoSafetyNotes },
         };
       case "REROUTE_SERVICE":
         return {
@@ -465,6 +467,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         priceCents={state.priceCents}
         disclaimer={state.disclaimer}
         labels={state.labels}
+        safetyNotes={state.safetyNotes}
         onConfirm={(photos) => addToVisit(state.priceCents, photos)}
       />
     );
@@ -474,6 +477,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     return withBack(
       <PhotoReviewNotice
         labels={state.labels}
+        safetyNotes={state.safetyNotes}
         serviceName={flow.name}
         serviceId={flow.id}
         answers={answers}

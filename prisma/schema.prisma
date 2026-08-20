@@ -47,6 +47,46 @@ enum PhotoState {
   REVIEW_REQUIRED
 }
 
+/// Reusable photo requirement groups.
+///
+/// Photo labels were being written out by hand in every seed script — 51
+/// separate usages across four files, already with two different wordings for
+/// the same panel photo. That's how the universal safety instruction ("open
+/// the door only, never remove the dead front") ends up missing from one flow
+/// because whoever wrote it forgot.
+///
+/// A group is named once and referenced. Correcting a wording, or adding the
+/// safety line, happens in one place and applies everywhere.
+model PhotoGroup {
+  id          String  @id @default(cuid())
+  /// Stable identifier used in code and seeds, e.g. PANEL_PHOTOS.
+  key         String  @unique
+  name        String
+  /// The labels shown to the customer, in order.
+  labels      String[]
+  /// Prepended to every label in this group. Carries the panel safety rule so
+  /// it can never be omitted by accident.
+  safetyNote  String?
+  active      Boolean @default(true)
+  notes       String?
+  options     AnswerOptionPhotoGroup[]
+
+  @@map("photo_groups")
+}
+
+/// Join: an answer requests one or more photo groups.
+model AnswerOptionPhotoGroup {
+  id             String       @id @default(cuid())
+  answerOptionId String
+  answerOption   AnswerOption @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+  photoGroupId   String
+  photoGroup     PhotoGroup   @relation(fields: [photoGroupId], references: [id])
+  order          Int          @default(0)
+
+  @@unique([answerOptionId, photoGroupId])
+  @@map("answer_option_photo_groups")
+}
+
 /// Reusable named job components (handoff §13-§14).
 ///
 /// A component is a bundle of real work — technician-hours, direct material,
@@ -341,6 +381,15 @@ model AnswerOption {
 
   /// Named reusable components selected by this answer (§13-§14).
   components AnswerOptionComponent[]
+
+  /// Reusable photo groups requested by this answer. Preferred over writing
+  /// labels into requiredPhotoLabels: the group carries the wording and the
+  /// safety note, so both stay consistent everywhere they appear.
+  ///
+  /// requiredPhotoLabels is retained for one-off labels that genuinely belong
+  /// to a single answer. When both are present the engine shows the groups
+  /// first, then the loose labels.
+  photoGroups AnswerOptionPhotoGroup[]
 
   @@map("answer_options")
 }

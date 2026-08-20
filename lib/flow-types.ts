@@ -18,7 +18,17 @@ export type AnswerOptionDTO = {
   nextQuestionId: string | null;
   routeAction: RouteAction;
   rerouteServiceId: string | null;
+  /**
+   * Fully resolved photo labels for this answer: any referenced photo groups
+   * expanded in order, followed by loose per-answer labels. The flow renders
+   * this and doesn't need to know which came from where.
+   */
   requiredPhotoLabels: string[];
+  /**
+   * Safety instructions from the groups used, de-duplicated. Shown once
+   * alongside the uploads rather than repeated on every label.
+   */
+  photoSafetyNotes: string[];
   disclaimer: string | null;
   // PHOTO_REVIEW only. false = the price is already locked and these photos
   // are prep for the technician, so the customer can book right away. true

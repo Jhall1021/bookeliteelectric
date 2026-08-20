@@ -9,6 +9,8 @@ type Props = {
   priceCents: number;
   disclaimer: string | null;
   labels: string[];
+  /** Safety instructions from the photo groups used — shown once, not per label. */
+  safetyNotes?: string[];
   onConfirm: (photos: { url: string; label: string }[]) => Promise<void>;
 };
 
@@ -31,6 +33,7 @@ export default function PricedPhotoReview({
   priceCents,
   disclaimer,
   labels,
+  safetyNotes = [],
   onConfirm,
 }: Props) {
   const [files, setFiles] = useState<Record<string, File | null>>({});
@@ -90,6 +93,16 @@ export default function PricedPhotoReview({
         right parts and doesn&rsquo;t have to make a second trip. This won&rsquo;t change what you
         pay.
       </p>
+
+      {safetyNotes.length > 0 && (
+        <div className="mt-6 rounded-card border border-amber-200 bg-amber-50 p-4">
+          {safetyNotes.map((note) => (
+            <p key={note} className="text-xs font-medium text-amber-900">
+              {note}
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="mt-6 space-y-4">
         {labels.map((label) => (
