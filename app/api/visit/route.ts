@@ -29,6 +29,34 @@ export async function POST(req: Request) {
     visit = await prisma.visit.create({ data: { sessionId, status: "OPEN" } });
   }
 
+  // A service with a decision tree cannot be added without going through it.
+  //
+  // The cart's "+" button used to POST with an empty answersSnapshot, which
+  // added a second unit at the add-on rate with no qualification at all — no
+  // height, no access, no distance. Someone could qualify one recessed light
+  // for an 8 ft ceiling with attic access and then add five more for rooms
+  // nobody asked about, at a price justified by a different room.
+  //
+  // Enforced here rather than only in the UI: hiding a button doesn't stop a
+  // POST, and this is the difference between a priced job and a loss.
+  const qualification = await prisma.service.findUnique({
+    where: { id: serviceId },
+    select: { name: true, _count: { select: { questions: true } } },
+  });
+
+  if (qualification && qualification._count.questions > 0) {
+    const answers = answersSnapshot ?? {};
+    if (Object.keys(answers).length === 0) {
+      return NextResponse.json(
+        {
+          error: "QUALIFICATION_REQUIRED",
+          message: `${qualification.name} needs a few questions answered before it can be added — the price depends on them.`,
+        },
+        { status: 422 }
+      );
+    }
+  }
+
   // Duration is looked up server-side, never trusted from the client — the
   // customer never sends or sees this value, it's purely internal dispatch
   // data snapshotted at add-time, same pattern as price.
@@ -155,7 +183,16 @@ export async function GET() {
     include: {
       lineItems: {
         include: {
-          service: { select: { id: true, name: true, slug: true, whileWeThereBasePrice: true } },
+          service: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              whileWeThereBasePrice: true,
+              category: { select: { slug: true } },
+              _count: { select: { questions: true } },
+            },
+          },
         },
         orderBy: { id: "asc" },
       },
@@ -174,6 +211,8 @@ export async function GET() {
       serviceId: string;
       serviceName: string;
       serviceSlug: string;
+      categorySlug: string;
+      requiresQualification: boolean;
       isPrimary: boolean;
       whileWeThereBasePrice: number | null;
       firstUnitPriceCents: number;
@@ -193,6 +232,10 @@ export async function GET() {
         serviceId: li.service.id,
         serviceName: li.service.name,
         serviceSlug: li.service.slug,
+        categorySlug: li.service.category.slug,
+        // Another unit of this can't just be incremented — its price came
+        // from answers about one specific location.
+        requiresQualification: li.service._count.questions > 0,
         isPrimary: li.isPrimary,
         whileWeThereBasePrice: li.service.whileWeThereBasePrice,
         firstUnitPriceCents: li.computedPriceCents,
@@ -208,6 +251,8 @@ export async function GET() {
       serviceId: g.serviceId,
       serviceName: g.serviceName,
       serviceSlug: g.serviceSlug,
+      categorySlug: g.categorySlug,
+      requiresQualification: g.requiresQualification,
       isPrimary: g.isPrimary,
       whileWeThereBasePrice: g.whileWeThereBasePrice,
       quantity: g.lineItemIds.length,

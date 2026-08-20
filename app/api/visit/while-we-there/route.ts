@@ -35,6 +35,11 @@ export async function GET() {
           bookingType: true,
           shortDescription: true,
           icon: true,
+          // A service whose price comes from its tree can't be added straight
+          // from this grid — the client routes it through the flow instead.
+          // Sent here so the redirect happens on click rather than after a
+          // rejected POST comes back.
+          _count: { select: { questions: true } },
         },
       },
     },
@@ -47,11 +52,12 @@ export async function GET() {
       slug: c.slug,
       name: c.name,
       icon: c.icon,
-      services: c.services.map((s) => ({
+      services: c.services.map(({ _count, ...s }) => ({
         ...s,
         icon: s.icon ?? c.icon,
         categorySlug: c.slug,
         quantityInVisit: quantityByService.get(s.id) ?? 0,
+        requiresQualification: _count.questions > 0,
       })),
     }));
 

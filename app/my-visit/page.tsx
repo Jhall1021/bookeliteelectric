@@ -11,6 +11,8 @@ type LineItemGroup = {
   serviceId: string;
   serviceName: string;
   serviceSlug: string;
+  categorySlug: string;
+  requiresQualification: boolean;
   isPrimary: boolean;
   whileWeThereBasePrice: number | null;
   quantity: number;
@@ -26,6 +28,8 @@ type ServiceOption = {
   startingPriceLabel: string | null;
   bookingType: string;
   categorySlug: string;
+  /** True when this service has a decision tree that sets its price. */
+  requiresQualification: boolean;
   quantityInVisit: number;
   shortDescription: string | null;
   icon: string | null;
@@ -66,11 +70,15 @@ export default function MyVisitPage() {
   }, []);
 
   async function addService(s: ServiceOption) {
-    if (s.whileWeThereBasePrice === null) {
+    // No add-on price, or a tree that determines it — either way the flow has
+    // to run. Adding straight from the cart used to skip the tree entirely for
+    // anything with a While We're There rate, which included services whose
+    // price depends on ceiling height and attic access.
+    if (s.whileWeThereBasePrice === null || s.requiresQualification) {
       router.push(`/services/${s.categorySlug}/${s.slug}`);
       return;
     }
-    await fetch("/api/visit", {
+    const res = await fetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -80,6 +88,13 @@ export default function MyVisitPage() {
         answersSnapshot: {},
       }),
     });
+    // The server refuses anything that needs qualifying. If that fires it
+    // means this service gained a tree since the page loaded — send them
+    // through it rather than leaving the click doing nothing.
+    if (res.status === 422) {
+      router.push(`/services/${s.categorySlug}/${s.slug}`);
+      return;
+    }
     refresh();
   }
 
@@ -96,6 +111,16 @@ export default function MyVisitPage() {
   }
 
   async function addAnother(group: LineItemGroup) {
+    // Anything whose price came from answers has to be answered again for the
+    // second one. The first unit was qualified for one specific spot — a
+    // ceiling height, an attic, a distance — and none of that carries to a
+    // different room. Deliberately starts clean rather than reusing the
+    // earlier answers: reuse is right within a flow, wrong across locations.
+    if (group.requiresQualification) {
+      router.push(`/services/${group.categorySlug}/${group.serviceSlug}`);
+      return;
+    }
+
     // Every unit after the first is priced at the While We're There rate —
     // even for the exact same service — since the technician is already
     // on-site regardless of whether this is a 1st or 2nd outlet replacement.
@@ -155,7 +180,16 @@ export default function MyVisitPage() {
                     <span className="min-w-[1.5rem] text-center text-sm font-medium text-navy">{li.quantity}</span>
                     <button
                       onClick={() => addAnother(li)}
-                      aria-label={`Add another ${li.serviceName}`}
+                      aria-label={
+                        li.requiresQualification
+                          ? `Add another ${li.serviceName} — a few questions first`
+                          : `Add another ${li.serviceName}`
+                      }
+                      title={
+                        li.requiresQualification
+                          ? "We'll ask about the new spot before adding it"
+                          : undefined
+                      }
                       className="px-3 py-1 text-navy hover:text-electric"
                     >
                       +
