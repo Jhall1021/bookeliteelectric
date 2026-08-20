@@ -50,6 +50,12 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // rate — contradicting the promise made on the homepage and honoured
   // correctly by /my-visit.
   const [isAddOn, setIsAddOn] = useState(false);
+  // The troubleshooting reroute screen used to hardcode $249 in both the body
+  // copy and the button, while the service record said $250 — so a customer
+  // sent there from a failed outlet swap was quoted one number and charged
+  // another. Read it from the service instead; the hardcode was the bug, not
+  // the specific figure.
+  const [troubleshootingCents, setTroubleshootingCents] = useState<number | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [state, setState] = useState<TerminalState | null>(null);
   // Every step the customer has already passed through, newest last. The
@@ -152,6 +158,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         setState({ kind: "resolved", priceCents: newTotal, disclaimer: option.disclaimer });
         break;
       case "REROUTE_TROUBLESHOOTING":
+        // Fetched on demand rather than up front — most flows never reach it.
+        fetch("/api/services/electrical-troubleshooting")
+          .then((r) => r.json())
+          .then((t: { basePrice?: number }) => setTroubleshootingCents(t?.basePrice ?? null))
+          .catch(() => setTroubleshootingCents(null));
         setState({ kind: "troubleshooting" });
         break;
       case "PHOTO_REVIEW":
@@ -297,14 +308,17 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         </h2>
         <p className="mt-2 text-slate">
           Based on your answer, we'd rather diagnose the issue first than have you book the
-          wrong repair. Our Electrical Troubleshooting visit is $249, which includes the visit
-          and the first 60 minutes of diagnostic time.
+          wrong repair. Our Electrical Troubleshooting visit
+          {troubleshootingCents !== null ? ` is ${formatCents(troubleshootingCents)},` : ""} includes
+          the visit and the first 60 minutes of diagnostic time.
         </p>
         <button
           onClick={() => router.push("/services/panels-troubleshooting/electrical-troubleshooting")}
           className="mt-6 rounded-pill bg-electric px-7 py-3 font-semibold text-white hover:bg-electric-hover"
         >
-          Book Troubleshooting — {formatCents(24900)}
+          {troubleshootingCents !== null
+            ? `Book Troubleshooting — ${formatCents(troubleshootingCents)}`
+            : "Book Troubleshooting"}
         </button>
       </div>
     );

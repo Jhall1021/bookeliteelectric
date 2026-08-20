@@ -36,6 +36,17 @@ enum BookingType {
   TROUBLESHOOT_ONLY // the $249 diagnostic service itself
 }
 
+// Handoff §6 — every service declares one photo state.
+//   NONE            no customer photos (standard powered swaps, detectors)
+//   PREPARATION     photos help us arrive prepared, price already locked;
+//                   pairs with AnswerOption.photosBlockBooking = false
+//   REVIEW_REQUIRED photos gate the price; office reviews, then quotes
+enum PhotoState {
+  NONE
+  PREPARATION
+  REVIEW_REQUIRED
+}
+
 model Service {
   id                  String          @id @default(cuid())
   slug                String          @unique
@@ -61,11 +72,48 @@ model Service {
   // as DERIVED from these numbers via PricingSettings, not independently
   // authoritative — editing base/WWT price directly in the Service Editor
   // still works, but a future recalculation will overwrite it using these.
+  // --- LEGACY pricing composition (retained deliberately) ----------------
+  // These reproduce the CURRENTLY PUBLISHED prices and record how those
+  // numbers were reached. They are NOT real field hours: 44 of 45 services
+  // store a value that doesn't equal estimatedMinutes x techs, because they
+  // were back-fitted to land on a target price. Handoff §3.1 prohibits that
+  // going forward, so new work uses fieldLaborHours below. Do not rename
+  // these — that would assert the old numbers are measured, which they aren't.
   primaryLaborUnits   Float?
   addOnLaborUnits     Float?
   materialCostCents   Int?
+  // Nullable OVERRIDE only. The default multiplier is derived from
+  // materialCostCents via the tier table in handoff §4 (under $10 -> 3.00x,
+  // $10.00-750.00 inclusive -> 1.30x, over $750 -> 1.20x). Set this only to
+  // depart from the tier deliberately. See lib/pricing.ts.
   materialMultiplier  Float?
   permitAdminCents    Int?
+  otherDirectCostCents Int?
+
+  // --- Handoff §3.1: real labor, separate from dispatch duration ---------
+  // Actual expected technician-hours. NULL means "not yet established" — the
+  // editor shows that rather than a suggested price derived from a number
+  // nobody stands behind. Never populate this from estimatedMinutes.
+  fieldLaborHours     Float?
+  // Incremental hours once the tech is already on site. Handoff §3.4: WWT
+  // pricing does NOT apply the primary service-call minimum.
+  wwtLaborHours       Float?
+  // False until someone has confirmed estimatedMinutes is a real dispatch
+  // duration. Several look optimistic — Professional TV Installation is
+  // recorded at 60 minutes for a one-tech mount-plus-receptacle-plus-cable
+  // package — so they're treated as unreviewed until checked.
+  estimatedMinutesReviewed Boolean @default(false)
+  // Handoff §3.3: the $250 service-call minimum recovers the cost of
+  // originating a visit. An add-on-only item never originates one, so the
+  // minimum must not apply. The two Elite TV mounts are the current example:
+  // applied literally it would push a $50 mount to $315.
+  isPrimaryEligible   Boolean @default(true)
+  // Handoff §6 — explicit, rather than inferred from route actions.
+  photoState          PhotoState @default(NONE)
+  // Set when an admin explicitly approves a calculated price for publication.
+  // Handoff §5/§31: calculated prices are recommendations; nothing overwrites
+  // a published price silently.
+  publishedPriceApprovedAt DateTime?
   active              Boolean         @default(true)
   // Shown alongside the price on services with NO question tree at all —
   // a flat price that still needs a caveat attached (e.g. "we don't move
@@ -165,6 +213,17 @@ model AnswerOption {
   // price but the tech still needs to see the space (panel make/model,
   // access, existing fixture) to arrive with the right parts.
   photosBlockBooking Boolean     @default(true)
+  // --- Branch-level job overrides ---------------------------------------
+  // Some answers change the JOB, not just the price. The TV size question is
+  // the clearest case: up to 55 in is a one-technician route, 56-85 in is a
+  // two-technician route at the same 90-minute duration. Technician count
+  // doubles both the labor hours and the dispatch capacity consumed, so it
+  // can't be a service-level constant.
+  // NULL means "inherit from the Service". Set only where the branch really
+  // changes the work.
+  overrideEstimatedMinutes Int?
+  overrideTechCount        Int?
+  overrideFieldLaborHours  Float?
 
   @@map("answer_options")
 }
