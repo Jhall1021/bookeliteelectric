@@ -87,6 +87,38 @@ const COMPONENTS = [
     notes: "Handoff §13.3, finished-space route with suitable nearby power.",
   },
   {
+    // §13.3 originally sent "no outlet nearby" straight to remote review.
+    // Running power to a new switch is the same job as adding a new 120V
+    // outlet, which is already priced and already has a decision tree — so
+    // these two mirror it rather than handing the customer off.
+    //
+    // Price is the New 120V Outlet WHILE WE'RE THERE rate ($320 live), not
+    // its standalone rate: the technician is already on site for the light or
+    // fan, so the visit is paid for. Finished-wall adds the same $100 that
+    // service's own tree adds.
+    //
+    // Labor and material are inherited from that service's add-on figures and
+    // are launch assumptions, not measured — same caveat as everywhere else.
+    key: "SWITCH_POWER_RUN_ACCESSIBLE",
+    name: "Run power to a new switch — accessible route",
+    customerFacingLabel: "Run power to your new switch",
+    approvedPriceCents: 32000,
+    addFieldLaborHours: 1.0,
+    addMaterialCostCents: 2180,
+    addScheduleMinutes: 60,
+    notes: "Mirrors New 120V Outlet, accessible route. WWT price $320.",
+  },
+  {
+    key: "SWITCH_POWER_RUN_FINISHED",
+    name: "Run power to a new switch — finished walls",
+    customerFacingLabel: "Run power to your new switch",
+    approvedPriceCents: 42000,
+    addFieldLaborHours: 1.5,
+    addMaterialCostCents: 2180,
+    addScheduleMinutes: 90,
+    notes: "Mirrors New 120V Outlet finished-wall route: $320 + the same $100 that service adds.",
+  },
+  {
     key: "LED_DIMMER_UPGRADE",
     // $30 material x 1.30 tier = $39, rounded to $40. No labor (§14).
     approvedPriceCents: 4000,
@@ -113,6 +145,11 @@ const CONTROL_KEY = "lighting_control";
 const NEAR_POWER_KEY = "switch_near_power";
 const DIMMER_KEY = "lighting_dimmer_upgrade";
 const ACCESS_KEY = "ceiling_access";
+// Deliberately the SAME keys the New 120V Outlet tree uses. If the customer
+// has already answered them — including after a reroute from that service —
+// §29 reuse skips them rather than asking twice.
+const WALL_ACCESS_KEY = "below_above_access";
+const FINISHED_BOTH_KEY = "finished_space_both_sides";
 
 const REVIEW_PHOTOS = [
   "The wall switch in question, plate on — please don't remove it",
@@ -149,7 +186,7 @@ async function attach(slug: string) {
     return;
   }
 
-  const moduleKeys = [CONTROL_KEY, NEAR_POWER_KEY, DIMMER_KEY];
+  const moduleKeys = [CONTROL_KEY, NEAR_POWER_KEY, DIMMER_KEY, WALL_ACCESS_KEY, FINISHED_BOTH_KEY];
   const stale = service.questions.filter((q) => moduleKeys.includes(q.key));
   for (const q of stale) {
     await prisma.answerOption.deleteMany({ where: { questionId: q.id } });
@@ -185,6 +222,31 @@ async function attach(slug: string) {
       helpText: "This is usually how we get power to a new switch without opening up the wall.",
       inputType: "SINGLE_SELECT",
       order: nextOrder + 1,
+    },
+  });
+
+  // Mirrors the New 120V Outlet access pair, for the case where power has to
+  // be run to the new switch location.
+  const qWallAccess = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: WALL_ACCESS_KEY,
+      prompt:
+        "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below the wall where the switch will go?",
+      helpText: "This is what decides whether we can run the wire without opening up the wall.",
+      inputType: "SINGLE_SELECT",
+      order: nextOrder + 3,
+    },
+  });
+
+  const qFinishedBoth = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: FINISHED_BOTH_KEY,
+      prompt: "Is there finished living space directly above and below that wall?",
+      helpText: "For example, a finished bedroom upstairs and a finished room below, with no open access between them.",
+      inputType: "SINGLE_SELECT",
+      order: nextOrder + 4,
     },
   });
 
@@ -294,13 +356,17 @@ async function attach(slug: string) {
         approvedComponentPriceCents: null,
       },
       {
+        // Previously a dead stop. Running power to the switch is the same job
+        // as adding a new 120V outlet, so it asks the same access questions
+        // and prices from the same figures.
         questionId: qNearPower.id,
         label: "No, there's no outlet nearby",
         value: "no",
-        routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true,
+        routeAction: "CONTINUE",
+        nextQuestionId: qWallAccess.id,
         order: 2,
-        requiredPhotoLabels: REVIEW_PHOTOS,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: 0,
       },
       {
         questionId: qNearPower.id,
@@ -332,6 +398,82 @@ async function attach(slug: string) {
         conditionAnswerValue: "finished",
       },
     ],
+  });
+
+  // Access pair for the power run, mirroring New 120V Outlet exactly.
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qWallAccess.id,
+        label: "Yes",
+        value: "has_access",
+        routeAction: "CONTINUE",
+        nextQuestionId: qDimmer.id,
+        order: 1,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: null,
+      },
+      {
+        questionId: qWallAccess.id,
+        label: "No",
+        value: "no_access",
+        routeAction: "CONTINUE",
+        nextQuestionId: qFinishedBoth.id,
+        order: 2,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: 0,
+      },
+    ],
+  });
+
+  const wallHasAccess = await prisma.answerOption.findFirstOrThrow({
+    where: { questionId: qWallAccess.id, value: "has_access" },
+  });
+  await prisma.answerOptionComponent.create({
+    data: { answerOptionId: wallHasAccess.id, componentId: await comp("SWITCH_POWER_RUN_ACCESSIBLE") },
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qFinishedBoth.id,
+        label: "Yes",
+        value: "finished_both_sides",
+        routeAction: "CONTINUE",
+        nextQuestionId: qDimmer.id,
+        order: 1,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: null,
+      },
+      {
+        // Matches the New 120V Outlet reasoning: no access AND no confirmed
+        // finished space means something unusual — slab, exterior wall — and
+        // guessing at a price would be wrong.
+        questionId: qFinishedBoth.id,
+        label: "No",
+        value: "not_finished_both_sides",
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
+        order: 2,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+      },
+      {
+        questionId: qFinishedBoth.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
+        order: 3,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+      },
+    ],
+  });
+
+  const finishedYes = await prisma.answerOption.findFirstOrThrow({
+    where: { questionId: qFinishedBoth.id, value: "finished_both_sides" },
+  });
+  await prisma.answerOptionComponent.create({
+    data: { answerOptionId: finishedYes.id, componentId: await comp("SWITCH_POWER_RUN_FINISHED") },
   });
 
   // §14 — dimmer is a material upgrade on a control we're already installing.
