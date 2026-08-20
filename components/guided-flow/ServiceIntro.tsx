@@ -23,6 +23,13 @@ type Props = {
   // it would silently vanish on exactly the flat-price services it exists
   // for.
   disclaimer: string | null;
+  // True when the customer already has services in their visit, so basePrice
+  // above is the While We're There rate rather than the standalone one.
+  isAddOn: boolean;
+  // The standalone price, shown struck through beside the add-on price so
+  // the lower number reads as the discount it is rather than as a different
+  // price from the one they saw while browsing.
+  standalonePrice: number | null;
   onContinue: () => void;
 };
 
@@ -35,6 +42,8 @@ export default function ServiceIntro({
   serviceSlug,
   directBook,
   disclaimer,
+  isAddOn,
+  standalonePrice,
   onContinue,
 }: Props) {
   // Per the Visual Design Handoff: a bespoke lifestyle image showing the
@@ -73,12 +82,25 @@ export default function ServiceIntro({
           <span className="font-display text-lg font-bold text-navy">
             {basePrice !== null ? formatCents(basePrice) : startingPriceLabel ?? "Custom Quote"}
           </span>
+          {isAddOn && standalonePrice !== null && basePrice !== null && standalonePrice > basePrice && (
+            <span className="ml-2 text-xs text-slate line-through">
+              {formatCents(standalonePrice)}
+            </span>
+          )}
         </div>
-        <p className="mt-1 text-xs text-slate">
-          {directBook
-            ? "This price includes our visit to your home. Add more services after this and they'll cost less — no second visit fee."
-            : "This price includes our visit to your home. Add more services on the next screen and they'll cost less — no second visit fee."}
-        </p>
+
+        {isAddOn ? (
+          <p className="mt-1 text-xs text-success">
+            While We&rsquo;re There pricing — you already have a service booked, so this one
+            skips the visit fee.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-slate">
+            {directBook
+              ? "This price includes our visit to your home. Add more services after this and they'll cost less — no second visit fee."
+              : "This price includes our visit to your home. Add more services on the next screen and they'll cost less — no second visit fee."}
+          </p>
+        )}
 
         {directBook && disclaimer && (
           <p className="mt-4 rounded-card bg-warmwhite p-4 text-xs text-slate">{disclaimer}</p>

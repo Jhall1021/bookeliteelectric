@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@/lib/flow-types";
+import Image from "next/image";
 import { ServiceIcon } from "@/components/shared/Icons";
+import { getServiceImage } from "@/lib/serviceImages";
 
 type LineItemGroup = {
   serviceId: string;
@@ -195,7 +197,22 @@ export default function MyVisitPage() {
                             ×{s.quantityInVisit} added
                           </span>
                         )}
-                        <ServiceIcon icon={s.icon} className="h-7 w-7 text-electric" />
+                        {/* Photo band, matching the homepage and category
+                            grids. This screen was the last surface still on
+                            line icons. Locked to 4/3 so cards stay level. */}
+                        {getServiceImage(s.slug) ? (
+                          <div className="relative -mx-4 -mt-4 mb-3 aspect-[4/3] w-[calc(100%+2rem)] overflow-hidden rounded-t-card">
+                            <Image
+                              src={getServiceImage(s.slug)!.src}
+                              alt={getServiceImage(s.slug)!.alt}
+                              fill
+                              className="object-cover"
+                              sizes="(min-width: 640px) 300px, 90vw"
+                            />
+                          </div>
+                        ) : (
+                          <ServiceIcon icon={s.icon} className="h-7 w-7 text-electric" />
+                        )}
                         <div className="mt-2 text-sm font-semibold text-navy">{s.name}</div>
                         {s.shortDescription && (
                           <div className="mt-1 text-xs text-slate line-clamp-2">{s.shortDescription}</div>
@@ -244,7 +261,19 @@ export default function MyVisitPage() {
                               className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-warmwhite"
                             >
                               <div className="flex items-start gap-3">
-                                <ServiceIcon icon={s.icon} className="h-6 w-6 shrink-0 text-electric" />
+                                {getServiceImage(s.slug) ? (
+                                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-card">
+                                    <Image
+                                      src={getServiceImage(s.slug)!.src}
+                                      alt={getServiceImage(s.slug)!.alt}
+                                      fill
+                                      className="object-cover"
+                                      sizes="48px"
+                                    />
+                                  </div>
+                                ) : (
+                                  <ServiceIcon icon={s.icon} className="h-6 w-6 shrink-0 text-electric" />
+                                )}
                                 <span className="text-sm text-navy">
                                   {s.name}
                                   {s.quantityInVisit > 0 && (

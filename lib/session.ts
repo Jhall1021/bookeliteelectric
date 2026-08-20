@@ -21,3 +21,16 @@ export function getOrCreateSessionId(): string {
   });
   return id;
 }
+
+/**
+ * Read-only counterpart to getOrCreateSessionId.
+ *
+ * Server Components can read cookies but not write them — calling
+ * cookies().set() during a render throws ("Cookies can only be modified in a
+ * Server Action or Route Handler"). Pages that just need to know whether a
+ * visit is already in progress must use this instead, and accept null for a
+ * first-time visitor who hasn't been issued a cookie yet.
+ */
+export function getSessionId(): string | null {
+  return cookies().get(SESSION_COOKIE)?.value ?? null;
+}

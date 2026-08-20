@@ -43,6 +43,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   const [flow, setFlow] = useState<ServiceFlowDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [priceCentsAccrued, setPriceCentsAccrued] = useState(0);
+  // Whether this customer already has services in their visit. If they do,
+  // this service is an add-on: it anchors on whileWeThereBasePrice and is
+  // NOT the primary job. Previously the flow always assumed it was the first
+  // service, so anything added by browsing was charged the full standalone
+  // rate — contradicting the promise made on the homepage and honoured
+  // correctly by /my-visit.
+  const [isAddOn, setIsAddOn] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [state, setState] = useState<TerminalState | null>(null);
   // Every step the customer has already passed through, newest last. The
@@ -57,16 +64,26 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/services/${serviceSlug}`)
-      .then((r) => r.json())
-      .then((data: ServiceFlowDTO) => {
-        setFlow(data);
-        setPriceCentsAccrued(data.basePrice ?? 0);
-        setState({ kind: "intro" });
-        setHistory([]);
-        setAnswers({});
-        setLoading(false);
-      });
+    Promise.all([
+      fetch(`/api/services/${serviceSlug}`).then((r) => r.json()),
+      // Tolerate a failure here rather than blocking the whole flow — worst
+      // case the customer is treated as a first-time booker, which is the
+      // old behaviour, not a broken page.
+      fetch("/api/visit")
+        .then((r) => r.json())
+        .catch(() => ({ lineItems: [] })),
+    ]).then(([data, visit]: [ServiceFlowDTO, { lineItems?: unknown[] }]) => {
+      const addOn = (visit?.lineItems?.length ?? 0) > 0 && data.whileWeThereBasePrice !== null;
+      setFlow(data);
+      setIsAddOn(addOn);
+      setPriceCentsAccrued(
+        addOn ? data.whileWeThereBasePrice ?? 0 : data.basePrice ?? 0
+      );
+      setState({ kind: "intro" });
+      setHistory([]);
+      setAnswers({});
+      setLoading(false);
+    });
   }, [serviceSlug]);
 
   // Snapshot the CURRENT step before moving on. Called at the top of every
@@ -106,7 +123,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       // No qualifying questions at all, and it's a fixed-price service —
       // resolves immediately. Service.disclaimer (not an AnswerOption
       // disclaimer, since there's no branch here) still gets shown.
-      setState({ kind: "resolved", priceCents: flow.basePrice ?? 0, disclaimer: flow.disclaimer });
+      // priceCentsAccrued already holds the correct anchor (standalone or
+      // While We're There), so don't reach back to basePrice here.
+      setState({ kind: "resolved", priceCents: priceCentsAccrued, disclaimer: flow.disclaimer });
     }
   }
 
@@ -176,7 +195,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       body: JSON.stringify({
         serviceId: flow.id,
         computedPriceCents: priceCents,
-        isPrimary: true,
+        // An add-on is never the anchor job for the visit.
+        isPrimary: !isAddOn,
         answersSnapshot: answers,
         ...(photos && photos.length > 0 ? { photos } : {}),
       }),
@@ -221,24 +241,26 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // price, and not a remote quote (which has no settled price by
     // definition, however few questions it asks). Anything else keeps the
     // "Get My Price" step.
+    const anchorPrice = isAddOn ? flow.whileWeThereBasePrice : flow.basePrice;
+
     const directBook =
       flow.questions.length === 0 &&
       flow.bookingType !== "REMOTE_QUOTE" &&
-      flow.basePrice !== null;
+      anchorPrice !== null;
 
     return withBack(
       <ServiceIntro
         name={flow.name}
         description={flow.shortDescription}
-        basePrice={flow.basePrice}
+        basePrice={anchorPrice}
         startingPriceLabel={flow.startingPriceLabel}
         icon={flow.icon}
         serviceSlug={serviceSlug}
         directBook={directBook}
         disclaimer={flow.disclaimer}
-        onContinue={
-          directBook ? () => addToVisit(flow.basePrice ?? 0) : startQuestions
-        }
+        isAddOn={isAddOn}
+        standalonePrice={flow.basePrice}
+        onContinue={directBook ? () => addToVisit(anchorPrice ?? 0) : startQuestions}
       />
     );
   }

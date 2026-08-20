@@ -5,6 +5,7 @@ import { formatCents } from "@/lib/flow-types";
 import { notFound } from "next/navigation";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage, getCategoryImage } from "@/lib/serviceImages";
+import { hasOpenVisit } from "@/lib/visitContext";
 
 export default async function CategoryPage({ params }: { params: { category: string } }) {
   const category = await prisma.serviceCategory.findUnique({
@@ -13,6 +14,11 @@ export default async function CategoryPage({ params }: { params: { category: str
   });
 
   if (!category) return notFound();
+
+  // Once anything is in the visit, every further service is priced at its
+  // While We're There rate. Showing the standalone price here and a lower
+  // one at checkout would misrepresent what they'd actually pay.
+  const addOnPricing = await hasOpenVisit();
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
@@ -55,11 +61,27 @@ export default async function CategoryPage({ params }: { params: { category: str
                 {svc.shortDescription && (
                   <p className="mt-1 text-sm text-slate">{svc.shortDescription}</p>
                 )}
-                <div className="mt-2 text-sm font-medium text-navy">
-                  {svc.basePrice
-                    ? `From ${formatCents(svc.basePrice)}`
-                    : svc.startingPriceLabel ?? "Custom Quote"}
-                </div>
+                {addOnPricing && svc.whileWeThereBasePrice !== null ? (
+                  <div className="mt-2 text-sm font-medium">
+                    <span className="text-success">
+                      +{formatCents(svc.whileWeThereBasePrice)}
+                    </span>
+                    {svc.basePrice !== null && svc.basePrice > svc.whileWeThereBasePrice && (
+                      <span className="ml-1.5 text-xs text-slate line-through">
+                        {formatCents(svc.basePrice)}
+                      </span>
+                    )}
+                    <span className="mt-0.5 block text-xs text-slate">
+                      while we&rsquo;re there
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-sm font-medium text-navy">
+                    {svc.basePrice
+                      ? `From ${formatCents(svc.basePrice)}`
+                      : svc.startingPriceLabel ?? "Custom Quote"}
+                  </div>
+                )}
               </div>
             </Link>
           );
