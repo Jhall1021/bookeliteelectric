@@ -490,7 +490,14 @@ export function answerPriceDelta(
   answers: Record<string, string> = {},
   /** Classification established earlier in the flow, for access-conditioned parts. */
   accessClass: AccessClass | null = null
-): { cents: number | null; needsReview: boolean } {
+): {
+  cents: number | null;
+  needsReview: boolean;
+  /** Rate per unit when this answer buys several of something. */
+  perUnitCents?: number | null;
+  /** What one unit is called, for the label. */
+  unitLabel?: string | null;
+} {
   const declared = branch.components ?? [];
   const selected = declared.filter((sel) => {
     if (sel.conditionAccessClass && sel.conditionAccessClass !== accessClass) return false;
@@ -517,8 +524,18 @@ export function answerPriceDelta(
     }
   }
 
+  // When the selected components are per-unit — additional recessed lights,
+  // say — surface the unit rate too. The customer shouldn't have to divide to
+  // see that the extras are cheaper than the first, and the rate can't be
+  // written into the label because it differs by access tier.
+  const units = selected.reduce((n, sel) => n + Math.max(sel.quantity, 1), 0);
+  const unitLabel = selected.find((sel) => Math.max(sel.quantity, 1) > 1)
+    ?.component.customerFacingLabel ?? null;
+
   return {
     cents: componentCents + (branch.priceModifierCents ?? 0),
     needsReview: false,
+    perUnitCents: units > 1 && componentCents > 0 ? Math.round(componentCents / units) : null,
+    unitLabel,
   };
 }

@@ -55,9 +55,19 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
                   We&rsquo;ll confirm your price after a quick look
                 </span>
               ) : delta.cents && delta.cents > 0 ? (
-                <span className="mt-1 block text-xs font-semibold text-success">
-                  + {formatCents(delta.cents)}
-                </span>
+                <>
+                  <span className="mt-1 block text-xs font-semibold text-success">
+                    + {formatCents(delta.cents)}
+                  </span>
+                  {/* The point of a per-unit rate is that it's lower than the
+                      first one. Stated plainly rather than sold — a number the
+                      customer can check beats an exclamation mark. */}
+                  {delta.perUnitCents ? (
+                    <span className="mt-0.5 block text-xs font-normal text-slate">
+                      {formatCents(delta.perUnitCents)} each
+                    </span>
+                  ) : null}
+                </>
               ) : delta.cents && delta.cents < 0 ? (
                 <span className="mt-1 block text-xs font-semibold text-success">
                   − {formatCents(Math.abs(delta.cents))}
