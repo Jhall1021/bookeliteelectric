@@ -146,6 +146,7 @@ async function main() {
         questionId: qAccess.id,
         label: "An attic or open space we can get into",
         value: "accessible",
+        accessClassification: "ACCESSIBLE",
         ...proceed,
         order: 1,
         requiredPhotoLabels: [],
@@ -155,6 +156,7 @@ async function main() {
         questionId: qAccess.id,
         label: "Finished space — another floor or a finished room",
         value: "finished",
+        accessClassification: "FINISHED",
         ...proceed,
         order: 2,
         requiredPhotoLabels: [],
@@ -170,6 +172,7 @@ async function main() {
         questionId: qAccess.id,
         label: "I'm not sure",
         value: "unsure",
+        accessClassification: "UNKNOWN",
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true,
         order: 3,
@@ -191,8 +194,10 @@ async function main() {
     });
     await prisma.answerOptionComponent.createMany({
       data: [
-        { answerOptionId: opt.id, componentId: accId, quantity: c.extra, conditionAnswerKey: ACCESS_KEY, conditionAnswerValue: "accessible" },
-        { answerOptionId: opt.id, componentId: finId, quantity: c.extra, conditionAnswerKey: ACCESS_KEY, conditionAnswerValue: "finished" },
+        // Conditioned on classification rather than raw value, so the tier
+        // resolves whichever access question established it.
+        { answerOptionId: opt.id, componentId: accId, quantity: c.extra, conditionAccessClass: "ACCESSIBLE" },
+        { answerOptionId: opt.id, componentId: finId, quantity: c.extra, conditionAccessClass: "FINISHED" },
       ],
     });
   }

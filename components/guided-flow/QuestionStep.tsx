@@ -12,10 +12,16 @@ type Props = {
    * access and $360 through finished space.
    */
   answers: Record<string, string>;
+  /**
+   * Access classification established earlier. A switch-leg answer costs $300
+   * through an attic and $435 through finished walls — the label has to know
+   * which before the customer picks it.
+   */
+  accessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
   onAnswer: (option: AnswerOptionDTO) => void;
 };
 
-export default function QuestionStep({ question, answers, onAnswer }: Props) {
+export default function QuestionStep({ question, answers, accessClass, onAnswer }: Props) {
   return (
     <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
       <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>
@@ -23,7 +29,7 @@ export default function QuestionStep({ question, answers, onAnswer }: Props) {
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {question.options.map((option) => {
-          const delta = answerPriceDelta(option, answers);
+          const delta = answerPriceDelta(option, answers, accessClass);
           // Only an answer that SETTLES something can promise a price. A
           // CONTINUE answer carrying no charge of its own says nothing —
           // what the customer pays still depends on later questions, so

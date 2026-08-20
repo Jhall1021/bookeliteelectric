@@ -71,28 +71,6 @@ const COMPONENTS = [
     notes: "Handoff §13.2, finished-space route.",
   },
   {
-    key: "NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE",
-    // 1.0 hr = $250 + $35 x 1.30 = $45.50 -> $300.
-    approvedPriceCents: 30000,
-    name: "New wall switch and switch leg — accessible",
-    customerFacingLabel: "New wall switch and control wiring",
-    addFieldLaborHours: 1.0,
-    addMaterialCostCents: 3500,
-    addScheduleMinutes: 60,
-    notes: "Handoff §13.3, accessible attic route with suitable nearby power.",
-  },
-  {
-    key: "NEW_SWITCH_AND_SWITCH_LEG_FINISHED",
-    // 1.5 hrs = $375 + $45 x 1.30 = $58.50 -> $435.
-    approvedPriceCents: 43500,
-    name: "New wall switch and switch leg — finished space",
-    customerFacingLabel: "New wall switch and control wiring",
-    addFieldLaborHours: 1.5,
-    addMaterialCostCents: 4500,
-    addScheduleMinutes: 90,
-    notes: "Handoff §13.3, finished-space route with suitable nearby power.",
-  },
-  {
     // §13.3 originally sent "no outlet nearby" straight to remote review.
     // Running power to a new switch is the same job as adding a new 120V
     // outlet, which is already priced and already has a decision tree — so
@@ -162,6 +140,22 @@ const REVIEW_PHOTOS = [
   "The ceiling location where the new light or fan will go",
   "A wider photo of the room",
 ];
+
+/**
+ * NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE and _FINISHED are gone. They carried a
+ * single figure per access class with no distance dimension, which is where
+ * the flat finished-space surcharge came from. seed-access-normalization.ts
+ * replaces them with four components split by run length as well.
+ *
+ * Retired rather than deleted below — they may appear on past bookings.
+ */
+async function retireOldSwitchLegComponents() {
+  const retired = await prisma.jobComponent.updateMany({
+    where: { key: { in: ["NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE", "NEW_SWITCH_AND_SWITCH_LEG_FINISHED"] } },
+    data: { active: false },
+  });
+  if (retired.count) console.log(`  ✓ ${retired.count} superseded switch-leg component(s) retired`);
+}
 
 async function seedComponents() {
   for (const c of COMPONENTS) {
@@ -315,17 +309,18 @@ prompt: "Would you like a dimmer on the new switch?",
   });
   await prisma.answerOptionComponent.createMany({
     data: [
+      // Conditioned on the access CLASSIFICATION, not on this service's
+      // wording — so it resolves whether the customer answered
+      // "ceiling_access = accessible" or "attic_access = has_access".
       {
         answerOptionId: switchedOutlet.id,
         componentId: await comp("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE"),
-        conditionAnswerKey: ACCESS_KEY,
-        conditionAnswerValue: "accessible",
+        conditionAccessClass: "ACCESSIBLE",
       },
       {
         answerOptionId: switchedOutlet.id,
         componentId: await comp("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED"),
-        conditionAnswerKey: ACCESS_KEY,
-        conditionAnswerValue: "finished",
+        conditionAccessClass: "FINISHED",
       },
     ],
   });
@@ -368,33 +363,21 @@ prompt: "Would you like a dimmer on the new switch?",
     ],
   });
 
-  const nearPowerYes = await prisma.answerOption.findFirstOrThrow({
-    where: { questionId: qNearPower.id, value: "yes" },
-  });
-  await prisma.answerOptionComponent.createMany({
-    data: [
-      {
-        answerOptionId: nearPowerYes.id,
-        componentId: await comp("NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE"),
-        conditionAnswerKey: ACCESS_KEY,
-        conditionAnswerValue: "accessible",
-      },
-      {
-        answerOptionId: nearPowerYes.id,
-        componentId: await comp("NEW_SWITCH_AND_SWITCH_LEG_FINISHED"),
-        conditionAnswerKey: ACCESS_KEY,
-        conditionAnswerValue: "finished",
-      },
-    ],
-  });
+  // Switch-leg components are attached by seed-access-normalization.ts, which
+  // splits them by run length as well as access class. The old
+  // undifferentiated pair used to be attached here.
 
-  // Access pair for the power run, mirroring New 120V Outlet exactly.
+  // --- power-run path: no outlet near the new switch ---------------------
+  // Mirrors the New 120V Outlet access logic. Running power to a new switch
+  // is the same job as adding an outlet, so it asks the same questions and
+  // prices from the same figures rather than dead-ending at review.
   await prisma.answerOption.createMany({
     data: [
       {
         questionId: qWallAccess.id,
         label: "Yes",
         value: "has_access",
+        accessClassification: "ACCESSIBLE",
         routeAction: "CONTINUE",
         nextQuestionId: qDimmer.id,
         order: 1,
@@ -405,6 +388,7 @@ prompt: "Would you like a dimmer on the new switch?",
         questionId: qWallAccess.id,
         label: "No",
         value: "no_access",
+        accessClassification: "FINISHED",
         routeAction: "CONTINUE",
         nextQuestionId: qFinishedBoth.id,
         order: 2,
@@ -427,6 +411,7 @@ prompt: "Would you like a dimmer on the new switch?",
         questionId: qFinishedBoth.id,
         label: "Yes",
         value: "finished_both_sides",
+        accessClassification: "FINISHED",
         routeAction: "CONTINUE",
         nextQuestionId: qDimmer.id,
         order: 1,
@@ -434,12 +419,13 @@ prompt: "Would you like a dimmer on the new switch?",
         approvedComponentPriceCents: null,
       },
       {
-        // Matches the New 120V Outlet reasoning: no access AND no confirmed
-        // finished space means something unusual — slab, exterior wall — and
-        // guessing at a price would be wrong.
+        // No open route AND no confirmed finished space means something
+        // unusual — a slab, an exterior wall. Guessing at a price would be
+        // wrong. Same reasoning as the New 120V Outlet tree.
         questionId: qFinishedBoth.id,
         label: "No",
         value: "not_finished_both_sides",
+        accessClassification: "UNKNOWN",
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true,
         order: 2,
@@ -449,6 +435,7 @@ prompt: "Would you like a dimmer on the new switch?",
         questionId: qFinishedBoth.id,
         label: "I'm not sure",
         value: "unsure",
+        accessClassification: "UNKNOWN",
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true,
         order: 3,
@@ -534,6 +521,7 @@ prompt: "Would you like a dimmer on the new switch?",
 async function main() {
   console.log("Seeding the Lighting Control / Switch-Leg module...\n");
   await seedComponents();
+  await retireOldSwitchLegComponents();
   console.log();
   for (const slug of SERVICES) await attach(slug);
   console.log(`

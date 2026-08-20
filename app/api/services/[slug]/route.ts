@@ -93,10 +93,12 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         addMaterialCostCents: o.addMaterialCostCents,
         addScheduleMinutes: o.addScheduleMinutes,
         approvedComponentPriceCents: o.approvedComponentPriceCents,
+        accessClassification: o.accessClassification,
         components: o.components.map((sel) => ({
           quantity: sel.quantity,
           // §29 — null on both means the component always applies; when set,
           // it applies only if the customer's earlier answer matches.
+          conditionAccessClass: sel.conditionAccessClass,
           conditionAnswerKey: sel.conditionAnswerKey,
           conditionAnswerValue: sel.conditionAnswerValue,
           component: {

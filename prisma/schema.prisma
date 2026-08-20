@@ -41,6 +41,29 @@ enum BookingType {
 //   PREPARATION     photos help us arrive prepared, price already locked;
 //                   pairs with AnswerOption.photosBlockBooking = false
 //   REVIEW_REQUIRED photos gate the price; office reviews, then quotes
+/// What a route-access answer MEANS to the pricing engine, independent of how
+/// the question was worded.
+///
+/// Six questions across the catalog ask whether there's an open path to run
+/// wiring — attic_access, ceiling_access, below_above_access, outlet_access,
+/// attic_basement_access, dedicated_route_access — using three different
+/// answer vocabularies. A component conditioned on "accessible" silently
+/// failed to match an answer of "has_access", and the switch-leg price fell
+/// through to review on three services without anyone noticing.
+///
+/// Rather than teaching every component every synonym, the ANSWER declares
+/// what it means. Components condition on the classification, so adding a new
+/// access question later requires no component changes.
+///
+/// The raw answer keeps its detail: a snapshot still records
+/// "unfinished_basement" and the job sheet still says so. Only the pricing
+/// engine works in these three terms.
+enum AccessClassification {
+  ACCESSIBLE
+  FINISHED
+  UNKNOWN
+}
+
 enum PhotoState {
   NONE
   PREPARATION
@@ -150,6 +173,11 @@ model AnswerOptionComponent {
   /// Multiplier for per-unit components — e.g. 5 additional recessed lights
   /// against a single "additional light" component (§11-§12).
   quantity       Int          @default(1)
+
+  /// Condition on the ACCESS CLASSIFICATION of an earlier answer rather than
+  /// its raw value. Preferred for anything access-dependent: it survives
+  /// rewording, and a new access question needs no component changes.
+  conditionAccessClass AccessClassification?
 
   /// Optional condition on a PREVIOUSLY COLLECTED answer (handoff §29).
   ///
@@ -365,6 +393,18 @@ model AnswerOption {
   addFieldLaborHours   Float?
   addMaterialCostCents Int?
   addScheduleMinutes   Int?
+
+  /// What this answer means for wiring access, if it's an access answer.
+  ///
+  /// Null on most answers. Set on any answer to a route-access question so
+  /// shared components can condition on meaning rather than on this service's
+  /// particular wording.
+  ///
+  /// Two answers can share a classification and stay separate answers —
+  /// "unfinished basement" and "basement with a drop ceiling" both price as
+  /// ACCESSIBLE, but the job sheet still says which. Reclassifying later is
+  /// one field on one option, with no migration of past bookings.
+  accessClassification AccessClassification?
 
   /// Customer-facing incremental price for this answer's components, in
   /// cents, once an admin has approved it.

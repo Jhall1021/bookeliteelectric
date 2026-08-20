@@ -227,6 +227,12 @@ export function formatBreakdown(b: PriceBreakdown): string {
  * clock duration; a component can add setup time without adding hours.
  */
 export type JobConfiguration = {
+  /**
+   * Access classification established so far, from whichever question asked.
+   * Once set it persists, so a later module conditions on it without asking
+   * again (§29).
+   */
+  accessClass: AccessClass | null;
   fieldLaborHours: number | null;
   materialCostCents: number;
   estimatedMinutes: number | null;
@@ -252,6 +258,7 @@ export function startConfiguration(svc: {
   requiresTechCount: number;
 }): JobConfiguration {
   return {
+    accessClass: null,
     fieldLaborHours: svc.fieldLaborHours,
     materialCostCents: svc.materialCostCents ?? 0,
     estimatedMinutes: svc.estimatedMinutes,
@@ -263,7 +270,15 @@ export function startConfiguration(svc: {
   };
 }
 
+/**
+ * The three things an access answer can mean to the pricing engine.
+ * Derived from the answer's own declaration, never inferred from wording.
+ */
+export type AccessClass = "ACCESSIBLE" | "FINISHED" | "UNKNOWN";
+
 export type BranchContribution = {
+  /** Set when this answer answers a route-access question. */
+  accessClassification?: AccessClass | null;
   overrideEstimatedMinutes?: number | null;
   overrideTechCount?: number | null;
   overrideFieldLaborHours?: number | null;
@@ -274,6 +289,12 @@ export type BranchContribution = {
   approvedComponentPriceCents?: number | null;
   components?: {
     quantity: number;
+    /**
+     * Apply only when the access classification established earlier matches.
+     * Preferred over the raw key/value condition for anything access-dependent
+     * — it survives rewording and doesn't care which question asked.
+     */
+    conditionAccessClass?: AccessClass | null;
     /** §29 — apply only when a previously collected answer matches. */
     conditionAnswerKey?: string | null;
     conditionAnswerValue?: string | null;
@@ -315,14 +336,20 @@ export function applyBranch(
   if (branch.addMaterialCostCents) material += branch.addMaterialCostCents;
   if (branch.addScheduleMinutes && minutes !== null) minutes += branch.addScheduleMinutes;
 
+  // An access answer sets the classification for the rest of the flow. Once
+  // established it isn't overwritten by a later non-access answer.
+  const accessClass = branch.accessClassification ?? config.accessClass;
+
   const declared = branch.components ?? [];
-  // Keep only the variants whose condition matches what the customer has
-  // already told us. An unconditional component always applies.
-  const selected = declared.filter(
-    (sel) =>
-      !sel.conditionAnswerKey ||
-      answers[sel.conditionAnswerKey] === sel.conditionAnswerValue
-  );
+  // Keep only the variants whose conditions match. A component may condition
+  // on the access classification, on a raw answer, on both, or on nothing.
+  const selected = declared.filter((sel) => {
+    if (sel.conditionAccessClass && sel.conditionAccessClass !== accessClass) return false;
+    if (sel.conditionAnswerKey && answers[sel.conditionAnswerKey] !== sel.conditionAnswerValue) {
+      return false;
+    }
+    return true;
+  });
 
   for (const sel of selected) {
     const q = Math.max(sel.quantity, 1);
@@ -361,6 +388,7 @@ export function applyBranch(
         : 0;
 
   return {
+    accessClass,
     fieldLaborHours: hours,
     materialCostCents: material,
     estimatedMinutes: minutes,
@@ -459,14 +487,18 @@ export function suggestConfigurationPrice(
  */
 export function answerPriceDelta(
   branch: BranchContribution,
-  answers: Record<string, string> = {}
+  answers: Record<string, string> = {},
+  /** Classification established earlier in the flow, for access-conditioned parts. */
+  accessClass: AccessClass | null = null
 ): { cents: number | null; needsReview: boolean } {
   const declared = branch.components ?? [];
-  const selected = declared.filter(
-    (sel) =>
-      !sel.conditionAnswerKey ||
-      answers[sel.conditionAnswerKey] === sel.conditionAnswerValue
-  );
+  const selected = declared.filter((sel) => {
+    if (sel.conditionAccessClass && sel.conditionAccessClass !== accessClass) return false;
+    if (sel.conditionAnswerKey && answers[sel.conditionAnswerKey] !== sel.conditionAnswerValue) {
+      return false;
+    }
+    return true;
+  });
 
   // Declared components but none matched: we don't know which variant applies.
   if (declared.length > 0 && selected.length === 0) {

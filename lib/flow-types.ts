@@ -46,8 +46,11 @@ export type AnswerOptionDTO = {
   // Null = no approved customer price for this branch's components, so the
   // route goes to review. Zero is a valid approved no-charge value.
   approvedComponentPriceCents: number | null;
+  /** Set when this answer answers a route-access question. */
+  accessClassification: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
   components: {
     quantity: number;
+    conditionAccessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
     conditionAnswerKey: string | null;
     conditionAnswerValue: string | null;
     component: {

@@ -423,6 +423,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       <QuestionStep
         question={state.question}
         answers={answers}
+        accessClass={config?.accessClass ?? null}
         onAnswer={(option) => handleAnswer(state.question, option)}
       />
     );
