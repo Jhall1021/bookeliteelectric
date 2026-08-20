@@ -38,6 +38,8 @@ export type AnswerOptionDTO = {
   approvedComponentPriceCents: number | null;
   components: {
     quantity: number;
+    conditionAnswerKey: string | null;
+    conditionAnswerValue: string | null;
     component: {
       key: string;
       customerFacingLabel: string | null;

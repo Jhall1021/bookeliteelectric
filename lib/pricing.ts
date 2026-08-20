@@ -274,6 +274,9 @@ export type BranchContribution = {
   approvedComponentPriceCents?: number | null;
   components?: {
     quantity: number;
+    /** §29 — apply only when a previously collected answer matches. */
+    conditionAnswerKey?: string | null;
+    conditionAnswerValue?: string | null;
     component: {
       key: string;
       customerFacingLabel: string | null;
@@ -288,7 +291,9 @@ export type BranchContribution = {
 /** Fold one answer into the running configuration. Pure — returns a new object. */
 export function applyBranch(
   config: JobConfiguration,
-  branch: BranchContribution
+  branch: BranchContribution,
+  /** Answers collected so far, for conditional components (§29). */
+  answers: Record<string, string> = {}
 ): JobConfiguration {
   // Absolute overrides replace; they are not deltas. The TV size answer sets
   // techCount to 2 outright rather than adding one.
@@ -308,7 +313,16 @@ export function applyBranch(
   if (branch.addMaterialCostCents) material += branch.addMaterialCostCents;
   if (branch.addScheduleMinutes && minutes !== null) minutes += branch.addScheduleMinutes;
 
-  for (const sel of branch.components ?? []) {
+  const declared = branch.components ?? [];
+  // Keep only the variants whose condition matches what the customer has
+  // already told us. An unconditional component always applies.
+  const selected = declared.filter(
+    (sel) =>
+      !sel.conditionAnswerKey ||
+      answers[sel.conditionAnswerKey] === sel.conditionAnswerValue
+  );
+
+  for (const sel of selected) {
     const q = Math.max(sel.quantity, 1);
     const c = sel.component;
     addHours(c.addFieldLaborHours * q);
@@ -318,8 +332,12 @@ export function applyBranch(
     components.push({ key: c.key, label: c.customerFacingLabel, quantity: q });
   }
 
-  const selectedComponents = (branch.components ?? []).length > 0;
   const approved = branch.approvedComponentPriceCents;
+  // An answer that declares components but matched none of them means the
+  // condition was never established — we don't know which variant of the work
+  // applies. Book nothing on a guess; send it to review.
+  const declaredButUnmatched = declared.length > 0 && selected.length === 0;
+  const selectedComponents = selected.length > 0;
 
   return {
     fieldLaborHours: hours,
@@ -332,6 +350,7 @@ export function applyBranch(
     // no-charge component.
     awaitingComponentApproval:
       config.awaitingComponentApproval ||
+      declaredButUnmatched ||
       (selectedComponents && (approved === null || approved === undefined)),
     approvedIncrementCents: config.approvedIncrementCents + (approved ?? 0),
     legacyModifierCents: config.legacyModifierCents + (branch.priceModifierCents ?? 0),

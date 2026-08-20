@@ -152,11 +152,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
    */
   function evaluate(
     option: AnswerOptionDTO,
-    cfg: JobConfiguration
+    cfg: JobConfiguration,
+    /** Needed for conditional components (§29). */
+    ans: Record<string, string>
   ):
     | { kind: "continue"; config: JobConfiguration; nextQuestionId: string | null }
     | { kind: "terminal"; config: JobConfiguration; state: TerminalState } {
-    const nextConfig = applyBranch(cfg, option);
+    const nextConfig = applyBranch(cfg, option, ans);
 
     // What the customer pays comes from the PUBLISHED price plus approved
     // increments — never from the calculated configuration. A service whose
@@ -280,7 +282,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         return;
       }
 
-      const result = evaluate(priorOption, config);
+      const result = evaluate(priorOption, config, ans);
       config = result.config;
       if (result.kind === "continue") {
         currentId = result.nextQuestionId;
@@ -304,7 +306,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     const newAnswers = { ...answers, [question.key]: option.value };
     setAnswers(newAnswers);
 
-    const result = evaluate(option, config ?? startConfiguration(flow!));
+    const result = evaluate(option, config ?? startConfiguration(flow!), newAnswers);
 
     if (result.kind === "continue") {
       // Skip straight past anything already answered.

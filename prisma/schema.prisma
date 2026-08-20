@@ -99,6 +99,23 @@ model AnswerOptionComponent {
   /// against a single "additional light" component (§11-§12).
   quantity       Int          @default(1)
 
+  /// Optional condition on a PREVIOUSLY COLLECTED answer (handoff §29).
+  ///
+  /// §13.2 and §13.3 each define two variants of the same work — accessible
+  /// versus finished — and which applies depends on the access answer the
+  /// customer already gave. Asking again is explicitly forbidden, so instead
+  /// one answer carries both variants, each conditioned on that earlier value.
+  ///
+  /// Null on both fields means the component always applies. When set, the
+  /// component is included only if answers[conditionAnswerKey] equals
+  /// conditionAnswerValue.
+  ///
+  /// If an answer carries only conditional components and NONE match — the
+  /// access condition was never established — the route goes to review rather
+  /// than silently booking without the work.
+  conditionAnswerKey   String?
+  conditionAnswerValue String?
+
   @@unique([answerOptionId, componentId])
   @@map("answer_option_components")
 }
