@@ -344,7 +344,33 @@ async function attach(slug: string) {
     data: { answerOptionId: dimmerYes.id, componentId: await comp("LED_DIMMER_UPGRADE") },
   });
 
-  console.log(`  ✓ ${slug} — module attached after ${kept.length} existing question(s)`);
+  // --- wire the module INTO the tree -----------------------------------
+  // Appending questions doesn't make them reachable. Routing follows
+  // nextQuestionId, not `order`, so every answer that currently ENDS the flow
+  // has to hand off to the control question instead — otherwise the customer
+  // gets their price at the end of the service's own questions and never sees
+  // the module at all.
+  //
+  // Only terminal resolving answers are rewired. Photo-review, reroute and
+  // troubleshooting branches are left exactly as they are: those are
+  // deliberate exits, and a customer heading to review doesn't need to be
+  // asked about switch wiring first.
+  //
+  // priceModifierCents on a rewired answer still accumulates — switching
+  // RESOLVE_ADJUSTED to CONTINUE changes where the customer goes next, not
+  // what the answer contributes.
+  const rewired = await prisma.answerOption.updateMany({
+    where: {
+      question: { serviceId: service.id, key: { notIn: moduleKeys } },
+      routeAction: { in: ["RESOLVE_INSTANT", "RESOLVE_ADJUSTED"] },
+    },
+    data: { routeAction: "CONTINUE", nextQuestionId: qControl.id },
+  });
+
+  console.log(
+    `  ✓ ${slug} — module attached after ${kept.length} existing question(s), ` +
+      `${rewired.count} previously-terminal answer(s) now continue into it`
+  );
 }
 
 async function main() {
