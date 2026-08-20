@@ -122,7 +122,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     if (!flow) return;
     pushHistory();
     if (flow.questions.length > 0) {
-      setState({ kind: "question", question: flow.questions[0] });
+      advanceFrom(flow.questions[0].id, config ?? startConfiguration(flow), answers);
     } else if (flow.bookingType === "REMOTE_QUOTE") {
       // No tree seeded for this service yet, but it's explicitly a
       // custom-quote job — route straight to photo review instead of
@@ -145,16 +145,18 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     }
   }
 
-  async function handleAnswer(question: QuestionDTO, option: AnswerOptionDTO) {
-    pushHistory();
-    const newAnswers = { ...answers, [question.key]: option.value };
-    setAnswers(newAnswers);
-    // Fold this answer's contribution into the running configuration: labor
-    // hours, material, calendar minutes, crew size, and any approved
-    // customer-facing increment.
-    const base = config ?? startConfiguration(flow!);
-    const nextConfig = applyBranch(base, option);
-    setConfig(nextConfig);
+  /**
+   * Pure evaluation of one answer: fold it into the configuration and decide
+   * where the customer goes next. Separated from the click handler so it can
+   * also be driven by a previously-collected answer (§29) without a click.
+   */
+  function evaluate(
+    option: AnswerOptionDTO,
+    cfg: JobConfiguration
+  ):
+    | { kind: "continue"; config: JobConfiguration; nextQuestionId: string | null }
+    | { kind: "terminal"; config: JobConfiguration; state: TerminalState } {
+    const nextConfig = applyBranch(cfg, option);
 
     // What the customer pays comes from the PUBLISHED price plus approved
     // increments — never from the calculated configuration. A service whose
@@ -162,72 +164,164 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // only the internal suggestion is withheld (handoff §5/§31).
     const anchor = isAddOn ? flow!.whileWeThereBasePrice : flow!.basePrice;
     const priced = customerPrice(nextConfig, anchor ?? null);
-    const newTotal = priced.totalCents ?? 0;
+    const total = priced.totalCents ?? 0;
 
-    // A branch that selects components with no approved customer price can't
-    // be booked at a number we invented — it goes to review instead. This is
-    // checked BEFORE the route action, so it overrides an otherwise
-    // instant-resolving answer.
+    const fallbackPhotos = [
+      "Photo of the area where the work is needed",
+      "Your electrical panel, door open — leave the panel cover on",
+    ];
+
+    // A branch selecting components with no approved customer price can't be
+    // booked at a number we invented. Checked before the route action, so it
+    // overrides an otherwise instant-resolving answer.
     if (priced.mustReview) {
-      setState({
-        kind: "photo_review",
-        labels:
-          option.requiredPhotoLabels.length > 0
-            ? option.requiredPhotoLabels
-            : ["Photo of the area where the work is needed", "Your electrical panel, door open — leave the panel cover on"],
-      });
-      return;
+      return {
+        kind: "terminal",
+        config: nextConfig,
+        state: {
+          kind: "photo_review",
+          labels: option.requiredPhotoLabels.length > 0 ? option.requiredPhotoLabels : fallbackPhotos,
+        },
+      };
     }
 
     switch (option.routeAction) {
-      case "CONTINUE": {
-        const next = flow?.questions.find((q) => q.id === option.nextQuestionId);
-        if (next) {
-          setState({ kind: "question", question: next });
-        } else {
-          // Tree misconfigured — fail safe to resolved rather than a dead end.
-          setState({ kind: "resolved", priceCents: newTotal, disclaimer: null });
-        }
-        break;
-      }
+      case "CONTINUE":
+        return { kind: "continue", config: nextConfig, nextQuestionId: option.nextQuestionId };
       case "RESOLVE_INSTANT":
       case "RESOLVE_ADJUSTED":
-        setState({ kind: "resolved", priceCents: newTotal, disclaimer: option.disclaimer });
-        break;
+        return {
+          kind: "terminal",
+          config: nextConfig,
+          state: { kind: "resolved", priceCents: total, disclaimer: option.disclaimer },
+        };
       case "REROUTE_TROUBLESHOOTING":
-        // Fetched on demand rather than up front — most flows never reach it.
-        fetch("/api/services/electrical-troubleshooting")
-          .then((r) => r.json())
-          .then((t: { basePrice?: number }) => setTroubleshootingCents(t?.basePrice ?? null))
-          .catch(() => setTroubleshootingCents(null));
-        setState({ kind: "troubleshooting" });
-        break;
+        return { kind: "terminal", config: nextConfig, state: { kind: "troubleshooting" } };
       case "PHOTO_REVIEW":
-        // Two very different outcomes share this route action. When the
-        // photos don't block booking, the answer has already determined the
-        // price, so we resolve it and collect the photos as prep instead of
-        // handing the job off to the office.
+        // Two very different outcomes share this route action. When the photos
+        // don't block booking, the answer has already determined the price, so
+        // resolve it and collect the photos as preparation instead.
         if (!option.photosBlockBooking) {
-          setState({
-            kind: "priced_photo_review",
-            labels: option.requiredPhotoLabels,
-            priceCents: newTotal,
-            disclaimer: option.disclaimer,
-          });
-          break;
+          return {
+            kind: "terminal",
+            config: nextConfig,
+            state: {
+              kind: "priced_photo_review",
+              labels: option.requiredPhotoLabels,
+              priceCents: total,
+              disclaimer: option.disclaimer,
+            },
+          };
         }
-        setState({ kind: "photo_review", labels: option.requiredPhotoLabels });
-        break;
+        return {
+          kind: "terminal",
+          config: nextConfig,
+          state: { kind: "photo_review", labels: option.requiredPhotoLabels },
+        };
       case "REMOTE_QUOTE":
-        // Always blocks: a remote quote has no price to lock in by definition.
-        setState({ kind: "photo_review", labels: option.requiredPhotoLabels });
-        break;
+        return {
+          kind: "terminal",
+          config: nextConfig,
+          state: { kind: "photo_review", labels: option.requiredPhotoLabels },
+        };
       case "REROUTE_SERVICE":
-        if (option.rerouteServiceId) {
-          setState({ kind: "reroute", serviceId: option.rerouteServiceId, reason: option.label });
-        }
-        break;
+        return {
+          kind: "terminal",
+          config: nextConfig,
+          state: option.rerouteServiceId
+            ? { kind: "reroute", serviceId: option.rerouteServiceId, reason: option.label }
+            : { kind: "resolved", priceCents: total, disclaimer: null },
+        };
+      default:
+        return {
+          kind: "terminal",
+          config: nextConfig,
+          state: { kind: "resolved", priceCents: total, disclaimer: null },
+        };
     }
+  }
+
+  /**
+   * Walk forward from a question, auto-answering any whose key the customer
+   * has already answered (handoff §29).
+   *
+   * This is what stops the Lighting Control module re-asking the attic/
+   * finished-space question that the Height/Access module already collected,
+   * and what makes answers carried through a REROUTE_SERVICE actually useful
+   * rather than merely preserved.
+   *
+   * Matching is by Question.key and AnswerOption.value, so two modules share
+   * an answer only when they deliberately share a key.
+   */
+  function advanceFrom(
+    questionId: string | null,
+    cfg: JobConfiguration,
+    ans: Record<string, string>
+  ) {
+    let config = cfg;
+    let currentId = questionId;
+    // A tree can be miswired into a cycle; auto-advance would spin forever.
+    const visited = new Set<string>();
+
+    while (currentId) {
+      const question = flow?.questions.find((q) => q.id === currentId);
+      if (!question || visited.has(question.id)) break;
+      visited.add(question.id);
+
+      const prior = ans[question.key];
+      const priorOption = prior
+        ? question.options.find((o) => o.value === prior)
+        : undefined;
+
+      // Nothing collected for this key yet — ask it.
+      if (!priorOption) {
+        setConfig(config);
+        setState({ kind: "question", question });
+        return;
+      }
+
+      const result = evaluate(priorOption, config);
+      config = result.config;
+      if (result.kind === "continue") {
+        currentId = result.nextQuestionId;
+        continue;
+      }
+      setConfig(config);
+      setState(result.state);
+      return;
+    }
+
+    // Ran out of questions, or hit a cycle — fail safe to a price rather than
+    // a dead end.
+    setConfig(config);
+    const anchor = isAddOn ? flow?.whileWeThereBasePrice : flow?.basePrice;
+    const priced = customerPrice(config, anchor ?? null);
+    setState({ kind: "resolved", priceCents: priced.totalCents ?? 0, disclaimer: null });
+  }
+
+  async function handleAnswer(question: QuestionDTO, option: AnswerOptionDTO) {
+    pushHistory();
+    const newAnswers = { ...answers, [question.key]: option.value };
+    setAnswers(newAnswers);
+
+    const result = evaluate(option, config ?? startConfiguration(flow!));
+
+    if (result.kind === "continue") {
+      // Skip straight past anything already answered.
+      advanceFrom(result.nextQuestionId, result.config, newAnswers);
+      return;
+    }
+
+    if (result.state.kind === "troubleshooting") {
+      // Fetched on demand rather than up front — most flows never reach it.
+      fetch("/api/services/electrical-troubleshooting")
+        .then((r) => r.json())
+        .then((t: { basePrice?: number }) => setTroubleshootingCents(t?.basePrice ?? null))
+        .catch(() => setTroubleshootingCents(null));
+    }
+
+    setConfig(result.config);
+    setState(result.state);
   }
 
   // Shared by the plain resolved path and the price-locked photo path — the
