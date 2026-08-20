@@ -47,6 +47,27 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
             >
               <span className="block">{option.label}</span>
 
+              {/* A disclaimer on an answer describes what picking it MEANS —
+                  that the new light shares a switch, that we'll open the
+                  ceiling at the existing fixture. It has to be readable
+                  before the choice, not after. Answers that settle a price
+                  also show it on the confirmation screen; answers that
+                  continue to another question used to show it nowhere at
+                  all. */}
+              {(option.disclaimer ||
+                (option.accessFinishedDisclaimer && accessClass === "FINISHED")) && (
+                <span className="mt-1.5 block text-xs font-normal leading-relaxed text-slate">
+                  {option.disclaimer}
+                  {/* Only true when there's no attic or open space to work
+                      from. Telling an attic customer we'll open their ceiling
+                      would be a lie, and disclaimers stop being read the
+                      moment one of them isn't true. */}
+                  {option.accessFinishedDisclaimer && accessClass === "FINISHED" && (
+                    <> {option.accessFinishedDisclaimer}</>
+                  )}
+                </span>
+              )}
+
               {/* Price the answer before it's chosen. Anything that costs
                   extra says so up front; anything we can't price up front
                   says that instead of showing a number that might move. */}

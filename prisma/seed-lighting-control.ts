@@ -317,8 +317,13 @@ prompt: "Would you like a dimmer on the new switch?",
         // light will come on with the existing one, from the same switch.
         // "Can we tap power from a nearby light" hid that, and a customer
         // who wanted independent control would only find out on the day.
+        // True whichever route the house has: sharing the switch is a
+        // consequence of picking up power at that fixture, full stop.
         disclaimer:
-          "Your new light will turn on and off together with the existing one, from the same switch. If you'd like it on its own switch instead, choose the new-switch option.",
+          "We'll pick up power at that existing light, so your new one will turn on and off together with it, from the same switch. If you'd rather it had its own switch, choose the new-switch option instead.",
+        // Only true with no attic or open space above.
+        accessFinishedDisclaimer:
+          "Because there's no open space above this ceiling, we'll need to make an opening at the existing light as well as at the new one to make that connection. The fixture covers some of it, but not always all.",
         routeAction: "CONTINUE",
         nextQuestionId: qDimmer.id,
         order: 1,

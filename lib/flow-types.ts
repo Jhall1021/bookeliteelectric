@@ -48,6 +48,8 @@ export type AnswerOptionDTO = {
   approvedComponentPriceCents: number | null;
   /** Set when this answer answers a route-access question. */
   accessClassification: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
+  /** Shown only when the established route is FINISHED. */
+  accessFinishedDisclaimer: string | null;
   components: {
     quantity: number;
     conditionAccessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;

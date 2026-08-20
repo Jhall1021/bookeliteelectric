@@ -94,6 +94,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         addScheduleMinutes: o.addScheduleMinutes,
         approvedComponentPriceCents: o.approvedComponentPriceCents,
         accessClassification: o.accessClassification,
+        accessFinishedDisclaimer: o.accessFinishedDisclaimer,
         components: o.components.map((sel) => ({
           quantity: sel.quantity,
           // §29 — null on both means the component always applies; when set,

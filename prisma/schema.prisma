@@ -394,6 +394,17 @@ model AnswerOption {
   addMaterialCostCents Int?
   addScheduleMinutes   Int?
 
+  /// Extra caveat shown ONLY when the route established earlier is FINISHED.
+  ///
+  /// Some consequences are true either way and some aren't. Picking up power
+  /// at an existing fixture always means sharing its switch — but it only
+  /// means opening the ceiling when there's no attic to work from. Putting
+  /// both in one string tells attic customers we'll cut their ceiling when we
+  /// won't, which is the opposite of the problem disclaimers exist to solve.
+  ///
+  /// Rendered after the main disclaimer, so the two read as one paragraph.
+  accessFinishedDisclaimer String?
+
   /// What this answer means for wiring access, if it's an access answer.
   ///
   /// Null on most answers. Set on any answer to a route-access question so
