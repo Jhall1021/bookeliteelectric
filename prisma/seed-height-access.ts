@@ -23,6 +23,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { upsertQuestion, findDanglingReferences } from "./_moduleHelpers";
 
 const prisma = new PrismaClient();
 
@@ -71,26 +72,14 @@ async function attach(slug: string) {
     return;
   }
 
-  // Remove any previous copy of the module so re-runs are clean.
-  const existing = service.questions.filter(
-    (q) => q.key === HEIGHT_KEY || q.key === BELOW_KEY
-  );
-  for (const q of existing) {
-    await prisma.answerOption.deleteMany({ where: { questionId: q.id } });
-  }
-  if (existing.length) {
-    await prisma.question.deleteMany({ where: { id: { in: existing.map((q) => q.id) } } });
-  }
-
-  // Whatever used to be asked first is where the module hands off. Null when
-  // the service has no other questions, in which case a qualifying answer
-  // resolves to the published price directly.
+  // Questions are updated in place, never deleted and recreated — their ids
+  // are referenced by other answers, and churning them is what broke the
+  // lighting trees.
   const remaining = service.questions.filter(
     (q) => q.key !== HEIGHT_KEY && q.key !== BELOW_KEY
   );
   const handoffQuestionId = remaining[0]?.id ?? null;
 
-  // Push the service's own questions back so the module occupies 0 and 1.
   for (let i = 0; i < remaining.length; i++) {
     await prisma.question.update({
       where: { id: remaining[i].id },
@@ -98,26 +87,18 @@ async function attach(slug: string) {
     });
   }
 
-  const qHeight = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: HEIGHT_KEY,
-      prompt: "About how high is the fixture or work area?",
-      helpText: "A rough estimate is fine — we're checking whether we need more than a standard ladder.",
-      inputType: "SINGLE_SELECT",
-      order: 0,
-    },
+  const qHeight = await upsertQuestion(prisma, service.id, {
+    key: HEIGHT_KEY,
+    prompt: "About how high is the fixture or work area?",
+    helpText: "A rough estimate is fine — we're checking whether we need more than a standard ladder.",
+    order: 0,
   });
 
-  const qBelow = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: BELOW_KEY,
-      prompt: "What's directly below the work area?",
-      helpText: "Where we can set a ladder matters as much as the height does.",
-      inputType: "SINGLE_SELECT",
-      order: 1,
-    },
+  const qBelow = await upsertQuestion(prisma, service.id, {
+    key: BELOW_KEY,
+    prompt: "What's directly below the work area?",
+    helpText: "We're asking whether there's somewhere normal to stand a ladder.",
+    order: 1,
   });
 
   // §7: 12 ft or less continues; over 12 ft and "not sure" both go to review.
@@ -137,14 +118,22 @@ async function attach(slug: string) {
     ? { routeAction: "CONTINUE" as const, nextQuestionId: handoffQuestionId }
     : { routeAction: "RESOLVE_INSTANT" as const, nextQuestionId: null };
 
+  // An open room isn't a ladder problem. V4 lumped "open foyer / two-story
+  // space" into one option, which sent every open-plan entryway to review
+  // even at 8 ft with a flat floor. What matters is whether there's somewhere
+  // normal to stand a ladder — not what the room is called.
+  //
+  // Height is tested separately, so an open foyer at 18 ft still goes to
+  // review, on height rather than on being a foyer.
   await prisma.answerOption.createMany({
     data: [
       { questionId: qBelow.id, label: "A normal level floor", value: "level_floor", ...continueOption, order: 1, requiredPhotoLabels: [] },
-      { questionId: qBelow.id, label: "A staircase", value: "staircase", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: ACCESS_PHOTOS },
-      { questionId: qBelow.id, label: "An open foyer or two-story space", value: "open_foyer", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: ACCESS_PHOTOS },
-      { questionId: qBelow.id, label: "A loft or balcony edge", value: "loft_balcony", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: ACCESS_PHOTOS },
-      { questionId: qBelow.id, label: "Furniture or built-ins that can't easily be moved", value: "immovable_furniture", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: ACCESS_PHOTOS },
-      { questionId: qBelow.id, label: "Something else, or I'm not sure", value: "other_unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 6, requiredPhotoLabels: ACCESS_PHOTOS },
+      { questionId: qBelow.id, label: "An open room or entryway, with a level floor underneath", value: "open_room_level", ...continueOption, order: 2, requiredPhotoLabels: [] },
+      { questionId: qBelow.id, label: "A staircase", value: "staircase", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: ACCESS_PHOTOS },
+      { questionId: qBelow.id, label: "Open to the floor below — it hangs over a stairwell or a drop", value: "open_to_below", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: ACCESS_PHOTOS },
+      { questionId: qBelow.id, label: "A loft or balcony edge", value: "loft_balcony", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: ACCESS_PHOTOS },
+      { questionId: qBelow.id, label: "Furniture or built-ins that can't easily be moved", value: "immovable_furniture", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 6, requiredPhotoLabels: ACCESS_PHOTOS },
+      { questionId: qBelow.id, label: "Something else, or I'm not sure", value: "other_unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 7, requiredPhotoLabels: ACCESS_PHOTOS },
     ],
   });
 

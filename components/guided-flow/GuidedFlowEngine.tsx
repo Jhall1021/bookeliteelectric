@@ -26,7 +26,7 @@ type TerminalState =
   | { kind: "question"; question: QuestionDTO }
   | { kind: "resolved"; priceCents: number; disclaimer: string | null }
   | { kind: "reroute"; serviceId: string; reason: string }
-  | { kind: "troubleshooting" }
+  | { kind: "troubleshooting"; note?: string | null }
   | { kind: "photo_review"; labels: string[]; safetyNotes?: string[] }
   // Price already settled; the photos are prep for the technician, not a
   // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
@@ -199,7 +199,14 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           state: { kind: "resolved", priceCents: total, disclaimer: option.disclaimer },
         };
       case "REROUTE_TROUBLESHOOTING":
-        return { kind: "terminal", config: nextConfig, state: { kind: "troubleshooting" } };
+        // Carry the answer's disclaimer through — that's where the "we'll start at
+      // the device and only charge for the swap if that's all it is" promise
+      // lives, and it's useless if the customer never sees it.
+      return {
+          kind: "terminal",
+          config: nextConfig,
+          state: { kind: "troubleshooting", note: option.disclaimer },
+        };
       case "PHOTO_REVIEW":
         // Two very different outcomes share this route action. When the photos
         // don't block booking, the answer has already determined the price, so
@@ -442,6 +449,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         <h2 className="font-display text-xl font-bold text-navy">
           This sounds like a troubleshooting job
         </h2>
+        {state.note && (
+          <p className="mx-auto mt-4 max-w-lg rounded-card bg-warmwhite p-4 text-left text-sm text-slate">
+            {state.note}
+          </p>
+        )}
         <p className="mt-2 text-slate">
           Based on your answer, we'd rather diagnose the issue first than have you book the
           wrong repair. Our Electrical Troubleshooting visit

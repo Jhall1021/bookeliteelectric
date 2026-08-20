@@ -24,6 +24,15 @@ export default function QuestionStep({ question, answers, onAnswer }: Props) {
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {question.options.map((option) => {
           const delta = answerPriceDelta(option, answers);
+          // Only an answer that SETTLES something can promise a price. A
+          // CONTINUE answer carrying no charge of its own says nothing —
+          // what the customer pays still depends on later questions, so
+          // "No extra charge" there is a promise it can't keep.
+          const settles =
+            option.routeAction === "RESOLVE_INSTANT" ||
+            option.routeAction === "RESOLVE_ADJUSTED" ||
+            (option.routeAction === "PHOTO_REVIEW" && !option.photosBlockBooking);
+          const showsFree = settles && delta.cents === 0;
           return (
             <button
               key={option.id}
@@ -47,11 +56,11 @@ export default function QuestionStep({ question, answers, onAnswer }: Props) {
                 <span className="mt-1 block text-xs font-semibold text-success">
                   − {formatCents(Math.abs(delta.cents))}
                 </span>
-              ) : (
+              ) : showsFree ? (
                 <span className="mt-1 block text-xs font-normal text-slate">
                   No extra charge
                 </span>
-              )}
+              ) : null}
             </button>
           );
         })}

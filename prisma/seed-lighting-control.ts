@@ -22,6 +22,12 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import {
+  upsertQuestion,
+  rewireTerminalsInto,
+  findDanglingReferences,
+  findUnreachableQuestions,
+} from "./_moduleHelpers";
 
 const prisma = new PrismaClient();
 
@@ -187,77 +193,53 @@ async function attach(slug: string) {
   }
 
   const moduleKeys = [CONTROL_KEY, NEAR_POWER_KEY, DIMMER_KEY, WALL_ACCESS_KEY, FINISHED_BOTH_KEY];
-  const stale = service.questions.filter((q) => moduleKeys.includes(q.key));
-  for (const q of stale) {
-    await prisma.answerOption.deleteMany({ where: { questionId: q.id } });
-  }
-  if (stale.length) {
-    await prisma.question.deleteMany({ where: { id: { in: stale.map((q) => q.id) } } });
-  }
 
+  // Questions are upserted by key, never deleted and recreated. Recreating
+  // them handed out new ids while other answers still pointed at the old
+  // ones, which silently broke four trees.
   const kept = service.questions.filter((q) => !moduleKeys.includes(q.key));
   const nextOrder = kept.length;
 
   const comp = async (key: string) =>
     (await prisma.jobComponent.findUniqueOrThrow({ where: { key } })).id;
 
-  const qControl = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: CONTROL_KEY,
-      prompt: "How is this room controlled right now?",
+  const qControl = await upsertQuestion(prisma, service.id, {
+    key: CONTROL_KEY,
+prompt: "How would you like the new light controlled?",
       helpText:
-        "We're working out whether we need to add switch wiring. You don't need to look inside anything.",
-      inputType: "SINGLE_SELECT",
-      order: nextOrder,
-    },
+        "You don't need to look inside anything — just tell us how you'd like it to work.",
+    order: nextOrder,
   });
 
-  const qNearPower = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: NEAR_POWER_KEY,
-      prompt:
+  const qNearPower = await upsertQuestion(prisma, service.id, {
+    key: NEAR_POWER_KEY,
+prompt:
         "Is there an existing outlet directly below, or very close to, where you'd like the new switch?",
       helpText: "This is usually how we get power to a new switch without opening up the wall.",
-      inputType: "SINGLE_SELECT",
-      order: nextOrder + 1,
-    },
+    order: nextOrder + 1,
   });
 
   // Mirrors the New 120V Outlet access pair, for the case where power has to
   // be run to the new switch location.
-  const qWallAccess = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: WALL_ACCESS_KEY,
-      prompt:
+  const qWallAccess = await upsertQuestion(prisma, service.id, {
+    key: WALL_ACCESS_KEY,
+prompt:
         "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below the wall where the switch will go?",
       helpText: "This is what decides whether we can run the wire without opening up the wall.",
-      inputType: "SINGLE_SELECT",
-      order: nextOrder + 3,
-    },
+    order: nextOrder + 3,
   });
 
-  const qFinishedBoth = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: FINISHED_BOTH_KEY,
-      prompt: "Is there finished living space directly above and below that wall?",
+  const qFinishedBoth = await upsertQuestion(prisma, service.id, {
+    key: FINISHED_BOTH_KEY,
+prompt: "Is there finished living space directly above and below that wall?",
       helpText: "For example, a finished bedroom upstairs and a finished room below, with no open access between them.",
-      inputType: "SINGLE_SELECT",
-      order: nextOrder + 4,
-    },
+    order: nextOrder + 4,
   });
 
-  const qDimmer = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: DIMMER_KEY,
-      prompt: "Would you like a dimmer on the new switch?",
-      inputType: "SINGLE_SELECT",
-      order: nextOrder + 2,
-    },
+  const qDimmer = await upsertQuestion(prisma, service.id, {
+    key: DIMMER_KEY,
+prompt: "Would you like a dimmer on the new switch?",
+    order: nextOrder + 2,
   });
 
   // §13.1 — an existing switched ceiling light is already the condition we
@@ -268,8 +250,14 @@ async function attach(slug: string) {
     data: [
       {
         questionId: qControl.id,
-        label: "A wall switch already controls a ceiling light here",
+        label: "From the wall switch that already controls a ceiling light in this room",
         value: "existing_switched_light",
+        // The consequence has to be visible BEFORE they pick it: the new
+        // light will come on with the existing one, from the same switch.
+        // "Can we tap power from a nearby light" hid that, and a customer
+        // who wanted independent control would only find out on the day.
+        disclaimer:
+          "Your new light will turn on and off together with the existing one, from the same switch. If you'd like it on its own switch instead, choose the new-switch option.",
         routeAction: "CONTINUE",
         nextQuestionId: qDimmer.id,
         order: 1,
@@ -279,7 +267,7 @@ async function attach(slug: string) {
       },
       {
         questionId: qControl.id,
-        label: "A wall switch controls an outlet in the room",
+        label: "A wall switch here controls an outlet — I'd like it to control the new light instead",
         value: "switched_outlet",
         routeAction: "CONTINUE",
         nextQuestionId: qDimmer.id,
@@ -292,7 +280,7 @@ async function attach(slug: string) {
       },
       {
         questionId: qControl.id,
-        label: "There's no wall switch where I want one",
+        label: "I need a new wall switch — there isn't one where I want it",
         value: "no_switch",
         routeAction: "CONTINUE",
         nextQuestionId: qNearPower.id,
@@ -302,7 +290,7 @@ async function attach(slug: string) {
       },
       {
         questionId: qControl.id,
-        label: "There's a switch, but it controls something else or nothing",
+        label: "There's a switch, but I don't know what it controls",
         value: "switch_unclear",
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true,
@@ -523,17 +511,23 @@ async function attach(slug: string) {
   // priceModifierCents on a rewired answer still accumulates — switching
   // RESOLVE_ADJUSTED to CONTINUE changes where the customer goes next, not
   // what the answer contributes.
-  const rewired = await prisma.answerOption.updateMany({
-    where: {
-      question: { serviceId: service.id, key: { notIn: moduleKeys } },
-      routeAction: { in: ["RESOLVE_INSTANT", "RESOLVE_ADJUSTED"] },
-    },
-    data: { routeAction: "CONTINUE", nextQuestionId: qControl.id },
-  });
+  // Converts first-run terminals AND repairs anything pointing at a question
+  // that no longer exists — the damage delete-and-recreate left behind.
+  const { converted, repaired } = await rewireTerminalsInto(
+    prisma,
+    service.id,
+    qControl.id,
+    moduleKeys
+  );
+
+  const dangling = await findDanglingReferences(prisma, service.id);
+  const unreachable = await findUnreachableQuestions(prisma, service.id);
 
   console.log(
-    `  ✓ ${slug} — module attached after ${kept.length} existing question(s), ` +
-      `${rewired.count} previously-terminal answer(s) now continue into it`
+    `  ✓ ${slug} — ${converted} terminal answer(s) wired in` +
+      (repaired ? `, ${repaired} broken reference(s) repaired` : "") +
+      (dangling.length ? `  [DANGLING: ${dangling.join(", ")}]` : "") +
+      (unreachable.length ? `  [UNREACHABLE: ${unreachable.join(", ")}]` : "")
   );
 }
 
