@@ -70,6 +70,49 @@ enum PhotoState {
   REVIEW_REQUIRED
 }
 
+/// A part Elite buys, priced once and referenced by every service using it.
+///
+/// Services previously carried a single materialCostCents — the exterior GFCI
+/// held 5244, with the breakdown of what that covered living only in a code
+/// comment. A price rise on GFCI receptacles meant hunting through seeds for
+/// which totals silently included one.
+///
+/// Itemized instead: change the receptacle here and every service using it
+/// reprices. Invisible to customers; the pricing engine still sees one
+/// assembled total per service, with the §4 tier applied to that total rather
+/// than to each part.
+model Material {
+  id          String  @id @default(cuid())
+  /// Stable identifier for seeds and code, e.g. GFCI_WEATHER_RESISTANT.
+  key         String  @unique
+  name        String
+  /// What Elite pays, in cents. Markup is applied downstream by the tier
+  /// rule, never baked in here.
+  unitCostCents Int
+  /// "each", "ft", "box" — display only; quantity does the arithmetic.
+  unit        String  @default("each")
+  notes       String?
+  active      Boolean @default(true)
+  services    ServiceMaterial[]
+
+  @@map("materials")
+}
+
+/// Join: how much of a material a service consumes.
+model ServiceMaterial {
+  id         String   @id @default(cuid())
+  serviceId  String
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id])
+  /// Supports fractional quantities — 2 ft of cable, half a box of staples.
+  quantity   Float    @default(1)
+  order      Int      @default(0)
+
+  @@unique([serviceId, materialId])
+  @@map("service_materials")
+}
+
 /// Reusable photo requirement groups.
 ///
 /// Photo labels were being written out by hand in every seed script — 51
@@ -108,6 +151,44 @@ model AnswerOptionPhotoGroup {
 
   @@unique([answerOptionId, photoGroupId])
   @@map("answer_option_photo_groups")
+}
+
+/// Text shown only when an earlier answer means it applies.
+///
+/// The fourth bespoke version of this was about to be built. Each one —
+/// accessFinishedDisclaimer, the switch-leg acknowledgement, the fixture
+/// acknowledgement — does the same job: show this sentence when the route
+/// established earlier was finished. Written per tree, they drift; a customer
+/// with an attic gets told we'll cut their ceiling because one copy wasn't
+/// updated.
+///
+/// Defined once, attached where it applies, evaluated against the
+/// classification the flow has already established.
+model ConditionalDisclaimer {
+  id        String @id @default(cuid())
+  key       String @unique
+  name      String
+  /// Shown to the customer when the condition holds.
+  text      String
+  /// Only render when the access classification matches. Null means always.
+  accessClass AccessClassification?
+  active    Boolean @default(true)
+  notes     String?
+  options   AnswerOptionDisclaimer[]
+
+  @@map("conditional_disclaimers")
+}
+
+model AnswerOptionDisclaimer {
+  id             String                @id @default(cuid())
+  answerOptionId String
+  answerOption   AnswerOption          @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+  disclaimerId   String
+  disclaimer     ConditionalDisclaimer @relation(fields: [disclaimerId], references: [id])
+  order          Int                   @default(0)
+
+  @@unique([answerOptionId, disclaimerId])
+  @@map("answer_option_disclaimers")
 }
 
 /// Reusable named job components (handoff §13-§14).
@@ -267,6 +348,16 @@ model Service {
   // Handoff §5/§31: calculated prices are recommendations; nothing overwrites
   // a published price silently.
   publishedPriceApprovedAt DateTime?
+
+  /// Itemized materials. When any exist they are the source of truth and
+  /// materialCostCents is derived from them; the flat field remains for
+  /// services not yet itemized.
+  materials ServiceMaterial[]
+
+  /// Display order within its category. Services previously sorted by name,
+  /// which put "200-Amp Service Upgrade" above everything alphabetically
+  /// regardless of how often anyone books it.
+  sortOrder Int @default(0)
   active              Boolean         @default(true)
   // Shown alongside the price on services with NO question tree at all —
   // a flat price that still needs a caveat attached (e.g. "we don't move
@@ -432,6 +523,11 @@ model AnswerOption {
 
   /// Named reusable components selected by this answer (§13-§14).
   components AnswerOptionComponent[]
+
+  /// Conditional text attached to this answer — rendered only when its
+  /// condition holds. Supersedes accessFinishedDisclaimer, which stays for
+  /// now so existing trees keep working.
+  conditionalDisclaimers AnswerOptionDisclaimer[]
 
   /// Reusable photo groups requested by this answer. Preferred over writing
   /// labels into requiredPhotoLabels: the group carries the wording and the
