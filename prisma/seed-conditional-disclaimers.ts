@@ -176,16 +176,60 @@ async function main() {
       continue;
     }
 
-    const destinations = new Set(accessibleAnswers.map((o) => o.nextQuestionId ?? "RESOLVE"));
+    // Where the accessible answers went BEFORE this seed ever touched them.
+    //
+    // On a re-run they already point at the exterior-wall question, so taking
+    // their destination naively makes that question route to itself and
+    // orphans everything downstream. When that's what we find, the real
+    // destination is whatever the exterior question's own answers point at.
+    const priorExterior = service.questions.find((q) => q.key === EXTERIOR_WALL_KEY);
+    const rawDestinations = new Set(
+      accessibleAnswers.map((o) => o.nextQuestionId ?? "RESOLVE")
+    );
+    const destinations = new Set(
+      [...rawDestinations].map((d) => {
+        if (priorExterior && d === priorExterior.id) {
+          const onward = priorExterior.options.find(
+            (o) => o.routeAction === "CONTINUE" && o.nextQuestionId
+          );
+          return onward?.nextQuestionId ?? "RESOLVE";
+        }
+        return d;
+      })
+    );
+
     if (destinations.size > 1) {
       console.log(`  ! ${s.slug} — accessible answers go to ${destinations.size} places; skipped`);
       continue;
     }
     const [destination] = [...destinations];
 
-    let qExterior = service.questions.find((q) => q.key === EXTERIOR_WALL_KEY);
-    if (!qExterior) {
-      qExterior = await prisma.question.create({
+    // If it still resolves to the exterior question, a previous run already
+    // looped it. Fall back to document order: the next question after the
+    // access one that isn't the exterior question is where the chain was
+    // always meant to go.
+    let resolvedDestination = destination;
+    if (priorExterior && destination === priorExterior.id) {
+      const next = service.questions
+        .filter((q) => q.order > after.order && q.key !== EXTERIOR_WALL_KEY)
+        .sort((a, b) => a.order - b.order)[0];
+      if (!next) {
+        console.log(`  ! ${s.slug} — exterior-wall question loops and nothing follows it; needs a look`);
+        continue;
+      }
+      resolvedDestination = next.id;
+      console.log(`  · ${s.slug} — repairing a self-referencing exterior-wall question`);
+    }
+
+    // Separate binding rather than reassigning the found one: service.questions
+    // is typed with its options included, and question.create returns a bare
+    // question. Only the id is needed here either way.
+    if (priorExterior) {
+      await prisma.answerOption.deleteMany({ where: { questionId: priorExterior.id } });
+    }
+    const qExterior =
+      priorExterior ??
+      (await prisma.question.create({
         data: {
           serviceId: service.id,
           key: EXTERIOR_WALL_KEY,
@@ -195,14 +239,11 @@ async function main() {
           inputType: "SINGLE_SELECT",
           order: after.order + 1,
         },
-      });
-    } else {
-      await prisma.answerOption.deleteMany({ where: { questionId: qExterior.id } });
-    }
+      }));
 
     const proceed =
-      destination && destination !== "RESOLVE"
-        ? { routeAction: "CONTINUE" as const, nextQuestionId: destination }
+      resolvedDestination && resolvedDestination !== "RESOLVE"
+        ? { routeAction: "CONTINUE" as const, nextQuestionId: resolvedDestination }
         : { routeAction: "RESOLVE_INSTANT" as const, nextQuestionId: null };
 
     await prisma.answerOption.createMany({

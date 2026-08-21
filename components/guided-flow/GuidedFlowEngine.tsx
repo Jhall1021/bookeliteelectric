@@ -65,6 +65,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // another. Read it from the service instead; the hardcode was the bug, not
   // the specific figure.
   const [troubleshootingCents, setTroubleshootingCents] = useState<number | null>(null);
+  // Stored under a reserved key in answersSnapshot rather than its own column
+  // — it's part of the record of what the customer told us, same as any
+  // answer, and it reaches the job sheet without extra plumbing.
+  const [customerNote, setCustomerNote] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [state, setState] = useState<TerminalState | null>(null);
   // Every step the customer has already passed through, newest last. The
@@ -350,7 +354,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         computedPriceCents: priceCents,
         // An add-on is never the anchor job for the visit.
         isPrimary: !isAddOn,
-        answersSnapshot: answers,
+        answersSnapshot: customerNote.trim()
+          ? { ...answers, customer_note: customerNote.trim() }
+          : answers,
         ...(photos && photos.length > 0 ? { photos } : {}),
       }),
     });
@@ -481,6 +487,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         disclaimer={state.disclaimer}
         labels={state.labels}
         safetyNotes={state.safetyNotes}
+        note={customerNote}
+        onNoteChange={setCustomerNote}
         onConfirm={(photos) => addToVisit(state.priceCents, photos)}
       />
     );
@@ -491,6 +499,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       <PhotoReviewNotice
         labels={state.labels}
         safetyNotes={state.safetyNotes}
+        note={customerNote}
+        onNoteChange={setCustomerNote}
         serviceName={flow.name}
         serviceId={flow.id}
         answers={answers}

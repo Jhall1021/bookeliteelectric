@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
 import { answerPriceDelta } from "@/lib/pricing";
@@ -22,6 +24,47 @@ type Props = {
 };
 
 export default function QuestionStep({ question, answers, accessClass, onAnswer }: Props) {
+  const [text, setText] = useState("");
+
+  // A TEXT question has one option carrying the routing; what the customer
+  // types becomes its value. The schema has supported TEXT and NUMBER since
+  // the beginning but nothing rendered them, which is why the bathroom-fan
+  // housing measurements and the smart-switch make/model both got deferred.
+  if (question.inputType === "TEXT" || question.inputType === "NUMBER") {
+    const route = question.options[0];
+    const required = question.options.length > 0 && !route?.value?.startsWith("optional");
+    return (
+      <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+        <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>
+        {question.helpText && <p className="mt-1 text-sm text-slate">{question.helpText}</p>}
+
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={question.inputType === "NUMBER" ? 2 : 4}
+          className="mt-4 w-full rounded-card border border-cardline px-4 py-3 text-sm focus:border-electric"
+          placeholder={question.inputType === "NUMBER" ? "e.g. 8 x 8" : "Type your answer here"}
+        />
+
+        <button
+          onClick={() => route && onAnswer({ ...route, value: text.trim() || route.value })}
+          disabled={!route || (required && text.trim().length === 0)}
+          className="mt-4 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40"
+        >
+          Continue
+        </button>
+        {!required && (
+          <button
+            onClick={() => route && onAnswer(route)}
+            className="mt-2 w-full text-center text-sm text-slate hover:text-navy"
+          >
+            Skip this
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
       <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>

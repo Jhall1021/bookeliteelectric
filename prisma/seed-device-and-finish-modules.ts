@@ -174,6 +174,56 @@ async function seedDeviceModule(slug: string) {
     ],
   });
 
+  // Smart switches only: an optional make/model capture. Doesn't affect the
+  // price — it means the technician can look up whether that model needs a
+  // neutral before arriving rather than discovering it in the wall.
+  //
+  // Deferred until now because TEXT had no renderer; QuestionStep handles it
+  // as of this batch.
+  if (slug.includes("smart-switch")) {
+    const existingModel = service.questions.find((q) => q.key === "smart_switch_model");
+    const qModel =
+      existingModel ??
+      (await prisma.question.create({
+        data: {
+          serviceId: service.id,
+          key: "smart_switch_model",
+          prompt: "Which smart switch are you installing?",
+          helpText:
+            "Make and model if you have it — it's on the box. Skip this if you'd rather; it won't change your price, it just means we can check what it needs before we come out.",
+          inputType: "TEXT",
+          order: 1,
+        },
+      }));
+    if (existingModel) {
+      await prisma.answerOption.deleteMany({ where: { questionId: qModel.id } });
+    }
+
+    // "optional" prefix tells the TEXT renderer to offer a skip.
+    await prisma.answerOption.create({
+      data: {
+        questionId: qModel.id,
+        label: "Continue",
+        value: "optional_not_given",
+        routeAction: handoff ? "CONTINUE" : "RESOLVE_INSTANT",
+        nextQuestionId: handoff?.id ?? null,
+        order: 1,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: 0,
+      },
+    });
+
+    // The qualifying answers route through it on the way to whatever came
+    // next, so it sits between the reason question and the price.
+    await prisma.answerOption.updateMany({
+      where: {
+        questionId: q.id,
+        value: { in: ["works_upgrading", "intermittent", "damaged"] },
+      },
+      data: { routeAction: "CONTINUE", nextQuestionId: qModel.id },
+    });
+  }
+
   // Now safe to remove the superseded questions — nothing routes to them any
   // more, since this module is the entry point.
   for (const old of superseded) {

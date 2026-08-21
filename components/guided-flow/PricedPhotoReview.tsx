@@ -11,6 +11,9 @@ type Props = {
   labels: string[];
   /** Safety instructions from the photo groups used — shown once, not per label. */
   safetyNotes?: string[];
+  /** Optional free-text note, lifted to the engine so it lands in answersSnapshot. */
+  note?: string;
+  onNoteChange?: (v: string) => void;
   onConfirm: (photos: { url: string; label: string }[]) => Promise<void>;
 };
 
@@ -34,6 +37,8 @@ export default function PricedPhotoReview({
   disclaimer,
   labels,
   safetyNotes = [],
+  note = "",
+  onNoteChange,
   onConfirm,
 }: Props) {
   const [files, setFiles] = useState<Record<string, File | null>>({});
@@ -93,6 +98,24 @@ export default function PricedPhotoReview({
         right parts and doesn&rsquo;t have to make a second trip. This won&rsquo;t change what you
         pay.
       </p>
+
+      {/* Half of what makes a quote easy is the sentence the customer would
+          have said out loud. Never blocks submission. */}
+      {onNoteChange && (
+        <div className="mt-6">
+          <label className="text-sm font-medium text-navy">
+            Anything else you'd like us to know?{" "}
+            <span className="font-normal text-slate">(optional)</span>
+          </label>
+          <textarea
+            value={note}
+            onChange={(e) => onNoteChange(e.target.value)}
+            rows={3}
+            placeholder="Anything that might help us come prepared"
+            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+          />
+        </div>
+      )}
 
       {safetyNotes.length > 0 && (
         <div className="mt-6 rounded-card border border-amber-200 bg-amber-50 p-4">
