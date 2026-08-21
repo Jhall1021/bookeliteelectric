@@ -105,10 +105,12 @@ export default async function AdminServicesPage() {
             <div className="mt-2">
               <ReorderList
                 kind="services"
-                items={cat.services.map((s) => ({ id: s.id, label: s.name }))}
-                renderItem={(item) => {
-                  const svc = cat.services.find((s) => s.id === item.id)!;
-                  return (
+                items={cat.services.map((svc) => ({
+                  id: svc.id,
+                  label: svc.name,
+                  // Elements, not a callback — functions can't cross from a
+                  // Server Component into a Client one.
+                  content: (
                     <Link
                       href={`/admin/services/${svc.id}`}
                       className={`flex items-center justify-between gap-4 ${
@@ -118,17 +120,11 @@ export default async function AdminServicesPage() {
                       <div className="min-w-0">
                         <div className="truncate text-sm text-navy">
                           {svc.name}
-                          {!svc.active && (
-                            <span className="ml-2 text-xs text-slate">(hidden)</span>
-                          )}
+                          {!svc.active && <span className="ml-2 text-xs text-slate">(hidden)</span>}
                         </div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate">
                           <span>{svc.bookingType.replace(/_/g, " ").toLowerCase()}</span>
-                          {svc._count.questions > 0 && (
-                            <span>{svc._count.questions} questions</span>
-                          )}
-                          {/* Null hours mean no suggested price can be
-                              calculated at all — worth seeing from here. */}
+                          {svc._count.questions > 0 && <span>{svc._count.questions} questions</span>}
                           <span className={svc.fieldLaborHours === null ? "text-amber-700" : ""}>
                             {svc.fieldLaborHours !== null
                               ? `${svc.fieldLaborHours} hr`
@@ -142,9 +138,7 @@ export default async function AdminServicesPage() {
                             </span>
                           )}
                           {svc._count.materials > 0 ? (
-                            <span className="text-success">
-                              {svc._count.materials} materials
-                            </span>
+                            <span className="text-success">{svc._count.materials} materials</span>
                           ) : svc.materialCostCents ? (
                             <span className="text-amber-700">
                               {formatCents(svc.materialCostCents)} not itemized
@@ -165,8 +159,8 @@ export default async function AdminServicesPage() {
                         )}
                       </div>
                     </Link>
-                  );
-                }}
+                  ),
+                }))}
               />
             </div>
           </div>

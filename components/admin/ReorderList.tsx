@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Item = { id: string; label: string };
+/**
+ * `content` is a pre-rendered element rather than a render function.
+ *
+ * A Server Component can hand a Client Component elements, but not functions —
+ * a callback can't be serialized across that boundary. Passing renderItem
+ * compiled fine and then failed at request time, which is the worst place to
+ * find out.
+ */
+type Item = { id: string; label: string; content?: React.ReactNode };
 
 /**
  * Up/down reordering for a list of categories or services.
@@ -18,11 +26,9 @@ type Item = { id: string; label: string };
 export default function ReorderList({
   kind,
   items,
-  renderItem,
 }: {
   kind: "categories" | "services";
   items: Item[];
-  renderItem?: (item: Item, index: number) => React.ReactNode;
 }) {
   const router = useRouter();
   const [order, setOrder] = useState(items);
@@ -86,7 +92,7 @@ export default function ReorderList({
               </button>
             </div>
             <div className="min-w-0 flex-1">
-              {renderItem ? renderItem(item, i) : <span className="text-sm text-navy">{item.label}</span>}
+              {item.content ?? <span className="text-sm text-navy">{item.label}</span>}
             </div>
           </div>
         ))}
