@@ -84,6 +84,18 @@ export type QuestionDTO = {
   prompt: string;
   helpText: string | null;
   inputType: "SINGLE_SELECT" | "MULTI_SELECT" | "NUMBER" | "PHOTO_UPLOAD" | "TEXT";
+  /**
+   * Help text that only applies on some routes. Evaluated client-side against
+   * the access class established so far; `replaces` swaps out the default
+   * rather than adding to it, for cases where the default is actively wrong —
+   * the distance question tells customers to estimate the path through the
+   * basement or attic, which is nonsense once they've said there isn't one.
+   */
+  conditionalHelp: {
+    text: string;
+    accessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
+    replaces: boolean;
+  }[];
   order: number;
   options: AnswerOptionDTO[];
 };
