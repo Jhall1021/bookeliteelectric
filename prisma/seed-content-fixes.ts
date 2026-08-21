@@ -50,7 +50,10 @@ const SERVICE_DISCLAIMERS: { slug: string; text: string }[] = [
 
 /** Ceiling-location labor. Excludes switch/switch-leg work — that's a separate component. */
 const CEILING = [
-  { key: "NEW_CEILING_LIGHT_FINISHED", name: "New ceiling light — finished ceiling premium", label: "Finished-ceiling installation", hrs: 0.5, mins: 30, price: 12500, slug: "new-ceiling-light", accHrs: 1.5, accMins: 90 },
+  // 1.25 accessible -> 1.75 finished, so the premium is half an hour. The
+  // accessible base is set by seed-labor-hours.ts; this only carries the
+  // difference.
+  { key: "NEW_CEILING_LIGHT_FINISHED", name: "New ceiling light — finished ceiling premium", label: "Finished-ceiling installation", hrs: 0.5, mins: 30, price: 12500, slug: "new-ceiling-light", accHrs: 1.25, accMins: 75 },
   { key: "NEW_CEILING_FAN_FINISHED", name: "New ceiling fan — finished ceiling premium", label: "Finished-ceiling installation", hrs: 0.5, mins: 30, price: 12500, slug: "new-ceiling-fan", accHrs: 1.75, accMins: 105 },
 ];
 

@@ -1,0 +1,314 @@
+/**
+ * Labor hours — the catalog-wide pass.
+ *
+ *   npx tsx prisma/seed-labor-hours.ts
+ *
+ * Three models, per the handoff:
+ *
+ *   SET          one reliable standalone figure, one WWT figure
+ *   ROUTE-BASED  base hours on the service, the rest on route components
+ *   QUOTE        null is CORRECT, not incomplete — hours are established when
+ *                the office builds the fixed quote
+ *
+ * The last one matters most. A blank fieldLaborHours on a quote service is the
+ * right answer; filling it with an average to make the audit look complete
+ * would be the mistake.
+ *
+ * Changing hours recalculates SUGGESTED prices only. Nothing published moves.
+ *
+ * Idempotent.
+ */
+
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+/** SET: a standard job at an existing suitable location. */
+const SET: [string, number, number | null][] = [
+  // Appliance
+  ["garbage-disposal-install", 0.5, 0.25],
+  ["dishwasher-electrical", 0.75, 0.5],
+  ["install-new-microwave", 2.0, 1.5],
+  ["otr-microwave-install", 1.5, 1.0],
+  ["dryer-receptacle-replacement", 0.75, 0.5],
+  ["range-receptacle-replacement", 0.75, 0.5],
+
+  // Fans
+  ["bathroom-fan-light-combo", 2.0, 1.5],
+  ["replace-ceiling-fan", 1.25, 0.75],
+
+  // Lighting
+  ["replace-exterior-light-fixture", 1.0, 0.75],
+  ["replace-interior-light-fixture", 0.75, 0.5],
+  ["replace-motion-flood-light", 1.0, 0.75],
+
+  // New outlets
+  ["exterior-gfci-standard", 1.5, 1.0],
+
+  // Outlets & switches — normal device replacement at a powered location
+  ["customer-supplied-smart-switch", 0.75, 0.5],
+  ["smart-switch-upgrade", 0.75, 0.5],
+  ["occupancy-motion-switch", 0.5, 0.33],
+  ["replace-3-way-switch", 0.5, 0.33],
+  ["replace-gfci-outlet", 0.5, 0.33],
+  ["replace-led-dimmer", 0.5, 0.33],
+  ["replace-standard-outlet", 0.33, 0.33],
+  ["replace-standard-switch", 0.33, 0.33],
+  ["smart-outlet-upgrade", 0.75, 0.5],
+  ["timer-switch-install", 0.75, 0.5],
+  ["usb-outlet-upgrade", 0.5, 0.33],
+  ["customer-supplied-non-smart-outlet", 0.33, 0.33],
+  ["swap-out-customer-supplied-non-smart-switch", 0.33, 0.33],
+
+  // Panels
+  ["single-pole-breaker-replacement", 0.75, 0.5],
+  ["double-pole-breaker-replacement", 1.0, 0.75],
+
+  // Safety
+  ["hardwired-smoke-detector", 0.5, 0.25],
+  ["smoke-co-detector", 0.5, 0.25],
+  ["home-electrical-safety-inspection", 1.5, 1.25],
+  ["whole-house-surge-protection", 1.25, 1.0],
+
+  // Smart home
+  ["doorbell-transformer-replacement", 1.0, 0.75],
+  ["floodlight-camera-existing", 1.0, 0.75],
+  ["smart-thermostat-install", 0.75, 0.5],
+  ["video-doorbell-existing-wiring", 0.75, 0.5],
+
+  // TV & media
+  ["tv-install-existing-location", 0.75, 0.5],
+  ["soundbar-installation", 0.75, 0.5],
+
+  // Troubleshooting: the initial diagnostic block. No WWT — a diagnostic
+  // isn't something you add to another visit.
+  ["electrical-troubleshooting", 1.0, null],
+];
+
+/**
+ * ROUTE-BASED: the figure stored here is the BASE branch — the accessible,
+ * shortest, single-technician case. Everything above it lives on components,
+ * which is why this isn't the average the handoff warns against.
+ */
+const ROUTE_BASE: [string, number, number | null, string][] = [
+  // 1.25 accessible / 1.75 finished, matching the recessed first-light
+  // assumptions — both are "create a new lighting point". Switch and
+  // switch-leg work stacks separately and is NOT in these hours.
+  //
+  // This computes to $315 against a published $375. That variance is correct
+  // and the editor shows it. An earlier pass set 1.5 here so the calculation
+  // would land on $375, which is back-solving labor from selling price — the
+  // exact flaw the old primaryLaborUnits had, and the reason this field
+  // exists.
+  ["new-ceiling-light", 1.25, 1.0, "accessible ceiling; +0.50 component for finished"],
+  ["new-ceiling-fan", 1.75, 1.5, "accessible ceiling; +0.50 component for finished"],
+  ["fan-replacing-light", 1.5, 1.25, "accessible ceiling; +0.50 component for finished"],
+  ["recessed-lighting", 1.25, null, "first light, accessible; per-light components carry the rest"],
+  ["new-120v-outlet", 1.0, 0.75, "accessible, under 10 ft; distance components carry the rest"],
+  ["tv-installation", 1.5, 1.25, "up to 55 in, one tech; the 56-85 route overrides techCount to 2"],
+  ["replace-range-hood", 1.5, null, "standard existing-setup replacement only"],
+  // Same matrix as New 120V Outlet, per the handoff. These don't have the
+  // distance tree attached yet, so the base figure is all that applies until
+  // they do — flagged below rather than left looking established.
+  ["garage-door-opener-outlet", 1.0, 0.75, "New 120V Outlet matrix; distance tree not yet attached"],
+  ["garage-door-opener-outlet-ev", 1.0, 0.75, "New 120V Outlet matrix; distance tree not yet attached"],
+  ["bidet-smart-toilet-outlet", 1.0, 0.75, "New 120V Outlet matrix; distance tree not yet attached"],
+];
+
+/**
+ * Held back deliberately.
+ *
+ * Dedicated Circuit stores 2.5 hours, but the handoff is explicit that this
+ * figure is not to be treated as validated actual labor — it came from the
+ * original composition import, not from the field. Left exactly as it is,
+ * neither trusted nor cleared, until it's checked against real jobs.
+ */
+const HOLD_FOR_VALIDATION = ["dedicated-120v-circuit-outlet"];
+
+/**
+ * QUOTE: null is the correct value. Hours are established per job when the
+ * office builds the fixed price.
+ */
+const QUOTE = [
+  "electric-fireplace-circuit",
+  "freezer-fridge-dedicated-circuit",
+  "new-240v-appliance-circuit",
+  "sump-pump-dedicated-circuit",
+  "240v-garage-outlet",
+  "level-2-ev-charger",
+  "replace-bathroom-exhaust-fan",
+  "generator-inlet-interlock",
+  "transfer-switch",
+  "new-exterior-lighting-locations",
+  "outdoor-landscape-lighting",
+  "under-cabinet-led-lighting",
+  "exterior-gfci-other-routing",
+  "200a-service-upgrade",
+  "electrical-panel-replacement",
+  "hot-tub-spa-electrical",
+  "pool-equipment-electrical",
+  "new-exterior-flood-camera",
+  "new-video-doorbell-wiring",
+  "remove-and-replace-existing-chandelier",
+];
+
+/** Add-on only: no standalone labor, and none established incrementally. */
+const ADDON_ONLY = ["elite-tilt-mount", "elite-articulating-mount"];
+
+async function main() {
+  let set = 0;
+  const missing: string[] = [];
+
+  for (const [slug, field, wwt] of SET) {
+    const svc = await prisma.service.findUnique({ where: { slug } });
+    if (!svc) {
+      missing.push(slug);
+      continue;
+    }
+    await prisma.service.update({
+      where: { id: svc.id },
+      data: { fieldLaborHours: field, wwtLaborHours: wwt },
+    });
+    set++;
+  }
+  console.log(`  ✓ ${set} SET services given standalone and add-on hours`);
+
+  let routed = 0;
+  for (const [slug, field, wwt] of ROUTE_BASE) {
+    const svc = await prisma.service.findUnique({ where: { slug } });
+    if (!svc) {
+      missing.push(slug);
+      continue;
+    }
+    await prisma.service.update({
+      where: { id: svc.id },
+      data: { fieldLaborHours: field, wwtLaborHours: wwt },
+    });
+    routed++;
+  }
+  console.log(`  ✓ ${routed} ROUTE-BASED services given their base-branch hours`);
+
+  let quoted = 0;
+  for (const slug of QUOTE) {
+    const svc = await prisma.service.findUnique({ where: { slug } });
+    if (!svc) {
+      missing.push(slug);
+      continue;
+    }
+    // Explicitly null. A quote service with hours invites someone to trust
+    // a number that was never measured.
+    await prisma.service.update({
+      where: { id: svc.id },
+      data: { fieldLaborHours: null, wwtLaborHours: null },
+    });
+    quoted++;
+  }
+  console.log(`  ✓ ${quoted} QUOTE services left with no hours — correct, not incomplete`);
+
+  for (const slug of ADDON_ONLY) {
+    const svc = await prisma.service.findUnique({ where: { slug } });
+    if (!svc) continue;
+    await prisma.service.update({
+      where: { id: svc.id },
+      data: {
+        isPrimaryEligible: false,
+        fieldLaborHours: null,
+        // Mount-install time is already inside Professional TV Installation.
+        // Charging labor here would bill it twice.
+        wwtLaborHours: null,
+      },
+    });
+  }
+  console.log(`  ✓ ${ADDON_ONLY.length} add-on-only mounts: no labor, not primary-eligible`);
+
+  // TV: the 56-85 in route is two technicians at the same 90 minutes, so
+  // 1.5 hours becomes 3.0 tech-hours. Expressed as a techCount override on
+  // the answer rather than a second labor figure.
+  const tvSize = await prisma.question.findFirst({
+    where: { service: { slug: "tv-installation" }, key: { contains: "size" } },
+    include: { options: true },
+  });
+  if (tvSize) {
+    const twoTech = tvSize.options.find(
+      (o) => /56|85|large/i.test(o.label) && !/over 85|more than 85/i.test(o.label)
+    );
+    if (twoTech) {
+      await prisma.answerOption.update({
+        where: { id: twoTech.id },
+        data: { overrideTechCount: 2, overrideEstimatedMinutes: 90 },
+      });
+      console.log(`  ✓ tv-installation — "${twoTech.label}" set to 2 technicians at 90 minutes`);
+    } else {
+      console.log(`  ! tv-installation — couldn't identify the 56-85 in answer; set it by hand`);
+    }
+  }
+
+  // Labor recorded, route not yet built. These carry the New 120V Outlet
+  // matrix base hours but have no distance question, so only the base figure
+  // can ever apply — the 10-20 ft and finished branches don't exist for them.
+  // Recorded labor is not the same as a finished route.
+  const ROUTE_INCOMPLETE = [
+    "garage-door-opener-outlet",
+    "garage-door-opener-outlet-ev",
+    "bidet-smart-toilet-outlet",
+  ];
+  console.log(`\n  ! ${ROUTE_INCOMPLETE.length} service(s) have matrix base hours but no distance tree:`);
+  for (const slug of ROUTE_INCOMPLETE) {
+    const q = await prisma.question.findFirst({
+      where: { service: { slug }, key: { contains: "distance" } },
+    });
+    console.log(`      ${slug}${q ? "  (tree now present — remove from this list)" : "  — incomplete"}`);
+  }
+
+  if (missing.length) {
+    console.log(`\n  ! ${missing.length} slug(s) not in the catalog:`);
+    for (const m of missing) console.log(`      ${m}`);
+  }
+
+  for (const slug of HOLD_FOR_VALIDATION) {
+    const svc = await prisma.service.findUnique({ where: { slug } });
+    if (!svc) continue;
+    console.log(
+      `  · ${slug} — holding ${svc.fieldLaborHours ?? "null"} hr unchanged, pending field validation`
+    );
+  }
+
+  const all = await prisma.service.findMany({
+    where: { active: true },
+    select: { slug: true, name: true, fieldLaborHours: true, wwtLaborHours: true, whileWeThereBasePrice: true },
+  });
+  const noHours = all.filter((s) => s.fieldLaborHours === null);
+  const expected = new Set([...QUOTE, ...ADDON_ONLY, ...HOLD_FOR_VALIDATION]);
+  const unexpected = noHours.filter((s) => !expected.has(s.slug));
+
+  console.log(`\n  ${all.length} active services`);
+  console.log(`    with standalone hours : ${all.length - noHours.length}`);
+  console.log(`    deliberately null     : ${noHours.length - unexpected.length}`);
+  if (unexpected.length) {
+    console.log(`    UNACCOUNTED FOR       : ${unexpected.length}`);
+    for (const u of unexpected) console.log(`        ${u.name} (${u.slug})`);
+  }
+
+  const sellingNoAddon = all.filter(
+    (s) => s.whileWeThereBasePrice !== null && s.wwtLaborHours === null && !expected.has(s.slug)
+  );
+  if (sellingNoAddon.length) {
+    console.log(`\n  ${sellingNoAddon.length} service(s) still sell an add-on with no add-on hours:`);
+    for (const s of sellingNoAddon) console.log(`      ${s.name}`);
+  }
+
+  console.log(`
+Suggested prices only. Nothing published moved, no booking eligibility
+changed. The $250 minimum still floors any standalone job of an hour or less,
+so several of these will show a suggested price identical to today's — the
+difference is that there's now a real figure behind it.`);
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
