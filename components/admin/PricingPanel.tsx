@@ -216,6 +216,16 @@ export default function PricingPanel(p: Props) {
           <p className="mt-1 text-xs text-slate">
             No service-call minimum applies here — the technician is already on site.
           </p>
+          {/* The commonest confusion in this panel: editing the primary hours
+              doesn't move the add-on price, because incremental work isn't a
+              fraction of the full job. Says so where it's noticed. */}
+          {wwtHours === "" && p.publishedWwtCents !== null && (
+            <p className="mt-1 rounded-card bg-amber-50 p-2 text-xs text-amber-800">
+              This service sells an add-on at {money(p.publishedWwtCents)}, but the hours
+              behind it were never recorded — so there&rsquo;s no suggested add-on price to
+              compare it against. Editing the primary hours above won&rsquo;t change it.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">

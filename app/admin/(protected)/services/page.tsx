@@ -37,6 +37,11 @@ export default async function AdminServicesPage() {
   const withLabor = all.filter((s) => s.fieldLaborHours !== null).length;
   const itemized = all.filter((s) => s._count.materials > 0).length;
   const legacyMultiplier = all.filter((s) => s.materialMultiplier !== null).length;
+  // Services selling an add-on with no incremental hours recorded. The price
+  // came from the original import; the labor behind it never existed.
+  const wwtWithoutLabor = all.filter(
+    (s) => s.whileWeThereBasePrice !== null && s.wwtLaborHours === null
+  ).length;
   const unreviewedDuration = all.filter((s) => !s.estimatedMinutesReviewed).length;
 
   return (
@@ -60,7 +65,7 @@ export default async function AdminServicesPage() {
       {/* What's established and what isn't, across the whole catalog. Clicking
           into 70 services one at a time to find the gaps is how they stay
           unfilled. */}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="Services" value={`${all.length}`} />
         <Stat
           label="Labor hours set"
@@ -71,6 +76,11 @@ export default async function AdminServicesPage() {
           label="Materials itemized"
           value={`${itemized} of ${all.length}`}
           warn={itemized < all.length}
+        />
+        <Stat
+          label="Add-on labor missing"
+          value={`${wwtWithoutLabor}`}
+          warn={wwtWithoutLabor > 0}
         />
         <Stat
           label="Duration unreviewed"
@@ -130,7 +140,15 @@ export default async function AdminServicesPage() {
                               ? `${svc.fieldLaborHours} hr`
                               : "labor not set"}
                           </span>
-                          {svc.wwtLaborHours !== null && <span>{svc.wwtLaborHours} hr add-on</span>}
+                          {/* Shown even when missing. An add-on price with no
+                              hours behind it can't produce a suggestion, and
+                              a field that only appears when filled is a gap
+                              nobody finds. */}
+                          {svc.wwtLaborHours !== null ? (
+                            <span>{svc.wwtLaborHours} hr add-on</span>
+                          ) : svc.whileWeThereBasePrice !== null ? (
+                            <span className="text-amber-700">add-on labor not set</span>
+                          ) : null}
                           {svc.estimatedMinutes !== null && (
                             <span className={!svc.estimatedMinutesReviewed ? "text-amber-700" : ""}>
                               {svc.estimatedMinutes} min
