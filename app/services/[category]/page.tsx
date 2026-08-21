@@ -10,7 +10,18 @@ import { hasOpenVisit } from "@/lib/visitContext";
 export default async function CategoryPage({ params }: { params: { category: string } }) {
   const category = await prisma.serviceCategory.findUnique({
     where: { slug: params.category },
-    include: { services: { where: { active: true } } },
+    include: {
+      services: {
+        where: { active: true },
+        // Previously had no ordering at all, so the list came back in
+        // whatever order the database felt like — which meant the admin
+        // reorder screen appeared to do nothing.
+        //
+        // Name is the tiebreak so services added before ordering existed
+        // still land somewhere predictable rather than clustering at zero.
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      },
+    },
   });
 
   if (!category) return notFound();

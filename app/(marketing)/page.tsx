@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { formatCents } from "@/lib/flow-types";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
 
@@ -12,21 +14,40 @@ const TRUST_ITEMS = [
   { label: "All Major Credit Cards Accepted" },
 ];
 
-// A representative slice — the real Home page pulls "most popular" from the
-// database (booking counts), this is the Phase 1 static placeholder.
-// Prices below re-synced against the live seed data (several had drifted
-// out of date from earlier repricing work, since this static list isn't
-// database-driven and never picks up pricing changes automatically).
-const POPULAR_SERVICES = [
-  { name: "Outlet Replacement", from: "$225", slug: "replace-standard-outlet", icon: "outlet", href: "/services/outlets-switches/replace-standard-outlet" },
-  { name: "Light Fixture Replacement", from: "$250", slug: "replace-interior-light-fixture", icon: "light", href: "/services/lighting/replace-interior-light-fixture" },
-  { name: "Ceiling Fan Installation", from: "$375", slug: "replace-ceiling-fan", icon: "fan", href: "/services/fans/replace-ceiling-fan" },
-  { name: "TV Mount Installation", from: "$500", slug: "tv-installation", icon: "tv", href: "/services/tv-media/tv-installation" },
-  { name: "Recessed Lighting", from: "$375", slug: "recessed-lighting", icon: "recessed", href: "/services/lighting/recessed-lighting" },
-  { name: "EV Charger Installation", from: "$1,295", slug: "level-2-ev-charger", icon: "ev", href: "/services/ev-garage/level-2-ev-charger" },
+/**
+ * Which six to feature. The CURATION stays here — it's a merchandising choice,
+ * not something to derive — but the names and prices come from the database.
+ *
+ * They used to be hardcoded alongside the slugs, with a comment noting they'd
+ * been "re-synced" after drifting. They drifted again: recessed lighting reads
+ * $375 here and $385 in the database after its pricing was derived from real
+ * labor. A price on the homepage that doesn't match the booking page is worse
+ * than no price.
+ */
+const FEATURED = [
+  { slug: "replace-standard-outlet", label: "Outlet Replacement", icon: "outlet", category: "outlets-switches" },
+  { slug: "replace-interior-light-fixture", label: "Light Fixture Replacement", icon: "light", category: "lighting" },
+  { slug: "replace-ceiling-fan", label: "Ceiling Fan Installation", icon: "fan", category: "fans" },
+  { slug: "tv-installation", label: "TV Mount Installation", icon: "tv", category: "tv-media" },
+  { slug: "recessed-lighting", label: "Recessed Lighting", icon: "recessed", category: "lighting" },
+  { slug: "level-2-ev-charger", label: "EV Charger Installation", icon: "ev", category: "ev-garage" },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Live prices, so a repricing reaches the homepage without anyone
+  // remembering to edit this file.
+  const featured = await prisma.service.findMany({
+    where: { slug: { in: FEATURED.map((f) => f.slug) }, active: true },
+    select: {
+      slug: true,
+      name: true,
+      basePrice: true,
+      startingPriceLabel: true,
+      category: { select: { slug: true } },
+    },
+  });
+  const bySlug = new Map(featured.map((s) => [s.slug, s]));
+
   return (
     <main>
       {/* Hero */}
@@ -158,12 +179,17 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-6 py-16">
         <h2 className="font-display text-2xl font-bold text-navy">Most Popular Services</h2>
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          {POPULAR_SERVICES.map((svc) => {
+          {FEATURED.map((svc) => {
+            const live = bySlug.get(svc.slug);
+            // A featured service that's been deactivated shouldn't leave a
+            // dead card on the homepage.
+            if (!live) return null;
             const image = getServiceImage(svc.slug);
+            const href = `/services/${live.category?.slug ?? svc.category}/${svc.slug}`;
             return (
               <Link
-                key={svc.href}
-                href={svc.href}
+                key={svc.slug}
+                href={href}
                 className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
               >
                 {/* This grid deliberately locks every card to 4/3 rather than
@@ -195,8 +221,15 @@ export default function HomePage() {
                   </div>
                 )}
                 <div className="p-4">
-                  <div className="text-sm font-semibold text-navy">{svc.name}</div>
-                  <div className="mt-1 text-sm text-slate">From {svc.from}</div>
+                  {/* The short marketing label, not the catalog name — "TV
+                      Mount Installation" reads better on a tile than
+                      "Professional TV Installation". */}
+                  <div className="text-sm font-semibold text-navy">{svc.label}</div>
+                  <div className="mt-1 text-sm text-slate">
+                    {live.basePrice
+                      ? `From ${formatCents(live.basePrice)}`
+                      : live.startingPriceLabel ?? "Custom Quote"}
+                  </div>
                 </div>
               </Link>
             );

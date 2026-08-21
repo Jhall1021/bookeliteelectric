@@ -25,7 +25,9 @@ export async function GET() {
     include: {
       services: {
         where: { active: true },
-        orderBy: { name: "asc" },
+        // Matches the customer-facing category pages, so the order an admin
+        // sets is the order everywhere rather than just on the browse screen.
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: {
           id: true,
           slug: true,
