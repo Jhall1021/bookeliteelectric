@@ -25,8 +25,15 @@ type UploadState = "idle" | "uploading" | "done" | "error";
  * to price this for. Files upload directly to R2 via a presigned URL, then
  * a Quote record is created once everything's in.
  */
-export default function PhotoReviewNotice({ serviceName, serviceId, labels,
-  safetyNotes = [], answers }: Props) {
+export default function PhotoReviewNotice({
+  serviceName,
+  serviceId,
+  labels,
+  safetyNotes = [],
+  note = "",
+  onNoteChange,
+  answers,
+}: Props) {
   const router = useRouter();
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>({});
