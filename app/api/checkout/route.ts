@@ -19,6 +19,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No items in visit" }, { status: 400 });
   }
 
+  // Nothing gets booked while a line is still being priced.
+  //
+  // The cart disables the button and the schedule page redirects, but this is
+  // the last gate before a customer is committed to a total and a crew is
+  // dispatched — so it refuses outright rather than summing around the gap.
+  // Left unguarded, an unpriced line would count as zero and the customer
+  // would book at a total quietly missing an item.
+  //
+  // Checked BEFORE anything is created: further down this route makes a
+  // Customer and possibly an ArrivalWindow, and bailing after that would
+  // leave orphans behind.
+  const unpriced = visit.lineItems.filter((li) => li.computedPriceCents === null);
+  if (unpriced.length > 0) {
+    return NextResponse.json(
+      {
+        error: "AWAITING_QUOTE",
+        message:
+          unpriced.length === 1
+            ? "One item on your visit is still being priced. We'll email you as soon as it's ready."
+            : `${unpriced.length} items on your visit are still being priced. We'll email you as soon as they're ready.`,
+      },
+      { status: 409 }
+    );
+  }
+
   // Internal dispatch data — sum of every line item's snapshotted duration.
   // Null (not 0) if ANY item is missing an estimate, so it's obvious in the
   // data that the total is incomplete rather than silently under-counting.
@@ -88,7 +113,9 @@ export async function POST(req: Request) {
     });
   }
 
-  const totalCents = visit.lineItems.reduce((sum, li) => sum + li.computedPriceCents, 0);
+  // Safe by the guard above — every line has a price by this point. The
+  // fallback is belt-and-braces rather than a real branch.
+  const totalCents = visit.lineItems.reduce((sum, li) => sum + (li.computedPriceCents ?? 0), 0);
 
   const booking = await prisma.booking.create({
     data: {

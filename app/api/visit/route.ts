@@ -149,8 +149,16 @@ export async function DELETE(req: Request) {
   let pricingAdjusted = false;
 
   if (!hasPrimaryLeft && remaining.length > 0) {
-    const newAnchor = remaining[0];
-    if (newAnchor.service.basePrice !== null) {
+    // Skip lines that are still being quoted. Promoting one would set its
+    // price from the service's base rate — silently pricing something the
+    // office hasn't looked at yet, and the customer would see a number
+    // appear against an item that said "price to follow" a moment earlier.
+    //
+    // If EVERY remaining line is awaiting a quote there's nothing to
+    // promote, which is correct: the visit has no priced anchor, and
+    // scheduling is already blocked until the quotes come back.
+    const newAnchor = remaining.find((li) => li.computedPriceCents !== null);
+    if (newAnchor && newAnchor.service.basePrice !== null) {
       pricingAdjusted = true;
       await prisma.lineItem.update({
         where: { id: newAnchor.id },
