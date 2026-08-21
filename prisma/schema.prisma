@@ -316,11 +316,21 @@ model Service {
   primaryLaborUnits   Float?
   addOnLaborUnits     Float?
   materialCostCents   Int?
-  // Nullable OVERRIDE only. The default multiplier is derived from
-  // materialCostCents via the tier table in handoff §4 (under $10 -> 3.00x,
-  // $10.00-750.00 inclusive -> 1.30x, over $750 -> 1.20x). Set this only to
-  // depart from the tier deliberately. See lib/pricing.ts.
+  // Deliberate exception to the global material tier. NULL is the NORMAL
+  // state and means "use the current tier" (§4: under $10 -> 3.00x,
+  // $10.00-750.00 inclusive -> 1.30x, over $750 -> 1.20x).
+  //
+  // A non-null value means an admin intentionally overrode the markup, and
+  // materialMultiplierReason should say why. Legacy values imported from the
+  // workbook are NOT deliberate overrides — they're unvalidated data sitting
+  // in this column. Itemizing a service's materials clears it, since that's
+  // the moment its figures become real.
   materialMultiplier  Float?
+
+  // Why the multiplier above departs from the tier. Without it, nobody can
+  // tell six months from now whether a 2.5 was a business decision or
+  // leftover from the import.
+  materialMultiplierReason String?
   permitAdminCents    Int?
   otherDirectCostCents Int?
 
