@@ -116,14 +116,14 @@ const ROUTE_BASE: [string, number, number | null, string][] = [
 ];
 
 /**
- * Held back deliberately.
+ * Nothing held back any more.
  *
- * Dedicated Circuit stores 2.5 hours, but the handoff is explicit that this
- * figure is not to be treated as validated actual labor — it came from the
- * original composition import, not from the field. Left exactly as it is,
- * neither trusted nor cleared, until it's checked against real jobs.
+ * Dedicated Circuit was here on the understanding that its stored 2.5 hours
+ * needed field validation. There were no stored hours — that figure lived in
+ * a composition import that never ran against the database. Real figures are
+ * now set by seed-dedicated-circuit-labor.ts.
  */
-const HOLD_FOR_VALIDATION = ["dedicated-120v-circuit-outlet"];
+const HOLD_FOR_VALIDATION: string[] = [];
 
 /**
  * QUOTE: null is the correct value. Hours are established per job when the
