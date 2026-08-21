@@ -25,6 +25,10 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
                 orderBy: { order: "asc" },
                 include: { photoGroup: true },
               },
+              conditionalDisclaimers: {
+                orderBy: { order: "asc" },
+                include: { disclaimer: true },
+              },
             },
           },
         },
@@ -95,6 +99,12 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         approvedComponentPriceCents: o.approvedComponentPriceCents,
         accessClassification: o.accessClassification,
         accessFinishedDisclaimer: o.accessFinishedDisclaimer,
+        conditionalDisclaimers: o.conditionalDisclaimers
+          .filter((d) => d.disclaimer.active)
+          .map((d) => ({
+            text: d.disclaimer.text,
+            accessClass: d.disclaimer.accessClass,
+          })),
         components: o.components.map((sel) => ({
           quantity: sel.quantity,
           // §29 — null on both means the component always applies; when set,

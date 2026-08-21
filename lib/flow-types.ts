@@ -48,8 +48,19 @@ export type AnswerOptionDTO = {
   approvedComponentPriceCents: number | null;
   /** Set when this answer answers a route-access question. */
   accessClassification: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
-  /** Shown only when the established route is FINISHED. */
+  /** Shown only when the established route is FINISHED. Superseded by
+   *  conditionalDisclaimers; kept while older trees still use it. */
   accessFinishedDisclaimer: string | null;
+  /**
+   * Text attached to this answer that applies only under a condition. The
+   * client evaluates each against the access class established so far — the
+   * same answer can carry one line for an open route and another for a
+   * finished one without either being written twice.
+   */
+  conditionalDisclaimers: {
+    text: string;
+    accessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
+  }[];
   components: {
     quantity: number;
     conditionAccessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
