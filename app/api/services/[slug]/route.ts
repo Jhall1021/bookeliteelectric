@@ -13,6 +13,10 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
       questions: {
         orderBy: { order: "asc" },
         include: {
+          conditionalHelp: {
+            orderBy: { order: "asc" },
+            include: { disclaimer: true },
+          },
           options: {
             orderBy: { order: "asc" },
             include: {
@@ -61,6 +65,13 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
       prompt: q.prompt,
       helpText: q.helpText,
       inputType: q.inputType,
+      conditionalHelp: q.conditionalHelp
+        .filter((h) => h.disclaimer.active)
+        .map((h) => ({
+          text: h.disclaimer.text,
+          accessClass: h.disclaimer.accessClass,
+          replaces: h.replacesHelpText,
+        })),
       order: q.order,
       options: q.options.map((o) => ({
         id: o.id,

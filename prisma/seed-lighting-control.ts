@@ -270,8 +270,10 @@ prompt:
 
   const qFinishedBoth = await upsertQuestion(prisma, service.id, {
     key: FINISHED_BOTH_KEY,
-prompt: "Is there finished living space directly above and below that wall?",
-      helpText: "For example, a finished bedroom upstairs and a finished room below, with no open access between them.",
+    prompt:
+      "Is there finished living space directly above and/or below that wall, or is the room on a slab?",
+    helpText:
+      "Either way we'd be running the wire inside the finished wall. We're checking there's nothing unusual behind it.",
     order: nextOrder + 4,
   });
 
@@ -494,8 +496,11 @@ prompt: "Would you like a dimmer on the new switch?",
   await prisma.answerOption.createMany({
     data: [
       {
+        // "No" made no sense here — the only way to reach this question is
+        // having already said there's no attic or basement. Slab folded into
+        // the prompt because it's the same job: no path, fish the wall.
         questionId: qFinishedBoth.id,
-        label: "Yes",
+        label: "Yes — finished space above or below, or the room's on a slab",
         value: "finished_both_sides",
         accessClassification: "FINISHED",
         routeAction: "CONTINUE",
@@ -505,12 +510,11 @@ prompt: "Would you like a dimmer on the new switch?",
         approvedComponentPriceCents: null,
       },
       {
-        // No open route AND no confirmed finished space means something
-        // unusual — a slab, an exterior wall. Guessing at a price would be
-        // wrong. Same reasoning as the New 120V Outlet tree.
+        // Different work — insulation, fire blocking, sometimes masonry
+        // behind the drywall. Not priced blind.
         questionId: qFinishedBoth.id,
-        label: "No",
-        value: "not_finished_both_sides",
+        label: "It's an exterior wall",
+        value: "exterior_wall",
         accessClassification: "UNKNOWN",
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true,

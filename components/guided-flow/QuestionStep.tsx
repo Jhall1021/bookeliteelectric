@@ -26,6 +26,16 @@ type Props = {
 export default function QuestionStep({ question, answers, accessClass, onAnswer }: Props) {
   const [text, setText] = useState("");
 
+  // Help text that only holds on some routes. A `replaces` entry swaps the
+  // default out — the distance question's default mentions the basement or
+  // attic, which is nonsense once the customer has told us there isn't one.
+  const applicableHelp = (question.conditionalHelp ?? []).filter(
+    (h) => h.accessClass === null || h.accessClass === accessClass
+  );
+  const replacement = applicableHelp.find((h) => h.replaces);
+  const helpText = replacement ? replacement.text : question.helpText;
+  const extraHelp = applicableHelp.filter((h) => !h.replaces);
+
   // A TEXT question has one option carrying the routing; what the customer
   // types becomes its value. The schema has supported TEXT and NUMBER since
   // the beginning but nothing rendered them, which is why the bathroom-fan
@@ -36,7 +46,12 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
     return (
       <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
         <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>
-        {question.helpText && <p className="mt-1 text-sm text-slate">{question.helpText}</p>}
+        {helpText && <p className="mt-1 text-sm text-slate">{helpText}</p>}
+        {extraHelp.map((h, i) => (
+          <p key={i} className="mt-1 text-sm text-slate">
+            {h.text}
+          </p>
+        ))}
 
         <textarea
           value={text}
@@ -68,7 +83,12 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
   return (
     <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
       <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>
-      {question.helpText && <p className="mt-1 text-sm text-slate">{question.helpText}</p>}
+      {helpText && <p className="mt-1 text-sm text-slate">{helpText}</p>}
+      {extraHelp.map((h, i) => (
+        <p key={i} className="mt-1 text-sm text-slate">
+          {h.text}
+        </p>
+      ))}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {question.options.map((option) => {

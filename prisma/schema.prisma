@@ -175,8 +175,28 @@ model ConditionalDisclaimer {
   active    Boolean @default(true)
   notes     String?
   options   AnswerOptionDisclaimer[]
+  questions QuestionDisclaimer[]
 
   @@map("conditional_disclaimers")
+}
+
+/// Conditional text on a QUESTION rather than an answer — help text that's
+/// only true on one route. The distance question tells customers to estimate
+/// the path "through the basement or attic", which reads as nonsense once
+/// they've said there isn't one.
+model QuestionDisclaimer {
+  id           String                @id @default(cuid())
+  questionId   String
+  question     Question              @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  disclaimerId String
+  disclaimer   ConditionalDisclaimer @relation(fields: [disclaimerId], references: [id])
+  /// When true this REPLACES the question's help text rather than appending
+  /// to it — for cases where the default is actively wrong on this route.
+  replacesHelpText Boolean @default(false)
+  order        Int                   @default(0)
+
+  @@unique([questionId, disclaimerId])
+  @@map("question_disclaimers")
 }
 
 model AnswerOptionDisclaimer {
@@ -414,6 +434,9 @@ model Question {
   options   AnswerOption[]
 
   @@map("questions")
+  /// Help text that only applies under a condition.
+  conditionalHelp QuestionDisclaimer[]
+
 }
 
 enum RouteAction {

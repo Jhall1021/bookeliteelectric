@@ -116,6 +116,18 @@ async function attach(answerOptionId: string, disclaimerKey: string, order = 0) 
   });
 }
 
+/**
+ * Questions whose default help text is wrong on a finished route.
+ *
+ * Both distance questions tell the customer to estimate the path "through the
+ * basement or attic" — which they've just told us doesn't exist. Replaces
+ * rather than appends, since the default is actively misleading here.
+ */
+const HELP_ATTACHMENTS: { questionKey: string; disclaimerKey: string }[] = [
+  { questionKey: "switch_leg_distance", disclaimerKey: "DISTANCE_HELP_FINISHED" },
+  { questionKey: "outlet_run_distance", disclaimerKey: "DISTANCE_HELP_FINISHED" },
+];
+
 async function main() {
   for (const d of DISCLAIMERS) {
     await prisma.conditionalDisclaimer.upsert({

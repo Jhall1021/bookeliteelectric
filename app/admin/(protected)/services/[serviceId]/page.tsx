@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import ServiceEditForm from "@/components/admin/ServiceEditForm";
 import TreeEditor from "@/components/admin/TreeEditor";
+import PricingPanel from "@/components/admin/PricingPanel";
+import MaterialsPanel from "@/components/admin/MaterialsPanel";
 
 export default async function EditServicePage({ params }: { params: { serviceId: string } }) {
   const service = await prisma.service.findUnique({
@@ -21,6 +23,11 @@ export default async function EditServicePage({ params }: { params: { serviceId:
   });
 
   if (!service) return notFound();
+
+  // Single global row. Null only if pricing has never been configured, in
+  // which case the panel says so rather than showing a price built on
+  // defaults nobody chose.
+  const settings = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
 
   // For the "link this option's price to another service" dropdown.
   const allServices = await prisma.service.findMany({
@@ -47,6 +54,37 @@ export default async function EditServicePage({ params }: { params: { serviceId:
           hasTree: service.questions.length > 0,
         }}
       />
+
+      <PricingPanel
+        serviceId={service.id}
+        publishedBaseCents={service.basePrice}
+        publishedWwtCents={service.whileWeThereBasePrice}
+        publishedApprovedAt={service.publishedPriceApprovedAt?.toISOString() ?? null}
+        estimatedMinutes={service.estimatedMinutes}
+        estimatedMinutesReviewed={service.estimatedMinutesReviewed}
+        requiresTechCount={service.requiresTechCount}
+        fieldLaborHours={service.fieldLaborHours}
+        wwtLaborHours={service.wwtLaborHours}
+        materialCostCents={service.materialCostCents}
+        materialMultiplier={service.materialMultiplier}
+        permitAdminCents={service.permitAdminCents}
+        otherDirectCostCents={service.otherDirectCostCents}
+        isPrimaryEligible={service.isPrimaryEligible}
+        photoState={service.photoState}
+        legacyPrimaryUnits={service.primaryLaborUnits}
+        settings={
+          settings
+            ? {
+                targetRateCents: settings.targetRateCents,
+                primaryMinimumCents: settings.primaryMinimumCents,
+                roundingIncrementCents: settings.roundingIncrementCents,
+                defaultPermitAdminCents: settings.defaultPermitAdminCents,
+              }
+            : null
+        }
+      />
+
+      <MaterialsPanel serviceId={service.id} />
 
       {/* Rendered unconditionally now. It used to be hidden when a service
           had no questions, which meant the one case you'd want a tree builder
