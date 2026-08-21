@@ -203,7 +203,11 @@ export async function GET() {
     return NextResponse.json({ lineItems: [], totalCents: 0 });
   }
 
-  const totalCents = visit.lineItems.reduce((sum, li) => sum + li.computedPriceCents, 0);
+  // Only what's actually priced. An unpriced line contributes nothing to the
+  // subtotal rather than counting as zero — the customer should see what they
+  // owe so far, not a total that's quietly missing an item.
+  const totalCents = visit.lineItems.reduce((sum, li) => sum + (li.computedPriceCents ?? 0), 0);
+  const awaitingQuote = visit.lineItems.filter((li) => li.computedPriceCents === null).length;
 
   const groups = new Map<
     string,
@@ -215,6 +219,8 @@ export async function GET() {
       requiresQualification: boolean;
       isPrimary: boolean;
       whileWeThereBasePrice: number | null;
+      awaitingQuote: boolean;
+      floorPriceCents: number | null;
       firstUnitPriceCents: number;
       totalPriceCents: number;
       lineItemIds: string[];
@@ -222,11 +228,14 @@ export async function GET() {
   >();
 
   for (const li of visit.lineItems) {
-    const key = `${li.service.id}:${li.isPrimary}`;
+    // Unpriced lines are grouped separately from priced ones for the same
+    // service — they're different states, and merging them would show a
+    // quantity of two against a single price.
+    const key = `${li.service.id}:${li.isPrimary}:${li.computedPriceCents === null ? "quote" : "priced"}`;
     const existing = groups.get(key);
     if (existing) {
       existing.lineItemIds.push(li.id);
-      existing.totalPriceCents += li.computedPriceCents;
+      existing.totalPriceCents += li.computedPriceCents ?? 0;
     } else {
       groups.set(key, {
         serviceId: li.service.id,
@@ -238,8 +247,10 @@ export async function GET() {
         requiresQualification: li.service._count.questions > 0,
         isPrimary: li.isPrimary,
         whileWeThereBasePrice: li.service.whileWeThereBasePrice,
-        firstUnitPriceCents: li.computedPriceCents,
-        totalPriceCents: li.computedPriceCents,
+        awaitingQuote: li.computedPriceCents === null,
+        floorPriceCents: li.floorPriceCents,
+        firstUnitPriceCents: li.computedPriceCents ?? 0,
+        totalPriceCents: li.computedPriceCents ?? 0,
         lineItemIds: [li.id],
       });
     }
@@ -255,11 +266,17 @@ export async function GET() {
       requiresQualification: g.requiresQualification,
       isPrimary: g.isPrimary,
       whileWeThereBasePrice: g.whileWeThereBasePrice,
+      awaitingQuote: g.awaitingQuote,
+      floorPriceCents: g.floorPriceCents,
       quantity: g.lineItemIds.length,
       totalPriceCents: g.totalPriceCents,
       // Front end removes the last-added instance by popping this list.
       lineItemIds: g.lineItemIds,
     })),
     totalCents,
+    // Scheduling is blocked while this is above zero. The customer can keep
+    // building the visit; they just can't pick a time until every line has a
+    // price, because a technician can't be dispatched against an unknown.
+    awaitingQuote,
   });
 }

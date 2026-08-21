@@ -17,6 +17,10 @@ type LineItemGroup = {
   whileWeThereBasePrice: number | null;
   quantity: number;
   totalPriceCents: number;
+  /** True while the office is still pricing this one. */
+  awaitingQuote: boolean;
+  /** The running total where the flow stopped — a floor, not an estimate. */
+  floorPriceCents: number | null;
   lineItemIds: string[];
 };
 
@@ -46,6 +50,7 @@ export default function MyVisitPage() {
   const router = useRouter();
   const [lineItems, setLineItems] = useState<LineItemGroup[]>([]);
   const [totalCents, setTotalCents] = useState(0);
+  const [awaitingQuote, setAwaitingQuote] = useState(0);
   const [quickPicks, setQuickPicks] = useState<ServiceOption[]>([]);
   const [categories, setCategories] = useState<CategoryGroup[]>([]);
   const [browsingAll, setBrowsingAll] = useState(false);
@@ -60,6 +65,7 @@ export default function MyVisitPage() {
     ]);
     setLineItems(visitRes.lineItems ?? []);
     setTotalCents(visitRes.totalCents ?? 0);
+    setAwaitingQuote(visitRes.awaitingQuote ?? 0);
     setQuickPicks(wwtRes.quickPicks ?? []);
     setCategories(wwtRes.categories ?? []);
     setLoading(false);
@@ -166,7 +172,14 @@ export default function MyVisitPage() {
               <div key={`${li.serviceId}:${li.isPrimary}`} className="flex items-center justify-between p-4">
                 <div>
                   <div className="text-sm font-semibold text-navy">{li.serviceName}</div>
-                  {!li.isPrimary && <div className="text-xs text-slate">While We're There add-on</div>}
+                  {!li.isPrimary && !li.awaitingQuote && (
+                    <div className="text-xs text-slate">While We&rsquo;re There add-on</div>
+                  )}
+                  {li.awaitingQuote && (
+                    <div className="text-xs text-slate">
+                      We&rsquo;ve got your photos — we&rsquo;ll confirm this price shortly
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 rounded-pill border border-cardline">
@@ -195,14 +208,39 @@ export default function MyVisitPage() {
                       +
                     </button>
                   </div>
-                  <div className="w-20 text-right text-sm font-semibold text-navy">
-                    {formatCents(li.totalPriceCents)}
+                  <div className="w-24 text-right text-sm font-semibold text-navy">
+                    {li.awaitingQuote ? (
+                      <>
+                        {/* A floor, not an estimate. Every review branch
+                            exists because something makes the job dearer, so
+                            the number can only go up — saying "from" is the
+                            honest form and it's the one that survives the
+                            conversation when the real price arrives. */}
+                        {li.floorPriceCents !== null && (
+                          <span className="block text-navy">
+                            From {formatCents(li.floorPriceCents)}
+                          </span>
+                        )}
+                        <span className="block text-xs font-normal text-amber-700">
+                          price to follow
+                        </span>
+                      </>
+                    ) : (
+                      formatCents(li.totalPriceCents)
+                    )}
                   </div>
                 </div>
               </div>
             ))}
             <div className="flex items-center justify-between bg-warmwhite p-4">
-              <div className="font-display text-lg font-bold text-navy">Subtotal</div>
+              <div className="font-display text-lg font-bold text-navy">
+                Subtotal
+                {awaitingQuote > 0 && (
+                  <span className="ml-2 text-xs font-normal text-slate">
+                    for everything priced so far
+                  </span>
+                )}
+              </div>
               <div className="font-display text-lg font-bold text-navy">{formatCents(totalCents)}</div>
             </div>
           </div>
@@ -336,12 +374,34 @@ export default function MyVisitPage() {
             </div>
           )}
 
-          <button
-            onClick={() => router.push("/checkout/schedule")}
-            className="mt-10 w-full rounded-pill bg-electric py-3.5 font-semibold text-white transition hover:bg-electric-hover"
-          >
-            Choose My Appointment Time
-          </button>
+          {/* Scheduling waits on pricing. The customer can keep building the
+              visit — that's the whole point of not dead-ending them — but a
+              technician can't be dispatched against an unknown total. */}
+          {awaitingQuote > 0 ? (
+            <div className="mt-10 rounded-card border border-amber-200 bg-amber-50 p-5 text-center">
+              <p className="font-medium text-navy">
+                We&rsquo;re pricing{" "}
+                {awaitingQuote === 1 ? "one item" : `${awaitingQuote} items`} for you
+              </p>
+              <p className="mt-1 text-sm text-slate">
+                We&rsquo;ll email you as soon as it&rsquo;s ready — usually the same day — and
+                you can pick your time then. Everything else is saved.
+              </p>
+              <button
+                disabled
+                className="mt-4 w-full cursor-not-allowed rounded-pill bg-slate/20 py-3.5 font-semibold text-slate"
+              >
+                Choose My Appointment Time
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => router.push("/checkout/schedule")}
+              className="mt-10 w-full rounded-pill bg-electric py-3.5 font-semibold text-white transition hover:bg-electric-hover"
+            >
+              Choose My Appointment Time
+            </button>
+          )}
         </>
       )}
     </main>

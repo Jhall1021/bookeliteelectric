@@ -622,6 +622,7 @@ model Visit {
   createdAt  DateTime    @default(now())
 
   @@map("visits")
+  quotes    Quote[]
 }
 
 model LineItem {
@@ -632,7 +633,23 @@ model LineItem {
   service        Service @relation(fields: [serviceId], references: [id])
   isPrimary      Boolean @default(true) // false = While We're There add-on
   answersSnapshot Json
-  computedPriceCents Int
+
+  /// NULL means the price isn't settled yet — the customer hit a branch we
+  /// can't price from answers alone, and the office quotes it from photos.
+  ///
+  /// Was non-nullable, which forced the review path to abandon the visit and
+  /// create a standalone Quote instead. A customer wanting one unpriceable
+  /// thing and three straightforward ones ended up booking none of them.
+  computedPriceCents Int?
+
+  /// The running total at the point the flow stopped.
+  ///
+  /// Always a FLOOR, never an estimate. Every review branch exists because
+  /// something makes the job more expensive — a longer run, a finished wall,
+  /// a bigger TV — so the final price can only go up from here. Shown as
+  /// "From $X" so the customer has a number to reason about without being
+  /// told something that might turn out to be wrong.
+  floorPriceCents Int?
   // INTERNAL ONLY — snapshotted from Service.estimatedMinutes at add-time,
   // same pattern as computedPriceCents. Never returned by any customer-
   // facing API. Used to total up technician time for a Booking.
@@ -644,6 +661,8 @@ model LineItem {
   photos          Photo[]
 
   @@map("line_items")
+  /// Set when this line is waiting on a quoted price.
+  quote     Quote?
 }
 
 enum PaymentModel {
@@ -699,6 +718,15 @@ enum QuoteStatus {
 }
 
 model Quote {
+  /// The visit this quote belongs to, when it came from someone building a
+  /// booking rather than a standalone enquiry.
+  visitId    String?
+  visit      Visit?    @relation(fields: [visitId], references: [id])
+  /// The line item holding its place in the cart. Pricing the quote fills in
+  /// that line item's computedPriceCents.
+  lineItemId String?   @unique
+  lineItem   LineItem? @relation(fields: [lineItemId], references: [id])
+
   id              String      @id @default(cuid())
   customerId      String
   customer        Customer    @relation(fields: [customerId], references: [id])

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getWindowAvailabilityForDay } from "@/lib/jobber";
 import { getOrCreateSessionId } from "@/lib/session";
 import ScheduleClient from "@/components/checkout/ScheduleClient";
+import { redirect } from "next/navigation";
 
 // Same reasoning as the API route — never statically cache this page.
 // The whole point is a live check every time someone actually looks.
@@ -35,6 +36,12 @@ export default async function SchedulePage() {
     where: { sessionId, status: "OPEN" },
     include: { lineItems: true },
   });
+  // Nothing gets scheduled while a line is still being priced. The cart
+  // disables the button, but a customer who bookmarked this page or hit back
+  // would otherwise walk straight past it.
+  const awaitingQuote = visit?.lineItems.some((li) => li.computedPriceCents === null) ?? false;
+  if (awaitingQuote) redirect("/my-visit");
+
   const hasCompleteEstimates = !!visit && visit.lineItems.every((li) => li.estimatedMinutes !== null);
   const estimatedDurationMinutes = hasCompleteEstimates
     ? visit!.lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0)

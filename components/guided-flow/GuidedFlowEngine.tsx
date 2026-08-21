@@ -27,7 +27,7 @@ type TerminalState =
   | { kind: "resolved"; priceCents: number; disclaimer: string | null }
   | { kind: "reroute"; serviceId: string; reason: string }
   | { kind: "troubleshooting"; note?: string | null }
-  | { kind: "photo_review"; labels: string[]; safetyNotes?: string[] }
+  | { kind: "photo_review"; labels: string[]; safetyNotes?: string[]; floorPriceCents?: number | null }
   // Price already settled; the photos are prep for the technician, not a
   // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
   | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null };
@@ -188,6 +188,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           kind: "photo_review",
           labels: option.requiredPhotoLabels.length > 0 ? option.requiredPhotoLabels : fallbackPhotos,
           safetyNotes: option.photoSafetyNotes,
+          // Where the running total stood when we stopped. Only ever shown
+          // as a floor.
+          floorPriceCents: total,
         },
       };
     }
@@ -231,13 +234,23 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "photo_review", labels: option.requiredPhotoLabels, safetyNotes: option.photoSafetyNotes },
+          state: {
+            kind: "photo_review",
+            labels: option.requiredPhotoLabels,
+            safetyNotes: option.photoSafetyNotes,
+            floorPriceCents: total,
+          },
         };
       case "REMOTE_QUOTE":
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "photo_review", labels: option.requiredPhotoLabels, safetyNotes: option.photoSafetyNotes },
+          state: {
+            kind: "photo_review",
+            labels: option.requiredPhotoLabels,
+            safetyNotes: option.photoSafetyNotes,
+            floorPriceCents: total,
+          },
         };
       case "REROUTE_SERVICE":
         return {
@@ -499,6 +512,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       <PhotoReviewNotice
         labels={state.labels}
         safetyNotes={state.safetyNotes}
+        floorPriceCents={state.floorPriceCents}
         note={customerNote}
         onNoteChange={setCustomerNote}
         serviceName={flow.name}

@@ -10,6 +10,8 @@ type Props = {
   labels: string[];
   /** Safety instructions from the photo groups used — shown once, not per label. */
   safetyNotes?: string[];
+  /** Running total at the point the flow stopped — a floor, never an estimate. */
+  floorPriceCents?: number | null;
   /** Optional free-text note, lifted to the engine so it lands in answersSnapshot. */
   note?: string;
   onNoteChange?: (v: string) => void;
@@ -30,6 +32,7 @@ export default function PhotoReviewNotice({
   serviceId,
   labels,
   safetyNotes = [],
+  floorPriceCents,
   note = "",
   onNoteChange,
   answers,
@@ -70,6 +73,9 @@ export default function PhotoReviewNotice({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // The running total where the flow stopped, so the cart can show
+          // "From $X" rather than nothing at all.
+          floorPriceCents,
           serviceId,
           answersSnapshot: answers,
           photos: uploadedPhotos,
@@ -81,7 +87,10 @@ export default function PhotoReviewNotice({
 
       if (!res.ok) throw new Error("Could not submit your photos");
       const data = await res.json();
-      router.push(`/quote/${data.quoteId}`);
+      // Back to the visit, not away from it. This used to land on a quote
+      // page, which ended the session — anything already in the cart was
+      // abandoned, and a first-time customer left with nothing booked.
+      router.push("/my-visit");
     } catch (err) {
       setError("Something went wrong uploading your photos. Please try again.");
       setSubmitting(false);
