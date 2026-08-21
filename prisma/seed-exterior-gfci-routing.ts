@@ -46,6 +46,23 @@ const DEVICE_MATERIALS: [string, number][] = [
 
 const COMPONENTS = [
   {
+    // Zero-cost, and it has to exist.
+    //
+    // An answer that declares components but matches none goes to review —
+    // correct when it means "we don't know which variant applies", wrong here
+    // where it means "no extra charge". Without an ACCESSIBLE variant to
+    // match, every open-route customer under 10 ft was sent to review instead
+    // of being given the base price.
+    key: "EXT_GFCI_RUN_ACCESSIBLE_UNDER_10",
+    name: "Exterior GFCI — open route, under 10 ft",
+    customerFacingLabel: null,
+    approvedPriceCents: 0,
+    addFieldLaborHours: 0,
+    addMaterialCostCents: 0,
+    addScheduleMinutes: 0,
+    notes: "The base case. Exists so the accessible route matches something.",
+  },
+  {
     key: "EXT_GFCI_RUN_ACCESSIBLE_10_20",
     name: "Exterior GFCI — open route, 10 to 20 ft",
     customerFacingLabel: "Longer wiring run",
@@ -327,12 +344,11 @@ async function main() {
   const under10 = await prisma.answerOption.findFirstOrThrow({
     where: { questionId: qDistance.id, value: "under_10" },
   });
-  await prisma.answerOptionComponent.create({
-    data: {
-      answerOptionId: under10.id,
-      componentId: await comp("EXT_GFCI_RUN_FINISHED_UNDER_10"),
-      conditionAccessClass: "FINISHED",
-    },
+  await prisma.answerOptionComponent.createMany({
+    data: [
+      { answerOptionId: under10.id, componentId: await comp("EXT_GFCI_RUN_ACCESSIBLE_UNDER_10"), conditionAccessClass: "ACCESSIBLE" },
+      { answerOptionId: under10.id, componentId: await comp("EXT_GFCI_RUN_FINISHED_UNDER_10"), conditionAccessClass: "FINISHED" },
+    ],
   });
 
   const d10 = await prisma.answerOption.findFirstOrThrow({

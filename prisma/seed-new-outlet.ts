@@ -42,6 +42,20 @@ const FINISH_ACK_KEY = "outlet_finish_ack";
  */
 const COMPONENTS = [
   {
+    // Zero-cost, and it has to exist — see the exterior GFCI seed for the
+    // full reasoning. Without an ACCESSIBLE variant on the under-10-ft
+    // answer, an open-route customer declares one component, matches none,
+    // and gets sent to review instead of the $445 base price.
+    key: "OUTLET_RUN_ACCESSIBLE_UNDER_10",
+    name: "New outlet — open route, under 10 ft",
+    customerFacingLabel: null,
+    approvedPriceCents: 0,
+    addFieldLaborHours: 0,
+    addMaterialCostCents: 0,
+    addScheduleMinutes: 0,
+    notes: "The base case. Exists so the accessible route matches something.",
+  },
+  {
     key: "OUTLET_RUN_ACCESSIBLE_10_20",
     name: "New outlet — open route, 10 to 20 ft",
     customerFacingLabel: "Longer wiring run",
@@ -148,20 +162,11 @@ async function main() {
   const under10 = await prisma.answerOption.findFirstOrThrow({
     where: { questionId: qDistance.id, value: "under_10" },
   });
-  await prisma.answerOptionComponent.create({
-    data: {
-      answerOptionId: under10.id,
-      componentId: await comp("OUTLET_RUN_FINISHED_UNDER_10"),
-      conditionAccessClass: "FINISHED",
-    },
-  });
-  // An accessible short run genuinely adds nothing — but the answer declares
-  // a component for the finished case, and a declared-but-unmatched component
-  // routes to review. An explicit approved zero keeps the accessible path
-  // bookable.
-  await prisma.answerOption.update({
-    where: { id: under10.id },
-    data: { approvedComponentPriceCents: null },
+  await prisma.answerOptionComponent.createMany({
+    data: [
+      { answerOptionId: under10.id, componentId: await comp("OUTLET_RUN_ACCESSIBLE_UNDER_10"), conditionAccessClass: "ACCESSIBLE" },
+      { answerOptionId: under10.id, componentId: await comp("OUTLET_RUN_FINISHED_UNDER_10"), conditionAccessClass: "FINISHED" },
+    ],
   });
 
   const d10_20 = await prisma.answerOption.findFirstOrThrow({
@@ -203,15 +208,35 @@ async function main() {
   // Accessible goes straight to the distance question. Finished passes
   // through the acknowledgement first — cutting drywall is foreseeable there,
   // and the customer should accept it before seeing a price rather than after.
+  // The exterior-wall question, if seed-conditional-disclaimers has inserted
+  // one, sits BETWEEN the access answer and the distance question. Pointing
+  // has_access straight at distance would orphan it — which is exactly what
+  // happened the first time these two seeds ran in the wrong order.
+  //
+  // Two seeds writing the same nextQuestionId is the recurring shape of this
+  // bug. Each has to know what the other might have put there.
+  const exteriorWall = service.questions.find((q) => q.key === "device_on_exterior_wall");
+  const afterAccess = exteriorWall ?? qDistance;
+
   await prisma.answerOption.updateMany({
     where: { questionId: access.id, value: "has_access" },
     data: {
       routeAction: "CONTINUE",
-      nextQuestionId: qDistance.id,
+      nextQuestionId: afterAccess.id,
       priceModifierCents: 0,
       approvedComponentPriceCents: 0,
     },
   });
+
+  // And if it exists, make sure it still leads onward to the distance
+  // question rather than wherever it pointed before this seed ran.
+  if (exteriorWall) {
+    await prisma.answerOption.updateMany({
+      where: { questionId: exteriorWall.id, routeAction: "CONTINUE" },
+      data: { nextQuestionId: qDistance.id },
+    });
+    console.log(`  · exterior-wall question preserved between access and distance`);
+  }
 
   if (finishedBoth) {
     // "Yes, finished on both sides" was the +$100 branch. The hundred goes;
@@ -230,6 +255,9 @@ async function main() {
 
   const dangling = await findDanglingReferences(prisma, service.id);
   const unreachable = await findUnreachableQuestions(prisma, service.id);
+  if (unreachable.includes("device_on_exterior_wall")) {
+    console.log(`  ! the exterior-wall question is orphaned — run seed-conditional-disclaimers.ts`);
+  }
   console.log(
     `  ✓ ${SLUG} — distance bands and acknowledgement wired` +
       (dangling.length ? `  [DANGLING: ${dangling.join(", ")}]` : "") +
