@@ -76,7 +76,11 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
     <div className="mt-6 max-w-xl space-y-8">
       <form onSubmit={handleSaveSettings} className="space-y-4 rounded-card border border-cardline bg-white p-6 shadow-card">
         <div>
-          <label className="text-sm font-medium text-navy">Target rate ($/productive tech-hour)</label>
+          {/* Was "productive tech-hour", which read as a per-person rate and
+              produced a second-technician charge on the TV tier twice. One
+              crew is one van: a lead and a helper, both already inside this
+              number. */}
+          <label className="text-sm font-medium text-navy">Crew-hour rate ($ per hour, per van)</label>
           <input
             type="number" step="0.01" min="0" required
             value={rate} onChange={(e) => setRate(e.target.value)}
@@ -84,13 +88,17 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
           />
         </div>
         <div>
-          <label className="text-sm font-medium text-navy">Primary service minimum ($)</label>
+          <label className="text-sm font-medium text-navy">Service-call minimum ($)</label>
           <input
             type="number" step="0.01" min="0" required
             value={minimum} onChange={(e) => setMinimum(e.target.value)}
             className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
           />
-          <p className="mt-1 text-xs text-slate">No primary price ever computes below this, as long as the service has labor time.</p>
+          <p className="mt-1 text-xs text-slate">
+            The first service on a visit never prices below this, whatever its
+            duration. Set independently of the rate — lowering the rate does
+            not lower this floor. Never applies to same-visit add-ons.
+          </p>
         </div>
         <div>
           <label className="text-sm font-medium text-navy">Rounding increment ($)</label>
