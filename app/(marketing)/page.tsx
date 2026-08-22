@@ -88,7 +88,7 @@ export default async function HomePage() {
               Skip the Estimate. Know Your Price.
             </h1>
             <p className="mt-4 text-lg text-slate-light">
-              See your price. Pick your time.
+              Pick your time. Book online.
             </p>
 
             {/* The same-visit callout.
