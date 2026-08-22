@@ -180,7 +180,8 @@ export function resolveRoute(
       return { status: "REROUTE", targetServiceId: option.rerouteServiceId, carriedAnswers: answers };
     }
 
-    const contribution = applyBranch(
+    // applyBranch returns the new configuration directly — it isn't wrapped.
+    config = applyBranch(
       config,
       {
         priceModifierCents: option.priceModifierCents,
@@ -202,7 +203,6 @@ export function resolveRoute(
       },
       answers
     );
-    config = contribution.config;
 
     for (const g of option.photoGroups) {
       photoLabels.push(...g.photoGroup.labels);
@@ -224,7 +224,9 @@ export function resolveRoute(
 
     if (option.routeAction === "PHOTO_REVIEW" && option.photosBlockBooking) {
       const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
-      const floor = base === null ? null : customerPrice(config, base);
+      // customerPrice returns a verdict, not a number: it can refuse to
+      // price a route whose components aren't approved.
+      const floor = base === null ? null : customerPrice(config, base).totalCents;
       return {
         status: "REVIEW",
         reason: "This route needs the office to price it",
@@ -256,7 +258,7 @@ export function resolveRoute(
       reason: "A component on this route has no approved price",
       photoLabels: [...new Set(photoLabels)],
       photoSafetyNotes: [...new Set(photoSafetyNotes)],
-      floorPriceCents: base === null ? null : customerPrice(config, base),
+      floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
       isPrimary,
       config,
     };
@@ -268,7 +270,7 @@ export function resolveRoute(
       reason: "The wiring route isn't established",
       photoLabels: [...new Set(photoLabels)],
       photoSafetyNotes: [...new Set(photoSafetyNotes)],
-      floorPriceCents: base === null ? null : customerPrice(config, base),
+      floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
       isPrimary,
       config,
     };
@@ -282,9 +284,26 @@ export function resolveRoute(
     };
   }
 
+  const verdict = customerPrice(config, base);
+  if (verdict.mustReview || verdict.totalCents === null) {
+    // The pricing library itself refused. Fail closed rather than reaching
+    // past it for a number — its reasons are the same ones this resolver
+    // checks, and any it catches that we don't is exactly the case worth
+    // deferring to it on.
+    return {
+      status: "REVIEW",
+      reason: verdict.reason ?? "This route can't be priced automatically",
+      photoLabels: [...new Set(photoLabels)],
+      photoSafetyNotes: [...new Set(photoSafetyNotes)],
+      floorPriceCents: null,
+      isPrimary,
+      config,
+    };
+  }
+
   return {
     status: "PRICED",
-    priceCents: customerPrice(config, base),
+    priceCents: verdict.totalCents,
     isPrimary,
     config,
     photoLabels: [...new Set(photoLabels)],
