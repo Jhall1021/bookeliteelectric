@@ -324,7 +324,17 @@ async function main() {
   if (svc.fieldLaborHours !== 1.5) problems.push(`base is ${svc.fieldLaborHours}, expected 1.5`);
 
   console.log(`\n  both tiers: ${svc.fieldLaborHours} crew-hours, one van, ${svc.estimatedMinutes} minutes`);
-  console.log(`  56-85" premium: $${comp.approvedPriceCents / 100}, adding no labor and no crew`);
+  // Nullable on purpose: null means "no approved customer price", which for
+  // this component would mean the tier goes to review instead of pricing.
+  // Worth catching here rather than discovering it as a review screen.
+  if (comp.approvedPriceCents === null) {
+    problems.push("premium has no approved customer price");
+  }
+  console.log(
+    `  56-85" premium: ${
+      comp.approvedPriceCents === null ? "NOT APPROVED" : `$${comp.approvedPriceCents / 100}`
+    }, adding no labor and no crew`
+  );
   if (problems.length) {
     throw new Error(`TV staffing model is wrong: ${problems.join("; ")}`);
   }
