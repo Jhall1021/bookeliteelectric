@@ -318,8 +318,13 @@ export function startConfiguration(svc: {
 export function startDisplayConfiguration(svc: { estimatedMinutes: number | null }): JobConfiguration {
   return {
     accessClass: null,
+    // Null, because the client genuinely doesn't know the labor — that's the
+    // point. materialCostCents is 0 rather than null because it's an
+    // accumulator: components add to it, and nothing the client receives
+    // carries a material cost, so it stays 0 and no price can be derived
+    // from it.
     fieldLaborHours: null,
-    materialCostCents: null,
+    materialCostCents: 0,
     estimatedMinutes: svc.estimatedMinutes,
     techCount: 1,
     components: [],
