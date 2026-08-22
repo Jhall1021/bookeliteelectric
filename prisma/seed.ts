@@ -224,7 +224,9 @@ async function main() {
   for (const [i, cat] of CATALOG.entries()) {
     const category = await prisma.serviceCategory.upsert({
       where: { slug: cat.slug },
-      update: { name: cat.name, icon: cat.icon, sortOrder: i, navGroup: cat.navGroup },
+      // sortOrder is deliberately NOT synced — it's set in the admin now, and
+      // rewriting it here would undo the ordering on every reseed.
+      update: { name: cat.name, icon: cat.icon, navGroup: cat.navGroup },
       create: {
         slug: cat.slug,
         name: cat.name,
@@ -237,20 +239,25 @@ async function main() {
     for (const svc of cat.services) {
       await prisma.service.upsert({
         where: { slug: svc.slug },
-        update: {
-          name: svc.name,
-          categoryId: category.id,
-          bookingType: svc.bookingType,
-          basePrice: svc.basePrice ? c(svc.basePrice) : null,
-          startingPriceLabel: svc.startingPriceLabel,
-          whileWeThereBasePrice: svc.whileWeThereBasePrice ? c(svc.whileWeThereBasePrice) : null,
-          requiresTechCount: svc.requiresTechCount ?? 1,
-          estimatedMinutes: svc.estimatedMinutes ?? null,
-          active: svc.active ?? true,
-          disclaimer: svc.disclaimer ?? null,
-          shortDescription: svc.description,
-          icon: svc.icon ?? null,
-        },
+        // BOOTSTRAP ONLY.
+        //
+        // Empty on purpose. This seed holds the original hand-set price book
+        // from before the pricing model existed, and it used to write all of
+        // it back on every run — so `npm run db:seed` could restore Ceiling
+        // Fan to $375, Exterior GFCI to $500, the dedicated circuit to $795,
+        // and undo months of decisions in one command.
+        //
+        // It wasn't only prices. The update branch also rewrote `name`
+        // (reverting every rename), `estimatedMinutes` (undoing the labor
+        // pass), `disclaimer`, and `categoryId` — which would move the
+        // dedicated circuit back out of the category we deliberately put it
+        // in.
+        //
+        // On an existing database this now does nothing at all. Creating a
+        // missing service still works, which is what a bootstrap is for.
+        // Everything else — prices, labor, routing, copy — belongs to the
+        // specialized seeds and the admin.
+        update: {},
         create: {
           slug: svc.slug,
           name: svc.name,
