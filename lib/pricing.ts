@@ -358,10 +358,19 @@ export type BranchContribution = {
       customerFacingLabel: string | null;
       /** Null = not approved; any route using it goes to review. */
       approvedPriceCents?: number | null;
-      addFieldLaborHours: number;
-      addMaterialCostCents: number;
-      addScheduleMinutes: number;
-      addTechCount: number;
+      // Optional, because the BROWSER doesn't receive them.
+      //
+      // The server sends the client only what a customer may see: the
+      // component's key, its customer-facing label and its approved price.
+      // Elite's crew-hours and material costs stay server-side. So a client
+      // calling this gets a configuration whose labor and material totals are
+      // empty — which is correct, since the client no longer prices anything.
+      //
+      // The SERVER passes all four and gets the full operational shape.
+      addFieldLaborHours?: number | null;
+      addMaterialCostCents?: number | null;
+      addScheduleMinutes?: number | null;
+      addTechCount?: number | null;
     };
   }[];
 };
@@ -410,11 +419,11 @@ export function applyBranch(
   for (const sel of selected) {
     const q = Math.max(sel.quantity, 1);
     const c = sel.component;
-    addHours(c.addFieldLaborHours * q);
-    material += c.addMaterialCostCents * q;
+    if (c.addFieldLaborHours) addHours(c.addFieldLaborHours * q);
+    if (c.addMaterialCostCents) material += c.addMaterialCostCents * q;
     if (c.addScheduleMinutes && minutes !== null) minutes += c.addScheduleMinutes * q;
     // Extra VANS, not extra people. Zero on every component today.
-    techCount += c.addTechCount * q;
+    if (c.addTechCount) techCount += c.addTechCount * q;
     components.push({ key: c.key, label: c.customerFacingLabel, quantity: q });
   }
 
