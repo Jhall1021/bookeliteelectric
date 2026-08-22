@@ -28,18 +28,20 @@ const CREDENTIALS = [
 ];
 
 /**
- * The pricing ladder.
+ * Two rows, not three.
  *
- * Deliberately no numbers, no percentages, no bars. The saving genuinely
- * varies by service — an additional recessed light is a fraction of the
- * first, a second outlet swap is nearly the same — so anything proportional
- * would be drawing a ratio that doesn't exist. The indent carries the meaning
- * and every word of it is true.
+ * A third rung said nothing the second hadn't already — the pattern is
+ * established by the contrast, and repeating it just cost height in the one
+ * place on the page where height is expensive.
+ *
+ * Still no numbers, percentages or bars. The saving genuinely varies by
+ * service — an additional recessed light is a fraction of the first, a second
+ * outlet swap is nearly the same — so anything proportional would draw a
+ * ratio that doesn't exist.
  */
 const PRICING_LADDER = [
-  { label: "Your first service", price: "Full price", indent: 0 },
-  { label: "Add another", price: "Costs less", indent: 1 },
-  { label: "And another", price: "Costs less", indent: 2 },
+  { label: "First service", price: "Regular service price", muted: false },
+  { label: "Additional services", price: "Lower same-visit price", muted: true },
 ];
 
 /**
@@ -93,39 +95,36 @@ export default async function HomePage() {
                 Warm card against the navy so it reads as a distinct object
                 rather than more hero copy — the one place on this page where
                 the palette inverts, which is what earns it attention without
-                a badge or a starburst. */}
-            <div className="mt-7 overflow-hidden rounded-card bg-warmwhite text-navy shadow-card">
-              <div className="px-6 pt-5">
-                <div className="text-xs font-bold uppercase tracking-[0.14em] text-electric">
+                a badge or a starburst.
+                Deliberately compact: it's a benefit callout, not a second
+                content section, and the headline and CTA have to stay the
+                dominant things above the fold. */}
+            <div className="mt-6 overflow-hidden rounded-card bg-warmwhite text-navy shadow-card">
+              <div className="px-5 pt-3.5">
+                <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-electric">
                   Add more &amp; save
                 </div>
-                <p className="mt-1.5 font-display text-lg font-bold leading-snug">
-                  One visit. Lower prices on everything else.
+                <p className="mt-1 font-display text-base font-bold leading-snug">
+                  Lower prices on every additional service.
                 </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate">
+                <p className="mt-1 text-[13px] leading-snug text-slate">
                   Book your first service at the regular price. Add more work to the same
-                  visit and each additional service is priced lower, because we&rsquo;re
+                  visit and each additional service is priced lower because we&rsquo;re
                   already there.
                 </p>
               </div>
 
-              <div className="mt-4 divide-y divide-cardline border-t border-cardline">
+              <div className="mt-2.5 divide-y divide-cardline border-t border-cardline">
                 {PRICING_LADDER.map((row) => (
                   <div
                     key={row.label}
-                    className="flex items-center justify-between gap-4 px-6 py-2.5"
-                    // The step is the whole graphic. Each row sits further in
-                    // than the last, so the shape says "descending" before a
-                    // word is read.
-                    style={{ paddingLeft: `${1.5 + row.indent * 1}rem` }}
+                    className="flex items-center justify-between gap-4 px-5 py-1.5"
                   >
-                    <span className="text-sm text-navy">{row.label}</span>
+                    <span className="text-[13px] text-navy">{row.label}</span>
                     <span
-                      className={
-                        row.indent === 0
-                          ? "text-sm font-semibold text-navy"
-                          : "text-sm font-semibold text-success"
-                      }
+                      className={`text-[13px] font-semibold ${
+                        row.muted ? "text-success" : "text-navy"
+                      }`}
                     >
                       {row.price}
                     </span>
@@ -134,7 +133,7 @@ export default async function HomePage() {
               </div>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 href="/services"
                 className="ray-accent rounded-pill bg-electric px-7 py-3.5 text-base font-semibold text-white transition hover:bg-electric-hover"
