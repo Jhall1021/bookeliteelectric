@@ -88,9 +88,9 @@ export default function MyVisitPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        // No price, no primary claim. The server prices it and works out
+        // whether it's the anchor job from the visit itself.
         serviceId: s.id,
-        computedPriceCents: s.whileWeThereBasePrice,
-        isPrimary: false,
         answersSnapshot: {},
       }),
     });
@@ -127,22 +127,16 @@ export default function MyVisitPage() {
       return;
     }
 
-    // Every unit after the first is priced at the While We're There rate —
-    // even for the exact same service — since the technician is already
-    // on-site regardless of whether this is a 1st or 2nd outlet replacement.
-    // Falls back to the full price only if this service has no WWT rate on
-    // file at all.
-    const priceForNextUnit = group.whileWeThereBasePrice ?? group.totalPriceCents / group.quantity;
-
+    // No price sent, and none guessed here.
+    //
+    // This used to read whileWeThereBasePrice off the group and post it as
+    // the price of the next unit. Two problems: the browser was deciding
+    // what a unit costs, and for a service whose price depends on answers
+    // that figure was wrong anyway. The server prices it.
     await fetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        serviceId: group.serviceId,
-        computedPriceCents: priceForNextUnit,
-        isPrimary: group.isPrimary,
-        answersSnapshot: {},
-      }),
+      body: JSON.stringify({ serviceId: group.serviceId, answersSnapshot: {} }),
     });
     refresh();
   }

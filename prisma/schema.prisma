@@ -642,6 +642,22 @@ model LineItem {
   /// thing and three straightforward ones ended up booking none of them.
   computedPriceCents Int?
 
+  /// The job as the SERVER resolved it, not as the service defines it.
+  ///
+  /// A route changes duration, crew-hours, components and access — six
+  /// recessed lights are not one recessed light. This used to snapshot the
+  /// service-level estimatedMinutes, so a six-light job booked the same
+  /// calendar slot as a one-light job.
+  ///
+  /// Immutable once written: a booked job is never recalculated when admin
+  /// pricing or labor changes later.
+  resolvedCrewHours     Float?
+  /// Elite vans, not people. One van is a lead and a helper.
+  resolvedCrewCount     Int?
+  resolvedAccessClass   AccessClassification?
+  /// Component keys that priced this line — for the job sheet and for audit.
+  resolvedComponentKeys String[]
+
   /// The running total at the point the flow stopped.
   ///
   /// Always a FLOOR, never an estimate. Every review branch exists because

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
+import {
+  loadServiceForResolution,
+  loadPricingSettings,
+  resolveRoute,
+} from "@/lib/routeResolver";
 
 // POST body: { serviceId, computedPriceCents, isPrimary, answersSnapshot,
 //              photos?: { url, label }[] }
@@ -15,66 +20,85 @@ import { getOrCreateSessionId } from "@/lib/session";
 export async function POST(req: Request) {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
-  const { serviceId, computedPriceCents, isPrimary, answersSnapshot, photos } = body;
+  const { serviceId, answersSnapshot, photos } = body;
 
-  if (!serviceId || typeof computedPriceCents !== "number") {
-    return NextResponse.json({ error: "Missing serviceId or computedPriceCents" }, { status: 400 });
+  if (!serviceId) {
+    return NextResponse.json({ error: "Missing serviceId" }, { status: 400 });
   }
 
-  let visit = await prisma.visit.findFirst({
-    where: { sessionId, status: "OPEN" },
-  });
+  // Deliberately NOT read from the body: computedPriceCents, isPrimary,
+  // crew count, crew-hours, duration, component increments. The browser
+  // used to send the price and this route stored it after a typeof check,
+  // which made dev tools an authority on what Elite charges.
+  if ("computedPriceCents" in body) {
+    console.warn(
+      `[visit] client sent computedPriceCents for ${serviceId} — ignored. ` +
+        `Something is still on the old contract.`
+    );
+  }
 
+  const service = await loadServiceForResolution(prisma, serviceId);
+  if (!service || !service.active) {
+    return NextResponse.json({ error: "Unknown service" }, { status: 404 });
+  }
+
+  let visit = await prisma.visit.findFirst({ where: { sessionId, status: "OPEN" } });
   if (!visit) {
     visit = await prisma.visit.create({ data: { sessionId, status: "OPEN" } });
   }
 
-  // A service with a decision tree cannot be added without going through it.
-  //
-  // The cart's "+" button used to POST with an empty answersSnapshot, which
-  // added a second unit at the add-on rate with no qualification at all — no
-  // height, no access, no distance. Someone could qualify one recessed light
-  // for an 8 ft ceiling with attic access and then add five more for rooms
-  // nobody asked about, at a price justified by a different room.
-  //
-  // Enforced here rather than only in the UI: hiding a button doesn't stop a
-  // POST, and this is the difference between a priced job and a loss.
-  const qualification = await prisma.service.findUnique({
-    where: { id: serviceId },
-    select: { name: true, _count: { select: { questions: true } } },
-  });
+  // Primary is a fact about the visit, not a claim the client gets to make.
+  // The first line originates the trip and carries the service-call minimum;
+  // everything after it is same-visit work.
+  const existingCount = await prisma.lineItem.count({ where: { visitId: visit.id } });
+  const isPrimary = existingCount === 0;
 
-  if (qualification && qualification._count.questions > 0) {
-    const answers = answersSnapshot ?? {};
-    if (Object.keys(answers).length === 0) {
-      return NextResponse.json(
-        {
-          error: "QUALIFICATION_REQUIRED",
-          message: `${qualification.name} needs a few questions answered before it can be added — the price depends on them.`,
-        },
-        { status: 422 }
-      );
-    }
+  const settings = await loadPricingSettings(prisma);
+  const answers: Record<string, string> = answersSnapshot ?? {};
+  const resolved = resolveRoute(service, answers, isPrimary, settings);
+
+  if (resolved.status === "INVALID") {
+    // Loud in the logs, vague to the customer — the reason names internal
+    // structure, and a broken tree is our problem to fix, not theirs to read.
+    console.error(`[visit] cannot resolve ${service.slug}: ${resolved.reason}`);
+    return NextResponse.json(
+      {
+        error: "ROUTE_UNRESOLVED",
+        message:
+          "Something's not right with this service just now. Nothing has been added — please try again, or send us a couple of photos and we'll price it directly.",
+      },
+      { status: 422 }
+    );
   }
 
-  // Duration is looked up server-side, never trusted from the client — the
-  // customer never sends or sees this value, it's purely internal dispatch
-  // data snapshotted at add-time, same pattern as price.
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
-    select: { estimatedMinutes: true },
-  });
+  if (resolved.status === "REROUTE") {
+    return NextResponse.json(
+      { error: "REROUTE_REQUIRED", targetServiceId: resolved.targetServiceId },
+      { status: 409 }
+    );
+  }
 
-  // Only accept well-formed photo entries — a malformed one would otherwise
-  // create a Photo row with an empty url that renders as a broken image on
-  // the technician's job sheet.
+  if (resolved.status === "REVIEW") {
+    // A blocking review isn't a booking. It goes through /api/quotes, which
+    // collects photos and contact details and holds a place in the visit.
+    return NextResponse.json(
+      {
+        error: "REVIEW_REQUIRED",
+        reason: resolved.reason,
+        photoLabels: resolved.photoLabels,
+        floorPriceCents: resolved.floorPriceCents,
+      },
+      { status: 409 }
+    );
+  }
+
   const incomingPhotos: { url: string; label: string }[] = Array.isArray(photos)
     ? photos.filter(
-        (p: unknown): p is { url: string; label: string } =>
-          !!p &&
-          typeof (p as { url?: unknown }).url === "string" &&
-          (p as { url: string }).url.length > 0 &&
-          typeof (p as { label?: unknown }).label === "string"
+        (ph: unknown): ph is { url: string; label: string } =>
+          !!ph &&
+          typeof (ph as { url?: unknown }).url === "string" &&
+          (ph as { url: string }).url.length > 0 &&
+          typeof (ph as { label?: unknown }).label === "string"
       )
     : [];
 
@@ -83,19 +107,27 @@ export async function POST(req: Request) {
       data: {
         visitId: visit!.id,
         serviceId,
-        isPrimary: isPrimary ?? true,
-        answersSnapshot: answersSnapshot ?? {},
-        computedPriceCents,
-        estimatedMinutes: service?.estimatedMinutes ?? null,
+        isPrimary: resolved.isPrimary,
+        answersSnapshot: answers,
+        // Server-derived, every one of them.
+        computedPriceCents: resolved.priceCents,
+        // The RESOLVED duration, not the service default. A six-light
+        // recessed job consumed the same calendar slot as a one-light job
+        // because this used to snapshot service.estimatedMinutes.
+        estimatedMinutes: resolved.config.estimatedMinutes,
+        resolvedCrewHours: resolved.config.fieldLaborHours,
+        resolvedCrewCount: resolved.config.techCount,
+        resolvedAccessClass: resolved.config.accessClass,
+        resolvedComponentKeys: resolved.config.components.map((c) => c.key),
       },
     });
 
     if (incomingPhotos.length > 0) {
       await tx.photo.createMany({
-        data: incomingPhotos.map((p) => ({
+        data: incomingPhotos.map((ph) => ({
           lineItemId: created.id,
-          url: p.url,
-          label: p.label,
+          url: ph.url,
+          label: ph.label,
           source: "CUSTOMER_PRE_BOOKING" as const,
         })),
       });
@@ -104,7 +136,14 @@ export async function POST(req: Request) {
     return created;
   });
 
-  return NextResponse.json({ visitId: visit.id, lineItemId: lineItem.id });
+  return NextResponse.json({
+    visitId: visit.id,
+    lineItemId: lineItem.id,
+    // Returned so the client can show what was added — not so it can
+    // influence it.
+    priceCents: resolved.priceCents,
+    isPrimary: resolved.isPrimary,
+  });
 }
 
 // DELETE ?lineItemId=... — removes ONE instance. If the customer added 3
@@ -149,21 +188,57 @@ export async function DELETE(req: Request) {
   let pricingAdjusted = false;
 
   if (!hasPrimaryLeft && remaining.length > 0) {
-    // Skip lines that are still being quoted. Promoting one would set its
-    // price from the service's base rate — silently pricing something the
-    // office hasn't looked at yet, and the customer would see a number
-    // appear against an item that said "price to follow" a moment earlier.
-    //
-    // If EVERY remaining line is awaiting a quote there's nothing to
-    // promote, which is correct: the visit has no priced anchor, and
-    // scheduling is already blocked until the quotes come back.
+    // Skip lines still awaiting a quote — promoting one would price
+    // something the office hasn't looked at.
     const newAnchor = remaining.find((li) => li.computedPriceCents !== null);
-    if (newAnchor && newAnchor.service.basePrice !== null) {
-      pricingAdjusted = true;
-      await prisma.lineItem.update({
-        where: { id: newAnchor.id },
-        data: { isPrimary: true, computedPriceCents: newAnchor.service.basePrice },
-      });
+
+    if (newAnchor) {
+      // REPLAY, don't guess.
+      //
+      // This used to assign service.basePrice, which is only correct for a
+      // service with no tree. A finished-wall outlet or a six-light recessed
+      // job has a standalone price that depends on its own answers — the
+      // stored snapshot is exactly what's needed to work it out, and it was
+      // sitting there unread.
+      //
+      // Same authority rule as POST: the price comes from replaying the
+      // route, not from a constant.
+      const service = await loadServiceForResolution(prisma, newAnchor.serviceId);
+      const settings = await loadPricingSettings(prisma);
+
+      if (service) {
+        const answers = (newAnchor.answersSnapshot ?? {}) as Record<string, string>;
+        const resolved = resolveRoute(service, answers, true, settings);
+
+        if (resolved.status === "PRICED") {
+          pricingAdjusted = true;
+          await prisma.lineItem.update({
+            where: { id: newAnchor.id },
+            data: {
+              isPrimary: true,
+              computedPriceCents: resolved.priceCents,
+              estimatedMinutes: resolved.config.estimatedMinutes,
+              resolvedCrewHours: resolved.config.fieldLaborHours,
+              resolvedCrewCount: resolved.config.techCount,
+            },
+          });
+        } else {
+          // The line can't be repriced as a standalone job — its route may
+          // only have been valid as an add-on, or the tree may have changed.
+          // Promote it anyway so the visit has an anchor, but leave it
+          // unpriced so scheduling blocks and the office sees it, rather than
+          // inventing a figure.
+          console.error(
+            `[visit] promoted ${service.slug} but could not reprice it: ` +
+              ("reason" in resolved ? resolved.reason : resolved.status)
+          );
+          pricingAdjusted = true;
+          await prisma.lineItem.update({
+            where: { id: newAnchor.id },
+            data: { isPrimary: true, computedPriceCents: null },
+          });
+        }
+      }
     }
   }
 

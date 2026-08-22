@@ -364,9 +364,12 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         serviceId: flow.id,
-        computedPriceCents: priceCents,
-        // An add-on is never the anchor job for the visit.
-        isPrimary: !isAddOn,
+        // Only what the customer chose.
+        //
+        // computedPriceCents and isPrimary used to be sent from here. The
+        // server replays these answers against the current tree and decides
+        // both — a browser asserting its own price is a browser deciding what
+        // Elite charges.
         answersSnapshot: customerNote.trim()
           ? { ...answers, customer_note: customerNote.trim() }
           : answers,
