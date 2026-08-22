@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { AnswerOptionDTO, QuestionDTO, ServiceFlowDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
 import {
-  startConfiguration,
+  startDisplayConfiguration,
   applyBranch,
   customerPrice,
   type JobConfiguration,
@@ -95,7 +95,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       const addOn = (visit?.lineItems?.length ?? 0) > 0 && data.whileWeThereBasePrice !== null;
       setFlow(data);
       setIsAddOn(addOn);
-      setConfig(startConfiguration(data));
+      setConfig(startDisplayConfiguration(data));
       setState({ kind: "intro" });
       setHistory([]);
       setAnswers({});
@@ -126,7 +126,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     if (!flow) return;
     pushHistory();
     if (flow.questions.length > 0) {
-      advanceFrom(flow.questions[0].id, config ?? startConfiguration(flow), answers);
+      advanceFrom(flow.questions[0].id, config ?? startDisplayConfiguration(flow), answers);
     } else if (flow.bookingType === "REMOTE_QUOTE") {
       // No tree seeded for this service yet, but it's explicitly a
       // custom-quote job — route straight to photo review instead of
@@ -332,7 +332,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     const newAnswers = { ...answers, [question.key]: option.value };
     setAnswers(newAnswers);
 
-    const result = evaluate(option, config ?? startConfiguration(flow!), newAnswers);
+    const result = evaluate(option, config ?? startDisplayConfiguration(flow!), newAnswers);
 
     if (result.kind === "continue") {
       // Skip straight past anything already answered.

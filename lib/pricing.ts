@@ -299,6 +299,36 @@ export function startConfiguration(svc: {
  * The three things an access answer can mean to the pricing engine.
  * Derived from the answer's own declaration, never inferred from wording.
  */
+/**
+ * A configuration for DISPLAY, with no cost inputs.
+ *
+ * The browser still accumulates a route as the customer answers — it has to,
+ * to show "+$135" against an option and a running total on the price screen.
+ * But those are approved CUSTOMER-FACING increments, which is different from
+ * Elite's crew-hours and material costs.
+ *
+ * So the client builds a configuration whose cost fields are empty. It tracks
+ * access classification and approved increments, which is all it needs to
+ * render, and it cannot compute a price from labor because it no longer has
+ * any labor to compute from. The server does that.
+ *
+ * If a caller ever reads fieldLaborHours off one of these and gets null, that
+ * is the design working, not a bug to patch.
+ */
+export function startDisplayConfiguration(svc: { estimatedMinutes: number | null }): JobConfiguration {
+  return {
+    accessClass: null,
+    fieldLaborHours: null,
+    materialCostCents: null,
+    estimatedMinutes: svc.estimatedMinutes,
+    techCount: 1,
+    components: [],
+    awaitingComponentApproval: false,
+    approvedIncrementCents: 0,
+    legacyModifierCents: 0,
+  };
+}
+
 export type AccessClass = "ACCESSIBLE" | "FINISHED" | "UNKNOWN";
 
 export type BranchContribution = {
