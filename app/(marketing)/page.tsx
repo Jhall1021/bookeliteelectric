@@ -99,7 +99,12 @@ export default async function HomePage() {
                 Deliberately compact: it's a benefit callout, not a second
                 content section, and the headline and CTA have to stay the
                 dominant things above the fold. */}
-            <div className="mt-6 overflow-hidden rounded-card bg-warmwhite text-navy shadow-card">
+            {/* max-w matches the CTA row beneath it — roughly the width of
+                "Book Your Service" and "I Don't Know What's Wrong" side by
+                side with their gap. Capped rather than fixed, so on a narrow
+                column both this and the buttons fall back to full width
+                together and stay aligned. */}
+            <div className="mt-6 max-w-[30rem] overflow-hidden rounded-card bg-warmwhite text-navy shadow-card">
               <div className="px-5 pt-3.5">
                 <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-electric">
                   Add more &amp; save
@@ -133,7 +138,7 @@ export default async function HomePage() {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-6 flex max-w-[30rem] flex-wrap gap-3">
               <Link
                 href="/services"
                 className="ray-accent rounded-pill bg-electric px-7 py-3.5 text-base font-semibold text-white transition hover:bg-electric-hover"
