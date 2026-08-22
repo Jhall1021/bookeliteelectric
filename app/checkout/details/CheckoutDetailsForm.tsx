@@ -63,13 +63,15 @@ export default function CheckoutDetailsForm() {
           </div>
         ))}
 
+        {/* Describes what actually happens today.
+            This previously said the customer's card would be securely saved —
+            at the moment they're handing over their address, on a form that
+            never asks for a card and with no Stripe integration behind it.
+            The claim goes back when card capture is real, not before. */}
         <p className="text-xs text-slate">
-          Your card will be securely saved to hold this appointment. You won't be charged until
-          the work is completed.
+          Nothing to pay now — we&rsquo;ll sort payment out once the work is done. The price
+          you see is the price you pay.
         </p>
-        {/* Real card capture (Stripe Elements) is wired in Phase 6 — the
-            payment model itself (card-on-file, capture after completion)
-            is already decided and reflected in the Booking record below. */}
 
         {error && (
           <div className="rounded-card bg-red-50 p-3 text-sm text-red-700">

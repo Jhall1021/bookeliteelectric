@@ -243,31 +243,25 @@ export default async function HomePage() {
         </ul>
       </section>
 
-      {/* Payment options */}
+      {/* Payment options.
+          The Affirm / "Pay Over Time" card was here, advertising financing
+          that isn't wired into the booking flow. It comes back when it's
+          real. What's left is true today: cards are accepted, and nothing is
+          charged before the work is finished. */}
       <section className="border-t border-cardline bg-warmwhite py-16">
         <div className="mx-auto max-w-6xl px-6">
-          <h2 className="font-display text-2xl font-bold text-navy">Flexible Payment Options</h2>
+          <h2 className="font-display text-2xl font-bold text-navy">Paying for the Work</h2>
           <p className="mt-2 max-w-2xl text-slate">
-            Pay however works best for you — all at the same upfront price you saw when you
-            booked.
+            Nothing to pay when you book. You settle up once the job is done — at the same
+            price you saw when you booked it.
           </p>
 
-          <div className="mt-8 grid gap-6 sm:grid-cols-2">
-            <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-              <h3 className="font-display text-base font-bold text-navy">All Major Credit Cards</h3>
-              <p className="mt-2 text-sm text-slate">
-                Visa, Mastercard, American Express, and Discover — pay with the card already in
-                your wallet.
-              </p>
-            </div>
-
-            <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-              <h3 className="font-display text-base font-bold text-navy">Pay Over Time</h3>
-              <p className="mt-2 text-sm text-slate">
-                Split larger jobs into monthly payments through Affirm, with rates shown upfront
-                before you commit — no surprises, same as our pricing.
-              </p>
-            </div>
+          <div className="mt-8 rounded-card border border-cardline bg-white p-6 shadow-card sm:max-w-md">
+            <h3 className="font-display text-base font-bold text-navy">All major credit cards</h3>
+            <p className="mt-2 text-sm text-slate">
+              Visa, Mastercard, American Express and Discover — pay with the card already in
+              your wallet.
+            </p>
           </div>
         </div>
       </section>

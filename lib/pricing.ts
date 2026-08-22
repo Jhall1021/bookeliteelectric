@@ -7,7 +7,12 @@
  *
  * The rules, in order:
  *
- *   labor    = fieldLaborHours x techCount, at the global tech-hour rate.
+ *   labor    = fieldLaborHours x the global CREW-hour rate.
+ *
+ *              A crew-hour is one Elite van for one hour. Every van carries a
+ *              lead electrician and a helper, so both are already inside the
+ *              rate — the figure is NOT multiplied by the people on board.
+ *              Doing so bills a second time for labor that was always there.
  *              For a PRIMARY service whose actual hours are <= 1.0, the labor
  *              component is the GREATER of that and the $250 service-call
  *              minimum — it recovers mobilization, truck, travel and the
@@ -77,7 +82,8 @@ export type PriceBreakdown = {
 
 function compute(
   hours: number | null,
-  techCount: number,
+  /** Elite vans dispatched. One van = lead + helper. Almost always 1. */
+  crewUnits: number,
   svc: ServicePricingInputs,
   settings: PricingSettings,
   isPrimary: boolean
@@ -111,7 +117,13 @@ function compute(
     };
   }
 
-  const actualTechHours = hours * Math.max(techCount, 1);
+  // Crew-hours, not person-hours.
+  //
+  // This was `hours * techCount`, which charged again for the helper who
+  // rides in every van as standard. crewUnits survives because a genuine
+  // second van is a real thing — but it is 1 for every service in the
+  // catalog, and normal staffing must never touch it.
+  const actualTechHours = hours * Math.max(crewUnits, 1);
   const rawLabor = actualTechHours * settings.targetRateCents;
 
   // §3.3 — the minimum applies only to a service that can actually be the
@@ -174,12 +186,14 @@ export function suggestWwtPrice(
 }
 
 /**
- * Dispatch duration for a booking, honouring any branch-level override.
+ * Dispatch shape for a booking, honouring any branch-level override.
  *
- * An answer can change the job rather than just its price — the TV size
- * question puts a second technician on 56-85 in installs at the same
- * 90-minute duration, which doubles both the labor hours and the calendar
- * capacity consumed.
+ * techCount here counts ELITE VANS, not people. One van carries a lead and a
+ * helper, so a value of 1 is two people on site. It reaches Jobber as the
+ * resource being booked and no longer affects price.
+ *
+ * Reading it as "one person" is exactly how the TV tier came to charge for a
+ * second electrician who was already in the van.
  */
 export function resolveJobShape(
   svc: { estimatedMinutes: number | null; requiresTechCount: number; fieldLaborHours: number | null },
@@ -318,8 +332,9 @@ export function applyBranch(
   /** Answers collected so far, for conditional components (§29). */
   answers: Record<string, string> = {}
 ): JobConfiguration {
-  // Absolute overrides replace; they are not deltas. The TV size answer sets
-  // techCount to 2 outright rather than adding one.
+  // Absolute overrides replace; they are not deltas. Reserved for a genuine
+  // second van — normal lead-plus-helper staffing is already inside the rate
+  // and must never be expressed here.
   let hours = branch.overrideFieldLaborHours ?? config.fieldLaborHours;
   let minutes = branch.overrideEstimatedMinutes ?? config.estimatedMinutes;
   let techCount = branch.overrideTechCount ?? config.techCount;
@@ -357,6 +372,7 @@ export function applyBranch(
     addHours(c.addFieldLaborHours * q);
     material += c.addMaterialCostCents * q;
     if (c.addScheduleMinutes && minutes !== null) minutes += c.addScheduleMinutes * q;
+    // Extra VANS, not extra people. Zero on every component today.
     techCount += c.addTechCount * q;
     components.push({ key: c.key, label: c.customerFacingLabel, quantity: q });
   }

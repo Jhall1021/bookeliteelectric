@@ -172,14 +172,14 @@ export default function PricingPanel(p: Props) {
           {primary.materialCents > 0 && <> · material {money(primary.materialCents)}</>}
           {primary.permitCents > 0 && <> · permit {money(primary.permitCents)}</>}
           {primary.otherCents > 0 && <> · other {money(primary.otherCents)}</>}
-          <> · {primary.actualTechHours.toFixed(2)} tech-hours</>
+          <> · {primary.actualTechHours.toFixed(2)} crew-hours</>
         </div>
       )}
 
       <div className="mt-5 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={label}>Actual field labor (hours, per tech)</label>
+            <label className={label}>Actual field labor (crew-hours)</label>
             <input
               type="number" step="0.25" min="0" value={hours}
               onChange={(e) => setHours(e.target.value)}
@@ -188,12 +188,19 @@ export default function PricingPanel(p: Props) {
             />
           </div>
           <div>
-            <label className={label}>Technicians</label>
+            <label className={label}>Elite crews (normally 1)</label>
             <input
               type="number" step="1" min="1" value={techs}
               onChange={(e) => setTechs(e.target.value)}
               className={field}
             />
+            {/* Vans, not people. Every van carries a lead and a helper, and
+                both are already inside the crew-hour rate — putting 2 here
+                means a genuine second van and doubles the price. */}
+            <p className="mt-1 text-xs text-slate">
+              One crew is a van with a lead and a helper. Only change this for a
+              job that genuinely needs a second van.
+            </p>
           </div>
         </div>
 

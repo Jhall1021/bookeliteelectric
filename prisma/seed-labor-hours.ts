@@ -105,7 +105,7 @@ const ROUTE_BASE: [string, number, number | null, string][] = [
   ["fan-replacing-light", 1.5, 1.25, "accessible ceiling; +0.50 component for finished"],
   ["recessed-lighting", 1.25, null, "first light, accessible; per-light components carry the rest"],
   ["new-120v-outlet", 1.0, 0.75, "accessible, under 10 ft; distance components carry the rest"],
-  ["tv-installation", 1.5, 1.25, "up to 55 in, one tech; the 56-85 route overrides techCount to 2"],
+  ["tv-installation", 1.5, 1.25, "both size tiers: one van, 1.5 crew-hours; the larger is a price premium"],
   ["replace-range-hood", 1.5, null, "standard existing-setup replacement only"],
   // Same matrix as New 120V Outlet, per the handoff. These don't have the
   // distance tree attached yet, so the base figure is all that applies until
@@ -221,44 +221,9 @@ async function main() {
   }
   console.log(`  ✓ ${ADDON_ONLY.length} add-on-only mounts: no labor, not primary-eligible`);
 
-  // TV: the 56-85 in route is two technicians at the same 90 minutes, so
-  // 1.5 hours becomes 3.0 tech-hours. Expressed as a techCount override on
-  // the answer rather than a second labor figure.
-  const tvSize = await prisma.question.findFirst({
-    where: { service: { slug: "tv-installation" }, key: { contains: "size" } },
-    include: { options: true },
-  });
-  if (tvSize) {
-    const twoTech = tvSize.options.find(
-      (o) => /56|85|large/i.test(o.label) && !/over 85|more than 85/i.test(o.label)
-    );
-    if (twoTech) {
-      await prisma.answerOption.update({
-        where: { id: twoTech.id },
-        data: { overrideTechCount: 2, overrideEstimatedMinutes: 90 },
-      });
-      console.log(`  ✓ tv-installation — "${twoTech.label}" set to 2 technicians at 90 minutes`);
-    } else {
-      console.log(`  ! tv-installation — couldn't identify the 56-85 in answer; set it by hand`);
-    }
-  }
-
-  // Labor recorded, route not yet built. These carry the New 120V Outlet
-  // matrix base hours but have no distance question, so only the base figure
-  // can ever apply — the 10-20 ft and finished branches don't exist for them.
-  // Recorded labor is not the same as a finished route.
-  const ROUTE_INCOMPLETE = [
-    "garage-door-opener-outlet",
-    "garage-door-opener-outlet-ev",
-    "bidet-smart-toilet-outlet",
-  ];
-  console.log(`\n  ! ${ROUTE_INCOMPLETE.length} service(s) have matrix base hours but no distance tree:`);
-  for (const slug of ROUTE_INCOMPLETE) {
-    const q = await prisma.question.findFirst({
-      where: { service: { slug }, key: { contains: "distance" } },
-    });
-    console.log(`      ${slug}${q ? "  (tree now present — remove from this list)" : "  — incomplete"}`);
-  }
+  // TV crew handling lives in seed-tv-installation.ts now. It used to set an
+  // overrideTechCount of 2 here, which charged for the helper already riding
+  // in every van — see that seed for the full reasoning.
 
   if (missing.length) {
     console.log(`\n  ! ${missing.length} slug(s) not in the catalog:`);
