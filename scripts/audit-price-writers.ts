@@ -60,9 +60,18 @@ function main() {
       // aren't writes.
       if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
       for (const field of WRITES) {
-        if (new RegExp(`${field}\\s*:`).test(text) && !/select|include|orderBy|where/.test(text)) {
-          hits.push({ file: rel, line: i + 1, field, text: trimmed.slice(0, 90) });
-        }
+        const m = new RegExp(`${field}\\s*:\\s*(\\S+)`).exec(text);
+        if (!m) continue;
+        // Reads aren't writes.
+        if (/select|include|orderBy|where/.test(text)) continue;
+        // A trailing comment mentioning a field isn't a write either — this
+        // was reporting `// uses newOutlet.basePrice: $395` as one.
+        const beforeField = text.slice(0, text.indexOf(field));
+        if (beforeField.includes("//")) continue;
+        // Clearing a price to make a service quote-only is the opposite of
+        // publishing one, and shouldn't sit in the same list.
+        if (/^null[,\s]*$/.test(m[1])) continue;
+        hits.push({ file: rel, line: i + 1, field, text: trimmed.slice(0, 90) });
       }
     });
   }

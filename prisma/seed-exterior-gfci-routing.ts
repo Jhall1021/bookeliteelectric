@@ -165,7 +165,17 @@ async function main() {
       // booked at all — it's been quote-only with no price and no tree.
       basePrice: 46000,
       whileWeThereBasePrice: 39500,
-      publishedPriceApprovedAt: new Date(),
+      // No publishedPriceApprovedAt here.
+      //
+      // This seed sets a price you approved in conversation, which is
+      // allowed — but stamping the approval field would be the script
+      // recording consent it was never given. Once that's in the data
+      // there's no way to tell an owner-approved price from one a
+      // calculation invented, which is how the recessed base moved
+      // without anyone deciding it should.
+      //
+      // Approval happens in the admin, or in one explicit reconciliation
+      // migration. Not here.
       disclaimer: EXTERIOR_CAVEAT,
     },
   });

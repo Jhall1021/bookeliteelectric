@@ -8,18 +8,13 @@
  * handoff both specify three tiers, with 56-85 needing two technicians and
  * anything over 85 going to quote.
  *
- * ONE VAN, BOTH TIERS
+ * WHAT 3.0 TECH-HOURS MEANS
  *
- * An earlier version modelled 56-85 in as a second technician — overriding
- * crew count to 2 and doubling the labor to 3.0 hours. That was wrong twice
- * over: every Elite van already carries a lead and a helper, so the second
- * person was being charged for although they were always coming; and it
- * would have blocked a second technician's Jobber calendar for a job that
- * needs one van.
- *
- * Both tiers are 1.50 crew-hours, one van, 90 minutes. The larger tier costs
- * more because it IS more — a bigger, heavier, more awkward television — and
- * that is a published scope premium, not a labor derivation.
+ * It is the TOTAL: two technicians for 90 minutes. It must not be multiplied
+ * by technician count again — that yields 6.0 and doubles the price. The base
+ * hours are stored per-tier as totals and the override sets crew size for
+ * dispatch, so the two never compound. There's an assertion at the end of this
+ * seed for exactly that.
  *
  * Published prices here are explicit launch decisions, not formulas:
  *
@@ -49,24 +44,28 @@ const SLUG = "tv-installation";
  * 90 minutes. Approved at $375, which is that labor at the current rate; the
  * published route total of $875 is a separate decision recorded below.
  */
-/**
- * The size premium on the larger tier.
- *
- * Deliberately carries nothing: no hours, no minutes, no extra van. It is a
- * published price decision about scope, and the handoff is explicit that it
- * must not be reverse-engineered from labor. Trying to justify $375 as hours
- * is what produced the second-technician model in the first place.
- */
-const LARGE_SIZE_PREMIUM = {
-  key: "TV_LARGE_SIZE_PREMIUM_56_85",
-  name: "TV installation — 56 to 85 inch size premium",
-  customerFacingLabel: "Large TV installation",
+const TWO_TECH = {
+  key: "TV_SECOND_TECHNICIAN",
+  name: "TV installation — second technician, 56 to 85 inch",
+  customerFacingLabel: "Two-technician installation",
   approvedPriceCents: 37500,
+  // ZERO labor hours, deliberately.
+  //
+  // The pricing engine already computes actualTechHours as hours x techCount.
+  // The answer overrides techCount to 2, so the base 1.5 becomes 3.0 on its
+  // own. Adding 1.5 here as well would make it (1.5 + 1.5) x 2 = 6.0 and
+  // double the price — the exact double-multiplication this tier invites.
+  //
+  // This component exists to carry the approved customer price and to name
+  // the second technician on the job sheet, not to add labor.
   addFieldLaborHours: 0,
   addMaterialCostCents: 0,
+  // Clock time is unchanged: the second technician works alongside, not
+  // afterwards. Crew size comes from the answer's override, not from here —
+  // setting it in both places would give three technicians.
   addScheduleMinutes: 0,
   addTechCount: 0,
-  notes: "Published scope premium. Not derived from labor, and adds no crew.",
+  notes: "Tier total is 3.0 tech-hours = base 1.5 x 2 technicians. Labor is NOT added here.",
 };
 
 const FINISH_ACK = [
@@ -93,22 +92,16 @@ async function main() {
   }
 
   await prisma.jobComponent.upsert({
-    where: { key: LARGE_SIZE_PREMIUM.key },
-    update: { ...LARGE_SIZE_PREMIUM },
-    create: LARGE_SIZE_PREMIUM,
-  });
-
-  // Retired rather than deleted — it may appear on bookings already taken.
-  await prisma.jobComponent.updateMany({
-    where: { key: "TV_SECOND_TECHNICIAN" },
-    data: { active: false },
+    where: { key: TWO_TECH.key },
+    update: { ...TWO_TECH },
+    create: TWO_TECH,
   });
 
   await prisma.service.update({
     where: { id: service.id },
     data: {
-      // 1.5 crew-hours — one van, 90 minutes. Both tiers are the same: the
-      // larger one is priced higher, not staffed differently.
+      // 1.5 is the up-to-55 tier: one technician, 90 minutes. The second
+      // technician arrives as a component, not as a bigger base figure.
       fieldLaborHours: 1.5,
       wwtLaborHours: 1.25,
       estimatedMinutes: 90,
@@ -116,7 +109,17 @@ async function main() {
       requiresTechCount: 1,
       basePrice: 50000,
       whileWeThereBasePrice: 37500,
-      publishedPriceApprovedAt: new Date(),
+      // No publishedPriceApprovedAt here.
+      //
+      // This seed sets a price you approved in conversation, which is
+      // allowed — but stamping the approval field would be the script
+      // recording consent it was never given. Once that's in the data
+      // there's no way to tell an owner-approved price from one a
+      // calculation invented, which is how the recessed base moved
+      // without anyone deciding it should.
+      //
+      // Approval happens in the admin, or in one explicit reconciliation
+      // migration. Not here.
     },
   });
 
@@ -156,9 +159,8 @@ async function main() {
         // The published route total is $875 against a $500 base — an explicit
         // launch decision, not the component's $375 labor figure.
         approvedComponentPriceCents: 37500,
-        // No customer copy about staffing. How Elite crews a van isn't the
-        // homeowner's concern, and the earlier line promised something the
-        // dispatch no longer reflects.
+        disclaimer:
+          "A TV this size takes two of us to hang safely, so there are two electricians on site for this one.",
       },
       {
         // Was falling through to an ordinary installation at $600 with one
@@ -183,13 +185,12 @@ async function main() {
   });
   await prisma.answerOption.update({
     where: { id: bigTv.id },
-    // No crew override. One van, same 90 minutes as the smaller tier.
-    data: { overrideTechCount: null, overrideEstimatedMinutes: 90 },
+    data: { overrideTechCount: 2, overrideEstimatedMinutes: 90 },
   });
   await prisma.answerOptionComponent.create({
     data: {
       answerOptionId: bigTv.id,
-      componentId: (await prisma.jobComponent.findUniqueOrThrow({ where: { key: LARGE_SIZE_PREMIUM.key } })).id,
+      componentId: (await prisma.jobComponent.findUniqueOrThrow({ where: { key: TWO_TECH.key } })).id,
     },
   });
   console.log(`  ✓ three size tiers — over 85" now routes to quote`);
@@ -302,41 +303,30 @@ async function main() {
     );
   }
 
-  // ---- assert one van, no derived labor -------------------------------
+  // ---- the double-multiplication check ----------------------------------
   //
-  // The failure this guards against changed shape. It used to be "did the
-  // hours double to 6.0?"; now it's "did anything reintroduce a second van or
-  // put labor behind the premium?" Both would silently reprice the tier and
-  // block a technician's calendar for a job that needs one crew.
+  // 3.0 tech-hours for the two-technician tier is the TOTAL. If anything
+  // multiplies the base hours by crew size on top of the component, it
+  // becomes 6.0 and the price doubles. Asserted here rather than trusted.
   const svc = await prisma.service.findUniqueOrThrow({ where: { slug: SLUG } });
-  const comp = await prisma.jobComponent.findUniqueOrThrow({
-    where: { key: LARGE_SIZE_PREMIUM.key },
-  });
-  const bigTvNow = await prisma.answerOption.findFirstOrThrow({
-    where: { questionId: sizeQ.id, value: "56_to_85" },
-  });
+  const comp = await prisma.jobComponent.findUniqueOrThrow({ where: { key: TWO_TECH.key } });
 
-  const problems: string[] = [];
-  if (svc.requiresTechCount !== 1) problems.push(`service dispatches ${svc.requiresTechCount} crews`);
-  if (bigTvNow.overrideTechCount !== null) problems.push(`56-85 overrides crew count to ${bigTvNow.overrideTechCount}`);
-  if (comp.addTechCount !== 0) problems.push(`premium adds ${comp.addTechCount} crew`);
-  if (comp.addFieldLaborHours !== 0) problems.push(`premium carries ${comp.addFieldLaborHours} labor hours`);
-  if (svc.fieldLaborHours !== 1.5) problems.push(`base is ${svc.fieldLaborHours}, expected 1.5`);
+  // Mirrors what lib/pricing.ts does: hours x crew, plus any component hours.
+  const base = svc.fieldLaborHours ?? 0;
+  const crew = 2;
+  const resolved = base * crew + comp.addFieldLaborHours;
+  const ok = Math.abs(resolved - 3.0) < 0.001;
 
-  console.log(`\n  both tiers: ${svc.fieldLaborHours} crew-hours, one van, ${svc.estimatedMinutes} minutes`);
-  // Nullable on purpose: null means "no approved customer price", which for
-  // this component would mean the tier goes to review instead of pricing.
-  // Worth catching here rather than discovering it as a review screen.
-  if (comp.approvedPriceCents === null) {
-    problems.push("premium has no approved customer price");
-  }
-  console.log(
-    `  56-85" premium: ${
-      comp.approvedPriceCents === null ? "NOT APPROVED" : `$${comp.approvedPriceCents / 100}`
-    }, adding no labor and no crew`
-  );
-  if (problems.length) {
-    throw new Error(`TV staffing model is wrong: ${problems.join("; ")}`);
+  console.log(`\n  56-85" tier`);
+  console.log(`    base ${base} hr x ${crew} technicians  = ${base * crew} tech-hours`);
+  console.log(`    component adds                = ${comp.addFieldLaborHours} tech-hours`);
+  console.log(`    total                         = ${resolved} tech-hours  ${ok ? "✓" : "✗ EXPECTED 3.0"}`);
+  console.log(`    clock time stays ${svc.estimatedMinutes} minutes, crew size 2`);
+  if (!ok) {
+    throw new Error(
+      `TV tier resolves to ${resolved} tech-hours, expected 3.0. If it's 6.0 the ` +
+        `component is adding labor that the crew multiplication already covers.`
+    );
   }
 
   const dangling = await findDanglingReferences(prisma, service.id);

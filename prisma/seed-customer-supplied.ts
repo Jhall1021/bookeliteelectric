@@ -127,7 +127,16 @@ async function seedSuppliedOutlet() {
       wwtLaborHours: 0.33,
       materialCostCents: 0,
       photoState: "NONE",
-      publishedPriceApprovedAt: new Date(),
+      // No publishedPriceApprovedAt here.
+      //
+      // This seed sets a price you approved in conversation, which is
+      // allowed — but stamping the approval field would be the script
+      // recording consent it was never given. Once that's in the data
+      // there's no way to tell an owner-approved price from one a
+      // calculation invented.
+      //
+      // Approval happens in the admin, or in one explicit reconciliation
+      // migration. Not here.
     },
   });
 
@@ -206,7 +215,7 @@ async function seedSuppliedSwitch() {
       wwtLaborHours: 0.33,
       materialCostCents: 0,
       photoState: "NONE",
-      publishedPriceApprovedAt: new Date(),
+      // No self-approval — see the note above.
     },
   });
 

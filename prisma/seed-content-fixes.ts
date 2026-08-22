@@ -277,7 +277,17 @@ async function main() {
       where: { id: ts.id },
       data: {
         basePrice: 24900,
-        publishedPriceApprovedAt: new Date(),
+        // No publishedPriceApprovedAt here.
+      //
+      // This seed sets a price you approved in conversation, which is
+      // allowed — but stamping the approval field would be the script
+      // recording consent it was never given. Once that's in the data
+      // there's no way to tell an owner-approved price from one a
+      // calculation invented, which is how the recessed base moved
+      // without anyone deciding it should.
+      //
+      // Approval happens in the admin, or in one explicit reconciliation
+      // migration. Not here.
         shortDescription:
           "Something not working and you're not sure why? We'll find out. The visit covers up to an hour of diagnostic and repair time — if we can fix it in that hour, that's the price.",
         // Unknown scope is charged by time; known scope is a fixed price.

@@ -74,7 +74,17 @@ async function main() {
       basePrice: 52000,
       whileWeThereBasePrice: 37500,
       materialMultiplier: null,
-      publishedPriceApprovedAt: new Date(),
+      // No publishedPriceApprovedAt here.
+      //
+      // This seed sets a price you approved in conversation, which is
+      // allowed — but stamping the approval field would be the script
+      // recording consent it was never given. Once that's in the data
+      // there's no way to tell an owner-approved price from one a
+      // calculation invented, which is how the recessed base moved
+      // without anyone deciding it should.
+      //
+      // Approval happens in the admin, or in one explicit reconciliation
+      // migration. Not here.
       photoState: "NONE",
       disclaimer:
         "Please have the fan on hand, complete and undamaged. If the housing or ducting turns out to need work beyond a straight swap, we'll explain the options and give you the price before proceeding.",
