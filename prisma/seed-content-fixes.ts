@@ -27,6 +27,15 @@ const prisma = new PrismaClient();
  */
 const SERVICE_DISCLAIMERS: { slug: string; text: string }[] = [
   {
+    // The price includes the switch, and saying so is the difference between
+    // $330 reading as expensive and reading as fair. It also distinguishes
+    // this from the customer-supplied version, which is a different service
+    // at a different price.
+    slug: "smart-switch-upgrade",
+    text:
+      "This price includes the smart switch — we supply and install it. If you'd rather use one you've already bought, book the customer-supplied version instead and we'll fit yours.",
+  },
+  {
     slug: "customer-supplied-smart-switch",
     text:
       "Most smart switches work with the wiring already at your switch. Some models need a neutral wire or other specific wiring that may not be there, particularly in older homes. If your electrician finds that additional wiring or other work is needed, we'll explain the options and give you the price before doing any of it.",

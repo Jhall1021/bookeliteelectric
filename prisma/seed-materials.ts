@@ -50,6 +50,16 @@ const MATERIALS = [
   { key: "GFCI_INTERIOR", name: "Interior GFCI receptacle", unitCostCents: 1800, unit: "each", notes: "ASSUMED" },
   { key: "SWITCH_STANDARD", name: "Standard single-pole switch", unitCostCents: 200, unit: "each", notes: "ASSUMED" },
   { key: "SWITCH_3WAY", name: "Three-way switch", unitCostCents: 400, unit: "each", notes: "ASSUMED" },
+  {
+    // Elite-supplied. The customer-supplied variant of this service is a
+    // separate SKU with no material at all, and the gap between the two
+    // should be exactly this part at the §4 tier.
+    key: "SMART_SWITCH",
+    name: "Smart switch",
+    unitCostCents: 6000,
+    unit: "each",
+    notes: "Confirmed cost price.",
+  },
   { key: "DIMMER_LED", name: "LED dimmer", unitCostCents: 3000, unit: "each", notes: "Handoff §14 gives $30 direct." },
   { key: "BOX_OLD_WORK", name: "Old-work box, single gang", unitCostCents: 300, unit: "each", notes: "Confirmed for the TV assembly." },
   { key: "BOX_FAN_RATED", name: "Fan-rated ceiling box and brace", unitCostCents: 1800, unit: "each", notes: "ASSUMED" },
@@ -92,6 +102,13 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
       ["WALL_PLATE", 1],
       ["WIRE_14_2", 8],
     ],
+  },
+  {
+    // One part, but recording it matters: without it the model priced this
+    // at the bare $250 minimum, and the published $310 looked like a legacy
+    // number rather than the minimum plus a switch.
+    slug: "smart-switch-upgrade",
+    items: [["SMART_SWITCH", 1]],
   },
   {
     slug: "single-pole-breaker-replacement",
