@@ -5,13 +5,41 @@ import { formatCents } from "@/lib/flow-types";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
 
-const TRUST_ITEMS = [
-  { label: "Upfront Flat-Rate Pricing" },
-  { label: "Licensed & Insured" },
-  { label: "Narrow Arrival Windows" },
-  { label: "Professional Electricians" },
-  { label: "No Surprise Pricing" },
-  { label: "All Major Credit Cards Accepted" },
+/**
+ * Three above the fold, not six.
+ *
+ * Licensed, insured and professional are table stakes — every electrician
+ * claims them, so they persuade nobody and they crowd out the things that
+ * actually distinguish this. They move down the page.
+ *
+ * What's left is the three things a homeowner can't get from the competition,
+ * with the same-visit pricing in the middle where the eye lands.
+ */
+const DIFFERENTIATORS = [
+  "Upfront flat-rate pricing",
+  "Lower same-visit prices",
+  "Narrow arrival windows",
+];
+
+const CREDENTIALS = [
+  "Licensed & insured",
+  "Professional electricians",
+  "All major credit cards accepted",
+];
+
+/**
+ * The pricing ladder.
+ *
+ * Deliberately no numbers, no percentages, no bars. The saving genuinely
+ * varies by service — an additional recessed light is a fraction of the
+ * first, a second outlet swap is nearly the same — so anything proportional
+ * would be drawing a ratio that doesn't exist. The indent carries the meaning
+ * and every word of it is true.
+ */
+const PRICING_LADDER = [
+  { label: "Your first service", price: "Full price", indent: 0 },
+  { label: "Add another", price: "Costs less", indent: 1 },
+  { label: "And another", price: "Costs less", indent: 2 },
 ];
 
 /**
@@ -60,10 +88,51 @@ export default async function HomePage() {
             <p className="mt-4 text-lg text-slate-light">
               See your price. Pick your time.
             </p>
-            <p className="mt-2 text-sm text-white/60">
-              Your first service includes our visit — everything you add after that costs less,
-              because we're already there.
-            </p>
+
+            {/* The same-visit callout.
+                Warm card against the navy so it reads as a distinct object
+                rather than more hero copy — the one place on this page where
+                the palette inverts, which is what earns it attention without
+                a badge or a starburst. */}
+            <div className="mt-7 overflow-hidden rounded-card bg-warmwhite text-navy shadow-card">
+              <div className="px-6 pt-5">
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-electric">
+                  Add more &amp; save
+                </div>
+                <p className="mt-1.5 font-display text-lg font-bold leading-snug">
+                  One visit. Lower prices on everything else.
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate">
+                  Book your first service at the regular price. Add more work to the same
+                  visit and each additional service is priced lower, because we&rsquo;re
+                  already there.
+                </p>
+              </div>
+
+              <div className="mt-4 divide-y divide-cardline border-t border-cardline">
+                {PRICING_LADDER.map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex items-center justify-between gap-4 px-6 py-2.5"
+                    // The step is the whole graphic. Each row sits further in
+                    // than the last, so the shape says "descending" before a
+                    // word is read.
+                    style={{ paddingLeft: `${1.5 + row.indent * 1}rem` }}
+                  >
+                    <span className="text-sm text-navy">{row.label}</span>
+                    <span
+                      className={
+                        row.indent === 0
+                          ? "text-sm font-semibold text-navy"
+                          : "text-sm font-semibold text-success"
+                      }
+                    >
+                      {row.price}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -80,11 +149,11 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <ul className="mt-10 grid grid-cols-2 gap-x-6 gap-y-3 text-sm text-slate-light">
-              {TRUST_ITEMS.map((item) => (
-                <li key={item.label} className="flex items-center gap-2">
-                  <span className="text-success">✓</span>
-                  {item.label}
+            <ul className="mt-8 grid gap-2 text-sm text-slate-light sm:grid-cols-3">
+              {DIFFERENTIATORS.map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <span className="mt-0.5 text-success">✓</span>
+                  {item}
                 </li>
               ))}
             </ul>
@@ -107,7 +176,8 @@ export default async function HomePage() {
       <section className="mx-auto max-w-6xl px-6 py-16">
         <h2 className="font-display text-2xl font-bold text-navy">How Our Pricing Works</h2>
         <p className="mt-2 max-w-2xl text-slate">
-          One visit fee, not one per job. Here's exactly how that plays out.
+          Getting an electrician to your door is most of what a small job costs. Once
+          we&rsquo;re there, everything else is cheaper — so we price it that way.
         </p>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-3">
@@ -115,10 +185,16 @@ export default async function HomePage() {
             <div className="ray-accent flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
               1
             </div>
-            <h3 className="mt-4 font-display text-base font-bold text-navy">Pick your first service</h3>
+            <h3 className="mt-4 font-display text-base font-bold text-navy">
+              Pick your first service
+            </h3>
+            {/* Deliberately not "visit fee" — there isn't a separate line for
+                it, and naming a fee nobody is itemising invites the question
+                "so how much is it?" The honest framing is that getting here is
+                already inside the first price. */}
             <p className="mt-2 text-sm text-slate">
-              Its price covers our visit to your home — the technician, the truck, the trip.
-              That fee only gets charged once per visit.
+              Its price is the full price, and it covers getting a licensed electrician to
+              your home. You see that number before you book.
             </p>
           </div>
 
@@ -126,10 +202,13 @@ export default async function HomePage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
               2
             </div>
-            <h3 className="mt-4 font-display text-base font-bold text-navy">Add anything else, cheaper</h3>
+            <h3 className="mt-4 font-display text-base font-bold text-navy">
+              Add anything else for less
+            </h3>
             <p className="mt-2 text-sm text-slate">
-              Since we're already at your house, every additional service you add is priced
-              lower — no second visit fee tacked on.
+              A second outlet, a fan, a few more lights — priced lower than booking them on
+              their own, because the trip is already paid for. You see each price as you add
+              it.
             </p>
           </div>
 
@@ -137,13 +216,27 @@ export default async function HomePage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
               3
             </div>
-            <h3 className="mt-4 font-display text-base font-bold text-navy">One total, no surprises</h3>
+            <h3 className="mt-4 font-display text-base font-bold text-navy">
+              One total, no surprises
+            </h3>
             <p className="mt-2 text-sm text-slate">
-              See the full price for everything before you book — not after we're standing in
-              your kitchen.
+              See the full price for everything before you book — not after we&rsquo;re
+              standing in your kitchen.
             </p>
           </div>
         </div>
+
+        {/* The credentials that used to sit in the hero. Every electrician
+            claims them, so they reassure rather than persuade — which makes
+            them worth saying, but not worth the best space on the page. */}
+        <ul className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-2 border-t border-cardline pt-6 text-sm text-slate">
+          {CREDENTIALS.map((item) => (
+            <li key={item} className="flex items-center gap-2">
+              <span className="text-success">✓</span>
+              {item}
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* Payment options */}
