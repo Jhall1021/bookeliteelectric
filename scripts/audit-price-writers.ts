@@ -1,0 +1,111 @@
+/**
+ * Which code can change a customer's price.
+ *
+ *   npx tsx scripts/audit-price-writers.ts
+ *
+ * Greps the repo for every write to `basePrice`, `whileWeThereBasePrice` and
+ * `publishedPriceApprovedAt`, and sorts them by whether they're allowed to.
+ *
+ * The rule: a seed may establish labor and material INPUTS freely, and may
+ * initialize a specifically owner-approved price. It must not compute a price
+ * and then stamp `publishedPriceApprovedAt` on its own output — that's a
+ * script approving its own work, and it's how the recessed lighting base
+ * moved without anyone deciding it should.
+ *
+ * Report only.
+ */
+
+import { readFileSync, readdirSync, statSync } from "fs";
+import { join, relative } from "path";
+
+const ROOT = process.cwd();
+
+const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"];
+
+/**
+ * Seeds that legitimately publish, because the price they write is one an
+ * owner approved rather than one the seed worked out.
+ *
+ * Anything not on this list that stamps an approval is a governance problem,
+ * whether or not its number happens to be right.
+ */
+const APPROVED_PUBLISHERS: Record<string, string> = {
+  "prisma/seed.ts": "Bootstrap. Establishes the original catalog.",
+  "prisma/seed-pricing-settings.ts": "Settings only, no service prices.",
+  "app/api/admin/services/[serviceId]/pricing/route.ts":
+    "The admin Publish action. This is the intended route for approving a price.",
+};
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    if (["node_modules", ".next", ".git", "public"].includes(entry)) continue;
+    const p = join(dir, entry);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (/\.tsx?$/.test(p)) out.push(p);
+  }
+  return out;
+}
+
+type Hit = { file: string; line: number; field: string; text: string };
+
+function main() {
+  const hits: Hit[] = [];
+
+  for (const file of walk(ROOT)) {
+    const rel = relative(ROOT, file);
+    const lines = readFileSync(file, "utf8").split("\n");
+    lines.forEach((text, i) => {
+      const trimmed = text.trim();
+      // Assignments only — reading a price is fine, and comments about it
+      // aren't writes.
+      if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+      for (const field of WRITES) {
+        if (new RegExp(`${field}\\s*:`).test(text) && !/select|include|orderBy|where/.test(text)) {
+          hits.push({ file: rel, line: i + 1, field, text: trimmed.slice(0, 90) });
+        }
+      }
+    });
+  }
+
+  const byFile = new Map<string, Hit[]>();
+  for (const h of hits) byFile.set(h.file, [...(byFile.get(h.file) ?? []), h]);
+
+  const approved: string[] = [];
+  const problems: string[] = [];
+
+  for (const [file, list] of [...byFile].sort()) {
+    const stampsApproval = list.some((h) => h.field === "publishedPriceApprovedAt");
+    const setsPrice = list.some((h) => h.field !== "publishedPriceApprovedAt");
+    if (APPROVED_PUBLISHERS[file]) approved.push(file);
+    else if (stampsApproval) problems.push(file);
+    else if (setsPrice) problems.push(file);
+  }
+
+  console.log(`\nWHO CAN CHANGE A PUBLISHED PRICE\n`);
+  console.log(`  ${hits.length} write(s) across ${byFile.size} file(s)\n`);
+
+  console.log(`${"─".repeat(74)}\nALLOWED\n`);
+  for (const f of approved) {
+    console.log(`  ${f}`);
+    console.log(`      ${APPROVED_PUBLISHERS[f]}`);
+  }
+
+  if (problems.length) {
+    console.log(`\n${"─".repeat(74)}\nNEEDS A DECISION\n`);
+    for (const f of problems) {
+      const list = byFile.get(f)!;
+      const stamps = list.some((h) => h.field === "publishedPriceApprovedAt");
+      console.log(`  ${f}${stamps ? "   ← stamps its own approval" : ""}`);
+      for (const h of list) console.log(`      ${String(h.line).padStart(4)}  ${h.text}`);
+      console.log();
+    }
+  }
+
+  console.log(`${"─".repeat(74)}`);
+  console.log(`\n  ${problems.length} file(s) can move a customer's price outside the admin.`);
+  console.log(`  A seed setting an owner-approved figure is fine — it just needs`);
+  console.log(`  to be on the allowed list above, with the reason written down.`);
+  console.log(`\n  Nothing was changed.\n`);
+}
+
+main();

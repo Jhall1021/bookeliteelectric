@@ -13,10 +13,11 @@
  *              lead electrician and a helper, so both are already inside the
  *              rate — the figure is NOT multiplied by the people on board.
  *              Doing so bills a second time for labor that was always there.
- *              For a PRIMARY service whose actual hours are <= 1.0, the labor
- *              component is the GREATER of that and the $250 service-call
- *              minimum — it recovers mobilization, truck, travel and the
- *              overhead of originating a visit (§3.3).
+ *              For a PRIMARY service the labor component is the GREATER of
+ *              that and the service-call minimum, whatever the duration. The
+ *              minimum recovers mobilization, truck, travel and the overhead
+ *              of originating a visit, and is set independently of the rate —
+ *              lowering the hourly rate must never lower the floor.
  *              While We're There pricing never applies the minimum: the
  *              technician is already on site, so there is no visit to
  *              originate (§3.4).
@@ -126,12 +127,22 @@ function compute(
   const actualTechHours = hours * Math.max(crewUnits, 1);
   const rawLabor = actualTechHours * settings.targetRateCents;
 
-  // §3.3 — the minimum applies only to a service that can actually be the
-  // reason a technician is dispatched, and only when the work is an hour or
-  // less. An add-on-only item (isPrimaryEligible false) never originates a
-  // visit: applying the minimum there would price a $50 TV mount at $315.
-  const minimumEligible =
-    isPrimary && svc.isPrimaryEligible && actualTechHours <= 1.0;
+  // The minimum is a FLOOR on the first service, not a rule about short jobs.
+  //
+  // It used to apply only when the work was an hour or less, which was
+  // invisible while the rate and the minimum were both $250 — one crew-hour
+  // met the floor exactly. Drop the rate to $100 and the flaw appears: a
+  // 1.0-hour job floors at $300, a 1.25-hour job prices at $125, and the
+  // price FALLS as the work grows.
+  //
+  // So it floors every visit-originating service regardless of duration.
+  // A first service is never cheaper than the minimum; past that point
+  // actual hours take over on their own, because the labor exceeds it.
+  //
+  // Still never applies to an add-on-only item (isPrimaryEligible false) —
+  // a $50 TV mount can't be the reason a van is dispatched, and flooring it
+  // would price it at the minimum.
+  const minimumEligible = isPrimary && svc.isPrimaryEligible;
   const laborCents = minimumEligible
     ? Math.max(rawLabor, settings.primaryMinimumCents)
     : rawLabor;
