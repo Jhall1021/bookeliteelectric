@@ -35,18 +35,23 @@ const MATERIALS = [
   { key: "BREAKER_SINGLE_POLE", name: "Single-pole breaker", unitCostCents: 800, unit: "each" },
   { key: "BREAKER_DOUBLE_POLE", name: "Double-pole breaker", unitCostCents: 1900, unit: "each" },
 
+  // --- low voltage ------------------------------------------------------
+  { key: "LOW_VOLTAGE_RING", name: "Low-voltage mounting ring", unitCostCents: 400, unit: "each" },
+  { key: "LOW_VOLTAGE_COVER", name: "Low-voltage cable pass-through cover", unitCostCents: 1000, unit: "each" },
+  { key: "WALL_PLATE", name: "Wall plate", unitCostCents: 100, unit: "each" },
+
   // --- devices ----------------------------------------------------------
   { key: "GFCI_WEATHER_RESISTANT", name: "Weather-resistant GFCI receptacle", unitCostCents: 2500, unit: "each" },
   { key: "COVER_IN_USE_BUBBLE", name: "In-use weatherproof bubble cover", unitCostCents: 1500, unit: "each" },
   { key: "BOX_FS_CAST", name: "FS box, cast, single gang", unitCostCents: 800, unit: "each" },
 
   // --- ASSUMED: needed by existing services, never quoted ---------------
-  { key: "RECEPTACLE_STANDARD", name: "Standard duplex receptacle", unitCostCents: 200, unit: "each", notes: "ASSUMED" },
+  { key: "RECEPTACLE_STANDARD", name: "Standard duplex receptacle", unitCostCents: 200, unit: "each", notes: "Confirmed for the TV assembly." },
   { key: "GFCI_INTERIOR", name: "Interior GFCI receptacle", unitCostCents: 1800, unit: "each", notes: "ASSUMED" },
   { key: "SWITCH_STANDARD", name: "Standard single-pole switch", unitCostCents: 200, unit: "each", notes: "ASSUMED" },
   { key: "SWITCH_3WAY", name: "Three-way switch", unitCostCents: 400, unit: "each", notes: "ASSUMED" },
   { key: "DIMMER_LED", name: "LED dimmer", unitCostCents: 3000, unit: "each", notes: "Handoff §14 gives $30 direct." },
-  { key: "BOX_OLD_WORK", name: "Old-work box, single gang", unitCostCents: 300, unit: "each", notes: "ASSUMED" },
+  { key: "BOX_OLD_WORK", name: "Old-work box, single gang", unitCostCents: 300, unit: "each", notes: "Confirmed for the TV assembly." },
   { key: "BOX_FAN_RATED", name: "Fan-rated ceiling box and brace", unitCostCents: 1800, unit: "each", notes: "ASSUMED" },
   { key: "DUCT_CONNECTOR", name: "Duct connector and clamp", unitCostCents: 800, unit: "each", notes: "ASSUMED — bathroom fan." },
   { key: "CONSUMABLES_SMALL", name: "Consumables — connectors, staples, sealant", unitCostCents: 300, unit: "job", notes: "Per Josh: a couple of dollars." },
@@ -72,6 +77,20 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
       ["BOX_FS_CAST", 1],
       ["WIRE_12_2", 2],
       ["CONSUMABLES_SMALL", 1],
+    ],
+  },
+  {
+    // The list Josh gave: two low-voltage rings and covers for the cable
+    // pass-through, an old-work box and receptacle for the outlet behind the
+    // screen, a plate, and 8 ft of cable.
+    slug: "tv-installation",
+    items: [
+      ["LOW_VOLTAGE_RING", 2],
+      ["LOW_VOLTAGE_COVER", 2],
+      ["BOX_OLD_WORK", 1],
+      ["RECEPTACLE_STANDARD", 1],
+      ["WALL_PLATE", 1],
+      ["WIRE_14_2", 8],
     ],
   },
   {
