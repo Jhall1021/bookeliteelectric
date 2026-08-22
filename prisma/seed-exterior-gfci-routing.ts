@@ -25,6 +25,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { publishIfUnset, describePriceResult } from "./_priceGuard";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
 
 const prisma = new PrismaClient();
@@ -163,8 +164,10 @@ async function main() {
       startingPriceLabel: null,
       // Computed from 1.5 hr + materials. Published now so the service can be
       // booked at all — it's been quote-only with no price and no tree.
-      basePrice: 46000,
-      whileWeThereBasePrice: 39500,
+      // basePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
+      // whileWeThereBasePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
       // No publishedPriceApprovedAt here.
       //
       // This seed sets a price you approved in conversation, which is
@@ -179,7 +182,15 @@ async function main() {
       disclaimer: EXTERIOR_CAVEAT,
     },
   });
-  console.log(`  ✓ ${SLUG} — 1.5 hr base, $${(material / 100).toFixed(2)} material, $460 published`);
+  // This service had no price at all — it was quote-only with no tree. The
+  // guard establishes one and would refuse to touch it on any later run.
+  const priced = await publishIfUnset(prisma, service.id, {
+    basePrice: 46000,
+    whileWeThereBasePrice: 39500,
+  });
+  const note = describePriceResult(SLUG, priced);
+  console.log(`  ✓ ${SLUG} — 1.5 hr base, $${(material / 100).toFixed(2)} material`);
+  if (note) console.log(note);
 
   // ---- tree -------------------------------------------------------------
   const existing = await prisma.question.findMany({ where: { serviceId: service.id } });

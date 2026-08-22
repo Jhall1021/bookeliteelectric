@@ -276,7 +276,8 @@ async function main() {
       // was a hand-set figure from before the labor model existed.
       fieldLaborHours: 1.25,
       materialCostCents: 5500,
-      basePrice: 38500,
+      // basePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
       // No publishedPriceApprovedAt here.
       //
       // This seed sets a price you approved in conversation, which is

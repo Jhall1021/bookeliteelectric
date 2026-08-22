@@ -276,7 +276,8 @@ async function main() {
     await prisma.service.update({
       where: { id: ts.id },
       data: {
-        basePrice: 24900,
+        // basePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
         // No publishedPriceApprovedAt here.
       //
       // This seed sets a price you approved in conversation, which is

@@ -119,8 +119,10 @@ async function seedSuppliedOutlet() {
     where: { id: service.id },
     data: {
       bookingType: "ADJUSTED",
-      basePrice: 25000,
-      whileWeThereBasePrice: 8500,
+      // basePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
+      // whileWeThereBasePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
       estimatedMinutes: 20,
       requiresTechCount: 1,
       fieldLaborHours: 0.33,
@@ -207,8 +209,10 @@ async function seedSuppliedSwitch() {
     where: { id: service.id },
     data: {
       bookingType: "ADJUSTED",
-      basePrice: 25000,
-      whileWeThereBasePrice: 8500,
+      // basePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
+      // whileWeThereBasePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
       estimatedMinutes: 20,
       requiresTechCount: 1,
       fieldLaborHours: 0.33,

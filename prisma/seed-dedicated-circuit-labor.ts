@@ -60,7 +60,8 @@ async function main() {
       // Unchanged. The model suggests $715 against this; that variance is
       // real and the editor shows it. Back-solving the hours to make them
       // land on $795 is the flaw this whole field exists to replace.
-      basePrice: 79500,
+      // basePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
     },
   });
 

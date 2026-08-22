@@ -71,8 +71,10 @@ async function main() {
       estimatedMinutes: 120,
       estimatedMinutesReviewed: true,
       requiresTechCount: 1,
-      basePrice: 52000,
-      whileWeThereBasePrice: 37500,
+      // basePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
+      // whileWeThereBasePrice moved to the price guard — a seed must not
+      // overwrite a published price. See _priceGuard.ts.
       materialMultiplier: null,
       // No publishedPriceApprovedAt here.
       //
