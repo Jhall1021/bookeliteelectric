@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { sendQuoteReadyEmail } from "@/lib/email";
 
 export async function PATCH(req: Request, { params }: { params: { quoteId: string } }) {
   // Independently checked here, not just at the page level — API routes
@@ -15,7 +16,7 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
     return NextResponse.json({ error: "Invalid price" }, { status: 400 });
   }
 
-  await prisma.quote.update({
+  const quote = await prisma.quote.update({
     where: { id: params.quoteId },
     data: {
       quotedPriceCents,
@@ -23,10 +24,49 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
       status: "PRICED",
       quotedAt: new Date(),
     },
+    include: {
+      customer: { select: { name: true, email: true } },
+      service: { select: { name: true } },
+    },
   });
 
-  // Real "Your price is ready" email/text is Phase 6 (SMS/email vendor
-  // not yet chosen) — for now the customer finds out by checking their
-  // bookmarked /quote/[id] status page.
-  return NextResponse.json({ ok: true });
+  // Tell the customer.
+  //
+  // This used to say the email vendor hadn't been chosen and that the
+  // customer would "find out by checking their bookmarked status page" —
+  // which nobody does, and which the site never asked them to. Meanwhile the
+  // flow promises "we'll email you when your price is ready", and they can't
+  // schedule until they approve. Silence here leaves them stuck with no
+  // reason to look again.
+  //
+  // Resend was already in use for booking confirmations, so there was nothing
+  // to choose.
+  //
+  // Deliberately AFTER the update and outside any transaction: the price is
+  // set either way. A mail failure must not undo the office's work, so it's
+  // logged loudly and reported in the response rather than thrown.
+  let emailed = false;
+  let emailError: string | null = null;
+  try {
+    await sendQuoteReadyEmail({
+      id: quote.id,
+      quotedPriceCents,
+      serviceName: quote.service.name.trim(),
+      customer: quote.customer,
+    });
+    emailed = true;
+  } catch (err) {
+    emailError = err instanceof Error ? err.message : "Unknown error";
+    console.error(
+      `[quotes] priced ${quote.id} but the email to ${quote.customer.email} failed: ${emailError}`
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    emailed,
+    // Surfaced so the admin can see the customer wasn't told and pick up the
+    // phone, rather than assuming it went out.
+    emailError,
+  });
 }
