@@ -176,6 +176,16 @@ async function main() {
 
   const proceed = { routeAction: "CONTINUE" as const, nextQuestionId: qCount.id };
 
+  // If the finish acknowledgement has already been inserted, the FINISHED
+  // answer has to keep routing through it rather than jumping straight to the
+  // count question. Rebuilding these answers without checking is what
+  // orphaned it — the fourth time two seeds have fought over the same
+  // nextQuestionId.
+  const existingAck = service.questions.find((q) => q.key === "fixture_finish_ack");
+  const finishedProceed = existingAck
+    ? { routeAction: "CONTINUE" as const, nextQuestionId: existingAck.id }
+    : proceed;
+
   await prisma.answerOption.createMany({
     data: [
       {
@@ -193,7 +203,7 @@ async function main() {
         label: "Finished space — another floor or a finished room",
         value: "finished",
         accessClassification: "FINISHED",
-        ...proceed,
+        ...finishedProceed,
         order: 2,
         requiredPhotoLabels: [],
         // Priced by the component now, not a flat modifier.
@@ -302,6 +312,16 @@ async function main() {
         "New recessed lights in an existing ceiling. The first covers the setup, and each one after that costs less because we're already up there.",
     },
   });
+
+  // Keep the acknowledgement pointing at the count question — its target may
+  // have been recreated by this run.
+  if (existingAck) {
+    await prisma.answerOption.updateMany({
+      where: { questionId: existingAck.id, routeAction: "CONTINUE" },
+      data: { nextQuestionId: qCount.id },
+    });
+    console.log(`  · finish acknowledgement preserved between access and count`);
+  }
 
   const dangling = await findDanglingReferences(prisma, service.id);
   const unreachable = await findUnreachableQuestions(prisma, service.id);

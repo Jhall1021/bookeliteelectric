@@ -61,7 +61,17 @@ const STEPS: Step[] = [
   { file: "prisma/seed-dedicated-circuit-labor.ts", why: "dedicated circuit crew-hours" },
 ];
 
-/** Not a seed — a check. Run last, and its findings matter. */
+/**
+ * Not a seed — a check. Run last, and its findings matter.
+ *
+ * Worth knowing WHY it's here rather than optional: the acknowledgement and
+ * contingency seeds insert questions into chains that earlier seeds built. In
+ * this order that's fine. Re-running one earlier seed on its own afterwards
+ * can orphan what was inserted after it — which has happened four times, and
+ * this check is how it gets caught each time.
+ *
+ * If you run a single seed by hand, run this too.
+ */
 const VERIFY = "prisma/repair-trees.ts";
 
 function run(file: string) {
