@@ -7,18 +7,30 @@ export default async function ServiceAreaPage() {
   const [areas, zips] = await Promise.all([
     prisma.serviceArea.findMany({ orderBy: { name: "asc" } }),
     prisma.zipCode.findMany({
-      select: { state: true, county: true, type: true, population: true },
+      select: { zip: true, state: true, county: true, type: true, population: true },
     }),
   ]);
 
   // Counties available to choose from, with how many ZIPs in each someone
-  // could actually live at.
-  const map = new Map<string, { state: string; county: string; total: number; usable: number }>();
+  // could actually live at — and how many are currently selected.
+  //
+  // `selected` is computed HERE rather than in the browser because the
+  // browser only knows a county's ZIPs after the drill-down is opened. The
+  // first version left the checkbox unticked until you expanded the county,
+  // which made a selected county look unselected.
+  const chosen = new Set(areas.flatMap((a) => a.zipCodes));
+  const map = new Map<
+    string,
+    { state: string; county: string; total: number; usable: number; selected: number }
+  >();
   for (const z of zips) {
     const key = `${z.state}/${z.county}`;
-    const c = map.get(key) ?? { state: z.state, county: z.county, total: 0, usable: 0 };
+    const c = map.get(key) ?? {
+      state: z.state, county: z.county, total: 0, usable: 0, selected: 0,
+    };
     c.total++;
     if (z.type === "STANDARD" && (z.population ?? 0) > 0) c.usable++;
+    if (chosen.has(z.zip)) c.selected++;
     map.set(key, c);
   }
   const counties = [...map.values()].sort(

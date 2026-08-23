@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Area = { id: string; name: string; zipCodes: string[]; active: boolean };
-type County = { state: string; county: string; total: number; usable: number };
+type County = {
+  state: string; county: string; total: number; usable: number;
+  /** How many of this county's ZIPs are currently selected. From the server,
+   *  because the browser doesn't know a county's ZIPs until it's expanded. */
+  selected: number;
+};
 type Zip = { zip: string; city: string; type: string; population: number | null };
 
 /**
@@ -108,18 +113,10 @@ export default function ServiceAreaForm({
     );
   }
 
-  const countState = (c: County) => {
-    const key = `${c.state}/${c.county}`;
-    const zips = countyZips[key];
-    if (!zips) {
-      // Before the drill-down is loaded, infer from how many of this county's
-      // usable ZIPs are selected. Cheap and right in every normal case.
-      return null;
-    }
-    const usable = zips.filter((z) => z.type === "STANDARD" && (z.population ?? 0) > 0);
-    const on = usable.filter((z) => selected.has(z.zip)).length;
-    return { on, of: usable.length };
-  };
+  // Straight from the server. The first version worked this out from the
+  // drill-down data, so a county showed unticked until you expanded it —
+  // which looked like the click hadn't registered.
+  const countState = (c: County) => ({ on: c.selected, of: c.usable });
 
   return (
     <div className="mt-6">
@@ -174,11 +171,11 @@ export default function ServiceAreaForm({
               <div className="flex items-center gap-3 p-3">
                 <input
                   type="checkbox"
-                  checked={st ? st.on > 0 : false}
+                  checked={st.on > 0}
                   ref={(el) => {
                     // Partly selected reads as neither on nor off, which is
                     // exactly what it is once towns have been unticked.
-                    if (el && st) el.indeterminate = st.on > 0 && st.on < st.of;
+                    if (el) el.indeterminate = st.on > 0 && st.on < st.of;
                   }}
                   onChange={(e) =>
                     send(
@@ -198,7 +195,7 @@ export default function ServiceAreaForm({
                     {c.county} <span className="text-slate">({c.state})</span>
                   </span>
                   <span className="text-xs text-slate">
-                    {st ? `${st.on} of ${st.of}` : `${c.usable} towns`}
+                    {st.on > 0 ? `${st.on} of ${st.of} towns` : `${st.of} towns`}
                     <span className="ml-2">{isOpen ? "▲" : "▼"}</span>
                   </span>
                 </button>
