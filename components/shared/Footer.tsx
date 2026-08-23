@@ -7,18 +7,12 @@ export default function Footer() {
       <div className="mx-auto max-w-6xl px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div>
-            {/* Reversed (white-on-transparent) logo. The default
-                elite-logo.png is black artwork on an OPAQUE white
-                background, so the previous `invert` class flipped that
-                white background to black and rendered a dark box on the
-                charcoal footer. A dedicated reversed asset avoids the
-                filter entirely. */}
             <Image
-              src="/images/elite-logo-white.png"
+              src="/images/elite-logo.png"
               alt="Elite Electric & Lighting"
-              width={88}
-              height={88}
-              className="mb-4"
+              width={44}
+              height={44}
+              className="mb-4 invert"
             />
             <div className="text-sm font-semibold text-white">Elite Electric &amp; Lighting</div>
             <address className="mt-2 text-sm not-italic text-white/70">
@@ -40,8 +34,22 @@ export default function Footer() {
           </nav>
         </div>
 
-        <div className="mt-8 border-t border-white/10 pt-6 text-xs text-white/50">
-          © {new Date().getFullYear()} Elite Electric &amp; Lighting. All rights reserved.
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-white/10 pt-6 text-xs text-white/50">
+          <span>
+            © {new Date().getFullYear()} Elite Electric &amp; Lighting. All rights reserved.
+          </span>
+          {/* Required by SimpleMaps' free licence: their ZIP database powers
+              the service-area check at checkout, and using the Basic tier
+              obliges a visible link on a page reachable from the root.
+              If the ZIP reference data is ever sourced elsewhere, this link
+              should go with it. */}
+          <a
+            href="https://simplemaps.com/data/us-zips"
+            className="hover:text-white/80"
+            rel="noopener"
+          >
+            ZIP code data by SimpleMaps
+          </a>
         </div>
       </div>
     </footer>

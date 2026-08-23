@@ -87,6 +87,25 @@ function normaliseType(raw: string): string {
   return "STANDARD";
 }
 
+/**
+ * Work out the classification from whatever the file provides.
+ *
+ * This matters more than it looks: the admin greys out anything that isn't
+ * STANDARD, because a PO Box code can't be a service address. Get it wrong
+ * and someone can select a ZIP no house has.
+ */
+function deriveType(f: string[], cols: Record<string, number>): string {
+  if (cols.type >= 0 && f[cols.type]) return normaliseType(f[cols.type]);
+
+  const truthy = (v: string | undefined) => /^(true|t|yes|y|1)$/i.test((v ?? "").trim());
+  if (cols.military >= 0 && truthy(f[cols.military])) return "MILITARY";
+  // Not a tabulation area means no geography — PO Box or single-entity. The
+  // two can't be told apart from this file, and the distinction doesn't
+  // matter here: neither can be a home address.
+  if (cols.zcta >= 0 && !truthy(f[cols.zcta])) return "PO_BOX";
+  return "STANDARD";
+}
+
 async function main() {
   const file = process.argv[2];
   if (!file) {
@@ -110,6 +129,12 @@ async function main() {
     county: findColumn(header, ["county", "countyname", "countyfips"]),
     state: findColumn(header, ["state", "statecode", "stateabbr", "stateid"]),
     type: findColumn(header, ["type", "zipcodetype", "classification", "class"]),
+    // SimpleMaps has no "type" column. It has `zcta` — whether the ZIP is a
+    // Census tabulation AREA — and `military`. A ZIP that isn't a ZCTA has no
+    // geography, which is what a PO Box or single-entity code is. That's how
+    // the classification gets derived below.
+    zcta: findColumn(header, ["zcta"]),
+    military: findColumn(header, ["military"]),
     population: findColumn(header, ["population", "pop", "irs_estimated_population"]),
   };
 
@@ -152,7 +177,7 @@ async function main() {
       // "Monmouth County" and "Monmouth" should not be two counties.
       county: (f[cols.county] ?? "").replace(/\s+county$/i, "").trim(),
       state,
-      type: cols.type >= 0 ? normaliseType(f[cols.type] ?? "") : "STANDARD",
+      type: deriveType(f, cols),
       population: popRaw ? parseInt(popRaw, 10) : null,
     });
   }
