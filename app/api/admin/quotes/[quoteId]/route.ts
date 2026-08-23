@@ -47,12 +47,27 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
   // logged loudly and reported in the response rather than thrown.
   let emailed = false;
   let emailError: string | null = null;
+
+  // Both fields are nullable on Customer. An address is the whole point of
+  // this send, so a missing one isn't an error to swallow — it means the
+  // customer genuinely can't be told, and the office needs to know that
+  // rather than assume a message went out.
+  if (!quote.customer.email) {
+    emailError = "No email address on file for this customer.";
+    console.error(`[quotes] priced ${quote.id} but the customer has no email address`);
+    return NextResponse.json({ ok: true, emailed: false, emailError });
+  }
+
   try {
     await sendQuoteReadyEmail({
       id: quote.id,
       quotedPriceCents,
       serviceName: quote.service.name.trim(),
-      customer: quote.customer,
+      customer: {
+        // A name is nice to have; the greeting reads fine without one.
+        name: quote.customer.name ?? "there",
+        email: quote.customer.email,
+      },
     });
     emailed = true;
   } catch (err) {
