@@ -21,7 +21,9 @@
  *              While We're There pricing never applies the minimum: the
  *              technician is already on site, so there is no visit to
  *              originate (§3.4).
- *   material = assembled direct cost x tier multiplier (§4)
+ *   material = assembled direct cost, marked up progressively:
+ *              30% of the first $750, 20% above it. Applied ONCE to the
+ *              whole package, never per part.
  *   plus       permit/admin and other direct costs
  *   rounded    up to the global increment
  */
@@ -54,15 +56,51 @@ export type ServicePricingInputs = {
  * Boundaries are inclusive on the 30% tier: exactly $10.00 and exactly
  * $750.00 both use 1.30x.
  */
-export function materialMultiplierFor(costCents: number): number {
-  if (costCents < 1000) return 3.0; // under $10.00 — 200% markup
-  if (costCents <= 75000) return 1.3; // $10.00 through $750.00 — 30%
-  return 1.2; // over $750.00 — 20%
+/**
+ * What a material package sells for.
+ *
+ * 30% on the first $750 of direct cost, 20% on everything above it. Applied
+ * ONCE to the assembled package — never to individual screws, connectors or
+ * receptacles, which would compound the markup on a job with many small parts.
+ *
+ *   $2    ->  $2.60
+ *   $10   ->  $13.00
+ *   $22   ->  $28.60
+ *   $750  ->  $975.00
+ *   $751  ->  $976.20
+ *   $1000 ->  $1,275.00
+ *
+ * WHY THIS REPLACED THE TIER TABLE
+ *
+ * The old rule had bands: 3.00x under $10, 1.30x to $750, 1.20x above. Bands
+ * create cliffs, and this one ran backwards — a package costing $9.99 sold
+ * for $29.97, while one costing $10.01 sold for $13.01. Elite's cost rising
+ * by two cents dropped the customer's price by seventeen dollars.
+ *
+ * Progressive markup can't do that: the sell price rises monotonically with
+ * cost, everywhere.
+ *
+ * Customer-supplied equipment contributes nothing — the customer's own device
+ * isn't Elite's material — unless Elite supplies parts alongside it.
+ */
+export function calculateMaterialSellCents(directCostCents: number): number {
+  if (directCostCents <= 0) return 0;
+  const BREAK = 75000;
+  if (directCostCents <= BREAK) {
+    return Math.round(directCostCents * 1.3);
+  }
+  return Math.round(BREAK * 1.3 + (directCostCents - BREAK) * 1.2);
 }
 
-function roundUp(cents: number, increment: number): number {
-  if (increment <= 0) return Math.round(cents);
-  return Math.ceil(cents / increment) * increment;
+/**
+ * The blended markup, for display only.
+ *
+ * Above $750 there is no single multiplier — the number here is a summary of
+ * what happened, not an input to it. Never calculate from this.
+ */
+export function effectiveMaterialMarkup(directCostCents: number): number {
+  if (directCostCents <= 0) return 0;
+  return calculateMaterialSellCents(directCostCents) / directCostCents;
 }
 
 export type PriceBreakdown = {
@@ -73,6 +111,7 @@ export type PriceBreakdown = {
   permitCents: number;
   otherCents: number;
   actualTechHours: number;
+  /** Blended rate actually applied. Above $750 this is a summary, not an input. */
   multiplierUsed: number;
   multiplierIsOverride: boolean;
   /** True when the $250 service-call minimum set the labor component. */
@@ -91,8 +130,15 @@ function compute(
 ): PriceBreakdown {
   const materialCost = svc.materialCostCents ?? 0;
   const multiplierIsOverride = svc.materialMultiplier != null;
-  const multiplier = svc.materialMultiplier ?? materialMultiplierFor(materialCost);
-  const materialCents = Math.round(materialCost * multiplier);
+  // A legacy override still wins where one survives, but it's flagged in the
+  // reconciliation rather than trusted — an imported multiplier is
+  // unvalidated data, not a decision. Everything else uses the progressive
+  // markup, applied once to the assembled package.
+  const materialSell =
+    svc.materialMultiplier !== null && svc.materialMultiplier !== undefined
+      ? Math.round(materialCost * svc.materialMultiplier)
+      : calculateMaterialSellCents(materialCost);
+  const materialCents = materialSell;
   const permitCents = svc.permitAdminCents ?? settings.defaultPermitAdminCents ?? 0;
   const otherCents = svc.otherDirectCostCents ?? 0;
 
@@ -109,7 +155,7 @@ function compute(
       permitCents,
       otherCents,
       actualTechHours: 0,
-      multiplierUsed: multiplier,
+      multiplierUsed: effectiveMaterialMarkup(materialCost),
       multiplierIsOverride,
       minimumApplied: false,
       unavailableReason: isPrimary
@@ -157,7 +203,7 @@ function compute(
     permitCents,
     otherCents,
     actualTechHours,
-    multiplierUsed: multiplier,
+    multiplierUsed: effectiveMaterialMarkup(materialCost),
     multiplierIsOverride,
     minimumApplied: minimumEligible && rawLabor < settings.primaryMinimumCents,
   };

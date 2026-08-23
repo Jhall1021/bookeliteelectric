@@ -47,9 +47,9 @@ const MATERIALS = [
 
   // --- ASSUMED: needed by existing services, never quoted ---------------
   { key: "RECEPTACLE_STANDARD", name: "Standard duplex receptacle", unitCostCents: 200, unit: "each", notes: "Confirmed for the TV assembly." },
-  { key: "GFCI_INTERIOR", name: "Interior GFCI receptacle", unitCostCents: 1800, unit: "each", notes: "ASSUMED" },
-  { key: "SWITCH_STANDARD", name: "Standard single-pole switch", unitCostCents: 200, unit: "each", notes: "ASSUMED" },
-  { key: "SWITCH_3WAY", name: "Three-way switch", unitCostCents: 400, unit: "each", notes: "ASSUMED" },
+  { key: "GFCI_INTERIOR", name: "Interior GFCI receptacle", unitCostCents: 1800, unit: "each", notes: "Confirmed." },
+  { key: "SWITCH_STANDARD", name: "Standard single-pole switch", unitCostCents: 200, unit: "each", notes: "Confirmed." },
+  { key: "SWITCH_3WAY", name: "Three-way switch", unitCostCents: 400, unit: "each", notes: "Confirmed." },
   {
     // Elite-supplied. The customer-supplied variant of this service is a
     // separate SKU with no material at all, and the gap between the two
@@ -62,7 +62,7 @@ const MATERIALS = [
   },
   { key: "DIMMER_LED", name: "LED dimmer", unitCostCents: 3000, unit: "each", notes: "Handoff §14 gives $30 direct." },
   { key: "BOX_OLD_WORK", name: "Old-work box, single gang", unitCostCents: 300, unit: "each", notes: "Confirmed for the TV assembly." },
-  { key: "BOX_FAN_RATED", name: "Fan-rated ceiling box and brace", unitCostCents: 1800, unit: "each", notes: "ASSUMED" },
+  { key: "BOX_FAN_RATED", name: "Fan-rated ceiling box and brace", unitCostCents: 1800, unit: "each", notes: "Confirmed." },
   { key: "DUCT_CONNECTOR", name: "Duct connector and clamp", unitCostCents: 800, unit: "each", notes: "ASSUMED — bathroom fan." },
   { key: "CONSUMABLES_SMALL", name: "Consumables — connectors, staples, sealant", unitCostCents: 300, unit: "job", notes: "Per Josh: a couple of dollars." },
   { key: "CONSUMABLES_MEDIUM", name: "Consumables — larger job", unitCostCents: 700, unit: "job", notes: "ASSUMED" },
@@ -109,6 +109,45 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     // number rather than the minimum plus a switch.
     slug: "smart-switch-upgrade",
     items: [["SMART_SWITCH", 1]],
+  },
+  {
+    // Device replacements where Elite supplies the part. Plate and
+    // consumables ride along on all of them — a swap uses wire nuts and
+    // screws whatever the device is.
+    slug: "replace-standard-outlet",
+    items: [["RECEPTACLE_STANDARD", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "replace-standard-switch",
+    items: [["SWITCH_STANDARD", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "replace-3-way-switch",
+    items: [["SWITCH_3WAY", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "replace-gfci-outlet",
+    items: [["GFCI_INTERIOR", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "replace-led-dimmer",
+    items: [["DIMMER_LED", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    // Customer-supplied variants carry NO device. That's the whole point of
+    // them, and it makes the gap against the Elite-supplied version exactly
+    // the part at the §4 tier — which is the number a customer is really
+    // choosing between.
+    slug: "customer-supplied-non-smart-outlet",
+    items: [["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "swap-out-customer-supplied-non-smart-switch",
+    items: [["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "customer-supplied-smart-switch",
+    items: [["CONSUMABLES_SMALL", 1]],
   },
   {
     slug: "single-pole-breaker-replacement",

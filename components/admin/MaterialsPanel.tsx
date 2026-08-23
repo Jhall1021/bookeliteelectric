@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@/lib/flow-types";
-import { materialMultiplierFor } from "@/lib/pricing";
+import { calculateMaterialSellCents, effectiveMaterialMarkup } from "@/lib/pricing";
 
 type CatalogEntry = {
   id: string;
@@ -28,8 +28,9 @@ type Item = CatalogEntry & {
  * seeds for which totals silently included one.
  *
  * Costs here are what Elite PAYS. The markup is applied downstream by the
- * tier rule, to the assembled total rather than per part — six cheap items
- * shouldn't each be marked up as though bought alone.
+ * progressive rule — 30% of the first $750, 20% above — applied ONCE to the
+ * assembled total. Never per part: a job with six small items would otherwise
+ * compound the markup six times.
  */
 export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
   const router = useRouter();
@@ -84,8 +85,8 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
   }
 
   const directTotal = items.reduce((s, i) => s + i.lineTotalCents, 0);
-  const tier = directTotal > 0 ? materialMultiplierFor(directTotal) : null;
-  const sellTotal = tier ? Math.round(directTotal * tier) : 0;
+  const markup = directTotal > 0 ? effectiveMaterialMarkup(directTotal) : null;
+  const sellTotal = calculateMaterialSellCents(directTotal);
 
   const field = "rounded-card border border-cardline px-3 py-2 text-sm focus:border-electric";
 
@@ -101,15 +102,15 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
     <div className="mt-8 max-w-xl rounded-card border border-cardline bg-white p-6 shadow-card">
       <h2 className="font-display text-lg font-bold text-navy">Materials</h2>
       <p className="mt-1 text-sm text-slate">
-        What Elite pays. Markup is added by the tier rule, not stored here. Customers never
-        see this.
+        What Elite pays. Markup is added on top — 30% of the first $750, 20% above
+        that — and applied to the whole package at once. Customers never see this.
       </p>
 
       {items.length === 0 ? (
         <p className="mt-4 rounded-card bg-warmwhite p-3 text-sm text-slate">
           Not itemized yet — this service uses a single material figure. Adding parts below
-          replaces it with a real list, and clears any imported markup so the current tier
-          applies.
+          replaces it with a real list, and clears any imported markup so the standard
+          rule applies.
         </p>
       ) : (
         <div className="mt-4 divide-y divide-cardline rounded-card border border-cardline">
@@ -152,15 +153,16 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
           <div className="flex items-center justify-between bg-warmwhite p-3">
             <div className="text-sm text-slate">
               Direct cost
-              {tier && (
+              {markup && (
                 <span className="ml-2 text-xs">
-                  × {tier.toFixed(2)} tier
+                  {/* Blended, because above $750 there isn't one rate. */}
+                  {(markup * 100 - 100).toFixed(0)}% markup
                 </span>
               )}
             </div>
             <div className="text-right">
               <div className="text-sm font-semibold text-navy">{formatCents(directTotal)}</div>
-              {tier && (
+              {markup !== null && (
                 <div className="text-xs text-success">sells at {formatCents(sellTotal)}</div>
               )}
             </div>
@@ -168,13 +170,16 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
         </div>
       )}
 
-      {/* The tier boundary bites hardest just under $10, where a $9 package
-          sells for $27 and a $10.50 one for $13.65. Worth flagging rather
-          than letting it look like a bug. */}
-      {directTotal > 0 && directTotal < 1000 && (
-        <p className="mt-2 rounded-card border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-          Under $10 the markup is 3.00×, so this sells for {formatCents(sellTotal)}. Just above
-          $10 the tier drops to 1.30× — a slightly larger package can sell for less.
+      {/* The $10 cliff warning lived here. It's gone because the cliff is:
+          markup is now continuous, so a package that costs more always sells
+          for more. Under the old bands a $9.99 package sold for $29.97 and a
+          $10.01 one for $13.01 — Elite's cost rising by two cents dropped the
+          customer's price by seventeen dollars. */}
+      {directTotal > 75000 && (
+        <p className="mt-2 rounded-card border border-cardline bg-warmwhite p-3 text-xs text-slate">
+          Above $750 the markup steps down to 20% on the excess, so this package
+          sells at {formatCents(sellTotal)} — a blended{" "}
+          {markup ? (markup * 100 - 100).toFixed(1) : "0"}%.
         </p>
       )}
 

@@ -171,7 +171,34 @@ async function main() {
   // number twice.
   console.log(`  Crew-hour rate        $${settings.targetRateCents / 100}   — what an hour of one van costs`);
   console.log(`  Service-call minimum  $${settings.primaryMinimumCents / 100}   — floor on the FIRST service, set independently`);
-  console.log(`  Rounding tolerance    $${TOLERANCE_CENTS / 100}\n`);
+  console.log(`  Rounding tolerance    $${TOLERANCE_CENTS / 100}`);
+  console.log(`  Material markup       30% of the first $750, 20% above\n`);
+  // Components whose approved price was derived under the old 3x band.
+  // Anything with under $10 of direct material was marked up three times and
+  // is now marked up 1.3 — those increments need re-deriving, and silently
+  // keeping them would leave the old rule alive inside the components.
+  const components = await prisma.jobComponent.findMany({
+    where: { active: true, addMaterialCostCents: { gt: 0, lt: 1000 } },
+    select: { key: true, name: true, addMaterialCostCents: true, approvedPriceCents: true },
+  });
+  if (components.length) {
+    console.log(`  ${components.length} component(s) carry under $10 of material and were`);
+    console.log(`  priced under the old 3x band — their approved increments may be stale:\n`);
+    for (const c of components) {
+      const wasSell = c.addMaterialCostCents * 3;
+      const nowSell = Math.round(c.addMaterialCostCents * 1.3);
+      console.log(
+        `      ${c.name}`
+      );
+      console.log(
+        `          material $${(c.addMaterialCostCents / 100).toFixed(2)} — ` +
+          `sold at $${(wasSell / 100).toFixed(2)}, now $${(nowSell / 100).toFixed(2)} ` +
+          `(approved increment $${((c.approvedPriceCents ?? 0) / 100).toFixed(2)})`
+      );
+    }
+    console.log();
+  }
+
   if (settings.primaryMinimumCents > settings.targetRateCents) {
     // Worth saying: below this many hours the minimum decides the price and
     // the crew-hours don't move it at all, which makes "matches the model"

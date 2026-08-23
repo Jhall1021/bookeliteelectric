@@ -60,10 +60,13 @@ const COMPONENTS = [
     // moves this with everything else instead of leaving one hand-set number
     // stranded in the middle of a derived model.
     //
-    // Approved at $135 rather than the $140 the tier arithmetic gives: $5 of
-    // material falls under §4's $10 boundary and picks up the 3.00x tier,
-    // which prices five dollars of cable at fifteen. Folded into the base
-    // allowance it would sit at 1.30x. Not worth $5 of distortion.
+    // Approved at $135. Under the old band rule this needed explaining — $5
+    // of material fell in the 3.00x band and sold for fifteen — so the
+    // increment was set below the arithmetic on purpose.
+    //
+    // The markup is progressive now: $5 of cable marks up to $6.50, and
+    // 0.5 crew-hours plus that comes to $131.50, rounding to $135. The
+    // number is unchanged; it just no longer needs an excuse.
     key: "RECESSED_FIRST_LIGHT_FINISHED",
     name: "First recessed light — finished ceiling premium",
     customerFacingLabel: "Finished-ceiling installation",

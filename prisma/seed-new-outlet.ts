@@ -34,11 +34,14 @@ const FINISH_ACK_KEY = "outlet_finish_ack";
  * Increments measured from the accessible, under-10-ft case, which is what
  * the base price covers.
  *
- * Material: another 10 ft of 14/2 at $0.50/ft is $5 of cable. The tier is
- * applied to the whole allowance ($21.80 vs $26.80, both at 1.30x) rather
- * than to the $5 delta — under §4 a five-dollar delta would land in the
- * 3.00x band and sell for fifteen, which is a rule artifact rather than a
- * cost.
+ * Material: another 10 ft of 14/2 at $0.50/ft is $5 of cable, marking up to
+ * $6.50.
+ *
+ * This used to need care: under the old band rule a $5 delta landed in the
+ * 3.00x band and sold for fifteen, so the markup had to be applied to the
+ * whole allowance instead of the difference. The progressive rule removes
+ * that trap — 30% is 30% whether the package is $5 or $500 — and the
+ * assembled-package rule means it's applied once either way.
  */
 const COMPONENTS = [
   {

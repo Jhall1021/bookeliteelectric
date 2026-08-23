@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   suggestPrimaryPrice,
   suggestWwtPrice,
-  materialMultiplierFor,
+  effectiveMaterialMarkup,
   type PricingSettings,
 } from "@/lib/pricing";
 
@@ -77,7 +77,7 @@ export default function PricingPanel(p: Props) {
   // publishing is a separate, explicit action.
   const primary = p.settings ? suggestPrimaryPrice(inputs, p.settings) : null;
   const wwt = p.settings ? suggestWwtPrice(inputs, p.settings) : null;
-  const derivedMult = materialCents ? materialMultiplierFor(materialCents) : null;
+  const derivedMult = materialCents ? effectiveMaterialMarkup(materialCents) : null;
 
   async function send(action: "save" | "publish") {
     setBusy(true);
