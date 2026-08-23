@@ -35,6 +35,15 @@ const MATERIALS = [
   { key: "BREAKER_SINGLE_POLE", name: "Single-pole breaker", unitCostCents: 800, unit: "each" },
   { key: "BREAKER_DOUBLE_POLE", name: "Double-pole breaker", unitCostCents: 1800, unit: "each", notes: "Corrected from $19. Shared — also used by whole-house surge." },
 
+  // --- 240V receptacles ---------------------------------------------------
+  // Both services replace a receptacle and neither had one recorded, which
+  // is why they held: the model was pricing labor for a part swap with no
+  // part in it.
+  { key: "RECEPTACLE_DRYER_30A", name: "30A 3- or 4-prong dryer receptacle", unitCostCents: 815, unit: "each" },
+  { key: "RECEPTACLE_RANGE_50A", name: "50A 3- or 4-prong range receptacle", unitCostCents: 815, unit: "each" },
+
+  { key: "BOX_CEILING_STANDARD", name: "Standard ceiling box", unitCostCents: 340, unit: "each" },
+
   // --- specialist parts ---------------------------------------------------
   // The 20A dedicated circuit substitutes 12/2 for 14/2 across the 50 ft run.
   // Recorded as the extra copper rather than a percentage: the old rule
@@ -88,7 +97,14 @@ const MATERIALS = [
   { key: "DIMMER_LED", name: "LED dimmer", unitCostCents: 3000, unit: "each", notes: "Handoff §14 gives $30 direct." },
   { key: "BOX_OLD_WORK", name: "Old-work box, single gang", unitCostCents: 300, unit: "each", notes: "Confirmed for the TV assembly." },
   { key: "BOX_FAN_RATED", name: "Fan-rated ceiling box and brace", unitCostCents: 1800, unit: "each", notes: "Confirmed." },
-  { key: "DUCT_CONNECTOR", name: "Duct connector and clamp", unitCostCents: 800, unit: "each", notes: "ASSUMED — bathroom fan." },
+  {
+    // Retired. This was an assumed $8 on the bathroom fan, and the owner's
+    // decision was to remove it rather than replace it with another guess:
+    // that service is customer-supplied and has no confirmed Elite material,
+    // so its direct material is $0. An invented allowance is worse than none.
+    key: "DUCT_CONNECTOR", name: "Duct connector and clamp", unitCostCents: 800, unit: "each",
+    active: false, notes: "Retired — was an assumption, never a quoted cost.",
+  },
   { key: "CONSUMABLES_SMALL", name: "Consumables — connectors, staples, sealant", unitCostCents: 300, unit: "job", notes: "Per Josh: a couple of dollars." },
   { key: "CONSUMABLES_MEDIUM", name: "Consumables — larger job", unitCostCents: 700, unit: "job", notes: "ASSUMED" },
 ];
@@ -258,6 +274,35 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     // lights carry a 10 ft jumper instead and live on components.
     slug: "recessed-lighting",
     items: [["RECESSED_WAFER", 1], ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "dryer-receptacle-replacement",
+    items: [["RECEPTACLE_DRYER_30A", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "range-receptacle-replacement",
+    items: [["RECEPTACLE_RANGE_50A", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    // The fixture is the customer's unless a service says otherwise, so this
+    // is the lighting POINT: box, cable, consumables.
+    slug: "new-ceiling-light",
+    items: [["BOX_CEILING_STANDARD", 1], ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "new-ceiling-fan",
+    items: [["BOX_FAN_RATED", 1], ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    // The fan-rated box is in the standard allowance rather than a question.
+    // Most existing light boxes aren't fan-rated, and asking a homeowner to
+    // determine that is asking them to do a survey. If one turns out to be
+    // reusable, that's a few dollars of material saved on the job — not a
+    // branch in the tree.
+    //
+    // No cable: the wiring is already at the box.
+    slug: "fan-replacing-light",
+    items: [["BOX_FAN_RATED", 1], ["CONSUMABLES_SMALL", 1]],
   },
   {
     slug: "single-pole-breaker-replacement",
