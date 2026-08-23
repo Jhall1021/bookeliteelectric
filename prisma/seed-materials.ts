@@ -314,6 +314,23 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
   },
 ];
 
+/**
+ * Services with NO Elite-supplied material, stated explicitly.
+ *
+ * Deleting a service's assembly isn't enough — the flat materialCostCents
+ * field only gets rewritten for services that HAVE an assembly, so removing
+ * one leaves the old figure sitting there. The bathroom fan kept $11 of
+ * retired duct connector that way, and the model quietly priced it.
+ *
+ * "No material" has to be asserted, not implied by absence.
+ */
+const NO_MATERIAL: { slug: string; why: string }[] = [
+  {
+    slug: "bathroom-fan-light-combo",
+    why: "Customer supplies the fan; no confirmed Elite-supplied material. The old $8 duct connector was an assumption and was withdrawn rather than replaced.",
+  },
+];
+
 async function main() {
   for (const m of MATERIALS) {
     await prisma.material.upsert({
@@ -381,6 +398,19 @@ async function main() {
         ` -> $${((total * tier) / 100).toFixed(2)} at ${tier}x` +
         (hadLegacyMultiplier ? `  (cleared legacy ${hadLegacyMultiplier}x)` : "")
     );
+  }
+
+  for (const n of NO_MATERIAL) {
+    const svc = await prisma.service.findUnique({ where: { slug: n.slug } });
+    if (!svc) continue;
+    await prisma.serviceMaterial.deleteMany({ where: { serviceId: svc.id } });
+    if (svc.materialCostCents) {
+      await prisma.service.update({
+        where: { id: svc.id },
+        data: { materialCostCents: 0, materialMultiplier: null, materialMultiplierReason: null },
+      });
+      console.log(`  ✓ ${n.slug} — cleared $${(svc.materialCostCents / 100).toFixed(2)} of stale material`);
+    }
   }
 
   console.log(`

@@ -284,6 +284,49 @@ const APPROVED: Approved[] = [
     whileWeThereBasePrice: 53500,
     decision: "APPROVE MODEL",
   },
+
+  // ---- second pass: the twelve rows held pending material costs ---------
+  //
+  // These couldn't be judged in the first pass because their material
+  // composition wasn't established — pricing labor for a receptacle swap
+  // with no receptacle in it isn't a model, it's a gap. The owner confirmed
+  // the compositions on 23 Aug and these follow from them.
+  {
+    slug: "dryer-receptacle-replacement",
+    basePrice: 26500,
+    whileWeThereBasePrice: 14000,
+    decision: "APPROVE MODEL — material established 23 Aug",
+  },
+  {
+    slug: "range-receptacle-replacement",
+    basePrice: 26500,
+    whileWeThereBasePrice: 14000,
+    decision: "APPROVE MODEL — material established 23 Aug",
+  },
+  {
+    slug: "new-ceiling-light",
+    basePrice: 34000,
+    whileWeThereBasePrice: 27500,
+    decision: "APPROVE MODEL — material established 23 Aug",
+  },
+  {
+    slug: "new-ceiling-fan",
+    basePrice: 48500,
+    whileWeThereBasePrice: 42000,
+    decision: "APPROVE MODEL — material established 23 Aug",
+  },
+  {
+    slug: "fan-replacing-light",
+    basePrice: 40500,
+    whileWeThereBasePrice: 34000,
+    decision: "APPROVE MODEL — material established 23 Aug",
+  },
+  {
+    slug: "bathroom-fan-light-combo",
+    basePrice: 50000,
+    whileWeThereBasePrice: 44000,
+    decision: "APPROVE MODEL — material established 23 Aug",
+  },
 ];
 
 async function main() {
