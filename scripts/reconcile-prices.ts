@@ -179,24 +179,37 @@ async function main() {
   // keeping them would leave the old rule alive inside the components.
   const components = await prisma.jobComponent.findMany({
     where: { active: true, addMaterialCostCents: { gt: 0, lt: 1000 } },
-    select: { key: true, name: true, addMaterialCostCents: true, approvedPriceCents: true },
+    select: {
+      key: true, name: true, addMaterialCostCents: true,
+      addFieldLaborHours: true, approvedPriceCents: true,
+    },
   });
-  if (components.length) {
-    console.log(`  ${components.length} component(s) carry under $10 of material and were`);
-    console.log(`  priced under the old 3x band — their approved increments may be stale:\n`);
-    for (const c of components) {
-      const wasSell = c.addMaterialCostCents * 3;
-      const nowSell = Math.round(c.addMaterialCostCents * 1.3);
+  // Only flag the ones that ACTUALLY differ. Listing every component with
+  // under $10 of material meant re-reading four correct figures every run to
+  // find the one that moved — which is how a real finding gets ignored.
+  const staleComponents = components
+    .map((c) => {
+      const labor = Math.round((c.addFieldLaborHours ?? 0) * settings.targetRateCents);
+      const material = Math.round((c.addMaterialCostCents ?? 0) * 1.3);
+      const model = Math.ceil((labor + material) / settings.roundingIncrementCents) *
+        settings.roundingIncrementCents;
+      return { ...c, model };
+    })
+    .filter((c) => Math.abs((c.approvedPriceCents ?? 0) - c.model) > TOLERANCE_CENTS);
+
+  if (staleComponents.length) {
+    console.log(`  ${staleComponents.length} approved component increment(s) no longer match`);
+    console.log(`  their inputs under the current markup:\n`);
+    for (const c of staleComponents) {
+      console.log(`      ${c.name}`);
       console.log(
-        `      ${c.name}`
-      );
-      console.log(
-        `          material $${(c.addMaterialCostCents / 100).toFixed(2)} — ` +
-          `sold at $${(wasSell / 100).toFixed(2)}, now $${(nowSell / 100).toFixed(2)} ` +
-          `(approved increment $${((c.approvedPriceCents ?? 0) / 100).toFixed(2)})`
+        `          approved $${((c.approvedPriceCents ?? 0) / 100).toFixed(2)} — ` +
+          `model says $${(c.model / 100).toFixed(2)}`
       );
     }
     console.log();
+  } else if (components.length) {
+    console.log(`  ${components.length} component(s) carry under $10 of material; all still match.\n`);
   }
 
   if (settings.primaryMinimumCents > settings.targetRateCents) {

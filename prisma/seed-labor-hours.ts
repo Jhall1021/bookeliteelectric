@@ -132,6 +132,11 @@ const ROUTE_BASE: [string, number, number | null, string][] = [
   ["garage-door-opener-outlet", 1.0, 0.75, "New 120V Outlet matrix; distance tree not yet attached"],
   ["garage-door-opener-outlet-ev", 1.0, 0.75, "New 120V Outlet matrix; distance tree not yet attached"],
   ["bidet-smart-toilet-outlet", 1.0, 0.75, "New 120V Outlet matrix; distance tree not yet attached"],
+  // Was on the QUOTE list, which nulled the hours its own seed had just set.
+  // It stopped being quote-only when it got a tree and a published price —
+  // this list is ordered after seed-exterior-gfci-routing.ts, so it was
+  // silently undoing it on every full run.
+  ["exterior-gfci-other-routing", 1.5, 1.25, "device work matches back-to-back; distance components carry the run"],
 ];
 
 /**
@@ -161,7 +166,6 @@ const QUOTE = [
   "new-exterior-lighting-locations",
   "outdoor-landscape-lighting",
   "under-cabinet-led-lighting",
-  "exterior-gfci-other-routing",
   "200a-service-upgrade",
   "electrical-panel-replacement",
   "hot-tub-spa-electrical",
