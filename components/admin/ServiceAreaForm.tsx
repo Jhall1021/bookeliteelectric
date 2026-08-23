@@ -131,6 +131,13 @@ export default function ServiceAreaForm({
   // which looked like the click hadn't registered.
   const countState = (c: County) => ({ on: c.selected, of: c.usable });
 
+  // Which counties the selection actually touches, partial ones included —
+  // that's the honest description of a territory, and it can't go stale the
+  // way a typed-in name does.
+  const selectedCounties = counties
+    .filter((c) => c.selected > 0)
+    .map((c) => (c.selected < c.usable ? `${c.county} (part)` : c.county));
+
   return (
     <div className="mt-6">
       {/* Shouldn't happen, but if a second area exists it must be visible
@@ -144,16 +151,39 @@ export default function ServiceAreaForm({
         </p>
       )}
 
-      <div className="flex items-center justify-between rounded-card border border-cardline bg-white p-4 shadow-card">
-        <div>
-          <div className="font-display text-base font-bold text-navy">{area.name}</div>
-          <div className="mt-0.5 text-xs text-slate">
-            {area.zipCodes.length} ZIP codes ·{" "}
-            {area.active ? "accepting online bookings" : "not accepting online bookings"}
-            {area.zipCodes.length === 0 && (
-              <span className="text-amber-700"> · nobody can book</span>
+      {/* The territory's NAME used to be the heading here — it was set to
+          "Monmouth County, NJ" when that was the whole territory, and stayed
+          that way after other counties were added. A label that has to be
+          maintained by hand will be wrong eventually, and this one already
+          was.
+
+          What's true is derived instead: whether booking is on, how many ZIPs
+          are selected, and which counties they're in. */}
+      <div className="flex items-start justify-between gap-4 rounded-card border border-cardline bg-white p-4 shadow-card">
+        <div className="min-w-0">
+          <div className="font-display text-base font-bold text-navy">
+            {area.active ? "Accepting online bookings" : "Online booking is off"}
+          </div>
+          <div className="mt-0.5 text-sm text-slate">
+            {area.zipCodes.length === 0 ? (
+              <span className="text-amber-700">
+                No ZIP codes selected — nobody can book
+              </span>
+            ) : (
+              <>
+                {area.zipCodes.length} ZIP codes
+                {selectedCounties.length > 0 && (
+                  <> across {selectedCounties.length}{" "}
+                  {selectedCounties.length === 1 ? "county" : "counties"}</>
+                )}
+              </>
             )}
           </div>
+          {selectedCounties.length > 0 && (
+            <div className="mt-1 text-xs text-slate">
+              {selectedCounties.join(" · ")}
+            </div>
+          )}
         </div>
         <button
           onClick={() => send({ active: !area.active })}
