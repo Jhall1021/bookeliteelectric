@@ -23,19 +23,38 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-/** SET: a standard job at an existing suitable location. */
+/**
+ * SET: a standard job at an existing suitable location.
+ *
+ * WHAT THE SECOND FIGURE MEANS
+ *
+ * Same-visit hours are the INCREMENTAL crew time once a van is already at the
+ * property. What gets saved is arrival, parking, greeting the homeowner and
+ * writing the job up — and that is roughly a quarter hour whether the work
+ * takes twenty minutes or two.
+ *
+ * So the gap between the two figures should be about 0.25 for most services,
+ * NOT a fixed fraction. A two-hour job doesn't share more overhead than a
+ * one-hour job; arrival takes as long as it takes.
+ *
+ * Five services previously saved 0.50 — all of them longer jobs, which is
+ * proportional thinking rather than shared setup. They're corrected below.
+ *
+ * A saving of zero is legitimate: a device swap or a disposal reconnect
+ * shares nothing beyond turning up.
+ */
 const SET: [string, number, number | null][] = [
   // Appliance
-  ["garbage-disposal-install", 0.5, 0.25],
+  ["garbage-disposal-install", 0.5, 0.5],
   ["dishwasher-electrical", 0.75, 0.5],
-  ["install-new-microwave", 2.0, 1.5],
-  ["otr-microwave-install", 1.5, 1.0],
+  ["install-new-microwave", 2.0, 1.75],
+  ["otr-microwave-install", 1.5, 1.25],
   ["dryer-receptacle-replacement", 0.75, 0.5],
   ["range-receptacle-replacement", 0.75, 0.5],
 
   // Fans
-  ["bathroom-fan-light-combo", 2.0, 1.5],
-  ["replace-ceiling-fan", 1.25, 0.75],
+  ["bathroom-fan-light-combo", 2.0, 1.75],
+  ["replace-ceiling-fan", 1.25, 1.0],
 
   // Lighting
   ["replace-exterior-light-fixture", 1.0, 0.75],
@@ -43,7 +62,7 @@ const SET: [string, number, number | null][] = [
   ["replace-motion-flood-light", 1.0, 0.75],
 
   // New outlets
-  ["exterior-gfci-standard", 1.5, 1.0],
+  ["exterior-gfci-standard", 1.5, 1.25],
 
   // Outlets & switches — normal device replacement at a powered location
   ["customer-supplied-smart-switch", 0.75, 0.5],
