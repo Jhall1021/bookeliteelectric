@@ -35,6 +35,19 @@ const MATERIALS = [
   { key: "BREAKER_SINGLE_POLE", name: "Single-pole breaker", unitCostCents: 800, unit: "each" },
   { key: "BREAKER_DOUBLE_POLE", name: "Double-pole breaker", unitCostCents: 1900, unit: "each" },
 
+  // --- devices Elite supplies -------------------------------------------
+  //
+  // Each cost is the device alone. The plate and consumables that go with it
+  // are separate lines on the assembly, which is why these don't match the
+  // allowance figures they replace — a $37 USB package is a $33 outlet plus
+  // $4 of small parts.
+  { key: "OUTLET_USB", name: "USB / USB-C outlet", unitCostCents: 3300, unit: "each" },
+  { key: "OUTLET_SMART", name: "Smart outlet", unitCostCents: 5800, unit: "each" },
+  { key: "SWITCH_OCCUPANCY", name: "Occupancy / motion sensor switch", unitCostCents: 3800, unit: "each" },
+  { key: "SWITCH_TIMER", name: "Timer switch", unitCostCents: 5800, unit: "each" },
+  { key: "SMOKE_DETECTOR_HARDWIRED", name: "Hardwired smoke detector", unitCostCents: 2200, unit: "each" },
+  { key: "DOORBELL_TRANSFORMER", name: "Doorbell transformer", unitCostCents: 1200, unit: "each" },
+
   // --- low voltage ------------------------------------------------------
   { key: "LOW_VOLTAGE_RING", name: "Low-voltage mounting ring", unitCostCents: 400, unit: "each" },
   { key: "LOW_VOLTAGE_COVER", name: "Low-voltage cable pass-through cover", unitCostCents: 1000, unit: "each" },
@@ -148,6 +161,54 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
   {
     slug: "customer-supplied-smart-switch",
     items: [["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "usb-outlet-upgrade",
+    items: [["OUTLET_USB", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "smart-outlet-upgrade",
+    items: [["OUTLET_SMART", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "occupancy-motion-switch",
+    items: [["SWITCH_OCCUPANCY", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "timer-switch-install",
+    items: [["SWITCH_TIMER", 1], ["WALL_PLATE", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "hardwired-smoke-detector",
+    items: [["SMOKE_DETECTOR_HARDWIRED", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    slug: "doorbell-transformer-replacement",
+    items: [["DOORBELL_TRANSFORMER", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    // A run, not a device. 25 ft of cable is a 10 ft route with slack, and
+    // the assembly comes to $21.50 against the $21.80 allowance it replaces
+    // — thirty cents, which vanishes in $5 rounding.
+    slug: "new-120v-outlet",
+    items: [
+      ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1], ["WALL_PLATE", 1],
+      ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1],
+    ],
+  },
+  {
+    slug: "bidet-smart-toilet-outlet",
+    items: [
+      ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1], ["WALL_PLATE", 1],
+      ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1],
+    ],
+  },
+  {
+    slug: "garage-door-opener-outlet",
+    items: [
+      ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1], ["WALL_PLATE", 1],
+      ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1],
+    ],
   },
   {
     slug: "single-pole-breaker-replacement",
