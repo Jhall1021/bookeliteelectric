@@ -32,6 +32,8 @@ const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"
 const APPROVED_PUBLISHERS: Record<string, string> = {
   "prisma/seed.ts": "Bootstrap. Establishes the original catalog.",
   "prisma/seed-pricing-settings.ts": "Settings only, no service prices.",
+  "prisma/seed-bathroom-fans.ts":
+    "Sets the Elite-supplied fan to quote-only by clearing its prices to null. Removing a price, not setting one.",
   "prisma/seed-appliance-services.ts":
     "Creates Replace Range Hood, which needs a first price. CREATE branch only — the update branch writes no price.",
   "app/api/admin/services/[serviceId]/pricing/route.ts":

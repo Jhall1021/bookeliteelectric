@@ -154,16 +154,23 @@ async function main() {
       // No longer 120V-only now that it covers 240V.
       name: "Dedicated Circuit & Outlet",
       bookingType: "ADJUSTED",
-      basePrice: 79500,
-      startingPriceLabel: "From $795",
+      // Everything about the price used to be written here, and re-running
+      // this seed would have undone the whole reconciliation for this
+      // service in one go:
+      //
+      //   basePrice: 79500              -> reverts the approved $685
+      //   whileWeThereBasePrice: null   -> deletes the approved $685 add-on
+      //   startingPriceLabel "From $795" -> contradicts the real price
+      //   materialCostCents: 6800       -> replaces the itemized $46 package
+      //   materialMultiplier: 2.5       -> restores the old workbook markup
+      //   primaryLaborUnits: 2.5        -> the legacy field, not crew-hours
+      //
+      // Crew-hours and materials now come from seed-dedicated-circuit-labor
+      // and seed-materials; the published price came from the 23 Aug
+      // migration. This seed builds the tree.
       estimatedMinutes: 150,
       requiresTechCount: 1,
-      primaryLaborUnits: 2.5,
-      addOnLaborUnits: null,
-      materialCostCents: 6800,
-      materialMultiplier: 2.5,
       permitAdminCents: 0,
-      whileWeThereBasePrice: null,
     },
   });
 

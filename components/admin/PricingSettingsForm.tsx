@@ -25,9 +25,8 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
   const [settingsSaved, setSettingsSaved] = useState(false);
 
   const [recalculating, setRecalculating] = useState(false);
-  const [result, setResult] = useState<{ updatedCount: number; changes: any[] } | null>(null);
+  const [result, setResult] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirmingRecalc, setConfirmingRecalc] = useState(false);
 
   async function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
@@ -58,7 +57,6 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
   async function handleRecalculate() {
     setRecalculating(true);
     setError(null);
-    setConfirmingRecalc(false);
 
     const res = await fetch("/api/admin/pricing-settings/recalculate", { method: "POST" });
     setRecalculating(false);
@@ -127,55 +125,54 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
         </button>
       </form>
 
-      <div className="rounded-card border border-amber-300 bg-amber-50 p-6">
-        <h2 className="font-display text-base font-bold text-navy">Recalculate All Prices</h2>
-        <p className="mt-1 text-sm text-navy/80">
-          Applies the settings above to every service with labor-unit data on file, right now.
-          This directly changes live prices customers see. Save your settings first if you
-          changed them.
+      {/* Was "Recalculate All Prices", a red button that rewrote every
+          published price from the legacy workbook fields. It would have
+          reverted the whole August reconciliation in one click. Now it
+          reports and writes nothing. */}
+      <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+        <h2 className="font-display text-base font-bold text-navy">Check Prices Against the Model</h2>
+        <p className="mt-1 text-sm text-slate">
+          Shows where a published price differs from what its crew-hours and materials
+          produce. Changes nothing — publishing happens one service at a time, so a
+          settings change can never quietly reprice the catalog.
         </p>
 
-        {!confirmingRecalc ? (
-          <button
-            onClick={() => setConfirmingRecalc(true)}
-            className="mt-4 rounded-pill bg-navy px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-navy-light"
-          >
-            Recalculate All Prices
-          </button>
-        ) : (
-          <div className="mt-4 flex items-center gap-3">
-            <span className="text-sm font-medium text-navy">Are you sure? This updates live prices immediately.</span>
-            <button
-              onClick={handleRecalculate}
-              disabled={recalculating}
-              className="rounded-pill bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {recalculating ? "Recalculating..." : "Yes, Recalculate"}
-            </button>
-            <button
-              onClick={() => setConfirmingRecalc(false)}
-              className="rounded-pill border border-cardline px-5 py-2 text-sm font-medium text-navy hover:bg-white"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+        <button
+          onClick={handleRecalculate}
+          disabled={recalculating}
+          className="mt-4 rounded-pill border border-electric px-6 py-2.5 text-sm font-semibold text-electric transition hover:bg-electric/5 disabled:opacity-50"
+        >
+          {recalculating ? "Checking..." : "Check for Differences"}
+        </button>
 
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
         {result && (
           <div className="mt-5">
-            <p className="text-sm font-semibold text-navy">Updated {result.updatedCount} services:</p>
-            <div className="mt-2 max-h-64 overflow-y-auto rounded-card bg-white">
-              {result.changes.map((c, i) => (
-                <div key={i} className="flex items-center justify-between border-b border-cardline px-3 py-2 text-xs last:border-0">
-                  <span className="text-navy">{c.name}</span>
-                  <span className="text-slate">
-                    {c.oldPrimary !== null ? `$${(c.oldPrimary / 100).toFixed(2)}` : "—"} → <strong className="text-navy">${(c.newPrimary / 100).toFixed(2)}</strong>
-                  </span>
-                </div>
-              ))}
-            </div>
+            <p className="text-sm font-semibold text-navy">{result.message}</p>
+            {result.differences?.length > 0 && (
+              <div className="mt-2 max-h-64 overflow-y-auto rounded-card border border-cardline">
+                {result.differences.map((d: any) => (
+                  <div key={d.slug} className="border-b border-cardline px-3 py-2 text-xs last:border-0">
+                    <div className="font-medium text-navy">{d.name}</div>
+                    <div className="mt-0.5 text-slate">
+                      {d.publishedPrimary !== null && d.modelPrimary !== null && (
+                        <span>
+                          standalone ${(d.publishedPrimary / 100).toFixed(0)} vs model $
+                          {(d.modelPrimary / 100).toFixed(0)}
+                        </span>
+                      )}
+                      {d.publishedAddOn !== null && d.modelAddOn !== null && (
+                        <span className="ml-3">
+                          same-visit ${(d.publishedAddOn / 100).toFixed(0)} vs model $
+                          {(d.modelAddOn / 100).toFixed(0)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
