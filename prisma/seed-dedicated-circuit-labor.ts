@@ -44,12 +44,20 @@ async function main() {
       estimatedMinutesReviewed: true,
       requiresTechCount: 1,
 
-      // Operational labor, recorded now. Roughly half an hour comes off:
-      // the technician is already on site, unloaded, checked in and set up,
-      // possibly already at the panel. But the bulk of a dedicated circuit
-      // is the run itself — cable, drilling, cutting in, breaker,
-      // terminations, testing — and none of that gets cheaper.
-      wwtLaborHours: 2.0,
+      // Same as standalone. No saving.
+      //
+      // The half-hour I originally took off was reasoning by analogy — most
+      // services save the arrival overhead, so this one should too. But
+      // nothing about this job shrinks: the cable run, the breaker, the box,
+      // the terminations and the testing all happen in full regardless of
+      // why the van is in the driveway.
+      //
+      // The published price was $170 — a quarter of the standalone — which
+      // is a legacy figure treating "add-on" as a discount category rather
+      // than a description of incremental work.
+      //
+      // If a measured saving turns up in the field, put it back then.
+      wwtLaborHours: 2.5,
 
       // Deliberately NOT published. Establishing the labor doesn't oblige us
       // to sell it as an add-on, and at 2.0 hours it computes to $590 —
