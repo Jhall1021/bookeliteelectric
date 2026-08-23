@@ -33,7 +33,19 @@ const MATERIALS = [
 
   // --- breakers ---------------------------------------------------------
   { key: "BREAKER_SINGLE_POLE", name: "Single-pole breaker", unitCostCents: 800, unit: "each" },
-  { key: "BREAKER_DOUBLE_POLE", name: "Double-pole breaker", unitCostCents: 1900, unit: "each" },
+  { key: "BREAKER_DOUBLE_POLE", name: "Double-pole breaker", unitCostCents: 1800, unit: "each", notes: "Corrected from $19. Shared — also used by whole-house surge." },
+
+  // --- specialist parts ---------------------------------------------------
+  // The 20A dedicated circuit substitutes 12/2 for 14/2 across the 50 ft run.
+  // Recorded as the extra copper rather than a percentage: the old rule
+  // assumed 12/2 cost 30% more, when at $0.50 and $0.72 it's 44%.
+
+  { key: "SMOKE_CO_COMBO", name: "Smoke/CO combination detector", unitCostCents: 6000, unit: "each",
+    notes: "Bought as one item — no internal breakdown to invent." },
+  { key: "SURGE_PROTECTOR_WHOLE_HOUSE", name: "Whole-house surge protector", unitCostCents: 14200, unit: "each" },
+  { key: "SURGE_TRIM_KIT", name: "Surge protector trim kit", unitCostCents: 5800, unit: "each" },
+  { key: "RECESSED_WAFER", name: "Canless LED wafer light, driver and J-box included", unitCostCents: 3000, unit: "each",
+    notes: "The wafer carries its own driver box — do not add a ceiling box." },
 
   // --- devices Elite supplies -------------------------------------------
   //
@@ -209,6 +221,33 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
       ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1], ["WALL_PLATE", 1],
       ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1],
     ],
+  },
+  {
+    // 15A / 120V standard package. The 20A route substitutes 12/2 rather
+    // than carrying a percentage upcharge — see the note on wire below.
+    slug: "dedicated-120v-circuit-outlet",
+    items: [
+      ["BREAKER_SINGLE_POLE", 1], ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1],
+      ["WALL_PLATE", 1], ["WIRE_14_2", 50], ["CONSUMABLES_MEDIUM", 1],
+    ],
+  },
+  {
+    slug: "smoke-co-detector",
+    items: [["SMOKE_CO_COMBO", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    // The old $175 allowance missed the trim kit entirely and understated
+    // the protector.
+    slug: "whole-house-surge-protection",
+    items: [
+      ["SURGE_PROTECTOR_WHOLE_HOUSE", 1], ["SURGE_TRIM_KIT", 1], ["BREAKER_DOUBLE_POLE", 1],
+    ],
+  },
+  {
+    // First light: the wafer, a 25 ft home run, consumables. Additional
+    // lights carry a 10 ft jumper instead and live on components.
+    slug: "recessed-lighting",
+    items: [["RECESSED_WAFER", 1], ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1]],
   },
   {
     slug: "single-pole-breaker-replacement",
