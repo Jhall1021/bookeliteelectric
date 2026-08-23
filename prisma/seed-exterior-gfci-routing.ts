@@ -67,7 +67,11 @@ const COMPONENTS = [
     key: "EXT_GFCI_RUN_ACCESSIBLE_10_20",
     name: "Exterior GFCI — open route, 10 to 20 ft",
     customerFacingLabel: "Longer wiring run",
-    approvedPriceCents: 7000,
+    // $75, not $70. Recomputed under the progressive markup: 0.25 crew-hours
+    // is $62.50, and 7.2 ft of extra cable at $9.36 brings it to $71.86,
+    // rounding to $75. The old figure assumed material selling at a rate
+    // that no longer exists.
+    approvedPriceCents: 7500,
     addFieldLaborHours: 0.25,
     // Another 10 ft of 12/2 at $0.72.
     addMaterialCostCents: 720,
