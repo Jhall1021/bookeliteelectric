@@ -21,9 +21,25 @@
  * in the header, in any order and any capitalisation. If it can't find the
  * first four it says so rather than importing nonsense.
  *
- * Sources that work: zip-codes.com's free database, simplemaps' US ZIP
- * database, the HUD USPS crosswalk with a county name column added, or
- * anything else with those columns.
+ * ON THE SOURCE FILE
+ *
+ * The CSV is NOT committed to the repo, and shouldn't be. Every usable ZIP
+ * dataset is licensed for application use rather than redistribution — you
+ * may load it into your own database and power your own product with it, but
+ * shipping the file itself in a public repository is a different act with
+ * different terms.
+ *
+ * So: import once into the database that serves the admin, keep this script
+ * in the repo, leave the CSV out of it. After that, territory changes happen
+ * by ticking counties in the admin — the reference table doesn't need
+ * touching again.
+ *
+ * WHICH DATABASE
+ *
+ * Whichever DATABASE_URL points at. For Elite that's the production Neon
+ * instance, the same one every other seed has been run against — so running
+ * this locally does populate the live admin. Worth being deliberate about
+ * rather than assuming.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -170,7 +186,31 @@ async function main() {
     console.log(`      ${st}  ${n}`);
   }
   if (skipped) console.log(`\n  ${skipped} row(s) skipped — no valid five-digit ZIP.`);
-  console.log(`\n  Service areas are unchanged. Pick counties in the admin.\n`);
+
+  // What the admin will actually show, from the database rather than from
+  // the file — so a partial import or a column mismatch is visible here
+  // instead of being discovered as a missing county later.
+  const inDb = await prisma.zipCode.groupBy({
+    by: ["state", "county"],
+    _count: { zip: true },
+    orderBy: [{ state: "asc" }, { county: "asc" }],
+  });
+  const byStateInDb = new Map<string, number>();
+  for (const g of inDb) byStateInDb.set(g.state, (byStateInDb.get(g.state) ?? 0) + 1);
+
+  console.log(`\n  The admin county selector will now show:\n`);
+  for (const [st, n] of [...byStateInDb].sort()) {
+    console.log(`      ${st}: ${n} counties`);
+    if (n <= 25) {
+      const names = inDb.filter((g) => g.state === st).map((g) => g.county);
+      for (let i = 0; i < names.length; i += 4) {
+        console.log(`          ${names.slice(i, i + 4).join(" · ")}`);
+      }
+    }
+  }
+
+  console.log(`\n  ServiceArea is unchanged — this is reference data, not the`);
+  console.log(`  allowlist. Pick counties at /admin/service-area.\n`);
 }
 
 main()

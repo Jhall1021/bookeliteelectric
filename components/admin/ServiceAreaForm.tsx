@@ -36,7 +36,20 @@ export default function ServiceAreaForm({
   const [openCounty, setOpenCounty] = useState<string | null>(null);
   const [countyZips, setCountyZips] = useState<Record<string, Zip[]>>({});
 
-  const area = areas[0];
+  // ONE territory, deliberately.
+  //
+  // This used to read areas[0] out of a list, which implied multi-territory
+  // support that doesn't exist — nothing else in the system knows what to do
+  // with a second one. Checkout looks up the single active area and checks
+  // membership; there is no zone routing, no per-zone pricing, no assignment
+  // of a crew to a region.
+  //
+  // So: one territory, one allowlist, counties as a bulk-selection
+  // convenience. If multiple territories are ever wanted, checkout and
+  // dispatch have to learn about them first — this component is not the place
+  // it would start.
+  const area = areas[0] ?? null;
+  const extraAreas = areas.length - 1;
   const selected = new Set(area?.zipCodes ?? []);
 
   async function send(body: Record<string, unknown>) {
@@ -120,6 +133,17 @@ export default function ServiceAreaForm({
 
   return (
     <div className="mt-6">
+      {/* Shouldn't happen, but if a second area exists it must be visible
+          rather than silently ignored — checkout only honours the first
+          ACTIVE one, so a hidden second territory would be a phantom. */}
+      {extraAreas > 0 && (
+        <p className="mb-3 rounded-card border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          There {extraAreas === 1 ? "is" : "are"} {extraAreas} other service area{" "}
+          {extraAreas === 1 ? "record" : "records"} in the database. Only this one is
+          used — the system supports a single territory.
+        </p>
+      )}
+
       <div className="flex items-center justify-between rounded-card border border-cardline bg-white p-4 shadow-card">
         <div>
           <div className="font-display text-base font-bold text-navy">{area.name}</div>

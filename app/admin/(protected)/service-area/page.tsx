@@ -18,7 +18,10 @@ export default async function ServiceAreaPage() {
   // browser only knows a county's ZIPs after the drill-down is opened. The
   // first version left the checkbox unticked until you expanded the county,
   // which made a selected county look unselected.
-  const chosen = new Set(areas.flatMap((a) => a.zipCodes));
+  // The single territory's ZIPs. Not flattened across every record — Elite
+  // has one territory, and counting a second one's ZIPs here would tick
+  // counties that checkout doesn't actually honour.
+  const chosen = new Set(areas[0]?.zipCodes ?? []);
   const map = new Map<
     string,
     { state: string; county: string; total: number; usable: number; selected: number }
@@ -37,7 +40,7 @@ export default async function ServiceAreaPage() {
     (a, b) => a.state.localeCompare(b.state) || a.county.localeCompare(b.county)
   );
 
-  const totalSelected = areas.filter((a) => a.active).reduce((n, a) => n + a.zipCodes.length, 0);
+  const totalSelected = areas[0]?.active ? areas[0].zipCodes.length : 0;
 
   return (
     <div>
