@@ -89,16 +89,22 @@ export default function ServiceIntro({
           )}
         </div>
 
+        {/* Was "skips the visit fee" and "they'll cost less". Neither
+            survives contact with the pricing model: there is no itemised
+            visit fee to skip, and a same-visit price isn't always lower —
+            a dedicated circuit costs the same either way, because the run,
+            the breaker and the testing all happen in full regardless of why
+            the van is outside. */}
         {isAddOn ? (
           <p className="mt-1 text-xs text-success">
-            While We&rsquo;re There pricing — you already have a service booked, so this one
-            skips the visit fee.
+            Same-visit pricing — you already have a service booked, so this is priced
+            for the extra work rather than a whole visit.
           </p>
         ) : (
           <p className="mt-1 text-xs text-slate">
             {directBook
-              ? "This price includes our visit to your home. Add more services after this and they'll cost less — no second visit fee."
-              : "This price includes our visit to your home. Add more services on the next screen and they'll cost less — no second visit fee."}
+              ? "This price includes getting our crew to your home. Anything you add after it uses our same-visit pricing."
+              : "This price includes getting our crew to your home. Anything you add on the next screen uses our same-visit pricing."}
           </p>
         )}
 

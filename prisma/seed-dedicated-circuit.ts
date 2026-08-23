@@ -43,9 +43,11 @@ async function clearServiceTree(serviceId: string) {
  * number here that's an assumption rather than a measurement — change it and
  * re-run to reprice the 20A upcharge.
  *
- * Kept above $10 deliberately: §4 charges 3.00x under $10 and 1.30x at or
- * above it, so a smaller delta can sell for MORE than a larger one. At
- * $10.50 the upcharge sits safely on the 1.30x side.
+ * This used to be kept deliberately above $10, because the old banded markup
+ * charged 3.00x under that and 1.30x above — so a smaller delta could sell
+ * for more than a larger one. That cliff is gone: markup is progressive now,
+ * 30% of the first $750, and the figure no longer needs protecting from a
+ * boundary.
  */
 const WIRE_PORTION_CENTS = 3500;
 const WIRE_20A_DELTA_CENTS = Math.round(WIRE_PORTION_CENTS * 0.30); // 12/2 vs 14/2

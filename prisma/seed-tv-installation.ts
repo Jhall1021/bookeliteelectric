@@ -42,14 +42,6 @@ const prisma = new PrismaClient();
 const SLUG = "tv-installation";
 
 /**
- * The two-technician premium, as a component so the labor is visible rather
- * than buried in a flat modifier.
- *
- * 1.5 extra tech-hours over the base — the whole of the second technician's
- * 90 minutes. Approved at $375, which is that labor at the current rate; the
- * published route total of $875 is a separate decision recorded below.
- */
-/**
  * There is no size premium any more.
  *
  * TV_LARGE_SIZE_PREMIUM_56_85 charged $375 for the larger tier while carrying
@@ -343,9 +335,9 @@ async function main() {
   the tech-hour rate does. The suggested figures will, and the editor shows
   the variance.
 
-  NOTE: the $750 add-on for the two-tech tier is set on the size answer, not
-  the service. A second technician doesn't disappear because you're already on
-  site for something else, so there's very little add-on discount here.`);
+  Both size tiers are one van at the same price. There is no two-technician
+  tier and no size premium — a bigger television doesn't take longer, and the
+  person who helps lift it is already in the van and already in the rate.`);
 }
 
 main()

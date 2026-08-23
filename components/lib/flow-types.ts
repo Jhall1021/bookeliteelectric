@@ -40,9 +40,6 @@ export type AnswerOptionDTO = {
   overrideEstimatedMinutes: number | null;
   overrideTechCount: number | null;
   overrideFieldLaborHours: number | null;
-  addFieldLaborHours: number | null;
-  addMaterialCostCents: number | null;
-  addScheduleMinutes: number | null;
   // Null = no approved customer price for this branch's components, so the
   // route goes to review. Zero is a valid approved no-charge value.
   approvedComponentPriceCents: number | null;
@@ -70,10 +67,6 @@ export type AnswerOptionDTO = {
       key: string;
       customerFacingLabel: string | null;
       approvedPriceCents: number | null;
-      addFieldLaborHours: number;
-      addMaterialCostCents: number;
-      addScheduleMinutes: number;
-      addTechCount: number;
     };
   }[];
 };
@@ -100,6 +93,13 @@ export type QuestionDTO = {
   options: AnswerOptionDTO[];
 };
 
+/**
+ * What the BROWSER needs to render a flow — and nothing more.
+ *
+ * Crew-hours, material costs, markup and component labor used to come down
+ * here and sat readable in the page source. The browser no longer prices
+ * anything, so it no longer needs Elite's cost structure to do it.
+ */
 export type ServiceFlowDTO = {
   id: string;
   slug: string;
@@ -110,13 +110,13 @@ export type ServiceFlowDTO = {
   startingPriceLabel: string | null;
   shortDescription: string | null;
   icon: string | null; // service icon, already resolved against category fallback
-  // Inputs for the configuration the engine accumulates. fieldLaborHours may
-  // be null — that suppresses the INTERNAL suggested price but never stops a
-  // customer booking at the published price.
-  fieldLaborHours: number | null;
-  materialCostCents: number | null;
+  // Cost inputs used to live here so the browser could price a route. It
+  // doesn't any more — the server does — so crew-hours, material costs,
+  // markup and component labor are no longer in this payload. They were
+  // readable in the page source.
+  //
+  // What remains is display data.
   estimatedMinutes: number | null;
-  requiresTechCount: number;
   disclaimer: string | null; // for flat-price services with no question tree
   questions: QuestionDTO[]; // full tree, first question = questions[0]
 };

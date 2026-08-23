@@ -7,15 +7,23 @@
  *
  * The rules, in order:
  *
- *   labor    = fieldLaborHours x techCount, at the global tech-hour rate.
- *              For a PRIMARY service whose actual hours are <= 1.0, the labor
- *              component is the GREATER of that and the $250 service-call
- *              minimum — it recovers mobilization, truck, travel and the
- *              overhead of originating a visit (§3.3).
+ *   labor    = fieldLaborHours x the global CREW-hour rate.
+ *
+ *              A crew-hour is one Elite van for one hour. Every van carries a
+ *              lead electrician and a helper, so both are already inside the
+ *              rate — the figure is NOT multiplied by the people on board.
+ *              Doing so bills a second time for labor that was always there.
+ *              For a PRIMARY service the labor component is the GREATER of
+ *              that and the service-call minimum, whatever the duration. The
+ *              minimum recovers mobilization, truck, travel and the overhead
+ *              of originating a visit, and is set independently of the rate —
+ *              lowering the hourly rate must never lower the floor.
  *              While We're There pricing never applies the minimum: the
  *              technician is already on site, so there is no visit to
  *              originate (§3.4).
- *   material = assembled direct cost x tier multiplier (§4)
+ *   material = assembled direct cost, marked up progressively:
+ *              30% of the first $750, 20% above it. Applied ONCE to the
+ *              whole package, never per part.
  *   plus       permit/admin and other direct costs
  *   rounded    up to the global increment
  */
@@ -48,10 +56,51 @@ export type ServicePricingInputs = {
  * Boundaries are inclusive on the 30% tier: exactly $10.00 and exactly
  * $750.00 both use 1.30x.
  */
-export function materialMultiplierFor(costCents: number): number {
-  if (costCents < 1000) return 3.0; // under $10.00 — 200% markup
-  if (costCents <= 75000) return 1.3; // $10.00 through $750.00 — 30%
-  return 1.2; // over $750.00 — 20%
+/**
+ * What a material package sells for.
+ *
+ * 30% on the first $750 of direct cost, 20% on everything above it. Applied
+ * ONCE to the assembled package — never to individual screws, connectors or
+ * receptacles, which would compound the markup on a job with many small parts.
+ *
+ *   $2    ->  $2.60
+ *   $10   ->  $13.00
+ *   $22   ->  $28.60
+ *   $750  ->  $975.00
+ *   $751  ->  $976.20
+ *   $1000 ->  $1,275.00
+ *
+ * WHY THIS REPLACED THE TIER TABLE
+ *
+ * The old rule had bands: 3.00x under $10, 1.30x to $750, 1.20x above. Bands
+ * create cliffs, and this one ran backwards — a package costing $9.99 sold
+ * for $29.97, while one costing $10.01 sold for $13.01. Elite's cost rising
+ * by two cents dropped the customer's price by seventeen dollars.
+ *
+ * Progressive markup can't do that: the sell price rises monotonically with
+ * cost, everywhere.
+ *
+ * Customer-supplied equipment contributes nothing — the customer's own device
+ * isn't Elite's material — unless Elite supplies parts alongside it.
+ */
+export function calculateMaterialSellCents(directCostCents: number): number {
+  if (directCostCents <= 0) return 0;
+  const BREAK = 75000;
+  if (directCostCents <= BREAK) {
+    return Math.round(directCostCents * 1.3);
+  }
+  return Math.round(BREAK * 1.3 + (directCostCents - BREAK) * 1.2);
+}
+
+/**
+ * The blended markup, for display only.
+ *
+ * Above $750 there is no single multiplier — the number here is a summary of
+ * what happened, not an input to it. Never calculate from this.
+ */
+export function effectiveMaterialMarkup(directCostCents: number): number {
+  if (directCostCents <= 0) return 0;
+  return calculateMaterialSellCents(directCostCents) / directCostCents;
 }
 
 function roundUp(cents: number, increment: number): number {
@@ -67,6 +116,7 @@ export type PriceBreakdown = {
   permitCents: number;
   otherCents: number;
   actualTechHours: number;
+  /** Blended rate actually applied. Above $750 this is a summary, not an input. */
   multiplierUsed: number;
   multiplierIsOverride: boolean;
   /** True when the $250 service-call minimum set the labor component. */
@@ -77,15 +127,23 @@ export type PriceBreakdown = {
 
 function compute(
   hours: number | null,
-  techCount: number,
+  /** Elite vans dispatched. One van = lead + helper. Almost always 1. */
+  crewUnits: number,
   svc: ServicePricingInputs,
   settings: PricingSettings,
   isPrimary: boolean
 ): PriceBreakdown {
   const materialCost = svc.materialCostCents ?? 0;
   const multiplierIsOverride = svc.materialMultiplier != null;
-  const multiplier = svc.materialMultiplier ?? materialMultiplierFor(materialCost);
-  const materialCents = Math.round(materialCost * multiplier);
+  // A legacy override still wins where one survives, but it's flagged in the
+  // reconciliation rather than trusted — an imported multiplier is
+  // unvalidated data, not a decision. Everything else uses the progressive
+  // markup, applied once to the assembled package.
+  const materialSell =
+    svc.materialMultiplier !== null && svc.materialMultiplier !== undefined
+      ? Math.round(materialCost * svc.materialMultiplier)
+      : calculateMaterialSellCents(materialCost);
+  const materialCents = materialSell;
   const permitCents = svc.permitAdminCents ?? settings.defaultPermitAdminCents ?? 0;
   const otherCents = svc.otherDirectCostCents ?? 0;
 
@@ -102,7 +160,7 @@ function compute(
       permitCents,
       otherCents,
       actualTechHours: 0,
-      multiplierUsed: multiplier,
+      multiplierUsed: effectiveMaterialMarkup(materialCost),
       multiplierIsOverride,
       minimumApplied: false,
       unavailableReason: isPrimary
@@ -111,15 +169,31 @@ function compute(
     };
   }
 
-  const actualTechHours = hours * Math.max(techCount, 1);
+  // Crew-hours, not person-hours.
+  //
+  // This was `hours * techCount`, which charged again for the helper who
+  // rides in every van as standard. crewUnits survives because a genuine
+  // second van is a real thing — but it is 1 for every service in the
+  // catalog, and normal staffing must never touch it.
+  const actualTechHours = hours * Math.max(crewUnits, 1);
   const rawLabor = actualTechHours * settings.targetRateCents;
 
-  // §3.3 — the minimum applies only to a service that can actually be the
-  // reason a technician is dispatched, and only when the work is an hour or
-  // less. An add-on-only item (isPrimaryEligible false) never originates a
-  // visit: applying the minimum there would price a $50 TV mount at $315.
-  const minimumEligible =
-    isPrimary && svc.isPrimaryEligible && actualTechHours <= 1.0;
+  // The minimum is a FLOOR on the first service, not a rule about short jobs.
+  //
+  // It used to apply only when the work was an hour or less, which was
+  // invisible while the rate and the minimum were both $250 — one crew-hour
+  // met the floor exactly. Drop the rate to $100 and the flaw appears: a
+  // 1.0-hour job floors at $300, a 1.25-hour job prices at $125, and the
+  // price FALLS as the work grows.
+  //
+  // So it floors every visit-originating service regardless of duration.
+  // A first service is never cheaper than the minimum; past that point
+  // actual hours take over on their own, because the labor exceeds it.
+  //
+  // Still never applies to an add-on-only item (isPrimaryEligible false) —
+  // a $50 TV mount can't be the reason a van is dispatched, and flooring it
+  // would price it at the minimum.
+  const minimumEligible = isPrimary && svc.isPrimaryEligible;
   const laborCents = minimumEligible
     ? Math.max(rawLabor, settings.primaryMinimumCents)
     : rawLabor;
@@ -134,7 +208,7 @@ function compute(
     permitCents,
     otherCents,
     actualTechHours,
-    multiplierUsed: multiplier,
+    multiplierUsed: effectiveMaterialMarkup(materialCost),
     multiplierIsOverride,
     minimumApplied: minimumEligible && rawLabor < settings.primaryMinimumCents,
   };
@@ -174,12 +248,14 @@ export function suggestWwtPrice(
 }
 
 /**
- * Dispatch duration for a booking, honouring any branch-level override.
+ * Dispatch shape for a booking, honouring any branch-level override.
  *
- * An answer can change the job rather than just its price — the TV size
- * question puts a second technician on 56-85 in installs at the same
- * 90-minute duration, which doubles both the labor hours and the calendar
- * capacity consumed.
+ * techCount here counts ELITE VANS, not people. One van carries a lead and a
+ * helper, so a value of 1 is two people on site. It reaches Jobber as the
+ * resource being booked and no longer affects price.
+ *
+ * Reading it as "one person" is exactly how the TV tier came to charge for a
+ * second electrician who was already in the van.
  */
 export function resolveJobShape(
   svc: { estimatedMinutes: number | null; requiresTechCount: number; fieldLaborHours: number | null },
@@ -223,8 +299,10 @@ export function formatBreakdown(b: PriceBreakdown): string {
  * leg or dimmer along the way.
  *
  * Calendar minutes and labor hours are tracked independently and neither is
- * derived from the other. A second technician doubles the hours at the same
- * clock duration; a component can add setup time without adding hours.
+ * derived from the other. A second VAN doubles the hours at the same clock
+ * duration — but a van is a lead and a helper, and both are already inside
+ * the crew-hour rate, so that is a genuine two-crew job and not ordinary
+ * staffing. A component can add setup time without adding hours.
  */
 export type JobConfiguration = {
   /**
@@ -274,6 +352,41 @@ export function startConfiguration(svc: {
  * The three things an access answer can mean to the pricing engine.
  * Derived from the answer's own declaration, never inferred from wording.
  */
+/**
+ * A configuration for DISPLAY, with no cost inputs.
+ *
+ * The browser still accumulates a route as the customer answers — it has to,
+ * to show "+$135" against an option and a running total on the price screen.
+ * But those are approved CUSTOMER-FACING increments, which is different from
+ * Elite's crew-hours and material costs.
+ *
+ * So the client builds a configuration whose cost fields are empty. It tracks
+ * access classification and approved increments, which is all it needs to
+ * render, and it cannot compute a price from labor because it no longer has
+ * any labor to compute from. The server does that.
+ *
+ * If a caller ever reads fieldLaborHours off one of these and gets null, that
+ * is the design working, not a bug to patch.
+ */
+export function startDisplayConfiguration(svc: { estimatedMinutes: number | null }): JobConfiguration {
+  return {
+    accessClass: null,
+    // Null, because the client genuinely doesn't know the labor — that's the
+    // point. materialCostCents is 0 rather than null because it's an
+    // accumulator: components add to it, and nothing the client receives
+    // carries a material cost, so it stays 0 and no price can be derived
+    // from it.
+    fieldLaborHours: null,
+    materialCostCents: 0,
+    estimatedMinutes: svc.estimatedMinutes,
+    techCount: 1,
+    components: [],
+    awaitingComponentApproval: false,
+    approvedIncrementCents: 0,
+    legacyModifierCents: 0,
+  };
+}
+
 export type AccessClass = "ACCESSIBLE" | "FINISHED" | "UNKNOWN";
 
 export type BranchContribution = {
@@ -303,10 +416,19 @@ export type BranchContribution = {
       customerFacingLabel: string | null;
       /** Null = not approved; any route using it goes to review. */
       approvedPriceCents?: number | null;
-      addFieldLaborHours: number;
-      addMaterialCostCents: number;
-      addScheduleMinutes: number;
-      addTechCount: number;
+      // Optional, because the BROWSER doesn't receive them.
+      //
+      // The server sends the client only what a customer may see: the
+      // component's key, its customer-facing label and its approved price.
+      // Elite's crew-hours and material costs stay server-side. So a client
+      // calling this gets a configuration whose labor and material totals are
+      // empty — which is correct, since the client no longer prices anything.
+      //
+      // The SERVER passes all four and gets the full operational shape.
+      addFieldLaborHours?: number | null;
+      addMaterialCostCents?: number | null;
+      addScheduleMinutes?: number | null;
+      addTechCount?: number | null;
     };
   }[];
 };
@@ -318,8 +440,9 @@ export function applyBranch(
   /** Answers collected so far, for conditional components (§29). */
   answers: Record<string, string> = {}
 ): JobConfiguration {
-  // Absolute overrides replace; they are not deltas. The TV size answer sets
-  // techCount to 2 outright rather than adding one.
+  // Absolute overrides replace; they are not deltas. Reserved for a genuine
+  // second van — normal lead-plus-helper staffing is already inside the rate
+  // and must never be expressed here.
   let hours = branch.overrideFieldLaborHours ?? config.fieldLaborHours;
   let minutes = branch.overrideEstimatedMinutes ?? config.estimatedMinutes;
   let techCount = branch.overrideTechCount ?? config.techCount;
@@ -354,10 +477,11 @@ export function applyBranch(
   for (const sel of selected) {
     const q = Math.max(sel.quantity, 1);
     const c = sel.component;
-    addHours(c.addFieldLaborHours * q);
-    material += c.addMaterialCostCents * q;
+    if (c.addFieldLaborHours) addHours(c.addFieldLaborHours * q);
+    if (c.addMaterialCostCents) material += c.addMaterialCostCents * q;
     if (c.addScheduleMinutes && minutes !== null) minutes += c.addScheduleMinutes * q;
-    techCount += c.addTechCount * q;
+    // Extra VANS, not extra people. Zero on every component today.
+    if (c.addTechCount) techCount += c.addTechCount * q;
     components.push({ key: c.key, label: c.customerFacingLabel, quantity: q });
   }
 

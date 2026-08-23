@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
+import {
+  loadServiceForResolution,
+  loadPricingSettings,
+  resolveRoute,
+} from "@/lib/routeResolver";
 
 /**
  * A quote request.
@@ -27,7 +32,16 @@ import { getOrCreateSessionId } from "@/lib/session";
 export async function POST(req: Request) {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
-  const { serviceId, answersSnapshot, photos, name, email, phone, floorPriceCents } = body;
+  const { serviceId, answersSnapshot, photos, name, email, phone } = body;
+
+  // floorPriceCents is deliberately NOT read from the body.
+  //
+  // It's shown to the customer as "From $X", which makes it a price — and a
+  // price the browser supplies is a price the browser controls. The server
+  // replays the route below and derives it, or stores null.
+  if ("floorPriceCents" in body) {
+    console.warn(`[quotes] client sent floorPriceCents for ${serviceId} — ignored.`);
+  }
 
   if (!serviceId || !Array.isArray(photos) || photos.length === 0) {
     return NextResponse.json({ error: "Missing serviceId or photos" }, { status: 400 });
@@ -36,10 +50,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing name or email" }, { status: 400 });
   }
 
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
-    select: { estimatedMinutes: true },
+  // Replay the route to establish the floor ourselves. A review branch always
+  // means the job costs MORE than what's accumulated so far, so the running
+  // total is a genuine minimum — but only if we computed it.
+  const service = await loadServiceForResolution(prisma, serviceId);
+  if (!service) {
+    return NextResponse.json({ error: "Unknown service" }, { status: 404 });
+  }
+
+  const settings = await loadPricingSettings(prisma);
+  const existingCount = await prisma.lineItem.count({
+    where: { visit: { sessionId, status: "OPEN" } },
   });
+  const resolved = resolveRoute(
+    service,
+    (answersSnapshot ?? {}) as Record<string, string>,
+    existingCount === 0,
+    settings
+  );
+  const derivedFloor =
+    resolved.status === "REVIEW" ? resolved.floorPriceCents : null;
 
   // Contact details are still collected here — it's how the office reaches
   // them with the price. Checkout would normally capture this, but they can't
@@ -66,7 +96,7 @@ export async function POST(req: Request) {
         // Unpriced until the office says otherwise.
         computedPriceCents: null,
         // The accumulated total where the flow stopped. A floor, not a guess.
-        floorPriceCents: typeof floorPriceCents === "number" ? floorPriceCents : null,
+        floorPriceCents: derivedFloor,
         estimatedMinutes: service?.estimatedMinutes ?? null,
       },
     });

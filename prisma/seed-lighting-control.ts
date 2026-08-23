@@ -33,9 +33,12 @@ const prisma = new PrismaClient();
 
 /**
  * Schedule minutes are stored explicitly, never derived from labor hours at
- * runtime — a second technician changes the hours without changing the clock.
- * The launch values below assume one technician working the stated hours, and
- * are editable per component once real job data exists.
+ * runtime — a second VAN changes the hours without changing the clock, and
+ * the two aren't a fixed ratio in any case.
+ *
+ * The values below assume one crew: one van carrying a lead and a helper,
+ * which is standard staffing and already inside the crew-hour rate. Editable
+ * per component once real job data exists.
  */
 /**
  * Approved customer-facing price per component, in cents.

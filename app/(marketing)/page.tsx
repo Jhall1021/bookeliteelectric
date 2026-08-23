@@ -17,7 +17,7 @@ import { getServiceImage } from "@/lib/serviceImages";
  */
 const DIFFERENTIATORS = [
   "Upfront flat-rate pricing",
-  "Lower same-visit prices",
+  "Same-visit pricing on extra work",
   "Narrow arrival windows",
 ];
 
@@ -41,7 +41,7 @@ const CREDENTIALS = [
  */
 const PRICING_LADDER = [
   { label: "First service", price: "Regular service price", muted: false },
-  { label: "Additional services", price: "Lower same-visit price", muted: true },
+  { label: "Additional services", price: "Same-visit price", muted: true },
 ];
 
 /**
@@ -107,15 +107,14 @@ export default async function HomePage() {
             <div className="mt-6 max-w-[30rem] overflow-hidden rounded-card bg-warmwhite text-navy shadow-card">
               <div className="px-5 pt-3.5">
                 <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-electric">
-                  Add more &amp; save
+                  Add more in the same visit
                 </div>
                 <p className="mt-1 font-display text-base font-bold leading-snug">
-                  Lower prices on every additional service.
+                  Additional services use our same-visit pricing.
                 </p>
                 <p className="mt-1 text-[13px] leading-snug text-slate">
-                  Book your first service at the regular price. Add more work to the same
-                  visit and each additional service is priced lower because we&rsquo;re
-                  already there.
+                  Book your first service at the regular price. When being on-site
+                  already saves us time on the rest, you get that saving too.
                 </p>
               </div>
 
@@ -180,8 +179,9 @@ export default async function HomePage() {
       <section className="mx-auto max-w-6xl px-6 py-16">
         <h2 className="font-display text-2xl font-bold text-navy">How Our Pricing Works</h2>
         <p className="mt-2 max-w-2xl text-slate">
-          Getting an electrician to your door is most of what a small job costs. Once
-          we&rsquo;re there, everything else is cheaper — so we price it that way.
+          Getting an electrician to your door is most of what a small job costs. Your
+          first service covers that, and everything after it is priced for the work it
+          actually takes.
         </p>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-3">
@@ -197,8 +197,8 @@ export default async function HomePage() {
                 "so how much is it?" The honest framing is that getting here is
                 already inside the first price. */}
             <p className="mt-2 text-sm text-slate">
-              Its price is the full price, and it covers getting a licensed electrician to
-              your home. You see that number before you book.
+              Its price includes getting a licensed electrician to your home. You see
+              that number before you book.
             </p>
           </div>
 
@@ -207,12 +207,12 @@ export default async function HomePage() {
               2
             </div>
             <h3 className="mt-4 font-display text-base font-bold text-navy">
-              Add anything else for less
+              Add anything else you need
             </h3>
             <p className="mt-2 text-sm text-slate">
-              A second outlet, a fan, a few more lights — priced lower than booking them on
-              their own, because the trip is already paid for. You see each price as you add
-              it.
+              A second outlet, a fan, a few more lights. Additional work uses our
+              same-visit pricing — where already being at your home saves us time,
+              that saving is in the price. You see each one before you add it.
             </p>
           </div>
 
@@ -243,25 +243,31 @@ export default async function HomePage() {
         </ul>
       </section>
 
-      {/* Payment options.
-          The Affirm / "Pay Over Time" card was here, advertising financing
-          that isn't wired into the booking flow. It comes back when it's
-          real. What's left is true today: cards are accepted, and nothing is
-          charged before the work is finished. */}
+      {/* Payment options */}
       <section className="border-t border-cardline bg-warmwhite py-16">
         <div className="mx-auto max-w-6xl px-6">
-          <h2 className="font-display text-2xl font-bold text-navy">Paying for the Work</h2>
+          <h2 className="font-display text-2xl font-bold text-navy">Flexible Payment Options</h2>
           <p className="mt-2 max-w-2xl text-slate">
-            Nothing to pay when you book. You settle up once the job is done — at the same
-            price you saw when you booked it.
+            Pay however works best for you — all at the same upfront price you saw when you
+            booked.
           </p>
 
-          <div className="mt-8 rounded-card border border-cardline bg-white p-6 shadow-card sm:max-w-md">
-            <h3 className="font-display text-base font-bold text-navy">All major credit cards</h3>
-            <p className="mt-2 text-sm text-slate">
-              Visa, Mastercard, American Express and Discover — pay with the card already in
-              your wallet.
-            </p>
+          <div className="mt-8 grid gap-6 sm:grid-cols-2">
+            <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+              <h3 className="font-display text-base font-bold text-navy">All Major Credit Cards</h3>
+              <p className="mt-2 text-sm text-slate">
+                Visa, Mastercard, American Express, and Discover — pay with the card already in
+                your wallet.
+              </p>
+            </div>
+
+            <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+              <h3 className="font-display text-base font-bold text-navy">Pay Over Time</h3>
+              <p className="mt-2 text-sm text-slate">
+                Split larger jobs into monthly payments through Affirm, with rates shown upfront
+                before you commit — no surprises, same as our pricing.
+              </p>
+            </div>
           </div>
         </div>
       </section>

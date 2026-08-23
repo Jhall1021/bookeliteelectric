@@ -1,4 +1,55 @@
 /**
+ * RETIRED — DO NOT RUN. 23 August 2026.
+ *
+ * This file is kept for historical reference only. Running it would reverse
+ * most of the August pricing work.
+ *
+ * Everything in it describes a model that no longer exists:
+ *
+ *   primaryLaborUnits / addOnLaborUnits
+ *       Superseded by fieldLaborHours and wwtLaborHours, which are CREW-hours
+ *       — one van carrying a lead and a helper. The old units were never
+ *       measured; they were back-fitted from prices.
+ *
+ *   materialMultiplier of 3.0 / 2.5 / 1.75
+ *       Superseded by a progressive markup: 30% of the first $750, 20% above,
+ *       applied once to the assembled package. The old banded rule had a cliff
+ *       where a cost RISE of two cents dropped the customer's price by $17.
+ *
+ *   a $225 primary minimum
+ *       Now $250, and a floor on every first service rather than only those
+ *       under an hour.
+ *
+ *   the prices themselves
+ *       Reconciled on 23 August against real crew-hours and itemized
+ *       materials, through a named owner-approved migration. 98 of 98
+ *       model-priced services match. This file would undo that.
+ *
+ * It is not in seed-all.ts and must not be added. If you need the historical
+ * figures, read them here; do not execute them.
+ *
+ * The guard below makes running it an explicit, deliberate act rather than an
+ * accident of tab-completion.
+ */
+
+if (!process.argv.includes("--i-know-this-is-retired")) {
+  console.error(`
+  This seed is RETIRED and would undo the August pricing reconciliation.
+
+  It writes labor units, material multipliers and prices from the model that
+  was replaced: 3x material markup, a $225 minimum, and back-fitted labor.
+
+  Current pricing comes from:
+      prisma/seed-labor-hours.ts        crew-hours
+      prisma/seed-materials.ts          itemized materials
+      prisma/reconcile-price-book.ts    owner-approved published prices
+
+  If you genuinely need to run this, pass --i-know-this-is-retired.
+`);
+  process.exit(1);
+}
+
+/**
  * BookEliteElectric.com — pricing composition import
  * Imports labor units + material cost data from the client's validated
  * Excel pricing engine (v3) into the live database, so the admin panel's

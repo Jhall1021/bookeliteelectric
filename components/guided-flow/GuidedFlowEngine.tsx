@@ -13,7 +13,7 @@ import {
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
-import RerouteNotice from "./RerouteNotice";
+import RerouteNotice, { REROUTE_HANDOFF_KEY } from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
 
@@ -27,7 +27,16 @@ type TerminalState =
   | { kind: "resolved"; priceCents: number; disclaimer: string | null }
   | { kind: "reroute"; serviceId: string; reason: string }
   | { kind: "troubleshooting"; note?: string | null }
-  | { kind: "photo_review"; labels: string[]; safetyNotes?: string[]; floorPriceCents?: number | null }
+  | {
+      kind: "photo_review";
+      labels: string[];
+      safetyNotes?: string[];
+      floorPriceCents?: number | null;
+      /** True when the route couldn't be completed, so booking must wait. */
+      blocking?: boolean;
+      /** Shown instead of the usual review copy when something went wrong. */
+      message?: string;
+    }
   // Price already settled; the photos are prep for the technician, not a
   // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
   | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null };
@@ -98,7 +107,35 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       setConfig(startDisplayConfiguration(data));
       setState({ kind: "intro" });
       setHistory([]);
-      setAnswers({});
+      // Answers carried over from a reroute, if this is where one landed.
+      //
+      // Consumed once and cleared immediately: the payload is tagged with
+      // the service it was meant for, so a stale one from earlier in the
+      // session can't leak into an unrelated flow. Reuse is right for the
+      // reroute that created it and wrong for anything else.
+      let carried: Record<string, string> = {};
+      try {
+        const raw = sessionStorage.getItem(REROUTE_HANDOFF_KEY);
+        if (raw) {
+          sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
+          const payload = JSON.parse(raw);
+          if (payload?.targetServiceId === data.id && payload.answers) {
+            // Only keys this service actually asks about. A shared key like
+            // ceiling height transfers; one that happens to collide does not
+            // silently answer a question the customer never saw.
+            const keys = new Set(data.questions.map((q: QuestionDTO) => q.key));
+            carried = Object.fromEntries(
+              Object.entries(payload.answers as Record<string, string>).filter(([k]) =>
+                keys.has(k)
+              )
+            );
+          }
+        }
+      } catch {
+        // Storage unavailable. The customer answers again — not ideal, not
+        // broken.
+      }
+      setAnswers(carried);
       setLoading(false);
     });
   }, [serviceSlug]);
@@ -319,12 +356,31 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       return;
     }
 
-    // Ran out of questions, or hit a cycle — fail safe to a price rather than
-    // a dead end.
+    // Ran out of questions, or hit a cycle.
+    //
+    // This used to resolve to a price — "fail safe to a price rather than a
+    // dead end" — on the reasoning that a customer should always get an
+    // answer. That was wrong twice over: the server would reject the line
+    // anyway, so the price was a lie the customer saw first; and the
+    // `?? 0` meant a failed calculation could show them $0.
+    //
+    // A review IS an answer. It's just not a number.
+    console.error(
+      `[flow] ${flow?.slug}: route did not terminate — ` +
+        `${visited.size} question(s) walked from ${questionId}. Sending to review.`
+    );
     setConfig(config);
-    const anchor = isAddOn ? flow?.whileWeThereBasePrice : flow?.basePrice;
-    const priced = customerPrice(config, anchor ?? null);
-    setState({ kind: "resolved", priceCents: priced.totalCents ?? 0, disclaimer: null });
+    setState({
+      kind: "photo_review",
+      labels: [
+        "The area where the work is needed",
+        "A wider photo of the room",
+      ],
+      safetyNotes: [],
+      floorPriceCents: null,
+      blocking: true,
+      message: "We need to take a quick look at this one before confirming the price.",
+    });
   }
 
   async function handleAnswer(question: QuestionDTO, option: AnswerOptionDTO) {
@@ -463,7 +519,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "reroute") {
-    return withBack(<RerouteNotice serviceId={state.serviceId} reason={state.reason} />);
+    return withBack(
+      <RerouteNotice
+        serviceId={state.serviceId}
+        reason={state.reason}
+        answers={answers}
+      />
+    );
   }
 
   if (state.kind === "troubleshooting") {

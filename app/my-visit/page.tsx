@@ -245,8 +245,14 @@ export default function MyVisitPage() {
                 Would you like us to take care of anything else while we're there?
               </h2>
               <p className="mt-1 text-sm text-slate">
-                Your visit fee is already covered — anything you add below skips it, so it's
-                priced lower than booking it on its own.
+                {/* Was "your visit fee is already covered — anything you add
+                    skips it, so it's priced lower". Two problems: there is no
+                    itemised visit fee to skip, and same-visit pricing isn't
+                    always lower. A dedicated circuit costs the same either
+                    way, because none of the work gets shorter when the van is
+                    already outside. */}
+                Anything you add uses our same-visit pricing. Where being here already
+                saves us time, that saving is in the price.
               </p>
 
               {!browsingAll && (
