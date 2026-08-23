@@ -70,6 +70,31 @@ enum PhotoState {
   REVIEW_REQUIRED
 }
 
+/// Reference data: every ZIP code, with its town, county and state.
+///
+/// Not Elite's service area — the whole table, imported once. A contractor
+/// then picks counties from it, which is how this works for the next
+/// contractor in a different state without a code change.
+///
+/// `type` matters more than it looks: PO Box and single-entity ZIPs can't be
+/// a home address, so they're imported but excluded from selection by
+/// default. They were the source of every disagreement between sources on how
+/// many ZIPs a county has.
+model ZipCode {
+  zip      String  @id
+  city     String
+  county   String
+  state    String
+  /// STANDARD, PO_BOX, UNIQUE, or MILITARY.
+  type     String  @default("STANDARD")
+  /// Population, where known. Zero or null means nobody lives there.
+  population Int?
+
+  @@index([state, county])
+  @@index([county])
+  @@map("zip_codes")
+}
+
 /// A part Elite buys, priced once and referenced by every service using it.
 ///
 /// Services previously carried a single materialCostCents — the exterior GFCI

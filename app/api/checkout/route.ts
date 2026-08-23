@@ -44,6 +44,50 @@ export async function POST(req: Request) {
     );
   }
 
+  // Service area, before anything is created.
+  //
+  // This used to happen further down, AFTER the customer row, and if no
+  // active ServiceArea existed it CREATED one with an empty ZIP list and
+  // carried on — which meant checkout was writing business configuration to
+  // get past its own validation. Every ZIP in the country passed.
+  //
+  // Now it fails closed: no configured area, no booking. And it runs before
+  // any row is written, so a rejection leaves nothing behind.
+  const normalizedZip = String(zipCode ?? "").trim().slice(0, 5);
+  if (!/^\d{5}$/.test(normalizedZip)) {
+    return NextResponse.json(
+      { error: "INVALID_ZIP", message: "Please enter a five-digit ZIP code." },
+      { status: 400 }
+    );
+  }
+
+  const serviceArea = await prisma.serviceArea.findFirst({ where: { active: true } });
+  if (!serviceArea) {
+    // Configuration is missing, which is an Elite problem rather than a
+    // customer one — so it reads as a system fault, not a rejection.
+    console.error("[checkout] no active ServiceArea configured — refusing to book");
+    return NextResponse.json(
+      {
+        error: "NO_SERVICE_AREA",
+        message:
+          "We can't take bookings online just now. Please give us a call and we'll get you scheduled.",
+      },
+      { status: 503 }
+    );
+  }
+
+  if (!serviceArea.zipCodes.includes(normalizedZip)) {
+    return NextResponse.json(
+      {
+        error: "OUTSIDE_SERVICE_AREA",
+        message:
+          `We don't currently cover ${normalizedZip}. If you think that's wrong, give us a call — ` +
+          `we do sometimes travel a little further.`,
+      },
+      { status: 422 }
+    );
+  }
+
   // Internal dispatch data — sum of every line item's snapshotted duration.
   // Null (not 0) if ANY item is missing an estimate, so it's obvious in the
   // data that the total is incomplete rather than silently under-counting.
@@ -91,13 +135,6 @@ export async function POST(req: Request) {
   // Phase 2 stub: find-or-create the ArrivalWindow for this date/time rather
   // than requiring admin-seeded capacity data up front. Real capacity
   // enforcement (booked vs. total) is Phase 6.
-  let serviceArea = await prisma.serviceArea.findFirst({ where: { active: true } });
-  if (!serviceArea) {
-    serviceArea = await prisma.serviceArea.create({
-      data: { name: "Monmouth & Ocean Counties, NJ", zipCodes: [], active: true },
-    });
-  }
-
   let arrivalWindow = await prisma.arrivalWindow.findFirst({
     where: { date: new Date(date), startTime: windowStart, endTime: windowEnd, serviceAreaId: serviceArea.id },
   });
@@ -122,7 +159,7 @@ export async function POST(req: Request) {
       visitId: visit.id,
       customerId: customer.id,
       address,
-      zipCode,
+      zipCode: normalizedZip,
       arrivalWindowId: arrivalWindow.id,
       totalCents,
       estimatedDurationMinutes,
