@@ -32,8 +32,24 @@ const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"
 const APPROVED_PUBLISHERS: Record<string, string> = {
   "prisma/seed.ts": "Bootstrap. Establishes the original catalog.",
   "prisma/seed-pricing-settings.ts": "Settings only, no service prices.",
+  "prisma/seed-appliance-services.ts":
+    "Creates Replace Range Hood, which needs a first price. CREATE branch only — the update branch writes no price.",
   "app/api/admin/services/[serviceId]/pricing/route.ts":
     "The admin Publish action. This is the intended route for approving a price.",
+  "app/api/admin/services/[serviceId]/route.ts":
+    "The admin service editor. A person typing a price into a form.",
+  "app/api/admin/services/route.ts":
+    "Creating a service in the admin, which includes setting its first price.",
+  "components/admin/ServiceEditForm.tsx":
+    "The form behind the admin editor — sends what a person typed.",
+  "components/admin/NewServiceForm.tsx":
+    "The form for creating a service in the admin.",
+  "prisma/reconcile-2026-08-23.ts":
+    "Named owner-approved migration, 23 Aug: dedicated circuit, whole-house surge, troubleshooting.",
+  "prisma/reconcile-price-book.ts":
+    "Named owner-approved migration, 23 Aug: the full price-book reconciliation, 46 services.",
+  "prisma/quote-only-2026-08-23.ts":
+    "Named owner-approved migration, 23 Aug: five services converted to quote-only, prices cleared.",
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -56,21 +72,31 @@ function main() {
     const lines = readFileSync(file, "utf8").split("\n");
     lines.forEach((text, i) => {
       const trimmed = text.trim();
-      // Assignments only — reading a price is fine, and comments about it
-      // aren't writes.
       if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+
       for (const field of WRITES) {
-        const m = new RegExp(`${field}\\s*:\\s*(\\S+)`).exec(text);
+        const m = new RegExp(`${field}\\s*:\\s*(.+)$`).exec(text);
         if (!m) continue;
-        // Reads aren't writes.
-        if (/select|include|orderBy|where/.test(text)) continue;
-        // A trailing comment mentioning a field isn't a write either — this
-        // was reporting `// uses newOutlet.basePrice: $395` as one.
-        const beforeField = text.slice(0, text.indexOf(field));
-        if (beforeField.includes("//")) continue;
-        // Clearing a price to make a service quote-only is the opposite of
-        // publishing one, and shouldn't sit in the same list.
-        if (/^null[,\s]*$/.test(m[1])) continue;
+        const value = m[1].trim();
+
+        // A trailing comment mentioning a field isn't a write.
+        if (text.slice(0, text.indexOf(field)).includes("//")) continue;
+
+        // `basePrice: true` is a Prisma select. `basePrice: number | null` is
+        // a type. Neither changes anything, and reporting them buried the
+        // three real problems in 200 lines of noise.
+        if (/^(true|false)[,\s]*$/.test(value)) continue;
+        if (/^(number|string|Date|Int|Float)\b/.test(value)) continue;
+
+        // The decisive test: is this inside a write? Prisma writes put the
+        // fields under `data:`, so look back a little for one. A read like
+        // `basePrice: service.basePrice` in a DTO has no `data:` above it.
+        const before = lines.slice(Math.max(0, i - 14), i).join("\n");
+        const isWrite =
+          /\bdata\s*:/.test(before) ||
+          /\.(update|updateMany|create|createMany|upsert)\s*\(/.test(before);
+        if (!isWrite) continue;
+
         hits.push({ file: rel, line: i + 1, field, text: trimmed.slice(0, 90) });
       }
     });

@@ -95,7 +95,9 @@ async function seedRangeHood() {
       whileWeThereBasePrice: null,
       wwtLaborHours: null,
       photoState: "NONE",
-      publishedPriceApprovedAt: new Date(),
+      // No self-approval. This is a CREATE branch, so establishing a first
+      // price is legitimate — but recording that someone approved it is a
+      // script vouching for its own number.
       disclaimer:
         "Covers replacing an existing hood in the same location using the existing venting. Haul-away, new ductwork, cabinet modification, and any cutting of tile, stone or finished surfaces aren't included.",
     },
@@ -190,10 +192,13 @@ async function seedSoundbar() {
       estimatedMinutesReviewed: true,
       requiresTechCount: 1,
       materialCostCents: 0,
-      basePrice: 25000,
-      whileWeThereBasePrice: 12500,
+      // basePrice and whileWeThereBasePrice removed.
+      //
+      // This is an unconditional update — it rewrote the published price on
+      // every run, so it would have silently reverted the 23 Aug
+      // reconciliation the next time anyone seeded. Labor, materials and
+      // routing are this seed's business; the customer's price isn't.
       photoState: "NONE",
-      publishedPriceApprovedAt: new Date(),
     },
   });
 
@@ -301,10 +306,9 @@ async function seedApplianceElectrical() {
         disclaimer: j.disclaimer,
         bookingType: "ADJUSTED",
         // Both priced the same: same scope, same work, same time on site.
-        basePrice: 25000,
-        whileWeThereBasePrice: 17500,
+        // Removed — see the soundbar note above. An unconditional update
+        // that writes a price will silently undo any reconciliation.
         photoState: "NONE",
-        publishedPriceApprovedAt: new Date(),
       },
     });
 

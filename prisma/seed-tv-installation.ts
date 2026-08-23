@@ -111,7 +111,15 @@ async function main() {
       // overwrite a published price. See _priceGuard.ts.
       // whileWeThereBasePrice moved to the price guard — a seed must not
       // overwrite a published price. See _priceGuard.ts.
-      publishedPriceApprovedAt: new Date(),
+      // No publishedPriceApprovedAt.
+      //
+      // This came back when I restored the file from a stale working copy
+      // while fixing the crew-hour regression — the governance strip had
+      // already removed it once, and the restore undid that silently.
+      //
+      // A seed recording approval it was never given is how a calculated
+      // number becomes indistinguishable from a decision. Approval happens
+      // in the admin or in a named reconciliation migration.
     },
   });
 
