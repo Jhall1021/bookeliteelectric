@@ -216,6 +216,16 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     ],
   },
   {
+    // The EV-category duplicate. Same physical installation, so the same
+    // package — leaving it blocked because nobody copied the composition
+    // across would be an accident of bookkeeping, not a real gap.
+    slug: "garage-door-opener-outlet-ev",
+    items: [
+      ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1], ["WALL_PLATE", 1],
+      ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1],
+    ],
+  },
+  {
     slug: "garage-door-opener-outlet",
     items: [
       ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1], ["WALL_PLATE", 1],

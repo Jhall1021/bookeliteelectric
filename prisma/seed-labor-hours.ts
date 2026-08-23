@@ -122,7 +122,11 @@ const ROUTE_BASE: [string, number, number | null, string][] = [
   ["new-ceiling-light", 1.25, 1.0, "accessible ceiling; +0.50 component for finished"],
   ["new-ceiling-fan", 1.75, 1.5, "accessible ceiling; +0.50 component for finished"],
   ["fan-replacing-light", 1.5, 1.25, "accessible ceiling; +0.50 component for finished"],
-  ["recessed-lighting", 1.25, null, "first light, accessible; per-light components carry the rest"],
+    // Same as standalone. Being on site doesn't remove any of the first
+  // light's work — the ceiling still gets cut, the wafer still gets wired.
+  // What a second light saves is covered by the per-light components, which
+  // are already much cheaper than the first.
+  ["recessed-lighting", 1.25, 1.25, "first light; per-light components carry the rest"],
   ["new-120v-outlet", 1.0, 0.75, "accessible, under 10 ft; distance components carry the rest"],
   ["tv-installation", 1.5, 1.25, "both size tiers: one van, 1.5 crew-hours; the larger is a price premium"],
   ["replace-range-hood", 1.5, null, "standard existing-setup replacement only"],

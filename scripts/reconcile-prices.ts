@@ -39,7 +39,10 @@ const TOLERANCE_CENTS = 500;
  */
 const APPROVED_EXCEPTIONS: Record<string, string> = {
   "electrical-troubleshooting":
-    "Diagnostic product, not a labor calculation. $249 covers the visit and the first hour; owner-approved as a separate offering.",
+    "Diagnostic product, not a labor calculation. $249 covers the visit and the " +
+    "first hour of diagnostic and repair time; owner-approved as a separate " +
+    "offering. Corrected from $250 in the 23 Aug reconciliation — the price was " +
+    "always $249, the database was wrong.",
 };
 
 type Row = {
@@ -144,13 +147,63 @@ async function main() {
   }
 
   if (csv) {
-    console.log("slug,name,category,kind,published,model,variance,status,blocked,exception");
-    for (const r of rows) {
-      const status = classify(r);
-      const v = r.published !== null && r.model !== null ? r.published - r.model : "";
-      const ex = APPROVED_EXCEPTIONS[r.slug] ?? "";
+    // Built to be marked up, not just read. Sorted by how much thought each
+    // row needs — the trivial ones first so they can be accepted in a block,
+    // the large gaps last where they'll actually get read.
+    //
+    // DECISION and NOTE are left blank for you to fill in.
+    const decidable = rows
+      .filter((r) => ["above", "below"].includes(classify(r)))
+      .map((r) => {
+        const gap = (r.published ?? 0) - (r.model ?? 0);
+        const size = Math.abs(gap);
+        return {
+          ...r,
+          gap,
+          band:
+            size <= 1500 ? "1 minor (under $15)" :
+            size <= 5000 ? "2 moderate ($15-50)" :
+            size <= 10000 ? "3 significant ($50-100)" : "4 large (over $100)",
+        };
+      })
+      .sort((a, b) => a.band.localeCompare(b.band) || Math.abs(a.gap) - Math.abs(b.gap));
+
+    console.log(
+      [
+        "band", "service", "category", "kind",
+        "published", "model", "change", "direction",
+        "DECISION", "NOTE",
+      ].join(",")
+    );
+    for (const r of decidable) {
+      const dollars = (c: number | null) => (c === null ? "" : (c / 100).toFixed(2));
       console.log(
-        [r.slug, `"${r.name}"`, `"${r.category}"`, r.kind, r.published ?? "", r.model ?? "", v, status, `"${r.blocked ?? ""}"`, `"${ex}"`].join(",")
+        [
+          r.band,
+          `"${r.name}"`,
+          `"${r.category}"`,
+          r.kind,
+          dollars(r.published),
+          dollars(r.model),
+          // What publishing would do to this price, signed from the
+          // customer's point of view.
+          (r.gap > 0 ? "-" : "+") + Math.abs(r.gap / 100).toFixed(2),
+          r.gap > 0 ? "price falls" : "price rises",
+          APPROVED_EXCEPTIONS[r.slug] ? "keep (approved exception)" : "",
+          APPROVED_EXCEPTIONS[r.slug] ? `"${APPROVED_EXCEPTIONS[r.slug]}"` : "",
+        ].join(",")
+      );
+    }
+
+    // Everything that can't be decided yet, so the file is the whole picture
+    // rather than only the easy part.
+    for (const r of rows.filter((x) => classify(x) === "blocked")) {
+      console.log(
+        [
+          "5 blocked", `"${r.name}"`, `"${r.category}"`, r.kind,
+          r.published === null ? "" : (r.published / 100).toFixed(2),
+          "", "", "", "", `"${r.blocked ?? ""}"`,
+        ].join(",")
       );
     }
     return;
