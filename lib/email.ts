@@ -60,7 +60,7 @@ export async function sendBookingConfirmationEmail(booking: {
 
       <p style="font-size: 14px; color: #55606E; margin: 0 0 8px;">
         ${booking.address}, ${booking.zipCode}<br/>
-        Your card is on file and will be charged after the work is completed — not before.
+        Nothing to pay until the work is done.
       </p>
 
       <p style="font-size: 14px; color: #55606E; margin: 16px 0 0;">
@@ -84,4 +84,69 @@ export async function sendBookingConfirmationEmail(booking: {
     throw new Error(`Resend rejected the email: ${JSON.stringify(result.error)}`);
   }
   console.log(`=== resend.emails.send() succeeded, id: ${result.data?.id} ===`);
+}
+
+
+/**
+ * The office has priced a quote, and the customer is waiting to hear.
+ *
+ * The site tells them "we'll email you when your price is ready", and until
+ * now nothing did — the admin route noted that email wasn't implemented. A
+ * promise the product doesn't keep is worse than not making it, particularly
+ * this one: the customer can't schedule until they approve, so silence here
+ * leaves them stuck with no way to know they should look again.
+ */
+export async function sendQuoteReadyEmail(quote: {
+  id: string;
+  quotedPriceCents: number;
+  serviceName: string;
+  customer: { name: string; email: string };
+}) {
+  const price = `$${(quote.quotedPriceCents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+  })}`;
+  const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://bookeliteelectric.com"}/quote/${quote.id}`;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h1 style="font-size: 22px; color: #0F1E35; margin: 0 0 4px;">Your price is ready</h1>
+      <p style="font-size: 15px; color: #55606E; margin: 0 0 24px;">
+        Hi ${quote.customer.name}, we've had a look at the photos you sent.
+      </p>
+
+      <div style="border: 1px solid #E4E7EC; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+        <div style="font-size: 14px; color: #55606E;">${quote.serviceName}</div>
+        <div style="font-size: 28px; font-weight: 700; color: #0F1E35; margin-top: 4px;">${price}</div>
+        <div style="font-size: 13px; color: #55606E; margin-top: 8px;">
+          A fixed price for the work as we've seen it — not an estimate.
+        </div>
+      </div>
+
+      <a href="${link}"
+         style="display: inline-block; background: #1B6BFF; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 999px; font-weight: 600; font-size: 15px;">
+        Review and approve
+      </a>
+
+      <p style="font-size: 14px; color: #55606E; margin: 24px 0 0;">
+        Approving adds it to your visit so you can pick a time. Nothing is
+        booked and nothing is owed until you do.
+      </p>
+
+      <p style="font-size: 14px; color: #55606E; margin: 16px 0 0;">
+        Questions? Call us at 732-204-7003.
+      </p>
+    </div>
+  `;
+
+  const result = await resend.emails.send({
+    from: FROM_EMAIL,
+    to: quote.customer.email,
+    subject: `Your price for ${quote.serviceName} — Elite Electric & Lighting`,
+    html,
+  });
+
+  if (result.error) {
+    throw new Error(`Resend rejected the email: ${JSON.stringify(result.error)}`);
+  }
+  return result.data?.id;
 }
