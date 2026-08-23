@@ -103,6 +103,11 @@ export function effectiveMaterialMarkup(directCostCents: number): number {
   return calculateMaterialSellCents(directCostCents) / directCostCents;
 }
 
+function roundUp(cents: number, increment: number): number {
+  if (increment <= 0) return Math.round(cents);
+  return Math.ceil(cents / increment) * increment;
+}
+
 export type PriceBreakdown = {
   /** Null when fieldLaborHours hasn't been established — see below. */
   totalCents: number | null;
