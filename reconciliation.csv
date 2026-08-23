@@ -1,0 +1,84 @@
+band,service,category,kind,published,model,change,direction,DECISION,NOTE
+1 minor (under $15),"Replace Standard Outlet","Outlets & Switches",standalone,250.00,260.00,+10.00,price rises,,
+1 minor (under $15),"Replace Standard Switch","Outlets & Switches",standalone,250.00,260.00,+10.00,price rises,,
+1 minor (under $15),"Professional TV Installation In New Location (Includes Outlet)","TV & Media",same-visit,375.00,365.00,-10.00,price falls,,
+1 minor (under $15),"Occupancy / Motion Sensor Switch","Outlets & Switches",same-visit,155.00,140.00,-15.00,price falls,,
+1 minor (under $15),"Replace 3-Way Switch","Outlets & Switches",standalone,250.00,265.00,+15.00,price rises,,
+1 minor (under $15),"Install New Ceiling Light","Lighting",standalone,300.00,315.00,+15.00,price rises,,
+1 minor (under $15),"Replace Existing Ceiling Fan With New Fan","Fans",standalone,300.00,315.00,+15.00,price rises,,
+1 minor (under $15),"Garbage Disposal Electrical Disconnect / Reconnect","Appliance Installation",same-visit,140.00,125.00,-15.00,price falls,,
+1 minor (under $15),"Replace Existing Smoke/CO Detector Combo","Safety & Protection",standalone,320.00,335.00,+15.00,price rises,,
+1 minor (under $15),"Single-Pole Breaker Replacement","Panels & Troubleshooting",standalone,250.00,265.00,+15.00,price rises,,
+2 moderate ($15-50),"Smart Outlet Upgrade","Outlets & Switches",standalone,355.00,335.00,-20.00,price falls,,
+2 moderate ($15-50),"Smart Switch Upgrade","Outlets & Switches",standalone,310.00,330.00,+20.00,price rises,,
+2 moderate ($15-50),"Timer Switch Installation","Outlets & Switches",standalone,355.00,335.00,-20.00,price falls,,
+2 moderate ($15-50),"USB / USB-C Outlet Upgrade","Outlets & Switches",standalone,275.00,300.00,+25.00,price rises,,
+2 moderate ($15-50),"Replacing Existing Light With New Fan","Fans",standalone,350.00,375.00,+25.00,price rises,,
+2 moderate ($15-50),"Dishwasher Electrical Connection / Reconnection","Appliance Installation",same-visit,150.00,125.00,-25.00,price falls,,
+2 moderate ($15-50),"Doorbell Transformer Replacement","Smart Home & Security",same-visit,185.00,210.00,+25.00,price rises,,
+2 moderate ($15-50),"Double-Pole Breaker Replacement","Panels & Troubleshooting",standalone,255.00,280.00,+25.00,price rises,,
+2 moderate ($15-50),"Customer-Supplied Smart Switch","Outlets & Switches",same-visit,100.00,130.00,+30.00,price rises,,
+2 moderate ($15-50),"Replace GFCI Outlet","Outlets & Switches",standalone,250.00,280.00,+30.00,price rises,,
+2 moderate ($15-50),"Replace LED Dimmer","Outlets & Switches",same-visit,160.00,130.00,-30.00,price falls,,
+2 moderate ($15-50),"Replace Standard Switch","Outlets & Switches",same-visit,65.00,95.00,+30.00,price rises,,
+2 moderate ($15-50),"Recessed Lighting Installation","Lighting",standalone,355.00,385.00,+30.00,price rises,,
+2 moderate ($15-50),"Replace GFCI Outlet","Outlets & Switches",same-visit,150.00,115.00,-35.00,price falls,,
+2 moderate ($15-50),"Replace LED Dimmer","Outlets & Switches",standalone,260.00,295.00,+35.00,price rises,,
+2 moderate ($15-50),"Replace Standard Outlet","Outlets & Switches",same-visit,60.00,95.00,+35.00,price rises,,
+2 moderate ($15-50),"Replace hardwired Smoke Detector","Safety & Protection",standalone,250.00,285.00,+35.00,price rises,,
+2 moderate ($15-50),"Single-Pole Breaker Replacement","Panels & Troubleshooting",same-visit,105.00,140.00,+35.00,price rises,,
+2 moderate ($15-50),"USB / USB-C Outlet Upgrade","Outlets & Switches",same-visit,175.00,135.00,-40.00,price falls,,
+2 moderate ($15-50),"Replace hardwired Smoke Detector","Safety & Protection",same-visit,135.00,95.00,-40.00,price falls,,
+2 moderate ($15-50),"Smart Outlet Upgrade","Outlets & Switches",same-visit,255.00,210.00,-45.00,price falls,,
+2 moderate ($15-50),"Timer Switch Installation","Outlets & Switches",same-visit,255.00,210.00,-45.00,price falls,,
+2 moderate ($15-50),"Remove and Replace Existing 220V Dryer Outlet","Appliance Installation",same-visit,170.00,125.00,-45.00,price falls,,
+2 moderate ($15-50),"Replace 220V Electric Range/Stove Outlet","Appliance Installation",same-visit,170.00,125.00,-45.00,price falls,,
+2 moderate ($15-50),"Occupancy / Motion Sensor Switch","Outlets & Switches",standalone,255.00,305.00,+50.00,price rises,,
+2 moderate ($15-50),"Bidet / Smart Toilet Outlet","New Outlets",same-visit,270.00,220.00,-50.00,price falls,,
+2 moderate ($15-50),"Garage Door Opener Outlet","New Outlets",same-visit,270.00,220.00,-50.00,price falls,,
+2 moderate ($15-50),"New 120V Outlet","New Outlets",same-visit,270.00,220.00,-50.00,price falls,,
+2 moderate ($15-50),"Install New Ceiling Light","Lighting",same-visit,200.00,250.00,+50.00,price rises,,
+2 moderate ($15-50),"Remove and Replace Owner-Supplied Bathroom Exhaust Fan","Fans",standalone,465.00,515.00,+50.00,price rises,,
+2 moderate ($15-50),"Replace Existing Ceiling Fan With New Fan","Fans",same-visit,200.00,250.00,+50.00,price rises,,
+2 moderate ($15-50),"Floodlight Camera at Existing Fixture","Smart Home & Security",same-visit,140.00,190.00,+50.00,price rises,,
+2 moderate ($15-50),"Garage Door Opener Outlet","EV & Garage",same-visit,270.00,220.00,-50.00,price falls,,
+3 significant ($50-100),"Install TV in Existing Location","TV & Media",same-visit,180.00,125.00,-55.00,price falls,,
+3 significant ($50-100),"Replace Exterior Light Fixture","Lighting",same-visit,130.00,190.00,+60.00,price rises,,
+3 significant ($50-100),"Replace Motion / Flood Light","Lighting",same-visit,130.00,190.00,+60.00,price rises,,
+3 significant ($50-100),"Replacing Existing Light With New Fan","Fans",same-visit,250.00,315.00,+65.00,price rises,,
+3 significant ($50-100),"Home Electrical Safety Inspection","Safety & Protection",same-visit,250.00,315.00,+65.00,price rises,,
+3 significant ($50-100),"Smart Switch Upgrade","Outlets & Switches",same-visit,135.00,205.00,+70.00,price rises,,
+3 significant ($50-100),"Professional TV Installation In New Location (Includes Outlet)","TV & Media",standalone,500.00,425.00,-75.00,price falls,,
+3 significant ($50-100),"Remove and Replace Existing Microwave","Appliance Installation",standalone,300.00,375.00,+75.00,price rises,,
+3 significant ($50-100),"Home Electrical Safety Inspection","Safety & Protection",standalone,300.00,375.00,+75.00,price rises,,
+3 significant ($50-100),"Replace Existing Smoke/CO Detector Combo","Safety & Protection",same-visit,220.00,145.00,-75.00,price falls,,
+3 significant ($50-100),"Double-Pole Breaker Replacement","Panels & Troubleshooting",same-visit,135.00,215.00,+80.00,price rises,,
+3 significant ($50-100),"Bidet / Smart Toilet Outlet","New Outlets",standalone,370.00,280.00,-90.00,price falls,,
+3 significant ($50-100),"Exterior GFCI — Back-to-Back Power","New Outlets",standalone,355.00,445.00,+90.00,price rises,,
+3 significant ($50-100),"Garage Door Opener Outlet","New Outlets",standalone,370.00,280.00,-90.00,price falls,,
+3 significant ($50-100),"New 120V Outlet","New Outlets",standalone,370.00,280.00,-90.00,price falls,,
+3 significant ($50-100),"Install New Ceiling Fan In New Location","Fans",standalone,350.00,440.00,+90.00,price rises,,
+3 significant ($50-100),"Remove and Replace Owner-Supplied Bathroom Exhaust Fan","Fans",same-visit,365.00,455.00,+90.00,price rises,,
+3 significant ($50-100),"Garage Door Opener Outlet","EV & Garage",standalone,370.00,280.00,-90.00,price falls,,
+3 significant ($50-100),"Install New Microwave","Appliance Installation",standalone,400.00,500.00,+100.00,price rises,,
+4 large (over $100),"Remove and Replace Existing Microwave","Appliance Installation",same-visit,200.00,315.00,+115.00,price rises,,
+4 large (over $100),"Install New Ceiling Fan In New Location","Fans",same-visit,250.00,375.00,+125.00,price rises,,
+4 large (over $100),"Exterior GFCI — Back-to-Back Power","New Outlets",same-visit,255.00,385.00,+130.00,price rises,,
+4 large (over $100),"Install New Microwave","Appliance Installation",same-visit,300.00,440.00,+140.00,price rises,,
+4 large (over $100),"Recessed Lighting Installation","Lighting",same-visit,205.00,385.00,+180.00,price rises,,
+5 blocked,"New Exterior Lighting Locations","Lighting",standalone,,,,,,"quote-only"
+5 blocked,"Outdoor Landscape Lighting","Lighting",standalone,,,,,,"quote-only"
+5 blocked,"Professional LED Under-Cabinet Lighting","Lighting",standalone,,,,,,"quote-only"
+5 blocked,"Remove and Replace Existing Chandelier","Lighting",standalone,500.00,,,,,"no crew-hours recorded"
+5 blocked,"Remove and Replace Existing Chandelier","Lighting",same-visit,400.00,,,,,"sells an add-on with no add-on crew-hours"
+5 blocked,"Replace Bathroom Exhaust Fan — We Supply the Fan","Fans",standalone,,,,,,"quote-only"
+5 blocked,"New Exterior Flood / Camera Location","Smart Home & Security",standalone,495.00,,,,,"no crew-hours recorded"
+5 blocked,"New Video Doorbell Wiring","Smart Home & Security",standalone,,,,,,"quote-only"
+5 blocked,"200-Amp Service Upgrade","Panels & Troubleshooting",standalone,4995.00,,,,,"no crew-hours recorded"
+5 blocked,"Electrical Panel Replacement","Panels & Troubleshooting",standalone,3995.00,,,,,"no crew-hours recorded"
+5 blocked,"240V Garage Outlet","EV & Garage",standalone,,,,,,"quote-only"
+5 blocked,"Level 2 EV Charger Installation","EV & Garage",standalone,1295.00,,,,,"no crew-hours recorded"
+5 blocked,"Generator Inlet + Interlock","Generator / Backup Power",standalone,,,,,,"quote-only"
+5 blocked,"Transfer Switch","Generator / Backup Power",standalone,,,,,,"quote-only"
+5 blocked,"Hot Tub / Spa Electrical","Pool / Spa",standalone,,,,,,"quote-only"
+5 blocked,"Pool Equipment Electrical","Pool / Spa",standalone,,,,,,"quote-only"
