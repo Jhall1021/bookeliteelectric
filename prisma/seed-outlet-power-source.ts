@@ -88,7 +88,10 @@ async function main() {
   for (const slug of APPLIES_TO) {
     const service = await prisma.service.findUnique({
       where: { slug },
-      include: { questions: { include: { answerOptions: true } } },
+      // Just the questions. An earlier version pulled their answer options
+      // too, which don't get read here — and named the relation wrongly,
+      // which is how a fetch nobody needed broke the build.
+      include: { questions: true },
     });
     if (!service) {
       console.log(`  ! ${slug} not found`);
