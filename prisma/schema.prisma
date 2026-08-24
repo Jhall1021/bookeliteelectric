@@ -925,6 +925,35 @@ model Service {
   primaryLaborUnits   Float?
   addOnLaborUnits     Float?
   materialCostCents   Int?
+
+  /// Whether every material ROLE this service requires resolves to a cost
+  /// for the contractor who owns it.
+  ///
+  /// False means the cached materialCostCents above MUST NOT be used. It is
+  /// deliberately left at its previous value rather than zeroed — zeroing
+  /// would be silent underpricing by another route, and this flag is what
+  /// prevents the stale figure being trusted.
+  ///
+  ///   A homeowner-facing price may never be calculated using an unresolved
+  ///   required material cost. Missing required cost = no price.
+  ///
+  /// This state cannot occur before the canonical/contractor material split:
+  /// one row carried both the role and the cost, so a role without a cost was
+  /// impossible. Afterwards it is expected — a contractor receives service
+  /// definitions from the template library before entering their economics,
+  /// so Contractor B starts with a catalog of roles they have not priced.
+  /// That is the point of templates. What must not happen is those services
+  /// quietly pricing as though the unpriced materials were free.
+  ///
+  /// Defaults true so every existing Elite service is unaffected: they all
+  /// resolve today, and the migration verified it.
+  materialCostResolved Boolean @default(true)
+
+  /// Canonical keys with no cost for this contractor, for the admin to act
+  /// on. Names the roles rather than counting them — "needs a cost for
+  /// CABLE_CAT6" is actionable where "3 materials unpriced" sends someone
+  /// hunting. Empty whenever materialCostResolved is true.
+  unresolvedMaterialKeys String[]
   // Deliberate exception to the global material markup. NULL is the NORMAL
   // state and means "use the current rule": 30% on the first $750 of direct
   // cost, 20% above it, applied once to the assembled package. See
