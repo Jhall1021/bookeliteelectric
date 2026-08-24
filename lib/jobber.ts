@@ -509,10 +509,10 @@ function zonedWallTimeToUtc(dateISO: string, hours: number, minutes: number): Da
   return new Date(naiveUtcGuess.getTime() - offsetMinutes * 60000);
 }
 
-// Crews work 8am-4:30pm — these windows fit exactly within that, with
-// nothing offered outside it at all. The first two are full 3-hour
-// blocks; the last is the natural 2.5-hour remainder up to the 4:30
-// cutoff, not a fourth window running into the evening.
+// Fallback only. The real windows are generated from BusinessHours — see
+// lib/businessHours.ts — and these are what you get if that record is missing
+// or unreadable. They match the defaults, so behaviour is unchanged rather
+// than absent.
 export const FIXED_ARRIVAL_WINDOWS = [
   { start: "8:00 AM", end: "11:00 AM" },
   { start: "11:00 AM", end: "2:00 PM" },
@@ -555,7 +555,17 @@ export function effectiveBusySpan(
 // run past that, even starting at the earliest possible arrival, isn't
 // offered at all rather than risking someone still on-site well after
 // their shift should have ended.
-const WORKDAY_END_DISPLAY = "4:30 PM";
+// Exported because checkout enforces the same cutoff — the schedule page
+// decides what to SHOW, checkout decides what's allowed, and they have to
+// agree. One constant, two callers.
+//
+// POLICY[workday.end]: 16:30
+// POLICY[workday.days]: MON_TO_FRI
+//
+// Both belong in configuration rather than here: a contractor who works
+// Saturdays, or until 6pm, needs to change this without a deploy. The
+// verification lead-time rule needs the same working-days list.
+export const WORKDAY_END_DISPLAY = "4:30 PM";
 
 // Checks all 4 fixed windows for one calendar day against ONE fetch of
 // that day's real Jobber visits — not 4 separate fetches. Deliberately
@@ -567,10 +577,40 @@ const WORKDAY_END_DISPLAY = "4:30 PM";
 export async function getWindowAvailabilityForDay(
   dateISO: string,
   eligibleJobberUserIds: string[],
-  estimatedDurationMinutes?: number | null
+  estimatedDurationMinutes?: number | null,
+  /**
+   * The day's windows and closing time, from BusinessHours.
+   *
+   * Passed in rather than read here, so this module stays about Jobber and
+   * doesn't acquire its own opinion about when Elite works. Omitted, it falls
+   * back to the constants above.
+   */
+  schedule?: { windows: { start: string; end: string }[]; dayEndDisplay: string }
 ): Promise<{ start: string; end: string; available: boolean }[]> {
+  const windows = schedule?.windows?.length ? schedule.windows : FIXED_ARRIVAL_WINDOWS;
+  const dayEnd = schedule?.dayEndDisplay ?? WORKDAY_END_DISPLAY;
+  const [, workdayEnd] = windowToDateRange(dateISO, "8:00 AM", dayEnd);
+
+  /**
+   * Does the job fit before the crew's day ends, starting at this window?
+   *
+   * Applied on EVERY path, including the fail-open ones below. Those used to
+   * return every window as available, which quietly bypassed this — so with
+   * Jobber down, a seven-hour job could be booked at 2pm and the crew would
+   * be on site until nine.
+   *
+   * Failing open on JOBBER is right: a broken integration shouldn't stop
+   * anyone booking. But the 4:30 cutoff isn't Jobber's data, it's when Elite's
+   * crews go home. Nothing about an API outage makes a nine-hour afternoon
+   * acceptable.
+   */
+  const fitsInTheDay = (w: { start: string; end: string }) => {
+    const [, effectiveEnd] = effectiveBusySpan(dateISO, w.start, w.end, estimatedDurationMinutes);
+    return effectiveEnd.getTime() <= workdayEnd.getTime();
+  };
+
   if (eligibleJobberUserIds.length === 0) {
-    return FIXED_ARRIVAL_WINDOWS.map((w) => ({ ...w, available: true }));
+    return windows.map((w) => ({ ...w, available: fitsInTheDay(w) }));
   }
 
   let dayVisits: JobberVisit[];
@@ -578,17 +618,15 @@ export async function getWindowAvailabilityForDay(
     dayVisits = await fetchJobberVisitsForDay(dateISO);
   } catch (err) {
     console.error(`Jobber availability check failed for ${dateISO}, failing open:`, err);
-    return FIXED_ARRIVAL_WINDOWS.map((w) => ({ ...w, available: true }));
+    return windows.map((w) => ({ ...w, available: fitsInTheDay(w) }));
   }
 
-  const [, workdayEnd] = windowToDateRange(dateISO, "8:00 AM", WORKDAY_END_DISPLAY);
-
-  return FIXED_ARRIVAL_WINDOWS.map((w) => {
+  return windows.map((w) => {
     const [windowStart, effectiveEnd] = effectiveBusySpan(dateISO, w.start, w.end, estimatedDurationMinutes);
 
-    // Job's too long to fit even starting at this window's earliest
-    // arrival — don't offer it at all, regardless of crew availability.
-    if (effectiveEnd.getTime() > workdayEnd.getTime()) {
+    // Too long to fit even starting at this window's earliest arrival —
+    // not offered, regardless of who's free.
+    if (!fitsInTheDay(w)) {
       return { start: w.start, end: w.end, available: false };
     }
 

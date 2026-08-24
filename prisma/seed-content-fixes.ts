@@ -25,6 +25,24 @@ const prisma = new PrismaClient();
  * On the service record they render on the confirmation screen and can't be
  * dropped by a module that doesn't know about them.
  */
+const SERVICE_DESCRIPTIONS: { slug: string; text: string }[] = [
+  {
+    // POLICY[pendant_classification]: STANDARD_FIXTURE
+    //
+    // Pendants belong here, and saying so matters. A homeowner with a
+    // hanging pendant may reasonably think "chandelier" — it hangs, it's
+    // decorative — and end up in a service costing twice as much for work
+    // that's the same as a flush mount.
+    //
+    // The route is still decided by the fixture's characteristics rather
+    // than its name. This just stops the word sending people the wrong way
+    // before any question gets asked.
+    slug: "replace-interior-light-fixture",
+    text:
+      "Taking down your existing ceiling light and putting up a new one you've bought, in the same spot. Flush mounts, semi-flush, and pendants all belong here. For something larger or more decorative — multiple tiers, a lot of crystals — use Replace an Existing Chandelier instead.",
+  },
+];
+
 const SERVICE_DISCLAIMERS: { slug: string; text: string }[] = [
   {
     // The price includes the switch, and saying so is the difference between
@@ -73,6 +91,19 @@ const CEILING_REVIEW_PHOTOS = [
 
 async function main() {
   // ---- 5. disclaimers onto the service record --------------------------
+  for (const d of SERVICE_DESCRIPTIONS) {
+    const svc = await prisma.service.findUnique({ where: { slug: d.slug } });
+    if (!svc) {
+      console.log(`  ! ${d.slug} not found`);
+      continue;
+    }
+    await prisma.service.update({
+      where: { id: svc.id },
+      data: { shortDescription: d.text },
+    });
+    console.log(`  ✓ ${d.slug} — description mentions pendants`);
+  }
+
   for (const d of SERVICE_DISCLAIMERS) {
     const svc = await prisma.service.findUnique({ where: { slug: d.slug } });
     if (!svc) {

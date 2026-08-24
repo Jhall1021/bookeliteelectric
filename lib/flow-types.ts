@@ -24,6 +24,8 @@ export type AnswerOptionDTO = {
    * this and doesn't need to know which came from where.
    */
   requiredPhotoLabels: string[];
+  /** Example pictures of what this option means. Empty for most options. */
+  illustrationUrls: string[];
   /**
    * Safety instructions from the groups used, de-duplicated. Shown once
    * alongside the uploads rather than repeated on every label.

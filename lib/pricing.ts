@@ -169,6 +169,9 @@ function compute(
     };
   }
 
+  // POLICY[same_visit]: ACTUAL_INCREMENTAL_LABOR
+  // POLICY[crew.composition]: ONE_VAN_LEAD_PLUS_HELPER
+  //
   // Crew-hours, not person-hours.
   //
   // This was `hours * techCount`, which charged again for the helper who
@@ -299,8 +302,10 @@ export function formatBreakdown(b: PriceBreakdown): string {
  * leg or dimmer along the way.
  *
  * Calendar minutes and labor hours are tracked independently and neither is
- * derived from the other. A second technician doubles the hours at the same
- * clock duration; a component can add setup time without adding hours.
+ * derived from the other. A second VAN doubles the hours at the same clock
+ * duration — but a van is a lead and a helper, and both are already inside
+ * the crew-hour rate, so that is a genuine two-crew job and not ordinary
+ * staffing. A component can add setup time without adding hours.
  */
 export type JobConfiguration = {
   /**

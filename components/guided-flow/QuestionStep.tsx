@@ -110,6 +110,31 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
             >
               <span className="block">{option.label}</span>
 
+              {/* Pictures before prose. On a question like "is this a
+                  standard chandelier", the photographs ARE the definition —
+                  the words underneath only confirm what the customer has
+                  already decided by looking. */}
+              {option.illustrationUrls && option.illustrationUrls.length > 0 && (
+                <span className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {option.illustrationUrls.map((src) => (
+                    <span
+                      key={src}
+                      className="block overflow-hidden rounded-card border border-cardline bg-white"
+                    >
+                      {/* Plain img rather than next/image: these are option
+                          illustrations sized by the grid, and the layout
+                          shift next/image guards against doesn't apply. */}
+                      <img
+                        src={src}
+                        alt=""
+                        loading="lazy"
+                        className="aspect-[4/3] w-full object-cover"
+                      />
+                    </span>
+                  ))}
+                </span>
+              )}
+
               {/* A disclaimer on an answer describes what picking it MEANS —
                   that the new light shares a switch, that we'll open the
                   ceiling at the existing fixture. It has to be readable

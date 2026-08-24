@@ -70,6 +70,40 @@ enum PhotoState {
   REVIEW_REQUIRED
 }
 
+/// When crews are available to be booked.
+///
+/// Deliberately OURS, not derived from the contractor's scheduling software.
+/// A contractor's FSM might hold all sorts of shifts, on-call rotas and
+/// personal calendars; what we need is the simpler question of when this
+/// website may offer an appointment. Jobber then tells us who's already busy
+/// inside those hours.
+///
+/// Singleton, like PricingSettings — id is always "default".
+model BusinessHours {
+  id String @id @default("default")
+
+  /// Days bookings may be offered. 0 = Sunday through 6 = Saturday.
+  /// Also defines a "business day" for lead-time rules.
+  workingDays Int[] @default([1, 2, 3, 4, 5])
+
+  /// Wall-clock, 24h, in the contractor's local time.
+  dayStart String @default("08:00")
+  dayEnd   String @default("16:30")
+
+  /// Length of an arrival window. Windows are generated from dayStart in
+  /// blocks of this size; whatever is left at the end becomes the final
+  /// window, which is why 8:00-16:30 in 3h blocks gives 8-11, 11-2, 2-4:30.
+  windowMinutes Int @default(180)
+
+  /// A leftover shorter than this is folded into the previous window rather
+  /// than offered on its own — nobody wants a twenty-minute arrival window.
+  minWindowMinutes Int @default(60)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("business_hours")
+}
+
 /// Reference data: every ZIP code, with its town, county and state.
 ///
 /// Not Elite's service area — the whole table, imported once. A contractor
@@ -515,6 +549,18 @@ model AnswerOption {
   // price but the tech still needs to see the space (panel make/model,
   // access, existing fixture) to arrive with the right parts.
   photosBlockBooking Boolean     @default(true)
+
+  /// Pictures of what this option means.
+  ///
+  /// For questions where the honest answer is "I'd know it if I saw it".
+  /// A homeowner cannot reliably say whether their fixture counts as a
+  /// chandelier, is multi-tier, or has "significant assembly" — those are
+  /// trade words. They can look at three photographs and pick the one that
+  /// resembles the thing above their table.
+  ///
+  /// Several per option on purpose: one example reads as a specification
+  /// ("mine isn't exactly that, so no"), three read as a category.
+  illustrationUrls String[]
   // --- Branch-level job overrides ---------------------------------------
   // Some answers change the JOB, not just the price. The TV size question is
   // the clearest case: up to 55 in is a one-technician route, 56-85 in is a

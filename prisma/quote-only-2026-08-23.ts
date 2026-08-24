@@ -38,6 +38,7 @@ type QuoteOnly = {
 
 const SERVICES: QuoteOnly[] = [
   {
+    // POLICY[panel_upgrade.booking]: QUOTE_ONLY
     slug: "200a-service-upgrade",
     why:
       "Panel condition, utility coordination, permits, load calculation and " +
@@ -50,6 +51,7 @@ const SERVICES: QuoteOnly[] = [
       "circuit count dominate the work.",
   },
   {
+    // POLICY[ev_charger.booking]: QUOTE_ONLY
     slug: "level-2-ev-charger",
     why:
       "Quote-only for launch. Run length, conductor size, panel capacity and " +

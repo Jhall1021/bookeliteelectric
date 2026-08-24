@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
-import { pushBookingToJobber, pickCrewForWindow, effectiveBusySpan } from "@/lib/jobber";
+import {
+  pushBookingToJobber,
+  pickCrewForWindow,
+  effectiveBusySpan,
+  windowToDateRange,
+} from "@/lib/jobber";
+import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
@@ -116,6 +122,29 @@ export async function POST(req: Request) {
     select: { jobberUserId: true },
   });
   const [windowStartDate, windowEndDate] = effectiveBusySpan(dateISO, windowStart, windowEnd, estimatedDurationMinutes);
+
+  // Would this job run past the end of the crew's day?
+  //
+  // The schedule page already hides windows a job can't fit in, but that's
+  // presentation — this is the rule. A stale tab, a bookmarked URL or a direct
+  // POST would otherwise put a crew on site hours after they should have gone
+  // home, and nobody would find out until the day itself.
+  const businessHours = await loadBusinessHours(prisma);
+  const [, workdayEnd] = windowToDateRange(
+    dateISO,
+    "8:00 AM",
+    toDisplay(toMinutes(businessHours.dayEnd))
+  );
+  if (windowEndDate.getTime() > workdayEnd.getTime()) {
+    return NextResponse.json(
+      {
+        error: "WINDOW_TOO_LATE",
+        message:
+          "That job needs more time than's left in the day for that arrival window. Please pick an earlier one.",
+      },
+      { status: 409 }
+    );
+  }
   const assignedCrewId = await pickCrewForWindow(
     dateISO,
     windowStartDate,

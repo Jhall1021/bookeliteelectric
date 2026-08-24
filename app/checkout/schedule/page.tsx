@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { getWindowAvailabilityForDay } from "@/lib/jobber";
+import {
+  loadBusinessHours,
+  nextWorkingDays,
+  generateArrivalWindows,
+  toDisplay,
+  toMinutes,
+} from "@/lib/businessHours";
 import { getOrCreateSessionId } from "@/lib/session";
 import ScheduleClient from "@/components/checkout/ScheduleClient";
 import { redirect } from "next/navigation";
@@ -8,19 +15,13 @@ import { redirect } from "next/navigation";
 // The whole point is a live check every time someone actually looks.
 export const dynamic = "force-dynamic";
 
-function nextWeekdays(count: number): Date[] {
-  const days: Date[] = [];
-  const cursor = new Date();
-  while (days.length < count) {
-    cursor.setDate(cursor.getDate() + 1);
-    const day = cursor.getDay();
-    if (day !== 0 && day !== 6) days.push(new Date(cursor));
-  }
-  return days;
-}
-
 export default async function SchedulePage() {
-  const days = nextWeekdays(5).map((d) => ({
+  // Working days come from configuration now. This used to exclude Saturday
+  // and Sunday with a hardcoded check, which quietly disagreed with the
+  // arrival windows and the end-of-day cutoff — three places encoding the
+  // same working week, kept in step by hand.
+  const businessHours = await loadBusinessHours(prisma);
+  const days = nextWorkingDays(5, businessHours).map((d) => ({
     date: d.toISOString(),
     dateISO: d.toISOString().split("T")[0],
   }));
@@ -56,7 +57,15 @@ export default async function SchedulePage() {
     select: { jobberUserId: true },
   });
   const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
-  const firstDayWindows = await getWindowAvailabilityForDay(days[0].dateISO, eligibleIds, estimatedDurationMinutes);
+  const firstDayWindows = await getWindowAvailabilityForDay(
+    days[0].dateISO,
+    eligibleIds,
+    estimatedDurationMinutes,
+    {
+      windows: generateArrivalWindows(businessHours),
+      dayEndDisplay: toDisplay(toMinutes(businessHours.dayEnd)),
+    }
+  );
 
   return (
     <ScheduleClient

@@ -39,6 +39,8 @@ async function clearServiceTree(serviceId: string) {
  * say so and pick directly.
  *
  * WIRE_PORTION_CENTS is the 14/2 share of the service's $68 material
+ * POLICY[dedicated_circuit.standard_run_ft]: 50
+ *
  * allowance for a typical run. 12/2 costs 30% more, per Josh. This is the one
  * number here that's an assumption rather than a measurement — change it and
  * re-run to reprice the 20A upcharge.

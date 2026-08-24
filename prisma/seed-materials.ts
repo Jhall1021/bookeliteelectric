@@ -42,6 +42,7 @@ const MATERIALS = [
   { key: "RECEPTACLE_DRYER_30A", name: "30A 3- or 4-prong dryer receptacle", unitCostCents: 815, unit: "each" },
   { key: "RECEPTACLE_RANGE_50A", name: "50A 3- or 4-prong range receptacle", unitCostCents: 815, unit: "each" },
 
+  { key: "CORD_CLIPS", name: "Cord clips and exterior anchors", unitCostCents: 800, unit: "set" },
   { key: "BOX_CEILING_STANDARD", name: "Standard ceiling box", unitCostCents: 340, unit: "each" },
 
   // --- specialist parts ---------------------------------------------------
@@ -215,6 +216,8 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     items: [["DOORBELL_TRANSFORMER", 1], ["CONSUMABLES_SMALL", 1]],
   },
   {
+    // POLICY[new_outlet.standard_run_ft]: 25
+    //
     // A run, not a device. 25 ft of cable is a 10 ft route with slack, and
     // the assembly comes to $21.50 against the $21.80 allowance it replaces
     // — thirty cents, which vanishes in $5 rounding.
@@ -284,6 +287,9 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     items: [["RECEPTACLE_RANGE_50A", 1], ["CONSUMABLES_SMALL", 1]],
   },
   {
+    // POLICY[fixture_supply]: CUSTOMER_SUPPLIED
+    // POLICY[new_light_point.standard_run_ft]: 25
+    //
     // The fixture is the customer's unless a service says otherwise, so this
     // is the lighting POINT: box, cable, consumables.
     slug: "new-ceiling-light",
@@ -294,6 +300,8 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     items: [["BOX_FAN_RATED", 1], ["WIRE_14_2", 25], ["CONSUMABLES_SMALL", 1]],
   },
   {
+    // POLICY[fan_support]: INCLUDE_FAN_RATED_SUPPORT
+    //
     // The fan-rated box is in the standard allowance rather than a question.
     // Most existing light boxes aren't fan-rated, and asking a homeowner to
     // determine that is asking them to do a survey. If one turns out to be
@@ -303,6 +311,25 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     // No cable: the wiring is already at the box.
     slug: "fan-replacing-light",
     items: [["BOX_FAN_RATED", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    // POLICY[chandelier.support]: INCLUDE_RATED_BOX
+    //
+    // A rated box every time rather than asking whether the existing one
+    // will hold. Same reasoning as the ceiling fan: the homeowner can't tell,
+    // and a $18 part is cheaper than a return visit. Customer supplies the
+    // chandelier itself.
+    slug: "remove-and-replace-existing-chandelier",
+    items: [["BOX_FAN_RATED", 1], ["CONSUMABLES_SMALL", 1]],
+  },
+  {
+    // The exterior receptacle package, plus what holds the camera and its
+    // cord to the wall. Camera itself is the customer's.
+    slug: "new-exterior-flood-camera",
+    items: [
+      ["GFCI_WEATHER_RESISTANT", 1], ["COVER_IN_USE_BUBBLE", 1], ["BOX_FS_CAST", 1],
+      ["WIRE_12_2", 2], ["CONSUMABLES_SMALL", 1], ["CORD_CLIPS", 1],
+    ],
   },
   {
     slug: "single-pole-breaker-replacement",
@@ -326,6 +353,7 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
  */
 const NO_MATERIAL: { slug: string; why: string }[] = [
   {
+    // POLICY[bathroom_fan.equipment_supply]: CUSTOMER_SUPPLIED
     slug: "bathroom-fan-light-combo",
     why: "Customer supplies the fan; no confirmed Elite-supplied material. The old $8 duct connector was an assumption and was withdrawn rather than replaced.",
   },
