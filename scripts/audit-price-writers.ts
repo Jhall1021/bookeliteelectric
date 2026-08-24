@@ -54,6 +54,8 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Named owner-approved migration, 23 Aug: the full price-book reconciliation, 46 services.",
   "prisma/quote-only-2026-08-23.ts":
     "Named owner-approved migration, 23 Aug: five services converted to quote-only, prices cleared.",
+  "prisma/publish-low-voltage-sconces-2026-08-24.ts":
+    "Named owner-approved migration, 24 Aug: ethernet, coax and the two sconce services published at their model figures. Refuses to write over a price already set, so a rerun cannot overwrite a later owner edit.",
 };
 
 function walk(dir: string, out: string[] = []): string[] {
