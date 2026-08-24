@@ -42,6 +42,11 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import {
+  recomputeServiceMaterialCost,
+  clearLegacyMultiplierOnItemize,
+} from "../lib/materialCost";
+import { calculateMaterialSellCents } from "../lib/pricing";
 
 const prisma = new PrismaClient();
 
@@ -90,8 +95,28 @@ async function main() {
   for (const m of ASSUMED_MATERIALS) {
     await prisma.material.upsert({
       where: { key: m.key },
-      update: { name: m.name, unit: m.unit, notes: "ASSUMED — not yet confirmed by the owner." },
-      create: { ...m, notes: "ASSUMED — not yet confirmed by the owner." },
+      // unitCostCents belongs in BOTH branches.
+      //
+      // It was missing from the update branch, which quietly broke the whole
+      // point of marking these ASSUMED: correcting a figure above and
+      // re-running the seed applied the new name and unit and left the old
+      // cost in place. Only a first-ever create could set a cost, so the
+      // estimates were effectively frozen the moment they were written.
+      //
+      // costConfidence carries the same signal as the notes string, in a
+      // column the reconciler and the admin can actually query.
+      update: {
+        name: m.name,
+        unitCostCents: m.unitCostCents,
+        unit: m.unit,
+        costConfidence: "ASSUMED",
+        notes: "ASSUMED — not yet confirmed by the owner.",
+      },
+      create: {
+        ...m,
+        costConfidence: "ASSUMED",
+        notes: "ASSUMED — not yet confirmed by the owner.",
+      },
     });
   }
   console.log(`  ${ASSUMED_MATERIALS.length} material(s) added, all marked ASSUMED\n`);
@@ -392,9 +417,23 @@ async function buildRoutingTree(
   );
 }
 
+/**
+ * Attach a service's materials and bring its cached total in step.
+ *
+ * The summation used to live here, making this the FOURTH copy of the same
+ * arithmetic — alongside prisma/seed-materials.ts, a private syncTotal() in
+ * the Materials API, and now lib/materialCost.ts. This one also summed
+ * without rounding each line, unlike the other three. No divergence resulted,
+ * because every cost times quantity in this file happens to be a whole number
+ * of cents; the first fractional quantity would have produced a total that
+ * disagreed with the same recipe computed anywhere else.
+ *
+ * The multiplier clear is a separate call now. It is still right here —
+ * attaching materials IS itemizing — but it is no longer welded to the
+ * recompute, so a future cost change can't drag it along.
+ */
 async function attachMaterials(serviceId: string, items: [string, number][]) {
   await prisma.serviceMaterial.deleteMany({ where: { serviceId } });
-  let total = 0;
   for (const [key, qty] of items) {
     const m = await prisma.material.findUnique({ where: { key } });
     if (!m) {
@@ -402,13 +441,16 @@ async function attachMaterials(serviceId: string, items: [string, number][]) {
       continue;
     }
     await prisma.serviceMaterial.create({ data: { serviceId, materialId: m.id, quantity: qty } });
-    total += m.unitCostCents * qty;
   }
-  await prisma.service.update({
-    where: { id: serviceId },
-    data: { materialCostCents: total, materialMultiplier: null, materialMultiplierReason: null },
-  });
-  console.log(`      materials $${(total / 100).toFixed(2)}`);
+
+  const recomputed = await recomputeServiceMaterialCost(prisma, serviceId);
+  await clearLegacyMultiplierOnItemize(prisma, serviceId);
+
+  const total = recomputed?.afterCents ?? 0;
+  console.log(
+    `      materials $${(total / 100).toFixed(2)} direct` +
+      ` -> $${(calculateMaterialSellCents(total) / 100).toFixed(2)} sell`
+  );
 }
 
 main()
