@@ -212,19 +212,42 @@ WHAT THEY TYPED
 Reply with JSON only, no other text:
 {"slug": "the-service-slug" or null, "candidates": ["slug", "slug"] or null, "clarify": "a question" or null, "confidence": 0.0 to 1.0, "reason": "one short sentence, addressed to the homeowner", "outOfScope": true or false}
 
-Guidance:
-- outOfScope is true when this is real work but not on the list — generators, pools, commercial, solar, appliance repair. Better to say so than to offer the nearest thing.
-- slug is null with outOfScope false when it IS probably on the list but you can't tell which. Being unsure is a fine answer.
-- Confidence below 0.5 means you're guessing. Say so honestly; a wrong confident answer costs the homeowner money.
-- Match on the WORK, not the words. "Light over my island" is a pendant, which is a standard light fixture. "Outlet stopped working" is troubleshooting, not replacement.
+Work through these in order and stop at the first that applies:
 
-When it comes down to two or three services and ONE fact would decide it, don't guess and don't give up. Set slug to null, put those services in candidates, and put that one fact in clarify as a question the homeowner can answer by looking.
+1. NOT SOMETHING THIS LIST COVERS — generators, pools, solar, commercial,
+   appliance repair. Set outOfScope true. Better to say so than offer the
+   nearest thing.
 
-  "hang a light over my dining room table"
-  -> candidates: the replace-a-fixture service and the new-light-location service
-  -> clarify: "Is there a light fixture there now, or would this be a new spot?"
+2. ONE SERVICE CLEARLY FITS. Set slug. Match on the WORK, not the words:
+   "light over my island" is a pendant, which is a standard light fixture.
+   "outlet stopped working" is troubleshooting, not replacement.
 
-Ask about what they can SEE — is something there now, is it inside or outside, does it hang or sit flat. Never about wiring, boxes, circuits or anything behind a wall.`;
+3. TWO OR THREE COULD FIT AND ONE FACT WOULD DECIDE. This is the common case
+   and you should expect to use it often. Set slug null, list them in
+   candidates, and put the deciding fact in clarify as a question.
+
+     "hang a light over my dining room table"
+     -> the replace-a-fixture service and the new-light-location service
+     -> "Is there a light fixture there now, or would this be a new spot?"
+
+     "I need a new outlet in my garage"
+     -> the standard outlet, the 240V garage outlet, the door-opener outlet
+     -> "What will you be plugging in?"
+
+   Ask only about what they can SEE. Is something there now, does it hang or
+   sit flat, inside or outside, what will be plugged in. Never about wiring,
+   boxes, circuits, amperage or anything behind a wall — they can't answer
+   that and shouldn't have to.
+
+4. NOTHING IN THE LIST IS CLOSE. Only now, slug null and candidates null.
+
+Do not reach 4 because deciding was hard. A vague description is normally
+case 3, not case 4 — the homeowner described their situation perfectly well,
+it just maps to more than one of your services. Asking them one short question
+is the right answer, and it's much better than sending them to browse seventy
+services.
+
+Confidence below 0.5 means you're guessing — prefer case 3 over a guess.`;
 }
 
 /** Parse the model's reply, tolerating the ways JSON tends to arrive. */
@@ -264,11 +287,24 @@ export function parseResponse(
       .filter((s): s is (typeof services)[number] => !!s)
       .slice(0, 3)
       .map((s) => ({ slug: s.slug, name: s.name.trim(), categorySlug: s.categorySlug }));
-    // One surviving candidate isn't a choice — the model named services that
-    // don't exist and this is really an unsure. Two is the minimum for a
-    // question to be worth asking.
     if (found.length >= 2) {
       return { kind: "clarify", question: parsed.clarify, candidates: found };
+    }
+    // Exactly one survived, so the others were slugs that don't exist. The
+    // question no longer makes sense with a single option — but the one real
+    // candidate is still a better answer than sending someone to browse
+    // seventy services because a slug was mistyped.
+    if (found.length === 1) {
+      return {
+        kind: "suggestion",
+        serviceSlug: found[0].slug,
+        categorySlug: found[0].categorySlug,
+        serviceName: found[0].name,
+        // Low: this is the salvage of a partly-wrong answer, and the UI
+        // shows "this might be" rather than "this sounds like".
+        confidence: 0.4,
+        reason: parsed.reason ?? "",
+      };
     }
   }
 
