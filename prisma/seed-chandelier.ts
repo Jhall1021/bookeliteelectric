@@ -34,7 +34,6 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
-import { publishIfUnset } from "./_priceGuard";
 
 const prisma = new PrismaClient();
 
@@ -293,12 +292,15 @@ async function main() {
     ],
   });
 
-  await publishIfUnset(prisma, service.id, {
-    basePrice: null,
-    whileWeThereBasePrice: null,
-    reason:
-      "2.0 crew-hours plus a rated box and consumables. Left for the admin to publish rather than set here.",
-  });
+  // No price is set here on purpose.
+  //
+  // I originally called publishIfUnset with two nulls, which establishes
+  // nothing — it was decoration, and it carried a "reason" field the type
+  // doesn't have.
+  //
+  // The price comes from reconcile-scope-services.ts, which is a named,
+  // dated migration that records who approved $530 and why. That's the only
+  // route by which a seed's arithmetic becomes a customer's price.
 
   const dangling = await findDanglingReferences(prisma, service.id);
   const unreachable = await findUnreachableQuestions(prisma, service.id);
