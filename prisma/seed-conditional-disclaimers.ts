@@ -45,7 +45,7 @@ const DISCLAIMERS = [
     name: "Exterior wall contingency — new outlet",
     accessClass: "ACCESSIBLE" as const,
     text:
-      "One thing about exterior walls: even with an attic above, the space over an outside wall is sometimes too tight to reach and drill into. We'll try that route first. If we can't get to it, we'd have to fish the wall instead, which adds $125 for a run under 10 feet or $190 for a longer one. We'll show you what we're looking at and confirm before doing anything.",
+      "One thing about exterior walls: even with an attic above, the space over an outside wall is often too tight to reach and drill into. We'll try that route first. If we can't get to it, the wall itself can't be fished — it's insulated and usually blocked partway down — so we'd run the cable from the nearest accessible point instead, which means cutting a small opening or two in the drywall. That adds $125 for a run under 10 feet or $190 for a longer one, and the patching and painting would be yours to arrange. We'll show you exactly where before we cut anything.",
     notes: "Gap between the accessible and finished components on new-120v-outlet.",
   },
   {
@@ -53,7 +53,7 @@ const DISCLAIMERS = [
     name: "Exterior wall contingency — switch leg",
     accessClass: "ACCESSIBLE" as const,
     text:
-      "One thing about exterior walls: even with an attic or basement, the space over or under an outside wall is sometimes too tight to reach and drill into. We'll try that route first. If we can't get to it, we'd have to fish the wall instead, which adds $135 for a run under 10 feet or $200 for a longer one. We'll show you and confirm before doing anything.",
+      "One thing about exterior walls: even with an attic or basement, the space over or under an outside wall is often too tight to reach and drill into. We'll try that route first. If we can't get to it, the wall itself can't be fished — it's insulated and usually blocked partway down — so we'd run the cable from the nearest accessible point instead, which means cutting a small opening or two in the drywall. That adds $135 for a run under 10 feet or $200 for a longer one, and the patching and painting would be yours to arrange. We'll show you exactly where before we cut anything.",
     notes: "Gap between the accessible and finished switch-leg components.",
   },
   {
@@ -63,7 +63,7 @@ const DISCLAIMERS = [
     // No banded finished price on this service, so no figure can honestly be
     // named. Says what happens instead of inventing a number.
     text:
-      "One thing about exterior walls: even with an open basement or attic, the space over or under an outside wall is sometimes too tight to reach and drill into. We'll try that route first. If we can't get to it, we'd have to fish the wall, which takes longer — we'd show you what we're looking at and give you a price before doing any of it.",
+      "One thing about exterior walls: even with an open basement or attic, the space over or under an outside wall is often too tight to reach and drill into. We'll try that route first. If we can't get to it, the wall itself can't be fished — it's insulated and usually blocked partway down — so we'd run the cable from the nearest accessible point instead, which means cutting a small opening or two in the drywall. That takes longer, and the patching and painting would be yours to arrange. We'd show you exactly where and give you a price before cutting anything.",
     notes: "No banded finished price on this service, so no figure is quoted.",
   },
   {
