@@ -70,6 +70,52 @@ enum PhotoState {
   REVIEW_REQUIRED
 }
 
+/// What homeowners typed into "tell us what you need", and what we made of it.
+///
+/// Doing three jobs at once, which is why it's one table:
+///
+///   CACHE — the same sentences repeat endlessly. "outlet not working" will
+///   be typed thousands of times, and there's no reason to ask a model twice.
+///
+///   EVIDENCE — which services are named in words nobody uses, what work
+///   people want that isn't offered, where matching is wrong. Worth more than
+///   the feature itself, and across contractors it's what makes routing
+///   better over time.
+///
+///   SAFETY AUDIT — every query that tripped the emergency screen, so the
+///   patterns can be checked against what people actually write.
+///
+/// Stores the phrasing and nothing else. No name, no address, no session —
+/// there is no reason to know WHO asked, only what was asked.
+model ServiceQuery {
+  id String @id @default(cuid())
+
+  /// Lowercased, punctuation stripped, whitespace collapsed. The cache key.
+  normalizedText String @unique
+  /// A few real phrasings behind that key, for reading back later.
+  rawExamples String[]
+
+  /// Slug rather than a relation: a service can be deleted and the record of
+  /// people asking for it is still the useful part.
+  matchedServiceSlug String?
+  confidence Float?
+  isEmergency Boolean @default(false)
+  outOfScope  Boolean @default(false)
+
+  timesAsked    Int @default(1)
+  /// Went on to the suggested service.
+  timesAccepted Int @default(0)
+  /// Browsed instead — the suggestion was wrong or unconvincing.
+  timesRejected Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([matchedServiceSlug])
+  @@index([isEmergency])
+  @@map("service_queries")
+}
+
 /// When crews are available to be booked.
 ///
 /// Deliberately OURS, not derived from the contractor's scheduling software.

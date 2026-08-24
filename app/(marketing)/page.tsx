@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import ServiceFinder from "@/components/home/ServiceFinder";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/flow-types";
 import { ServiceIcon } from "@/components/shared/Icons";
