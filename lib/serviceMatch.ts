@@ -92,6 +92,31 @@ export function screenForEmergency(text: string): { isEmergency: boolean; matche
   return { isEmergency: matched.length > 0, matched: [...new Set(matched)] };
 }
 
+/**
+ * Remove anything that identifies a person before it's stored.
+ *
+ * People put their address in a search box. And their phone number, because
+ * a box that says "tell us what you need" reads like a contact form to
+ * plenty of them.
+ *
+ * The corpus is worth keeping — it's how we learn what homeowners call
+ * things. None of that value depends on knowing who typed it, so the
+ * identifying parts come out before anything is written down. Done at the
+ * point of storage rather than trusting every future reader of the table.
+ */
+export function stripIdentifiers(text: string): string {
+  return text
+    .replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "[phone]")
+    .replace(/\b[\w.+-]+@[\w-]+\.[\w.]+\b/gi, "[email]")
+    // House number plus a street word. Catches "12 Oak Street"; leaves
+    // "12 recessed lights" alone.
+    .replace(
+      /\b\d{1,5}\s+[\w\s]{1,25}\b(street|st|avenue|ave|road|rd|lane|ln|drive|dr|court|ct|circle|cir|boulevard|blvd|way|place|pl|terrace|ter)\b\.?/gi,
+      "[address]"
+    )
+    .trim();
+}
+
 /** Lowercased, punctuation stripped, whitespace collapsed — the cache key. */
 export function normalize(text: string): string {
   return text
@@ -342,27 +367,44 @@ export async function recordQuery(
   prisma: PrismaClient,
   normalized: string,
   raw: string,
-  result: MatchResult
+  result: MatchResult,
+  meta?: { source?: string; inputTokens?: number; outputTokens?: number }
 ) {
   const slug = result.kind === "suggestion" ? result.serviceSlug : null;
-  // A clarify isn't cached as a match — the whole point is that we don't
+  // A clarify isn't recorded as a match — the whole point is that we don't
   // know which service it is yet, and caching one of the candidates would
-  // turn "we asked" into "we guessed" on the next person to type it.
+  // turn "we asked" into "we guessed" for the next person who types it.
+  const outcome = {
+    suggestion: "SUGGESTED",
+    clarify: "CLARIFIED",
+    emergency: "EMERGENCY",
+    out_of_scope: "OUT_OF_SCOPE",
+    unsure: "BROWSE",
+  }[result.kind];
+
   await prisma.serviceQuery.upsert({
     where: { normalizedText: normalized },
     create: {
       normalizedText: normalized,
-      rawExamples: [raw.slice(0, 200)],
+      rawExamples: [stripIdentifiers(raw).slice(0, 200)],
       matchedServiceSlug: slug,
       confidence: result.kind === "suggestion" ? result.confidence : null,
       isEmergency: result.kind === "emergency",
       outOfScope: result.kind === "out_of_scope",
+      outcome,
+      source: meta?.source ?? "fallback",
+      totalInputTokens: meta?.inputTokens ?? 0,
+      totalOutputTokens: meta?.outputTokens ?? 0,
       timesAsked: 1,
     },
     update: {
       timesAsked: { increment: 1 },
       matchedServiceSlug: slug,
       confidence: result.kind === "suggestion" ? result.confidence : null,
+      outcome,
+      source: meta?.source ?? "fallback",
+      totalInputTokens: { increment: meta?.inputTokens ?? 0 },
+      totalOutputTokens: { increment: meta?.outputTokens ?? 0 },
     },
   });
 }

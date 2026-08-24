@@ -107,7 +107,7 @@ const COMPONENTS = [
  * applies rather than being conditional.
  */
 const EXTERIOR_CAVEAT =
-  "This one ends on an outside wall. Even with an attic or basement, the space over or under an exterior wall is often too tight to reach and drill into — we'll try that route first. If we can't get to it, an exterior wall can't be fished the way an interior one can, so we'd run the cable from the nearest accessible point instead and cut a small opening or two in the drywall to do it. Patching and painting would be yours to arrange. We'd show you exactly where and confirm the price before cutting anything.";
+  "This one ends on an outside wall. Exterior walls are harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. We'd show you what we're looking at and confirm the price before doing any of it, and patching and painting aren't included.";
 
 const FINISH_ACK = [
   "With no attic, basement or drop ceiling to work through, the wiring for this outlet has to be fished through finished walls.",

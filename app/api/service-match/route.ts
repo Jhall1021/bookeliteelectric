@@ -38,7 +38,9 @@ export async function POST(req: Request) {
       matched: emergency.matched,
       message: EMERGENCY_MESSAGE,
     };
-    await recordQuery(prisma, normalize(raw), raw, result).catch(() => {});
+    await recordQuery(prisma, normalize(raw), raw, result, { source: "safety-screen" }).catch(
+      () => {}
+    );
     return NextResponse.json(result);
   }
 
@@ -86,8 +88,11 @@ export async function POST(req: Request) {
   // ---- 3. Ask the model ------------------------------------------------
   let result: MatchResult;
   let source: "model" | "fallback" = "model";
+  let usage = { inputTokens: 0, outputTokens: 0 };
   try {
-    result = await classify(raw, flat);
+    const out = await classify(raw, flat);
+    result = out.result;
+    usage = { inputTokens: out.inputTokens, outputTokens: out.outputTokens };
   } catch (err) {
     source = "fallback";
     // Degrade rather than fail. The customer gets a worse suggestion, or the
@@ -97,7 +102,7 @@ export async function POST(req: Request) {
     result = keywordFallback(raw, flat);
   }
 
-  await recordQuery(prisma, normalized, raw, result).catch(() => {});
+  await recordQuery(prisma, normalized, raw, result, { source, ...usage }).catch(() => {});
 
   // Which path produced this, visible in the response.
   //
@@ -123,7 +128,7 @@ export async function POST(req: Request) {
 async function classify(
   text: string,
   services: { slug: string; name: string; shortDescription: string | null; categorySlug: string }[]
-): Promise<MatchResult> {
+): Promise<{ result: MatchResult; inputTokens: number; outputTokens: number }> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("no API key configured");
 
@@ -158,5 +163,12 @@ async function classify(
   // difference — and the two look identical to the customer.
   console.log(`[service-match] "${text.slice(0, 60)}" -> ${reply.slice(0, 300)}`);
 
-  return parseResponse(reply, services);
+  return {
+    result: parseResponse(reply, services),
+    // Recorded rather than estimated. The per-query arithmetic said a
+    // fraction of a cent, but arithmetic isn't measurement, and a business
+    // case shouldn't rest on a figure nobody checked.
+    inputTokens: data.usage?.input_tokens ?? 0,
+    outputTokens: data.usage?.output_tokens ?? 0,
+  };
 }

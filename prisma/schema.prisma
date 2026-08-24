@@ -108,6 +108,28 @@ model ServiceQuery {
   /// Browsed instead — the suggestion was wrong or unconvincing.
   timesRejected Int @default(0)
 
+  /// Which of the five ways this ended, most recently.
+  ///
+  ///   SUGGESTED   one service, offered directly
+  ///   CLARIFIED   two or three, plus the question between them
+  ///   BROWSE      nothing confident enough to offer
+  ///   EMERGENCY   the safety screen fired
+  ///   OUT_OF_SCOPE real work, not work we do
+  ///
+  /// The interesting rows are BROWSE and a SUGGESTED with high timesRejected.
+  /// One says the catalog is missing something; the other says a service is
+  /// named in words nobody recognises. Neither is visible any other way.
+  outcome String @default("BROWSE")
+
+  /// Whether the model answered, or the keyword fallback did.
+  source String @default("fallback")
+
+  /// Tokens and cost, accumulated. The per-query estimate was under a cent,
+  /// but that was arithmetic rather than measurement — this is how we find
+  /// out what it actually costs before anyone builds a business case on it.
+  totalInputTokens  Int @default(0)
+  totalOutputTokens Int @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

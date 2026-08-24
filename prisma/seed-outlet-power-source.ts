@@ -41,12 +41,26 @@ import { upsertQuestion } from "./_moduleHelpers";
 
 const prisma = new PrismaClient();
 
-// POLICY[dedicated_required]: MOTOR_OR_HEATING_ELEMENT
+// POLICY[dedicated_required]: NAMED_HIGH_DRAW_APPLIANCES
 // POLICY[dedicated_choice]: CUSTOMER_CHOOSES_WHEN_LOAD_IS_ORDINARY
 //
-// Motor or heating element is Elite's line. It's a reasonable reading of what
-// needs its own circuit in a house, not a code citation — another contractor
-// might tap for a garage fridge and be fine.
+// NAMED appliances, not a rule about motors or heating elements.
+//
+// An earlier version said "anything with a motor or a heating element", which
+// is wrong in both directions: a desk fan has a motor and a coffee maker has
+// a heating element, and neither needs its own circuit. Written that way, the
+// question would route a table lamp's worth of load to a $685 service.
+//
+// So these options name specific appliances Elite knows to be high draw. They
+// aren't the model or the question deciding an electrical requirement — they
+// route to the service whose tree does the qualifying. Anything not on the
+// list goes to review rather than being guessed at.
+//
+//   intent -> the right service's tree -> that tree decides scope -> price
+//
+// never
+//
+//   a question decides the electrical requirement -> $685
 const LOAD_KEY = "outlet_load_type";
 const SOURCE_KEY = "outlet_power_source";
 
@@ -145,10 +159,11 @@ async function main() {
         },
         {
           questionId: qLoad.id,
-          label: "A microwave, space heater, or anything else that heats",
+          // Named, not "anything that heats". A hair dryer heats.
+          label: "A microwave, a space heater, or a treadmill",
           value: "heating_appliance",
           disclaimer:
-            "Anything with a heating element draws too much to share a circuit safely.",
+            "These draw heavily enough that sharing a circuit tends to trip it.",
           routeAction: "REROUTE_SERVICE",
           rerouteServiceId: dedicated.id,
           order: 3,
@@ -157,9 +172,9 @@ async function main() {
         },
         {
           questionId: qLoad.id,
-          label: "Power tools, a compressor, or shop equipment",
+          label: "A compressor, a table saw, or similar shop equipment",
           value: "shop_equipment",
-          disclaimer: "Motors need their own circuit — they draw hard when they start up.",
+          disclaimer: "Equipment like this draws hard when it starts up.",
           routeAction: "REROUTE_SERVICE",
           rerouteServiceId: dedicated.id,
           order: 4,
@@ -184,6 +199,10 @@ async function main() {
           questionId: qLoad.id,
           label: "Something else, or I'm not sure",
           value: "unsure",
+          // The catch-all, and deliberately generous. Anything not named
+          // above lands here rather than being sorted by a rule — a wine
+          // fridge, a kiln, an aquarium heater, a sewing machine. We look
+          // and say, rather than guessing from a category.
           disclaimer:
             "Tell us what it is and send a photo of its label if you can find one — we'll work out what it needs and come back with a price.",
           routeAction: "PHOTO_REVIEW",
