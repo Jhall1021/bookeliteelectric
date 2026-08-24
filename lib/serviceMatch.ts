@@ -222,6 +222,11 @@ Work through these in order and stop at the first that applies:
    "light over my island" is a pendant, which is a standard light fixture.
    "outlet stopped working" is troubleshooting, not replacement.
 
+   When they say what they're plugging in, that decides it. A fridge, freezer,
+   air conditioner, microwave, space heater or shop equipment needs its own
+   circuit — that's the dedicated circuit service, not the standard outlet.
+   An outlet for a lamp or a TV is the standard one.
+
 3. TWO OR THREE COULD FIT AND ONE FACT WOULD DECIDE. This is the common case
    and you should expect to use it often. Set slug null, list them in
    candidates, and put the deciding fact in clarify as a question.

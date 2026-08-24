@@ -27,6 +27,20 @@ const prisma = new PrismaClient();
  */
 const SERVICE_DESCRIPTIONS: { slug: string; text: string }[] = [
   {
+    // The menu should draw the same line the flow does. Someone browsing
+    // sees these two next to each other with no idea why one costs $240
+    // more, picks the cheaper, and finds out on the day that their freezer
+    // needed the other one.
+    slug: "new-120v-outlet",
+    text:
+      "A new outlet where you need one, powered from the nearest circuit. Right for everyday things — lamps, a TV, chargers, a computer. If it's for a fridge, freezer, air conditioner or anything that heats, that needs its own circuit: see Dedicated Circuit & Outlet.",
+  },
+  {
+    slug: "dedicated-120v-circuit-outlet",
+    text:
+      "An outlet with its own circuit run from the panel, so nothing else can trip it. Needed for a fridge, freezer, window air conditioner, microwave, space heater or shop equipment — and worth choosing anyway if the outlets nearby already give you trouble.",
+  },
+  {
     // POLICY[pendant_classification]: STANDARD_FIXTURE
     //
     // Pendants belong here, and saying so matters. A homeowner with a
