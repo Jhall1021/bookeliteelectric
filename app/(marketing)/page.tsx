@@ -138,6 +138,13 @@ export default async function HomePage() {
               </div>
             </div>
 
+            {/* Above the buttons: someone who knows what they want types it
+                and skips the menu entirely. Everyone else still has both
+                CTAs directly below, unchanged. */}
+            <div className="mt-6">
+              <ServiceFinder tone="dark" />
+            </div>
+
             <div className="mt-6 flex max-w-[30rem] flex-wrap gap-3">
               <Link
                 href="/services"

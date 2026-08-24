@@ -33,7 +33,12 @@ type Result =
  * "browse everything instead" sits next to every answer including the
  * confident ones.
  */
-export default function ServiceFinder() {
+export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "dark" }) {
+  // The hero is navy. Everything else this might sit on is warm white, and a
+  // component that only works on one of them is a component that gets
+  // dropped in the wrong place and quietly disappears — which is exactly
+  // what happened the first time.
+  const dark = tone === "dark";
   const router = useRouter();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -71,8 +76,11 @@ export default function ServiceFinder() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[30rem]">
-      <label htmlFor="finder" className="block text-sm font-medium text-navy">
+    <div className="w-full max-w-[30rem]">
+      <label
+        htmlFor="finder"
+        className={`block text-sm font-medium ${dark ? "text-white" : "text-navy"}`}
+      >
         Tell us what you need
       </label>
       <div className="mt-2 flex gap-2">
@@ -82,7 +90,11 @@ export default function ServiceFinder() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && ask()}
           placeholder="e.g. the light over my kitchen island needs replacing"
-          className="min-w-0 flex-1 rounded-pill border border-cardline px-5 py-3 text-sm focus:border-electric focus:outline-none"
+          className={`min-w-0 flex-1 rounded-pill px-5 py-3 text-sm focus:outline-none ${
+            dark
+              ? "border border-white/25 bg-white/10 text-white placeholder:text-white/50 focus:border-white/60"
+              : "border border-cardline text-navy focus:border-electric"
+          }`}
         />
         <button
           onClick={ask}
@@ -93,9 +105,12 @@ export default function ServiceFinder() {
         </button>
       </div>
 
-      <p className="mt-2 text-center text-xs text-slate">
+      <p className={`mt-2 text-xs ${dark ? "text-slate-light" : "text-slate"}`}>
         or{" "}
-        <Link href="/services" className="text-electric hover:underline">
+        <Link
+          href="/services"
+          className={dark ? "text-white underline hover:text-white/80" : "text-electric hover:underline"}
+        >
           browse all our services
         </Link>
       </p>
