@@ -6,6 +6,7 @@ import {
   loadPricingSettings,
   resolveRoute,
 } from "@/lib/routeResolver";
+import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
 
 // POST body: { serviceId, computedPriceCents, isPrimary, answersSnapshot,
 //              photos?: { url, label }[] }
@@ -47,11 +48,70 @@ export async function POST(req: Request) {
     visit = await prisma.visit.create({ data: { sessionId, status: "OPEN" } });
   }
 
-  // Primary is a fact about the visit, not a claim the client gets to make.
-  // The first line originates the trip and carries the service-call minimum;
-  // everything after it is same-visit work.
-  const existingCount = await prisma.lineItem.count({ where: { visitId: visit.id } });
-  const isPrimary = existingCount === 0;
+  // Primary is a fact about the visit, not a claim the client gets to make,
+  // and no longer a fact about what was added first.
+  //
+  // This used to be `existingCount === 0`. The first service added carried
+  // the full standalone price and everything after it got the add-on rate,
+  // so the order a customer happened to click in decided what they paid:
+  // ethernet then sconce was $545, sconce then ethernet was $610. Harmless
+  // while people added one thing at a time; systematic the moment the
+  // service finder can hand over two at once, because then the ordering
+  // inside a model's JSON output sets the price.
+  //
+  // lib/visitPrimary.ts picks by the smallest gap between a service's
+  // standalone and add-on price, which is provably the cheapest arrangement
+  // and depends only on WHICH services are on the visit, never on their
+  // order. See POLICY[visit.primary_selection].
+  const existing = await prisma.lineItem.findMany({
+    where: { visitId: visit.id },
+    select: {
+      id: true,
+      serviceId: true,
+      isPrimary: true,
+      answersSnapshot: true,
+      computedPriceCents: true,
+      service: { select: { slug: true, basePrice: true, whileWeThereBasePrice: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+
+  const NEW = Symbol("new-line");
+  const candidates = [
+    ...existing.map((li) => ({
+      ref: li.id as string | symbol,
+      slug: li.service.slug,
+      basePrice: li.service.basePrice,
+      whileWeThereBasePrice: li.service.whileWeThereBasePrice,
+      isPrimary: li.isPrimary,
+    })),
+    {
+      ref: NEW as string | symbol,
+      slug: service.slug,
+      basePrice: service.basePrice,
+      whileWeThereBasePrice: service.whileWeThereBasePrice,
+      // Not on the visit yet, so it holds no flag to preserve.
+      isPrimary: false,
+    },
+  ];
+
+  const chosen = selectPrimary(candidates);
+  if (!chosen.ok) {
+    // No valid arrangement — usually two services that both lack an add-on
+    // price. A catalog gap rather than a customer problem, so it reads as a
+    // system fault and nothing is written.
+    console.error(`[visit] cannot place ${service.slug} on visit ${visit.id}: ${chosen.conflict}`);
+    return NextResponse.json(
+      {
+        error: "PRIMARY_UNRESOLVABLE",
+        message:
+          "We can't combine those services on one visit just now. Please give us a call and we'll sort it out.",
+      },
+      { status: 409 }
+    );
+  }
+
+  const isPrimary = chosen.primary.ref === NEW;
 
   const settings = await loadPricingSettings(prisma);
   const answers: Record<string, string> = answersSnapshot ?? {};
@@ -92,6 +152,63 @@ export async function POST(req: Request) {
     );
   }
 
+  // Only now — with the new line known to be addable — work out what has to
+  // change on the lines already there.
+  //
+  // Order matters here. Every early return above happens BEFORE any existing
+  // line is touched, so an add that fails leaves the visit exactly as it was.
+  // Demoting first and discovering the new service can't be priced would
+  // leave the customer's existing item repriced for a service that never
+  // arrived.
+  //
+  // REPLAY, don't guess — the same rule DELETE follows when it promotes. A
+  // line's standalone price depends on its own answers, and the snapshot is
+  // sitting right there.
+  const reconciled = reconcilePrimary(candidates);
+  const repricings: { id: string; isPrimary: boolean; priceCents: number | null; minutes: number | null; crewHours: number | null; crewCount: number | null }[] = [];
+
+  if (reconciled.ok) {
+    for (const change of reconciled.changes) {
+      const ref = change.candidate.ref;
+      if (ref === NEW) continue; // handled by the create below
+      const li = existing.find((e) => e.id === ref);
+      if (!li) continue;
+
+      const svc = await loadServiceForResolution(prisma, li.serviceId);
+      if (!svc) continue;
+      const liAnswers = (li.answersSnapshot ?? {}) as Record<string, string>;
+      const r = resolveRoute(svc, liAnswers, change.shouldBePrimary, settings);
+
+      if (r.status === "PRICED") {
+        repricings.push({
+          id: li.id,
+          isPrimary: change.shouldBePrimary,
+          priceCents: r.priceCents,
+          minutes: r.config.estimatedMinutes,
+          crewHours: r.config.fieldLaborHours,
+          crewCount: r.config.techCount,
+        });
+      } else {
+        // Same precedent as DELETE's promotion path: flip the flag so the
+        // visit stays coherent, but leave the line unpriced so scheduling
+        // blocks and the office sees it, rather than inventing a figure.
+        console.error(
+          `[visit] flipped ${svc.slug} to ${change.shouldBePrimary ? "primary" : "add-on"} ` +
+            `but could not reprice it: ` +
+            ("reason" in r ? r.reason : r.status)
+        );
+        repricings.push({
+          id: li.id,
+          isPrimary: change.shouldBePrimary,
+          priceCents: null,
+          minutes: null,
+          crewHours: null,
+          crewCount: null,
+        });
+      }
+    }
+  }
+
   const incomingPhotos: { url: string; label: string }[] = Array.isArray(photos)
     ? photos.filter(
         (ph: unknown): ph is { url: string; label: string } =>
@@ -122,6 +239,25 @@ export async function POST(req: Request) {
       },
     });
 
+    // Demotions and promotions land in the SAME transaction as the create,
+    // so a visit can never be observed with two primaries or none.
+    for (const r of repricings) {
+      await tx.lineItem.update({
+        where: { id: r.id },
+        data: {
+          isPrimary: r.isPrimary,
+          computedPriceCents: r.priceCents,
+          ...(r.priceCents !== null
+            ? {
+                estimatedMinutes: r.minutes,
+                resolvedCrewHours: r.crewHours,
+                resolvedCrewCount: r.crewCount,
+              }
+            : {}),
+        },
+      });
+    }
+
     if (incomingPhotos.length > 0) {
       await tx.photo.createMany({
         data: incomingPhotos.map((ph) => ({
@@ -143,6 +279,9 @@ export async function POST(req: Request) {
     // influence it.
     priceCents: resolved.priceCents,
     isPrimary: resolved.isPrimary,
+    // True when adding this service changed what an existing line costs —
+    // the cart should re-fetch rather than patch its own state.
+    repricedExistingLines: repricings.length,
   });
 }
 
@@ -157,6 +296,11 @@ export async function POST(req: Request) {
 // anchor for the visit — everything else keeps its existing While We're
 // There price, since that discount is still legitimate relative to the new
 // anchor job.
+//
+// Which one gets promoted is decided by lib/visitPrimary.ts, the same rule
+// POST uses. It used to be the earliest-added remaining line, which meant
+// deleting the primary could leave a visit priced differently from an
+// identical visit built in another order.
 export async function DELETE(req: Request) {
   const sessionId = getOrCreateSessionId();
   const { searchParams } = new URL(req.url);
@@ -180,8 +324,10 @@ export async function DELETE(req: Request) {
 
   const remaining = await prisma.lineItem.findMany({
     where: { visitId },
-    include: { service: { select: { basePrice: true } } },
-    orderBy: { id: "asc" }, // earliest-added remaining item becomes the new anchor
+    include: {
+      service: { select: { slug: true, basePrice: true, whileWeThereBasePrice: true } },
+    },
+    orderBy: { id: "asc" },
   });
 
   const hasPrimaryLeft = remaining.some((li) => li.isPrimary);
@@ -190,7 +336,24 @@ export async function DELETE(req: Request) {
   if (!hasPrimaryLeft && remaining.length > 0) {
     // Skip lines still awaiting a quote — promoting one would price
     // something the office hasn't looked at.
-    const newAnchor = remaining.find((li) => li.computedPriceCents !== null);
+    const promotable = remaining.filter((li) => li.computedPriceCents !== null);
+
+    const chosen = selectPrimary(
+      promotable.map((li) => ({
+        ref: li.id,
+        slug: li.service.slug,
+        basePrice: li.service.basePrice,
+        whileWeThereBasePrice: li.service.whileWeThereBasePrice,
+      }))
+    );
+
+    const newAnchor = chosen.ok
+      ? promotable.find((li) => li.id === chosen.primary.ref)
+      : undefined;
+
+    if (!chosen.ok && promotable.length > 0) {
+      console.error(`[visit] no promotable anchor on visit ${visitId}: ${chosen.conflict}`);
+    }
 
     if (newAnchor) {
       // REPLAY, don't guess.
