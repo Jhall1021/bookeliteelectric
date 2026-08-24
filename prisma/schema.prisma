@@ -208,6 +208,151 @@ model ZipCode {
 /// reprices. Invisible to customers; the pricing engine still sees one
 /// assembled total per service, with the §4 tier applied to that total rather
 /// than to each part.
+/// A contractor using the platform.
+///
+/// Elite Electric & Lighting becomes one row here, not a set of assumptions
+/// baked into the application. Everything the migration audit found hard-coded
+/// — the phone number in the emergency message, the trade in the AI prompt,
+/// the logo, the email sender — has a home on this model.
+///
+/// Fields are nullable while the application still reads its Elite values
+/// from code. They are filled in as each hard-coded value is replaced, so the
+/// cutover is incremental rather than one large switch.
+model Contractor {
+  id     String  @id @default(cuid())
+  /// URL segment: price2book.com/elite-electric
+  slug   String  @unique
+  name   String
+  /// Feeds the AI service finder's prompt, which currently says "a
+  /// residential electrician" as a literal. A plumbing contractor needs a
+  /// different word here and no find-and-replace on "Elite" would catch it.
+  trade  String  @default("residential electrician")
+  active Boolean @default(true)
+
+  /// Contact identity. The phone number appears in the EMERGENCY message,
+  /// which makes it the single most important string to get right per
+  /// contractor.
+  phone            String?
+  supportEmail     String?
+  websiteUrl       String?
+
+  /// Branding. brandColors overrides the CSS custom properties in
+  /// styles/globals.css; the Tailwind hex values become the fallbacks.
+  logoUrl          String?
+  logoWhiteUrl     String?
+  brandColors      Json?
+
+  /// Per-contractor sender identity — the decided direction, so customer mail
+  /// comes from the contractor and platform mail comes from Price2Book.
+  emailFromName    String?
+  emailFromAddress String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contractorMaterials ContractorMaterial[]
+
+  @@map("contractors")
+}
+
+/// A material ROLE, owned by the platform.
+///
+/// "12/2 NM-B copper cable, priced per foot" is a fact about residential
+/// electrical work. It is true for every contractor, and it is what a service
+/// template means when it says a dedicated circuit needs WIRE_12_2.
+///
+/// Carries NO cost, NO supplier, NO contractor. Those are economics and they
+/// belong to whoever is doing the work.
+///
+/// The `key` is carried across from Material unchanged. The migration audit
+/// identified these keys as stable role identity used throughout the pricing
+/// and seeding system, so renaming any of them would break seeds, the
+/// reconciler and the template library at once.
+model CanonicalMaterial {
+  id     String  @id @default(cuid())
+  /// WIRE_12_2, OLD_WORK_BOX, STANDARD_RECEPTACLE. Never a SKU, brand,
+  /// package size or supplier item number.
+  key    String  @unique
+  name   String
+  /// "each", "ft", "box" — the unit ServiceMaterial.quantity counts. A foot
+  /// is a foot for everyone, so this is canonical rather than per-contractor.
+  unit   String  @default("each")
+  notes  String?
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contractorMaterials ContractorMaterial[]
+  serviceMaterials    ServiceMaterial[]
+
+  @@map("canonical_materials")
+}
+
+/// What a material role costs ONE contractor, and eventually which exact
+/// product they buy for it.
+///
+/// This is the layer that makes the template library work. The platform
+/// template says a service needs 25 ft of WIRE_12_2. Elite says WIRE_12_2
+/// costs them 72 cents a foot from a Southwire roll at Lowe's. Contractor B
+/// says something completely different, from a different supplier, without
+/// touching or duplicating the template.
+///
+/// Every field the old Material model carried that was about money, supply or
+/// confidence lives here. Everything about identity stayed behind on
+/// CanonicalMaterial.
+model ContractorMaterial {
+  id                  String            @id @default(cuid())
+  contractorId        String
+  contractor          Contractor        @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  canonicalMaterialId String
+  canonicalMaterial   CanonicalMaterial @relation(fields: [canonicalMaterialId], references: [id], onDelete: Restrict)
+
+  /// THE EFFECTIVE CACHED COST — what the pricing engine consumes.
+  unitCostCents      Int
+  /// The same cost at three more decimal places, when known precisely.
+  /// See docs/MATERIAL-SUPPLIER-CATALOG.md for why milli- and not micro-cents.
+  unitCostMilliCents Int?
+
+  /// PACKAGE BASIS — how the cost was actually bought, so the invoice stays
+  /// reproducible and a rounding artifact can't be mistaken for a price rise.
+  packagePriceCents Int?
+  packageQuantity   Float?
+  packageUnit       String?
+
+  costSource     MaterialCostSource     @default(CUSTOM)
+  costConfidence MaterialCostConfidence @default(CONFIRMED)
+  costStatus     MaterialCostStatus     @default(OK)
+  costStatusNote String?
+  costUpdatedAt  DateTime?
+
+  /// Contractor-specific wording, when the canonical name isn't how this
+  /// contractor refers to it. Null means use the canonical name.
+  nameOverride String?
+  notes        String?
+  active       Boolean @default(true)
+
+  supplierLinks        MaterialSupplierLink[] @relation("ContractorMaterialLinks")
+  activeSupplierLinkId String?                @unique
+  activeSupplierLink   MaterialSupplierLink?  @relation("ContractorMaterialActiveLink", fields: [activeSupplierLinkId], references: [id], onDelete: SetNull)
+  costEvents           MaterialCostEvent[]    @relation("ContractorMaterialCostEvents")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One row per role per contractor. A contractor cannot hold two prices for
+  /// the same material role.
+  @@unique([contractorId, canonicalMaterialId])
+  @@index([canonicalMaterialId])
+  @@map("contractor_materials")
+}
+
+/// DEPRECATED — being replaced by CanonicalMaterial + ContractorMaterial.
+///
+/// Kept intact during the expand phase so the application keeps running and
+/// the reconciler keeps reading 108 of 108 while the data is copied across.
+/// Removed only once every read path has moved and been verified. See
+/// prisma/migrate-material-split-2026-08-24.ts.
 model Material {
   id          String  @id @default(cuid())
   /// CANONICAL ROLE IDENTITY. Stable identifier for seeds and code, e.g.
@@ -422,6 +567,14 @@ model MaterialSupplierLink {
   /// Back-relation for Material.activeSupplierLink.
   activeForMaterial Material? @relation("MaterialActiveLink")
 
+  /// Expand-phase parallel to materialId above. A supplier product is a
+  /// contractor's choice — Elite buys Southwire from Lowe's, another
+  /// contractor buys something else for the same role — so once the split
+  /// completes these hang off ContractorMaterial and materialId goes.
+  contractorMaterialId       String?
+  contractorMaterial         ContractorMaterial? @relation("ContractorMaterialLinks", fields: [contractorMaterialId], references: [id], onDelete: Cascade)
+  activeForContractorMaterial ContractorMaterial? @relation("ContractorMaterialActiveLink")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -449,8 +602,13 @@ model MaterialSupplierLink {
 /// history to read when it lands.
 model MaterialCostEvent {
   id         String   @id @default(cuid())
+  /// DEPRECATED — replaced by contractorMaterialId. A cost movement is always
+  /// one contractor's, never the platform's.
   materialId String
   material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  contractorMaterialId String?
+  contractorMaterial   ContractorMaterial? @relation("ContractorMaterialCostEvents", fields: [contractorMaterialId], references: [id], onDelete: Cascade)
 
   oldUnitCostCents      Int?
   newUnitCostCents      Int
@@ -518,13 +676,29 @@ model ServiceMaterial {
   id         String   @id @default(cuid())
   serviceId  String
   service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  /// DEPRECATED — replaced by canonicalMaterialId below. Both exist during
+  /// the expand phase; this one is removed once every read path has moved.
   materialId String
   material   Material @relation(fields: [materialId], references: [id])
+
+  /// What the recipe actually means: this service needs this ROLE.
+  ///
+  /// The recipe points at the canonical role, never at a contractor's costed
+  /// material. That is what lets the same recipe become a platform template —
+  /// "a dedicated circuit needs 25 ft of WIRE_12_2" is true regardless of who
+  /// is doing the work or what they pay for cable.
+  ///
+  /// Nullable only for the duration of the migration. It becomes required
+  /// in the contract phase.
+  canonicalMaterialId String?
+  canonicalMaterial   CanonicalMaterial? @relation(fields: [canonicalMaterialId], references: [id], onDelete: Restrict)
+
   /// Supports fractional quantities — 2 ft of cable, half a box of staples.
   quantity   Float    @default(1)
   order      Int      @default(0)
 
   @@unique([serviceId, materialId])
+  @@index([canonicalMaterialId])
   @@map("service_materials")
 }
 
