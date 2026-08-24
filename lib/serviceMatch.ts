@@ -53,7 +53,46 @@ export type MatchResult =
   | { kind: "clarify"; question: string; candidates: Candidate[] }
   | { kind: "suggestion"; serviceSlug: string; categorySlug: string; serviceName: string; confidence: number; reason: string }
   | { kind: "out_of_scope"; message: string }
-  | { kind: "unsure"; message: string };
+  | { kind: "unsure"; message: string }
+  /**
+   * More than one job in one sentence.
+   *
+   * "An outlet for a phone charger in my bedroom and a new dining room light"
+   * is two services, and the finder used to have nowhere to put that. The
+   * nearest available answer was clarify — two candidate buttons, one of
+   * which the customer picks — which quietly dropped half the request while
+   * looking like a confident answer.
+   *
+   * Worse than dropping it: booked separately, two jobs pay two service-call
+   * minimums. Two half-hour jobs are $375 on one visit and $500 on two.
+   *
+   * Each item is resolved independently, so a request that's one real service
+   * and one thing Elite doesn't do comes back as exactly that rather than
+   * collapsing to whichever half was easier.
+   */
+  | { kind: "multi"; items: MatchItem[] }
+  /**
+   * A punch list. Past three, resolving each one through a text box is worse
+   * than the service list, so this points there instead of returning nine
+   * half-confident guesses.
+   */
+  | { kind: "too_many"; count: number; message: string };
+
+/**
+ * One job within a multi-service request.
+ *
+ * `label` is the customer's own words for this part, so the answer can be
+ * shown against what they asked for rather than against a service name they
+ * never used.
+ */
+export type MatchItem =
+  | { kind: "suggestion"; label: string; serviceSlug: string; categorySlug: string; serviceName: string; confidence: number; reason: string }
+  | { kind: "clarify"; label: string; question: string; candidates: Candidate[] }
+  | { kind: "out_of_scope"; label: string; message: string }
+  | { kind: "unsure"; label: string };
+
+/** Past this, the service list is a better tool than a text box. */
+export const MAX_INTENTS = 3;
 
 /**
  * Phrases that mean "stop, phone us".
@@ -226,7 +265,7 @@ export function buildPrompt(
     .map((s) => `${s.slug} | ${s.name.trim()}${s.shortDescription ? ` — ${s.shortDescription}` : ""}`)
     .join("\n");
 
-  return `A homeowner has described what they need from a residential electrician. Match it to one service from the list, or say there is no good match.
+  return `A homeowner has described what they need from a residential electrician. Work out how many separate jobs they've described, then match each one to a service from the list.
 
 SERVICES
 ${catalog}
@@ -235,9 +274,39 @@ WHAT THEY TYPED
 "${text}"
 
 Reply with JSON only, no other text:
-{"slug": "the-service-slug" or null, "candidates": ["slug", "slug"] or null, "clarify": "a question" or null, "confidence": 0.0 to 1.0, "reason": "one short sentence, addressed to the homeowner", "outOfScope": true or false}
+{"items": [{"label": "their words for this job", "slug": "the-service-slug" or null, "candidates": ["slug", "slug"] or null, "clarify": "a question" or null, "confidence": 0.0 to 1.0, "reason": "one short sentence, addressed to the homeowner", "outOfScope": true or false}], "distinctJobs": 1}
 
-Work through these in order and stop at the first that applies:
+HOW MANY JOBS
+
+Most requests are one job and produce one item. Some are two or three.
+
+  "an outlet for a phone charger in my bedroom and a new dining room light"
+  -> TWO. Different work in different rooms.
+
+  "install an outlet and a switch in my bedroom"
+  -> TWO. An outlet and a switch are separate work even in one room.
+
+  "replace the three broken outlets in my kitchen"
+  -> ONE. Same work repeated. Quantity is chosen later, not here.
+
+  "my kitchen lights flicker and the outlets by the sink are dead"
+  -> ONE. Two symptoms of what is probably one fault. Troubleshooting covers
+     it, and splitting symptoms would sell two visits for one problem.
+
+Split on DIFFERENT WORK — never on different rooms, several fittings of the
+same kind, or several symptoms of one fault. When you can't tell, prefer
+FEWER items. A customer can always add another service; being sold two jobs
+for one piece of work is worse.
+
+Set distinctJobs to how many you found. If it is more than ${MAX_INTENTS},
+say so in distinctJobs and return an empty items array — a longer list is
+handled better by the full service list than by this.
+
+FOR EACH JOB
+
+Put the homeowner's own words for that part in label — five words or so,
+taken from what they typed. Then work through these in order and stop at the
+first that applies:
 
 1. NOT SOMETHING THIS LIST COVERS — generators, pools, solar, commercial,
    appliance repair. Set outOfScope true. Better to say so than offer the
@@ -277,32 +346,41 @@ it just maps to more than one of your services. Asking them one short question
 is the right answer, and it's much better than sending them to browse seventy
 services.
 
-Confidence below 0.5 means you're guessing — prefer case 3 over a guess.`;
+Confidence below 0.5 means you're guessing — prefer case 3 over a guess.
+
+These four cases apply to each job SEPARATELY. One job being out of scope
+says nothing about the other: "put in a bedroom outlet and service my
+generator" is one real service and one we don't do, and both belong in the
+answer. Never drop a job because another one was easier to place.`;
 }
 
-/** Parse the model's reply, tolerating the ways JSON tends to arrive. */
-export function parseResponse(
-  raw: string,
-  services: { slug: string; name: string; categorySlug: string }[]
-): MatchResult {
-  let parsed: {
-    slug?: string | null;
-    candidates?: string[] | null;
-    clarify?: string | null;
-    confidence?: number;
-    reason?: string;
-    outOfScope?: boolean;
-  };
-  try {
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    parsed = JSON.parse(cleaned);
-  } catch {
-    return { kind: "unsure", message: "" };
-  }
+/** One job as the model described it, before it's been checked against the catalog. */
+type RawItem = {
+  label?: string | null;
+  slug?: string | null;
+  candidates?: string[] | null;
+  clarify?: string | null;
+  confidence?: number;
+  reason?: string;
+  outOfScope?: boolean;
+};
 
-  if (parsed.outOfScope) {
+type CatalogService = { slug: string; name: string; categorySlug: string };
+
+/**
+ * Resolve ONE job against the catalog.
+ *
+ * The whole of the old single-service logic, unchanged in behaviour and now
+ * shared: a one-job request runs through this and is returned in exactly the
+ * shape it always was, so every existing path in the UI keeps working.
+ */
+function parseItem(item: RawItem, services: CatalogService[], fallbackLabel: string): MatchItem {
+  const label = (item.label ?? "").trim() || fallbackLabel;
+
+  if (item.outOfScope) {
     return {
       kind: "out_of_scope",
+      label,
       message:
         "That's not something we handle through the website. Give us a call on 732-204-7003 and we'll let you know if we can help.",
     };
@@ -311,14 +389,14 @@ export function parseResponse(
   // Two or three candidates plus the question that separates them. Checked
   // before the unsure path, since this is the better answer whenever it's
   // available.
-  if (parsed.clarify && parsed.candidates?.length) {
-    const found = parsed.candidates
+  if (item.clarify && item.candidates?.length) {
+    const found = item.candidates
       .map((slug) => services.find((s) => s.slug === slug))
-      .filter((s): s is (typeof services)[number] => !!s)
+      .filter((s): s is CatalogService => !!s)
       .slice(0, 3)
       .map((s) => ({ slug: s.slug, name: s.name.trim(), categorySlug: s.categorySlug }));
     if (found.length >= 2) {
-      return { kind: "clarify", question: parsed.clarify, candidates: found };
+      return { kind: "clarify", label, question: item.clarify, candidates: found };
     }
     // Exactly one survived, so the others were slugs that don't exist. The
     // question no longer makes sense with a single option — but the one real
@@ -327,31 +405,116 @@ export function parseResponse(
     if (found.length === 1) {
       return {
         kind: "suggestion",
+        label,
         serviceSlug: found[0].slug,
         categorySlug: found[0].categorySlug,
         serviceName: found[0].name,
         // Low: this is the salvage of a partly-wrong answer, and the UI
         // shows "this might be" rather than "this sounds like".
         confidence: 0.4,
-        reason: parsed.reason ?? "",
+        reason: item.reason ?? "",
       };
     }
   }
 
-  if (!parsed.slug) return { kind: "unsure", message: "" };
+  if (!item.slug) return { kind: "unsure", label };
 
   // The model can only be trusted to return a slug that exists if we check.
-  const svc = services.find((s) => s.slug === parsed.slug);
-  if (!svc) return { kind: "unsure", message: "" };
+  const svc = services.find((s) => s.slug === item.slug);
+  if (!svc) return { kind: "unsure", label };
 
   return {
     kind: "suggestion",
+    label,
     serviceSlug: svc.slug,
     categorySlug: svc.categorySlug,
     serviceName: svc.name.trim(),
-    confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
-    reason: parsed.reason ?? "",
+    confidence: typeof item.confidence === "number" ? item.confidence : 0.5,
+    reason: item.reason ?? "",
   };
+}
+
+/** Drop the per-item label to get back the original single-service shape. */
+function asSingle(item: MatchItem): MatchResult {
+  switch (item.kind) {
+    case "suggestion":
+      return {
+        kind: "suggestion",
+        serviceSlug: item.serviceSlug,
+        categorySlug: item.categorySlug,
+        serviceName: item.serviceName,
+        confidence: item.confidence,
+        reason: item.reason,
+      };
+    case "clarify":
+      return { kind: "clarify", question: item.question, candidates: item.candidates };
+    case "out_of_scope":
+      return { kind: "out_of_scope", message: item.message };
+    case "unsure":
+      return { kind: "unsure", message: "" };
+  }
+}
+
+/**
+ * Parse the model's reply, tolerating the ways JSON tends to arrive.
+ *
+ * Accepts both shapes. The current prompt asks for {items:[...]}; a reply in
+ * the older single-object form is read as one item, so a cached response or a
+ * model that ignores the new instruction still resolves rather than dropping
+ * to unsure.
+ *
+ * A single job comes back in exactly the shape it always did. Only a genuine
+ * multi-job request produces the new kind, which is what keeps this from
+ * being a rewrite of every path in the UI.
+ */
+export function parseResponse(raw: string, services: CatalogService[]): MatchResult {
+  let parsed: { items?: RawItem[]; distinctJobs?: number } & RawItem;
+  try {
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return { kind: "unsure", message: "" };
+  }
+
+  const distinct =
+    typeof parsed.distinctJobs === "number" ? parsed.distinctJobs : undefined;
+
+  // A punch list. Reported even though items is empty, so the customer is
+  // told what happened rather than shown a shrug.
+  if (distinct !== undefined && distinct > MAX_INTENTS) {
+    return {
+      kind: "too_many",
+      count: distinct,
+      message:
+        `That's ${distinct} separate jobs — more than this box handles well. ` +
+        `The full list is easier for a job like that, and everything you pick ` +
+        `goes onto the same visit.`,
+    };
+  }
+
+  // Older single-object shape.
+  const rawItems: RawItem[] = Array.isArray(parsed.items)
+    ? parsed.items
+    : [parsed as RawItem];
+
+  const items = rawItems
+    .slice(0, MAX_INTENTS)
+    .map((it, i) => parseItem(it, services, `Part ${i + 1}`));
+
+  if (items.length === 0) return { kind: "unsure", message: "" };
+  if (items.length === 1) return asSingle(items[0]);
+
+  // Two identical suggestions mean the model split one job in half. Collapse
+  // rather than offering the same service twice — quantity is chosen in the
+  // flow, not here.
+  const slugs = new Set(
+    items.filter((i) => i.kind === "suggestion").map((i) => (i as { serviceSlug: string }).serviceSlug)
+  );
+  const allSameService =
+    items.every((i) => i.kind === "suggestion") && slugs.size === 1;
+  if (allSameService) return asSingle(items[0]);
+
+  return { kind: "multi", items };
 }
 
 /**
@@ -374,12 +537,21 @@ export async function recordQuery(
   // A clarify isn't recorded as a match — the whole point is that we don't
   // know which service it is yet, and caching one of the candidates would
   // turn "we asked" into "we guessed" for the next person who types it.
+  //
+  // A multi isn't either, and for a sharper reason: the cache is keyed on
+  // normalized text and returns ONE slug. Storing a two-job request against
+  // whichever service came first would mean the next person to phrase it the
+  // same way is silently served half their request, straight from cache,
+  // without the model ever running. The `slug` line above already yields null
+  // for it — this note is here so it stays that way.
   const outcome = {
     suggestion: "SUGGESTED",
     clarify: "CLARIFIED",
     emergency: "EMERGENCY",
     out_of_scope: "OUT_OF_SCOPE",
     unsure: "BROWSE",
+    multi: "MULTI",
+    too_many: "TOO_MANY",
   }[result.kind];
 
   await prisma.serviceQuery.upsert({

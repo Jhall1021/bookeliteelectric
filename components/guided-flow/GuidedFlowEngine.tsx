@@ -16,6 +16,7 @@ import PriceConfirmationCard from "./PriceConfirmationCard";
 import RerouteNotice, { REROUTE_HANDOFF_KEY } from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
+import { advanceQueue, queuedServiceHref } from "@/lib/multiServiceQueue";
 
 type Props = {
   serviceSlug: string;
@@ -433,9 +434,20 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       }),
     });
     // Don't navigate on a failed add — that would drop the customer on an
-    // empty visit page with no idea their photos went nowhere.
+    // empty visit page with no idea their photos went nowhere. The queue is
+    // untouched too, so a retry resumes rather than skipping a service.
     if (!res.ok) throw new Error("Could not add this to your visit");
-    router.push("/my-visit");
+
+    // If the service finder found more than one job in what the customer
+    // typed, the rest are waiting. Go to the next one instead of the visit
+    // page — being handed back a cart and asked to remember the second thing
+    // is how the second thing doesn't get booked.
+    //
+    // advanceQueue returns null for the ordinary single-service case, and
+    // also when this service isn't part of a run, so nothing changes for
+    // anyone who arrived here any other way.
+    const next = advanceQueue(serviceSlug);
+    router.push(next ? queuedServiceHref(next) : "/my-visit");
   }
 
   async function handleAddToVisit() {
