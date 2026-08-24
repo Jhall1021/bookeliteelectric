@@ -9,10 +9,11 @@
  * price rise on GFCI receptacles meant grepping seeds for which totals
  * silently included one.
  *
- * Costs are what Elite PAYS. Markup is applied downstream by the §4 tier,
- * against the assembled total for a service rather than per part — a service
- * with six cheap items shouldn't be marked up as though each were a $6
- * purchase.
+ * Costs are what Elite PAYS. Markup is applied downstream — 30% on the first
+ * $750 of direct cost, 20% above — against the assembled total for a service
+ * rather than per part, so a service with six cheap items isn't marked up as
+ * though each were a $6 purchase. See calculateMaterialSellCents in
+ * lib/pricing.ts; never restate the rule here.
  *
  * Every figure here came from Josh directly except where noted. Anything
  * marked ASSUMED needs confirming; it's flagged in the output so it can't sit
@@ -23,6 +24,8 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { recomputeServiceMaterialCost, clearLegacyMultiplierOnItemize } from "../lib/materialCost";
+import { calculateMaterialSellCents } from "../lib/pricing";
 
 const prisma = new PrismaClient();
 
@@ -361,6 +364,13 @@ const NO_MATERIAL: { slug: string; why: string }[] = [
 
 async function main() {
   for (const m of MATERIALS) {
+    // Whether a figure is quoted or assumed has lived in a notes string,
+    // which means it can only be found by reading the file. It's a column
+    // now, so the reconciler can say a price rests on a guess and the admin
+    // can filter for the ones still needing confirmation. Same convention,
+    // one source: a notes field starting with ASSUMED.
+    const costConfidence = m.notes?.startsWith("ASSUMED") ? "ASSUMED" : "CONFIRMED";
+
     await prisma.material.upsert({
       where: { key: m.key },
       update: {
@@ -368,8 +378,9 @@ async function main() {
         unitCostCents: m.unitCostCents,
         unit: m.unit,
         notes: m.notes ?? null,
+        costConfidence,
       },
-      create: m,
+      create: { ...m, costConfidence },
     });
   }
   console.log(`  ✓ ${MATERIALS.length} materials in the catalog`);
@@ -396,34 +407,52 @@ async function main() {
     // the total.
     await prisma.serviceMaterial.deleteMany({ where: { serviceId: service.id } });
 
-    let total = 0;
     for (const [i, [key, qty]] of a.items.entries()) {
       const material = await prisma.material.findUniqueOrThrow({ where: { key } });
       await prisma.serviceMaterial.create({
         data: { serviceId: service.id, materialId: material.id, quantity: qty, order: i },
       });
-      total += Math.round(material.unitCostCents * qty);
     }
 
     // The flat field stays in sync so anything still reading it — the pricing
     // panel, the suggested-price calculation — sees the itemized total rather
     // than a stale number.
     //
-    // And the legacy multiplier is cleared. Itemizing is the moment a
-    // service's material figures become real, so the global tier should
-    // govern from here. Services NOT itemized keep their imported multiplier
-    // for now: changing those would move suggested prices on the strength of
-    // material allowances nobody has checked.
-    const hadLegacyMultiplier = service.materialMultiplier;
-    await prisma.service.update({
-      where: { id: service.id },
-      data: { materialCostCents: total, materialMultiplier: null },
-    });
+    // The summation now lives in lib/materialCost.ts rather than here. It used
+    // to exist twice: once in this loop and once as a private syncTotal() in
+    // the Materials API. Both were right, and neither was callable from
+    // anywhere else — so a supplier sync updating Material.unitCostCents would
+    // have moved no prices at all, while the reconciler kept reporting every
+    // service as matching. One implementation, three callers.
+    const recomputed = await recomputeServiceMaterialCost(prisma, service.id);
+    const total = recomputed?.afterCents ?? 0;
 
-    const tier = total < 1000 ? 3.0 : total <= 75000 ? 1.3 : 1.2;
+    // The legacy multiplier is cleared SEPARATELY, and deliberately not
+    // inside the recompute. Clearing it is an itemization decision — the
+    // moment a service's material figures become real — not something that
+    // should happen every time a cost changes. Services NOT itemized keep
+    // their imported multiplier: changing those would move suggested prices
+    // on the strength of material allowances nobody has checked.
+    //
+    // Shared with the Materials API rather than restated here, so the two
+    // can't drift. They already had: this seed cleared materialMultiplier but
+    // left materialMultiplierReason behind, orphaning a reason that explained
+    // an override no longer present. The shared function clears both.
+    const hadLegacyMultiplier = service.materialMultiplier;
+    await clearLegacyMultiplierOnItemize(prisma, service.id);
+
+    // What the package actually sells for, from the engine itself.
+    //
+    // This line used to recompute the markup inline with the RETIRED banded
+    // tier (3.00x under $10, 1.30x to $750, 1.20x above), which printed $9.00
+    // for a $3.00 consumables-only service against the engine's real $3.90 —
+    // the exact cliff the progressive rule was built to remove, still being
+    // reported on every seed run. Call the engine instead of restating it.
+    const sell = calculateMaterialSellCents(total);
+    const blended = total > 0 ? (sell / total).toFixed(2) : "0.00";
     console.log(
       `  ✓ ${a.slug} — ${a.items.length} item(s), $${(total / 100).toFixed(2)} direct` +
-        ` -> $${((total * tier) / 100).toFixed(2)} at ${tier}x` +
+        ` -> $${(sell / 100).toFixed(2)} sell (${blended}x blended)` +
         (hadLegacyMultiplier ? `  (cleared legacy ${hadLegacyMultiplier}x)` : "")
     );
   }

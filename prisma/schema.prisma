@@ -210,19 +210,307 @@ model ZipCode {
 /// than to each part.
 model Material {
   id          String  @id @default(cuid())
-  /// Stable identifier for seeds and code, e.g. GFCI_WEATHER_RESISTANT.
+  /// CANONICAL ROLE IDENTITY. Stable identifier for seeds and code, e.g.
+  /// GFCI_WEATHER_RESISTANT or WIRE_12_2.
+  ///
+  /// This key names the ROLE a material plays in a service — "12/2 NM-B
+  /// copper cable, priced per foot" — and it must NEVER depend on which
+  /// supplier or product fills that role. Not a Lowe's item number, not a
+  /// Southwire model, not a Graybar SKU, not a UPC.
+  ///
+  /// A service recipe says "a dedicated circuit needs WIRE_12_2". It must not
+  /// say "a dedicated circuit needs Lowe's item #12345". Elite fills that
+  /// role with a Southwire 250 ft roll from Lowe's; another contractor fills
+  /// it with Cerrowire from a different supplier. Same recipe, same key,
+  /// different product and cost. Supplier identity lives entirely in
+  /// MaterialSupplierLink.
+  ///
+  /// This is also the seam along which CanonicalMaterial and
+  /// ContractorMaterial separate if multi-tenancy ever arrives. Today the two
+  /// are the same row because there is one contractor, and splitting them now
+  /// would add a join and a table to express a 1:1. Keeping supplier identity
+  /// out of this key is what keeps that split a mechanical migration rather
+  /// than a rewrite. See docs/MATERIAL-SUPPLIER-CATALOG.md.
   key         String  @unique
   name        String
-  /// What Elite pays, in cents. Markup is applied downstream by the tier
-  /// rule, never baked in here.
+
+  /// What Elite pays per canonical unit, in cents. THE EFFECTIVE CACHED COST:
+  /// this is the field the pricing engine consumes, and it keeps that role
+  /// whether the cost was typed by an admin or synced from a supplier.
+  /// Markup is applied downstream, never baked in here.
   unitCostCents Int
-  /// "each", "ft", "box" — display only; quantity does the arithmetic.
+
+  /// The same cost at three more decimal places, when it is known precisely.
+  ///
+  /// A 1000 ft box of Cat6 at $189.00 is 18.9 cents per foot. The integer
+  /// column above rounds that to 19, which back-computes the box to $190.00
+  /// and makes the stored cost disagree with the invoice. The price effect is
+  /// negligible — pennies, far inside the $5 rounding tolerance — but the
+  /// disagreement is not, because it makes a rounding artifact and a real
+  /// price change look identical a year later.
+  ///
+  /// Milli-cents, not micro-cents: an Int caps near 2.1 billion, so
+  /// micro-cents would overflow above $21.47 a unit.
+  ///
+  /// The engine does NOT read this. It exists so the package figures below
+  /// can be reproduced exactly.
+  unitCostMilliCents Int?
+
+  /// PACKAGE BASIS — how the cost was actually bought.
+  ///
+  /// Materials arrive as packages and are consumed as units: a 250 ft roll,
+  /// a box of 100 wire nuts, a single receptacle. Storing what the package
+  /// cost and how much it contained keeps the invoice reproducible, and makes
+  /// "the price of a box went up" a visible event rather than an inference
+  /// from a shifting per-unit figure.
+  ///
+  /// Null for materials whose cost was entered per unit with no package
+  /// behind it.
+  packagePriceCents Int?
+  packageQuantity   Float?
+  packageUnit       String?
+
+  /// "each", "ft", "box" — the canonical unit ServiceMaterial.quantity counts.
   unit        String  @default("each")
+
+  /// Where the effective cost comes from. CUSTOM means a person entered it.
+  /// SUPPLIER means it is maintained by the active supplier link below.
+  ///
+  /// Any material may stay CUSTOM even when a supplier is the contractor
+  /// default — a part bought from a local supply house doesn't stop being
+  /// real because Lowe's is configured.
+  costSource      MaterialCostSource     @default(CUSTOM)
+
+  /// Whether the figure is a confirmed cost or a working assumption.
+  ///
+  /// The catalog has carried assumed costs before — a $8 duct connector that
+  /// was never a quoted price, and network materials entered as estimates.
+  /// Marking them means the reconciler can say a price rests on a guess
+  /// instead of that fact living in a notes field nobody greps.
+  costConfidence  MaterialCostConfidence @default(CONFIRMED)
+
+  /// Sync health. OK, or STALE/ERROR when a supplier refresh failed.
+  ///
+  /// A failed refresh NEVER changes unitCostCents — the last good cost stands
+  /// and the material is flagged. Nothing customer-facing moves because a
+  /// request timed out.
+  costStatus      MaterialCostStatus     @default(OK)
+  costStatusNote  String?
+  costUpdatedAt   DateTime?
+
   notes       String?
   active      Boolean @default(true)
+
+  /// Supplier products mapped to this canonical role. A material may carry
+  /// several — a Lowe's product and a Graybar product for the same 12/2 —
+  /// with exactly one of them active.
+  supplierLinks MaterialSupplierLink[] @relation("MaterialSupplierLinks")
+
+  /// The link currently feeding unitCostCents, when costSource is SUPPLIER.
+  activeSupplierLinkId String?               @unique
+  activeSupplierLink   MaterialSupplierLink? @relation("MaterialActiveLink", fields: [activeSupplierLinkId], references: [id], onDelete: SetNull)
+
+  costEvents  MaterialCostEvent[]
   services    ServiceMaterial[]
 
   @@map("materials")
+}
+
+/// How a material's effective cost is maintained.
+enum MaterialCostSource {
+  /// A person entered the figure.
+  CUSTOM
+  /// Maintained by the material's active supplier link.
+  SUPPLIER
+}
+
+/// Whether a cost is confirmed or a working assumption.
+enum MaterialCostConfidence {
+  CONFIRMED
+  ASSUMED
+}
+
+/// Freshness of the effective cost.
+enum MaterialCostStatus {
+  OK
+  /// Last refresh succeeded but is older than the staleness horizon.
+  STALE
+  /// Last refresh failed, or the product returned no price. Cost unchanged.
+  ERROR
+}
+
+/// Suppliers whose product catalogs can back a material.
+///
+/// Adding COOPER or GRAYBAR is an enum value plus an adapter module
+/// implementing the same interface. It changes nothing about Material,
+/// ServiceMaterial, or the pricing engine — which is the point of routing all
+/// supplier identity through this model instead of onto Material.
+enum MaterialSupplier {
+  LOWES
+  // COOPER
+  // GRAYBAR
+  // HOME_DEPOT
+}
+
+/// Outcome of the last refresh attempt against a supplier product.
+enum SupplierSyncStatus {
+  OK
+  /// The product no longer exists in the supplier's catalog.
+  NOT_FOUND
+  /// The product exists but returned no price for the configured store.
+  NO_PRICE
+  /// Transport, auth or parse failure.
+  ERROR
+}
+
+/// A supplier's product mapped to a canonical material role.
+///
+/// This is the ONLY place supplier identity is allowed to live. Material.key
+/// stays supplier-independent; a service recipe references the key; this table
+/// answers "and which product does this contractor actually buy for it".
+///
+/// Rows are created only when someone selects a product they use. The
+/// supplier's catalog is browsed live and never bulk-imported — importing
+/// every Lowe's electrical item as a Material would turn a 40-part working
+/// catalog into a mirror of somebody else's inventory.
+model MaterialSupplierLink {
+  id         String   @id @default(cuid())
+  materialId String
+  material   Material @relation("MaterialSupplierLinks", fields: [materialId], references: [id], onDelete: Cascade)
+
+  supplier            MaterialSupplier
+  /// The supplier's own product/item identifier.
+  supplierProductId   String
+  supplierModelNumber String?
+  supplierUpc         String?
+
+  /// Product metadata, cached for display so the admin list doesn't need a
+  /// live call to render.
+  productName  String
+  productUrl   String?
+  brand        String?
+  /// Supplier category breadcrumb, e.g. ["Electrical", "Conduit & Fittings",
+  /// "EMT"]. Lets product search be constrained to electrical categories
+  /// rather than returning garden hose for "connector".
+  categoryPath String[]
+  imageUrl     String?
+
+  /// Store the price was quoted for. Null means a national price.
+  storeId    String?
+  storeLabel String?
+
+  /// PACKAGE TRUTH. What the supplier sells and for how much: a 10 ft stick
+  /// of EMT at $8.90, a 250 ft roll of 12/2. Preserved exactly as quoted.
+  packagePriceCents Int
+  packageQuantity   Float
+  packageUnit       String
+
+  /// The canonical unit this package converts to — must match Material.unit.
+  /// $8.90 / 10 ft = 89 milli-cents... i.e. $0.89/ft.
+  canonicalUnit          String
+  derivedUnitCostMilliCents Int
+
+  /// Last SUCCESSFUL price, retained across failures so an outage can never
+  /// blank a cost.
+  lastGoodPriceCents Int?
+  lastGoodAt         DateTime?
+
+  lastSyncedAt   DateTime?
+  lastSyncStatus SupplierSyncStatus @default(OK)
+  lastSyncError  String?
+
+  /// Back-relation for Material.activeSupplierLink.
+  activeForMaterial Material? @relation("MaterialActiveLink")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([materialId, supplier, supplierProductId, storeId])
+  @@index([supplier, supplierProductId])
+  @@map("material_supplier_links")
+}
+
+/// Every movement of a material's effective cost.
+///
+/// Written by setMaterialUnitCost in lib/materialCost.ts, whatever the caller.
+///
+/// This exists because live supplier costs change what the reconciler means.
+/// Today "0 prices differ from the model with no recorded reason" is a real
+/// signal — material costs are static, so any divergence is someone's
+/// mistake. Once costs move on a sync cadence, divergence becomes the normal
+/// state: every supplier price change shifts model prices while published
+/// prices correctly stay put. Within a month the report would show twenty
+/// legitimate mismatches and the number that caught three real bugs would be
+/// noise.
+///
+/// These events are what let the reconciler separate "diverged because 12/2
+/// went up on 14 March" from "diverged and nobody knows why". That reconciler
+/// change is a later drop; the events start accumulating now so it has
+/// history to read when it lands.
+model MaterialCostEvent {
+  id         String   @id @default(cuid())
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  oldUnitCostCents      Int?
+  newUnitCostCents      Int
+  oldUnitCostMilliCents Int?
+  newUnitCostMilliCents Int?
+
+  source   MaterialCostSource
+  supplier MaterialSupplier?
+
+  /// Why the cost moved: "admin edit", "lowes sync", "seed-materials",
+  /// "invoice 4471". Free text on purpose — a category list would grow a
+  /// generic bucket that absorbs anything inconvenient.
+  reason String
+  /// Admin email, or the name of the job that did it.
+  actor  String?
+  /// Groups a batch of changes from one sync run.
+  syncRunId String?
+
+  /// Services whose cached total actually moved as a result.
+  affectedServiceIds String[]
+
+  createdAt DateTime @default(now())
+
+  @@index([materialId, createdAt])
+  @@index([syncRunId])
+  @@map("material_cost_events")
+}
+
+/// Contractor-level material sourcing settings. Single row today.
+///
+/// Keyed like PricingSettings so it doesn't need reshaping when there is more
+/// than one contractor — but deliberately NOT built as a tenant table now.
+model ContractorMaterialSettings {
+  id String @id @default("default")
+
+  /// What a newly created material defaults to. Individual materials may
+  /// always differ.
+  defaultCostSource MaterialCostSource @default(CUSTOM)
+  defaultSupplier   MaterialSupplier?
+
+  /// Which store's pricing to request. Elite's is the nearest branch to
+  /// Ocean, NJ; a contractor elsewhere sets their own.
+  preferredStoreId    String?
+  preferredStoreLabel String?
+
+  /// Whether a successful sync writes the new cost straight to the material.
+  /// True is the intended behaviour — cost is a pricing INPUT and inputs may
+  /// move freely. Published customer prices are unaffected either way; they
+  /// only change when a person publishes them.
+  autoApplySupplierCosts Boolean @default(true)
+
+  syncCadenceHours     Int @default(24)
+  /// Beyond this, a cost that hasn't refreshed successfully is reported as
+  /// stale. "Matches the model" is weaker evidence when the input is months
+  /// old.
+  stalenessHorizonDays Int @default(90)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("contractor_material_settings")
 }
 
 /// Join: how much of a material a service consumes.
@@ -463,9 +751,15 @@ model Service {
   primaryLaborUnits   Float?
   addOnLaborUnits     Float?
   materialCostCents   Int?
-  // Deliberate exception to the global material tier. NULL is the NORMAL
-  // state and means "use the current tier" (§4: under $10 -> 3.00x,
-  // $10.00-750.00 inclusive -> 1.30x, over $750 -> 1.20x).
+  // Deliberate exception to the global material markup. NULL is the NORMAL
+  // state and means "use the current rule": 30% on the first $750 of direct
+  // cost, 20% above it, applied once to the assembled package. See
+  // calculateMaterialSellCents in lib/pricing.ts.
+  //
+  // This comment previously described the retired banded tier (3.00x under
+  // $10, 1.30x to $750, 1.20x above). Those bands were removed because they
+  // ran backwards at the boundary — a package costing $9.99 sold for $29.97
+  // while one costing $10.01 sold for $13.01.
   //
   // A non-null value means an admin intentionally overrode the markup, and
   // materialMultiplierReason should say why. Legacy values imported from the
