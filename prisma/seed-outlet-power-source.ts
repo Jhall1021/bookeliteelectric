@@ -108,8 +108,30 @@ async function main() {
       continue;
     }
 
+    // Retire "purpose".
+    //
+    // It already asked a version of this — a broad general-use versus
+    // large-appliance split — and my two questions ask it better: what the
+    // appliance actually is, then how they'd like it powered, with prices
+    // attached.
+    //
+    // Inserting in front of it left it unreachable, which repair-trees
+    // caught. Two questions asking nearly the same thing is worse than
+    // either alone, so the older one goes rather than being routed around.
+    //
+    // Deleted rather than deactivated: an unreachable question in the tree
+    // is exactly the thing repair-trees exists to flag, and leaving it would
+    // mean living with a permanent warning.
+    const superseded = service.questions.find((q) => q.key === "purpose");
+    if (superseded) {
+      await prisma.answerOption.deleteMany({ where: { questionId: superseded.id } });
+      await prisma.question.delete({ where: { id: superseded.id } });
+      console.log(`      retired the older "purpose" question — superseded by these two`);
+    }
+
     // Shift everything down two places rather than renumbering by hand.
     for (const q of service.questions) {
+      if (superseded && q.id === superseded.id) continue;
       await prisma.question.update({
         where: { id: q.id },
         data: { order: q.order + 2 },

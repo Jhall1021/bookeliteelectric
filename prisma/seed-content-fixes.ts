@@ -115,7 +115,10 @@ async function main() {
       where: { id: svc.id },
       data: { shortDescription: d.text },
     });
-    console.log(`  ✓ ${d.slug} — description mentions pendants`);
+    // Was hardcoded to "mentions pendants" from when this list held one
+    // entry. It now holds three, two of which are about outlets — a log line
+    // that says the same thing regardless of what it did is worse than none.
+    console.log(`  ✓ ${d.slug} — description updated`);
   }
 
   for (const d of SERVICE_DISCLAIMERS) {
