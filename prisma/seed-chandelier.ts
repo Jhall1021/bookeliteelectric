@@ -38,6 +38,27 @@ import { publishIfUnset } from "./_priceGuard";
 
 const prisma = new PrismaClient();
 
+/**
+ * Remove whatever tree this service had.
+ *
+ * Both of today's scope services were quote-only, which means they carry a
+ * "we'll need a couple of photos" question sitting at order 1. Building new
+ * questions alongside it leaves that one as the entry point — it answers
+ * everything before the new tree is reached, and the new questions are
+ * unreachable.
+ *
+ * Idempotency isn't enough on its own: upserting the questions I want doesn't
+ * remove the ones I don't.
+ */
+async function clearServiceTree(serviceId: string) {
+  const questions = await prisma.question.findMany({ where: { serviceId } });
+  for (const q of questions) {
+    await prisma.answerOption.deleteMany({ where: { questionId: q.id } });
+  }
+  await prisma.question.deleteMany({ where: { serviceId } });
+}
+
+
 const SLUG = "remove-and-replace-existing-chandelier";
 
 // POLICY[chandelier.standard_labor_hours]: 2.0
@@ -111,6 +132,8 @@ async function main() {
       startingPriceLabel: null,
     },
   });
+
+  await clearServiceTree(service.id);
 
   // ---- Q1: is this a swap, or somewhere new? ----------------------------
   const qLocation = await upsertQuestion(prisma, service.id, {
