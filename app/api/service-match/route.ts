@@ -85,9 +85,11 @@ export async function POST(req: Request) {
 
   // ---- 3. Ask the model ------------------------------------------------
   let result: MatchResult;
+  let source: "model" | "fallback" = "model";
   try {
     result = await classify(raw, flat);
   } catch (err) {
+    source = "fallback";
     // Degrade rather than fail. The customer gets a worse suggestion, or the
     // browse link they'd have used anyway — never an error message about an
     // API they've never heard of.
@@ -96,7 +98,18 @@ export async function POST(req: Request) {
   }
 
   await recordQuery(prisma, normalized, raw, result).catch(() => {});
-  return NextResponse.json(result);
+
+  // Which path produced this, visible in the response.
+  //
+  // Three different things all render as "we couldn't pin that down": the
+  // model saying it doesn't know, the model being unreachable and the
+  // keyword fallback finding nothing, and a bad response getting discarded.
+  // Without this they're indistinguishable from the outside, which makes
+  // debugging guesswork.
+  //
+  // Harmless to expose — it says which code path ran, not anything about
+  // Elite or the customer.
+  return NextResponse.json({ ...result, source, catalogSize: flat.length });
 }
 
 /**
@@ -131,10 +144,19 @@ async function classify(
     signal: AbortSignal.timeout(6000),
   });
 
-  if (!res.ok) throw new Error(`classifier returned ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`classifier returned ${res.status}: ${body.slice(0, 200)}`);
+  }
   const data = await res.json();
   const reply = (data.content ?? [])
     .map((c: { type: string; text?: string }) => (c.type === "text" ? c.text ?? "" : ""))
     .join("");
+
+  // The raw reply, in the server log. If the model is answering but the
+  // parser is rejecting it, this is the only place that shows the
+  // difference — and the two look identical to the customer.
+  console.log(`[service-match] "${text.slice(0, 60)}" -> ${reply.slice(0, 300)}`);
+
   return parseResponse(reply, services);
 }
