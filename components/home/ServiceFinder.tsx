@@ -4,8 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+type Candidate = { slug: string; name: string; categorySlug: string };
+
 type Result =
   | { kind: "emergency"; matched: string[]; message: string }
+  | { kind: "clarify"; question: string; candidates: Candidate[] }
   | {
       kind: "suggestion";
       serviceSlug: string;
@@ -162,6 +165,39 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
               No, show me everything
             </Link>
           </div>
+        </div>
+      )}
+
+      {result?.kind === "clarify" && (
+        /* One question rather than a wrong guess or a shrug.
+           The candidates are the answer buttons — answering the question IS
+           choosing the service, so there's no second step. */
+        <div className="mt-4 rounded-card border border-cardline bg-white p-5 shadow-card">
+          <p className="font-medium text-navy">{result.question}</p>
+          <div className="mt-3 flex flex-col gap-2">
+            {result.candidates.map((c) => (
+              <button
+                key={c.slug}
+                onClick={() => {
+                  fetch("/api/service-match/feedback", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text, accepted: true }),
+                  }).catch(() => {});
+                  router.push(`/services/${c.categorySlug}/${c.slug}`);
+                }}
+                className="rounded-card border border-cardline px-4 py-3 text-left text-sm font-medium text-navy transition hover:border-electric hover:bg-electric/5"
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+          <Link
+            href="/services"
+            className="mt-3 inline-block text-xs text-slate hover:underline"
+          >
+            Neither — show me everything
+          </Link>
         </div>
       )}
 

@@ -33,8 +33,24 @@ import type { PrismaClient } from "@prisma/client";
  * which is the thing this whole architecture exists to prevent.
  */
 
+export type Candidate = { slug: string; name: string; categorySlug: string };
+
 export type MatchResult =
   | { kind: "emergency"; matched: string[]; message: string }
+  /**
+   * Narrowed to a few, but one question short of certain.
+   *
+   * "Hang a light over my dining room table" is Replace Interior Light
+   * Fixture or Install New Ceiling Light depending on whether there's one
+   * there now — and those are different prices, so guessing is wrong.
+   *
+   * Being unsure was already handled. The mistake was that unsure had one
+   * destination: the full service list. Sending someone to browse seventy
+   * services when the answer is one of two, and the question that separates
+   * them is "is there a light there now", is giving up in front of the
+   * customer.
+   */
+  | { kind: "clarify"; question: string; candidates: Candidate[] }
   | { kind: "suggestion"; serviceSlug: string; categorySlug: string; serviceName: string; confidence: number; reason: string }
   | { kind: "out_of_scope"; message: string }
   | { kind: "unsure"; message: string };
@@ -194,13 +210,21 @@ WHAT THEY TYPED
 "${text}"
 
 Reply with JSON only, no other text:
-{"slug": "the-service-slug" or null, "confidence": 0.0 to 1.0, "reason": "one short sentence, addressed to the homeowner", "outOfScope": true or false}
+{"slug": "the-service-slug" or null, "candidates": ["slug", "slug"] or null, "clarify": "a question" or null, "confidence": 0.0 to 1.0, "reason": "one short sentence, addressed to the homeowner", "outOfScope": true or false}
 
 Guidance:
 - outOfScope is true when this is real work but not on the list — generators, pools, commercial, solar, appliance repair. Better to say so than to offer the nearest thing.
 - slug is null with outOfScope false when it IS probably on the list but you can't tell which. Being unsure is a fine answer.
 - Confidence below 0.5 means you're guessing. Say so honestly; a wrong confident answer costs the homeowner money.
-- Match on the WORK, not the words. "Light over my island" is a pendant, which is a standard light fixture. "Outlet stopped working" is troubleshooting, not replacement.`;
+- Match on the WORK, not the words. "Light over my island" is a pendant, which is a standard light fixture. "Outlet stopped working" is troubleshooting, not replacement.
+
+When it comes down to two or three services and ONE fact would decide it, don't guess and don't give up. Set slug to null, put those services in candidates, and put that one fact in clarify as a question the homeowner can answer by looking.
+
+  "hang a light over my dining room table"
+  -> candidates: the replace-a-fixture service and the new-light-location service
+  -> clarify: "Is there a light fixture there now, or would this be a new spot?"
+
+Ask about what they can SEE — is something there now, is it inside or outside, does it hang or sit flat. Never about wiring, boxes, circuits or anything behind a wall.`;
 }
 
 /** Parse the model's reply, tolerating the ways JSON tends to arrive. */
@@ -208,7 +232,14 @@ export function parseResponse(
   raw: string,
   services: { slug: string; name: string; categorySlug: string }[]
 ): MatchResult {
-  let parsed: { slug?: string | null; confidence?: number; reason?: string; outOfScope?: boolean };
+  let parsed: {
+    slug?: string | null;
+    candidates?: string[] | null;
+    clarify?: string | null;
+    confidence?: number;
+    reason?: string;
+    outOfScope?: boolean;
+  };
   try {
     const cleaned = raw.replace(/```json|```/g, "").trim();
     parsed = JSON.parse(cleaned);
@@ -222,6 +253,23 @@ export function parseResponse(
       message:
         "That's not something we handle through the website. Give us a call on 732-204-7003 and we'll let you know if we can help.",
     };
+  }
+
+  // Two or three candidates plus the question that separates them. Checked
+  // before the unsure path, since this is the better answer whenever it's
+  // available.
+  if (parsed.clarify && parsed.candidates?.length) {
+    const found = parsed.candidates
+      .map((slug) => services.find((s) => s.slug === slug))
+      .filter((s): s is (typeof services)[number] => !!s)
+      .slice(0, 3)
+      .map((s) => ({ slug: s.slug, name: s.name.trim(), categorySlug: s.categorySlug }));
+    // One surviving candidate isn't a choice — the model named services that
+    // don't exist and this is really an unsure. Two is the minimum for a
+    // question to be worth asking.
+    if (found.length >= 2) {
+      return { kind: "clarify", question: parsed.clarify, candidates: found };
+    }
   }
 
   if (!parsed.slug) return { kind: "unsure", message: "" };
@@ -256,6 +304,9 @@ export async function recordQuery(
   result: MatchResult
 ) {
   const slug = result.kind === "suggestion" ? result.serviceSlug : null;
+  // A clarify isn't cached as a match — the whole point is that we don't
+  // know which service it is yet, and caching one of the candidates would
+  // turn "we asked" into "we guessed" on the next person to type it.
   await prisma.serviceQuery.upsert({
     where: { normalizedText: normalized },
     create: {
