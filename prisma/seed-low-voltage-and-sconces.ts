@@ -92,28 +92,49 @@ async function categoryOf(slug: string): Promise<string | null> {
 }
 
 async function main() {
+  const contractor = await prisma.contractor.findUnique({
+    where: { slug: "elite-electric" },
+    select: { id: true },
+  });
+  if (!contractor) {
+    console.error(
+      `No contractor "elite-electric". Run ` +
+        `prisma/migrate-material-split-2026-08-24.ts first.`
+    );
+    process.exit(1);
+    return;
+  }
+
   for (const m of ASSUMED_MATERIALS) {
-    await prisma.material.upsert({
+    // The ROLE is platform knowledge — "Cat6 network cable, per foot" is true
+    // for anyone running low-voltage. The COST is Elite's estimate, and it is
+    // the estimate that carries the ASSUMED flag.
+    const canonical = await prisma.canonicalMaterial.upsert({
       where: { key: m.key },
-      // unitCostCents belongs in BOTH branches.
-      //
-      // It was missing from the update branch, which quietly broke the whole
-      // point of marking these ASSUMED: correcting a figure above and
-      // re-running the seed applied the new name and unit and left the old
-      // cost in place. Only a first-ever create could set a cost, so the
-      // estimates were effectively frozen the moment they were written.
-      //
-      // costConfidence carries the same signal as the notes string, in a
-      // column the reconciler and the admin can actually query.
+      update: { name: m.name, unit: m.unit },
+      create: { key: m.key, name: m.name, unit: m.unit },
+    });
+
+    await prisma.contractorMaterial.upsert({
+      where: {
+        contractorId_canonicalMaterialId: {
+          contractorId: contractor.id,
+          canonicalMaterialId: canonical.id,
+        },
+      },
+      // unitCostCents belongs in BOTH branches. It was missing from the
+      // update branch, which quietly broke the whole point of marking these
+      // ASSUMED: correcting a figure and re-running applied the new name and
+      // left the old cost in place.
       update: {
-        name: m.name,
         unitCostCents: m.unitCostCents,
-        unit: m.unit,
         costConfidence: "ASSUMED",
         notes: "ASSUMED — not yet confirmed by the owner.",
       },
       create: {
-        ...m,
+        contractorId: contractor.id,
+        canonicalMaterialId: canonical.id,
+        unitCostCents: m.unitCostCents,
         costConfidence: "ASSUMED",
         notes: "ASSUMED — not yet confirmed by the owner.",
       },
@@ -435,12 +456,14 @@ async function buildRoutingTree(
 async function attachMaterials(serviceId: string, items: [string, number][]) {
   await prisma.serviceMaterial.deleteMany({ where: { serviceId } });
   for (const [key, qty] of items) {
-    const m = await prisma.material.findUnique({ where: { key } });
-    if (!m) {
-      console.log(`      ! material ${key} not found`);
+    const canonical = await prisma.canonicalMaterial.findUnique({ where: { key } });
+    if (!canonical) {
+      console.log(`      ! material role ${key} not found`);
       continue;
     }
-    await prisma.serviceMaterial.create({ data: { serviceId, materialId: m.id, quantity: qty } });
+    await prisma.serviceMaterial.create({
+      data: { serviceId, canonicalMaterialId: canonical.id, quantity: qty },
+    });
   }
 
   const recomputed = await recomputeServiceMaterialCost(prisma, serviceId);

@@ -36,6 +36,7 @@
  */
 
 import type { PrismaClient, Prisma } from "@prisma/client";
+import { assessMaterialReadiness, describeMissing } from "./materialResolution";
 
 /** Any Prisma client or interactive-transaction client. */
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -152,6 +153,10 @@ export type RecomputeResult = {
   afterCents: number;
   changed: boolean;
   itemCount: number;
+  /** False when a required role has no cost for this service's contractor. */
+  resolved: boolean;
+  /** Canonical keys with no cost. Empty when resolved. */
+  missingKeys: string[];
 };
 
 /**
@@ -175,33 +180,69 @@ export async function recomputeServiceMaterialCost(
 ): Promise<RecomputeResult | null> {
   const service = await db.service.findUnique({
     where: { id: serviceId },
-    select: { id: true, slug: true, materialCostCents: true },
+    select: {
+      id: true,
+      slug: true,
+      contractorId: true,
+      materialCostCents: true,
+      materialCostResolved: true,
+    },
   });
   if (!service) return null;
 
-  const links = await db.serviceMaterial.findMany({
-    where: { serviceId },
-    select: { quantity: true, material: { select: { unitCostCents: true } } },
-  });
-
-  // Not itemized — the flat allowance stands. See note above.
-  if (links.length === 0) return null;
-
-  const items: { unitCostCents: number; quantity: number }[] = [];
-  for (const link of links) {
-    items.push({
-      unitCostCents: link.material.unitCostCents,
-      quantity: link.quantity,
-    });
+  // A service with no owner cannot have its material costs resolved — there
+  // is nobody to resolve them against. Fail closed rather than reaching for
+  // "the only contractor", which is the pattern that silently returns the
+  // wrong one the day a second contractor exists.
+  if (!service.contractorId) {
+    throw new MaterialCostError(
+      `${service.slug} has no contractor. Its material costs cannot be ` +
+        `resolved — run prisma/backfill-service-contractor-2026-08-25.ts.`
+    );
   }
 
-  const total = assembleMaterialCostCents(items);
+  const readiness = await assessMaterialReadiness(db, serviceId, service.contractorId);
 
-  const changed = service.materialCostCents !== total;
+  // Not itemized — the flat allowance stands, unchanged. See note above.
+  if (readiness.ready && readiness.roles.length === 0) return null;
+
+  if (!readiness.ready) {
+    console.error(
+      `[materialCost] ${service.slug} cannot be priced: ${describeMissing(readiness.missing)}`
+    );
+    await db.service.update({
+      where: { id: serviceId },
+      data: {
+        materialCostResolved: false,
+        unresolvedMaterialKeys: readiness.missing.map((m) => m.key),
+      },
+    });
+    return {
+      serviceId,
+      slug: service.slug,
+      beforeCents: service.materialCostCents,
+      // The previous figure, unchanged. Reported for completeness, and
+      // guarded from use by the flag rather than by being zeroed.
+      afterCents: service.materialCostCents ?? 0,
+      changed: false,
+      itemCount: readiness.resolved.length + readiness.missing.length,
+      resolved: false,
+      missingKeys: readiness.missing.map((m) => m.key),
+    };
+  }
+
+  const total = readiness.totalCents;
+  const changed =
+    service.materialCostCents !== total || service.materialCostResolved === false;
+
   if (changed) {
     await db.service.update({
       where: { id: serviceId },
-      data: { materialCostCents: total },
+      data: {
+        materialCostCents: total,
+        materialCostResolved: true,
+        unresolvedMaterialKeys: [],
+      },
     });
   }
 
@@ -211,23 +252,31 @@ export async function recomputeServiceMaterialCost(
     beforeCents: service.materialCostCents,
     afterCents: total,
     changed,
-    itemCount: links.length,
+    itemCount: readiness.roles.length,
+    resolved: true,
+    missingKeys: [],
   };
 }
 
 /**
- * Recompute every service that consumes a given material.
+ * Recompute every service that consumes a given material ROLE.
+ *
+ * Scoped to one contractor: a cost is that contractor's, so only their
+ * services move. Another contractor using the same role is unaffected, which
+ * is the whole point of the split.
  *
  * This is the function a supplier sync calls after updating a cost, and the
  * reason the sync can't quietly do nothing.
  */
-export async function recomputeServicesUsingMaterial(
+export async function recomputeServicesUsingRole(
   db: Db,
-  materialId: string
+  canonicalMaterialId: string,
+  contractorId: string
 ): Promise<RecomputeResult[]> {
   const uses = await db.serviceMaterial.findMany({
-    where: { materialId },
+    where: { canonicalMaterialId, service: { contractorId } },
     select: { serviceId: true },
+    distinct: ["serviceId"],
   });
 
   const results: RecomputeResult[] = [];
@@ -315,7 +364,11 @@ export type CostProvenance = {
 };
 
 export type SetCostInput = {
-  materialId: string;
+  /**
+   * The CONTRACTOR's material — their cost for a role — not the canonical
+   * role itself. A role has no cost; only a contractor does.
+   */
+  contractorMaterialId: string;
   /** Package figures when known. Preferred — they preserve the invoice. */
   basis?: PackageBasis;
   /**
@@ -328,7 +381,8 @@ export type SetCostInput = {
 };
 
 export type SetCostResult = {
-  materialId: string;
+  contractorMaterialId: string;
+  /** The canonical role's key, for logging and admin display. */
   key: string;
   beforeCents: number;
   afterCents: number;
@@ -337,32 +391,39 @@ export type SetCostResult = {
 };
 
 /**
- * Change a material's cost, record why, and propagate.
+ * Change what ONE contractor pays for a material role, record why, and
+ * propagate.
  *
  * Every cost change should go through here — admin edit, seed, supplier sync
- * alike — so that three things always happen together: the material updates,
- * a `MaterialCostEvent` records the movement, and every service using the
- * part gets its cached total recomputed.
+ * alike — so that three things always happen together: the contractor
+ * material updates, a `MaterialCostEvent` records the movement, and every one
+ * of THAT CONTRACTOR's services using the role gets its cached total
+ * recomputed.
+ *
+ * The contractor scoping is the part that matters after the split. Elite
+ * changing what they pay for 12/2 must not move another contractor's prices,
+ * and the cascade below is filtered accordingly.
  *
  * The event log is what lets the reconciler eventually distinguish "this
  * service diverged because Lowe's raised the price of 12/2 on 14 March" from
  * "this service diverged and nobody knows why". Without it, live costs would
- * turn the health check into noise within a month. That reconciler change is
- * a separate drop; the events it will read start accumulating now.
+ * turn the health check into noise within a month.
  */
-export async function setMaterialUnitCost(
+export async function setContractorMaterialCost(
   db: Db,
   input: SetCostInput,
   provenance: CostProvenance
 ): Promise<SetCostResult> {
-  const material = await db.material.findUniqueOrThrow({
-    where: { id: input.materialId },
+  const cm = await db.contractorMaterial.findUniqueOrThrow({
+    where: { id: input.contractorMaterialId },
     select: {
       id: true,
-      key: true,
+      contractorId: true,
+      canonicalMaterialId: true,
       unitCostCents: true,
       unitCostMilliCents: true,
       costSource: true,
+      canonicalMaterial: { select: { key: true } },
     },
   });
 
@@ -383,7 +444,7 @@ export async function setMaterialUnitCost(
   } else {
     if (input.unitCostCents === undefined) {
       throw new MaterialCostError(
-        "setMaterialUnitCost needs either a package basis or a unit cost."
+        "setContractorMaterialCost needs either a package basis or a unit cost."
       );
     }
     if (!Number.isFinite(input.unitCostCents) || input.unitCostCents < 0) {
@@ -404,33 +465,35 @@ export async function setMaterialUnitCost(
     };
   }
 
-  const changed = material.unitCostCents !== derived.unitCostCents;
+  const changed = cm.unitCostCents !== derived.unitCostCents;
 
-  await db.material.update({
-    where: { id: material.id },
+  await db.contractorMaterial.update({
+    where: { id: cm.id },
     data: {
       unitCostCents: derived.unitCostCents,
       unitCostMilliCents: derived.unitCostMilliCents,
       ...packageFields,
       ...(input.confidence ? { costConfidence: input.confidence } : {}),
       costStatus: "OK",
+      costStatusNote: null,
       costUpdatedAt: new Date(),
     },
   });
 
+  // Only this contractor's services.
   const affected = changed
-    ? await recomputeServicesUsingMaterial(db, material.id)
+    ? await recomputeServicesUsingRole(db, cm.canonicalMaterialId, cm.contractorId)
     : [];
 
   if (changed) {
     await db.materialCostEvent.create({
       data: {
-        materialId: material.id,
-        oldUnitCostCents: material.unitCostCents,
+        contractorMaterialId: cm.id,
+        oldUnitCostCents: cm.unitCostCents,
         newUnitCostCents: derived.unitCostCents,
-        oldUnitCostMilliCents: material.unitCostMilliCents,
+        oldUnitCostMilliCents: cm.unitCostMilliCents,
         newUnitCostMilliCents: derived.unitCostMilliCents,
-        source: material.costSource,
+        source: cm.costSource,
         reason: provenance.reason,
         actor: provenance.actor ?? null,
         syncRunId: provenance.syncRunId ?? null,
@@ -440,9 +503,9 @@ export async function setMaterialUnitCost(
   }
 
   return {
-    materialId: material.id,
-    key: material.key,
-    beforeCents: material.unitCostCents,
+    contractorMaterialId: cm.id,
+    key: cm.canonicalMaterial.key,
+    beforeCents: cm.unitCostCents,
     afterCents: derived.unitCostCents,
     changed,
     affected,
@@ -450,21 +513,21 @@ export async function setMaterialUnitCost(
 }
 
 /**
- * Mark a material's cost as stale or errored WITHOUT changing the cost.
+ * Mark a contractor's cost stale or errored WITHOUT changing the cost.
  *
  * Requirement: an API outage or a missing product price retains the last
  * successful cost. The number a customer's price was built from does not move
  * because a request timed out — the material is flagged, the admin sees it,
  * and nothing downstream changes. Fail closed.
  */
-export async function markMaterialCostStale(
+export async function markContractorMaterialCostStale(
   db: Db,
-  materialId: string,
+  contractorMaterialId: string,
   status: "STALE" | "ERROR",
   error?: string
 ): Promise<void> {
-  await db.material.update({
-    where: { id: materialId },
+  await db.contractorMaterial.update({
+    where: { id: contractorMaterialId },
     data: { costStatus: status, costStatusNote: error ?? null },
   });
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import {
-  setMaterialUnitCost,
+  setContractorMaterialCost,
   recomputeServiceMaterialCost,
   clearLegacyMultiplierOnItemize,
   deriveUnitCost,
@@ -81,10 +81,15 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const serviceId = searchParams.get("serviceId");
 
-  const catalog = await prisma.material.findMany({
-    where: { active: true },
-    orderBy: { name: "asc" },
+  // The catalog is this contractor's costed roles, not a global material
+  // list. Two contractors filling the same role each see their own figure.
+  const contractorId = await soleContractorId();
+
+  const catalog = await prisma.contractorMaterial.findMany({
+    where: { contractorId, active: true },
+    orderBy: { canonicalMaterial: { name: "asc" } },
     include: {
+      canonicalMaterial: { select: { id: true, key: true, name: true, unit: true } },
       activeSupplierLink: {
         select: {
           id: true,
@@ -103,35 +108,84 @@ export async function GET(req: Request) {
     },
   });
 
-  if (!serviceId) return NextResponse.json({ catalog, items: [] });
+  const catalogOut = catalog.map((c) => ({
+    /** The CONTRACTOR material's id — what a cost edit targets. */
+    id: c.id,
+    canonicalMaterialId: c.canonicalMaterialId,
+    key: c.canonicalMaterial.key,
+    name: c.nameOverride ?? c.canonicalMaterial.name,
+    unit: c.canonicalMaterial.unit,
+    unitCostCents: c.unitCostCents,
+    costSource: c.costSource,
+    costConfidence: c.costConfidence,
+    costStatus: c.costStatus,
+    packagePriceCents: c.packagePriceCents,
+    packageQuantity: c.packageQuantity,
+    packageUnit: c.packageUnit,
+    activeSupplierLink: c.activeSupplierLink,
+  }));
+
+  if (!serviceId) return NextResponse.json({ catalog: catalogOut, items: [] });
 
   const items = await prisma.serviceMaterial.findMany({
     where: { serviceId },
     orderBy: { order: "asc" },
-    include: { material: true },
+    include: { canonicalMaterial: true },
   });
 
+  // A recipe line whose role this contractor hasn't costed is reported as
+  // unpriced rather than shown at zero. A dash-priced row that still sums
+  // into a total is how a job gets underquoted.
+  const costs = new Map(catalog.map((c) => [c.canonicalMaterialId, c]));
+
   return NextResponse.json({
-    catalog,
-    items: items.map((i) => ({
-      id: i.id,
-      materialId: i.materialId,
-      key: i.material.key,
-      name: i.material.name,
-      unit: i.material.unit,
-      unitCostCents: i.material.unitCostCents,
-      quantity: i.quantity,
-      lineTotalCents: Math.round(i.material.unitCostCents * i.quantity),
-      // Additive — where the cost came from and whether it can be trusted.
-      // Existing consumers can ignore these.
-      costSource: i.material.costSource,
-      costConfidence: i.material.costConfidence,
-      costStatus: i.material.costStatus,
-      packagePriceCents: i.material.packagePriceCents,
-      packageQuantity: i.material.packageQuantity,
-      packageUnit: i.material.packageUnit,
-    })),
+    catalog: catalogOut,
+    items: items.map((i) => {
+      const cost = i.canonicalMaterialId ? costs.get(i.canonicalMaterialId) : undefined;
+      return {
+        id: i.id,
+        canonicalMaterialId: i.canonicalMaterialId,
+        contractorMaterialId: cost?.id ?? null,
+        key: i.canonicalMaterial?.key ?? null,
+        name: cost?.nameOverride ?? i.canonicalMaterial?.name ?? null,
+        unit: i.canonicalMaterial?.unit ?? null,
+        quantity: i.quantity,
+        unitCostCents: cost?.unitCostCents ?? null,
+        lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null,
+        /** True when this contractor has no cost for the role. */
+        unpriced: !cost,
+        costSource: cost?.costSource ?? null,
+        costConfidence: cost?.costConfidence ?? null,
+        costStatus: cost?.costStatus ?? null,
+        packagePriceCents: cost?.packagePriceCents ?? null,
+        packageQuantity: cost?.packageQuantity ?? null,
+        packageUnit: cost?.packageUnit ?? null,
+      };
+    }),
   });
+}
+
+/**
+ * The contractor whose catalog is being edited.
+ *
+ * A deliberate, visible placeholder. There is one contractor today and the
+ * admin has no tenant context yet — so rather than scattering "find the only
+ * one" through the route, it lives here, named, and THROWS the moment that
+ * assumption stops holding. The migration audit's warning about unscoped
+ * findFirst was that it returns the wrong row silently; this one refuses.
+ *
+ * When the admin becomes tenant-aware, this is the single line that changes.
+ */
+async function soleContractorId(): Promise<string> {
+  const all = await prisma.contractor.findMany({ select: { id: true }, take: 2 });
+  if (all.length === 0) throw new Error("No contractor exists.");
+  if (all.length > 1) {
+    throw new Error(
+      "More than one contractor exists — the Materials admin needs tenant " +
+        "context before it can be used safely."
+    );
+  }
+  return all[0].id;
 }
 
 export async function POST(req: Request) {
@@ -151,16 +205,22 @@ export async function POST(req: Request) {
   try {
     // ---- add a material to a service ----------------------------------
     if (action === "add") {
-      const { serviceId, materialId, quantity } = body as {
+      const { serviceId, canonicalMaterialId, quantity } = body as {
         serviceId: string;
-        materialId: string;
+        canonicalMaterialId: string;
         quantity: number;
       };
+      if (!canonicalMaterialId) {
+        return NextResponse.json(
+          { error: "canonicalMaterialId is required — a recipe names a material role" },
+          { status: 400 }
+        );
+      }
       const count = await prisma.serviceMaterial.count({ where: { serviceId } });
       await prisma.serviceMaterial.upsert({
-        where: { serviceId_materialId: { serviceId, materialId } },
+        where: { serviceId_canonicalMaterialId: { serviceId, canonicalMaterialId } },
         update: { quantity: quantity || 1 },
-        create: { serviceId, materialId, quantity: quantity || 1, order: count },
+        create: { serviceId, canonicalMaterialId, quantity: quantity || 1, order: count },
       });
       const { totalCents } = await afterRecipeChange(serviceId);
       return NextResponse.json({ ok: true, totalCents });
@@ -198,20 +258,27 @@ export async function POST(req: Request) {
     // Does NOT touch materialMultiplier. See the note at the top of the file.
     if (action === "cost") {
       const {
-        materialId,
+        contractorMaterialId,
         unitCostCents,
         packagePriceCents,
         packageQuantity,
         packageUnit,
         confidence,
       } = body as {
-        materialId: string;
+        contractorMaterialId: string;
         unitCostCents?: number;
         packagePriceCents?: number;
         packageQuantity?: number;
         packageUnit?: string;
         confidence?: "CONFIRMED" | "ASSUMED";
       };
+
+      if (!contractorMaterialId) {
+        return NextResponse.json(
+          { error: "contractorMaterialId is required — a role has no cost, only a contractor does" },
+          { status: 400 }
+        );
+      }
 
       const hasPackage =
         typeof packagePriceCents === "number" && typeof packageQuantity === "number";
@@ -220,18 +287,28 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Cost must be zero or more" }, { status: 400 });
       }
 
-      // How many services hold this part, independent of whether the cost
-      // actually moved — preserves the existing response contract.
+      // How many of THIS contractor's services hold the role, independent of
+      // whether the cost moved — preserves the existing response contract.
+      const cm = await prisma.contractorMaterial.findUnique({
+        where: { id: contractorMaterialId },
+        select: { canonicalMaterialId: true, contractorId: true },
+      });
+      if (!cm) {
+        return NextResponse.json({ error: "Unknown material" }, { status: 404 });
+      }
       const using = await prisma.serviceMaterial.findMany({
-        where: { materialId },
+        where: {
+          canonicalMaterialId: cm.canonicalMaterialId,
+          service: { contractorId: cm.contractorId },
+        },
         select: { serviceId: true },
         distinct: ["serviceId"],
       });
 
-      const result = await setMaterialUnitCost(
+      const result = await setContractorMaterialCost(
         prisma,
         {
-          materialId,
+          contractorMaterialId,
           ...(hasPackage
             ? {
                 basis: {
@@ -249,9 +326,6 @@ export async function POST(req: Request) {
       return NextResponse.json({
         ok: true,
         affectedServices: using.length,
-        // Additive detail: what actually moved, and by how much. A cost edit
-        // that changes nothing should not look like one that repriced
-        // fourteen services.
         changed: result.changed,
         beforeCents: result.beforeCents,
         afterCents: result.afterCents,
@@ -259,6 +333,12 @@ export async function POST(req: Request) {
         movedServices: result.affected
           .filter((a) => a.changed)
           .map((a) => ({ slug: a.slug, beforeCents: a.beforeCents, afterCents: a.afterCents })),
+        // A cost edit can make a service pricable again, or reveal that
+        // another role is still missing. Worth surfacing rather than leaving
+        // the admin to guess why a service is still not live.
+        stillUnresolved: result.affected
+          .filter((a) => !a.resolved)
+          .map((a) => ({ slug: a.slug, missingKeys: a.missingKeys })),
       });
     }
 
@@ -294,8 +374,8 @@ export async function POST(req: Request) {
       const {
         key,
         name,
-        unitCostCents,
         unit,
+        unitCostCents,
         packagePriceCents,
         packageQuantity,
         packageUnit,
@@ -303,8 +383,8 @@ export async function POST(req: Request) {
       } = body as {
         key: string;
         name: string;
-        unitCostCents?: number;
         unit?: string;
+        unitCostCents?: number;
         packagePriceCents?: number;
         packageQuantity?: number;
         packageUnit?: string;
@@ -324,13 +404,42 @@ export async function POST(req: Request) {
           })
         : { unitCostCents: flat, unitCostMilliCents: flat * 1000 };
 
-      const material = await prisma.material.create({
-        data: {
+      const contractorId = await soleContractorId();
+
+      // Two rows, two layers. The ROLE is platform knowledge and may already
+      // exist — another contractor could have introduced it — so it is
+      // upserted rather than created. The COST is this contractor's alone.
+      //
+      // The key is a CANONICAL ROLE, not a product. WIRE_12_2 names the job
+      // the material does; the Southwire roll that fills it belongs on a
+      // supplier link. A key naming a brand, model or item number defeats the
+      // separation the template library rests on.
+      const canonical = await prisma.canonicalMaterial.upsert({
+        where: { key: key.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_") },
+        update: {},
+        create: {
           key: key.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_"),
           name: name.trim(),
+          unit: unit?.trim() || "each",
+        },
+      });
+
+      const material = await prisma.contractorMaterial.upsert({
+        where: {
+          contractorId_canonicalMaterialId: {
+            contractorId,
+            canonicalMaterialId: canonical.id,
+          },
+        },
+        update: {
           unitCostCents: derived.unitCostCents,
           unitCostMilliCents: derived.unitCostMilliCents,
-          unit: unit?.trim() || "each",
+        },
+        create: {
+          contractorId,
+          canonicalMaterialId: canonical.id,
+          unitCostCents: derived.unitCostCents,
+          unitCostMilliCents: derived.unitCostMilliCents,
           ...(hasPackage
             ? {
                 packagePriceCents,
@@ -344,7 +453,7 @@ export async function POST(req: Request) {
           costUpdatedAt: new Date(),
         },
       });
-      return NextResponse.json({ ok: true, material });
+      return NextResponse.json({ ok: true, material, canonicalMaterial: canonical });
     }
 
     return NextResponse.json({ error: `Unknown action: ${String(action)}` }, { status: 400 });

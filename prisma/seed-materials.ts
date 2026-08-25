@@ -362,8 +362,48 @@ const NO_MATERIAL: { slug: string; why: string }[] = [
   },
 ];
 
+/**
+ * Elite's contractor row, created by the material-split migration.
+ *
+ * This seed writes ELITE'S catalog, so naming the contractor explicitly is
+ * honest rather than a singleton lookup. A second contractor's catalog would
+ * be a different seed, or — the intended path — a template applied at
+ * onboarding.
+ */
+const CONTRACTOR_SLUG = "elite-electric";
+
 async function main() {
+  const contractor = await prisma.contractor.findUnique({
+    where: { slug: CONTRACTOR_SLUG },
+    select: { id: true, name: true },
+  });
+  if (!contractor) {
+    console.error(
+      `No contractor "${CONTRACTOR_SLUG}". Run ` +
+        `prisma/migrate-material-split-2026-08-24.ts first.`
+    );
+    process.exit(1);
+    return;
+  }
+  console.log(`  catalog owner: ${contractor.name}\n`);
+
   for (const m of MATERIALS) {
+    // Identity and economics are written separately now.
+    //
+    // The ROLE — key, name, unit — is platform knowledge: "12/2 NM-B cable,
+    // per foot" is true for every electrical contractor and is what a service
+    // template means when it asks for WIRE_12_2. The COST is Elite's, and
+    // another contractor filling the same role will have a different one.
+    //
+    // Writing both from one seed is a transitional convenience. Once the
+    // template library exists, canonical roles arrive with the template and
+    // only the costs are the contractor's to enter.
+    const canonical = await prisma.canonicalMaterial.upsert({
+      where: { key: m.key },
+      update: { name: m.name, unit: m.unit, notes: m.notes ?? null },
+      create: { key: m.key, name: m.name, unit: m.unit, notes: m.notes ?? null },
+    });
+
     // Whether a figure is quoted or assumed has lived in a notes string,
     // which means it can only be found by reading the file. It's a column
     // now, so the reconciler can say a price rests on a guess and the admin
@@ -371,19 +411,24 @@ async function main() {
     // one source: a notes field starting with ASSUMED.
     const costConfidence = m.notes?.startsWith("ASSUMED") ? "ASSUMED" : "CONFIRMED";
 
-    await prisma.material.upsert({
-      where: { key: m.key },
-      update: {
-        name: m.name,
-        unitCostCents: m.unitCostCents,
-        unit: m.unit,
-        notes: m.notes ?? null,
-        costConfidence,
+    await prisma.contractorMaterial.upsert({
+      where: {
+        contractorId_canonicalMaterialId: {
+          contractorId: contractor.id,
+          canonicalMaterialId: canonical.id,
+        },
       },
-      create: { ...m, costConfidence },
+      update: { unitCostCents: m.unitCostCents, costConfidence, notes: m.notes ?? null },
+      create: {
+        contractorId: contractor.id,
+        canonicalMaterialId: canonical.id,
+        unitCostCents: m.unitCostCents,
+        costConfidence,
+        notes: m.notes ?? null,
+      },
     });
   }
-  console.log(`  ✓ ${MATERIALS.length} materials in the catalog`);
+  console.log(`  ✓ ${MATERIALS.length} material roles, priced for ${contractor.name}`);
 
   const assumed = MATERIALS.filter((m) => m.notes?.startsWith("ASSUMED"));
   if (assumed.length) {
@@ -408,9 +453,17 @@ async function main() {
     await prisma.serviceMaterial.deleteMany({ where: { serviceId: service.id } });
 
     for (const [i, [key, qty]] of a.items.entries()) {
-      const material = await prisma.material.findUniqueOrThrow({ where: { key } });
+      // The recipe names the ROLE. That is what makes it portable: the same
+      // line means the same thing for a contractor who pays something else
+      // entirely for the part.
+      const canonical = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key } });
       await prisma.serviceMaterial.create({
-        data: { serviceId: service.id, materialId: material.id, quantity: qty, order: i },
+        data: {
+          serviceId: service.id,
+          canonicalMaterialId: canonical.id,
+          quantity: qty,
+          order: i,
+        },
       });
     }
 

@@ -521,8 +521,12 @@ enum SupplierSyncStatus {
 /// catalog into a mirror of somebody else's inventory.
 model MaterialSupplierLink {
   id         String   @id @default(cuid())
-  materialId String
-  material   Material @relation("MaterialSupplierLinks", fields: [materialId], references: [id], onDelete: Cascade)
+  /// DEPRECATED — replaced by contractorMaterialId below. Widened to optional
+  /// so a supplier link can be created against the contractor material alone.
+  /// Nothing creates one yet; making this optional now means the Lowe's
+  /// adapter doesn't hit the same required-FK failure MaterialCostEvent did.
+  materialId String?
+  material   Material? @relation("MaterialSupplierLinks", fields: [materialId], references: [id], onDelete: Cascade)
 
   supplier            MaterialSupplier
   /// The supplier's own product/item identifier.
@@ -605,8 +609,12 @@ model MaterialCostEvent {
   id         String   @id @default(cuid())
   /// DEPRECATED — replaced by contractorMaterialId. A cost movement is always
   /// one contractor's, never the platform's.
-  materialId String
-  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  ///
+  /// Widened to optional so new events can be written against the contractor
+  /// material alone. Existing rows keep their value until the contract phase
+  /// drops the column; nothing reads it any more.
+  materialId String?
+  material   Material? @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   contractorMaterialId String?
   contractorMaterial   ContractorMaterial? @relation("ContractorMaterialCostEvents", fields: [contractorMaterialId], references: [id], onDelete: Cascade)
@@ -677,10 +685,13 @@ model ServiceMaterial {
   id         String   @id @default(cuid())
   serviceId  String
   service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  /// DEPRECATED — replaced by canonicalMaterialId below. Both exist during
-  /// the expand phase; this one is removed once every read path has moved.
-  materialId String
-  material   Material @relation(fields: [materialId], references: [id])
+  /// DEPRECATED — replaced by canonicalMaterialId below.
+  ///
+  /// Widened to optional so new recipe lines can be written against the role
+  /// alone. Existing rows keep their value until the contract phase drops the
+  /// column; nothing reads it any more.
+  materialId String?
+  material   Material? @relation(fields: [materialId], references: [id])
 
   /// What the recipe actually means: this service needs this ROLE.
   ///
@@ -698,7 +709,13 @@ model ServiceMaterial {
   quantity   Float    @default(1)
   order      Int      @default(0)
 
+  /// Retained while materialId still exists. Postgres treats NULLs as
+  /// distinct, so this stops constraining new canonical-only rows on its own
+  /// — which is why the constraint below now carries the guarantee.
   @@unique([serviceId, materialId])
+  /// One line per role per service. This is the real constraint now: a recipe
+  /// cannot name the same material role twice, which would double-count it.
+  @@unique([serviceId, canonicalMaterialId])
   @@index([canonicalMaterialId])
   @@map("service_materials")
 }

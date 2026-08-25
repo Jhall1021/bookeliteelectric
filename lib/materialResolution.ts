@@ -137,12 +137,17 @@ export async function contractorCostsFor(
     select: { id: true, canonicalMaterialId: true, unitCostCents: true },
   });
 
-  return new Map(
-    rows.map((r) => [
-      r.canonicalMaterialId,
-      { unitCostCents: r.unitCostCents, contractorMaterialId: r.id },
-    ])
-  );
+  // Built with a loop rather than rows.map(). Inference through the Prisma
+  // client is exactly where an implicit-any slips past a local typecheck and
+  // fails the real build — which is how an unused spike broke the deploy.
+  const out = new Map<string, { unitCostCents: number; contractorMaterialId: string }>();
+  for (const r of rows) {
+    out.set(r.canonicalMaterialId, {
+      unitCostCents: r.unitCostCents,
+      contractorMaterialId: r.id,
+    });
+  }
+  return out;
 }
 
 /**
