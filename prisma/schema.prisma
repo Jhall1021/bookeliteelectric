@@ -251,6 +251,7 @@ model Contractor {
   updatedAt DateTime @updatedAt
 
   contractorMaterials ContractorMaterial[]
+  services            Service[]
 
   @@map("contractors")
 }
@@ -924,6 +925,26 @@ model Service {
   // these — that would assert the old numbers are measured, which they aren't.
   primaryLaborUnits   Float?
   addOnLaborUnits     Float?
+  /// Which contractor's catalog this service belongs to.
+  ///
+  /// Services are per-contractor: Elite's catalog is Elite's, and the
+  /// platform template library will be a separate concept rather than a
+  /// shared pool of live services.
+  ///
+  /// Added so the material cost recompute can derive the owner from the
+  /// service instead of being told. Without it, all three callers — both
+  /// seeds and the Materials API — would each have to work out "which
+  /// contractor" for themselves, and with one contractor in the database
+  /// that inevitably means "look up the only one". That is the singleton
+  /// pattern the migration audit flagged: it does not fail when a second
+  /// contractor appears, it silently returns the wrong one.
+  ///
+  /// Nullable for the expand phase only. Becomes required once backfilled
+  /// and once the recompute reads it — a service with no owner cannot have
+  /// its material costs resolved, and must fail closed rather than guess.
+  contractorId        String?
+  contractor          Contractor? @relation(fields: [contractorId], references: [id], onDelete: Restrict)
+
   materialCostCents   Int?
 
   /// Whether every material ROLE this service requires resolves to a cost
