@@ -5,6 +5,7 @@ import {
   loadServiceForResolution,
   loadPricingSettings,
   resolveRoute,
+  contractorIdForService,
 } from "@/lib/routeResolver";
 import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
 
@@ -113,7 +114,10 @@ export async function POST(req: Request) {
 
   const isPrimary = chosen.primary.ref === NEW;
 
-  const settings = await loadPricingSettings(prisma);
+  // The service being added names its own contractor, so no ambient context
+  // is needed here. Throws for a service with no owner rather than reaching
+  // for whichever pricing settings exist.
+  const settings = await loadPricingSettings(prisma, contractorIdForService(service));
   const answers: Record<string, string> = answersSnapshot ?? {};
   const resolved = resolveRoute(service, answers, isPrimary, settings);
 
@@ -176,6 +180,16 @@ export async function POST(req: Request) {
 
       const svc = await loadServiceForResolution(prisma, li.serviceId);
       if (!svc) continue;
+      // Every line on a visit belongs to the same contractor, but the check
+      // is per-service rather than assumed — an assumption that holds today
+      // is not the same as one enforced.
+      if (contractorIdForService(svc) !== contractorIdForService(service)) {
+        console.error(
+          `[visit] ${svc.slug} and ${service.slug} belong to different ` +
+            `contractors on visit ${visit.id} — refusing to reprice.`
+        );
+        continue;
+      }
       const liAnswers = (li.answersSnapshot ?? {}) as Record<string, string>;
       const r = resolveRoute(svc, liAnswers, change.shouldBePrimary, settings);
 
@@ -367,9 +381,11 @@ export async function DELETE(req: Request) {
       // Same authority rule as POST: the price comes from replaying the
       // route, not from a constant.
       const service = await loadServiceForResolution(prisma, newAnchor.serviceId);
-      const settings = await loadPricingSettings(prisma);
+      const settings = service
+        ? await loadPricingSettings(prisma, contractorIdForService(service))
+        : null;
 
-      if (service) {
+      if (service && settings) {
         const answers = (newAnchor.answersSnapshot ?? {}) as Record<string, string>;
         const resolved = resolveRoute(service, answers, true, settings);
 

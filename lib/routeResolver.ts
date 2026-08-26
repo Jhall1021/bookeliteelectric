@@ -114,38 +114,6 @@ export function resolveRoute(
     materialCostCents: service.materialCostCents,
   });
 
-  // A required material role with no cost for this contractor.
-  //
-  //   A homeowner-facing price may never be calculated using an unresolved
-  //   required material cost. Missing required cost = no price.
-  //
-  // Checked FIRST, before the tree is walked, because it is a fact about the
-  // service rather than about the answers — and because the cached
-  // materialCostCents that startConfiguration just consumed is exactly the
-  // figure that must not be trusted while this flag is false. It is
-  // deliberately left at its previous value rather than zeroed; zeroing would
-  // be silent underpricing by another route, and this check is what prevents
-  // the stale figure reaching a customer.
-  //
-  // This cannot happen for a service whose materials all resolve, which today
-  // is all of them. It becomes reachable when a contractor holds template
-  // services before entering their own costs, and when a cost is deleted,
-  // deactivated or lost to a bad import after activation. Activation blocking
-  // catches the first; this catches the rest.
-  if (service.materialCostResolved === false) {
-    return {
-      status: "REVIEW",
-      reason: "A material this service needs has no cost recorded",
-      photoLabels: [],
-      photoSafetyNotes: [],
-      // No floor either. A floor derived from a total that is missing a
-      // material is not a floor.
-      floorPriceCents: null,
-      isPrimary,
-      config,
-    };
-  }
-
   const consumed: { key: string; value: string; label: string }[] = [];
   const photoLabels: string[] = [];
   const photoSafetyNotes: string[] = [];
@@ -345,9 +313,57 @@ export function resolveRoute(
   };
 }
 
-/** Settings, or a thrown error. A missing row must not become a default price. */
-export async function loadPricingSettings(prisma: PrismaClient): Promise<PricingSettings> {
-  const s = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
-  if (!s) throw new Error("No pricing settings — cannot price anything.");
+/**
+ * ONE contractor's pricing settings, or a thrown error.
+ *
+ * A missing row must not become a default price, and — now that there is more
+ * than one contractor — it must not become somebody else's price either.
+ * There is deliberately no fallback to Elite and no "first row" lookup. A
+ * cross-tenant pricing fallback is worse than an error, because the error
+ * stops a booking while the fallback completes one at the wrong rate.
+ *
+ * WHERE THE CONTRACTOR COMES FROM
+ *
+ * The service being priced. `loadServiceForResolution` uses `include`, so
+ * `service.contractorId` is available at every call site that resolves a
+ * route. That is a fact about the work rather than an inference: you are
+ * pricing that contractor's service, so you use that contractor's rate.
+ *
+ * No site identifier, no session, no ambient context needed for this path.
+ */
+export async function loadPricingSettings(
+  prisma: PrismaClient,
+  contractorId: string
+): Promise<PricingSettings> {
+  if (!contractorId) {
+    throw new Error("loadPricingSettings called with no contractor — cannot price anything.");
+  }
+  const s = await prisma.pricingSettings.findUnique({ where: { contractorId } });
+  if (!s) {
+    throw new Error(
+      `No pricing settings for contractor ${contractorId} — cannot price anything. ` +
+        `Onboarding must create them; they are not defaulted.`
+    );
+  }
   return s;
+}
+
+/**
+ * The contractor that owns a service, or a thrown error.
+ *
+ * Small on purpose. Every pricing path needs this and every one of them must
+ * fail the same way, rather than each inventing its own handling of a service
+ * with no owner.
+ */
+export function contractorIdForService(service: {
+  slug: string;
+  contractorId: string | null;
+}): string {
+  if (!service.contractorId) {
+    throw new Error(
+      `${service.slug} has no contractor. It cannot be priced — run ` +
+        `prisma/backfill-service-contractor-2026-08-25.ts.`
+    );
+  }
+  return service.contractorId;
 }

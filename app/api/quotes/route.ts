@@ -5,6 +5,7 @@ import {
   loadServiceForResolution,
   loadPricingSettings,
   resolveRoute,
+  contractorIdForService,
 } from "@/lib/routeResolver";
 
 /**
@@ -58,7 +59,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unknown service" }, { status: 404 });
   }
 
-  const settings = await loadPricingSettings(prisma);
+  // The contractor comes from the service being quoted. No ambient context is
+  // needed: you are quoting that contractor's work, so you use their rate.
+  // Throws rather than falling back if the service has no owner or the
+  // contractor has no pricing settings — a quote at somebody else's rate is
+  // worse than no quote.
+  const settings = await loadPricingSettings(prisma, contractorIdForService(service));
   const existingCount = await prisma.lineItem.count({
     where: { visit: { sessionId, status: "OPEN" } },
   });
