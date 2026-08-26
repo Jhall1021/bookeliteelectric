@@ -149,6 +149,15 @@ model ServiceQuery {
 /// Singleton, like PricingSettings — id is always "default".
 model BusinessHours {
   id String @id @default("default")
+  /// Which contractor this configuration belongs to.
+  ///
+  /// Nullable for the expand phase only; required once backfilled and once
+  /// the loaders read it. A configuration row with no owner must fail rather
+  /// than fall back to whichever row happens to come first — a cross-tenant
+  /// pricing fallback is worse than an error.
+  contractorId String?  @unique
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
 
   /// Days bookings may be offered. 0 = Sunday through 6 = Saturday.
   /// Also defines a "business day" for lead-time rules.
@@ -252,6 +261,11 @@ model Contractor {
 
   contractorMaterials ContractorMaterial[]
   services            Service[]
+  pricingSettings     PricingSettings?
+  businessHours       BusinessHours?
+  materialSettings    ContractorMaterialSettings?
+  jobberConnection    JobberConnection?
+  serviceAreas        ServiceArea[]
 
   @@map("contractors")
 }
@@ -652,6 +666,15 @@ model MaterialCostEvent {
 /// than one contractor — but deliberately NOT built as a tenant table now.
 model ContractorMaterialSettings {
   id String @id @default("default")
+  /// Which contractor this configuration belongs to.
+  ///
+  /// Nullable for the expand phase only; required once backfilled and once
+  /// the loaders read it. A configuration row with no owner must fail rather
+  /// than fall back to whichever row happens to come first — a cross-tenant
+  /// pricing fallback is worse than an error.
+  contractorId String?  @unique
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
 
   /// What a newly created material defaults to. Individual materials may
   /// always differ.
@@ -1465,6 +1488,16 @@ model Photo {
 
 model ServiceArea {
   id       String   @id @default(cuid())
+
+  /// Which contractor this area belongs to. NOT unique: a contractor may
+  /// reasonably define several named areas.
+  ///
+  /// The ZipCode table stays global — US ZIP codes are platform reference
+  /// data, not a contractor's. Ownership belongs on the area, never on the
+  /// reference catalog.
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
   name     String // "Monmouth County, NJ"
   zipCodes String[]
   active   Boolean  @default(true)
@@ -1516,6 +1549,15 @@ model TroubleshootingSession {
 // simplified approximation.
 model PricingSettings {
   id                       String   @id @default("default")
+  /// Which contractor this configuration belongs to.
+  ///
+  /// Nullable for the expand phase only; required once backfilled and once
+  /// the loaders read it. A configuration row with no owner must fail rather
+  /// than fall back to whichever row happens to come first — a cross-tenant
+  /// pricing fallback is worse than an error.
+  contractorId String?  @unique
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
   targetRateCents          Int // revenue per productive tech-hour
   primaryMinimumCents      Int // floor for any primary price when labor units > 0
   roundingIncrementCents   Int // round every computed price up to this increment
@@ -1532,6 +1574,15 @@ model PricingSettings {
 // it or the connection is re-authorized.
 model JobberConnection {
   id           String   @id @default("default")
+  /// Which contractor this configuration belongs to.
+  ///
+  /// Nullable for the expand phase only; required once backfilled and once
+  /// the loaders read it. A configuration row with no owner must fail rather
+  /// than fall back to whichever row happens to come first — a cross-tenant
+  /// pricing fallback is worse than an error.
+  contractorId String?  @unique
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
   accessToken  String
   refreshToken String
   expiresAt    DateTime
