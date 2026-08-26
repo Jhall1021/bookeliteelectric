@@ -39,7 +39,7 @@
  * this protects the web application only.
  */
 
-import { Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { requireTenant, CrossTenantError } from "./tenantContext";
 
 /**
@@ -274,6 +274,59 @@ export function scopeArgs(
 }
 
 /**
+ * The extension itself.
+ *
+ * Defined at module scope with `Prisma.defineExtension`, which is the shape
+ * `$extends` actually accepts. An earlier version declared the parameter as
+ * `{ $extends: (ext: unknown) => unknown }` — an invented shape. Prisma's
+ * `$extends` takes a specific extension type, and a function accepting a
+ * specific type is not assignable to one accepting `unknown`, because
+ * parameters are contravariant. That is the fourth type error this file has
+ * produced, and the fix is to stop describing Prisma's API and use it.
+ */
+export const tenantGuardExtension = Prisma.defineExtension({
+  name: "tenant-guard",
+  query: {
+    $allModels: {
+      async $allOperations({ model, operation, args, query }) {
+        // WHY THE CAST
+        //
+        // With $allModels + $allOperations, Prisma types this callback's
+        // parameters as a union across every (model, operation) pair.
+        // TypeScript calls a union of function types by intersecting their
+        // parameters, and when those object types are mutually incompatible
+        // the intersection collapses to `never` — so `query` is not callable
+        // at any arity. That is the "Type 'never' has no call signatures"
+        // error, and it is a limitation of union-of-function-types rather
+        // than a sign the call is wrong.
+        //
+        // The runtime contract is exactly `query(args)`.
+        const run = query as (a: unknown) => Promise<unknown>;
+
+        // No model means a raw or client-level call. Nothing to scope, and
+        // nothing this can protect — see the note at the top.
+        if (!model) return run(args);
+
+        if (classifyModel(model) === "platform") return run(args);
+
+        const { contractorId } = requireTenant(
+          `${model}.${operation} ran outside a contractor context`
+        );
+
+        return run(
+          scopeArgs(
+            model,
+            operation,
+            (args ?? {}) as Record<string, unknown>,
+            contractorId
+          )
+        );
+      },
+    },
+  },
+});
+
+/**
  * Wrap a client so every tenant-scoped query is filtered.
  *
  *   const guarded = withTenantGuard(new PrismaClient());
@@ -283,56 +336,6 @@ export function scopeArgs(
  * nothing opens a tenant context yet — the guard would throw on the first
  * query. Adoption is per-route, after the context exists.
  */
-export function withTenantGuard<T extends { $extends: (ext: unknown) => unknown }>(
-  client: T
-) {
-  return client.$extends(
-    Prisma.defineExtension({
-      name: "tenant-guard",
-      query: {
-        $allModels: {
-          async $allOperations({ model, operation, args, query }) {
-            // WHY THE CAST
-            //
-            // With $allModels + $allOperations, Prisma types this callback's
-            // parameters as a union across every (model, operation) pair.
-            // TypeScript calls a union of function types by intersecting
-            // their parameters, and when those object types are mutually
-            // incompatible the intersection collapses to `never` — so `query`
-            // is not callable at any arity. That is the
-            // "Type 'never' has no call signatures" error, and it is a
-            // limitation of union-of-function-types, not a sign the call is
-            // wrong.
-            //
-            // The runtime contract is exactly `query(args)`: re-run this
-            // operation with these arguments. The cast restores that and
-            // narrows nothing else.
-            //
-            // I misread this error once as an argument-count problem. It is
-            // not — one argument is correct, and was correct before.
-            const run = query as (a: unknown) => Promise<unknown>;
-
-            // No model means a raw or client-level call. Nothing to scope,
-            // and nothing this can protect — see the note at the top.
-            if (!model) return run(args);
-
-            if (classifyModel(model) === "platform") return run(args);
-
-            const { contractorId } = requireTenant(
-              `${model}.${operation} ran outside a contractor context`
-            );
-
-            return run(
-              scopeArgs(
-                model,
-                operation,
-                (args ?? {}) as Record<string, unknown>,
-                contractorId
-              )
-            );
-          },
-        },
-      },
-    })
-  );
+export function withTenantGuard(client: PrismaClient) {
+  return client.$extends(tenantGuardExtension);
 }
