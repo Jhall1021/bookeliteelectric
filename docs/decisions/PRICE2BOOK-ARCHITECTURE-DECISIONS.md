@@ -1204,3 +1204,52 @@ hand-written migration checklist does — ADR-007a's rule applied to its own too
 
 **Deliberately turning the gate red is a legitimate migration step.** The red is the
 inventory.
+
+---
+
+## ADR-012 — Contractor #2 is a release candidate, not a pilot — OWNER DECISION, 27 August
+
+**Status:** settled by the owner. Supersedes the weaker "not until pass three completes"
+phrasing in the pass-three audit.
+
+Contractor #2 will **not** be onboarded as an early development pilot.
+
+Price2Book reaches a **V1 release-candidate state first**, with **Elite as the internal
+proving tenant**. Contractor #2 is then the **first external release-candidate
+onboarding**, and validates the near-final:
+
+- onboarding flow
+- electrical template
+- contractor admin
+- integrations
+- homeowner experience
+
+### What this changes
+
+**Nothing about how the architecture is built.** Multi-tenancy continues to be built
+correctly and completely — guarded access, derived ownership, the sweeps, the two-contractor
+harness. The dummy contractor stays as the adversarial fixture it already is.
+
+**What it changes is what counts as urgent.** Do not optimise the current architecture for
+getting Contractor #2 live early, and do not treat "Contractor #2 could sign up" as a
+deadline that justifies a shortcut. Their onboarding is postponed until the V1
+release-candidate checklist is satisfied.
+
+### Why this is worth writing down
+
+The earlier framing made Contractor #2 a near-term event, and a near-term event exerts
+pressure on design: it invites the cheapest thing that would let a second tenant exist,
+rather than the correct thing. Several pass-two and pass-three defects were exactly that
+shape — a global unique, a singleton `id: "default"`, a session cookie treated as an
+identity — each one adequate for one contractor and wrong for two.
+
+Removing the deadline removes the pressure without removing the requirement. The work is
+still the work; it simply gets finished before anyone external depends on it.
+
+### The practical rule
+
+> Build every tenant boundary as though Contractor #2 arrives tomorrow.
+> Schedule as though they arrive after V1.
+
+Elite being the only live tenant is a fact about the data, never a permission the code may
+rely on — the migration-provenance rule in ADR-011 stays exactly as written.
