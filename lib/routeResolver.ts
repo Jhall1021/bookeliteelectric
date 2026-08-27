@@ -28,6 +28,11 @@
 
 import type { PrismaClient } from "@prisma/client";
 import {
+  loadOwnComponents,
+  canonicalComponentIdsIn,
+  type OwnComponentMap,
+} from "./contractorComponents";
+import {
   startConfiguration,
   applyBranch,
   customerPrice,
@@ -73,17 +78,27 @@ export type ResolvedRoute =
 /**
  * Everything the resolver needs, loaded once.
  *
- * TWO QUERIES, DELIBERATELY.
+ * THREE QUERIES, DELIBERATELY.
  *
- * Components are now a canonical role plus one contractor's economics, so the
- * nested include has to be filtered by contractor. The contractor is a
- * property of the service, which means it has to be known before the main
- * query runs.
+ *   1. the service's owning contractor
+ *   2. the tree, rooted at Service — tenant-owned, so the guard scopes it and
+ *      everything reachable below it is constrained by foreign key
+ *   3. that contractor's component economics, rooted at ContractorComponent —
+ *      tenant-owned, so the guard scopes that too
  *
- * The alternative — load every contractor's economics for each component and
- * filter in memory — would work today with one contractor and would pull
- * other contractors' pricing into the process. A tenant boundary that holds
- * only because the data was discarded after loading is not one.
+ * Query 3 used to be a nested include hanging off CanonicalComponent, with a
+ * hand-written contractor filter on it. It was correct, but only by diligence:
+ * CanonicalComponent is a PLATFORM model, the guard waves it through, and
+ * Prisma extensions do not fire on nested reads — so deleting that one `where`
+ * would have exposed every contractor's economics with nothing failing. The
+ * live harness demonstrated exactly that read.
+ *
+ * The rule this now follows: tenant-owned data is loaded from a tenant-owned
+ * TOP-LEVEL query. See lib/contractorComponents.ts.
+ *
+ * Loading every contractor's economics and filtering in memory was never an
+ * option either — a tenant boundary that holds only because the data was
+ * discarded after loading is not one.
  */
 export async function loadServiceForResolution(prisma: PrismaClient, serviceId: string) {
   const owner = await prisma.service.findUnique({
@@ -98,7 +113,7 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
     );
   }
 
-  return prisma.service.findUnique({
+  const service = await prisma.service.findUnique({
     where: { id: serviceId },
     include: {
       questions: {
@@ -107,19 +122,10 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
           options: {
             orderBy: { order: "asc" },
             include: {
-              components: {
-                include: {
-                  canonicalComponent: {
-                    include: {
-                      // At most one row: unique on (contractorId, canonical).
-                      // Empty means this contractor has never priced it.
-                      contractorComponents: {
-                        where: { contractorId: owner.contractorId },
-                      },
-                    },
-                  },
-                },
-              },
+              // Canonical roles only — platform data under a tenant-owned
+              // root, which is safe. The contractor's figures arrive
+              // separately, from their own tenant-rooted query.
+              components: { include: { canonicalComponent: true } },
               photoGroups: { include: { photoGroup: true } },
               conditionalDisclaimers: { include: { disclaimer: true } },
             },
@@ -128,6 +134,15 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
       },
     },
   });
+  if (!service) return null;
+
+  const ownComponents = await loadOwnComponents(
+    prisma,
+    owner.contractorId,
+    canonicalComponentIdsIn(service)
+  );
+
+  return { ...service, ownComponents };
 }
 
 type LoadedService = NonNullable<Awaited<ReturnType<typeof loadServiceForResolution>>>;
@@ -243,8 +258,8 @@ export function resolveRoute(
             );
           }
 
-          // At most one row, and possibly none.
-          const own = canonical.contractorComponents[0];
+          // Possibly none: a role this contractor has never priced.
+          const own = service.ownComponents.get(canonical.id);
 
           return {
             quantity: c.quantity,

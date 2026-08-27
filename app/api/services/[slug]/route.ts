@@ -1,17 +1,28 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ServiceFlowDTO } from "@/lib/flow-types";
+import {
+  loadOwnComponents,
+  canonicalComponentIdsIn,
+} from "@/lib/contractorComponents";
 
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
 // GuidedFlowEngine walks it client-side.
 export async function GET(_req: Request, { params }: { params: { slug: string } }) {
-  // The contractor first, so the component include can be filtered by it.
+  // The contractor first, so their economics can be loaded from their own
+  // tenant-rooted query.
   //
-  // Components are now a canonical role plus one contractor's economics.
-  // Loading every contractor's figures and picking one afterwards would put
-  // other contractors' pricing into a PUBLIC response — the worst place for
-  // it. Two queries instead.
+  // Components are a canonical role plus one contractor's economics. Loading
+  // every contractor's figures and picking one afterwards would put other
+  // contractors' pricing into a PUBLIC response — the worst place for it.
+  //
+  // This used to nest `contractorComponents` under `canonicalComponent` with a
+  // hand-written contractor filter. CanonicalComponent is a PLATFORM model and
+  // Prisma extensions do not fire on nested reads, so that filter was the only
+  // thing standing between this public endpoint and every contractor's
+  // component pricing. It is now a separate query rooted at the tenant-owned
+  // model, where the guard can see it — see lib/contractorComponents.ts.
   //
   // NOTE: this still resolves by slug alone, which works only while
   // Service.slug is globally unique. Two contractors both wanting
@@ -42,19 +53,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
               // Components come down with the tree so the engine can
               // accumulate a configuration client-side without a round trip
               // per answer.
-              components: {
-                include: {
-                  canonicalComponent: {
-                    include: {
-                      // At most one row. Empty means this contractor has
-                      // never priced the component.
-                      contractorComponents: {
-                        where: { contractorId: owner.contractorId },
-                      },
-                    },
-                  },
-                },
-              },
+              // Canonical roles only. Platform data beneath a tenant-owned
+              // root is safe; the contractor's figures come separately.
+              components: { include: { canonicalComponent: true } },
               photoGroups: {
                 orderBy: { order: "asc" },
                 include: { photoGroup: true },
@@ -73,6 +74,15 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   if (!service) {
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
+
+  // Tenant-rooted: ContractorComponent -> its canonical role, not the other
+  // way round. A role missing from this map is one this contractor has never
+  // priced, which fails closed below rather than defaulting to zero.
+  const ownComponents = await loadOwnComponents(
+    prisma,
+    owner.contractorId,
+    canonicalComponentIdsIn(service)
+  );
 
   const dto: ServiceFlowDTO = {
     id: service.id,
@@ -152,7 +162,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
           // cannot complete on a broken tree either way.
           if (!canonical) return [];
 
-          const own = canonical.contractorComponents[0];
+          const own = ownComponents.get(canonical.id);
 
           return [
             {
