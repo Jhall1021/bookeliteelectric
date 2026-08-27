@@ -564,6 +564,50 @@ later contract phase. Otherwise contractor #2 cannot record a query at all.
   dummy **with different match results**
 - prove neither context sees or increments the other's row
 
+### The ordering constraint is enforced, not documented
+
+`scripts/audit-tenant-migration-order.ts`, in `npm run verify` and therefore in
+the build gate. Read-only, reads code state rather than production data, and
+asserts exactly one invariant:
+
+> If `Service.slug` stops being globally unique, `ServiceQuery` must already be
+> re-keyed on `(contractorId, normalizedText)`.
+
+This one earns a gate where a documented ordering rule normally would not.
+Every other failure this week was loud once it happened — a build error, a
+throw, a red check. This one is silent: wrong order, green build, plausible
+answer, wrong contractor's suggestion.
+
+Four things it deliberately gets right:
+
+- **The trigger is loss of a global uniqueness guarantee**, not the appearance
+  of a compound key. Dropping `@unique` from `Service.slug` entirely as an
+  intermediate step removes the protection just as thoroughly and would sail
+  past a check looking only for `@@unique([contractorId, slug])`.
+- **"Re-keyed" means all three conditions**: a REQUIRED `contractorId`, the
+  compound unique present, AND the global unique on `normalizedText` gone.
+  Adding the compound key while the global one survives leaves the cache
+  globally keyed — the dependency is not met, and a naive check would go quiet
+  at exactly the wrong moment.
+- **It parses the schema with comments stripped first.** A comment describing
+  the intended shape is the same category as an audit that reports without
+  failing, and must not be able to satisfy it.
+- **It fails on unreadable input** — missing file, unparseable schema, absent
+  model, absent field. A guard that passes silently when its input is
+  unreadable is the monitoring problem one level down.
+
+**It proves the schema shape and nothing else,** and says so on success. A
+correctly-keyed table read without a tenant filter still leaks; no schema check
+can see that. The read, write and feedback paths are covered by
+`scripts/audit-platform-tenant-relations.ts` and the live harness. A green run
+here must never be read as "ADR-008 is done".
+
+Verified against eight fixtures rather than assumed: slug unique dropped
+entirely (fails), slug made compound (fails), compound key added with the
+global one kept (fails), `contractorId` optional (fails), fully re-keyed
+(passes), comments claiming the correct shape while the schema is unchanged
+(fails), `ServiceQuery` model removed (fails), schema file missing (fails).
+
 ### Recorded where it will be read
 
 The ADR is not the place someone reaching pass four will look first. Following
