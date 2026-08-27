@@ -210,7 +210,7 @@ export async function POST(req: Request) {
   // confirmation email run after it commits, because a transaction held open
   // across a network call holds database locks for as long as a third party
   // takes to answer.
-  const { customer, arrivalWindow, booking } = await prisma.$transaction(async (tx) => {
+  const writeCheckout = () => prisma.$transaction(async (tx) => {
     const customer = await tx.customer.create({
       data: { contractorId: site.contractorId, name, email, phone },
     });
@@ -265,6 +265,40 @@ export async function POST(req: Request) {
 
     return { customer, arrivalWindow, booking };
   });
+
+  // ARRIVAL WINDOW CONFLICT — retry the whole transaction once.
+  //
+  // The find-or-create above races: two concurrent checkouts for the same slot
+  // can both miss and both insert. Contract adds
+  // @@unique([date, startTime, endTime, serviceAreaId]) to close it — but a
+  // constraint on its own does not fix a race. It converts "both silently
+  // succeed, capacity split across two rows" into "one succeeds, one throws",
+  // and something has to turn the throw into correct behaviour. That is this.
+  //
+  // Retrying the WHOLE transaction rather than catching inside it is not a
+  // stylistic choice: in Postgres an error aborts the enclosing transaction,
+  // so a catch-and-re-read within the same tx would run against a dead
+  // transaction. On the retry the loser's find-or-create finds the window the
+  // winner just committed, and proceeds normally.
+  //
+  // WORKS AGAINST BOTH SCHEMA SHAPES. Before contract there is no constraint,
+  // so P2002 never fires and this is dead code. After contract it is the thing
+  // that keeps checkout correct. That is what lets this deploy ahead of the
+  // schema change rather than with it.
+  const isUniqueViolation = (e: unknown) =>
+    typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
+
+  let customer, arrivalWindow, booking;
+  try {
+    ({ customer, arrivalWindow, booking } = await writeCheckout());
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    console.warn(
+      `[checkout] arrival-window conflict for ${date} ${windowStart}-${windowEnd}; ` +
+        `another checkout created the slot first — retrying once.`
+    );
+    ({ customer, arrivalWindow, booking } = await writeCheckout());
+  }
 
   // Jobber push and confirmation email now run CONCURRENTLY, not one
   // after the other — previously email sat behind the entire Jobber push

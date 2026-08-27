@@ -89,9 +89,14 @@ const CHECKS: Check[] = [
           JOIN visits v ON v.id = li."visitId"
           WHERE p."lineItemId" IS NOT NULL
             AND v."contractorId" IS DISTINCT FROM p."contractorId"` },
-  { group: "AGREEMENT", label: "Photo attached to no parent at all",
+  // Deliberately does NOT mention bookingId. That column is dead — zero rows,
+  // zero code references — and contract drops it. Naming it here would make
+  // this verifier fail the moment the column disappears, which would mean the
+  // check that proves the contract release worked is itself broken by it.
+  // Works identically against the expanded and contracted shapes.
+  { group: "AGREEMENT", label: "Photo attached to neither a Quote nor a LineItem",
     sql: `SELECT id FROM photos
-          WHERE "quoteId" IS NULL AND "lineItemId" IS NULL AND "bookingId" IS NULL` },
+          WHERE "quoteId" IS NULL AND "lineItemId" IS NULL` },
 
   { group: "AGREEMENT", label: "ArrivalWindow.serviceArea missing",
     sql: `SELECT aw.id FROM arrival_windows aw

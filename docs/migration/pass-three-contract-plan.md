@@ -1,6 +1,11 @@
 # Pass three — contract release plan
 
-**Status:** plan only. Nothing here has been executed.
+**Status:** plan approved; rehearsed. Nothing destructive has been executed.
+
+**Rehearsed 27 August:** `npm run contract:rehearse` runs the exact DDL below against
+real production data inside a transaction that rolls back, and proves every new constraint
+actually rejects what it must. 31 checks passed. Postgres DDL is transactional, so nothing
+survived; the rollback is asserted, not assumed.
 **Prerequisite met:** the read/write switch is merged and live in production (`b92300f`),
 smoke-tested, with verify 15, live harness 144, booking-tenancy 17 and reconcile 0-differing
 all green against the production database afterwards.
@@ -64,14 +69,38 @@ data is already clean for every one, and leaving six half-migrated is precisely 
 
 Drop the global `jobberUserId @unique`; keep `@@unique([contractorId, jobberUserId])`.
 
+> **Corrected 27 August.** An earlier version of this plan said the compound unique
+> "already exists in the database". It did not. The expand step's schema edit silently
+> no-oped on every `@@index` and `@@unique` line, so none of them entered
+> `schema.prisma`, and `db push` reported "already in sync" — truthfully, because the
+> schema it was syncing did not contain them. Twelve indexes were missing across the
+> tenant models, including this constraint and any index at all on `Service`,
+> `ServiceArea`, `Visit`, `Customer`, `Photo`, `JobberCrewMember`, `Question`,
+> `AnswerOption`, `LineItem` and `Quote`.
+>
+> All twelve now exist and are verified against `pg_indexes`. `scripts/verify-tenant-indexes.ts`
+> is in the deploy gate and reads the DATABASE, not the schema file, so this cannot recur
+> silently.
+>
+> Correctness was never affected — the guard filters by owner whether or not an index
+> exists, and the isolation harness passed throughout. What was affected was performance,
+> and the truth of this plan's premise.
+
 Once `contractorId` is non-null, Prisma will finally expose the compound unique as a
 `whereUnique` selector — it refuses to today precisely because a null cannot identify a
 row. The crew sync then converts from its transitional guarded `findFirst` → scoped
 `update` / stamped `create` back to a single `upsert` keyed on the compound.
 
-**This code change ships in the contract release**, because it depends on the contracted
-schema. The transitional form is correct and can also simply stay; converting it is a
-simplification, not a requirement.
+**This code change CANNOT ship in step 2**, and that is a real consequence of code-first
+ordering. Step 2's code must run against the expanded shape too, and the compound
+`whereUnique` selector does not exist in the generated client while `contractorId` is
+nullable. So the sync keeps its transitional guarded `findFirst` → scoped `update` /
+stamped `create` through the contract release, and converts in a small follow-up
+deployment afterwards.
+
+The transitional form is correct and safe permanently; converting is a simplification, not
+a requirement. Nothing is left unprotected in the meantime — the compound unique is
+enforced by the database from now on regardless of what the client can express.
 
 ### 3c. One OPEN visit per contractor + session
 
@@ -140,19 +169,29 @@ deployment whose failure modes are impossible to reason about separately.
 Per ADR-004 and the rule that came out of ADR-008, the destructive schema change and the
 code that depends on it ship as **one event**, in this order:
 
-1. **Re-measure** every precondition in §1. Any non-zero aborts the release.
-2. **Merge the code** that depends on the contracted schema (crew-sync upsert,
-   ArrivalWindow conflict retry) — held, not deployed.
-3. **`prisma db push`** the contracted schema.
-4. **Create the partial index** (§3c) and **assert both it and the ArrivalWindow
-   constraint exist.**
-5. **Deploy** the held code.
+0. **Rehearse** on a clone (or transactionally) — `npm run contract:rehearse`.
+1. **Re-measure** every precondition — `npm run contract:preflight`. Any non-zero aborts.
+   The preflight also reads the SOURCE, because two of the conditions are properties of
+   the deployed code rather than the database: nothing may still touch the columns being
+   dropped, and nothing may key a unique lookup on `jobberUserId` alone. A data-only
+   preflight would pass while the running application still needed what was about to
+   disappear — the exact ADR-008 failure.
+2. **Deploy the contract-compatible code.** It must run against BOTH shapes. Already
+   written and merged: the ArrivalWindow conflict retry (dead code until the constraint
+   exists), and `verify-booking-tenancy.ts` no longer naming `Photo.bookingId`.
+3. **Confirm the new code is healthy** against the still-expanded schema — smoke plus the
+   full suite.
+4. **Apply the database contract** — `prisma db push`.
+5. **Create the OPEN-visit partial index and ASSERT it**, along with the ArrivalWindow
+   constraint. Prisma cannot express a partial unique, so this is explicit raw SQL after
+   the push, never a hope that something survived it.
 6. **Verify:** `npm run verify`, live harness, booking-tenancy verifier, reconcile,
    production smoke.
 
-Steps 3–5 are the window where deployed code and schema disagree. It is unavoidable and
-should be short; nothing in this release makes previously-valid code invalid, because the
-runtime already writes every column contract is about to require.
+Code-first means the old production code is never sitting on top of a newly contracted
+database. The only window is step 4–5, where the new code briefly runs against a schema
+that has contracted but has not yet grown its partial index — and the new code does not
+depend on that index for correctness, only the database does for enforcement.
 
 ### Rollback
 

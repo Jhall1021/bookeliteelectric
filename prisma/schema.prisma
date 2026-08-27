@@ -1464,6 +1464,7 @@ model Service {
   // themselves off THIS service (see AnswerOption.referencedServiceId).
   referencedByAnswerOptions AnswerOption[] @relation("AnswerOptionReferencedService")
 
+  @@index([contractorId])
   @@map("services")
 }
 
@@ -1488,6 +1489,7 @@ model Question {
   /// Help text that only applies under a condition.
   conditionalHelp QuestionDisclaimer[]
 
+  @@index([serviceId])
   @@map("questions")
 }
 
@@ -1635,6 +1637,7 @@ model AnswerOption {
   /// first, then the loose labels.
   photoGroups AnswerOptionPhotoGroup[]
 
+  @@index([questionId])
   @@map("answer_options")
 }
 
@@ -1672,6 +1675,7 @@ model Customer {
   quotes       Quote[]
   bookings     Booking[]
 
+  @@index([contractorId])
   @@map("customers")
 }
 
@@ -1700,6 +1704,12 @@ model Visit {
   createdAt    DateTime    @default(now())
   quotes       Quote[]
 
+  // The lookup every open-visit read uses. Deliberately NOT unique: repeat
+  // customers accumulate CHECKED_OUT visits under one cookie, and live data
+  // held sessions with 7, 15 and 2. The narrower real invariant — at most one
+  // OPEN visit per contractor+session — is a contract-phase PARTIAL unique,
+  // which Prisma cannot express in a schema file.
+  @@index([contractorId, sessionId, status])
   @@map("visits")
 }
 
@@ -1756,6 +1766,7 @@ model LineItem {
   /// Set when this line is waiting on a quoted price.
   quote            Quote?
 
+  @@index([visitId])
   @@map("line_items")
 }
 
@@ -1837,6 +1848,7 @@ model Quote {
   quotedAt         DateTime?
   approvedAt       DateTime?
 
+  @@index([serviceId])
   @@map("quotes")
 }
 
@@ -1868,6 +1880,7 @@ model Photo {
   source       PhotoSource
   uploadedAt   DateTime    @default(now())
 
+  @@index([contractorId])
   @@map("photos")
 }
 
@@ -1892,6 +1905,7 @@ model ServiceArea {
   active        Boolean         @default(true)
   ArrivalWindow ArrivalWindow[]
 
+  @@index([contractorId])
   @@map("service_areas")
 }
 
@@ -1911,6 +1925,7 @@ model ArrivalWindow {
   capacityBooked Int         @default(0)
   bookings       Booking[]
 
+  @@index([serviceAreaId])
   @@map("arrival_windows")
 }
 
@@ -2008,6 +2023,13 @@ model JobberCrewMember {
   eligibleForWebsiteBookings Boolean     @default(false)
   lastSyncedAt               DateTime    @default(now())
 
+  // The identity crew sync SHOULD key on. Not usable as a whereUnique
+  // selector until contract makes contractorId non-null — Prisma will not
+  // expose a compound unique containing a nullable column — but the
+  // constraint itself is real and enforced from now on. Contract drops the
+  // global jobberUserId unique in favour of it.
+  @@unique([contractorId, jobberUserId])
+  @@index([contractorId])
   @@map("jobber_crew_members")
 }
 
