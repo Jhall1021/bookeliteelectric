@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { withContractor } from "@/lib/tenantRoute";
+import { soleContractorId } from "@/lib/categories";
 
 /**
  * The admin service editor.
@@ -40,6 +42,11 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  // GUARD-ADOPTED (ADR-007a). Took a service id from the URL with no
+  // contractor condition; the guard supplies it centrally now.
+  const contractorId = await soleContractorId(prisma, "the service admin");
+  return withContractor(contractorId, "admin-session", async (db) => {
+
   const body = await req.json();
   const { name, shortDescription, disclaimer, basePrice, whileWeThereBasePrice, startingPriceLabel, active } = body;
 
@@ -50,7 +57,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   const wantsActive = !!active;
 
   if (wantsActive) {
-    const service = await prisma.service.findUnique({
+    const service = await db.service.findUnique({
       where: { id: params.serviceId },
       select: {
         active: true,
@@ -89,7 +96,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     }
   }
 
-  await prisma.service.update({
+  await db.service.update({
     where: { id: params.serviceId },
     data: {
       name,
@@ -103,4 +110,5 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   });
 
   return NextResponse.json({ ok: true });
+  });
 }

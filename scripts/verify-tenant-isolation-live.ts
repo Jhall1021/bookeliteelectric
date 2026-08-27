@@ -1246,6 +1246,88 @@ async function main() {
     }
   });
 
+  // ---- the pricing publication path, ADR-007a batch A --------------------
+  //
+  // app/api/admin/services/[serviceId]/pricing/route.ts took a service id
+  // straight from the URL with no contractor condition, then wrote basePrice
+  // onto whatever came back. At one contractor that is harmless. At two it is
+  // a cross-tenant PUBLISHED PRICE write, which is the most serious shape in
+  // this codebase — it changes what a homeowner is charged.
+  //
+  // These assert the exact operations that route performs, through the guarded
+  // client, in both directions.
+  console.log(`\nPRICING PUBLICATION — cross-tenant write refused\n`);
+
+  const eliteService = await raw.service.findFirstOrThrow({
+    where: { contractorId: elite.id },
+    select: { id: true, slug: true, basePrice: true },
+  });
+
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    {
+      const r = await attempt(() =>
+        guarded.service.findUnique({ where: { id: eliteService.id } })
+      );
+      ok(
+        r.error === undefined && r.value === null,
+        "the dummy cannot READ Elite's service by id — the route would 404",
+        r.error?.message ?? "LEAKED"
+      );
+    }
+    {
+      // The publish write itself.
+      const r = await attempt(() =>
+        guarded.service.update({
+          where: { id: eliteService.id },
+          data: { basePrice: 1 },
+        })
+      );
+      ok(
+        r.error !== undefined || r.value === null,
+        "and cannot PUBLISH a price onto it",
+        r.value ? "IT WROTE A PRICE — LEAK" : r.error?.name
+      );
+    }
+    {
+      // It must still be able to price its own.
+      const r = await attempt(() =>
+        guarded.service.update({
+          where: { id: dummyService.id },
+          data: { startingPriceLabel: "From $1" },
+        })
+      );
+      ok(
+        (r.value as { startingPriceLabel: string | null } | null)?.startingPriceLabel ===
+          "From $1",
+        "while it CAN update its own service",
+        r.error?.message
+      );
+    }
+    {
+      const r = await attempt(() =>
+        guarded.service.findUnique({ where: { id: "svc_does_not_exist" } })
+      );
+      ok(
+        r.error === undefined && r.value === null,
+        "a nonexistent id behaves the same as a foreign one — 404 either way",
+        r.error?.message
+      );
+    }
+  });
+
+  // Elite's published price must be exactly what it was.
+  {
+    const after = await raw.service.findUniqueOrThrow({
+      where: { id: eliteService.id },
+      select: { basePrice: true },
+    });
+    ok(
+      after.basePrice === eliteService.basePrice,
+      `Elite's published price is untouched (${eliteService.basePrice})`,
+      `became ${after.basePrice}`
+    );
+  }
+
   // ---- Elite untouched ---------------------------------------------------
   console.log(`\nELITE'S DATA\n`);
   const after = {

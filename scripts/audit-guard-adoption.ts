@@ -64,6 +64,16 @@ const ADOPTED_FILES: string[] = [
   // for every caller at once.
   "lib/materialCost.ts",
   "lib/materialResolution.ts",
+  // Batch A — admin routes that took a Service identifier from the request
+  // with no contractor condition at all. Pre-existing cross-tenant gaps, not
+  // adoption debt.
+  "app/api/admin/services/[serviceId]/pricing/route.ts",
+  "app/api/admin/services/[serviceId]/route.ts",
+  "app/api/admin/services/route.ts",
+  "app/api/admin/pricing-settings/recalculate/route.ts",
+  "app/api/admin/reorder/route.ts",
+  "app/admin/(protected)/services/[serviceId]/page.tsx",
+  "app/admin/(protected)/pricing-settings/page.tsx",
 ];
 
 /**

@@ -30,6 +30,13 @@ const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"
  * whether or not its number happens to be right.
  */
 const APPROVED_PUBLISHERS: Record<string, string> = {
+  "scripts/verify-tenant-isolation-live.ts":
+    "ATTEMPTS a basePrice write and proves it is REFUSED. The admin pricing " +
+    "route publishes prices by service id, and until 27 Aug did so with no " +
+    "contractor condition; proving that path is closed means performing the " +
+    "exact operation. The attempt runs inside a throwaway contractor's " +
+    "context against Elite's service, can only fail, and Elite's published " +
+    "price is asserted unchanged immediately afterwards.",
   "prisma/seed.ts": "Bootstrap. Establishes the original catalog.",
   "prisma/seed-pricing-settings.ts": "Settings only, no service prices.",
   "prisma/reconcile-scope-services.ts":

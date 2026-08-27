@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { suggestPrimaryPrice, suggestWwtPrice } from "@/lib/pricing";
+import { withContractor } from "@/lib/tenantRoute";
+import { soleContractorId } from "@/lib/categories";
 
 /**
  * Pricing composition for one service.
@@ -28,7 +30,19 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
 
-  const service = await prisma.service.findUnique({ where: { id: params.serviceId } });
+  // GUARD-ADOPTED (ADR-007a). This route PUBLISHES a customer-facing price,
+  // and until now took a service id straight from the URL with no contractor
+  // condition at all — so it would have published a price onto another
+  // contractor's service on request. Moot at one contractor; a cross-tenant
+  // price write at two.
+  //
+  // No hand-written ownership check: the guard enforces the same invariant
+  // centrally, and the 404 below now covers "not yours" as well as "not
+  // there". A cross-tenant probe should not be able to tell the difference.
+  const contractorId = await soleContractorId(prisma, "the pricing admin");
+
+  return withContractor(contractorId, "admin-session", async (db) => {
+  const service = await db.service.findUnique({ where: { id: params.serviceId } });
   if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
 
   const action = body.action === "publish" ? "publish" : "save";
@@ -102,7 +116,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   }
 
   try {
-    await prisma.service.update({ where: { id: params.serviceId }, data });
+    await db.service.update({ where: { id: params.serviceId }, data });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown database error";
     console.error("[pricing PATCH]", params.serviceId, err);
@@ -110,4 +124,5 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   }
 
   return NextResponse.json({ ok: true, action });
+  });
 }
