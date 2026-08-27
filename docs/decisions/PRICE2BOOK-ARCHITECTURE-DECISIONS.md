@@ -440,6 +440,15 @@ That is not theoretical. From a throwaway contractor's context the harness read
 5 of Elite's contractor components through a platform root, with the model in
 question correctly classified the whole time.
 
+**The list is not authoritative in EITHER direction.** It can miss unsafe work,
+and it can also claim finished work is outstanding. On 27 August five
+configuration models — `PricingSettings`, `BusinessHours`,
+`ContractorMaterialSettings`, `JobberConnection`, `ServiceArea` — sat in
+`PENDING_TENANT_SCOPE` having carried `contractorId` since an earlier pass. The
+guard threw on a legitimate query and add-to-visit returned 500. The schema,
+the current access paths, and verification are the truth; the list is a
+reminder.
+
 There is a second reason the list overstates itself, worth stating plainly:
 `withTenantGuard` is called in exactly one place in this repository — the test
 harness. No application code uses a guarded client. So today
@@ -492,6 +501,18 @@ rather than from any accumulated work list.
 `soleContractorId` no longer appears anywhere under `app/[site]/`. It survives
 only on admin surfaces, which await per-contractor auth rather than storefront
 resolution.
+
+### §2.2 status, stated precisely
+
+- **Architecture: complete.**
+- **Exercised storefront paths: operationally proven** — see
+  `docs/migration/storefront-smoke-test-2026-08-27.md`.
+- **Full customer checkout / quote regression: pending preview verification.**
+
+Kept as three lines rather than one so neither half is overstated: the
+tenant-routing architecture is not unfinished merely because no job has been
+sent to Jobber, and the storefront is not fully regression-tested merely
+because the architecture is done.
 
 ### §2.2 implemented — the hosted storefront is tenant-addressed
 
