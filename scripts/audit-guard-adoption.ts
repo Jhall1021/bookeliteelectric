@@ -56,6 +56,7 @@ import {
  */
 const ADOPTED_FILES: string[] = [
   "app/troubleshooting/page.tsx",
+  "app/api/admin/services/[serviceId]/tree/route.ts",
 ];
 
 /**

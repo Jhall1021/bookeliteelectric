@@ -1177,6 +1177,54 @@ async function main() {
         r.value !== null,
         "and returns the new row's id, so a tree write can map temporary ids"
       );
+
+      // The second half of the tree route's write path: an AnswerOption
+      // created through its scoped Question. Question is DERIVED-owned, so
+      // this proves a nested create works beneath a derived parent, not just
+      // beneath a directly tenant-owned one.
+      const newQuestionId = r.value as string | null;
+      if (newQuestionId) {
+        const o = await attempt(() =>
+          guarded.$transaction(async (tx) =>
+            tx.question.update({
+              where: { id: newQuestionId },
+              data: {
+                options: {
+                  create: {
+                    label: "probe",
+                    value: "probe_nested",
+                    routeAction: "REMOTE_QUOTE",
+                    order: 0,
+                  },
+                },
+              },
+              select: { options: { where: { value: "probe_nested" }, select: { id: true } } },
+            })
+          )
+        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const created = (o.value as any)?.options?.[0]?.id;
+        ok(
+          typeof created === "string",
+          "a nested create through a scoped DERIVED parent (Question -> options) works",
+          o.error ? `${o.error.name}: ${o.error.message.slice(0, 140)}` : "no id returned"
+        );
+
+        // And it must have landed under the dummy, not merely have been
+        // accepted. A create that succeeded under the wrong owner would pass
+        // every check above.
+        if (typeof created === "string") {
+          const owner = await raw.answerOption.findUnique({
+            where: { id: created },
+            select: { question: { select: { service: { select: { contractorId: true } } } } },
+          });
+          ok(
+            owner?.question.service.contractorId === dummy.id,
+            "and the created row belongs to the dummy, not to Elite",
+            `owner is ${owner?.question.service.contractorId}`
+          );
+        }
+      }
     }
 
     // ---- creates refuse rather than invent an owner ---------------------
