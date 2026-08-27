@@ -2109,6 +2109,13 @@ model ContractorMembership {
 
   /// Provenance, deliberately NOT a relation. A deleted user must not cascade
   /// away the record of who granted access.
+  /// Revoking access without destroying the record.
+  ///
+  /// Deleting a membership loses who had access and when, which is exactly
+  /// what an audit needs after the fact. An inactive membership refuses at
+  /// the boundary and keeps its history.
+  active Boolean @default(true)
+
   invitedByUserId String?
 
   createdAt DateTime @default(now())
