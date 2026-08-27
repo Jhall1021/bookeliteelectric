@@ -36,6 +36,13 @@ echo " CONTRACT BRANCH REHEARSAL"
 echo " target: $(echo "$REHEARSAL_DATABASE_URL" | sed 's|^.*@||' | cut -d/ -f1)"
 echo "=============================================================="
 
+echo; echo "--- 0. the branch must actually mirror production ---"
+# A rehearsal against an empty branch does not fail, it passes vacuously:
+# db push builds every table from scratch, every contracted column is NOT NULL
+# because no row violates it, and every constraint applies because there is no
+# data. That is a confident all-clear that proves nothing. Verified first.
+npx tsx scripts/verify-rehearsal-branch.ts
+
 echo; echo "--- 1. snapshot the branch BEFORE ---"
 npx tsx scripts/db-structure.ts snapshot "$BEFORE" --rehearsal
 
