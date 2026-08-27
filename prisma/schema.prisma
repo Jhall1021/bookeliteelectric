@@ -92,6 +92,63 @@ model ContractorCategory {
   @@map("contractor_categories")
 }
 
+/// Public storefront identity, mapped to exactly one contractor — ADR §2.2.
+///
+/// THE PROBLEM THIS SOLVES
+///
+/// Every public route needs to know whose catalog it is serving, and until now
+/// none of them could. The tempting answer — take the requested service and
+/// read its contractor — is forbidden: it authorises access to a resource
+/// using that same resource, so knowing another contractor's service id would
+/// silently switch tenants. Tenant identity must come from OUTSIDE the
+/// request's target.
+///
+/// This is that outside thing. An entry point resolves to a site; the site
+/// names one contractor; the contractor opens tenant context; only then does
+/// any tenant-owned query run.
+///
+///   entry point -> site identity -> contractor context -> guarded application
+///
+/// ROUTING DATA, NOT TENANT DATA
+///
+/// Classified PLATFORM in lib/tenantGuard.ts, and it has to be: this is what
+/// ESTABLISHES tenant context, so requiring context to read it would be
+/// circular. It holds no customer data, no pricing and no catalog — only the
+/// mapping from a public identity to a contractor.
+///
+/// DELIBERATELY THIN
+///
+/// No domains, no origins, no branding, no embed configuration. Later entry
+/// points — a custom domain, an embed key — map to the same ContractorSite and
+/// everything downstream is unchanged. One site per contractor is enough for
+/// the pilot, but nothing here assumes it: the architecture must not depend on
+/// Contractor.slug being the API tenant key.
+model ContractorSite {
+  id String @id @default(cuid())
+
+  /// Opaque, stable, globally unique. What a customer-facing API request
+  /// carries to say which storefront it acts for. Opaque so it reveals nothing
+  /// about the contractor and can be rotated without renaming anything a
+  /// customer sees.
+  publicId String @unique
+
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// The hosted storefront path segment, e.g. "elite-electric" in
+  /// /elite-electric/services. Globally unique because it is a public address.
+  hostedSlug String @unique
+
+  /// A retired site stops resolving. Its contractor's data is untouched.
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contractorId])
+  @@map("contractor_sites")
+}
+
 enum BookingType {
   INSTANT // resolves to a fixed price immediately
   ADJUSTED // fixed price with defined surcharge branches
@@ -357,6 +414,7 @@ model Contractor {
   contractorComponents ContractorComponent[]
   contractorCategories ContractorCategory[]
   contractorDisclaimers ContractorDisclaimer[]
+  sites                ContractorSite[]
   memberships         ContractorMembership[]
   invitations         ContractorInvitation[]
   supportEvents       SupportAccessEvent[]

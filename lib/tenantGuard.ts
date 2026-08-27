@@ -78,6 +78,18 @@ export const PLATFORM_MODELS = new Set<string>([
   /// ContractorComponent, which is tenant-scoped.
   "CanonicalComponent",
   "ZipCode",
+  /// ADR §2.2 — public storefront identity mapped to one contractor.
+  ///
+  /// PLATFORM BY NECESSITY, not by convenience. This is what ESTABLISHES
+  /// tenant context, so requiring context to read it would be circular: a
+  /// request could never open the context it needs in order to discover which
+  /// context to open.
+  ///
+  /// Safe because it is routing data. It holds no customer data, no pricing
+  /// and no catalog — only the mapping from a public identity to a
+  /// contractorId, which is the one fact a storefront request must learn
+  /// before it is allowed to learn anything else.
+  "ContractorSite",
   /// Photo requirements are trade and SAFETY knowledge, not contractor policy
   /// — "for this electrical condition these photos are useful, and don't
   /// remove the panel dead front" is true for every electrician. The six rows

@@ -61,12 +61,23 @@ const guarded = withTenantGuard(prisma) as unknown as PrismaClient;
  * `admin-session` for admin surfaces and `site-identifier` for public ones
  * once storefront routing exists.
  */
-export function withContractor<T>(
+export async function withContractor<T>(
   contractorId: string,
   source: TenantContext["source"],
   fn: (db: PrismaClient) => Promise<T>
 ): Promise<T> {
-  return withTenant({ contractorId, source }, () => fn(guarded));
+  // AWAITED INSIDE THE SCOPE, DELIBERATELY.
+  //
+  // A Prisma promise is lazy: `db.service.findUnique(...)` builds the query
+  // and does nothing until it is awaited. Returning it from the callback
+  // unawaited let AsyncLocalStorage.run() exit first, so the query executed
+  // OUTSIDE the tenant context and threw NoTenantContextError — while looking
+  // like perfectly ordinary code at every call site.
+  //
+  // Awaiting here means the work completes inside the scope regardless of what
+  // the callback returns, so a caller cannot get this wrong by writing the
+  // natural one-line arrow function.
+  return withTenant({ contractorId, source }, async () => await fn(guarded));
 }
 
 /**

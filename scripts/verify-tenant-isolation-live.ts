@@ -36,6 +36,7 @@ import {
 import { loadOwnComponents } from "../lib/contractorComponents";
 import { categoryIcon, categoryName, categorySlug } from "../lib/categories";
 import { upsertCategory } from "../prisma/_categoryHelpers";
+import { siteByPublicId, siteByHostedSlug, withSite } from "../lib/siteRouting";
 import {
   withTenant,
   asPlatform,
@@ -117,6 +118,7 @@ async function purgeDummy(contractorId: string) {
     where: { contractorDisclaimer: { contractorId } },
   });
   await raw.contractorDisclaimer.deleteMany({ where: { contractorId } });
+  await raw.contractorSite.deleteMany({ where: { contractorId } });
   return { materials: materials.count, services: serviceIds.length };
 }
 
@@ -1326,6 +1328,107 @@ async function main() {
       `Elite's published price is untouched (${eliteService.basePrice})`,
       `became ${after.basePrice}`
     );
+  }
+
+  // ---- storefront tenant resolution, ADR §2.2 ---------------------------
+  //
+  // THE FORBIDDEN SHAPE
+  //
+  //   serviceSlug -> service -> contractor
+  //
+  // authorises access to a resource using that same resource. Knowing another
+  // contractor's service id would switch tenants, and the request would be
+  // answered correctly for the wrong contractor with nothing failing.
+  //
+  // THE REQUIRED SHAPE
+  //
+  //   siteId + serviceId
+  //
+  // identify the tenant, THEN the resource. These four cases are the whole
+  // claim: each site reaches its own catalog, and neither reaches the other's
+  // even when handed a valid id belonging to it.
+  console.log(`\nSTOREFRONT TENANT RESOLUTION — ADR §2.2\n`);
+
+  const eliteSite = await raw.contractorSite.findFirstOrThrow({
+    where: { contractorId: elite.id },
+    select: { publicId: true, hostedSlug: true },
+  });
+  const dummySite = await raw.contractorSite.create({
+    data: {
+      contractorId: dummy.id,
+      hostedSlug: DUMMY_SLUG,
+      publicId: `site_dummy_${DUMMY_SLUG}`,
+      active: true,
+    },
+    select: { publicId: true, hostedSlug: true },
+  });
+
+  const eliteResolved = await siteByPublicId(eliteSite.publicId);
+  const dummyResolved = await siteByPublicId(dummySite.publicId);
+  ok(
+    eliteResolved?.contractorId === elite.id && dummyResolved?.contractorId === dummy.id,
+    "each publicId resolves to its own contractor, and they differ",
+    `elite -> ${eliteResolved?.contractorId}, dummy -> ${dummyResolved?.contractorId}`
+  );
+  ok(
+    (await siteByHostedSlug(eliteSite.hostedSlug))?.contractorId === elite.id,
+    "the hosted slug resolves the same way"
+  );
+  ok((await siteByPublicId("site_does_not_exist")) === null, "an unknown publicId resolves to null");
+
+  // The four cases.
+  {
+    const r = await withSite(eliteResolved!, (db) =>
+      db.service.findUnique({ where: { id: eliteService.id }, select: { slug: true } })
+    );
+    ok(r?.slug === eliteService.slug, "Elite site + Elite service -> works", `got ${r?.slug}`);
+  }
+  {
+    const r = await withSite(dummyResolved!, (db) =>
+      db.service.findUnique({ where: { id: dummyService.id }, select: { slug: true } })
+    );
+    ok(r?.slug === DUMMY_SERVICE_SLUG, "Dummy site + Dummy service -> works", `got ${r?.slug}`);
+  }
+  {
+    const r = await withSite(eliteResolved!, (db) =>
+      db.service.findUnique({ where: { id: dummyService.id } })
+    );
+    ok(r === null, "Elite site + DUMMY service id -> not found", r ? "LEAKED" : "");
+  }
+  {
+    const r = await withSite(dummyResolved!, (db) =>
+      db.service.findUnique({ where: { id: eliteService.id } })
+    );
+    ok(r === null, "Dummy site + ELITE service id -> not found", r ? "LEAKED" : "");
+  }
+
+  // Knowing a foreign id must not move the boundary in EITHER direction, and
+  // must not widen a list either.
+  {
+    const n = await withSite(dummyResolved!, (db) => db.service.count());
+    const eliteCount = await raw.service.count({ where: { contractorId: elite.id } });
+    ok(
+      n < eliteCount,
+      `the dummy site sees only its own catalog (${n}, Elite has ${eliteCount})`
+    );
+  }
+
+  // An inactive site must stop resolving without touching its data.
+  {
+    await raw.contractorSite.updateMany({
+      where: { contractorId: dummy.id },
+      data: { active: false },
+    });
+    ok(
+      (await siteByPublicId(dummySite.publicId)) === null,
+      "a deactivated site stops resolving"
+    );
+    const stillThere = await raw.service.count({ where: { contractorId: dummy.id } });
+    ok(stillThere > 0, "while its contractor's data is untouched", `got ${stillThere}`);
+    await raw.contractorSite.updateMany({
+      where: { contractorId: dummy.id },
+      data: { active: true },
+    });
   }
 
   // ---- Elite untouched ---------------------------------------------------
