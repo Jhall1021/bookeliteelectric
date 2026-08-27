@@ -20,6 +20,9 @@
 import { PrismaClient } from "@prisma/client";
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { loadEnv } from "./_env";
+
+loadEnv();
 
 type Snapshot = {
   columns: Record<string, string>;   // "table.column" -> "type|nullable"

@@ -32,6 +32,9 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
+import { loadEnv } from "./_env";
+
+loadEnv();
 
 const COMMIT = process.argv.includes("--commit");
 const PROD_HOST = "ep-icy-hill-axkgrsjb";

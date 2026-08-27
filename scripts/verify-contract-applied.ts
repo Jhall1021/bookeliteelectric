@@ -10,6 +10,9 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
+import { loadEnv } from "./_env";
+
+loadEnv();
 
 const useRehearsal = process.argv.includes("--rehearsal");
 const url = useRehearsal ? process.env.REHEARSAL_DATABASE_URL : process.env.DATABASE_URL;

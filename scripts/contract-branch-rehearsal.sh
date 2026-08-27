@@ -11,6 +11,14 @@
 set -euo pipefail
 
 PROD_HOST="ep-icy-hill-axkgrsjb"
+
+# Load .env so REHEARSAL_DATABASE_URL can live there rather than being
+# exported by hand. A var in .env is NOT visible to `npx tsx` otherwise —
+# verified with a probe, not assumed. An already-set value still wins.
+if [ -z "${REHEARSAL_DATABASE_URL:-}" ] && [ -f .env ]; then
+  set -a; . ./.env; set +a
+fi
+
 : "${REHEARSAL_DATABASE_URL:?REHEARSAL_DATABASE_URL is not set — see docs/migration/pass-three-contract-plan.md}"
 case "$REHEARSAL_DATABASE_URL" in
   *"$PROD_HOST"*) echo "REFUSING: REHEARSAL_DATABASE_URL points at the production host."; exit 1;;
