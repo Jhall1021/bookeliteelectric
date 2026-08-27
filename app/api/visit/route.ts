@@ -8,6 +8,7 @@ import {
   contractorIdForService,
 } from "@/lib/routeResolver";
 import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
+import { categorySlug, requireContractorCategory } from "@/lib/categories";
 
 // POST body: { serviceId, computedPriceCents, isPrimary, answersSnapshot,
 //              photos?: { url, label }[] }
@@ -451,7 +452,7 @@ export async function GET() {
               name: true,
               slug: true,
               whileWeThereBasePrice: true,
-              category: { select: { slug: true } },
+              contractorCategory: { select: { canonicalCategory: { select: { slug: true } } } },
               _count: { select: { questions: true } },
             },
           },
@@ -503,7 +504,9 @@ export async function GET() {
         serviceId: li.service.id,
         serviceName: li.service.name,
         serviceSlug: li.service.slug,
-        categorySlug: li.service.category.slug,
+        categorySlug: categorySlug(
+          requireContractorCategory(li.service.slug, li.service.contractorCategory)
+        ),
         // Another unit of this can't just be incremented — its price came
         // from answers about one specific location.
         requiresQualification: li.service._count.questions > 0,

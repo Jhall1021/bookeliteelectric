@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { categorySlug, requireContractorCategory } from "@/lib/categories";
 import {
   screenForEmergency,
   normalize,
@@ -52,14 +53,14 @@ export async function POST(req: Request) {
       slug: true,
       name: true,
       shortDescription: true,
-      category: { select: { slug: true } },
+      contractorCategory: { select: { canonicalCategory: { select: { slug: true } } } },
     },
   });
   const flat = services.map((s) => ({
     slug: s.slug,
     name: s.name,
     shortDescription: s.shortDescription,
-    categorySlug: s.category.slug,
+    categorySlug: categorySlug(requireContractorCategory(s.slug, s.contractorCategory)),
   }));
 
   // ---- 2. Has someone asked this before? -------------------------------

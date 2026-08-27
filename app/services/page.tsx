@@ -3,11 +3,27 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getCategoryImage } from "@/lib/serviceImages";
+import {
+  CANONICAL_CATEGORY_SELECT,
+  categoryIcon,
+  categoryName,
+  categorySlug,
+  soleContractorId,
+} from "@/lib/categories";
 
 export default async function ServicesPage() {
-  const categories = await prisma.serviceCategory.findMany({
+  // ADR-007: rooted at ContractorCategory, the tenant-owned model, so the
+  // guard executes here once it is attached. Reading the canonical taxonomy
+  // and picking this contractor's rows out of it would be the unsafe
+  // direction.
+  const contractorId = await soleContractorId(prisma, "the services index");
+  const categories = await prisma.contractorCategory.findMany({
+    where: { contractorId, active: true },
     orderBy: { sortOrder: "asc" },
-    include: { services: { where: { active: true }, select: { id: true } } },
+    include: {
+      canonicalCategory: CANONICAL_CATEGORY_SELECT,
+      services: { where: { active: true }, select: { id: true } },
+    },
   });
 
   return (
@@ -16,11 +32,12 @@ export default async function ServicesPage() {
 
       <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {categories.map((cat) => {
-          const image = getCategoryImage(cat.slug);
+          const slug = categorySlug(cat);
+          const image = getCategoryImage(slug);
           return (
             <Link
               key={cat.id}
-              href={`/services/${cat.slug}`}
+              href={`/services/${slug}`}
               className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               {/* Photo band above the text, matching the homepage Popular
@@ -40,11 +57,11 @@ export default async function ServicesPage() {
                 </div>
               ) : (
                 <div className="flex aspect-[4/3] items-center justify-center bg-warmwhite">
-                  <ServiceIcon icon={cat.icon} className="h-9 w-9 text-electric" />
+                  <ServiceIcon icon={categoryIcon(cat)} className="h-9 w-9 text-electric" />
                 </div>
               )}
               <div className="p-4">
-                <div className="text-sm font-semibold text-navy">{cat.name}</div>
+                <div className="text-sm font-semibold text-navy">{categoryName(cat)}</div>
                 <div className="mt-1 text-xs text-slate">{cat.services.length} services</div>
               </div>
             </Link>

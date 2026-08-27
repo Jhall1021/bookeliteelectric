@@ -4,12 +4,18 @@ import ServiceEditForm from "@/components/admin/ServiceEditForm";
 import TreeEditor from "@/components/admin/TreeEditor";
 import PricingPanel from "@/components/admin/PricingPanel";
 import MaterialsPanel from "@/components/admin/MaterialsPanel";
+import { categoryName, requireContractorCategory } from "@/lib/categories";
 
 export default async function EditServicePage({ params }: { params: { serviceId: string } }) {
   const service = await prisma.service.findUnique({
     where: { id: params.serviceId },
     include: {
-      category: { select: { name: true } },
+      contractorCategory: {
+        select: {
+          nameOverride: true,
+          canonicalCategory: { select: { slug: true, name: true, defaultIcon: true } },
+        },
+      },
       questions: {
         orderBy: { order: "asc" },
         include: {
@@ -37,7 +43,9 @@ export default async function EditServicePage({ params }: { params: { serviceId:
 
   return (
     <div>
-      <div className="text-sm text-slate">{service.category.name}</div>
+      <div className="text-sm text-slate">
+        {categoryName(requireContractorCategory(service.slug, service.contractorCategory))}
+      </div>
       <h1 className="mt-1 font-display text-2xl font-bold text-navy">{service.name}</h1>
 
       <ServiceEditForm

@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
+import {
+  CANONICAL_CATEGORY_SELECT,
+  categoryIcon,
+  categoryName,
+  categorySlug,
+  soleContractorId,
+} from "@/lib/categories";
 
 // Returns EVERY active service, grouped by category, so the homeowner can
 // add anything from any category "while we're there." Services already in
@@ -20,9 +27,13 @@ export async function GET() {
     quantityByService.set(li.serviceId, (quantityByService.get(li.serviceId) ?? 0) + 1);
   }
 
-  const categories = await prisma.serviceCategory.findMany({
+  // ADR-007: rooted at ContractorCategory, the tenant-owned model.
+  const contractorId = await soleContractorId(prisma, "the while-we-there list");
+  const categories = await prisma.contractorCategory.findMany({
+    where: { contractorId, active: true },
     orderBy: { sortOrder: "asc" },
     include: {
+      canonicalCategory: CANONICAL_CATEGORY_SELECT,
       services: {
         where: { active: true },
         // Matches the customer-facing category pages, so the order an admin
@@ -50,14 +61,17 @@ export async function GET() {
   const withServices = categories
     .filter((c) => c.services.length > 0)
     .map((c) => ({
+      // The API contract is unchanged: same field names, same resolved values.
+      // `id` is now the ContractorCategory's, which is what a reorder targets;
+      // slug stays canonical identity.
       id: c.id,
-      slug: c.slug,
-      name: c.name,
-      icon: c.icon,
+      slug: categorySlug(c),
+      name: categoryName(c),
+      icon: categoryIcon(c),
       services: c.services.map(({ _count, ...s }) => ({
         ...s,
-        icon: s.icon ?? c.icon,
-        categorySlug: c.slug,
+        icon: s.icon ?? categoryIcon(c),
+        categorySlug: categorySlug(c),
         quantityInVisit: quantityByService.get(s.id) ?? 0,
         requiresQualification: _count.questions > 0,
       })),

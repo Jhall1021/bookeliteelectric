@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ServiceFlowDTO } from "@/lib/flow-types";
+import { categoryIcon, requireContractorCategory } from "@/lib/categories";
 import {
   loadOwnComponents,
   canonicalComponentIdsIn,
@@ -38,7 +39,12 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const service = await prisma.service.findUnique({
     where: { slug: params.slug },
     include: {
-      category: { select: { icon: true } },
+      contractorCategory: {
+        select: {
+          iconOverride: true,
+          canonicalCategory: { select: { slug: true, name: true, defaultIcon: true } },
+        },
+      },
       questions: {
         orderBy: { order: "asc" },
         include: {
@@ -93,7 +99,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     whileWeThereBasePrice: service.whileWeThereBasePrice,
     startingPriceLabel: service.startingPriceLabel,
     shortDescription: service.shortDescription,
-    icon: service.icon ?? service.category.icon,
+    icon:
+      service.icon ??
+      categoryIcon(requireContractorCategory(service.slug, service.contractorCategory)),
     disclaimer: service.disclaimer,
     estimatedMinutes: service.estimatedMinutes,
     questions: service.questions.map((q) => ({

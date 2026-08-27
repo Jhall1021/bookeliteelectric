@@ -30,6 +30,7 @@ import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { withTenantGuard, NotYetTenantScopedError } from "../lib/tenantGuard";
 import { loadOwnComponents } from "../lib/contractorComponents";
+import { categoryIcon, categoryName, categorySlug } from "../lib/categories";
 import {
   withTenant,
   asPlatform,
@@ -100,6 +101,8 @@ async function purgeDummy(contractorId: string) {
   }
   const materials = await raw.contractorMaterial.deleteMany({ where: { contractorId } });
   await raw.contractorComponent.deleteMany({ where: { contractorId } });
+  // After the services, which reference these and restrict on delete.
+  await raw.contractorCategory.deleteMany({ where: { contractorId } });
   return { materials: materials.count, services: serviceIds.length };
 }
 
@@ -631,6 +634,148 @@ async function main() {
         "a nested write either throws or lands under the dummy's own service"
       );
     }
+  });
+
+  // ---- category presentation, ADR-006 -----------------------------------
+  //
+  // The claim being tested is not "the dummy sees no rows" — an empty result
+  // proves nothing. It is that two contractors can point at the SAME canonical
+  // category and present it completely differently, while neither can see the
+  // other's configuration.
+  //
+  // So the dummy is given a deliberately divergent storefront: the same
+  // canonical "lighting" row, a different sort order, a renamed category, a
+  // different icon, and one category switched off entirely.
+  console.log(`\nCATEGORY PRESENTATION — ADR-006\n`);
+
+  const eliteCategories = await raw.contractorCategory.findMany({
+    where: { contractorId: elite.id },
+    include: { canonicalCategory: { select: { id: true, slug: true, name: true, defaultIcon: true } } },
+    orderBy: { sortOrder: "asc" },
+  });
+  ok(
+    eliteCategories.length > 0,
+    `Elite has contractor categories to diverge from (${eliteCategories.length})`,
+    "run prisma/backfill-category-split-2026-08-27.ts"
+  );
+
+  const lighting = eliteCategories.find((c) => c.canonicalCategory.slug === "lighting");
+  if (!lighting) {
+    console.error(`  No canonical "lighting" category. Cannot prove divergence.\n`);
+    process.exit(1);
+    return;
+  }
+  const eliteLightingName = categoryName(lighting);
+  const eliteLightingIcon = categoryIcon(lighting);
+  const eliteLightingSort = lighting.sortOrder;
+
+  // The dummy's own presentation of the SAME canonical row.
+  const DUMMY_CAT_NAME = "Lighting & Fixtures (dummy)";
+  const DUMMY_CAT_ICON = "dummy-icon";
+  const DUMMY_CAT_SORT = 99;
+  await raw.contractorCategory.create({
+    data: {
+      contractorId: dummy.id,
+      canonicalCategoryId: lighting.canonicalCategoryId,
+      nameOverride: DUMMY_CAT_NAME,
+      iconOverride: DUMMY_CAT_ICON,
+      sortOrder: DUMMY_CAT_SORT,
+      navGroup: "dummy-group",
+      active: true,
+    },
+  });
+
+  // A second one, switched off — visibility is contractor policy.
+  const second = eliteCategories.find((c) => c.canonicalCategoryId !== lighting.canonicalCategoryId);
+  if (second) {
+    await raw.contractorCategory.create({
+      data: {
+        contractorId: dummy.id,
+        canonicalCategoryId: second.canonicalCategoryId,
+        sortOrder: 0,
+        active: false,
+      },
+    });
+  }
+
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    const own = await guarded.contractorCategory.findMany({
+      include: { canonicalCategory: { select: { slug: true, name: true, defaultIcon: true } } },
+      orderBy: { sortOrder: "asc" },
+    });
+    ok(
+      own.length === (second ? 2 : 1),
+      `dummy sees only its own ${second ? 2 : 1} categories, not Elite's ${eliteCategories.length}`,
+      `got ${own.length}`
+    );
+
+    const dl = own.find((c) => c.canonicalCategory.slug === "lighting");
+    ok(dl !== undefined, "dummy's lighting row is reachable");
+    ok(
+      dl !== undefined && categoryName(dl) === DUMMY_CAT_NAME,
+      "dummy sees its OWN name override",
+      dl ? `got "${categoryName(dl)}"` : ""
+    );
+    ok(
+      dl !== undefined && categoryIcon(dl) === DUMMY_CAT_ICON,
+      "and its own icon override",
+      dl ? `got "${categoryIcon(dl)}"` : ""
+    );
+    ok(
+      dl !== undefined && dl.sortOrder === DUMMY_CAT_SORT && dl.sortOrder !== eliteLightingSort,
+      `and its own sort order (${DUMMY_CAT_SORT}, Elite has ${eliteLightingSort})`
+    );
+
+    // The point of the split: identity is shared, presentation is not.
+    ok(
+      dl !== undefined && categorySlug(dl) === "lighting",
+      "while the canonical SLUG is identical — one taxonomy, two storefronts"
+    );
+    ok(
+      dl !== undefined && dl.canonicalCategoryId === lighting.canonicalCategoryId,
+      "and both point at the SAME CanonicalCategory row, not a copy"
+    );
+
+    // Elite's configuration must be unreachable, not merely unrequested.
+    const leaked = own.filter((c) => c.contractorId !== dummy.id);
+    ok(leaked.length === 0, "no Elite configuration is visible from the dummy's context");
+
+    const byId = await attempt(() =>
+      guarded.contractorCategory.findUnique({ where: { id: lighting.id } })
+    );
+    ok(
+      byId.value === null,
+      "fetching Elite's lighting row BY ITS PRIMARY KEY returns null",
+      byId.value ? "LEAKED" : ""
+    );
+
+    const inactive = own.filter((c) => !c.active).length;
+    ok(inactive === (second ? 1 : 0), "the dummy's switched-off category stays switched off");
+  });
+
+  // And the reverse: Elite must not see the dummy's.
+  await withTenant({ contractorId: elite.id, source: "test" }, async () => {
+    const eliteSees = await guarded.contractorCategory.findMany({
+      include: {
+        canonicalCategory: { select: { slug: true, name: true, defaultIcon: true } },
+      },
+    });
+    const foreign = eliteSees.filter((c) => c.contractorId !== elite.id);
+    ok(foreign.length === 0, "Elite sees no dummy configuration");
+    ok(
+      eliteSees.length === eliteCategories.length,
+      `Elite still sees exactly its own ${eliteCategories.length} categories`,
+      `got ${eliteSees.length}`
+    );
+    const el = eliteSees.find((c) => c.canonicalCategory.slug === "lighting");
+    ok(
+      el !== undefined &&
+        categoryName(el) === eliteLightingName &&
+        categoryIcon(el) === eliteLightingIcon &&
+        el.sortOrder === eliteLightingSort,
+      "and Elite's lighting presentation is field-for-field unchanged",
+      el ? `"${categoryName(el)}" / "${categoryIcon(el)}" / ${el.sortOrder}` : ""
+    );
   });
 
   // ---- Elite untouched ---------------------------------------------------

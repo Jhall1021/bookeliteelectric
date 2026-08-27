@@ -59,8 +59,8 @@ const REVIEWED_SAFE: Record<string, string> = {
     "so the guard scopes it. This is the relation on ContractorMaterial, not the " +
     "same-named one on the deprecated Material.",
   "app/admin/(protected)/categories/page.tsx:services":
-    "ServiceCategory.services, not Contractor.services. Admin-only listing of the " +
-    "pre-split model, which the ADR-006 migration retires.",
+    "ContractorCategory.services, not Contractor.services. The root is " +
+    "ContractorCategory, which is tenant-owned, so the guard scopes it.",
   "app/admin/(protected)/services/page.tsx:services": "As above.",
   "app/services/page.tsx:services": "As above.",
   "app/services/[category]/page.tsx:services": "As above.",

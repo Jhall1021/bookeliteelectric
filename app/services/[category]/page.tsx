@@ -6,11 +6,31 @@ import { notFound } from "next/navigation";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage, getCategoryImage } from "@/lib/serviceImages";
 import { hasOpenVisit } from "@/lib/visitContext";
+import {
+  CANONICAL_CATEGORY_SELECT,
+  categoryIcon,
+  categoryName,
+  soleContractorId,
+} from "@/lib/categories";
 
 export default async function CategoryPage({ params }: { params: { category: string } }) {
-  const category = await prisma.serviceCategory.findUnique({
-    where: { slug: params.category },
+  // ADR-007: rooted at ContractorCategory. The canonical slug is matched
+  // through the relation as a FILTER, which is not a nested read of tenant
+  // data — the top-level root is still tenant-owned.
+  //
+  // findFirst rather than findUnique: the unique key here is
+  // (contractorId, canonicalCategoryId), and this resolves by slug. The
+  // uniqueness that matters is still guaranteed — one contractor cannot have
+  // two rows for the same canonical category.
+  const contractorId = await soleContractorId(prisma, "a category page");
+  const category = await prisma.contractorCategory.findFirst({
+    where: {
+      contractorId,
+      active: true,
+      canonicalCategory: { slug: params.category },
+    },
     include: {
+      canonicalCategory: CANONICAL_CATEGORY_SELECT,
       services: {
         where: { active: true },
         // Previously had no ordering at all, so the list came back in
@@ -34,17 +54,17 @@ export default async function CategoryPage({ params }: { params: { category: str
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <Link href="/services" className="text-sm text-electric">← All categories</Link>
-      <h1 className="mt-4 font-display text-2xl font-bold text-navy">{category.name}</h1>
+      <h1 className="mt-4 font-display text-2xl font-bold text-navy">{categoryName(category)}</h1>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {category.services.map((svc) => {
           // Falls back to the category's own photo when a service doesn't
           // have bespoke art yet, then to the line icon if neither exists.
-          const image = getServiceImage(svc.slug) ?? getCategoryImage(category.slug);
+          const image = getServiceImage(svc.slug) ?? getCategoryImage(params.category);
           return (
             <Link
               key={svc.id}
-              href={`/services/${category.slug}/${svc.slug}`}
+              href={`/services/${params.category}/${svc.slug}`}
               className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:border-electric"
             >
               {/* Restructured from the previous horizontal row (36px icon
@@ -64,7 +84,7 @@ export default async function CategoryPage({ params }: { params: { category: str
                 </div>
               ) : (
                 <div className="flex aspect-[4/3] items-center justify-center bg-warmwhite">
-                  <ServiceIcon icon={svc.icon ?? category.icon} className="h-9 w-9 text-electric" />
+                  <ServiceIcon icon={svc.icon ?? categoryIcon(category)} className="h-9 w-9 text-electric" />
                 </div>
               )}
               <div className="p-4">

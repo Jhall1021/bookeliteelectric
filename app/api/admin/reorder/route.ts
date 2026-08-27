@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { soleContractorId } from "@/lib/categories";
 
 /**
  * Reordering categories, or services within a category.
@@ -34,9 +35,33 @@ export async function PATCH(req: Request) {
     // One transaction so a half-applied order can't leave two things fighting
     // over the same position.
     if (body.kind === "categories") {
+      // ADR-006: ordering is contractor presentation, so it is written on
+      // ContractorCategory. The ids arrive from the categories admin, which
+      // now lists ContractorCategory rows.
+      //
+      // ADR-007: scoped by contractor rather than trusting the ids. A client
+      // can send any id it likes; without this, reordering would accept
+      // another contractor's category and silently rearrange their storefront.
+      // The guard is not attached to this route yet, so the filter is written
+      // here — and it is written in the `where` of a tenant-rooted update, not
+      // as a nested filter, so it keeps working when the guard arrives.
+      const contractorId = await soleContractorId(prisma, "the reorder route");
+      const owned = await prisma.contractorCategory.findMany({
+        where: { id: { in: ids }, contractorId },
+        select: { id: true },
+      });
+      if (owned.length !== ids.length) {
+        return NextResponse.json(
+          { error: "One or more categories do not belong to this contractor" },
+          { status: 403 }
+        );
+      }
       await prisma.$transaction(
         ids.map((id, index) =>
-          prisma.serviceCategory.update({ where: { id }, data: { sortOrder: index } })
+          prisma.contractorCategory.update({
+            where: { id, contractorId },
+            data: { sortOrder: index },
+          })
         )
       );
     } else if (body.kind === "services") {

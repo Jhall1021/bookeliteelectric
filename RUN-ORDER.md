@@ -17,6 +17,18 @@ npx tsx prisma/reconcile-scope-services.ts            # report first
 npx tsx prisma/reconcile-scope-services.ts --apply    # then publish
 
 npx tsx prisma/repair-trees.ts              # 0 dangling, 0 unreachable
+npx tsx prisma/backfill-category-split-2026-08-27.ts --apply
+                                            # REQUIRED after any seed that adds
+                                            # a category or a service. Seeds
+                                            # still write the pre-split
+                                            # ServiceCategory and leave
+                                            # Service.contractorCategoryId
+                                            # null; every operational read now
+                                            # goes through the contractor
+                                            # category and FAILS CLOSED on a
+                                            # null one. Idempotent — safe to
+                                            # run every time. See ADR-006.
+
 npm run db:reconcile                        # both should read MATCH
                                             # operational verification, not a
                                             # build gate — see ADR-003

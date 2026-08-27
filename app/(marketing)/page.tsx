@@ -74,7 +74,9 @@ export default async function HomePage() {
       name: true,
       basePrice: true,
       startingPriceLabel: true,
-      category: { select: { slug: true } },
+      // ADR-007: Service-rooted, so traversing to the tenant-owned
+      // contractor category and on to the canonical row is safe.
+      contractorCategory: { select: { canonicalCategory: { select: { slug: true } } } },
     },
   });
   const bySlug = new Map(featured.map((s) => [s.slug, s]));
@@ -290,7 +292,11 @@ export default async function HomePage() {
             // dead card on the homepage.
             if (!live) return null;
             const image = getServiceImage(svc.slug);
-            const href = `/services/${live.category?.slug ?? svc.category}/${svc.slug}`;
+            // Keeps its fallback rather than throwing: this is a curated
+            // static list that carries its own category constant, so a
+            // missing row degrades to the hardcoded slug instead of taking
+            // the homepage down.
+            const href = `/services/${live.contractorCategory?.canonicalCategory.slug ?? svc.category}/${svc.slug}`;
             return (
               <Link
                 key={svc.slug}

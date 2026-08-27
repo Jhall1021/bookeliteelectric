@@ -1,11 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import NewServiceForm from "@/components/admin/NewServiceForm";
+import {
+  CANONICAL_CATEGORY_SELECT,
+  categoryName,
+  soleContractorId,
+} from "@/lib/categories";
 
 export default async function NewServicePage() {
-  const categories = await prisma.serviceCategory.findMany({
+  // ADR-007: rooted at ContractorCategory. The ids handed to the form are
+  // ContractorCategory ids — a new service is attached to this contractor's
+  // category, not to the shared taxonomy row.
+  const contractorId = await soleContractorId(prisma, "the new-service form");
+  const rows = await prisma.contractorCategory.findMany({
+    where: { contractorId, active: true },
     orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true },
+    include: { canonicalCategory: CANONICAL_CATEGORY_SELECT },
   });
+  const categories = rows.map((c) => ({ id: c.id, name: categoryName(c) }));
 
   return (
     <div>

@@ -81,6 +81,12 @@ export const PLATFORM_MODELS = new Set<string>([
   /// Deprecated pre-split models, awaiting removal in the contract phase.
   "Material",
   "JobComponent",
+  /// ADR-006 superseded the plan to tenant-scope this. It is now a
+  /// pre-split model like the two above: CanonicalCategory carries identity,
+  /// ContractorCategory carries presentation, and no operational read treats
+  /// this as the source of truth. The only remaining write derives
+  /// Service.categoryId, which is NOT NULL until the contract phase.
+  "ServiceCategory",
 ]);
 
 /**
@@ -92,7 +98,6 @@ export const PLATFORM_MODELS = new Set<string>([
  * the to-do list for the tenant schema work.
  */
 export const PENDING_TENANT_SCOPE = new Set<string>([
-  "ServiceCategory",
   "ServiceQuery",
   "BusinessHours",
   "MaterialSupplierLink",

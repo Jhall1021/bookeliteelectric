@@ -1137,7 +1137,8 @@ model Service {
   shortDescription     String?
   // Optional override for the category's icon — e.g. "Outlets & Switches"
   // needs both an outlet icon and a switch icon, not one icon for the
-  // whole category. Falls back to ServiceCategory.icon when null.
+  // whole category. Falls back to the contractor's iconOverride, then to
+  // CanonicalCategory.defaultIcon — see lib/categories.ts categoryIcon().
   icon                String?
   requiresTechCount   Int             @default(1)
   // Labor/material composition, imported from the client's validated

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { categorySlug, requireContractorCategory } from "@/lib/categories";
 
 // REROUTE_SERVICE answer options only store a serviceId (the AnswerOption
 // model doesn't know slugs). The client needs the slug to navigate to the
@@ -7,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const full = await prisma.service.findUnique({
     where: { id: params.id },
-    include: { category: { select: { slug: true } } },
+    include: { contractorCategory: { select: { canonicalCategory: { select: { slug: true } } } } },
   });
 
   if (!full) {
@@ -17,6 +18,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json({
     slug: full.slug,
     name: full.name,
-    categorySlug: full.category.slug,
+    categorySlug: categorySlug(requireContractorCategory(full.slug, full.contractorCategory)),
   });
 }

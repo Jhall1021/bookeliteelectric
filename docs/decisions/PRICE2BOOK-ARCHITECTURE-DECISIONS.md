@@ -157,6 +157,13 @@ touches any of:**
 - publication migrations
 - price-writing code
 
+**And after any migration or maintenance script that writes rows in a
+price-bearing table such as `Service` — even when the fields it intends to
+write are non-pricing fields.** The trigger is the table it touches, not the
+column it meant to touch. Added 27 August after the ADR-006 category backfill,
+which writes only `Service.contractorCategoryId` and would not otherwise have
+qualified under any of the conditions above.
+
 An unrelated CSS, auth, or docs deployment does not need production price data
 to approve it, and should not pretend to.
 
@@ -218,10 +225,46 @@ resolves to the string it resolved to before.
 `ServiceCategory` is untouched and still holds every row. **Nothing reads the
 new tables yet** — that is step 4.
 
-**Next: step 4, switch reads to the contractor category.** The 12 direct-query
-files in `docs/migration/pass-two-scope-narrowing.md` are where `ServiceCategory`
-is read; nine of them read it directly. Per ADR-007 those reads must root at
-`ContractorCategory`, not at `CanonicalCategory`.
+**Step 4 done, 27 August: reads switched.** 14 operational readers, not the
+nine first estimated — 7 querying `ServiceCategory` directly and 7 reaching it
+through `Service.category`.
+
+The 7 direct readers now root at `ContractorCategory`. The 7 `Service`-rooted
+traversals stay `Service`-rooted and were repointed to
+`contractorCategory → canonicalCategory`; per ADR-007 a tenant-owned root
+already establishes ownership, so they were not re-rooted for style.
+
+Presentation resolution lives in `lib/categories.ts` rather than at each call
+site — `nameOverride ?? canonical.name` written 14 times is 14 chances to write
+it differently. Each resolver takes only the fields it reads, which is how the
+harness caught a too-thin select. `sortOrder`, `navGroup` and `active` come
+from `ContractorCategory`; `slug` stays canonical and is never overridden.
+
+A null `contractorCategory` throws rather than defaulting: `?? ""` puts the
+string "undefined" into a customer-facing URL, which looks like working
+software. The one exception is the marketing page, which carries its own
+category constant and degrades to that instead of taking the homepage down.
+
+**Divergence proven** in the live harness, `CATEGORY PRESENTATION` section:
+the dummy and Elite point at the *same* `CanonicalCategory` row for `lighting`
+while the dummy renames it, re-icons it, sorts it 99th against Elite's 2nd, and
+switches a second category off. Neither sees the other's configuration —
+Elite's row returns null from the dummy's context even by primary key — and
+Elite's presentation is field-for-field unchanged. 45 of 45 checks pass.
+
+**`ServiceCategory` is now classified as a deprecated pre-split model**, not as
+pending tenant scope: the split superseded that plan. Every remaining reference
+is migration compatibility, and the only remaining write derives
+`Service.categoryId`, which is NOT NULL until the contract phase.
+
+**Seeds still write the pre-split model.** Anything a seed adds has a null
+`contractorCategoryId`, which every operational read now fails closed on, so
+the backfill must run after any seed that adds a category or service. It is
+idempotent and recorded in `RUN-ORDER.md`.
+
+**Next: leave the old model in place and let this run.** The contract phase
+should be deletion rather than discovery — old structure still present as
+rollback scaffolding, no production read path depending on it.
 
 Category *identity* is platform/template knowledge. Category *presentation* is
 contractor policy.
