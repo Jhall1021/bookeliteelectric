@@ -4,14 +4,14 @@ import ServiceEditForm from "@/components/admin/ServiceEditForm";
 import TreeEditor from "@/components/admin/TreeEditor";
 import PricingPanel from "@/components/admin/PricingPanel";
 import MaterialsPanel from "@/components/admin/MaterialsPanel";
-import { categoryName, requireContractorCategory, soleContractorId } from "@/lib/categories";
-import { withContractor } from "@/lib/tenantRoute";
+import { categoryName, requireContractorCategory } from "@/lib/categories";
+import { withAdminContractor } from "@/lib/adminContext";
 
 export default async function EditServicePage({ params }: { params: { serviceId: string } }) {
   // GUARD-ADOPTED (ADR-007a). Took a service id from the URL unscoped; the
   // notFound() below now covers "not yours" as well as "not there".
-  const contractorId = await soleContractorId(prisma, "the service edit page");
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
   const service = await db.service.findUnique({
     where: { id: params.serviceId },
     include: {

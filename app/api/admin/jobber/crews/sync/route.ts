@@ -4,7 +4,7 @@ import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { fetchJobberUsers } from "@/lib/jobber";
 
 export async function POST() {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 

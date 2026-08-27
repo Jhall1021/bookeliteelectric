@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signOut } from "@/lib/authClient";
 
 /** The work coming in. */
 const OPERATIONS = [
@@ -25,8 +26,13 @@ export default function AdminNav() {
   const router = useRouter();
 
   async function handleLogout() {
-    await fetch("/api/admin/logout", { method: "POST" });
+    // Better Auth revokes the session server-side. The old endpoint just
+    // cleared a cookie, which meant "logging out" left a still-valid
+    // deterministic token that would have worked again if the cookie were
+    // ever restored.
+    await signOut();
     router.push("/admin/login");
+    router.refresh();
     router.refresh();
   }
 

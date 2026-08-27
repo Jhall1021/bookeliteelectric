@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { generateArrivalWindows, DEFAULT_BUSINESS_HOURS } from "@/lib/businessHours";
+import { withAdminContractor } from "@/lib/adminContext";
 
 /** "08:00" or "8:00" — reject anything else rather than storing nonsense. */
 function validTime(v: unknown): v is string {
@@ -9,7 +9,8 @@ function validTime(v: unknown): v is string {
 }
 
 export async function PATCH(req: Request) {
-  if (!isAdminAuthenticated()) {
+  return withAdminContractor(async (db, ctx) => {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -46,7 +47,7 @@ export async function PATCH(req: Request) {
   }
 
   const current =
-    (await prisma.businessHours.findUnique({ where: { id: "default" } })) ??
+    (await db.businessHours.findUnique({ where: { contractorId: ctx.contractorId } })) ??
     DEFAULT_BUSINESS_HOURS;
 
   const next = {
@@ -66,10 +67,12 @@ export async function PATCH(req: Request) {
     );
   }
 
-  const saved = await prisma.businessHours.upsert({
-    where: { id: "default" },
+  // ADR-007a: keyed by contractor. `id: "default"` was one shared schedule
+  // for every contractor — two businesses, one set of working hours.
+  const saved = await db.businessHours.upsert({
+    where: { contractorId: ctx.contractorId },
     update: next,
-    create: { id: "default", ...next },
+    create: { contractorId: ctx.contractorId, ...next },
   });
 
   // Returned so the admin sees the windows these hours produce, rather than
@@ -78,5 +81,6 @@ export async function PATCH(req: Request) {
     ok: true,
     hours: saved,
     windows: generateArrivalWindows(next),
+  });
   });
 }

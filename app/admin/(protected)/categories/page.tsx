@@ -3,10 +3,9 @@ import { prisma } from "@/lib/prisma";
 import ReorderList from "@/components/admin/ReorderList";
 import {
   CANONICAL_CATEGORY_SELECT,
-  categoryName,
-  soleContractorId,
+  categoryName
 } from "@/lib/categories";
-import { withContractor } from "@/lib/tenantRoute";
+import { withAdminContractor } from "@/lib/adminContext";
 
 /**
  * Categories had no admin screen at all — sortOrder existed on the model and
@@ -19,9 +18,8 @@ export default async function AdminCategoriesPage() {
   // rather than to the taxonomy — so the tenant-owned model is the root, and
   // the ids it emits are ContractorCategory ids that the reorder route
   // updates.
-  const contractorId = await soleContractorId(prisma, "the categories admin");
   // GUARD-ADOPTED (ADR-007a). The hand-written contractorId filter is gone.
-  const categories = await withContractor(contractorId, "admin-session", (db) =>
+  const categories = await withAdminContractor((db) =>
     db.contractorCategory.findMany({
       orderBy: { sortOrder: "asc" },
       include: {

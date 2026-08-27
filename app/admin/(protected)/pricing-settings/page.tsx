@@ -1,19 +1,16 @@
-import { prisma } from "@/lib/prisma";
 import PricingSettingsForm from "@/components/admin/PricingSettingsForm";
-import { withContractor } from "@/lib/tenantRoute";
-import { soleContractorId } from "@/lib/categories";
+import { withAdminContractor } from "@/lib/adminContext";
+
 
 export default async function PricingSettingsPage() {
   // GUARD-ADOPTED (ADR-007a). These counts describe THIS contractor's catalog
   // readiness; unscoped they would have counted everyone's. The settings read
   // used `where: { id: "default" }` — the pre-tenant singleton row — so with
   // two contractors it would have shown the same rate to both.
-  const contractorId = await soleContractorId(prisma, "the pricing settings admin");
-  const { settings, withData, withoutData } = await withContractor(
-    contractorId,
-    "admin-session",
-    async (db) => ({
-      settings: await db.pricingSettings.findUnique({ where: { contractorId } }),
+  const { settings, withData, withoutData } = await withAdminContractor(async (db, ctx) => ({
+      settings: await db.pricingSettings.findUnique({
+        where: { contractorId: ctx.contractorId },
+      }),
       withData: await db.service.count({ where: { primaryLaborUnits: { not: null } } }),
       withoutData: await db.service.count({ where: { primaryLaborUnits: null } }),
     })

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withContractor } from "@/lib/tenantRoute";
-import { soleContractorId } from "@/lib/categories";
+import { withAdminContractor } from "@/lib/adminContext";
+
 
 /**
  * The admin service editor.
@@ -38,14 +38,14 @@ import { soleContractorId } from "@/lib/categories";
  * possible; the guard only stands between a service and going live.
  */
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
   // GUARD-ADOPTED (ADR-007a). Took a service id from the URL with no
   // contractor condition; the guard supplies it centrally now.
-  const contractorId = await soleContractorId(prisma, "the service admin");
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
 
   const body = await req.json();
   const { name, shortDescription, disclaimer, basePrice, whileWeThereBasePrice, startingPriceLabel, active } = body;

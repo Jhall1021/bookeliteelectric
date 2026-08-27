@@ -97,6 +97,14 @@ const ADOPTED_FILES: string[] = [
   "app/api/checkout/route.ts",
   "app/[site]/checkout/schedule/page.tsx",
   "app/api/service-match/feedback/route.ts",
+  // Admin surfaces, now resolving their contractor from membership.
+  "app/admin/(protected)/jobber/page.tsx",
+  "app/admin/(protected)/service-area/page.tsx",
+  "app/admin/(protected)/business-hours/page.tsx",
+  "app/api/admin/business-hours/route.ts",
+  "app/api/admin/jobber/disconnect/route.ts",
+  "app/api/admin/pricing-settings/route.ts",
+  "app/api/admin/service-area/route.ts",
 ];
 
 /**

@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { withAdminContractor } from "@/lib/adminContext";
 
 export async function POST() {
-  if (!isAdminAuthenticated()) {
+  return withAdminContractor(async (db, ctx) => {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  await prisma.jobberConnection.deleteMany({ where: { id: "default" } });
+  // This contractor's connection only. `id: "default"` would have
+  // disconnected every contractor's Jobber account at once.
+  await db.jobberConnection.deleteMany({ where: { contractorId: ctx.contractorId } });
   return NextResponse.json({ ok: true });
+  });
 }

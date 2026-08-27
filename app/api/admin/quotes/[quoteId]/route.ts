@@ -6,7 +6,7 @@ import { sendQuoteReadyEmail } from "@/lib/email";
 export async function PATCH(req: Request, { params }: { params: { quoteId: string } }) {
   // Independently checked here, not just at the page level — API routes
   // can be called directly, bypassing whatever page rendered the button.
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 

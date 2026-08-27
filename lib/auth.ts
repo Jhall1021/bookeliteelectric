@@ -94,7 +94,46 @@ function magicLinkEmail(url: string, minutes: number) {
 /** Long enough for a contractor who checks email between jobs. */
 const MAGIC_LINK_MINUTES = 15;
 
+/**
+ * Where this deployment lives, resolved rather than pinned.
+ *
+ * A magic link must return to the deployment that ISSUED it. A single
+ * BETTER_AUTH_URL environment variable cannot do that: set it to production
+ * and every preview deployment mails links that land on production; set it per
+ * environment and it silently rots the first time a variable is copied between
+ * them. The failure is quiet either way — the mail sends, the link works, and
+ * it signs you in to the wrong place.
+ *
+ * So Vercel's own deployment host wins when present. VERCEL_BRANCH_URL is
+ * preferred over VERCEL_URL because it is the stable branch alias rather than
+ * the per-commit URL, which changes on every push and would invalidate links
+ * already in someone's inbox.
+ *
+ * An explicit BETTER_AUTH_URL still overrides everything, for a custom domain.
+ */
+function resolveBaseUrl(): string | undefined {
+  if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL;
+  const host = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+  if (host) return `https://${host}`;
+  return undefined; // local dev: Better Auth infers from the request
+}
+
 export const auth = betterAuth({
+  baseURL: resolveBaseUrl(),
+
+  /**
+   * Every host this deployment may legitimately be reached on.
+   *
+   * Vercel serves a preview at both a per-commit URL and a branch alias, and a
+   * sign-in started on one must not be refused because the link came back via
+   * the other.
+   */
+  trustedOrigins: [
+    process.env.VERCEL_BRANCH_URL && `https://${process.env.VERCEL_BRANCH_URL}`,
+    process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
+    process.env.BETTER_AUTH_URL,
+  ].filter((v): v is string => typeof v === "string" && v.length > 0),
+
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),

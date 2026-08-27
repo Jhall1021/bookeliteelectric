@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withContractor } from "@/lib/tenantRoute";
-import { soleContractorId } from "@/lib/categories";
+
 import type { PrismaClient } from "@prisma/client";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import {
@@ -12,6 +11,7 @@ import {
   impliedPackagePriceCents,
   MaterialCostError,
 } from "@/lib/materialCost";
+import { withAdminContractor } from "@/lib/adminContext";
 
 /**
  * A service's material list, and the shared catalog behind it.
@@ -81,7 +81,7 @@ async function afterRecipeChange(db: PrismaClient, serviceId: string) {
 }
 
 export async function GET(req: Request) {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
   const { searchParams } = new URL(req.url);
@@ -89,7 +89,6 @@ export async function GET(req: Request) {
 
   // The catalog is this contractor's costed roles, not a global material
   // list. Two contractors filling the same role each see their own figure.
-  const contractorId = await soleContractorId(prisma, "the materials admin");
 
   // GUARD-ADOPTED (ADR-007a). Everything below is this contractor's, on the
   // guarded client.
@@ -98,7 +97,8 @@ export async function GET(req: Request) {
   // and includes the canonical role from there. Rooting at CanonicalMaterial
   // and nesting contractorMaterials would be the platform-parent shape the
   // live harness proved the guard cannot see.
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
   const catalog = await db.contractorMaterial.findMany({
     where: { contractorId, active: true },
     orderBy: { canonicalMaterial: { name: "asc" } },
@@ -181,7 +181,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -196,9 +196,9 @@ export async function POST(req: Request) {
 
   // GUARD-ADOPTED (ADR-007a). One context for the whole handler; every action
   // below reads and writes through the guarded client.
-  const contractorId = await soleContractorId(prisma, "the materials admin");
 
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
   try {
     // ---- add a material to a service ----------------------------------
     if (action === "add") {

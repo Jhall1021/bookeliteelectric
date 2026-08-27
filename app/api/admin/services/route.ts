@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { soleContractorId } from "@/lib/categories";
-import { withContractor } from "@/lib/tenantRoute";
+import { withAdminContractor } from "@/lib/adminContext";
+
 
 export async function POST(req: Request) {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -17,9 +17,9 @@ export async function POST(req: Request) {
   }
 
   // GUARD-ADOPTED (ADR-007a).
-  const contractorId = await soleContractorId(prisma, "the new-service route");
 
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
   // NOTE: still resolves by slug alone, which works only while Service.slug is
   // globally unique. Under the guard this now means "does THIS contractor
   // already have that slug" — which is the correct question, and becomes the

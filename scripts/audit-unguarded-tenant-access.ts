@@ -44,18 +44,10 @@ const GUARDED_IDENTIFIERS = new Set(["db", "tx", "guarded"]);
  * `file::Model` -> the reason it is acceptable today.
  */
 const CLASSIFIED: Record<string, string> = {
-  // ---- admin surfaces: awaiting per-contractor auth ---------------------
-  //
-  // These resolve the sole contractor and will move to the guarded client
-  // when the admin becomes tenant-aware. They are listed individually rather
-  // than by a directory rule so that a NEW admin route does not inherit the
-  // exemption silently.
-  "app/admin/(protected)/jobber/page.tsx::JobberConnection": "admin, awaiting per-contractor auth",
-  "app/admin/(protected)/service-area/page.tsx::ServiceArea": "admin, awaiting per-contractor auth",
-  "app/api/admin/business-hours/route.ts::BusinessHours": "admin, awaiting per-contractor auth",
-  "app/api/admin/jobber/disconnect/route.ts::JobberConnection": "admin, awaiting per-contractor auth",
-  "app/api/admin/pricing-settings/route.ts::PricingSettings": "admin, awaiting per-contractor auth",
-  "app/api/admin/service-area/route.ts::ServiceArea": "admin, awaiting per-contractor auth",
+  // The six "awaiting per-contractor auth" entries are GONE as of 27 August.
+  // Admin surfaces resolve their contractor from the signed-in user's
+  // membership through withAdminContractor, so there is nothing left here to
+  // exempt.
 
   // ---- dependency-injected helpers --------------------------------------
   //

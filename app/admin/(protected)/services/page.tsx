@@ -4,17 +4,15 @@ import { formatCents } from "@/lib/flow-types";
 import ReorderList from "@/components/admin/ReorderList";
 import {
   CANONICAL_CATEGORY_SELECT,
-  categoryName,
-  soleContractorId,
+  categoryName
 } from "@/lib/categories";
-import { withContractor } from "@/lib/tenantRoute";
+import { withAdminContractor } from "@/lib/adminContext";
 
 export default async function AdminServicesPage() {
   // ADR-007: rooted at ContractorCategory, the tenant-owned model.
-  const contractorId = await soleContractorId(prisma, "the services admin");
   // GUARD-ADOPTED (ADR-007a). The hand-written contractorId filter is gone;
   // the guard supplies it centrally.
-  const categories = await withContractor(contractorId, "admin-session", (db) =>
+  const categories = await withAdminContractor((db) =>
     db.contractorCategory.findMany({
     orderBy: { sortOrder: "asc" },
     include: {

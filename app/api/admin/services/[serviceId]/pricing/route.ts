@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { suggestPrimaryPrice, suggestWwtPrice } from "@/lib/pricing";
-import { withContractor } from "@/lib/tenantRoute";
-import { soleContractorId } from "@/lib/categories";
+import { withAdminContractor } from "@/lib/adminContext";
+
 
 /**
  * Pricing composition for one service.
@@ -19,7 +19,7 @@ import { soleContractorId } from "@/lib/categories";
  * Nothing here recalculates anything on a schedule or in the background.
  */
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -39,9 +39,9 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   // No hand-written ownership check: the guard enforces the same invariant
   // centrally, and the 404 below now covers "not yours" as well as "not
   // there". A cross-tenant probe should not be able to tell the difference.
-  const contractorId = await soleContractorId(prisma, "the pricing admin");
 
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
   const service = await db.service.findUnique({ where: { id: params.serviceId } });
   if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
 

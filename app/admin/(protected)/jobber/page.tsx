@@ -1,9 +1,14 @@
-import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import JobberConnectionPanel from "@/components/admin/JobberConnectionPanel";
+import { withAdminContractor } from "@/lib/adminContext";
 
 export default async function JobberPage({ searchParams }: { searchParams: { connected?: string; error?: string } }) {
-  const connection = await prisma.jobberConnection.findUnique({ where: { id: "default" } });
+  // ADR-007a: keyed by contractor, not the pre-tenant "default" row. Every
+  // contractor connects their OWN Jobber account; a shared row would have
+  // pushed one contractor's bookings into another's dispatch.
+  const connection = await withAdminContractor((db, ctx) =>
+    db.jobberConnection.findUnique({ where: { contractorId: ctx.contractorId } })
+  );
 
   return (
     <div>

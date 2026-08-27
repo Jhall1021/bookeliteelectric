@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import AdminNav from "@/components/admin/AdminNav";
 
-export default function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
-  if (!isAdminAuthenticated()) {
+export default async function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
+  // session -> active User -> active ContractorMembership -> Contractor.
+  // A valid session with no membership is refused here, not waved through.
+  if (!(await isAdminAuthenticated())) {
     redirect("/admin/login");
   }
 

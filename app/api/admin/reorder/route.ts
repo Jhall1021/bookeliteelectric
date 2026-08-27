@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { soleContractorId } from "@/lib/categories";
-import { withContractor } from "@/lib/tenantRoute";
+import { withAdminContractor } from "@/lib/adminContext";
+
 
 /**
  * Reordering categories, or services within a category.
@@ -16,7 +16,7 @@ import { withContractor } from "@/lib/tenantRoute";
  * from the array index means what the admin sees is exactly what's stored.
  */
 export async function PATCH(req: Request) {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -36,9 +36,9 @@ export async function PATCH(req: Request) {
   // live in each `where` is gone: the guard enforces the same invariant
   // centrally, and a filter written by hand at every site is what it exists to
   // replace. Both `service` and `contractorCategory` are directly tenant-owned.
-  const contractorId = await soleContractorId(prisma, "the reorder route");
 
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
   try {
     // One transaction so a half-applied order can't leave two things fighting
     // over the same position. The guard survives $transaction, so tx is

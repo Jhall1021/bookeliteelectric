@@ -4,7 +4,7 @@ import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { pushBookingToJobber } from "@/lib/jobber";
 
 export async function POST(_req: Request, { params }: { params: { bookingId: string } }) {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 

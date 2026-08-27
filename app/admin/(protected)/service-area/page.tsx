@@ -1,11 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import ServiceAreaForm from "@/components/admin/ServiceAreaForm";
+import { withAdminContractor } from "@/lib/adminContext";
 
 export const dynamic = "force-dynamic";
 
 export default async function ServiceAreaPage() {
-  const [areas, zips] = await Promise.all([
-    prisma.serviceArea.findMany({ orderBy: { name: "asc" } }),
+  // Service areas are this contractor's coverage. ZipCode is platform
+  // reference data — the same US ZIP list for everyone — so it stays on the
+  // unguarded client where the guard passes it through anyway.
+  const areas = await withAdminContractor((db) =>
+    db.serviceArea.findMany({ orderBy: { name: "asc" } })
+  );
+  const [zips] = await Promise.all([
     prisma.zipCode.findMany({
       select: { zip: true, state: true, county: true, type: true, population: true },
     }),

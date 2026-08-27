@@ -1,88 +1,67 @@
-import { cookies } from "next/headers";
-import crypto from "crypto";
+/**
+ * Admin access — membership, not a shared password.
+ *
+ * WHAT THIS REPLACED
+ *
+ * One password in an environment variable, hashed into a deterministic cookie
+ * with no expiry and no rotation. It proved that someone knew a secret, and
+ * nothing about who they were — so it could not answer the only question that
+ * matters once there is more than one contractor: whose data may this request
+ * touch?
+ *
+ * It is gone rather than kept as a fallback. A retired auth path left in place
+ * "just in case" is an undocumented bypass with no audit trail, and it would
+ * have been the easiest way into every contractor's pricing.
+ *
+ * WHAT REPLACES IT
+ *
+ *   session -> active User -> active ContractorMembership -> Contractor
+ *
+ * A valid Better Auth session is NOT access. Someone can hold a perfectly good
+ * session and be a member of nothing, and they are refused here.
+ *
+ * This module answers "may this request act as an admin at all". Which
+ * contractor it acts FOR, and with the guarded client, is
+ * lib/adminContext.ts.
+ */
 
-const ADMIN_COOKIE = "elite_admin_session";
-
-// Deliberately simple for a single-owner business: one shared admin
-// password (ADMIN_PASSWORD env var), not individual staff logins with
-// roles. The session token is an HMAC of a fixed string using a second
-// secret (ADMIN_SESSION_SECRET) — deterministic, so no session store is
-// needed, but it also means sessions don't expire or rotate. Fine for a
-// first admin pass; real staff-account auth is a future upgrade if the
-// team grows past one shared login.
-//
-// WHY THIS NOW FAILS CLOSED
-//
-// ADMIN_SESSION_SECRET was referenced here but never set in Vercel. Node
-// accepts an empty HMAC key without complaint, so expectedToken() returned a
-// perfectly valid, deterministic 64-character token derived from a known
-// algorithm and a known fixed string. Anyone able to read this file could
-// compute that token, set the cookie, and reach the admin — publishing
-// prices, reading customer bookings, disconnecting Jobber — without ever
-// touching the password.
-//
-// checkAdminPassword below already refused to work without its variable.
-// This one didn't, which is the whole lesson: a missing secret has to be an
-// error, never a default. Same rule as loadPricingSettings, which throws
-// rather than inventing a rate. An admin route that 500s is vastly better
-// than one that authenticates strangers.
-function expectedToken(): string {
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret) {
-    // Loud on the server, and nothing usable returned. Deliberately not a
-    // fallback value of any kind.
-    console.error(
-      "[adminAuth] ADMIN_SESSION_SECRET is not configured — refusing to issue " +
-        "or validate an admin session."
-    );
-    throw new Error("ADMIN_SESSION_SECRET is not configured");
-  }
-  return crypto.createHmac("sha256", secret).update("elite-admin").digest("hex");
-}
+import {
+  resolveAdminContractor,
+  NotAuthenticatedError,
+  NoMembershipError,
+  AmbiguousContractorError,
+  type AdminContext,
+} from "./adminContext";
 
 /**
- * Compare two secrets without leaking their contents through timing.
+ * The admin context for this request, or null.
  *
- * `a === b` on strings short-circuits at the first differing character, so
- * how long it takes is a signal about how much of the value was right. Hard
- * to exploit across a network, cheap to remove.
- *
- * Lengths are hashed to a fixed size first, because timingSafeEqual throws on
- * mismatched lengths — and that throw would itself be a length oracle.
+ * Async, unlike the cookie check it replaces — it reads a session and a
+ * membership. Every call site awaits it, which is the visible cost of the
+ * check being real.
  */
-function secretsMatch(a: string, b: string): boolean {
-  const ha = crypto.createHash("sha256").update(a).digest();
-  const hb = crypto.createHash("sha256").update(b).digest();
-  return crypto.timingSafeEqual(ha, hb);
-}
-
-export function checkAdminPassword(password: string): boolean {
-  const real = process.env.ADMIN_PASSWORD ?? "";
-  if (!real) return false; // fail closed if not configured
-  return secretsMatch(password, real);
-}
-
-export function setAdminSessionCookie() {
-  cookies().set(ADMIN_COOKIE, expectedToken(), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: true,
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-    path: "/",
-  });
-}
-
-export function clearAdminSessionCookie() {
-  cookies().delete(ADMIN_COOKIE);
-}
-
-export function isAdminAuthenticated(): boolean {
-  const token = cookies().get(ADMIN_COOKIE)?.value;
-  if (!token) return false;
+export async function adminContextOrNull(): Promise<AdminContext | null> {
   try {
-    return secretsMatch(token, expectedToken());
-  } catch {
-    // Secret missing. Not authenticated — never the other way round.
-    return false;
+    return await resolveAdminContractor();
+  } catch (e) {
+    // Not signed in, not a member, or a member of several with none named.
+    // All three mean "no admin access for this request" here; the routes that
+    // need to tell a user WHICH it was catch the specific error themselves.
+    if (
+      e instanceof NotAuthenticatedError ||
+      e instanceof NoMembershipError ||
+      e instanceof AmbiguousContractorError
+    ) {
+      return null;
+    }
+    throw e;
   }
 }
+
+/** Convenience for a gate that only needs yes or no. */
+export async function isAdminAuthenticated(): Promise<boolean> {
+  return (await adminContextOrNull()) !== null;
+}
+
+export { NotAuthenticatedError, NoMembershipError, AmbiguousContractorError };
+export type { AdminContext };

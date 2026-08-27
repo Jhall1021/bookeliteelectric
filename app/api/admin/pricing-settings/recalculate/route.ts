@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withContractor } from "@/lib/tenantRoute";
-import { soleContractorId } from "@/lib/categories";
+
 import { suggestPrimaryPrice, suggestWwtPrice, type PricingSettings } from "@/lib/pricing";
+import { withAdminContractor } from "@/lib/adminContext";
 
 /**
  * Preview what the model says, against what's published.
@@ -32,15 +32,15 @@ import { suggestPrimaryPrice, suggestWwtPrice, type PricingSettings } from "@/li
  * disagree, using the CURRENT model.
  */
 export async function POST() {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
   // GUARD-ADOPTED (ADR-007a). Swept every active service with no contractor
   // condition, so a second contractor's catalog would have appeared in this
   // contractor's recalculation report.
-  const contractorId = await soleContractorId(prisma, "the recalculate admin");
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
 
   // ADR-007a: PricingSettings carries contractorId and is tenant-scoped. This
   // read used `where: { id: "default" }` — the pre-tenant singleton row — so

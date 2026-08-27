@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { withAdminContractor } from "@/lib/adminContext";
 
 /**
  * The ZIP codes a contractor will travel to.
@@ -22,7 +23,8 @@ function parseZips(input: unknown): string[] {
 }
 
 export async function GET(req: Request) {
-  if (!isAdminAuthenticated()) {
+  return withAdminContractor(async (db) => {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -40,7 +42,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ zips });
   }
 
-  const areas = await prisma.serviceArea.findMany({ orderBy: { name: "asc" } });
+  const areas = await db.serviceArea.findMany({ orderBy: { name: "asc" } });
 
   // Counties available to pick from, with how many ZIPs anyone could
   // actually live in. PO Box and single-entity codes are counted separately
@@ -64,10 +66,12 @@ export async function GET(req: Request) {
     ),
     referenceLoaded: all.length,
   });
+  });
 }
 
 export async function PATCH(req: Request) {
-  if (!isAdminAuthenticated()) {
+  return withAdminContractor(async (db) => {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -90,7 +94,7 @@ export async function PATCH(req: Request) {
   }
 
   const existing = body.id
-    ? await prisma.serviceArea.findUnique({ where: { id: body.id } })
+    ? await db.serviceArea.findUnique({ where: { id: body.id } })
     : null;
 
   let zipCodes: string[] | undefined;
@@ -131,7 +135,7 @@ export async function PATCH(req: Request) {
     warning = "That leaves no ZIP codes, so nobody can book online until you add some.";
   }
   if (body.active === false) {
-    const others = await prisma.serviceArea.count({
+    const others = await db.serviceArea.count({
       where: { active: true, id: { not: body.id } },
     });
     if (others === 0) warning = "That was the only active area — online booking is now closed.";
@@ -139,7 +143,7 @@ export async function PATCH(req: Request) {
 
   try {
     const area = body.id
-      ? await prisma.serviceArea.update({
+      ? await db.serviceArea.update({
           where: { id: body.id },
           data: {
             ...(body.name !== undefined ? { name: body.name } : {}),
@@ -147,7 +151,7 @@ export async function PATCH(req: Request) {
             ...(body.active !== undefined ? { active: body.active } : {}),
           },
         })
-      : await prisma.serviceArea.create({
+      : await db.serviceArea.create({
           data: {
             name: body.name?.trim() || "Service Area",
             zipCodes: zipCodes ?? [],
@@ -160,4 +164,5 @@ export async function PATCH(req: Request) {
     console.error("[service-area]", err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
+  });
 }

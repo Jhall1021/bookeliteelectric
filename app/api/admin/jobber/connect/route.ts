@@ -8,7 +8,7 @@ import { cookies } from "next/headers";
 // the ONE step where you log in with your REAL Elite Electric Jobber
 // account (not the Developer Center login), to grant this app access.
 export async function GET() {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.redirect(new URL("/admin/login", jobberRedirectUri()));
   }
 

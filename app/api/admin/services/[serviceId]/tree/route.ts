@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withContractor } from "@/lib/tenantRoute";
-import { soleContractorId } from "@/lib/categories";
+import { withAdminContractor } from "@/lib/adminContext";
+
 
 /**
  * Full sync of a service's decision tree: creates, updates and deletes in
@@ -76,7 +76,7 @@ function uniqueKey(desired: string, taken: Set<string>): string {
 }
 
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
-  if (!isAdminAuthenticated()) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -96,9 +96,9 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   // GUARD-ADOPTED (ADR-007a). Everything below runs inside one contractor's
   // context on the guarded client — reads, updates, deletes and the
   // transaction alike.
-  const contractorId = await soleContractorId(prisma, "the tree admin");
 
-  return withContractor(contractorId, "admin-session", async (db) => {
+  return withAdminContractor(async (db, ctx) => {
+  const contractorId = ctx.contractorId;
   // Scoped by the guard, so a service belonging to another contractor is
   // simply not found. The 404 is correct for that case as well as for a
   // service that does not exist — a cross-tenant probe should not be able to
