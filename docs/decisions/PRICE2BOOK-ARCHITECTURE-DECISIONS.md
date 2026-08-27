@@ -1253,3 +1253,80 @@ still the work; it simply gets finished before anyone external depends on it.
 
 Elite being the only live tenant is a fact about the data, never a permission the code may
 rely on — the migration-provenance rule in ADR-011 stays exactly as written.
+
+---
+
+## ADR-013 — BookElite Neon is the source; Price2Book Neon is the destination — OWNER DECISION, 27 August
+
+**Status:** settled by the owner. The database-account migration is a separate, later project.
+
+### Where production actually lives
+
+| | |
+|---|---|
+| **Current production database** | Neon project `bookeliteelectric` / `purple-hat-40018035`, endpoint `ep-icy-hill-axkgrsjb` |
+| **Intended destination** | the dedicated Price2Book Neon account/project (`bitter-bird-20565072`, org `admin@price2book.com`) |
+
+This is written down because it was not obvious and cost real time. The Price2Book Neon
+project exists and its `production` branch is **empty** — it has never held the application's
+data. A rehearsal branch created there looked correct and contained zero tables, and a
+branch created from a point in time before the schema existed looked equally correct. Both
+would have produced a vacuously passing rehearsal.
+
+The legacy `bookeliteelectric` project is temporary infrastructure, not the intended final
+architecture. It is nonetheless **the source of truth for the live application today**, and
+the pass-three contract is deliberately completed against it.
+
+### The ordering, and why
+
+1. **Now** — finish the pass-three contract in the database that actually serves production.
+2. **Then** — prove production remains healthy.
+3. **Then** — migrate the whole database to the Price2Book Neon account, as its own project.
+4. **Then** — continue toward the V1 release candidate.
+
+The separation is the point. These must not happen together:
+
+- making ten ownership columns required
+- removing old constraints and columns
+- adding new uniqueness enforcement
+- moving the entire database to another Neon account
+
+Any one of them can fail in ways the others would mask. Combined, a failure has too many
+candidate causes to diagnose under time pressure — and the diagnosis has to happen while
+production is degraded. This is the same reasoning that separated expand from contract, and
+that kept the deprecated-model drop out of the contract release.
+
+> **One irreversible change per release. If two must ship together, they have to be one
+> change that cannot be separated — not two that happen to be ready at the same time.**
+
+### The later migration
+
+Its own project, with the contracted BookElite database as the authoritative source:
+
+1. Treat the contracted BookElite database as authoritative.
+2. Create a complete production-equivalent database in the Price2Book Neon project.
+3. **Prove source/destination parity before cutover** — tables, columns, constraints,
+   indexes, row counts, critical integrity checks, pricing reconciliation.
+4. Point a Price2Book **Preview** deployment at the new database and run the full
+   verification and browser suite.
+5. Switch Price2Book **Production**'s `DATABASE_URL` in a controlled cutover.
+6. Run production smoke plus tenant and integrity verification again.
+7. **Keep the old BookElite database untouched** as a rollback source for an agreed
+   safety period.
+8. Retire or archive the legacy database only after the new one is proven stable.
+
+`scripts/db-structure.ts` and `scripts/verify-rehearsal-branch.ts` already do most of step 3
+and generalise to any source/destination pair — the parity proof is the same shape as the
+branch-fitness gate that caught the empty rehearsal branch.
+
+### Hard constraints
+
+> **Do not delete, reset, or repurpose the BookElite production database as part of the
+> migration.** It is the rollback path, and a rollback path that has been modified is not a
+> rollback path.
+
+Contractor #2 is onboarded against the dedicated Price2Book infrastructure, never the legacy
+BookElite project — see [ADR-012](#adr-012--contractor-2-is-a-release-candidate-not-a-pilot--owner-decision-27-august),
+which already defers that onboarding until the V1 release candidate. The two decisions
+compose: the destination infrastructure must exist and be proven before the first external
+contractor touches it.
