@@ -16,12 +16,18 @@ export default function CheckoutDetailsForm() {
   const params = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Whether the failure is about the chosen TIME. "Pick a different time"
+  // is the right action for a taken window and nonsense for an out-of-area
+  // ZIP — offering it there sends the customer to change something that
+  // has nothing to do with why they were refused.
+  const [timeConflict, setTimeConflict] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", address: "", zipCode: "" });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setTimeConflict(false);
 
     const res = await siteFetch("/api/checkout", {
       method: "POST",
@@ -43,6 +49,7 @@ export default function CheckoutDetailsForm() {
       // been charged the price and must land somewhere correct.
       router.push(`/${site.hostedSlug}/checkout/confirmation/${data.bookingId}`);
     } else if (res.status === 409) {
+      setTimeConflict(true);
       setError(data.error ?? "That window was just taken — please pick another time.");
     } else {
       // The route sends a human-readable `message` for the rejections a
@@ -97,10 +104,19 @@ export default function CheckoutDetailsForm() {
 
         {error && (
           <div className="rounded-card bg-red-50 p-3 text-sm text-red-700">
-            {error}{" "}
-            <button type="button" onClick={() => router.push(`${base}/checkout/schedule`)} className="font-semibold underline">
-              Pick a different time
-            </button>
+            {error}
+            {timeConflict && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => router.push(`${base}/checkout/schedule`)}
+                  className="font-semibold underline"
+                >
+                  Pick a different time
+                </button>
+              </>
+            )}
           </div>
         )}
 
