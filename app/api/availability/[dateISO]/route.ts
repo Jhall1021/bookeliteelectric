@@ -1,19 +1,32 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getWindowAvailabilityForDay } from "@/lib/jobber";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 
 // Deliberately un-cached — always hits Jobber fresh. This is what makes
 // clicking a day tab actually reflect whatever's really on the calendar
 // right now, not a snapshot from whenever the page first loaded.
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: { dateISO: string } }) {
-  const eligibleCrews = await prisma.jobberCrewMember.findMany({
-    where: { eligibleForWebsiteBookings: true },
-    select: { jobberUserId: true },
-  });
-  const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
+export async function GET(req: Request, { params }: { params: { dateISO: string } }) {
+  // ADR §2.2. This is a customer-facing API and had no tenant identity at all:
+  // it read every contractor's crew and answered with availability computed
+  // from all of them. Which windows a storefront offers is that contractor's
+  // capacity, so the site has to say who is asking.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
 
-  const windows = await getWindowAvailabilityForDay(params.dateISO, eligibleIds);
-  return NextResponse.json({ windows });
+  return withSite(site, async (db) => {
+    const eligibleCrews = await db.jobberCrewMember.findMany({
+      where: { eligibleForWebsiteBookings: true },
+      select: { jobberUserId: true },
+    });
+    const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
+
+    const windows = await getWindowAvailabilityForDay(params.dateISO, eligibleIds);
+    return NextResponse.json({ windows });
+  });
 }

@@ -232,4 +232,6 @@ nested and transaction behaviour proven rather than assumed, a Preview browser p
 the customer-visible Visit/Quote/Booking flow, and a reconcile if any pricing-bearing path
 is touched.
 
-Contractor #2 does not take real traffic until this pass completes.
+Contractor #2 does not take real traffic until this pass completes — and per ADR-012
+they are not onboarded at all until Price2Book reaches a V1 release-candidate state,
+with Elite as the internal proving tenant until then.

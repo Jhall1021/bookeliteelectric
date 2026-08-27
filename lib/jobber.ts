@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const TOKEN_URL = "https://api.getjobber.com/api/oauth/token";
@@ -201,10 +202,18 @@ function splitName(fullName: string): { firstName: string; lastName: string } {
 // worth knowing: a repeat customer will currently get a duplicate client
 // record in Jobber rather than being matched to their existing one.
 export async function pushBookingToJobber(
+  // The GUARDED client, passed in rather than reached for. This function runs
+  // from two places — checkout and the admin "Send to Jobber" action — and
+  // both already hold one. Taking it as the first parameter means the booking
+  // read below is scoped to the contractor whose Jobber account we are about
+  // to write into, which is the pairing that matters: pushing one
+  // contractor's job into another's Jobber is not a leak, it dispatches the
+  // wrong crew to a real address.
+  db: PrismaClient,
   bookingId: string,
   preSelectedCrewId?: string
 ): Promise<{ jobberJobId: string; jobNumber: number }> {
-  const booking = await prisma.booking.findUniqueOrThrow({
+  const booking = await db.booking.findUniqueOrThrow({
     where: { id: bookingId },
     include: {
       customer: true,
@@ -300,7 +309,8 @@ export async function pushBookingToJobber(
   let eligibleCrews: { jobberUserId: string }[] = [];
 
   if (!assignedCrewId) {
-    eligibleCrews = await prisma.jobberCrewMember.findMany({
+    // Guarded: this contractor's crew decides this contractor's assignment.
+    eligibleCrews = await db.jobberCrewMember.findMany({
       where: { eligibleForWebsiteBookings: true },
       select: { jobberUserId: true },
     });

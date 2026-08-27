@@ -80,6 +80,31 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// phrase alone as the key, which meant one contractor's cached answer
   /// decided every contractor's suggestion.
   "ServiceQuery",
+  /// PASS THREE, 27 August. The three ownership ROOTS of the booking flow.
+  /// Each carries contractorId because nothing above it can supply one:
+  ///
+  ///   Visit     no required parent. An OPEN visit legitimately has no line
+  ///             items yet (3 such rows live), so it cannot borrow an owner
+  ///             from them — and the owner has to be IN the lookup key,
+  ///             because sessionId is one browser cookie with no contractor
+  ///             dimension.
+  ///   Customer  no parents at all, and created BEFORE the Booking or Quote
+  ///             that would own it. PII: one homeowner using two contractors
+  ///             is two rows, never one shared row.
+  ///   Photo     three ALTERNATIVE optional parents, so no single relation
+  ///             path exists to derive from. Independently: both write sites
+  ///             are nested writes, which extensions never intercept, so the
+  ///             owner must be stamped structurally at write time.
+  "Visit",
+  "Customer",
+  "Photo",
+  /// Synced from a contractor's Jobber account. Not derived through
+  /// JobberConnection: that row is deleted on disconnect, so it is not a
+  /// stable parent. Its jobberUserId @unique is global and the crew sync
+  /// upserts on it — contractor B's sync would overwrite contractor A's row —
+  /// so the compound unique is already in the schema and contract drops the
+  /// global one.
+  "JobberCrewMember",
 ]);
 
 /**
@@ -194,15 +219,7 @@ export const PENDING_TENANT_SCOPE = new Set<string>([
   "MaterialSupplierLink",
   "MaterialCostEvent",
   "ConditionalDisclaimer",
-  "Customer",
-  "Visit",
-  "LineItem",
-  "Booking",
-  "Quote",
-  "Photo",
-  "ArrivalWindow",
   "TroubleshootingSession",
-  "JobberCrewMember",
 ]);
 
 /**
@@ -244,6 +261,25 @@ export const DERIVED_TENANT_MODELS = new Map<string, readonly string[]>([
   ["AnswerOptionComponent", ["answerOption", "question", "service"]],
   ["AnswerOptionPhotoGroup", ["answerOption", "question", "service"]],
   ["AnswerOptionDisclaimer", ["answerOption", "question", "service"]],
+  /// PASS THREE, 27 August. The booking flow's derived models.
+  ///
+  /// LineItem and Booking derive through Visit rather than through Service.
+  /// Both also carry a serviceId/customerId that resolves to a contractor,
+  /// but those are SECONDARY REFERENCES, not competing owners. Deriving from
+  /// Visit keeps "does this service belong to my visit's contractor?" a real
+  /// question; deriving from Service would make it tautological and let a
+  /// foreign service silently redefine whose visit it is.
+  ["LineItem", ["visit"]],
+  ["Booking", ["visit"]],
+  /// Quote derives through SERVICE, not visit — and the live data decided it,
+  /// not the schema. visitId and lineItemId are both optional AND actually
+  /// absent: of two rows, one has no visitId, both have no lineItemId, and
+  /// one has neither. serviceId is the only required owner-bearing parent.
+  ["Quote", ["service"]],
+  /// Was a bare serviceAreaId scalar Prisma could not traverse, which let a
+  /// Booking be correctly owned through its Visit while pointing at another
+  /// contractor's window. The relation now exists, so the owner is reachable.
+  ["ArrivalWindow", ["serviceArea"]],
 ]);
 
 /** `["question","service"]` -> `{ question: { service: { contractorId } } }`. */

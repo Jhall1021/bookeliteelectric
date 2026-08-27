@@ -7,6 +7,7 @@ import {
   resolveRoute,
 } from "@/lib/routeResolver";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
+import { findOrCreateOpenVisit } from "@/lib/openVisit";
 
 /**
  * A quote request.
@@ -76,13 +77,12 @@ export async function POST(req: Request) {
   // worse than no quote.
   // The contractor comes from the SITE, not from the service being priced.
   const settings = await loadPricingSettings(db, site.contractorId);
-  // STILL UNGUARDED, DELIBERATELY. Visit, LineItem, Customer and Quote are in
-  // PENDING_TENANT_SCOPE — pass three carries contractorId onto them. Routing
-  // them through the guard today would throw NotYetTenantScopedError.
-  //
-  // The site is resolved above, so pass three converts these in place.
-  const existingCount = await prisma.lineItem.count({
-    where: { visit: { sessionId, status: "OPEN" } },
+  // Guarded, and keyed on the contractor (ADR-011). This decides whether the
+  // quoted line is the visit's primary, which decides the price — counting
+  // another contractor's open visit here would have priced this quote as an
+  // add-on to a cart that is not ours.
+  const existingCount = await db.lineItem.count({
+    where: { visit: { contractorId: site.contractorId, sessionId, status: "OPEN" } },
   });
   const resolved = resolveRoute(
     service,
@@ -96,22 +96,28 @@ export async function POST(req: Request) {
   // Contact details are still collected here — it's how the office reaches
   // them with the price. Checkout would normally capture this, but they can't
   // reach checkout until the quote comes back.
-  const customer = await prisma.customer.create({ data: { name, email, phone } });
+  // Customer is a direct-owned root, so the guard stamps contractorId on the
+  // create. It is created before the Quote that will reference it, which is
+  // exactly why it could not derive an owner.
+  const customer = await db.customer.create({ data: { name, email, phone } });
 
-  let visit = await prisma.visit.findFirst({ where: { sessionId, status: "OPEN" } });
-  if (!visit) {
-    visit = await prisma.visit.create({ data: { sessionId, status: "OPEN" } });
-  }
+  const visit = await findOrCreateOpenVisit(db, site.contractorId, sessionId);
 
   // Line item and quote are created together — a quote with no line item
   // leaves the customer wondering where their request went, and a line item
   // with no quote is an unpriced row nobody is working on.
+  // UNGUARDED CLIENT, DELIBERATELY. LineItem derives through Visit and Quote
+  // derives through Service (ADR-010), so neither has a contractorId to stamp
+  // and the guard refuses a direct create rather than inventing an owner.
+  // Both parents are already proven: `visit` came from the guarded client
+  // above, and `service` from the guarded loadServiceForResolution, so a
+  // foreign id would have been null long before this line.
   const { quote, lineItem } = await prisma.$transaction(async (tx) => {
-    const isFirst = (await tx.lineItem.count({ where: { visitId: visit!.id } })) === 0;
+    const isFirst = (await tx.lineItem.count({ where: { visitId: visit.id } })) === 0;
 
     const li = await tx.lineItem.create({
       data: {
-        visitId: visit!.id,
+        visitId: visit.id,
         serviceId,
         isPrimary: isFirst,
         answersSnapshot: answersSnapshot ?? {},
@@ -127,12 +133,18 @@ export async function POST(req: Request) {
       data: {
         customerId: customer.id,
         serviceId,
-        visitId: visit!.id,
+        visitId: visit.id,
         lineItemId: li.id,
         answersSnapshot: answersSnapshot ?? {},
         status: "SUBMITTED",
+        // contractorId stamped EXPLICITLY. This is a nested create, and
+        // Prisma never fires the guard's extension for nested writes, so
+        // nothing else would set Photo's owner. Do not assume the guard
+        // covers this — scripts/verify-booking-tenancy.ts checks the stamped
+        // owner against the quote's service afterwards.
         photos: {
           create: photos.map((p: { url: string; label: string }) => ({
+            contractorId: site.contractorId,
             url: p.url,
             label: p.label,
             source: "CUSTOMER_PRE_BOOKING",

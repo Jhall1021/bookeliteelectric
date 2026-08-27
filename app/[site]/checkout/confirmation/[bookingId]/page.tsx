@@ -1,12 +1,24 @@
-import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/flow-types";
 import { notFound } from "next/navigation";
+import { requireHostedSite, withSite } from "@/lib/siteRouting";
 
-export default async function ConfirmationPage({ params }: { params: { bookingId: string } }) {
-  const booking = await prisma.booking.findUnique({
-    where: { id: params.bookingId },
-    include: { arrivalWindow: true, customer: true },
-  });
+export default async function ConfirmationPage({
+  params,
+}: {
+  params: { site: string; bookingId: string };
+}) {
+  // ADR §2.2 / ADR-011. The storefront in the URL decides the tenant, and the
+  // booking id decides nothing. This page shows a customer's name, address and
+  // total; unscoped, any booking id pasted into any storefront's URL rendered
+  // it. Booking derives its owner through Visit, so a foreign id is null here
+  // and takes the same notFound() path as one that does not exist.
+  const site = await requireHostedSite(params.site);
+  const booking = await withSite(site, (db) =>
+    db.booking.findUnique({
+      where: { id: params.bookingId },
+      include: { arrivalWindow: true, customer: true },
+    })
+  );
 
   if (!booking) return notFound();
 
