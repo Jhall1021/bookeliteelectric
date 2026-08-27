@@ -1,5 +1,6 @@
 /**
- * The disclaimer split's structural invariant — ADR-009.
+ * The disclaimer split's structural invariant — ADR-009 — and the secondary
+ * tenant reference on AnswerOption — ADR-010.
  *
  *   npx tsx scripts/verify-disclaimer-integrity.ts
  *
@@ -34,7 +35,7 @@ function ok(cond: boolean, label: string, detail = "") {
 }
 
 async function main() {
-  console.log(`\nDISCLAIMER INTEGRITY — ADR-009\n`);
+  console.log(`\nDISCLAIMER INTEGRITY — ADR-009 / ADR-010\n`);
 
   const totalQ = await prisma.questionDisclaimer.count();
   const totalO = await prisma.answerOptionDisclaimer.count();
@@ -126,6 +127,42 @@ async function main() {
   ok(
     policies.every((p) => p.canonicalDisclaimer !== null),
     `all ${policies.length} policy rows resolve to a canonical condition`
+  );
+
+  // 4. SECONDARY TENANT REFERENCE — ADR-010.
+  //
+  // Separate from primary ownership, and deliberately checked here rather than
+  // assumed safe. AnswerOption.referencedServiceId points at ANOTHER service
+  // whose price the option adopts at request time. Its ownership chain
+  // (AnswerOption -> Question -> Service) can be entirely valid while the
+  // REFERENCED service belongs to a different contractor — the guard's derived
+  // filter constrains the owner, not the reference.
+  //
+  // The failure is a customer being quoted another contractor's price for an
+  // add-on, which is a wrong number that looks like a right one.
+  const refs = await prisma.answerOption.findMany({
+    where: { referencedServiceId: { not: null } },
+    select: {
+      value: true,
+      referencedService: { select: { slug: true, contractorId: true } },
+      question: { select: { service: { select: { slug: true, contractorId: true } } } },
+    },
+  });
+  const crossedRefs = refs.filter(
+    (r) =>
+      r.referencedService &&
+      r.question.service.contractorId !== r.referencedService.contractorId
+  );
+  ok(
+    crossedRefs.length === 0,
+    `no answer option adopts another contractor's price (${refs.length} references)`,
+    crossedRefs
+      .map(
+        (r) =>
+          `      ${r.question.service.slug} / "${r.value}" references ` +
+          `${r.referencedService?.slug}, owned by a different contractor`
+      )
+      .join("\n")
   );
 
   console.log(

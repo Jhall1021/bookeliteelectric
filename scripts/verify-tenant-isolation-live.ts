@@ -28,7 +28,11 @@
 
 import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
-import { withTenantGuard, NotYetTenantScopedError } from "../lib/tenantGuard";
+import {
+  withTenantGuard,
+  NotYetTenantScopedError,
+  DerivedCreateError,
+} from "../lib/tenantGuard";
 import { loadOwnComponents } from "../lib/contractorComponents";
 import { categoryIcon, categoryName, categorySlug } from "../lib/categories";
 import { upsertCategory } from "../prisma/_categoryHelpers";
@@ -456,12 +460,17 @@ async function main() {
   );
 
   await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
-    // --- the control. A direct query must still throw. -------------------
+    // --- the control. A direct query of a STILL-PENDING model must throw. -
+    //
+    // This used to probe Question. ADR-010 reclassified Question as DERIVED,
+    // so it now scopes rather than throwing — correctly. Probing it here would
+    // have quietly become a test of nothing, so the control moved to a model
+    // that is genuinely still pending.
     {
-      const r = await attempt(() => guarded.question.findMany());
+      const r = await attempt(() => guarded.conditionalDisclaimer.findMany());
       ok(
         r.error instanceof NotYetTenantScopedError,
-        "CONTROL — a direct query of Question (pending) throws",
+        "CONTROL — a direct query of ConditionalDisclaimer (pending) throws",
         r.error ? r.error.name : `returned ${(r.value as unknown[])?.length} rows`
       );
     }
@@ -937,6 +946,196 @@ async function main() {
       "and Elite's own promise is unchanged, word for word",
       `got "${same?.text}"`
     );
+  });
+
+  // ---- DERIVED OWNERSHIP, ADR-010 ---------------------------------------
+  //
+  // THE QUESTION THIS SECTION EXISTS TO ANSWER
+  //
+  // ADR-010 chose derived ownership over a denormalized contractorId: Question
+  // is owned through service.contractorId, AnswerOption through
+  // question.service.contractorId. That only works if Prisma actually accepts
+  // a RELATION filter where the guard needs to inject one — and specifically
+  // if it accepts one inside a WhereUniqueInput, which findUnique, update and
+  // delete all take.
+  //
+  // If this fails, the guard implementation is wrong, not the ownership model.
+  // Either way it must be known BEFORE 21 query sites are converted.
+  console.log(`\nDERIVED OWNERSHIP — does Prisma accept relation filters?\n`);
+
+  // Elite's equivalents, so "returns nothing" is a real claim.
+  const eliteQuestion = await raw.question.findFirstOrThrow({
+    where: { service: { contractorId: elite.id } },
+    select: { id: true, key: true },
+  });
+  const eliteAnswer = await raw.answerOption.findFirstOrThrow({
+    where: { question: { service: { contractorId: elite.id } } },
+    select: { id: true, value: true },
+  });
+  const eliteQCount = await raw.question.count({
+    where: { service: { contractorId: elite.id } },
+  });
+  const eliteACount = await raw.answerOption.count({
+    where: { question: { service: { contractorId: elite.id } } },
+  });
+  const dummyAnswer = await raw.answerOption.findFirstOrThrow({
+    where: { question: { serviceId: dummyService.id } },
+    select: { id: true, value: true },
+  });
+
+  // Read the dummy's true counts rather than assuming them. The NESTED READS
+  // section legitimately adds a question through a nested create, so a
+  // hardcoded 1 here would be a test asserting a stale constant — the exact
+  // fault the CONTEXT section's comment already records once.
+  const dummyQCount = await raw.question.count({
+    where: { service: { contractorId: dummy.id } },
+  });
+  const dummyACount = await raw.answerOption.count({
+    where: { question: { service: { contractorId: dummy.id } } },
+  });
+
+  console.log(
+    `  Elite: ${eliteQCount} questions, ${eliteACount} answer options.\n` +
+      `  Dummy: ${dummyQCount} question(s), ${dummyACount} answer option(s).\n`
+  );
+
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    // ---- ONE HOP: Question -> service.contractorId ----------------------
+    console.log(`  ONE HOP — Question via service.contractorId\n`);
+    {
+      const r = await attempt(() => guarded.question.findMany());
+      const rows = (r.value as { id: string }[]) ?? [];
+      ok(r.error === undefined, "findMany runs", r.error?.message);
+      ok(rows.length === dummyQCount,
+         `findMany returns the dummy's ${dummyQCount}, not Elite's ${eliteQCount}`,
+         `got ${rows.length}`);
+      ok(dummyQCount < eliteQCount,
+         "and the two counts differ, so this is a real filter and not an empty set");
+    }
+    {
+      const r = await attempt(() => guarded.question.count());
+      ok(r.value === dummyQCount, `count sees ${dummyQCount}`, `got ${r.value}`);
+    }
+    {
+      const r = await attempt(() => guarded.question.findFirst({ where: { id: eliteQuestion.id } }));
+      ok(r.error === undefined && r.value === null,
+         "findFirst cannot reach Elite's question", r.error?.message ?? "LEAKED");
+    }
+    {
+      // THE ONE THAT MATTERS. A relation filter inside a WhereUniqueInput.
+      const r = await attempt(() => guarded.question.findUnique({ where: { id: eliteQuestion.id } }));
+      ok(r.error === undefined,
+         "findUnique ACCEPTS a relation filter in extendedWhereUnique",
+         r.error ? `${r.error.name}: ${r.error.message.slice(0, 160)}` : "");
+      ok(r.value === null, "and returns null for Elite's question",
+         r.value ? "LEAKED" : "");
+    }
+    {
+      const r = await attempt(() =>
+        guarded.question.findUniqueOrThrow({ where: { id: eliteQuestion.id } })
+      );
+      ok(r.error !== undefined && !(r.error instanceof Error && r.error.name === "PrismaClientValidationError"),
+         "findUniqueOrThrow rejects Elite's question by not-found, not by validation",
+         r.error ? `${r.error.name}` : "IT RETURNED A ROW — LEAK");
+    }
+    {
+      const r = await attempt(() =>
+        guarded.question.update({ where: { id: eliteQuestion.id }, data: { order: 999 } })
+      );
+      ok(r.error !== undefined || r.value === null,
+         "update cannot touch Elite's question",
+         r.value ? "IT UPDATED — LEAK" : r.error?.name);
+    }
+    {
+      const r = await attempt(() => guarded.question.delete({ where: { id: eliteQuestion.id } }));
+      ok(r.error !== undefined || r.value === null,
+         "delete cannot remove Elite's question",
+         r.value ? "IT DELETED — LEAK" : r.error?.name);
+    }
+
+    // ---- TWO HOPS: AnswerOption -> question.service.contractorId --------
+    console.log(`\n  TWO HOPS — AnswerOption via question.service.contractorId\n`);
+    {
+      const r = await attempt(() => guarded.answerOption.findMany());
+      const rows = (r.value as { id: string }[]) ?? [];
+      ok(r.error === undefined, "findMany runs", r.error?.message);
+      ok(rows.length === dummyACount,
+         `returns the dummy's ${dummyACount}, not Elite's ${eliteACount}`, `got ${rows.length}`);
+    }
+    {
+      const r = await attempt(() => guarded.answerOption.count());
+      ok(r.value === dummyACount, `count sees ${dummyACount}`, `got ${r.value}`);
+    }
+    {
+      const r = await attempt(() => guarded.answerOption.findFirst({ where: { id: eliteAnswer.id } }));
+      ok(r.value === null, "findFirst cannot reach Elite's answer option");
+    }
+    {
+      const r = await attempt(() => guarded.answerOption.findUnique({ where: { id: eliteAnswer.id } }));
+      ok(r.error === undefined,
+         "findUnique accepts a TWO-HOP relation filter in extendedWhereUnique",
+         r.error ? `${r.error.name}: ${r.error.message.slice(0, 160)}` : "");
+      ok(r.value === null, "and returns null for Elite's answer option",
+         r.value ? "LEAKED" : "");
+    }
+    {
+      const r = await attempt(() =>
+        guarded.answerOption.update({ where: { id: eliteAnswer.id }, data: { order: 999 } })
+      );
+      ok(r.error !== undefined || r.value === null,
+         "update cannot touch Elite's answer option",
+         r.value ? "IT UPDATED — LEAK" : r.error?.name);
+    }
+    {
+      const r = await attempt(() => guarded.answerOption.delete({ where: { id: eliteAnswer.id } }));
+      ok(r.error !== undefined || r.value === null,
+         "delete cannot remove Elite's answer option",
+         r.value ? "IT DELETED — LEAK" : r.error?.name);
+    }
+
+    // ---- and it must still reach ITS OWN rows ---------------------------
+    //
+    // Half of a scoping mechanism is returning nothing. The other half is
+    // returning the right thing, and a filter that silently matched nothing
+    // would pass every check above.
+    console.log(`\n  POSITIVE CONTROL — the dummy can still reach its own\n`);
+    {
+      const r = await attempt(() => guarded.question.findUnique({ where: { id: dummyQuestion.id } }));
+      ok((r.value as { id: string } | null)?.id === dummyQuestion.id,
+         "findUnique returns the dummy's OWN question", r.error?.message ?? `got ${r.value}`);
+    }
+    {
+      const r = await attempt(() =>
+        guarded.answerOption.findUnique({ where: { id: dummyAnswer.id } })
+      );
+      ok((r.value as { id: string } | null)?.id === dummyAnswer.id,
+         "findUnique returns the dummy's OWN answer option", r.error?.message);
+    }
+    {
+      const r = await attempt(() =>
+        guarded.question.update({ where: { id: dummyQuestion.id }, data: { order: 7 } })
+      );
+      ok((r.value as { order: number } | null)?.order === 7,
+         "update succeeds on the dummy's own question", r.error?.message);
+    }
+
+    // ---- creates refuse rather than invent an owner ---------------------
+    {
+      const r = await attempt(() =>
+        guarded.question.create({
+          data: {
+            serviceId: dummyService.id,
+            key: "should_not_be_created",
+            prompt: "x",
+            inputType: "SINGLE_SELECT",
+            order: 0,
+          },
+        })
+      );
+      ok(r.error instanceof DerivedCreateError,
+         "a direct create on a derived model REFUSES rather than inventing an owner",
+         r.error ? r.error.name : "IT CREATED A ROW");
+    }
   });
 
   // ---- Elite untouched ---------------------------------------------------

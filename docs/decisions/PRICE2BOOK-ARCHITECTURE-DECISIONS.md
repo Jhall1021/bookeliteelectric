@@ -733,34 +733,111 @@ attachment and watching the gate exit 1.
 delete statements in the isolation test's own cleanup. It is a drop candidate
 for the contract phase, not a tenant-scope target. Do not migrate it.
 
-## ADR-010 — Ownership comes from the data model — NEW, 27 August
+## ADR-010 — Ownership comes from the data model — SETTLED, 27 August
 
-**Partially decided.** Eight of the ten pass-two models derive ownership
-through a required foreign key rather than owning it:
+**Decided and proven. Derived tenant ownership is the architecture for the
+service-tree models.** No `contractorId` column is added to any of them.
 
-| Model | Ownership |
-|---|---|
-| `Question`, `ServiceMaterial`, `PricingRule` | derived ← `Service` |
-| `AnswerOption` | derived ← `Question` ← `Service` |
-| `AnswerOptionComponent`, `AnswerOptionPhotoGroup` | derived ← `AnswerOption` |
-| `QuestionDisclaimer`, `AnswerOptionDisclaimer` | derived ← `Question`/`AnswerOption` **and** the disclaimer |
-| `PhotoGroup` | **independent** → platform (ADR-009) |
-| `ConditionalDisclaimer` | **independent** → split (ADR-009) |
+A `Question.contractorId` would merely duplicate
+`Question.serviceId → Service.contractorId`, and a duplicate can disagree with
+what it duplicates. The same holds recursively for `AnswerOption` and the
+joins. **The parent relationship is the single source of truth for ownership**,
+so the guard reads it rather than a copy of it — which also avoids
+self-inflicting a cross-tenant pair that would need a hand-written integrity
+check per model, forever.
 
 Reading ownership from the schema rather than from `PENDING_TENANT_SCOPE` is
-what surfaced this. The list implied ten models each needing a `contractorId`;
-the data model says two are independent and eight already have an owner.
+what surfaced this. The list implied ten models each needing a column; the data
+model said two were independent and the rest already had an owner.
 
-**OPEN: do the eight derived models get their own `contractorId` column?**
-Adding one denormalizes ownership across ~812 rows and creates a second source
-of truth that can disagree with the parent — self-inflicting exactly the
-cross-tenant pair class that needs a hand-written integrity check per model.
-Not adding one means top-level queries on those models cannot be scoped by flat
-`contractorId` injection, and would need either re-rooting at `Service` or a
-guard that understands relation paths.
+### The guard now has three classes
 
-21 top-level query sites across 5 files are affected. **Undecided; do not
-implement either direction until it is settled.**
+| Class | Meaning |
+|---|---|
+| direct tenant-owned | carries `contractorId`; guard injects a scalar filter |
+| **derived tenant-owned** | owner reached through a required parent chain; guard generates a relation filter from a declaration |
+| platform-owned | shared knowledge; passes through |
+
+`DERIVED_TENANT_MODELS` declares the path, and `derivedOwnerFilter` generates
+the filter — `["question","service"]` becomes
+`{ question: { service: { contractorId } } }`:
+
+```
+Question, ServiceMaterial                          -> service
+AnswerOption, QuestionDisclaimer                   -> question.service
+AnswerOptionComponent, AnswerOptionPhotoGroup,
+AnswerOptionDisclaimer                             -> answerOption.question.service
+```
+
+**Lacking a scalar `contractorId` is not the same as being shared knowledge.**
+Classifying these platform would wave every query through unscoped.
+
+### Proven against real Prisma before any conversion
+
+The architecture depended on an unverified assumption: that Prisma accepts a
+**relation filter inside a `WhereUniqueInput`**, which `findUnique`, `update`
+and `delete` all take. If that failed, the guard implementation would need
+revisiting — not the ownership model. It was tested before converting a single
+query site.
+
+Live harness, `DERIVED OWNERSHIP` section, one hop (`Question`) and two hops
+(`AnswerOption`), against Elite's 150 questions and 539 answer options:
+
+| Operation | One hop | Two hops |
+|---|---|---|
+| `findMany` / `count` | scoped | scoped |
+| `findFirst` | scoped | scoped |
+| **`findUnique`** | **relation filter accepted** | **accepted** |
+| `findUniqueOrThrow` | not-found, not a validation error | — |
+| `update` | refused | refused |
+| `delete` | refused | refused |
+
+With a positive control, because half of a scoping mechanism is returning
+nothing and the other half is returning the right thing — a filter that
+silently matched nothing would pass every negative check. The dummy still
+reaches and updates its own rows.
+
+84 of 84 checks pass.
+
+### Writes
+
+For derived models the guard **never invents an owner** — there is no column to
+stamp. A direct `create`, `createMany` or `upsert` throws `DerivedCreateError`
+naming the relation path. A create that invented an owner would be the
+denormalization this class exists to avoid, arriving through the back door.
+
+Direct creates must instead prove the owning parent belongs to the current
+contractor, at the call site. Reparenting an ownership foreign key fails closed
+unless explicitly validated.
+
+Nested creates beneath an already tenant-scoped parent are unaffected:
+ownership is structural, and per the ADR-007 finding the child guard does not
+fire for them anyway.
+
+### Secondary tenant references are separate from ownership
+
+`AnswerOption.referencedServiceId` points at another service whose price the
+option adopts at request time. Its ownership chain can be entirely valid while
+the **referenced** service belongs to a different contractor — the derived
+filter constrains the owner, not the reference. The failure is a customer
+quoted another contractor's price for an add-on: a wrong number that looks
+like a right one.
+
+Checked in `scripts/verify-disclaimer-integrity.ts` alongside the other
+same-tenant pairs. 4 references in use today, 0 crossed.
+
+### `PricingRule` is excluded
+
+Zero rows, no live reads or writes, referenced only by the isolation test's own
+cleanup. Classified **deprecated / contract-phase removal**, not
+`PENDING_TENANT_SCOPE`. No columns, no guard rules, no migration code and no
+tests unless a live dependency reappears.
+
+### Remaining
+
+The mechanism is proven; the 21 top-level query sites across 5 files are **not
+yet converted**. `PENDING_TENANT_SCOPE` is down to 18 — and per ADR-007a that
+number is not itself evidence of anything.
 
 ## Decisions referenced but NOT recoverable from the repo
 
