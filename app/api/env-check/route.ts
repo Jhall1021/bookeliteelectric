@@ -36,8 +36,21 @@ export async function GET() {
   // These two are not secrets — they are the deployment's own identity, and
   // seeing them is how we confirm the magic link would return to the right
   // host rather than to production or localhost.
+  // NAMES ONLY, never values. A variable that reads as missing is usually
+  // present under a slightly different name — a trailing space, a lowercase
+  // letter, PLATFORM_RESEND_KEY instead of PLATFORM_RESEND_API_KEY. Listing
+  // what IS defined settles that in one request instead of another round of
+  // guess-and-redeploy.
+  //
+  // JSON.stringify shows a trailing space as "NAME " with the quote after the
+  // gap, which is exactly the case that is invisible in a dashboard.
+  const relatedNames = Object.keys(process.env)
+    .filter((k) => /RESEND|PLATFORM|AUTH/i.test(k))
+    .sort();
+
   return Response.json({
     present,
+    relatedNames,
     vercelEnv: process.env.VERCEL_ENV ?? null,
     branchUrl: process.env.VERCEL_BRANCH_URL ?? null,
   });
