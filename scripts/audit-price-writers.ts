@@ -147,6 +147,12 @@ function main() {
   console.log(`  A seed setting an owner-approved figure is fine — it just needs`);
   console.log(`  to be on the allowed list above, with the reason written down.`);
   console.log(`\n  Nothing was changed.\n`);
+
+  // Exits non-zero so this can gate a build. It reported and returned 0 until
+  // 27 August, which made ADR-003's "enforced" a description of intent rather
+  // than of behaviour — an unsanctioned price writer would have printed a
+  // warning into a log nobody reads and shipped.
+  process.exitCode = problems.length === 0 ? 0 : 1;
 }
 
 main();

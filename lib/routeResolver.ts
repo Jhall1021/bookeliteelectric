@@ -167,6 +167,46 @@ export function resolveRoute(
     materialCostCents: service.materialCostCents,
   });
 
+  // A required material role with no cost for this contractor.
+  //
+  //   A homeowner-facing price may never be calculated using an unresolved
+  //   required material cost. Missing required cost = no price.
+  //
+  // Checked FIRST, before the tree is walked, because it is a fact about the
+  // service rather than about the answers — and because the cached
+  // materialCostCents that startConfiguration just consumed is exactly the
+  // figure that must not be trusted while this flag is false. It is
+  // deliberately left at its previous value rather than zeroed; zeroing would
+  // be silent underpricing by another route, and this check is what prevents
+  // the stale figure reaching a customer.
+  //
+  // This cannot happen for a service whose materials all resolve, which today
+  // is all of them. It becomes reachable when a contractor holds template
+  // services before entering their own costs, and when a cost is deleted,
+  // deactivated or lost to a bad import after activation. Activation blocking
+  // catches the first; this catches the rest.
+  //
+  // RESTORED 27 August. This block was deleted as collateral in 3ae9349,
+  // whose subject was scoping pricing settings to the contractor and which
+  // never mentioned it. scripts/verify-unresolved-guards.ts went red in the
+  // same commit and stayed red, because nothing runs it on the way to a
+  // deploy — `npm run build` type-checks the seeds but does not execute the
+  // verify scripts, and the test's fixture is cast `as any`, so removing the
+  // guard was not even a type error.
+  if (service.materialCostResolved === false) {
+    return {
+      status: "REVIEW",
+      reason: "A material this service needs has no cost recorded",
+      photoLabels: [],
+      photoSafetyNotes: [],
+      // No floor either. A floor derived from a total that is missing a
+      // material is not a floor.
+      floorPriceCents: null,
+      isPrimary,
+      config,
+    };
+  }
+
   const consumed: { key: string; value: string; label: string }[] = [];
   const photoLabels: string[] = [];
   const photoSafetyNotes: string[] = [];
