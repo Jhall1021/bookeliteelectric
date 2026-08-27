@@ -6,6 +6,7 @@ import {
   categoryName,
   soleContractorId,
 } from "@/lib/categories";
+import { withContractor } from "@/lib/tenantRoute";
 
 /**
  * Categories had no admin screen at all — sortOrder existed on the model and
@@ -19,15 +20,17 @@ export default async function AdminCategoriesPage() {
   // the ids it emits are ContractorCategory ids that the reorder route
   // updates.
   const contractorId = await soleContractorId(prisma, "the categories admin");
-  const categories = await prisma.contractorCategory.findMany({
-    where: { contractorId },
-    orderBy: { sortOrder: "asc" },
-    include: {
-      canonicalCategory: CANONICAL_CATEGORY_SELECT,
-      _count: { select: { services: true } },
+  // GUARD-ADOPTED (ADR-007a). The hand-written contractorId filter is gone.
+  const categories = await withContractor(contractorId, "admin-session", (db) =>
+    db.contractorCategory.findMany({
+      orderBy: { sortOrder: "asc" },
+      include: {
+        canonicalCategory: CANONICAL_CATEGORY_SELECT,
+        _count: { select: { services: true } },
       services: { where: { active: true }, select: { id: true } },
-    },
-  });
+      },
+    })
+  );
 
   return (
     <div>

@@ -475,40 +475,69 @@ Point 9 is what stopped `ServiceCategory` being left in the pending list after
 ADR-006 superseded the plan to tenant-scope it. A model sitting in that list
 for the wrong reason makes the list lie in both directions.
 
-### Guard adoption — partial, 27 August
+### Guard adoption — inventory from a fresh sweep, 27 August
 
-Criterion 4 in progress. `lib/tenantRoute.ts` opens context and hands over the
-guarded client together; `scripts/audit-guard-adoption.ts` makes each converted
-file a one-way door and is in the build gate.
+Criterion 4 in progress. Recomputed from the repository against the current
+ownership model, **not** from any accumulated work list — the first completion
+attempt reported "21 of 21" and was measuring a denominator defined before
+`Service` and `ContractorCategory` entered the architecture.
 
-**Adopted: 5 files, all 21 pass-two query sites.** `app/troubleshooting`, the
-tree admin, the materials admin, and the two dependency-injected material
-helpers.
+**Adopted: 15 files.** `scripts/audit-guard-adoption.ts` keeps each one a
+one-way door and is in the build gate. 0 drift.
 
-**NOT complete, and the shortfall was found by the criterion itself.** A fresh
-sweep — deliberately independent of the working list — finds **28 more
-unguarded tenant-model sites across 18 files**. They were never in the pass-two
-narrowing because that sweep covered pass-two MODELS; `Service` was tenant
-scoped in pass one and `ContractorCategory` arrived with ADR-006, so neither
-was ever in scope for the list being worked from.
+| Bucket | Count | Notes |
+|---|---|---|
+| Guarded / adopted | **15 files** | every route that can currently know its tenant |
+| Platform-owned | — | passed through by the guard; `CanonicalMaterial`, `CanonicalComponent`, `CanonicalCategory`, `CanonicalDisclaimer`, `PhotoGroup`, `ZipCode`, `Contractor` |
+| Deprecated / migration / seed | `prisma/`, `scripts/` | construct their own client, platform-level by design, write across tenants deliberately |
+| **Blocked on storefront tenant resolution** | **15 sites, 9 files** | see below — ADR §2.2 |
+| **Unexplained / unreviewed** | **0** | must stay 0 |
 
-This is ADR-007a applying to its own progress tracking: 21 of 21 was true and
-still measured the wrong denominator.
+### Blocked on storefront tenant resolution — ADR §2.2
 
-The 28 divide into two kinds:
+These are public routes. They cannot resolve a contractor because nothing tells
+the public storefront which tenant it is serving. **They are not exceptions and
+they do not satisfy criterion 4** — route adoption is incomplete until §2.2
+exists.
 
-- **Correct but hand-written.** The `ContractorCategory` reads carry an
-  explicit `where: { contractorId }` — written during the ADR-006 read switch,
-  before adoption existed. Right today, and load-bearing in exactly the way
-  ADR-007 warns about.
-- **Not filtered at all.** The admin `Service` routes take an id straight from
-  the URL: `prisma.service.findUnique({ where: { id: params.serviceId } })`
-  with no contractor condition. Moot at one contractor. At two,
-  `app/api/admin/services/[serviceId]/pricing/route.ts` would **publish a price
-  onto another contractor's service** on request.
+```
+app/(marketing)/page.tsx                    Service.findMany
+app/api/service-match/route.ts              Service.findMany
+app/api/services/[slug]/route.ts            Service.findUnique x2
+app/api/services/by-id/[id]/route.ts        Service.findUnique
+app/api/visit/while-we-there/route.ts       ContractorCategory.findMany
+app/services/page.tsx                       ContractorCategory.findMany
+app/services/[category]/page.tsx            ContractorCategory.findFirst
+app/api/visit/route.ts                      4 sites, unguarded client passed to DI helpers
+app/api/quotes/route.ts                     2 sites, same
+```
 
-That last one is the most serious thing the sweep surfaced and is recorded in
-the open items.
+**Tenant context must not be manufactured from the Service being requested.**
+Deriving "whose tenant is this" from the row the request asked for is circular:
+it authorises access using the thing being accessed. The identifier has to come
+from outside the request's target — a site identifier, a domain, an embed key.
+
+Three of these currently resolve a contractor through `soleContractorId`, which
+**throws** when a second contractor exists. That is fail-closed rather than
+safe: at contractor #2 the public storefront breaks loudly instead of leaking.
+The other six have no contractor resolution at all.
+
+### A blind spot the sweep found in the check itself
+
+Seven of the fifteen blocked sites are `helper(prisma, …)` — the unguarded
+client handed to a dependency-injected helper that then runs tenant queries on
+it. No `prisma.<model>` search can see them, because the model name never
+appears at the call site. `app/api/visit/route.ts` and
+`app/api/quotes/route.ts` looked clean and were not.
+
+`audit-guard-adoption.ts` now flags an adopted file passing the unguarded
+client to anything, with `withTenantGuard`, `withContractor` and
+`soleContractorId` excepted as the ways it is legitimately built or read.
+
+Related: `lib/routeResolver.ts` took a parameter literally named `prisma`,
+shadowing the module import, so neither a reader nor a static check could tell
+whether a query ran on the injected client or the global one. Renamed to `db`,
+matching the material helpers.
 
 *Evidence: `scripts/verify-tenant-isolation-live.ts`;
 `scripts/audit-platform-tenant-relations.ts`;

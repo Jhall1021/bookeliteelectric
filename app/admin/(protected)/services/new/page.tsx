@@ -5,17 +5,22 @@ import {
   categoryName,
   soleContractorId,
 } from "@/lib/categories";
+import { withContractor } from "@/lib/tenantRoute";
 
 export default async function NewServicePage() {
   // ADR-007: rooted at ContractorCategory. The ids handed to the form are
   // ContractorCategory ids — a new service is attached to this contractor's
   // category, not to the shared taxonomy row.
   const contractorId = await soleContractorId(prisma, "the new-service form");
-  const rows = await prisma.contractorCategory.findMany({
-    where: { contractorId, active: true },
-    orderBy: { sortOrder: "asc" },
-    include: { canonicalCategory: CANONICAL_CATEGORY_SELECT },
-  });
+  // GUARD-ADOPTED (ADR-007a). The explicit contractorId filter is gone — the
+  // guard supplies it, so it is no longer load-bearing application code.
+  const rows = await withContractor(contractorId, "admin-session", (db) =>
+    db.contractorCategory.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: "asc" },
+      include: { canonicalCategory: CANONICAL_CATEGORY_SELECT },
+    })
+  );
   const categories = rows.map((c) => ({ id: c.id, name: categoryName(c) }));
 
   return (

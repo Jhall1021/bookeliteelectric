@@ -74,6 +74,12 @@ const ADOPTED_FILES: string[] = [
   "app/api/admin/reorder/route.ts",
   "app/admin/(protected)/services/[serviceId]/page.tsx",
   "app/admin/(protected)/pricing-settings/page.tsx",
+  // Batch B — admin category readers. Correct before, but by a hand-written
+  // `where: { contractorId }` written during the ADR-006 read switch. Behind
+  // the guard the filter is no longer load-bearing application code.
+  "app/admin/(protected)/categories/page.tsx",
+  "app/admin/(protected)/services/page.tsx",
+  "app/admin/(protected)/services/new/page.tsx",
 ];
 
 /**
@@ -129,6 +135,39 @@ export function auditFile(file: string, rawSrc: string): Finding[] {
     localClients.push(m[1]);
   }
   const unguarded = [...UNGUARDED_IDENTIFIERS, ...localClients];
+
+  // HANDING THE UNGUARDED CLIENT TO SOMETHING ELSE.
+  //
+  // The dependency-injected helpers — recomputeServiceMaterialCost,
+  // loadServiceForResolution, loadOwnComponents — take a client and run tenant
+  // queries on it. `helper(prisma, serviceId)` is therefore an unguarded
+  // tenant query that no `prisma.<model>` search can see, because the model
+  // name never appears at the call site.
+  //
+  // Found by the completion sweep: seven such sites, in files that looked
+  // clean. An adopted file must not pass the unguarded client to anything.
+  src.split("\n").forEach((text, i) => {
+    for (const id of unguarded) {
+      const passed = new RegExp(`\\b(\\w+)\\s*\\(\\s*${id}\\s*[,)]`, "g");
+      for (const m of text.matchAll(passed)) {
+        const callee = m[1];
+        // `withTenantGuard(prisma)` and `withContractor(...)` are how the
+        // guarded client is BUILT, not a leak.
+        if (callee === "withTenantGuard" || callee === "withContractor") continue;
+        // soleContractorId reads Contractor, a platform model, and must run
+        // before a context exists.
+        if (callee === "soleContractorId") continue;
+        if (ALLOWED_UNGUARDED[`${file}::${callee}`]) continue;
+        findings.push({
+          file,
+          line: i + 1,
+          model: `(passed to ${callee})`,
+          op: "unguarded client",
+          text: text.trim(),
+        });
+      }
+    }
+  });
 
   src.split("\n").forEach((text, i) => {
     for (const id of unguarded) {
@@ -203,7 +242,27 @@ const FIXTURES: { name: string; src: string; expectFindings: number }[] = [
     expectFindings: 1,
   },
   {
-    name: "7. commented-out unguarded query -> pass",
+    name: "7. unguarded client PASSED to a DI helper -> fail",
+    src: `import { prisma } from "@/lib/prisma";
+      const service = await loadServiceForResolution(prisma, serviceId);`,
+    expectFindings: 1,
+  },
+  {
+    name: "8. guarded client passed to a DI helper -> pass",
+    src: `return withContractor(id, "admin-session", async (db) => {
+        const service = await loadServiceForResolution(db, serviceId);
+        return recomputeServiceMaterialCost(db, serviceId);
+      });`,
+    expectFindings: 0,
+  },
+  {
+    name: "9. building the guarded client is not a leak -> pass",
+    src: `const guarded = withTenantGuard(prisma);
+      const id = await soleContractorId(prisma, "a surface");`,
+    expectFindings: 0,
+  },
+  {
+    name: "10. commented-out unguarded query -> pass",
     src: `// return prisma.question.findMany();
       return db.question.findMany();`,
     expectFindings: 0,

@@ -7,12 +7,15 @@ import {
   categoryName,
   soleContractorId,
 } from "@/lib/categories";
+import { withContractor } from "@/lib/tenantRoute";
 
 export default async function AdminServicesPage() {
   // ADR-007: rooted at ContractorCategory, the tenant-owned model.
   const contractorId = await soleContractorId(prisma, "the services admin");
-  const categories = await prisma.contractorCategory.findMany({
-    where: { contractorId },
+  // GUARD-ADOPTED (ADR-007a). The hand-written contractorId filter is gone;
+  // the guard supplies it centrally.
+  const categories = await withContractor(contractorId, "admin-session", (db) =>
+    db.contractorCategory.findMany({
     orderBy: { sortOrder: "asc" },
     include: {
       canonicalCategory: CANONICAL_CATEGORY_SELECT,
@@ -40,7 +43,8 @@ export default async function AdminServicesPage() {
         },
       },
     },
-  });
+    })
+  );
 
   const all = categories.flatMap((c) => c.services);
   const withLabor = all.filter((s) => s.fieldLaborHours !== null).length;

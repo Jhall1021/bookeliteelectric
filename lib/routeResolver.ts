@@ -27,6 +27,14 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+// A NOTE ON THE PARAMETER NAME
+//
+// These take `db`, not `prisma`. The parameter used to be called `prisma`,
+// which shadowed the module import of the same name — so a reader could not
+// tell whether a query ran on the injected client or the global one, and
+// static analysis could not either. The functions are dependency-injected:
+// they run on whatever client the caller hands them, guarded or not, and the
+// caller decides.
 import {
   loadOwnComponents,
   canonicalComponentIdsIn,
@@ -105,8 +113,8 @@ export type ResolvedRoute =
  * option either — a tenant boundary that holds only because the data was
  * discarded after loading is not one.
  */
-export async function loadServiceForResolution(prisma: PrismaClient, serviceId: string) {
-  const owner = await prisma.service.findUnique({
+export async function loadServiceForResolution(db: PrismaClient, serviceId: string) {
+  const owner = await db.service.findUnique({
     where: { id: serviceId },
     select: { slug: true, contractorId: true },
   });
@@ -118,7 +126,7 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
     );
   }
 
-  const service = await prisma.service.findUnique({
+  const service = await db.service.findUnique({
     where: { id: serviceId },
     include: {
       questions: {
@@ -150,7 +158,7 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
   if (!service) return null;
 
   const ownComponents = await loadOwnComponents(
-    prisma,
+    db,
     owner.contractorId,
     canonicalComponentIdsIn(service)
   );
@@ -473,13 +481,13 @@ export function resolveRoute(
  * No site identifier, no session, no ambient context needed for this path.
  */
 export async function loadPricingSettings(
-  prisma: PrismaClient,
+  db: PrismaClient,
   contractorId: string
 ): Promise<PricingSettings> {
   if (!contractorId) {
     throw new Error("loadPricingSettings called with no contractor — cannot price anything.");
   }
-  const s = await prisma.pricingSettings.findUnique({ where: { contractorId } });
+  const s = await db.pricingSettings.findUnique({ where: { contractorId } });
   if (!s) {
     throw new Error(
       `No pricing settings for contractor ${contractorId} — cannot price anything. ` +
