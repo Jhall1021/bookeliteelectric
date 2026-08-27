@@ -98,21 +98,39 @@ export const PLATFORM_MODELS = new Set<string>([
   /// no homeowner-facing text; that is contractor policy on
   /// ContractorDisclaimer.
   "CanonicalDisclaimer",
-  /// Deprecated pre-split models, awaiting removal in the contract phase.
+
+]);
+
+/**
+ * Models awaiting removal in the contract phase.
+ *
+ * SEPARATE FROM PLATFORM_MODELS ON PURPOSE. Both pass through the guard, so
+ * this changes no runtime behaviour — but "shared trade knowledge" and "dead
+ * structure we have not deleted yet" are not the same thing, and one set
+ * holding both meanings makes every future question about it ambiguous.
+ *
+ * It matters concretely: scripts/audit-platform-tenant-relations.ts watches
+ * relation names hanging off platform parents, and a deprecated model's
+ * relations are not real query paths. PricingRule.service made the extremely
+ * common field name `service` a watched name and produced eighteen false
+ * findings the moment it was classified.
+ *
+ * Nothing here is a tenant-scope target. No columns, no guard rules, no
+ * migration code, no tests — unless a live dependency reappears.
+ */
+export const DEPRECATED_MODELS = new Set<string>([
+  /// Pre-split, superseded by CanonicalMaterial + ContractorMaterial.
   "Material",
+  /// Pre-split, superseded by CanonicalComponent + ContractorComponent.
   "JobComponent",
-  /// DEAD — ADR-009. Zero rows, and the only references anywhere are the
-  /// delete statements in the isolation test's own cleanup. A contract-phase
-  /// drop candidate, not a tenant-scope target. Classified here so it stops
-  /// appearing as outstanding migration work; it gets no columns, no guard
-  /// rules and no tests unless a live dependency reappears.
-  "PricingRule",
-  /// ADR-006 superseded the plan to tenant-scope this. It is now a
-  /// pre-split model like the two above: CanonicalCategory carries identity,
-  /// ContractorCategory carries presentation, and no operational read treats
-  /// this as the source of truth. The only remaining write derives
-  /// Service.categoryId, which is NOT NULL until the contract phase.
+  /// ADR-006 superseded the plan to tenant-scope this. CanonicalCategory
+  /// carries identity, ContractorCategory carries presentation, and no
+  /// operational read treats this as the source of truth. The only remaining
+  /// write derives Service.categoryId, NOT NULL until contract.
   "ServiceCategory",
+  /// ADR-009/010. Zero rows, and the only references anywhere are the delete
+  /// statements in the isolation test's own cleanup.
+  "PricingRule",
 ]);
 
 /**
@@ -298,7 +316,9 @@ function mergeScoped(where: unknown, contractorId: string) {
 }
 
 export function classifyModel(model: string): "platform" | "tenant" | "derived" {
-  if (PLATFORM_MODELS.has(model)) return "platform";
+  // Deprecated models pass through exactly as platform ones do — they hold no
+  // tenant data worth scoping and are awaiting deletion.
+  if (PLATFORM_MODELS.has(model) || DEPRECATED_MODELS.has(model)) return "platform";
   if (TENANT_SCOPED_MODELS.has(model)) return "tenant";
   if (DERIVED_TENANT_MODELS.has(model)) return "derived";
   if (PENDING_TENANT_SCOPE.has(model)) {

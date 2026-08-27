@@ -44,6 +44,7 @@ import {
   PLATFORM_MODELS,
   TENANT_SCOPED_MODELS,
   PENDING_TENANT_SCOPE,
+  DERIVED_TENANT_MODELS,
 } from "../lib/tenantGuard";
 
 /**
@@ -79,6 +80,11 @@ type Shape = { parent: string; field: string; child: string; childState: string 
 
 function tenantState(model: string): string | null {
   if (TENANT_SCOPED_MODELS.has(model)) return "tenant";
+  // ADR-010. Derived models are tenant-OWNED; they simply carry no column.
+  // Omitting them here would have quietly stopped watching every relation
+  // pointing at Question, AnswerOption, ServiceMaterial and the joins at the
+  // moment they were reclassified.
+  if (DERIVED_TENANT_MODELS.has(model)) return "derived -> tenant";
   if (PENDING_TENANT_SCOPE.has(model)) return "pending -> tenant";
   return null;
 }

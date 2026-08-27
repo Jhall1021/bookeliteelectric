@@ -1119,6 +1119,66 @@ async function main() {
          "update succeeds on the dummy's own question", r.error?.message);
     }
 
+    // ---- does the extension survive $transaction? -----------------------
+    //
+    // Decides what a route like the tree admin can look like. That route
+    // deletes, updates and creates in one transaction; if `tx` is unguarded,
+    // the whole transaction runs outside the guard and ownership has to be
+    // proven up front instead.
+    {
+      const r = await attempt(() =>
+        guarded.$transaction(async (tx) => {
+          const n = await tx.question.count();
+          const leak = await tx.question.findUnique({ where: { id: eliteQuestion.id } });
+          return { n, leak };
+        })
+      );
+      const v = r.value as { n: number; leak: unknown } | undefined;
+      ok(
+        r.error === undefined && v?.n === dummyQCount,
+        "the guard SURVIVES $transaction — tx.count is scoped",
+        r.error ? r.error.message.slice(0, 120) : `got ${v?.n}, expected ${dummyQCount}`
+      );
+      ok(
+        v?.leak === null,
+        "and a cross-tenant findUnique inside the transaction returns null",
+        v?.leak ? "LEAKED INSIDE A TRANSACTION" : ""
+      );
+    }
+    {
+      // The sanctioned write shape: nested create beneath a tenant-scoped
+      // parent, inside a guarded transaction. If this works, the tree route
+      // does not need to leave the guarded world to create anything.
+      const r = await attempt(() =>
+        guarded.$transaction(async (tx) => {
+          const updated = await tx.service.update({
+            where: { id: dummyService.id },
+            data: {
+              questions: {
+                create: {
+                  key: "tx_nested_probe",
+                  prompt: "created through a scoped parent",
+                  inputType: "SINGLE_SELECT",
+                  order: 50,
+                },
+              },
+            },
+            select: { questions: { where: { key: "tx_nested_probe" }, select: { id: true } } },
+          });
+          return updated.questions[0]?.id ?? null;
+        })
+      );
+      ok(
+        typeof r.value === "string",
+        "a nested create through a scoped Service works inside a guarded transaction",
+        r.error ? `${r.error.name}: ${r.error.message.slice(0, 140)}` : "no id returned"
+      );
+      ok(
+        r.value !== null,
+        "and returns the new row's id, so a tree write can map temporary ids"
+      );
+    }
+
     // ---- creates refuse rather than invent an owner ---------------------
     {
       const r = await attempt(() =>

@@ -1,5 +1,7 @@
 import GuidedFlowEngine from "@/components/guided-flow/GuidedFlowEngine";
 import { prisma } from "@/lib/prisma";
+import { withContractor } from "@/lib/tenantRoute";
+import { soleContractorId } from "@/lib/categories";
 
 // Direct entry point per the brief — routes straight into the
 // Troubleshooting service's own flow rather than a generic contact form.
@@ -10,9 +12,21 @@ export default async function TroubleshootingPage() {
   // corrected wording, derive it: add a triage tree in the admin tree
   // builder and the original copy comes back on its own, with nothing here
   // to remember to change.
-  const questionCount = await prisma.question.count({
-    where: { service: { slug: "electrical-troubleshooting" } },
-  });
+  //
+  // GUARD-ADOPTED (ADR-007a). Question is derived-owned, so the guard adds
+  // `service: { contractorId }` and this stays the natural top-level shape —
+  // no reshaping into a Service-rooted include to inherit tenancy, which would
+  // push the query back into nested traversal where extensions are least
+  // observable.
+  const contractorId = await soleContractorId(prisma, "the troubleshooting page");
+  const questionCount = await withContractor(
+    contractorId,
+    "site-identifier",
+    (db) =>
+      db.question.count({
+        where: { service: { slug: "electrical-troubleshooting" } },
+      })
+  );
   const hasTree = questionCount > 0;
 
   return (
