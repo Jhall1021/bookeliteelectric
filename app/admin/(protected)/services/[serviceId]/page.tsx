@@ -4,12 +4,23 @@ import ServiceEditForm from "@/components/admin/ServiceEditForm";
 import TreeEditor from "@/components/admin/TreeEditor";
 import PricingPanel from "@/components/admin/PricingPanel";
 import MaterialsPanel from "@/components/admin/MaterialsPanel";
+import { categoryName, requireContractorCategory, soleContractorId } from "@/lib/categories";
+import { withContractor } from "@/lib/tenantRoute";
 
 export default async function EditServicePage({ params }: { params: { serviceId: string } }) {
-  const service = await prisma.service.findUnique({
+  // GUARD-ADOPTED (ADR-007a). Took a service id from the URL unscoped; the
+  // notFound() below now covers "not yours" as well as "not there".
+  const contractorId = await soleContractorId(prisma, "the service edit page");
+  return withContractor(contractorId, "admin-session", async (db) => {
+  const service = await db.service.findUnique({
     where: { id: params.serviceId },
     include: {
-      category: { select: { name: true } },
+      contractorCategory: {
+        select: {
+          nameOverride: true,
+          canonicalCategory: { select: { slug: true, name: true, defaultIcon: true } },
+        },
+      },
       questions: {
         orderBy: { order: "asc" },
         include: {
@@ -27,17 +38,24 @@ export default async function EditServicePage({ params }: { params: { serviceId:
   // Single global row. Null only if pricing has never been configured, in
   // which case the panel says so rather than showing a price built on
   // defaults nobody chose.
-  const settings = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
+  // ADR-007a: PricingSettings carries contractorId and is tenant-scoped. This
+  // read used `where: { id: "default" }` — the pre-tenant singleton row — so
+  // with two contractors every admin surface would have read the same
+  // settings regardless of who was asking. Keyed by contractor now, on the
+  // guarded client.
+  const settings = await db.pricingSettings.findUnique({ where: { contractorId } });
 
   // For the "link this option's price to another service" dropdown.
-  const allServices = await prisma.service.findMany({
+  const allServices = await db.service.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
 
   return (
     <div>
-      <div className="text-sm text-slate">{service.category.name}</div>
+      <div className="text-sm text-slate">
+        {categoryName(requireContractorCategory(service.slug, service.contractorCategory))}
+      </div>
       <h1 className="mt-1 font-display text-2xl font-bold text-navy">{service.name}</h1>
 
       <ServiceEditForm
@@ -114,4 +132,5 @@ export default async function EditServicePage({ params }: { params: { serviceId:
       />
     </div>
   );
+  });
 }

@@ -17,6 +17,8 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { findCategory, categoryAttachment } from "./_categoryHelpers";
+import { eliteContractorId } from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -48,9 +50,13 @@ async function attachPhotos(questionId: string, value: string, groupKeys: string
 // Replace Existing Range Hood
 // ---------------------------------------------------------------------------
 async function seedRangeHood() {
-  const category = await prisma.serviceCategory.findFirst({
-    where: { slug: { in: ["appliance-install", "appliance-installation"] } },
-  });
+  // ADR-006: resolves the contractor's presentation row as well as the
+  // canonical one, so the service below gets both pointers.
+  const contractorId = await eliteContractorId(prisma);
+  const category = await findCategory(prisma, contractorId, [
+    "appliance-install",
+    "appliance-installation",
+  ]);
   if (!category) {
     console.log("  – Appliance category not found; range hood skipped");
     return;
@@ -66,7 +72,7 @@ async function seedRangeHood() {
     create: {
       slug: "replace-range-hood",
       name: "Replace Existing Range Hood",
-      categoryId: category.id,
+      ...categoryAttachment(category),
       bookingType: "ADJUSTED",
       icon: "appliance",
       shortDescription:
@@ -77,7 +83,7 @@ async function seedRangeHood() {
   await prisma.service.update({
     where: { id: service.id },
     data: {
-      categoryId: category.id,
+      ...categoryAttachment(category),
       name: "Replace Existing Range Hood",
       bookingType: "ADJUSTED",
       active: true,

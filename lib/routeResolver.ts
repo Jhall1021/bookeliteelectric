@@ -27,6 +27,24 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+// A NOTE ON THE PARAMETER NAME
+//
+// These take `db`, not `prisma`. The parameter used to be called `prisma`,
+// which shadowed the module import of the same name — so a reader could not
+// tell whether a query ran on the injected client or the global one, and
+// static analysis could not either. The functions are dependency-injected:
+// they run on whatever client the caller hands them, guarded or not, and the
+// caller decides.
+import {
+  loadOwnComponents,
+  canonicalComponentIdsIn,
+  type OwnComponentMap,
+} from "./contractorComponents";
+import {
+  disclaimerIsActive,
+  disclaimerAccessClass,
+  requireContractorDisclaimer,
+} from "./categories";
 import {
   startConfiguration,
   applyBranch,
@@ -73,20 +91,30 @@ export type ResolvedRoute =
 /**
  * Everything the resolver needs, loaded once.
  *
- * TWO QUERIES, DELIBERATELY.
+ * THREE QUERIES, DELIBERATELY.
  *
- * Components are now a canonical role plus one contractor's economics, so the
- * nested include has to be filtered by contractor. The contractor is a
- * property of the service, which means it has to be known before the main
- * query runs.
+ *   1. the service's owning contractor
+ *   2. the tree, rooted at Service — tenant-owned, so the guard scopes it and
+ *      everything reachable below it is constrained by foreign key
+ *   3. that contractor's component economics, rooted at ContractorComponent —
+ *      tenant-owned, so the guard scopes that too
  *
- * The alternative — load every contractor's economics for each component and
- * filter in memory — would work today with one contractor and would pull
- * other contractors' pricing into the process. A tenant boundary that holds
- * only because the data was discarded after loading is not one.
+ * Query 3 used to be a nested include hanging off CanonicalComponent, with a
+ * hand-written contractor filter on it. It was correct, but only by diligence:
+ * CanonicalComponent is a PLATFORM model, the guard waves it through, and
+ * Prisma extensions do not fire on nested reads — so deleting that one `where`
+ * would have exposed every contractor's economics with nothing failing. The
+ * live harness demonstrated exactly that read.
+ *
+ * The rule this now follows: tenant-owned data is loaded from a tenant-owned
+ * TOP-LEVEL query. See lib/contractorComponents.ts.
+ *
+ * Loading every contractor's economics and filtering in memory was never an
+ * option either — a tenant boundary that holds only because the data was
+ * discarded after loading is not one.
  */
-export async function loadServiceForResolution(prisma: PrismaClient, serviceId: string) {
-  const owner = await prisma.service.findUnique({
+export async function loadServiceForResolution(db: PrismaClient, serviceId: string) {
+  const owner = await db.service.findUnique({
     where: { id: serviceId },
     select: { slug: true, contractorId: true },
   });
@@ -98,7 +126,7 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
     );
   }
 
-  return prisma.service.findUnique({
+  const service = await db.service.findUnique({
     where: { id: serviceId },
     include: {
       questions: {
@@ -107,27 +135,35 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
           options: {
             orderBy: { order: "asc" },
             include: {
-              components: {
+              // Canonical roles only — platform data under a tenant-owned
+              // root, which is safe. The contractor's figures arrive
+              // separately, from their own tenant-rooted query.
+              components: { include: { canonicalComponent: true } },
+              photoGroups: { include: { photoGroup: true } },
+              // ADR-009: the contractor's policy statement, not the shared
+              // pre-split text. Service-rooted, so this traversal is safe.
+              conditionalDisclaimers: {
                 include: {
-                  canonicalComponent: {
-                    include: {
-                      // At most one row: unique on (contractorId, canonical).
-                      // Empty means this contractor has never priced it.
-                      contractorComponents: {
-                        where: { contractorId: owner.contractorId },
-                      },
-                    },
+                  contractorDisclaimer: {
+                    include: { canonicalDisclaimer: true },
                   },
                 },
               },
-              photoGroups: { include: { photoGroup: true } },
-              conditionalDisclaimers: { include: { disclaimer: true } },
             },
           },
         },
       },
     },
   });
+  if (!service) return null;
+
+  const ownComponents = await loadOwnComponents(
+    db,
+    owner.contractorId,
+    canonicalComponentIdsIn(service)
+  );
+
+  return { ...service, ownComponents };
 }
 
 type LoadedService = NonNullable<Awaited<ReturnType<typeof loadServiceForResolution>>>;
@@ -151,6 +187,46 @@ export function resolveRoute(
     fieldLaborHours: service.fieldLaborHours,
     materialCostCents: service.materialCostCents,
   });
+
+  // A required material role with no cost for this contractor.
+  //
+  //   A homeowner-facing price may never be calculated using an unresolved
+  //   required material cost. Missing required cost = no price.
+  //
+  // Checked FIRST, before the tree is walked, because it is a fact about the
+  // service rather than about the answers — and because the cached
+  // materialCostCents that startConfiguration just consumed is exactly the
+  // figure that must not be trusted while this flag is false. It is
+  // deliberately left at its previous value rather than zeroed; zeroing would
+  // be silent underpricing by another route, and this check is what prevents
+  // the stale figure reaching a customer.
+  //
+  // This cannot happen for a service whose materials all resolve, which today
+  // is all of them. It becomes reachable when a contractor holds template
+  // services before entering their own costs, and when a cost is deleted,
+  // deactivated or lost to a bad import after activation. Activation blocking
+  // catches the first; this catches the rest.
+  //
+  // RESTORED 27 August. This block was deleted as collateral in 3ae9349,
+  // whose subject was scoping pricing settings to the contractor and which
+  // never mentioned it. scripts/verify-unresolved-guards.ts went red in the
+  // same commit and stayed red, because nothing runs it on the way to a
+  // deploy — `npm run build` type-checks the seeds but does not execute the
+  // verify scripts, and the test's fixture is cast `as any`, so removing the
+  // guard was not even a type error.
+  if (service.materialCostResolved === false) {
+    return {
+      status: "REVIEW",
+      reason: "A material this service needs has no cost recorded",
+      photoLabels: [],
+      photoSafetyNotes: [],
+      // No floor either. A floor derived from a total that is missing a
+      // material is not a floor.
+      floorPriceCents: null,
+      isPrimary,
+      config,
+    };
+  }
 
   const consumed: { key: string; value: string; label: string }[] = [];
   const photoLabels: string[] = [];
@@ -243,8 +319,8 @@ export function resolveRoute(
             );
           }
 
-          // At most one row, and possibly none.
-          const own = canonical.contractorComponents[0];
+          // Possibly none: a role this contractor has never priced.
+          const own = service.ownComponents.get(canonical.id);
 
           return {
             quantity: c.quantity,
@@ -282,9 +358,11 @@ export function resolveRoute(
     photoLabels.push(...option.requiredPhotoLabels);
     if (option.disclaimer) disclaimers.push(option.disclaimer);
     for (const d of option.conditionalDisclaimers) {
-      if (!d.disclaimer.active) continue;
-      if (d.disclaimer.accessClass === null || d.disclaimer.accessClass === config.accessClass) {
-        disclaimers.push(d.disclaimer.text);
+      const policy = requireContractorDisclaimer(service.slug, d.contractorDisclaimer);
+      if (!disclaimerIsActive(policy)) continue;
+      const ac = disclaimerAccessClass(policy);
+      if (ac === null || ac === config.accessClass) {
+        disclaimers.push(policy.text);
       }
     }
 
@@ -403,13 +481,13 @@ export function resolveRoute(
  * No site identifier, no session, no ambient context needed for this path.
  */
 export async function loadPricingSettings(
-  prisma: PrismaClient,
+  db: PrismaClient,
   contractorId: string
 ): Promise<PricingSettings> {
   if (!contractorId) {
     throw new Error("loadPricingSettings called with no contractor — cannot price anything.");
   }
-  const s = await prisma.pricingSettings.findUnique({ where: { contractorId } });
+  const s = await db.pricingSettings.findUnique({ where: { contractorId } });
   if (!s) {
     throw new Error(
       `No pricing settings for contractor ${contractorId} — cannot price anything. ` +

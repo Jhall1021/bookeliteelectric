@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { categorySlug, requireContractorCategory } from "@/lib/categories";
 
 export async function GET(_req: Request, { params }: { params: { quoteId: string } }) {
   const quote = await prisma.quote.findUnique({
     where: { id: params.quoteId },
     include: {
-      service: { select: { name: true, slug: true, category: { select: { slug: true } } } },
+      service: {
+        select: {
+          name: true,
+          slug: true,
+          contractorCategory: { select: { canonicalCategory: { select: { slug: true } } } },
+        },
+      },
       photos: { select: { id: true, label: true } },
     },
   });
@@ -19,7 +26,9 @@ export async function GET(_req: Request, { params }: { params: { quoteId: string
     status: quote.status,
     serviceName: quote.service.name,
     serviceSlug: quote.service.slug,
-    categorySlug: quote.service.category.slug,
+    categorySlug: categorySlug(
+      requireContractorCategory(quote.service.slug, quote.service.contractorCategory)
+    ),
     quotedPriceCents: quote.quotedPriceCents,
     depositRequired: quote.depositRequired,
     photoCount: quote.photos.length,

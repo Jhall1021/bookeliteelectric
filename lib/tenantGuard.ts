@@ -53,6 +53,28 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "Service",
   "ContractorMaterial",
   "ContractorComponent",
+  /// ADR-006. A contractor's presentation of a canonical category: their
+  /// ordering, grouping, naming and whether they offer it at all.
+  "ContractorCategory",
+  /// One contractor's statement of policy for a canonical condition. The
+  /// homeowner-facing text lives here because it IS policy — whether they
+  /// patch, whether they paint, what language they use.
+  "ContractorDisclaimer",
+  /// CONFIGURATION, scoped in an earlier pass and left in PENDING_TENANT_SCOPE
+  /// by mistake until 27 August. All five carry contractorId today —
+  /// PricingSettings, BusinessHours, ContractorMaterialSettings and
+  /// JobberConnection with @unique, ServiceArea with an index.
+  ///
+  /// Found by a 500, not by reading the list: loadPricingSettings on the
+  /// guarded client threw NotYetTenantScopedError and add-to-visit broke. The
+  /// list said work remained that had been finished, which is ADR-007a's point
+  /// running in the other direction — an inventory overstates as easily as it
+  /// understates, and only the schema is authoritative.
+  "PricingSettings",
+  "BusinessHours",
+  "ContractorMaterialSettings",
+  "JobberConnection",
+  "ServiceArea",
 ]);
 
 /**
@@ -71,9 +93,71 @@ export const PLATFORM_MODELS = new Set<string>([
   /// ContractorComponent, which is tenant-scoped.
   "CanonicalComponent",
   "ZipCode",
-  /// Deprecated pre-split models, awaiting removal in the contract phase.
+  /// ADR §2.2 — public storefront identity mapped to one contractor.
+  ///
+  /// PLATFORM BY NECESSITY, not by convenience. This is what ESTABLISHES
+  /// tenant context, so requiring context to read it would be circular: a
+  /// request could never open the context it needs in order to discover which
+  /// context to open.
+  ///
+  /// Safe because it is routing data. It holds no customer data, no pricing
+  /// and no catalog — only the mapping from a public identity to a
+  /// contractorId, which is the one fact a storefront request must learn
+  /// before it is allowed to learn anything else.
+  "ContractorSite",
+  /// Photo requirements are trade and SAFETY knowledge, not contractor policy
+  /// — "for this electrical condition these photos are useful, and don't
+  /// remove the panel dead front" is true for every electrician. The six rows
+  /// are reusable electrical concepts and carry no economics and no scope
+  /// policy.
+  ///
+  /// Deliberately NOT split. If a contractor later wants different labels or
+  /// extra photos, an override layer is additive and costs nothing to add
+  /// then; building one now would be architecture for a requirement that does
+  /// not exist. Contrast CanonicalDisclaimer, where the text IS contractor
+  /// policy.
+  "PhotoGroup",
+  /// A category ROLE is trade knowledge shared by every contractor — ADR-006,
+  /// the same basis as CanonicalMaterial and CanonicalComponent. Ordering,
+  /// naming and visibility live on ContractorCategory, which is tenant-scoped.
+  "CanonicalCategory",
+  /// The reusable CONDITION a disclaimer applies to — trade knowledge. Carries
+  /// no homeowner-facing text; that is contractor policy on
+  /// ContractorDisclaimer.
+  "CanonicalDisclaimer",
+
+]);
+
+/**
+ * Models awaiting removal in the contract phase.
+ *
+ * SEPARATE FROM PLATFORM_MODELS ON PURPOSE. Both pass through the guard, so
+ * this changes no runtime behaviour — but "shared trade knowledge" and "dead
+ * structure we have not deleted yet" are not the same thing, and one set
+ * holding both meanings makes every future question about it ambiguous.
+ *
+ * It matters concretely: scripts/audit-platform-tenant-relations.ts watches
+ * relation names hanging off platform parents, and a deprecated model's
+ * relations are not real query paths. PricingRule.service made the extremely
+ * common field name `service` a watched name and produced eighteen false
+ * findings the moment it was classified.
+ *
+ * Nothing here is a tenant-scope target. No columns, no guard rules, no
+ * migration code, no tests — unless a live dependency reappears.
+ */
+export const DEPRECATED_MODELS = new Set<string>([
+  /// Pre-split, superseded by CanonicalMaterial + ContractorMaterial.
   "Material",
+  /// Pre-split, superseded by CanonicalComponent + ContractorComponent.
   "JobComponent",
+  /// ADR-006 superseded the plan to tenant-scope this. CanonicalCategory
+  /// carries identity, ContractorCategory carries presentation, and no
+  /// operational read treats this as the source of truth. The only remaining
+  /// write derives Service.categoryId, NOT NULL until contract.
+  "ServiceCategory",
+  /// ADR-009/010. Zero rows, and the only references anywhere are the delete
+  /// statements in the isolation test's own cleanup.
+  "PricingRule",
 ]);
 
 /**
@@ -83,40 +167,95 @@ export const PLATFORM_MODELS = new Set<string>([
  * unscoped until the schema catches up — and that is exactly how a leak ships
  * quietly. A loud failure keeps the remaining work visible, and this list is
  * the to-do list for the tenant schema work.
+ *
+ * EMPTYING THIS LIST DOES NOT MEAN TENANCY IS DONE — ADR-007a.
+ *
+ * It is an inventory and a tripwire, not proof of isolation. It throws on a
+ * DIRECT query and is silent on nested reads and nested writes, so a
+ * platform-parent -> tenant-child traversal crosses the boundary without ever
+ * reaching this classification. That was measured, not feared: from a
+ * throwaway contractor's context the live harness read 5 of Elite's contractor
+ * components through a platform root while every model here was classified
+ * correctly.
+ *
+ * Note also that `withTenantGuard` is called in exactly ONE place in this
+ * repository — scripts/verify-tenant-isolation-live.ts. No application code
+ * uses a guarded client, so today this list monitors a test rather than the
+ * application.
+ *
+ * Completion is nine conditions, listed in ADR-007a. This list is one of them.
  */
 export const PENDING_TENANT_SCOPE = new Set<string>([
-  "ServiceCategory",
   "ServiceQuery",
-  "BusinessHours",
   "MaterialSupplierLink",
   "MaterialCostEvent",
-  "ContractorMaterialSettings",
-  "ServiceMaterial",
-  "PhotoGroup",
-  "AnswerOptionPhotoGroup",
   "ConditionalDisclaimer",
-  "QuestionDisclaimer",
-  "AnswerOptionDisclaimer",
-  "AnswerOptionComponent",
-  "Question",
-  "AnswerOption",
-  "PricingRule",
   "Customer",
   "Visit",
   "LineItem",
   "Booking",
   "Quote",
   "Photo",
-  "ServiceArea",
   "ArrivalWindow",
   "TroubleshootingSession",
-  "PricingSettings",
-  "JobberConnection",
   "JobberCrewMember",
 ]);
 
+/**
+ * Models whose owner is DERIVED through a required parent chain — ADR-010.
+ *
+ * A third class, deliberately, alongside direct-tenant and platform. These are
+ * tenant-owned; they simply do not carry the column.
+ *
+ * WHY NOT JUST ADD contractorId
+ *
+ * `Question.contractorId` would duplicate `Question.serviceId ->
+ * Service.contractorId`, and a duplicate can disagree with the thing it
+ * duplicates. The same is true recursively for AnswerOption and the joins. The
+ * parent relationship is the single source of truth for ownership, so the
+ * guard reads it rather than a copy of it.
+ *
+ * That also avoids self-inflicting the cross-tenant pair problem: every
+ * denormalized contractorId is a second column that must be proven to agree
+ * with the first, by a hand-written check per model, forever.
+ *
+ * WHAT THE VALUE IS
+ *
+ * The relation path from the model to the owner. The guard turns
+ * `["question", "service"]` into
+ * `{ question: { service: { contractorId } } }`.
+ *
+ * NOT PLATFORM MODELS. Lacking a scalar contractorId is not the same as being
+ * shared knowledge, and classifying them platform would wave every query
+ * through unscoped.
+ *
+ * PricingRule is deliberately absent: zero rows, no live reads or writes, and
+ * a contract-phase drop candidate. Dead models do not get guard rules.
+ */
+export const DERIVED_TENANT_MODELS = new Map<string, readonly string[]>([
+  ["Question", ["service"]],
+  ["ServiceMaterial", ["service"]],
+  ["AnswerOption", ["question", "service"]],
+  ["QuestionDisclaimer", ["question", "service"]],
+  ["AnswerOptionComponent", ["answerOption", "question", "service"]],
+  ["AnswerOptionPhotoGroup", ["answerOption", "question", "service"]],
+  ["AnswerOptionDisclaimer", ["answerOption", "question", "service"]],
+]);
+
+/** `["question","service"]` -> `{ question: { service: { contractorId } } }`. */
+export function derivedOwnerFilter(
+  path: readonly string[],
+  contractorId: string
+): Record<string, unknown> {
+  let node: Record<string, unknown> = { contractorId };
+  for (let i = path.length - 1; i >= 0; i--) node = { [path[i]]: node };
+  return node;
+}
+
 export class UnclassifiedModelError extends Error {}
 export class NotYetTenantScopedError extends Error {}
+/** A derived-ownership model cannot have an owner stamped onto it. */
+export class DerivedCreateError extends Error {}
 
 /**
  * Operations whose `where` must contain a UNIQUE selector.
@@ -180,10 +319,9 @@ function findContractorIds(node: unknown, found: string[] = []): string[] {
  * boundary — `{ OR: [...] }` becomes `(OR ...) AND contractorId` rather than
  * something the OR could escape.
  */
-function andScoped(where: unknown, contractorId: string) {
-  return where && typeof where === "object"
-    ? { AND: [where, { contractorId }] }
-    : { contractorId };
+function andScoped(where: unknown, contractorId: string, filter?: Record<string, unknown>) {
+  const ours = filter ?? { contractorId };
+  return where && typeof where === "object" ? { AND: [where, ours] } : ours;
 }
 
 /**
@@ -199,9 +337,12 @@ function mergeScoped(where: unknown, contractorId: string) {
     : { contractorId };
 }
 
-export function classifyModel(model: string): "platform" | "tenant" {
-  if (PLATFORM_MODELS.has(model)) return "platform";
+export function classifyModel(model: string): "platform" | "tenant" | "derived" {
+  // Deprecated models pass through exactly as platform ones do — they hold no
+  // tenant data worth scoping and are awaiting deletion.
+  if (PLATFORM_MODELS.has(model) || DEPRECATED_MODELS.has(model)) return "platform";
   if (TENANT_SCOPED_MODELS.has(model)) return "tenant";
+  if (DERIVED_TENANT_MODELS.has(model)) return "derived";
   if (PENDING_TENANT_SCOPE.has(model)) {
     throw new NotYetTenantScopedError(
       `Model "${model}" has no contractorId column yet, so it cannot be ` +
@@ -229,6 +370,46 @@ export function scopeArgs(
   contractorId: string
 ): Record<string, unknown> {
   const a = args ?? {};
+
+  // ---- derived ownership, ADR-010 ---------------------------------------
+  //
+  // The filter is a relation path rather than a scalar, so `create` cannot be
+  // stamped — there is no column to stamp. A direct create must instead PROVE
+  // its parent belongs to this contractor, and the extension has no client to
+  // check that with, so it refuses rather than guessing.
+  //
+  // This is not a limitation being worked around. A create that invented an
+  // owner would be the denormalization this class exists to avoid, arriving
+  // through the back door.
+  //
+  // Nested creates beneath an already-scoped parent are unaffected: Prisma
+  // never fires the extension for them, and ownership is structural.
+  const derivedPath = DERIVED_TENANT_MODELS.get(model);
+  if (derivedPath) {
+    const owner = derivedOwnerFilter(derivedPath, contractorId);
+
+    if (UNIQUE_WHERE_OPS.has(operation)) {
+      // Merged, not ANDed: the unique field must stay at the TOP level or the
+      // argument stops being a valid WhereUniqueInput. Same reason as the
+      // scalar case below.
+      return { ...a, where: { ...((a.where as object) ?? {}), ...owner } };
+    }
+    if (FILTER_WHERE_OPS.has(operation)) {
+      return { ...a, where: andScoped(a.where, contractorId, owner) };
+    }
+    if (operation === "create" || operation === "createMany" ||
+        operation === "createManyAndReturn" || operation === "upsert") {
+      throw new DerivedCreateError(
+        `${model}.${operation} cannot be scoped: ${model} derives its owner ` +
+          `through ${derivedPath.join(".")}, so there is no contractorId to ` +
+          `stamp. Create it through its parent, or validate the parent ` +
+          `belongs to this contractor and use the unguarded client.`
+      );
+    }
+    throw new UnclassifiedModelError(
+      `Operation "${operation}" on derived model "${model}" is not handled.`
+    );
+  }
 
   // Naming another contractor explicitly is refused outright rather than
   // quietly ANDed into an impossible query. The caller has done something
@@ -313,6 +494,8 @@ export const tenantGuardExtension = Prisma.defineExtension({
         // nothing this can protect — see the note at the top.
         if (!model) return run(args);
 
+        // Throws for pending and unclassified models; "derived" and "tenant"
+        // both continue to scopeArgs, which knows the difference.
         if (classifyModel(model) === "platform") return run(args);
 
         const { contractorId } = requireTenant(

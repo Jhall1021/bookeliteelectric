@@ -29,6 +29,126 @@ model ServiceCategory {
   @@map("service_categories")
 }
 
+/// The platform's electrical taxonomy — ADR-006.
+///
+/// "Lighting" and "Outlets & Switches" are trade knowledge, true for every
+/// electrical contractor. That is what makes them template identity, and it is
+/// why the stable slug lives HERE and is never duplicated per contractor.
+///
+/// Carries no ordering, no grouping and no visibility. Whether a contractor
+/// offers a category, what they call it and where it sits in their storefront
+/// are all facts about that contractor — see ContractorCategory.
+///
+/// Contractor #2 is also electrical, so "Lighting" is genuinely one shared row
+/// with two presentations. This distinction has a second real consumer.
+model CanonicalCategory {
+  id   String @id @default(cuid())
+  /// Stable template identity, e.g. lighting, outlets-switches,
+  /// dedicated-circuits. Never contractor-specific.
+  slug String @unique
+  /// The platform default. A contractor may override it for display without
+  /// creating a new canonical category.
+  name        String
+  defaultIcon String?
+  /// Platform template lifecycle — retiring a category from the library does
+  /// not retire it from contractors already using it.
+  active      Boolean @default(true)
+
+  contractorCategories ContractorCategory[]
+
+  @@map("canonical_categories")
+}
+
+/// One contractor's presentation and configuration of a canonical category.
+///
+/// Answers: do I offer it, what do I call it, what icon, order and grouping do
+/// I use? `navGroup` in particular is storefront organisation rather than
+/// electrical truth — Elite clusters New Outlets near Outlets & Switches;
+/// another contractor may want New Installations / Repairs & Replacements.
+model ContractorCategory {
+  id                  String            @id @default(cuid())
+  contractorId        String
+  contractor          Contractor        @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  canonicalCategoryId String
+  canonicalCategory   CanonicalCategory @relation(fields: [canonicalCategoryId], references: [id], onDelete: Restrict)
+
+  /// Null means "use the canonical default". Present from the start even
+  /// though Elite does not use it: a contractor may reasonably want
+  /// "Lighting & Fixtures" where the platform says "Lighting". That is
+  /// presentation, not a new canonical category.
+  nameOverride String?
+  iconOverride String?
+
+  sortOrder Int     @default(0)
+  navGroup  String?
+  active    Boolean @default(true)
+
+  /// Contractor services attach HERE, never to CanonicalCategory directly —
+  /// visibility, order and naming belong to the contractor experience.
+  services Service[]
+
+  @@unique([contractorId, canonicalCategoryId])
+  @@index([contractorId])
+  @@map("contractor_categories")
+}
+
+/// Public storefront identity, mapped to exactly one contractor — ADR §2.2.
+///
+/// THE PROBLEM THIS SOLVES
+///
+/// Every public route needs to know whose catalog it is serving, and until now
+/// none of them could. The tempting answer — take the requested service and
+/// read its contractor — is forbidden: it authorises access to a resource
+/// using that same resource, so knowing another contractor's service id would
+/// silently switch tenants. Tenant identity must come from OUTSIDE the
+/// request's target.
+///
+/// This is that outside thing. An entry point resolves to a site; the site
+/// names one contractor; the contractor opens tenant context; only then does
+/// any tenant-owned query run.
+///
+///   entry point -> site identity -> contractor context -> guarded application
+///
+/// ROUTING DATA, NOT TENANT DATA
+///
+/// Classified PLATFORM in lib/tenantGuard.ts, and it has to be: this is what
+/// ESTABLISHES tenant context, so requiring context to read it would be
+/// circular. It holds no customer data, no pricing and no catalog — only the
+/// mapping from a public identity to a contractor.
+///
+/// DELIBERATELY THIN
+///
+/// No domains, no origins, no branding, no embed configuration. Later entry
+/// points — a custom domain, an embed key — map to the same ContractorSite and
+/// everything downstream is unchanged. One site per contractor is enough for
+/// the pilot, but nothing here assumes it: the architecture must not depend on
+/// Contractor.slug being the API tenant key.
+model ContractorSite {
+  id String @id @default(cuid())
+
+  /// Opaque, stable, globally unique. What a customer-facing API request
+  /// carries to say which storefront it acts for. Opaque so it reveals nothing
+  /// about the contractor and can be rotated without renaming anything a
+  /// customer sees.
+  publicId String @unique
+
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// The hosted storefront path segment, e.g. "elite-electric" in
+  /// /elite-electric/services. Globally unique because it is a public address.
+  hostedSlug String @unique
+
+  /// A retired site stops resolving. Its contractor's data is untouched.
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contractorId])
+  @@map("contractor_sites")
+}
+
 enum BookingType {
   INSTANT // resolves to a fixed price immediately
   ADJUSTED // fixed price with defined surcharge branches
@@ -87,10 +207,35 @@ enum PhotoState {
 ///
 /// Stores the phrasing and nothing else. No name, no address, no session —
 /// there is no reason to know WHO asked, only what was asked.
+/// A contractor-owned match cache — ADR-008.
+///
+/// CONTRACTOR-OWNED, NOT PLATFORM-GLOBAL. The decision is recorded; pass four
+/// executes it. Do not preserve the global unique below because it looks
+/// deliberate — it predates multi-tenancy.
 model ServiceQuery {
   id String @id @default(cuid())
 
   /// Lowercased, punctuation stripped, whitespace collapsed. The cache key.
+  ///
+  /// GLOBALLY UNIQUE TODAY, AND THAT MUST CHANGE — ADR-008.
+  ///
+  /// This is a platform-wide cache key. "install an outlet in my garage" is
+  /// not guaranteed to resolve identically for every contractor: catalogs,
+  /// slugs, scope policy, supported work and trade vocabulary all differ. A
+  /// cache hit from contractor A must never decide contractor B's suggestion.
+  ///
+  /// Pass four replaces this with @@unique([contractorId, normalizedText]).
+  /// That is a DROP, so it is not additive — and adding the compound key
+  /// alongside does not help, because this constraint is precisely what stops
+  /// contractor #2 from having their own row. The drop lands with the
+  /// backfill, not in a later contract phase.
+  ///
+  /// SEQUENCING: ServiceQuery must become tenant-aware BEFORE, or in the same
+  /// change as, per-contractor Service.slug. Today the global uniqueness of
+  /// Service.slug accidentally protects the read path — a cached slug from
+  /// another contractor is not found in this contractor's catalog, so the
+  /// cache degrades to asking the model instead of leaking. Nobody put that
+  /// there on purpose, and it dies with per-contractor slugs.
   normalizedText String @unique
   /// A few real phrasings behind that key, for reading back later.
   rawExamples String[]
@@ -267,6 +412,9 @@ model Contractor {
   jobberConnection    JobberConnection?
   serviceAreas        ServiceArea[]
   contractorComponents ContractorComponent[]
+  contractorCategories ContractorCategory[]
+  contractorDisclaimers ContractorDisclaimer[]
+  sites                ContractorSite[]
   memberships         ContractorMembership[]
   invitations         ContractorInvitation[]
   supportEvents       SupportAccessEvent[]
@@ -787,6 +935,70 @@ model AnswerOptionPhotoGroup {
   @@map("answer_option_photo_groups")
 }
 
+/// What a conditional disclaimer MEANS — the reusable concept, owned by the
+/// platform.
+///
+/// "Access to a finished route may require opening surfaces" is a real
+/// electrical condition, and naming it once is what lets a service template
+/// attach it. The concept is trade knowledge.
+///
+/// Carries NO homeowner-facing text. What a contractor actually promises about
+/// that condition — whether they patch, whether they paint, what language they
+/// use — is contractor POLICY, and lives on ContractorDisclaimer.
+///
+/// That distinction is why this is split rather than classified platform like
+/// PhotoGroup: one mutable shared text field would mean editing a disclaimer
+/// for one contractor changes what a DIFFERENT contractor promises their
+/// homeowner. Contractor #2 can legitimately answer "do you patch the holes
+/// you make?" differently from Elite.
+model CanonicalDisclaimer {
+  id   String @id @default(cuid())
+  /// Stable concept identity, e.g. EXTERIOR_WALL_CONTINGENCY_OUTLET.
+  key  String @unique
+  name String
+
+  /// What the concept MEANS, for a contractor writing their own text against
+  /// it. Never shown to a homeowner.
+  description String?
+
+  /// Only render when the access classification matches. Null means always.
+  /// The CONDITION is part of the concept; the statement is not.
+  accessClass AccessClassification?
+
+  /// Platform template lifecycle. Retiring a concept from the library does not
+  /// retire it from contractors already using it.
+  active Boolean @default(true)
+
+  contractorDisclaimers ContractorDisclaimer[]
+
+  @@map("canonical_disclaimers")
+}
+
+/// One contractor's statement of policy for a canonical condition.
+///
+/// The homeowner-facing text lives HERE, deliberately. Elite may say "Patching
+/// and painting are not included"; another contractor may include patching, or
+/// word the scope differently. Those cannot safely share one mutable field.
+model ContractorDisclaimer {
+  id                    String              @id @default(cuid())
+  contractorId          String
+  contractor            Contractor          @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  canonicalDisclaimerId String
+  canonicalDisclaimer   CanonicalDisclaimer @relation(fields: [canonicalDisclaimerId], references: [id], onDelete: Restrict)
+
+  /// Shown to the customer when the condition holds. This contractor's words.
+  text   String
+  active Boolean @default(true)
+  notes  String?
+
+  questions QuestionDisclaimer[]
+  options   AnswerOptionDisclaimer[]
+
+  @@unique([contractorId, canonicalDisclaimerId])
+  @@index([contractorId])
+  @@map("contractor_disclaimers")
+}
+
 /// Text shown only when an earlier answer means it applies.
 ///
 /// The fourth bespoke version of this was about to be built. Each one —
@@ -822,8 +1034,15 @@ model QuestionDisclaimer {
   id           String                @id @default(cuid())
   questionId   String
   question     Question              @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  /// DEPRECATED — replaced by contractorDisclaimerId below.
   disclaimerId String
   disclaimer   ConditionalDisclaimer @relation(fields: [disclaimerId], references: [id])
+
+  /// The contractor's policy statement for this condition. Nullable only for
+  /// the duration of the migration; required in the contract phase.
+  contractorDisclaimerId String?
+  contractorDisclaimer   ContractorDisclaimer? @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
+
   /// When true this REPLACES the question's help text rather than appending
   /// to it — for cases where the default is actively wrong on this route.
   replacesHelpText Boolean @default(false)
@@ -837,8 +1056,14 @@ model AnswerOptionDisclaimer {
   id             String                @id @default(cuid())
   answerOptionId String
   answerOption   AnswerOption          @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+  /// DEPRECATED — replaced by contractorDisclaimerId below.
   disclaimerId   String
   disclaimer     ConditionalDisclaimer @relation(fields: [disclaimerId], references: [id])
+
+  /// The contractor's policy statement. Nullable during migration only.
+  contractorDisclaimerId String?
+  contractorDisclaimer   ContractorDisclaimer? @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
+
   order          Int                   @default(0)
 
   @@unique([answerOptionId, disclaimerId])
@@ -1056,8 +1281,15 @@ model Service {
   id                  String          @id @default(cuid())
   slug                String          @unique
   name                String
+  /// DEPRECATED — replaced by contractorCategoryId below. Retained until the
+  /// contract phase; still required while reads are being switched over.
   categoryId          String
   category            ServiceCategory @relation(fields: [categoryId], references: [id])
+
+  /// ADR-006. Nullable only for the duration of the migration; it becomes
+  /// required in the contract phase, when ServiceCategory is retired.
+  contractorCategoryId String?
+  contractorCategory   ContractorCategory? @relation(fields: [contractorCategoryId], references: [id], onDelete: Restrict)
   bookingType         BookingType
   basePrice           Int? // cents; null when Remote Quote has no anchor price
   startingPriceLabel  String? // e.g. "From $1,295" for remote-quote services
@@ -1066,7 +1298,8 @@ model Service {
   shortDescription     String?
   // Optional override for the category's icon — e.g. "Outlets & Switches"
   // needs both an outlet icon and a switch icon, not one icon for the
-  // whole category. Falls back to ServiceCategory.icon when null.
+  // whole category. Falls back to the contractor's iconOverride, then to
+  // CanonicalCategory.defaultIcon — see lib/categories.ts categoryIcon().
   icon                String?
   requiresTechCount   Int             @default(1)
   // Labor/material composition, imported from the client's validated

@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { loadBusinessHours, generateArrivalWindows } from "@/lib/businessHours";
 import BusinessHoursForm from "@/components/admin/BusinessHoursForm";
+import { soleContractorId } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessHoursPage() {
-  const hours = await loadBusinessHours(prisma);
+  // Admin has no site; it resolves the sole contractor until per-contractor
+  // auth exists. Unguarded on purpose — see CLASSIFIED in
+  // scripts/audit-unguarded-tenant-access.ts.
+  const contractorId = await soleContractorId(prisma, "the business hours admin");
+  const hours = await loadBusinessHours(prisma, contractorId);
   const windows = generateArrivalWindows(hours);
 
   return (

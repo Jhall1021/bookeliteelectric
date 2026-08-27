@@ -9,9 +9,28 @@ import {
 } from "@/lib/jobber";
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 
 export async function POST(req: Request) {
   console.log("=== CHECKOUT ROUTE HIT — this line should always appear if logs are streaming ===");
+
+  // ADR §2.2. Checkout was the last customer-facing route deriving nothing
+  // from a site identifier — it read ServiceArea unscoped, so with two
+  // contractors it would have validated a ZIP against EVERY contractor's
+  // service area and booked whoever happened to cover it.
+  //
+  // It was missed because ServiceArea was still classified pending when the
+  // storefront routes were converted; it became tenant-owned later the same
+  // day. Found by a sweep that derives its model list from the guard rather
+  // than from a list written down beside it.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+
+  return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
   const { name, email, phone, address, zipCode, date, windowStart, windowEnd } = body;
@@ -67,7 +86,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const serviceArea = await prisma.serviceArea.findFirst({ where: { active: true } });
+  // Scoped by the guard: this contractor's service area, not everyone's.
+  const serviceArea = await db.serviceArea.findFirst({ where: { active: true } });
   if (!serviceArea) {
     // Configuration is missing, which is an Elite problem rather than a
     // customer one — so it reads as a system fault, not a rejection.
@@ -129,7 +149,7 @@ export async function POST(req: Request) {
   // presentation — this is the rule. A stale tab, a bookmarked URL or a direct
   // POST would otherwise put a crew on site hours after they should have gone
   // home, and nobody would find out until the day itself.
-  const businessHours = await loadBusinessHours(prisma);
+  const businessHours = await loadBusinessHours(db, site.contractorId);
   const [, workdayEnd] = windowToDateRange(
     dateISO,
     "8:00 AM",
@@ -241,4 +261,5 @@ export async function POST(req: Request) {
   await Promise.allSettled([jobberPush, confirmationEmail]);
 
   return NextResponse.json({ bookingId: booking.id });
+  });
 }

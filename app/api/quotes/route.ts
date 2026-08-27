@@ -5,8 +5,8 @@ import {
   loadServiceForResolution,
   loadPricingSettings,
   resolveRoute,
-  contractorIdForService,
 } from "@/lib/routeResolver";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 
 /**
  * A quote request.
@@ -31,6 +31,16 @@ import {
  * schedules once the office has filled in the rest.
  */
 export async function POST(req: Request) {
+  // ADR §2.2. The site identifier the caller carries decides the tenant. The
+  // old shape read the requested service and took ITS contractor, which
+  // authorises access to a resource using that same resource.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+  return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
   const { serviceId, answersSnapshot, photos, name, email, phone } = body;
@@ -54,7 +64,7 @@ export async function POST(req: Request) {
   // Replay the route to establish the floor ourselves. A review branch always
   // means the job costs MORE than what's accumulated so far, so the running
   // total is a genuine minimum — but only if we computed it.
-  const service = await loadServiceForResolution(prisma, serviceId);
+  const service = await loadServiceForResolution(db, serviceId);
   if (!service) {
     return NextResponse.json({ error: "Unknown service" }, { status: 404 });
   }
@@ -64,7 +74,13 @@ export async function POST(req: Request) {
   // Throws rather than falling back if the service has no owner or the
   // contractor has no pricing settings — a quote at somebody else's rate is
   // worse than no quote.
-  const settings = await loadPricingSettings(prisma, contractorIdForService(service));
+  // The contractor comes from the SITE, not from the service being priced.
+  const settings = await loadPricingSettings(db, site.contractorId);
+  // STILL UNGUARDED, DELIBERATELY. Visit, LineItem, Customer and Quote are in
+  // PENDING_TENANT_SCOPE — pass three carries contractorId onto them. Routing
+  // them through the guard today would throw NotYetTenantScopedError.
+  //
+  // The site is resolved above, so pass three converts these in place.
   const existingCount = await prisma.lineItem.count({
     where: { visit: { sessionId, status: "OPEN" } },
   });
@@ -132,5 +148,6 @@ export async function POST(req: Request) {
     quoteId: quote.id,
     lineItemId: lineItem.id,
     visitId: visit.id,
+  });
   });
 }

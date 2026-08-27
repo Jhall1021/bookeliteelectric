@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { withContractor } from "@/lib/tenantRoute";
+import { soleContractorId } from "@/lib/categories";
 import { suggestPrimaryPrice, suggestWwtPrice, type PricingSettings } from "@/lib/pricing";
 
 /**
@@ -34,8 +36,19 @@ export async function POST() {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const settings = (await prisma.pricingSettings.findUnique({
-    where: { id: "default" },
+  // GUARD-ADOPTED (ADR-007a). Swept every active service with no contractor
+  // condition, so a second contractor's catalog would have appeared in this
+  // contractor's recalculation report.
+  const contractorId = await soleContractorId(prisma, "the recalculate admin");
+  return withContractor(contractorId, "admin-session", async (db) => {
+
+  // ADR-007a: PricingSettings carries contractorId and is tenant-scoped. This
+  // read used `where: { id: "default" }` — the pre-tenant singleton row — so
+  // with two contractors every admin surface would have read the same
+  // settings regardless of who was asking. Keyed by contractor now, on the
+  // guarded client.
+  const settings = (await db.pricingSettings.findUnique({
+    where: { contractorId },
   })) as PricingSettings | null;
   if (!settings) {
     return NextResponse.json(
@@ -44,7 +57,7 @@ export async function POST() {
     );
   }
 
-  const services = await prisma.service.findMany({
+  const services = await db.service.findMany({
     where: { active: true, fieldLaborHours: { not: null } },
     orderBy: { name: "asc" },
     select: {
@@ -101,5 +114,6 @@ export async function POST() {
         : `${differences.length} of ${services.length} differ from the model. ` +
           `Nothing was changed — publish individually from each service, or ` +
           `raise a reconciliation migration for a batch.`,
+  });
   });
 }

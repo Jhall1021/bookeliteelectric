@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 
 type Props = {
   serviceId: string;
@@ -35,6 +36,11 @@ export const REROUTE_HANDOFF_KEY = "elite:reroute-handoff";
  * and wrong for anything else.
  */
 export default function RerouteNotice({ serviceId, reason, answers }: Props) {
+  // Storefront navigation carries the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them.
+  const base = useStorefrontBase();
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  const siteFetch = useSiteFetch();
   const router = useRouter();
   const [target, setTarget] = useState<{
     slug: string;
@@ -43,7 +49,7 @@ export default function RerouteNotice({ serviceId, reason, answers }: Props) {
   } | null>(null);
 
   useEffect(() => {
-    fetch(`/api/services/by-id/${serviceId}`)
+    siteFetch(`/api/services/by-id/${serviceId}`)
       .then((r) => r.json())
       .then(setTarget)
       .catch(() => setTarget(null));
@@ -65,7 +71,7 @@ export default function RerouteNotice({ serviceId, reason, answers }: Props) {
         // swallowing, but not worth claiming success over.
       }
     }
-    router.push(`/services/${target.categorySlug}/${target.slug}`);
+    router.push(`${base}/services/${target.categorySlug}/${target.slug}`);
   }
 
   return (

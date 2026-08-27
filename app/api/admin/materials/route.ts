@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withContractor } from "@/lib/tenantRoute";
+import { soleContractorId } from "@/lib/categories";
+import type { PrismaClient } from "@prisma/client";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import {
   setContractorMaterialCost,
@@ -51,13 +54,16 @@ import {
  */
 
 /** Recompute the cached total and return it, for the JSON response. */
-async function totalFor(serviceId: string): Promise<number> {
-  const result = await recomputeServiceMaterialCost(prisma, serviceId);
+async function totalFor(db: PrismaClient, serviceId: string): Promise<number> {
+  // The shared helpers stay dependency-injected: they operate on the database
+  // capability they are handed. Tenant context belongs at the request
+  // boundary, not inside a helper.
+  const result = await recomputeServiceMaterialCost(db, serviceId);
   if (result) return result.afterCents;
   // No itemized rows left. The recompute deliberately leaves a non-itemized
   // service's flat allowance alone rather than zeroing it, so read back what
   // the service actually holds instead of asserting zero.
-  const svc = await prisma.service.findUnique({
+  const svc = await db.service.findUnique({
     where: { id: serviceId },
     select: { materialCostCents: true },
   });
@@ -68,9 +74,9 @@ async function totalFor(serviceId: string): Promise<number> {
  * The three actions that change a RECIPE: recompute, then clear the legacy
  * multiplier because itemizing has happened. Cost edits do not come here.
  */
-async function afterRecipeChange(serviceId: string) {
-  const totalCents = await totalFor(serviceId);
-  const clearedMultiplier = await clearLegacyMultiplierOnItemize(prisma, serviceId);
+async function afterRecipeChange(db: PrismaClient, serviceId: string) {
+  const totalCents = await totalFor(db, serviceId);
+  const clearedMultiplier = await clearLegacyMultiplierOnItemize(db, serviceId);
   return { totalCents, clearedMultiplier };
 }
 
@@ -83,9 +89,17 @@ export async function GET(req: Request) {
 
   // The catalog is this contractor's costed roles, not a global material
   // list. Two contractors filling the same role each see their own figure.
-  const contractorId = await soleContractorId();
+  const contractorId = await soleContractorId(prisma, "the materials admin");
 
-  const catalog = await prisma.contractorMaterial.findMany({
+  // GUARD-ADOPTED (ADR-007a). Everything below is this contractor's, on the
+  // guarded client.
+  //
+  // ADR-007: the catalog roots at ContractorMaterial, the tenant-owned model,
+  // and includes the canonical role from there. Rooting at CanonicalMaterial
+  // and nesting contractorMaterials would be the platform-parent shape the
+  // live harness proved the guard cannot see.
+  return withContractor(contractorId, "admin-session", async (db) => {
+  const catalog = await db.contractorMaterial.findMany({
     where: { contractorId, active: true },
     orderBy: { canonicalMaterial: { name: "asc" } },
     include: {
@@ -127,7 +141,7 @@ export async function GET(req: Request) {
 
   if (!serviceId) return NextResponse.json({ catalog: catalogOut, items: [] });
 
-  const items = await prisma.serviceMaterial.findMany({
+  const items = await db.serviceMaterial.findMany({
     where: { serviceId },
     orderBy: { order: "asc" },
     include: { canonicalMaterial: true },
@@ -163,29 +177,7 @@ export async function GET(req: Request) {
       };
     }),
   });
-}
-
-/**
- * The contractor whose catalog is being edited.
- *
- * A deliberate, visible placeholder. There is one contractor today and the
- * admin has no tenant context yet — so rather than scattering "find the only
- * one" through the route, it lives here, named, and THROWS the moment that
- * assumption stops holding. The migration audit's warning about unscoped
- * findFirst was that it returns the wrong row silently; this one refuses.
- *
- * When the admin becomes tenant-aware, this is the single line that changes.
- */
-async function soleContractorId(): Promise<string> {
-  const all = await prisma.contractor.findMany({ select: { id: true }, take: 2 });
-  if (all.length === 0) throw new Error("No contractor exists.");
-  if (all.length > 1) {
-    throw new Error(
-      "More than one contractor exists — the Materials admin needs tenant " +
-        "context before it can be used safely."
-    );
-  }
-  return all[0].id;
+  });
 }
 
 export async function POST(req: Request) {
@@ -202,6 +194,11 @@ export async function POST(req: Request) {
 
   const action = body.action;
 
+  // GUARD-ADOPTED (ADR-007a). One context for the whole handler; every action
+  // below reads and writes through the guarded client.
+  const contractorId = await soleContractorId(prisma, "the materials admin");
+
+  return withContractor(contractorId, "admin-session", async (db) => {
   try {
     // ---- add a material to a service ----------------------------------
     if (action === "add") {
@@ -216,34 +213,53 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      const count = await prisma.serviceMaterial.count({ where: { serviceId } });
-      await prisma.serviceMaterial.upsert({
-        where: { serviceId_canonicalMaterialId: { serviceId, canonicalMaterialId } },
-        update: { quantity: quantity || 1 },
-        create: { serviceId, canonicalMaterialId, quantity: quantity || 1, order: count },
+      const count = await db.serviceMaterial.count({ where: { serviceId } });
+      // ADR-010: ServiceMaterial is DERIVED-owned, so upsert() would throw —
+      // there is no contractorId to stamp on the create half and the guard
+      // refuses to invent one. Split into a scoped update and, failing that, a
+      // nested create through the already-scoped Service, which makes
+      // ownership structural rather than asserted.
+      const existingLine = await db.serviceMaterial.findFirst({
+        where: { serviceId, canonicalMaterialId },
+        select: { id: true },
       });
-      const { totalCents } = await afterRecipeChange(serviceId);
+      if (existingLine) {
+        await db.serviceMaterial.update({
+          where: { id: existingLine.id },
+          data: { quantity: quantity || 1 },
+        });
+      } else {
+        await db.service.update({
+          where: { id: serviceId },
+          data: {
+            materials: {
+              create: { canonicalMaterialId, quantity: quantity || 1, order: count },
+            },
+          },
+        });
+      }
+      const { totalCents } = await afterRecipeChange(db, serviceId);
       return NextResponse.json({ ok: true, totalCents });
     }
 
     // ---- change how much of it a service uses --------------------------
     if (action === "quantity") {
       const { id, quantity } = body as { id: string; quantity: number };
-      const row = await prisma.serviceMaterial.findUniqueOrThrow({ where: { id } });
-      await prisma.serviceMaterial.update({
+      const row = await db.serviceMaterial.findUniqueOrThrow({ where: { id } });
+      await db.serviceMaterial.update({
         where: { id },
         data: { quantity: Math.max(quantity, 0) },
       });
-      const { totalCents } = await afterRecipeChange(row.serviceId);
+      const { totalCents } = await afterRecipeChange(db, row.serviceId);
       return NextResponse.json({ ok: true, totalCents });
     }
 
     // ---- take a material off a service ---------------------------------
     if (action === "remove") {
       const { id } = body as { id: string };
-      const row = await prisma.serviceMaterial.findUniqueOrThrow({ where: { id } });
-      await prisma.serviceMaterial.delete({ where: { id } });
-      const { totalCents } = await afterRecipeChange(row.serviceId);
+      const row = await db.serviceMaterial.findUniqueOrThrow({ where: { id } });
+      await db.serviceMaterial.delete({ where: { id } });
+      const { totalCents } = await afterRecipeChange(db, row.serviceId);
       return NextResponse.json({ ok: true, totalCents });
     }
 
@@ -289,14 +305,14 @@ export async function POST(req: Request) {
 
       // How many of THIS contractor's services hold the role, independent of
       // whether the cost moved — preserves the existing response contract.
-      const cm = await prisma.contractorMaterial.findUnique({
+      const cm = await db.contractorMaterial.findUnique({
         where: { id: contractorMaterialId },
         select: { canonicalMaterialId: true, contractorId: true },
       });
       if (!cm) {
         return NextResponse.json({ error: "Unknown material" }, { status: 404 });
       }
-      const using = await prisma.serviceMaterial.findMany({
+      const using = await db.serviceMaterial.findMany({
         where: {
           canonicalMaterialId: cm.canonicalMaterialId,
           service: { contractorId: cm.contractorId },
@@ -306,7 +322,7 @@ export async function POST(req: Request) {
       });
 
       const result = await setContractorMaterialCost(
-        prisma,
+        db,
         {
           contractorMaterialId,
           ...(hasPackage
@@ -404,7 +420,8 @@ export async function POST(req: Request) {
           })
         : { unitCostCents: flat, unitCostMilliCents: flat * 1000 };
 
-      const contractorId = await soleContractorId();
+      // contractorId comes from the enclosing tenant context; the guard also
+      // stamps it on the create half of the upsert below.
 
       // Two rows, two layers. The ROLE is platform knowledge and may already
       // exist — another contractor could have introduced it — so it is
@@ -414,7 +431,7 @@ export async function POST(req: Request) {
       // the material does; the Southwire roll that fills it belongs on a
       // supplier link. A key naming a brand, model or item number defeats the
       // separation the template library rests on.
-      const canonical = await prisma.canonicalMaterial.upsert({
+      const canonical = await db.canonicalMaterial.upsert({
         where: { key: key.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_") },
         update: {},
         create: {
@@ -424,7 +441,7 @@ export async function POST(req: Request) {
         },
       });
 
-      const material = await prisma.contractorMaterial.upsert({
+      const material = await db.contractorMaterial.upsert({
         where: {
           contractorId_canonicalMaterialId: {
             contractorId,
@@ -468,4 +485,5 @@ export async function POST(req: Request) {
     console.error("[materials]", action, err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
+  });
 }

@@ -2,11 +2,23 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/flow-types";
 import ReorderList from "@/components/admin/ReorderList";
+import {
+  CANONICAL_CATEGORY_SELECT,
+  categoryName,
+  soleContractorId,
+} from "@/lib/categories";
+import { withContractor } from "@/lib/tenantRoute";
 
 export default async function AdminServicesPage() {
-  const categories = await prisma.serviceCategory.findMany({
+  // ADR-007: rooted at ContractorCategory, the tenant-owned model.
+  const contractorId = await soleContractorId(prisma, "the services admin");
+  // GUARD-ADOPTED (ADR-007a). The hand-written contractorId filter is gone;
+  // the guard supplies it centrally.
+  const categories = await withContractor(contractorId, "admin-session", (db) =>
+    db.contractorCategory.findMany({
     orderBy: { sortOrder: "asc" },
     include: {
+      canonicalCategory: CANONICAL_CATEGORY_SELECT,
       services: {
         // Was ordered by name, which put "200-Amp Service Upgrade" at the top
         // of Panel Upgrades regardless of how rarely anyone books one. Name is
@@ -31,7 +43,8 @@ export default async function AdminServicesPage() {
         },
       },
     },
-  });
+    })
+  );
 
   const all = categories.flatMap((c) => c.services);
   const withLabor = all.filter((s) => s.fieldLaborHours !== null).length;
@@ -111,7 +124,7 @@ export default async function AdminServicesPage() {
       <div className="mt-4 space-y-8">
         {categories.map((cat) => (
           <div key={cat.id}>
-            <h2 className="font-display text-base font-bold text-navy">{cat.name}</h2>
+            <h2 className="font-display text-base font-bold text-navy">{categoryName(cat)}</h2>
             <div className="mt-2">
               <ReorderList
                 kind="services"

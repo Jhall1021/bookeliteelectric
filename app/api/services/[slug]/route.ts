@@ -1,39 +1,60 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ServiceFlowDTO } from "@/lib/flow-types";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
+import {
+  categoryIcon,
+  requireContractorCategory,
+  disclaimerIsActive,
+  disclaimerAccessClass,
+  requireContractorDisclaimer,
+} from "@/lib/categories";
+import {
+  loadOwnComponents,
+  canonicalComponentIdsIn,
+} from "@/lib/contractorComponents";
 
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
 // GuidedFlowEngine walks it client-side.
-export async function GET(_req: Request, { params }: { params: { slug: string } }) {
-  // The contractor first, so the component include can be filtered by it.
-  //
-  // Components are now a canonical role plus one contractor's economics.
-  // Loading every contractor's figures and picking one afterwards would put
-  // other contractors' pricing into a PUBLIC response — the worst place for
-  // it. Two queries instead.
-  //
-  // NOTE: this still resolves by slug alone, which works only while
-  // Service.slug is globally unique. Two contractors both wanting
-  // "new-120v-outlet" breaks that, and the fix is a slug unique per
-  // contractor plus a contractor in the request. Out of scope here; recorded
-  // so it is not discovered by a collision.
-  const owner = await prisma.service.findUnique({
-    where: { slug: params.slug },
-    select: { contractorId: true },
-  });
-  if (!owner?.contractorId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+export async function GET(req: Request, { params }: { params: { slug: string } }) {
+  // ADR §2.2. The site identifier the caller carries decides the tenant.
+  // Resolving it from the requested resource would authorise access to that
+  // resource using itself.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
 
-  const service = await prisma.service.findUnique({
+  // The contractor comes from the SITE now, not from the service. The old
+  // two-query dance — look up the service, read its contractorId, then load
+  // the tree — was the forbidden shape: it used the requested resource to
+  // decide whose resource it was.
+  //
+  // Slug resolution is now scoped to this contractor, which is also what makes
+  // per-contractor slugs possible later (ADR-008 sequencing).
+  const service = await withSite(site, (db) =>
+    db.service.findUnique({
     where: { slug: params.slug },
     include: {
-      category: { select: { icon: true } },
+      contractorCategory: {
+        select: {
+          iconOverride: true,
+          canonicalCategory: { select: { slug: true, name: true, defaultIcon: true } },
+        },
+      },
       questions: {
         orderBy: { order: "asc" },
         include: {
           conditionalHelp: {
             orderBy: { order: "asc" },
-            include: { disclaimer: true },
+            // ADR-009: the contractor's policy statement, not the shared
+            // pre-split text. Service-rooted, so the traversal is safe.
+            include: {
+              contractorDisclaimer: { include: { canonicalDisclaimer: true } },
+            },
           },
           options: {
             orderBy: { order: "asc" },
@@ -42,37 +63,37 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
               // Components come down with the tree so the engine can
               // accumulate a configuration client-side without a round trip
               // per answer.
-              components: {
-                include: {
-                  canonicalComponent: {
-                    include: {
-                      // At most one row. Empty means this contractor has
-                      // never priced the component.
-                      contractorComponents: {
-                        where: { contractorId: owner.contractorId },
-                      },
-                    },
-                  },
-                },
-              },
+              // Canonical roles only. Platform data beneath a tenant-owned
+              // root is safe; the contractor's figures come separately.
+              components: { include: { canonicalComponent: true } },
               photoGroups: {
                 orderBy: { order: "asc" },
                 include: { photoGroup: true },
               },
               conditionalDisclaimers: {
                 orderBy: { order: "asc" },
-                include: { disclaimer: true },
+                include: {
+                  contractorDisclaimer: { include: { canonicalDisclaimer: true } },
+                },
               },
             },
           },
         },
       },
     },
-  });
+    })
+  );
 
   if (!service) {
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
+
+  // Tenant-rooted: ContractorComponent -> its canonical role, not the other
+  // way round. A role missing from this map is one this contractor has never
+  // priced, which fails closed below rather than defaulting to zero.
+  const ownComponents = await withSite(site, (db) =>
+    loadOwnComponents(db, site.contractorId, canonicalComponentIdsIn(service))
+  );
 
   const dto: ServiceFlowDTO = {
     id: service.id,
@@ -83,7 +104,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     whileWeThereBasePrice: service.whileWeThereBasePrice,
     startingPriceLabel: service.startingPriceLabel,
     shortDescription: service.shortDescription,
-    icon: service.icon ?? service.category.icon,
+    icon:
+      service.icon ??
+      categoryIcon(requireContractorCategory(service.slug, service.contractorCategory)),
     disclaimer: service.disclaimer,
     estimatedMinutes: service.estimatedMinutes,
     questions: service.questions.map((q) => ({
@@ -93,10 +116,14 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
       helpText: q.helpText,
       inputType: q.inputType,
       conditionalHelp: q.conditionalHelp
-        .filter((h) => h.disclaimer.active)
         .map((h) => ({
-          text: h.disclaimer.text,
-          accessClass: h.disclaimer.accessClass,
+          h,
+          policy: requireContractorDisclaimer(service.slug, h.contractorDisclaimer),
+        }))
+        .filter(({ policy }) => disclaimerIsActive(policy))
+        .map(({ h, policy }) => ({
+          text: policy.text,
+          accessClass: disclaimerAccessClass(policy),
           replaces: h.replacesHelpText,
         })),
       order: q.order,
@@ -138,10 +165,13 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         accessClassification: o.accessClassification,
         accessFinishedDisclaimer: o.accessFinishedDisclaimer,
         conditionalDisclaimers: o.conditionalDisclaimers
-          .filter((d) => d.disclaimer.active)
           .map((d) => ({
-            text: d.disclaimer.text,
-            accessClass: d.disclaimer.accessClass,
+            policy: requireContractorDisclaimer(service.slug, d.contractorDisclaimer),
+          }))
+          .filter(({ policy }) => disclaimerIsActive(policy))
+          .map(({ policy }) => ({
+            text: policy.text,
+            accessClass: disclaimerAccessClass(policy),
           })),
         components: o.components.flatMap((sel) => {
           const canonical = sel.canonicalComponent;
@@ -152,7 +182,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
           // cannot complete on a broken tree either way.
           if (!canonical) return [];
 
-          const own = canonical.contractorComponents[0];
+          const own = ownComponents.get(canonical.id);
 
           return [
             {

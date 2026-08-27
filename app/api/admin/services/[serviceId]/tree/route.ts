@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { withContractor } from "@/lib/tenantRoute";
+import { soleContractorId } from "@/lib/categories";
 
 /**
  * Full sync of a service's decision tree: creates, updates and deletes in
@@ -91,7 +93,17 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Invalid payload: expected a questions array" }, { status: 400 });
   }
 
-  const service = await prisma.service.findUnique({
+  // GUARD-ADOPTED (ADR-007a). Everything below runs inside one contractor's
+  // context on the guarded client — reads, updates, deletes and the
+  // transaction alike.
+  const contractorId = await soleContractorId(prisma, "the tree admin");
+
+  return withContractor(contractorId, "admin-session", async (db) => {
+  // Scoped by the guard, so a service belonging to another contractor is
+  // simply not found. The 404 is correct for that case as well as for a
+  // service that does not exist — a cross-tenant probe should not be able to
+  // tell the difference.
+  const service = await db.service.findUnique({
     where: { id: params.serviceId },
     select: { id: true },
   });
@@ -99,7 +111,9 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
 
-  const existing = await prisma.question.findMany({
+  // Question is derived-owned, so the guard adds `service: { contractorId }`
+  // and this stays the natural top-level shape.
+  const existing = await db.question.findMany({
     where: { serviceId: params.serviceId },
     select: { id: true, key: true, options: { select: { id: true } } },
   });
@@ -219,7 +233,10 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   );
 
   try {
-    await prisma.$transaction(async (tx) => {
+    // The guard SURVIVES $transaction — tx is scoped, proven in the live
+    // harness. So this stays one guarded transaction rather than checking
+    // ownership up front and dropping to the unguarded client.
+    await db.$transaction(async (tx) => {
       // Options first — a question can't be removed while its options remain.
       if (optionIdsToDelete.length > 0) {
         await tx.answerOption.deleteMany({ where: { id: { in: optionIdsToDelete } } });
@@ -236,18 +253,43 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
         if (isNew(q.id)) {
-          const created = await tx.question.create({
+          // NESTED CREATE THROUGH THE SCOPED PARENT — ADR-010.
+          //
+          // A direct tx.question.create() would throw DerivedCreateError:
+          // Question has no contractorId to stamp, so the guard refuses to
+          // invent one. Creating through the Service instead means ownership
+          // is structural — the parent is already scoped, so the child cannot
+          // land under anyone else.
+          //
+          // The key is generated unique within this transaction by
+          // uniqueKey(), which mutates takenKeys, so selecting the new row
+          // back by that key is unambiguous.
+          const key = uniqueKey(slugifyKey(q.prompt, `question_${i + 1}`), takenKeys);
+          const withNew = await tx.service.update({
+            where: { id: params.serviceId },
             data: {
-              serviceId: params.serviceId,
-              key: uniqueKey(slugifyKey(q.prompt, `question_${i + 1}`), takenKeys),
-              prompt: q.prompt.trim(),
-              helpText: q.helpText?.trim() || null,
-              // Only SINGLE_SELECT is offered in the editor — the other input
-              // types in the schema have no verified renderer in QuestionStep.
-              inputType: "SINGLE_SELECT",
-              order: i,
+              questions: {
+                create: {
+                  key,
+                  prompt: q.prompt.trim(),
+                  helpText: q.helpText?.trim() || null,
+                  // Only SINGLE_SELECT is offered in the editor — the other
+                  // input types in the schema have no verified renderer in
+                  // QuestionStep.
+                  inputType: "SINGLE_SELECT",
+                  order: i,
+                },
+              },
             },
+            select: { questions: { where: { key }, select: { id: true } } },
           });
+          const created = withNew.questions[0];
+          if (!created) {
+            throw new Error(
+              `Question "${key}" was created but could not be read back. ` +
+                `Refusing to continue with an unmapped temporary id.`
+            );
+          }
           idMap.set(q.id, created.id);
         } else {
           idMap.set(q.id, q.id);
@@ -292,14 +334,21 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
           };
 
           if (isNew(o.id)) {
-            await tx.answerOption.create({
+            // Nested through the scoped Question, same reason as above.
+            // Question is derived-owned, so this update is guarded and the
+            // new option inherits ownership structurally.
+            await tx.question.update({
+              where: { id: realQuestionId },
               data: {
-                ...data,
-                questionId: realQuestionId,
-                // value feeds answersSnapshot; derived from the label once at
-                // creation and never rewritten, so historical answers keep
-                // matching even if the label is later reworded.
-                value: slugifyKey(o.label, `option_${j + 1}`),
+                options: {
+                  create: {
+                    ...data,
+                    // value feeds answersSnapshot; derived from the label once
+                    // at creation and never rewritten, so historical answers
+                    // keep matching even if the label is later reworded.
+                    value: slugifyKey(o.label, `option_${j + 1}`),
+                  },
+                },
               },
             });
           } else {
@@ -318,4 +367,5 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   }
 
   return NextResponse.json({ ok: true });
+  });
 }
