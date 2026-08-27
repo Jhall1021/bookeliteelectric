@@ -15,11 +15,14 @@ PROD_HOST="ep-icy-hill-axkgrsjb"
 # Load .env so REHEARSAL_DATABASE_URL can live there rather than being
 # exported by hand. A var in .env is NOT visible to `npx tsx` otherwise —
 # verified with a probe, not assumed. An already-set value still wins.
-for f in .env.local .env; do
-  if [ -z "${REHEARSAL_DATABASE_URL:-}" ] && [ -f "$f" ]; then
-    set -a; . "./$f"; set +a
-  fi
-done
+# Do NOT `source` the dotenv files. They hold values with shell
+# metacharacters — PLATFORM_FROM_EMAIL is a display name in angle brackets,
+# which bash reads as a redirect and rejects outright. Ask the TS loader,
+# which parses with a regex and is the same code the scripts themselves use.
+if [ -z "${REHEARSAL_DATABASE_URL:-}" ]; then
+  REHEARSAL_DATABASE_URL="$(npx tsx scripts/_print-env.ts REHEARSAL_DATABASE_URL)"
+  export REHEARSAL_DATABASE_URL
+fi
 
 : "${REHEARSAL_DATABASE_URL:?REHEARSAL_DATABASE_URL is not set — see docs/migration/pass-three-contract-plan.md}"
 case "$REHEARSAL_DATABASE_URL" in

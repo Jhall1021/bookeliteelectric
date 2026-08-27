@@ -71,6 +71,22 @@ const EXPECTED = {
   constraintsAdded: new Set(["arrival_windows_date_startTime_endTime_serviceAreaId_key"]),
 };
 
+/**
+ * Making a column NOT NULL shows up TWICE in the catalogue: once as the
+ * column's is_nullable flipping, and once as a new `<table>_<column>_not_null`
+ * row in pg_constraint. They are one change seen through two views.
+ *
+ * DERIVED from columnsChanged rather than listed, so the two cannot drift.
+ * Hardcoding ten constraint names beside ten column names is exactly the shape
+ * of hand-maintained inventory that has already gone stale twice in this
+ * migration — and here it would be worse than stale, because an unnoticed
+ * mismatch would show up as an UNEXPECTED change and abort a correct release.
+ */
+for (const col of EXPECTED.columnsChanged) {
+  const [table, column] = col.split(".");
+  EXPECTED.constraintsAdded.add(`${table}_${column}_not_null`);
+}
+
 function diff(before: Snapshot, after: Snapshot): number {
   let unexpected = 0;
   const line = (mark: string, s: string) => console.log(`    ${mark} ${s}`);

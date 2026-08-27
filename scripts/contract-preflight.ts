@@ -172,14 +172,25 @@ async function main() {
    * never proceed, since the tool that performs the change would forever be
    * evidence that the change is unsafe.
    *
-   * Listed explicitly rather than by directory. Everything else under
+   * The criterion is narrow: a script belongs here only if performing or
+   * verifying THIS contract requires it to name the column. Nothing that
+   * merely reads application data qualifies.
+   *
+   * Listed explicitly rather than by directory or glob. Everything else under
    * scripts/ is still scanned, because a verifier or seed that reads a dropped
    * column breaks just as surely as a route does — which is exactly how
-   * verify-booking-tenancy.ts was caught.
+   * verify-booking-tenancy.ts was caught. A `scripts/contract-*` glob would
+   * have swept up future files nobody reviewed.
    */
   const CONTRACT_TOOLING = new Set([
     "scripts/contract-preflight.ts",
     "scripts/contract-rehearsal.ts",
+    // The transform that removes the column, the structural diff that lists
+    // its removal as expected, and the verifier that asserts it is gone.
+    // Each must name it in order to do its job.
+    "scripts/apply-contract-schema.ts",
+    "scripts/db-structure.ts",
+    "scripts/verify-contract-applied.ts",
   ]);
 
   const files = sourceFiles(["app", "lib", "components", "scripts", "prisma"])
