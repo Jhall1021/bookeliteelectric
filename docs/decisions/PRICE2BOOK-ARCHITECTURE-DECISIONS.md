@@ -1045,3 +1045,162 @@ The handoff cites the ADR for two things this reconstruction cannot restore.
   the guard again and watching the gate exit 1. `audit-price-writers.ts` was
   changed to exit non-zero at the same time — it had only ever reported, which
   made ADR-003's "enforced" a statement of intent rather than of behaviour.
+
+---
+
+## ADR-011 — The booking flow's owners — NEW, 27 August
+
+**Status:** expand and backfill done. Read/write switch in progress. Contract pending.
+
+Pass three covers `Visit`, `LineItem`, `Booking`, `Quote`, `Customer`, `Photo`, plus the
+ownership edges that make their invariants enforceable: `ArrivalWindow` and
+`JobberCrewMember`.
+
+The audit that preceded it is [pass-three-ownership-audit.md](../migration/pass-three-ownership-audit.md).
+Its first finding was that six names did not mean six identical migrations.
+
+### The decisions
+
+| Model | Ownership | Mechanism |
+|---|---|---|
+| `Visit` | direct | `contractorId` — ownership root |
+| `Customer` | direct | `contractorId` — ownership root |
+| `Photo` | direct | `contractorId` — no single derivable path |
+| `JobberCrewMember` | direct | `contractorId` — ownership root |
+| `LineItem` | derived | `["visit"]` |
+| `Booking` | derived | `["visit"]` |
+| `Quote` | derived | `["service"]` |
+| `ArrivalWindow` | derived | `["serviceArea"]` |
+
+Four of the eight carry no `contractorId`, per ADR-010. A derived model is tenant-owned;
+it simply does not carry the column.
+
+### Why `Visit` is a root and not derived from its line items
+
+Because an OPEN visit legitimately has no line items yet — three such rows existed at
+migration time. A model whose owner is unknowable for real live rows cannot derive.
+
+Deriving from a *list* would also be ambiguous by construction: it presumes every line item
+on a visit shares one contractor, which is exactly the invariant the guard has to enforce
+rather than assume.
+
+### Why `Quote` derives through `service` and not `visit`
+
+The live data decided this, not the schema. `visitId` and `lineItemId` are both optional
+*and actually absent*: of two rows, one had no `visitId`, both had no `lineItemId`, and one
+had neither. `serviceId` is the only required owner-bearing parent.
+
+Generalised: **when a model has several optional parents, the schema tells you which paths
+are permitted and the data tells you which paths exist.** Only a required parent can carry
+ownership, and "required" has to be read off the schema, not off the happy path in the
+code.
+
+### Why `LineItem` and `Booking` derive through `visit` and not `service`/`customer`
+
+Both have more than one parent that resolves to a contractor. Those extra parents are
+**secondary references, not competing owners**. Deriving from `visit` keeps "does this
+service belong to my visit's contractor?" a real question. Deriving from `service` would
+make it tautological and let a foreign service silently redefine whose visit it is.
+
+### Why `Photo` carries a column despite having parents
+
+Two independent reasons, either sufficient:
+
+1. Its three parents are **alternatives**, all optional. `DERIVED_TENANT_MODELS` maps a
+   model to exactly one relation path; "one of two, we don't know which" is not a path.
+2. Both write sites are **nested writes inside transactions**, which query extensions never
+   intercept. The guard cannot police Photo writes under any classification, so the owner
+   is stamped structurally at write time and checked by sweep afterwards.
+
+`Photo.bookingId` has zero reads and zero writes and zero rows. It is a **contract
+candidate**, not something to design tenancy around, and it was not removed during expand.
+
+### Deriving ownership does not make secondary references safe
+
+Same principle as `AnswerOption.referencedServiceId` under ADR-007a. `Booking` is owned
+through its `Visit` but also points at a `Customer` and an `ArrivalWindow`; `Quote` is owned
+through its `Service` but also points at a `Customer` and possibly a `Visit`. Each is a
+separate chance to cross a boundary while every model individually looks correctly owned.
+
+`scripts/verify-booking-tenancy.ts` checks all of them, and is in the deploy gate.
+
+`ArrivalWindow.serviceAreaId` was a bare scalar Prisma could not traverse. A `Booking`
+could therefore be correctly owned through its `Visit` while pointing at another
+contractor's window. The relation is now declared, which is what makes the check above
+expressible at all — **an integrity rule you cannot write a query for is not a rule.**
+
+### Ownership invariant — a session is not a tenant
+
+> **A browser session identifies continuity within a storefront. It does not identify a
+> tenant.**
+
+`elite_session_id` is one cookie with no contractor dimension. Before this pass, six call
+sites resolved an open visit as:
+
+```
+sessionId -> Visit -> contractor          WRONG
+```
+
+which meant a visitor who added a service on Elite's storefront and then opened another
+contractor's storefront in the same browser reopened **Elite's visit**. The route rejected
+a foreign *service*; the visit row itself was shared. Correct order is always:
+
+```
+site -> contractor -> sessionId -> Visit  RIGHT
+```
+
+The contractor must be established from `ContractorSite` first and then used as part of the
+lookup key. This is why `Visit` needed a column rather than a derivation: **an owner you
+have to filter by is an owner you have to store.**
+
+Permanent regression case: two contractors, one session id. Elite gets Elite's open visit;
+the other contractor gets its own or none — never Elite's.
+
+### The `Visit` uniqueness question
+
+`@@index([contractorId, sessionId, status])` is an index, deliberately **not** a unique
+constraint. The full triple is genuinely not unique in live data: repeat customers
+accumulate `CHECKED_OUT` visits under one cookie (sessions with 7, 15 and 2 were present).
+
+The narrower invariant — **at most one OPEN visit per contractor + session** — held with
+zero violations, and is what the application actually assumes. It is a contract-phase
+partial-unique candidate (`WHERE status = 'OPEN'`), checked meanwhile by
+`verify-booking-tenancy.ts`.
+
+Constraints get added when the data has been shown to satisfy them, not when the invariant
+sounds right.
+
+### Migration provenance is not application behaviour
+
+Backfill derived ownership from existing relations wherever a relation existed: 30 of 33
+visits, 26 of 27 customers, 6 of 6 photos, 21 of 21 crew members.
+
+The remainder had nothing to derive from. For those, `backfill-pass-three-ownership.ts`
+falls back to historical provenance — but only after **proving** it, against two conditions
+evaluated at run time:
+
+1. exactly one `Contractor` row exists, and
+2. every row it *could* derive derived to that same contractor.
+
+If either fails it leaves the rows null and exits non-zero rather than guessing.
+
+> **Runtime never assumes the only contractor is Elite. A migration may use known
+> historical provenance, but only if that provenance is proven for the dataset in front of
+> it, at the moment it runs.**
+
+The distinction matters because the two look identical in a one-contractor database and
+diverge silently the moment a second appears.
+
+### Making the sweep produce the work list
+
+`audit-unguarded-tenant-access.ts` reported **0 unexplained** throughout pass two — not
+because the booking flow was safe, but because these models sat in `PENDING_TENANT_SCOPE`
+and the sweep did not consider them tenant-owned.
+
+Reclassifying them is what makes the real conversion list appear: 18 unexplained sites, 24
+more in already-adopted files, and 4 platform-rooted reads of tenant data. That list is
+derived from the schema and the classification, so it cannot go stale the way a
+hand-written migration checklist does — ADR-007a's rule applied to its own tooling.
+
+**Deliberately turning the gate red is a legitimate migration step.** The red is the
+inventory.

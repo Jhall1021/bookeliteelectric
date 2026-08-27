@@ -16,11 +16,11 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model ServiceCategory {
-  id        String   @id @default(cuid())
-  slug      String   @unique
+  id        String    @id @default(cuid())
+  slug      String    @unique
   name      String
   icon      String? // icon key, e.g. "outlet", "lighting", "fan"
-  sortOrder Int      @default(0)
+  sortOrder Int       @default(0)
   // Lets New Outlets visually cluster near Outlets & Switches in the UI
   // without merging the underlying category/service data.
   navGroup  String?
@@ -42,10 +42,10 @@ model ServiceCategory {
 /// Contractor #2 is also electrical, so "Lighting" is genuinely one shared row
 /// with two presentations. This distinction has a second real consumer.
 model CanonicalCategory {
-  id   String @id @default(cuid())
+  id          String  @id @default(cuid())
   /// Stable template identity, e.g. lighting, outlets-switches,
   /// dedicated-circuits. Never contractor-specific.
-  slug String @unique
+  slug        String  @unique
   /// The platform default. A contractor may override it for display without
   /// creating a new canonical category.
   name        String
@@ -219,7 +219,7 @@ model ServiceQuery {
   ///
   /// Required. A cache row without an owner could answer anyone.
   contractorId String
-  contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   /// Lowercased, punctuation stripped, whitespace collapsed. The cache key.
   ///
@@ -244,14 +244,14 @@ model ServiceQuery {
   /// ordering and now permits the slug change.
   normalizedText String
   /// A few real phrasings behind that key, for reading back later.
-  rawExamples String[]
+  rawExamples    String[]
 
   /// Slug rather than a relation: a service can be deleted and the record of
   /// people asking for it is still the useful part.
   matchedServiceSlug String?
-  confidence Float?
-  isEmergency Boolean @default(false)
-  outOfScope  Boolean @default(false)
+  confidence         Float?
+  isEmergency        Boolean @default(false)
+  outOfScope         Boolean @default(false)
 
   timesAsked    Int @default(1)
   /// Went on to the suggested service.
@@ -304,16 +304,15 @@ model ServiceQuery {
 ///
 /// Singleton, like PricingSettings — id is always "default".
 model BusinessHours {
-  id String @id @default("default")
+  id           String      @id @default("default")
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
   /// the loaders read it. A configuration row with no owner must fail rather
   /// than fall back to whichever row happens to come first — a cross-tenant
   /// pricing fallback is worse than an error.
-  contractorId String?  @unique
+  contractorId String?     @unique
   contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
-
 
   /// Days bookings may be offered. 0 = Sunday through 6 = Saturday.
   /// Also defines a "business day" for lead-time rules.
@@ -348,12 +347,12 @@ model BusinessHours {
 /// default. They were the source of every disagreement between sources on how
 /// many ZIPs a county has.
 model ZipCode {
-  zip      String  @id
-  city     String
-  county   String
-  state    String
+  zip        String @id
+  city       String
+  county     String
+  state      String
   /// STANDARD, PO_BOX, UNIQUE, or MILITARY.
-  type     String  @default("STANDARD")
+  type       String @default("STANDARD")
   /// Population, where known. Zero or null means nobody lives there.
   population Int?
 
@@ -397,15 +396,15 @@ model Contractor {
   /// Contact identity. The phone number appears in the EMERGENCY message,
   /// which makes it the single most important string to get right per
   /// contractor.
-  phone            String?
-  supportEmail     String?
-  websiteUrl       String?
+  phone        String?
+  supportEmail String?
+  websiteUrl   String?
 
   /// Branding. brandColors overrides the CSS custom properties in
   /// styles/globals.css; the Tailwind hex values become the fallbacks.
-  logoUrl          String?
-  logoWhiteUrl     String?
-  brandColors      Json?
+  logoUrl      String?
+  logoWhiteUrl String?
+  brandColors  Json?
 
   /// Per-contractor sender identity — the decided direction, so customer mail
   /// comes from the contractor and platform mail comes from Price2Book.
@@ -415,21 +414,25 @@ model Contractor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contractorMaterials ContractorMaterial[]
-  services            Service[]
-  pricingSettings     PricingSettings?
-  businessHours       BusinessHours?
-  materialSettings    ContractorMaterialSettings?
-  jobberConnection    JobberConnection?
-  serviceAreas        ServiceArea[]
-  contractorComponents ContractorComponent[]
-  contractorCategories ContractorCategory[]
+  contractorMaterials   ContractorMaterial[]
+  services              Service[]
+  pricingSettings       PricingSettings?
+  businessHours         BusinessHours?
+  materialSettings      ContractorMaterialSettings?
+  jobberConnection      JobberConnection?
+  serviceAreas          ServiceArea[]
+  contractorComponents  ContractorComponent[]
+  contractorCategories  ContractorCategory[]
   contractorDisclaimers ContractorDisclaimer[]
-  sites                ContractorSite[]
-  serviceQueries       ServiceQuery[]
-  memberships         ContractorMembership[]
-  invitations         ContractorInvitation[]
-  supportEvents       SupportAccessEvent[]
+  sites                 ContractorSite[]
+  serviceQueries        ServiceQuery[]
+  memberships           ContractorMembership[]
+  invitations           ContractorInvitation[]
+  supportEvents         SupportAccessEvent[]
+  visits                Visit[]
+  customers             Customer[]
+  photos                Photo[]
+  jobberCrewMembers     JobberCrewMember[]
 
   @@map("contractors")
 }
@@ -533,7 +536,7 @@ model ContractorMaterial {
 /// Removed only once every read path has moved and been verified. See
 /// prisma/migrate-material-split-2026-08-24.ts.
 model Material {
-  id          String  @id @default(cuid())
+  id   String @id @default(cuid())
   /// CANONICAL ROLE IDENTITY. Stable identifier for seeds and code, e.g.
   /// GFCI_WEATHER_RESISTANT or WIRE_12_2.
   ///
@@ -555,8 +558,8 @@ model Material {
   /// would add a join and a table to express a 1:1. Keeping supplier identity
   /// out of this key is what keeps that split a mechanical migration rather
   /// than a rewrite. See docs/MATERIAL-SUPPLIER-CATALOG.md.
-  key         String  @unique
-  name        String
+  key  String @unique
+  name String
 
   /// What Elite pays per canonical unit, in cents. THE EFFECTIVE CACHED COST:
   /// this is the field the pricing engine consumes, and it keeps that role
@@ -595,7 +598,7 @@ model Material {
   packageUnit       String?
 
   /// "each", "ft", "box" — the canonical unit ServiceMaterial.quantity counts.
-  unit        String  @default("each")
+  unit String @default("each")
 
   /// Where the effective cost comes from. CUSTOM means a person entered it.
   /// SUPPLIER means it is maintained by the active supplier link below.
@@ -603,7 +606,7 @@ model Material {
   /// Any material may stay CUSTOM even when a supplier is the contractor
   /// default — a part bought from a local supply house doesn't stop being
   /// real because Lowe's is configured.
-  costSource      MaterialCostSource     @default(CUSTOM)
+  costSource MaterialCostSource @default(CUSTOM)
 
   /// Whether the figure is a confirmed cost or a working assumption.
   ///
@@ -611,19 +614,19 @@ model Material {
   /// was never a quoted price, and network materials entered as estimates.
   /// Marking them means the reconciler can say a price rests on a guess
   /// instead of that fact living in a notes field nobody greps.
-  costConfidence  MaterialCostConfidence @default(CONFIRMED)
+  costConfidence MaterialCostConfidence @default(CONFIRMED)
 
   /// Sync health. OK, or STALE/ERROR when a supplier refresh failed.
   ///
   /// A failed refresh NEVER changes unitCostCents — the last good cost stands
   /// and the material is flagged. Nothing customer-facing moves because a
   /// request timed out.
-  costStatus      MaterialCostStatus     @default(OK)
-  costStatusNote  String?
-  costUpdatedAt   DateTime?
+  costStatus     MaterialCostStatus @default(OK)
+  costStatusNote String?
+  costUpdatedAt  DateTime?
 
-  notes       String?
-  active      Boolean @default(true)
+  notes  String?
+  active Boolean @default(true)
 
   /// Supplier products mapped to this canonical role. A material may carry
   /// several — a Lowe's product and a Graybar product for the same 12/2 —
@@ -634,8 +637,8 @@ model Material {
   activeSupplierLinkId String?               @unique
   activeSupplierLink   MaterialSupplierLink? @relation("MaterialActiveLink", fields: [activeSupplierLinkId], references: [id], onDelete: SetNull)
 
-  costEvents  MaterialCostEvent[]
-  services    ServiceMaterial[]
+  costEvents MaterialCostEvent[]
+  services   ServiceMaterial[]
 
   @@map("materials")
 }
@@ -698,7 +701,7 @@ enum SupplierSyncStatus {
 /// every Lowe's electrical item as a Material would turn a 40-part working
 /// catalog into a mirror of somebody else's inventory.
 model MaterialSupplierLink {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   /// DEPRECATED — replaced by contractorMaterialId below. Widened to optional
   /// so a supplier link can be created against the contractor material alone.
   /// Nothing creates one yet; making this optional now means the Lowe's
@@ -735,7 +738,7 @@ model MaterialSupplierLink {
 
   /// The canonical unit this package converts to — must match Material.unit.
   /// $8.90 / 10 ft = 89 milli-cents... i.e. $0.89/ft.
-  canonicalUnit          String
+  canonicalUnit             String
   derivedUnitCostMilliCents Int
 
   /// Last SUCCESSFUL price, retained across failures so an outage can never
@@ -754,8 +757,8 @@ model MaterialSupplierLink {
   /// contractor's choice — Elite buys Southwire from Lowe's, another
   /// contractor buys something else for the same role — so once the split
   /// completes these hang off ContractorMaterial and materialId goes.
-  contractorMaterialId       String?
-  contractorMaterial         ContractorMaterial? @relation("ContractorMaterialLinks", fields: [contractorMaterialId], references: [id], onDelete: Cascade)
+  contractorMaterialId        String?
+  contractorMaterial          ContractorMaterial? @relation("ContractorMaterialLinks", fields: [contractorMaterialId], references: [id], onDelete: Cascade)
   activeForContractorMaterial ContractorMaterial? @relation("ContractorMaterialActiveLink")
 
   createdAt DateTime @default(now())
@@ -784,7 +787,7 @@ model MaterialSupplierLink {
 /// change is a later drop; the events start accumulating now so it has
 /// history to read when it lands.
 model MaterialCostEvent {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   /// DEPRECATED — replaced by contractorMaterialId. A cost movement is always
   /// one contractor's, never the platform's.
   ///
@@ -808,9 +811,9 @@ model MaterialCostEvent {
   /// Why the cost moved: "admin edit", "lowes sync", "seed-materials",
   /// "invoice 4471". Free text on purpose — a category list would grow a
   /// generic bucket that absorbs anything inconvenient.
-  reason String
+  reason    String
   /// Admin email, or the name of the job that did it.
-  actor  String?
+  actor     String?
   /// Groups a batch of changes from one sync run.
   syncRunId String?
 
@@ -829,16 +832,15 @@ model MaterialCostEvent {
 /// Keyed like PricingSettings so it doesn't need reshaping when there is more
 /// than one contractor — but deliberately NOT built as a tenant table now.
 model ContractorMaterialSettings {
-  id String @id @default("default")
+  id           String      @id @default("default")
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
   /// the loaders read it. A configuration row with no owner must fail rather
   /// than fall back to whichever row happens to come first — a cross-tenant
   /// pricing fallback is worse than an error.
-  contractorId String?  @unique
+  contractorId String?     @unique
   contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
-
 
   /// What a newly created material defaults to. Individual materials may
   /// always differ.
@@ -869,9 +871,9 @@ model ContractorMaterialSettings {
 
 /// Join: how much of a material a service consumes.
 model ServiceMaterial {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   serviceId  String
-  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  service    Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   /// DEPRECATED — replaced by canonicalMaterialId below.
   ///
   /// Widened to optional so new recipe lines can be written against the role
@@ -893,8 +895,8 @@ model ServiceMaterial {
   canonicalMaterial   CanonicalMaterial? @relation(fields: [canonicalMaterialId], references: [id], onDelete: Restrict)
 
   /// Supports fractional quantities — 2 ft of cable, half a box of staples.
-  quantity   Float    @default(1)
-  order      Int      @default(0)
+  quantity Float @default(1)
+  order    Int   @default(0)
 
   /// Retained while materialId still exists. Postgres treats NULLs as
   /// distinct, so this stops constraining new canonical-only rows on its own
@@ -918,18 +920,18 @@ model ServiceMaterial {
 /// A group is named once and referenced. Correcting a wording, or adding the
 /// safety line, happens in one place and applies everywhere.
 model PhotoGroup {
-  id          String  @id @default(cuid())
+  id         String                   @id @default(cuid())
   /// Stable identifier used in code and seeds, e.g. PANEL_PHOTOS.
-  key         String  @unique
-  name        String
+  key        String                   @unique
+  name       String
   /// The labels shown to the customer, in order.
-  labels      String[]
+  labels     String[]
   /// Prepended to every label in this group. Carries the panel safety rule so
   /// it can never be omitted by accident.
-  safetyNote  String?
-  active      Boolean @default(true)
-  notes       String?
-  options     AnswerOptionPhotoGroup[]
+  safetyNote String?
+  active     Boolean                  @default(true)
+  notes      String?
+  options    AnswerOptionPhotoGroup[]
 
   @@map("photo_groups")
 }
@@ -1023,17 +1025,17 @@ model ContractorDisclaimer {
 /// Defined once, attached where it applies, evaluated against the
 /// classification the flow has already established.
 model ConditionalDisclaimer {
-  id        String @id @default(cuid())
-  key       String @unique
-  name      String
+  id          String                   @id @default(cuid())
+  key         String                   @unique
+  name        String
   /// Shown to the customer when the condition holds.
-  text      String
+  text        String
   /// Only render when the access classification matches. Null means always.
   accessClass AccessClassification?
-  active    Boolean @default(true)
-  notes     String?
-  options   AnswerOptionDisclaimer[]
-  questions QuestionDisclaimer[]
+  active      Boolean                  @default(true)
+  notes       String?
+  options     AnswerOptionDisclaimer[]
+  questions   QuestionDisclaimer[]
 
   @@map("conditional_disclaimers")
 }
@@ -1058,7 +1060,7 @@ model QuestionDisclaimer {
   /// When true this REPLACES the question's help text rather than appending
   /// to it — for cases where the default is actively wrong on this route.
   replacesHelpText Boolean @default(false)
-  order        Int                   @default(0)
+  order            Int     @default(0)
 
   @@unique([questionId, disclaimerId])
   @@map("question_disclaimers")
@@ -1076,7 +1078,7 @@ model AnswerOptionDisclaimer {
   contractorDisclaimerId String?
   contractorDisclaimer   ContractorDisclaimer? @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
 
-  order          Int                   @default(0)
+  order Int @default(0)
 
   @@unique([answerOptionId, disclaimerId])
   @@map("answer_option_disclaimers")
@@ -1195,27 +1197,27 @@ model ContractorComponent {
 /// the reconciler keeps reading 108 of 108 while the data is copied across.
 /// Removed only once every read path has moved and been verified.
 model JobComponent {
-  id                   String  @id @default(cuid())
+  id                   String                  @id @default(cuid())
   /// Stable identifier used in code and seeds, e.g.
   /// NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE
-  key                  String  @unique
+  key                  String                  @unique
   /// Internal label for the admin editor.
   name                 String
   /// Optional plain-language line for the customer's scope summary, e.g.
   /// "New wall switch & control wiring". Null hides it from the customer.
   customerFacingLabel  String?
   /// Incremental technician-hours this component adds (handoff §3.1).
-  addFieldLaborHours   Float   @default(0)
+  addFieldLaborHours   Float                   @default(0)
   /// Incremental direct material cost in cents, BEFORE markup. The §4 tier is
   /// applied to the assembled total, not per component.
-  addMaterialCostCents Int     @default(0)
+  addMaterialCostCents Int                     @default(0)
   /// Incremental calendar minutes. Independent of labor hours on purpose: a
   /// second technician doubles the hours without changing the clock time, and
   /// some work adds setup time without adding hours. Never derive one from
   /// the other.
-  addScheduleMinutes   Int     @default(0)
+  addScheduleMinutes   Int                     @default(0)
   /// Rarely used — a component that changes the crew size.
-  addTechCount         Int     @default(0)
+  addTechCount         Int                     @default(0)
   /// Approved customer-facing price for this component, in cents.
   ///
   /// Lives here rather than on the answer because the price belongs to the
@@ -1228,7 +1230,7 @@ model JobComponent {
   /// review instead of publishing a calculated figure. Zero is a valid
   /// approved value for work that adds no charge.
   approvedPriceCents   Int?
-  active               Boolean @default(true)
+  active               Boolean                 @default(true)
   notes                String?
   options              AnswerOptionComponent[]
 
@@ -1237,9 +1239,9 @@ model JobComponent {
 
 /// Join: an answer selects one or more components.
 model AnswerOptionComponent {
-  id             String       @id @default(cuid())
+  id             String        @id @default(cuid())
   answerOptionId String
-  answerOption   AnswerOption @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+  answerOption   AnswerOption  @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
   /// DEPRECATED — replaced by canonicalComponentId below. Both exist during
   /// the expand phase; this one goes once every read path has moved.
   componentId    String?
@@ -1254,7 +1256,7 @@ model AnswerOptionComponent {
   canonicalComponent   CanonicalComponent? @relation(fields: [canonicalComponentId], references: [id], onDelete: Restrict)
   /// Multiplier for per-unit components — e.g. 5 additional recessed lights
   /// against a single "additional light" component (§11-§12).
-  quantity       Int          @default(1)
+  quantity             Int                 @default(1)
 
   /// Condition on the ACCESS CLASSIFICATION of an earlier answer rather than
   /// its raw value. Preferred for anything access-dependent: it survives
@@ -1290,30 +1292,30 @@ model AnswerOptionComponent {
 }
 
 model Service {
-  id                  String          @id @default(cuid())
-  slug                String          @unique
-  name                String
+  id         String          @id @default(cuid())
+  slug       String          @unique
+  name       String
   /// DEPRECATED — replaced by contractorCategoryId below. Retained until the
   /// contract phase; still required while reads are being switched over.
-  categoryId          String
-  category            ServiceCategory @relation(fields: [categoryId], references: [id])
+  categoryId String
+  category   ServiceCategory @relation(fields: [categoryId], references: [id])
 
   /// ADR-006. Nullable only for the duration of the migration; it becomes
   /// required in the contract phase, when ServiceCategory is retired.
-  contractorCategoryId String?
-  contractorCategory   ContractorCategory? @relation(fields: [contractorCategoryId], references: [id], onDelete: Restrict)
-  bookingType         BookingType
-  basePrice           Int? // cents; null when Remote Quote has no anchor price
-  startingPriceLabel  String? // e.g. "From $1,295" for remote-quote services
+  contractorCategoryId  String?
+  contractorCategory    ContractorCategory? @relation(fields: [contractorCategoryId], references: [id], onDelete: Restrict)
+  bookingType           BookingType
+  basePrice             Int? // cents; null when Remote Quote has no anchor price
+  startingPriceLabel    String? // e.g. "From $1,295" for remote-quote services
   whileWeThereBasePrice Int?
-  heroImage           String?
-  shortDescription     String?
+  heroImage             String?
+  shortDescription      String?
   // Optional override for the category's icon — e.g. "Outlets & Switches"
   // needs both an outlet icon and a switch icon, not one icon for the
   // whole category. Falls back to the contractor's iconOverride, then to
   // CanonicalCategory.defaultIcon — see lib/categories.ts categoryIcon().
-  icon                String?
-  requiresTechCount   Int             @default(1)
+  icon                  String?
+  requiresTechCount     Int                 @default(1)
   // Labor/material composition, imported from the client's validated
   // pricing engine (Excel workbook, external tool). Null on any service
   // that hasn't been through that validation yet — those are simply
@@ -1329,8 +1331,8 @@ model Service {
   // were back-fitted to land on a target price. Handoff §3.1 prohibits that
   // going forward, so new work uses fieldLaborHours below. Do not rename
   // these — that would assert the old numbers are measured, which they aren't.
-  primaryLaborUnits   Float?
-  addOnLaborUnits     Float?
+  primaryLaborUnits     Float?
+  addOnLaborUnits       Float?
   /// Which contractor's catalog this service belongs to.
   ///
   /// Services are per-contractor: Elite's catalog is Elite's, and the
@@ -1348,10 +1350,10 @@ model Service {
   /// Nullable for the expand phase only. Becomes required once backfilled
   /// and once the recompute reads it — a service with no owner cannot have
   /// its material costs resolved, and must fail closed rather than guess.
-  contractorId        String?
-  contractor          Contractor? @relation(fields: [contractorId], references: [id], onDelete: Restrict)
+  contractorId          String?
+  contractor            Contractor?         @relation(fields: [contractorId], references: [id], onDelete: Restrict)
 
-  materialCostCents   Int?
+  materialCostCents Int?
 
   /// Whether every material ROLE this service requires resolves to a cost
   /// for the contractor who owns it.
@@ -1396,35 +1398,35 @@ model Service {
   // workbook are NOT deliberate overrides — they're unvalidated data sitting
   // in this column. Itemizing a service's materials clears it, since that's
   // the moment its figures become real.
-  materialMultiplier  Float?
+  materialMultiplier     Float?
 
   // Why the multiplier above departs from the tier. Without it, nobody can
   // tell six months from now whether a 2.5 was a business decision or
   // leftover from the import.
   materialMultiplierReason String?
-  permitAdminCents    Int?
-  otherDirectCostCents Int?
+  permitAdminCents         Int?
+  otherDirectCostCents     Int?
 
   // --- Handoff §3.1: real labor, separate from dispatch duration ---------
   // Actual expected technician-hours. NULL means "not yet established" — the
   // editor shows that rather than a suggested price derived from a number
   // nobody stands behind. Never populate this from estimatedMinutes.
-  fieldLaborHours     Float?
+  fieldLaborHours          Float?
   // Incremental hours once the tech is already on site. Handoff §3.4: WWT
   // pricing does NOT apply the primary service-call minimum.
-  wwtLaborHours       Float?
+  wwtLaborHours            Float?
   // False until someone has confirmed estimatedMinutes is a real dispatch
   // duration. Several look optimistic — Professional TV Installation is
   // recorded at 60 minutes for a one-tech mount-plus-receptacle-plus-cable
   // package — so they're treated as unreviewed until checked.
-  estimatedMinutesReviewed Boolean @default(false)
+  estimatedMinutesReviewed Boolean    @default(false)
   // Handoff §3.3: the $250 service-call minimum recovers the cost of
   // originating a visit. An add-on-only item never originates one, so the
   // minimum must not apply. The two Elite TV mounts are the current example:
   // applied literally it would push a $50 mount to $315.
-  isPrimaryEligible   Boolean @default(true)
+  isPrimaryEligible        Boolean    @default(true)
   // Handoff §6 — explicit, rather than inferred from route actions.
-  photoState          PhotoState @default(NONE)
+  photoState               PhotoState @default(NONE)
   // Set when an admin explicitly approves a calculated price for publication.
   // Handoff §5/§31: calculated prices are recommendations; nothing overwrites
   // a published price silently.
@@ -1438,26 +1440,26 @@ model Service {
   /// Display order within its category. Services previously sorted by name,
   /// which put "200-Amp Service Upgrade" above everything alphabetically
   /// regardless of how often anyone books it.
-  sortOrder Int @default(0)
-  active              Boolean         @default(true)
+  sortOrder        Int     @default(0)
+  active           Boolean @default(true)
   // Shown alongside the price on services with NO question tree at all —
   // a flat price that still needs a caveat attached (e.g. "we don't move
   // built-in ovens"). AnswerOption.disclaimer covers the same need for
   // services that DO branch; this covers the simple flat-price case where
   // there's no branch to attach it to.
-  disclaimer          String?
+  disclaimer       String?
   // INTERNAL ONLY — never exposed in any customer-facing API response.
   // Used to estimate technician time on-site for scheduling/dispatch.
   // The guided-flow answers can push a job into a harder tier (e.g. New
   // Outlet's finished-wall-fishing branch), but this single estimate is a
   // per-service baseline; a future refinement could vary it per branch the
   // same way pricing does.
-  estimatedMinutes    Int?
+  estimatedMinutes Int?
 
-  questions    Question[]
-  pricingRules PricingRule[]
-  lineItems    LineItem[]
-  quotes       Quote[]
+  questions                 Question[]
+  pricingRules              PricingRule[]
+  lineItems                 LineItem[]
+  quotes                    Quote[]
   // Answer options elsewhere in the catalog that dynamically price
   // themselves off THIS service (see AnswerOption.referencedServiceId).
   referencedByAnswerOptions AnswerOption[] @relation("AnswerOptionReferencedService")
@@ -1474,20 +1476,19 @@ enum InputType {
 }
 
 model Question {
-  id        String        @id @default(cuid())
-  serviceId String
-  service   Service       @relation(fields: [serviceId], references: [id])
-  key       String // e.g. "wall_construction"
-  prompt    String
-  helpText  String?
-  inputType InputType
-  order     Int
-  options   AnswerOption[]
-
-  @@map("questions")
+  id              String               @id @default(cuid())
+  serviceId       String
+  service         Service              @relation(fields: [serviceId], references: [id])
+  key             String // e.g. "wall_construction"
+  prompt          String
+  helpText        String?
+  inputType       InputType
+  order           Int
+  options         AnswerOption[]
   /// Help text that only applies under a condition.
   conditionalHelp QuestionDisclaimer[]
 
+  @@map("questions")
 }
 
 enum RouteAction {
@@ -1501,25 +1502,25 @@ enum RouteAction {
 }
 
 model AnswerOption {
-  id                 String      @id @default(cuid())
-  questionId         String
-  question           Question    @relation(fields: [questionId], references: [id])
-  label              String // shown to the homeowner
-  value              String
-  priceModifierCents Int         @default(0)
-  nextQuestionId     String? // for CONTINUE
-  routeAction        RouteAction
-  rerouteServiceId   String? // for REROUTE_SERVICE
+  id                  String      @id @default(cuid())
+  questionId          String
+  question            Question    @relation(fields: [questionId], references: [id])
+  label               String // shown to the homeowner
+  value               String
+  priceModifierCents  Int         @default(0)
+  nextQuestionId      String? // for CONTINUE
+  routeAction         RouteAction
+  rerouteServiceId    String? // for REROUTE_SERVICE
   // Only populated when routeAction = PHOTO_REVIEW or REMOTE_QUOTE, and only
   // when the photo affects price/eligibility/routing (universal photo rule).
   requiredPhotoLabels String[]
-  order              Int
+  order               Int
   // Shown alongside the price when this branch resolves (RESOLVE_INSTANT
   // or RESOLVE_ADJUSTED) — for terms the customer needs to see before
   // booking, e.g. "we cut sheetrock; patching/painting is not included."
   // Null on the vast majority of options; only set where a real caveat
   // applies.
-  disclaimer         String?
+  disclaimer          String?
   // When set, this option's price adjustment comes from the REFERENCED
   // service's live basePrice at request time — not the static
   // priceModifierCents value. Use this whenever an answer option is
@@ -1540,7 +1541,7 @@ model AnswerOption {
   // books immediately. Use it wherever the answer already determines the
   // price but the tech still needs to see the space (panel make/model,
   // access, existing fixture) to arrive with the right parts.
-  photosBlockBooking Boolean     @default(true)
+  photosBlockBooking  Boolean     @default(true)
 
   /// Pictures of what this option means.
   ///
@@ -1552,7 +1553,7 @@ model AnswerOption {
   ///
   /// Several per option on purpose: one example reads as a specification
   /// ("mine isn't exactly that, so no"), three read as a category.
-  illustrationUrls String[]
+  illustrationUrls         String[]
   // --- Branch-level job overrides ---------------------------------------
   // Some answers change the JOB, not just the price. The TV size question is
   // the clearest case: up to 55 in is a one-technician route, 56-85 in is a
@@ -1638,15 +1639,15 @@ model AnswerOption {
 }
 
 model PricingRule {
-  id                    String  @id @default(cuid())
-  serviceId             String
-  service               Service @relation(fields: [serviceId], references: [id])
-  condition             String // human-readable / evaluated condition key
-  adjustedPriceCents    Int?
+  id                        String  @id @default(cuid())
+  serviceId                 String
+  service                   Service @relation(fields: [serviceId], references: [id])
+  condition                 String // human-readable / evaluated condition key
+  adjustedPriceCents        Int?
   adjustedWhileWeThereCents Int?
   // Cross-service inheritance, e.g. Garage Door Opener Outlet inherits
   // New 120V Outlet's two-tier pricing instead of duplicating it.
-  inheritsFromServiceId String?
+  inheritsFromServiceId     String?
 
   @@map("pricing_rules")
 }
@@ -1656,14 +1657,20 @@ model PricingRule {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id        String     @id @default(cuid())
-  name      String?
-  email     String?
-  phone     String?
-  createdAt DateTime   @default(now())
-  visits    Visit[]
-  quotes    Quote[]
-  bookings  Booking[]
+  id           String      @id @default(cuid())
+  // Ownership root: no parents at all, and created before the Booking or
+  // Quote that would own it. Also PII — one homeowner using two contractors
+  // is two rows, never one shared row.
+  // Nullable during expand; contract makes it required.
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  name         String?
+  email        String?
+  phone        String?
+  createdAt    DateTime    @default(now())
+  visits       Visit[]
+  quotes       Quote[]
+  bookings     Booking[]
 
   @@map("customers")
 }
@@ -1675,26 +1682,34 @@ enum VisitStatus {
 }
 
 model Visit {
-  id         String      @id @default(cuid())
-  sessionId  String?
-  customerId String?
-  customer   Customer?   @relation(fields: [customerId], references: [id])
-  status     VisitStatus @default(OPEN)
-  lineItems  LineItem[]
-  booking    Booking?
-  createdAt  DateTime    @default(now())
+  id           String      @id @default(cuid())
+  // Ownership root of the booking flow. A Visit has no required parent, and
+  // it cannot borrow an owner from its line items: an OPEN visit legitimately
+  // has none yet. The owner also has to be part of the lookup key — sessionId
+  // comes from one browser cookie with no contractor dimension, so
+  // (sessionId, status) alone reopens another contractor's visit.
+  // Nullable during expand; contract makes it required.
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  sessionId    String?
+  customerId   String?
+  customer     Customer?   @relation(fields: [customerId], references: [id])
+  status       VisitStatus @default(OPEN)
+  lineItems    LineItem[]
+  booking      Booking?
+  createdAt    DateTime    @default(now())
+  quotes       Quote[]
 
   @@map("visits")
-  quotes    Quote[]
 }
 
 model LineItem {
-  id             String  @id @default(cuid())
-  visitId        String
-  visit          Visit   @relation(fields: [visitId], references: [id])
-  serviceId      String
-  service        Service @relation(fields: [serviceId], references: [id])
-  isPrimary      Boolean @default(true) // false = While We're There add-on
+  id              String  @id @default(cuid())
+  visitId         String
+  visit           Visit   @relation(fields: [visitId], references: [id])
+  serviceId       String
+  service         Service @relation(fields: [serviceId], references: [id])
+  isPrimary       Boolean @default(true) // false = While We're There add-on
   answersSnapshot Json
 
   /// NULL means the price isn't settled yet — the customer hit a branch we
@@ -1728,7 +1743,7 @@ model LineItem {
   /// a bigger TV — so the final price can only go up from here. Shown as
   /// "From $X" so the customer has a number to reason about without being
   /// told something that might turn out to be wrong.
-  floorPriceCents Int?
+  floorPriceCents  Int?
   // INTERNAL ONLY — snapshotted from Service.estimatedMinutes at add-time,
   // same pattern as computedPriceCents. Never returned by any customer-
   // facing API. Used to total up technician time for a Booking.
@@ -1737,11 +1752,11 @@ model LineItem {
   // branch. Distinct from Quote photos: there is no Quote in this path —
   // the price was already settled, so these ride along with the line item
   // for the technician rather than for the office to price from.
-  photos          Photo[]
+  photos           Photo[]
+  /// Set when this line is waiting on a quoted price.
+  quote            Quote?
 
   @@map("line_items")
-  /// Set when this line is waiting on a quoted price.
-  quote     Quote?
 }
 
 enum PaymentModel {
@@ -1757,29 +1772,29 @@ enum BookingStatus {
 }
 
 model Booking {
-  id              String        @id @default(cuid())
-  visitId         String        @unique
-  visit           Visit         @relation(fields: [visitId], references: [id])
-  customerId      String
-  customer        Customer      @relation(fields: [customerId], references: [id])
-  address         String
-  zipCode         String
-  arrivalWindowId String
-  arrivalWindow   ArrivalWindow @relation(fields: [arrivalWindowId], references: [id])
-  totalCents      Int
+  id                       String                  @id @default(cuid())
+  visitId                  String                  @unique
+  visit                    Visit                   @relation(fields: [visitId], references: [id])
+  customerId               String
+  customer                 Customer                @relation(fields: [customerId], references: [id])
+  address                  String
+  zipCode                  String
+  arrivalWindowId          String
+  arrivalWindow            ArrivalWindow           @relation(fields: [arrivalWindowId], references: [id])
+  totalCents               Int
   // INTERNAL ONLY — sum of the visit's LineItem.estimatedMinutes at the
   // moment of booking. Never shown to the customer; this is dispatch/
   // scheduling data (e.g. flagging a booking that's likely to run past its
   // 3-hour arrival window). Null if any line item lacked an estimate.
   estimatedDurationMinutes Int?
-  paymentModel    PaymentModel
-  paymentStatus   String        @default("authorized") // authorized | captured | failed
+  paymentModel             PaymentModel
+  paymentStatus            String                  @default("authorized") // authorized | captured | failed
   // Set once this booking has been pushed to Jobber as a Client + Job —
   // null means "not sent yet," presence prevents accidentally sending it twice.
-  jobberJobId     String?
-  status          BookingStatus @default(SCHEDULED)
-  troubleshootingSession TroubleshootingSession?
-  createdAt       DateTime      @default(now())
+  jobberJobId              String?
+  status                   BookingStatus           @default(SCHEDULED)
+  troubleshootingSession   TroubleshootingSession?
+  createdAt                DateTime                @default(now())
 
   @@map("bookings")
 }
@@ -1806,21 +1821,21 @@ model Quote {
   lineItemId String?   @unique
   lineItem   LineItem? @relation(fields: [lineItemId], references: [id])
 
-  id              String      @id @default(cuid())
-  customerId      String
-  customer        Customer    @relation(fields: [customerId], references: [id])
-  serviceId       String
-  service         Service     @relation(fields: [serviceId], references: [id])
-  answersSnapshot Json
-  status          QuoteStatus @default(SUBMITTED)
+  id               String      @id @default(cuid())
+  customerId       String
+  customer         Customer    @relation(fields: [customerId], references: [id])
+  serviceId        String
+  service          Service     @relation(fields: [serviceId], references: [id])
+  answersSnapshot  Json
+  status           QuoteStatus @default(SUBMITTED)
   quotedPriceCents Int?
   // Decided at approval time, not at submission — larger jobs may require one.
-  depositRequired Boolean?
-  depositCents    Int?
-  photos          Photo[]
-  createdAt       DateTime    @default(now())
-  quotedAt        DateTime?
-  approvedAt      DateTime?
+  depositRequired  Boolean?
+  depositCents     Int?
+  photos           Photo[]
+  createdAt        DateTime    @default(now())
+  quotedAt         DateTime?
+  approvedAt       DateTime?
 
   @@map("quotes")
 }
@@ -1831,19 +1846,27 @@ enum PhotoSource {
 }
 
 model Photo {
-  id        String      @id @default(cuid())
-  quoteId   String?
-  quote     Quote?      @relation(fields: [quoteId], references: [id])
+  id           String      @id @default(cuid())
+  // Direct owner despite having parents, for two independent reasons:
+  // its three parents are ALTERNATIVES and all optional, so there is no
+  // single relation path to derive from; and both write sites are nested
+  // writes inside transactions, which query extensions never intercept.
+  // The owner must therefore be stamped structurally at write time.
+  // Nullable during expand; contract makes it required.
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  quoteId      String?
+  quote        Quote?      @relation(fields: [quoteId], references: [id])
   // Set instead of quoteId when the photos came from a price-locked
   // PHOTO_REVIEW branch, where the customer booked directly and no Quote
   // was ever created. Exactly one of quoteId / lineItemId is populated.
-  lineItemId String?
-  lineItem   LineItem?  @relation(fields: [lineItemId], references: [id])
-  bookingId String?
-  url       String
-  label     String
-  source    PhotoSource
-  uploadedAt DateTime   @default(now())
+  lineItemId   String?
+  lineItem     LineItem?   @relation(fields: [lineItemId], references: [id])
+  bookingId    String?
+  url          String
+  label        String
+  source       PhotoSource
+  uploadedAt   DateTime    @default(now())
 
   @@map("photos")
 }
@@ -1853,7 +1876,7 @@ model Photo {
 // ---------------------------------------------------------------------------
 
 model ServiceArea {
-  id       String   @id @default(cuid())
+  id String @id @default(cuid())
 
   /// Which contractor this area belongs to. NOT unique: a contractor may
   /// reasonably define several named areas.
@@ -1864,21 +1887,28 @@ model ServiceArea {
   contractorId String?
   contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
-  name     String // "Monmouth County, NJ"
-  zipCodes String[]
-  active   Boolean  @default(true)
+  name          String // "Monmouth County, NJ"
+  zipCodes      String[]
+  active        Boolean         @default(true)
+  ArrivalWindow ArrivalWindow[]
 
   @@map("service_areas")
 }
 
 model ArrivalWindow {
-  id             String    @id @default(cuid())
+  id             String      @id @default(cuid())
   date           DateTime
   startTime      String // "08:00"
   endTime        String // "11:00"
   serviceAreaId  String
+  // Was a bare scalar. Prisma could not traverse it, so a Booking could be
+  // correctly owned through its Visit while still pointing at another
+  // contractor's ArrivalWindow. Declaring the relation makes ArrivalWindow
+  // derive its owner via serviceArea, and makes Booking.arrivalWindowId a
+  // checkable secondary tenant reference.
+  serviceArea    ServiceArea @relation(fields: [serviceAreaId], references: [id])
   capacityTotal  Int
-  capacityBooked Int       @default(0)
+  capacityBooked Int         @default(0)
   bookings       Booking[]
 
   @@map("arrival_windows")
@@ -1889,17 +1919,17 @@ model ArrivalWindow {
 // ---------------------------------------------------------------------------
 
 model TroubleshootingSession {
-  id                String    @id @default(cuid())
-  bookingId         String    @unique
-  booking           Booking   @relation(fields: [bookingId], references: [id])
-  minutesUsed       Int       @default(60) // first 60 min included in $249
+  id                 String   @id @default(cuid())
+  bookingId          String   @unique
+  booking            Booking  @relation(fields: [bookingId], references: [id])
+  minutesUsed        Int      @default(60) // first 60 min included in $249
   // Each approved +30-min increment logged with a timestamp. No customer-
   // facing approval step at launch — documented operationally by the
   // technician in the field.
   approvedIncrements Json[]   @default([])
-  resolvedIssue     String?
-  followupServiceId String?
-  createdAt         DateTime  @default(now())
+  resolvedIssue      String?
+  followupServiceId  String?
+  createdAt          DateTime @default(now())
 
   @@map("troubleshooting_sessions")
 }
@@ -1914,21 +1944,21 @@ model TroubleshootingSession {
 // — the exact formula from the client's validated pricing engine, not a
 // simplified approximation.
 model PricingSettings {
-  id                       String   @id @default("default")
+  id           String      @id @default("default")
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
   /// the loaders read it. A configuration row with no owner must fail rather
   /// than fall back to whichever row happens to come first — a cross-tenant
   /// pricing fallback is worse than an error.
-  contractorId String?  @unique
+  contractorId String?     @unique
   contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
-  targetRateCents          Int // revenue per productive tech-hour
-  primaryMinimumCents      Int // floor for any primary price when labor units > 0
-  roundingIncrementCents   Int // round every computed price up to this increment
-  defaultPermitAdminCents  Int // fallback when a service has no per-row override
-  updatedAt                DateTime @updatedAt
+  targetRateCents         Int // revenue per productive tech-hour
+  primaryMinimumCents     Int // floor for any primary price when labor units > 0
+  roundingIncrementCents  Int // round every computed price up to this increment
+  defaultPermitAdminCents Int // fallback when a service has no per-row override
+  updatedAt               DateTime @updatedAt
 
   @@map("pricing_settings")
 }
@@ -1939,14 +1969,14 @@ model PricingSettings {
 // makes a call; the refresh token itself only changes if Jobber rotates
 // it or the connection is re-authorized.
 model JobberConnection {
-  id           String   @id @default("default")
+  id           String      @id @default("default")
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
   /// the loaders read it. A configuration row with no owner must fail rather
   /// than fall back to whichever row happens to come first — a cross-tenant
   /// pricing fallback is worse than an error.
-  contractorId String?  @unique
+  contractorId String?     @unique
   contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   accessToken  String
@@ -1964,11 +1994,19 @@ model JobberConnection {
 // since not every Jobber user (e.g. your carpenters) should be counted
 // as available capacity for electrical bookings from the site.
 model JobberCrewMember {
-  id                         String   @id @default(cuid())
-  jobberUserId               String   @unique
+  id                         String      @id @default(cuid())
+  // Ownership root. Synced from a contractor's Jobber account, but
+  // JobberConnection is deleted on disconnect, so it is not a stable parent
+  // to derive from. Nullable during expand; contract makes it required.
+  contractorId               String?
+  contractor                 Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  // Still globally unique during expand because the crew sync upserts on it.
+  // Contract drops this in favour of the compound unique below — otherwise
+  // contractor B's sync would overwrite contractor A's row.
+  jobberUserId               String      @unique
   name                       String
-  eligibleForWebsiteBookings Boolean  @default(false)
-  lastSyncedAt               DateTime @default(now())
+  eligibleForWebsiteBookings Boolean     @default(false)
+  lastSyncedAt               DateTime    @default(now())
 
   @@map("jobber_crew_members")
 }
@@ -2134,9 +2172,9 @@ model ContractorMembership {
 /// has never signed in complicates account recovery, multi-company membership
 /// and support.
 model ContractorInvitation {
-  id           String         @id @default(cuid())
+  id           String     @id @default(cuid())
   contractorId String
-  contractor   Contractor     @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   /// Lowercased and trimmed at write time. Comparison must use the same
   /// normalisation, or Josh@ and josh@ become two different invitations.
@@ -2153,7 +2191,7 @@ model ContractorInvitation {
 
   /// Seven days. Long enough for a contractor who checks email on Sunday,
   /// short enough that a forwarded message goes stale.
-  expiresAt DateTime
+  expiresAt  DateTime
   /// Set inside the acceptance transaction. Non-null means spent.
   acceptedAt DateTime?
   /// Withdrawn, or superseded by a re-invite.
@@ -2198,14 +2236,14 @@ model PlatformAccess {
 /// `platformUserId` is deliberately NOT a relation: deleting a staff account
 /// must not delete the record of what they did.
 model SupportAccessEvent {
-  id             String           @id @default(cuid())
+  id             String     @id @default(cuid())
   platformUserId String
   contractorId   String
-  contractor     Contractor       @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractor     Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
-  kind   SupportEventKind
+  kind       SupportEventKind
   /// For MUTATED: enough detail to answer "who did this?" six months later.
-  action String?
+  action     String?
   /// Correlates ENTERED / MUTATED / EXITED into one visit.
   sessionRef String?
 
