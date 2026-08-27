@@ -17,18 +17,22 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { eliteContractorId } from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
 const PRIMARY_MINIMUM_CENTS = 25000;
 
 async function main() {
+  // Required as of pass three's contract: PricingSettings now carries an owner.
+  const contractorId = await eliteContractorId(prisma);
   const existing = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
 
   if (!existing) {
     await prisma.pricingSettings.create({
       data: {
         id: "default",
+        contractorId,
         targetRateCents: 25000,
         primaryMinimumCents: PRIMARY_MINIMUM_CENTS,
         roundingIncrementCents: 500,

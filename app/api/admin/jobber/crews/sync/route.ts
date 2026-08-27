@@ -3,7 +3,7 @@ import { withAdminRoute } from "@/lib/adminContext";
 import { fetchJobberUsers } from "@/lib/jobber";
 
 export async function POST() {
-  return withAdminRoute(async (db) => {
+  return withAdminRoute(async (db, ctx) => {
     try {
       const users = await fetchJobberUsers();
 
@@ -45,6 +45,14 @@ export async function POST() {
         } else {
           await db.jobberCrewMember.create({
             data: {
+              // Passed explicitly, matching every other guarded create on a
+              // required-owner model (see app/api/admin/services/route.ts).
+              // The guard stamps it anyway and cross-checks that it matches
+              // the ambient context — a different value throws rather than
+              // being silently accepted — but contract made the column
+              // required, so the TYPE demands it too. Stamping at runtime is
+              // invisible to the compiler.
+              contractorId: ctx.contractorId,
               jobberUserId: user.id,
               name: user.name,
               eligibleForWebsiteBookings: false,

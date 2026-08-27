@@ -66,7 +66,7 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  return withAdminRoute(async (db) => {
+  return withAdminRoute(async (db, ctx) => {
 
   let body: {
     id?: string;
@@ -146,6 +146,10 @@ export async function PATCH(req: Request) {
         })
       : await db.serviceArea.create({
           data: {
+            // Explicit now that contract made the column required. The guard
+            // stamps it anyway and refuses a value that disagrees with the
+            // ambient context; the type cannot see runtime stamping.
+            contractorId: ctx.contractorId,
             name: body.name?.trim() || "Service Area",
             zipCodes: zipCodes ?? [],
             active: body.active ?? true,

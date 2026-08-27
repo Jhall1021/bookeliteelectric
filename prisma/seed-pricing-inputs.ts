@@ -64,6 +64,7 @@ if (!process.argv.includes("--i-know-this-is-retired")) {
  */
 
 import { PrismaClient } from "@prisma/client";
+import { eliteContractorId } from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -147,6 +148,8 @@ async function main() {
     where: { id: "default" },
     update: {}, // don't overwrite if already configured
     create: {
+      // Required as of pass three's contract.
+      contractorId: await eliteContractorId(prisma),
       id: "default",
       targetRateCents: 25000, // $250.00/hr
       primaryMinimumCents: 22500, // $225.00

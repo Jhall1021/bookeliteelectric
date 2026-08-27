@@ -71,10 +71,12 @@ async function main() {
   // Every service must have an owner before its category can be assigned to
   // one. This is the condition that decides WHOSE ContractorCategory a service
   // points at, so an unowned service is not a row to skip — it is a stop.
-  const unowned = await prisma.service.findMany({
-    where: { contractorId: null },
-    select: { slug: true },
-  });
+  // Was a query for services with no contractor. Pass three's contract made
+  // Service.contractorId NOT NULL, so the database now enforces what this
+  // check looked for, and the query no longer type-checks. Kept as an empty
+  // list rather than deleted, so the stop-condition below still reads as the
+  // rule it always was.
+  const unowned: { slug: string }[] = [];
   if (unowned.length > 0) {
     console.error(
       `  ${unowned.length} service(s) have no contractor, so their category\n` +

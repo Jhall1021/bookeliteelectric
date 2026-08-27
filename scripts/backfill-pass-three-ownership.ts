@@ -39,7 +39,7 @@ function only<T>(xs: T[]): T | null {
 
 async function planVisit(): Promise<Plan> {
   const rows = await prisma.visit.findMany({
-    where: { contractorId: null },
+    where: { id: { in: [] } }, // was contractorId: null — NOT NULL as of contract
     select: { id: true, lineItems: { select: { service: { select: { contractorId: true } } } } },
   });
   const derived = new Map<string, string>();
@@ -54,7 +54,7 @@ async function planVisit(): Promise<Plan> {
 
 async function planCustomer(): Promise<Plan> {
   const rows = await prisma.customer.findMany({
-    where: { contractorId: null },
+    where: { id: { in: [] } }, // was contractorId: null — NOT NULL as of contract
     select: {
       id: true,
       quotes: { select: { service: { select: { contractorId: true } } } },
@@ -79,7 +79,7 @@ async function planCustomer(): Promise<Plan> {
 
 async function planPhoto(): Promise<Plan> {
   const rows = await prisma.photo.findMany({
-    where: { contractorId: null },
+    where: { id: { in: [] } }, // was contractorId: null — NOT NULL as of contract
     select: {
       id: true,
       quote: { select: { service: { select: { contractorId: true } } } },
@@ -101,7 +101,7 @@ async function planPhoto(): Promise<Plan> {
 async function planCrew(): Promise<Plan> {
   // Crew rows carry no relation at all. The only historical evidence of who
   // synced them is the JobberConnection set. One connection => unambiguous.
-  const rows = await prisma.jobberCrewMember.findMany({ where: { contractorId: null }, select: { id: true } });
+  const rows = await prisma.jobberCrewMember.findMany({ where: { id: { in: [] } }, select: { id: true } }); // was contractorId: null
   const conns = await prisma.jobberConnection.findMany({ select: { contractorId: true } });
   const owners = conns.map((c) => c.contractorId).filter(Boolean) as string[];
   const one = only(owners);
@@ -112,6 +112,9 @@ async function planCrew(): Promise<Plan> {
 
 (async () => {
   console.log(`PASS-THREE OWNERSHIP BACKFILL   ${APPLY ? "APPLY" : "DRY RUN (pass --apply to write)"}\n`);
+  console.log(`  COMPLETE. All four columns are NOT NULL as of pass three's`);
+  console.log(`  contract, so there are no unowned rows left for this to find.`);
+  console.log(`  Kept as the record of how 87 rows got their owner.\n`);
 
   const plans = [await planVisit(), await planCustomer(), await planPhoto(), await planCrew()];
 

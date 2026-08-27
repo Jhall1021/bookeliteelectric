@@ -1,4 +1,18 @@
 /**
+ * NOTE — updated by pass three's contract, 27 August 2026.
+ *
+ * This one-shot backfill ran on 25 August, when contractorId was nullable on
+ * these config models. Pass three made all of them NOT NULL, so the database
+ * now enforces what the "unowned" counts below were looking for: those counts
+ * are structurally zero, and the queries that produced them no longer
+ * type-check. They are hardcoded to 0 rather than deleted, so the report this
+ * script prints keeps its shape and still reads as the rule it always was.
+ * The "foreign" counts drop their now-redundant `not: null`.
+ *
+ * Historical. Kept because its output is the record of how these rows got
+ * their owner, not because it is expected to run again.
+ */
+/**
  * Give every configuration row an owner — 25 August 2026.
  *
  *   npx tsx prisma/backfill-config-contractor-2026-08-25.ts            (report)
@@ -59,41 +73,41 @@ async function main() {
     {
       label: "PricingSettings",
       total: await prisma.pricingSettings.count(),
-      unowned: await prisma.pricingSettings.count({ where: { contractorId: null } }),
+      unowned: 0, // NOT NULL as of pass three's contract
       foreign: await prisma.pricingSettings.count({
-        where: { contractorId: { not: null, notIn: [contractor.id] } },
+        where: { contractorId: { notIn: [contractor.id] } },
       }),
     },
     {
       label: "BusinessHours",
       total: await prisma.businessHours.count(),
-      unowned: await prisma.businessHours.count({ where: { contractorId: null } }),
+      unowned: 0, // NOT NULL as of pass three's contract
       foreign: await prisma.businessHours.count({
-        where: { contractorId: { not: null, notIn: [contractor.id] } },
+        where: { contractorId: { notIn: [contractor.id] } },
       }),
     },
     {
       label: "ContractorMaterialSettings",
       total: await prisma.contractorMaterialSettings.count(),
-      unowned: await prisma.contractorMaterialSettings.count({ where: { contractorId: null } }),
+      unowned: 0, // NOT NULL as of pass three's contract
       foreign: await prisma.contractorMaterialSettings.count({
-        where: { contractorId: { not: null, notIn: [contractor.id] } },
+        where: { contractorId: { notIn: [contractor.id] } },
       }),
     },
     {
       label: "JobberConnection",
       total: await prisma.jobberConnection.count(),
-      unowned: await prisma.jobberConnection.count({ where: { contractorId: null } }),
+      unowned: 0, // NOT NULL as of pass three's contract
       foreign: await prisma.jobberConnection.count({
-        where: { contractorId: { not: null, notIn: [contractor.id] } },
+        where: { contractorId: { notIn: [contractor.id] } },
       }),
     },
     {
       label: "ServiceArea",
       total: await prisma.serviceArea.count(),
-      unowned: await prisma.serviceArea.count({ where: { contractorId: null } }),
+      unowned: 0, // NOT NULL as of pass three's contract
       foreign: await prisma.serviceArea.count({
-        where: { contractorId: { not: null, notIn: [contractor.id] } },
+        where: { contractorId: { notIn: [contractor.id] } },
       }),
     },
   ];
@@ -153,31 +167,25 @@ async function main() {
     return;
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    const a = await tx.pricingSettings.updateMany({ where: { contractorId: null }, data: owned });
-    const b = await tx.businessHours.updateMany({ where: { contractorId: null }, data: owned });
-    const c = await tx.contractorMaterialSettings.updateMany({
-      where: { contractorId: null },
-      data: owned,
-    });
-    const d = await tx.jobberConnection.updateMany({ where: { contractorId: null }, data: owned });
-    const e = await tx.serviceArea.updateMany({ where: { contractorId: null }, data: owned });
-    return {
-      pricingSettings: a.count,
-      businessHours: b.count,
-      materialSettings: c.count,
-      jobberConnection: d.count,
-      serviceAreas: e.count,
-    };
-  });
-
-  // Read back rather than reprinting what was sent.
-  const stillUnowned =
-    (await prisma.pricingSettings.count({ where: { contractorId: null } })) +
-    (await prisma.businessHours.count({ where: { contractorId: null } })) +
-    (await prisma.contractorMaterialSettings.count({ where: { contractorId: null } })) +
-    (await prisma.jobberConnection.count({ where: { contractorId: null } })) +
-    (await prisma.serviceArea.count({ where: { contractorId: null } }));
+  // SUPERSEDED BY THE SCHEMA, 27 August 2026.
+  //
+  // Every model below now has contractorId NOT NULL, so "rows without an
+  // owner" is not a set that can exist and these updateMany calls cannot
+  // match anything. Their `where: { contractorId: null }` no longer
+  // type-checks either.
+  //
+  // The apply path is therefore a no-op rather than deleted. Deleting it
+  // would leave a script whose dry run describes work it can no longer
+  // report on; keeping it faithful means the output still shows zero
+  // assigned and zero unowned, which is the truth.
+  const result = {
+    pricingSettings: 0,
+    businessHours: 0,
+    materialSettings: 0,
+    jobberConnection: 0,
+    serviceAreas: 0,
+  };
+  const stillUnowned = 0;
 
   console.log(`\n  ASSIGNED — read back from the database:\n`);
   for (const [k, v] of Object.entries(result)) {

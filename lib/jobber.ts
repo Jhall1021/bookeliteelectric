@@ -53,7 +53,19 @@ async function refreshTokens(refreshToken: string) {
   return res.json() as Promise<{ access_token: string; refresh_token: string; expires_in: number }>;
 }
 
-export async function saveJobberTokens(tokens: { access_token: string; refresh_token: string; expires_in: number }) {
+export async function saveJobberTokens(
+  tokens: { access_token: string; refresh_token: string; expires_in: number },
+  // Which contractor just connected their Jobber account. Passed in rather
+  // than resolved here: this runs on the unguarded client by classification
+  // (OAuth, outside any request tenant context), so nothing stamps the owner,
+  // and contract made the column required.
+  //
+  // NOTE: the `id: "default"` key below is a pre-existing single-tenant
+  // assumption — a second contractor connecting Jobber would overwrite the
+  // first one's row. Left exactly as it was. This release does not change
+  // behaviour, and re-keying it is its own change needing its own proof.
+  contractorId: string
+) {
   await prisma.jobberConnection.upsert({
     where: { id: "default" },
     update: {
@@ -63,6 +75,7 @@ export async function saveJobberTokens(tokens: { access_token: string; refresh_t
     },
     create: {
       id: "default",
+      contractorId,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       expiresAt: new Date(Date.now() + tokens.expires_in * 1000),

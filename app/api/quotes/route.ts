@@ -96,10 +96,14 @@ export async function POST(req: Request) {
   // Contact details are still collected here — it's how the office reaches
   // them with the price. Checkout would normally capture this, but they can't
   // reach checkout until the quote comes back.
-  // Customer is a direct-owned root, so the guard stamps contractorId on the
-  // create. It is created before the Quote that will reference it, which is
-  // exactly why it could not derive an owner.
-  const customer = await db.customer.create({ data: { name, email, phone } });
+  // Customer is a direct-owned root. The guard stamps contractorId and
+  // cross-checks it, but contract made the column required so the TYPE demands
+  // it too — runtime stamping is invisible to the compiler. It is created
+  // before the Quote that will reference it, which is exactly why it could not
+  // derive an owner.
+  const customer = await db.customer.create({
+    data: { contractorId: site.contractorId, name, email, phone },
+  });
 
   const visit = await findOrCreateOpenVisit(db, site.contractorId, sessionId);
 

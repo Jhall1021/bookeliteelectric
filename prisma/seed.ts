@@ -286,7 +286,8 @@ async function main() {
   const existingArea = await prisma.serviceArea.findFirst({ where: { active: true } });
   if (!existingArea) {
     await prisma.serviceArea.create({
-      data: { name: "Monmouth & Ocean Counties, NJ", zipCodes: [], active: true },
+      // contractorId required as of pass three's contract.
+      data: { contractorId, name: "Monmouth & Ocean Counties, NJ", zipCodes: [], active: true },
     });
   }
 

@@ -70,6 +70,8 @@ async function seedRangeHood() {
     where: { slug: "replace-range-hood" },
     update: {},
     create: {
+      // Required as of pass three's contract.
+      contractorId,
       slug: "replace-range-hood",
       name: "Replace Existing Range Hood",
       ...categoryAttachment(category),

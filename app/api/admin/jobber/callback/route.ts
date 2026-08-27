@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { exchangeCodeForTokens, saveJobberTokens } from "@/lib/jobber";
+import { resolveAdminContractor } from "@/lib/adminContext";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -13,8 +14,12 @@ export async function GET(req: Request) {
   }
 
   try {
+    // Whose Jobber account this is: the admin who started the flow. Not
+    // inferred from the tokens and not defaulted — an OAuth callback that
+    // guessed an owner would attach one contractor's integration to another.
+    const { contractorId } = await resolveAdminContractor();
     const tokens = await exchangeCodeForTokens(code);
-    await saveJobberTokens(tokens);
+    await saveJobberTokens(tokens, contractorId);
   } catch (err) {
     console.error("Jobber OAuth exchange failed:", err);
     return NextResponse.redirect(new URL("/admin/jobber?error=exchange_failed", url.origin));

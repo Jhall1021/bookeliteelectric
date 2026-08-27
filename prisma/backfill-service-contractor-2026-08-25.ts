@@ -1,4 +1,13 @@
 /**
+ * NOTE — updated by pass three's contract, 27 August 2026.
+ *
+ * Historical one-shot from 25 August, when Service.contractorId was nullable.
+ * Pass three made it NOT NULL, so "services without an owner" is not a set
+ * that can exist and the queries that looked for it no longer type-check.
+ * They are neutralised rather than deleted, so this file still records how
+ * those rows got their owner.
+ */
+/**
  * Assign every existing service to Elite — 25 August 2026.
  *
  *   npx tsx prisma/backfill-service-contractor-2026-08-25.ts            (report)
@@ -56,7 +65,7 @@ async function main() {
   }
 
   const total = await prisma.service.count();
-  const unowned = await prisma.service.count({ where: { contractorId: null } });
+  const unowned = 0; // NOT NULL as of pass three's contract
   const owned = total - unowned;
 
   console.log(`  contractor   ${contractor.name}`);
@@ -69,7 +78,7 @@ async function main() {
   // that would quietly reassign another contractor's catalog is not a
   // backfill worth writing.
   const foreign = await prisma.service.count({
-    where: { contractorId: { not: null, notIn: [contractor.id] } },
+    where: { contractorId: { notIn: [contractor.id] } },
   });
   if (foreign > 0) {
     console.error(`STOPPING — ${foreign} service(s) already belong to a different`);
@@ -85,7 +94,7 @@ async function main() {
 
   if (!apply) {
     const sample = await prisma.service.findMany({
-      where: { contractorId: null },
+      where: { id: { in: [] } }, // was contractorId: null — NOT NULL now
       select: { slug: true },
       orderBy: { slug: "asc" },
       take: 5,
@@ -97,12 +106,12 @@ async function main() {
   }
 
   const result = await prisma.service.updateMany({
-    where: { contractorId: null },
+    where: { id: { in: [] } }, // was contractorId: null — NOT NULL now
     data: { contractorId: contractor.id },
   });
 
   // Read back rather than reprinting what was sent.
-  const remaining = await prisma.service.count({ where: { contractorId: null } });
+  const remaining = 0; // NOT NULL as of pass three's contract
 
   console.log(`  ${result.count} service(s) assigned to ${contractor.name}`);
   console.log(`  ${remaining} still unassigned`);

@@ -202,6 +202,8 @@ async function main() {
         isPrimaryEligible: true,
       },
       create: {
+        // Required as of pass three's contract.
+        contractorId: contractor.id,
         slug: spec.slug,
         name: spec.name,
         shortDescription: spec.description,
@@ -229,6 +231,8 @@ async function main() {
       where: { slug: "replace-wall-sconce" },
       update: { fieldLaborHours: 0.75, wwtLaborHours: 0.5, estimatedMinutes: 60 },
       create: {
+        // Required as of pass three's contract.
+        contractorId: contractor.id,
         slug: "replace-wall-sconce",
         name: "Replace an Existing Wall Sconce",
         shortDescription:
@@ -250,6 +254,8 @@ async function main() {
       where: { slug: "new-wall-sconce" },
       update: { fieldLaborHours: 1.25, wwtLaborHours: 1.0, estimatedMinutes: 120 },
       create: {
+        // Required as of pass three's contract.
+        contractorId: contractor.id,
         slug: "new-wall-sconce",
         name: "Install a New Wall Sconce",
         shortDescription:
