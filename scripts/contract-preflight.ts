@@ -163,7 +163,27 @@ async function main() {
     report("Visit.customerId rows in use", v[0].n);
   }
 
-  const files = sourceFiles(["app", "lib", "components", "scripts", "prisma"]);
+  /**
+   * The contract tooling is exempt from the source scans.
+   *
+   * These scripts name the columns being dropped because dropping and
+   * verifying them is their entire job — the rehearsal issues the DROP and
+   * then asserts the column is gone. Scanning them would mean the release can
+   * never proceed, since the tool that performs the change would forever be
+   * evidence that the change is unsafe.
+   *
+   * Listed explicitly rather than by directory. Everything else under
+   * scripts/ is still scanned, because a verifier or seed that reads a dropped
+   * column breaks just as surely as a route does — which is exactly how
+   * verify-booking-tenancy.ts was caught.
+   */
+  const CONTRACT_TOOLING = new Set([
+    "scripts/contract-preflight.ts",
+    "scripts/contract-rehearsal.ts",
+  ]);
+
+  const files = sourceFiles(["app", "lib", "components", "scripts", "prisma"])
+    .filter((f) => !CONTRACT_TOOLING.has(f));
 
   /**
    * Source with comments removed.
@@ -187,7 +207,6 @@ async function main() {
   {
     // Photo.bookingId: any mention alongside a photo context.
     const hits = files.filter((f) => {
-      if (f.endsWith("contract-preflight.ts")) return false;
       const t = readCode(f);
       return /\bbookingId\b/.test(t) && /\bphoto/i.test(t);
     });
@@ -196,7 +215,6 @@ async function main() {
   {
     // Visit.customerId: a customerId written or selected on a visit shape.
     const hits = files.filter((f) => {
-      if (f.endsWith("contract-preflight.ts")) return false;
       const t = readCode(f);
       return /visit\.(create|update|findFirst|findUnique)/i.test(t) && /customerId/.test(t)
         && !/booking|quote/i.test(t);
@@ -209,7 +227,6 @@ async function main() {
   {
     const hits: string[] = [];
     for (const f of files) {
-      if (f.endsWith("contract-preflight.ts")) continue;
       const t = readCode(f);
       // A whereUnique keyed on jobberUserId alone: upsert/findUnique/update
       // whose `where` names jobberUserId. The compound selector is fine.
