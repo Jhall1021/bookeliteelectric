@@ -113,9 +113,41 @@ const MAGIC_LINK_MINUTES = 15;
  */
 function resolveBaseUrl(): string | undefined {
   if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL;
+
+  // On production the deployment must identify itself by its PRODUCTION
+  // domain, not by the git-main alias. VERCEL_URL is per-commit and
+  // VERCEL_BRANCH_URL is the branch alias; neither is the address a person
+  // types or that a magic link should return to.
+  if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+
   const host = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
   if (host) return `https://${host}`;
   return undefined; // local dev: Better Auth infers from the request
+}
+
+/**
+ * Every host this deployment may legitimately be reached on.
+ *
+ * Vercel serves one deployment under several names — a per-commit URL, a
+ * branch alias, and on production the project domain. A sign-in started on one
+ * must not be refused because the request arrived via another.
+ *
+ * The production domain was missing from the first version of this list, and
+ * production sign-in failed with INVALID_ORIGIN the moment it deployed: the
+ * two Vercel variables it did use are both non-production aliases. Caught by
+ * requesting a link against production immediately after the deploy, which is
+ * the only place that particular gap can show up.
+ */
+function trustedOrigins(): string[] {
+  return [
+    process.env.VERCEL_PROJECT_PRODUCTION_URL &&
+      `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`,
+    process.env.VERCEL_BRANCH_URL && `https://${process.env.VERCEL_BRANCH_URL}`,
+    process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
+    process.env.BETTER_AUTH_URL,
+  ].filter((v): v is string => typeof v === "string" && v.length > 0);
 }
 
 export const auth = betterAuth({
@@ -128,11 +160,7 @@ export const auth = betterAuth({
    * sign-in started on one must not be refused because the link came back via
    * the other.
    */
-  trustedOrigins: [
-    process.env.VERCEL_BRANCH_URL && `https://${process.env.VERCEL_BRANCH_URL}`,
-    process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`,
-    process.env.BETTER_AUTH_URL,
-  ].filter((v): v is string => typeof v === "string" && v.length > 0),
+  trustedOrigins: trustedOrigins(),
 
   database: prismaAdapter(prisma, {
     provider: "postgresql",
