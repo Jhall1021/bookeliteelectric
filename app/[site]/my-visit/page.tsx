@@ -6,6 +6,7 @@ import { formatCents } from "@/lib/flow-types";
 import Image from "next/image";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
+import { useSiteFetch } from "@/components/site/SiteContext";
 
 type LineItemGroup = {
   serviceId: string;
@@ -47,6 +48,8 @@ type CategoryGroup = {
 };
 
 export default function MyVisitPage() {
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  const siteFetch = useSiteFetch();
   const router = useRouter();
   const [lineItems, setLineItems] = useState<LineItemGroup[]>([]);
   const [totalCents, setTotalCents] = useState(0);
@@ -60,8 +63,8 @@ export default function MyVisitPage() {
 
   async function refresh() {
     const [visitRes, wwtRes] = await Promise.all([
-      fetch("/api/visit").then((r) => r.json()),
-      fetch("/api/visit/while-we-there").then((r) => r.json()),
+      siteFetch("/api/visit").then((r) => r.json()),
+      siteFetch("/api/visit/while-we-there").then((r) => r.json()),
     ]);
     setLineItems(visitRes.lineItems ?? []);
     setTotalCents(visitRes.totalCents ?? 0);
@@ -84,7 +87,7 @@ export default function MyVisitPage() {
       router.push(`/services/${s.categorySlug}/${s.slug}`);
       return;
     }
-    const res = await fetch("/api/visit", {
+    const res = await siteFetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -106,7 +109,7 @@ export default function MyVisitPage() {
 
   async function removeOne(group: LineItemGroup) {
     const lastId = group.lineItemIds[group.lineItemIds.length - 1];
-    const res = await fetch(`/api/visit?lineItemId=${lastId}`, { method: "DELETE" });
+    const res = await siteFetch(`/api/visit?lineItemId=${lastId}`, { method: "DELETE" });
     const data = await res.json();
     if (data.pricingAdjusted) {
       setPricingNotice(
@@ -133,7 +136,7 @@ export default function MyVisitPage() {
     // the price of the next unit. Two problems: the browser was deciding
     // what a unit costs, and for a service whose price depends on answers
     // that figure was wrong anyway. The server prices it.
-    await fetch("/api/visit", {
+    await siteFetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ serviceId: group.serviceId, answersSnapshot: {} }),

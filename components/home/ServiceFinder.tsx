@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startQueue, queuedServiceHref, type QueuedService } from "@/lib/multiServiceQueue";
+import { useSiteFetch } from "@/components/site/SiteContext";
 
 type Candidate = { slug: string; name: string; categorySlug: string };
 
@@ -47,6 +48,8 @@ type Result =
  * confident ones.
  */
 export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "dark" }) {
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  const siteFetch = useSiteFetch();
   // The hero is navy. Everything else this might sit on is warm white, and a
   // component that only works on one of them is a component that gets
   // dropped in the wrong place and quietly disappears — which is exactly
@@ -66,7 +69,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
     setResult(null);
     setResolvedItems({});
     try {
-      const res = await fetch("/api/service-match", {
+      const res = await siteFetch("/api/service-match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -84,7 +87,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
   function accept(r: Extract<Result, { kind: "suggestion" }>) {
     // Recorded so we learn which suggestions people actually take. A service
     // that's suggested often and accepted rarely is named wrongly.
-    fetch("/api/service-match/feedback", {
+    siteFetch("/api/service-match/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, accepted: true }),
@@ -168,7 +171,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
             <Link
               href="/services"
               onClick={() => {
-                fetch("/api/service-match/feedback", {
+                siteFetch("/api/service-match/feedback", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ text, accepted: false }),
@@ -193,7 +196,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
               <button
                 key={c.slug}
                 onClick={() => {
-                  fetch("/api/service-match/feedback", {
+                  siteFetch("/api/service-match/feedback", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text, accepted: true }),
@@ -310,7 +313,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
               <>
                 <button
                   onClick={() => {
-                    fetch("/api/service-match/feedback", {
+                    siteFetch("/api/service-match/feedback", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ text, accepted: true }),

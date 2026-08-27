@@ -4,14 +4,23 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useSiteFetchOptional, useSiteOptional } from "@/components/site/SiteContext";
 
 export default function Header() {
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  //
+  // OPTIONAL here: the header sits in the ROOT layout, above [site], so it
+  // also renders on /admin and the not-found page where there is no
+  // storefront — and no cart to count.
+  const siteFetch = useSiteFetchOptional();
+  const site = useSiteOptional();
   const pathname = usePathname();
   const [itemCount, setItemCount] = useState(0);
 
   async function refreshCount() {
+    if (!siteFetch) return;
     try {
-      const res = await fetch("/api/visit");
+      const res = await siteFetch("/api/visit");
       const data = await res.json();
       const count = (data.lineItems ?? []).reduce(
         (sum: number, li: { quantity: number }) => sum + li.quantity,
@@ -25,14 +34,15 @@ export default function Header() {
 
   useEffect(() => {
     refreshCount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     // Re-check whenever the route changes, so adding an item on a service
     // page and then navigating updates the badge without a full reload.
-  }, [pathname]);
+  }, [pathname, siteFetch]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-cardline bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={site ? `/${site.hostedSlug}` : "/"} className="flex items-center gap-2">
           <Image src="/images/elite-logo.png" alt="Elite Electric & Lighting" width={112} height={112} />
         </Link>
 

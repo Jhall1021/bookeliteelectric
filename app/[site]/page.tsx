@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import ServiceFinder from "@/components/home/ServiceFinder";
-import { prisma } from "@/lib/prisma";
+import { requireHostedSite, withSite } from "@/lib/siteRouting";
 import { formatCents } from "@/lib/flow-types";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
@@ -64,10 +64,17 @@ const FEATURED = [
   { slug: "level-2-ev-charger", label: "EV Charger Installation", icon: "ev", category: "ev-garage" },
 ];
 
-export default async function HomePage() {
+export default async function HomePage({ params }: { params: { site: string } }) {
+  // ADR §2.2. The storefront is identified by the URL segment, before any
+  // catalog query. The featured list below names service SLUGS, and resolving
+  // the tenant from one of those would be the forbidden shape: the request
+  // would be answered for whichever contractor owned that slug.
+  const site = await requireHostedSite(params.site);
+
   // Live prices, so a repricing reaches the homepage without anyone
   // remembering to edit this file.
-  const featured = await prisma.service.findMany({
+  const featured = await withSite(site, (db) =>
+    db.service.findMany({
     where: { slug: { in: FEATURED.map((f) => f.slug) }, active: true },
     select: {
       slug: true,
@@ -78,7 +85,8 @@ export default async function HomePage() {
       // contractor category and on to the canonical row is safe.
       contractorCategory: { select: { canonicalCategory: { select: { slug: true } } } },
     },
-  });
+    })
+  );
   const bySlug = new Map(featured.map((s) => [s.slug, s]));
 
   return (
@@ -149,13 +157,13 @@ export default async function HomePage() {
 
             <div className="mt-6 flex max-w-[30rem] flex-wrap gap-3">
               <Link
-                href="/services"
+                href={`/${params.site}/services`}
                 className="ray-accent rounded-pill bg-electric px-7 py-3.5 text-base font-semibold text-white transition hover:bg-electric-hover"
               >
                 Book Your Service
               </Link>
               <Link
-                href="/troubleshooting"
+                href={`/${params.site}/troubleshooting`}
                 className="rounded-pill border border-white/30 px-7 py-3.5 text-base font-semibold text-white transition hover:bg-white/10"
               >
                 I Don&rsquo;t Know What&rsquo;s Wrong
@@ -296,7 +304,7 @@ export default async function HomePage() {
             // static list that carries its own category constant, so a
             // missing row degrades to the hardcoded slug instead of taking
             // the homepage down.
-            const href = `/services/${live.contractorCategory?.canonicalCategory.slug ?? svc.category}/${svc.slug}`;
+            const href = `/${params.site}/services/${live.contractorCategory?.canonicalCategory.slug ?? svc.category}/${svc.slug}`;
             return (
               <Link
                 key={svc.slug}

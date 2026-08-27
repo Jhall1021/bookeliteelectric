@@ -6,15 +6,23 @@ import {
   categoryIcon,
   categoryName,
   categorySlug,
-  soleContractorId,
 } from "@/lib/categories";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 
 // Returns EVERY active service, grouped by category, so the homeowner can
 // add anything from any category "while we're there." Services already in
 // the cart are NOT excluded — they're shown with their current quantity so
 // the customer can add another (e.g. a second outlet in a different room)
 // instead of the service just vanishing after the first add.
-export async function GET() {
+export async function GET(req: Request) {
+  // ADR §2.2. Tenant from the site identifier the caller carries.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+
   const sessionId = getOrCreateSessionId();
 
   const visit = await prisma.visit.findFirst({
@@ -28,9 +36,9 @@ export async function GET() {
   }
 
   // ADR-007: rooted at ContractorCategory, the tenant-owned model.
-  const contractorId = await soleContractorId(prisma, "the while-we-there list");
-  const categories = await prisma.contractorCategory.findMany({
-    where: { contractorId, active: true },
+  const categories = await withSite(site, (db) =>
+    db.contractorCategory.findMany({
+    where: { active: true },
     orderBy: { sortOrder: "asc" },
     include: {
       canonicalCategory: CANONICAL_CATEGORY_SELECT,
@@ -56,7 +64,8 @@ export async function GET() {
         },
       },
     },
-  });
+    })
+  );
 
   const withServices = categories
     .filter((c) => c.services.length > 0)

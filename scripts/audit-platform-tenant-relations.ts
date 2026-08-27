@@ -63,8 +63,9 @@ const REVIEWED_SAFE: Record<string, string> = {
     "ContractorCategory.services, not Contractor.services. The root is " +
     "ContractorCategory, which is tenant-owned, so the guard scopes it.",
   "app/admin/(protected)/services/page.tsx:services": "As above.",
-  "app/services/page.tsx:services": "As above.",
-  "app/services/[category]/page.tsx:services": "As above.",
+  "app/[site]/services/page.tsx:services":
+    "ContractorCategory.services under a §2.2 site-resolved tenant context.",
+  "app/[site]/services/[category]/page.tsx:services": "As above.",
   "app/api/visit/while-we-there/route.ts:services": "As above.",
   "app/api/service-match/route.ts:services": "Local DTO field, not a Prisma include.",
   "lib/serviceMatch.ts:services": "Local DTO field, not a Prisma include.",

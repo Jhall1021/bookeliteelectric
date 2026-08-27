@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ServiceFlowDTO } from "@/lib/flow-types";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import {
   categoryIcon,
   requireContractorCategory,
@@ -16,33 +17,26 @@ import {
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
 // GuidedFlowEngine walks it client-side.
-export async function GET(_req: Request, { params }: { params: { slug: string } }) {
-  // The contractor first, so their economics can be loaded from their own
-  // tenant-rooted query.
-  //
-  // Components are a canonical role plus one contractor's economics. Loading
-  // every contractor's figures and picking one afterwards would put other
-  // contractors' pricing into a PUBLIC response — the worst place for it.
-  //
-  // This used to nest `contractorComponents` under `canonicalComponent` with a
-  // hand-written contractor filter. CanonicalComponent is a PLATFORM model and
-  // Prisma extensions do not fire on nested reads, so that filter was the only
-  // thing standing between this public endpoint and every contractor's
-  // component pricing. It is now a separate query rooted at the tenant-owned
-  // model, where the guard can see it — see lib/contractorComponents.ts.
-  //
-  // NOTE: this still resolves by slug alone, which works only while
-  // Service.slug is globally unique. Two contractors both wanting
-  // "new-120v-outlet" breaks that, and the fix is a slug unique per
-  // contractor plus a contractor in the request. Out of scope here; recorded
-  // so it is not discovered by a collision.
-  const owner = await prisma.service.findUnique({
-    where: { slug: params.slug },
-    select: { contractorId: true },
-  });
-  if (!owner?.contractorId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+export async function GET(req: Request, { params }: { params: { slug: string } }) {
+  // ADR §2.2. The site identifier the caller carries decides the tenant.
+  // Resolving it from the requested resource would authorise access to that
+  // resource using itself.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
 
-  const service = await prisma.service.findUnique({
+  // The contractor comes from the SITE now, not from the service. The old
+  // two-query dance — look up the service, read its contractorId, then load
+  // the tree — was the forbidden shape: it used the requested resource to
+  // decide whose resource it was.
+  //
+  // Slug resolution is now scoped to this contractor, which is also what makes
+  // per-contractor slugs possible later (ADR-008 sequencing).
+  const service = await withSite(site, (db) =>
+    db.service.findUnique({
     where: { slug: params.slug },
     include: {
       contractorCategory: {
@@ -87,7 +81,8 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         },
       },
     },
-  });
+    })
+  );
 
   if (!service) {
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
@@ -96,10 +91,8 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   // Tenant-rooted: ContractorComponent -> its canonical role, not the other
   // way round. A role missing from this map is one this contractor has never
   // priced, which fails closed below rather than defaulting to zero.
-  const ownComponents = await loadOwnComponents(
-    prisma,
-    owner.contractorId,
-    canonicalComponentIdsIn(service)
+  const ownComponents = await withSite(site, (db) =>
+    loadOwnComponents(db, site.contractorId, canonicalComponentIdsIn(service))
   );
 
   const dto: ServiceFlowDTO = {

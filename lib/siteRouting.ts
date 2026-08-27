@@ -33,7 +33,55 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "./prisma";
+import { notFound } from "next/navigation";
 import { withContractor } from "./tenantRoute";
+
+/**
+ * Slugs a contractor may not take, because `hostedSlug` occupies the root
+ * namespace — `/elite-electric/services` sits beside `/admin` and `/api`.
+ *
+ * Configuration validation, not tenant security: nothing here protects one
+ * contractor from another. It stops a contractor named "api" from shadowing a
+ * real route, which is an ugly problem to discover after someone has printed
+ * their URL on a van.
+ *
+ * Includes the paths Price2Book may want for its own marketing site once the
+ * legacy Elite redirects are retired.
+ */
+export const RESERVED_HOSTED_SLUGS = new Set<string>([
+  // Application namespaces.
+  "api", "admin", "_next", "static", "public", "assets",
+  // Auth and account.
+  "login", "logout", "signin", "signup", "auth", "account", "settings",
+  // Platform marketing, kept free for Price2Book itself.
+  "pricing", "about", "contact", "blog", "docs", "help", "support",
+  "terms", "privacy", "legal", "security", "status",
+  // Legacy Elite root paths, reserved while their redirects stand.
+  "services", "troubleshooting", "checkout", "quote", "my-visit",
+  "service-area", "how-it-works", "why-elite",
+  // Obvious traps.
+  "new", "edit", "delete", "index", "null", "undefined", "www",
+]);
+
+/**
+ * Is this slug usable as a public storefront address?
+ *
+ * Returns the reason it is not, or null when it is fine — a caller showing an
+ * onboarding form needs to say WHY, not merely refuse.
+ */
+export function hostedSlugProblem(slug: string): string | null {
+  if (!slug) return "A storefront address is required.";
+  const lower = slug.toLowerCase();
+  if (lower !== slug) return "Use lowercase only.";
+  if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(slug)) {
+    return "Use lowercase letters, numbers and hyphens, starting and ending with a letter or number.";
+  }
+  if (slug.includes("--")) return "Avoid consecutive hyphens.";
+  if (slug.length < 3) return "Too short — use at least 3 characters.";
+  if (slug.length > 63) return "Too long — use at most 63 characters.";
+  if (RESERVED_HOSTED_SLUGS.has(slug)) return `"${slug}" is reserved by the platform.`;
+  return null;
+}
 
 /** What a resolved storefront request knows before it may query anything. */
 export type ResolvedSite = {
@@ -146,4 +194,21 @@ export function withSite<T>(
   fn: (db: PrismaClient) => Promise<T>
 ): Promise<T> {
   return withContractor(site.contractorId, "site-identifier", fn);
+}
+
+/**
+ * Resolve a hosted storefront page's `[site]` segment, or render not-found.
+ *
+ * The single entry point for pages under `app/[site]/`. Called at the TOP of
+ * every such page, before any tenant-owned query — the whole point of §2.2 is
+ * that the tenant is known before the resource is looked at, and that ordering
+ * is only true if resolution comes first in the function body.
+ *
+ * `notFound()` rather than an error page: an unknown, inactive or foreign
+ * storefront should be indistinguishable from a URL that was never valid.
+ */
+export async function requireHostedSite(siteSegment: string): Promise<ResolvedSite> {
+  const site = await siteByHostedSlug(siteSegment);
+  if (!site) notFound();
+  return site;
 }

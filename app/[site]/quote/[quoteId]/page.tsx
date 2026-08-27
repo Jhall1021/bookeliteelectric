@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@/lib/flow-types";
+import { useSiteFetch } from "@/components/site/SiteContext";
 
 type QuoteStatus = "SUBMITTED" | "IN_REVIEW" | "PRICED" | "APPROVED" | "EXPIRED";
 
@@ -18,13 +19,15 @@ type QuoteData = {
 };
 
 export default function QuoteStatusPage({ params }: { params: { quoteId: string } }) {
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  const siteFetch = useSiteFetch();
   const router = useRouter();
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/quotes/${params.quoteId}`)
+    siteFetch(`/api/quotes/${params.quoteId}`)
       .then((r) => r.json())
       .then((data) => {
         setQuote(data);
@@ -34,7 +37,7 @@ export default function QuoteStatusPage({ params }: { params: { quoteId: string 
 
   async function handleApprove() {
     setApproving(true);
-    const res = await fetch(`/api/quotes/${params.quoteId}/approve`, { method: "POST" });
+    const res = await siteFetch(`/api/quotes/${params.quoteId}/approve`, { method: "POST" });
     if (res.ok) {
       router.push("/my-visit");
     } else {

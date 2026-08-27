@@ -55,7 +55,10 @@ import {
  * that converts it.
  */
 const ADOPTED_FILES: string[] = [
-  "app/troubleshooting/page.tsx",
+  "app/[site]/troubleshooting/page.tsx",
+  "app/[site]/page.tsx",
+  "app/[site]/services/page.tsx",
+  "app/[site]/services/[category]/page.tsx",
   "app/api/admin/services/[serviceId]/tree/route.ts",
   "app/api/admin/materials/route.ts",
   // Dependency-injected helpers. They hold no client of their own and must
@@ -80,6 +83,14 @@ const ADOPTED_FILES: string[] = [
   "app/admin/(protected)/categories/page.tsx",
   "app/admin/(protected)/services/page.tsx",
   "app/admin/(protected)/services/new/page.tsx",
+  // ADR §2.2 — storefront routes, now tenant-addressed. Every one of these
+  // resolves a ContractorSite before it looks at any tenant-owned resource.
+  "app/api/services/[slug]/route.ts",
+  "app/api/services/by-id/[id]/route.ts",
+  "app/api/service-match/route.ts",
+  "app/api/visit/while-we-there/route.ts",
+  "app/api/visit/route.ts",
+  "app/api/quotes/route.ts",
 ];
 
 /**
@@ -88,7 +99,14 @@ const ADOPTED_FILES: string[] = [
  * For compatibility paths that must stay on the unguarded client during the
  * expand phase. Not a place to silence a finding you have not thought about.
  */
-const ALLOWED_UNGUARDED: Record<string, string> = {};
+const ALLOWED_UNGUARDED: Record<string, string> = {
+  "app/api/service-match/route.ts::recordQuery":
+    "recordQuery writes ServiceQuery, which is in PENDING_TENANT_SCOPE — it " +
+    "has no contractorId and its globally unique normalizedText makes it a " +
+    "platform-wide cache. ADR-008 re-keys it in pass four; routing it through " +
+    "the guard today would throw NotYetTenantScopedError. The site is already " +
+    "resolved at the top of this route, so pass four converts it in place.",
+};
 
 /** Identifiers that ARE the unguarded application client. */
 const UNGUARDED_IDENTIFIERS = ["prisma", "platformDb"];

@@ -475,69 +475,85 @@ Point 9 is what stopped `ServiceCategory` being left in the pending list after
 ADR-006 superseded the plan to tenant-scope it. A model sitting in that list
 for the wrong reason makes the list lie in both directions.
 
-### Guard adoption — inventory from a fresh sweep, 27 August
+### Guard adoption — COMPLETE for every route that can know its tenant
 
-Criterion 4 in progress. Recomputed from the repository against the current
-ownership model, **not** from any accumulated work list — the first completion
-attempt reported "21 of 21" and was measuring a denominator defined before
-`Service` and `ContractorCategory` entered the architecture.
+Criterion 4 **met**, established by a sweep recomputed from the repository
+rather than from any accumulated work list.
 
-**Adopted: 15 files.** `scripts/audit-guard-adoption.ts` keeps each one a
-one-way door and is in the build gate. 0 drift.
+| Bucket | Count |
+|---|---|
+| Guarded / adopted | **25 files**, 0 drift |
+| Platform-owned | passed through by the guard |
+| Deprecated / migration / seed | `prisma/`, `scripts/` — own client by design |
+| **Blocked on storefront tenant resolution** | **0** |
+| Explicitly justified exception | 2 sites — `recordQuery` writes `ServiceQuery`, still `PENDING_TENANT_SCOPE` until ADR-008 |
+| **Unexplained / unreviewed** | **0** |
 
-| Bucket | Count | Notes |
-|---|---|---|
-| Guarded / adopted | **15 files** | every route that can currently know its tenant |
-| Platform-owned | — | passed through by the guard; `CanonicalMaterial`, `CanonicalComponent`, `CanonicalCategory`, `CanonicalDisclaimer`, `PhotoGroup`, `ZipCode`, `Contractor` |
-| Deprecated / migration / seed | `prisma/`, `scripts/` | construct their own client, platform-level by design, write across tenants deliberately |
-| **Blocked on storefront tenant resolution** | **15 sites, 9 files** | see below — ADR §2.2 |
-| **Unexplained / unreviewed** | **0** | must stay 0 |
+`soleContractorId` no longer appears anywhere under `app/[site]/`. It survives
+only on admin surfaces, which await per-contractor auth rather than storefront
+resolution.
 
-### Blocked on storefront tenant resolution — ADR §2.2
+### §2.2 implemented — the hosted storefront is tenant-addressed
 
-These are public routes. They cannot resolve a contractor because nothing tells
-the public storefront which tenant it is serving. **They are not exceptions and
-they do not satisfy criterion 4** — route adoption is incomplete until §2.2
-exists.
+`ContractorSite` maps a public identity to exactly one contractor.
+`hostedSlug` is the URL segment; `publicId` is the opaque identifier an API
+request carries. They are separate so rotating one does not rename the other.
 
 ```
-app/(marketing)/page.tsx                    Service.findMany
-app/api/service-match/route.ts              Service.findMany
-app/api/services/[slug]/route.ts            Service.findUnique x2
-app/api/services/by-id/[id]/route.ts        Service.findUnique
-app/api/visit/while-we-there/route.ts       ContractorCategory.findMany
-app/services/page.tsx                       ContractorCategory.findMany
-app/services/[category]/page.tsx            ContractorCategory.findFirst
-app/api/visit/route.ts                      4 sites, unguarded client passed to DI helpers
-app/api/quotes/route.ts                     2 sites, same
+/elite-electric/services            page resolves hostedSlug -> site
+                                    -> withSite() -> guarded query
+x-price2book-site: <publicId>       API resolves publicId -> site
+                                    -> withSite() -> guarded query
 ```
 
-**Tenant context must not be manufactured from the Service being requested.**
-Deriving "whose tenant is this" from the row the request asked for is circular:
-it authorises access using the thing being accessed. The identifier has to come
-from outside the request's target — a site identifier, a domain, an embed key.
+The whole customer-facing storefront moved under `app/[site]/` — services,
+category and service pages, troubleshooting, checkout, my-visit, quote,
+service-area, and the marketing pages. Old root paths **redirect** (307,
+temporary) rather than continuing to serve Elite implicitly; a permanent
+redirect would burn the root namespace into one contractor, and Price2Book
+wants `/services` and `/pricing` for itself.
 
-Three of these currently resolve a contractor through `soleContractorId`, which
-**throws** when a second contractor exists. That is fail-closed rather than
-safe: at contractor #2 the public storefront breaks loudly instead of leaking.
-The other six have no contractor resolution at all.
+`RESERVED_HOSTED_SLUGS` stops a contractor taking `api`, `admin`, `login` and
+the rest. Configuration validation, not tenant security — it prevents a routing
+collision, not a leak.
 
-### A blind spot the sweep found in the check itself
+Client calls carry the identifier through `useSiteFetch()` from one provider in
+the `[site]` layout, rather than twenty call sites each remembering a header —
+which would be the "correct as long as someone remembers" shape moved to the
+browser. `useSiteFetchOptional()` exists because the shared header sits in the
+ROOT layout and also renders where there is no storefront.
 
-Seven of the fifteen blocked sites are `helper(prisma, …)` — the unguarded
-client handed to a dependency-injected helper that then runs tenant queries on
-it. No `prisma.<model>` search can see them, because the model name never
-appears at the call site. `app/api/visit/route.ts` and
-`app/api/quotes/route.ts` looked clean and were not.
+**The forbidden shape is gone.** `app/api/services/[slug]/route.ts` used to
+look up the service, read its `contractorId`, then load the tree — using the
+requested resource to decide whose resource it was. It now resolves the site
+first. Same for the visit and quote routes, whose contractor came from
+`contractorIdForService(service)`.
 
-`audit-guard-adoption.ts` now flags an adopted file passing the unguarded
-client to anything, with `withTenantGuard`, `withContractor` and
-`soleContractorId` excepted as the ways it is legitimately built or read.
+Proof, both directions: Elite site + Elite service works; Dummy site + Dummy
+service works; Elite site + Dummy service id is not found; Dummy site + Elite
+service id is not found; the dummy site sees 1 service where Elite has 75; an
+unknown publicId resolves to null; a deactivated site stops resolving while its
+contractor's data is untouched. 105 of 105.
 
-Related: `lib/routeResolver.ts` took a parameter literally named `prisma`,
-shadowing the module import, so neither a reader nor a static check could tell
-whether a query ran on the injected client or the global one. Renamed to `db`,
-matching the material helpers.
+### The defect §2.2 exposed, and its permanent test
+
+The four cross-tenant cases failed on first run with `NoTenantContextError`,
+and the fault was in `withContractor`, not the test.
+
+**A Prisma promise is lazy.** `db.service.findUnique(...)` builds a query and
+does nothing until awaited. Returning it unawaited let
+`AsyncLocalStorage.run()` exit first, so the query executed OUTSIDE the tenant
+context. The vulnerable shape was the natural one — `(db) => db.thing.find(...)`
+— and every adopted route was written that way, through fifteen files, with the
+build never noticing.
+
+The invariant now: **tenant context stays active until the callback's returned
+work has SETTLED, not merely until the callback has returned a Promise.**
+
+`scripts/verify-tenant-context-retention.ts` holds it, in the gate. Offline —
+it uses a deliberately lazy thenable and no database at all, which is why it
+can run there rather than in the live harness. Reverting the fix fails it
+immediately, verified.
 
 *Evidence: `scripts/verify-tenant-isolation-live.ts`;
 `scripts/audit-platform-tenant-relations.ts`;

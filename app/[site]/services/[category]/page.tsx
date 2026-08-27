@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/flow-types";
 import { notFound } from "next/navigation";
 import { ServiceIcon } from "@/components/shared/Icons";
@@ -10,10 +9,18 @@ import {
   CANONICAL_CATEGORY_SELECT,
   categoryIcon,
   categoryName,
-  soleContractorId,
 } from "@/lib/categories";
+import { requireHostedSite, withSite } from "@/lib/siteRouting";
 
-export default async function CategoryPage({ params }: { params: { category: string } }) {
+export default async function CategoryPage({
+  params,
+}: {
+  params: { site: string; category: string };
+}) {
+  // ADR §2.2. Tenant first, from the URL — never from the category or any
+  // service it contains.
+  const site = await requireHostedSite(params.site);
+
   // ADR-007: rooted at ContractorCategory. The canonical slug is matched
   // through the relation as a FILTER, which is not a nested read of tenant
   // data — the top-level root is still tenant-owned.
@@ -22,10 +29,9 @@ export default async function CategoryPage({ params }: { params: { category: str
   // (contractorId, canonicalCategoryId), and this resolves by slug. The
   // uniqueness that matters is still guaranteed — one contractor cannot have
   // two rows for the same canonical category.
-  const contractorId = await soleContractorId(prisma, "a category page");
-  const category = await prisma.contractorCategory.findFirst({
+  const category = await withSite(site, (db) =>
+    db.contractorCategory.findFirst({
     where: {
-      contractorId,
       active: true,
       canonicalCategory: { slug: params.category },
     },
@@ -42,7 +48,8 @@ export default async function CategoryPage({ params }: { params: { category: str
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       },
     },
-  });
+    })
+  );
 
   if (!category) return notFound();
 
@@ -53,7 +60,7 @@ export default async function CategoryPage({ params }: { params: { category: str
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/services" className="text-sm text-electric">← All categories</Link>
+      <Link href={`/${params.site}/services`} className="text-sm text-electric">← All categories</Link>
       <h1 className="mt-4 font-display text-2xl font-bold text-navy">{categoryName(category)}</h1>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -64,7 +71,7 @@ export default async function CategoryPage({ params }: { params: { category: str
           return (
             <Link
               key={svc.id}
-              href={`/services/${params.category}/${svc.slug}`}
+              href={`/${params.site}/services/${params.category}/${svc.slug}`}
               className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:border-electric"
             >
               {/* Restructured from the previous horizontal row (36px icon

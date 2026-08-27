@@ -17,6 +17,7 @@ import RerouteNotice, { REROUTE_HANDOFF_KEY } from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
 import { advanceQueue, queuedServiceHref } from "@/lib/multiServiceQueue";
+import { useSiteFetch } from "@/components/site/SiteContext";
 
 type Props = {
   serviceSlug: string;
@@ -55,6 +56,8 @@ type TerminalState =
  * before committing to anything, rather than discovering a mismatch later.
  */
 export default function GuidedFlowEngine({ serviceSlug }: Props) {
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  const siteFetch = useSiteFetch();
   const router = useRouter();
   const [flow, setFlow] = useState<ServiceFlowDTO | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,11 +97,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/services/${serviceSlug}`).then((r) => r.json()),
+      siteFetch(`/api/services/${serviceSlug}`).then((r) => r.json()),
       // Tolerate a failure here rather than blocking the whole flow — worst
       // case the customer is treated as a first-time booker, which is the
       // old behaviour, not a broken page.
-      fetch("/api/visit")
+      siteFetch("/api/visit")
         .then((r) => r.json())
         .catch(() => ({ lineItems: [] })),
     ]).then(([data, visit]: [ServiceFlowDTO, { lineItems?: unknown[] }]) => {
@@ -399,7 +402,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
     if (result.state.kind === "troubleshooting") {
       // Fetched on demand rather than up front — most flows never reach it.
-      fetch("/api/services/electrical-troubleshooting")
+      siteFetch("/api/services/electrical-troubleshooting")
         .then((r) => r.json())
         .then((t: { basePrice?: number }) => setTroubleshootingCents(t?.basePrice ?? null))
         .catch(() => setTroubleshootingCents(null));
@@ -416,7 +419,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     photos?: { url: string; label: string }[]
   ) {
     if (!flow) return;
-    const res = await fetch("/api/visit", {
+    const res = await siteFetch("/api/visit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

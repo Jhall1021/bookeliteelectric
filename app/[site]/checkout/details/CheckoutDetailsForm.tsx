@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSiteFetch } from "@/components/site/SiteContext";
 
 export default function CheckoutDetailsForm() {
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  const siteFetch = useSiteFetch();
   const router = useRouter();
   const params = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
@@ -15,7 +18,7 @@ export default function CheckoutDetailsForm() {
     setSubmitting(true);
     setError(null);
 
-    const res = await fetch("/api/checkout", {
+    const res = await siteFetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

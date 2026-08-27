@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { categorySlug, requireContractorCategory } from "@/lib/categories";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import {
   screenForEmergency,
   normalize,
@@ -17,6 +18,16 @@ const EMERGENCY_MESSAGE =
   "What you're describing could be a safety issue, and it isn't something to book online for later. Please call us on 732-204-7003 and we'll talk it through now. If there's smoke, a burning smell, or anything is hot to the touch, switch off the breaker if you can reach it safely — and call 911 if you think there's a fire.";
 
 export async function POST(req: Request) {
+  // ADR §2.2. The site identifier the caller carries decides the tenant.
+  // Resolving it from the requested resource would authorise access to that
+  // resource using itself.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+
   let text: string;
   try {
     ({ text } = await req.json());
@@ -47,7 +58,8 @@ export async function POST(req: Request) {
 
   const normalized = normalize(raw);
 
-  const services = await prisma.service.findMany({
+  const services = await withSite(site, (db) =>
+    db.service.findMany({
     where: { active: true },
     select: {
       slug: true,
@@ -55,7 +67,8 @@ export async function POST(req: Request) {
       shortDescription: true,
       contractorCategory: { select: { canonicalCategory: { select: { slug: true } } } },
     },
-  });
+    })
+  );
   const flat = services.map((s) => ({
     slug: s.slug,
     name: s.name,
@@ -75,6 +88,13 @@ export async function POST(req: Request) {
   // and the cache degrades to asking the model. That protection disappears
   // the moment slugs become per-contractor — which is why ADR-008 says
   // ServiceQuery must be re-keyed BEFORE, or with, that change.
+  // STILL UNGUARDED, DELIBERATELY. ServiceQuery is in PENDING_TENANT_SCOPE:
+  // it has no contractorId and its globally-unique normalizedText makes it a
+  // platform-wide cache, which ADR-008 re-keys in pass four. Routing it
+  // through the guard today would throw NotYetTenantScopedError.
+  //
+  // The site is already resolved above, so when ADR-008 lands this becomes a
+  // scoped read with no other change to this route.
   const cached = await prisma.serviceQuery.findUnique({
     where: { normalizedText: normalized },
   });

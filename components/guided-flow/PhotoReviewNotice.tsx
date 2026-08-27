@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { uploadPhoto } from "@/lib/upload";
+import { useSiteFetch } from "@/components/site/SiteContext";
 
 type Props = {
   serviceName: string;
@@ -37,6 +38,8 @@ export default function PhotoReviewNotice({
   onNoteChange,
   answers,
 }: Props) {
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  const siteFetch = useSiteFetch();
   const router = useRouter();
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>({});
@@ -69,7 +72,7 @@ export default function PhotoReviewNotice({
         setUploadStates((prev) => ({ ...prev, [label]: "done" }));
       }
 
-      const res = await fetch("/api/quotes", {
+      const res = await siteFetch("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

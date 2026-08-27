@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSiteFetch } from "@/components/site/SiteContext";
 
 type Props = {
   serviceId: string;
@@ -35,6 +36,8 @@ export const REROUTE_HANDOFF_KEY = "elite:reroute-handoff";
  * and wrong for anything else.
  */
 export default function RerouteNotice({ serviceId, reason, answers }: Props) {
+  // ADR §2.2 — customer-facing calls carry the storefront identifier.
+  const siteFetch = useSiteFetch();
   const router = useRouter();
   const [target, setTarget] = useState<{
     slug: string;
@@ -43,7 +46,7 @@ export default function RerouteNotice({ serviceId, reason, answers }: Props) {
   } | null>(null);
 
   useEffect(() => {
-    fetch(`/api/services/by-id/${serviceId}`)
+    siteFetch(`/api/services/by-id/${serviceId}`)
       .then((r) => r.json())
       .then(setTarget)
       .catch(() => setTarget(null));

@@ -1,11 +1,16 @@
 import GuidedFlowEngine from "@/components/guided-flow/GuidedFlowEngine";
-import { prisma } from "@/lib/prisma";
-import { withContractor } from "@/lib/tenantRoute";
-import { soleContractorId } from "@/lib/categories";
+import { requireHostedSite, withSite } from "@/lib/siteRouting";
 
 // Direct entry point per the brief — routes straight into the
 // Troubleshooting service's own flow rather than a generic contact form.
-export default async function TroubleshootingPage() {
+export default async function TroubleshootingPage({
+  params,
+}: {
+  params: { site: string };
+}) {
+  // ADR §2.2. Tenant from the URL segment, not from the service this page
+  // happens to open a flow for.
+  const site = await requireHostedSite(params.site);
   // The intro copy promised "a couple quick questions," which was only ever
   // true if this service had a decision tree — and it doesn't, so customers
   // were told to expect questions that never came. Rather than hardcode the
@@ -18,14 +23,10 @@ export default async function TroubleshootingPage() {
   // no reshaping into a Service-rooted include to inherit tenancy, which would
   // push the query back into nested traversal where extensions are least
   // observable.
-  const contractorId = await soleContractorId(prisma, "the troubleshooting page");
-  const questionCount = await withContractor(
-    contractorId,
-    "site-identifier",
-    (db) =>
-      db.question.count({
-        where: { service: { slug: "electrical-troubleshooting" } },
-      })
+  const questionCount = await withSite(site, (db) =>
+    db.question.count({
+      where: { service: { slug: "electrical-troubleshooting" } },
+    })
   );
   const hasTree = questionCount > 0;
 

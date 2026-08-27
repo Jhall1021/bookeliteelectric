@@ -7,6 +7,7 @@ import {
   resolveRoute,
   contractorIdForService,
 } from "@/lib/routeResolver";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
 import { categorySlug, requireContractorCategory } from "@/lib/categories";
 
@@ -21,6 +22,16 @@ import { categorySlug, requireContractorCategory } from "@/lib/categories";
 // created together with the line item so a partial write can't leave photos
 // orphaned in R2 with nothing pointing at them.
 export async function POST(req: Request) {
+  // ADR §2.2. The site identifier the caller carries decides the tenant. The
+  // old shape read the requested service and took ITS contractor, which
+  // authorises access to a resource using that same resource.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+  return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
   const { serviceId, answersSnapshot, photos } = body;
@@ -40,7 +51,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const service = await loadServiceForResolution(prisma, serviceId);
+  const service = await loadServiceForResolution(db, serviceId);
   if (!service || !service.active) {
     return NextResponse.json({ error: "Unknown service" }, { status: 404 });
   }
@@ -118,7 +129,7 @@ export async function POST(req: Request) {
   // The service being added names its own contractor, so no ambient context
   // is needed here. Throws for a service with no owner rather than reaching
   // for whichever pricing settings exist.
-  const settings = await loadPricingSettings(prisma, contractorIdForService(service));
+  const settings = await loadPricingSettings(db, site.contractorId);
   const answers: Record<string, string> = answersSnapshot ?? {};
   const resolved = resolveRoute(service, answers, isPrimary, settings);
 
@@ -179,12 +190,15 @@ export async function POST(req: Request) {
       const li = existing.find((e) => e.id === ref);
       if (!li) continue;
 
-      const svc = await loadServiceForResolution(prisma, li.serviceId);
+      const svc = await loadServiceForResolution(db, li.serviceId);
       if (!svc) continue;
-      // Every line on a visit belongs to the same contractor, but the check
-      // is per-service rather than assumed — an assumption that holds today
-      // is not the same as one enforced.
-      if (contractorIdForService(svc) !== contractorIdForService(service)) {
+      // Every line on a visit belongs to the same contractor. Compared
+      // against the SITE rather than against the other service: deriving the
+      // expected contractor from one of the resources being checked would be
+      // the §2.2 shape again, in miniature. The guard already makes this
+      // unreachable — both loads are scoped — which is why it stays: an
+      // invariant that costs nothing and would catch the guard being removed.
+      if (contractorIdForService(svc) !== site.contractorId) {
         console.error(
           `[visit] ${svc.slug} and ${service.slug} belong to different ` +
             `contractors on visit ${visit.id} — refusing to reprice.`
@@ -298,6 +312,7 @@ export async function POST(req: Request) {
     // the cart should re-fetch rather than patch its own state.
     repricedExistingLines: repricings.length,
   });
+  });
 }
 
 // DELETE ?lineItemId=... — removes ONE instance. If the customer added 3
@@ -317,6 +332,16 @@ export async function POST(req: Request) {
 // deleting the primary could leave a visit priced differently from an
 // identical visit built in another order.
 export async function DELETE(req: Request) {
+  // ADR §2.2. The site identifier the caller carries decides the tenant. The
+  // old shape read the requested service and took ITS contractor, which
+  // authorises access to a resource using that same resource.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+  return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
   const { searchParams } = new URL(req.url);
   const lineItemId = searchParams.get("lineItemId");
@@ -381,9 +406,9 @@ export async function DELETE(req: Request) {
       //
       // Same authority rule as POST: the price comes from replaying the
       // route, not from a constant.
-      const service = await loadServiceForResolution(prisma, newAnchor.serviceId);
+      const service = await loadServiceForResolution(db, newAnchor.serviceId);
       const settings = service
-        ? await loadPricingSettings(prisma, contractorIdForService(service))
+        ? await loadPricingSettings(db, site.contractorId)
         : null;
 
       if (service && settings) {
@@ -423,6 +448,7 @@ export async function DELETE(req: Request) {
   }
 
   return NextResponse.json({ ok: true, pricingAdjusted });
+  });
 }
 
 // GET the current open visit, grouped by service + primary/add-on so
@@ -438,7 +464,17 @@ export async function DELETE(req: Request) {
 // the next unit; `totalPriceCents` is a true sum of each line item's actual
 // stored price, not unitPrice × quantity, since prices can differ within
 // the group.
-export async function GET() {
+export async function GET(req: Request) {
+  // ADR §2.2. The site identifier the caller carries decides the tenant. The
+  // old shape read the requested service and took ITS contractor, which
+  // authorises access to a resource using that same resource.
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+  return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
 
   const visit = await prisma.visit.findFirst({
@@ -543,5 +579,6 @@ export async function GET() {
     // building the visit; they just can't pick a time until every line has a
     // price, because a technician can't be dispatched against an unknown.
     awaitingQuote,
+  });
   });
 }

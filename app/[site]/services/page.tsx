@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getCategoryImage } from "@/lib/serviceImages";
 import {
@@ -8,23 +7,28 @@ import {
   categoryIcon,
   categoryName,
   categorySlug,
-  soleContractorId,
 } from "@/lib/categories";
+import { requireHostedSite, withSite } from "@/lib/siteRouting";
 
-export default async function ServicesPage() {
-  // ADR-007: rooted at ContractorCategory, the tenant-owned model, so the
-  // guard executes here once it is attached. Reading the canonical taxonomy
-  // and picking this contractor's rows out of it would be the unsafe
-  // direction.
-  const contractorId = await soleContractorId(prisma, "the services index");
-  const categories = await prisma.contractorCategory.findMany({
-    where: { contractorId, active: true },
-    orderBy: { sortOrder: "asc" },
-    include: {
-      canonicalCategory: CANONICAL_CATEGORY_SELECT,
-      services: { where: { active: true }, select: { id: true } },
-    },
-  });
+export default async function ServicesPage({ params }: { params: { site: string } }) {
+  // ADR §2.2. The tenant is resolved from the URL's site segment FIRST, before
+  // any tenant-owned query — never from a service the request names.
+  const site = await requireHostedSite(params.site);
+
+  // ADR-007: rooted at ContractorCategory, the tenant-owned model. Reading the
+  // canonical taxonomy and picking this contractor's rows out of it would be
+  // the unsafe direction. The contractorId filter is gone: the guard supplies
+  // it from the site's context.
+  const categories = await withSite(site, (db) =>
+    db.contractorCategory.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: "asc" },
+      include: {
+        canonicalCategory: CANONICAL_CATEGORY_SELECT,
+        services: { where: { active: true }, select: { id: true } },
+      },
+    })
+  );
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -37,7 +41,7 @@ export default async function ServicesPage() {
           return (
             <Link
               key={cat.id}
-              href={`/services/${slug}`}
+              href={`/${params.site}/services/${slug}`}
               className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               {/* Photo band above the text, matching the homepage Popular
