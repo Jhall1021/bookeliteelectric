@@ -167,3 +167,43 @@ export function requireOwner(ctx: AdminContext): void {
     throw new NoMembershipError("This action requires the contractor's owner.");
   }
 }
+
+/**
+ * The API-route form: resolve, or return the right refusal.
+ *
+ * `withAdminContractor` THROWS when identity or membership fails, which is
+ * correct for a page — the layout redirects. In an API route an uncaught throw
+ * is a 500, and a 500 tells a caller "we broke" when the truth is "you may
+ * not".
+ *
+ * That distinction was not theoretical: four routes returned 500 to a
+ * signed-out request because the resolver ran before their own auth guard. The
+ * fix is not to reorder the lines — it is to stop the order mattering. This
+ * translates each failure once, so a route cannot get it wrong by construction.
+ *
+ *   401  no session
+ *   403  session, but no membership for this contractor
+ *   409  several memberships and none named — a choice, not a failure
+ */
+export async function withAdminRoute<T>(
+  fn: (db: PrismaClient, ctx: AdminContext) => Promise<T>,
+  options?: { contractorId?: string }
+): Promise<T | Response> {
+  try {
+    return await withAdminContractor(fn, options);
+  } catch (e) {
+    if (e instanceof NotAuthenticatedError) {
+      return Response.json({ error: "Not signed in." }, { status: 401 });
+    }
+    if (e instanceof NoMembershipError) {
+      return Response.json({ error: e.message }, { status: 403 });
+    }
+    if (e instanceof AmbiguousContractorError) {
+      return Response.json(
+        { error: e.message, choices: e.choices },
+        { status: 409 }
+      );
+    }
+    throw e;
+  }
+}

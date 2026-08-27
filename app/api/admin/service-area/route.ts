@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 
 /**
  * The ZIP codes a contractor will travel to.
@@ -23,10 +22,7 @@ function parseZips(input: unknown): string[] {
 }
 
 export async function GET(req: Request) {
-  return withAdminContractor(async (db) => {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  return withAdminRoute(async (db) => {
 
   const { searchParams } = new URL(req.url);
   const state = searchParams.get("state");
@@ -70,10 +66,7 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  return withAdminContractor(async (db) => {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  return withAdminRoute(async (db) => {
 
   let body: {
     id?: string;

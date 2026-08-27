@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 
 // Saving settings here does NOT change any live price — it only stores
 // the rate/minimum/rounding for the NEXT time "Recalculate" is run. This
 // separation is deliberate: typing a new rate shouldn't silently change
 // what customers see until you explicitly confirm it.
 export async function PATCH(req: Request) {
-  return withAdminContractor(async (db, ctx) => {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  return withAdminRoute(async (db, ctx) => {
 
   const { targetRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents } = await req.json();
 

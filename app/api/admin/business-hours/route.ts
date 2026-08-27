@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { generateArrivalWindows, DEFAULT_BUSINESS_HOURS } from "@/lib/businessHours";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 
 /** "08:00" or "8:00" — reject anything else rather than storing nonsense. */
 function validTime(v: unknown): v is string {
@@ -9,10 +8,7 @@ function validTime(v: unknown): v is string {
 }
 
 export async function PATCH(req: Request) {
-  return withAdminContractor(async (db, ctx) => {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  return withAdminRoute(async (db, ctx) => {
 
   let body: {
     workingDays?: number[];
