@@ -57,6 +57,13 @@ import {
 const ADOPTED_FILES: string[] = [
   "app/troubleshooting/page.tsx",
   "app/api/admin/services/[serviceId]/tree/route.ts",
+  "app/api/admin/materials/route.ts",
+  // Dependency-injected helpers. They hold no client of their own and must
+  // not acquire one — tenant context belongs at the request boundary, and a
+  // helper that imported prisma would silently reintroduce the unguarded path
+  // for every caller at once.
+  "lib/materialCost.ts",
+  "lib/materialResolution.ts",
 ];
 
 /**
