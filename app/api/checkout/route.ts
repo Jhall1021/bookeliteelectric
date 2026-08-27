@@ -10,6 +10,7 @@ import {
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
+import { findOpenVisit } from "@/lib/openVisit";
 
 export async function POST(req: Request) {
   console.log("=== CHECKOUT ROUTE HIT — this line should always appear if logs are streaming ===");
@@ -35,8 +36,11 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { name, email, phone, address, zipCode, date, windowStart, windowEnd } = body;
 
-  const visit = await prisma.visit.findFirst({
-    where: { sessionId, status: "OPEN" },
+  // ADR-011. Keyed on the contractor the site resolved to. Unkeyed, a
+  // visitor with a cart on another contractor's storefront would have checked
+  // that cart out here, against this contractor's crew and service area.
+  const visit = await db.visit.findFirst({
+    where: { contractorId: site.contractorId, sessionId, status: "OPEN" },
     include: { lineItems: { include: { service: { select: { name: true } } } } },
   });
 
@@ -137,7 +141,10 @@ export async function POST(req: Request) {
   // for a window that's no longer really open — rather than creating it
   // anyway and only discovering the conflict later trying to push to Jobber.
   const dateISO = new Date(date).toISOString().split("T")[0];
-  const eligibleCrews = await prisma.jobberCrewMember.findMany({
+  // Guarded: crew members are contractor-owned (ADR-011). This decides
+  // whether a window is bookable, so another contractor's crew calendar must
+  // never be able to open or close a slot on this one.
+  const eligibleCrews = await db.jobberCrewMember.findMany({
     where: { eligibleForWebsiteBookings: true },
     select: { jobberUserId: true },
   });
@@ -179,48 +186,85 @@ export async function POST(req: Request) {
     );
   }
 
-  const customer = await prisma.customer.create({ data: { name, email, phone } });
-
-  // Phase 2 stub: find-or-create the ArrivalWindow for this date/time rather
-  // than requiring admin-seeded capacity data up front. Real capacity
-  // enforcement (booked vs. total) is Phase 6.
-  let arrivalWindow = await prisma.arrivalWindow.findFirst({
-    where: { date: new Date(date), startTime: windowStart, endTime: windowEnd, serviceAreaId: serviceArea.id },
-  });
-  if (!arrivalWindow) {
-    arrivalWindow = await prisma.arrivalWindow.create({
-      data: {
-        date: new Date(date),
-        startTime: windowStart,
-        endTime: windowEnd,
-        serviceAreaId: serviceArea.id,
-        capacityTotal: 4,
-      },
-    });
-  }
-
   // Safe by the guard above — every line has a price by this point. The
   // fallback is belt-and-braces rather than a real branch.
   const totalCents = visit.lineItems.reduce((sum, li) => sum + (li.computedPriceCents ?? 0), 0);
 
-  const booking = await prisma.booking.create({
-    data: {
-      visitId: visit.id,
-      customerId: customer.id,
-      address,
-      zipCode: normalizedZip,
-      arrivalWindowId: arrivalWindow.id,
-      totalCents,
-      estimatedDurationMinutes,
-      // Card-on-file, captured after completion — decided in the approved
-      // architecture. Real Stripe SetupIntent wiring is Phase 6; for now
-      // paymentStatus reflects that no charge has happened yet.
-      paymentModel: "CARD_ON_FILE_CAPTURE_AFTER_COMPLETION",
-      paymentStatus: "pending_card_capture_setup",
-    },
-  });
+  // ONE TRANSACTION for all four related writes.
+  //
+  // These used to run as four independent statements. A failure part-way
+  // through left an orphaned Customer and ArrivalWindow behind with no
+  // Booking — and the pass-three audit found exactly one ownerless Customer
+  // in live data, which is what that looks like after the fact.
+  //
+  // UNGUARDED CLIENT, DELIBERATELY. Booking and ArrivalWindow derive their
+  // owners through Visit and ServiceArea (ADR-010), so they have no
+  // contractorId to stamp and the guard refuses a direct create rather than
+  // inventing one. Both parents are already proven through the guarded
+  // client: `visit` and `serviceArea` are both reads that would have returned
+  // null for another contractor. Customer IS direct-owned, so its owner is
+  // stamped explicitly here — inside a raw transaction the extension does not
+  // fire, and an unstamped Customer would be an ownerless row again.
+  //
+  // Nothing external happens inside this block. The Jobber push and the
+  // confirmation email run after it commits, because a transaction held open
+  // across a network call holds database locks for as long as a third party
+  // takes to answer.
+  const { customer, arrivalWindow, booking } = await prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.create({
+      data: { contractorId: site.contractorId, name, email, phone },
+    });
 
-  await prisma.visit.update({ where: { id: visit.id }, data: { status: "CHECKED_OUT" } });
+    // Phase 2 stub: find-or-create the ArrivalWindow for this date/time rather
+    // than requiring admin-seeded capacity data up front. Real capacity
+    // enforcement (booked vs. total) is Phase 6.
+    //
+    // Tenant-safe through serviceAreaId: serviceArea was read on the guarded
+    // client, so this can only ever match or create a window under THIS
+    // contractor's area. That is the relation ArrivalWindow now derives its
+    // owner from — before pass three, serviceAreaId was a bare scalar and a
+    // Booking could point at another contractor's window.
+    //
+    // Still racy: there is no unique on (date, startTime, endTime,
+    // serviceAreaId), so two concurrent checkouts can create duplicate
+    // windows and split the capacity counter. That constraint is a contract
+    // change and ships with the destructive step, not here.
+    let arrivalWindow = await tx.arrivalWindow.findFirst({
+      where: { date: new Date(date), startTime: windowStart, endTime: windowEnd, serviceAreaId: serviceArea.id },
+    });
+    if (!arrivalWindow) {
+      arrivalWindow = await tx.arrivalWindow.create({
+        data: {
+          date: new Date(date),
+          startTime: windowStart,
+          endTime: windowEnd,
+          serviceAreaId: serviceArea.id,
+          capacityTotal: 4,
+        },
+      });
+    }
+
+    const booking = await tx.booking.create({
+      data: {
+        visitId: visit.id,
+        customerId: customer.id,
+        address,
+        zipCode: normalizedZip,
+        arrivalWindowId: arrivalWindow.id,
+        totalCents,
+        estimatedDurationMinutes,
+        // Card-on-file, captured after completion — decided in the approved
+        // architecture. Real Stripe SetupIntent wiring is Phase 6; for now
+        // paymentStatus reflects that no charge has happened yet.
+        paymentModel: "CARD_ON_FILE_CAPTURE_AFTER_COMPLETION",
+        paymentStatus: "pending_card_capture_setup",
+      },
+    });
+
+    await tx.visit.update({ where: { id: visit.id }, data: { status: "CHECKED_OUT" } });
+
+    return { customer, arrivalWindow, booking };
+  });
 
   // Jobber push and confirmation email now run CONCURRENTLY, not one
   // after the other — previously email sat behind the entire Jobber push
@@ -235,13 +279,20 @@ export async function POST(req: Request) {
     try {
       let result;
       try {
-        result = await pushBookingToJobber(booking.id, assignedCrewId);
+        result = await pushBookingToJobber(db, booking.id, assignedCrewId);
       } catch (firstErr) {
         console.warn(`First Jobber push attempt failed for booking ${booking.id}, retrying once:`, firstErr);
         await new Promise((r) => setTimeout(r, 750));
-        result = await pushBookingToJobber(booking.id, assignedCrewId);
+        result = await pushBookingToJobber(db, booking.id, assignedCrewId);
       }
-      await prisma.booking.update({ where: { id: booking.id }, data: { jobberJobId: result.jobberJobId } });
+      // Recovery semantics unchanged and deliberately preserved: the booking
+      // is already committed locally, and jobberJobId IS NULL continues to
+      // mean "committed here, not successfully pushed yet" — which is what
+      // the admin "Send to Jobber" action looks for. No new booking state.
+      // Guarded. Booking derives through Visit, so this update is scoped by
+      // relation path and still runs inside the site's tenant context — the
+      // push is awaited by Promise.allSettled below, inside withSite.
+      await db.booking.update({ where: { id: booking.id }, data: { jobberJobId: result.jobberJobId } });
     } catch (err) {
       console.error(`Automatic Jobber push failed for booking ${booking.id} after retry — needs manual "Send to Jobber":`, err);
     }

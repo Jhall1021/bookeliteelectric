@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useStorefrontBase } from "@/components/site/SiteContext";
+import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 
 type Window = { start: string; end: string; available: boolean };
 type DayMeta = { date: string; dateISO: string };
@@ -16,6 +16,7 @@ export default function ScheduleClient({
   initialWindows: Window[];
   estimatedDurationMinutes: number | null;
 }) {
+  const siteFetch = useSiteFetch();
   // Storefront navigation carries the site slug. These were root paths,
   // working only because the legacy Elite redirects catch them.
   const base = useStorefrontBase();
@@ -34,7 +35,9 @@ export default function ScheduleClient({
     // caching, no stale snapshot from whenever the page first loaded.
     const url = new URL(`/api/availability/${days[i].dateISO}`, window.location.origin);
     if (estimatedDurationMinutes) url.searchParams.set("duration", String(estimatedDurationMinutes));
-    const res = await fetch(url, { cache: "no-store" });
+    // useSiteFetch, not a bare fetch: /api/availability now resolves the
+    // contractor from the storefront identifier, so a plain fetch 404s.
+    const res = await siteFetch(url, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       setWindows(data.windows);

@@ -8,6 +8,7 @@ import {
   contractorIdForService,
 } from "@/lib/routeResolver";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
+import { findOpenVisit, findOrCreateOpenVisit } from "@/lib/openVisit";
 import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
 import { categorySlug, requireContractorCategory } from "@/lib/categories";
 
@@ -56,10 +57,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unknown service" }, { status: 404 });
   }
 
-  let visit = await prisma.visit.findFirst({ where: { sessionId, status: "OPEN" } });
-  if (!visit) {
-    visit = await prisma.visit.create({ data: { sessionId, status: "OPEN" } });
-  }
+  // ADR-011. The contractor comes from the resolved site, never from the
+  // session — see lib/openVisit.ts for why the cookie cannot identify a
+  // tenant. This is also what proves the visit for the derived creates below.
+  const visit = await findOrCreateOpenVisit(db, site.contractorId, sessionId);
 
   // Primary is a fact about the visit, not a claim the client gets to make,
   // and no longer a fact about what was added first.
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
   // standalone and add-on price, which is provably the cheapest arrangement
   // and depends only on WHICH services are on the visit, never on their
   // order. See POLICY[visit.primary_selection].
-  const existing = await prisma.lineItem.findMany({
+  const existing = await db.lineItem.findMany({
     where: { visitId: visit.id },
     select: {
       id: true,
@@ -248,10 +249,15 @@ export async function POST(req: Request) {
       )
     : [];
 
+  // UNGUARDED CLIENT, DELIBERATELY. LineItem derives its owner through Visit
+  // (ADR-010), so it has no contractorId to stamp and the guard refuses a
+  // direct create rather than inventing one. The proof the guard cannot do is
+  // already done: `visit` came back from the GUARDED client above, so another
+  // contractor's visit would have been null and we would never have got here.
   const lineItem = await prisma.$transaction(async (tx) => {
     const created = await tx.lineItem.create({
       data: {
-        visitId: visit!.id,
+        visitId: visit.id,
         serviceId,
         isPrimary: resolved.isPrimary,
         answersSnapshot: answers,
@@ -288,8 +294,14 @@ export async function POST(req: Request) {
     }
 
     if (incomingPhotos.length > 0) {
+      // contractorId is stamped EXPLICITLY. Photo is a direct-owned model, but
+      // this is a nested write inside a transaction and Prisma never fires the
+      // guard's extension for it, so nothing else would set the owner. Do not
+      // rely on the guard here — scripts/verify-booking-tenancy.ts is the
+      // backstop that checks the stamped owner against the line item's.
       await tx.photo.createMany({
         data: incomingPhotos.map((ph) => ({
+          contractorId: site.contractorId,
           lineItemId: created.id,
           url: ph.url,
           label: ph.label,
@@ -350,7 +362,11 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Missing lineItemId" }, { status: 400 });
   }
 
-  const lineItem = await prisma.lineItem.findUnique({
+  // Guarded: LineItem derives through Visit, so another contractor's line
+  // item id comes back null here rather than being deleted. The session check
+  // below is now about WHOSE cart within this contractor, not about tenancy —
+  // tenancy was settled by the site before this line ran.
+  const lineItem = await db.lineItem.findUnique({
     where: { id: lineItemId },
     include: { visit: true },
   });
@@ -360,9 +376,9 @@ export async function DELETE(req: Request) {
   }
 
   const visitId = lineItem.visitId;
-  await prisma.lineItem.delete({ where: { id: lineItemId } });
+  await db.lineItem.delete({ where: { id: lineItemId } });
 
-  const remaining = await prisma.lineItem.findMany({
+  const remaining = await db.lineItem.findMany({
     where: { visitId },
     include: {
       service: { select: { slug: true, basePrice: true, whileWeThereBasePrice: true } },
@@ -417,7 +433,7 @@ export async function DELETE(req: Request) {
 
         if (resolved.status === "PRICED") {
           pricingAdjusted = true;
-          await prisma.lineItem.update({
+          await db.lineItem.update({
             where: { id: newAnchor.id },
             data: {
               isPrimary: true,
@@ -438,7 +454,7 @@ export async function DELETE(req: Request) {
               ("reason" in resolved ? resolved.reason : resolved.status)
           );
           pricingAdjusted = true;
-          await prisma.lineItem.update({
+          await db.lineItem.update({
             where: { id: newAnchor.id },
             data: { isPrimary: true, computedPriceCents: null },
           });
@@ -477,8 +493,8 @@ export async function GET(req: Request) {
   return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
 
-  const visit = await prisma.visit.findFirst({
-    where: { sessionId, status: "OPEN" },
+  const visit = await db.visit.findFirst({
+    where: { contractorId: site.contractorId, sessionId, status: "OPEN" },
     include: {
       lineItems: {
         include: {

@@ -37,6 +37,7 @@ import { loadOwnComponents } from "../lib/contractorComponents";
 import { categoryIcon, categoryName, categorySlug } from "../lib/categories";
 import { upsertCategory } from "../prisma/_categoryHelpers";
 import { siteByPublicId, siteByHostedSlug, withSite } from "../lib/siteRouting";
+import { findOpenVisit } from "../lib/openVisit";
 import {
   withTenant,
   asPlatform,
@@ -105,6 +106,18 @@ async function purgeDummy(contractorId: string) {
     await raw.serviceMaterial.deleteMany({ where: { serviceId: { in: serviceIds } } });
     await raw.service.deleteMany({ where: { id: { in: serviceIds } } });
   }
+  // Pass three's booking flow, in dependency order: Photo and Booking point
+  // at LineItem/Visit, Quote points at LineItem, Booking points at Customer
+  // and ArrivalWindow.
+  await raw.photo.deleteMany({ where: { contractorId } });
+  await raw.booking.deleteMany({ where: { visit: { contractorId } } });
+  await raw.quote.deleteMany({ where: { service: { contractorId } } });
+  await raw.lineItem.deleteMany({ where: { visit: { contractorId } } });
+  await raw.visit.deleteMany({ where: { contractorId } });
+  await raw.customer.deleteMany({ where: { contractorId } });
+  await raw.arrivalWindow.deleteMany({ where: { serviceArea: { contractorId } } });
+  await raw.jobberCrewMember.deleteMany({ where: { contractorId } });
+
   const materials = await raw.contractorMaterial.deleteMany({ where: { contractorId } });
   await raw.contractorComponent.deleteMany({ where: { contractorId } });
   // After the services, which reference these and restrict on delete.
@@ -1620,6 +1633,228 @@ async function main() {
   }
 
   await raw.serviceQuery.delete({ where: { id: eliteQuery.id } });
+
+  // ======================================================================
+  // PASS THREE — the booking flow
+  // ======================================================================
+
+  // ---- a session is not a tenant (ADR-011) -------------------------------
+  //
+  // The defect this proves is gone: `elite_session_id` is ONE browser cookie
+  // with no contractor dimension, and six call sites resolved a visit from it
+  // alone. A visitor who added a service on Elite's storefront and then opened
+  // another contractor's storefront in the same browser reopened ELITE'S
+  // visit — same cart, wrong business, and the "while we're there" discount
+  // decided by the other contractor's line items.
+  console.log(`\nSESSION IS NOT A TENANT\n`);
+
+  const SHARED_SESSION = "__isolation_shared_session_do_not_reuse__";
+  // Reuses the Service resolved earlier in this run — same contractor, and
+  // one fixture is easier to reason about than two.
+
+  // One session id. Two contractors. One open visit each.
+  const eliteVisit = await raw.visit.create({
+    data: { contractorId: elite.id, sessionId: SHARED_SESSION, status: "OPEN" },
+  });
+  const dummyVisit = await raw.visit.create({
+    data: { contractorId: dummy.id, sessionId: SHARED_SESSION, status: "OPEN" },
+  });
+  // Plus a historical checked-out visit for Elite under the SAME session, so
+  // the test proves selection is not disturbed by a session's history.
+  const eliteOldVisit = await raw.visit.create({
+    data: { contractorId: elite.id, sessionId: SHARED_SESSION, status: "CHECKED_OUT" },
+  });
+
+  await withTenant({ contractorId: elite.id, source: "test" }, async () => {
+    const v = await findOpenVisit(guarded, elite.id, SHARED_SESSION);
+    ok(v?.id === eliteVisit.id,
+       "Elite's context resolves ELITE's open visit from the shared session",
+       `got ${v?.id ?? "null"}, wanted ${eliteVisit.id}`);
+    ok(v?.id !== dummyVisit.id, "and never the dummy's");
+    ok(v?.status === "OPEN",
+       "the CHECKED_OUT visit on the same session is not selected",
+       `got ${v?.status}`);
+  });
+
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    const v = await findOpenVisit(guarded, dummy.id, SHARED_SESSION);
+    ok(v?.id === dummyVisit.id,
+       "the dummy's context resolves the DUMMY's open visit from the same session",
+       `got ${v?.id ?? "null"}, wanted ${dummyVisit.id}`);
+    ok(v?.id !== eliteVisit.id, "and cannot reopen Elite's");
+
+    // Neither can reach the other's by id, which is the stronger claim: even
+    // handed the exact row id, the guard refuses.
+    const byId = await guarded.visit.findUnique({ where: { id: eliteVisit.id } });
+    ok(byId === null, "Elite's visit id is invisible from the dummy's context");
+
+    const stolen = await guarded.visit.updateMany({
+      where: { id: eliteVisit.id },
+      data: { status: "CHECKED_OUT" },
+    });
+    ok(stolen.count === 0, "and cannot be checked out from the dummy's context");
+  });
+
+  {
+    const still = await raw.visit.findUniqueOrThrow({ where: { id: eliteVisit.id } });
+    ok(still.status === "OPEN", "Elite's visit is still OPEN afterwards", `got ${still.status}`);
+  }
+
+  // A line item on one contractor's visit must not be visible from the other,
+  // and hasOpenVisit must not let one cart discount the other's prices.
+  const eliteLine = await raw.lineItem.create({
+    data: {
+      visitId: eliteVisit.id,
+      serviceId: eliteService.id,
+      isPrimary: true,
+      answersSnapshot: {},
+      computedPriceCents: 12345,
+    },
+  });
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    const n = await guarded.lineItem.count({
+      where: { visit: { contractorId: dummy.id, sessionId: SHARED_SESSION, status: "OPEN" } },
+    });
+    ok(n === 0,
+       "hasOpenVisit's count sees nothing for the dummy while Elite's cart is full",
+       `got ${n}`);
+    const seen = await guarded.lineItem.findUnique({ where: { id: eliteLine.id } });
+    ok(seen === null, "and Elite's line item is invisible by id");
+  });
+  await withTenant({ contractorId: elite.id, source: "test" }, async () => {
+    const n = await guarded.lineItem.count({
+      where: { visit: { contractorId: elite.id, sessionId: SHARED_SESSION, status: "OPEN" } },
+    });
+    ok(n === 1, "while Elite's own context sees its one line", `got ${n}`);
+  });
+
+  // ---- crew sync cannot overwrite another contractor's crew --------------
+  //
+  // The old sync upserted on the GLOBAL `jobberUserId @unique`, so a second
+  // contractor syncing a Jobber account containing the same user id would
+  // match the FIRST contractor's row and take it over — renaming it and
+  // resetting whether it takes website bookings. Not a leak: a cross-tenant
+  // overwrite of live dispatch data, from an ordinary admin action.
+  console.log(`\nCREW SYNC — CROSS-TENANT OVERWRITE\n`);
+
+  const SHARED_JOBBER_USER = "__isolation_shared_jobber_user__";
+  const eliteCrew = await raw.jobberCrewMember.create({
+    data: {
+      contractorId: elite.id,
+      jobberUserId: SHARED_JOBBER_USER,
+      name: "Elite's electrician",
+      eligibleForWebsiteBookings: true,
+    },
+  });
+
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    // Exactly what the converted sync route does.
+    const existing = await guarded.jobberCrewMember.findFirst({
+      where: { jobberUserId: SHARED_JOBBER_USER },
+      select: { id: true },
+    });
+    ok(existing === null,
+       "the dummy's sync does NOT find Elite's crew row for the same Jobber user id");
+
+    const n = await guarded.jobberCrewMember.count();
+    ok(n === 0, "and sees none of Elite's crew at all", `got ${n}`);
+
+    const hijack = await guarded.jobberCrewMember.updateMany({
+      where: { id: eliteCrew.id },
+      data: { name: "hijacked", eligibleForWebsiteBookings: false },
+    });
+    ok(hijack.count === 0, "nor can it update Elite's crew row by id");
+  });
+
+  {
+    const after = await raw.jobberCrewMember.findUniqueOrThrow({ where: { id: eliteCrew.id } });
+    ok(after.name === "Elite's electrician" && after.eligibleForWebsiteBookings === true,
+       "Elite's crew member is untouched — name and eligibility both intact",
+       `name "${after.name}", eligible ${after.eligibleForWebsiteBookings}`);
+  }
+  await raw.jobberCrewMember.delete({ where: { id: eliteCrew.id } });
+
+  // ---- a quote id is not authority --------------------------------------
+  //
+  // Quote ids appear in URLs, get forwarded, sit in browser history. Before
+  // pass three the approve route read the quote unguarded and only a session
+  // comparison stood between a foreign quote and approval.
+  console.log(`\nQUOTE APPROVAL — A QUOTE ID IS NOT AUTHORITY\n`);
+
+  const eliteCustomer = await raw.customer.create({
+    data: { contractorId: elite.id, name: "Elite customer", email: "e@example.test" },
+  });
+  const eliteQuote = await raw.quote.create({
+    data: {
+      customerId: eliteCustomer.id,
+      serviceId: eliteService.id,
+      visitId: eliteVisit.id,
+      lineItemId: eliteLine.id,
+      answersSnapshot: {},
+      status: "PRICED",
+      quotedPriceCents: 99999,
+    },
+  });
+  const elitePhoto = await raw.photo.create({
+    data: {
+      contractorId: elite.id,
+      quoteId: eliteQuote.id,
+      url: "https://example.test/x.jpg",
+      label: "probe",
+      source: "CUSTOMER_PRE_BOOKING",
+    },
+  });
+
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    const read = await guarded.quote.findUnique({ where: { id: eliteQuote.id } });
+    ok(read === null, "READ: Elite's quote id returns null from the dummy's context");
+
+    const approved = await guarded.quote.updateMany({
+      where: { id: eliteQuote.id },
+      data: { status: "APPROVED", approvedAt: new Date() },
+    });
+    ok(approved.count === 0, "WRITE: and it cannot be approved from the dummy's context");
+
+    const priced = await guarded.quote.updateMany({
+      where: { id: eliteQuote.id },
+      data: { quotedPriceCents: 1 },
+    });
+    ok(priced.count === 0, "nor repriced — the admin pricing path is refused the same way");
+
+    const ph = await guarded.photo.findUnique({ where: { id: elitePhoto.id } });
+    ok(ph === null, "and the quote's photos are invisible too");
+
+    const phCount = await guarded.photo.count();
+    ok(phCount === 0, "the dummy's rooted Photo query returns none of Elite's", `got ${phCount}`);
+  });
+
+  {
+    const after = await raw.quote.findUniqueOrThrow({ where: { id: eliteQuote.id } });
+    ok(after.status === "PRICED" && after.quotedPriceCents === 99999 && after.approvedAt === null,
+       "Elite's quote is still PRICED at its original price, unapproved",
+       `status ${after.status}, price ${after.quotedPriceCents}, approvedAt ${after.approvedAt}`);
+  }
+
+  // The positive control: Elite's own context CAN do all of it. A test that
+  // only proves refusal passes just as well when everything is broken.
+  await withTenant({ contractorId: elite.id, source: "test" }, async () => {
+    const read = await guarded.quote.findUnique({ where: { id: eliteQuote.id } });
+    ok(read?.id === eliteQuote.id, "POSITIVE CONTROL: Elite reads its own quote");
+    const ph = await guarded.photo.count({ where: { quoteId: eliteQuote.id } });
+    ok(ph === 1, "and its photo, rooted at Photo", `got ${ph}`);
+    const v = await guarded.visit.findUnique({ where: { id: eliteVisit.id } });
+    ok(v?.id === eliteVisit.id, "and its own visit");
+  });
+
+  // Tear down the fixtures this section created on ELITE's side. The dummy's
+  // are removed by purgeDummy.
+  await raw.photo.delete({ where: { id: elitePhoto.id } });
+  await raw.quote.delete({ where: { id: eliteQuote.id } });
+  await raw.lineItem.delete({ where: { id: eliteLine.id } });
+  await raw.customer.delete({ where: { id: eliteCustomer.id } });
+  await raw.visit.deleteMany({
+    where: { id: { in: [eliteVisit.id, eliteOldVisit.id, dummyVisit.id] } },
+  });
 
   // ---- Elite untouched ---------------------------------------------------
   console.log(`\nELITE'S DATA\n`);

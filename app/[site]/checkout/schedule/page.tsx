@@ -49,11 +49,15 @@ export default async function SchedulePage({ params }: { params: { site: string 
   // anyone arriving through the cart already had one. A bookmarked or shared
   // link 500'd. Verified present on production before this branch.
   const sessionId = getSessionId();
+  // ADR-011. Keyed on the contractor this storefront resolved to, not on the
+  // session cookie alone.
   const visit = sessionId
-    ? await prisma.visit.findFirst({
-        where: { sessionId, status: "OPEN" },
-        include: { lineItems: true },
-      })
+    ? await withSite(site, (db) =>
+        db.visit.findFirst({
+          where: { contractorId: site.contractorId, sessionId, status: "OPEN" },
+          include: { lineItems: true },
+        })
+      )
     : null;
   // Nothing gets scheduled while a line is still being priced. The cart
   // disables the button, but a customer who bookmarked this page or hit back
@@ -70,10 +74,15 @@ export default async function SchedulePage({ params }: { params: { site: string 
   // for a fast initial render with no loading flicker. Every other day —
   // including this one again if you navigate away and back — gets a
   // fresh client-side check the moment its tab is actually clicked.
-  const eligibleCrews = await prisma.jobberCrewMember.findMany({
-    where: { eligibleForWebsiteBookings: true },
-    select: { jobberUserId: true },
-  });
+  // Guarded: crew members are contractor-owned (ADR-011). Unscoped, this
+  // returned every contractor's crew and so decided this storefront's
+  // availability from other businesses' schedules.
+  const eligibleCrews = await withSite(site, (db) =>
+    db.jobberCrewMember.findMany({
+      where: { eligibleForWebsiteBookings: true },
+      select: { jobberUserId: true },
+    })
+  );
   const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
   const firstDayWindows = await getWindowAvailabilityForDay(
     days[0].dateISO,

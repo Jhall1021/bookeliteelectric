@@ -56,7 +56,9 @@ export default async function CategoryPage({
   // Once anything is in the visit, every further service is priced at its
   // While We're There rate. Showing the standalone price here and a lower
   // one at checkout would misrepresent what they'd actually pay.
-  const addOnPricing = await hasOpenVisit();
+  // ADR-011. Scoped to THIS storefront's contractor: a cart started on
+  // another contractor's site must not discount this one's prices.
+  const addOnPricing = await withSite(site, (db) => hasOpenVisit(db, site.contractorId));
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">

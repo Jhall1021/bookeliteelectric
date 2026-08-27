@@ -1,8 +1,11 @@
-import { prisma } from "@/lib/prisma";
 import CrewEligibilityPanel from "@/components/admin/CrewEligibilityPanel";
+import { withAdminContractor } from "@/lib/adminContext";
 
 export default async function JobberCrewsPage() {
-  const crewMembers = await prisma.jobberCrewMember.findMany({ orderBy: { name: "asc" } });
+  // Guarded: this contractor's crew, not every contractor's.
+  const crewMembers = await withAdminContractor((db) =>
+    db.jobberCrewMember.findMany({ orderBy: { name: "asc" } })
+  );
 
   return (
     <div>

@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { withAdminRoute } from "@/lib/adminContext";
 import { sendQuoteReadyEmail } from "@/lib/email";
 
 export async function PATCH(req: Request, { params }: { params: { quoteId: string } }) {
-  // Independently checked here, not just at the page level — API routes
-  // can be called directly, bypassing whatever page rendered the button.
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
+  // Authentication AND tenancy in one step. Being a signed-in admin somewhere
+  // is not authority to price a quote belonging to another contractor — and a
+  // quote id in a URL is not authority either. Quote derives its owner through
+  // Service (ADR-011), so a foreign id matches nothing.
+  return withAdminRoute(async (db) => {
   const { quotedPriceCents, depositRequired } = await req.json();
 
   if (typeof quotedPriceCents !== "number" || quotedPriceCents <= 0) {
     return NextResponse.json({ error: "Invalid price" }, { status: 400 });
   }
 
-  const quote = await prisma.quote.update({
+  // updateMany, not update: a guarded `update` on a row that does not match
+  // throws Prisma's "record not found", which is a 500. This yields a count
+  // we can turn into an honest 404 instead.
+  const touched = await db.quote.updateMany({
     where: { id: params.quoteId },
     data: {
       quotedPriceCents,
@@ -24,6 +25,14 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
       status: "PRICED",
       quotedAt: new Date(),
     },
+  });
+
+  if (touched.count === 0) {
+    return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+  }
+
+  const quote = await db.quote.findUniqueOrThrow({
+    where: { id: params.quoteId },
     include: {
       customer: { select: { name: true, email: true } },
       service: { select: { name: true } },
@@ -83,5 +92,6 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
     // Surfaced so the admin can see the customer wasn't told and pick up the
     // phone, rather than assuming it went out.
     emailError,
+  });
   });
 }

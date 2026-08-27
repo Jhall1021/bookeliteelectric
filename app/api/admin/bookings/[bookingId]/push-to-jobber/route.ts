@@ -1,25 +1,39 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
+import { withAdminRoute } from "@/lib/adminContext";
 import { pushBookingToJobber } from "@/lib/jobber";
 
 export async function POST(_req: Request, { params }: { params: { bookingId: string } }) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  try {
-    const result = await pushBookingToJobber(params.bookingId);
-    await prisma.booking.update({
+  // Authentication AND tenancy together. A booking id in a URL is not
+  // authority to push another contractor's job into THIS contractor's Jobber
+  // account — which is what an unscoped update here allowed.
+  return withAdminRoute(async (db) => {
+    // Ownership is proven BEFORE the external call, not after. Booking derives
+    // through Visit (ADR-011), so a foreign id is null here and nothing
+    // reaches Jobber at all. Doing this the other way round would push the job
+    // first and only then discover it was never ours.
+    const owned = await db.booking.findUnique({
       where: { id: params.bookingId },
-      data: { jobberJobId: result.jobberJobId },
+      select: { id: true },
     });
-    return NextResponse.json({ ok: true, jobNumber: result.jobNumber });
-  } catch (err) {
-    console.error("Push to Jobber failed:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Unknown error pushing to Jobber" },
-      { status: 500 }
-    );
-  }
+    if (!owned) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    try {
+      const result = await pushBookingToJobber(db, owned.id);
+      // jobberJobId stays the recovery marker: null means committed locally
+      // but not successfully pushed. Unchanged by pass three.
+      await db.booking.update({
+        where: { id: owned.id },
+        data: { jobberJobId: result.jobberJobId },
+      });
+      return NextResponse.json({ ok: true, jobNumber: result.jobNumber });
+    } catch (err) {
+      console.error("Push to Jobber failed:", err);
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Unknown error pushing to Jobber" },
+        { status: 500 }
+      );
+    }
+  });
 }

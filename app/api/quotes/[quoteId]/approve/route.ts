@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
+import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 
 /**
  * A customer accepting the price the office put on their quote.
@@ -25,11 +25,31 @@ import { getOrCreateSessionId } from "@/lib/session";
  * Any quote ID would approve into whatever session was calling. Quote IDs
  * appear in URLs, get forwarded, sit in browser history. Someone else's
  * custom-priced job could be pulled into your visit.
+ *
+ * NOR WHOSE CONTRACTOR IT WAS — ADR-011
+ *
+ * The session check above is about whose cart, WITHIN one contractor. It said
+ * nothing about tenancy: the read was unguarded, so a quote id belonging to
+ * another contractor was fetched, and only the session comparison stood
+ * between it and approval. A quote id is a caller-supplied string; on its own
+ * it is not authority to read or approve anything.
+ *
+ * Now the site decides the tenant first and the read is guarded. Quote derives
+ * its owner through Service (ADR-011), so a foreign quote id comes back null
+ * and takes the same 404 path as a missing one — the response is identical
+ * either way, because a different message would confirm the id exists.
  */
-export async function POST(_req: Request, { params }: { params: { quoteId: string } }) {
+export async function POST(req: Request, { params }: { params: { quoteId: string } }) {
+  let site;
+  try {
+    site = await requireSiteFromRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+  return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
 
-  const quote = await prisma.quote.findUnique({
+  const quote = await db.quote.findUnique({
     where: { id: params.quoteId },
     include: {
       lineItem: { include: { visit: true } },
@@ -76,8 +96,14 @@ export async function POST(_req: Request, { params }: { params: { quoteId: strin
     );
   }
 
-  await prisma.$transaction([
-    prisma.lineItem.update({
+  // Guarded on both sides, inside one transaction. The array form takes
+  // prepared promises, and a promise prepared by the guarded client already
+  // carries its owner filter — LineItem through visit, Quote through service —
+  // so scoping survives being handed to $transaction. Ownership is proven
+  // twice over: the quote came from a guarded read, and each update re-filters
+  // on its own derived path.
+  await db.$transaction([
+    db.lineItem.update({
       where: { id: quote.lineItemId },
       data: {
         // The price the office set. The line keeps its visit and keeps
@@ -86,7 +112,7 @@ export async function POST(_req: Request, { params }: { params: { quoteId: strin
         computedPriceCents: quote.quotedPriceCents,
       },
     }),
-    prisma.quote.update({
+    db.quote.update({
       where: { id: quote.id },
       data: { status: "APPROVED", approvedAt: new Date() },
     }),
@@ -94,7 +120,7 @@ export async function POST(_req: Request, { params }: { params: { quoteId: strin
 
   // How many lines are still waiting, so the client knows whether scheduling
   // has just unlocked.
-  const stillWaiting = await prisma.lineItem.count({
+  const stillWaiting = await db.lineItem.count({
     where: { visitId: owningVisit.id, computedPriceCents: null },
   });
 
@@ -103,5 +129,6 @@ export async function POST(_req: Request, { params }: { params: { quoteId: strin
     lineItemId: quote.lineItemId,
     priceCents: quote.quotedPriceCents,
     awaitingQuote: stillWaiting,
+  });
   });
 }

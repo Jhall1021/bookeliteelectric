@@ -1,9 +1,13 @@
-import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/flow-types";
 import PushToJobberButton from "@/components/admin/PushToJobberButton";
+import { withAdminContractor } from "@/lib/adminContext";
 
 export default async function AdminBookingsPage() {
-  const bookings = await prisma.booking.findMany({
+  // Guarded. Booking derives its owner through Visit (ADR-011). Unscoped,
+  // this listed every contractor's bookings — customer name, email, phone and
+  // service address.
+  const bookings = await withAdminContractor((db) =>
+    db.booking.findMany({
     orderBy: { arrivalWindow: { date: "asc" } },
     include: {
       customer: { select: { name: true, email: true, phone: true } },
@@ -14,7 +18,8 @@ export default async function AdminBookingsPage() {
         },
       },
     },
-  });
+    })
+  );
 
   const upcoming = bookings.filter((b) => b.status === "SCHEDULED");
   const completed = bookings.filter((b) => b.status !== "SCHEDULED");

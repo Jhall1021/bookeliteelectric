@@ -54,7 +54,19 @@ import {
  * ownership and the foreign key constrains the rest. These entries record
  * WHICH root, so the reasoning can be rechecked rather than trusted.
  */
-const REVIEWED_SAFE: Record<string, string> = {
+/**
+ * An exception may be a bare reason, or a reason plus `mustMatch`.
+ *
+ * `mustMatch` anchors the exception to the CONTENT of the flagged line AND the
+ * few lines after it, not merely to file+field. Without it, exempting `lib/jobber.ts:visits` for
+ * a Jobber GraphQL response type would also exempt a genuine
+ * `contractor.findMany({ include: { visits: true } })` in the same file —
+ * silencing exactly the traversal this audit exists to catch, and doing it
+ * invisibly. With it, a line that stops matching stops being excused.
+ */
+type Exception = string | { reason: string; mustMatch: RegExp };
+
+const REVIEWED_SAFE: Record<string, Exception> = {
   "app/api/admin/materials/route.ts:activeSupplierLink":
     "Rooted at contractorMaterial.findMany — ContractorMaterial is tenant-owned, " +
     "so the guard scopes it. This is the relation on ContractorMaterial, not the " +
@@ -75,6 +87,23 @@ const REVIEWED_SAFE: Record<string, string> = {
     "Question.options beneath a Service root.",
   "app/api/services/[slug]/route.ts:options": "Question.options beneath a Service root.",
   "lib/routeResolver.ts:options": "Question.options beneath a Service root.",
+  "app/api/quotes/route.ts:photos": {
+    reason:
+      "Nested create beneath tx.quote.create. Quote is tenant-owned (derived " +
+      "through Service, ADR-011), so the root is not a platform model. Prisma " +
+      "never fires the guard for a nested write, so the owner is stamped " +
+      "explicitly — and this exception REQUIRES that stamp to be present, so " +
+      "removing it re-fires this gate rather than passing silently.",
+    mustMatch: /contractorId:\s*site\.contractorId/,
+  },
+  "lib/jobber.ts:visits": {
+    reason:
+      "Jobber's GraphQL response type, not Prisma. `visits` here is a field on " +
+      "Jobber's own schema inside a jobberGraphQL<...> type argument; it has no " +
+      "relation to Contractor.visits. Anchored to the call so that a real Prisma " +
+      "read of Contractor.visits in this file would still be flagged.",
+    mustMatch: /jobberGraphQL</,
+  },
 };
 
 type Shape = { parent: string; field: string; child: string; childState: string };
@@ -143,7 +172,7 @@ function main() {
   const files = ["app", "lib", "components"]
     .flatMap((d) => walk(d))
     .filter((f) => !/ \d+\.tsx?$/.test(f));
-  const findings: { file: string; line: number; field: string; text: string }[] = [];
+  const findings: { file: string; line: number; field: string; text: string; context: string }[] = [];
   for (const file of files) {
     const lines = readFileSync(file, "utf8").split("\n");
     lines.forEach((text, i) => {
@@ -156,7 +185,15 @@ function main() {
           new RegExp(`\\b${field}\\s*:\\s*(\\{|true)`).test(text) &&
           !isTypeAnnotation
         ) {
-          findings.push({ file, line: i + 1, field, text: text.trim() });
+          findings.push({
+            file,
+            line: i + 1,
+            field,
+            text: text.trim(),
+            // The flagged line plus the block it opens, so an exception can
+            // require what makes the access safe rather than just naming it.
+            context: lines.slice(i, i + 8).join("\n"),
+          });
         }
       }
     });
@@ -167,11 +204,29 @@ function main() {
   if (findings.length === 0) console.log(`    (none)`);
   for (const f of findings) {
     const key = `${f.file}:${f.field}`;
-    const reason = REVIEWED_SAFE[key];
+    const exc = REVIEWED_SAFE[key];
+    const reason =
+      typeof exc === "string"
+        ? exc
+        : exc && exc.mustMatch.test(f.context)
+          ? exc.reason
+          : undefined;
     if (reason) {
       console.log(`    ok  ${f.file}:${f.line}  ${f.field}`);
       console.log(`          ${reason}`);
     } else {
+      if (exc && typeof exc !== "string") {
+        // There IS an exception on file+field, but this line is not the one it
+        // describes. Say so loudly — a stale exception reads as coverage.
+        console.log(`    !!  ${f.file}:${f.line}  ${f.field}`);
+        console.log(`          ${f.text}`);
+        console.log(
+          `          an exception exists for ${key} but requires ` +
+            `${exc.mustMatch} — this line does not match it`
+        );
+        unreviewed++;
+        continue;
+      }
       unreviewed++;
       console.log(`    !!  ${f.file}:${f.line}  ${f.field}`);
       console.log(`          ${f.text}`);

@@ -8,6 +8,7 @@ import {
   categorySlug,
 } from "@/lib/categories";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
+import { findOpenVisit } from "@/lib/openVisit";
 
 // Returns EVERY active service, grouped by category, so the homeowner can
 // add anything from any category "while we're there." Services already in
@@ -25,10 +26,16 @@ export async function GET(req: Request) {
 
   const sessionId = getOrCreateSessionId();
 
-  const visit = await prisma.visit.findFirst({
-    where: { sessionId, status: "OPEN" },
-    include: { lineItems: { select: { serviceId: true } } },
-  });
+  // ADR-011. Inside the site's tenant context, and keyed on the contractor —
+  // this used to read the session cookie alone, so the quantities shown on
+  // one contractor's storefront came from whatever cart the visitor had
+  // started on another's.
+  const visit = await withSite(site, (db) =>
+    db.visit.findFirst({
+      where: { contractorId: site.contractorId, sessionId, status: "OPEN" },
+      include: { lineItems: { select: { serviceId: true } } },
+    })
+  );
 
   const quantityByService = new Map<string, number>();
   for (const li of visit?.lineItems ?? []) {
