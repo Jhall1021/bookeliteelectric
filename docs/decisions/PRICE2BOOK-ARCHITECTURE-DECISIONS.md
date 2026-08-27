@@ -46,6 +46,34 @@ This applies retroactively. The tenant guard was monitoring until the live
 harness proved it, and `PENDING_TENANT_SCOPE` is *still* monitoring for nested
 access — see ADR-007.
 
+## Standing principle — what "complete" requires
+
+> **A migration is complete only when the source of truth, the enforcement
+> mechanism, the independent sweep, the adversarial runtime proof, and the real
+> user flow all agree.**
+
+Adopted 27 August, from a session in which each of those layers caught
+something none of the others could:
+
+| Layer | What it alone caught |
+|---|---|
+| Source of truth — the schema | five configuration models listed as pending that had carried `contractorId` for days |
+| Enforcement — the guard | a legitimate query throwing, which is how those five were found |
+| Independent sweep | 28 sites the working list said were done, then 18 more, then 22 root-path navigations |
+| Adversarial runtime — the live harness | a platform-parent read returning another contractor's economics; a lazy-promise context escape |
+| Real user flow — a browser | six missing redirects, a production 500 for cookieless visitors, an error message that turned a business rejection into "something went wrong" |
+
+None substitutes for another, and a green build is the weakest of them. Every
+one of the defects above passed `tsc` and `next build` without complaint.
+
+The corollary, learned three separate times in one session: **a list maintained
+by hand beside the truth will go stale.** `PENDING_TENANT_SCOPE` claimed
+finished work was outstanding; two ad-hoc sweeps hardcoded model inventories
+that were wrong within the hour. Verification must DERIVE its inventory from
+the thing it verifies — which is why
+`scripts/audit-unguarded-tenant-access.ts` reads its models from
+`lib/tenantGuard.ts` at runtime rather than listing them.
+
 ## ADR-001 — Canonical role vs contractor economics
 
 **Decided. Implemented for materials and components.**
