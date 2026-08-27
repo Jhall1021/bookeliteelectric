@@ -7,7 +7,7 @@ import {
   toDisplay,
   toMinutes,
 } from "@/lib/businessHours";
-import { getOrCreateSessionId } from "@/lib/session";
+import { getSessionId } from "@/lib/session";
 import ScheduleClient from "@/components/checkout/ScheduleClient";
 import { redirect } from "next/navigation";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
@@ -39,16 +39,27 @@ export default async function SchedulePage({ params }: { params: { site: string 
   // (a long job blocks longer than the 3-hour arrival window itself; see
   // effectiveBusySpan in lib/jobber.ts). Missing entirely just means an
   // empty cart or incomplete estimates — falls back to the flat window.
-  const sessionId = getOrCreateSessionId();
-  const visit = await prisma.visit.findFirst({
-    where: { sessionId, status: "OPEN" },
-    include: { lineItems: true },
-  });
+  // READ-ONLY. getOrCreateSessionId() SETS a cookie, and a Server Component
+  // cannot — Next throws "Cookies can only be modified in a Server Action or
+  // Route Handler" and the page 500s. lib/session.ts already documents this
+  // and provides getSessionId() for pages; this was the one page still using
+  // the writing variant.
+  //
+  // It only showed up for a visitor with NO cookie yet, so the flow hid it:
+  // anyone arriving through the cart already had one. A bookmarked or shared
+  // link 500'd. Verified present on production before this branch.
+  const sessionId = getSessionId();
+  const visit = sessionId
+    ? await prisma.visit.findFirst({
+        where: { sessionId, status: "OPEN" },
+        include: { lineItems: true },
+      })
+    : null;
   // Nothing gets scheduled while a line is still being priced. The cart
   // disables the button, but a customer who bookmarked this page or hit back
   // would otherwise walk straight past it.
   const awaitingQuote = visit?.lineItems.some((li) => li.computedPriceCents === null) ?? false;
-  if (awaitingQuote) redirect("/my-visit");
+  if (awaitingQuote) redirect(`/${params.site}/my-visit`);
 
   const hasCompleteEstimates = !!visit && visit.lineItems.every((li) => li.estimatedMinutes !== null);
   const estimatedDurationMinutes = hasCompleteEstimates
