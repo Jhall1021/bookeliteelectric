@@ -53,6 +53,9 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "Service",
   "ContractorMaterial",
   "ContractorComponent",
+  /// ADR-006. A contractor's presentation of a canonical category: their
+  /// ordering, grouping, naming and whether they offer it at all.
+  "ContractorCategory",
 ]);
 
 /**
@@ -71,6 +74,10 @@ export const PLATFORM_MODELS = new Set<string>([
   /// ContractorComponent, which is tenant-scoped.
   "CanonicalComponent",
   "ZipCode",
+  /// A category ROLE is trade knowledge shared by every contractor — ADR-006,
+  /// the same basis as CanonicalMaterial and CanonicalComponent. Ordering,
+  /// naming and visibility live on ContractorCategory, which is tenant-scoped.
+  "CanonicalCategory",
   /// Deprecated pre-split models, awaiting removal in the contract phase.
   "Material",
   "JobComponent",

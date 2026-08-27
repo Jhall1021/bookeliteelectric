@@ -29,6 +29,69 @@ model ServiceCategory {
   @@map("service_categories")
 }
 
+/// The platform's electrical taxonomy — ADR-006.
+///
+/// "Lighting" and "Outlets & Switches" are trade knowledge, true for every
+/// electrical contractor. That is what makes them template identity, and it is
+/// why the stable slug lives HERE and is never duplicated per contractor.
+///
+/// Carries no ordering, no grouping and no visibility. Whether a contractor
+/// offers a category, what they call it and where it sits in their storefront
+/// are all facts about that contractor — see ContractorCategory.
+///
+/// Contractor #2 is also electrical, so "Lighting" is genuinely one shared row
+/// with two presentations. This distinction has a second real consumer.
+model CanonicalCategory {
+  id   String @id @default(cuid())
+  /// Stable template identity, e.g. lighting, outlets-switches,
+  /// dedicated-circuits. Never contractor-specific.
+  slug String @unique
+  /// The platform default. A contractor may override it for display without
+  /// creating a new canonical category.
+  name        String
+  defaultIcon String?
+  /// Platform template lifecycle — retiring a category from the library does
+  /// not retire it from contractors already using it.
+  active      Boolean @default(true)
+
+  contractorCategories ContractorCategory[]
+
+  @@map("canonical_categories")
+}
+
+/// One contractor's presentation and configuration of a canonical category.
+///
+/// Answers: do I offer it, what do I call it, what icon, order and grouping do
+/// I use? `navGroup` in particular is storefront organisation rather than
+/// electrical truth — Elite clusters New Outlets near Outlets & Switches;
+/// another contractor may want New Installations / Repairs & Replacements.
+model ContractorCategory {
+  id                  String            @id @default(cuid())
+  contractorId        String
+  contractor          Contractor        @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  canonicalCategoryId String
+  canonicalCategory   CanonicalCategory @relation(fields: [canonicalCategoryId], references: [id], onDelete: Restrict)
+
+  /// Null means "use the canonical default". Present from the start even
+  /// though Elite does not use it: a contractor may reasonably want
+  /// "Lighting & Fixtures" where the platform says "Lighting". That is
+  /// presentation, not a new canonical category.
+  nameOverride String?
+  iconOverride String?
+
+  sortOrder Int     @default(0)
+  navGroup  String?
+  active    Boolean @default(true)
+
+  /// Contractor services attach HERE, never to CanonicalCategory directly —
+  /// visibility, order and naming belong to the contractor experience.
+  services Service[]
+
+  @@unique([contractorId, canonicalCategoryId])
+  @@index([contractorId])
+  @@map("contractor_categories")
+}
+
 enum BookingType {
   INSTANT // resolves to a fixed price immediately
   ADJUSTED // fixed price with defined surcharge branches
@@ -267,6 +330,7 @@ model Contractor {
   jobberConnection    JobberConnection?
   serviceAreas        ServiceArea[]
   contractorComponents ContractorComponent[]
+  contractorCategories ContractorCategory[]
   memberships         ContractorMembership[]
   invitations         ContractorInvitation[]
   supportEvents       SupportAccessEvent[]
@@ -1056,8 +1120,15 @@ model Service {
   id                  String          @id @default(cuid())
   slug                String          @unique
   name                String
+  /// DEPRECATED — replaced by contractorCategoryId below. Retained until the
+  /// contract phase; still required while reads are being switched over.
   categoryId          String
   category            ServiceCategory @relation(fields: [categoryId], references: [id])
+
+  /// ADR-006. Nullable only for the duration of the migration; it becomes
+  /// required in the contract phase, when ServiceCategory is retired.
+  contractorCategoryId String?
+  contractorCategory   ContractorCategory? @relation(fields: [contractorCategoryId], references: [id], onDelete: Restrict)
   bookingType         BookingType
   basePrice           Int? // cents; null when Remote Quote has no anchor price
   startingPriceLabel  String? // e.g. "From $1,295" for remote-quote services
