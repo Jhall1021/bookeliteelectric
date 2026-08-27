@@ -50,7 +50,11 @@ export async function POST(req: Request) {
       matched: emergency.matched,
       message: EMERGENCY_MESSAGE,
     };
-    await recordQuery(prisma, normalize(raw), raw, result, { source: "safety-screen" }).catch(
+    await withSite(site, (db) =>
+      recordQuery(db, site.contractorId, normalize(raw), raw, result, {
+        source: "safety-screen",
+      })
+    ).catch(
       () => {}
     );
     return NextResponse.json(result);
@@ -88,24 +92,26 @@ export async function POST(req: Request) {
   // and the cache degrades to asking the model. That protection disappears
   // the moment slugs become per-contractor — which is why ADR-008 says
   // ServiceQuery must be re-keyed BEFORE, or with, that change.
-  // STILL UNGUARDED, DELIBERATELY. ServiceQuery is in PENDING_TENANT_SCOPE:
-  // it has no contractorId and its globally-unique normalizedText makes it a
-  // platform-wide cache, which ADR-008 re-keys in pass four. Routing it
-  // through the guard today would throw NotYetTenantScopedError.
-  //
-  // The site is already resolved above, so when ADR-008 lands this becomes a
-  // scoped read with no other change to this route.
-  const cached = await prisma.serviceQuery.findUnique({
-    where: { normalizedText: normalized },
-  });
+  // ADR-008: this contractor's cache, not a platform-wide one. The lookup was
+  // keyed on the phrase alone, so a match cached by one contractor answered
+  // for every contractor — for a slug that may not even exist in their
+  // catalog.
+  const cached = await withSite(site, (db) =>
+    db.serviceQuery.findUnique({
+      where: { contractorId_normalizedText: { contractorId: site.contractorId, normalizedText: normalized } },
+    })
+  );
   if (cached?.matchedServiceSlug) {
     const svc = flat.find((s) => s.slug === cached.matchedServiceSlug);
     // Only trust the cache if the service still exists and is active — a
     // retired service shouldn't be suggested forever because it was popular.
     if (svc) {
-      await prisma.serviceQuery
-        .update({ where: { id: cached.id }, data: { timesAsked: { increment: 1 } } })
-        .catch(() => {});
+      await withSite(site, (db) =>
+        db.serviceQuery.update({
+          where: { id: cached.id },
+          data: { timesAsked: { increment: 1 } },
+        })
+      ).catch(() => {});
       return NextResponse.json({
         kind: "suggestion",
         serviceSlug: svc.slug,
@@ -134,7 +140,9 @@ export async function POST(req: Request) {
     result = keywordFallback(raw, flat);
   }
 
-  await recordQuery(prisma, normalized, raw, result, { source, ...usage }).catch(() => {});
+  await withSite(site, (db) =>
+    recordQuery(db, site.contractorId, normalized, raw, result, { source, ...usage })
+  ).catch(() => {});
 
   // Which path produced this, visible in the response.
   //

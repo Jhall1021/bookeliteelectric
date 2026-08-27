@@ -75,6 +75,11 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "ContractorMaterialSettings",
   "JobberConnection",
   "ServiceArea",
+  /// ADR-008, done 27 August. A contractor-owned match cache, keyed on
+  /// (contractorId, normalizedText). It was a platform-wide cache with the
+  /// phrase alone as the key, which meant one contractor's cached answer
+  /// decided every contractor's suggestion.
+  "ServiceQuery",
 ]);
 
 /**
@@ -186,7 +191,6 @@ export const DEPRECATED_MODELS = new Set<string>([
  * Completion is nine conditions, listed in ADR-007a. This list is one of them.
  */
 export const PENDING_TENANT_SCOPE = new Set<string>([
-  "ServiceQuery",
   "MaterialSupplierLink",
   "MaterialCostEvent",
   "ConditionalDisclaimer",

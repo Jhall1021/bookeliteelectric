@@ -215,28 +215,34 @@ enum PhotoState {
 model ServiceQuery {
   id String @id @default(cuid())
 
+  /// The contractor this cached match belongs to — ADR-008.
+  ///
+  /// Required. A cache row without an owner could answer anyone.
+  contractorId String
+  contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
   /// Lowercased, punctuation stripped, whitespace collapsed. The cache key.
   ///
-  /// GLOBALLY UNIQUE TODAY, AND THAT MUST CHANGE — ADR-008.
+  /// NOT globally unique — ADR-008, done 27 August.
   ///
-  /// This is a platform-wide cache key. "install an outlet in my garage" is
-  /// not guaranteed to resolve identically for every contractor: catalogs,
-  /// slugs, scope policy, supported work and trade vocabulary all differ. A
-  /// cache hit from contractor A must never decide contractor B's suggestion.
+  /// It was, and that made this a platform-wide cache: one answer per phrase
+  /// for everyone. "install an outlet in my garage" does not resolve
+  /// identically for every contractor — catalogs, slugs, scope policy and
+  /// trade vocabulary all differ — so a hit from contractor A must never
+  /// decide contractor B's suggestion.
   ///
-  /// Pass four replaces this with @@unique([contractorId, normalizedText]).
-  /// That is a DROP, so it is not additive — and adding the compound key
-  /// alongside does not help, because this constraint is precisely what stops
-  /// contractor #2 from having their own row. The drop lands with the
-  /// backfill, not in a later contract phase.
+  /// The real key is @@unique([contractorId, normalizedText]) below. Dropping
+  /// the global one WAS the point rather than a side effect: that constraint
+  /// was what stopped a second contractor from having their own row at all,
+  /// so adding the compound key alongside it would have changed nothing.
   ///
-  /// SEQUENCING: ServiceQuery must become tenant-aware BEFORE, or in the same
-  /// change as, per-contractor Service.slug. Today the global uniqueness of
-  /// Service.slug accidentally protects the read path — a cached slug from
-  /// another contractor is not found in this contractor's catalog, so the
-  /// cache degrades to asking the model instead of leaking. Nobody put that
-  /// there on purpose, and it dies with per-contractor slugs.
-  normalizedText String @unique
+  /// This also releases Service.slug. Until now the slug's global uniqueness
+  /// accidentally protected the read path — a slug cached by another
+  /// contractor was never found in this contractor's catalog, so the cache
+  /// degraded to asking the model instead of leaking. That protection was
+  /// nobody's decision. scripts/audit-tenant-migration-order.ts enforced this
+  /// ordering and now permits the slug change.
+  normalizedText String
   /// A few real phrasings behind that key, for reading back later.
   rawExamples String[]
 
@@ -278,6 +284,11 @@ model ServiceQuery {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// ADR-008. The real key: one cached answer per contractor per phrase.
+  /// "install an outlet in my garage" does not resolve identically for every
+  /// contractor, so it cannot have one shared answer.
+  @@unique([contractorId, normalizedText])
+  @@index([contractorId])
   @@index([matchedServiceSlug])
   @@index([isEmergency])
   @@map("service_queries")
@@ -415,6 +426,7 @@ model Contractor {
   contractorCategories ContractorCategory[]
   contractorDisclaimers ContractorDisclaimer[]
   sites                ContractorSite[]
+  serviceQueries       ServiceQuery[]
   memberships         ContractorMembership[]
   invitations         ContractorInvitation[]
   supportEvents       SupportAccessEvent[]

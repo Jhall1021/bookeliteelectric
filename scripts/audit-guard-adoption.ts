@@ -96,6 +96,7 @@ const ADOPTED_FILES: string[] = [
   // ZIP against every contractor's area and booked whoever covered it.
   "app/api/checkout/route.ts",
   "app/[site]/checkout/schedule/page.tsx",
+  "app/api/service-match/feedback/route.ts",
 ];
 
 /**
@@ -104,14 +105,13 @@ const ADOPTED_FILES: string[] = [
  * For compatibility paths that must stay on the unguarded client during the
  * expand phase. Not a place to silence a finding you have not thought about.
  */
-const ALLOWED_UNGUARDED: Record<string, string> = {
-  "app/api/service-match/route.ts::recordQuery":
-    "recordQuery writes ServiceQuery, which is in PENDING_TENANT_SCOPE — it " +
-    "has no contractorId and its globally unique normalizedText makes it a " +
-    "platform-wide cache. ADR-008 re-keys it in pass four; routing it through " +
-    "the guard today would throw NotYetTenantScopedError. The site is already " +
-    "resolved at the top of this route, so pass four converts it in place.",
-};
+/**
+ * Deliberate exceptions, `file::model`, with the reason.
+ *
+ * Empty since 27 August: the last entry was recordQuery writing ServiceQuery,
+ * which ADR-008 re-keyed and moved onto the guarded client.
+ */
+const ALLOWED_UNGUARDED: Record<string, string> = {};
 
 /** Identifiers that ARE the unguarded application client. */
 const UNGUARDED_IDENTIFIERS = ["prisma", "platformDb"];

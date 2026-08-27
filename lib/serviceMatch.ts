@@ -527,7 +527,8 @@ export function parseResponse(raw: string, services: CatalogService[]): MatchRes
  * Never stores anything but the phrasing. No name, no address, no session.
  */
 export async function recordQuery(
-  prisma: PrismaClient,
+  db: PrismaClient,
+  contractorId: string,
   normalized: string,
   raw: string,
   result: MatchResult,
@@ -554,14 +555,14 @@ export async function recordQuery(
     too_many: "TOO_MANY",
   }[result.kind];
 
-  // CROSS-TENANT TODAY — ADR-008. Upserting on a globally unique key means a
-  // second contractor's write UPDATES the first contractor's row: matched
-  // slug, confidence, outcome, source, rawExamples, and the token counters,
-  // which are cost attribution. Re-keyed on (contractorId, normalizedText) in
-  // pass four.
-  await prisma.serviceQuery.upsert({
-    where: { normalizedText: normalized },
+  // ADR-008: keyed on (contractorId, normalizedText). It was keyed on the
+  // phrase alone, which meant a second contractor's write UPDATED the first
+  // contractor's row — matched slug, confidence, outcome, source, rawExamples
+  // and the token counters, which are cost attribution.
+  await db.serviceQuery.upsert({
+    where: { contractorId_normalizedText: { contractorId, normalizedText: normalized } },
     create: {
+      contractorId,
       normalizedText: normalized,
       rawExamples: [stripIdentifiers(raw).slice(0, 200)],
       matchedServiceSlug: slug,

@@ -611,8 +611,24 @@ immediately, verified.
 
 ## ADR-008 — `ServiceQuery` is contractor-owned — NEW, 27 August
 
-**Decided 27 August. Implementation scheduled for pass four; the decision is
-not open.**
+**Decided and IMPLEMENTED 27 August.**
+
+`ServiceQuery` carries a required `contractorId`, keyed
+`@@unique([contractorId, normalizedText])`, with the global unique on
+`normalizedText` dropped. 23 rows backfilled to Elite carrying 24 asks and
+36,213/1,368 tokens of attributed spend. All three access paths — the cache
+read, the upsert, and the feedback counters — are tenant-rooted on the guarded
+client.
+
+Proven in the live harness: the same normalized phrase now holds a different
+answer for each contractor, each lookup returns its own, Elite's row is null
+from the dummy's context even by primary key, a feedback update touches exactly
+one row, and the dummy's rejection leaves Elite's counters, answer and token
+spend untouched. 120 of 120.
+
+**This releases `Service.slug`.** The ordering guard now reports the
+re-keying done and permits per-contractor slugs — which was the whole reason
+the constraint was written down before the work started.
 
 `ServiceQuery` is a contractor-owned cache, not a platform-global one. Today
 `normalizedText` is `@unique` globally, which acts as a platform-wide cache

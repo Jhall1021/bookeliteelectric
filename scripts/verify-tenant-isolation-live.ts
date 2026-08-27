@@ -118,6 +118,7 @@ async function purgeDummy(contractorId: string) {
     where: { contractorDisclaimer: { contractorId } },
   });
   await raw.contractorDisclaimer.deleteMany({ where: { contractorId } });
+  await raw.serviceQuery.deleteMany({ where: { contractorId } });
   await raw.serviceArea.deleteMany({ where: { contractorId } });
   await raw.contractorSite.deleteMany({ where: { contractorId } });
   return { materials: materials.count, services: serviceIds.length };
@@ -1495,6 +1496,130 @@ async function main() {
       data: { active: true },
     });
   }
+
+  // ---- the match cache, ADR-008 -----------------------------------------
+  //
+  // ServiceQuery was a PLATFORM-WIDE cache: normalizedText globally unique, so
+  // one answer per phrase for everyone. "install an outlet in my garage" does
+  // not resolve identically for every contractor — catalogs, slugs, scope
+  // policy and trade vocabulary all differ — so a hit cached by one contractor
+  // decided the suggestion every other contractor's customer saw, for a slug
+  // that might not exist in their catalog at all.
+  //
+  // The claim being tested is that the SAME phrase can now hold two different
+  // answers, and that neither contractor can see or increment the other's.
+  console.log(`\nMATCH CACHE — ADR-008\n`);
+
+  // DELIBERATELY UNTYPEABLE. The first version of this used "i need an outlet
+  // in my garage" — a plausible customer phrase, and one that turned out to
+  // already be in the cache. The fixture's cleanup then deleted a real cached
+  // query. It is only a cache and it regenerates at the cost of one model
+  // call, but a test that quietly destroys production rows because its
+  // fixture collided with them is a test that will do it again with something
+  // that matters more.
+  const PHRASE = "__isolation_probe_do_not_type_this__";
+
+  // Clear any residue from an aborted run. The compound unique means a
+  // leftover row for this phrase blocks the fixture — which is the constraint
+  // doing its job, and not something the test should fail on.
+  await raw.serviceQuery.deleteMany({ where: { normalizedText: PHRASE } });
+
+  const eliteQuery = await raw.serviceQuery.create({
+    data: {
+      contractorId: elite.id,
+      normalizedText: PHRASE,
+      matchedServiceSlug: "elite-answer",
+      timesAsked: 5,
+      timesAccepted: 3,
+      totalInputTokens: 100,
+      outcome: "SUGGESTED",
+    },
+  });
+
+  // THE WHOLE POINT: the identical phrase, for a different contractor. Under
+  // the old global unique this create was impossible.
+  const dummyQuery = await attempt(() =>
+    raw.serviceQuery.create({
+      data: {
+        contractorId: dummy.id,
+        normalizedText: PHRASE,
+        matchedServiceSlug: "dummy-answer",
+        timesAsked: 1,
+        totalInputTokens: 7,
+        outcome: "SUGGESTED",
+      },
+    })
+  );
+  ok(
+    dummyQuery.error === undefined,
+    "the SAME normalized phrase can exist for a second contractor",
+    dummyQuery.error ? `${dummyQuery.error.name} — the global unique is still in place` : ""
+  );
+  ok(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (dummyQuery.value as any)?.matchedServiceSlug === "dummy-answer",
+    "and holds a DIFFERENT answer to Elite's"
+  );
+
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    {
+      const r = await attempt(() =>
+        guarded.serviceQuery.findUnique({
+          where: {
+            contractorId_normalizedText: { contractorId: dummy.id, normalizedText: PHRASE },
+          },
+        })
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const v = r.value as any;
+      ok(
+        v?.matchedServiceSlug === "dummy-answer",
+        "the dummy's lookup returns the DUMMY's cached answer",
+        `got ${v?.matchedServiceSlug}`
+      );
+    }
+    {
+      const r = await attempt(() =>
+        guarded.serviceQuery.findUnique({ where: { id: eliteQuery.id } })
+      );
+      ok(r.value === null, "and Elite's row is null even by primary key", r.value ? "LEAKED" : "");
+    }
+    {
+      // The feedback route's shape. Under the old key this incremented every
+      // contractor's counters for the phrase.
+      const r = await attempt(() =>
+        guarded.serviceQuery.updateMany({
+          where: { normalizedText: PHRASE },
+          data: { timesRejected: { increment: 1 } },
+        })
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ok((r.value as any)?.count === 1, "feedback touches exactly one row — its own",
+         `updated ${(r.value as any)?.count}`);
+    }
+    {
+      const n = await guarded.serviceQuery.count();
+      ok(n === 1, "the dummy's cache holds exactly its own 1 row", `got ${n}`);
+    }
+  });
+
+  // Elite's row, and its statistics, must be exactly as they were.
+  {
+    const after = await raw.serviceQuery.findUniqueOrThrow({ where: { id: eliteQuery.id } });
+    ok(
+      after.timesRejected === 0,
+      "the dummy's rejection did NOT move Elite's counters",
+      `Elite timesRejected became ${after.timesRejected}`
+    );
+    ok(
+      after.matchedServiceSlug === "elite-answer" &&
+        after.timesAccepted === 3 &&
+        after.totalInputTokens === 100,
+      "and Elite's answer, accepts and token spend are untouched"
+    );
+  }
+
+  await raw.serviceQuery.delete({ where: { id: eliteQuery.id } });
 
   // ---- Elite untouched ---------------------------------------------------
   console.log(`\nELITE'S DATA\n`);
