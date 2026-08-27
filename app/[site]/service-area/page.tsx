@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export default function ServiceAreaPage() {
+export default function ServiceAreaPage({ params }: { params: { site: string } }) {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 text-center">
       <h1 className="font-display text-3xl font-bold text-navy">
@@ -24,7 +24,7 @@ export default function ServiceAreaPage() {
 
       <div className="mt-10">
         <Link
-          href="/services"
+          href={`/${params.site}/services`}
           className="inline-block rounded-pill bg-electric px-7 py-3 font-semibold text-white transition hover:bg-electric-hover"
         >
           Book Your Service

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@/lib/flow-types";
-import { useSiteFetch } from "@/components/site/SiteContext";
+import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 
 type QuoteStatus = "SUBMITTED" | "IN_REVIEW" | "PRICED" | "APPROVED" | "EXPIRED";
 
@@ -19,6 +19,10 @@ type QuoteData = {
 };
 
 export default function QuoteStatusPage({ params }: { params: { quoteId: string } }) {
+  // Storefront navigation must carry the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them — the whole
+  // client-side navigation layer was masked by those redirects.
+  const base = useStorefrontBase();
   // ADR §2.2 — customer-facing calls carry the storefront identifier.
   const siteFetch = useSiteFetch();
   const router = useRouter();
@@ -39,7 +43,7 @@ export default function QuoteStatusPage({ params }: { params: { quoteId: string 
     setApproving(true);
     const res = await siteFetch(`/api/quotes/${params.quoteId}/approve`, { method: "POST" });
     if (res.ok) {
-      router.push("/my-visit");
+      router.push(`${base}/my-visit`);
     } else {
       setApproving(false);
     }
@@ -107,7 +111,7 @@ export default function QuoteStatusPage({ params }: { params: { quoteId: string 
               You've approved this quote. Continue to your visit to pick an arrival window.
             </p>
             <button
-              onClick={() => router.push("/my-visit")}
+              onClick={() => router.push(`${base}/my-visit`)}
               className="mt-6 w-full rounded-pill bg-electric py-3.5 font-semibold text-white hover:bg-electric-hover"
             >
               Go to My Visit

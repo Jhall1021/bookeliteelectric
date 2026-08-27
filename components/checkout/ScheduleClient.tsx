@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useStorefrontBase } from "@/components/site/SiteContext";
 
 type Window = { start: string; end: string; available: boolean };
 type DayMeta = { date: string; dateISO: string };
@@ -15,6 +16,9 @@ export default function ScheduleClient({
   initialWindows: Window[];
   estimatedDurationMinutes: number | null;
 }) {
+  // Storefront navigation carries the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them.
+  const base = useStorefrontBase();
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedWindow, setSelectedWindow] = useState<number | null>(null);
@@ -49,7 +53,7 @@ export default function ScheduleClient({
       windowStart: win.start,
       windowEnd: win.end,
     });
-    router.push(`/checkout/details?${params.toString()}`);
+    router.push(`${base}/checkout/details?${params.toString()}`);
   }
 
   return (

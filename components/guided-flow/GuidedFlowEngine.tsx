@@ -17,7 +17,7 @@ import RerouteNotice, { REROUTE_HANDOFF_KEY } from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
 import { advanceQueue, queuedServiceHref } from "@/lib/multiServiceQueue";
-import { useSiteFetch } from "@/components/site/SiteContext";
+import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 
 type Props = {
   serviceSlug: string;
@@ -56,6 +56,9 @@ type TerminalState =
  * before committing to anything, rather than discovering a mismatch later.
  */
 export default function GuidedFlowEngine({ serviceSlug }: Props) {
+  // Storefront navigation carries the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them.
+  const base = useStorefrontBase();
   // ADR §2.2 — customer-facing calls carry the storefront identifier.
   const siteFetch = useSiteFetch();
   const router = useRouter();
@@ -561,7 +564,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           the visit and the first 60 minutes of diagnostic time.
         </p>
         <button
-          onClick={() => router.push("/services/panels-troubleshooting/electrical-troubleshooting")}
+          onClick={() => router.push(`${base}/services/panels-troubleshooting/electrical-troubleshooting`)}
           className="mt-6 rounded-pill bg-electric px-7 py-3 font-semibold text-white hover:bg-electric-hover"
         >
           {troubleshootingCents !== null

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { formatCents } from "@/lib/flow-types";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
+import { useStorefrontBase } from "@/components/site/SiteContext";
 
 type Props = {
   name: string;
@@ -46,6 +47,9 @@ export default function ServiceIntro({
   standalonePrice,
   onContinue,
 }: Props) {
+  // Storefront navigation carries the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them.
+  const base = useStorefrontBase();
   // Per the Visual Design Handoff: a bespoke lifestyle image showing the
   // finished result, when one exists for this service — falls back to the
   // original icon-only layout otherwise, so this degrades gracefully for
@@ -122,7 +126,7 @@ export default function ServiceIntro({
         </button>
 
         <p className="mt-4 text-xs text-slate">
-          Not what you're looking for? <a href="/services" className="text-electric">Browse all services</a>
+          Not what you're looking for? <a href={`${base}/services`} className="text-electric">Browse all services</a>
         </p>
       </div>
     </div>

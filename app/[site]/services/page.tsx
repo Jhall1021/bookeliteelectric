@@ -77,7 +77,7 @@ export default async function ServicesPage({ params }: { params: { site: string 
         <p className="font-medium">Not sure what you need?</p>
         <p className="mt-1 text-sm text-white/70">Tell us what's going on and we'll point you in the right direction.</p>
         <Link
-          href="/troubleshooting"
+          href={`/${params.site}/troubleshooting`}
           className="mt-4 inline-block rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white hover:bg-electric-hover"
         >
           I Don't Know What's Wrong

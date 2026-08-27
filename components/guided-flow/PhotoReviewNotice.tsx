@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { uploadPhoto } from "@/lib/upload";
-import { useSiteFetch } from "@/components/site/SiteContext";
+import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 
 type Props = {
   serviceName: string;
@@ -38,6 +38,9 @@ export default function PhotoReviewNotice({
   onNoteChange,
   answers,
 }: Props) {
+  // Storefront navigation carries the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them.
+  const base = useStorefrontBase();
   // ADR §2.2 — customer-facing calls carry the storefront identifier.
   const siteFetch = useSiteFetch();
   const router = useRouter();
@@ -93,7 +96,7 @@ export default function PhotoReviewNotice({
       // Back to the visit, not away from it. This used to land on a quote
       // page, which ended the session — anything already in the cart was
       // abandoned, and a first-time customer left with nothing booked.
-      router.push("/my-visit");
+      router.push(`${base}/my-visit`);
     } catch (err) {
       setError("Something went wrong uploading your photos. Please try again.");
       setSubmitting(false);

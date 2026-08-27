@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startQueue, queuedServiceHref, type QueuedService } from "@/lib/multiServiceQueue";
-import { useSiteFetch } from "@/components/site/SiteContext";
+import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 
 type Candidate = { slug: string; name: string; categorySlug: string };
 
@@ -48,6 +48,10 @@ type Result =
  * confident ones.
  */
 export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "dark" }) {
+  // Storefront navigation must carry the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them — the whole
+  // client-side navigation layer was masked by those redirects.
+  const base = useStorefrontBase();
   // ADR §2.2 — customer-facing calls carry the storefront identifier.
   const siteFetch = useSiteFetch();
   // The hero is navy. Everything else this might sit on is warm white, and a
@@ -92,7 +96,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, accepted: true }),
     }).catch(() => {});
-    router.push(`/services/${r.categorySlug}/${r.serviceSlug}`);
+    router.push(`${base}/services/${r.categorySlug}/${r.serviceSlug}`);
   }
 
   return (
@@ -128,7 +132,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
       <p className={`mt-2 text-xs ${dark ? "text-slate-light" : "text-slate"}`}>
         or{" "}
         <Link
-          href="/services"
+          href={`${base}/services`}
           className={dark ? "text-white underline hover:text-white/80" : "text-electric hover:underline"}
         >
           browse all our services
@@ -169,7 +173,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
               Yes, that&rsquo;s it
             </button>
             <Link
-              href="/services"
+              href={`${base}/services`}
               onClick={() => {
                 siteFetch("/api/service-match/feedback", {
                   method: "POST",
@@ -201,7 +205,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text, accepted: true }),
                   }).catch(() => {});
-                  router.push(`/services/${c.categorySlug}/${c.slug}`);
+                  router.push(`${base}/services/${c.categorySlug}/${c.slug}`);
                 }}
                 className="rounded-card border border-cardline px-4 py-3 text-left text-sm font-medium text-navy transition hover:border-electric hover:bg-electric/5"
               >
@@ -210,7 +214,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
             ))}
           </div>
           <Link
-            href="/services"
+            href={`${base}/services`}
             className="mt-3 inline-block text-xs text-slate hover:underline"
           >
             Neither — show me everything
@@ -299,7 +303,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
                     {item.kind === "unsure" && (
                       <p className="mt-1 text-sm text-slate">
                         We couldn&rsquo;t pin this one down &mdash;{" "}
-                        <Link href="/services" className="text-electric hover:underline">
+                        <Link href={`${base}/services`} className="text-electric hover:underline">
                           find it in the list
                         </Link>
                       </p>
@@ -346,7 +350,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
             )}
 
             <Link
-              href="/services"
+              href={`${base}/services`}
               className="mt-3 inline-block text-xs text-slate hover:underline"
             >
               Not right &mdash; show me everything
@@ -361,7 +365,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
         <div className="mt-4 rounded-card border border-cardline bg-warmwhite p-5">
           <p className="text-sm text-navy">{result.message}</p>
           <Link
-            href="/services"
+            href={`${base}/services`}
             className="mt-3 inline-block rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white hover:bg-electric-hover"
           >
             Browse all services
@@ -384,7 +388,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
             and it should be in there.
           </p>
           <Link
-            href="/services"
+            href={`${base}/services`}
             className="mt-3 inline-block rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white hover:bg-electric-hover"
           >
             Browse all services

@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSiteFetch } from "@/components/site/SiteContext";
+import { useSite, useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 
 export default function CheckoutDetailsForm() {
+  // Storefront navigation must carry the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them — the whole
+  // client-side navigation layer was masked by those redirects.
+  const base = useStorefrontBase();
   // ADR §2.2 — customer-facing calls carry the storefront identifier.
   const siteFetch = useSiteFetch();
+  const site = useSite();
   const router = useRouter();
   const params = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
@@ -33,11 +38,25 @@ export default function CheckoutDetailsForm() {
     setSubmitting(false);
 
     if (res.ok && data.bookingId) {
-      router.push(`/checkout/confirmation/${data.bookingId}`);
+      // Site-scoped. This was a root path, which worked only because the
+      // legacy redirects catch it — on the ONE flow where a customer has just
+      // been charged the price and must land somewhere correct.
+      router.push(`/${site.hostedSlug}/checkout/confirmation/${data.bookingId}`);
     } else if (res.status === 409) {
       setError(data.error ?? "That window was just taken — please pick another time.");
     } else {
-      setError("Something went wrong — please try again.");
+      // The route sends a human-readable `message` for the rejections a
+      // customer can act on: an out-of-area ZIP, a malformed one, no
+      // configured coverage. Those were all being discarded and replaced with
+      // "Something went wrong — please try again", which tells someone
+      // outside the service area to retry the thing that cannot work, and
+      // sends them to pick a different time for a problem that has nothing to
+      // do with time.
+      setError(
+        typeof data.message === "string"
+          ? data.message
+          : "Something went wrong — please try again."
+      );
     }
   }
 
@@ -79,7 +98,7 @@ export default function CheckoutDetailsForm() {
         {error && (
           <div className="rounded-card bg-red-50 p-3 text-sm text-red-700">
             {error}{" "}
-            <button type="button" onClick={() => router.push("/checkout/schedule")} className="font-semibold underline">
+            <button type="button" onClick={() => router.push(`${base}/checkout/schedule`)} className="font-semibold underline">
               Pick a different time
             </button>
           </div>

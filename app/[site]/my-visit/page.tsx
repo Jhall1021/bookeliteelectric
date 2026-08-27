@@ -6,7 +6,7 @@ import { formatCents } from "@/lib/flow-types";
 import Image from "next/image";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
-import { useSiteFetch } from "@/components/site/SiteContext";
+import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 
 type LineItemGroup = {
   serviceId: string;
@@ -48,6 +48,10 @@ type CategoryGroup = {
 };
 
 export default function MyVisitPage() {
+  // Storefront navigation must carry the site slug. These were root paths,
+  // working only because the legacy Elite redirects catch them — the whole
+  // client-side navigation layer was masked by those redirects.
+  const base = useStorefrontBase();
   // ADR §2.2 — customer-facing calls carry the storefront identifier.
   const siteFetch = useSiteFetch();
   const router = useRouter();
@@ -84,7 +88,7 @@ export default function MyVisitPage() {
     // anything with a While We're There rate, which included services whose
     // price depends on ceiling height and attic access.
     if (s.whileWeThereBasePrice === null || s.requiresQualification) {
-      router.push(`/services/${s.categorySlug}/${s.slug}`);
+      router.push(`${base}/services/${s.categorySlug}/${s.slug}`);
       return;
     }
     const res = await siteFetch("/api/visit", {
@@ -101,7 +105,7 @@ export default function MyVisitPage() {
     // means this service gained a tree since the page loaded — send them
     // through it rather than leaving the click doing nothing.
     if (res.status === 422) {
-      router.push(`/services/${s.categorySlug}/${s.slug}`);
+      router.push(`${base}/services/${s.categorySlug}/${s.slug}`);
       return;
     }
     refresh();
@@ -126,7 +130,7 @@ export default function MyVisitPage() {
     // different room. Deliberately starts clean rather than reusing the
     // earlier answers: reuse is right within a flow, wrong across locations.
     if (group.requiresQualification) {
-      router.push(`/services/${group.categorySlug}/${group.serviceSlug}`);
+      router.push(`${base}/services/${group.categorySlug}/${group.serviceSlug}`);
       return;
     }
 
@@ -154,7 +158,7 @@ export default function MyVisitPage() {
 
       {lineItems.length === 0 ? (
         <p className="mt-4 text-slate">
-          Nothing added yet. <a href="/services" className="text-electric">Browse services</a> to get started.
+          Nothing added yet. <a href={`${base}/services`} className="text-electric">Browse services</a> to get started.
         </p>
       ) : (
         <>
@@ -399,7 +403,7 @@ export default function MyVisitPage() {
             </div>
           ) : (
             <button
-              onClick={() => router.push("/checkout/schedule")}
+              onClick={() => router.push(`${base}/checkout/schedule`)}
               className="mt-10 w-full rounded-pill bg-electric py-3.5 font-semibold text-white transition hover:bg-electric-hover"
             >
               Choose My Appointment Time
