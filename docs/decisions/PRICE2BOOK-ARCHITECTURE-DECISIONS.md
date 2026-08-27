@@ -595,6 +595,12 @@ Four things it deliberately gets right:
 - **It fails on unreadable input** — missing file, unparseable schema, absent
   model, absent field. A guard that passes silently when its input is
   unreadable is the monitoring problem one level down.
+- **A missing `ServiceQuery` model is a failure, not a satisfied condition.**
+  Confirmed 27 August. The model disappearing does not automatically satisfy
+  ADR-008: if it is ever deliberately removed, the same change must explicitly
+  update or retire this audit. That puts the architectural decision in the git
+  history rather than letting the guard infer intent from absence — which is
+  the same reason the audit cannot quietly become irrelevant.
 
 **It proves the schema shape and nothing else,** and says so on success. A
 correctly-keyed table read without a tenant filter still leaks; no schema check
