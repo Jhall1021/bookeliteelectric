@@ -17,6 +17,9 @@ export async function POST(req: Request) {
     const { text, accepted } = await req.json();
     if (typeof text !== "string") return NextResponse.json({ ok: true });
 
+    // CROSS-TENANT TODAY — ADR-008. The key is globally unique, so one
+    // contractor's customer rejecting a suggestion moves another contractor's
+    // accept/reject counters. Re-keyed in pass four.
     await prisma.serviceQuery.updateMany({
       where: { normalizedText: normalize(text) },
       data: accepted

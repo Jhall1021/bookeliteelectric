@@ -96,6 +96,23 @@ export const PLATFORM_MODELS = new Set<string>([
  * unscoped until the schema catches up — and that is exactly how a leak ships
  * quietly. A loud failure keeps the remaining work visible, and this list is
  * the to-do list for the tenant schema work.
+ *
+ * EMPTYING THIS LIST DOES NOT MEAN TENANCY IS DONE — ADR-007a.
+ *
+ * It is an inventory and a tripwire, not proof of isolation. It throws on a
+ * DIRECT query and is silent on nested reads and nested writes, so a
+ * platform-parent -> tenant-child traversal crosses the boundary without ever
+ * reaching this classification. That was measured, not feared: from a
+ * throwaway contractor's context the live harness read 5 of Elite's contractor
+ * components through a platform root while every model here was classified
+ * correctly.
+ *
+ * Note also that `withTenantGuard` is called in exactly ONE place in this
+ * repository — scripts/verify-tenant-isolation-live.ts. No application code
+ * uses a guarded client, so today this list monitors a test rather than the
+ * application.
+ *
+ * Completion is nine conditions, listed in ADR-007a. This list is one of them.
  */
 export const PENDING_TENANT_SCOPE = new Set<string>([
   "ServiceQuery",

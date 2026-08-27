@@ -419,6 +419,172 @@ The guard remains a factory (`withTenantGuard`), **not attached to
 
 ---
 
+## ADR-007a — Empty list ≠ finished — AMENDMENT, 27 August
+
+**Decided 27 August, from an actual isolation failure rather than caution.**
+
+> **`PENDING_TENANT_SCOPE` is a migration inventory and a tripwire. It is not
+> proof of tenant isolation. An empty list does not mean the tenant migration
+> is complete.**
+
+The original working assumption was that the pending list reaching zero would
+mean tenancy was done. The live harness disproved it. You can have zero flagged
+direct models and still have a cross-tenant path, because:
+
+- nested reads bypass model-level query extensions
+- nested writes bypass them too
+- a platform-parent → tenant-child traversal crosses the boundary without ever
+  triggering the guard
+
+That is not theoretical. From a throwaway contractor's context the harness read
+5 of Elite's contractor components through a platform root, with the model in
+question correctly classified the whole time.
+
+There is a second reason the list overstates itself, worth stating plainly:
+`withTenantGuard` is called in exactly one place in this repository — the test
+harness. No application code uses a guarded client. So today
+`PENDING_TENANT_SCOPE` does not monitor the application at all; it monitors a
+test. Under the standing principle, that is monitoring at best.
+
+### Completion is established by evidence, not by exhausting a list
+
+The tenant migration may be called complete only when **all nine** hold:
+
+1. No genuinely tenant-owned model remains unowned.
+2. Direct query sites have been swept and converted.
+3. Platform-parent → tenant-child relation directions have been audited.
+4. Operational tenant data is rooted at tenant-owned models.
+5. Cross-tenant foreign-key combinations have integrity checks wherever the
+   database cannot express the ownership invariant itself.
+6. Seed and migration write paths preserve tenant ownership.
+7. The gated offline tenant checks pass.
+8. The live two-contractor isolation harness passes.
+9. Remaining legacy models and fields are explicitly classified as deprecated
+   rollback scaffolding rather than accidentally left "pending".
+
+**The list tells us what we know remains. The verification tells us whether we
+are actually finished.**
+
+Point 5 is the one with no automatic backstop and the easiest to skip: a
+service and its category are each individually valid while pointing at
+different tenants, and no foreign key can say otherwise. That check exists for
+categories in `scripts/verify-category-integrity.ts`; every future tenant pair
+needs its own.
+
+Point 9 is what stopped `ServiceCategory` being left in the pending list after
+ADR-006 superseded the plan to tenant-scope it. A model sitting in that list
+for the wrong reason makes the list lie in both directions.
+
+*Evidence: `scripts/verify-tenant-isolation-live.ts`;
+`scripts/audit-platform-tenant-relations.ts`;
+`docs/migration/pass-two-scope-narrowing.md`.*
+
+## ADR-008 — `ServiceQuery` is contractor-owned — NEW, 27 August
+
+**Decided 27 August. Implementation scheduled for pass four; the decision is
+not open.**
+
+`ServiceQuery` is a contractor-owned cache, not a platform-global one. Today
+`normalizedText` is `@unique` globally, which acts as a platform-wide cache
+key. That cannot survive multi-tenancy.
+
+### Intended identity
+
+```
+contractorId + normalizedText          @@unique([contractorId, normalizedText])
+```
+
+### Rationale
+
+"install an outlet in my garage" is not guaranteed to resolve identically for
+every contractor. They may differ in active service catalog, slugs and routes,
+scope policy, supported work, trade vocabulary, and future template versions.
+
+**A cache hit from Contractor A must never decide Contractor B's service
+suggestion.** Accept the duplicated AI and cache cost: tenant-correct behaviour
+matters more than maximising cache reuse.
+
+`ServiceQuery` analytics stay contractor-separated for the same reason —
+`timesAccepted`, `timesRejected`, `outcome` and the token counters are all
+per-contractor facts. The token counters in particular are cost attribution,
+which for Price2Book is billing.
+
+If a platform-level vocabulary or intelligence corpus is wanted later, build it
+as a **separate sanitized platform model or process**. Do not turn the
+operational contractor cache into shared state, and do not make it globally
+shared merely because contractor #1 and contractor #2 both happen to be
+electrical.
+
+### Three ways the current model crosses the boundary
+
+Not one, and the write ones are already latent today:
+
+| Site | Today |
+|---|---|
+| `app/api/service-match/route.ts` read | `findUnique({ where: { normalizedText } })` — B gets A's cached match |
+| `lib/serviceMatch.ts` write | `upsert` on the global key — B's write **updates A's row**: matched slug, confidence, outcome, source, `rawExamples`, token counters |
+| `app/api/service-match/feedback/route.ts` | `updateMany({ where: { normalizedText } })` — B's customer rejecting a match moves A's counters |
+
+### A sequencing constraint, and the reason it is written down
+
+There is an accidental protection in place. The cache hit is only trusted if
+the matched slug is found in the contractor's own catalog
+(`flat.find(s => s.slug === cached.matchedServiceSlug)`). Because
+`Service.slug` is globally unique today, contractor B cannot hold A's slug, the
+lookup misses, and the cache degrades to asking the model instead of leaking.
+
+Nobody put that there deliberately, and it dies the moment `Service.slug`
+becomes per-contractor — which is the fix already logged for storefront
+routing. **Two open items that are each harmless alone combine into a silent
+wrong-answer defect, and the ORDER decides whether it ever exists.** Make slugs
+per-contractor before making `ServiceQuery` tenant-aware and the hole opens;
+do it the other way round and it never does.
+
+So: **`ServiceQuery` tenant-awareness lands before, or in the same change as,
+per-contractor service slugs.** Never after.
+
+### Not an additive migration
+
+This is the one pass-four model that cannot be done by adding a column. The
+global `normalizedText @unique` must be **replaced**, and a drop is not
+additive. Adding the compound unique alongside does not help in the meantime:
+the global constraint is precisely what stops contractor #2 having their own
+row, so the drop has to land with the backfill rather than being deferred to a
+later contract phase. Otherwise contractor #2 cannot record a query at all.
+
+### Pass four implementation target
+
+- add required `contractorId`
+- backfill existing rows to Elite
+- replace the global `normalizedText @unique` with
+  `@@unique([contractorId, normalizedText])`
+- make lookup and write paths tenant-rooted
+- make accepted / rejected / outcome / token statistics tenant-specific
+- prove identical normalized text can exist once for Elite and once for the
+  dummy **with different match results**
+- prove neither context sees or increments the other's row
+
+### Recorded where it will be read
+
+The ADR is not the place someone reaching pass four will look first. Following
+the same principle as the seed path — encode the decision where the work
+happens — this decision is also written at each site that would otherwise
+preserve the current behaviour:
+
+- `prisma/schema.prisma`, on the `ServiceQuery` model and on the
+  `normalizedText @unique` field itself
+- `app/api/service-match/route.ts`, at the cache read, including why the
+  accidental protection exists and when it dies
+- `lib/serviceMatch.ts`, at the upsert
+- `app/api/service-match/feedback/route.ts`, at the counter update
+
+`lib/tenantGuard.ts` carries ADR-007a the same way, on
+`PENDING_TENANT_SCOPE` itself.
+
+*Evidence: `prisma/schema.prisma` model `ServiceQuery`;
+`lib/serviceMatch.ts`; `app/api/service-match/route.ts`;
+`app/api/service-match/feedback/route.ts`.*
+
 ## Decisions referenced but NOT recoverable from the repo
 
 The handoff cites the ADR for two things this reconstruction cannot restore.
@@ -453,6 +619,10 @@ The handoff cites the ADR for two things this reconstruction cannot restore.
   existing line, and reconciliation runs only on add and delete.
 - **`addMaterialCostCents` flat cents on `AnswerOption`** are still Elite's
   figures with no contractor scope. Not addressed by the component split.
+- **`Service.slug` is globally unique**, so two contractors cannot both have
+  `new-120v-outlet`. Belongs with storefront routing. **Now carries a
+  sequencing constraint: it must not change before `ServiceQuery` is re-keyed**
+  — see ADR-008.
 - ~~`scripts/verify-unresolved-guards.ts` has 6 failing checks on `main`~~ —
   **resolved 27 August.** It was a real regression, not a stale fixture: the
   ADR-002 unresolved-material guard was deleted as collateral in commit

@@ -150,10 +150,35 @@ enum PhotoState {
 ///
 /// Stores the phrasing and nothing else. No name, no address, no session —
 /// there is no reason to know WHO asked, only what was asked.
+/// A contractor-owned match cache — ADR-008.
+///
+/// CONTRACTOR-OWNED, NOT PLATFORM-GLOBAL. The decision is recorded; pass four
+/// executes it. Do not preserve the global unique below because it looks
+/// deliberate — it predates multi-tenancy.
 model ServiceQuery {
   id String @id @default(cuid())
 
   /// Lowercased, punctuation stripped, whitespace collapsed. The cache key.
+  ///
+  /// GLOBALLY UNIQUE TODAY, AND THAT MUST CHANGE — ADR-008.
+  ///
+  /// This is a platform-wide cache key. "install an outlet in my garage" is
+  /// not guaranteed to resolve identically for every contractor: catalogs,
+  /// slugs, scope policy, supported work and trade vocabulary all differ. A
+  /// cache hit from contractor A must never decide contractor B's suggestion.
+  ///
+  /// Pass four replaces this with @@unique([contractorId, normalizedText]).
+  /// That is a DROP, so it is not additive — and adding the compound key
+  /// alongside does not help, because this constraint is precisely what stops
+  /// contractor #2 from having their own row. The drop lands with the
+  /// backfill, not in a later contract phase.
+  ///
+  /// SEQUENCING: ServiceQuery must become tenant-aware BEFORE, or in the same
+  /// change as, per-contractor Service.slug. Today the global uniqueness of
+  /// Service.slug accidentally protects the read path — a cached slug from
+  /// another contractor is not found in this contractor's catalog, so the
+  /// cache degrades to asking the model instead of leaking. Nobody put that
+  /// there on purpose, and it dies with per-contractor slugs.
   normalizedText String @unique
   /// A few real phrasings behind that key, for reading back later.
   rawExamples String[]

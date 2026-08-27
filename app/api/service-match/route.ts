@@ -64,6 +64,17 @@ export async function POST(req: Request) {
   }));
 
   // ---- 2. Has someone asked this before? -------------------------------
+  //
+  // CROSS-TENANT TODAY — ADR-008. This key is globally unique, so contractor
+  // B's customer can hit contractor A's cached match. Pass four re-keys it on
+  // (contractorId, normalizedText).
+  //
+  // What is holding the line in the meantime is the `flat.find` below, and it
+  // is holding it by accident: Service.slug is globally unique, so a slug
+  // cached by another contractor is never found in this contractor's catalog
+  // and the cache degrades to asking the model. That protection disappears
+  // the moment slugs become per-contractor — which is why ADR-008 says
+  // ServiceQuery must be re-keyed BEFORE, or with, that change.
   const cached = await prisma.serviceQuery.findUnique({
     where: { normalizedText: normalized },
   });

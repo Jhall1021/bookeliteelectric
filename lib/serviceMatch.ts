@@ -554,6 +554,11 @@ export async function recordQuery(
     too_many: "TOO_MANY",
   }[result.kind];
 
+  // CROSS-TENANT TODAY — ADR-008. Upserting on a globally unique key means a
+  // second contractor's write UPDATES the first contractor's row: matched
+  // slug, confidence, outcome, source, rawExamples, and the token counters,
+  // which are cost attribution. Re-keyed on (contractorId, normalizedText) in
+  // pass four.
   await prisma.serviceQuery.upsert({
     where: { normalizedText: normalized },
     create: {
