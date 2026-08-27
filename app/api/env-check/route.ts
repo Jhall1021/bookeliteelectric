@@ -12,6 +12,10 @@
  *
  * The deployment is behind Vercel protection, so reaching this at all requires
  * the bypass token.
+ *
+ * NOT named _diag: App Router treats an underscore-prefixed folder as private
+ * and excludes it from routing entirely, so that version 404'd everywhere and
+ * looked exactly like a deployment that had not built yet.
  */
 
 const NAMES = [
