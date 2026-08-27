@@ -17,18 +17,6 @@ npx tsx prisma/reconcile-scope-services.ts            # report first
 npx tsx prisma/reconcile-scope-services.ts --apply    # then publish
 
 npx tsx prisma/repair-trees.ts              # 0 dangling, 0 unreachable
-npx tsx prisma/backfill-category-split-2026-08-27.ts --apply
-                                            # REQUIRED after any seed that adds
-                                            # a category or a service. Seeds
-                                            # still write the pre-split
-                                            # ServiceCategory and leave
-                                            # Service.contractorCategoryId
-                                            # null; every operational read now
-                                            # goes through the contractor
-                                            # category and FAILS CLOSED on a
-                                            # null one. Idempotent — safe to
-                                            # run every time. See ADR-006.
-
 npm run db:reconcile                        # both should read MATCH
                                             # operational verification, not a
                                             # build gate — see ADR-003
@@ -76,3 +64,30 @@ scope, in wording the crew can point at.
 
 **Pendants are standard fixtures**, said out loud in the service description
 so nobody books a chandelier for a pendant.
+
+## The category backfill is a recovery tool, not a step
+
+`prisma/backfill-category-split-2026-08-27.ts` was required after every seed
+for exactly one day. It no longer is.
+
+Seeds write the split structure themselves, through
+`prisma/_categoryHelpers.ts` — one call creates the `CanonicalCategory`, this
+contractor's `ContractorCategory`, and the pre-split scaffolding, and every
+seeded service attaches both pointers. There is no ordering left to remember.
+
+`npm run verify` runs `scripts/verify-category-integrity.ts` as the backstop,
+and `npm run build` runs `npm run verify`. A service without a contractor
+category fails the build with the slug that is wrong and the fix.
+
+Keep the backfill for:
+
+- migration recovery, if a service is somehow written without one
+- older environments being brought forward
+- rollback and replay
+
+Run it when the verify gate tells you to. Do not add it to a routine sequence.
+
+The rule this came from is worth keeping: **if correct execution depends on a
+human remembering an ordering rule, encode the order into the write path and
+use verification as the backstop.** Stronger than either documentation or a
+gate alone.

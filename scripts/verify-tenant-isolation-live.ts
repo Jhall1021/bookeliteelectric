@@ -31,6 +31,7 @@ import { PrismaClient } from "@prisma/client";
 import { withTenantGuard, NotYetTenantScopedError } from "../lib/tenantGuard";
 import { loadOwnComponents } from "../lib/contractorComponents";
 import { categoryIcon, categoryName, categorySlug } from "../lib/categories";
+import { upsertCategory } from "../prisma/_categoryHelpers";
 import {
   withTenant,
   asPlatform,
@@ -752,6 +753,74 @@ async function main() {
     const inactive = own.filter((c) => !c.active).length;
     ok(inactive === (second ? 1 : 0), "the dummy's switched-off category stays switched off");
   });
+
+  // --- the seed idempotency rule, ADR-006 -------------------------------
+  //
+  // A reseed must never stamp contractor-owned presentation back to the
+  // seed's defaults. sortOrder, navGroup, nameOverride, iconOverride and
+  // active are the contractor's decisions, made in the admin.
+  //
+  // Run against the DUMMY deliberately. Proving this on Elite would mean
+  // renaming and deactivating a live category to watch it survive, and a
+  // failure partway leaves the real storefront wrong.
+  {
+    const before = await raw.contractorCategory.findFirstOrThrow({
+      where: { contractorId: dummy.id, canonicalCategoryId: lighting.canonicalCategoryId },
+    });
+
+    // The seed re-runs with DIFFERENT defaults from the ones the contractor
+    // has since changed. If update: {} ever stops being empty, this fails.
+    await upsertCategory(raw, dummy.id, {
+      slug: "lighting",
+      name: "Lighting",
+      icon: "light",
+      sortOrder: 0,
+      navGroup: null,
+    });
+
+    const after = await raw.contractorCategory.findFirstOrThrow({
+      where: { contractorId: dummy.id, canonicalCategoryId: lighting.canonicalCategoryId },
+    });
+
+    ok(
+      after.sortOrder === before.sortOrder,
+      `reseed does NOT reset sortOrder (${before.sortOrder} kept, seed default was 0)`,
+      `became ${after.sortOrder}`
+    );
+    ok(
+      after.nameOverride === before.nameOverride,
+      "reseed does NOT clear the contractor's name override",
+      `became ${after.nameOverride}`
+    );
+    ok(
+      after.iconOverride === before.iconOverride,
+      "reseed does NOT clear the contractor's icon override",
+      `became ${after.iconOverride}`
+    );
+    ok(
+      after.navGroup === before.navGroup,
+      "reseed does NOT reset navGroup",
+      `became ${after.navGroup}`
+    );
+
+    // Platform defaults, by contrast, DO belong to the seed.
+    const canon = await raw.canonicalCategory.findUniqueOrThrow({
+      where: { id: lighting.canonicalCategoryId },
+    });
+    ok(
+      canon.name === "Lighting" && canon.defaultIcon === "light",
+      "while the canonical platform defaults ARE maintained by the seed",
+      `got "${canon.name}" / "${canon.defaultIcon}"`
+    );
+
+    // Deactivation is contractor policy and must survive a reseed too.
+    if (second) {
+      const off = await raw.contractorCategory.findFirstOrThrow({
+        where: { contractorId: dummy.id, canonicalCategoryId: second.canonicalCategoryId },
+      });
+      ok(!off.active, "and a category the contractor switched off stays off");
+    }
+  }
 
   // And the reverse: Elite must not see the dummy's.
   await withTenant({ contractorId: elite.id, source: "test" }, async () => {

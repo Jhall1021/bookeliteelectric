@@ -16,6 +16,8 @@
  */
 
 import { PrismaClient, BookingType } from "@prisma/client";
+import { upsertCategory, categoryAttachment } from "./_categoryHelpers";
+import { eliteContractorId } from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -221,19 +223,19 @@ const CATALOG: SeedCategory[] = [
 async function main() {
   console.log("Seeding BookEliteElectric catalog...");
 
+  // ADR-006: one call writes the canonical row, this contractor's
+  // presentation of it, and the pre-split scaffolding — so a seeded service
+  // is never left without a contractor category.
+  const contractorId = await eliteContractorId(prisma);
+
   for (const [i, cat] of CATALOG.entries()) {
-    const category = await prisma.serviceCategory.upsert({
-      where: { slug: cat.slug },
-      // sortOrder is deliberately NOT synced — it's set in the admin now, and
-      // rewriting it here would undo the ordering on every reseed.
-      update: { name: cat.name, icon: cat.icon, navGroup: cat.navGroup },
-      create: {
-        slug: cat.slug,
-        name: cat.name,
-        icon: cat.icon,
-        sortOrder: i,
-        navGroup: cat.navGroup,
-      },
+    const category = await upsertCategory(prisma, contractorId, {
+      slug: cat.slug,
+      name: cat.name,
+      icon: cat.icon,
+      // Applied on create only. A reseed leaves whatever the admin has set.
+      sortOrder: i,
+      navGroup: cat.navGroup,
     });
 
     for (const svc of cat.services) {
@@ -261,7 +263,10 @@ async function main() {
         create: {
           slug: svc.slug,
           name: svc.name,
-          categoryId: category.id,
+          ...categoryAttachment(category),
+          // Without an owner, route resolution throws the first time anyone
+          // opens the page.
+          contractorId,
           bookingType: svc.bookingType,
           basePrice: svc.basePrice ? c(svc.basePrice) : null,
           startingPriceLabel: svc.startingPriceLabel,

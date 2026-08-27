@@ -257,10 +257,42 @@ pending tenant scope: the split superseded that plan. Every remaining reference
 is migration compatibility, and the only remaining write derives
 `Service.categoryId`, which is NOT NULL until the contract phase.
 
-**Seeds still write the pre-split model.** Anything a seed adds has a null
-`contractorCategoryId`, which every operational read now fails closed on, so
-the backfill must run after any seed that adds a category or service. It is
-idempotent and recorded in `RUN-ORDER.md`.
+**Step 5 done, 27 August: the seed path writes the split structure.**
+`prisma/_categoryHelpers.ts` — same principle as `_componentHelpers.ts`. One
+call writes the canonical row, the contractor's presentation of it, and the
+pre-split scaffolding; every seeded service attaches both pointers. All three
+seeds that create categories or services use it.
+
+The idempotency rule is explicit and proven: a reseed never resets
+`sortOrder`, `navGroup`, `nameOverride`, `iconOverride` or `active` — the
+contractor's `update` branch is deliberately empty. Platform defaults on
+`CanonicalCategory` ARE maintained, because those belong to the seed. The live
+harness re-runs the helper against the dummy with deliberately different
+defaults and asserts the contractor's values survive; running that proof on
+Elite would mean renaming and deactivating a live category to watch it survive.
+
+`scripts/verify-category-integrity.ts` is the backstop, in `npm run verify` and
+therefore in the build gate. Read-only — it counts and reads, writes nothing,
+creates no fixture. It checks four things: no service without a contractor
+category, no dangling pointer, no contractor category without a canonical row,
+and no service pointing at *another contractor's* category. That last one no
+foreign key can express, since both columns are individually valid while
+pointing at different tenants.
+
+**On putting a database-reading check in the build gate:** `next build`
+already requires a live connection — `/services` and `/troubleshooting` are
+statically prerendered and both query. This adds no infrastructure dependency;
+it moves the failure earlier and gives it an actionable message instead of a
+prerender stack trace. That is what distinguishes it from reconciliation, which
+stays out: this is a structural invariant production reads require, not a
+judgment about mutable pricing data.
+
+The backfill is now a recovery tool — migration replay, older environments,
+rollback — not a routine step. `RUN-ORDER.md` says so.
+
+The rule worth carrying: **if correct execution depends on a human remembering
+an ordering rule, encode the order into the write path and use verification as
+the backstop.** Stronger than either documentation or a gate alone.
 
 **Next: leave the old model in place and let this run.** The contract phase
 should be deletion rather than discovery — old structure still present as

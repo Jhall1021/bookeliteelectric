@@ -51,6 +51,7 @@ import {
   eliteContractorId,
   upsertComponent,
 } from "./_componentHelpers";
+import { categoryOfService } from "./_categoryHelpers";
 
 const prisma = new PrismaClient();
 
@@ -89,10 +90,15 @@ const REVIEW_PHOTOS = [
   "The rooms in between, and the ceiling or floor between them if you can",
 ];
 
-/** A sibling whose category these belong in — steadier than guessing a slug. */
-async function categoryOf(slug: string): Promise<string | null> {
-  const s = await prisma.service.findUnique({ where: { slug }, select: { categoryId: true } });
-  return s?.categoryId ?? null;
+/**
+ * A sibling whose category these belong in — steadier than guessing a slug.
+ *
+ * Returns BOTH pointers (ADR-006). Writing only the pre-split one is what
+ * left seeded services without a contractor category, which every operational
+ * read now fails closed on.
+ */
+async function categoryOf(slug: string) {
+  return categoryOfService(prisma, slug);
 }
 
 async function main() {
@@ -157,7 +163,7 @@ async function main() {
       name: "Install New Ethernet / Network Line",
       description:
         "A network cable run from your router or modem to a new jack in another room, ending in a proper wall plate rather than a cable under the door.",
-      categoryId: tvCat,
+      category: tvCat,
       items: [
         ["CABLE_CAT6", 60],
         ["JACK_KEYSTONE_RJ45", 2],
@@ -171,7 +177,7 @@ async function main() {
       name: "Install New Coax / Cable TV Line",
       description:
         "A coax line run to a new outlet where you need one — for a TV, a cable box, or an internet modem in a different room.",
-      categoryId: tvCat,
+      category: tvCat,
       items: [
         ["CABLE_RG6", 60],
         ["JACK_COAX_F", 2],
@@ -181,7 +187,7 @@ async function main() {
       ] as [string, number][],
     },
   ]) {
-    if (!spec.categoryId) {
+    if (!spec.category) {
       console.log(`  ! no category found for ${spec.slug} — skipped`);
       continue;
     }
@@ -199,7 +205,7 @@ async function main() {
         slug: spec.slug,
         name: spec.name,
         shortDescription: spec.description,
-        categoryId: spec.categoryId,
+        ...spec.category,
         bookingType: "ADJUSTED",
         fieldLaborHours: LV_ACCESSIBLE,
         wwtLaborHours: LV_ACCESSIBLE - 0.25,
@@ -227,7 +233,7 @@ async function main() {
         name: "Replace an Existing Wall Sconce",
         shortDescription:
           "Taking down a wall light and putting up the new one you've bought, in the same spot.",
-        categoryId: lightingCat,
+        ...lightingCat,
         bookingType: "ADJUSTED",
         fieldLaborHours: 0.75,
         wwtLaborHours: 0.5,
@@ -248,7 +254,7 @@ async function main() {
         name: "Install a New Wall Sconce",
         shortDescription:
           "A wall light where there isn't one now. You supply the fixture; we run the wiring and put it up.",
-        categoryId: lightingCat,
+        ...lightingCat,
         bookingType: "ADJUSTED",
         fieldLaborHours: 1.25,
         wwtLaborHours: 1.0,
