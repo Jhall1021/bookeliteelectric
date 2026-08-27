@@ -635,6 +635,133 @@ preserve the current behaviour:
 `lib/serviceMatch.ts`; `app/api/service-match/route.ts`;
 `app/api/service-match/feedback/route.ts`.*
 
+## ADR-009 — `PhotoGroup` is platform; `ConditionalDisclaimer` splits — NEW, 27 August
+
+**Decided 27 August. PhotoGroup classified; disclaimer expand, backfill and
+read-switch done. Legacy model retained.**
+
+Two independent models, deliberately treated differently. Symmetry was not the
+deciding factor; what the row commits a contractor to was.
+
+### `PhotoGroup` → platform, not split
+
+Six rows, keyed like `PANEL_PHOTOS`. Photo requirements describe the evidence
+needed to understand the work, and the panel-photo safety guidance is trade and
+safety knowledge. There is no contractor economics and no scope policy on the
+row today.
+
+**No `ContractorPhotoGroup` layer in this pass.** Unlike the category case,
+classifying platform creates no duplicate rows, so an override layer later is
+purely additive — no rework. "For this electrical condition these photos are
+useful, and don't remove the panel dead front" is not a promise that varies by
+contractor. Building the override now would be architecture for a requirement
+that does not exist.
+
+The existing joins keep pointing at the platform `PhotoGroup`.
+
+### `ConditionalDisclaimer` → `CanonicalDisclaimer` + `ContractorDisclaimer`
+
+```
+CanonicalDisclaimer (platform)      ContractorDisclaimer (tenant)
+  id                                  id
+  key      <- stable concept          contractorId
+  name                                canonicalDisclaimerId
+  description                         text     <- the promise
+  accessClass  <- WHEN it applies     active
+  active   <- platform lifecycle      notes
+                                      @@unique([contractorId, canonicalDisclaimerId])
+```
+
+**The homeowner-facing `text` is on the CONTRACTOR row, deliberately.** The
+concept might be `FINISHED_ROUTE_SURFACE_REPAIR`; Elite's policy says
+"Patching and painting are not included"; another contractor may include
+patching, or word scope differently. Those cannot safely share one mutable
+field.
+
+**Why not platform, like PhotoGroup.** It would be simpler, and it would put a
+subtle failure directly into the template library: editing a disclaimer for one
+contractor would change what a *different* contractor promises their homeowner.
+That is materially different from sharing `PANEL_PHOTOS`, and it is no longer
+speculative — contractor #2 can legitimately answer "do you patch the holes you
+make?" differently from Elite.
+
+`accessClass` stays canonical: *when* a statement applies is part of the
+condition. `active` exists on both, because the platform can retire a concept
+and a contractor can switch off their own statement independently — a
+disclaimer renders only when both agree.
+
+`QuestionDisclaimer` and `AnswerOptionDisclaimer` belong to a contractor's
+service tree, so their attachments resolve to that contractor's
+`ContractorDisclaimer` rather than to a global policy-text row.
+
+### State
+
+Expand pushed (two tables, two nullable columns, no drops). Backfilled: **5
+canonical concepts, 5 Elite policy rows, 2 attachments repointed**, idempotent
+on re-run, with every attachment verified to resolve to identical text, active
+state, key and `accessClass`.
+
+Reads switched in `lib/routeResolver.ts` and
+`app/api/services/[slug]/route.ts`. Both were already `Service`-rooted, so they
+were repointed rather than re-rooted — per ADR-007, a tenant-owned root already
+establishes ownership. Resolution lives in `lib/categories.ts`
+(`disclaimerIsActive`, `disclaimerAccessClass`,
+`requireContractorDisclaimer`), not at each call site.
+
+`ConditionalDisclaimer` is untouched and keeps every row. **Not contracted in
+this pass.**
+
+### Proven, not asserted
+
+Live harness, `DISCLAIMER POLICY` section: the dummy and Elite attach the
+**same canonical condition** while the dummy carries different text and a
+different active state. Each reads its own promise; Elite's row returns null
+from the dummy's context even by primary key; Elite's wording is unchanged word
+for word. 62 of 62 checks.
+
+`scripts/verify-disclaimer-integrity.ts` is in the gate, and its second check
+is the one **no foreign key can express**: an attachment's owning contractor,
+derived through the service tree, must equal the contractor whose policy it
+renders. Both columns are individually valid while naming different tenants.
+The failure mode there is not a 500 — it is a homeowner shown a commitment that
+belongs to someone else, which looks entirely correct. Proven by orphaning an
+attachment and watching the gate exit 1.
+
+### Also found
+
+**`PricingRule` is dead.** Zero rows, and the only references anywhere are the
+delete statements in the isolation test's own cleanup. It is a drop candidate
+for the contract phase, not a tenant-scope target. Do not migrate it.
+
+## ADR-010 — Ownership comes from the data model — NEW, 27 August
+
+**Partially decided.** Eight of the ten pass-two models derive ownership
+through a required foreign key rather than owning it:
+
+| Model | Ownership |
+|---|---|
+| `Question`, `ServiceMaterial`, `PricingRule` | derived ← `Service` |
+| `AnswerOption` | derived ← `Question` ← `Service` |
+| `AnswerOptionComponent`, `AnswerOptionPhotoGroup` | derived ← `AnswerOption` |
+| `QuestionDisclaimer`, `AnswerOptionDisclaimer` | derived ← `Question`/`AnswerOption` **and** the disclaimer |
+| `PhotoGroup` | **independent** → platform (ADR-009) |
+| `ConditionalDisclaimer` | **independent** → split (ADR-009) |
+
+Reading ownership from the schema rather than from `PENDING_TENANT_SCOPE` is
+what surfaced this. The list implied ten models each needing a `contractorId`;
+the data model says two are independent and eight already have an owner.
+
+**OPEN: do the eight derived models get their own `contractorId` column?**
+Adding one denormalizes ownership across ~812 rows and creates a second source
+of truth that can disagree with the parent — self-inflicting exactly the
+cross-tenant pair class that needs a hand-written integrity check per model.
+Not adding one means top-level queries on those models cannot be scoped by flat
+`contractorId` injection, and would need either re-rooting at `Service` or a
+guard that understands relation paths.
+
+21 top-level query sites across 5 files are affected. **Undecided; do not
+implement either direction until it is settled.**
+
 ## Decisions referenced but NOT recoverable from the repo
 
 The handoff cites the ADR for two things this reconstruction cannot restore.

@@ -356,6 +356,7 @@ model Contractor {
   serviceAreas        ServiceArea[]
   contractorComponents ContractorComponent[]
   contractorCategories ContractorCategory[]
+  contractorDisclaimers ContractorDisclaimer[]
   memberships         ContractorMembership[]
   invitations         ContractorInvitation[]
   supportEvents       SupportAccessEvent[]
@@ -876,6 +877,70 @@ model AnswerOptionPhotoGroup {
   @@map("answer_option_photo_groups")
 }
 
+/// What a conditional disclaimer MEANS — the reusable concept, owned by the
+/// platform.
+///
+/// "Access to a finished route may require opening surfaces" is a real
+/// electrical condition, and naming it once is what lets a service template
+/// attach it. The concept is trade knowledge.
+///
+/// Carries NO homeowner-facing text. What a contractor actually promises about
+/// that condition — whether they patch, whether they paint, what language they
+/// use — is contractor POLICY, and lives on ContractorDisclaimer.
+///
+/// That distinction is why this is split rather than classified platform like
+/// PhotoGroup: one mutable shared text field would mean editing a disclaimer
+/// for one contractor changes what a DIFFERENT contractor promises their
+/// homeowner. Contractor #2 can legitimately answer "do you patch the holes
+/// you make?" differently from Elite.
+model CanonicalDisclaimer {
+  id   String @id @default(cuid())
+  /// Stable concept identity, e.g. EXTERIOR_WALL_CONTINGENCY_OUTLET.
+  key  String @unique
+  name String
+
+  /// What the concept MEANS, for a contractor writing their own text against
+  /// it. Never shown to a homeowner.
+  description String?
+
+  /// Only render when the access classification matches. Null means always.
+  /// The CONDITION is part of the concept; the statement is not.
+  accessClass AccessClassification?
+
+  /// Platform template lifecycle. Retiring a concept from the library does not
+  /// retire it from contractors already using it.
+  active Boolean @default(true)
+
+  contractorDisclaimers ContractorDisclaimer[]
+
+  @@map("canonical_disclaimers")
+}
+
+/// One contractor's statement of policy for a canonical condition.
+///
+/// The homeowner-facing text lives HERE, deliberately. Elite may say "Patching
+/// and painting are not included"; another contractor may include patching, or
+/// word the scope differently. Those cannot safely share one mutable field.
+model ContractorDisclaimer {
+  id                    String              @id @default(cuid())
+  contractorId          String
+  contractor            Contractor          @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  canonicalDisclaimerId String
+  canonicalDisclaimer   CanonicalDisclaimer @relation(fields: [canonicalDisclaimerId], references: [id], onDelete: Restrict)
+
+  /// Shown to the customer when the condition holds. This contractor's words.
+  text   String
+  active Boolean @default(true)
+  notes  String?
+
+  questions QuestionDisclaimer[]
+  options   AnswerOptionDisclaimer[]
+
+  @@unique([contractorId, canonicalDisclaimerId])
+  @@index([contractorId])
+  @@map("contractor_disclaimers")
+}
+
 /// Text shown only when an earlier answer means it applies.
 ///
 /// The fourth bespoke version of this was about to be built. Each one —
@@ -911,8 +976,15 @@ model QuestionDisclaimer {
   id           String                @id @default(cuid())
   questionId   String
   question     Question              @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  /// DEPRECATED — replaced by contractorDisclaimerId below.
   disclaimerId String
   disclaimer   ConditionalDisclaimer @relation(fields: [disclaimerId], references: [id])
+
+  /// The contractor's policy statement for this condition. Nullable only for
+  /// the duration of the migration; required in the contract phase.
+  contractorDisclaimerId String?
+  contractorDisclaimer   ContractorDisclaimer? @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
+
   /// When true this REPLACES the question's help text rather than appending
   /// to it — for cases where the default is actively wrong on this route.
   replacesHelpText Boolean @default(false)
@@ -926,8 +998,14 @@ model AnswerOptionDisclaimer {
   id             String                @id @default(cuid())
   answerOptionId String
   answerOption   AnswerOption          @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+  /// DEPRECATED — replaced by contractorDisclaimerId below.
   disclaimerId   String
   disclaimer     ConditionalDisclaimer @relation(fields: [disclaimerId], references: [id])
+
+  /// The contractor's policy statement. Nullable during migration only.
+  contractorDisclaimerId String?
+  contractorDisclaimer   ContractorDisclaimer? @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
+
   order          Int                   @default(0)
 
   @@unique([answerOptionId, disclaimerId])

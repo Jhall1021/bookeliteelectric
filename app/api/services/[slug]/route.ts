@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ServiceFlowDTO } from "@/lib/flow-types";
-import { categoryIcon, requireContractorCategory } from "@/lib/categories";
+import {
+  categoryIcon,
+  requireContractorCategory,
+  disclaimerIsActive,
+  disclaimerAccessClass,
+  requireContractorDisclaimer,
+} from "@/lib/categories";
 import {
   loadOwnComponents,
   canonicalComponentIdsIn,
@@ -50,7 +56,11 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         include: {
           conditionalHelp: {
             orderBy: { order: "asc" },
-            include: { disclaimer: true },
+            // ADR-009: the contractor's policy statement, not the shared
+            // pre-split text. Service-rooted, so the traversal is safe.
+            include: {
+              contractorDisclaimer: { include: { canonicalDisclaimer: true } },
+            },
           },
           options: {
             orderBy: { order: "asc" },
@@ -68,7 +78,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
               },
               conditionalDisclaimers: {
                 orderBy: { order: "asc" },
-                include: { disclaimer: true },
+                include: {
+                  contractorDisclaimer: { include: { canonicalDisclaimer: true } },
+                },
               },
             },
           },
@@ -111,10 +123,14 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
       helpText: q.helpText,
       inputType: q.inputType,
       conditionalHelp: q.conditionalHelp
-        .filter((h) => h.disclaimer.active)
         .map((h) => ({
-          text: h.disclaimer.text,
-          accessClass: h.disclaimer.accessClass,
+          h,
+          policy: requireContractorDisclaimer(service.slug, h.contractorDisclaimer),
+        }))
+        .filter(({ policy }) => disclaimerIsActive(policy))
+        .map(({ h, policy }) => ({
+          text: policy.text,
+          accessClass: disclaimerAccessClass(policy),
           replaces: h.replacesHelpText,
         })),
       order: q.order,
@@ -156,10 +172,13 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
         accessClassification: o.accessClassification,
         accessFinishedDisclaimer: o.accessFinishedDisclaimer,
         conditionalDisclaimers: o.conditionalDisclaimers
-          .filter((d) => d.disclaimer.active)
           .map((d) => ({
-            text: d.disclaimer.text,
-            accessClass: d.disclaimer.accessClass,
+            policy: requireContractorDisclaimer(service.slug, d.contractorDisclaimer),
+          }))
+          .filter(({ policy }) => disclaimerIsActive(policy))
+          .map(({ policy }) => ({
+            text: policy.text,
+            accessClass: disclaimerAccessClass(policy),
           })),
         components: o.components.flatMap((sel) => {
           const canonical = sel.canonicalComponent;

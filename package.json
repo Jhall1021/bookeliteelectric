@@ -20,7 +20,7 @@
     "db:cleanup-orphaned-quotes": "tsx prisma/cleanup-orphaned-quotes.ts",
     "db:cleanup-old-appliance-services": "tsx prisma/cleanup-old-appliance-services.ts",
     "db:studio": "prisma studio",
-    "verify": "tsx scripts/verify-unresolved-guards.ts && tsx scripts/verify-publication-guard.ts && tsx scripts/verify-visit-primary.ts && tsx scripts/verify-material-cost.ts && tsx scripts/audit-price-writers.ts && tsx scripts/audit-platform-tenant-relations.ts && tsx scripts/verify-category-integrity.ts && tsx scripts/audit-tenant-migration-order.ts"
+    "verify": "tsx scripts/verify-unresolved-guards.ts && tsx scripts/verify-publication-guard.ts && tsx scripts/verify-visit-primary.ts && tsx scripts/verify-material-cost.ts && tsx scripts/audit-price-writers.ts && tsx scripts/audit-platform-tenant-relations.ts && tsx scripts/verify-category-integrity.ts && tsx scripts/verify-disclaimer-integrity.ts && tsx scripts/audit-tenant-migration-order.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",

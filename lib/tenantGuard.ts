@@ -56,6 +56,10 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// ADR-006. A contractor's presentation of a canonical category: their
   /// ordering, grouping, naming and whether they offer it at all.
   "ContractorCategory",
+  /// One contractor's statement of policy for a canonical condition. The
+  /// homeowner-facing text lives here because it IS policy — whether they
+  /// patch, whether they paint, what language they use.
+  "ContractorDisclaimer",
 ]);
 
 /**
@@ -74,10 +78,26 @@ export const PLATFORM_MODELS = new Set<string>([
   /// ContractorComponent, which is tenant-scoped.
   "CanonicalComponent",
   "ZipCode",
+  /// Photo requirements are trade and SAFETY knowledge, not contractor policy
+  /// — "for this electrical condition these photos are useful, and don't
+  /// remove the panel dead front" is true for every electrician. The six rows
+  /// are reusable electrical concepts and carry no economics and no scope
+  /// policy.
+  ///
+  /// Deliberately NOT split. If a contractor later wants different labels or
+  /// extra photos, an override layer is additive and costs nothing to add
+  /// then; building one now would be architecture for a requirement that does
+  /// not exist. Contrast CanonicalDisclaimer, where the text IS contractor
+  /// policy.
+  "PhotoGroup",
   /// A category ROLE is trade knowledge shared by every contractor — ADR-006,
   /// the same basis as CanonicalMaterial and CanonicalComponent. Ordering,
   /// naming and visibility live on ContractorCategory, which is tenant-scoped.
   "CanonicalCategory",
+  /// The reusable CONDITION a disclaimer applies to — trade knowledge. Carries
+  /// no homeowner-facing text; that is contractor policy on
+  /// ContractorDisclaimer.
+  "CanonicalDisclaimer",
   /// Deprecated pre-split models, awaiting removal in the contract phase.
   "Material",
   "JobComponent",
@@ -121,7 +141,6 @@ export const PENDING_TENANT_SCOPE = new Set<string>([
   "MaterialCostEvent",
   "ContractorMaterialSettings",
   "ServiceMaterial",
-  "PhotoGroup",
   "AnswerOptionPhotoGroup",
   "ConditionalDisclaimer",
   "QuestionDisclaimer",

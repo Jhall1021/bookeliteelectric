@@ -29,7 +29,7 @@
  * long as someone remembers.
  */
 
-import type { PrismaClient, Prisma } from "@prisma/client";
+import type { PrismaClient, Prisma, AccessClassification } from "@prisma/client";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -132,4 +132,58 @@ export function requireContractorCategory<T>(serviceSlug: string, cc: T | null |
     );
   }
   return cc;
+}
+
+/**
+ * A disclaimer's resolved presentation — ADR-009.
+ *
+ * The CONDITION is canonical (`accessClass` — when it applies); the STATEMENT
+ * is contractor policy (`text`, `active` — what they promise). Both `active`
+ * flags matter: the platform can retire a concept, and a contractor can switch
+ * off their own statement independently, so a disclaimer renders only when
+ * both say so.
+ *
+ * Here rather than at each call site for the reason the category resolvers
+ * are: two read paths resolving policy slightly differently is how a customer
+ * gets told something their contractor did not promise.
+ */
+export type PresentableDisclaimer = {
+  text: string;
+  active: boolean;
+  canonicalDisclaimer: {
+    // The real enum, not `string`. Widening it here would quietly widen every
+    // DTO that carries an access classification downstream.
+    accessClass: AccessClassification | null;
+    active: boolean;
+  };
+};
+
+/** Does this disclaimer render at all? Both lifecycles must agree. */
+export function disclaimerIsActive(d: PresentableDisclaimer): boolean {
+  return d.active && d.canonicalDisclaimer.active;
+}
+
+/** When it applies. Null means always. */
+export function disclaimerAccessClass(
+  d: PresentableDisclaimer
+): AccessClassification | null {
+  return d.canonicalDisclaimer.accessClass;
+}
+
+/**
+ * The contractor's policy row, or a thrown error.
+ *
+ * Nullable for the duration of the ADR-009 migration. A missing one means the
+ * attachment was written without running the backfill — and defaulting to the
+ * legacy shared text would tell a homeowner a promise that belongs to a
+ * different contractor, which is precisely what the split exists to prevent.
+ */
+export function requireContractorDisclaimer<T>(key: string, d: T | null | undefined): T {
+  if (!d) {
+    throw new Error(
+      `Disclaimer attachment "${key}" has no contractor policy row. Run ` +
+        `prisma/backfill-disclaimer-split-2026-08-27.ts --apply.`
+    );
+  }
+  return d;
 }

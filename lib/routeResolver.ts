@@ -33,6 +33,11 @@ import {
   type OwnComponentMap,
 } from "./contractorComponents";
 import {
+  disclaimerIsActive,
+  disclaimerAccessClass,
+  requireContractorDisclaimer,
+} from "./categories";
+import {
   startConfiguration,
   applyBranch,
   customerPrice,
@@ -127,7 +132,15 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
               // separately, from their own tenant-rooted query.
               components: { include: { canonicalComponent: true } },
               photoGroups: { include: { photoGroup: true } },
-              conditionalDisclaimers: { include: { disclaimer: true } },
+              // ADR-009: the contractor's policy statement, not the shared
+              // pre-split text. Service-rooted, so this traversal is safe.
+              conditionalDisclaimers: {
+                include: {
+                  contractorDisclaimer: {
+                    include: { canonicalDisclaimer: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -337,9 +350,11 @@ export function resolveRoute(
     photoLabels.push(...option.requiredPhotoLabels);
     if (option.disclaimer) disclaimers.push(option.disclaimer);
     for (const d of option.conditionalDisclaimers) {
-      if (!d.disclaimer.active) continue;
-      if (d.disclaimer.accessClass === null || d.disclaimer.accessClass === config.accessClass) {
-        disclaimers.push(d.disclaimer.text);
+      const policy = requireContractorDisclaimer(service.slug, d.contractorDisclaimer);
+      if (!disclaimerIsActive(policy)) continue;
+      const ac = disclaimerAccessClass(policy);
+      if (ac === null || ac === config.accessClass) {
+        disclaimers.push(policy.text);
       }
     }
 

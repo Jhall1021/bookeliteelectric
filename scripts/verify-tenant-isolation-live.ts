@@ -104,6 +104,15 @@ async function purgeDummy(contractorId: string) {
   await raw.contractorComponent.deleteMany({ where: { contractorId } });
   // After the services, which reference these and restrict on delete.
   await raw.contractorCategory.deleteMany({ where: { contractorId } });
+  // Attachments restrict on delete too; the dummy creates none, but a partial
+  // run might have.
+  await raw.questionDisclaimer.deleteMany({
+    where: { contractorDisclaimer: { contractorId } },
+  });
+  await raw.answerOptionDisclaimer.deleteMany({
+    where: { contractorDisclaimer: { contractorId } },
+  });
+  await raw.contractorDisclaimer.deleteMany({ where: { contractorId } });
   return { materials: materials.count, services: serviceIds.length };
 }
 
@@ -844,6 +853,89 @@ async function main() {
         el.sortOrder === eliteLightingSort,
       "and Elite's lighting presentation is field-for-field unchanged",
       el ? `"${categoryName(el)}" / "${categoryIcon(el)}" / ${el.sortOrder}` : ""
+    );
+  });
+
+  // ---- disclaimer policy, ADR-009 ---------------------------------------
+  //
+  // The reason this model was split rather than classified platform like
+  // PhotoGroup: the text is a PROMISE TO A HOMEOWNER. One shared mutable field
+  // would mean editing a disclaimer for one contractor changes what a
+  // different contractor has committed to. "Do you patch the holes you make?"
+  // is a question two electricians can legitimately answer differently.
+  //
+  // So the claim under test is not isolation in the abstract — it is that the
+  // same canonical CONDITION carries two different PROMISES, and neither
+  // contractor can see or alter the other's.
+  console.log(`\nDISCLAIMER POLICY — ADR-009\n`);
+
+  const eliteDisclaimers = await raw.contractorDisclaimer.findMany({
+    where: { contractorId: elite.id },
+    include: { canonicalDisclaimer: { select: { id: true, key: true, accessClass: true } } },
+    orderBy: { canonicalDisclaimer: { key: "asc" } },
+  });
+  ok(
+    eliteDisclaimers.length > 0,
+    `Elite has policy rows to diverge from (${eliteDisclaimers.length})`,
+    "run prisma/backfill-disclaimer-split-2026-08-27.ts --apply"
+  );
+
+  const shared = eliteDisclaimers[0];
+  const ELITE_TEXT = shared.text;
+  const DUMMY_TEXT = "We patch and paint every opening we make. (dummy policy)";
+  ok(
+    ELITE_TEXT !== DUMMY_TEXT,
+    "the two policies are genuinely different strings"
+  );
+
+  await raw.contractorDisclaimer.create({
+    data: {
+      contractorId: dummy.id,
+      canonicalDisclaimerId: shared.canonicalDisclaimerId,
+      text: DUMMY_TEXT,
+      // Also switched off — a contractor may decline to show a statement at
+      // all, independently of whether the platform still publishes the concept.
+      active: false,
+    },
+  });
+
+  await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    const own = await guarded.contractorDisclaimer.findMany({
+      include: { canonicalDisclaimer: { select: { key: true, accessClass: true } } },
+    });
+    ok(own.length === 1, `dummy sees only its own 1 policy row, not Elite's ${eliteDisclaimers.length}`,
+       `got ${own.length}`);
+    ok(own[0]?.text === DUMMY_TEXT, "and reads its OWN promise", `got "${own[0]?.text}"`);
+    ok(own[0]?.text !== ELITE_TEXT, "which is not Elite's promise");
+    ok(own[0]?.active === false, "and its own active state, independent of Elite's");
+
+    ok(
+      own[0]?.canonicalDisclaimerId === shared.canonicalDisclaimerId,
+      "while both point at the SAME canonical condition, not a copy"
+    );
+    ok(
+      own[0]?.canonicalDisclaimer.accessClass === shared.canonicalDisclaimer.accessClass,
+      "and the condition itself — WHEN it applies — is shared platform knowledge"
+    );
+
+    const byId = await attempt(() =>
+      guarded.contractorDisclaimer.findUnique({ where: { id: shared.id } })
+    );
+    ok(byId.value === null, "Elite's policy row is null even by primary key",
+       byId.value ? "LEAKED" : "");
+  });
+
+  await withTenant({ contractorId: elite.id, source: "test" }, async () => {
+    const seen = await guarded.contractorDisclaimer.findMany();
+    ok(
+      seen.every((d) => d.contractorId === elite.id),
+      "Elite sees no dummy policy"
+    );
+    const same = seen.find((d) => d.id === shared.id);
+    ok(
+      same?.text === ELITE_TEXT && same?.active === shared.active,
+      "and Elite's own promise is unchanged, word for word",
+      `got "${same?.text}"`
     );
   });
 
