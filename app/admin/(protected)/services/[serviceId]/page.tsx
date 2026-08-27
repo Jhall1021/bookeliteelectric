@@ -38,7 +38,12 @@ export default async function EditServicePage({ params }: { params: { serviceId:
   // Single global row. Null only if pricing has never been configured, in
   // which case the panel says so rather than showing a price built on
   // defaults nobody chose.
-  const settings = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
+  // ADR-007a: PricingSettings carries contractorId and is tenant-scoped. This
+  // read used `where: { id: "default" }` — the pre-tenant singleton row — so
+  // with two contractors every admin surface would have read the same
+  // settings regardless of who was asking. Keyed by contractor now, on the
+  // guarded client.
+  const settings = await db.pricingSettings.findUnique({ where: { contractorId } });
 
   // For the "link this option's price to another service" dropdown.
   const allServices = await db.service.findMany({

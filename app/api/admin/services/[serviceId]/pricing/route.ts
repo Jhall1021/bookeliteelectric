@@ -77,7 +77,8 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   }
 
   if (action === "publish") {
-    const settings = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
+    // ADR-007a: keyed by contractor, not the pre-tenant "default" row.
+    const settings = await db.pricingSettings.findUnique({ where: { contractorId } });
     if (!settings) {
       return NextResponse.json(
         { error: "Pricing settings not configured — cannot compute a price to publish." },

@@ -1,7 +1,12 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useStorefrontBase } from "@/components/site/SiteContext";
 
 export default function Footer() {
+  // Same reasoning as the header: storefront links carry the site slug.
+  const base = useStorefrontBase();
   return (
     <footer className="bg-charcoal py-12 text-white">
       <div className="mx-auto max-w-6xl px-6">
@@ -27,10 +32,10 @@ export default function Footer() {
           </div>
 
           <nav className="flex flex-col gap-2 text-sm text-white/70 sm:items-end">
-            <Link href="/how-it-works" className="hover:text-white">How It Works</Link>
-            <Link href="/services" className="hover:text-white">Services &amp; Pricing</Link>
-            <Link href="/why-elite" className="hover:text-white">Why Elite</Link>
-            <Link href="/service-area" className="hover:text-white">Service Area</Link>
+            <Link href={`${base}/how-it-works`} className="hover:text-white">How It Works</Link>
+            <Link href={`${base}/services`} className="hover:text-white">Services &amp; Pricing</Link>
+            <Link href={`${base}/why-elite`} className="hover:text-white">Why Elite</Link>
+            <Link href={`${base}/service-area`} className="hover:text-white">Service Area</Link>
           </nav>
         </div>
 

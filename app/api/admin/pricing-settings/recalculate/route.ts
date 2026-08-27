@@ -42,8 +42,13 @@ export async function POST() {
   const contractorId = await soleContractorId(prisma, "the recalculate admin");
   return withContractor(contractorId, "admin-session", async (db) => {
 
-  const settings = (await prisma.pricingSettings.findUnique({
-    where: { id: "default" },
+  // ADR-007a: PricingSettings carries contractorId and is tenant-scoped. This
+  // read used `where: { id: "default" }` — the pre-tenant singleton row — so
+  // with two contractors every admin surface would have read the same
+  // settings regardless of who was asking. Keyed by contractor now, on the
+  // guarded client.
+  const settings = (await db.pricingSettings.findUnique({
+    where: { contractorId },
   })) as PricingSettings | null;
   if (!settings) {
     return NextResponse.json(

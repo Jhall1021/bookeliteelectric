@@ -60,6 +60,21 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// homeowner-facing text lives here because it IS policy — whether they
   /// patch, whether they paint, what language they use.
   "ContractorDisclaimer",
+  /// CONFIGURATION, scoped in an earlier pass and left in PENDING_TENANT_SCOPE
+  /// by mistake until 27 August. All five carry contractorId today —
+  /// PricingSettings, BusinessHours, ContractorMaterialSettings and
+  /// JobberConnection with @unique, ServiceArea with an index.
+  ///
+  /// Found by a 500, not by reading the list: loadPricingSettings on the
+  /// guarded client threw NotYetTenantScopedError and add-to-visit broke. The
+  /// list said work remained that had been finished, which is ADR-007a's point
+  /// running in the other direction — an inventory overstates as easily as it
+  /// understates, and only the schema is authoritative.
+  "PricingSettings",
+  "BusinessHours",
+  "ContractorMaterialSettings",
+  "JobberConnection",
+  "ServiceArea",
 ]);
 
 /**
@@ -172,10 +187,8 @@ export const DEPRECATED_MODELS = new Set<string>([
  */
 export const PENDING_TENANT_SCOPE = new Set<string>([
   "ServiceQuery",
-  "BusinessHours",
   "MaterialSupplierLink",
   "MaterialCostEvent",
-  "ContractorMaterialSettings",
   "ConditionalDisclaimer",
   "Customer",
   "Visit",
@@ -183,11 +196,8 @@ export const PENDING_TENANT_SCOPE = new Set<string>([
   "Booking",
   "Quote",
   "Photo",
-  "ServiceArea",
   "ArrivalWindow",
   "TroubleshootingSession",
-  "PricingSettings",
-  "JobberConnection",
   "JobberCrewMember",
 ]);
 

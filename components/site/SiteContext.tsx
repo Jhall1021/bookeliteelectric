@@ -23,6 +23,7 @@
  */
 
 import { createContext, useContext, useCallback, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 
 const SiteContext = createContext<{ publicId: string; hostedSlug: string } | null>(null);
 
@@ -107,3 +108,32 @@ export function useSiteFetch() {
     [publicId]
   );
 }
+
+/**
+ * The storefront prefix for building links in shared chrome.
+ *
+ * The header and footer live in the ROOT layout, above `[site]`, so the
+ * provider cannot reach them — they also render on `/admin`, where there is no
+ * storefront at all. They still have to link within the current storefront, or
+ * every nav click leaves it.
+ *
+ * So this reads the first path segment. That is LINK CONSTRUCTION, not tenant
+ * resolution: it decides where a link points, never who the request acts for.
+ * Nothing is authorised by it, no query is scoped by it, and the server
+ * re-resolves the site from `x-price2book-site` or the URL on every request
+ * regardless. §2.2's rule is about authority, and this has none.
+ *
+ * Returns "" outside a storefront, so admin chrome keeps its root-relative
+ * links exactly as before.
+ */
+export function useStorefrontBase(): string {
+  const site = useContext(SiteContext);
+  const pathname = usePathname();
+  if (site) return `/${site.hostedSlug}`;
+  const first = pathname?.split("/").filter(Boolean)[0];
+  if (!first || NON_STOREFRONT_SEGMENTS.has(first)) return "";
+  return `/${first}`;
+}
+
+/** Root segments that are not a storefront. */
+const NON_STOREFRONT_SEGMENTS = new Set(["admin", "api", "_next"]);

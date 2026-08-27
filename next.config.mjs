@@ -41,6 +41,20 @@ const nextConfig = {
         destination: `/${LEGACY_SITE}/troubleshooting`,
         permanent: false,
       },
+      // The rest of the booking flow moved too. Missing these was a real
+      // defect: /my-visit 404'd for anyone with the old link bookmarked or
+      // open in a tab, found by the browser smoke test rather than by the
+      // build, which cannot know a route used to exist.
+      { source: "/my-visit", destination: `/${LEGACY_SITE}/my-visit`, permanent: false },
+      {
+        source: "/checkout/:path*",
+        destination: `/${LEGACY_SITE}/checkout/:path*`,
+        permanent: false,
+      },
+      { source: "/quote/:path*", destination: `/${LEGACY_SITE}/quote/:path*`, permanent: false },
+      { source: "/service-area", destination: `/${LEGACY_SITE}/service-area`, permanent: false },
+      { source: "/how-it-works", destination: `/${LEGACY_SITE}/how-it-works`, permanent: false },
+      { source: "/why-elite", destination: `/${LEGACY_SITE}/why-elite`, permanent: false },
     ];
   },
 };
