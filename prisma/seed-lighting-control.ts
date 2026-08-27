@@ -28,6 +28,12 @@ import {
   findDanglingReferences,
   findUnreachableQuestions,
 } from "./_moduleHelpers";
+import {
+  eliteContractorId,
+  upsertComponent,
+  componentIdByKey,
+  retireComponents,
+} from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -195,31 +201,17 @@ const REVIEW_PHOTOS = [
  * Retired rather than deleted below — they may appear on past bookings.
  */
 async function retireOldSwitchLegComponents() {
-  const retired = await prisma.jobComponent.updateMany({
-    where: { key: { in: ["NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE", "NEW_SWITCH_AND_SWITCH_LEG_FINISHED"] } },
-    data: { active: false },
-  });
-  if (retired.count) console.log(`  ✓ ${retired.count} superseded switch-leg component(s) retired`);
+  const retired = await retireComponents(prisma, ["NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE", "NEW_SWITCH_AND_SWITCH_LEG_FINISHED"]);
+  if (retired) console.log(`  ✓ ${retired} superseded switch-leg component(s) retired`);
 }
 
 async function seedComponents() {
+  const contractorId = await eliteContractorId(prisma);
   for (const c of COMPONENTS) {
-    await prisma.jobComponent.upsert({
-      where: { key: c.key },
-      update: {
-        name: c.name,
-        customerFacingLabel: c.customerFacingLabel,
-        addFieldLaborHours: c.addFieldLaborHours,
-        addMaterialCostCents: c.addMaterialCostCents,
-        addScheduleMinutes: c.addScheduleMinutes,
-        approvedPriceCents: c.approvedPriceCents,
-        notes: c.notes,
-      },
-      create: c,
-    });
+    await upsertComponent(prisma, contractorId, c);
   }
   for (const c of SWITCHLEG) {
-    await prisma.jobComponent.upsert({ where: { key: c.key }, update: { ...c }, create: c });
+    await upsertComponent(prisma, contractorId, c);
   }
   console.log(`  ✓ ${COMPONENTS.length + SWITCHLEG.length} job components defined`);
 }
@@ -243,7 +235,7 @@ async function attach(slug: string) {
   const nextOrder = kept.length;
 
   const comp = async (key: string) =>
-    (await prisma.jobComponent.findUniqueOrThrow({ where: { key } })).id;
+    await componentIdByKey(prisma, key);
 
   const qControl = await upsertQuestion(prisma, service.id, {
     key: CONTROL_KEY,
@@ -391,12 +383,12 @@ prompt: "Would you like a dimmer on the new switch?",
       // "ceiling_access = accessible" or "attic_access = has_access".
       {
         answerOptionId: switchedOutlet.id,
-        componentId: await comp("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE"),
+        canonicalComponentId: await comp("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE"),
         conditionAccessClass: "ACCESSIBLE",
       },
       {
         answerOptionId: switchedOutlet.id,
-        componentId: await comp("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED"),
+        canonicalComponentId: await comp("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED"),
         conditionAccessClass: "FINISHED",
       },
     ],
@@ -493,7 +485,7 @@ prompt: "Would you like a dimmer on the new switch?",
     where: { questionId: qWallAccess.id, value: "has_access" },
   });
   await prisma.answerOptionComponent.create({
-    data: { answerOptionId: wallHasAccess.id, componentId: await comp("SWITCH_POWER_RUN_ACCESSIBLE") },
+    data: { answerOptionId: wallHasAccess.id, canonicalComponentId: await comp("SWITCH_POWER_RUN_ACCESSIBLE") },
   });
 
   await prisma.answerOption.createMany({
@@ -541,7 +533,7 @@ prompt: "Would you like a dimmer on the new switch?",
     where: { questionId: qFinishedBoth.id, value: "finished_both_sides" },
   });
   await prisma.answerOptionComponent.create({
-    data: { answerOptionId: finishedYes.id, componentId: await comp("SWITCH_POWER_RUN_FINISHED") },
+    data: { answerOptionId: finishedYes.id, canonicalComponentId: await comp("SWITCH_POWER_RUN_FINISHED") },
   });
 
   // Distance bands. Each answer carries both access variants; the
@@ -567,8 +559,8 @@ prompt: "Would you like a dimmer on the new switch?",
     });
     await prisma.answerOptionComponent.createMany({
       data: [
-        { answerOptionId: opt.id, componentId: await comp(accKey), conditionAccessClass: "ACCESSIBLE" },
-        { answerOptionId: opt.id, componentId: await comp(finKey), conditionAccessClass: "FINISHED" },
+        { answerOptionId: opt.id, canonicalComponentId: await comp(accKey), conditionAccessClass: "ACCESSIBLE" },
+        { answerOptionId: opt.id, canonicalComponentId: await comp(finKey), conditionAccessClass: "FINISHED" },
       ],
     });
   }
@@ -629,7 +621,7 @@ prompt: "Would you like a dimmer on the new switch?",
     where: { questionId: qDimmer.id, value: "dimmer" },
   });
   await prisma.answerOptionComponent.create({
-    data: { answerOptionId: dimmerYes.id, componentId: await comp("LED_DIMMER_UPGRADE") },
+    data: { answerOptionId: dimmerYes.id, canonicalComponentId: await comp("LED_DIMMER_UPGRADE") },
   });
 
   // --- wire the module INTO the tree -----------------------------------

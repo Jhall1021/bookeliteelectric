@@ -52,6 +52,7 @@ import { requireTenant, CrossTenantError } from "./tenantContext";
 export const TENANT_SCOPED_MODELS = new Set<string>([
   "Service",
   "ContractorMaterial",
+  "ContractorComponent",
 ]);
 
 /**
@@ -65,8 +66,14 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
 export const PLATFORM_MODELS = new Set<string>([
   "Contractor",
   "CanonicalMaterial",
+  /// A component ROLE is trade knowledge shared by every contractor — the
+  /// same basis as CanonicalMaterial. Its economics live on
+  /// ContractorComponent, which is tenant-scoped.
+  "CanonicalComponent",
   "ZipCode",
+  /// Deprecated pre-split models, awaiting removal in the contract phase.
   "Material",
+  "JobComponent",
 ]);
 
 /**
@@ -90,7 +97,6 @@ export const PENDING_TENANT_SCOPE = new Set<string>([
   "ConditionalDisclaimer",
   "QuestionDisclaimer",
   "AnswerOptionDisclaimer",
-  "JobComponent",
   "AnswerOptionComponent",
   "Question",
   "AnswerOption",

@@ -23,6 +23,11 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import {
+  eliteContractorId,
+  upsertComponent,
+  componentIdByKey,
+} from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -104,8 +109,9 @@ const REVIEW_PHOTOS = [
 ];
 
 async function main() {
+  const contractorId = await eliteContractorId(prisma);
   for (const c of COMPONENTS) {
-    await prisma.jobComponent.upsert({ where: { key: c.key }, update: { ...c }, create: c });
+    await upsertComponent(prisma, contractorId, c);
   }
   console.log(`  ✓ ${COMPONENTS.length} distance components defined`);
 
@@ -157,7 +163,7 @@ async function main() {
   });
 
   const comp = async (k: string) =>
-    (await prisma.jobComponent.findUniqueOrThrow({ where: { key: k } })).id;
+    await componentIdByKey(prisma, k);
 
   // Under 10 ft on an open route is the base price, so it carries no
   // component — an answer with no components resolves at the accumulated
@@ -167,8 +173,8 @@ async function main() {
   });
   await prisma.answerOptionComponent.createMany({
     data: [
-      { answerOptionId: under10.id, componentId: await comp("OUTLET_RUN_ACCESSIBLE_UNDER_10"), conditionAccessClass: "ACCESSIBLE" },
-      { answerOptionId: under10.id, componentId: await comp("OUTLET_RUN_FINISHED_UNDER_10"), conditionAccessClass: "FINISHED" },
+      { answerOptionId: under10.id, canonicalComponentId: await comp("OUTLET_RUN_ACCESSIBLE_UNDER_10"), conditionAccessClass: "ACCESSIBLE" },
+      { answerOptionId: under10.id, canonicalComponentId: await comp("OUTLET_RUN_FINISHED_UNDER_10"), conditionAccessClass: "FINISHED" },
     ],
   });
 
@@ -177,8 +183,8 @@ async function main() {
   });
   await prisma.answerOptionComponent.createMany({
     data: [
-      { answerOptionId: d10_20.id, componentId: await comp("OUTLET_RUN_ACCESSIBLE_10_20"), conditionAccessClass: "ACCESSIBLE" },
-      { answerOptionId: d10_20.id, componentId: await comp("OUTLET_RUN_FINISHED_10_20"), conditionAccessClass: "FINISHED" },
+      { answerOptionId: d10_20.id, canonicalComponentId: await comp("OUTLET_RUN_ACCESSIBLE_10_20"), conditionAccessClass: "ACCESSIBLE" },
+      { answerOptionId: d10_20.id, canonicalComponentId: await comp("OUTLET_RUN_FINISHED_10_20"), conditionAccessClass: "FINISHED" },
     ],
   });
 

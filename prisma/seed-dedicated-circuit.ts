@@ -16,6 +16,11 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import {
+  eliteContractorId,
+  upsertComponent,
+  componentIdByKey,
+} from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -112,20 +117,9 @@ const RETIRED = [
 ];
 
 async function main() {
+  const contractorId = await eliteContractorId(prisma);
   for (const c of CIRCUIT_COMPONENTS) {
-    await prisma.jobComponent.upsert({
-      where: { key: c.key },
-      update: {
-        name: c.name,
-        customerFacingLabel: c.customerFacingLabel,
-        approvedPriceCents: c.approvedPriceCents,
-        addFieldLaborHours: c.addFieldLaborHours,
-        addMaterialCostCents: c.addMaterialCostCents,
-        addScheduleMinutes: c.addScheduleMinutes,
-        notes: c.notes,
-      },
-      create: c,
-    });
+    await upsertComponent(prisma, contractorId, c);
   }
   console.log(`  ✓ ${CIRCUIT_COMPONENTS.length} circuit-size components defined`);
 
@@ -278,20 +272,16 @@ async function main() {
   });
 
   // Attach the 20A component to everything that needs 12 AWG.
-  const twentyAmpComponentId = (
-    await prisma.jobComponent.findUniqueOrThrow({ where: { key: "DEDICATED_CIRCUIT_20A" } })
-  ).id;
+  const twentyAmpComponentId = await componentIdByKey(prisma, "DEDICATED_CIRCUIT_20A");
   const twentyAmpAnswers = await prisma.answerOption.findMany({
     where: { questionId: q1.id, value: { in: ["sump_pump", "microwave", "window_ac", "electric_fireplace"] } },
   });
   await prisma.answerOptionComponent.createMany({
-    data: twentyAmpAnswers.map((a) => ({ answerOptionId: a.id, componentId: twentyAmpComponentId })),
+    data: twentyAmpAnswers.map((a) => ({ answerOptionId: a.id, canonicalComponentId: twentyAmpComponentId })),
   });
 
   // ---- Q1b: for customers who already know -----------------------------
-  const doublePoleComponentId = (
-    await prisma.jobComponent.findUniqueOrThrow({ where: { key: "DEDICATED_CIRCUIT_240V" } })
-  ).id;
+  const doublePoleComponentId = await componentIdByKey(prisma, "DEDICATED_CIRCUIT_240V");
 
   await prisma.answerOption.createMany({
     data: [
@@ -322,9 +312,9 @@ async function main() {
   const amp240 = await prisma.answerOption.findFirstOrThrow({ where: { questionId: qAmps.id, value: "20a_240v" } });
   await prisma.answerOptionComponent.createMany({
     data: [
-      { answerOptionId: amp20.id, componentId: twentyAmpComponentId },
-      { answerOptionId: amp240.id, componentId: twentyAmpComponentId },
-      { answerOptionId: amp240.id, componentId: doublePoleComponentId },
+      { answerOptionId: amp20.id, canonicalComponentId: twentyAmpComponentId },
+      { answerOptionId: amp240.id, canonicalComponentId: twentyAmpComponentId },
+      { answerOptionId: amp240.id, canonicalComponentId: doublePoleComponentId },
     ],
   });
 

@@ -27,6 +27,12 @@
 import { PrismaClient } from "@prisma/client";
 import { publishIfUnset, describePriceResult } from "./_priceGuard";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import {
+  eliteContractorId,
+  upsertComponent,
+  componentIdByKey,
+} from "./_componentHelpers";
+import { recomputeServiceMaterialCost } from "../lib/materialCost";
 
 const prisma = new PrismaClient();
 
@@ -123,6 +129,7 @@ const REVIEW_PHOTOS = [
 ];
 
 async function main() {
+  const contractorId = await eliteContractorId(prisma);
   const service = await prisma.service.findUnique({ where: { slug: SLUG } });
   if (!service) {
     console.log(`  – ${SLUG} not in the catalog`);
@@ -130,24 +137,36 @@ async function main() {
   }
 
   for (const c of COMPONENTS) {
-    await prisma.jobComponent.upsert({ where: { key: c.key }, update: { ...c }, create: c });
+    await upsertComponent(prisma, contractorId, c);
   }
   console.log(`  ✓ ${COMPONENTS.length} distance components defined`);
 
   // Materials, itemized — which also clears the imported multiplier.
+  //
+  // The recipe names the ROLE. The total is no longer accumulated here from
+  // the deprecated Material's cost: it comes from recomputeServiceMaterialCost
+  // below, which resolves each role to THIS contractor's price and fails
+  // closed on any it hasn't costed. Summing here would have been a second
+  // implementation of that resolution, and a contractor-blind one.
   await prisma.serviceMaterial.deleteMany({ where: { serviceId: service.id } });
-  let material = 0;
   for (const [i, [key, qty]] of DEVICE_MATERIALS.entries()) {
-    const m = await prisma.material.findUnique({ where: { key } });
-    if (!m) {
-      console.log(`  ! material ${key} missing — run seed-materials.ts first`);
+    const canonical = await prisma.canonicalMaterial.findUnique({ where: { key } });
+    if (!canonical) {
+      console.log(`  ! material role ${key} missing — run seed-materials.ts first`);
       continue;
     }
     await prisma.serviceMaterial.create({
-      data: { serviceId: service.id, materialId: m.id, quantity: qty, order: i },
+      data: {
+        serviceId: service.id,
+        canonicalMaterialId: canonical.id,
+        quantity: qty,
+        order: i,
+      },
     });
-    material += Math.round(m.unitCostCents * qty);
   }
+
+  const recomputed = await recomputeServiceMaterialCost(prisma, service.id);
+  const material = recomputed?.afterCents ?? 0;
 
   await prisma.service.update({
     where: { id: service.id },
@@ -362,7 +381,7 @@ async function main() {
   });
 
   const comp = async (k: string) =>
-    (await prisma.jobComponent.findUniqueOrThrow({ where: { key: k } })).id;
+    await componentIdByKey(prisma, k);
 
   // Under 10 ft on an open route is the base price — no component. The
   // finished variant is conditioned so it only applies on that route.
@@ -371,8 +390,8 @@ async function main() {
   });
   await prisma.answerOptionComponent.createMany({
     data: [
-      { answerOptionId: under10.id, componentId: await comp("EXT_GFCI_RUN_ACCESSIBLE_UNDER_10"), conditionAccessClass: "ACCESSIBLE" },
-      { answerOptionId: under10.id, componentId: await comp("EXT_GFCI_RUN_FINISHED_UNDER_10"), conditionAccessClass: "FINISHED" },
+      { answerOptionId: under10.id, canonicalComponentId: await comp("EXT_GFCI_RUN_ACCESSIBLE_UNDER_10"), conditionAccessClass: "ACCESSIBLE" },
+      { answerOptionId: under10.id, canonicalComponentId: await comp("EXT_GFCI_RUN_FINISHED_UNDER_10"), conditionAccessClass: "FINISHED" },
     ],
   });
 
@@ -381,8 +400,8 @@ async function main() {
   });
   await prisma.answerOptionComponent.createMany({
     data: [
-      { answerOptionId: d10.id, componentId: await comp("EXT_GFCI_RUN_ACCESSIBLE_10_20"), conditionAccessClass: "ACCESSIBLE" },
-      { answerOptionId: d10.id, componentId: await comp("EXT_GFCI_RUN_FINISHED_10_20"), conditionAccessClass: "FINISHED" },
+      { answerOptionId: d10.id, canonicalComponentId: await comp("EXT_GFCI_RUN_ACCESSIBLE_10_20"), conditionAccessClass: "ACCESSIBLE" },
+      { answerOptionId: d10.id, canonicalComponentId: await comp("EXT_GFCI_RUN_FINISHED_10_20"), conditionAccessClass: "FINISHED" },
     ],
   });
 

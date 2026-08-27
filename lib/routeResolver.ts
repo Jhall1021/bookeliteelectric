@@ -70,8 +70,34 @@ export type ResolvedRoute =
       reason: string;
     };
 
-/** Everything the resolver needs, loaded once. */
+/**
+ * Everything the resolver needs, loaded once.
+ *
+ * TWO QUERIES, DELIBERATELY.
+ *
+ * Components are now a canonical role plus one contractor's economics, so the
+ * nested include has to be filtered by contractor. The contractor is a
+ * property of the service, which means it has to be known before the main
+ * query runs.
+ *
+ * The alternative — load every contractor's economics for each component and
+ * filter in memory — would work today with one contractor and would pull
+ * other contractors' pricing into the process. A tenant boundary that holds
+ * only because the data was discarded after loading is not one.
+ */
 export async function loadServiceForResolution(prisma: PrismaClient, serviceId: string) {
+  const owner = await prisma.service.findUnique({
+    where: { id: serviceId },
+    select: { slug: true, contractorId: true },
+  });
+  if (!owner) return null;
+  if (!owner.contractorId) {
+    throw new Error(
+      `${owner.slug} has no contractor. Its components cannot be resolved — ` +
+        `run prisma/backfill-service-contractor-2026-08-25.ts.`
+    );
+  }
+
   return prisma.service.findUnique({
     where: { id: serviceId },
     include: {
@@ -81,7 +107,19 @@ export async function loadServiceForResolution(prisma: PrismaClient, serviceId: 
           options: {
             orderBy: { order: "asc" },
             include: {
-              components: { include: { component: true } },
+              components: {
+                include: {
+                  canonicalComponent: {
+                    include: {
+                      // At most one row: unique on (contractorId, canonical).
+                      // Empty means this contractor has never priced it.
+                      contractorComponents: {
+                        where: { contractorId: owner.contractorId },
+                      },
+                    },
+                  },
+                },
+              },
               photoGroups: { include: { photoGroup: true } },
               conditionalDisclaimers: { include: { disclaimer: true } },
             },
@@ -193,13 +231,46 @@ export function resolveRoute(
         addFieldLaborHours: option.addFieldLaborHours,
         addMaterialCostCents: option.addMaterialCostCents,
         addScheduleMinutes: option.addScheduleMinutes,
-        components: option.components.map((c) => ({
-          quantity: c.quantity,
-          conditionAnswerKey: c.conditionAnswerKey,
-          conditionAnswerValue: c.conditionAnswerValue,
-          conditionAccessClass: c.conditionAccessClass,
-          component: c.component,
-        })),
+        components: option.components.map((c) => {
+          const canonical = c.canonicalComponent;
+          // A recipe line pointing at nothing. Post-migration this cannot
+          // happen — the migration reported zero unlinked — but a broken
+          // attachment must not price as though the work were free.
+          if (!canonical) {
+            throw new Error(
+              `${service.slug}: an answer option attaches a component with no ` +
+                `canonical role. The tree is broken and must not be priced.`
+            );
+          }
+
+          // At most one row, and possibly none.
+          const own = canonical.contractorComponents[0];
+
+          return {
+            quantity: c.quantity,
+            conditionAnswerKey: c.conditionAnswerKey,
+            conditionAnswerValue: c.conditionAnswerValue,
+            conditionAccessClass: c.conditionAccessClass,
+            component: {
+              key: canonical.key,
+              // The contractor's wording if they set one, else the shared
+              // description of the work.
+              customerFacingLabel:
+                own?.labelOverride ?? canonical.customerFacingLabel,
+              // FAILS CLOSED. No contractor row means this contractor has
+              // never priced the component: null, not approved, and the route
+              // goes to review via config.awaitingComponentApproval. Never
+              // zero, and never another contractor's figure.
+              approvedPriceCents: own ? own.approvedPriceCents : null,
+              // Only reached when the price above is non-null, since a null
+              // price stops the route before these are used.
+              addFieldLaborHours: own?.addFieldLaborHours ?? 0,
+              addMaterialCostCents: own?.addMaterialCostCents ?? 0,
+              addScheduleMinutes: own?.addScheduleMinutes ?? 0,
+              addTechCount: own?.addTechCount ?? 0,
+            },
+          };
+        }),
       },
       answers
     );

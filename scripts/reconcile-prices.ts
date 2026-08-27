@@ -43,6 +43,23 @@ const APPROVED_EXCEPTIONS: Record<string, string> = {
     "first hour of diagnostic and repair time; owner-approved as a separate " +
     "offering. Corrected from $250 in the 23 Aug reconciliation — the price was " +
     "always $249, the database was wrong.",
+
+  "recessed-lighting":
+    "First light held at the published $375 rather than the $385 the model " +
+    "computes. A deliberate launch decision recorded in " +
+    "prisma/seed-recessed-lighting.ts, taken when the figures were set and " +
+    "not revisited since.\n" +
+    "\n" +
+    "The $10 gap only became visible on 26 Aug, when the canonical/contractor " +
+    "component split made component economics reachable by the model for the " +
+    "first time. The price did not move; the reconciler stopped being blind " +
+    "to it. Worth knowing the migration surfaced a real gap rather than " +
+    "creating one.\n" +
+    "\n" +
+    "Kept rather than published because re-deciding a customer-facing price " +
+    "as a side effect of a schema migration is the wrong reason to change " +
+    "one. Revisit deliberately, with field data on how long these actually " +
+    "take.",
 };
 
 type Row = {

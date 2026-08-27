@@ -10,6 +10,11 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import {
+  eliteContractorId,
+  upsertComponent,
+  componentIdByKey,
+} from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -104,6 +109,7 @@ const CEILING_REVIEW_PHOTOS = [
 ];
 
 async function main() {
+  const contractorId = await eliteContractorId(prisma);
   // ---- 5. disclaimers onto the service record --------------------------
   for (const d of SERVICE_DESCRIPTIONS) {
     const svc = await prisma.service.findUnique({ where: { slug: d.slug } });
@@ -233,25 +239,14 @@ async function main() {
     });
     if (!service) continue;
 
-    await prisma.jobComponent.upsert({
-      where: { key: c.key },
-      update: {
-        name: c.name,
-        customerFacingLabel: c.label,
-        approvedPriceCents: c.price,
-        addFieldLaborHours: c.hrs,
-        addMaterialCostCents: 0,
-        addScheduleMinutes: c.mins,
-      },
-      create: {
-        key: c.key,
-        name: c.name,
-        customerFacingLabel: c.label,
-        approvedPriceCents: c.price,
-        addFieldLaborHours: c.hrs,
-        addMaterialCostCents: 0,
-        addScheduleMinutes: c.mins,
-      },
+    await upsertComponent(prisma, contractorId, {
+      key: c.key,
+      name: c.name,
+      customerFacingLabel: c.label,
+      approvedPriceCents: c.price,
+      addFieldLaborHours: c.hrs,
+      addMaterialCostCents: 0,
+      addScheduleMinutes: c.mins,
     });
 
     await prisma.service.update({
@@ -272,7 +267,7 @@ async function main() {
         await prisma.answerOptionComponent.create({
           data: {
             answerOptionId: no.id,
-            componentId: (await prisma.jobComponent.findUniqueOrThrow({ where: { key: c.key } })).id,
+            canonicalComponentId: await componentIdByKey(prisma, c.key),
           },
         });
         await prisma.answerOption.update({

@@ -22,6 +22,11 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import {
+  eliteContractorId,
+  upsertComponent,
+  componentIdByKey,
+} from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -105,12 +110,9 @@ const COUNTS = [
 ];
 
 async function main() {
+  const contractorId = await eliteContractorId(prisma);
   for (const c of COMPONENTS) {
-    await prisma.jobComponent.upsert({
-      where: { key: c.key },
-      update: { ...c },
-      create: c,
-    });
+    await upsertComponent(prisma, contractorId, c);
   }
   console.log(`  ✓ ${COMPONENTS.length} recessed-light components defined`);
 
@@ -235,14 +237,12 @@ async function main() {
   await prisma.answerOptionComponent.create({
     data: {
       answerOptionId: finishedAccess.id,
-      componentId: (
-        await prisma.jobComponent.findUniqueOrThrow({ where: { key: "RECESSED_FIRST_LIGHT_FINISHED" } })
-      ).id,
+      canonicalComponentId: await componentIdByKey(prisma, "RECESSED_FIRST_LIGHT_FINISHED"),
     },
   });
 
-  const accId = (await prisma.jobComponent.findUniqueOrThrow({ where: { key: "RECESSED_ADDITIONAL_ACCESSIBLE" } })).id;
-  const finId = (await prisma.jobComponent.findUniqueOrThrow({ where: { key: "RECESSED_ADDITIONAL_FINISHED" } })).id;
+  const accId = await componentIdByKey(prisma, "RECESSED_ADDITIONAL_ACCESSIBLE");
+  const finId = await componentIdByKey(prisma, "RECESSED_ADDITIONAL_FINISHED");
 
   for (const c of COUNTS) {
     if (c.extra === 0) continue;
@@ -253,8 +253,8 @@ async function main() {
       data: [
         // Conditioned on classification rather than raw value, so the tier
         // resolves whichever access question established it.
-        { answerOptionId: opt.id, componentId: accId, quantity: c.extra, conditionAccessClass: "ACCESSIBLE" },
-        { answerOptionId: opt.id, componentId: finId, quantity: c.extra, conditionAccessClass: "FINISHED" },
+        { answerOptionId: opt.id, canonicalComponentId: accId, quantity: c.extra, conditionAccessClass: "ACCESSIBLE" },
+        { answerOptionId: opt.id, canonicalComponentId: finId, quantity: c.extra, conditionAccessClass: "FINISHED" },
       ],
     });
   }

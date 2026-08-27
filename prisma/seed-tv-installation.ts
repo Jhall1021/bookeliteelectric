@@ -36,6 +36,9 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import {
+  retireComponents,
+} from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -83,11 +86,8 @@ async function main() {
   // Both retired rather than deleted — either may appear on bookings already
   // taken, and a booked job's record shouldn't lose the component it was
   // priced with.
-  const retired = await prisma.jobComponent.updateMany({
-    where: { key: { in: ["TV_SECOND_TECHNICIAN", "TV_LARGE_SIZE_PREMIUM_56_85"] } },
-    data: { active: false },
-  });
-  if (retired.count) console.log(`  ✓ ${retired.count} superseded TV component(s) retired`);
+  const retired = await retireComponents(prisma, ["TV_SECOND_TECHNICIAN", "TV_LARGE_SIZE_PREMIUM_56_85"]);
+  if (retired) console.log(`  ✓ ${retired} superseded TV component(s) retired`);
 
   await prisma.service.update({
     where: { id: service.id },

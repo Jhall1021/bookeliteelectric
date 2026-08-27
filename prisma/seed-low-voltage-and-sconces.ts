@@ -47,6 +47,10 @@ import {
   clearLegacyMultiplierOnItemize,
 } from "../lib/materialCost";
 import { calculateMaterialSellCents } from "../lib/pricing";
+import {
+  eliteContractorId,
+  upsertComponent,
+} from "./_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -106,7 +110,9 @@ async function main() {
   }
 
   for (const m of ASSUMED_MATERIALS) {
-    // The ROLE is platform knowledge — "Cat6 network cable, per foot" is true
+    // Identity and economics are written separately.
+    //
+    // The ROLE — "Cat6 network cable, per foot" — is platform knowledge, true
     // for anyone running low-voltage. The COST is Elite's estimate, and it is
     // the estimate that carries the ASSUMED flag.
     const canonical = await prisma.canonicalMaterial.upsert({
@@ -122,10 +128,9 @@ async function main() {
           canonicalMaterialId: canonical.id,
         },
       },
-      // unitCostCents belongs in BOTH branches. It was missing from the
-      // update branch, which quietly broke the whole point of marking these
-      // ASSUMED: correcting a figure and re-running applied the new name and
-      // left the old cost in place.
+      // unitCostCents belongs in BOTH branches. Omitting it from update is
+      // what froze these estimates: correcting a figure above and re-running
+      // applied the new name and left the old cost in place.
       update: {
         unitCostCents: m.unitCostCents,
         costConfidence: "ASSUMED",
@@ -396,22 +401,15 @@ async function buildRoutingTree(
   // The finished route as a component, so the extra time is visible as time
   // rather than buried in a second price.
   const key = `${slug.toUpperCase().replace(/-/g, "_")}_FINISHED_ROUTE`;
-  const component = await prisma.jobComponent.upsert({
-    where: { key },
-    update: {
-      addFieldLaborHours: finishedHours - baseHours,
-      active: true,
-    },
-    create: {
-      key,
-      name: `${slug} — finished route`,
-      customerFacingLabel: "Fishing through finished walls",
-      addFieldLaborHours: finishedHours - baseHours,
-      addMaterialCostCents: 0,
-      addScheduleMinutes: 30,
-      addTechCount: 0,
-      active: true,
-    },
+  const componentId = await upsertComponent(prisma, await eliteContractorId(prisma), {
+    key,
+    name: `${slug} — finished route`,
+    customerFacingLabel: "Fishing through finished walls",
+    addFieldLaborHours: finishedHours - baseHours,
+    addMaterialCostCents: 0,
+    addScheduleMinutes: 30,
+    addTechCount: 0,
+    active: true,
   });
 
   const finishedOption = await prisma.answerOption.findFirst({
@@ -420,13 +418,13 @@ async function buildRoutingTree(
   if (finishedOption) {
     await prisma.answerOptionComponent.upsert({
       where: {
-        answerOptionId_componentId: {
+        answerOptionId_canonicalComponentId: {
           answerOptionId: finishedOption.id,
-          componentId: component.id,
+          canonicalComponentId: componentId,
         },
       },
       update: { quantity: 1 },
-      create: { answerOptionId: finishedOption.id, componentId: component.id, quantity: 1 },
+      create: { answerOptionId: finishedOption.id, canonicalComponentId: componentId, quantity: 1 },
     });
   }
 
@@ -456,6 +454,8 @@ async function buildRoutingTree(
 async function attachMaterials(serviceId: string, items: [string, number][]) {
   await prisma.serviceMaterial.deleteMany({ where: { serviceId } });
   for (const [key, qty] of items) {
+    // The recipe names the ROLE. Pricing resolves it to this contractor's
+    // cost in the recompute below.
     const canonical = await prisma.canonicalMaterial.findUnique({ where: { key } });
     if (!canonical) {
       console.log(`      ! material role ${key} not found`);
