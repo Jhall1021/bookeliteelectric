@@ -10,17 +10,24 @@ import {
 import { getOrCreateSessionId } from "@/lib/session";
 import ScheduleClient from "@/components/checkout/ScheduleClient";
 import { redirect } from "next/navigation";
+import { requireHostedSite, withSite } from "@/lib/siteRouting";
 
 // Same reasoning as the API route — never statically cache this page.
 // The whole point is a live check every time someone actually looks.
 export const dynamic = "force-dynamic";
 
-export default async function SchedulePage() {
+export default async function SchedulePage({ params }: { params: { site: string } }) {
+  // ADR §2.2. Booking hours belong to a contractor, so the storefront has to
+  // be resolved before they are read.
+  const site = await requireHostedSite(params.site);
+
   // Working days come from configuration now. This used to exclude Saturday
   // and Sunday with a hardcoded check, which quietly disagreed with the
   // arrival windows and the end-of-day cutoff — three places encoding the
   // same working week, kept in step by hand.
-  const businessHours = await loadBusinessHours(prisma);
+  const businessHours = await withSite(site, (db) =>
+    loadBusinessHours(db, site.contractorId)
+  );
   const days = nextWorkingDays(5, businessHours).map((d) => ({
     date: d.toISOString(),
     dateISO: d.toISOString().split("T")[0],

@@ -118,6 +118,7 @@ async function purgeDummy(contractorId: string) {
     where: { contractorDisclaimer: { contractorId } },
   });
   await raw.contractorDisclaimer.deleteMany({ where: { contractorId } });
+  await raw.serviceArea.deleteMany({ where: { contractorId } });
   await raw.contractorSite.deleteMany({ where: { contractorId } });
   return { materials: materials.count, services: serviceIds.length };
 }
@@ -1411,6 +1412,70 @@ async function main() {
       n < eliteCount,
       `the dummy site sees only its own catalog (${n}, Elite has ${eliteCount})`
     );
+  }
+
+  // --- service areas, the checkout ZIP gate ------------------------------
+  //
+  // app/api/checkout/route.ts validates the customer's ZIP against
+  // ServiceArea. Until 27 August it read that unscoped, so with two
+  // contractors a ZIP would have been checked against EVERY contractor's
+  // coverage and the booking accepted if anyone covered it.
+  //
+  // The failure is not a leak of data — it is a booking taken by the wrong
+  // contractor for an address they do not serve.
+  {
+    const eliteArea = await raw.serviceArea.findFirst({
+      where: { contractorId: elite.id, active: true },
+      select: { id: true, zipCodes: true },
+    });
+    ok(eliteArea !== null, "Elite has a service area to diverge from");
+
+    // The dummy covers a deliberately different ZIP.
+    const DUMMY_ZIP = "99999";
+    await raw.serviceArea.create({
+      data: {
+        contractorId: dummy.id,
+        name: "Dummy coverage",
+        zipCodes: [DUMMY_ZIP],
+        active: true,
+      },
+    });
+
+    const eliteZip = eliteArea?.zipCodes[0];
+    ok(
+      eliteZip !== undefined && !eliteArea!.zipCodes.includes(DUMMY_ZIP),
+      `the two coverages are genuinely different (Elite has ${eliteZip}, not ${DUMMY_ZIP})`
+    );
+
+    // Elite's context must see Elite's coverage only.
+    await withSite(eliteResolved!, async (db) => {
+      const area = await db.serviceArea.findFirst({ where: { active: true } });
+      ok(
+        area?.id === eliteArea?.id,
+        "Elite site resolves to ELITE's service area",
+        `got ${area?.id}`
+      );
+      ok(
+        !(area?.zipCodes ?? []).includes(DUMMY_ZIP),
+        "and cannot validate a ZIP that only the dummy covers"
+      );
+    });
+
+    // And the reverse.
+    await withSite(dummyResolved!, async (db) => {
+      const area = await db.serviceArea.findFirst({ where: { active: true } });
+      ok(
+        area?.zipCodes.includes(DUMMY_ZIP) === true,
+        "Dummy site resolves to the DUMMY's service area",
+        `got ${JSON.stringify(area?.zipCodes)}`
+      );
+      ok(
+        eliteZip === undefined || !(area?.zipCodes ?? []).includes(eliteZip),
+        "and cannot validate a ZIP that only Elite covers"
+      );
+      const all = await db.serviceArea.count();
+      ok(all === 1, "the dummy sees exactly one service area — its own", `got ${all}`);
+    });
   }
 
   // An inactive site must stop resolving without touching its data.

@@ -91,6 +91,11 @@ const ADOPTED_FILES: string[] = [
   "app/api/visit/while-we-there/route.ts",
   "app/api/visit/route.ts",
   "app/api/quotes/route.ts",
+  // The last customer-facing route without a site identifier. It read
+  // ServiceArea unscoped, so with two contractors it would have validated a
+  // ZIP against every contractor's area and booked whoever covered it.
+  "app/api/checkout/route.ts",
+  "app/[site]/checkout/schedule/page.tsx",
 ];
 
 /**

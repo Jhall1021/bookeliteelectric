@@ -44,8 +44,23 @@ export const DEFAULT_BUSINESS_HOURS: BusinessHoursConfig = {
   minWindowMinutes: 60,
 };
 
-export async function loadBusinessHours(prisma: PrismaClient): Promise<BusinessHoursConfig> {
-  const row = await prisma.businessHours.findUnique({ where: { id: "default" } });
+/**
+ * One contractor's booking hours.
+ *
+ * Takes `db` rather than `prisma`, and a contractorId rather than reading the
+ * pre-tenant `id: "default"` row. BusinessHours has carried contractorId since
+ * an earlier pass; keying by "default" meant every contractor would have
+ * shared one schedule, and the shared row is not even guaranteed to be theirs.
+ *
+ * Dependency-injected on purpose: the caller decides whether the client is
+ * guarded, because this runs both from site-resolved customer routes and from
+ * admin surfaces that have no site.
+ */
+export async function loadBusinessHours(
+  db: PrismaClient,
+  contractorId: string
+): Promise<BusinessHoursConfig> {
+  const row = await db.businessHours.findUnique({ where: { contractorId } });
   if (!row) return DEFAULT_BUSINESS_HOURS;
   return {
     // An empty list would mean no bookable days at all, which is far more
