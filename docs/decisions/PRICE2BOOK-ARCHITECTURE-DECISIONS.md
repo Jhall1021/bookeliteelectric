@@ -198,13 +198,30 @@ is why the platform domain sends it rather than Elite's. Elite has one OWNER:
 
 ## ADR-006 — `ServiceCategory` splits into canonical and contractor — NEW, 27 August
 
-**Decided 27 August. Expand phase pushed; backfill not yet run.**
+**Decided 27 August. Expand pushed, backfill applied. Steps 1–3 done.**
 
-Status against the expand–contract sequence below: steps 1–8 are the plan;
-the schema now carries both models and `Service.contractorCategoryId`
-(nullable), and both are classified in `lib/tenantGuard.ts` —
-`CanonicalCategory` platform, `ContractorCategory` tenant-scoped. Nothing reads
-them yet. **Step 1 (backfill) is the next action.**
+Schema carries both models and a nullable `Service.contractorCategoryId`, both
+classified in `lib/tenantGuard.ts` — `CanonicalCategory` platform,
+`ContractorCategory` tenant-scoped.
+
+`prisma/backfill-category-split-2026-08-27.ts` has run: **13 canonical
+categories, 13 Elite contractor categories, 75 of 75 services pointed.**
+Idempotent — a re-run reports 0 to point and creates no duplicates.
+
+It verifies three things rather than asserting them, and exits non-zero on any:
+75 of 75 services resolve to an identical slug, name and icon; 13 of 13
+categories keep their exact `sortOrder` and `navGroup`; no service is left
+unpointed. Elite's current values became the canonical defaults, so
+`nameOverride` and `iconOverride` are null everywhere and every fallback
+resolves to the string it resolved to before.
+
+`ServiceCategory` is untouched and still holds every row. **Nothing reads the
+new tables yet** — that is step 4.
+
+**Next: step 4, switch reads to the contractor category.** The 12 direct-query
+files in `docs/migration/pass-two-scope-narrowing.md` are where `ServiceCategory`
+is read; nine of them read it directly. Per ADR-007 those reads must root at
+`ContractorCategory`, not at `CanonicalCategory`.
 
 Category *identity* is platform/template knowledge. Category *presentation* is
 contractor policy.
