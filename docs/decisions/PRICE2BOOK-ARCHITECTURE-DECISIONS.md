@@ -475,8 +475,44 @@ Point 9 is what stopped `ServiceCategory` being left in the pending list after
 ADR-006 superseded the plan to tenant-scope it. A model sitting in that list
 for the wrong reason makes the list lie in both directions.
 
+### Guard adoption — partial, 27 August
+
+Criterion 4 in progress. `lib/tenantRoute.ts` opens context and hands over the
+guarded client together; `scripts/audit-guard-adoption.ts` makes each converted
+file a one-way door and is in the build gate.
+
+**Adopted: 5 files, all 21 pass-two query sites.** `app/troubleshooting`, the
+tree admin, the materials admin, and the two dependency-injected material
+helpers.
+
+**NOT complete, and the shortfall was found by the criterion itself.** A fresh
+sweep — deliberately independent of the working list — finds **28 more
+unguarded tenant-model sites across 18 files**. They were never in the pass-two
+narrowing because that sweep covered pass-two MODELS; `Service` was tenant
+scoped in pass one and `ContractorCategory` arrived with ADR-006, so neither
+was ever in scope for the list being worked from.
+
+This is ADR-007a applying to its own progress tracking: 21 of 21 was true and
+still measured the wrong denominator.
+
+The 28 divide into two kinds:
+
+- **Correct but hand-written.** The `ContractorCategory` reads carry an
+  explicit `where: { contractorId }` — written during the ADR-006 read switch,
+  before adoption existed. Right today, and load-bearing in exactly the way
+  ADR-007 warns about.
+- **Not filtered at all.** The admin `Service` routes take an id straight from
+  the URL: `prisma.service.findUnique({ where: { id: params.serviceId } })`
+  with no contractor condition. Moot at one contractor. At two,
+  `app/api/admin/services/[serviceId]/pricing/route.ts` would **publish a price
+  onto another contractor's service** on request.
+
+That last one is the most serious thing the sweep surfaced and is recorded in
+the open items.
+
 *Evidence: `scripts/verify-tenant-isolation-live.ts`;
 `scripts/audit-platform-tenant-relations.ts`;
+`scripts/audit-guard-adoption.ts`;
 `docs/migration/pass-two-scope-narrowing.md`.*
 
 ## ADR-008 — `ServiceQuery` is contractor-owned — NEW, 27 August
@@ -871,6 +907,11 @@ The handoff cites the ADR for two things this reconstruction cannot restore.
   visible in quote review only. An FSM adapter requirement.
 - **Primary reconciliation on quote approval is untested** — approval prices an
   existing line, and reconciliation runs only on add and delete.
+- **The admin service routes are unscoped.** `app/api/admin/services/[serviceId]/pricing/route.ts`,
+  `app/api/admin/services/[serviceId]/route.ts` and the admin service page take
+  a service id from the URL with no contractor condition. The pricing one
+  publishes a customer-facing price. Harmless at one contractor; a cross-tenant
+  price write at two. Found by the ADR-007a completion sweep, 27 August.
 - **`addMaterialCostCents` flat cents on `AnswerOption`** are still Elite's
   figures with no contractor scope. Not addressed by the component split.
 - **`Service.slug` is globally unique**, so two contractors cannot both have
