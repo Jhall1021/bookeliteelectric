@@ -15,9 +15,11 @@ PROD_HOST="ep-icy-hill-axkgrsjb"
 # Load .env so REHEARSAL_DATABASE_URL can live there rather than being
 # exported by hand. A var in .env is NOT visible to `npx tsx` otherwise —
 # verified with a probe, not assumed. An already-set value still wins.
-if [ -z "${REHEARSAL_DATABASE_URL:-}" ] && [ -f .env ]; then
-  set -a; . ./.env; set +a
-fi
+for f in .env.local .env; do
+  if [ -z "${REHEARSAL_DATABASE_URL:-}" ] && [ -f "$f" ]; then
+    set -a; . "./$f"; set +a
+  fi
+done
 
 : "${REHEARSAL_DATABASE_URL:?REHEARSAL_DATABASE_URL is not set — see docs/migration/pass-three-contract-plan.md}"
 case "$REHEARSAL_DATABASE_URL" in

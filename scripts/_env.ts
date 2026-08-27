@@ -11,7 +11,17 @@
  */
 import { readFileSync } from "node:fs";
 
-export function loadEnv(file = ".env"): void {
+/**
+ * Both files, because this project uses both: DATABASE_URL lives in .env and
+ * the auth/mail secrets live in .env.local. Loading only one would work for
+ * whichever file the reader happened to pick and silently fail for the other.
+ * Earlier entries win, so .env.local overrides .env only where .env is silent.
+ */
+export function loadEnv(files: string[] = [".env.local", ".env"]): void {
+  for (const f of files) loadOne(f);
+}
+
+function loadOne(file: string): void {
   let text: string;
   try { text = readFileSync(file, "utf8"); } catch { return; }
   for (const line of text.split("\n")) {
