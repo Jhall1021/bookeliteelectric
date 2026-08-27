@@ -138,9 +138,11 @@ Materials API and any future supplier sync call the same functions.
 
 It must never write `basePrice`, `whileWeThereBasePrice`, or any other
 published customer price. Only the admin and named dated migrations may do
-that — enforced by `prisma/_priceGuard.ts`, audited by
-`scripts/audit-price-writers.ts`, which must continue to report **0 files that
-can move a customer's price outside the admin**.
+that — enforced at write time by `prisma/_priceGuard.ts`, and enforced at build
+time by `scripts/audit-price-writers.ts`, which **exits non-zero** on a
+violation and runs inside `npm run verify`. It must continue to report **0
+files that can move a customer's price outside the admin**; since 27 August a
+non-zero count fails the build rather than printing a warning. See ADR-003.
 
 A cost change moving the model price while the published price stays put is
 not a bug. That gap *is* the governance.

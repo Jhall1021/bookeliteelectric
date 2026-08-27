@@ -18,6 +18,8 @@ npx tsx prisma/reconcile-scope-services.ts --apply    # then publish
 
 npx tsx prisma/repair-trees.ts              # 0 dangling, 0 unreachable
 npm run db:reconcile                        # both should read MATCH
+                                            # operational verification, not a
+                                            # build gate — see ADR-003
 ```
 
 ## Before the chandelier flow works
