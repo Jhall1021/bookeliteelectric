@@ -10,6 +10,7 @@ import {
   useStorefrontBase,
 } from "@/components/site/SiteContext";
 import { useStructure } from "@/components/theme/ThemeContext";
+import { useStorefront } from "@/components/theme/StorefrontContext";
 
 export default function Header() {
   // ADR §2.2 — customer-facing calls carry the storefront identifier.
@@ -53,6 +54,7 @@ export default function Header() {
   // Structure, never identity. Two contractors on the same variant render the
   // same markup; nothing here asks who they are.
   const { nav, density } = useStructure();
+  const { identity, copy } = useStorefront();
   const stacked = nav === "stacked";
   const pad = density === "spacious" ? "py-6" : density === "compact" ? "py-2" : "py-4";
 
@@ -60,14 +62,22 @@ export default function Header() {
     <>
       <Link href={`${base}/how-it-works`}>How It Works</Link>
       <Link href={`${base}/services`}>Services &amp; Pricing</Link>
-      <Link href={`${base}/why-elite`}>Why Elite</Link>
+      <Link href={`${base}/why-elite`}>Why {identity.shortName}</Link>
       <Link href={`${base}/service-area`}>Service Area</Link>
     </>
   );
 
+  // A contractor with no logo yet gets their name set as a wordmark rather
+  // than a broken image or, worse, the last contractor's logo.
   const brand = (
     <Link href={base || "/"} className="flex items-center gap-2">
-      <Image src="/images/elite-logo.png" alt="Elite Electric & Lighting" width={112} height={112} />
+      {identity.logoUrl ? (
+        <Image src={identity.logoUrl} alt={identity.displayName} width={112} height={112} />
+      ) : (
+        <span className="font-display text-lg font-bold tracking-tight text-ink">
+          {identity.displayName}
+        </span>
+      )}
     </Link>
   );
 
@@ -90,7 +100,7 @@ export default function Header() {
               href={`${base}/services`}
               className="rounded-pill bg-accent px-5 py-2 text-sm font-semibold text-accent-ink transition hover:bg-accent-hover"
             >
-              Book Service
+              {copy.headerCta}
             </Link>
           </nav>
         </div>
@@ -110,7 +120,7 @@ export default function Header() {
           </nav>
           {brand}
           <nav className="hidden flex-1 items-center justify-end gap-8 text-sm font-medium text-ink md:flex">
-            <Link href={`${base}/why-elite`}>Why Elite</Link>
+            <Link href={`${base}/why-elite`}>Why {identity.shortName}</Link>
             <Link href={`${base}/service-area`}>Service Area</Link>
             <CartLink base={base} itemCount={itemCount} />
           </nav>
@@ -138,7 +148,7 @@ export default function Header() {
             href={`${base}/services`}
             className="rounded-pill bg-accent px-5 py-2.5 text-sm font-semibold text-accent-ink transition hover:bg-accent-hover"
           >
-            Book Service
+            {copy.headerCta}
           </Link>
         </div>
       </div>

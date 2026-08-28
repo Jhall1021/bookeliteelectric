@@ -387,6 +387,24 @@ model ZipCode {
 /// Fields are nullable while the application still reads its Elite values
 /// from code. They are filled in as each hard-coded value is replaced, so the
 /// cutover is incremental rather than one large switch.
+/// How a contractor prices work, and therefore what the storefront can promise.
+///
+/// FLAT_RATE:          scope -> an approved fixed price. "Your price: $1,125."
+/// TIME_AND_MATERIALS: scope -> estimated duration and materials -> a RANGE.
+///                     "Estimated total: $900-$1,400", billed on actuals.
+///
+/// This controls INTERPRETATION AND PRESENTATION only. It never mutates the
+/// canonical service or template structure: the same question tree, the same
+/// components, the same scope — read differently at the end.
+///
+/// One default per contractor in V1. No per-service overrides: a catalogue
+/// where some services quote fixed and others estimate is a support problem
+/// before it is a feature.
+enum PricingStrategy {
+  FLAT_RATE
+  TIME_AND_MATERIALS
+}
+
 model Contractor {
   id     String  @id @default(cuid())
   /// URL segment: price2book.com/elite-electric
@@ -455,6 +473,46 @@ model Contractor {
   /// anyone until they adopt it, exactly as with the service template.
   themeKey     String @default("elite-baseline")
   themeVersion Int    @default(1)
+
+  /// ADR-016 — customer-facing IDENTITY.
+  ///
+  /// Who the contractor is, not what their storefront looks like. Theme
+  /// definitions decide presentation; these decide whose business it is.
+  /// Deliberately a short list — enough to stop a provisioned contractor
+  /// appearing as Elite, and not a step toward a CMS.
+  ///
+  /// All nullable, and every consumer has a defined fallback. A contractor
+  /// mid-setup renders a storefront missing a licence line, not a broken page.
+
+  /// Short form for possessive and nav use — "Elite" out of "Elite Electric &
+  /// Lighting", so a link reads "Why Elite" rather than "Why Elite Electric &
+  /// Lighting". Falls back to `name`.
+  shortName String?
+  /// The registered entity, for the copyright line. Falls back to `name`.
+  legalName String?
+
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+
+  /// Split so the number is never welded into a sentence: "NJ Electrical
+  /// License" + "17272". A contractor in another state labels it differently.
+  licenseLabel  String?
+  licenseNumber String?
+
+  /// How the contractor describes where they work — "Monmouth & Ocean
+  /// Counties, NJ". The ServiceArea rows carry the ZIPs that gate checkout;
+  /// this is the sentence a homeowner reads.
+  serviceAreaLabel    String?
+  /// Optional map or photograph for the service-area section. Absent means the
+  /// section renders without one rather than with somebody else's territory.
+  serviceAreaImageUrl String?
+  serviceAreaImageAlt String?
+
+  /// ADR-016 — how this contractor prices. Presentation only; see the enum.
+  pricingStrategy PricingStrategy @default(FLAT_RATE)
 }
 
 /// A material ROLE, owned by the platform.

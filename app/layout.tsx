@@ -17,9 +17,15 @@ const inter = Inter({
   display: "swap",
 });
 
+/**
+ * The PLATFORM's metadata, not a contractor's — ADR-016. This layout serves
+ * /admin and the not-found path, which belong to nobody in particular. A
+ * storefront overrides it at the [site] boundary, where the contractor is
+ * known.
+ */
 export const metadata: Metadata = {
-  title: "Elite Electric & Lighting | Home Services",
-  description: "See your price. Pick your time. Book your electrician.",
+  title: "Price2Book",
+  description: "Online booking for home-services contractors.",
 };
 
 /**

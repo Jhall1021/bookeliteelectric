@@ -300,7 +300,7 @@ export async function pushBookingToJobber(
   const jobberPropertyId = propertyResult.propertyCreate.properties[0].id;
 
   const primaryItem = booking.visit.lineItems.find((li) => li.isPrimary);
-  const title = primaryItem?.service.name ?? "Elite Electric Service Visit";
+  const title = primaryItem?.service.name ?? "Service Visit";
 
   const lineItemSummary = booking.visit.lineItems
     .map((li) => `${li.isPrimary ? "" : "+ "}${li.service.name}`)
@@ -374,7 +374,7 @@ export async function pushBookingToJobber(
     input: {
       propertyId: jobberPropertyId,
       title,
-      instructions: `${lineItemSummary}\n\nTotal: ${formatDollars(booking.totalCents)}\nBooked via BookEliteElectric.com`,
+      instructions: `${lineItemSummary}\n\nTotal: ${formatDollars(booking.totalCents)}\nBooked via Price2Book`,
       timeframe: {
         startAt: dateStr,
         durationUnits: "DAYS",

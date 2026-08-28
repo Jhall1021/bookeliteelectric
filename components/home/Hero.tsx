@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import ServiceFinder from "@/components/home/ServiceFinder";
 import { useStructure } from "@/components/theme/ThemeContext";
+import { useStorefront } from "@/components/theme/StorefrontContext";
 
 /**
  * The storefront hero, in two compositions — ADR-015 Phase 3.
@@ -21,6 +22,11 @@ import { useStructure } from "@/components/theme/ThemeContext";
  * only changes colour is a skin.
  *
  * The branch is on STRUCTURE, never on which contractor is being rendered.
+ *
+ * The WORDS are not this component's to choose. "Skip the Estimate. Know Your
+ * Price" is a flat-rate promise, and a contractor billing time and materials
+ * cannot keep it. Copy arrives from the pricing layer; the hero decides only
+ * where it sits and how large it is.
  */
 export type HeroProps = {
   base: string;
@@ -83,12 +89,13 @@ const HERO_IMAGE = {
 
 function SplitHero({ base, ladder, differentiators }: HeroProps) {
   const { heroAside } = useStructure();
+  const { copy } = useStorefront();
   return (
     <section className="bg-ink text-accent-ink">
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:items-center">
         <div>
-          <Headline>Skip the Estimate. Know Your Price.</Headline>
-          <p className="mt-4 text-lg text-muted-soft">Pick your time. Book online.</p>
+          <Headline>{copy.headline}</Headline>
+          <p className="mt-4 text-lg text-muted-soft">{copy.subhead}</p>
 
           {/* The same-visit callout. Warm card against the dark ground so it
               reads as a distinct object rather than more hero copy — the one
@@ -102,10 +109,7 @@ function SplitHero({ base, ladder, differentiators }: HeroProps) {
               <p className="mt-1 font-display text-base font-bold leading-snug">
                 Additional services use our same-visit pricing.
               </p>
-              <p className="mt-1 text-[13px] leading-snug text-muted">
-                Book your first service at the regular price. When being on-site already
-                saves us time on the rest, you get that saving too.
-              </p>
+              <p className="mt-1 text-[13px] leading-snug text-muted">{copy.sameVisitBody}</p>
             </div>
             <Ladder ladder={ladder} strip={heroAside === "strip"} />
           </div>
@@ -119,7 +123,7 @@ function SplitHero({ base, ladder, differentiators }: HeroProps) {
               href={`${base}/services`}
               className="ray-accent rounded-pill bg-accent px-7 py-3.5 text-base font-semibold text-accent-ink transition hover:bg-accent-hover"
             >
-              Book Your Service
+              {copy.primaryCta}
             </Link>
             <Link
               href={`${base}/troubleshooting`}
@@ -150,13 +154,12 @@ function SplitHero({ base, ladder, differentiators }: HeroProps) {
 
 function CenteredHero({ base, ladder, differentiators }: HeroProps) {
   const { heroAside } = useStructure();
+  const { copy } = useStorefront();
   return (
     <section className="bg-canvas text-ink">
       <div className="mx-auto max-w-3xl px-6 pb-14 pt-20 text-center">
-        <Headline>Skip the Estimate. Know Your Price.</Headline>
-        <p className="mx-auto mt-5 max-w-xl text-lg text-muted">
-          Pick your time. Book online.
-        </p>
+        <Headline>{copy.headline}</Headline>
+        <p className="mx-auto mt-5 max-w-xl text-lg text-muted">{copy.subhead}</p>
 
         {/* The booking entry is the focal object here rather than one item in
             a stack, so it gets the width and the position the headline would
@@ -171,7 +174,7 @@ function CenteredHero({ base, ladder, differentiators }: HeroProps) {
             href={`${base}/services`}
             className="rounded-pill bg-accent px-7 py-3.5 text-base font-semibold text-accent-ink transition hover:bg-accent-hover"
           >
-            Book Your Service
+            {copy.primaryCta}
           </Link>
           <Link
             href={`${base}/troubleshooting`}
@@ -219,6 +222,7 @@ function CenteredHero({ base, ladder, differentiators }: HeroProps) {
  */
 function BannerHero({ base, ladder, differentiators }: HeroProps) {
   const { heroAside } = useStructure();
+  const { copy } = useStorefront();
   return (
     <section className="bg-canvas text-ink">
       <div className="relative h-[26rem] w-full overflow-hidden md:h-[32rem]">
@@ -231,8 +235,8 @@ function BannerHero({ base, ladder, differentiators }: HeroProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/45 to-ink/10" />
         <div className="absolute inset-0 flex items-end">
           <div className="mx-auto w-full max-w-6xl px-6 pb-10 text-accent-ink">
-            <Headline>Skip the Estimate. Know Your Price.</Headline>
-            <p className="mt-3 max-w-xl text-lg text-accent-ink/80">Pick your time. Book online.</p>
+            <Headline>{copy.headline}</Headline>
+            <p className="mt-3 max-w-xl text-lg text-accent-ink/80">{copy.subhead}</p>
           </div>
         </div>
       </div>
@@ -244,7 +248,7 @@ function BannerHero({ base, ladder, differentiators }: HeroProps) {
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href={`${base}/services`}
                     className="rounded-pill bg-accent px-7 py-3.5 text-base font-semibold text-accent-ink transition hover:bg-accent-hover">
-                Book Your Service
+                {copy.primaryCta}
               </Link>
               <Link href={`${base}/troubleshooting`}
                     className="rounded-pill border border-line px-7 py-3.5 text-base font-semibold text-ink transition hover:border-accent hover:text-accent">

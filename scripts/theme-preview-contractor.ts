@@ -44,7 +44,16 @@ async function main() {
       const made = await prisma.contractor.create({
         data: { slug, name: `Preview ${d.label}`, active: true,
                 themeKey: d.key, themeVersion: d.version,
-                brandColors: { primary: "#0B7A5B" } },
+                brandColors: { primary: "#0B7A5B" },
+                // Deliberately a DIFFERENT business in every respect a
+                // homeowner can see, so a screenshot that still says Elite is
+                // a failure rather than a coincidence.
+                shortName: "Northgate", legalName: "Northgate Electric LLC",
+                phone: "(602) 555-0148", supportEmail: "hello@northgate.example",
+                addressLine1: "88 Copper Row", city: "Mesa", state: "AZ", postalCode: "85201",
+                licenseLabel: "AZ ROC License", licenseNumber: "331902",
+                serviceAreaLabel: "the East Valley, AZ",
+                pricingStrategy: process.argv.includes("--tm") ? "TIME_AND_MATERIALS" : "FLAT_RATE" },
         select: { id: true },
       });
       await prisma.contractorSite.create({
@@ -63,11 +72,20 @@ async function main() {
   await destroyContractor(prisma, SLUG);
   const c = await prisma.contractor.create({
     data: {
-      slug: SLUG, name: "Theme Preview Electric", active: true,
+      slug: SLUG, name: "Northgate Electric", active: true,
       themeKey, themeVersion: version,
       // A brand colour unlike Elite's, so the screenshot also shows the
       // resolver deriving an accent rather than reusing the fixed one.
       brandColors: { primary: "#0B7A5B" },
+      // A DIFFERENT business in every respect a homeowner can see: different
+      // name, state, licensing body, phone. A preview that still says Elite
+      // anywhere is then a failure rather than a coincidence.
+      shortName: "Northgate", legalName: "Northgate Electric LLC",
+      phone: "(602) 555-0148", supportEmail: "hello@northgate.example",
+      addressLine1: "88 Copper Row", city: "Mesa", state: "AZ", postalCode: "85201",
+      licenseLabel: "AZ ROC License", licenseNumber: "331902",
+      serviceAreaLabel: "the East Valley, AZ",
+      pricingStrategy: process.argv.includes("--tm") ? "TIME_AND_MATERIALS" : "FLAT_RATE",
     },
     select: { id: true },
   });

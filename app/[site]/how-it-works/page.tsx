@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 const STEPS = [
   {
@@ -8,8 +11,10 @@ const STEPS = [
   },
   {
     number: "2",
-    title: "See Your Price",
-    body: "Answer a few quick questions about your home. Most jobs get an instant flat price — some need a couple of photos so we can confirm it remotely.",
+    // Step 2 is the pricing promise, so its words belong to the contractor's
+    // model rather than to this page.
+    title: null,
+    body: null,
   },
   {
     number: "3",
@@ -19,6 +24,7 @@ const STEPS = [
 ];
 
 export default function HowItWorksPage({ params }: { params: { site: string } }) {
+  const pcopy = usePricingCopy();
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
       <h1 className="font-display text-3xl font-bold text-navy">It's as easy as 1-2-3.</h1>
@@ -31,8 +37,8 @@ export default function HowItWorksPage({ params }: { params: { site: string } })
               {step.number}
             </div>
             <div>
-              <h2 className="font-display text-lg font-bold text-navy">{step.title}</h2>
-              <p className="mt-1 text-slate">{step.body}</p>
+              <h2 className="font-display text-lg font-bold text-navy">{step.title ?? pcopy.seePriceStepTitle}</h2>
+              <p className="mt-1 text-slate">{step.body ?? pcopy.seePriceStepBody}</p>
             </div>
           </div>
         ))}

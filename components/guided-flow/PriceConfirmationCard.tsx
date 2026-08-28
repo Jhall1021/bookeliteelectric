@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCents } from "@/lib/flow-types";
+import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 type Props = {
   serviceName: string;
@@ -10,12 +11,13 @@ type Props = {
 };
 
 export default function PriceConfirmationCard({ serviceName, priceCents, disclaimer, onAddToVisit }: Props) {
+  const pcopy = usePricingCopy();
   return (
     <div className="ray-accent rounded-card border border-cardline bg-white p-8 text-center shadow-card">
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/10 text-2xl text-success">
         ✓
       </div>
-      <h2 className="mt-4 font-display text-xl font-bold text-navy">Here's Your Price!</h2>
+      <h2 className="mt-4 font-display text-xl font-bold text-ink">{pcopy.priceReadyTitle}</h2>
       <p className="text-sm text-slate">Based on your selections</p>
 
       <div className="mt-4 text-sm font-medium text-navy">{serviceName}</div>
@@ -33,7 +35,7 @@ export default function PriceConfirmationCard({ serviceName, priceCents, disclai
       >
         Add to My Visit
       </button>
-      <p className="mt-3 text-xs text-slate">Your price is locked in for 30 days.</p>
+      <p className="mt-3 text-xs text-muted">{pcopy.priceHeldNotice}</p>
     </div>
   );
 }

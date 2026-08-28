@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatCents } from "@/lib/flow-types";
 import { uploadPhoto } from "@/lib/upload";
+import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 type Props = {
   serviceName: string;
@@ -41,6 +42,7 @@ export default function PricedPhotoReview({
   onNoteChange,
   onConfirm,
 }: Props) {
+  const pcopy = usePricingCopy();
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -81,7 +83,7 @@ export default function PricedPhotoReview({
   return (
     <div className="rounded-card border border-cardline bg-white p-8 shadow-card">
       <div className="rounded-card bg-warmwhite p-5 text-center">
-        <div className="text-sm text-slate">Your price for {serviceName}</div>
+        <div className="text-sm text-muted">{pcopy.priceForServiceLead} {serviceName}</div>
         <div className="mt-1 font-display text-4xl font-bold text-navy">
           {formatCents(priceCents)}
         </div>
@@ -94,7 +96,7 @@ export default function PricedPhotoReview({
         One last thing before you schedule
       </h2>
       <p className="mt-2 text-sm text-slate">
-        Your price is set. We just need a couple of photos so your electrician arrives with the
+        {pcopy.priceSetNotice} We just need a couple of photos so your electrician arrives with the
         right parts and doesn&rsquo;t have to make a second trip. This won&rsquo;t change what you
         pay.
       </p>

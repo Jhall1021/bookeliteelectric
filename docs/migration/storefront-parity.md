@@ -61,3 +61,20 @@ because the config appended fallbacks that `--font-display` already carried.
 The duplicated tail is unreachable and selects the same face, so the probe
 collapses duplicate families — see the note in the probe source. Every other
 property matched element-for-element without normalization.
+
+
+## Later phases
+
+The same probe has now gated three further changes. Each time it found something a visual check
+would not have:
+
+- **Phase 2 (resolver)** — identical hashes. Elite renders *through* the resolver unchanged.
+- **Phase 3 (six variants)** — two elements added and three fingerprints changed, every one
+  accounted for as the same pixels declared differently. It also caught `Section` drawing rules
+  on two boundaries the original page did not.
+- **ADR-016 (identity)** — identical multiset at 155 elements, after catching a changed header
+  CTA, a lost page title, and a call to action that had been added rather than moved.
+
+Per-element fingerprints, diffed as a multiset, turned out to be the more useful form: a whole-page
+hash says only that something moved. Sorting per-element hashes and diffing the counts says
+exactly which elements, and lets a second probe print their properties.

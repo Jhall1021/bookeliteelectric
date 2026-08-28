@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startQueue, queuedServiceHref, type QueuedService } from "@/lib/multiServiceQueue";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
+import { useIdentity } from "@/components/theme/StorefrontContext";
 
 type Candidate = { slug: string; name: string; categorySlug: string };
 
@@ -59,6 +60,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
   // dropped in the wrong place and quietly disappears — which is exactly
   // what happened the first time.
   const dark = tone === "dark";
+  const id = useIdentity();
   const router = useRouter();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -146,12 +148,18 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
         <div className="mt-4 rounded-card border-2 border-red-300 bg-red-50 p-5">
           <p className="font-display font-bold text-red-900">Please call us instead</p>
           <p className="mt-2 text-sm text-red-900">{result.message}</p>
-          <a
-            href="tel:7322047003"
-            className="mt-4 inline-block rounded-pill bg-red-700 px-6 py-3 font-semibold text-white hover:bg-red-800"
-          >
-            Call 732-204-7003
-          </a>
+          {/* A safety escalation with no number to call is worse than no
+              escalation: it tells someone to phone and gives them nobody. A
+              contractor with no phone on file gets the message without the
+              button, which is the honest version. */}
+          {id.phone && id.phoneHref ? (
+            <a
+              href={`tel:${id.phoneHref}`}
+              className="mt-4 inline-block rounded-pill bg-red-700 px-6 py-3 font-semibold text-white hover:bg-red-800"
+            >
+              Call {id.phone}
+            </a>
+          ) : null}
         </div>
       )}
 
@@ -294,9 +302,9 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
                     {item.kind === "out_of_scope" && (
                       /* Kept visible on purpose. Dropping it would leave the
                          customer expecting it to be handled. */
-                      <p className="mt-1 text-sm text-slate">
-                        We don&rsquo;t handle this one through the website &mdash; give us a call
-                        on 732-204-7003 about it.
+                      <p className="mt-1 text-sm text-muted">
+                        We don&rsquo;t handle this one through the website
+                        {id.phone ? <> &mdash; give us a call on {id.phone} about it.</> : "."}
                       </p>
                     )}
 

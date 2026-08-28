@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 import { sendQuoteReadyEmail } from "@/lib/email";
+import { loadIdentity } from "@/lib/storefrontIdentity";
+import { pricingCopy } from "@/lib/pricingCopy";
 
 export async function PATCH(req: Request, { params }: { params: { quoteId: string } }) {
   // Authentication AND tenancy in one step. Being a signed-in admin somewhere
   // is not authority to price a quote belonging to another contractor — and a
   // quote id in a URL is not authority either. Quote derives its owner through
   // Service (ADR-011), so a foreign id matches nothing.
-  return withAdminRoute(async (db) => {
+  return withAdminRoute(async (db, ctx) => {
   const { quotedPriceCents, depositRequired } = await req.json();
 
   if (typeof quotedPriceCents !== "number" || quotedPriceCents <= 0) {
@@ -68,7 +70,15 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
   }
 
   try {
+    // ctx already resolved which contractor this admin is acting for.
+    const sender = await loadIdentity(db, ctx.contractorId);
+    const strategy = (await db.contractor.findUnique({
+      where: { id: ctx.contractorId }, select: { pricingStrategy: true },
+    }))?.pricingStrategy;
     await sendQuoteReadyEmail({
+      identity: sender.identity,
+      copy: pricingCopy(strategy),
+      fromAddress: sender.fromAddress,
       id: quote.id,
       quotedPriceCents,
       serviceName: quote.service.name.trim(),

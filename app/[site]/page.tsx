@@ -5,6 +5,9 @@ import FeaturedServices, { type FeaturedItem } from "@/components/home/FeaturedS
 import Section from "@/components/theme/Section";
 import Card from "@/components/theme/Card";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
+import { prisma } from "@/lib/prisma";
+import { ANONYMOUS_IDENTITY, IDENTITY_SELECT, resolveIdentity } from "@/lib/storefrontIdentity";
+import { pricingCopy } from "@/lib/pricingCopy";
 import { formatCents } from "@/lib/flow-types";
 import { getServiceImage } from "@/lib/serviceImages";
 
@@ -18,8 +21,10 @@ import { getServiceImage } from "@/lib/serviceImages";
  * What's left is the three things a homeowner can't get from the competition,
  * with the same-visit pricing in the middle where the eye lands.
  */
-const DIFFERENTIATORS = [
-  "Upfront flat-rate pricing",
+const DIFFERENTIATORS = (pricingPromise: string) => [
+  // The pricing promise is the contractor's model talking. "Upfront flat-rate
+  // pricing" is a claim a time-and-materials contractor cannot make.
+  pricingPromise,
   "Same-visit pricing on extra work",
   "Narrow arrival windows",
 ];
@@ -73,6 +78,16 @@ export default async function HomePage({ params }: { params: { site: string } })
   // would be answered for whichever contractor owned that slug.
   const site = await requireHostedSite(params.site);
 
+  // A server component cannot read the client context the chrome uses, so it
+  // resolves the same two layers from the same place. Routing data only —
+  // identity and pricing model, never a derived presentation value.
+  const c = await prisma.contractor.findUnique({
+    where: { id: site.contractorId },
+    select: { ...IDENTITY_SELECT, pricingStrategy: true },
+  });
+  const identity = c ? resolveIdentity(c) : ANONYMOUS_IDENTITY;
+  const copy = pricingCopy(c?.pricingStrategy);
+
   // Live prices, so a repricing reaches the homepage without anyone
   // remembering to edit this file.
   const featured = await withSite(site, (db) =>
@@ -103,7 +118,9 @@ export default async function HomePage({ params }: { params: { site: string } })
       label: svc.label,
       icon: svc.icon,
       image: image ? { src: image.src, alt: image.alt } : null,
-      price: live.basePrice ? `From ${formatCents(live.basePrice)}` : live.startingPriceLabel ?? "Custom Quote",
+      price: live.basePrice
+        ? `${copy.priceLead} ${formatCents(live.basePrice)}`
+        : live.startingPriceLabel ?? copy.noPriceLabel,
       // Keeps its fallback rather than throwing: this is a curated static list
       // carrying its own category constant, so a missing row degrades to the
       // hardcoded slug instead of taking the homepage down.
@@ -116,18 +133,14 @@ export default async function HomePage({ params }: { params: { site: string } })
       <Hero
         base={`/${params.site}`}
         ladder={PRICING_LADDER}
-        differentiators={DIFFERENTIATORS}
+        differentiators={DIFFERENTIATORS(copy.pricingDifferentiator)}
       />
 
       {/* How pricing works */}
       <Section>
         <div className="mx-auto max-w-6xl px-6">
-        <h2 className="font-display text-2xl font-bold text-navy">How Our Pricing Works</h2>
-        <p className="mt-2 max-w-2xl text-slate">
-          Getting an electrician to your door is most of what a small job costs. Your
-          first service covers that, and everything after it is priced for the work it
-          actually takes.
-        </p>
+        <h2 className="font-display text-2xl font-bold text-ink">{copy.pricingSectionTitle}</h2>
+        <p className="mt-2 max-w-2xl text-muted">{copy.pricingSectionBody}</p>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-3">
           <Card className="p-6">
@@ -228,18 +241,20 @@ export default async function HomePage({ params }: { params: { site: string } })
 
       {/* Service area */}
       <Section divide alt className="text-center">
-        <h2 className="font-display text-2xl font-bold text-navy">
-          Proudly Serving Monmouth &amp; Ocean Counties, NJ
+        <h2 className="font-display text-2xl font-bold text-ink">
+          {identity.serviceArea ? `Proudly Serving ${identity.serviceArea.label}` : "Our Service Area"}
         </h2>
-        <div className="relative mx-auto mt-6 h-96 w-96 max-w-full">
-          <Image
-            src="/images/nj-service-area-map.png"
-            alt="Map of New Jersey with Monmouth and Ocean counties highlighted as our service area"
-            fill
-            className="object-contain"
-            sizes="(min-width: 768px) 384px, 90vw"
-          />
-        </div>
+        {identity.serviceArea?.imageUrl ? (
+          <div className="relative mx-auto mt-6 h-96 w-96 max-w-full">
+            <Image
+              src={identity.serviceArea.imageUrl}
+              alt={identity.serviceArea.imageAlt}
+              fill
+              className="object-contain"
+              sizes="(min-width: 768px) 384px, 90vw"
+            />
+          </div>
+        ) : null}
       </Section>
     </main>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@/lib/flow-types";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
+import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 type QuoteStatus = "SUBMITTED" | "IN_REVIEW" | "PRICED" | "APPROVED" | "EXPIRED";
 
@@ -19,6 +20,7 @@ type QuoteData = {
 };
 
 export default function QuoteStatusPage({ params }: { params: { quoteId: string } }) {
+  const pcopy = usePricingCopy();
   // Storefront navigation must carry the site slug. These were root paths,
   // working only because the legacy Elite redirects catch them — the whole
   // client-side navigation layer was masked by those redirects.
@@ -74,8 +76,8 @@ export default function QuoteStatusPage({ params }: { params: { quoteId: string 
             </div>
             <p className="mt-4 text-slate">
               We've got your {quote.photoCount} photo{quote.photoCount === 1 ? "" : "s"} and
-              we're reviewing them now. We'll email you a fixed price — usually within one
-              business day. You can bookmark this page to check back.
+              we're reviewing them now. {pcopy.photoReviewEmailPromise} You can bookmark this
+              page to check back.
             </p>
           </>
         )}
@@ -85,7 +87,7 @@ export default function QuoteStatusPage({ params }: { params: { quoteId: string 
             <div className="ray-accent mx-auto mt-4 flex h-12 w-12 items-center justify-center rounded-full bg-success/10 text-2xl text-success">
               ✓
             </div>
-            <p className="mt-4 text-slate">Your price is ready.</p>
+            <p className="mt-4 text-muted">{pcopy.quoteEmailTitle}.</p>
             <div className="mt-2 font-display text-4xl font-bold text-navy">
               {formatCents(quote.quotedPriceCents)}
             </div>

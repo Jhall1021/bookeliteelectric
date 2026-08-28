@@ -1,3 +1,5 @@
+import type { StorefrontIdentity } from "./storefrontIdentity";
+import type { PricingCopy } from "./pricingCopy";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -12,13 +14,40 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // value is still "set" (a real empty string, not undefined/null), so ??
 // would never fall back to the default — || correctly treats an empty
 // string the same as genuinely unset.
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Elite Electric <onboarding@resend.dev>";
+const FALLBACK_FROM = process.env.RESEND_FROM_EMAIL || "Price2Book <onboarding@resend.dev>";
+
+/**
+ * Transactional mail is customer-facing, so it carries the CONTRACTOR's
+ * identity — ADR-016. It used to carry Elite's name, phone and sender address
+ * unconditionally, which meant a second contractor's customers would have been
+ * thanked by a company they never hired.
+ *
+ * Colours stay inlined here rather than coming from the theme: mail clients do
+ * not reliably support custom properties, and a themed transactional email is
+ * its own piece of work.
+ */
+function senderFor(id: StorefrontIdentity, fromAddress: string | null): string {
+  const address = (fromAddress ?? "").trim();
+  // Only the display part is the contractor's. A contractor cannot nominate a
+  // sending ADDRESS we have not verified with the mail provider, so an
+  // unconfigured one falls back rather than failing to send.
+  if (!address) return FALLBACK_FROM;
+  return address.includes("<") ? address : `${id.displayName} <${address}>`;
+}
+
+/** Contractor-supplied text lands in an HTML template; it does not get to carry markup. */
+function escapeHtml(v: string): string {
+  return v.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
 
 function formatDollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
 export async function sendBookingConfirmationEmail(booking: {
+  identity: StorefrontIdentity;
+  fromAddress?: string | null;
   address: string;
   zipCode: string;
   totalCents: number;
@@ -32,7 +61,7 @@ export async function sendBookingConfirmationEmail(booking: {
     console.log(`=== No customer email — skipping send ===`);
     return;
   }
-  console.log(`=== Sending to ${booking.customer.email} from ${FROM_EMAIL} ===`);
+  console.log(`=== Sending to ${booking.customer.email} ===`);
 
   const dateLabel = booking.arrivalWindow.date.toLocaleDateString("en-US", {
     weekday: "long",
@@ -49,7 +78,7 @@ export async function sendBookingConfirmationEmail(booking: {
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 480px; margin: 0 auto; color: #0F1E3C;">
       <h1 style="font-size: 20px; margin: 0 0 8px;">You're all set${booking.customer.name ? `, ${booking.customer.name}` : ""}!</h1>
-      <p style="margin: 0 0 16px;">Your appointment with Elite Electric &amp; Lighting is confirmed.</p>
+      <p style="margin: 0 0 16px;">Your appointment with ${escapeHtml(booking.identity.displayName)} is confirmed.</p>
 
       <div style="background: #F7F5F0; border-radius: 12px; padding: 16px; margin: 0 0 16px;">
         <p style="margin: 0 0 8px; font-weight: 600;">${dateLabel}</p>
@@ -63,16 +92,16 @@ export async function sendBookingConfirmationEmail(booking: {
         Nothing to pay until the work is done.
       </p>
 
-      <p style="font-size: 14px; color: #55606E; margin: 16px 0 0;">
-        Questions? Call us at 732-204-7003.
-      </p>
+      ${booking.identity.phone ? `<p style="font-size: 14px; color: #55606E; margin: 16px 0 0;">
+        Questions? Call us at ${escapeHtml(booking.identity.phone)}.
+      </p>` : ""}
     </div>
   `;
 
   const result = await resend.emails.send({
-    from: FROM_EMAIL,
+    from: senderFor(booking.identity, booking.fromAddress ?? null),
     to: booking.customer.email,
-    subject: "Your appointment is confirmed — Elite Electric & Lighting",
+    subject: `Your appointment is confirmed — ${booking.identity.displayName}`,
     html,
   });
 
@@ -97,6 +126,11 @@ export async function sendBookingConfirmationEmail(booking: {
  * leaves them stuck with no way to know they should look again.
  */
 export async function sendQuoteReadyEmail(quote: {
+  identity: StorefrontIdentity;
+  /** What kind of number this is. A fixed price and an estimate are not the
+   *  same message, and mail is the one surface a customer keeps. */
+  copy: PricingCopy;
+  fromAddress?: string | null;
   id: string;
   quotedPriceCents: number;
   serviceName: string;
@@ -109,7 +143,7 @@ export async function sendQuoteReadyEmail(quote: {
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
-      <h1 style="font-size: 22px; color: #0F1E35; margin: 0 0 4px;">Your price is ready</h1>
+      <h1 style="font-size: 22px; color: #0F1E35; margin: 0 0 4px;">${escapeHtml(quote.copy.quoteEmailTitle)}</h1>
       <p style="font-size: 15px; color: #55606E; margin: 0 0 24px;">
         Hi ${quote.customer.name}, we've had a look at the photos you sent.
       </p>
@@ -118,7 +152,7 @@ export async function sendQuoteReadyEmail(quote: {
         <div style="font-size: 14px; color: #55606E;">${quote.serviceName}</div>
         <div style="font-size: 28px; font-weight: 700; color: #0F1E35; margin-top: 4px;">${price}</div>
         <div style="font-size: 13px; color: #55606E; margin-top: 8px;">
-          A fixed price for the work as we've seen it — not an estimate.
+          ${escapeHtml(quote.copy.quoteEmailQualifier)}
         </div>
       </div>
 
@@ -132,16 +166,16 @@ export async function sendQuoteReadyEmail(quote: {
         booked and nothing is owed until you do.
       </p>
 
-      <p style="font-size: 14px; color: #55606E; margin: 16px 0 0;">
-        Questions? Call us at 732-204-7003.
-      </p>
+      ${quote.identity.phone ? `<p style="font-size: 14px; color: #55606E; margin: 16px 0 0;">
+        Questions? Call us at ${escapeHtml(quote.identity.phone)}.
+      </p>` : ""}
     </div>
   `;
 
   const result = await resend.emails.send({
-    from: FROM_EMAIL,
+    from: senderFor(quote.identity, quote.fromAddress ?? null),
     to: quote.customer.email,
-    subject: `Your price for ${quote.serviceName} — Elite Electric & Lighting`,
+    subject: `${quote.copy.quoteEmailSubjectLead} ${quote.serviceName} — ${quote.identity.displayName}`,
     html,
   });
 

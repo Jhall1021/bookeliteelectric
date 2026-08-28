@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { uploadPhoto } from "@/lib/upload";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
+import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 type Props = {
   serviceName: string;
@@ -38,6 +39,7 @@ export default function PhotoReviewNotice({
   onNoteChange,
   answers,
 }: Props) {
+  const pcopy = usePricingCopy();
   // Storefront navigation carries the site slug. These were root paths,
   // working only because the legacy Elite redirects catch them.
   const base = useStorefrontBase();
@@ -108,7 +110,7 @@ export default function PhotoReviewNotice({
       <h2 className="font-display text-xl font-bold text-navy">We can price this remotely.</h2>
       <p className="mt-2 text-sm text-slate">
         Your answers for {serviceName} mean we need a few photos to confirm the price — no
-        estimate visit required. We'll review them and send back a fixed price.
+        estimate visit required. {pcopy.photoReviewPromise}
       </p>
 
       {/* Half of what makes a quote easy is the sentence the customer would
@@ -206,7 +208,7 @@ export default function PhotoReviewNotice({
         {submitting ? "Submitting..." : "Submit for Review"}
       </button>
       <p className="mt-3 text-xs text-slate">
-        We'll email you a fixed price, usually within one business day.
+        {pcopy.photoReviewEmailPromise}
       </p>
     </div>
   );

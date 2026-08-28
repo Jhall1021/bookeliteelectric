@@ -9,6 +9,7 @@ import {
 } from "@/lib/jobber";
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
 import { sendBookingConfirmationEmail } from "@/lib/email";
+import { loadIdentity } from "@/lib/storefrontIdentity";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { findOpenVisit } from "@/lib/openVisit";
 
@@ -333,7 +334,12 @@ export async function POST(req: Request) {
     }
   })();
 
+  // The confirmation goes out under the CONTRACTOR's name and number, not the
+  // platform's — the customer hired them, not us.
+  const sender = await loadIdentity(db, site.contractorId);
   const confirmationEmail = sendBookingConfirmationEmail({
+    identity: sender.identity,
+    fromAddress: sender.fromAddress,
     address,
     zipCode,
     totalCents,

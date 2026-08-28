@@ -15,7 +15,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const EMERGENCY_MESSAGE =
-  "What you're describing could be a safety issue, and it isn't something to book online for later. Please call us on 732-204-7003 and we'll talk it through now. If there's smoke, a burning smell, or anything is hot to the touch, switch off the breaker if you can reach it safely — and call 911 if you think there's a fire.";
+  "What you're describing could be a safety issue, and it isn't something to book online for later. Please call us now and we'll talk it through. If there's smoke, a burning smell, or anything is hot to the touch, switch off the breaker if you can reach it safely — and call 911 if you think there's a fire.";
 
 export async function POST(req: Request) {
   // ADR §2.2. The site identifier the caller carries decides the tenant.

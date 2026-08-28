@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
 import { answerPriceDelta } from "@/lib/pricing";
+import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 type Props = {
   question: QuestionDTO;
@@ -24,6 +25,7 @@ type Props = {
 };
 
 export default function QuestionStep({ question, answers, accessClass, onAnswer }: Props) {
+  const pcopy = usePricingCopy();
   const [text, setText] = useState("");
 
   // Help text that only holds on some routes. A `replaces` entry swaps the
@@ -173,7 +175,7 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
                   says that instead of showing a number that might move. */}
               {delta.needsReview ? (
                 <span className="mt-1 block text-xs font-normal text-slate">
-                  We&rsquo;ll confirm your price after a quick look
+                  {pcopy.confirmAfterLookNotice}
                 </span>
               ) : delta.cents && delta.cents > 0 ? (
                 <>
