@@ -150,3 +150,77 @@ one release would violate the rule recorded in ADR-013 itself:
 
 > One irreversible change per release. If two must ship together, they have to be one
 > change that cannot be separated — not two that happen to be ready at the same time.
+
+
+---
+
+## Phase 2 result — 28 August
+
+Import Data reproduced the database faithfully. Parity across **51 tables, 491 columns,
+436 constraints, 131 indexes, 18 enums, 51 row counts** — identical.
+
+Two divergences surfaced, both real, both explained, neither requiring a hand-patch.
+
+### 1. Ordinal positions on `photos` and `visits`
+
+Nine columns sit one slot lower in the destination. Cause: the contract dropped
+`photos.bookingId` and `visits.customerId`, and Postgres **never renumbers `attnum`** — a
+dropped column leaves a permanent hole. A dump/restore rebuilds contiguously, so a
+*faithful* copy of a table that has ever had a column dropped legitimately reports lower
+positions. `customers`, which never had a column dropped, matched exactly — the control.
+
+Handled by **computing** the exemption, not waiving it: the difference is tolerated only
+when the source position minus the holes before that column equals the destination
+position, and everything else about the column is byte-identical. A genuine reorder still
+fails, because no number of holes explains a swap.
+
+### 2. `updatedAt` on `jobber_connections` and `pricing_settings`
+
+Found by **content checksums**, which were added after stamping exposed a gap in this
+plan's own Phase 2 list: it asked for *row counts*, and row counts prove the right number
+of rows arrived while saying nothing about whether the values survived. A copy that
+truncated a text column or shifted a timestamp would have passed every dimension, because
+the structure would be perfect.
+
+The checksum found two tables differing. Field-by-field, the only difference on either was
+`updatedAt`: tokens, rates and owners byte-identical. Cause is the mutating tenancy suites,
+which restore every value but cannot restore `@updatedAt` — writing the restore is itself a
+write.
+
+Two things follow:
+
+- Those suites' "restored exactly" claim was overstated and now reads "every value
+  byte-identical". The trace is real and is not hidden.
+- **Content parity is authoritative only before the mutating suites run against a copy.**
+  At cutover the copy is taken fresh and its parity measured before anything touches it,
+  so this trace will not exist there.
+
+`database_identity` is the one table excluded from content comparison, by design: it is
+the table the two databases are *supposed* to disagree about.
+
+### Verification against the destination
+
+```
+tenant indexes            green        booking tenancy        17/17
+checkout atomicity        9/9          isolation harness      144/144
+jobber tenancy            17/17        pricing tenancy        13/13
+reconciliation            0 differing, same 2 approved exceptions
+```
+
+No probe data left behind: one contractor, real Jobber token, correct rate — and parity
+re-run after the suites confirmed it.
+
+### Identity
+
+The destination inherited the source's marker verbatim — `bookelite-legacy-production` /
+`ep-icy-hill-axkgrsjb` — and the check **refused it** as "an un-restamped COPY of another
+database". That is the mechanism proving itself against a real copy rather than a
+simulation.
+
+Stamped `price2book-production` / `bitter-bird-20565072` **only after parity passed**. The
+source still verifies as itself.
+
+One fix this forced: the endpoint comparison now strips a trailing `-pooler`. Neon serves
+one endpoint at two hostnames, and recording the pooled form would have made the marker
+fail the moment production connected directly — a false alarm about the one thing this
+check exists to be trusted on.

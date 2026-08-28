@@ -50,10 +50,19 @@ const urlVar = arg("url-var") ?? "DATABASE_URL";
 const url = process.env[urlVar];
 if (!url) { console.error(`\n  ${urlVar} is not set.\n`); process.exit(1); }
 
-/** The endpoint actually connected to, read from the live connection string. */
+/**
+ * The endpoint actually connected to, read from the live connection string.
+ *
+ * The `-pooler` suffix is stripped. Neon serves one endpoint at two hostnames
+ * — `ep-x-123` direct and `ep-x-123-pooler` through PgBouncer — and which one
+ * a connection string names is a pooling choice, not a different database.
+ * Recording the suffix would make a marker stamped over a pooled connection
+ * fail the moment production connected directly, which is a false alarm about
+ * the one thing this check exists to be trusted on.
+ */
 function liveEndpoint(u: string): string {
   const host = u.replace(/^.*@/, "").split("/")[0];
-  return host.split(".")[0];
+  return host.split(".")[0].replace(/-pooler$/, "");
 }
 
 const prisma = new PrismaClient({ datasources: { db: { url } } });
