@@ -41,7 +41,15 @@ export type PricingCopy = {
   priceLead: string;
   /** Shown where no figure can be produced yet. */
   noPriceLabel: string;
-  /** Labels the resolved figure at the end of the guided flow. */
+  /**
+   * Labels the resolved figure at the end of the guided flow.
+   *
+   * Under TIME_AND_MATERIALS this must describe **what the range actually
+   * covers**. V1 quotes labour only and discloses materials separately, so
+   * calling it an "estimated total" would name a number that is not the total
+   * — the homeowner would read a figure and believe it was the whole bill.
+   * Asserted mechanically; see FORBIDDEN_TOTAL_LABELS below.
+   */
   resolvedPriceLabel: string;
   /** The action that commits: booking a price, or authorising work. */
   commitCta: string;
@@ -150,7 +158,7 @@ const TIME_AND_MATERIALS: PricingCopy = {
   headerCta: "Book Service",
   priceLead: "Estimated from",
   noPriceLabel: "Estimate on request",
-  resolvedPriceLabel: "Estimated total",
+  resolvedPriceLabel: "Estimated labour",
   commitCta: "Authorize service",
   estimateNotice:
     "This is an estimate, not a fixed-price quote. Your final invoice is based on the actual time and materials used.",
@@ -201,6 +209,20 @@ export function pricingCopy(strategy: PricingStrategy | null | undefined): Prici
  * this file exists to prevent: copy that is true for Elite, silently wrong for
  * a contractor billing time and materials, and invisible until one complains.
  */
+/**
+ * Words a labour-only range may not be labelled with.
+ *
+ * The whole risk of quoting labour and disclosing materials separately is that
+ * a label quietly promotes the figure into the whole bill. So the language is
+ * constrained rather than trusted, and the constraint is testable.
+ *
+ * Lift this only when the estimate genuinely includes materials.
+ */
+export const FORBIDDEN_TOTAL_LABELS = /\b(total|all[- ]in|full price|final price|everything)\b/i;
+
+/** Every T&M label a customer sees applied to the labour-only range. */
+export const TM_RANGE_LABELS = (c: PricingCopy) => [c.resolvedPriceLabel, c.priceLead];
+
 export const FLAT_RATE_ASSUMPTIONS: readonly RegExp[] = [
   /\bknow your (exact )?price\b/i,
   /\bupfront (fixed|flat[- ]rate) price\b/i,

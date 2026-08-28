@@ -230,7 +230,41 @@ does not depend on it.
 
 `db:reconcile` after the whole phase: **0 differing.**
 
+### The labour-only range is labelled for what it covers
+
+Because V1 quotes labour and discloses materials separately, **no customer-facing label may call
+that range a total.** `resolvedPriceLabel` under TIME_AND_MATERIALS is "Estimated labour", and
+`FORBIDDEN_TOTAL_LABELS` refuses total / all-in / full price / final price / everything on any
+label applied to it. Asserted in `verify-pricing-strategy`, so the constraint is mechanical rather
+than remembered.
+
+A FLAT_RATE price genuinely does include materials, so it stays free to be a total — the verifier
+asserts the reverse there, that a fixed price is not described as labour.
+
+Lift the constraint only when the estimate actually includes materials.
+
+## Future enhancements — NOT unfinished V1 work
+
+These are recorded so they are not rediscovered as gaps. Each is a deliberate future step with a
+V1 answer already in place.
+
+**Server-side resolved-scope material estimation.** An endpoint that replays a resolved route on
+the server and returns a materials figure with the package markup applied once, correctly. That
+is the only way to quote materials without either overstating them per component or shipping cost
+inputs to the browser. V1's answer — disclose materials as an additional charge — is complete and
+correct on its own terms, not a placeholder.
+
+**A T&M minimum.** Its own explicit concept, disclosed to the customer, never `primaryMinimumCents`.
+
+**Material low/high ranges.** Not without evidence anyone needs them.
+
+**Per-service pricing strategy.** Deliberately excluded from V1.
+
+**The five unused `AnswerOption` duration columns** — `overrideEstimatedMinutes`,
+`overrideFieldLaborHours`, `addFieldLaborHours`, `addScheduleMinutes`, `overrideTechCount` — are
+unused across all 539 options and remain a **later contraction candidate**. Not bundled into any
+pricing work.
+
 ### Still deferred
 
-A T&M minimum (see above), material ranges, per-service strategy overrides, and Guided Setup's
-bulk-calibration flow.
+Guided Setup's bulk-calibration flow.

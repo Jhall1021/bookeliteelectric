@@ -16,7 +16,7 @@ import { execSync } from "node:child_process";
 import { loadEnv } from "./_env";
 import { readiness, validateEstimateBounds, suggestBounds } from "../lib/pricingReadiness";
 import { estimateRange } from "../lib/timeAndMaterials";
-import { pricingCopy } from "../lib/pricingCopy";
+import { pricingCopy, FORBIDDEN_TOTAL_LABELS, TM_RANGE_LABELS } from "../lib/pricingCopy";
 import { withThrowaway } from "./_throwaway";
 import { startConfiguration, applyBranch } from "../lib/pricing";
 
@@ -148,6 +148,20 @@ function noCrossing() {
   ok(/book/i.test(flat.commitCta) && /authori/i.test(tm.commitCta),
     `the commitment differs ("${flat.commitCta}" vs "${tm.commitCta}")`);
   ok(!/price/i.test(tm.headline), "T&M's headline promises no price");
+
+  // V1 quotes LABOUR and discloses materials separately, so no label the
+  // customer sees may promote that range into the whole bill.
+  const mislabelled = TM_RANGE_LABELS(tm).filter((l) => FORBIDDEN_TOTAL_LABELS.test(l));
+  ok(mislabelled.length === 0,
+    `no T&M label calls the labour-only range a total ("${tm.resolvedPriceLabel}")`,
+    mislabelled.join(", "));
+  ok(/labour|labor/i.test(tm.resolvedPriceLabel),
+    "…and it says what the range actually covers");
+  ok(tm.materialsNotice !== null && /materials/i.test(tm.materialsNotice!),
+    "materials are disclosed as a separate charge");
+  // The flat-rate price DOES include everything, so it is free to be a total.
+  ok(!/labour|labor/i.test(flat.resolvedPriceLabel),
+    "a flat-rate price is not described as labour — it includes materials");
 
   // The estimate card must not author its own contractual wording.
   const card = readFileSync("components/guided-flow/EstimateRangeCard.tsx", "utf8");

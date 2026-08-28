@@ -59,10 +59,13 @@ export default function EstimateRangeCard(
       <div className="mt-4 divide-y divide-line border-y border-line">
         {row("Our labour rate", `${formatCents(estimate.crewHourRateCents)} / crew hour`)}
         {row("Estimated time", hours)}
-        {row("Estimated labour", range(estimate.lowLaborCents, estimate.highLaborCents))}
         {estimate.materialCents !== null && row("Estimated materials", formatCents(estimate.materialCents))}
       </div>
 
+      {/* The emphasised figure is labelled for what it COVERS. With materials
+          disclosed separately, this range is labour — naming it a total would
+          promote it into the whole bill in the reader's head, which is the one
+          misreading this layout must not permit. */}
       <div className="mt-3">
         {row(copy.resolvedPriceLabel, range(estimate.lowTotalCents, estimate.highTotalCents), true)}
       </div>
