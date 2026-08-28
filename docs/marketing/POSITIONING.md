@@ -2,6 +2,11 @@
 
 **Status:** settled by the owner, 28 August 2026. The marketing site is designed from this.
 
+**Superseded in part by** [homepage-handoff-2026-08-28.docx](homepage-handoff-2026-08-28.docx),
+the Final Consolidated Handoff. Where the two disagree, the handoff wins. The audience
+definition below is unchanged; the product vocabulary and homepage structure come from the
+handoff and are summarised under "Product vocabulary" and "Homepage order".
+
 ## The one-line pitch
 
 > **Your pricing. Your schedule.**
@@ -64,17 +69,51 @@ competitor cannot fake: a real service template, pricing logic, decision trees, 
 and components, a booking flow and a working storefront. Plumbing and HVAC are the
 eventual market, not the launch claim.
 
-## Homepage structure
+## Product vocabulary — approved names
 
-1. **Your pricing. Your schedule.**
-2. The homeowner journey, shown immediately
-3. *You decide what can be priced online*
-4. *You decide what can be booked*
-5. *Works with the software you already use*
-6. The electrical template and product
-7. Contractor control screenshots
-8. Setup and onboarding
-9. Pricing / early-access CTA
+| Term | What it names |
+|---|---|
+| **Price Online · Book Online · While We're There™** | the three product pillars |
+| **Guided Pricing** | the editable question / decision-tree system |
+| **Guided Setup** | the onboarding experience |
+| **While We're There™** | same-visit additional work. Brand line: *One trip. More done.* |
+
+Price2Book sits between the homeowner and the contractor's existing operation:
+**homeowner → Price2Book → the contractor's existing workflow.** It is deliberately not a
+CRM, accounting, payroll or dispatch platform. **Do not lead with AI.**
+
+## Colour system
+
+- **Blue / navy** — core product: pricing, scheduling, configuration, contractor control.
+- **Green** — While We're There™, availability, positive and successful states.
+
+Warm editorial character stays. The software is the hero; avoid generic contractor stock
+imagery as the primary visual language.
+
+## Homepage order
+
+Hero → three pillars → four steps → While We're There™ → Guided Pricing → four customer
+outcomes → *Your labour. Your materials. Your rules.* → *You decide what can be booked* →
+*Keep the software you already use* → electrical-first template → contractor control panel
+→ Guided Setup → proof (when it exists) → early-access CTA.
+
+## Accuracy rules that constrain the copy
+
+These are correctness constraints, not style preferences:
+
+- **Integration status must be truthful.** Never show "Connected" against a platform that
+  is not integrated. Today: Jobber is genuinely built (OAuth, booking push, crew sync, live
+  availability) = *Available*; the Price2Book scheduler = *Built In*; ServiceTitan,
+  Housecall Pro and Google Calendar have no code = *Coming Soon*.
+- **Never imply that changing a labour rate silently changes live homeowner prices.**
+  Suggested and published prices stay visibly distinct: *Price2Book can suggest. You
+  approve.*
+- **Do not fabricate testimonials.** Until real pilot contractors supply them, show factual
+  product proof or nothing.
+- **Do not advertise exact service or category counts** — they will change. "Dozens of
+  residential electrical services."
+- **Do not make "upselling" the language** for While We're There™, and do not present it as
+  a discount or percentage-off engine.
 
 ## Call to action
 
