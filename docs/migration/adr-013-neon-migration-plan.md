@@ -290,3 +290,92 @@ Price2Book *Neon project's* `production` branch was. The app deploys from
 
 `adr-013-preview` is an empty commit on main whose only job is to produce a Preview
 deployment. Delete it after cutover; there is nothing in it to merge.
+
+
+---
+
+## Phase 4 — CUTOVER COMPLETE, 28 August
+
+Production now runs on the Price2Book Neon project. BookElite is a frozen snapshot.
+
+| | |
+|---|---|
+| **System of record** | `bitter-bird-20565072`, branch `import-2026-08-28T12:58:02.408Z`, endpoint `ep-shy-butterfly-ay5t03di`, stamped `price2book-production` |
+| **Rollback source** | `purple-hat-40018035`, endpoint `ep-icy-hill-axkgrsjb`, stamped `bookelite-legacy-production`, untouched |
+
+### What was done
+
+```
+1  source healthy, identity confirmed
+2  WRITE_FREEZE on, redeployed
+3  freeze proven LIVE — every read 200, every write 503 WRITE_FROZEN
+4  fresh import taken under the freeze
+5  parity IDENTICAL — and CONTENT identical too, with no updatedAt traces,
+   because nothing had touched the copy
+7  17/17 · 9/9 · 144/144 · 17/17 · 13/13 · reconcile 0 differing
+8  stamped price2book-production, only after parity earned it
+9  Production DATABASE_URL switched to the direct, non-pooled string
+10 redeployed
+11 identity confirmed FROM THE DEPLOY'S OWN BUILD LOG, then read smoke
+12 tagged write proven present in Price2Book, ABSENT from BookElite
+13 writes reopened
+14 markers removed, final verification green, BookElite verified untouched
+```
+
+### The proof that mattered
+
+A write carrying a unique marker in `answersSnapshot`, made through the real production
+application as the first intentional write after the thaw, was found in Price2Book and
+**not** in BookElite. Not "a row appeared" — *that* row, identifiable, in one database only.
+
+The live Jobber availability call is the second piece: it shows this is not merely
+"Postgres connected". The copied OAuth credentials work, and the production application
+performs a real external integration call against them.
+
+### The cutover baseline
+
+Captured while frozen, when the two databases were provably identical. It is what makes the
+rollback rule executable rather than aspirational: `cutover-baseline.ts --since` reports
+which tables have moved on Price2Book, tracking row counts **and** highest id, so a new row
+still shows even if a delete happened to restore the count.
+
+At the end of Phase 4 it reported **nothing has changed** — synthetic markers removed,
+counts back to 33 visits and 39 line items.
+
+### Rollback, from here
+
+Not simply "switch back". Per the rule agreed before the thaw:
+
+1. re-enable `WRITE_FREEZE`, redeploy so production is read-only
+2. run `cutover-baseline.ts --since` to establish whether legitimate writes landed
+3. **only if nothing landed** may `DATABASE_URL` point back at BookElite unreconciled
+4. if writes did land, they exist **only** on Price2Book and must be preserved first
+
+> **The migration commits itself the moment real writes begin accumulating on Price2Book.**
+> Everything up to the thaw was reversible. The first genuine customer booking is not.
+
+### Two failures worth keeping
+
+**Production briefly had no `DATABASE_URL`.** It was one Vercel entry covering Production
+and Preview together; adding a Preview-scoped entry left Production with none, and the next
+deploy failed. Production kept serving only because the previous build was still live. The
+instruction that caused it led with the risky step. Add the Production-scoped variable
+first.
+
+**An empty database was pasted into Production once.** The build failed with
+`public.services does not exist` — from an unrelated check, four steps into the gate. The
+check that exists to answer "am I talking to the right database" ran fourth, and it also
+mishandled an empty database by throwing a missing-table error instead of saying the
+database was empty. Both fixed: identity runs first now, and an empty database says so.
+
+The Price2Book project's `production` branch has now been mistaken for the real database
+**three times**. It is named `production`, it is the obvious thing to copy from the console,
+and it has never held data.
+
+### Not done, deliberately
+
+The unused Price2Book Vercel project, the old Neon branches, the BookElite infrastructure
+and the deprecated models are all untouched, per the release scope.
+
+`.env` now points `DATABASE_URL` at Price2Book so local tooling matches production, with the
+old value kept as `BOOKELITE_ROLLBACK_DATABASE_URL` — named for what it now is.
