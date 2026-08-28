@@ -2293,3 +2293,43 @@ model SupportAccessEvent {
   @@index([sessionRef])
   @@map("support_access_events")
 }
+
+/// Which database this actually is — ADR-013.
+///
+/// NOT an environment-variable label. `DATABASE_URL` says where we connected;
+/// this says what we connected TO, and the two are checked against each other
+/// at deploy time by scripts/verify-database-identity.ts.
+///
+/// WHY A STAMPED ROW RATHER THAN ASKING POSTGRES
+///
+/// Nothing intrinsic to a Neon connection identifies the database. Production
+/// and a branch of it report the SAME pg_control_system().system_identifier
+/// (a branch is a copy-on-write clone and shares lineage), the same
+/// current_database() of "neondb", and the same inet_server_addr(). Measured,
+/// not assumed. So "ask the server who it is" cannot tell production from a
+/// copy of production — which is exactly the mistake that cost this migration
+/// two rehearsal attempts against a database named "production" that was
+/// empty.
+///
+/// THE ENDPOINT FIELD IS THE LOAD-BEARING PART
+///
+/// A copy inherits this row verbatim, so the marker alone still cannot
+/// distinguish original from copy. It records the endpoint it was STAMPED for,
+/// and the check compares that against the endpoint actually connected to. A
+/// clone therefore fails the check until it is deliberately re-stamped, which
+/// is the moment a human decides "this copy is now the real one".
+model DatabaseIdentity {
+  /// Always "singleton" — one row, enforced by the primary key itself.
+  id           String   @id @default("singleton")
+  /// Logical role, e.g. "price2book-production", "bookelite-legacy".
+  key          String
+  /// Neon project id this was stamped for.
+  neonProject  String
+  /// Neon endpoint id, e.g. "ep-icy-hill-axkgrsjb". Compared against the
+  /// live connection string, which is what catches an unstamped copy.
+  neonEndpoint String
+  note         String?
+  stampedAt    DateTime @default(now())
+
+  @@map("database_identity")
+}
