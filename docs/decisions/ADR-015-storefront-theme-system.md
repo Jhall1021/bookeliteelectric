@@ -378,3 +378,78 @@ and three fingerprints changed, every one accounted for:
   same colour.
 
 Same pixels, different declarations. The `/services` and service-detail pages hash byte-identical.
+
+---
+
+## Phase 4 — theme selection, 28 August 2026
+
+### Family, variant and version are the stored identity
+
+`themeKey` encoded the family and variant in a string, which would have made the selector parse a
+key apart to persist what the contractor actually chose. All three parts are columns now, the
+definition is looked up by all three, and `key` is derived for display only.
+
+Migrated in expand → migrate → contract, with the one legacy key that is not `family-variant`
+(`elite-baseline` → `baseline` / `a`) named explicitly rather than guessed at. A key that cannot
+be split raises rather than defaulting: guessing would silently repoint a live storefront at a
+different design.
+
+**No code path resolves a "latest" version.** `verify-design-picker` greps for one. A contractor
+pinned to v1 must keep rendering v1 after v2 ships, and the surest guarantee is that nothing can
+ask for the newest.
+
+### The preview renders the real components
+
+`DesignPreview` mounts the actual `Header`, `Hero` and `FeaturedServices` inside the actual
+providers, at reduced scale, with the contractor's own logo, brand colour, identity and pricing
+model. It is not a mock-up of the storefront; it is the storefront's components. A mock-up would
+drift, and would drift silently.
+
+Three things make that safe on a settings page:
+
+- **Scoped tokens.** `themeCss` takes a selector, so each preview writes to its own container
+  instead of `:root`. Six previews sit on one page without repainting the page around them.
+- **Inert.** `pointer-events: none` plus `inert`, so nothing inside can be clicked, focused or
+  tabbed into. A preview is a picture, and a picture that can navigate you away is a trap.
+- **No writes.** Previewing resolves a theme in memory. The verifier asserts the component
+  contains no `fetch` and no `useEffect`, because "we did not call fetch" is only true until
+  somebody adds one.
+
+Rendering real components surfaced a real constraint: `ServiceFinder` requires `SiteContext`
+outright. Rather than stub it, the preview is wrapped in the contractor's own `SiteProvider` — the
+honest answer, since the preview *is* that contractor's storefront.
+
+### Curated, in plain language
+
+Three families with one-line descriptions — "crisp, straightforward, professional"; "homeowner-
+friendly and approachable"; "upscale and restrained" — and two variants each described by what
+they look like, not by which axes they set. No structural axes, tokens, fonts, radii, shadows or
+spacing are exposed. The verifier greps the descriptions for design vocabulary.
+
+The parity anchor is marked `selectable: false`: it exists for a technical reason and is not a
+design anyone should be offered. The apply route refuses it explicitly rather than relying on it
+being absent from the list.
+
+### Housed for the portal, not for /admin
+
+The feature lives in `components/portal/design` and `/api/portal/design`. `/admin/design` is a
+thin mount. Moving it into the Price2Book portal is a new route file, not a rewrite — `/admin` is
+where authentication happens to live today, not where the feature belongs.
+
+### Proofs
+
+`verify-design-picker` — 28 checks: curation and plain language, version pinning, preview
+isolation, pricing neutrality across 11 pricing-sensitive copy fields, and applying against a
+throwaway contractor.
+
+Driven by hand in the browser as well: the picker lists three families and six previews of Elite's
+own storefront, the preview dialog renders Modern & Clean B with Elite's logo and flat-rate copy,
+and Elite's live storefront is unchanged after previewing. **Nothing was applied to Elite** — they
+are a live production storefront, and the apply path is proven against a throwaway instead.
+
+Elite's home page: 155 elements, fingerprint multiset identical to the Phase 3 baseline.
+
+### Not built, deliberately
+
+The theme-update/adoption UI. The data model carries the pin that makes it possible; the flow for
+offering a v2 and letting a contractor take it comes later.

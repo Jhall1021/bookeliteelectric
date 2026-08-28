@@ -11,7 +11,7 @@
  * Static: no database, no browser. Runs in the deploy gate.
  */
 import { pathToFileURL } from "node:url";
-import { DEFINITIONS, CONTRAST_PAIRS } from "../lib/theme/definition";
+import { DEFINITIONS, CONTRAST_PAIRS, definitionKey } from "../lib/theme/definition";
 import { resolveStorefrontTheme, checkContrast, readBrandInputs, themeCss } from "../lib/theme/resolve";
 import { ELITE_V1_COLORS } from "../lib/theme/tokens";
 import { contrast, parseColor, toHex, fromHsl } from "../lib/theme/color";
@@ -41,7 +41,7 @@ function main() {
   console.log(`  ${DEFINITIONS.length} definition(s) x ${brands.length} brand colour(s) x ${CONTRAST_PAIRS.length} pairs\n`);
 
   // The parity definition must still emit exactly what Phase 1 proved.
-  const baseline = resolveStorefrontTheme({}, { themeKey: "elite-baseline", version: 1 });
+  const baseline = resolveStorefrontTheme({}, { family: "baseline", variant: "a", version: 1 });
   const drift = (Object.keys(ELITE_V1_COLORS) as (keyof typeof ELITE_V1_COLORS)[])
     .filter((k) => baseline.colors[k] !== ELITE_V1_COLORS[k]);
   ok(drift.length === 0, "the parity definition still emits Elite's exact values",
@@ -60,9 +60,9 @@ function main() {
   const unusable: string[] = [];
   for (const def of DEFINITIONS) {
     for (const hex of brands) {
-      const theme = resolveStorefrontTheme(readBrandInputs({ primary: hex }), { themeKey: def.key, version: def.version });
+      const theme = resolveStorefrontTheme(readBrandInputs({ primary: hex }), { family: def.family, variant: def.variant, version: def.version });
       const bad = checkContrast(theme);
-      if (bad.length) failures.push(`${def.key} + ${hex}: ` +
+      if (bad.length) failures.push(`${definitionKey(def)} + ${hex}: ` +
         bad.map((f) => `${f.fg}/${f.bg} ${f.got}<${f.min}`).join(", "));
       for (const n of theme.notes) {
         if (n.kind === "brand-adjusted") adjusted.push(`${hex} -> ${n.used}`);
@@ -78,33 +78,33 @@ function main() {
 
   // The contractor's brand is an INPUT. Adjusting it must not be silent, and
   // must not be mistaken for having changed what they stored.
-  const pale = resolveStorefrontTheme(readBrandInputs({ primary: "#fdfdfb" }), { themeKey: "modern-clean-a", version: 1 });
+  const pale = resolveStorefrontTheme(readBrandInputs({ primary: "#fdfdfb" }), { family: "modern-clean", variant: "a", version: 1 });
   const note = pale.notes.find((n) => n.kind === "brand-adjusted" || n.kind === "brand-unusable");
   ok(note !== undefined, "a brand colour too pale to read is reported, not silently used");
   ok(pale.colors.accent !== "253 253 251", "and the derived accent is not the unreadable original");
 
-  const dark = resolveStorefrontTheme(readBrandInputs({ primary: "#123499" }), { themeKey: "modern-clean-a", version: 1 });
+  const dark = resolveStorefrontTheme(readBrandInputs({ primary: "#123499" }), { family: "modern-clean", variant: "a", version: 1 });
   ok(dark.notes.length === 0 && dark.colors.accent === "18 52 153",
     "a brand colour that already reads is used exactly as given",
     `got ${dark.colors.accent} with ${dark.notes.length} note(s)`);
 
   // Button text is chosen, not assumed. White is right for most brands and
   // wrong for a fluorescent yellow.
-  const yellow = resolveStorefrontTheme(readBrandInputs({ primary: "#ffff00" }), { themeKey: "modern-clean-a", version: 1 });
+  const yellow = resolveStorefrontTheme(readBrandInputs({ primary: "#ffff00" }), { family: "modern-clean", variant: "a", version: 1 });
   const ink = parseColor(yellow.colors.accentInk)!, acc = parseColor(yellow.colors.accent)!;
   ok(contrast(ink, acc) >= 4.5, `button text on a yellow brand is readable (${contrast(ink, acc).toFixed(2)}:1)`);
 
-  const blue = resolveStorefrontTheme(readBrandInputs({ primary: "#1b3a8f" }), { themeKey: "modern-clean-a", version: 1 });
+  const blue = resolveStorefrontTheme(readBrandInputs({ primary: "#1b3a8f" }), { family: "modern-clean", variant: "a", version: 1 });
   ok(blue.colors.accentInk === "255 255 255", "and stays white on a dark brand", blue.colors.accentInk);
 
   // An unknown or unpinned choice must not produce a blank page.
-  const missing = resolveStorefrontTheme({}, { themeKey: "no-such-theme", version: 99 });
-  ok(missing.themeKey === "elite-baseline", "an unknown theme falls back to a real one rather than nothing");
+  const missing = resolveStorefrontTheme({}, { family: "no-such-family", variant: "z", version: 99 });
+  ok(missing.themeKey === "baseline-a", "an unknown theme falls back to a real one rather than nothing");
 
   // Nothing derived is persisted: resolving twice from the same inputs is the
   // same answer, and resolving is the only way to get one.
-  const a = resolveStorefrontTheme(readBrandInputs({ primary: "#2452d9" }), { themeKey: "modern-clean-a", version: 1 });
-  const b = resolveStorefrontTheme(readBrandInputs({ primary: "#2452d9" }), { themeKey: "modern-clean-a", version: 1 });
+  const a = resolveStorefrontTheme(readBrandInputs({ primary: "#2452d9" }), { family: "modern-clean", variant: "a", version: 1 });
+  const b = resolveStorefrontTheme(readBrandInputs({ primary: "#2452d9" }), { family: "modern-clean", variant: "a", version: 1 });
   ok(JSON.stringify(a) === JSON.stringify(b), "resolution is deterministic");
 
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);

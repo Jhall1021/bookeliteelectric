@@ -469,9 +469,16 @@ model Contractor {
   /// at request time and never stored here, so the theme they chose and the
   /// theme they render cannot come apart.
   ///
+  /// Family, variant and version are the IDENTITY of the chosen design — not
+  /// a key that happens to encode them. The selector persists all three, and
+  /// the definition is looked up by all three.
+  ///
   /// The version is a PIN: publishing v2 of a definition changes nothing for
-  /// anyone until they adopt it, exactly as with the service template.
-  themeKey     String @default("elite-baseline")
+  /// anyone until they explicitly adopt it, exactly as with the service
+  /// template. Nothing derives "latest" at request time; that is the whole
+  /// point of storing a number rather than a pointer.
+  themeFamily  String @default("baseline")
+  themeVariant String @default("a")
   themeVersion Int    @default(1)
 
   /// ADR-016 — customer-facing IDENTITY.

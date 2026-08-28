@@ -29,12 +29,35 @@ export type Derivation =
   /** Whichever candidate reads best on `bg` — usually white or the theme's ink. */
   | { kind: "readableOn"; bg: SemanticColor; candidates: SemanticColor[] };
 
+export type ThemeFamily = "baseline" | "modern-clean" | "warm-welcoming" | "premium";
+
+/**
+ * How a family is described to a CONTRACTOR choosing one.
+ *
+ * Plain language on purpose. A contractor should not have to know what a
+ * structural axis is, or care that variant B uses a stacked navigation — they
+ * should be able to look at two pictures and pick the one that looks like
+ * their business.
+ */
+export const FAMILY_BLURBS: Record<ThemeFamily, { name: string; blurb: string }> = {
+  baseline: { name: "Baseline", blurb: "The original layout." },
+  "modern-clean": { name: "Modern & Clean", blurb: "Crisp, straightforward, professional." },
+  "warm-welcoming": { name: "Warm & Welcoming", blurb: "Homeowner-friendly and approachable." },
+  premium: { name: "Premium", blurb: "Upscale and restrained." },
+};
+
 export type ThemeDefinition = {
-  key: string;
-  family: "modern-clean" | "warm-welcoming" | "premium";
+  family: ThemeFamily;
   variant: "a" | "b";
   version: number;
+  /** Shown on the design card. One line, no design vocabulary. */
   label: string;
+  blurb: string;
+  /**
+   * False for definitions that exist for a technical reason rather than as a
+   * choice — the parity anchor is not a design anyone should be offered.
+   */
+  selectable: boolean;
   colors: Record<SemanticColor, Derivation>;
   shapes: Record<SemanticShape, string>;
   /**
@@ -96,8 +119,10 @@ export const CONTRAST_PAIRS: readonly { fg: SemanticColor; bg: SemanticColor; mi
  * behaviour instead — see MODERN_CLEAN_A below.
  */
 export const ELITE_BASELINE: ThemeDefinition = {
-  key: "elite-baseline", family: "modern-clean", variant: "a", version: 1,
-  label: "Elite baseline (parity definition)",
+  family: "baseline", variant: "a", version: 1,
+  label: "Baseline",
+  blurb: "The original layout, kept as the parity anchor.",
+  selectable: false,
   colors: Object.fromEntries(
     (Object.keys(ELITE_V1_COLORS) as SemanticColor[]).map((k) => [k, { kind: "fixed", value: ELITE_V1_COLORS[k] }]),
   ) as Record<SemanticColor, Derivation>,
@@ -113,8 +138,10 @@ export const ELITE_BASELINE: ThemeDefinition = {
  * for most brand colours and wrong for a bright yellow one.
  */
 export const MODERN_CLEAN_A: ThemeDefinition = {
-  key: "modern-clean-a", family: "modern-clean", variant: "a", version: 1,
+  family: "modern-clean", variant: "a", version: 1,
   label: "Modern & Clean A",
+  blurb: "A bold headline beside a photo, with your services laid out as a grid of tiles.",
+  selectable: true,
   colors: {
     canvas: { kind: "fixed", value: ELITE_V1_COLORS.canvas },
     surface: { kind: "fixed", value: ELITE_V1_COLORS.surface },
@@ -148,8 +175,10 @@ export const MODERN_CLEAN_A: ThemeDefinition = {
  * That is the bar.
  */
 export const MODERN_CLEAN_B: ThemeDefinition = {
-  key: "modern-clean-b", family: "modern-clean", variant: "b", version: 1,
+  family: "modern-clean", variant: "b", version: 1,
   label: "Modern & Clean B",
+  blurb: "Centred and airy, with booking front and centre and your services in a clean list.",
+  selectable: true,
   colors: { ...MODERN_CLEAN_A.colors },
   shapes: {
     ...ELITE_V1_SHAPES,
@@ -210,8 +239,10 @@ const WARM_SHAPES: Record<SemanticShape, string> = {
 };
 
 export const WARM_WELCOMING_A: ThemeDefinition = {
-  key: "warm-welcoming-a", family: "warm-welcoming", variant: "a", version: 1,
+  family: "warm-welcoming", variant: "a", version: 1,
   label: "Warm & Welcoming A",
+  blurb: "Opens on a full-width photo of the work, over a warm cream background.",
+  selectable: true,
   colors: { ...WARM_COLORS }, shapes: { ...WARM_SHAPES },
   structure: {
     nav: "inline", hero: "banner", heroAside: "panel", serviceList: "grid",
@@ -220,8 +251,10 @@ export const WARM_WELCOMING_A: ThemeDefinition = {
 };
 
 export const WARM_WELCOMING_B: ThemeDefinition = {
-  key: "warm-welcoming-b", family: "warm-welcoming", variant: "b", version: 1,
+  family: "warm-welcoming", variant: "b", version: 1,
   label: "Warm & Welcoming B",
+  blurb: "Compact and friendly, with the menu split either side of your logo.",
+  selectable: true,
   colors: { ...WARM_COLORS },
   shapes: { ...WARM_SHAPES, radiusCard: "10px", radiusPill: "8px" },
   structure: {
@@ -257,8 +290,10 @@ const PREMIUM_SHAPES: Record<SemanticShape, string> = {
 };
 
 export const PREMIUM_A: ThemeDefinition = {
-  key: "premium-a", family: "premium", variant: "a", version: 1,
+  family: "premium", variant: "a", version: 1,
   label: "Premium A",
+  blurb: "Photo-led and generously spaced, with sharp edges and very little colour.",
+  selectable: true,
   colors: { ...PREMIUM_COLORS }, shapes: { ...PREMIUM_SHAPES },
   structure: {
     nav: "split", hero: "banner", heroAside: "strip", serviceList: "rows",
@@ -267,8 +302,10 @@ export const PREMIUM_A: ThemeDefinition = {
 };
 
 export const PREMIUM_B: ThemeDefinition = {
-  key: "premium-b", family: "premium", variant: "b", version: 1,
+  family: "premium", variant: "b", version: 1,
   label: "Premium B",
+  blurb: "A dark, confident opening panel with your services shown as tiles.",
+  selectable: true,
   colors: { ...PREMIUM_COLORS },
   shapes: { ...PREMIUM_SHAPES, radiusCard: "0px", radiusPill: "999px" },
   structure: {
@@ -284,6 +321,29 @@ export const DEFINITIONS: readonly ThemeDefinition[] = [
   PREMIUM_A, PREMIUM_B,
 ];
 
-export function findDefinition(key: string, version: number): ThemeDefinition | null {
-  return DEFINITIONS.find((d) => d.key === key && d.version === version) ?? null;
+/** A display/debug identifier. NOT stored — family/variant/version are. */
+export const definitionKey = (d: Pick<ThemeDefinition, "family" | "variant">) => `${d.family}-${d.variant}`;
+
+/**
+ * Looked up by all three parts, and by the VERSION exactly.
+ *
+ * Deliberately no "latest" lookup anywhere. Publishing v2 of a definition must
+ * change nothing for a contractor pinned to v1, and the surest way to keep
+ * that true is for no code path to be able to ask for the newest one.
+ */
+export function findDefinition(family: string, variant: string, version: number): ThemeDefinition | null {
+  return DEFINITIONS.find((d) => d.family === family && d.variant === variant && d.version === version) ?? null;
+}
+
+/** The designs a contractor may actually choose, grouped for the selector. */
+export function selectableFamilies(): { family: ThemeFamily; name: string; blurb: string; designs: ThemeDefinition[] }[] {
+  const out = new Map<ThemeFamily, ThemeDefinition[]>();
+  for (const d of DEFINITIONS) {
+    if (!d.selectable) continue;
+    out.set(d.family, [...(out.get(d.family) ?? []), d]);
+  }
+  return [...out.entries()].map(([family, designs]) => ({
+    family, ...FAMILY_BLURBS[family],
+    designs: [...designs].sort((a, b) => a.variant.localeCompare(b.variant)),
+  }));
 }

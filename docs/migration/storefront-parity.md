@@ -78,3 +78,12 @@ would not have:
 Per-element fingerprints, diffed as a multiset, turned out to be the more useful form: a whole-page
 hash says only that something moved. Sorting per-element hashes and diffing the counts says
 exactly which elements, and lets a second probe print their properties.
+
+
+## A probe caveat worth knowing
+
+The signature includes computed `width`, which makes it **viewport-dependent**. A capture taken
+under an emulated viewport will differ from the baseline in every single row, which looks
+alarming and means nothing. Reset viewport emulation before measuring, and treat "every
+fingerprint changed" as a signal to check the measurement before checking the code — a real
+regression is almost never global.

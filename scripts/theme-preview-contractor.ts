@@ -13,7 +13,7 @@ import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
 import { provision, destroyContractor } from "./_throwaway";
-import { DEFINITIONS } from "../lib/theme/definition";
+import { DEFINITIONS, definitionKey } from "../lib/theme/definition";
 
 loadEnv();
 const prisma = new PrismaClient();
@@ -27,7 +27,7 @@ const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i 
 async function main() {
   if (process.argv.includes("--down")) {
     await destroyContractor(prisma, SLUG);
-    for (const d of DEFINITIONS) await destroyContractor(prisma, allSlug(d.key));
+    for (const d of DEFINITIONS) await destroyContractor(prisma, allSlug(definitionKey(d)));
     console.log(`  removed every preview contractor`);
     await prisma.$disconnect();
     return;
@@ -39,11 +39,12 @@ async function main() {
   // that six real storefronts differ.
   if (process.argv.includes("--all")) {
     for (const d of DEFINITIONS) {
-      const slug = allSlug(d.key), hosted = allHosted(d.key);
+      const key = definitionKey(d);
+      const slug = allSlug(key), hosted = allHosted(key);
       await destroyContractor(prisma, slug);
       const made = await prisma.contractor.create({
         data: { slug, name: `Preview ${d.label}`, active: true,
-                themeKey: d.key, themeVersion: d.version,
+                themeFamily: d.family, themeVariant: d.variant, themeVersion: d.version,
                 brandColors: { primary: "#0B7A5B" },
                 // Deliberately a DIFFERENT business in every respect a
                 // homeowner can see, so a screenshot that still says Elite is
@@ -61,19 +62,21 @@ async function main() {
       });
       provision(slug, ["--service", "new-120v-outlet"]);
       await prisma.service.updateMany({ where: { contractorId: made.id }, data: { active: true } });
-      console.log(`  /${hosted}  ${d.key}`);
+      console.log(`  /${hosted}  ${key}`);
     }
     await prisma.$disconnect();
     return;
   }
   const themeKey = arg("theme") ?? "modern-clean-b";
   const version = Number(arg("version") ?? "1");
+  const dash = themeKey.lastIndexOf("-");
+  const family = themeKey.slice(0, dash), variant = themeKey.slice(dash + 1);
 
   await destroyContractor(prisma, SLUG);
   const c = await prisma.contractor.create({
     data: {
       slug: SLUG, name: "Northgate Electric", active: true,
-      themeKey, themeVersion: version,
+      themeFamily: family, themeVariant: variant, themeVersion: version,
       // A brand colour unlike Elite's, so the screenshot also shows the
       // resolver deriving an accent rather than reusing the fixed one.
       brandColors: { primary: "#0B7A5B" },

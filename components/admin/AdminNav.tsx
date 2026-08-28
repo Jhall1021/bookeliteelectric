@@ -18,6 +18,7 @@ const CONFIGURATION = [
   { href: "/admin/pricing-settings", label: "Pricing" },
   { href: "/admin/service-area", label: "Service Area" },
   { href: "/admin/business-hours", label: "Hours" },
+  { href: "/admin/design", label: "Design" },
 ];
 
 const linkClass = "text-sm text-white/80 transition hover:text-white";

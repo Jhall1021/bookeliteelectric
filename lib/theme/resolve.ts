@@ -19,7 +19,7 @@ import {
   type SemanticColor, type SemanticShape,
 } from "./tokens";
 import {
-  CONTRAST_PAIRS, ELITE_BASELINE, findDefinition,
+  CONTRAST_PAIRS, ELITE_BASELINE, definitionKey, findDefinition,
   type Derivation, type ThemeDefinition,
 } from "./definition";
 import type { ThemeStructure } from "./structure";
@@ -28,7 +28,10 @@ import {
 } from "./color";
 
 export type ResolvedTheme = {
+  /** Display/debug only. The identity is family + variant + version. */
   themeKey: string;
+  family: string;
+  variant: string;
   version: number;
   colors: Record<SemanticColor, string>;
   shapes: Record<SemanticShape, string>;
@@ -58,9 +61,15 @@ export function readBrandInputs(brandColors: unknown): BrandInputs {
 }
 
 /** What a contractor has chosen. Not what it looks like — that is derived. */
-export type ThemeChoice = { themeKey: string; version: number };
+/**
+ * What a contractor has chosen. All three parts, because all three are stored
+ * and the definition is found by all three.
+ */
+export type ThemeChoice = { family: string; variant: string; version: number };
 
-export const DEFAULT_CHOICE: ThemeChoice = { themeKey: ELITE_BASELINE.key, version: ELITE_BASELINE.version };
+export const DEFAULT_CHOICE: ThemeChoice = {
+  family: ELITE_BASELINE.family, variant: ELITE_BASELINE.variant, version: ELITE_BASELINE.version,
+};
 
 /**
  * Resolve in dependency order rather than declaration order: `accentHover` is
@@ -76,7 +85,7 @@ const ORDER: SemanticColor[] = [
 export function resolveStorefrontTheme(
   brand: BrandInputs = {}, choice: ThemeChoice = DEFAULT_CHOICE,
 ): ResolvedTheme {
-  const def = findDefinition(choice.themeKey, choice.version) ?? ELITE_BASELINE;
+  const def = findDefinition(choice.family, choice.variant, choice.version) ?? ELITE_BASELINE;
   const out = {} as Record<SemanticColor, Rgb>;
   const notes: ThemeNote[] = [];
 
@@ -85,7 +94,8 @@ export function resolveStorefrontTheme(
   }
 
   return {
-    themeKey: def.key, version: def.version, notes,
+    themeKey: definitionKey(def), family: def.family, variant: def.variant,
+    version: def.version, notes,
     colors: Object.fromEntries(ORDER.map((t) => [t, toChannels(out[t])])) as Record<SemanticColor, string>,
     shapes: { ...def.shapes },
     structure: { ...def.structure },
@@ -146,13 +156,21 @@ export function checkContrast(theme: ResolvedTheme): ContrastFailure[] {
   return out;
 }
 
-/** The resolved theme as a `:root` declaration block. */
-export function themeCss(theme: ResolvedTheme): string {
+/**
+ * The resolved theme as a declaration block.
+ *
+ * `selector` defaults to `:root`, which is what a storefront wants. A PREVIEW
+ * passes its own container selector instead, so several themes can be shown on
+ * one page without any of them repainting the page around them — the design
+ * picker is itself a page, and a preview that leaked its tokens would restyle
+ * the picker.
+ */
+export function themeCss(theme: ResolvedTheme, selector = ":root"): string {
   const decls = [
     ...Object.entries(theme.colors).map(([k, v]) => `${cssVar(k as SemanticColor)}:${v}`),
     ...Object.entries(theme.shapes).map(([k, v]) => `${cssVar(k as SemanticShape)}:${v}`),
   ];
-  return `:root{${decls.join(";")}}`;
+  return `${selector}{${decls.join(";")}}`;
 }
 
 export { ELITE_V1_COLORS, ELITE_V1_SHAPES };

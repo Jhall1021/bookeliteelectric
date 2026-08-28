@@ -67,11 +67,11 @@ export default async function SiteLayout({
   // derived value. There is nothing derived stored to read.
   const c = await prisma.contractor.findUnique({
     where: { id: site.contractorId },
-    select: { ...IDENTITY_SELECT, brandColors: true, themeKey: true, themeVersion: true,
+    select: { ...IDENTITY_SELECT, brandColors: true, themeFamily: true, themeVariant: true, themeVersion: true,
               pricingStrategy: true },
   });
   const brand = readBrandInputs(c?.brandColors);
-  const choice = c ? { themeKey: c.themeKey, version: c.themeVersion } : undefined;
+  const choice = c ? { family: c.themeFamily, variant: c.themeVariant, version: c.themeVersion } : undefined;
   const theme = resolveStorefrontTheme(brand, choice);
   return (
     <SiteProvider publicId={site.publicId} hostedSlug={site.hostedSlug}>

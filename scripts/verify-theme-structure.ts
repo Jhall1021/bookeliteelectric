@@ -14,7 +14,7 @@
 import { pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { DEFINITIONS } from "../lib/theme/definition";
+import { DEFINITIONS, definitionKey } from "../lib/theme/definition";
 import { STRUCTURE_AXES, STRUCTURE_DEFAULTS, MIN_VARIANT_DISTANCE, structureDistance, ELITE_V1_STRUCTURE } from "../lib/theme/structure";
 
 let pass = 0, fail = 0;
@@ -28,14 +28,14 @@ function main() {
 
   // Elite's pinned definition must keep Elite's composition, or the Phase 1
   // parity proof stops meaning anything.
-  const baseline = DEFINITIONS.find((d) => d.key === "elite-baseline")!;
+  const baseline = DEFINITIONS.find((d) => !d.selectable)!;
   const moved = structureDistance(baseline.structure, ELITE_V1_STRUCTURE);
   ok(moved.length === 0, "the parity definition keeps Elite's composition", moved.join(", "));
 
   // Every family's variants must be structurally far apart.
   const families = new Map<string, typeof DEFINITIONS[number][]>();
   for (const d of DEFINITIONS) {
-    if (d.key === "elite-baseline") continue; // the anchor, not a customer choice
+    if (!d.selectable) continue; // the anchor, not a customer choice
     families.set(d.family, [...(families.get(d.family) ?? []), d]);
   }
   for (const [family, defs] of families) {
@@ -44,7 +44,7 @@ function main() {
       for (let j = i + 1; j < defs.length; j++) {
         const diff = structureDistance(defs[i].structure, defs[j].structure);
         ok(diff.length >= MIN_VARIANT_DISTANCE,
-          `${defs[i].key} vs ${defs[j].key}: ${diff.length} of ${STRUCTURE_AXES.length} axes differ`,
+          `${definitionKey(defs[i])} vs ${definitionKey(defs[j])}: ${diff.length} of ${STRUCTURE_AXES.length} axes differ`,
           `only [${diff.join(", ")}] — a variant pair this close is a recolour`);
       }
   }
