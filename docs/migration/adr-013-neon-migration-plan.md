@@ -224,3 +224,69 @@ One fix this forced: the endpoint comparison now strips a trailing `-pooler`. Ne
 one endpoint at two hostnames, and recording the pooled form would have made the marker
 fail the moment production connected directly — a false alarm about the one thing this
 check exists to be trusted on.
+
+
+---
+
+## Phase 3 result — 28 August
+
+Preview pointed at the Price2Book database; Production left on BookElite throughout.
+
+### The decisive proof
+
+A visit created through the **Preview app** was found in the **Price2Book** database and
+**not** in BookElite. Two line items, correct owner, correct while-we-there pricing. That
+is the claim Phase 3 exists to make — not "Preview built successfully" but "the deployed
+application is reading and writing the new database."
+
+### Preview flow
+
+```
+storefront 200 · category page 200
+GET /api/visit 200 · POST primary 37500 (isPrimary) · POST add-on 9500 (while-we-there)
+cart 2 lines / 47000 · no site header 404
+availability 200 — 3 windows, live Jobber read
+quote read 200 · quote page 200 · /admin 307 · admin API 401
+```
+
+Reaching it needed Vercel's Protection Bypass for Automation, held in `.env.local` and
+passed as a header. Deployment protection stays ON: a Preview carrying Elite's real
+customer data should not be publicly reachable, so disabling protection was the wrong
+trade even though it would have been quicker.
+
+### Build-time evidence
+
+A Vercel build runs `npm run verify`, so a **Ready** Preview means all 17 gate checks
+passed *against Price2Book* — including `verify-database-identity`. The build could not
+have gone green pointed at the wrong database.
+
+### Destination after Phase 3
+
+Test data removed explicitly. One contractor, 33 visits, correct identity marker.
+
+```
+tenant indexes  green   booking tenancy 17/17   checkout atomicity 9/9
+isolation harness 144/144            reconciliation 0 differing
+parity: tables, columns, constraints, indexes, enums, row counts identical
+content: the two known updatedAt traces, unchanged — Phase 3 added none
+```
+
+### An operational hazard worth recording
+
+`DATABASE_URL` was one Vercel entry covering **Production and Preview together**. Adding a
+Preview-scoped entry left Production with none, and the next production deploy failed;
+production kept serving only because the previous build was still live.
+
+The instruction that caused it listed the risky step first. The safe ordering is:
+
+> **Add the Production-scoped variable FIRST, then the Preview-scoped one.** No
+> intermediate state may leave an environment without a database.
+
+Same shape as the Neon confusion: the Price2Book *Vercel project* is as unused as the
+Price2Book *Neon project's* `production` branch was. The app deploys from
+`elite-9658/bookeliteelectric`, and that is where both `DATABASE_URL` entries live.
+
+### Not yet done
+
+`adr-013-preview` is an empty commit on main whose only job is to produce a Preview
+deployment. Delete it after cutover; there is nothing in it to merge.
