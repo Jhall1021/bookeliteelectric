@@ -69,6 +69,17 @@ export type AnswerOptionDTO = {
       key: string;
       customerFacingLabel: string | null;
       approvedPriceCents: number | null;
+      /**
+       * Crew-hours this component adds. Present ONLY for a
+       * TIME_AND_MATERIALS contractor, where the hours are shown to the
+       * homeowner anyway — under FLAT_RATE it stays a cost input and stays on
+       * the server, exactly as before.
+       *
+       * Null means "this contractor has no row for this component", which is
+       * unresolved rather than zero: the estimate refuses instead of quietly
+       * pricing the extra work at nothing.
+       */
+      addCrewHours?: number | null;
     };
   }[];
 };
@@ -121,6 +132,21 @@ export type ServiceFlowDTO = {
   estimatedMinutes: number | null;
   disclaimer: string | null; // for flat-price services with no question tree
   questions: QuestionDTO[]; // full tree, first question = questions[0]
+
+  /**
+   * Present ONLY for a TIME_AND_MATERIALS contractor — ADR-018.
+   *
+   * Every value here is one the homeowner is shown: the rate, the approved
+   * band, and the hours. Nothing hidden travels. A FLAT_RATE contractor's
+   * payload is unchanged, which keeps the earlier decision to strip cost
+   * inputs from this DTO exactly as it was.
+   */
+  timeAndMaterials?: {
+    crewHourRateCents: number;
+    estimateLowCrewHours: number | null;
+    estimateHighCrewHours: number | null;
+    estimateApproved: boolean;
+  } | null;
 };
 
 export function formatCents(cents: number): string {

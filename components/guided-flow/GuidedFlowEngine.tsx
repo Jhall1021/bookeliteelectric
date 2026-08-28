@@ -13,6 +13,8 @@ import {
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
+import EstimateRangeCard from "./EstimateRangeCard";
+import { estimateRange } from "@/lib/timeAndMaterials";
 import RerouteNotice, { REROUTE_HANDOFF_KEY } from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
@@ -26,7 +28,7 @@ type Props = {
 type TerminalState =
   | { kind: "intro" }
   | { kind: "question"; question: QuestionDTO }
-  | { kind: "resolved"; priceCents: number; disclaimer: string | null }
+  | { kind: "resolved"; priceCents: number; disclaimer: string | null; addedCrewHours: number }
   | { kind: "reroute"; serviceId: string; reason: string }
   | { kind: "troubleshooting"; note?: string | null }
   | {
@@ -187,6 +189,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       // add-on, standalone otherwise.
       setState({
         kind: "resolved",
+        // A service with no tree adds nothing: the baseline band is the estimate.
+        addedCrewHours: 0,
         priceCents: (isAddOn ? flow.whileWeThereBasePrice : flow.basePrice) ?? 0,
         disclaimer: flow.disclaimer,
       });
@@ -247,7 +251,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "resolved", priceCents: total, disclaimer: option.disclaimer },
+          state: { kind: "resolved", priceCents: total, disclaimer: option.disclaimer,
+                   addedCrewHours: nextConfig.addedCrewHours },
         };
       case "REROUTE_TROUBLESHOOTING":
         // Carry the answer's disclaimer through — that's where the "we'll start at
@@ -302,13 +307,15 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           config: nextConfig,
           state: option.rerouteServiceId
             ? { kind: "reroute", serviceId: option.rerouteServiceId, reason: option.label }
-            : { kind: "resolved", priceCents: total, disclaimer: null },
+            : { kind: "resolved", priceCents: total, disclaimer: null,
+                addedCrewHours: nextConfig.addedCrewHours },
         };
       default:
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "resolved", priceCents: total, disclaimer: null },
+          state: { kind: "resolved", priceCents: total, disclaimer: null,
+                   addedCrewHours: nextConfig.addedCrewHours },
         };
     }
   }
@@ -526,6 +533,28 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "resolved") {
+    // ADR-018 — the same resolved scope, read the other way. The band comes
+    // from the contractor's approved calibration and the increment from the
+    // components this route actually selected; nothing here is representative
+    // or illustrative.
+    if (flow.timeAndMaterials) {
+      const estimate = estimateRange(
+        {
+          estimateLowCrewHours: flow.timeAndMaterials.estimateLowCrewHours,
+          estimateHighCrewHours: flow.timeAndMaterials.estimateHighCrewHours,
+          estimateApproved: flow.timeAndMaterials.estimateApproved,
+          addedCrewHours: state.addedCrewHours,
+          // Labour only in V1; materials are disclosed as additional rather
+          // than quoted at a figure the markup rule cannot produce per part.
+          materialCostCents: null,
+        },
+        { crewHourRateCents: flow.timeAndMaterials.crewHourRateCents,
+          primaryMinimumCents: 0, roundingIncrementCents: 0, defaultPermitAdminCents: 0 },
+      );
+      return withBack(
+        <EstimateRangeCard serviceName={flow.name} estimate={estimate} disclaimer={state.disclaimer} />
+      );
+    }
     return withBack(
       <PriceConfirmationCard
         serviceName={flow.name}

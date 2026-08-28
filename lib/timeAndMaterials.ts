@@ -27,14 +27,27 @@ export type EstimateInputs = {
   /** Contractor calibration, in crew-hours. Both required, both approved. */
   estimateLowCrewHours: number | null;
   estimateHighCrewHours: number | null;
-  estimateApprovedAt: Date | null;
+  estimateApproved: boolean;
   /**
    * Crew-hours the resolved ANSWERS add on top of the service baseline —
    * summed from the components the route selected. Answer-driven duration is
    * real scope, so it widens the estimate rather than being averaged away.
    */
   addedCrewHours: number;
-  /** The material figure the flat-rate engine already computes, as an estimate. */
+  /**
+   * A materials figure, or null for "not included in this range".
+   *
+   * NULL IN V1, deliberately. The material markup is applied ONCE to the
+   * assembled package and never per part (lib/pricing.ts), so summing a
+   * marked-up figure per selected component would overstate it — and shipping
+   * raw component costs to the browser would reverse the earlier decision to
+   * keep cost inputs off the customer payload.
+   *
+   * Rather than publish a materials number that is wrong whenever the route
+   * selects components, V1 quotes the LABOUR range and discloses that
+   * materials are additional. An understated total in a customer-facing
+   * estimate is a promise problem, not a rounding one.
+   */
   materialCostCents: number | null;
 };
 
@@ -57,7 +70,7 @@ const quarter = (h: number) => Math.round(h * 4) / 4;
 export function estimateRange(inputs: EstimateInputs, settings: PricingSettings): Estimate {
   const bad = validateEstimateBounds(inputs.estimateLowCrewHours, inputs.estimateHighCrewHours);
   if (bad.length) return { ok: false, reason: bad[0].message };
-  if (inputs.estimateApprovedAt === null)
+  if (!inputs.estimateApproved)
     return { ok: false, reason: "Estimated hours are suggested but not yet approved." };
   if (!Number.isFinite(settings.crewHourRateCents) || settings.crewHourRateCents <= 0)
     return { ok: false, reason: "No crew-hour rate is configured." };

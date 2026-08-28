@@ -17,7 +17,8 @@ import type { Estimate } from "@/lib/timeAndMaterials";
  * presentation code, where changing it means a deploy and nobody can find it.
  */
 export default function EstimateRangeCard(
-  { serviceName, estimate }: { serviceName: string; estimate: Estimate },
+  { serviceName, estimate, disclaimer }:
+  { serviceName: string; estimate: Estimate; disclaimer?: string | null },
 ) {
   const copy = usePricingCopy();
 
@@ -66,11 +67,21 @@ export default function EstimateRangeCard(
         {row(copy.resolvedPriceLabel, range(estimate.lowTotalCents, estimate.highTotalCents), true)}
       </div>
 
+      {/* Materials are disclosed rather than quoted — see lib/timeAndMaterials.
+          Both sentences are authored in the pricing copy, not here. */}
+      {copy.materialsNotice && (
+        <p className="mt-4 text-sm text-muted">{copy.materialsNotice}</p>
+      )}
+
       {/* The qualification travels with the number rather than living in terms
           nobody reads. Authored in the pricing copy, not here. */}
       {copy.estimateNotice && (
-        <p className="mt-4 rounded-card bg-canvas px-4 py-3 text-sm text-muted">{copy.estimateNotice}</p>
+        <p className="mt-3 rounded-card bg-canvas px-4 py-3 text-sm text-muted">{copy.estimateNotice}</p>
       )}
+
+      {/* The service's own caveat, carried through exactly as the flat-rate
+          card carries it. Scope wording does not depend on how it is priced. */}
+      {disclaimer && <p className="mt-3 text-sm text-muted">{disclaimer}</p>}
     </div>
   );
 }

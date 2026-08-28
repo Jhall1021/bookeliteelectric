@@ -51,6 +51,11 @@ export type PricingCopy = {
    * living in terms nobody reads.
    */
   estimateNotice: string | null;
+  /**
+   * Said wherever an estimate omits materials from its range. Null under
+   * FLAT_RATE, where the price already includes them.
+   */
+  materialsNotice: string | null;
   /** The storefront's meta description. Claims what the model can keep. */
   metaDescription: string;
   /** Section heading for the pricing explainer. */
@@ -104,6 +109,7 @@ const FLAT_RATE: PricingCopy = {
   resolvedPriceLabel: "Your price",
   commitCta: "Book at this price",
   estimateNotice: null,
+  materialsNotice: null,
   metaDescription: "See your price. Pick your time. Book your electrician.",
   pricingSectionTitle: "How Our Pricing Works",
   pricingSectionBody:
@@ -147,7 +153,9 @@ const TIME_AND_MATERIALS: PricingCopy = {
   resolvedPriceLabel: "Estimated total",
   commitCta: "Authorize service",
   estimateNotice:
-    "This is an estimate. Final billing is based on the actual time and materials the job takes.",
+    "This is an estimate, not a fixed-price quote. Your final invoice is based on the actual time and materials used.",
+  materialsNotice:
+    "Materials are billed in addition to labour, at cost plus our standard markup.",
   metaDescription: "See the rate and your estimated range. Pick your time. Book your electrician.",
   pricingSectionTitle: "How Our Pricing Works",
   pricingSectionBody:

@@ -30,7 +30,7 @@
     "template:extract": "tsx scripts/extract-template-service.ts",
     "template:provision": "tsx scripts/provision-from-template.ts",
     "template:update": "tsx scripts/template-update.ts",
-    "verify:template": "tsx scripts/verify-template-provisioning.ts && tsx scripts/verify-template-update.ts && tsx scripts/verify-template-catalogue.ts && tsx scripts/verify-design-picker.ts && tsx scripts/verify-pricing-strategy.ts"
+    "verify:template": "tsx scripts/verify-template-provisioning.ts && tsx scripts/verify-template-update.ts && tsx scripts/verify-template-catalogue.ts && tsx scripts/verify-design-picker.ts && tsx scripts/verify-pricing-strategy.ts && tsx scripts/verify-flat-rate-unchanged.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",

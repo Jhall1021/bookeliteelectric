@@ -18,6 +18,7 @@ import { readiness, validateEstimateBounds, suggestBounds } from "../lib/pricing
 import { estimateRange } from "../lib/timeAndMaterials";
 import { pricingCopy } from "../lib/pricingCopy";
 import { withThrowaway } from "./_throwaway";
+import { startConfiguration, applyBranch } from "../lib/pricing";
 
 loadEnv();
 const prisma = new PrismaClient();
@@ -100,7 +101,7 @@ function estimating() {
   console.log("\n  THE ESTIMATE FAILS CLOSED");
   const approved = new Date();
   const good = estimateRange({ estimateLowCrewHours: 5, estimateHighCrewHours: 8,
-    estimateApprovedAt: approved, addedCrewHours: 0, materialCostCents: 15000 }, SETTINGS);
+    estimateApproved: true, addedCrewHours: 0, materialCostCents: 15000 }, SETTINGS);
   ok(good.ok && good.lowHours === 5 && good.highHours === 8, "a valid band estimates");
   ok(good.ok && good.lowLaborCents === 74500 && good.highLaborCents === 119200,
     `labour is hours x crew-hour rate (${good.ok ? good.lowLaborCents : "-"}–${good.ok ? good.highLaborCents : "-"} at $149)`);
@@ -117,21 +118,21 @@ function estimating() {
     ["zero low", { estimateLowCrewHours: 0, estimateHighCrewHours: 8 }],
     ["inverted", { estimateLowCrewHours: 9, estimateHighCrewHours: 2 }],
   ] as const) {
-    const r = estimateRange({ ...inp, estimateApprovedAt: approved, addedCrewHours: 0, materialCostCents: null }, SETTINGS);
+    const r = estimateRange({ ...inp, estimateApproved: true, addedCrewHours: 0, materialCostCents: null }, SETTINGS);
     ok(!r.ok, `${label} produces a refusal, never a manufactured range`);
   }
   const unapproved = estimateRange({ estimateLowCrewHours: 5, estimateHighCrewHours: 8,
-    estimateApprovedAt: null, addedCrewHours: 0, materialCostCents: null }, SETTINGS);
+    estimateApproved: false, addedCrewHours: 0, materialCostCents: null }, SETTINGS);
   ok(!unapproved.ok, "unapproved bounds produce a refusal");
 
   const noRate = estimateRange({ estimateLowCrewHours: 5, estimateHighCrewHours: 8,
-    estimateApprovedAt: approved, addedCrewHours: 0, materialCostCents: null },
+    estimateApproved: true, addedCrewHours: 0, materialCostCents: null },
     { ...SETTINGS, crewHourRateCents: 0 });
   ok(!noRate.ok, "a zero crew-hour rate produces a refusal, not a free job");
 
   // Answer-driven duration widens the estimate rather than being averaged out.
   const withAdds = estimateRange({ estimateLowCrewHours: 5, estimateHighCrewHours: 8,
-    estimateApprovedAt: approved, addedCrewHours: 1.5, materialCostCents: null }, SETTINGS);
+    estimateApproved: true, addedCrewHours: 1.5, materialCostCents: null }, SETTINGS);
   ok(withAdds.ok && withAdds.lowHours === 6.5 && withAdds.highHours === 9.5,
     "crew-hours the answers add move BOTH ends of the range");
 }
@@ -213,9 +214,97 @@ async function switching() {
   });
 }
 
+/**
+ * The failure this guards against: a beautiful T&M screen whose customer range
+ * ignores the scope decisions that made the job bigger.
+ *
+ * Runs the REAL engine — startConfiguration and applyBranch, the same
+ * functions the guided flow calls — rather than asserting against a number
+ * typed into the test.
+ */
+function scopeDrivesTheRange() {
+  console.log("\n  SCOPE DECISIONS MOVE THE CUSTOMER'S RANGE");
+  const approved = true;
+  const svc = { fieldLaborHours: 2.5, materialCostCents: 0, estimatedMinutes: 150, requiresTechCount: 1 };
+
+  const base = startConfiguration(svc);
+  ok(base.addedCrewHours === 0, "a fresh configuration has added nothing");
+
+  // An answer selecting a component that adds an hour of crew time.
+  const withComponent = applyBranch(base, {
+    components: [{
+      quantity: 1,
+      conditionAccessClass: null, conditionAnswerKey: null, conditionAnswerValue: null,
+      component: { key: "EXTRA_RUN", customerFacingLabel: "Extra run", approvedPriceCents: 9900,
+                   addFieldLaborHours: 1, addMaterialCostCents: 0, addScheduleMinutes: 0, addTechCount: 0 },
+    }],
+  } as never, {});
+  ok(withComponent.addedCrewHours === 1,
+    `the engine records the component's hour as an increment (${withComponent.addedCrewHours})`);
+
+  // THE RULE: the contractor's approved band describes the BASE service's
+  // uncertainty; a component adds a known, already-decided quantity of work.
+  // So both bounds move by the same amount — the band does not widen or
+  // rescale around a new midpoint.
+  const e = estimateRange({ estimateLowCrewHours: 2, estimateHighCrewHours: 3,
+    estimateApproved: approved, addedCrewHours: withComponent.addedCrewHours,
+    materialCostCents: null }, SETTINGS);
+  ok(e.ok && e.lowHours === 3 && e.highHours === 4,
+    `2–3 hours plus a 1-hour component estimates 3–4 hours`,
+    e.ok ? `${e.lowHours}–${e.highHours}` : e.reason);
+  ok(e.ok && (e.highHours - e.lowHours) === 1,
+    "…and the band's WIDTH is unchanged — the component is known work, not new uncertainty");
+
+  // Quantity multiplies the increment.
+  const three = applyBranch(base, {
+    components: [{
+      quantity: 3,
+      conditionAccessClass: null, conditionAnswerKey: null, conditionAnswerValue: null,
+      component: { key: "EXTRA_RUN", customerFacingLabel: "Extra run", approvedPriceCents: 9900,
+                   addFieldLaborHours: 0.5, addMaterialCostCents: 0, addScheduleMinutes: 0, addTechCount: 0 },
+    }],
+  } as never, {});
+  ok(three.addedCrewHours === 1.5, `quantity multiplies the increment (${three.addedCrewHours} from 3 x 0.5)`);
+
+  // Increments accumulate across successive answers, not just the last one.
+  const twice = applyBranch(withComponent, {
+    components: [{
+      quantity: 1,
+      conditionAccessClass: null, conditionAnswerKey: null, conditionAnswerValue: null,
+      component: { key: "SECOND", customerFacingLabel: "Second", approvedPriceCents: 4900,
+                   addFieldLaborHours: 0.75, addMaterialCostCents: 0, addScheduleMinutes: 0, addTechCount: 0 },
+    }],
+  } as never, {});
+  ok(twice.addedCrewHours === 1.75, `increments accumulate along the route (${twice.addedCrewHours})`);
+
+  // A branch whose condition does not match must add nothing.
+  const unmatched = applyBranch(base, {
+    components: [{
+      quantity: 1,
+      conditionAccessClass: "FINISHED", conditionAnswerKey: null, conditionAnswerValue: null,
+      component: { key: "ONLY_FINISHED", customerFacingLabel: null, approvedPriceCents: 100,
+                   addFieldLaborHours: 4, addMaterialCostCents: 0, addScheduleMinutes: 0, addTechCount: 0 },
+    }],
+  } as never, {});
+  ok(unmatched.addedCrewHours === 0,
+    "a component whose condition does not match adds no hours",
+    String(unmatched.addedCrewHours));
+
+  // And the engine wired into the flow reads the SAME accumulator the flow
+  // passes through, so a screen cannot show a range the scope did not produce.
+  const flow = readFileSync("components/guided-flow/GuidedFlowEngine.tsx", "utf8");
+  ok(/addedCrewHours:\s*nextConfig\.addedCrewHours/.test(flow),
+    "the guided flow carries the engine's increment into the resolved state");
+  ok(/addedCrewHours:\s*state\.addedCrewHours/.test(flow),
+    "…and passes that same value into the estimate");
+  const materialArgs = [...flow.matchAll(/materialCostCents:\s*([^,\n]+)/g)].map((m) => m[1].trim());
+  ok(materialArgs.length > 0 && materialArgs.every((v) => v === "null"),
+    `the flow passes no materials figure it cannot compute correctly (${materialArgs.join(", ") || "none"})`);
+}
+
 async function main() {
   console.log("\nPRICING STRATEGY");
-  bounds(); suggestion(); strategySpecific(); estimating(); noCrossing();
+  bounds(); suggestion(); strategySpecific(); estimating(); noCrossing(); scopeDrivesTheRange();
   await switching();
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);
   await prisma.$disconnect();

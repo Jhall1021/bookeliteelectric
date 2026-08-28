@@ -1,0 +1,367 @@
+{
+  "200a-service-upgrade": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "240v-garage-outlet": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "bathroom-fan-light-combo": {
+    "total": 50000,
+    "awaiting": false,
+    "components": []
+  },
+  "bidet-smart-toilet-outlet": {
+    "total": 28000,
+    "awaiting": false,
+    "components": []
+  },
+  "customer-supplied-non-smart-outlet": {
+    "total": 25500,
+    "awaiting": false,
+    "components": []
+  },
+  "customer-supplied-smart-switch": {
+    "total": 25500,
+    "awaiting": false,
+    "components": []
+  },
+  "dedicated-120v-circuit-outlet": {
+    "total": 68500,
+    "awaiting": false,
+    "components": []
+  },
+  "dishwasher-electrical": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "doorbell-transformer-replacement": {
+    "total": 27000,
+    "awaiting": false,
+    "components": []
+  },
+  "double-pole-breaker-replacement": {
+    "total": 28000,
+    "awaiting": false,
+    "components": []
+  },
+  "dryer-receptacle-replacement": {
+    "total": 26500,
+    "awaiting": false,
+    "components": []
+  },
+  "electrical-panel-replacement": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "electrical-troubleshooting": {
+    "total": 24900,
+    "awaiting": false,
+    "components": []
+  },
+  "exterior-gfci-other-routing": {
+    "total": 58500,
+    "awaiting": false,
+    "components": [
+      "EXT_GFCI_RUN_FINISHED_UNDER_10x1"
+    ]
+  },
+  "exterior-gfci-standard": {
+    "total": 44500,
+    "awaiting": false,
+    "components": []
+  },
+  "fan-replacing-light": {
+    "total": 158000,
+    "awaiting": false,
+    "components": [
+      "SWITCHLEG_FINISHED_UNDER_10x1",
+      "SWITCH_POWER_RUN_ACCESSIBLEx1",
+      "SWITCH_POWER_RUN_FINISHEDx1"
+    ]
+  },
+  "floodlight-camera-existing": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "garage-door-opener-outlet": {
+    "total": 28000,
+    "awaiting": false,
+    "components": []
+  },
+  "garage-door-opener-outlet-ev": {
+    "total": 38000,
+    "awaiting": false,
+    "components": []
+  },
+  "garbage-disposal-install": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "generator-inlet-interlock": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "hardwired-smoke-detector": {
+    "total": 28500,
+    "awaiting": false,
+    "components": []
+  },
+  "home-electrical-safety-inspection": {
+    "total": 37500,
+    "awaiting": false,
+    "components": []
+  },
+  "hot-tub-spa-electrical": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "install-new-microwave": {
+    "total": 50000,
+    "awaiting": false,
+    "components": []
+  },
+  "level-2-ev-charger": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "new-120v-outlet": {
+    "total": 40500,
+    "awaiting": false,
+    "components": [
+      "OUTLET_RUN_FINISHED_UNDER_10x1"
+    ]
+  },
+  "new-ceiling-fan": {
+    "total": 181000,
+    "awaiting": false,
+    "components": [
+      "SWITCHLEG_FINISHED_UNDER_10x1",
+      "SWITCH_POWER_RUN_ACCESSIBLEx1",
+      "SWITCH_POWER_RUN_FINISHEDx1"
+    ]
+  },
+  "new-ceiling-light": {
+    "total": 166500,
+    "awaiting": false,
+    "components": [
+      "SWITCHLEG_FINISHED_UNDER_10x1",
+      "SWITCH_POWER_RUN_ACCESSIBLEx1",
+      "SWITCH_POWER_RUN_FINISHEDx1"
+    ]
+  },
+  "new-coax-line": {
+    "total": 42000,
+    "awaiting": false,
+    "components": []
+  },
+  "new-ethernet-line": {
+    "total": 41500,
+    "awaiting": false,
+    "components": []
+  },
+  "new-exterior-flood-camera": {
+    "total": 70500,
+    "awaiting": false,
+    "components": []
+  },
+  "new-exterior-lighting-locations": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "new-video-doorbell-wiring": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "new-wall-sconce": {
+    "total": 34000,
+    "awaiting": false,
+    "components": []
+  },
+  "occupancy-motion-switch": {
+    "total": 30500,
+    "awaiting": false,
+    "components": []
+  },
+  "otr-microwave-install": {
+    "total": 37500,
+    "awaiting": false,
+    "components": []
+  },
+  "outdoor-landscape-lighting": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "pool-equipment-electrical": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "range-receptacle-replacement": {
+    "total": 26500,
+    "awaiting": false,
+    "components": []
+  },
+  "recessed-lighting": {
+    "total": 155000,
+    "awaiting": false,
+    "components": [
+      "SWITCHLEG_FINISHED_UNDER_10x1",
+      "SWITCH_POWER_RUN_ACCESSIBLEx1",
+      "SWITCH_POWER_RUN_FINISHEDx1"
+    ]
+  },
+  "remove-and-replace-existing-chandelier": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-3-way-switch": {
+    "total": 26500,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-bathroom-exhaust-fan": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-ceiling-fan": {
+    "total": 31500,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-exterior-light-fixture": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-gfci-outlet": {
+    "total": 28000,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-interior-light-fixture": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-led-dimmer": {
+    "total": 29500,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-motion-flood-light": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-range-hood": {
+    "total": 37500,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-standard-outlet": {
+    "total": 26000,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-standard-switch": {
+    "total": 26000,
+    "awaiting": false,
+    "components": []
+  },
+  "replace-wall-sconce": {
+    "total": 25500,
+    "awaiting": false,
+    "components": []
+  },
+  "single-pole-breaker-replacement": {
+    "total": 26500,
+    "awaiting": false,
+    "components": []
+  },
+  "smart-outlet-upgrade": {
+    "total": 33500,
+    "awaiting": false,
+    "components": []
+  },
+  "smart-switch-upgrade": {
+    "total": 33000,
+    "awaiting": false,
+    "components": []
+  },
+  "smart-thermostat-install": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "smoke-co-detector": {
+    "total": 33500,
+    "awaiting": false,
+    "components": []
+  },
+  "soundbar-installation": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "swap-out-customer-supplied-non-smart-switch": {
+    "total": 25500,
+    "awaiting": false,
+    "components": []
+  },
+  "timer-switch-install": {
+    "total": 33500,
+    "awaiting": false,
+    "components": []
+  },
+  "transfer-switch": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "tv-install-existing-location": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "tv-installation": {
+    "total": 42500,
+    "awaiting": false,
+    "components": []
+  },
+  "under-cabinet-led-lighting": {
+    "total": null,
+    "awaiting": false,
+    "components": []
+  },
+  "usb-outlet-upgrade": {
+    "total": 30000,
+    "awaiting": false,
+    "components": []
+  },
+  "video-doorbell-existing-wiring": {
+    "total": 25000,
+    "awaiting": false,
+    "components": []
+  },
+  "whole-house-surge-protection": {
+    "total": 60000,
+    "awaiting": false,
+    "components": []
+  }
+}

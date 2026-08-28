@@ -326,6 +326,20 @@ export type JobConfiguration = {
    * is a recommendation, not something to publish automatically.
    */
   awaitingComponentApproval: boolean;
+  /**
+   * Crew-hours the ANSWERS added, tracked separately from the running total.
+   *
+   * TIME_AND_MATERIALS needs the increment on its own, not the sum: the
+   * contractor's approved band describes the BASE service's uncertainty, and
+   * a component adds a known, already-decided quantity of work on top. So a
+   * 2–3 hour service plus a 1-hour component estimates 3–4 hours, not a band
+   * rescaled around a new midpoint.
+   *
+   * Kept as its own accumulator rather than derived by subtracting the
+   * service baseline, because `overrideFieldLaborHours` REPLACES rather than
+   * adds — a subtraction would silently report an override as an increment.
+   */
+  addedCrewHours: number;
   /** Approved customer-facing increments accumulated along the route. */
   approvedIncrementCents: number;
   /** Legacy flat modifiers, for trees built before components existed. */
@@ -346,6 +360,7 @@ export function startConfiguration(svc: {
     techCount: svc.requiresTechCount,
     components: [],
     awaitingComponentApproval: false,
+    addedCrewHours: 0,
     approvedIncrementCents: 0,
     legacyModifierCents: 0,
   };
@@ -385,6 +400,7 @@ export function startDisplayConfiguration(svc: { estimatedMinutes: number | null
     techCount: 1,
     components: [],
     awaitingComponentApproval: false,
+    addedCrewHours: 0,
     approvedIncrementCents: 0,
     legacyModifierCents: 0,
   };
@@ -452,10 +468,14 @@ export function applyBranch(
   let material = config.materialCostCents;
   const components = [...config.components];
 
+  // Tracks the increment separately from the running total. An OVERRIDE is
+  // deliberately not counted here: replacing the baseline is not adding to it.
+  let addedCrewHours = config.addedCrewHours;
   const addHours = (n: number) => {
     // Adding hours to a service whose own hours aren't established leaves it
     // unestablished. A component's hours can't stand in for the base job's.
     if (hours !== null) hours += n;
+    addedCrewHours += n;
   };
 
   if (branch.addFieldLaborHours) addHours(branch.addFieldLaborHours);
@@ -529,6 +549,7 @@ export function applyBranch(
       declaredButUnmatched ||
       approved === null ||
       approved === undefined,
+    addedCrewHours,
     approvedIncrementCents: config.approvedIncrementCents + (approved ?? 0),
     legacyModifierCents: config.legacyModifierCents + (branch.priceModifierCents ?? 0),
   };

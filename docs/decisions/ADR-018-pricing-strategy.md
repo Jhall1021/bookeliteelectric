@@ -107,6 +107,17 @@ numbers per service, when the labour band is where the variance actually lives.
 quoting. Under T&M the homeowner is told the rate and billed for the hours, so flooring the
 estimate would advertise a charge the final invoice may not contain.
 
+**This is not a claim that T&M has no minimum.** Many T&M contractors do have one. When that is
+needed it gets its own explicit optional concept — *minimum billable crew-hours* or *minimum
+service charge* — and **the customer-facing estimate must disclose it**, because an undisclosed
+floor turns a range into a misleading one.
+
+What it must never be is `primaryMinimumCents` reused. That field means "the smallest fixed price
+we will quote", and borrowing it would make one number carry two different promises.
+
+Not added in V1: no current T&M surface needs it, and a setting nobody uses is a setting nobody
+maintains.
+
 ## Price2Book's boundary, restated
 
 **May:** estimate scope, estimate duration, estimate materials, calculate a range, capture the
@@ -135,3 +146,91 @@ proving that switching preserves both configurations requires both to exist.
 
 Gate 256, `verify:template` 143, tenancy 174, **reconcile 0 differing**, Elite's storefront
 fingerprint unchanged.
+
+
+---
+
+## Surfaces — 28 August 2026
+
+### Readiness, six states not one
+
+`/dashboard/estimates` distinguishes **Ready**, **Entered, not approved**, **Needs estimate
+range**, **Invalid**, **Other unresolved requirement** and **Quote only**. Collapsing them into a
+single "Needs Pricing" count would tell a contractor there is work without telling them what it
+is — the same failure the Overview's `52 of 69` made, where thirteen of the seventeen
+"outstanding" services were correctly configured quote-only.
+
+A FLAT_RATE contractor sees none of it: the screen says their services do not need hour ranges,
+and that anything entered will be waiting if they ever switch.
+
+### Entered is not approved
+
+Two buttons, two verbs. **Save** records the numbers. **Approve for customer estimates** releases
+them. Saving also **clears any previous approval** — numbers a human has not seen since they
+changed are not numbers a human has approved.
+
+Bulk save and bulk approve both exist, because setting fifty-six services one at a time is how
+onboarding dies. Bulk approval is still an explicit act, never a side effect of saving, of filling
+in suggestions, or of switching strategy.
+
+The suggested band renders as a **button next to an empty field**. It becomes a value only when
+the contractor takes it. Nothing writes on load.
+
+### The real guided flow
+
+`EstimateRangeCard` is reached from the same `resolved` state as `PriceConfirmationCard`, off the
+same `applyBranch` configuration. There is no preview data on this path.
+
+**The payload carries only what the homeowner is shown.** A T&M storefront receives the crew-hour
+rate, the approved band and each component's added hours — all of which appear on the page anyway.
+A FLAT_RATE storefront receives none of it, so the earlier decision to strip cost inputs from
+`ServiceFlowDTO` is untouched. Verified against Elite on a service with four real components: the
+component payload carries exactly `key`, `customerFacingLabel` and `approvedPriceCents`.
+
+Reading the rate needed splitting one query into two — `PricingSettings` is tenant-owned, and
+reading it as a relation beneath `Contractor` is the platform-parent-to-tenant-child shape ADR-007
+forbids. The audit refused the build until it was rooted at its own model.
+
+### Scope decisions move the range
+
+The rule: **the contractor's approved band describes the base service's uncertainty; a component
+adds a known, already-decided quantity of work.** Both bounds move by the same amount.
+
+    2–3 hours + a 1-hour component  ->  3–4 hours
+
+The band's WIDTH is unchanged, because the component is known work rather than new uncertainty.
+
+`JobConfiguration.addedCrewHours` tracks the increment as its own accumulator rather than
+subtracting the baseline — `overrideFieldLaborHours` REPLACES rather than adds, and a subtraction
+would silently report an override as an increment. Proven through the real engine: quantity
+multiplies, increments accumulate across successive answers, and a component whose condition does
+not match adds nothing.
+
+### Materials are disclosed, not approximated
+
+The material markup is applied **once to the assembled package, never per part**. Summing a
+marked-up figure per selected component would overstate it; shipping raw component costs would
+reverse the cost-input decision. So V1 quotes the **labour** range and discloses that materials
+are additional, at cost plus markup.
+
+This is a deliberate departure from the worked example in the brief. An understated total in a
+customer-facing estimate is a promise problem, not a rounding one, and the alternative was a
+materials figure that is wrong precisely when the route selects components.
+
+### Flat rate is unchanged
+
+`verify-flat-rate-unchanged` replays every active service's tree through the real engine —
+`startConfiguration`, `applyBranch`, `customerPrice` — taking the first answer at each question,
+and compares total, component set and review state against a recorded baseline.
+
+**The baseline was recorded from the tree BEFORE this work**, using `git stash`, and the tree
+after it reproduces all **69** services exactly. The comparison deliberately excludes
+`addedCrewHours`: it does not exist on the older engine, and the claim is that the flat-rate total
+does not depend on it.
+
+`db:reconcile` after the whole phase: **0 differing.**
+
+### Still deferred
+
+A T&M minimum (see above), material ranges, per-service strategy overrides, and Guided Setup's
+bulk-calibration flow.

@@ -58,6 +58,8 @@ export const PORTAL_MODULES: PortalModule[] = [
     blurb: "How your services are grouped for a homeowner browsing them." },
   { href: "/dashboard/pricing-settings", name: "Your Rates", group: "pricing",
     blurb: "Labour rate, minimums and material markup. Price2Book can suggest; you approve." },
+  { href: "/dashboard/estimates", name: "Estimated Hours", group: "pricing",
+    blurb: "How long each job usually takes, and how much that varies. Only used if you bill time and materials." },
 
   { href: "/dashboard/business-hours", name: "Hours & Availability", group: "availability",
     blurb: "When you take work, and the arrival windows a homeowner can pick." },

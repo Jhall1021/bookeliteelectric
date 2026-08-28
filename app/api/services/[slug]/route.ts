@@ -95,6 +95,30 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     loadOwnComponents(db, site.contractorId, canonicalComponentIdsIn(service))
   );
 
+  // ADR-018 — a TIME_AND_MATERIALS storefront needs the rate, the approved
+  // band and the component hours, because all three are shown to the
+  // homeowner. A FLAT_RATE storefront gets none of it, so the earlier decision
+  // to keep cost inputs off this payload is untouched.
+  // Two reads, not one join. PricingSettings is TENANT-OWNED, so it is rooted
+  // at its own model where the guard can scope it — reading it as a relation
+  // beneath Contractor is the platform-parent-to-tenant-child shape ADR-007
+  // forbids, and the audit refuses it.
+  const strategy = (await withSite(site, (db) =>
+    db.contractor.findUniqueOrThrow({
+      where: { id: site.contractorId }, select: { pricingStrategy: true },
+    })
+  )).pricingStrategy;
+  const isTm = strategy === "TIME_AND_MATERIALS";
+  // Only read when it will be used. A flat-rate storefront has no business
+  // touching the rate on a customer-facing request.
+  const rate = isTm
+    ? (await withSite(site, (db) =>
+        db.pricingSettings.findUnique({
+          where: { contractorId: site.contractorId }, select: { crewHourRateCents: true },
+        })
+      ))?.crewHourRateCents ?? null
+    : null;
+
   const dto: ServiceFlowDTO = {
     id: service.id,
     slug: service.slug,
@@ -109,6 +133,18 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
       categoryIcon(requireContractorCategory(service.slug, service.contractorCategory)),
     disclaimer: service.disclaimer,
     estimatedMinutes: service.estimatedMinutes,
+    // Null unless this contractor bills time and materials AND has a rate. The
+    // engine refuses to estimate on a null block rather than inventing one.
+    timeAndMaterials: isTm && rate !== null
+      ? {
+          crewHourRateCents: rate,
+          estimateLowCrewHours: service.estimateLowCrewHours,
+          estimateHighCrewHours: service.estimateHighCrewHours,
+          // The DATE is not shipped — only whether a human approved. The
+          // customer has no use for when, and it is not theirs to know.
+          estimateApproved: service.estimateApprovedAt !== null,
+        }
+      : null,
     questions: service.questions.map((q) => ({
       id: q.id,
       key: q.key,
@@ -201,6 +237,11 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
                 // than quoting a figure. Never zero, and never another
                 // contractor's price on a public endpoint.
                 approvedPriceCents: own ? own.approvedPriceCents : null,
+                // Only under T&M, where these hours reach the homeowner. Null
+                // when this contractor has no row — unresolved, not zero, so
+                // the estimate refuses rather than pricing the extra work at
+                // nothing.
+                ...(isTm ? { addCrewHours: own ? own.addFieldLaborHours : null } : {}),
               },
             },
           ];
