@@ -66,7 +66,7 @@ export default async function AdminServicesPage() {
           </p>
         </div>
         <Link
-          href="/admin/services/new"
+          href="/dashboard/services/new"
           className="shrink-0 rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover"
         >
           + New Service
@@ -112,7 +112,7 @@ export default async function AdminServicesPage() {
       <div className="mt-4 flex items-center justify-between">
         <p className="text-xs text-slate">
           Use the arrows to set the order customers see. Categories are ordered on the{" "}
-          <Link href="/admin/categories" className="text-electric">
+          <Link href="/dashboard/categories" className="text-electric">
             Categories
           </Link>{" "}
           page.
@@ -133,7 +133,7 @@ export default async function AdminServicesPage() {
                   // Server Component into a Client one.
                   content: (
                     <Link
-                      href={`/admin/services/${svc.id}`}
+                      href={`/dashboard/services/${svc.id}`}
                       className={`flex items-center justify-between gap-4 ${
                         !svc.active ? "opacity-50" : ""
                       }`}

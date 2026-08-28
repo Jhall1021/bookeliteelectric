@@ -64,7 +64,7 @@ export default async function AdminCategoriesPage() {
                     </div>
                   </div>
                   <Link
-                    href="/admin/services"
+                    href="/dashboard/services"
                     className="shrink-0 text-xs font-medium text-electric"
                   >
                     Order services →

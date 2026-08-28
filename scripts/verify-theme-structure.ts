@@ -62,9 +62,15 @@ function main() {
   // -co --exclude-standard: tracked AND untracked-but-not-ignored. Plain
   // `ls-files` lists only tracked files, so a component added in this same
   // change reads as absent and every axis it introduced looks decorative.
+  // The rule governs CUSTOMER-FACING components. Price2Book's own surfaces —
+  // the contractor portal and the admin — are excluded, because identifying
+  // which contractor is being acted for is precisely their job there.
+  const OWN_SURFACE = [/\/admin\//, /^app\/dashboard\//, /^app\/api\/portal\//, /^components\/portal\//, /^app\/choose\//];
   const files = execSync("git ls-files -co --exclude-standard 'components' 'app'", { encoding: "utf8" })
-    .split("\n").filter((f) => /\.tsx?$/.test(f) && !f.includes("/admin/"));
-  const IDENTITY = /\b(contractor|site|tenant)(Id|Slug|Name)?\s*(===|!==)\s*["'`]|slug\s*===\s*["'`]/;
+    .split("\n").filter((f) => /\.tsx?$/.test(f) && !OWN_SURFACE.some((d) => d.test(f)));
+  // `typeof contractorId !== "string"` is a shape guard, not a branch on which
+  // contractor — excluded explicitly so the rule keeps meaning what it says.
+  const IDENTITY = /(?<!typeof\s)\b(contractor|site|tenant)(Id|Slug|Name)?\s*(===|!==)\s*["'`]|slug\s*===\s*["'`]/;
   const offenders: string[] = [];
   for (const f of files) {
     readFileSync(f, "utf8").split("\n").forEach((line, i) => {

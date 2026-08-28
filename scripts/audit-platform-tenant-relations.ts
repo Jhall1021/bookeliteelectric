@@ -71,17 +71,17 @@ const REVIEWED_SAFE: Record<string, Exception> = {
     "Rooted at contractorMaterial.findMany — ContractorMaterial is tenant-owned, " +
     "so the guard scopes it. This is the relation on ContractorMaterial, not the " +
     "same-named one on the deprecated Material.",
-  "app/admin/(protected)/categories/page.tsx:services":
+  "app/dashboard/categories/page.tsx:services":
     "ContractorCategory.services, not Contractor.services. The root is " +
     "ContractorCategory, which is tenant-owned, so the guard scopes it.",
-  "app/admin/(protected)/services/page.tsx:services": "As above.",
+  "app/dashboard/services/page.tsx:services": "As above.",
   "app/[site]/services/page.tsx:services":
     "ContractorCategory.services under a §2.2 site-resolved tenant context.",
   "app/[site]/services/[category]/page.tsx:services": "As above.",
   "app/api/visit/while-we-there/route.ts:services": "As above.",
   "app/api/service-match/route.ts:services": "Local DTO field, not a Prisma include.",
   "lib/serviceMatch.ts:services": "Local DTO field, not a Prisma include.",
-  "app/admin/(protected)/services/[serviceId]/page.tsx:options":
+  "app/dashboard/services/[serviceId]/page.tsx:options":
     "Question.options beneath a Service root. Service is tenant-owned.",
   "app/api/admin/services/[serviceId]/tree/route.ts:options":
     "Question.options beneath a Service root.",

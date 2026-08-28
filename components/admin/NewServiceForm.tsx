@@ -68,7 +68,7 @@ export default function NewServiceForm({ categories }: { categories: { id: strin
 
     if (res.ok) {
       const data = await res.json();
-      router.push(`/admin/services/${data.id}`);
+      router.push(`/dashboard/services/${data.id}`);
     } else {
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Something went wrong creating this service.");

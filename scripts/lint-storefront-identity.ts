@@ -63,6 +63,14 @@ const ALLOWED = new Set([
   "lib/pricingCopy.ts",        // holds the flat-rate copy on purpose, keyed by strategy
   "scripts/_extractCore.ts",   // the template extractor's BRAND detector
 ]);
+/**
+ * `app/admin` is only compatibility redirects now. `app/dashboard`,
+ * `components/portal` and `app/api/portal` are deliberately NOT skipped: the
+ * contractor portal shows text to a contractor, and a hardcoded company name
+ * there is the same bug wearing different clothes — it told whoever signed in
+ * that this was Elite Electric's Jobber account. Found the moment those files
+ * left the admin skip path.
+ */
 const SKIP_DIR = [/^components\/admin\//, /^app\/admin\//, /^scripts\//, /^prisma\//];
 
 type Finding = { file: string; line: number; text: string; why: string };

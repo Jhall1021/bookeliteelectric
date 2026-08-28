@@ -75,14 +75,14 @@ const ADOPTED_FILES: string[] = [
   "app/api/admin/services/route.ts",
   "app/api/admin/pricing-settings/recalculate/route.ts",
   "app/api/admin/reorder/route.ts",
-  "app/admin/(protected)/services/[serviceId]/page.tsx",
-  "app/admin/(protected)/pricing-settings/page.tsx",
+  "app/dashboard/services/[serviceId]/page.tsx",
+  "app/dashboard/pricing-settings/page.tsx",
   // Batch B — admin category readers. Correct before, but by a hand-written
   // `where: { contractorId }` written during the ADR-006 read switch. Behind
   // the guard the filter is no longer load-bearing application code.
-  "app/admin/(protected)/categories/page.tsx",
-  "app/admin/(protected)/services/page.tsx",
-  "app/admin/(protected)/services/new/page.tsx",
+  "app/dashboard/categories/page.tsx",
+  "app/dashboard/services/page.tsx",
+  "app/dashboard/services/new/page.tsx",
   // ADR §2.2 — storefront routes, now tenant-addressed. Every one of these
   // resolves a ContractorSite before it looks at any tenant-owned resource.
   "app/api/services/[slug]/route.ts",
@@ -98,9 +98,9 @@ const ADOPTED_FILES: string[] = [
   "app/[site]/checkout/schedule/page.tsx",
   "app/api/service-match/feedback/route.ts",
   // Admin surfaces, now resolving their contractor from membership.
-  "app/admin/(protected)/jobber/page.tsx",
-  "app/admin/(protected)/service-area/page.tsx",
-  "app/admin/(protected)/business-hours/page.tsx",
+  "app/dashboard/jobber/page.tsx",
+  "app/dashboard/service-area/page.tsx",
+  "app/dashboard/business-hours/page.tsx",
   "app/api/admin/business-hours/route.ts",
   "app/api/admin/jobber/disconnect/route.ts",
   "app/api/admin/pricing-settings/route.ts",

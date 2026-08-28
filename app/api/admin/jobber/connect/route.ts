@@ -9,7 +9,7 @@ import { cookies } from "next/headers";
 // account (not the Developer Center login), to grant this app access.
 export async function GET() {
   if (!(await isAdminAuthenticated())) {
-    return NextResponse.redirect(new URL("/admin/login", jobberRedirectUri()));
+    return NextResponse.redirect(new URL("/sign-in", jobberRedirectUri()));
   }
 
   // A random state value, checked on the way back in the callback, to

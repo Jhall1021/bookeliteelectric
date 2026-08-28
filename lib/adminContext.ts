@@ -28,7 +28,7 @@
  * for. Ambiguity is an error, not a guess.
  */
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { PrismaClient, ContractorRole } from "@prisma/client";
 import { auth } from "./auth";
 import { prisma } from "./prisma";
@@ -84,17 +84,34 @@ export async function currentUser(): Promise<{ id: string; email: string } | nul
 }
 
 /**
+ * The cookie holding which contractor this account is currently working on.
+ *
+ * A CHOICE, not a credential. It narrows an account to one of the memberships
+ * it already has; it can never grant one. Every read below re-checks the
+ * membership, so a stale or forged value resolves to "not yours" rather than
+ * to access.
+ */
+export const CONTRACTOR_COOKIE = "p2b.contractor";
+
+/**
  * Resolve identity and authorization together.
  *
  * `contractorId` is optional only while a user has exactly one membership.
  * With more than one it is required, and its absence is an error rather than
  * a silently chosen first row.
+ *
+ * When it is not passed, the portal's selection cookie is consulted — the
+ * answer a human already gave at /choose. That is still an explicit
+ * choice; it is simply one made earlier. It is validated against the account's
+ * memberships like any other, so it cannot widen access.
  */
 export async function resolveAdminContractor(
   contractorId?: string
 ): Promise<AdminContext> {
   const user = await currentUser();
   if (!user) throw new NotAuthenticatedError();
+
+  const chosenId = contractorId ?? cookies().get(CONTRACTOR_COOKIE)?.value ?? undefined;
 
   // Read on the UNGUARDED client, deliberately: this is the query that decides
   // which tenant context to open, so it cannot run inside one. It reads
@@ -114,8 +131,8 @@ export async function resolveAdminContractor(
     throw new NoMembershipError("This account is not a member of any active contractor.");
   }
 
-  if (contractorId) {
-    const chosen = usable.find((m) => m.contractorId === contractorId);
+  if (chosenId) {
+    const chosen = usable.find((m) => m.contractorId === chosenId);
     // Same message whether the contractor is absent or simply not theirs.
     if (!chosen) throw new NoMembershipError("No such contractor for this account.");
     return {

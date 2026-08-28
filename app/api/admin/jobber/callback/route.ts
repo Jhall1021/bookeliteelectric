@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const expectedState = cookies().get("jobber_oauth_state")?.value;
 
   if (!code || !state || state !== expectedState) {
-    return NextResponse.redirect(new URL("/admin/jobber?error=invalid_state", url.origin));
+    return NextResponse.redirect(new URL("/dashboard/jobber?error=invalid_state", url.origin));
   }
 
   try {
@@ -22,9 +22,9 @@ export async function GET(req: Request) {
     await saveJobberTokens(tokens, contractorId);
   } catch (err) {
     console.error("Jobber OAuth exchange failed:", err);
-    return NextResponse.redirect(new URL("/admin/jobber?error=exchange_failed", url.origin));
+    return NextResponse.redirect(new URL("/dashboard/jobber?error=exchange_failed", url.origin));
   }
 
   cookies().delete("jobber_oauth_state");
-  return NextResponse.redirect(new URL("/admin/jobber?connected=1", url.origin));
+  return NextResponse.redirect(new URL("/dashboard/jobber?connected=1", url.origin));
 }

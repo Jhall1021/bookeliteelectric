@@ -53,6 +53,10 @@ export const RESERVED_HOSTED_SLUGS = new Set<string>([
   "api", "admin", "_next", "static", "public", "assets",
   // Auth and account.
   "login", "logout", "signin", "signup", "auth", "account", "settings",
+  // The contractor portal. A contractor taking one of these as a hosted slug
+  // would shadow the portal itself — the sharpest version of the van-sticker
+  // problem this list exists to prevent.
+  "sign-in", "sign-out", "dashboard", "portal", "onboarding", "choose",
   // Platform marketing, kept free for Price2Book itself.
   "pricing", "about", "contact", "blog", "docs", "help", "support",
   "terms", "privacy", "legal", "security", "status",

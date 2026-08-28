@@ -14,8 +14,9 @@ export default async function JobberPage({ searchParams }: { searchParams: { con
     <div>
       <h1 className="font-display text-2xl font-bold text-navy">Jobber Integration</h1>
       <p className="mt-1 text-sm text-slate">
-        Connect your Elite Electric Jobber account so completed bookings can be pushed there for
-        dispatch and scheduling.
+        Connect your Jobber account so bookings taken through your storefront are pushed
+        there for dispatch and scheduling. Price2Book hands the work across — it does not
+        replace the software you run your business on.
       </p>
 
       <JobberConnectionPanel
@@ -26,7 +27,7 @@ export default async function JobberPage({ searchParams }: { searchParams: { con
       />
 
       {connection && (
-        <Link href="/admin/jobber/crews" className="mt-4 inline-block text-sm font-medium text-electric">
+        <Link href="/dashboard/jobber/crews" className="mt-4 inline-block text-sm font-medium text-electric">
           Manage Crew Eligibility →
         </Link>
       )}
