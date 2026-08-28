@@ -1486,6 +1486,27 @@ model Service {
   ///
   /// Defaults empty so every existing Elite service is unaffected.
   unresolvedPolicyKeys String[]
+
+  /// ADR-018 — TIME_AND_MATERIALS estimate bounds, in CREW-HOURS.
+  ///
+  /// Contractor calibration, not canonical trade knowledge. How long a job
+  /// takes and how uncertain that is belongs to the crew doing it; the template
+  /// knows that the job HAS a duration and which answers add to it, never how
+  /// many hours this contractor needs.
+  ///
+  /// UNRESOLVED BY DEFAULT, and unresolved is null — never zero. Zero is a
+  /// real number of hours and must never stand in for "we have not been told".
+  ///
+  /// `fieldLaborHours` may be SUGGESTED as a starting point and is never
+  /// transformed into these automatically. The midpoint is not required to
+  /// equal it: a contractor who says 2–6 hours against a 3-hour baseline is
+  /// describing real asymmetric risk, not making an arithmetic error.
+  estimateLowCrewHours  Float?
+  estimateHighCrewHours Float?
+  /// When a human approved these bounds. Null means suggested-but-not-approved,
+  /// which is NOT publishable — the same distinction publishedPriceApprovedAt
+  /// draws for a fixed price. Price2Book can suggest; the contractor approves.
+  estimateApprovedAt    DateTime?
   // Deliberate exception to the global material markup. NULL is the NORMAL
   // state and means "use the current rule": 30% on the first $750 of direct
   // cost, 20% above it, applied once to the assembled package. See
@@ -2115,7 +2136,23 @@ model PricingSettings {
   contractorId String     @unique
   contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
-  targetRateCents         Int // revenue per productive tech-hour
+  /// Revenue per productive CREW-HOUR — one van on site for one hour.
+  ///
+  /// NOT per technician. A van carries a lead and a helper, so one crew-hour
+  /// is two people for an hour, and the rate is the whole van. The engine has
+  /// always worked this way (POLICY[crew.composition]: ONE_VAN_LEAD_PLUS_HELPER)
+  /// but the field was called targetRateCents and documented as "per productive
+  /// tech-hour", which is the opposite. It had already caused one real defect:
+  /// labour was once computed as `hours * techCount` and charged again for the
+  /// helper who rides in every van as standard.
+  ///
+  /// The ambiguity stops being internal under TIME_AND_MATERIALS, where this
+  /// number is shown to the homeowner. One contractor billing "$149/hour" for a
+  /// single technician and another billing "$225/hour" for a two-man crew must
+  /// mean different things by the same field, and only an explicit name makes
+  /// that safe.
+  ///
+  crewHourRateCents       Int
   primaryMinimumCents     Int // floor for any primary price when labor units > 0
   roundingIncrementCents  Int // round every computed price up to this increment
   defaultPermitAdminCents Int // fallback when a service has no per-row override

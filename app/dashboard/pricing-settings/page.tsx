@@ -38,7 +38,7 @@ export default async function PricingSettingsPage() {
         settings={
           settings
             ? {
-                targetRateCents: settings.targetRateCents,
+                crewHourRateCents: settings.crewHourRateCents,
                 primaryMinimumCents: settings.primaryMinimumCents,
                 roundingIncrementCents: settings.roundingIncrementCents,
                 defaultPermitAdminCents: settings.defaultPermitAdminCents,

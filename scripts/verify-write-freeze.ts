@@ -53,7 +53,7 @@ async function main() {
     for (const [label, run] of [
       ["create", () => p.contractor.create({ data: { slug: PROBE, name: "probe" } })],
       ["update", () => p.contractor.update({ where: { slug: PROBE }, data: { name: "x" } })],
-      ["updateMany", () => p.pricingSettings.updateMany({ data: { targetRateCents: 1 } })],
+      ["updateMany", () => p.pricingSettings.updateMany({ data: { crewHourRateCents: 1 } })],
       ["upsert", () => p.contractor.upsert({ where: { slug: PROBE }, update: {}, create: { slug: PROBE, name: "p" } })],
       ["deleteMany", () => p.visit.deleteMany({ where: { id: PROBE } })],
       ["$executeRawUnsafe", () => p.$executeRawUnsafe(`UPDATE contractors SET name = name`)],

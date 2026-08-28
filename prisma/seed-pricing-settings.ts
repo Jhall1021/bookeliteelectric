@@ -32,7 +32,7 @@ async function main() {
     await prisma.pricingSettings.create({
       data: {
         contractorId,
-        targetRateCents: 25000,
+        crewHourRateCents: 25000,
         primaryMinimumCents: PRIMARY_MINIMUM_CENTS,
         roundingIncrementCents: 500,
         defaultPermitAdminCents: 0,
@@ -56,7 +56,7 @@ async function main() {
 
   console.log(`
   Current settings
-    tech-hour rate      $${(existing.targetRateCents / 100).toFixed(2)}
+    tech-hour rate      $${(existing.crewHourRateCents / 100).toFixed(2)}
     service-call min    $${(PRIMARY_MINIMUM_CENTS / 100).toFixed(2)}
     rounding            $${(existing.roundingIncrementCents / 100).toFixed(2)}
     permit default      $${(existing.defaultPermitAdminCents / 100).toFixed(2)}

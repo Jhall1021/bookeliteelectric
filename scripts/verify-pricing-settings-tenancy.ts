@@ -59,7 +59,7 @@ async function main() {
     where: { slug: DUMMY_SLUG }, update: {},
     create: { slug: DUMMY_SLUG, name: "Pricing tenancy probe" },
   });
-  console.log(`  ${elite.name}: rate ${eliteBefore.targetRateCents}, minimum ${eliteBefore.primaryMinimumCents}`);
+  console.log(`  ${elite.name}: rate ${eliteBefore.crewHourRateCents}, minimum ${eliteBefore.primaryMinimumCents}`);
   console.log(`  ${dummy.name}: will take rate ${DUMMY_RATE}, minimum ${DUMMY_MIN}\n`);
 
   try {
@@ -67,7 +67,7 @@ async function main() {
     await prisma.pricingSettings.create({
       data: {
         contractorId: dummy.id,
-        targetRateCents: DUMMY_RATE,
+        crewHourRateCents: DUMMY_RATE,
         primaryMinimumCents: DUMMY_MIN,
         roundingIncrementCents: 500,
         defaultPermitAdminCents: 0,
@@ -75,47 +75,47 @@ async function main() {
     });
     const d = await settingsFor(dummy.id);
     const e = await settingsFor(elite.id);
-    ok(d?.targetRateCents === DUMMY_RATE, "the probe contractor has its OWN crew rate");
-    ok(e?.targetRateCents === eliteBefore.targetRateCents,
+    ok(d?.crewHourRateCents === DUMMY_RATE, "the probe contractor has its OWN crew rate");
+    ok(e?.crewHourRateCents === eliteBefore.crewHourRateCents,
        "and Elite's rate is unchanged by that",
-       `Elite's rate is now ${e?.targetRateCents}`);
+       `Elite's rate is now ${e?.crewHourRateCents}`);
     ok(d!.id !== e!.id, "the two rows have distinct primary keys",
        "a shared literal id is what made a second row impossible");
 
     console.log("\n  UPDATING ONE CANNOT ALTER THE OTHER");
     await prisma.pricingSettings.update({
       where: { contractorId: dummy.id },
-      data: { targetRateCents: DUMMY_RATE + 1000 },
+      data: { crewHourRateCents: DUMMY_RATE + 1000 },
     });
-    ok((await settingsFor(dummy.id))?.targetRateCents === DUMMY_RATE + 1000,
+    ok((await settingsFor(dummy.id))?.crewHourRateCents === DUMMY_RATE + 1000,
        "the probe's update lands on the probe");
-    ok((await settingsFor(elite.id))?.targetRateCents === eliteBefore.targetRateCents,
+    ok((await settingsFor(elite.id))?.crewHourRateCents === eliteBefore.crewHourRateCents,
        "and Elite's rate did not move",
-       `Elite's rate is now ${(await settingsFor(elite.id))?.targetRateCents}`);
+       `Elite's rate is now ${(await settingsFor(elite.id))?.crewHourRateCents}`);
 
     await prisma.pricingSettings.update({
       where: { contractorId: elite.id },
-      data: { targetRateCents: eliteBefore.targetRateCents + 1 },
+      data: { crewHourRateCents: eliteBefore.crewHourRateCents + 1 },
     });
-    ok((await settingsFor(dummy.id))?.targetRateCents === DUMMY_RATE + 1000,
+    ok((await settingsFor(dummy.id))?.crewHourRateCents === DUMMY_RATE + 1000,
        "and an update to Elite does not move the probe's rate either");
     await prisma.pricingSettings.update({
       where: { contractorId: elite.id },
-      data: { targetRateCents: eliteBefore.targetRateCents },
+      data: { crewHourRateCents: eliteBefore.crewHourRateCents },
     });
 
     console.log("\n  SEEDS CANNOT REACH ANOTHER CONTRACTOR'S SETTINGS");
     // The seed resolves its contractor and upserts on contractorId. Run it and
     // prove the probe's deliberately-wrong rate survives untouched.
-    const dummyRateBeforeSeed = (await settingsFor(dummy.id))!.targetRateCents;
+    const dummyRateBeforeSeed = (await settingsFor(dummy.id))!.crewHourRateCents;
     let seedRan = true;
     try {
       execFileSync("npx", ["tsx", "prisma/seed-pricing-settings.ts"], { stdio: "pipe" });
     } catch { seedRan = false; }
     ok(seedRan, "the pricing-settings seed runs");
-    ok((await settingsFor(dummy.id))?.targetRateCents === dummyRateBeforeSeed,
+    ok((await settingsFor(dummy.id))?.crewHourRateCents === dummyRateBeforeSeed,
        "and it did NOT overwrite the probe contractor's settings",
-       `probe rate is now ${(await settingsFor(dummy.id))?.targetRateCents}, was ${dummyRateBeforeSeed}`);
+       `probe rate is now ${(await settingsFor(dummy.id))?.crewHourRateCents}, was ${dummyRateBeforeSeed}`);
 
     console.log("\n  RECONCILIATION USES EACH CONTRACTOR'S OWN SETTINGS");
     const out = execFileSync("npx", ["tsx", "scripts/reconcile-prices.ts"], {
@@ -124,7 +124,7 @@ async function main() {
     const headers = [...out.matchAll(/PRICE RECONCILIATION — (.+)/g)].map((m) => m[1].trim());
     ok(headers.includes(elite.name), `it reports for ${elite.name}`, `saw: ${headers.join(", ")}`);
     ok(headers.includes(dummy.name), `and separately for ${dummy.name}`, `saw: ${headers.join(", ")}`);
-    const eliteRateShown = `$${eliteBefore.targetRateCents / 100}`;
+    const eliteRateShown = `$${eliteBefore.crewHourRateCents / 100}`;
     const dummyRateShown = `$${(DUMMY_RATE + 1000) / 100}`;
     ok(out.includes(`Crew-hour rate        ${eliteRateShown}`),
        `Elite's section quotes Elite's rate (${eliteRateShown})`);
@@ -142,17 +142,17 @@ async function main() {
     await prisma.pricingSettings.update({
       where: { contractorId: elite.id },
       data: {
-        targetRateCents: eliteBefore.targetRateCents,
+        crewHourRateCents: eliteBefore.crewHourRateCents,
         primaryMinimumCents: eliteBefore.primaryMinimumCents,
         roundingIncrementCents: eliteBefore.roundingIncrementCents,
         defaultPermitAdminCents: eliteBefore.defaultPermitAdminCents,
       },
     });
     const restored = await settingsFor(elite.id);
-    ok(restored?.targetRateCents === eliteBefore.targetRateCents &&
+    ok(restored?.crewHourRateCents === eliteBefore.crewHourRateCents &&
        restored?.primaryMinimumCents === eliteBefore.primaryMinimumCents,
        "Elite's REAL rate and minimum restored — every value byte-identical",
-       `rate ${restored?.targetRateCents} vs ${eliteBefore.targetRateCents}`);
+       `rate ${restored?.crewHourRateCents} vs ${eliteBefore.crewHourRateCents}`);
   }
 
   console.log("\n" + "─".repeat(76));

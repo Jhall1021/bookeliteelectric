@@ -37,6 +37,13 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "exact operation. The attempt runs inside a throwaway contractor's " +
     "context against Elite's service, can only fail, and Elite's published " +
     "price is asserted unchanged immediately afterwards.",
+  "scripts/verify-pricing-strategy.ts":
+    "Writes an approved price and approved estimate bounds onto a THROWAWAY " +
+    "contractor's own service, to prove that switching pricing strategy " +
+    "preserves the other strategy's configuration. Proving that requires both " +
+    "configurations to exist. The contractor is created and destroyed by the " +
+    "test, no real contractor's row is read or written, and the whole file " +
+    "runs in verify:template rather than the deploy gate.",
   "prisma/seed.ts": "Bootstrap. Establishes the original catalog.",
   "prisma/seed-pricing-settings.ts": "Settings only, no service prices.",
   "prisma/reconcile-scope-services.ts":

@@ -156,7 +156,7 @@ async function main() {
     update: {}, // don't overwrite if already configured
     create: {
       contractorId: seedContractorId,
-      targetRateCents: 25000, // $250.00/hr
+      crewHourRateCents: 25000, // $250.00/hr
       primaryMinimumCents: 22500, // $225.00
       roundingIncrementCents: 500, // $5.00
       defaultPermitAdminCents: 0,

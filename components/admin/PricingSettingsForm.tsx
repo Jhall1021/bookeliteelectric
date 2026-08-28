@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Settings = {
-  targetRateCents: number;
+  crewHourRateCents: number;
   primaryMinimumCents: number;
   roundingIncrementCents: number;
   defaultPermitAdminCents: number;
@@ -16,7 +16,7 @@ function toDollars(cents: number): string {
 
 export default function PricingSettingsForm({ settings }: { settings: Settings | null }) {
   const router = useRouter();
-  const [rate, setRate] = useState(settings ? toDollars(settings.targetRateCents) : "250.00");
+  const [rate, setRate] = useState(settings ? toDollars(settings.crewHourRateCents) : "250.00");
   const [minimum, setMinimum] = useState(settings ? toDollars(settings.primaryMinimumCents) : "225.00");
   const [rounding, setRounding] = useState(settings ? toDollars(settings.roundingIncrementCents) : "5.00");
   const [permit, setPermit] = useState(settings ? toDollars(settings.defaultPermitAdminCents) : "0.00");
@@ -37,7 +37,7 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        targetRateCents: Math.round(parseFloat(rate) * 100),
+        crewHourRateCents: Math.round(parseFloat(rate) * 100),
         primaryMinimumCents: Math.round(parseFloat(minimum) * 100),
         roundingIncrementCents: Math.round(parseFloat(rounding) * 100),
         defaultPermitAdminCents: Math.round(parseFloat(permit) * 100),

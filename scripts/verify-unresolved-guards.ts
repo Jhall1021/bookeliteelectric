@@ -23,7 +23,7 @@ const ok = (c: boolean, l: string, d = "") => {
 };
 
 const settings: PricingSettings = {
-  targetRateCents: 25000,
+  crewHourRateCents: 25000,
   primaryMinimumCents: 25000,
   roundingIncrementCents: 500,
   defaultPermitAdminCents: 0,

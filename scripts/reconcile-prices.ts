@@ -247,7 +247,7 @@ async function reconcileContractor(
   // Printed apart because they're independent settings that happened to
   // share a value, which made the report look like it was quoting one
   // number twice.
-  console.log(`  Crew-hour rate        $${settings.targetRateCents / 100}   — what an hour of one van costs`);
+  console.log(`  Crew-hour rate        $${settings.crewHourRateCents / 100}   — what an hour of one van costs`);
   console.log(`  Service-call minimum  $${settings.primaryMinimumCents / 100}   — floor on the FIRST service, set independently`);
   console.log(`  Rounding tolerance    $${TOLERANCE_CENTS / 100}`);
   console.log(`  Material markup       30% of the first $750, 20% above\n`);
@@ -267,7 +267,7 @@ async function reconcileContractor(
   // find the one that moved — which is how a real finding gets ignored.
   const staleComponents = components
     .map((c) => {
-      const labor = Math.round((c.addFieldLaborHours ?? 0) * settings.targetRateCents);
+      const labor = Math.round((c.addFieldLaborHours ?? 0) * settings.crewHourRateCents);
       const material = Math.round((c.addMaterialCostCents ?? 0) * 1.3);
       const model = Math.ceil((labor + material) / settings.roundingIncrementCents) *
         settings.roundingIncrementCents;
@@ -290,11 +290,11 @@ async function reconcileContractor(
     console.log(`  ${components.length} component(s) carry under $10 of material; all still match.\n`);
   }
 
-  if (settings.primaryMinimumCents > settings.targetRateCents) {
+  if (settings.primaryMinimumCents > settings.crewHourRateCents) {
     // Worth saying: below this many hours the minimum decides the price and
     // the crew-hours don't move it at all, which makes "matches the model"
     // mean less than it appears.
-    const bound = settings.primaryMinimumCents / settings.targetRateCents;
+    const bound = settings.primaryMinimumCents / settings.crewHourRateCents;
     console.log(
       `  Note: the minimum exceeds one crew-hour, so any first service under\n` +
         `  ${bound.toFixed(2)} hours prices at $${settings.primaryMinimumCents / 100} whatever its labor.\n`

@@ -8,10 +8,10 @@ import { withAdminRoute } from "@/lib/adminContext";
 export async function PATCH(req: Request) {
   return withAdminRoute(async (db, ctx) => {
 
-  const { targetRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents } = await req.json();
+  const { crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents } = await req.json();
 
   if (
-    typeof targetRateCents !== "number" ||
+    typeof crewHourRateCents !== "number" ||
     typeof primaryMinimumCents !== "number" ||
     typeof roundingIncrementCents !== "number" ||
     typeof defaultPermitAdminCents !== "number"
@@ -23,10 +23,10 @@ export async function PATCH(req: Request) {
   // every contractor — and this route SETS the rate that prices their work.
   await db.pricingSettings.upsert({
     where: { contractorId: ctx.contractorId },
-    update: { targetRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents },
+    update: { crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents },
     create: {
       contractorId: ctx.contractorId,
-      targetRateCents,
+      crewHourRateCents,
       primaryMinimumCents,
       roundingIncrementCents,
       defaultPermitAdminCents,

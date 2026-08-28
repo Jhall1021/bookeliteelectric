@@ -29,7 +29,7 @@
  */
 
 export type PricingSettings = {
-  targetRateCents: number;
+  crewHourRateCents: number;
   primaryMinimumCents: number;
   roundingIncrementCents: number;
   defaultPermitAdminCents: number;
@@ -179,7 +179,7 @@ function compute(
   // second van is a real thing — but it is 1 for every service in the
   // catalog, and normal staffing must never touch it.
   const actualTechHours = hours * Math.max(crewUnits, 1);
-  const rawLabor = actualTechHours * settings.targetRateCents;
+  const rawLabor = actualTechHours * settings.crewHourRateCents;
 
   // The minimum is a FLOOR on the first service, not a rule about short jobs.
   //
