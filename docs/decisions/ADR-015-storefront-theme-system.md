@@ -234,3 +234,64 @@ carried. Same typeface either way; the probe collapses duplicate families and do
   should look like Price2Book whoever is signed in.
 - `lib/email.ts` inlines colour because custom properties are not reliable in mail clients.
   Making transactional email theme-aware is its own piece of work.
+
+---
+
+## Phase 2 — resolver and contrast enforcement, 28 August 2026
+
+`contractor brand inputs + pinned theme definition → resolved storefront theme`.
+
+The contractor stores **choices only**: `themeKey`, `themeVersion` (a pin), and `brandColors`.
+Everything else is derived at request time and never written back, which is what stops the
+theme they chose and the theme they render from coming apart. The version is a pin in the same
+sense as the service template: publishing v2 of a definition changes nothing for anyone until
+they adopt it.
+
+### The brand colour is an input, not a suggestion
+
+A colour chosen for a van wrap is under no obligation to be readable as button text on an
+off-white card. So the resolver **derives a shade from it** rather than rewriting what they
+stored — preserving hue and saturation, trying both directions and keeping whichever moves
+least, because darkening a pale brand and lightening a dark one both produce something that
+no longer looks like the brand. Every adjustment is reported as a note; nothing is silent.
+
+Button text is **chosen, not assumed**. White is right for most brand colours and wrong for a
+fluorescent yellow.
+
+### The contrast contract
+
+`CONTRAST_PAIRS` names every foreground/background pair a storefront can actually put
+together, with the ratio each must meet. It is written out rather than computed as a cross
+product, because *which text lands on which surface* is a fact about the design.
+
+`verify-theme-contrast` resolves every definition against a sweep — the hue circle at four
+lightnesses and two saturations, plus white, black, the page ground itself, the fluorescents
+that defeat white text, and a colour one step off the background — and measures every pair.
+**400 resolutions × 19 pairs, all passing.** 122 of the 200 brand colours needed a derived
+shade; none were unusable.
+
+### Two things the verifier caught
+
+**The contract was wrong before the palette was.** It first asserted `mutedSoft` on `canvas`
+at 2.45:1 and reported Elite's shipped palette as failing. But `mutedSoft` is a dark-surface
+token — all three of its uses sit on the navy hero, where it measures 6.44:1. The contract had
+invented a pair the design never makes, which is exactly the failure its own comment warns
+about. Fixed by naming the real ground and adding the dark-hero pairs that were missing
+entirely, not by lowering a threshold.
+
+**Validating a float and shipping its rounded neighbour.** Four brand colours resolved to
+accents measuring 4.50 in the resolver and 4.49 on the page, because `ensureContrast` worked
+in floating point and `toChannels` rounded to 8-bit on the way out. Everything is quantized at
+the measurement boundary now: what is measured is what the stylesheet carries.
+
+### Parity holds
+
+The five-page computed-style proof was re-run after Phase 2. Identical hashes to the Phase 1
+baseline: Elite now renders *through* the resolver and has not moved.
+
+### Carried forward
+
+The `elite-baseline` definition is fixed-valued on purpose — it is the parity anchor.
+`modern-clean-a` is the first brand-derived definition and exists to exercise the resolver;
+the six real V1 storefronts are Phase 3, and must differ **structurally**, not merely in
+palette.

@@ -28,9 +28,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <head>
-        {/* Phase 1 emits the Elite v1 definition. Passing the resolved
-            site's brand inputs here is the Phase 2 change. */}
-        <ThemeTokens />
+        {/* The base theme, for admin and marketing pages that belong to no
+            contractor. A storefront overrides it at the [site] boundary,
+            where the contractor is already resolved. */}
+        <ThemeTokens base />
       </head>
       <body>
         <Header />

@@ -443,6 +443,18 @@ model Contractor {
 
   /// ADR-014 — this contractor's answers to the template's policy questions.
   policyValues ContractorPolicyValue[]
+
+  /// ADR-015 — the contractor's THEME CHOICE, pinned.
+  ///
+  /// Choices only. Button style, card style, navigation variant, hero
+  /// treatment, spacing and typography are DERIVED from the pinned definition
+  /// at request time and never stored here, so the theme they chose and the
+  /// theme they render cannot come apart.
+  ///
+  /// The version is a PIN: publishing v2 of a definition changes nothing for
+  /// anyone until they adopt it, exactly as with the service template.
+  themeKey     String @default("elite-baseline")
+  themeVersion Int    @default(1)
 }
 
 /// A material ROLE, owned by the platform.
