@@ -58,7 +58,10 @@ export const RESERVED_HOSTED_SLUGS = new Set<string>([
   "terms", "privacy", "legal", "security", "status",
   // Legacy Elite root paths, reserved while their redirects stand.
   "services", "troubleshooting", "checkout", "quote", "my-visit",
-  "service-area", "how-it-works", "why-elite",
+  "service-area", "how-it-works", "why-us",
+  // Kept reserved although it is only a compatibility redirect now: a
+  // contractor taking this hosted slug would shadow Elite's old links.
+  "why-elite",
   // Obvious traps.
   "new", "edit", "delete", "index", "null", "undefined", "www",
 ]);

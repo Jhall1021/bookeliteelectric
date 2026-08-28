@@ -62,7 +62,7 @@ export default function Header() {
     <>
       <Link href={`${base}/how-it-works`}>How It Works</Link>
       <Link href={`${base}/services`}>Services &amp; Pricing</Link>
-      <Link href={`${base}/why-elite`}>Why {identity.shortName}</Link>
+      <Link href={`${base}/why-us`}>Why {identity.shortName}</Link>
       <Link href={`${base}/service-area`}>Service Area</Link>
     </>
   );
@@ -120,7 +120,7 @@ export default function Header() {
           </nav>
           {brand}
           <nav className="hidden flex-1 items-center justify-end gap-8 text-sm font-medium text-ink md:flex">
-            <Link href={`${base}/why-elite`}>Why {identity.shortName}</Link>
+            <Link href={`${base}/why-us`}>Why {identity.shortName}</Link>
             <Link href={`${base}/service-area`}>Service Area</Link>
             <CartLink base={base} itemCount={itemCount} />
           </nav>

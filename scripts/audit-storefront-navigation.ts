@@ -36,7 +36,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /** Path segments that belong to a storefront rather than to the platform. */
-const STOREFRONT = "(services|my-visit|checkout|quote|troubleshooting|service-area|how-it-works|why-elite)";
+const STOREFRONT = "(services|my-visit|checkout|quote|troubleshooting|service-area|how-it-works|why-us|why-elite)";
 
 const FORMS: [string, RegExp][] = [
   ["router.push", new RegExp(`router\\.push\\(\\s*[\`"']/${STOREFRONT}`)],

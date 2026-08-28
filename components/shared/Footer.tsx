@@ -62,7 +62,7 @@ export default function Footer() {
           <nav className="flex flex-col gap-2 text-sm text-accent-ink/70 sm:items-end">
             <Link href={`${base}/how-it-works`} className="hover:text-accent-ink">How It Works</Link>
             <Link href={`${base}/services`} className="hover:text-accent-ink">Services &amp; Pricing</Link>
-            <Link href={`${base}/why-elite`} className="hover:text-accent-ink">Why {id.shortName}</Link>
+            <Link href={`${base}/why-us`} className="hover:text-accent-ink">Why {id.shortName}</Link>
             <Link href={`${base}/service-area`} className="hover:text-accent-ink">Service Area</Link>
           </nav>
         </div>

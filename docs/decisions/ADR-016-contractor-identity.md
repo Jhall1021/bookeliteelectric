@@ -94,7 +94,30 @@ different phone — on Premium B with TIME_AND_MATERIALS: hero reads "Know the R
 Range.", how-it-works reads "See Your Estimate", the footer carries an Arizona licence, and a
 scan for `Elite|732-204|Monmouth|17272|Allaire|New Jersey` returns **nothing**.
 
-## Known gap
+## The `/why-us` route
 
-The `/why-elite` route keeps its path. It is a live URL and renaming it would break Elite's links
-to tidy an internal name; the *label* customers read is derived from `shortName`.
+The canonical route was `/why-elite`, which was fine while Elite was the only tenant and wrong the
+moment a second one existed. A Northgate customer should never be looking at
+`/northgate-electric/why-elite`, however correctly the page says "Why Northgate".
+
+Resolved without a destructive migration:
+
+- `/[site]/why-us` is canonical, and every internal link points at it.
+- `/[site]/why-elite` remains as a **compatibility route** — Elite's existing links and bookmarks
+  are real traffic.
+- The redirect is **unconditional**. It does not check whether the storefront belongs to Elite. A
+  route behaving one way for one contractor and another way for everyone else is exactly the
+  branching this architecture exists to avoid, and "only Elite has old links" stops being true the
+  first time anyone else's URL changes.
+- The old slug stays in `RESERVED_HOSTED_SLUGS`: a contractor taking it would shadow those links.
+- `lint-storefront-identity` refuses any new link to the compatibility route. Such a link would
+  *work*, which is why nothing else would report it.
+
+**307, not 308, for now.** A permanent redirect is cached by browsers indefinitely and is the hard
+one to walk back — it waits until external links are observed behaving (search results, the Google
+Business profile, anything printed). Promoting it is one import and one call: `permanentRedirect`
+in place of `redirect`.
+
+Verified for both contractors: `/elite-electric/why-elite` → 307 → `/elite-electric/why-us`, and
+`/theme-preview/why-elite` → 307 → `/theme-preview/why-us`. Elite's home page fingerprint is
+unchanged at 155 elements.

@@ -31,6 +31,10 @@ import { FLAT_RATE_ASSUMPTIONS } from "../lib/pricingCopy";
 const IDENTITY_PATTERNS: { re: RegExp; what: string }[] = [
   { re: /\bElite\s+Electric\b/i, what: "a specific company name" },
   { re: /\bWhy\s+Elite\b/, what: "a company name in a link label (derive it from identity.shortName)" },
+  // The route is a compatibility redirect, not a destination. A new link
+  // pointing at it would send a Northgate customer to /northgate-electric/
+  // why-elite, and it would work — which is why nothing reports it.
+  { re: /["'`\/]why-elite\b/, what: "a link to the compatibility route (use /why-us)" },
   { re: /elite-logo/i, what: "a specific company's logo asset" },
   { re: /\b732[-.\s]?204[-.\s]?7003\b|\b7322047003\b/, what: "a specific company's phone number" },
   { re: /\b1309\s+Allaire\b|\bOcean,\s*NJ\b|\b07712\b/, what: "a specific company's address" },
@@ -50,6 +54,9 @@ const IDENTITY_PATTERNS: { re: RegExp; what: string }[] = [
  */
 const ALLOWED = new Set([
   "scripts/lint-storefront-identity.ts",
+  "app/[site]/why-elite/page.tsx", // the compatibility redirect itself
+  "lib/siteRouting.ts",            // keeps the old slug reserved
+  "scripts/audit-storefront-navigation.ts",
   "lib/theme/definition.ts",   // the elite-baseline parity anchor's key/label
   "lib/theme/tokens.ts",       // ELITE_V1_* palette constant names
   "lib/theme/structure.ts",    // ELITE_V1_STRUCTURE
