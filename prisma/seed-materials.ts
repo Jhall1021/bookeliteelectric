@@ -26,6 +26,7 @@
 import { PrismaClient } from "@prisma/client";
 import { recomputeServiceMaterialCost, clearLegacyMultiplierOnItemize } from "../lib/materialCost";
 import { calculateMaterialSellCents } from "../lib/pricing";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -441,7 +442,7 @@ async function main() {
 
   console.log();
   for (const a of ASSEMBLIES) {
-    const service = await prisma.service.findUnique({ where: { slug: a.slug } });
+    const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, a.slug) });
     if (!service) {
       console.log(`  – ${a.slug} not in the catalog, skipped`);
       continue;
@@ -511,7 +512,7 @@ async function main() {
   }
 
   for (const n of NO_MATERIAL) {
-    const svc = await prisma.service.findUnique({ where: { slug: n.slug } });
+    const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, n.slug) });
     if (!svc) continue;
     await prisma.serviceMaterial.deleteMany({ where: { serviceId: svc.id } });
     if (svc.materialCostCents) {

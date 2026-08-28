@@ -38,6 +38,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -73,11 +74,11 @@ const LABEL_PHOTOS = [
 
 async function main() {
   const dedicated = await prisma.service.findUnique({
-    where: { slug: "dedicated-120v-circuit-outlet" },
+    where: await serviceSlugKey(prisma, "dedicated-120v-circuit-outlet"),
     select: { id: true, basePrice: true },
   });
   const ev = await prisma.service.findUnique({
-    where: { slug: "level-2-ev-charger" },
+    where: await serviceSlugKey(prisma, "level-2-ev-charger"),
     select: { id: true },
   });
   if (!dedicated) {
@@ -87,7 +88,7 @@ async function main() {
 
   for (const slug of APPLIES_TO) {
     const service = await prisma.service.findUnique({
-      where: { slug },
+      where: await serviceSlugKey(prisma, slug),
       // Just the questions. An earlier version pulled their answer options
       // too, which don't get read here — and named the relation wrongly,
       // which is how a fetch nobody needed broke the build.

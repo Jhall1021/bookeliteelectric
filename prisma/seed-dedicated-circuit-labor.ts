@@ -21,13 +21,14 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
 const SLUG = "dedicated-120v-circuit-outlet";
 
 async function main() {
-  const service = await prisma.service.findUnique({ where: { slug: SLUG } });
+  const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, SLUG) });
   if (!service) {
     console.log(`  – ${SLUG} not in the catalog`);
     return;

@@ -23,6 +23,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findUnreachableQuestions } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -51,7 +52,7 @@ const FINISH_DISCLAIMER = [
 async function main() {
   // ---- owner-supplied: merged and bookable -----------------------------
   const owner = await prisma.service.findUnique({
-    where: { slug: OWNER_SLUG },
+    where: await serviceSlugKey(prisma, OWNER_SLUG),
     include: { questions: true },
   });
   if (!owner) {
@@ -163,7 +164,7 @@ async function main() {
 
   // ---- Elite-supplied: remote quote -------------------------------------
   const elite = await prisma.service.findUnique({
-    where: { slug: ELITE_SLUG },
+    where: await serviceSlugKey(prisma, ELITE_SLUG),
     include: { questions: true },
   });
   if (!elite) {

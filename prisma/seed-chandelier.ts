@@ -34,6 +34,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -101,7 +102,7 @@ const REVIEW_PHOTOS = [
 
 async function main() {
   const service = await prisma.service.findUnique({
-    where: { slug: SLUG },
+    where: await serviceSlugKey(prisma, SLUG),
     include: { questions: true },
   });
   if (!service) {

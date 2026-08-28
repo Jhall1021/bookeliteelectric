@@ -15,6 +15,7 @@ import {
   upsertComponent,
   componentIdByKey,
 } from "./_componentHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -112,7 +113,7 @@ async function main() {
   const contractorId = await eliteContractorId(prisma);
   // ---- 5. disclaimers onto the service record --------------------------
   for (const d of SERVICE_DESCRIPTIONS) {
-    const svc = await prisma.service.findUnique({ where: { slug: d.slug } });
+    const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, d.slug) });
     if (!svc) {
       console.log(`  ! ${d.slug} not found`);
       continue;
@@ -128,7 +129,7 @@ async function main() {
   }
 
   for (const d of SERVICE_DISCLAIMERS) {
-    const svc = await prisma.service.findUnique({ where: { slug: d.slug } });
+    const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, d.slug) });
     if (!svc) {
       console.log(`  – ${d.slug} not in the catalog`);
       continue;
@@ -234,7 +235,7 @@ async function main() {
   // ---- 9 + 10. ceiling access and derived premiums ---------------------
   for (const c of CEILING) {
     const service = await prisma.service.findUnique({
-      where: { slug: c.slug },
+      where: await serviceSlugKey(prisma, c.slug),
       include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
     });
     if (!service) continue;
@@ -281,7 +282,7 @@ async function main() {
 
   // ---- 9. Fan Replacing Existing Light has no access question ----------
   const frl = await prisma.service.findUnique({
-    where: { slug: "fan-replacing-light" },
+    where: await serviceSlugKey(prisma, "fan-replacing-light"),
     include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
   });
   if (frl && !frl.questions.some((q) => q.key === "ceiling_access" || q.key === "attic_access")) {
@@ -323,7 +324,7 @@ async function main() {
   }
 
   // ---- 11. troubleshooting ---------------------------------------------
-  const ts = await prisma.service.findUnique({ where: { slug: "electrical-troubleshooting" } });
+  const ts = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "electrical-troubleshooting") });
   if (ts) {
     await prisma.service.update({
       where: { id: ts.id },
@@ -356,7 +357,7 @@ async function main() {
   // ---- report ----------------------------------------------------------
   console.log();
   for (const slug of ["new-120v-outlet", "new-ceiling-light", "new-ceiling-fan", "fan-replacing-light", "exterior-gfci-standard"]) {
-    const s = await prisma.service.findUnique({ where: { slug } });
+    const s = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
     if (!s) continue;
     const d = await findDanglingReferences(prisma, s.id);
     const u = await findUnreachableQuestions(prisma, s.id);

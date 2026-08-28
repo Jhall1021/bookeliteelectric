@@ -21,6 +21,7 @@ import {
   upsertComponent,
   componentIdByKey,
 } from "./_componentHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -128,7 +129,7 @@ async function main() {
   });
 
   const service = await prisma.service.findUniqueOrThrow({
-    where: { slug: "dedicated-120v-circuit-outlet" },
+    where: await serviceSlugKey(prisma, "dedicated-120v-circuit-outlet"),
   });
 
   // ---- service record --------------------------------------------------

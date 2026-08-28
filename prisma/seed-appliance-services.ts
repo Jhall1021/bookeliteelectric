@@ -19,6 +19,7 @@
 import { PrismaClient } from "@prisma/client";
 import { findCategory, categoryAttachment } from "./_categoryHelpers";
 import { eliteContractorId } from "./_componentHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -67,7 +68,7 @@ async function seedRangeHood() {
   // replaced. Sits alongside the microwave, which is also a full install —
   // while dishwasher and disposal stay electrical-only.
   const service = await prisma.service.upsert({
-    where: { slug: "replace-range-hood" },
+    where: await serviceSlugKey(prisma, "replace-range-hood"),
     update: {},
     create: {
       // Required as of pass three's contract.
@@ -178,13 +179,13 @@ async function seedRangeHood() {
 // Customer-Supplied Soundbar Installation — §21
 // ---------------------------------------------------------------------------
 async function seedSoundbar() {
-  const service = await prisma.service.findUnique({ where: { slug: "soundbar-installation" } });
+  const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "soundbar-installation") });
   if (!service) {
     console.log("  – soundbar-installation not in the catalog, skipped");
     return;
   }
-  const tv = await prisma.service.findUnique({ where: { slug: "tv-installation" } });
-  const outlet = await prisma.service.findUnique({ where: { slug: "new-120v-outlet" } });
+  const tv = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "tv-installation") });
+  const outlet = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "new-120v-outlet") });
 
   await prisma.service.update({
     where: { id: service.id },
@@ -272,7 +273,7 @@ async function seedSoundbar() {
 // Dishwasher + Garbage Disposal — §16, §17. Electrical only.
 // ---------------------------------------------------------------------------
 async function seedApplianceElectrical() {
-  const dedicated = await prisma.service.findUnique({ where: { slug: "dedicated-120v-circuit-outlet" } });
+  const dedicated = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "dedicated-120v-circuit-outlet") });
 
   const jobs = [
     {
@@ -300,7 +301,7 @@ async function seedApplianceElectrical() {
   ];
 
   for (const j of jobs) {
-    const service = await prisma.service.findUnique({ where: { slug: j.slug } });
+    const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, j.slug) });
     if (!service) {
       console.log(`  – ${j.slug} not in the catalog, skipped`);
       continue;

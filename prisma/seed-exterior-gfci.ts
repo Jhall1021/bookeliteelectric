@@ -17,6 +17,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -53,7 +54,7 @@ const REVIEW_PHOTOS = [
 
 async function main() {
   const service = await prisma.service.findUnique({
-    where: { slug: SLUG },
+    where: await serviceSlugKey(prisma, SLUG),
     include: { questions: { orderBy: { order: "asc" } } },
   });
   if (!service) {
@@ -62,7 +63,7 @@ async function main() {
   }
 
   const otherRouting = await prisma.service.findUnique({
-    where: { slug: "exterior-gfci-other-routing" },
+    where: await serviceSlugKey(prisma, "exterior-gfci-other-routing"),
   });
 
   await prisma.service.update({

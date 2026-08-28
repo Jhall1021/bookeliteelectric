@@ -33,6 +33,7 @@ import {
   componentIdByKey,
 } from "./_componentHelpers";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -130,7 +131,7 @@ const REVIEW_PHOTOS = [
 
 async function main() {
   const contractorId = await eliteContractorId(prisma);
-  const service = await prisma.service.findUnique({ where: { slug: SLUG } });
+  const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, SLUG) });
   if (!service) {
     console.log(`  – ${SLUG} not in the catalog`);
     return;

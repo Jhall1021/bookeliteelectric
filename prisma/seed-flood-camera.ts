@@ -30,6 +30,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -90,7 +91,7 @@ const SETUP_SCOPE =
 
 async function main() {
   const service = await prisma.service.findUnique({
-    where: { slug: SLUG },
+    where: await serviceSlugKey(prisma, SLUG),
     include: { questions: true },
   });
   if (!service) {
@@ -144,7 +145,7 @@ async function main() {
 
   // ---- Q1 ---------------------------------------------------------------
   const swapTarget = await prisma.service.findUnique({
-    where: { slug: "floodlight-camera-existing" },
+    where: await serviceSlugKey(prisma, "floodlight-camera-existing"),
     select: { id: true },
   });
 

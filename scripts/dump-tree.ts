@@ -12,6 +12,7 @@
  * through the admin editor is how routing mistakes get missed.
  */
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "../prisma/_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -48,7 +49,7 @@ async function main() {
   }
 
   const service = await prisma.service.findUnique({
-    where: { slug },
+    where: await serviceSlugKey(prisma, slug),
     include: {
       category: true,
       questions: {

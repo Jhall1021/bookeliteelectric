@@ -126,9 +126,13 @@ const INPUTS: {
 async function main() {
   console.log(`Importing pricing composition for ${INPUTS.length} validated services...`);
 
+  // Slug is unique per contractor now, so a bare slug no longer identifies a
+  // service. Resolved once rather than per row.
+  const contractorId = await eliteContractorId(prisma);
+
   for (const input of INPUTS) {
     await prisma.service.update({
-      where: { slug: input.slug },
+      where: { contractorId_slug: { contractorId, slug: input.slug } },
       data: {
         primaryLaborUnits: input.primaryLaborUnits,
         addOnLaborUnits: input.addOnLaborUnits,

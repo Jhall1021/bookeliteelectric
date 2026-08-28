@@ -11,6 +11,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -19,7 +20,7 @@ async function main() {
 
   for (const slug of oldSlugs) {
     const service = await prisma.service.findUnique({
-      where: { slug },
+      where: await serviceSlugKey(prisma, slug),
       include: { questions: { include: { options: true } } },
     });
 

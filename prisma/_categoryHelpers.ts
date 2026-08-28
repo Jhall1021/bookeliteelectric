@@ -197,7 +197,14 @@ export async function categoryOfService(
   prisma: PrismaClient,
   slug: string
 ): Promise<{ categoryId: string; contractorCategoryId: string } | null> {
-  const s = await prisma.service.findUnique({
+  // findFirst, not findUnique: slug is unique PER CONTRACTOR now, so it is no
+  // longer a unique selector on its own. These callers are single-contractor
+  // era seeds; scoping to Elite explicitly would need a contractor argument
+  // threaded through every caller, and "the service with this slug" is still
+  // unambiguous while one contractor exists. It stops being unambiguous the
+  // moment a second one has a catalogue — at which point this helper must
+  // take a contractorId rather than guess.
+  const s = await prisma.service.findFirst({
     where: { slug },
     select: { categoryId: true, contractorCategoryId: true },
   });

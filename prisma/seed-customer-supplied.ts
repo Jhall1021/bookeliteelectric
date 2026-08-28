@@ -11,6 +11,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -38,7 +39,7 @@ async function clearTree(serviceId: string) {
 
 /** §18 — smart switch at an existing, working switch location. */
 async function seedSmartSwitch(slug: string) {
-  const service = await prisma.service.findUnique({ where: { slug } });
+  const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
   if (!service) {
     console.log(`  – ${slug} — not in the catalog, skipped`);
     return;
@@ -104,12 +105,12 @@ async function seedSmartSwitch(slug: string) {
 /** §19 — Customer-Supplied Standard Outlet. */
 async function seedSuppliedOutlet() {
   const slug = "customer-supplied-non-smart-outlet";
-  const service = await prisma.service.findUnique({ where: { slug } });
+  const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
   if (!service) {
     console.log(`  – ${slug} — not in the catalog, skipped`);
     return;
   }
-  const gfci = await prisma.service.findUnique({ where: { slug: "replace-gfci-outlet" } });
+  const gfci = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "replace-gfci-outlet") });
   await clearTree(service.id);
 
   // §19: 20 minutes, one technician, 0.33 actual tech-hours. Primary is the
@@ -197,12 +198,12 @@ async function seedSuppliedOutlet() {
 /** §20 — Customer-Supplied Standard Switch. */
 async function seedSuppliedSwitch() {
   const slug = "swap-out-customer-supplied-non-smart-switch";
-  const service = await prisma.service.findUnique({ where: { slug } });
+  const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
   if (!service) {
     console.log(`  – ${slug} — not in the catalog, skipped`);
     return;
   }
-  const threeWay = await prisma.service.findUnique({ where: { slug: "replace-3-way-switch" } });
+  const threeWay = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "replace-3-way-switch") });
   await clearTree(service.id);
 
   await prisma.service.update({

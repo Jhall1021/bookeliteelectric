@@ -18,6 +18,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -57,7 +58,7 @@ const FIXTURE_ACCESS_KEYS = ["ceiling_access", "attic_access"];
 
 async function attach(slug: string) {
   const service = await prisma.service.findUnique({
-    where: { slug },
+    where: await serviceSlugKey(prisma, slug),
     include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
   });
   if (!service) {

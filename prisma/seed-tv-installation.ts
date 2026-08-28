@@ -39,6 +39,7 @@ import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from
 import {
   retireComponents,
 } from "./_componentHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -75,7 +76,7 @@ const REVIEW_PHOTOS = [
 
 async function main() {
   const service = await prisma.service.findUnique({
-    where: { slug: SLUG },
+    where: await serviceSlugKey(prisma, SLUG),
     include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
   });
   if (!service) {
@@ -296,7 +297,7 @@ async function main() {
   // Two different wrong models have been built here — a second technician,
   // then a dollar-only premium — so this checks the thing both got wrong:
   // that the larger tier is somehow a different job.
-  const svc = await prisma.service.findUniqueOrThrow({ where: { slug: SLUG } });
+  const svc = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, SLUG) });
   const bigTvNow = await prisma.answerOption.findFirstOrThrow({
     where: { questionId: sizeQ.id, value: "56_to_85" },
     include: { components: true },

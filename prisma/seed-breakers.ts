@@ -18,6 +18,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -25,7 +26,7 @@ const SERVICES = ["single-pole-breaker-replacement", "double-pole-breaker-replac
 
 async function seedBreaker(slug: string) {
   const service = await prisma.service.findUnique({
-    where: { slug },
+    where: await serviceSlugKey(prisma, slug),
     include: { questions: { orderBy: { order: "asc" } } },
   });
   if (!service) {

@@ -193,7 +193,7 @@ async function main() {
     }
 
     const svc = await prisma.service.upsert({
-      where: { slug: spec.slug },
+      where: { contractorId_slug: { contractorId: contractor.id, slug: spec.slug } },
       update: {
         fieldLaborHours: LV_ACCESSIBLE,
         wwtLaborHours: LV_ACCESSIBLE - 0.25,
@@ -228,7 +228,7 @@ async function main() {
     // Replace: no routing question at all. The box and the cable are already
     // there, so none of the access questions have anything to decide.
     const replace = await prisma.service.upsert({
-      where: { slug: "replace-wall-sconce" },
+      where: { contractorId_slug: { contractorId: contractor.id, slug: "replace-wall-sconce" } },
       update: { fieldLaborHours: 0.75, wwtLaborHours: 0.5, estimatedMinutes: 60 },
       create: {
         // Required as of pass three's contract.
@@ -251,7 +251,7 @@ async function main() {
     await attachMaterials(replace.id, [["CONSUMABLES_SMALL", 1]]);
 
     const newSconce = await prisma.service.upsert({
-      where: { slug: "new-wall-sconce" },
+      where: { contractorId_slug: { contractorId: contractor.id, slug: "new-wall-sconce" } },
       update: { fieldLaborHours: 1.25, wwtLaborHours: 1.0, estimatedMinutes: 120 },
       create: {
         // Required as of pass three's contract.

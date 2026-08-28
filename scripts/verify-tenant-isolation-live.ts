@@ -400,7 +400,9 @@ async function main() {
   // the canonical/contractor split is meant to end.
   const anyCategory = await raw.serviceCategory.findFirstOrThrow({ orderBy: { slug: "asc" } });
   const dummyService = await raw.service.upsert({
-    where: { slug: DUMMY_SERVICE_SLUG },
+    // Keyed on (contractorId, slug): slug is unique per contractor now, which
+    // is precisely the property that lets a second contractor exist at all.
+    where: { contractorId_slug: { contractorId: dummy.id, slug: DUMMY_SERVICE_SLUG } },
     update: {},
     // No basePrice, deliberately. Nothing here may publish a price — see
     // scripts/audit-price-writers.ts. REMOTE_QUOTE with a null base is a

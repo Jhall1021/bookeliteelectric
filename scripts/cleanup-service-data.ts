@@ -12,6 +12,8 @@
  * is never deliberate.
  */
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "../prisma/_serviceKey";
+import { eliteContractorId } from "../prisma/_componentHelpers";
 
 const prisma = new PrismaClient();
 
@@ -125,9 +127,16 @@ async function main() {
 
   if (changes.length === 0) return;
 
+  // $transaction takes PREPARED promises, so the key cannot be awaited inside
+  // the map — an async arrow would hand it a promise of a promise. The
+  // contractor is resolved once, up front, and the keys built synchronously.
+  const contractorId = await eliteContractorId(prisma);
   await prisma.$transaction(
     changes.map((c) =>
-      prisma.service.update({ where: { slug: c.slug }, data: { name: c.to } })
+      prisma.service.update({
+        where: { contractorId_slug: { contractorId, slug: c.slug } },
+        data: { name: c.to },
+      })
     )
   );
   console.log(`${"-".repeat(60)}`);

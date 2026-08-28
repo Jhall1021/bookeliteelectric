@@ -8,6 +8,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -28,7 +29,7 @@ async function clearServiceTree(serviceId: string) {
 
 async function seedReplaceStandardOutlet() {
   const service = await prisma.service.findUniqueOrThrow({
-    where: { slug: "replace-standard-outlet" },
+    where: await serviceSlugKey(prisma, "replace-standard-outlet"),
   });
   await clearServiceTree(service.id);
 
@@ -86,10 +87,10 @@ async function seedNewOutlet() {
   // separate Service catalog entries into one service with an internal
   // ADJUSTED-pricing branch.
   const newOutlet = await prisma.service.findUniqueOrThrow({
-    where: { slug: "new-120v-outlet" },
+    where: await serviceSlugKey(prisma, "new-120v-outlet"),
   });
   const dedicatedCircuit = await prisma.service.findUniqueOrThrow({
-    where: { slug: "dedicated-120v-circuit-outlet" },
+    where: await serviceSlugKey(prisma, "dedicated-120v-circuit-outlet"),
   });
   await clearServiceTree(newOutlet.id);
 
@@ -225,14 +226,14 @@ async function seedTvInstall() {
   // for "mount the TV AND get me power back there" in a single flow,
   // rather than being bounced to a second, separate purchase.
   const tvInstall = await prisma.service.findUniqueOrThrow({
-    where: { slug: "tv-installation" },
+    where: await serviceSlugKey(prisma, "tv-installation"),
   });
   await clearServiceTree(tvInstall.id);
 
   // Fetched so the mount answer options can reference these services'
   // LIVE prices instead of a frozen number — see AnswerOption.referencedServiceId.
-  const tiltMount = await prisma.service.findUniqueOrThrow({ where: { slug: "elite-tilt-mount" } });
-  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: { slug: "elite-articulating-mount" } });
+  const tiltMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "elite-tilt-mount") });
+  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "elite-articulating-mount") });
 
   const qSize = await prisma.question.create({
     data: {
@@ -417,14 +418,14 @@ async function seedTvInstallExistingLocation() {
   // outlet, wall-construction, or fireplace questions at all, since the
   // whole point of this service is that none of that work is needed.
   const service = await prisma.service.findUniqueOrThrow({
-    where: { slug: "tv-install-existing-location" },
+    where: await serviceSlugKey(prisma, "tv-install-existing-location"),
   });
   await clearServiceTree(service.id);
 
   // Same live-price references as the main TV Installation tree — see
   // AnswerOption.referencedServiceId.
-  const tiltMount = await prisma.service.findUniqueOrThrow({ where: { slug: "elite-tilt-mount" } });
-  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: { slug: "elite-articulating-mount" } });
+  const tiltMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "elite-tilt-mount") });
+  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "elite-articulating-mount") });
 
   const qSize = await prisma.question.create({
     data: {
@@ -504,7 +505,7 @@ async function seedRecessedLighting() {
   // attic-access WWT rate, not a higher no-access repeat rate. Flagging
   // this rather than silently under-charging on that specific edge case.
   const service = await prisma.service.findUniqueOrThrow({
-    where: { slug: "recessed-lighting" },
+    where: await serviceSlugKey(prisma, "recessed-lighting"),
   });
   await clearServiceTree(service.id);
 
@@ -616,7 +617,7 @@ async function seedNewCeilingLight() {
   // "existing switch in the room" question is standardized across every
   // new light/fan installation tree.
   const service = await prisma.service.findUniqueOrThrow({
-    where: { slug: "new-ceiling-light" },
+    where: await serviceSlugKey(prisma, "new-ceiling-light"),
   });
   await clearServiceTree(service.id);
 
@@ -716,7 +717,7 @@ async function seedNewCeilingFan() {
   // fan. Base prices differ ($425 attic access / $525 no access, per
   // client) but the wire-run and new-switch add-on logic is identical.
   const service = await prisma.service.findUniqueOrThrow({
-    where: { slug: "new-ceiling-fan" },
+    where: await serviceSlugKey(prisma, "new-ceiling-fan"),
   });
   await clearServiceTree(service.id);
 
@@ -830,14 +831,14 @@ async function seedApplianceInstallation() {
     "dryer-receptacle-replacement",
   ];
   for (const slug of flatServices) {
-    const service = await prisma.service.findUniqueOrThrow({ where: { slug } });
+    const service = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, slug) });
     await clearServiceTree(service.id);
   }
   console.log("  ✓ Cleared old trees on flat-price appliance services (now zero-question, price + disclaimer only)");
 
   // Install New Microwave — the one real decision tree in this category.
   const newMicrowave = await prisma.service.findUniqueOrThrow({
-    where: { slug: "install-new-microwave" },
+    where: await serviceSlugKey(prisma, "install-new-microwave"),
   });
   await clearServiceTree(newMicrowave.id);
 
@@ -899,7 +900,7 @@ async function seedSafetyProtection() {
   // constraint that affects whether this is a standard job or needs a
   // look first — not just a formality question.
   const service = await prisma.service.findUniqueOrThrow({
-    where: { slug: "whole-house-surge-protection" },
+    where: await serviceSlugKey(prisma, "whole-house-surge-protection"),
   });
   await clearServiceTree(service.id);
 
@@ -949,7 +950,7 @@ async function seedSmartHomeSecurity() {
   // changes what the job requires — a well-known variable in smart
   // thermostat installs, not a formality question.
   const thermostat = await prisma.service.findUniqueOrThrow({
-    where: { slug: "smart-thermostat-install" },
+    where: await serviceSlugKey(prisma, "smart-thermostat-install"),
   });
   await clearServiceTree(thermostat.id);
 
@@ -991,7 +992,7 @@ async function seedSmartHomeSecurity() {
   // to collect a more useful photo than the engine's generic fallback
   // would — no price differentiation, since none was ever given for these.
   const newDoorbell = await prisma.service.findUniqueOrThrow({
-    where: { slug: "new-video-doorbell-wiring" },
+    where: await serviceSlugKey(prisma, "new-video-doorbell-wiring"),
   });
   await clearServiceTree(newDoorbell.id);
 
@@ -1018,7 +1019,7 @@ async function seedSmartHomeSecurity() {
   });
 
   const newCamera = await prisma.service.findUniqueOrThrow({
-    where: { slug: "new-exterior-flood-camera" },
+    where: await serviceSlugKey(prisma, "new-exterior-flood-camera"),
   });
   await clearServiceTree(newCamera.id);
 
@@ -1060,7 +1061,7 @@ async function seedPanelsTroubleshooting() {
   // these are always custom-quoted regardless of the answer, but the
   // right photos matter a lot for a job this size.
   async function tailoredPhotoReview(slug: string, photoLabels: string[]) {
-    const service = await prisma.service.findUniqueOrThrow({ where: { slug } });
+    const service = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, slug) });
     await clearServiceTree(service.id);
 
     const q = await prisma.question.create({
@@ -1105,7 +1106,7 @@ async function seedEvGarage() {
   // job it's worth collecting real qualifying info upfront rather than a
   // single "Continue" button, same way a real intake call would.
   const evCharger = await prisma.service.findUniqueOrThrow({
-    where: { slug: "level-2-ev-charger" },
+    where: await serviceSlugKey(prisma, "level-2-ev-charger"),
   });
   await clearServiceTree(evCharger.id);
 
@@ -1172,7 +1173,7 @@ async function seedEvGarage() {
   // service (same job, same pricing tiers), just listed here too for
   // discoverability in this category.
   const garageOutlet = await prisma.service.findUniqueOrThrow({
-    where: { slug: "garage-door-opener-outlet-ev" },
+    where: await serviceSlugKey(prisma, "garage-door-opener-outlet-ev"),
   });
   await clearServiceTree(garageOutlet.id);
 
@@ -1228,7 +1229,7 @@ async function seedEvGarage() {
   // 240V Garage Outlet — lighter tailored-photo-review treatment, same
   // pattern as the smart-home/panels remote-quote jobs.
   const garage240 = await prisma.service.findUniqueOrThrow({
-    where: { slug: "240v-garage-outlet" },
+    where: await serviceSlugKey(prisma, "240v-garage-outlet"),
   });
   await clearServiceTree(garage240.id);
 

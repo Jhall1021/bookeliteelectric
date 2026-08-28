@@ -20,11 +20,11 @@ export async function POST(req: Request) {
 
   return withAdminContractor(async (db, ctx) => {
   const contractorId = ctx.contractorId;
-  // NOTE: still resolves by slug alone, which works only while Service.slug is
-  // globally unique. Under the guard this now means "does THIS contractor
-  // already have that slug" — which is the correct question, and becomes the
-  // only possible one once slugs are per-contractor. See ADR-008's sequencing.
-  const existing = await db.service.findUnique({ where: { slug } });
+  // findFirst, not findUnique: slug is unique PER CONTRACTOR now, so it is no
+  // longer a unique selector on its own. The guard scopes this to the active
+  // contractor, which makes the question "does THIS contractor already have
+  // that slug" — the only question that was ever correct here.
+  const existing = await db.service.findFirst({ where: { slug } });
   if (existing) {
     return NextResponse.json({ error: `A service with the slug "${slug}" already exists — try a different name or edit the slug.` }, { status: 409 });
   }

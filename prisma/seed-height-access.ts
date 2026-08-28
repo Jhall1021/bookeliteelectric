@@ -24,6 +24,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -64,7 +65,7 @@ const ACCESS_PHOTOS = [
 
 async function attach(slug: string) {
   const service = await prisma.service.findUnique({
-    where: { slug },
+    where: await serviceSlugKey(prisma, slug),
     include: { questions: { orderBy: { order: "asc" } } },
   });
   if (!service) {

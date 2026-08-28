@@ -27,6 +27,7 @@ import {
   upsertComponent,
   componentIdByKey,
 } from "./_componentHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -117,7 +118,7 @@ async function main() {
   console.log(`  ✓ ${COMPONENTS.length} recessed-light components defined`);
 
   const service = await prisma.service.findUnique({
-    where: { slug: SLUG },
+    where: await serviceSlugKey(prisma, SLUG),
     include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
   });
   if (!service) {

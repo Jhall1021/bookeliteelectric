@@ -31,6 +31,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion } from "./_moduleHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -77,7 +78,7 @@ const SUPERSEDED_KEYS = [
 
 async function seedDeviceModule(slug: string) {
   const service = await prisma.service.findUnique({
-    where: { slug },
+    where: await serviceSlugKey(prisma, slug),
     include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
   });
   if (!service) {

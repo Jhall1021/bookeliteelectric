@@ -36,7 +36,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
   // Slug resolution is now scoped to this contractor, which is also what makes
   // per-contractor slugs possible later (ADR-008 sequencing).
   const service = await withSite(site, (db) =>
-    db.service.findUnique({
+    db.service.findFirst({
     where: { slug: params.slug },
     include: {
       contractorCategory: {

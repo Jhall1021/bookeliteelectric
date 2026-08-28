@@ -34,6 +34,7 @@ import {
   componentIdByKey,
   retireComponents,
 } from "./_componentHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -218,7 +219,7 @@ async function seedComponents() {
 
 async function attach(slug: string) {
   const service = await prisma.service.findUnique({
-    where: { slug },
+    where: await serviceSlugKey(prisma, slug),
     include: { questions: { orderBy: { order: "asc" } } },
   });
   if (!service) {

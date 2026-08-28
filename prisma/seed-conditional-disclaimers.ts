@@ -27,6 +27,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -178,7 +179,7 @@ async function main() {
   // --- exterior-wall contingency ----------------------------------------
   for (const s of EXTERIOR_WALL_SERVICES) {
     const service = await prisma.service.findUnique({
-      where: { slug: s.slug },
+      where: await serviceSlugKey(prisma, s.slug),
       include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
     });
     if (!service) {

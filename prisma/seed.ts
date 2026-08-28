@@ -18,6 +18,7 @@
 import { PrismaClient, BookingType } from "@prisma/client";
 import { upsertCategory, categoryAttachment } from "./_categoryHelpers";
 import { eliteContractorId } from "./_componentHelpers";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -240,7 +241,7 @@ async function main() {
 
     for (const svc of cat.services) {
       await prisma.service.upsert({
-        where: { slug: svc.slug },
+        where: await serviceSlugKey(prisma, svc.slug),
         // BOOTSTRAP ONLY.
         //
         // Empty on purpose. This seed holds the original hand-set price book

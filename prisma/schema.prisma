@@ -1301,7 +1301,7 @@ model AnswerOptionComponent {
 
 model Service {
   id         String          @id @default(cuid())
-  slug       String          @unique
+  slug       String
   name       String
   /// DEPRECATED — replaced by contractorCategoryId below. Retained until the
   /// contract phase; still required while reads are being switched over.
@@ -1472,6 +1472,16 @@ model Service {
   // themselves off THIS service (see AnswerOption.referencedServiceId).
   referencedByAnswerOptions AnswerOption[] @relation("AnswerOptionReferencedService")
 
+  // Slug is unique PER CONTRACTOR, not globally. A bare `slug @unique` meant
+  // only one contractor on the whole platform could own "replace-standard-
+  // outlet" — a hard blocker for a second contractor, and for any template
+  // that provisions services for one.
+  //
+  // The storefront URL is already /[site]/services/[category]/[service], so
+  // it was never global uniqueness the routing needed.
+  //
+  // Added during expand alongside the old global unique, which contract drops.
+  @@unique([contractorId, slug])
   @@index([contractorId])
   @@map("services")
 }

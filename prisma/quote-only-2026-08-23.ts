@@ -26,6 +26,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -89,7 +90,7 @@ async function main() {
 
   for (const q of SERVICES) {
     const svc = await prisma.service.findUnique({
-      where: { slug: q.slug },
+      where: await serviceSlugKey(prisma, q.slug),
       select: {
         id: true, name: true, basePrice: true, whileWeThereBasePrice: true,
         bookingType: true, fieldLaborHours: true,

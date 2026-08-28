@@ -20,6 +20,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
@@ -187,7 +188,7 @@ async function main() {
   const missing: string[] = [];
 
   for (const [slug, field, wwt] of SET) {
-    const svc = await prisma.service.findUnique({ where: { slug } });
+    const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
     if (!svc) {
       missing.push(slug);
       continue;
@@ -202,7 +203,7 @@ async function main() {
 
   let routed = 0;
   for (const [slug, field, wwt] of ROUTE_BASE) {
-    const svc = await prisma.service.findUnique({ where: { slug } });
+    const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
     if (!svc) {
       missing.push(slug);
       continue;
@@ -217,7 +218,7 @@ async function main() {
 
   let quoted = 0;
   for (const slug of QUOTE) {
-    const svc = await prisma.service.findUnique({ where: { slug } });
+    const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
     if (!svc) {
       missing.push(slug);
       continue;
@@ -233,7 +234,7 @@ async function main() {
   console.log(`  ✓ ${quoted} QUOTE services left with no hours — correct, not incomplete`);
 
   for (const slug of ADDON_ONLY) {
-    const svc = await prisma.service.findUnique({ where: { slug } });
+    const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
     if (!svc) continue;
     await prisma.service.update({
       where: { id: svc.id },
@@ -258,7 +259,7 @@ async function main() {
   }
 
   for (const slug of HOLD_FOR_VALIDATION) {
-    const svc = await prisma.service.findUnique({ where: { slug } });
+    const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
     if (!svc) continue;
     console.log(
       `  · ${slug} — holding ${svc.fieldLaborHours ?? "null"} hr unchanged, pending field validation`
