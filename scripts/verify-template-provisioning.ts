@@ -8,6 +8,7 @@
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
+import { withThrowaway, provision } from "./_throwaway";
 
 loadEnv();
 const prisma = new PrismaClient();
@@ -19,11 +20,19 @@ const ok = (c: boolean, l: string, d = "") => { c ? pass++ : fail++; console.log
 
 async function main() {
   console.log("\nTEMPLATE PROVISIONING\n");
-  const proof = await prisma.contractor.findUniqueOrThrow({ where: { slug: PROOF }, select: { id: true } });
   const elite = await prisma.contractor.findFirstOrThrow({ where: { slug: { not: PROOF } }, select: { id: true } });
+  await withThrowaway(prisma, PROOF, "Throwaway Proof Electric", async (proofId) => {
+  provision(PROOF, ["--service", KEY]);
+  const proof = { id: proofId };
 
+  // Pinned to v1 deliberately. This lookup used to match on key alone, which
+  // was indistinguishable from correct until the update suite's simulated v2
+  // outlived a run — then it compared the v1 provisioning against the v2
+  // template and reported a structure mismatch that was really a version mix-up.
+  const v1 = await prisma.templateVersion.findUniqueOrThrow({
+    where: { trade_version: { trade: "electrical", version: 1 } }, select: { id: true } });
   const tpl = await prisma.templateService.findFirstOrThrow({
-    where: { key: KEY },
+    where: { key: KEY, templateVersionId: v1.id },
     include: { questions: { include: { options: true } }, materials: true },
   });
   const inc = { questions: { include: { options: true } }, materials: true } as const;
@@ -93,6 +102,8 @@ async function main() {
     `SELECT is_nullable FROM information_schema.columns WHERE table_name='services' AND column_name='templateVersionId'`
   ) as { is_nullable: string }[])[0];
   ok(nullable.is_nullable === "YES", "provenance is nullable — a contractor-authored service is not a second class");
+
+  });
 
   console.log("\n" + "─".repeat(74));
   console.log(fail === 0 ? `\n  ${pass} checks passed.\n` : `\n  ${fail} of ${pass + fail} FAILED.\n`);

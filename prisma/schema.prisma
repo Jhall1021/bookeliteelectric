@@ -440,6 +440,9 @@ model Contractor {
   jobberCrewMembers     JobberCrewMember[]
 
   @@map("contractors")
+
+  /// ADR-014 — this contractor's answers to the template's policy questions.
+  policyValues ContractorPolicyValue[]
 }
 
 /// A material ROLE, owned by the platform.
@@ -1398,6 +1401,14 @@ model Service {
   /// CABLE_CAT6" is actionable where "3 materials unpriced" sends someone
   /// hunting. Empty whenever materialCostResolved is true.
   unresolvedMaterialKeys String[]
+
+  /// Policy keys this service's wording depends on that the contractor has not
+  /// answered yet. Same contract as unresolvedMaterialKeys: naming the decision
+  /// is actionable where a count is not, and non-empty blocks publication
+  /// because an option still reads "Up to {b1} feet".
+  ///
+  /// Defaults empty so every existing Elite service is unaffected.
+  unresolvedPolicyKeys String[]
   // Deliberate exception to the global material markup. NULL is the NORMAL
   // state and means "use the current rule": 30% on the first $750 of direct
   // cost, 20% above it, applied once to the assembled package. See
@@ -1684,6 +1695,12 @@ model AnswerOption {
   /// mutable template row.
   templateVersionId String?
   templateKey       String?
+
+  /// Set when this option's wording depends on a contractor policy decision.
+  /// While the policy is unresolved `label` holds the raw pattern, which is why
+  /// the service carrying it cannot publish.
+  labelPattern String?
+  policyKey    String?
 
   @@index([questionId])
   @@map("answer_options")
@@ -2385,6 +2402,97 @@ model DatabaseIdentity {
 // change" — never so the runtime can read through it.
 
 /// One published, immutable snapshot of a trade's structure.
+/// What KIND of decision a contractor is being asked to make.
+///
+/// Deliberately coarse. The point is not to describe every policy precisely,
+/// it is to let the resolver know how to render and validate a set of values.
+enum TemplatePolicyType {
+  /// An ordered set of distance boundaries, ascending, in `unit`.
+  DISTANCE_BREAKPOINTS
+  /// An ordered set of height boundaries, ascending, in `unit`.
+  HEIGHT_BREAKPOINTS
+  /// Who provides the equipment for a service. No boundaries.
+  SUPPLY_ARRANGEMENT
+}
+
+/// A decision the template knows must be made, and refuses to make.
+///
+/// The continuum test (docs/decisions/TEMPLATE-CLASSIFICATION-RULES.md): a
+/// standardized rating nobody chose — 20 amp, 240 volt — is trade knowledge and
+/// lives in the template as an ordinary label. A boundary somebody chose — 25
+/// feet of included run, 8 feet of "standard" ceiling — is that contractor's
+/// operating policy, and the template holds only the shape of the question.
+///
+/// The band set is ONE definition rather than a number per answer option, so a
+/// contractor cannot configure "up to 20 feet" and "10 to 15 feet" as
+/// neighbours. Internal consistency is a property of the model, not of
+/// whoever fills the form in.
+model TemplatePolicyDefinition {
+  id                String            @id @default(cuid())
+  templateVersionId String
+  templateVersion   TemplateVersion   @relation(fields: [templateVersionId], references: [id], onDelete: Cascade)
+
+  /// Stable across versions, e.g. "fixture_access.height_breakpoints".
+  key           String
+  type          TemplatePolicyType
+  /// "ft" for the breakpoint types; null for SUPPLY_ARRANGEMENT.
+  unit          String?
+  /// How many numbers the contractor must supply. Three bands need two.
+  boundaryCount Int                @default(0)
+  /// What the contractor is being asked, in their words rather than ours.
+  prompt        String
+
+  options  TemplateAnswerOption[]
+  services TemplateServicePolicy[]
+
+  @@unique([templateVersionId, key])
+  @@map("template_policy_definitions")
+}
+
+/// One contractor's answer to a TemplatePolicyDefinition.
+///
+/// Unresolved is the honest starting state and is NOT zero: a contractor who
+/// has not told us their included run length has not told us it is nothing.
+/// Services whose labels depend on an unresolved policy cannot publish.
+model ContractorPolicyValue {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  key           String
+  type          TemplatePolicyType
+  unit          String?
+  boundaryCount Int      @default(0)
+  prompt        String
+
+  /// Ascending, and exactly `boundaryCount` long once resolved. Empty until.
+  boundaries Int[]
+  /// Free text for SUPPLY_ARRANGEMENT, which has no boundaries.
+  choice     String?
+  resolvedAt DateTime?
+
+  @@unique([contractorId, key])
+  @@index([contractorId])
+  @@map("contractor_policy_values")
+}
+
+/// A policy a service needs that no question introduces.
+///
+/// Most policies arrive through a band question. Some are properties of the
+/// service itself — who supplies a bathroom fan is not something the homeowner
+/// is asked, but it is still a decision the contractor owes before the service
+/// means anything.
+model TemplateServicePolicy {
+  id                         String                   @id @default(cuid())
+  templateServiceId          String
+  templateService            TemplateService          @relation(fields: [templateServiceId], references: [id], onDelete: Cascade)
+  templatePolicyDefinitionId String
+  templatePolicyDefinition   TemplatePolicyDefinition @relation(fields: [templatePolicyDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([templateServiceId, templatePolicyDefinitionId])
+  @@map("template_service_policies")
+}
+
 model TemplateVersion {
   id          String   @id @default(cuid())
   /// e.g. "electrical". Trade-agnostic by design; only electrical exists now.
@@ -2394,6 +2502,7 @@ model TemplateVersion {
   notes       String?
 
   services TemplateService[]
+  policies TemplatePolicyDefinition[]
 
   @@unique([trade, version])
   @@map("template_versions")
@@ -2430,6 +2539,8 @@ model TemplateService {
   @@unique([templateVersionId, key])
   @@index([templateVersionId])
   @@map("template_services")
+
+  policies TemplateServicePolicy[]
 }
 
 model TemplateQuestion {
@@ -2470,6 +2581,15 @@ model TemplateAnswerOption {
   requiredPhotoLabels String[]
   photosBlockBooking  Boolean  @default(true)
   illustrationUrls    String[]
+
+  /// The label with the contractor's boundaries left as holes: "Up to {b1}
+  /// feet", "{b1+1} to {b2} feet", "More than {b2} feet". When set, `label`
+  /// holds this same pattern and is not customer-ready — the resolver fills it
+  /// once the contractor answers the policy, and publication is blocked until
+  /// then. The template never ships a number somebody chose.
+  labelPattern               String?
+  templatePolicyDefinitionId String?
+  templatePolicyDefinition   TemplatePolicyDefinition? @relation(fields: [templatePolicyDefinitionId], references: [id], onDelete: Restrict)
 
   components  TemplateAnswerOptionComponent[]
   disclaimers TemplateAnswerOptionDisclaimer[]

@@ -11,6 +11,7 @@ import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
+import { withThrowaway, provision } from "./_throwaway";
 
 loadEnv();
 const prisma = new PrismaClient();
@@ -31,6 +32,21 @@ async function svcNow() {
 
 async function main() {
   console.log("\nTEMPLATE UPDATE CYCLE\n");
+  await withThrowaway(prisma, PROOF, "Throwaway Proof Electric", async () => {
+  provision(PROOF, ["--service", KEY]);
+
+  // The contractor edits one question's wording in their own words. This used
+  // to arrive by accident, carried on a hand-made fixture nobody maintained —
+  // which meant the conflict half of the suite was passing for a reason the
+  // suite did not state. Now the edit is part of the scenario: a contractor
+  // who has made the tree theirs is the whole premise of the conflict test.
+  const c0 = await prisma.contractor.findUniqueOrThrow({ where: { slug: PROOF }, select: { id: true } });
+  const edited = await prisma.question.updateMany({
+    where: { key: "below_above_access", service: { contractorId: c0.id, templateKey: KEY } },
+    data: { prompt: "Can we get to it from below or above without cutting drywall?" },
+  });
+  if (edited.count !== 1) throw new Error(`expected to customise exactly one question, updated ${edited.count}`);
+
   const base = "scripts/template-update.ts";
   const args = ["--contractor", PROOF, "--service", KEY];
 
@@ -88,6 +104,8 @@ async function main() {
   ok(elite.questions.length === 7, `Elite still has ${elite.questions.length} questions, not the template's 8`);
   ok(elite.basePrice === 28000, "and its published price is unchanged");
   ok(elite.templateKey === null, "and it still carries no provenance");
+
+  });
 
   console.log("\n" + "─".repeat(74));
   console.log(fail === 0 ? `\n  ${pass} checks passed.\n` : `\n  ${fail} of ${pass + fail} FAILED.\n`);

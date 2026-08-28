@@ -1,0 +1,180 @@
+{
+  "$comment": [
+    "Breakpoint policies for the electrical template — ADR-014.",
+    "",
+    "The continuum test: a standardized rating nobody chose (20 amp, 240 volt)",
+    "is trade knowledge and extracts as an ordinary label. A boundary somebody",
+    "chose (25 feet of included run, 8 feet of 'standard' ceiling) is that",
+    "contractor's operating policy.",
+    "",
+    "Both look like a number with a unit. The difference is who chose it.",
+    "",
+    "So the template keeps the QUESTION and the CONSEQUENCE — how high is the",
+    "work, higher work needs different access equipment — and keeps the SHAPE",
+    "of the answer set, while the numbers stay with the contractor. A band set",
+    "is one definition rather than a number per option, so no contractor can",
+    "configure 'up to 20 feet' next to '10 to 15 feet'.",
+    "",
+    "Patterns: {b1} is the first boundary, {b1+1} is one past it.",
+    "",
+    "NO DEFAULTS. Elite's 8/10/12/20/25/50 are Elite's. A default would ship",
+    "them to every contractor as a starting point, which is the thing this",
+    "whole separation exists to prevent."
+  ],
+  "trade": "electrical",
+  "definitions": {
+    "bathroom_fan.supply_arrangement": {
+      "type": "SUPPLY_ARRANGEMENT",
+      "boundaryCount": 0,
+      "prompt": "For a bathroom exhaust fan replacement, do you supply the fan or does the customer?",
+      "reason": "Elite's service name was 'Replace Bathroom Exhaust Fan — We Supply the Fan'. Neutralizing the title must not delete the question: a contractor who does not stock fans would otherwise inherit a service that silently implies they do."
+    },
+    "chandelier_ceiling_height.breakpoints": {
+      "type": "HEIGHT_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 1,
+      "prompt": "Above what ceiling height does chandelier work stop being a normal ladder job for you?",
+      "reason": "Same rule, one boundary. Kept apart from general fixture height because chandeliers carry weight and assembly that change the answer."
+    },
+    "data_cable_run.breakpoints": {
+      "type": "DISTANCE_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 1,
+      "prompt": "For a low-voltage data or coax run between two points, above what distance does it stop being a standard run?",
+      "reason": "As above, one boundary."
+    },
+    "exterior_mount_height.breakpoints": {
+      "type": "HEIGHT_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 2,
+      "prompt": "For exterior mounting, what is the tallest height you treat as standard, and the height above which you need different access equipment?",
+      "reason": "As above. Exterior work is a separate decision from interior because the access equipment differs — ground conditions, no floor to stand a ladder on."
+    },
+    "exterior_outlet_run.breakpoints": {
+      "type": "DISTANCE_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 2,
+      "prompt": "For an exterior outlet run from existing power, what distance do you include as standard, and above what distance does it become an extended run?",
+      "reason": "Same rule as the switch leg, kept separate because running outdoors is different work from fishing a finished wall and a contractor may reasonably include a different length."
+    },
+    "fixture_work_height.breakpoints": {
+      "type": "HEIGHT_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 3,
+      "prompt": "At what heights does interior fixture work change for you? Give three: the tallest ceiling you treat as standard, then the two heights where your access equipment changes.",
+      "reason": "That height changes access is a physical fact and stays canonical. Where the bands fall depends on this contractor's ladders and what they treat as standard access — and Elite's four bands subdivide more finely than equipment requires, which is pricing granularity rather than trade knowledge."
+    },
+    "outlet_run.breakpoints": {
+      "type": "DISTANCE_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 2,
+      "prompt": "For a new outlet run from existing power, what distance do you include as standard, and above what distance does it become an extended run?",
+      "reason": "Same included-length rule as the other runs, kept separate because picking up power for a new outlet is different work from a switch leg or an exterior run."
+    },
+    "panel_circuit_run.breakpoints": {
+      "type": "DISTANCE_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 2,
+      "prompt": "For a new circuit run from the panel, what distance do you include as standard, and above what distance does it become an extended run?",
+      "reason": "As above. Panel runs are longer than switch legs by nature, so the included length is its own decision."
+    },
+    "sconce_run.breakpoints": {
+      "type": "DISTANCE_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 1,
+      "prompt": "For a new wall light, above what distance to the nearest power does it stop being a standard run?",
+      "reason": "As above, one boundary."
+    },
+    "switch_leg_run.breakpoints": {
+      "type": "DISTANCE_BREAKPOINTS",
+      "unit": "ft",
+      "boundaryCount": 2,
+      "prompt": "For a switch leg run inside finished walls, what distance do you include as standard, and above what distance does it become an extended run?",
+      "reason": "Nothing physical happens at 20 feet of cable that does not happen at 19. This is purely an included-length allowance, and the boundary is where this contractor's price steps."
+    }
+  },
+  "questions": {
+    "chandelier_access": {
+      "policyKey": "chandelier_ceiling_height.breakpoints",
+      "patterns": {
+        "standard": "A normal ceiling, {b1} feet or lower, with floor underneath",
+        "over_12ft": "Higher than {b1} feet"
+      }
+    },
+    "dedicated_distance": {
+      "policyKey": "panel_circuit_run.breakpoints",
+      "patterns": {
+        "under_25": "{b1} feet or less",
+        "25_to_50": "{b1+1} to {b2} feet",
+        "over_50": "More than {b2} feet"
+      }
+    },
+    "ext_gfci_distance": {
+      "policyKey": "exterior_outlet_run.breakpoints",
+      "patterns": {
+        "under_10": "Less than {b1} feet",
+        "10_to_20": "{b1} to {b2} feet",
+        "over_20": "More than {b2} feet"
+      }
+    },
+    "fixture_height": {
+      "policyKey": "fixture_work_height.breakpoints",
+      "patterns": {
+        "under_8": "{b1} feet or less",
+        "9_10": "{b1+1} to {b2} feet",
+        "11_12": "{b2+1} to {b3} feet",
+        "over_12": "More than {b3} feet"
+      }
+    },
+    "flood_camera_height": {
+      "policyKey": "exterior_mount_height.breakpoints",
+      "patterns": {
+        "under_8": "{b1} feet or less",
+        "9_12": "{b1+1} to {b2} feet — normal single storey",
+        "over_12": "Higher than {b2} feet, or a second storey"
+      }
+    },
+    "new-coax-line_distance": {
+      "policyKey": "data_cable_run.breakpoints",
+      "patterns": {
+        "standard": "Less than {b1} feet",
+        "long": "More than {b1} feet"
+      }
+    },
+    "new-ethernet-line_distance": {
+      "policyKey": "data_cable_run.breakpoints",
+      "patterns": {
+        "standard": "Less than {b1} feet",
+        "long": "More than {b1} feet"
+      }
+    },
+    "new-wall-sconce_distance": {
+      "policyKey": "sconce_run.breakpoints",
+      "patterns": {
+        "standard": "Less than {b1} feet",
+        "long": "More than {b1} feet"
+      }
+    },
+    "outlet_run_distance": {
+      "policyKey": "outlet_run.breakpoints",
+      "patterns": {
+        "under_10": "Less than {b1} feet",
+        "10_to_20": "{b1} to {b2} feet",
+        "over_20": "More than {b2} feet"
+      }
+    },
+    "switch_leg_distance": {
+      "policyKey": "switch_leg_run.breakpoints",
+      "patterns": {
+        "under_10": "Less than {b1} feet",
+        "10_to_20": "{b1} to {b2} feet",
+        "over_20": "More than {b2} feet"
+      }
+    }
+  },
+  "servicePolicies": {
+    "replace-bathroom-exhaust-fan": [
+      "bathroom_fan.supply_arrangement"
+    ]
+  }
+}

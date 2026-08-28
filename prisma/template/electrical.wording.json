@@ -15,21 +15,158 @@
     "Keys are `serviceKey`, `serviceKey/questionKey`, or",
     "`serviceKey/questionKey/answerValue`.",
     "",
-    "`reason` is required and is the record of WHY a human had to decide."
+    "`reason` is required and is the record of WHY a human had to decide.",
+    "",
+    "`keys` remaps an Elite service slug to its canonical TEMPLATE key. It does",
+    "NOT rename anything of Elite's: their slug is a live URL and an operational",
+    "identifier, and there is no reason to break it to make the template clean.",
+    "Provenance records where the canonical service came from."
   ],
   "trade": "electrical",
+  "keys": {
+    "elite-tilt-mount": "tilt-tv-mount",
+    "elite-articulating-mount": "articulating-tv-mount"
+  },
   "entries": {
-    "new-120v-outlet/outlet_power_source/tap_existing": {
-      "label": "From the nearest outlet",
-      "reason": "Elite's label was 'From the nearest outlet — from $280'. The sentence is built around a price, so removing it leaves a dangling em-dash and keeping it ships Elite's rate to every contractor. The app already knows each contractor's price and can show it separately."
+    "dedicated-120v-circuit-outlet/dedicated_finish_ack": {
+      "helpText": "Depending on the wiring path available, this may require small access openings in finished surfaces near your electrical panel and at the new outlet, so the cable can enter the wall.",
+      "reason": "Elite's paragraph combined two different things. That a run through finished space may need an access opening is a physical fact of the work and is kept, in neutral wording. That patching, spackling, sanding, painting, wallpaper and trim are excluded unless put in writing is a scope promise — the contractor's terms, not the trade's — and moves to the contractor's own disclaimer (ADR-009). Discarding the universal fact along with the policy would have lost real trade knowledge."
+    },
+    "dedicated-120v-circuit-outlet/dedicated_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "elite-articulating-mount/(service)": {
+      "label": "Full-Motion Articulating Mount",
+      "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
+    },
+    "elite-articulating-mount/(service).shortDescription": {
+      "label": "A full-motion (swivel/extend) wall mount supplied by your electrician, added to a TV installation if you don't already have a compatible mount.",
+      "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
+    },
+    "elite-tilt-mount/(service)": {
+      "label": "Tilt TV Mount",
+      "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
+    },
+    "elite-tilt-mount/(service).shortDescription": {
+      "label": "A tilting wall mount supplied by your electrician, added to a TV installation if you don't already have a compatible mount.",
+      "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
+    },
+    "exterior-gfci-other-routing/ext_gfci_finish_ack": {
+      "helpText": "With no attic, basement or drop ceiling to work through, the wiring for this outlet has to be fished through finished walls.\n\nYour electrician will likely need to make one or more openings in the drywall or plaster to get the cable across. We keep them small and put them where they're least visible, but on a finished wall they usually can't be avoided entirely.\n\nThat's why we asked about attic and basement access — an open route usually means no openings at all and less time on site.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "exterior-gfci-other-routing/ext_gfci_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "fan-replacing-light/fixture_finish_ack": {
+      "helpText": "With no attic or open space above, the wiring for this has to be run through the finished ceiling.\n\nThat means your electrician will need to make one or more openings in the drywall or plaster to get the cable where it needs to go. We keep them as small as we can and put them where they're least visible, but on a finished ceiling they can't always be avoided.\n\nThat's why we ask about attic access — an open route above usually means no openings at all and less time on site.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "fan-replacing-light/fixture_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "fan-replacing-light/switchleg_finish_ack": {
+      "helpText": "Getting a wire to a new switch usually means opening the wall.\n\nIf there's no attic, basement or drop ceiling to work from, your electrician will be fishing through finished walls, and one or more small openings in the drywall or plaster are very likely — even when the switch sits directly above an outlet. With an open route above or below, we can often avoid them, though a small opening is sometimes still needed.\n\nThat's why we ask about attic and basement access — an open route usually means fewer openings and less time.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "fan-replacing-light/switchleg_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "new-120v-outlet/outlet_finish_ack": {
+      "helpText": "With no attic, basement or drop ceiling to work through, the wiring for this outlet has to be fished through finished walls.\n\nYour electrician will likely need to make one or more openings in the drywall or plaster to get the cable across. We keep them small and put them where they're least visible, but on a finished wall they usually can't be avoided entirely.\n\nThat's why we asked about attic and basement access — an open route usually means no openings at all and less time on site.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "new-120v-outlet/outlet_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label read 'I'd rather Elite take a look first'. Naming the contractor is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing."
     },
     "new-120v-outlet/outlet_power_source/dedicated": {
       "label": "Its own circuit from the panel",
       "reason": "As above; Elite's label carried 'from $685'."
     },
-    "new-120v-outlet/outlet_finish_ack/review_first": {
+    "new-120v-outlet/outlet_power_source/tap_existing": {
+      "label": "From the nearest outlet",
+      "reason": "Elite's label was 'From the nearest outlet — from $280'. The sentence is built around a price, so removing it leaves a dangling em-dash and keeping it ships Elite's rate to every contractor. The app already knows each contractor's price and can show it separately."
+    },
+    "new-ceiling-fan/fixture_finish_ack": {
+      "helpText": "With no attic or open space above, the wiring for this has to be run through the finished ceiling.\n\nThat means your electrician will need to make one or more openings in the drywall or plaster to get the cable where it needs to go. We keep them as small as we can and put them where they're least visible, but on a finished ceiling they can't always be avoided.\n\nThat's why we ask about attic access — an open route above usually means no openings at all and less time on site.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "new-ceiling-fan/fixture_finish_ack/review_first": {
       "label": "I'd rather someone take a look first",
-      "reason": "Elite's label read 'I'd rather Elite take a look first'. Naming the contractor is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing."
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "new-ceiling-fan/switchleg_finish_ack": {
+      "helpText": "Getting a wire to a new switch usually means opening the wall.\n\nIf there's no attic, basement or drop ceiling to work from, your electrician will be fishing through finished walls, and one or more small openings in the drywall or plaster are very likely — even when the switch sits directly above an outlet. With an open route above or below, we can often avoid them, though a small opening is sometimes still needed.\n\nThat's why we ask about attic and basement access — an open route usually means fewer openings and less time.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "new-ceiling-fan/switchleg_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "new-ceiling-light/fixture_finish_ack": {
+      "helpText": "With no attic or open space above, the wiring for this has to be run through the finished ceiling.\n\nThat means your electrician will need to make one or more openings in the drywall or plaster to get the cable where it needs to go. We keep them as small as we can and put them where they're least visible, but on a finished ceiling they can't always be avoided.\n\nThat's why we ask about attic access — an open route above usually means no openings at all and less time on site.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "new-ceiling-light/fixture_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "new-ceiling-light/switchleg_finish_ack": {
+      "helpText": "Getting a wire to a new switch usually means opening the wall.\n\nIf there's no attic, basement or drop ceiling to work from, your electrician will be fishing through finished walls, and one or more small openings in the drywall or plaster are very likely — even when the switch sits directly above an outlet. With an open route above or below, we can often avoid them, though a small opening is sometimes still needed.\n\nThat's why we ask about attic and basement access — an open route usually means fewer openings and less time.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "new-ceiling-light/switchleg_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "recessed-lighting/fixture_finish_ack": {
+      "helpText": "With no attic or open space above, the wiring for this has to be run through the finished ceiling.\n\nThat means your electrician will need to make one or more openings in the drywall or plaster to get the cable where it needs to go. We keep them as small as we can and put them where they're least visible, but on a finished ceiling they can't always be avoided.\n\nThat's why we ask about attic access — an open route above usually means no openings at all and less time on site.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "recessed-lighting/fixture_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "recessed-lighting/switchleg_finish_ack": {
+      "helpText": "Getting a wire to a new switch usually means opening the wall.\n\nIf there's no attic, basement or drop ceiling to work from, your electrician will be fishing through finished walls, and one or more small openings in the drywall or plaster are very likely — even when the switch sits directly above an outlet. With an open route above or below, we can often avoid them, though a small opening is sometimes still needed.\n\nThat's why we ask about attic and basement access — an open route usually means fewer openings and less time.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "recessed-lighting/switchleg_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
+    },
+    "replace-bathroom-exhaust-fan/(service)": {
+      "label": "Replace Bathroom Exhaust Fan",
+      "reason": "Elite's name was 'Replace Bathroom Exhaust Fan — We Supply the Fan'. That is Elite choosing to stock fans; a contractor who does not would inherit a false promise in their own service name. Neutralizing the title does NOT delete the question — see bathroom_fan.supply_arrangement in electrical.policies.json, which keeps it as an unresolved contractor decision."
+    },
+    "tv-install-existing-location/mount_type/articulating": {
+      "label": "Full-motion mount supplied by your electrician",
+      "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
+    },
+    "tv-install-existing-location/mount_type/tilt": {
+      "label": "Tilt mount supplied by your electrician",
+      "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
+    },
+    "tv-installation/has_mount/add_articulating_mount": {
+      "label": "No — add a full-motion mount",
+      "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
+    },
+    "tv-installation/has_mount/add_tilt_mount": {
+      "label": "No — add a tilt mount",
+      "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
+    },
+    "tv-installation/tv_finish_ack": {
+      "helpText": "Getting power up to the TV means running a wire inside the finished wall.\n\nYour electrician will need to make one or more openings in the drywall or plaster to fish it through. We keep them small and put them where the TV or a plate will cover them where we can, but on a finished wall they can't always be avoided.\n\nThat's why we asked about attic and basement access — an open route usually means no openings at all.",
+      "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
+    },
+    "tv-installation/tv_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
     }
   }
 }

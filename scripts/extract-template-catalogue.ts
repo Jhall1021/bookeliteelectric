@@ -11,18 +11,26 @@
  * placeholder is inserted to make a service "complete", and a service with an
  * unauthored refusal is NOT written to the template.
  *
- *   (default)   report only
- *   --apply     write the services that have no outstanding refusals
- *   --service   limit to one, for the single-service proof
+ *   --from <slug>  REQUIRED. The contractor being extracted FROM.
+ *   (default)      report only
+ *   --apply        write the services that have no outstanding refusals
+ *   --service      limit to one, for the single-service proof
+ *
+ * `--from` is required rather than inferred. An earlier version read "every
+ * Service row", which was indistinguishable from correct while Elite was the
+ * only contractor and silently extracted a throwaway proof contractor's
+ * catalogue back into the template the moment one existed. Extraction reads
+ * across a tenant boundary by nature, so it names the tenant out loud.
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { writeFileSync } from "node:fs";
 import { loadEnv } from "./_env";
 import {
-  MANIFEST_PATH, KIND_LABEL, KIND_REASON, classify, loadWording,
+  MANIFEST_PATH, KIND_LABEL, KIND_REASON, classify, loadWording, loadKeyRemap, loadPolicies,
   type Refusal, type RefusalKind, type WordingEntry,
 } from "./_extractCore";
+import { boundariesUsed } from "../lib/policyBands";
 
 loadEnv();
 const prisma = new PrismaClient();
@@ -30,12 +38,23 @@ const TRADE = "electrical";
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined; };
 
 const WORDING = loadWording();
+const KEY_REMAP = loadKeyRemap();
+const POLICIES = loadPolicies();
 const refusals: Refusal[] = [];
+
+/** Elite's slug is untouched; only the canonical template key moves. */
+const templateKey = (slug: string) => KEY_REMAP[slug] ?? slug;
+
+/** Policy keys actually reached by the services being extracted. */
+const usedPolicies = new Set<string>();
+
+/** Set once --from is resolved; every read below is scoped to it. */
+let SOURCE_ID = "";
 
 const stats = {
   services: 0, questions: 0, options: 0,
   autoWording: 0, authoredWording: 0,
-  policyExcluded: 0, economicsExcluded: 0,
+  policyExcluded: 0, economicsExcluded: 0, bandOptions: 0, policyDefinitions: 0,
   materialsCalibration: 0, canonicalMaterials: 0, canonicalComponents: 0, disclaimerConcepts: 0,
 };
 
@@ -68,7 +87,7 @@ type Extracted = NonNullable<Awaited<ReturnType<typeof buildOne>>>;
 
 async function buildOne(slug: string) {
   const svc = await prisma.service.findFirstOrThrow({
-    where: { slug },
+    where: { slug, contractorId: SOURCE_ID },
     include: {
       contractorCategory: { select: { canonicalCategoryId: true } },
       materials: { include: { canonicalMaterial: { select: { key: true } } } },
@@ -124,12 +143,28 @@ async function buildOne(slug: string) {
         }
         for (const d of o.conditionalDisclaimers) if (d.contractorDisclaimer) stats.disclaimerConcepts++;
         stats.canonicalComponents += o.components.filter(c => c.canonicalComponentId).length;
+        // A band option's wording is a contractor decision, not missing copy.
+        // The template carries the SHAPE and leaves the number to be filled in.
+        const band = POLICIES.questions[q.key];
+        const pattern = band?.patterns[o.value];
+        if (pattern) {
+          usedPolicies.add(band.policyKey);
+          stats.bandOptions++;
+        }
+
         return {
           value: o.value, routeAction: o.routeAction, order: oi,
-          label: copy(slug, `${q.key}/${o.value}`, "label", o.label),
+          labelPattern: pattern ?? null,
+          policyKey: pattern ? band!.policyKey : null,
+          // While unresolved the label IS the pattern. Deliberately not
+          // customer-ready: a service carrying one cannot publish, which is
+          // safer than a plausible-looking default nobody chose.
+          label: pattern ?? copy(slug, `${q.key}/${o.value}`, "label", o.label),
           nextQuestionKey: o.nextQuestionId ? svc.questions.find(x => x.id === o.nextQuestionId)?.key ?? null : null,
-          rerouteServiceKey: o.rerouteServiceId ? rerouteSlugs.get(o.rerouteServiceId) ?? null : null,
-          referencedServiceKey: o.referencedService?.slug ?? null,
+          rerouteServiceKey: o.rerouteServiceId
+            ? (rerouteSlugs.get(o.rerouteServiceId) ? templateKey(rerouteSlugs.get(o.rerouteServiceId)!) : null)
+            : null,
+          referencedServiceKey: o.referencedService ? templateKey(o.referencedService.slug) : null,
           requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
           illustrationUrls: o.illustrationUrls,
           components: o.components.filter(c => c.canonicalComponentId).map(c => ({
@@ -165,8 +200,12 @@ async function buildOne(slug: string) {
   const blocking = added.filter(r => !["material-quantity", "disclaimer-policy"].includes(r.kind));
   if (blocking.length || name === null) return null;
 
+  const servicePolicies = POLICIES.servicePolicies[slug] ?? [];
+  for (const k of servicePolicies) usedPolicies.add(k);
+
   return {
-    slug, key: slug, name: name!, shortDescription,
+    slug: templateKey(slug), key: templateKey(slug), sourceSlug: slug, name: name!, shortDescription,
+    servicePolicies,
     canonicalCategoryId: svc.contractorCategory.canonicalCategoryId,
     bookingType: svc.bookingType, photoState: svc.photoState,
     isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
@@ -174,14 +213,38 @@ async function buildOne(slug: string) {
   };
 }
 
-async function write(tvId: string, e: Extracted) {
+/**
+ * Policy definitions are written BEFORE any service, because an answer option
+ * that references one cannot be created until it exists. Only the policies the
+ * extracted services actually reach are written — an unreferenced policy
+ * definition is a question nobody is ever asked.
+ */
+async function writePolicies(tvId: string) {
+  const ids = new Map<string, string>();
+  for (const key of [...usedPolicies].sort()) {
+    const def = POLICIES.definitions[key];
+    if (!def) throw new Error(`Policy "${key}" is referenced but not defined in the policy manifest.`);
+    const row = await prisma.templatePolicyDefinition.upsert({
+      where: { templateVersionId_key: { templateVersionId: tvId, key } },
+      update: { type: def.type, unit: def.unit ?? null, boundaryCount: def.boundaryCount, prompt: def.prompt },
+      create: { templateVersionId: tvId, key, type: def.type, unit: def.unit ?? null,
+                boundaryCount: def.boundaryCount, prompt: def.prompt },
+    });
+    ids.set(key, row.id);
+    stats.policyDefinitions++;
+  }
+  return ids;
+}
+
+async function write(tvId: string, e: Extracted, policyIds: Map<string, string>) {
   await prisma.templateService.deleteMany({ where: { templateVersionId: tvId, key: e.key } });
   const ts = await prisma.templateService.create({
     data: { templateVersionId: tvId, key: e.key, slug: e.slug, name: e.name,
       shortDescription: e.shortDescription, icon: e.icon,
       canonicalCategoryId: e.canonicalCategoryId, bookingType: e.bookingType, photoState: e.photoState,
       isPrimaryEligible: e.isPrimaryEligible, requiresTechCount: e.requiresTechCount,
-      materials: { create: e.materials } },
+      materials: { create: e.materials },
+      policies: { create: e.servicePolicies.map((k) => ({ templatePolicyDefinitionId: policyIds.get(k)! })) } },
   });
   for (const q of e.questions) {
     await prisma.templateQuestion.create({
@@ -189,6 +252,8 @@ async function write(tvId: string, e: Extracted) {
         inputType: q.inputType, order: q.order,
         options: { create: q.options.map(o => ({
           value: o.value, label: o.label!, routeAction: o.routeAction, order: o.order,
+          labelPattern: o.labelPattern,
+          templatePolicyDefinitionId: o.policyKey ? policyIds.get(o.policyKey) ?? null : null,
           nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
           referencedServiceKey: o.referencedServiceKey,
           requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
@@ -204,11 +269,27 @@ async function main() {
   const only = arg("service");
   const version = Number(arg("version") ?? "1");
 
+  const from = arg("from");
+  if (!from) {
+    console.error(`\n  --from <contractor-slug> is required.\n`);
+    console.error(`  Extraction reads one contractor's catalogue and turns it into the`);
+    console.error(`  canonical template. Which contractor is not something to infer.\n`);
+    const all = await prisma.contractor.findMany({ select: { slug: true, name: true } });
+    for (const c of all) console.error(`    ${c.slug}  (${c.name})`);
+    console.error("");
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+  const source = await prisma.contractor.findUnique({ where: { slug: from }, select: { id: true, name: true } });
+  if (!source) { console.error(`\n  No contractor with slug "${from}".\n`); await prisma.$disconnect(); process.exit(1); }
+
   const all = await prisma.service.findMany({
-    where: only ? { slug: only } : {}, select: { slug: true }, orderBy: { slug: "asc" },
+    where: { contractorId: source.id, ...(only ? { slug: only } : {}) },
+    select: { slug: true }, orderBy: { slug: "asc" },
   });
   console.log(`\nEXTRACT CATALOGUE  ->  ${TRADE} v${version}   ${apply ? "APPLY" : "REPORT ONLY"}`);
-  console.log(`  ${all.length} Elite service(s)\n`);
+  console.log(`  source: ${source.name} (${from}) — ${all.length} service(s)\n`);
+  SOURCE_ID = source.id;
 
   const built: Extracted[] = [];
   const refusedServices: string[] = [];
@@ -251,6 +332,8 @@ async function main() {
     ["Answer options", stats.options],
     ["Auto-accepted universal wording", stats.autoWording],
     ["Authored wording overrides", stats.authoredWording],
+    ["Answer options whose wording is contractor policy", stats.bandOptions],
+    ["Breakpoint policies the contractor must answer", usedPolicies.size],
     ["POLICY decisions excluded", stats.policyExcluded],
     ["Economic values excluded", stats.economicsExcluded],
     ["Material quantities requiring contractor calibration", stats.materialsCalibration],
@@ -272,7 +355,18 @@ async function main() {
     where: { trade_version: { trade: TRADE, version } }, update: {},
     create: { trade: TRADE, version, notes: `extracted from Elite's catalogue` },
   });
-  for (const e of built) await write(tv.id, e);
+  // Services the source no longer has must not linger from an earlier run.
+  const keep = built.map((e) => e.key);
+  const stale = await prisma.templateService.findMany({
+    where: { templateVersionId: tv.id, key: { notIn: keep } }, select: { key: true } });
+  if (stale.length) {
+    await prisma.templateService.deleteMany({ where: { templateVersionId: tv.id, key: { notIn: keep } } });
+    console.log(`  Removed ${stale.length} stale template service(s): ${stale.slice(0, 5).map((s) => s.key).join(", ")}`);
+  }
+
+  const policyIds = await writePolicies(tv.id);
+  for (const e of built) await write(tv.id, e, policyIds);
+  console.log(`  Wrote ${policyIds.size} policy definition(s) the contractor must answer.`);
   console.log(`  Wrote ${built.length} service(s) into ${TRADE} v${version}.\n`);
   await prisma.$disconnect();
 }

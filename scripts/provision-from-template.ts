@@ -16,6 +16,12 @@
  * contractor supplies their own figure, because writing 25 ft would be
  * shipping Elite's allowance and writing 0 ft would be inventing a decision.
  *
+ * The same rule governs BREAKPOINT POLICIES. An answer reading "Less than
+ * {b1} feet" arrives with the hole still in it and the policy recorded as
+ * unresolved, because the alternative — seeding the boundary Elite happens to
+ * use — would hand every contractor Elite's included run length as their
+ * starting point, which is the whole thing this separation exists to prevent.
+ *
  * Canonical identity is REFERENCED: categories, materials, components and
  * disclaimers resolve to the contractor's own rows for the shared canonical
  * concept, created empty (no price) where they do not exist yet.
@@ -48,12 +54,25 @@ async function main() {
     include: {
       materials: { include: { canonicalMaterial: { select: { key: true } } } },
       questions: { orderBy: { order: "asc" }, include: {
-        options: { orderBy: { order: "asc" }, include: { components: true, disclaimers: true, photoGroups: true } } } },
+        options: { orderBy: { order: "asc" }, include: {
+          components: true, disclaimers: true, photoGroups: true,
+          templatePolicyDefinition: true } } } },
+      policies: { include: { templatePolicyDefinition: true } },
     },
   });
 
+  // Every policy the services being provisioned actually reach, whether it
+  // arrives through an answer option or is attached to the service itself.
+  const reached = new Map<string, { key: string; type: any; unit: string | null; boundaryCount: number; prompt: string }>();
+  for (const s of services)
+    for (const q of s.questions)
+      for (const o of q.options)
+        if (o.templatePolicyDefinition) reached.set(o.templatePolicyDefinition.key, o.templatePolicyDefinition);
+  for (const s of services)
+    for (const sp of s.policies) reached.set(sp.templatePolicyDefinition.key, sp.templatePolicyDefinition);
+
   console.log(`\nPROVISION  ${trade} v${version}  ->  ${contractor.name}`);
-  console.log(`  ${services.length} template service(s)   ${apply ? "APPLY" : "DRY RUN"}\n`);
+  console.log(`  ${services.length} template service(s), ${reached.size} policy question(s)   ${apply ? "APPLY" : "DRY RUN"}\n`);
   if (!apply) {
     for (const s of services) {
       const policyMats = s.materials.filter((m) => m.quantityIsPolicy);
@@ -62,6 +81,18 @@ async function main() {
     }
     console.log(`\n  Dry run.\n`); await prisma.$disconnect(); return;
   }
+
+  // Unresolved, not zero. A contractor who has not told us their included run
+  // length has not told us it is nothing.
+  for (const d of reached.values()) {
+    await prisma.contractorPolicyValue.upsert({
+      where: { contractorId_key: { contractorId: contractor.id, key: d.key } },
+      update: {},
+      create: { contractorId: contractor.id, key: d.key, type: d.type, unit: d.unit,
+                boundaryCount: d.boundaryCount, prompt: d.prompt, boundaries: [] },
+    });
+  }
+  if (reached.size) console.log(`  ${reached.size} policy question(s) recorded, all unresolved.`);
 
   for (const t of services) {
     // Canonical identity -> the contractor's own row for that shared concept.
@@ -118,6 +149,9 @@ async function main() {
     // Two passes: questions first, then options, because nextQuestionKey can
     // point forward and a key only becomes an id once the row exists.
     let needsDisclaimer = 0;
+    // Service-level policies count as unresolved for this service even though
+    // no question raises them.
+    const unresolvedPolicies = new Set<string>(t.policies.map((sp) => sp.templatePolicyDefinition.key));
     const qId = new Map<string, string>();
     for (const q of t.questions) {
       const created = await prisma.question.create({
@@ -138,6 +172,7 @@ async function main() {
         const ref = o.referencedServiceKey
           ? await prisma.service.findFirst({ where: { contractorId: contractor.id, slug: o.referencedServiceKey }, select: { id: true } })
           : null;
+        if (o.templatePolicyDefinition) unresolvedPolicies.add(o.templatePolicyDefinition.key);
         const ao = await prisma.answerOption.create({
           data: {
             questionId: qId.get(q.key)!, value: o.value, label: o.label,
@@ -146,6 +181,8 @@ async function main() {
             rerouteServiceId: target?.id ?? null, referencedServiceId: ref?.id ?? null,
             requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
             illustrationUrls: o.illustrationUrls,
+            labelPattern: o.labelPattern,
+            policyKey: o.templatePolicyDefinition?.key ?? null,
             // priceModifierCents deliberately left at its schema default. The
             // template has no opinion about it and neither may provisioning.
             templateVersionId: tv.id, templateKey: `${q.key}/${o.value}`,
@@ -184,8 +221,14 @@ async function main() {
         }
       }
     }
+    if (unresolvedPolicies.size)
+      await prisma.service.update({
+        where: { id: svc.id },
+        data: { unresolvedPolicyKeys: [...unresolvedPolicies].sort() },
+      });
     console.log(`  ${t.key}: ${t.questions.length} questions, ${t.questions.flatMap(q=>q.options).length} options, ` +
-      `${stillUnresolved.length} material(s) unresolved, ${needsDisclaimer} disclaimer(s) the contractor must author`);
+      `${stillUnresolved.length} material(s) unresolved, ${unresolvedPolicies.size} policy(s) unresolved, ` +
+      `${needsDisclaimer} disclaimer(s) the contractor must author`);
   }
   console.log(`\n  Provisioned. Nothing is priced and nothing is active.\n`);
   await prisma.$disconnect();
