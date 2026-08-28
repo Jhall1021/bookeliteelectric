@@ -26,7 +26,11 @@
     "contract:rehearse:branch": "bash scripts/contract-branch-rehearsal.sh",
     "verify:tenancy": "tsx scripts/verify-tenant-isolation-live.ts && tsx scripts/verify-jobber-connection-tenancy.ts && tsx scripts/verify-pricing-settings-tenancy.ts",
     "db:parity": "tsx scripts/db-parity.ts",
-    "verify:freeze": "tsx scripts/verify-write-freeze.ts"
+    "verify:freeze": "tsx scripts/verify-write-freeze.ts",
+    "template:extract": "tsx scripts/extract-template-service.ts",
+    "template:provision": "tsx scripts/provision-from-template.ts",
+    "template:update": "tsx scripts/template-update.ts",
+    "verify:template": "tsx scripts/verify-template-provisioning.ts && tsx scripts/verify-template-update.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",

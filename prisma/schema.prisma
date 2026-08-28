@@ -55,6 +55,7 @@ model CanonicalCategory {
   active      Boolean @default(true)
 
   contractorCategories ContractorCategory[]
+  templateServices     TemplateService[]
 
   @@map("canonical_categories")
 }
@@ -469,8 +470,9 @@ model CanonicalMaterial {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contractorMaterials ContractorMaterial[]
-  serviceMaterials    ServiceMaterial[]
+  contractorMaterials      ContractorMaterial[]
+  serviceMaterials         ServiceMaterial[]
+  templateServiceMaterials TemplateServiceMaterial[]
 
   @@map("canonical_materials")
 }
@@ -928,18 +930,19 @@ model ServiceMaterial {
 /// A group is named once and referenced. Correcting a wording, or adding the
 /// safety line, happens in one place and applies everywhere.
 model PhotoGroup {
-  id         String                   @id @default(cuid())
+  id                              String                           @id @default(cuid())
   /// Stable identifier used in code and seeds, e.g. PANEL_PHOTOS.
-  key        String                   @unique
-  name       String
+  key                             String                           @unique
+  name                            String
   /// The labels shown to the customer, in order.
-  labels     String[]
+  labels                          String[]
   /// Prepended to every label in this group. Carries the panel safety rule so
   /// it can never be omitted by accident.
-  safetyNote String?
-  active     Boolean                  @default(true)
-  notes      String?
-  options    AnswerOptionPhotoGroup[]
+  safetyNote                      String?
+  active                          Boolean                          @default(true)
+  notes                           String?
+  options                         AnswerOptionPhotoGroup[]
+  templateAnswerOptionPhotoGroups TemplateAnswerOptionPhotoGroup[]
 
   @@map("photo_groups")
 }
@@ -991,7 +994,8 @@ model CanonicalDisclaimer {
   /// retire it from contractors already using it.
   active Boolean @default(true)
 
-  contractorDisclaimers ContractorDisclaimer[]
+  contractorDisclaimers           ContractorDisclaimer[]
+  templateAnswerOptionDisclaimers TemplateAnswerOptionDisclaimer[]
 
   @@map("canonical_disclaimers")
 }
@@ -1139,8 +1143,9 @@ model CanonicalComponent {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contractorComponents ContractorComponent[]
-  options              AnswerOptionComponent[]
+  contractorComponents           ContractorComponent[]
+  options                        AnswerOptionComponent[]
+  templateAnswerOptionComponents TemplateAnswerOptionComponent[]
 
   @@map("canonical_components")
 }
@@ -1481,6 +1486,14 @@ model Service {
   // it was never global uniqueness the routing needed.
   //
   // Added during expand alongside the old global unique, which contract drops.
+  /// ADR-014 provenance. A RECORD, not a link: nothing reads through it at
+  /// request time, and a contractor-authored row leaves both null. It exists so
+  /// a later template version can ask "has this contractor changed the thing I
+  /// am about to offer to change" without the live tree depending on a
+  /// mutable template row.
+  templateVersionId String?
+  templateKey       String?
+
   @@unique([contractorId, slug])
   @@index([contractorId])
   @@map("services")
@@ -1506,6 +1519,14 @@ model Question {
   options         AnswerOption[]
   /// Help text that only applies under a condition.
   conditionalHelp QuestionDisclaimer[]
+
+  /// ADR-014 provenance. A RECORD, not a link: nothing reads through it at
+  /// request time, and a contractor-authored row leaves both null. It exists so
+  /// a later template version can ask "has this contractor changed the thing I
+  /// am about to offer to change" without the live tree depending on a
+  /// mutable template row.
+  templateVersionId String?
+  templateKey       String?
 
   @@index([serviceId])
   @@map("questions")
@@ -1653,7 +1674,14 @@ model AnswerOption {
   /// requiredPhotoLabels is retained for one-off labels that genuinely belong
   /// to a single answer. When both are present the engine shows the groups
   /// first, then the loose labels.
-  photoGroups AnswerOptionPhotoGroup[]
+  photoGroups       AnswerOptionPhotoGroup[]
+  /// ADR-014 provenance. A RECORD, not a link: nothing reads through it at
+  /// request time, and a contractor-authored row leaves both null. It exists so
+  /// a later template version can ask "has this contractor changed the thing I
+  /// am about to offer to change" without the live tree depending on a
+  /// mutable template row.
+  templateVersionId String?
+  templateKey       String?
 
   @@index([questionId])
   @@map("answer_options")
@@ -2342,4 +2370,170 @@ model DatabaseIdentity {
   stampedAt    DateTime @default(now())
 
   @@map("database_identity")
+}
+
+// ─── ADR-014 · the electrical template ──────────────────────────────────────
+//
+// Trade STRUCTURE, with no economics anywhere. A template says what to ask and
+// what a job consumes; it never says what anything costs.
+//
+// Nothing here is referenced at request time. Provisioning COPIES structure
+// into contractor-owned rows, and provenance is recorded so a later version
+// can ask "has this contractor changed the thing I am about to offer to
+// change" — never so the runtime can read through it.
+
+/// One published, immutable snapshot of a trade's structure.
+model TemplateVersion {
+  id          String   @id @default(cuid())
+  /// e.g. "electrical". Trade-agnostic by design; only electrical exists now.
+  trade       String
+  version     Int
+  publishedAt DateTime @default(now())
+  notes       String?
+
+  services TemplateService[]
+
+  @@unique([trade, version])
+  @@map("template_versions")
+}
+
+/// A service concept. `key` is the stable identity ACROSS versions — v1 and v2
+/// of "new-120v-outlet" share a key and differ in id, which is what makes an
+/// update detectable.
+model TemplateService {
+  id                String          @id @default(cuid())
+  templateVersionId String
+  templateVersion   TemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Cascade)
+  key               String
+  slug              String
+  name              String
+  shortDescription  String?
+  icon              String?
+
+  /// Canonical trade identity, REFERENCED not copied — a category means the
+  /// same thing for every contractor (ADR-006).
+  canonicalCategoryId String
+  canonicalCategory   CanonicalCategory @relation(fields: [canonicalCategoryId], references: [id])
+
+  /// Structural, not economic: a panel swap needs two people because of the
+  /// work, and whether a job can be judged from photos is a property of the job.
+  bookingType       BookingType
+  photoState        PhotoState
+  isPrimaryEligible Boolean     @default(true)
+  requiresTechCount Int         @default(1)
+
+  questions TemplateQuestion[]
+  materials TemplateServiceMaterial[]
+
+  @@unique([templateVersionId, key])
+  @@index([templateVersionId])
+  @@map("template_services")
+}
+
+model TemplateQuestion {
+  id                String          @id @default(cuid())
+  templateServiceId String
+  templateService   TemplateService @relation(fields: [templateServiceId], references: [id], onDelete: Cascade)
+  key               String
+  prompt            String
+  helpText          String?
+  /// How the question is asked. Structural — a multi-select is a different
+  /// question from a single-select, regardless of who is answering it.
+  inputType         InputType
+  order             Int
+
+  options TemplateAnswerOption[]
+
+  @@unique([templateServiceId, key])
+  @@map("template_questions")
+}
+
+model TemplateAnswerOption {
+  id                 String           @id @default(cuid())
+  templateQuestionId String
+  templateQuestion   TemplateQuestion @relation(fields: [templateQuestionId], references: [id], onDelete: Cascade)
+  value              String
+  label              String
+  /// What the answer DOES — continue, reroute, require photos. The physical
+  /// consequence of an answer is trade knowledge; only its price is not.
+  routeAction        RouteAction
+  order              Int
+
+  /// Routing by KEY, never by id: ids are per-version, keys are stable, and a
+  /// template that pointed at ids could only ever describe one version.
+  nextQuestionKey      String?
+  rerouteServiceKey    String?
+  referencedServiceKey String?
+
+  requiredPhotoLabels String[]
+  photosBlockBooking  Boolean  @default(true)
+  illustrationUrls    String[]
+
+  components  TemplateAnswerOptionComponent[]
+  disclaimers TemplateAnswerOptionDisclaimer[]
+  photoGroups TemplateAnswerOptionPhotoGroup[]
+
+  @@unique([templateQuestionId, value])
+  @@map("template_answer_options")
+}
+
+/// Which canonical material a job consumes.
+///
+/// `quantity` is null when the amount is a CONTRACTOR ALLOWANCE rather than a
+/// property of the job — 25 ft of wire "included" is a policy
+/// (POLICY[new_outlet.standard_run_ft]); one receptacle is the job. Null means
+/// the contractor must decide, and provisioning creates NO link for it: the
+/// material key lands in Service.unresolvedMaterialKeys instead, so nothing
+/// publishes until they set their own figure. Zero is never used as a stand-in
+/// for unknown, because zero is itself a decision.
+model TemplateServiceMaterial {
+  id                  String            @id @default(cuid())
+  templateServiceId   String
+  templateService     TemplateService   @relation(fields: [templateServiceId], references: [id], onDelete: Cascade)
+  canonicalMaterialId String
+  canonicalMaterial   CanonicalMaterial @relation(fields: [canonicalMaterialId], references: [id])
+  quantity            Float?
+  quantityIsPolicy    Boolean           @default(false)
+  order               Int               @default(0)
+
+  @@unique([templateServiceId, canonicalMaterialId])
+  @@map("template_service_materials")
+}
+
+/// A component an answer attaches. Identity is canonical and shared; the PRICE
+/// lives on the contractor's ContractorComponent and is never in a template.
+model TemplateAnswerOptionComponent {
+  id                     String               @id @default(cuid())
+  templateAnswerOptionId String
+  templateAnswerOption   TemplateAnswerOption @relation(fields: [templateAnswerOptionId], references: [id], onDelete: Cascade)
+  canonicalComponentId   String
+  canonicalComponent     CanonicalComponent   @relation(fields: [canonicalComponentId], references: [id])
+  quantity               Int                  @default(1)
+  conditionAnswerKey     String?
+  conditionAnswerValue   String?
+
+  @@unique([templateAnswerOptionId, canonicalComponentId])
+  @@map("template_answer_option_components")
+}
+
+model TemplateAnswerOptionDisclaimer {
+  id                     String               @id @default(cuid())
+  templateAnswerOptionId String
+  templateAnswerOption   TemplateAnswerOption @relation(fields: [templateAnswerOptionId], references: [id], onDelete: Cascade)
+  canonicalDisclaimerId  String
+  canonicalDisclaimer    CanonicalDisclaimer  @relation(fields: [canonicalDisclaimerId], references: [id])
+
+  @@unique([templateAnswerOptionId, canonicalDisclaimerId])
+  @@map("template_answer_option_disclaimers")
+}
+
+model TemplateAnswerOptionPhotoGroup {
+  id                     String               @id @default(cuid())
+  templateAnswerOptionId String
+  templateAnswerOption   TemplateAnswerOption @relation(fields: [templateAnswerOptionId], references: [id], onDelete: Cascade)
+  photoGroupId           String
+  photoGroup             PhotoGroup           @relation(fields: [photoGroupId], references: [id])
+
+  @@unique([templateAnswerOptionId, photoGroupId])
+  @@map("template_answer_option_photo_groups")
 }

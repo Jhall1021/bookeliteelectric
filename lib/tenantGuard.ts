@@ -116,6 +116,22 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
  * removal in the contract phase.
  */
 export const PLATFORM_MODELS = new Set<string>([
+  /// ADR-014. The electrical template: trade STRUCTURE shared by every
+  /// contractor, carrying no economics and no contractorId.
+  ///
+  /// Platform, not tenant, and deliberately so — but note what that does NOT
+  /// mean. Nothing reads these at request time. Provisioning COPIES structure
+  /// into contractor-owned rows and then the template is irrelevant to serving
+  /// a storefront; a contractor's live tree never depends on a mutable
+  /// template row (that is the whole of ADR-014's Option 1 rejection).
+  "TemplateVersion",
+  "TemplateService",
+  "TemplateQuestion",
+  "TemplateAnswerOption",
+  "TemplateServiceMaterial",
+  "TemplateAnswerOptionComponent",
+  "TemplateAnswerOptionDisclaimer",
+  "TemplateAnswerOptionPhotoGroup",
   "Contractor",
   "CanonicalMaterial",
   /// A component ROLE is trade knowledge shared by every contractor — the

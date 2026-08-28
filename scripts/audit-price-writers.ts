@@ -41,6 +41,13 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
   "prisma/seed-pricing-settings.ts": "Settings only, no service prices.",
   "prisma/reconcile-scope-services.ts":
     "Named owner-approved migration, 23 Aug: chandelier and flood/camera, once both had scope models.",
+  "scripts/template-update.ts":
+    "Adopting a template update CLEARS publishedPriceApprovedAt and sets " +
+    "materialCostResolved false. It un-approves: a structural change may have " +
+    "introduced a decision nobody has priced, so the service must stop being " +
+    "publishable until the contractor prices it. ADR-014 forbids an adoption " +
+    "from writing any economic value, and this writes the absence of one. " +
+    "Removing an approval, never granting one.",
   "prisma/seed-bathroom-fans.ts":
     "Sets the Elite-supplied fan to quote-only by clearing its prices to null. Removing a price, not setting one.",
   "prisma/seed-appliance-services.ts":
