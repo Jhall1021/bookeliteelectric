@@ -295,3 +295,86 @@ The `elite-baseline` definition is fixed-valued on purpose — it is the parity 
 `modern-clean-a` is the first brand-derived definition and exists to exercise the resolver;
 the six real V1 storefronts are Phase 3, and must differ **structurally**, not merely in
 palette.
+
+---
+
+## Phase 3 — six real storefronts, 28 August 2026
+
+Three families, two structural variants each. A variant that only swaps colours is a skin;
+colour is the first thing a homeowner stops noticing, so a variant chooses **composition**.
+
+### The structural vocabulary
+
+Eight closed axes in `lib/theme/structure.ts`: `nav`, `hero`, `heroAside`, `serviceList`,
+`sectionBreak`, `card`, `density`, `headline`. Contractors get no knobs — they choose among
+approved designs, and these are the moves those designs may make.
+
+All three variant pairs differ on **8 of 8 axes**.
+
+### Proven end-to-end, not asserted
+
+One throwaway storefront per definition, all seven provisioned and rendered, all given the
+**same** brand colour so every difference is structural. Each resolved to the identical accent
+`rgb(11, 122, 91)`:
+
+| variant | nav | hero ground | hero cols | h1 | section pad | rules | card radius |
+|---|---|---|---|---|---|---|---|
+| modern-clean-a | 1 row | navy | 2 | 700 / none / start | 64px | 2 | 12px |
+| modern-clean-b | 2 rows, centred | canvas | 1 | 300 / upper / center | 96px | 0 | 16px |
+| warm-welcoming-a | 1 row | cream | 1 (banner) | 700 / none / start | 64px | 0 | 18px |
+| warm-welcoming-b | 1 row, split | warm dark | 2 | 300 / upper / start | 40px | 2 | 10px |
+| premium-a | 1 row, split | near-white | 1 (banner) | 300 / upper / start | 96px | 0 | 2px |
+| premium-b | 2 rows, centred | near-black | 2 | 700 / none / start | 64px | 0 | 0px |
+
+Contrast holds across all of it: **1400 resolutions × 19 pairs**, none failing.
+
+### Structure, never identity
+
+`verify-theme-structure` enforces that no customer-facing component branches on which
+contractor is rendering. Two contractors on the same variant produce the same markup — the
+property that stops this becoming a pile of per-customer special cases.
+
+It also enforces that every value a definition *selects* is actually implemented. An axis can
+be read while one of its values silently falls through to the default, so a contractor picks
+"banner" and gets "split" with nothing reporting it. Values that legitimately ARE the
+else-branch are declared in `STRUCTURE_DEFAULTS` rather than inferred.
+
+### Two things this caught
+
+**Elite gained rules it never shipped with.** `Section` applied `border-t` to every section,
+but the original page drew a rule at two of its four boundaries. Which boundaries are breaks
+is a property of the CONTENT; how a break is drawn is the variant's. `divide` is now opt-in.
+
+**The header could never have worked.** It sat in the root layout as a SIBLING of the `[site]`
+layout that provides `SiteContext`, so `useSiteOptional()` was always null and the cart badge
+could not populate on any storefront page. The comment explaining the optionality described
+the symptom. Moving the chrome into `[site]` — needed anyway, since a variant that cannot
+reshape the header is not a variant — fixed it, and stopped `/admin` rendering two navigations.
+
+### Tailwind built-ins migrated, on the stated rule
+
+Only where a variant demonstrated the bypass:
+
+- `text-white` on a primary button → `text-accent-ink`. The accent is derived from the
+  contractor's brand, so the label has to be *chosen* against it; white is wrong on a
+  fluorescent brand.
+- `text-white` in the hero → `text-ink` / `text-accent-ink`. Modern B puts the hero on the
+  light ground, where white text is invisible.
+- `border-cardline bg-white` at five card sites → `Card`. Modern B's `raised` treatment drops
+  the border for an elevation, and `bg-white` would strand those panels on pure white under a
+  tinted surface.
+
+The rest stay. Not cleanup for its own sake.
+
+### Elite is unchanged
+
+Per-element computed-style fingerprints, before and after the whole phase. Two elements added
+and three fingerprints changed, every one accounted for:
+
+- Two sections' `max-w-6xl px-6` moved onto an inner div. Identical content box (514px wide,
+  24px padding), both transparent and unbordered — and the new wrappers hash identically to a
+  wrapper already in the page.
+- The payment section's explicit `bg-warmwhite` became transparent over a canvas body of the
+  same colour.
+
+Same pixels, different declarations. The `/services` and service-detail pages hash byte-identical.

@@ -22,6 +22,7 @@ import {
   CONTRAST_PAIRS, ELITE_BASELINE, findDefinition,
   type Derivation, type ThemeDefinition,
 } from "./definition";
+import type { ThemeStructure } from "./structure";
 import {
   contrast, ensureContrast, mostReadable, parseColor, shade, toChannels, toHex, type Rgb,
 } from "./color";
@@ -31,6 +32,8 @@ export type ResolvedTheme = {
   version: number;
   colors: Record<SemanticColor, string>;
   shapes: Record<SemanticShape, string>;
+  /** What the page is shaped like. Derived, never stored on the contractor. */
+  structure: ThemeStructure;
   /** What the resolver had to move, and why. Surfaced to the contractor. */
   notes: ThemeNote[];
 };
@@ -85,6 +88,7 @@ export function resolveStorefrontTheme(
     themeKey: def.key, version: def.version, notes,
     colors: Object.fromEntries(ORDER.map((t) => [t, toChannels(out[t])])) as Record<SemanticColor, string>,
     shapes: { ...def.shapes },
+    structure: { ...def.structure },
   };
 }
 

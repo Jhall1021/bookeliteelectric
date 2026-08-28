@@ -1,7 +1,10 @@
 import { requireHostedSite } from "@/lib/siteRouting";
 import { SiteProvider } from "@/components/site/SiteContext";
 import ThemeTokens from "@/components/theme/ThemeTokens";
-import { readBrandInputs } from "@/lib/theme/resolve";
+import { ThemeStructureProvider } from "@/components/theme/ThemeContext";
+import Header from "@/components/shared/Header";
+import Footer from "@/components/shared/Footer";
+import { readBrandInputs, resolveStorefrontTheme } from "@/lib/theme/resolve";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -39,13 +42,17 @@ export default async function SiteLayout({
     where: { id: site.contractorId },
     select: { brandColors: true, themeKey: true, themeVersion: true },
   });
+  const brand = readBrandInputs(c?.brandColors);
+  const choice = c ? { themeKey: c.themeKey, version: c.themeVersion } : undefined;
+  const theme = resolveStorefrontTheme(brand, choice);
   return (
     <SiteProvider publicId={site.publicId} hostedSlug={site.hostedSlug}>
-      <ThemeTokens
-        brand={readBrandInputs(c?.brandColors)}
-        choice={c ? { themeKey: c.themeKey, version: c.themeVersion } : undefined}
-      />
-      {children}
+      <ThemeTokens brand={brand} choice={choice} />
+      <ThemeStructureProvider structure={theme.structure}>
+        <Header />
+        {children}
+        <Footer />
+      </ThemeStructureProvider>
     </SiteProvider>
   );
 }

@@ -1,9 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import ServiceFinder from "@/components/home/ServiceFinder";
+import Hero from "@/components/home/Hero";
+import FeaturedServices, { type FeaturedItem } from "@/components/home/FeaturedServices";
+import Section from "@/components/theme/Section";
+import Card from "@/components/theme/Card";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
 import { formatCents } from "@/lib/flow-types";
-import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
 
 /**
@@ -89,112 +91,37 @@ export default async function HomePage({ params }: { params: { site: string } })
   );
   const bySlug = new Map(featured.map((s) => [s.slug, s]));
 
+  // Shaped here so the presentation component takes data and no Prisma types.
+  // A featured service that has been deactivated is dropped rather than left
+  // as a dead card.
+  const featuredItems: FeaturedItem[] = FEATURED.flatMap((svc) => {
+    const live = bySlug.get(svc.slug);
+    if (!live) return [];
+    const image = getServiceImage(svc.slug);
+    return [{
+      slug: svc.slug,
+      label: svc.label,
+      icon: svc.icon,
+      image: image ? { src: image.src, alt: image.alt } : null,
+      price: live.basePrice ? `From ${formatCents(live.basePrice)}` : live.startingPriceLabel ?? "Custom Quote",
+      // Keeps its fallback rather than throwing: this is a curated static list
+      // carrying its own category constant, so a missing row degrades to the
+      // hardcoded slug instead of taking the homepage down.
+      href: `/${params.site}/services/${live.contractorCategory?.canonicalCategory.slug ?? svc.category}/${svc.slug}`,
+    }];
+  });
+
   return (
     <main>
-      {/* Hero */}
-      <section className="bg-navy text-white">
-        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:items-center">
-          <div>
-            <h1 className="font-display text-4xl font-bold leading-tight md:text-5xl">
-              Skip the Estimate. Know Your Price.
-            </h1>
-            <p className="mt-4 text-lg text-slate-light">
-              Pick your time. Book online.
-            </p>
-
-            {/* The same-visit callout.
-                Warm card against the navy so it reads as a distinct object
-                rather than more hero copy — the one place on this page where
-                the palette inverts, which is what earns it attention without
-                a badge or a starburst.
-                Deliberately compact: it's a benefit callout, not a second
-                content section, and the headline and CTA have to stay the
-                dominant things above the fold. */}
-            {/* max-w matches the CTA row beneath it — roughly the width of
-                "Book Your Service" and "I Don't Know What's Wrong" side by
-                side with their gap. Capped rather than fixed, so on a narrow
-                column both this and the buttons fall back to full width
-                together and stay aligned. */}
-            <div className="mt-6 max-w-[30rem] overflow-hidden rounded-card bg-warmwhite text-navy shadow-card">
-              <div className="px-5 pt-3.5">
-                <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-electric">
-                  Add more in the same visit
-                </div>
-                <p className="mt-1 font-display text-base font-bold leading-snug">
-                  Additional services use our same-visit pricing.
-                </p>
-                <p className="mt-1 text-[13px] leading-snug text-slate">
-                  Book your first service at the regular price. When being on-site
-                  already saves us time on the rest, you get that saving too.
-                </p>
-              </div>
-
-              <div className="mt-2.5 divide-y divide-cardline border-t border-cardline">
-                {PRICING_LADDER.map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-center justify-between gap-4 px-5 py-1.5"
-                  >
-                    <span className="text-[13px] text-navy">{row.label}</span>
-                    <span
-                      className={`text-[13px] font-semibold ${
-                        row.muted ? "text-success" : "text-navy"
-                      }`}
-                    >
-                      {row.price}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Above the buttons: someone who knows what they want types it
-                and skips the menu entirely. Everyone else still has both
-                CTAs directly below, unchanged. */}
-            <div className="mt-6">
-              <ServiceFinder tone="dark" />
-            </div>
-
-            <div className="mt-6 flex max-w-[30rem] flex-wrap gap-3">
-              <Link
-                href={`/${params.site}/services`}
-                className="ray-accent rounded-pill bg-electric px-7 py-3.5 text-base font-semibold text-white transition hover:bg-electric-hover"
-              >
-                Book Your Service
-              </Link>
-              <Link
-                href={`/${params.site}/troubleshooting`}
-                className="rounded-pill border border-white/30 px-7 py-3.5 text-base font-semibold text-white transition hover:bg-white/10"
-              >
-                I Don&rsquo;t Know What&rsquo;s Wrong
-              </Link>
-            </div>
-
-            <ul className="mt-8 grid gap-2 text-sm text-slate-light sm:grid-cols-3">
-              {DIFFERENTIATORS.map((item) => (
-                <li key={item} className="flex items-start gap-2">
-                  <span className="mt-0.5 text-success">✓</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="relative aspect-[4/3] overflow-hidden rounded-card">
-            <Image
-              src="/images/hero-kitchen.jpg"
-              alt="An Elite Electric &amp; Lighting technician showing a homeowner a quote on a tablet in her kitchen"
-              fill
-              priority
-              className="object-cover"
-              sizes="(min-width: 768px) 50vw, 100vw"
-            />
-          </div>
-        </div>
-      </section>
+      <Hero
+        base={`/${params.site}`}
+        ladder={PRICING_LADDER}
+        differentiators={DIFFERENTIATORS}
+      />
 
       {/* How pricing works */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <Section>
+        <div className="mx-auto max-w-6xl px-6">
         <h2 className="font-display text-2xl font-bold text-navy">How Our Pricing Works</h2>
         <p className="mt-2 max-w-2xl text-slate">
           Getting an electrician to your door is most of what a small job costs. Your
@@ -203,7 +130,7 @@ export default async function HomePage({ params }: { params: { site: string } })
         </p>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-3">
-          <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+          <Card className="p-6">
             <div className="ray-accent flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
               1
             </div>
@@ -218,9 +145,9 @@ export default async function HomePage({ params }: { params: { site: string } })
               Its price includes getting a licensed electrician to your home. You see
               that number before you book.
             </p>
-          </div>
+          </Card>
 
-          <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+          <Card className="p-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
               2
             </div>
@@ -232,9 +159,9 @@ export default async function HomePage({ params }: { params: { site: string } })
               same-visit pricing — where already being at your home saves us time,
               that saving is in the price. You see each one before you add it.
             </p>
-          </div>
+          </Card>
 
-          <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+          <Card className="p-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
               3
             </div>
@@ -245,7 +172,7 @@ export default async function HomePage({ params }: { params: { site: string } })
               See the full price for everything before you book — not after we&rsquo;re
               standing in your kitchen.
             </p>
-          </div>
+          </Card>
         </div>
 
         {/* The credentials that used to sit in the hero. Every electrician
@@ -259,10 +186,11 @@ export default async function HomePage({ params }: { params: { site: string } })
             </li>
           ))}
         </ul>
-      </section>
+        </div>
+      </Section>
 
       {/* Payment options */}
-      <section className="border-t border-cardline bg-warmwhite py-16">
+      <Section divide>
         <div className="mx-auto max-w-6xl px-6">
           <h2 className="font-display text-2xl font-bold text-navy">Flexible Payment Options</h2>
           <p className="mt-2 max-w-2xl text-slate">
@@ -271,93 +199,35 @@ export default async function HomePage({ params }: { params: { site: string } })
           </p>
 
           <div className="mt-8 grid gap-6 sm:grid-cols-2">
-            <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+            <Card className="p-6">
               <h3 className="font-display text-base font-bold text-navy">All Major Credit Cards</h3>
               <p className="mt-2 text-sm text-slate">
                 Visa, Mastercard, American Express, and Discover — pay with the card already in
                 your wallet.
               </p>
-            </div>
+            </Card>
 
-            <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
+            <Card className="p-6">
               <h3 className="font-display text-base font-bold text-navy">Pay Over Time</h3>
               <p className="mt-2 text-sm text-slate">
                 Split larger jobs into monthly payments through Affirm, with rates shown upfront
                 before you commit — no surprises, same as our pricing.
               </p>
-            </div>
+            </Card>
           </div>
         </div>
-      </section>
+      </Section>
 
       {/* Popular services */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
-        <h2 className="font-display text-2xl font-bold text-navy">Most Popular Services</h2>
-        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-          {FEATURED.map((svc) => {
-            const live = bySlug.get(svc.slug);
-            // A featured service that's been deactivated shouldn't leave a
-            // dead card on the homepage.
-            if (!live) return null;
-            const image = getServiceImage(svc.slug);
-            // Keeps its fallback rather than throwing: this is a curated
-            // static list that carries its own category constant, so a
-            // missing row degrades to the hardcoded slug instead of taking
-            // the homepage down.
-            const href = `/${params.site}/services/${live.contractorCategory?.canonicalCategory.slug ?? svc.category}/${svc.slug}`;
-            return (
-              <Link
-                key={svc.slug}
-                href={href}
-                className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
-              >
-                {/* This grid deliberately locks every card to 4/3 rather than
-                    using each image's native aspectRatio from SERVICE_IMAGES.
-                    Six cards sitting side by side need a uniform height, and
-                    the source photos range from about 0.87 to 1.78 — letting
-                    them vary made the row ragged. object-cover center-crops to
-                    fit. The icon fallback matches the same 4/3 box so a service
-                    without a photo doesn't render a shorter card than its
-                    neighbors (it previously used aspect-square).
-
-                    ServiceIntro still honors each image's native aspectRatio —
-                    that screen has the room, and preserving the provided crop
-                    is the whole reason the field exists. Only this grid is
-                    constrained. */}
-                {image ? (
-                  <div className="relative aspect-[4/3] w-full">
-                    <Image
-                      src={image.src}
-                      alt={image.alt}
-                      fill
-                      className="object-cover"
-                      sizes="(min-width: 1024px) 180px, (min-width: 768px) 30vw, 45vw"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex aspect-[4/3] items-center justify-center bg-warmwhite">
-                    <ServiceIcon icon={svc.icon} className="h-10 w-10 text-electric" />
-                  </div>
-                )}
-                <div className="p-4">
-                  {/* The short marketing label, not the catalog name — "TV
-                      Mount Installation" reads better on a tile than
-                      "Professional TV Installation". */}
-                  <div className="text-sm font-semibold text-navy">{svc.label}</div>
-                  <div className="mt-1 text-sm text-slate">
-                    {live.basePrice
-                      ? `From ${formatCents(live.basePrice)}`
-                      : live.startingPriceLabel ?? "Custom Quote"}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+      <Section>
+        <div className="mx-auto max-w-6xl px-6">
+          <h2 className="font-display text-2xl font-bold text-ink">Most Popular Services</h2>
+          <FeaturedServices items={featuredItems} />
         </div>
-      </section>
+      </Section>
 
       {/* Service area */}
-      <section className="border-t border-cardline bg-white py-16 text-center">
+      <Section divide alt className="text-center">
         <h2 className="font-display text-2xl font-bold text-navy">
           Proudly Serving Monmouth &amp; Ocean Counties, NJ
         </h2>
@@ -370,7 +240,7 @@ export default async function HomePage({ params }: { params: { site: string } })
             sizes="(min-width: 768px) 384px, 90vw"
           />
         </div>
-      </section>
+      </Section>
     </main>
   );
 }

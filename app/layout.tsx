@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Header from "@/components/shared/Header";
-import Footer from "@/components/shared/Footer";
 import "../styles/globals.css";
 import ThemeTokens from "@/components/theme/ThemeTokens";
 
@@ -24,6 +22,19 @@ export const metadata: Metadata = {
   description: "See your price. Pick your time. Book your electrician.",
 };
 
+/**
+ * The storefront's header and footer used to live here. They moved to the
+ * [site] layout in Phase 3 for two reasons.
+ *
+ * They have to vary: a variant that cannot change the shape of the header is
+ * not a variant. And they were rendering on /admin, which has its own
+ * navigation, so every admin page carried two.
+ *
+ * It also fixes a quiet bug. Header called useSiteOptional() and was a SIBLING
+ * of the [site] layout that provides it, so the context was always null and
+ * the cart badge could never populate on a storefront page. The comment
+ * explaining the optionality described the symptom.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
@@ -33,11 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             where the contractor is already resolved. */}
         <ThemeTokens base />
       </head>
-      <body>
-        <Header />
-        {children}
-        <Footer />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
