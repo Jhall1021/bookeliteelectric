@@ -14,7 +14,7 @@
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { sourceFiles } from "./_sourceFiles";
 import { loadEnv } from "./_env";
 import { DEFINITIONS, definitionKey, selectableFamilies, findDefinition, FAMILY_BLURBS } from "../lib/theme/definition";
 import { resolveStorefrontTheme, themeCss } from "../lib/theme/resolve";
@@ -61,7 +61,7 @@ function pinning() {
   // Nothing may resolve "the latest version". A contractor pinned to v1 must
   // keep rendering v1 after v2 ships, and the surest guarantee is that no code
   // path can even ask for the newest one.
-  const src = execSync("git ls-files -co --exclude-standard 'lib/theme' 'app' 'components/portal'", { encoding: "utf8" })
+  const src = sourceFiles(["lib/theme", "app", "components/portal"]).join("\n")
     .split("\n").filter((f) => /\.tsx?$/.test(f)).map((f) => readFileSync(f, "utf8")).join("\n");
   const LATEST = /\b(latest|newest)Version\b|Math\.max\([^)]*version/i;
   ok(!LATEST.test(src), "no code path resolves a latest/newest version");

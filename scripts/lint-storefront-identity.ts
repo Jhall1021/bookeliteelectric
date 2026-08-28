@@ -19,7 +19,7 @@
  * Static. No database. Runs in the deploy gate.
  */
 import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { sourceFiles } from "./_sourceFiles";
 import { pathToFileURL } from "node:url";
 import { FLAT_RATE_ASSUMPTIONS } from "../lib/pricingCopy";
 
@@ -76,7 +76,7 @@ const SKIP_DIR = [/^components\/admin\//, /^app\/admin\//, /^scripts\//, /^prism
 type Finding = { file: string; line: number; text: string; why: string };
 
 function main() {
-  const files = execSync("git ls-files -co --exclude-standard 'app' 'components' 'lib'", { encoding: "utf8" })
+  const files = sourceFiles(["app", "components", "lib"]).join("\n")
     .split("\n").filter((f) => /\.(ts|tsx)$/.test(f))
     .filter((f) => !ALLOWED.has(f) && !SKIP_DIR.some((d) => d.test(f)));
 

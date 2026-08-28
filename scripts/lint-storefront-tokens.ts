@@ -10,7 +10,7 @@
  * semantic tokens in lib/theme/tokens.ts and nowhere else.
  */
 import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { sourceFiles } from "./_sourceFiles";
 
 const ROOTS = ["app", "components", "styles"];
 
@@ -38,10 +38,7 @@ const ALLOWED = new Set([
 const HEX = /#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/;
 const FUNC = /\b(rgba?|hsla?|oklch|color-mix)\(/;
 
-const files = execSync(
-  `git ls-files ${ROOTS.map((r) => `'${r}'`).join(" ")}`,
-  { encoding: "utf8" },
-).split("\n").filter((f) => /\.(ts|tsx|css)$/.test(f));
+const files = sourceFiles(ROOTS, /\.(ts|tsx|css)$/);
 
 const problems: string[] = [];
 for (const file of files) {

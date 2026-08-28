@@ -18,7 +18,7 @@
  * Static. Runs in the deploy gate.
  */
 import { readFileSync, existsSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { sourceFiles } from "./_sourceFiles";
 import { pathToFileURL } from "node:url";
 import { storefrontUrl, storefrontOrigin, appOrigin } from "../lib/origins";
 
@@ -65,7 +65,7 @@ function behaviour() {
 
 function noHardcodedHosts() {
   console.log("\n  NO HOST IS WRITTEN INTO THE CODE");
-  const files = execSync("git ls-files -co --exclude-standard 'lib' 'app' 'components'", { encoding: "utf8" })
+  const files = sourceFiles(["lib", "app", "components"]).join("\n")
     .split("\n").filter((f) => /\.tsx?$/.test(f) && existsSync(f));
 
   // Hosts belonging to this product. A third party's URL is not the problem.
@@ -111,7 +111,7 @@ function correctOriginPerAudience() {
     "…and no customer email is built from the contractor application's origin");
 
   // One shared variable is what conflated them in the first place.
-  const all = execSync("git ls-files -co --exclude-standard 'lib' 'app' 'components'", { encoding: "utf8" })
+  const all = sourceFiles(["lib", "app", "components"]).join("\n")
     .split("\n").filter((f) => /\.tsx?$/.test(f) && existsSync(f) && f !== "app/api/deployment-identity/route.ts");
   const legacy = all.filter((f) => /process\.env\.NEXT_PUBLIC_SITE_URL/.test(code(f)));
   ok(legacy.length === 0,

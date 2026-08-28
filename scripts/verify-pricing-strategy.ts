@@ -12,7 +12,7 @@
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { sourceFiles } from "./_sourceFiles";
 import { loadEnv } from "./_env";
 import { readiness, validateEstimateBounds, suggestBounds } from "../lib/pricingReadiness";
 import { estimateRange } from "../lib/timeAndMaterials";
@@ -171,8 +171,8 @@ function noCrossing() {
     "…and contains no contractual wording of its own");
 
   // Copy must change through the strategy, never through who the contractor is.
-  const src = execSync("git ls-files -co --exclude-standard 'components/guided-flow' 'lib/timeAndMaterials.ts' 'lib/pricingReadiness.ts'",
-    { encoding: "utf8" }).split("\n").filter((f) => /\.tsx?$/.test(f))
+  const src = sourceFiles(["components/guided-flow", "lib/timeAndMaterials.ts", "lib/pricingReadiness.ts"]).join("\n")
+    .split("\n").filter((f) => /\.tsx?$/.test(f))
     .map((f) => readFileSync(f, "utf8")).join("\n");
   ok(!/contractorS(lug|ubdomain)\s*===|contractorId\s*===\s*["'`]/.test(src),
     "no pricing component branches on which contractor it is");

@@ -13,7 +13,7 @@
  */
 import { pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { sourceFiles } from "./_sourceFiles";
 import { DEFINITIONS, definitionKey } from "../lib/theme/definition";
 import { STRUCTURE_AXES, STRUCTURE_DEFAULTS, MIN_VARIANT_DISTANCE, structureDistance, ELITE_V1_STRUCTURE } from "../lib/theme/structure";
 
@@ -66,7 +66,7 @@ function main() {
   // the contractor portal and the admin — are excluded, because identifying
   // which contractor is being acted for is precisely their job there.
   const OWN_SURFACE = [/\/admin\//, /^app\/dashboard\//, /^app\/api\/portal\//, /^components\/portal\//, /^app\/choose\//];
-  const files = execSync("git ls-files -co --exclude-standard 'components' 'app'", { encoding: "utf8" })
+  const files = sourceFiles(["components", "app"]).join("\n")
     .split("\n").filter((f) => /\.tsx?$/.test(f) && !OWN_SURFACE.some((d) => d.test(f)));
   // `typeof contractorId !== "string"` is a shape guard, not a branch on which
   // contractor — excluded explicitly so the rule keeps meaning what it says.

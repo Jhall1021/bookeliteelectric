@@ -12,7 +12,7 @@
  * Static. No database. Runs in the deploy gate.
  */
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { sourceFiles } from "./_sourceFiles";
 import { pathToFileURL } from "node:url";
 import { PORTAL_MODULES, PORTAL_GROUPS, OUT_OF_SCOPE } from "../lib/portalModules";
 import { RESERVED_HOSTED_SLUGS } from "../lib/siteRouting";
@@ -96,7 +96,7 @@ function vocabulary() {
   // `ls-files -co` also lists tracked files that have been DELETED, so the
   // existence check is not defensive padding — AdminNav was removed in this
   // same change and reading it threw.
-  const files = execSync("git ls-files -co --exclude-standard 'app' 'components'", { encoding: "utf8" })
+  const files = sourceFiles(["app", "components"]).join("\n")
     .split("\n").filter((f) => /\.tsx?$/.test(f) && existsSync(f)
       && !f.startsWith("app/admin/") && !f.startsWith("app/api/admin/"));
   const stale: string[] = [];
