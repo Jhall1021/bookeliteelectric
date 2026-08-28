@@ -43,6 +43,43 @@ An access token created under `admin@price2book.com` (Vercel → Settings → To
 `.env.local` as `VERCEL_TOKEN=…`. It is gitignored, never printed, and revocable from the
 dashboard when the cutover is done.
 
+## The estate is FOUR migrations, not one
+
+Price2Book accounts now exist for GitHub, Cloudflare, Resend and Vercel. They are separate
+migrations with different risk profiles, and bundling them is how a cutover becomes
+unrecoverable — "one irreversible change per release" applies across systems, not just inside one.
+
+| System | Today | Target | Reversible? | Required for the host cutover? |
+|---|---|---|---|---|
+| **Vercel** | `josh@econscvs.com` / `elite-9658` → `bookeliteelectric` | `admin@price2book.com` / `price2-book` | Yes — DNS points back | **Yes** |
+| **DNS** | wherever `price2book.com` resolves today | Price2Book Cloudflare | Yes — repoint | **Yes**, it IS the switch |
+| **Resend** | Elite-era keys and sender | Price2Book account, verified `price2book.com` | Mostly — but reputation warms slowly | **Prepare before, switch after** |
+| **GitHub** | `Jhall1021/bookeliteelectric` (personal) | a Price2Book org/account | Painful — clones, remotes, history, CI | **NO** |
+
+### The repo does NOT have to move
+
+Vercel deploys a repository owned by a different GitHub account perfectly well, provided the
+Vercel GitHub App is granted access to it. So the host cutover needs a **grant**, not a
+**transfer**.
+
+Keeping them separate matters: moving the repo changes every clone, every remote and every
+existing link, and it would be happening on the same day production changes host. If the repo
+should move, it should move on a day when nothing else is.
+
+The repo name `bookeliteelectric` is legacy and will look wrong for a while. That is cosmetic and
+costs nothing to leave.
+
+### Resend needs lead time, so it starts first
+
+Transactional mail (`RESEND_API_KEY`) and platform mail for magic links
+(`PLATFORM_RESEND_API_KEY`) both currently use Elite-era credentials. Moving to the Price2Book
+Resend account requires a **verified sending domain**, which means DKIM/SPF records in Cloudflare
+and propagation — hours, not minutes, and sender reputation on a new domain builds over days.
+
+So: verify the domain in Resend NOW, in parallel, and keep sending on the existing credentials
+until the new ones are proven. A sign-in link that does not arrive is indistinguishable from
+broken auth, and it is the first thing anyone tests after a cutover.
+
 ## Step 2 — environment inventory and classification
 
 All 17 variables on `bookeliteelectric`, classified. Values were never read; names, targets and
