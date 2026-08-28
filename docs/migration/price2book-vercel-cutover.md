@@ -1,6 +1,6 @@
 # Price2Book Vercel cutover — plan and inventory
 
-**Status:** PARALLEL DEPLOYMENT LIVE, 28 August 2026. BookElite still serves production; DNS
+**Status:** PARALLEL DEPLOYMENT LIVE AND SIGNED INTO, 28 August 2026. BookElite still serves production; DNS
 unchanged; no repository transfer. Two environment values outstanding.
 
 Same shape as ADR-013: identify → rehearse → prove → cut over → retain rollback. This moves the
@@ -238,3 +238,53 @@ is the URL registered with Jobber. It compares against the configured origins no
    apex, so nothing currently served moves.
 3. Run the full acceptance list.
 4. Only then: DNS for the apex, and canonical status.
+
+
+---
+
+## app.price2book.com is live — 28 August 2026
+
+    server: Vercel · HTTP 200 · valid TLS
+    identity          production, db stamp price2book-production, matches expected
+    auth base         https://app.price2book.com
+    jobber callback   https://app.price2book.com/api/admin/jobber/callback
+    storefront origin https://price2book.com     (a different host — ADR-019 holds)
+
+**Signed in end to end.** Magic link requested at `app.price2book.com/sign-in`, delivered from
+`admin@price2book.com`, returned to `app.price2book.com` — not to a `*.vercel.app` URL — and landed
+on `/dashboard` showing Price2Book's chrome beside Elite Electric & Lighting.
+
+That return address is the check worth naming: `BETTER_AUTH_URL` can only be proven on a real
+hostname, because on a preview URL the fallback is indistinguishable from the configured value.
+
+The apex is untouched. `price2book.com` still serves the marketing page, BookElite still serves
+production, no repository moved.
+
+### Three cached answers, three false facts
+
+Everything that went wrong in this migration had the same shape: something answered confidently
+about a question other than the one being asked.
+
+| What looked true | What was actually true |
+|---|---|
+| A Neon branch named `production` | It was empty; the real one was identified by endpoint |
+| `vercel project ls` → "one project" | The CLI's saved default scope; the target was a different **account** |
+| `app.price2book.com` → NXDOMAIN | A cached negative answer; three public resolvers said otherwise |
+
+And one that looked like a different problem than it was: **HTTP 525** reads as an SSL failure and
+was a Cloudflare proxy-mode setting. Grey cloud, fixed in a minute.
+
+The habit that resolved all four was the same — ask an independent source, and prefer an
+identifier over a name.
+
+### Who can sign in
+
+One user, one membership: `josh@econscvs.com`, OWNER of Elite Electric & Lighting.
+
+Better Auth will send a link to **any** address and create a `User` for it, but the portal gates on
+an authenticated **membership** (ADR-005). An address with no membership signs in successfully and
+is then bounced from `/dashboard` back to `/sign-in` with no explanation — which reads as broken
+auth and is the tenant boundary working.
+
+That silent bounce is a real rough edge. It belongs with the **invitations flow**, already
+deferred, and should not be fixed during a cutover.
