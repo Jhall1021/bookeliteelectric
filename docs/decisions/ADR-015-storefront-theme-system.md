@@ -1,6 +1,6 @@
 # ADR-015 — the storefront theme system
 
-**Status:** PROPOSED, 28 August 2026. Decision requested before implementation.
+**Status:** ACCEPTED, 28 August 2026. On the V1 path.
 **Relates to:** ADR-012 (Contractor #2 waits for V1), ADR-014 (the template).
 
 ---
@@ -164,3 +164,73 @@ independent. Template extraction is nearly mechanical now that the prerequisites
 the theme system is more design work than engineering. Doing the 74 first means Contractor
 #2 has a full catalogue in a themed storefront; doing themes first means the visible product
 is ready sooner and the catalogue lands after.
+
+
+---
+
+## Owner decision — 28 August 2026
+
+V1 architecture approved, with the storage rule stated explicitly:
+
+> Store contractor choices only; derive presentation from versioned Price2Book theme
+> definitions. Do not persist derived fields such as button style, card style, navigation
+> variant, hero treatment, spacing or typography independently on the contractor.
+> Theme family + variant + pinned version are the source of truth for those values.
+
+That rule is what makes the rest coherent. If a contractor row carried its own `buttonStyle`,
+the theme they chose and the theme they are rendering would be two different things, and no
+version pin could tell them apart.
+
+Placed on the V1 path for a commercial reason, not a technical one: contractors should feel
+they are giving customers *their company's* booking experience, not sending them to a generic
+Price2Book page with a logo pasted on top.
+
+### Phases
+
+1. **Tokenize the existing Elite storefront.** Hardcoded palette becomes CSS
+   custom-property-backed Tailwind tokens. Elite rendering unchanged. Wire the *existing*
+   contractor brand configuration into the resolver rather than adding a second competing
+   brand-colour source.
+2. **Theme resolver** — `contractor brand inputs + pinned theme definition → resolved theme`.
+   Derived palettes enforce accessible contrast. The contractor's original brand colour is
+   preserved as an input and safe UI shades are derived from it; their stored brand is never
+   silently rewritten. Automated contrast validation covers every semantic
+   foreground/background pair the theme can emit.
+3. **Six real V1 storefronts** — Modern & Clean A/B, Warm & Welcoming A/B, Premium A/B.
+   Variants must differ **structurally**, not merely in palette.
+4. **Theme selection UX** — visual previews, choose among approved designs. No low-level
+   knobs for fonts, radius, shadows, spacing, card style.
+5. **Versioning proof** — pin Elite to a version, create a simulated v2, prove changing the
+   Price2Book definition does not alter Elite until an explicit adoption event.
+
+### Out of scope for V1
+
+Arbitrary website-builder controls; automatic website scraping or style extraction;
+competitor theme prohibitions; custom CSS; per-component design overrides.
+
+### The Phase 1 acceptance test, and why it is the useful one
+
+> After Phase 1, Elite should look pixel-for-pixel effectively unchanged. That proves we've
+> separated "what Elite looks like" from "hardcoded Elite CSS" before we start introducing
+> other designs.
+
+Until that separation is proven, those two facts are indistinguishable, and Contractor #2
+cannot be made to look different without forking the storefront code. Procedure and recorded
+hashes: `docs/migration/storefront-parity.md`.
+
+**Result: PASSED.** Five pages, computed style of every rendered element, identical hashes
+before and after. One difference surfaced — the pre-tokenization font stack computed with an
+unreachable duplicate tail, because the config appended fallbacks the variable already
+carried. Same typeface either way; the probe collapses duplicate families and documents why.
+
+### Carried forward from Phase 1
+
+- 114 uses of Tailwind's built-in palette (`text-white`, `bg-gray-…`) remain in storefront
+  components. They bypass the theme exactly as a hex literal would — a dark variant needs
+  `text-accent-ink` where the page says `text-white`. Not a regression, so `lint-storefront-tokens`
+  reports the count rather than failing; Phase 3 is where they get migrated, driven by a
+  variant that actually breaks under them.
+- The admin is deliberately outside the theme system. It is Price2Book's own surface and
+  should look like Price2Book whoever is signed in.
+- `lib/email.ts` inlines colour because custom properties are not reliable in mail clients.
+  Making transactional email theme-aware is its own piece of work.
