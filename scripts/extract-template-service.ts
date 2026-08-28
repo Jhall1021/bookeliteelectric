@@ -35,6 +35,7 @@
  *   --apply            write; otherwise report only
  */
 import { PrismaClient } from "@prisma/client";
+import { readFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
 
@@ -53,23 +54,34 @@ const MONEY = /\$\s?[\d,]+(\.\d+)?|\b\d+\s?dollars?\b/i;
 const BRAND = /\bElite(\s+Electric)?\b/gi;
 
 /**
- * Wording supplied by hand where Elite's copy cannot be generalised.
+ * Canonical wording authored by hand, from the version-controlled manifest.
  *
- * Only for text a machine cannot rewrite correctly. A label built around a
- * number — "From the nearest outlet — from $280" — has no mechanical
- * generalisation: removing the price leaves a dangling em-dash, and keeping it
- * ships Elite's rate to every contractor. Someone writes the sentence again.
+ * Replaces the constant this started as. A growing constant inside a script is
+ * a place decisions accumulate without review; a manifest is a file someone can
+ * read, diff and argue with, and every entry carries the reason a human had to
+ * decide.
  *
- * Deliberately NOT fixing Elite's live copy. That is their customer
- * experience, and changing it as a side effect of template work would be
- * exactly the silent alteration ADR-014 forbids in the other direction. It is
- * worth raising separately: a price hardcoded in a label goes stale the moment
- * the labour rate moves, which the pricing model otherwise handles for them.
+ * The rule, in three parts:
+ *   safe universal copy      extracts automatically
+ *   priced / branded /       requires an authored entry
+ *   policy-bearing copy
+ *   anything ambiguous       requires an authored entry
+ *
+ * Missing entry = the extraction FAILS. Never a silent strip, never a
+ * mechanical generalisation.
  */
-const WORDING: Record<string, string> = {
-  "outlet_power_source/tap_existing": "From the nearest outlet",
-  "outlet_power_source/dedicated": "Its own circuit from the panel",
-};
+const MANIFEST_PATH = "prisma/template/electrical.wording.json";
+
+type WordingEntry = { label?: string; prompt?: string; helpText?: string; reason?: string };
+const WORDING: Record<string, WordingEntry> = (() => {
+  if (!existsSync(MANIFEST_PATH)) return {};
+  const m = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as { entries: Record<string, WordingEntry> };
+  return m.entries ?? {};
+})();
+
+/** Manifest keys are scoped by service so two services can share a question key. */
+let SERVICE_KEY = "";
+const authored = (suffix: string): WordingEntry | undefined => WORDING[`${SERVICE_KEY}/${suffix}`];
 
 type Finding = { where: string; kind: "economics" | "policy"; detail: string };
 const findings: Finding[] = [];
@@ -103,6 +115,46 @@ function assertNoMoney(text: string, where: string): string {
   return text;
 }
 
+/**
+ * Decide what a piece of customer-facing copy becomes in the template.
+ *
+ * Safe copy passes through. Copy carrying a price or a contractor's name
+ * REQUIRES an authored entry and fails loudly without one — the two things a
+ * template must never assert on a contractor's behalf are a number and a name.
+ */
+function resolveCopy(suffix: string, field: "label" | "prompt" | "helpText", text: string): string {
+  const where = `${SERVICE_KEY}/${suffix}.${field}`;
+  const entry = authored(suffix);
+  const supplied = entry?.[field];
+  const risky = MONEY.test(text) || (BRAND.test(text) && !(BRAND.lastIndex = 0));
+
+  if (supplied) {
+    findings.push({ where, kind: risky ? "economics" : "policy",
+      detail: `authored: "${text}" -> "${supplied}"   because: ${entry!.reason ?? "(no reason recorded)"}` });
+    return supplied;
+  }
+  if (MONEY.test(text)) {
+    throw new Error(
+      `${where} contains a price: "${text}"\n` +
+        `  Add an entry to ${MANIFEST_PATH}:\n` +
+        `      "${SERVICE_KEY}/${suffix}": { "${field}": "…", "reason": "…" }\n` +
+        `  It is not stripped automatically: the sentence is built around a number\n` +
+        `  that is now unknown, and a machine cannot rewrite it correctly.`
+    );
+  }
+  BRAND.lastIndex = 0;
+  if (BRAND.test(text)) {
+    BRAND.lastIndex = 0;
+    throw new Error(
+      `${where} names the contractor: "${text}"\n` +
+        `  Add an entry to ${MANIFEST_PATH}:\n` +
+        `      "${SERVICE_KEY}/${suffix}": { "${field}": "…", "reason": "…" }\n` +
+        `  Substituting a pronoun automatically produces copy nobody approved.`
+    );
+  }
+  return text;
+}
+
 async function main() {
   const slug = arg("service");
   const version = Number(arg("version") ?? "1");
@@ -125,6 +177,7 @@ async function main() {
     },
   });
 
+  SERVICE_KEY = svc.slug;
   console.log(`\nEXTRACT  ${svc.name}  (${svc.slug})  ->  ${TRADE} v${version}`);
   console.log(`  ${apply ? "APPLY" : "DRY RUN"}\n`);
 
@@ -159,8 +212,8 @@ async function main() {
 
   const questions = svc.questions.map((q, qi) => ({
     key: q.key,
-    prompt: assertNoMoney(deBrand(q.prompt, `Q[${q.key}].prompt`), `Q[${q.key}].prompt`),
-    helpText: q.helpText ? assertNoMoney(deBrand(q.helpText, `Q[${q.key}].helpText`), `Q[${q.key}].helpText`) : null,
+    prompt: resolveCopy(q.key, "prompt", q.prompt),
+    helpText: q.helpText ? resolveCopy(q.key, "helpText", q.helpText) : null,
     inputType: q.inputType,
     order: qi,
     options: q.options.map((o, oi) => {
@@ -170,14 +223,7 @@ async function main() {
       return {
         value: o.value,
         routeAction: o.routeAction,
-        label: (() => {
-          const supplied = WORDING[where];
-          if (supplied) {
-            findings.push({ where, kind: "economics", detail: `label carried a price; template wording supplied: "${o.label}" -> "${supplied}"` });
-            return supplied;
-          }
-          return assertNoMoney(deBrand(o.label, `${where}.label`), `${where}.label`);
-        })(),
+        label: resolveCopy(`${q.key}/${o.value}`, "label", o.label),
         order: oi,
         nextQuestionKey: o.nextQuestionId ? svc.questions.find((x) => x.id === o.nextQuestionId)?.key ?? null : null,
         rerouteServiceKey: o.rerouteServiceId

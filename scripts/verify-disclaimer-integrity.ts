@@ -45,24 +45,32 @@ async function main() {
   }
 
   // 1. Every attachment carries a contractor policy row.
-  const qOrphans = await prisma.questionDisclaimer.findMany({
-    where: { contractorDisclaimerId: null },
-    select: { disclaimer: { select: { key: true } }, question: { select: { key: true } } },
-  });
-  const oOrphans = await prisma.answerOptionDisclaimer.findMany({
-    where: { contractorDisclaimerId: null },
-    select: { disclaimer: { select: { key: true } }, answerOption: { select: { value: true } } },
-  });
-  const orphans = [
-    ...qOrphans.map((q) => `question "${q.question.key}" -> ${q.disclaimer.key}`),
-    ...oOrphans.map((o) => `answer "${o.answerOption.value}" -> ${o.disclaimer.key}`),
-  ];
+  //
+  // Now enforced by the DATABASE. The focused disclaimer-dependency release
+  // made contractorDisclaimerId required and dropped the deprecated FK, so an
+  // unpointed attachment cannot be stored. This asserts the CONSTRAINT rather
+  // than counting rows: a check that queries for something the schema forbids
+  // would pass forever without ever looking at anything, which is the shape of
+  // a check that has quietly stopped working.
+  const nullable = (await prisma.$queryRawUnsafe(
+    `SELECT table_name t, is_nullable n FROM information_schema.columns
+     WHERE table_name IN ('question_disclaimers','answer_option_disclaimers')
+       AND column_name = 'contractorDisclaimerId' ORDER BY 1`
+  )) as { t: string; n: string }[];
+  const enforced = nullable.length === 2 && nullable.every((x) => x.n === "NO");
   ok(
-    orphans.length === 0,
-    `all ${totalQ + totalO} attachments carry a contractor policy row`,
-    orphans.map((o) => `      ${o} has no ContractorDisclaimer.`).join("\n") +
-      `\n\n      Fix: npx tsx prisma/backfill-disclaimer-split-2026-08-27.ts --apply`
+    enforced,
+    `all ${totalQ + totalO} attachments carry a contractor policy row — enforced by NOT NULL`,
+    `      contractorDisclaimerId is nullable on: ` +
+      nullable.filter((x) => x.n !== "NO").map((x) => x.t).join(", ") +
+      `\n      An attachment with no contractor policy row could be stored again.`
   );
+  const legacyGone = ((await prisma.$queryRawUnsafe(
+    `SELECT count(*)::int AS n FROM information_schema.columns
+     WHERE table_name IN ('question_disclaimers','answer_option_disclaimers')
+       AND column_name = 'disclaimerId'`
+  )) as { n: number }[])[0].n === 0;
+  ok(legacyGone, "no attachment still depends on the deprecated ConditionalDisclaimer");
 
   // 2. THE ONE NO FOREIGN KEY CAN EXPRESS.
   //
@@ -71,7 +79,6 @@ async function main() {
   // columns naming different tenants is a homeowner reading someone else's
   // commitment.
   const qs = await prisma.questionDisclaimer.findMany({
-    where: { contractorDisclaimerId: { not: null } },
     select: {
       question: { select: { key: true, service: { select: { slug: true, contractorId: true } } } },
       contractorDisclaimer: {
@@ -80,7 +87,6 @@ async function main() {
     },
   });
   const os = await prisma.answerOptionDisclaimer.findMany({
-    where: { contractorDisclaimerId: { not: null } },
     select: {
       answerOption: {
         select: {

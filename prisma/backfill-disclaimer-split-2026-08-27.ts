@@ -48,7 +48,7 @@
  */
 
 import { pathToFileURL } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type AccessClassification } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -58,29 +58,32 @@ async function main() {
   console.log(`\nBACKFILL — disclaimer split (ADR-009)`);
   console.log(apply ? `  APPLYING\n` : `  Report only. Re-run with --apply.\n`);
 
-  const legacy = await prisma.conditionalDisclaimer.findMany({
-    orderBy: { key: "asc" },
-    include: {
-      questions: {
-        select: {
-          id: true,
-          contractorDisclaimerId: true,
-          question: { select: { service: { select: { slug: true, contractorId: true } } } },
-        },
-      },
-      options: {
-        select: {
-          id: true,
-          contractorDisclaimerId: true,
-          answerOption: {
-            select: {
-              question: { select: { service: { select: { slug: true, contractorId: true } } } },
-            },
-          },
-        },
-      },
-    },
-  });
+  // SUPERSEDED, 28 August 2026.
+  //
+  // This one-shot moved attachments from the shared ConditionalDisclaimer onto
+  // each contractor's own ContractorDisclaimer (ADR-009). It has run. The
+  // focused disclaimer-dependency release then REMOVED the deprecated FK from
+  // QuestionDisclaimer and AnswerOptionDisclaimer entirely, so
+  // ConditionalDisclaimer no longer has the back-relations this walked and the
+  // query cannot be expressed.
+  //
+  // Neutralised rather than deleted: the file is the record of how those
+  // attachments got their owner, and the report below still reads as the rule
+  // it always was. ConditionalDisclaimer's own retirement is a separate change
+  // with its own proof.
+  const legacy: {
+    id: string;
+    key: string;
+    name: string;
+    text: string;
+    accessClass: AccessClassification | null;
+    active: boolean;
+    notes: string | null;
+    questions: { id: string; contractorDisclaimerId: string | null;
+                 question: { service: { slug: string; contractorId: string | null } } }[];
+    options: { id: string; contractorDisclaimerId: string | null;
+               answerOption: { question: { service: { slug: string; contractorId: string | null } } } }[];
+  }[] = [];
 
   if (legacy.length === 0) {
     console.error(`  No ConditionalDisclaimer rows. Nothing to split.\n`);
@@ -234,70 +237,19 @@ async function main() {
   console.log(`  ${repointed} attachments repointed`);
 
   // ---- verify ------------------------------------------------------------
-  const qNull = await prisma.questionDisclaimer.count({ where: { contractorDisclaimerId: null } });
-  const oNull = await prisma.answerOptionDisclaimer.count({
-    where: { contractorDisclaimerId: null },
-  });
-  console.log(`\n  VERIFY: ${qNull + oNull} attachment(s) still unpointed`);
-  if (qNull + oNull > 0) {
-    console.error(`\n  INCOMPLETE.\n`);
-    process.exitCode = 1;
-    return;
-  }
+  //
+  // SUPERSEDED, 28 August 2026. This compared each attachment's OLD shared
+  // text against the contractor's new text and required them byte-identical,
+  // which was the right check while both columns existed side by side.
+  //
+  // The focused disclaimer-dependency release removed the deprecated FK, so
+  // there is no longer an old text to compare against and no attachment can be
+  // unpointed — contractorDisclaimerId is required, which is a stronger
+  // guarantee than this check ever was. The database now enforces what this
+  // verified.
+  console.log(`\n  VERIFY: superseded — contractorDisclaimerId is now REQUIRED,`);
+  console.log(`  so an unpointed attachment cannot exist to be found.`);
 
-  // What the homeowner is told must be byte-identical, per attachment.
-  const qs = await prisma.questionDisclaimer.findMany({
-    select: {
-      id: true,
-      disclaimer: { select: { key: true, text: true, active: true, accessClass: true } },
-      contractorDisclaimer: {
-        select: {
-          text: true,
-          active: true,
-          canonicalDisclaimer: { select: { key: true, accessClass: true } },
-        },
-      },
-    },
-  });
-  const os = await prisma.answerOptionDisclaimer.findMany({
-    select: {
-      id: true,
-      disclaimer: { select: { key: true, text: true, active: true, accessClass: true } },
-      contractorDisclaimer: {
-        select: {
-          text: true,
-          active: true,
-          canonicalDisclaimer: { select: { key: true, accessClass: true } },
-        },
-      },
-    },
-  });
-  const all = [...qs, ...os];
-  const drifted = all.filter((a) => {
-    const c = a.contractorDisclaimer;
-    if (!c) return true;
-    return (
-      c.text !== a.disclaimer.text ||
-      c.active !== a.disclaimer.active ||
-      c.canonicalDisclaimer.key !== a.disclaimer.key ||
-      c.canonicalDisclaimer.accessClass !== a.disclaimer.accessClass
-    );
-  });
-  console.log(
-    `  VERIFY: ${all.length - drifted.length} of ${all.length} attachments resolve to ` +
-      `identical text, active state, key and accessClass`
-  );
-  if (drifted.length > 0) {
-    console.error(
-      `\n  DRIFT on ${drifted.length} attachment(s):\n` +
-        drifted.map((d) => `      ${d.disclaimer.key}`).join("\n") +
-        `\n`
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  console.log(`\n  Done. ConditionalDisclaimer untouched; nothing reads the new rows yet.\n`);
 }
 
 const invokedDirectly =

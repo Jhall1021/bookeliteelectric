@@ -27,6 +27,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { eliteContractorId } from "./_componentHelpers";
 import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
@@ -122,12 +123,31 @@ const EXTERIOR_WALL_SERVICES = [
   { slug: "dedicated-120v-circuit-outlet", disclaimerKey: "EXTERIOR_WALL_CONTINGENCY_DEDICATED", afterKey: "dedicated_route_access", answerValue: null },
 ];
 
+/**
+ * Attach by the CONTRACTOR's disclaimer, not the deprecated shared one.
+ *
+ * The canonical row says which condition this is; the contractor's row says
+ * what they tell a homeowner about it, and per ADR-009 that text IS policy —
+ * whether they patch, whether they paint, in their words. Attaching the shared
+ * ConditionalDisclaimer meant every contractor made the same promise.
+ */
 async function attach(answerOptionId: string, disclaimerKey: string, order = 0) {
-  const d = await prisma.conditionalDisclaimer.findUniqueOrThrow({ where: { key: disclaimerKey } });
+  const contractorId = await eliteContractorId(prisma);
+  const canonical = await prisma.canonicalDisclaimer.findUniqueOrThrow({ where: { key: disclaimerKey } });
+  const cd = await prisma.contractorDisclaimer.findUnique({
+    where: { contractorId_canonicalDisclaimerId: { contractorId, canonicalDisclaimerId: canonical.id } },
+    select: { id: true },
+  });
+  if (!cd) {
+    throw new Error(
+      `No ContractorDisclaimer for "${disclaimerKey}". The contractor has to author the ` +
+        `wording before it can be attached — it is their policy statement, not ours.`
+    );
+  }
   await prisma.answerOptionDisclaimer.upsert({
-    where: { answerOptionId_disclaimerId: { answerOptionId, disclaimerId: d.id } },
+    where: { answerOptionId_contractorDisclaimerId: { answerOptionId, contractorDisclaimerId: cd.id } },
     update: { order },
-    create: { answerOptionId, disclaimerId: d.id, order },
+    create: { answerOptionId, contractorDisclaimerId: cd.id, order },
   });
 }
 

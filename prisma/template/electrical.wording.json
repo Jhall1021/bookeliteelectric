@@ -1,0 +1,35 @@
+{
+  "$comment": [
+    "Canonical wording for the electrical template — ADR-014 prerequisite B.",
+    "",
+    "Template extraction is classification, not copying. Most customer-facing",
+    "text is safe universal copy and extracts automatically. This file holds the",
+    "text that is NOT: copy carrying a price, naming a contractor, stating a",
+    "company policy, or ambiguous enough that a machine should not decide.",
+    "",
+    "The extractor FAILS when it meets such text and finds no entry here. It",
+    "never silently strips, generalises, or guesses — a label built around a",
+    "number has no mechanical rewrite, and inventing one would put words in a",
+    "contractor's mouth.",
+    "",
+    "Keys are `serviceKey`, `serviceKey/questionKey`, or",
+    "`serviceKey/questionKey/answerValue`.",
+    "",
+    "`reason` is required and is the record of WHY a human had to decide."
+  ],
+  "trade": "electrical",
+  "entries": {
+    "new-120v-outlet/outlet_power_source/tap_existing": {
+      "label": "From the nearest outlet",
+      "reason": "Elite's label was 'From the nearest outlet — from $280'. The sentence is built around a price, so removing it leaves a dangling em-dash and keeping it ships Elite's rate to every contractor. The app already knows each contractor's price and can show it separately."
+    },
+    "new-120v-outlet/outlet_power_source/dedicated": {
+      "label": "Its own circuit from the panel",
+      "reason": "As above; Elite's label carried 'from $685'."
+    },
+    "new-120v-outlet/outlet_finish_ack/review_first": {
+      "label": "I'd rather someone take a look first",
+      "reason": "Elite's label read 'I'd rather Elite take a look first'. Naming the contractor is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing."
+    }
+  }
+}

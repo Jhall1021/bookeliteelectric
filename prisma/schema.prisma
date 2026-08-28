@@ -1036,18 +1036,21 @@ model ContractorDisclaimer {
 ///
 /// Defined once, attached where it applies, evaluated against the
 /// classification the flow has already established.
+/// DEPRECATED and now UNATTACHED. Superseded by CanonicalDisclaimer (the
+/// condition) plus ContractorDisclaimer (what this contractor says about it,
+/// which per ADR-009 is policy). Its table and rows are deliberately LEFT IN
+/// PLACE: removing the service tree's dependency on it is one change, retiring
+/// the model is another with its own proof.
 model ConditionalDisclaimer {
-  id          String                   @id @default(cuid())
-  key         String                   @unique
+  id          String                @id @default(cuid())
+  key         String                @unique
   name        String
   /// Shown to the customer when the condition holds.
   text        String
   /// Only render when the access classification matches. Null means always.
   accessClass AccessClassification?
-  active      Boolean                  @default(true)
+  active      Boolean               @default(true)
   notes       String?
-  options     AnswerOptionDisclaimer[]
-  questions   QuestionDisclaimer[]
 
   @@map("conditional_disclaimers")
 }
@@ -1057,42 +1060,41 @@ model ConditionalDisclaimer {
 /// the path "through the basement or attic", which reads as nonsense once
 /// they've said there isn't one.
 model QuestionDisclaimer {
-  id           String                @id @default(cuid())
-  questionId   String
-  question     Question              @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   /// DEPRECATED — replaced by contractorDisclaimerId below.
-  disclaimerId String
-  disclaimer   ConditionalDisclaimer @relation(fields: [disclaimerId], references: [id])
 
   /// The contractor's policy statement for this condition. Nullable only for
   /// the duration of the migration; required in the contract phase.
-  contractorDisclaimerId String?
-  contractorDisclaimer   ContractorDisclaimer? @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
+  contractorDisclaimerId String
+  contractorDisclaimer   ContractorDisclaimer @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
 
   /// When true this REPLACES the question's help text rather than appending
   /// to it — for cases where the default is actively wrong on this route.
   replacesHelpText Boolean @default(false)
   order            Int     @default(0)
 
-  @@unique([questionId, disclaimerId])
+  /// The attachment key that will survive the deprecated column's removal.
+  /// Added alongside the old one; contract drops that and makes
+  /// contractorDisclaimerId required.
+  @@unique([questionId, contractorDisclaimerId])
   @@map("question_disclaimers")
 }
 
 model AnswerOptionDisclaimer {
-  id             String                @id @default(cuid())
+  id             String       @id @default(cuid())
   answerOptionId String
-  answerOption   AnswerOption          @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+  answerOption   AnswerOption @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
   /// DEPRECATED — replaced by contractorDisclaimerId below.
-  disclaimerId   String
-  disclaimer     ConditionalDisclaimer @relation(fields: [disclaimerId], references: [id])
 
   /// The contractor's policy statement. Nullable during migration only.
-  contractorDisclaimerId String?
-  contractorDisclaimer   ContractorDisclaimer? @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
+  contractorDisclaimerId String
+  contractorDisclaimer   ContractorDisclaimer @relation(fields: [contractorDisclaimerId], references: [id], onDelete: Restrict)
 
   order Int @default(0)
 
-  @@unique([answerOptionId, disclaimerId])
+  @@unique([answerOptionId, contractorDisclaimerId])
   @@map("answer_option_disclaimers")
 }
 

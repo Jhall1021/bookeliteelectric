@@ -166,24 +166,18 @@ async function main() {
           });
         }
         for (const d of o.disclaimers) {
-          // ContractorDisclaimer.text is required, and per ADR-009 that text IS
-          // policy — whether they patch, whether they paint, in their words.
-          // Provisioning cannot write it, so a disclaimer the contractor has
-          // not authored is not attached. The template records that this answer
-          // NEEDS a disclaimer; what it says is theirs.
-          //
-          // BLOCKED BY DEPRECATED SCAFFOLDING, and deliberately not worked
-          // around. AnswerOptionDisclaimer still carries a REQUIRED
-          // disclaimerId pointing at the deprecated ConditionalDisclaimer, so
-          // a cleanly-provisioned attachment cannot be written without
-          // inventing a legacy row to point at.
-          //
-          // Deprecated-model removal is its own release. Attaching a bogus
-          // legacy id to get past this would put wrong data in the contractor's
-          // tree to make a prototype look complete, which is the opposite of
-          // what the prototype is for. Counted and reported instead.
-          void d;
-          needsDisclaimer++;
+          // The template says this answer NEEDS a disclaimer for a canonical
+          // condition. What it SAYS is the contractor's policy (ADR-009), so
+          // provisioning attaches only what they have authored and counts the
+          // rest — it will not write words on their behalf.
+          const authored = await prisma.contractorDisclaimer.findUnique({
+            where: { contractorId_canonicalDisclaimerId: { contractorId: contractor.id, canonicalDisclaimerId: d.canonicalDisclaimerId } },
+            select: { id: true },
+          });
+          if (!authored) { needsDisclaimer++; continue; }
+          await prisma.answerOptionDisclaimer.create({
+            data: { answerOptionId: ao.id, contractorDisclaimerId: authored.id },
+          });
         }
         for (const g of o.photoGroups) {
           await prisma.answerOptionPhotoGroup.create({ data: { answerOptionId: ao.id, photoGroupId: g.photoGroupId } });
