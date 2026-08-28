@@ -77,8 +77,13 @@ export async function GET(req: Request) {
     // application resolves them rather than restated.
     destinations: {
       authBaseUrl: authBase,
-      publicSiteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? null,
-      jobberCallback: jobberRedirectUri(),
+      appOrigin: process.env.APP_ORIGIN ?? null,
+      storefrontOrigin: process.env.STOREFRONT_ORIGIN ?? null,
+      platformOrigin: process.env.PLATFORM_WEB_ORIGIN ?? null,
+      // Retired by ADR-019. Reported so its LINGERING PRESENCE is visible:
+      // one variable feeding three audiences is what that ADR split apart.
+      legacySiteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? null,
+      jobberCallback: (() => { try { return jobberRedirectUri(); } catch (e) { return `ERROR: ${(e as Error).message}`; } })(),
     },
     configured: {
       // Presence only. Never a value.

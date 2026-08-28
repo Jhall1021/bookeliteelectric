@@ -48,7 +48,9 @@ async function main() {
   console.log(`  database stamp   ${d.database.identity?.key ?? "(none)"}`);
   console.log(`  stamped project  ${d.database.identity?.neonProject ?? "-"} / ${d.database.identity?.neonEndpoint ?? "-"}`);
   console.log(`  auth base        ${d.destinations.authBaseUrl ?? "(derived from request)"}`);
-  console.log(`  public site URL  ${d.destinations.publicSiteUrl ?? "-"}`);
+  console.log(`  app origin       ${d.destinations.appOrigin ?? "-"}`);
+  console.log(`  storefront origin${d.destinations.storefrontOrigin ?? "-"}`);
+  console.log(`  platform origin  ${d.destinations.platformOrigin ?? "-"}`);
   console.log(`  jobber callback  ${d.destinations.jobberCallback}`);
   console.log(`  write freeze     ${d.deployment.writeFreeze ?? "off"}\n`);
 
@@ -72,19 +74,27 @@ async function main() {
       `expects "${d.database.expectedIdentity}", found "${d.database.identity?.key}"`);
   }
 
-  // Destinations must point at THIS deployment's host, not the one it was
-  // copied from. A callback still aimed at the old host is the failure that
-  // does not show up until somebody reconnects Jobber weeks later.
-  const host = new URL(url).host;
-  for (const [label, value] of [
-    ["the auth base URL", d.destinations.authBaseUrl],
-    ["the public site URL", d.destinations.publicSiteUrl],
-    ["the Jobber callback", d.destinations.jobberCallback],
-  ] as const) {
-    if (!value) { ok(false, `${label} is set`, "unset — it will fall back to a hardcoded host"); continue; }
-    ok(String(value).includes(host),
-      `${label} points at this host`, `points at ${value}, this is ${host}`);
-  }
+  // Destinations are checked against the CANONICAL origins, not against the
+  // URL being probed. Once ADR-019 named three of them, "the callback must
+  // match the host I typed" stopped being true: a preview deployment
+  // legitimately points its callback at the canonical app origin, because that
+  // is the URL registered with Jobber.
+  const app = d.destinations.appOrigin;
+  const store = d.destinations.storefrontOrigin;
+  ok(!!app, "an app origin is configured", "unset — auth and the Jobber callback would guess");
+  ok(!!store, "a storefront origin is configured", "unset — customer links would guess");
+  ok(!!app && !!store && app !== store,
+    `the app and storefront origins are DIFFERENT hosts (${app} vs ${store})`,
+    "the same host for both is what ADR-019 exists to prevent");
+  ok(d.destinations.authBaseUrl === app,
+    "the auth base URL equals the app origin",
+    `auth=${d.destinations.authBaseUrl} app=${app}`);
+  ok(typeof d.destinations.jobberCallback === "string"
+       && !!app && d.destinations.jobberCallback.startsWith(app),
+    "the Jobber callback is on the app origin", String(d.destinations.jobberCallback));
+  ok(!d.destinations.legacySiteUrl,
+    "the retired single-host variable is gone",
+    `NEXT_PUBLIC_SITE_URL is still set to ${d.destinations.legacySiteUrl}`);
 
   ok(d.configured.betterAuthSecret, "a session signing secret is configured");
   ok(d.configured.platformResend, "platform mail is configured (magic links)");
