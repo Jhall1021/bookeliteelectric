@@ -26,12 +26,11 @@ const PRIMARY_MINIMUM_CENTS = 25000;
 async function main() {
   // Required as of pass three's contract: PricingSettings now carries an owner.
   const contractorId = await eliteContractorId(prisma);
-  const existing = await prisma.pricingSettings.findUnique({ where: { id: "default" } });
+  const existing = await prisma.pricingSettings.findUnique({ where: { contractorId } });
 
   if (!existing) {
     await prisma.pricingSettings.create({
       data: {
-        id: "default",
         contractorId,
         targetRateCents: 25000,
         primaryMinimumCents: PRIMARY_MINIMUM_CENTS,
@@ -47,7 +46,7 @@ async function main() {
     console.log(`  · service-call minimum already $${PRIMARY_MINIMUM_CENTS / 100} — nothing to do`);
   } else {
     await prisma.pricingSettings.update({
-      where: { id: "default" },
+      where: { contractorId },
       data: { primaryMinimumCents: PRIMARY_MINIMUM_CENTS },
     });
     console.log(

@@ -304,7 +304,11 @@ model ServiceQuery {
 ///
 /// Singleton, like PricingSettings — id is always "default".
 model BusinessHours {
-  id           String     @id @default("default")
+  // Was @default("default"). Access is already contractor-keyed, but the
+  // shared literal primary key meant a second contractor's row could not
+  // be created at all. Found by sweeping the schema for the defect after
+  // JobberConnection and PricingSettings, not by anything failing.
+  id           String     @id @default(cuid())
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
@@ -832,7 +836,11 @@ model MaterialCostEvent {
 /// Keyed like PricingSettings so it doesn't need reshaping when there is more
 /// than one contractor — but deliberately NOT built as a tenant table now.
 model ContractorMaterialSettings {
-  id           String     @id @default("default")
+  // Was @default("default"). Access is already contractor-keyed, but the
+  // shared literal primary key meant a second contractor's row could not
+  // be created at all. Found by sweeping the schema for the defect after
+  // JobberConnection and PricingSettings, not by anything failing.
+  id           String     @id @default(cuid())
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
@@ -1959,7 +1967,11 @@ model TroubleshootingSession {
 // — the exact formula from the client's validated pricing engine, not a
 // simplified approximation.
 model PricingSettings {
-  id           String     @id @default("default")
+  // Was @default("default"), the same defect JobberConnection had: every row
+  // would take the identical primary key, so a second contractor saving their
+  // rate collided outright. Ownership is contractorId, whose @unique below is
+  // what actually enforces one settings row per contractor; id is opaque.
+  id           String     @id @default(cuid())
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once

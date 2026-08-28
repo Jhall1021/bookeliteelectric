@@ -168,8 +168,19 @@ const $ = (c: number | null) => (c === null ? "not set" : `$${(c / 100).toFixed(
 async function main() {
   const apply = process.argv.includes("--apply");
 
+  // Historical publish script. Reads the SOLE contractor's settings rather
+  // than a literal id — it verifies approved figures against the rate that
+  // produced them, and that rate belongs to a contractor.
+  const only = await prisma.contractor.findMany({ select: { id: true }, take: 2 });
+  if (only.length !== 1) {
+    console.error(
+      `This script predates multi-tenancy and assumes one contractor; found ${only.length}. ` +
+        `Re-scope it before running.`
+    );
+    process.exit(1);
+  }
   const maybeSettings = (await prisma.pricingSettings.findUnique({
-    where: { id: "default" },
+    where: { contractorId: only[0].id },
   })) as PricingSettings | null;
   if (!maybeSettings) {
     console.error("No pricing settings — cannot verify the approved figures. Stopping.");

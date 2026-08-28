@@ -82,19 +82,24 @@ function classify(r: Row) {
 
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toLocaleString()}`);
 
-async function main() {
-  const csv = process.argv.includes("--csv");
-
-  const settings = (await prisma.pricingSettings.findUnique({
-    where: { id: "default" },
-  })) as PricingSettings | null;
-  if (!settings) {
-    console.error("No pricing settings — run seed-pricing-settings.ts first.");
-    process.exit(1);
-  }
-
+/**
+ * Reconcile ONE contractor's published prices against ONE contractor's model.
+ *
+ * Used to read a single PricingSettings row keyed `id: "default"` and every
+ * active service in the database, then price all of them against that one
+ * row. With a second contractor that means grading their work against
+ * somebody else's labour rate and minimum — and this report is what decides
+ * whether a published price is wrong.
+ *
+ * Returns the number of unexplained differences so the caller can total them.
+ */
+async function reconcileContractor(
+  contractor: { id: string; name: string },
+  settings: PricingSettings,
+  csv: boolean
+): Promise<number> {
   const services = await prisma.service.findMany({
-    where: { active: true },
+    where: { active: true, contractorId: contractor.id },
     orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
     include: {
       category: { select: { name: true } },
@@ -223,7 +228,10 @@ async function main() {
         ].join(",")
       );
     }
-    return;
+    // --csv is a data dump for a spreadsheet, not a gate: it prints every row
+    // and never computes the unexplained set. Returning 0 keeps that unchanged
+    // rather than quietly making --csv the way to get a clean exit code.
+    return 0;
   }
 
   const groups = {
@@ -235,7 +243,7 @@ async function main() {
 
   const priced = rows.length - groups.blocked.length;
 
-  console.log(`\nPRICE RECONCILIATION\n`);
+  console.log(`\nPRICE RECONCILIATION — ${contractor.name}\n`);
   // Printed apart because they're independent settings that happened to
   // share a value, which made the report look like it was quoting one
   // number twice.
@@ -345,7 +353,52 @@ async function main() {
   console.log(`  ${Object.keys(APPROVED_EXCEPTIONS).length} approved exception(s) on file.\n`);
   console.log(`  Nothing was changed. Review the table above and decide each one:`);
   console.log(`  publish the model figure, or record why the published price stands.\n`);
+
+  return unexplained.length;
+}
+
+/**
+ * Every contractor, each against its own settings.
+ *
+ * A contractor with no PricingSettings is a STOP, not a skip: their published
+ * prices cannot be checked at all, and silently reporting on the others would
+ * read as a clean run.
+ */
+async function main() {
+  const csv = process.argv.includes("--csv");
+
+  const contractors = await prisma.contractor.findMany({
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  if (contractors.length === 0) {
+    console.error("No contractors — nothing to reconcile.");
+    process.exit(1);
+  }
+
+  let unexplained = 0;
+  const missing: string[] = [];
+
+  for (const c of contractors) {
+    const settings = (await prisma.pricingSettings.findUnique({
+      where: { contractorId: c.id },
+    })) as PricingSettings | null;
+    if (!settings) {
+      missing.push(c.name);
+      continue;
+    }
+    unexplained += await reconcileContractor(c, settings, csv);
+  }
+
+  if (missing.length) {
+    console.error(`\n  ${missing.length} contractor(s) have NO pricing settings, so their`);
+    console.error(`  published prices could not be checked at all:\n`);
+    for (const n of missing) console.error(`      ${n}`);
+    console.error(`\n  Reporting on the others without saying so would read as a clean run.\n`);
+  }
+
   console.log(`  --csv for a spreadsheet.\n`);
+  process.exitCode = missing.length === 0 ? 0 : 1;
 }
 
 main()

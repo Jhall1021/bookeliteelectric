@@ -144,13 +144,14 @@ async function main() {
   // CURRENT live prices already reflect (from the last repricing round),
   // not the workbook's own default of $300. Getting this wrong would mean
   // the very first "Recalculate" click jumps prices back up unexpectedly.
+  // Keyed on the contractor, not on a literal id: seeding must never reach
+  // another contractor's settings row.
+  const seedContractorId = await eliteContractorId(prisma);
   await prisma.pricingSettings.upsert({
-    where: { id: "default" },
+    where: { contractorId: seedContractorId },
     update: {}, // don't overwrite if already configured
     create: {
-      // Required as of pass three's contract.
-      contractorId: await eliteContractorId(prisma),
-      id: "default",
+      contractorId: seedContractorId,
       targetRateCents: 25000, // $250.00/hr
       primaryMinimumCents: 22500, // $225.00
       roundingIncrementCents: 500, // $5.00
