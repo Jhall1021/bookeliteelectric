@@ -91,7 +91,28 @@ async function main() {
     console.log(`  STAMPED  key=${key}  project=${project}  endpoint=${endpoint}\n`);
   }
 
-  const row = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" } });
+  // A database with no schema at all throws rather than returning null, and
+  // "table public.database_identity does not exist" is a worse answer than
+  // "this database is empty". This ran fourth in the gate once and a wrong
+  // connection string surfaced as `public.services does not exist` from an
+  // unrelated check — true, but it named the wrong problem. Identity now runs
+  // first, and answers plainly.
+  let row: Awaited<ReturnType<typeof prisma.databaseIdentity.findUnique>> = null;
+  let noSchema = false;
+  try {
+    row = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" } });
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2021") noSchema = true;
+    else throw e;
+  }
+
+  if (noSchema) {
+    console.log(`  FAIL  this database has NO SCHEMA — it is empty`);
+    console.log(`          ${urlVar} points at ${endpoint}, which has no tables at all.`);
+    console.log(`          That is a wrong connection string, not a missing stamp.\n`);
+    process.exitCode = 1;
+    return;
+  }
   let failed = 0;
   const ok = (c: boolean, label: string, detail = "") => {
     if (c) console.log(`  ok    ${label}`);
