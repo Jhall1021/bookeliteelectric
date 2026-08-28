@@ -379,3 +379,56 @@ and the deprecated models are all untouched, per the release scope.
 
 `.env` now points `DATABASE_URL` at Price2Book so local tooling matches production, with the
 old value kept as `BOOKELITE_ROLLBACK_DATABASE_URL` — named for what it now is.
+
+
+---
+
+## After the cutover — the agreed schedule
+
+**Status: ADR-013 COMPLETE.** Price2Book is the unquestioned source of truth.
+
+### Next 7 days — watch, do not compare
+
+Watch for: database errors, Jobber connection failures, visit/cart problems, quote or
+booking issues, admin errors, tenant verification failures, unusual Vercel failures. The
+normal gates keep running.
+
+**Do not keep comparing rows against BookElite.** The two databases are *supposed* to
+diverge now. `cutover-baseline.ts` exists for an emergency investigation, not as a
+synchronisation mechanism — treating it as the latter would turn an expected divergence
+into a false alarm every day.
+
+### After 7 clean days — a dedicated housekeeping release
+
+Its own release. Not mixed with product work.
+
+1. **`adr-013-preview`** — delete once confirmed empty and unused. It is an empty commit
+   whose only job was to produce a Preview deployment.
+2. **The misleading empty Neon branch named `production`** — deal with it properly.
+   **Verify mechanically which branch and endpoint actually serve production first**, do not
+   trust the names. Ideally the real live branch ends up holding the obvious
+   production/default identity and the impostor disappears.
+
+### BookElite — at least 30 days
+
+Frozen and untouched. After the seven-day window it is an **archive and forensic snapshot**,
+not an immediate rollback target, because real production changes accumulate only on
+Price2Book from the first legitimate post-cutover write.
+
+At roughly 30 clean days, decide separately whether to keep the project archived, take a
+durable export and delete the hosted copy, or simply keep it because the cost is trivial.
+There is no reason to rush it.
+
+### What is being retired, and what is not
+
+**BookElite as a standalone product and its infrastructure** — yes, eventually.
+
+**Elite Electric, and the electrical work built for them** — no. That is the opposite of
+the plan. The destination is:
+
+> Price2Book → a reusable electrical template → Elite Electric as **Contractor #1** →
+> future contractors running the same underlying electrical intelligence with their own
+> pricing and policies.
+
+Retiring the old infrastructure must never be confused with retiring the tenant or the trade
+knowledge. They are the asset.

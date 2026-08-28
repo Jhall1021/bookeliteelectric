@@ -1330,3 +1330,34 @@ BookElite project — see [ADR-012](#adr-012--contractor-2-is-a-release-candidat
 which already defers that onboarding until the V1 release candidate. The two decisions
 compose: the destination infrastructure must exist and be proven before the first external
 contractor touches it.
+
+
+---
+
+## Standing principle — a database's name is not its identity
+
+> **Never identify a production database by project name, branch name, or environment
+> label alone. Verify its expected endpoint and identity marker before any migration or
+> destructive operation.**
+
+An empty Neon branch named `production`, inside the project named Price2Book, fooled this
+process **three separate times**. Every superficial signal said *this must be production*:
+the right account, the right project, a branch literally called `production`. It had never
+held a single row.
+
+It cost two unusable rehearsal branches and one failed production deploy, and each time the
+mistake was invisible until something downstream failed for a reason that named the wrong
+problem — the last one surfaced as `public.services does not exist`, which was true and
+useless.
+
+Names are asserted. Endpoints and stamped identity are verified. The two are not
+interchangeable, and only one of them can be wrong quietly.
+
+Mechanised as `scripts/verify-database-identity.ts`, which runs **first** in the deploy gate
+— before any check that assumes tables exist — and which reports an empty database as empty
+rather than as a missing table. The marker records the endpoint it was stamped for, so a
+copy inherits the row but not the match, and fails until a human deliberately re-stamps it.
+
+Postgres cannot answer this question on Neon by itself: production and a branch of it report
+the same `system_identifier`, the same `current_database()` and the same
+`inet_server_addr()`. Measured, not assumed.
