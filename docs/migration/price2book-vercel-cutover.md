@@ -1,40 +1,47 @@
 # Price2Book Vercel cutover — plan and inventory
 
-**Status:** BLOCKED at step 1, 28 August 2026. Inventory and audit complete; the target host does
-not exist yet and creating it is an owner action.
+**Status:** BLOCKED at step 1, 28 August 2026. Inventory and audit of the SOURCE account complete.
+The target is a separate Vercel account and this machine holds no credential for it.
 
 Same shape as ADR-013: identify → rehearse → prove → cut over → retain rollback. This moves the
 **application host**. The database does not move — Price2Book Neon is already production.
 
 ---
 
-## Step 1 — identify the target. THE TARGET DOES NOT EXIST
+## Step 1 — identify the target. IT IS A SEPARATE VERCEL ACCOUNT
 
-Proven, not inferred:
+The target is **not** another team under the BookElite account. It is a different Vercel account
+entirely:
 
-```
-$ npx vercel teams ls       ->  one team:    elite-9658 ("Elite")
-$ npx vercel project ls     ->  one project: bookeliteelectric
-$ npx vercel domains ls     ->  0 domains
-```
+| | Account | Holds |
+|---|---|---|
+| Source | `josh@econscvs.com` (`jhall1021`), team `elite-9658` | `bookeliteelectric` — today's production |
+| Target | `admin@price2book.com` | the Price2Book project |
 
-**There is no Price2Book Vercel project under this account, and `price2book.com` is not
-registered in Vercel at all.**
+This was not obvious, and the tooling actively hid it. `vercel project ls` reported "one project"
+because the CLI has a saved default scope; the REST API reported the same because the credential
+on this machine belongs to `josh@econscvs.com`. Both were answering truthfully about the wrong
+account. **A confident answer from the wrong scope is the same failure as a confident answer from
+a mis-named branch** — see ADR-013.
 
-This matters because a Price2Book project was referred to earlier in this work — someone looked
-at its environment variables. Either it was deleted, it lives under a Vercel login other than
-`jhall1021`, or what was being looked at was something else. **Do not create a new one until that
-is settled**: if the original exists elsewhere it may already hold domains, environment
-configuration or deployment history, and a second project of the same name is precisely the
-"empty branch called production" failure ADR-013 was written about.
+### What this changes
 
-Owner action required before anything else:
+- **No project transfer.** Two accounts means the new project is created and configured
+  independently; nothing moves between them.
+- **Rollback is cleaner.** BookElite stays whole under its own account, untouched by anything done
+  in the other. It is not a sibling project that could be edited by accident.
+- **DNS is the switch.** With no shared Vercel scope, the cutover moment is where
+  `price2book.com` resolves — not a Vercel setting.
+- **Both credentials are needed at once.** During the parallel run, BookElite must stay reachable
+  under `josh@econscvs.com` while Price2Book is built under `admin@price2book.com`. So access to
+  the target account should be a **scoped access token**, not a CLI re-login: logging in as one
+  account logs out of the other, and the parallel run needs both.
 
-1. Confirm whether a Price2Book Vercel project exists under any other login or team.
-2. If it does — share which, so it can be identified by **project id**, not by name.
-3. If it does not — authorise creating one.
+### Access still required
 
----
+An access token created under `admin@price2book.com` (Vercel → Settings → Tokens), placed in
+`.env.local` as `VERCEL_TOKEN=…`. It is gitignored, never printed, and revocable from the
+dashboard when the cutover is done.
 
 ## Step 2 — environment inventory and classification
 
