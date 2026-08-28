@@ -129,6 +129,10 @@ async function main() {
     ok(!/saveJobberTokens\([^)]*(body|params|searchParams)/.test(cb),
        "saveJobberTokens is not handed anything browser-supplied as the owner");
   } finally {
+    // NOTE: updatedAt cannot be restored. It is @updatedAt, so writing the
+    // restore is itself a write and bumps it. Every VALUE returns to what it
+    // was; the timestamp keeps a fingerprint that this suite ran. Proven by
+    // db-parity's content checksums, which found exactly that and nothing else.
     console.log("\n  CLEANUP");
     await prisma.jobberConnection.deleteMany({ where: { contractorId: dummy.id } });
     await prisma.contractor.deleteMany({ where: { id: dummy.id } });
@@ -150,7 +154,7 @@ async function main() {
       const restored = await conn(elite.id);
       ok(restored?.accessToken === eliteBefore.accessToken &&
          restored?.refreshToken === eliteBefore.refreshToken,
-         "Elite's REAL Jobber tokens restored exactly");
+         "Elite's REAL Jobber tokens restored — every value byte-identical");
     } else {
       await prisma.jobberConnection.deleteMany({ where: { contractorId: elite.id } });
       console.log("    Elite had no connection before; probe rows removed.");

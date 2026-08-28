@@ -132,6 +132,10 @@ async function main() {
        `the probe's section quotes the PROBE's rate (${dummyRateShown})`,
        "a shared settings row would have printed one rate twice");
   } finally {
+    // NOTE: updatedAt cannot be restored. It is @updatedAt, so writing the
+    // restore is itself a write and bumps it. Every VALUE returns to what it
+    // was; the timestamp keeps a fingerprint that this suite ran. Proven by
+    // db-parity's content checksums, which found exactly that and nothing else.
     console.log("\n  CLEANUP");
     await prisma.pricingSettings.deleteMany({ where: { contractorId: dummy.id } });
     await prisma.contractor.deleteMany({ where: { slug: DUMMY_SLUG } });
@@ -147,7 +151,7 @@ async function main() {
     const restored = await settingsFor(elite.id);
     ok(restored?.targetRateCents === eliteBefore.targetRateCents &&
        restored?.primaryMinimumCents === eliteBefore.primaryMinimumCents,
-       "Elite's REAL rate and minimum restored exactly",
+       "Elite's REAL rate and minimum restored — every value byte-identical",
        `rate ${restored?.targetRateCents} vs ${eliteBefore.targetRateCents}`);
   }
 
