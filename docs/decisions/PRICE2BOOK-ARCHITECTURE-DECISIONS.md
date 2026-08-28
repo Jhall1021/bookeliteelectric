@@ -987,8 +987,13 @@ number is not itself evidence of anything.
 
 ## Decisions referenced but NOT recoverable from the repo
 
+**SUPERSEDED 28 August 2026 by [ADR-017](ADR-017-contractor-portal.md).** The missing
+`PRICE2BOOK-PRODUCT-BOUNDARY-AND-EMBED-ARCHITECTURE.md` is no longer an authoritative source.
+The product boundary is established by the surviving Consolidated Handoff, POSITIONING.md, and
+subsequent ADRs and owner decisions. If the document resurfaces it is historical evidence, not
+a source of truth. The items below are kept as a record of what was lost, not as pending work.
+
 The handoff cites the ADR for two things this reconstruction cannot restore.
-**These need the owner to restate them.**
 
 - **`[UNVERIFIED]` §4 — `intakeSource`.** Cited as the reason `Visit`,
   `LineItem`, `Booking` etc. must carry `intakeSource` in the pass-three

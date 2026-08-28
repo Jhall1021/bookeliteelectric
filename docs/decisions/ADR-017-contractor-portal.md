@@ -22,13 +22,29 @@ and its sharpest constraint:
 Named modules: Services & Pricing, Guided Pricing, While We're There™, Hours & Availability,
 Service Area, Crew Eligibility, Integrations, Photo Review.
 
-**A caveat worth recording.** The 27 August handoff cites
+### The missing Product Boundary document is NOT an authoritative source
+
+**Owner decision, 28 August 2026.** The 27 August handoff cites
 `PRICE2BOOK-PRODUCT-BOUNDARY-AND-EMBED-ARCHITECTURE.md` for the product boundary and the
-hosted-page-versus-embed decision. **That document is not in the repo**, and
-`PRICE2BOOK-ARCHITECTURE-DECISIONS.md` marks its contents `[UNVERIFIED]` and unrecoverable. So
-the portal is built from §17 and POSITIONING.md, which are present and specific. Nothing here
-invents a boundary the owner did not state — but if that missing ADR resurfaces and disagrees,
-it should be read against this.
+hosted-page-versus-embed decision. That document is not in the repository, and
+`PRICE2BOOK-ARCHITECTURE-DECISIONS.md` records its contents as `[UNVERIFIED]` and unrecoverable.
+
+**This ADR supersedes it.** The product boundary is established by:
+
+1. §17 and §1 of the surviving Final Consolidated Handoff,
+2. [POSITIONING.md](../marketing/POSITIONING.md), and
+3. subsequent ADRs and owner decisions — including this one.
+
+Nothing here reconstructs the missing document's text. A plausible reconstruction presented as
+recovered would be worse than the gap: it would carry the authority of an original while being an
+invention, and nobody reading it later could tell.
+
+**If the document resurfaces it is historical evidence, not an automatic source of truth.** It
+would be read against the decisions above, which were made with knowledge of its absence. Where it
+disagrees, it loses unless the owner says otherwise — a document cannot regain authority by being
+found.
+
+Citations to it elsewhere in the repo should be read as pointing here.
 
 ## Vocabulary — `/sign-in` and `/dashboard`
 

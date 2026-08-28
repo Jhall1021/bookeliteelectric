@@ -25,9 +25,17 @@ export const dynamic = "force-dynamic";
  */
 export default async function PortalOverviewPage() {
   const data = await withAdminContractor(async (db, ctx) => {
-    const [services, published, awaitingReview, themeRow] = await Promise.all([
-      db.service.count({ where: { active: true } }),
+    // The catalogue splits four ways, and the difference matters: a
+    // REMOTE_QUOTE service has no published price BY DESIGN, so counting it
+    // alongside services that are merely unfinished invents work that does not
+    // exist. "52 of 69" said seventeen were outstanding when thirteen were
+    // correctly configured quote-only services.
+    const QUOTE_ONLY = { bookingType: "REMOTE_QUOTE" as const };
+    const [priced, quoteOnly, needsPrice, hidden, awaitingReview, themeRow] = await Promise.all([
       db.service.count({ where: { active: true, publishedPriceApprovedAt: { not: null } } }),
+      db.service.count({ where: { active: true, ...QUOTE_ONLY } }),
+      db.service.count({ where: { active: true, publishedPriceApprovedAt: null, NOT: QUOTE_ONLY } }),
+      db.service.count({ where: { active: false } }),
       // Both pre-price states count as "waiting on you": a homeowner cannot
       // tell the difference between submitted and in review, and neither can act.
       db.quote.count({ where: { status: { in: ["SUBMITTED", "IN_REVIEW"] } } }),
@@ -37,12 +45,13 @@ export default async function PortalOverviewPage() {
                   pricingStrategy: true, sites: { where: { active: true }, select: { hostedSlug: true }, take: 1 } },
       }),
     ]);
-    return { services, published, awaitingReview, themeRow };
+    return { priced, quoteOnly, needsPrice, hidden, awaitingReview, themeRow };
   });
 
   const design = findDefinition(
     data.themeRow.themeFamily, data.themeRow.themeVariant, data.themeRow.themeVersion);
   const site = data.themeRow.sites[0]?.hostedSlug ?? null;
+  const total = data.priced + data.quoteOnly + data.needsPrice + data.hidden;
 
   return (
     <div>
@@ -59,9 +68,17 @@ export default async function PortalOverviewPage() {
 
       {/* Facts, not vanity metrics. Each one is something the contractor can act on. */}
       <dl className="mt-8 grid gap-4 sm:grid-cols-3">
-        <Stat label="Services bookable online" value={`${data.published} of ${data.services}`}
+        {/* Says what it counts. A contractor seeing "69 services" here and
+            "75 services" on the catalogue page would rightly wonder which
+            screen was broken; the answer is the six they have hidden. */}
+        <Stat label="Priced and bookable online" value={String(data.priced)}
               href="/dashboard/services"
-              note={data.published < data.services ? `${data.services - data.published} not yet priced and approved` : "All approved"} />
+              note={
+                data.needsPrice > 0
+                  ? `${data.needsPrice} more need a price before they can be booked`
+                  : `Plus ${data.quoteOnly} quote-only, ${data.hidden} hidden`
+              }
+              tone={data.needsPrice > 0 ? "attention" : "calm"} />
         <Stat label="Waiting on your review" value={String(data.awaitingReview)}
               href="/dashboard/quotes"
               note={data.awaitingReview ? "Homeowners are waiting on a price" : "Nothing waiting"}
@@ -70,6 +87,14 @@ export default async function PortalOverviewPage() {
               href="/dashboard/design"
               note={site ? `price2book.com/${site}` : "No storefront address yet"} />
       </dl>
+
+      {/* The whole catalogue accounted for, so no number on this page is a
+          mystery next to a number on another. */}
+      <p className="mt-3 text-xs text-slate">
+        Your catalogue: <strong className="font-semibold text-navy">{total}</strong> services —{" "}
+        {data.priced} priced and bookable, {data.quoteOnly} quote-only (a homeowner asks and you
+        price it), {data.needsPrice} still needing a price, {data.hidden} hidden from customers.
+      </p>
 
       {PORTAL_GROUPS.map((g) => {
         const mods = PORTAL_MODULES.filter((m) => m.group === g.key);
