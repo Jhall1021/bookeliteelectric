@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: { dateISO: string 
     });
     const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
 
-    const windows = await getWindowAvailabilityForDay(params.dateISO, eligibleIds);
+    const windows = await getWindowAvailabilityForDay(site.contractorId, params.dateISO, eligibleIds);
     return NextResponse.json({ windows });
   });
 }

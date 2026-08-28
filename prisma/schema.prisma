@@ -304,15 +304,15 @@ model ServiceQuery {
 ///
 /// Singleton, like PricingSettings — id is always "default".
 model BusinessHours {
-  id           String      @id @default("default")
+  id           String     @id @default("default")
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
   /// the loaders read it. A configuration row with no owner must fail rather
   /// than fall back to whichever row happens to come first — a cross-tenant
   /// pricing fallback is worse than an error.
-  contractorId String      @unique
-  contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorId String     @unique
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   /// Days bookings may be offered. 0 = Sunday through 6 = Saturday.
   /// Also defines a "business day" for lead-time rules.
@@ -832,15 +832,15 @@ model MaterialCostEvent {
 /// Keyed like PricingSettings so it doesn't need reshaping when there is more
 /// than one contractor — but deliberately NOT built as a tenant table now.
 model ContractorMaterialSettings {
-  id           String      @id @default("default")
+  id           String     @id @default("default")
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
   /// the loaders read it. A configuration row with no owner must fail rather
   /// than fall back to whichever row happens to come first — a cross-tenant
   /// pricing fallback is worse than an error.
-  contractorId String      @unique
-  contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorId String     @unique
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   /// What a newly created material defaults to. Individual materials may
   /// always differ.
@@ -1350,7 +1350,7 @@ model Service {
   /// Nullable for the expand phase only. Becomes required once backfilled
   /// and once the recompute reads it — a service with no owner cannot have
   /// its material costs resolved, and must fail closed rather than guess.
-  contractorId          String 
+  contractorId          String
   contractor            Contractor          @relation(fields: [contractorId], references: [id], onDelete: Restrict)
 
   materialCostCents Int?
@@ -1660,17 +1660,17 @@ model PricingRule {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id           String      @id @default(cuid())
+  id           String     @id @default(cuid())
   // Ownership root: no parents at all, and created before the Booking or
   // Quote that would own it. Also PII — one homeowner using two contractors
   // is two rows, never one shared row.
   // Nullable during expand; contract makes it required.
-  contractorId String 
-  contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
   name         String?
   email        String?
   phone        String?
-  createdAt    DateTime    @default(now())
+  createdAt    DateTime   @default(now())
   quotes       Quote[]
   bookings     Booking[]
 
@@ -1692,7 +1692,7 @@ model Visit {
   // comes from one browser cookie with no contractor dimension, so
   // (sessionId, status) alone reopens another contractor's visit.
   // Nullable during expand; contract makes it required.
-  contractorId String 
+  contractorId String
   contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
   sessionId    String?
   status       VisitStatus @default(OPEN)
@@ -1862,7 +1862,7 @@ model Photo {
   // writes inside transactions, which query extensions never intercept.
   // The owner must therefore be stamped structurally at write time.
   // Nullable during expand; contract makes it required.
-  contractorId String 
+  contractorId String
   contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
   quoteId      String?
   quote        Quote?      @relation(fields: [quoteId], references: [id])
@@ -1893,8 +1893,8 @@ model ServiceArea {
   /// The ZipCode table stays global — US ZIP codes are platform reference
   /// data, not a contractor's. Ownership belongs on the area, never on the
   /// reference catalog.
-  contractorId String 
-  contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   name          String // "Monmouth County, NJ"
   zipCodes      String[]
@@ -1959,15 +1959,15 @@ model TroubleshootingSession {
 // — the exact formula from the client's validated pricing engine, not a
 // simplified approximation.
 model PricingSettings {
-  id           String      @id @default("default")
+  id           String     @id @default("default")
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
   /// the loaders read it. A configuration row with no owner must fail rather
   /// than fall back to whichever row happens to come first — a cross-tenant
   /// pricing fallback is worse than an error.
-  contractorId String      @unique
-  contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorId String     @unique
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   targetRateCents         Int // revenue per productive tech-hour
   primaryMinimumCents     Int // floor for any primary price when labor units > 0
@@ -1984,15 +1984,20 @@ model PricingSettings {
 // makes a call; the refresh token itself only changes if Jobber rotates
 // it or the connection is re-authorized.
 model JobberConnection {
-  id           String      @id @default("default")
+  // Was @default("default"), which made every connection literally the same
+  // row: a second contractor completing OAuth matched the first contractor's
+  // row and overwrote their tokens. Ownership is carried by contractorId,
+  // whose @unique below is what actually enforces one connection per
+  // contractor; the id is now just an opaque key.
+  id           String     @id @default(cuid())
   /// Which contractor this configuration belongs to.
   ///
   /// Nullable for the expand phase only; required once backfilled and once
   /// the loaders read it. A configuration row with no owner must fail rather
   /// than fall back to whichever row happens to come first — a cross-tenant
   /// pricing fallback is worse than an error.
-  contractorId String      @unique
-  contractor   Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorId String     @unique
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   accessToken  String
   refreshToken String
@@ -2009,19 +2014,19 @@ model JobberConnection {
 // since not every Jobber user (e.g. your carpenters) should be counted
 // as available capacity for electrical bookings from the site.
 model JobberCrewMember {
-  id                         String      @id @default(cuid())
+  id                         String     @id @default(cuid())
   // Ownership root. Synced from a contractor's Jobber account, but
   // JobberConnection is deleted on disconnect, so it is not a stable parent
   // to derive from. Nullable during expand; contract makes it required.
-  contractorId               String 
-  contractor                 Contractor  @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorId               String
+  contractor                 Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
   // Still globally unique during expand because the crew sync upserts on it.
   // Contract drops this in favour of the compound unique below — otherwise
   // contractor B's sync would overwrite contractor A's row.
   jobberUserId               String
   name                       String
-  eligibleForWebsiteBookings Boolean     @default(false)
-  lastSyncedAt               DateTime    @default(now())
+  eligibleForWebsiteBookings Boolean    @default(false)
+  lastSyncedAt               DateTime   @default(now())
 
   // The identity crew sync SHOULD key on. Not usable as a whereUnique
   // selector until contract makes contractorId non-null — Prisma will not

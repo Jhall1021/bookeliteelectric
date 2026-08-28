@@ -5,7 +5,7 @@ import { fetchJobberUsers } from "@/lib/jobber";
 export async function POST() {
   return withAdminRoute(async (db, ctx) => {
     try {
-      const users = await fetchJobberUsers();
+      const users = await fetchJobberUsers(ctx.contractorId);
 
       for (const user of users) {
         // SCOPED FIND, THEN WRITE — deliberately not an upsert.

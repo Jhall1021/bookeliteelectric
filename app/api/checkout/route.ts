@@ -173,6 +173,7 @@ export async function POST(req: Request) {
     );
   }
   const assignedCrewId = await pickCrewForWindow(
+    site.contractorId,
     dateISO,
     windowStartDate,
     windowEndDate,
@@ -313,11 +314,11 @@ export async function POST(req: Request) {
     try {
       let result;
       try {
-        result = await pushBookingToJobber(db, booking.id, assignedCrewId);
+        result = await pushBookingToJobber(site.contractorId, db, booking.id, assignedCrewId);
       } catch (firstErr) {
         console.warn(`First Jobber push attempt failed for booking ${booking.id}, retrying once:`, firstErr);
         await new Promise((r) => setTimeout(r, 750));
-        result = await pushBookingToJobber(db, booking.id, assignedCrewId);
+        result = await pushBookingToJobber(site.contractorId, db, booking.id, assignedCrewId);
       }
       // Recovery semantics unchanged and deliberately preserved: the booking
       // is already committed locally, and jobberJobId IS NULL continues to

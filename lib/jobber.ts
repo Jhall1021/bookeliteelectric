@@ -60,21 +60,25 @@ export async function saveJobberTokens(
   // (OAuth, outside any request tenant context), so nothing stamps the owner,
   // and contract made the column required.
   //
-  // NOTE: the `id: "default"` key below is a pre-existing single-tenant
-  // assumption — a second contractor connecting Jobber would overwrite the
-  // first one's row. Left exactly as it was. This release does not change
-  // behaviour, and re-keying it is its own change needing its own proof.
   contractorId: string
 ) {
+  // KEYED ON THE CONTRACTOR, via the @unique on contractorId that already
+  // enforces one connection per contractor at the database level.
+  //
+  // This used to upsert on `id: "default"`. Because `id` also defaulted to
+  // the literal "default", every connection was the same row: a second
+  // contractor completing OAuth would MATCH the first contractor's row and
+  // update it, writing their tokens over the first contractor's while
+  // contractorId still said the first contractor. Their subsequent Jobber
+  // calls would then act on the other business's account.
   await prisma.jobberConnection.upsert({
-    where: { id: "default" },
+    where: { contractorId },
     update: {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
     },
     create: {
-      id: "default",
       contractorId,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
@@ -93,8 +97,8 @@ export async function saveJobberTokens(
 // compare-and-swap on the write (only update if the refresh token is
 // still what we read), plus a fallback that checks whether someone else
 // already won the race before treating a refresh failure as real.
-export async function getValidJobberAccessToken(): Promise<string | null> {
-  const conn = await prisma.jobberConnection.findUnique({ where: { id: "default" } });
+export async function getValidJobberAccessToken(contractorId: string): Promise<string | null> {
+  const conn = await prisma.jobberConnection.findUnique({ where: { contractorId } });
   if (!conn) return null;
 
   if (conn.expiresAt.getTime() > Date.now() + 2 * 60 * 1000) {
@@ -105,7 +109,7 @@ export async function getValidJobberAccessToken(): Promise<string | null> {
     const fresh = await refreshTokens(conn.refreshToken);
 
     const updateResult = await prisma.jobberConnection.updateMany({
-      where: { id: "default", refreshToken: conn.refreshToken }, // only if unchanged since we read it
+      where: { contractorId, refreshToken: conn.refreshToken }, // only if unchanged since we read it
       data: {
         accessToken: fresh.access_token,
         refreshToken: fresh.refresh_token,
@@ -118,7 +122,7 @@ export async function getValidJobberAccessToken(): Promise<string | null> {
       // write. Our own refresh call above may have succeeded at Jobber's
       // end too — wasteful, but not harmful — just use whatever the
       // winner actually persisted instead of our now-orphaned copy.
-      const latest = await prisma.jobberConnection.findUnique({ where: { id: "default" } });
+      const latest = await prisma.jobberConnection.findUnique({ where: { contractorId } });
       return latest?.accessToken ?? fresh.access_token;
     }
 
@@ -129,7 +133,7 @@ export async function getValidJobberAccessToken(): Promise<string | null> {
     // whether the connection was actually updated successfully by
     // someone else in the meantime before treating this as a real,
     // connection-breaking failure.
-    const latest = await prisma.jobberConnection.findUnique({ where: { id: "default" } });
+    const latest = await prisma.jobberConnection.findUnique({ where: { contractorId } });
     if (latest && latest.expiresAt.getTime() > Date.now()) {
       return latest.accessToken;
     }
@@ -141,8 +145,16 @@ export async function getValidJobberAccessToken(): Promise<string | null> {
 // surfaces BOTH transport errors (bad request, network) and GraphQL-level
 // errors (including Jobber's own `userErrors` validation array) so the
 // caller always knows exactly what happened rather than a silent failure.
-export async function jobberGraphQL<T = any>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  const accessToken = await getValidJobberAccessToken();
+export async function jobberGraphQL<T = any>(
+  // FIRST and required, deliberately. Every Jobber request acts on exactly
+  // one contractor's account with that contractor's tokens; making this the
+  // leading argument means a call site cannot omit it and silently inherit
+  // whichever connection happened to be found first.
+  contractorId: string,
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<T> {
+  const accessToken = await getValidJobberAccessToken(contractorId);
   if (!accessToken) {
     throw new Error("Jobber isn't connected — visit /admin/jobber to connect it first.");
   }
@@ -215,6 +227,10 @@ function splitName(fullName: string): { firstName: string; lastName: string } {
 // worth knowing: a repeat customer will currently get a duplicate client
 // record in Jobber rather than being matched to their existing one.
 export async function pushBookingToJobber(
+  // Whose Jobber account this job goes into. Paired with the guarded client
+  // below: the booking is read as this contractor AND written to this
+  // contractor's Jobber, so the two can never disagree.
+  contractorId: string,
   // The GUARDED client, passed in rather than reached for. This function runs
   // from two places — checkout and the admin "Send to Jobber" action — and
   // both already hold one. Taking it as the first parameter means the booking
@@ -239,7 +255,7 @@ export async function pushBookingToJobber(
 
   const clientResult = await jobberGraphQL<{
     clientCreate: { client: { id: string } | null; userErrors: { message: string; path: string[] }[] };
-  }>(CLIENT_CREATE_MUTATION, {
+  }>(contractorId, CLIENT_CREATE_MUTATION, {
     input: {
       firstName,
       lastName,
@@ -261,7 +277,7 @@ export async function pushBookingToJobber(
   // real simplification, not an oversight.
   const propertyResult = await jobberGraphQL<{
     propertyCreate: { properties: { id: string }[] | null; userErrors: { message: string; path: string[] }[] };
-  }>(PROPERTY_CREATE_MUTATION, {
+  }>(contractorId, PROPERTY_CREATE_MUTATION, {
     clientId: jobberClientId,
     input: {
       properties: [
@@ -334,6 +350,7 @@ export async function pushBookingToJobber(
       booking.estimatedDurationMinutes
     );
     assignedCrewId = await pickCrewForWindow(
+      contractorId,
       dateStr,
       windowStartDate,
       windowEndDate,
@@ -353,7 +370,7 @@ export async function pushBookingToJobber(
 
   const jobResult = await jobberGraphQL<{
     jobCreate: { job: { id: string; jobNumber: number } | null; userErrors: { message: string; path: string[] }[] };
-  }>(JOB_CREATE_MUTATION, {
+  }>(contractorId, JOB_CREATE_MUTATION, {
     input: {
       propertyId: jobberPropertyId,
       title,
@@ -417,8 +434,8 @@ const USERS_QUERY = `
 // Pulls the real list of users/crews from Jobber. Used to populate the
 // crew-eligibility admin screen — Jobber doesn't distinguish "electrician
 // crew" from "carpenter" for us, a human has to mark that here.
-export async function fetchJobberUsers(): Promise<{ id: string; name: string }[]> {
-  const result = await jobberGraphQL<{ users: { nodes: { id: string; name: { full: string } }[] } }>(USERS_QUERY);
+export async function fetchJobberUsers(contractorId: string): Promise<{ id: string; name: string }[]> {
+  const result = await jobberGraphQL<{ users: { nodes: { id: string; name: { full: string } }[] } }>(contractorId, USERS_QUERY);
   return result.users.nodes.map((u) => ({ id: u.id, name: u.name.full }));
 }
 
@@ -445,7 +462,7 @@ type JobberVisit = { id: string; startAt: string | null; endAt: string | null; a
 // overlap can be computed precisely in application code below, rather
 // than trusting a single-field filter to catch every edge case (e.g. a
 // visit that started before the candidate window but runs into it).
-async function fetchJobberVisitsForDay(dateISO: string): Promise<JobberVisit[]> {
+async function fetchJobberVisitsForDay(contractorId: string, dateISO: string): Promise<JobberVisit[]> {
   // Midnight-to-midnight in Eastern time, not UTC — a visit at 11pm
   // Eastern is already the next UTC calendar day, and a naive UTC-day
   // boundary would misattribute or miss it entirely.
@@ -453,6 +470,7 @@ async function fetchJobberVisitsForDay(dateISO: string): Promise<JobberVisit[]> 
   const dayEnd = zonedWallTimeToUtc(dateISO, 23, 59).toISOString();
 
   const result = await jobberGraphQL<{ visits: { nodes: { id: string; startAt: string | null; endAt: string | null; allDay: boolean; assignedUsers: { nodes: { id: string }[] } }[] } }>(
+    contractorId,
     VISITS_FOR_DAY_QUERY,
     { after: dayStart, before: dayEnd }
   );
@@ -477,6 +495,7 @@ function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): bool
 // tied up 7am-11am correctly blocks a 10am-1pm candidate window even
 // though neither startAt matches the other's range filter directly.
 export async function countAvailableCrewsForWindow(
+  contractorId: string,
   dateISO: string,
   windowStart: Date,
   windowEnd: Date,
@@ -484,7 +503,7 @@ export async function countAvailableCrewsForWindow(
 ): Promise<number> {
   if (eligibleJobberUserIds.length === 0) return 0;
 
-  const dayVisits = await fetchJobberVisitsForDay(dateISO);
+  const dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
 
   const busyUserIds = new Set<string>();
   for (const visit of dayVisits) {
@@ -598,6 +617,7 @@ export const WORKDAY_END_DISPLAY = "4:30 PM";
 // the ability to book a job entirely. Errors are logged server-side so
 // the problem is still visible to whoever's watching logs.
 export async function getWindowAvailabilityForDay(
+  contractorId: string,
   dateISO: string,
   eligibleJobberUserIds: string[],
   estimatedDurationMinutes?: number | null,
@@ -638,7 +658,7 @@ export async function getWindowAvailabilityForDay(
 
   let dayVisits: JobberVisit[];
   try {
-    dayVisits = await fetchJobberVisitsForDay(dateISO);
+    dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
   } catch (err) {
     console.error(`Jobber availability check failed for ${dateISO}, failing open:`, err);
     return windows.map((w) => ({ ...w, available: fitsInTheDay(w) }));
@@ -682,6 +702,7 @@ export async function getWindowAvailabilityForDay(
 // availability check already confirmed this window as bookable, but
 // checked explicitly rather than assumed).
 export async function pickCrewForWindow(
+  contractorId: string,
   dateISO: string,
   windowStart: Date,
   windowEnd: Date,
@@ -689,7 +710,7 @@ export async function pickCrewForWindow(
 ): Promise<string | null> {
   if (eligibleJobberUserIds.length === 0) return null;
 
-  const dayVisits = await fetchJobberVisitsForDay(dateISO);
+  const dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
 
   const busyUserIds = new Set<string>();
   const scheduledMinutesByUser = new Map<string, number>();

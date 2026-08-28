@@ -73,6 +73,25 @@ npx tsx scripts/verify-contract-applied.ts --rehearsal
 echo; echo "--- 8. prisma must now report in sync, with no flag ---"
 DATABASE_URL="$REHEARSAL_DATABASE_URL" npx prisma db push --skip-generate
 
+echo; echo "--- 8.5. THE APPLICATION MUST BUILD AGAINST THE CONTRACTED SCHEMA ---"
+#
+# Added after the pass-three contract caused a production incident this step
+# would have prevented.
+#
+# The rehearsal proved PostgreSQL would accept the new schema. It never asked
+# whether the application we were about to deploy could still COMPILE against
+# it. It could not: a required column must appear in every Prisma `create`,
+# and the tenant guard's runtime stamping is invisible to the compiler. The
+# recovery deploy failed on 26 type errors, and production ran on a client
+# generated from the OLD schema — still selecting a column the contract had
+# just dropped — for 25 minutes.
+#
+# Deliberately AFTER the destructive changes, not before. Building against the
+# pre-contract schema is what we already do on every commit and proves nothing
+# about the contracted one.
+DATABASE_URL="$REHEARSAL_DATABASE_URL" npx prisma generate >/dev/null
+DATABASE_URL="$REHEARSAL_DATABASE_URL" npm run build
+
 echo; echo "--- 9. verifiers and harness against the BRANCH ---"
 DATABASE_URL="$REHEARSAL_DATABASE_URL" npx tsx scripts/verify-tenant-indexes.ts
 DATABASE_URL="$REHEARSAL_DATABASE_URL" npx tsx scripts/verify-booking-tenancy.ts

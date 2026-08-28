@@ -85,6 +85,7 @@ export default async function SchedulePage({ params }: { params: { site: string 
   );
   const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
   const firstDayWindows = await getWindowAvailabilityForDay(
+    site.contractorId,
     days[0].dateISO,
     eligibleIds,
     estimatedDurationMinutes,

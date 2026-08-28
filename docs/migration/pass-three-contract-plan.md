@@ -215,3 +215,51 @@ day, it can be deferred to a follow-up at no cost to the rest.
 
 After this lands, pass three is complete in the strong sense: the legacy single-tenant
 schema assumptions are gone, not merely unused.
+
+
+---
+
+## Addendum — the rehearsal must build the application, 27 August
+
+The pass-three contract caused a **25-minute production incident** that this plan's
+rehearsal was supposed to prevent and did not.
+
+**What happened.** The contract applied cleanly and every database check passed. But the
+running production build's Prisma client had been generated from the *expanded* schema, so
+it still selected `visits.customerId` — a column the contract had just dropped. `GET
+/api/visit` returned 500 and the customer cart was down. The recovery deploy then failed
+on **26 type errors**: contract made ten columns required, and a required column must
+appear in every Prisma `create`, while the tenant guard's runtime stamping is invisible to
+the compiler.
+
+**Why the rehearsal missed it.** It proved *"can PostgreSQL accept this schema?"* and never
+asked *"can the application we are about to deploy compile and build against it?"* Those
+are different questions, and only the first was being answered.
+
+**The permanent rule.**
+
+> After the rehearsal database has been contracted, regenerate the Prisma client and run
+> the full production build against the contracted schema — **after** the destructive
+> changes, not only before. Building against the pre-contract schema is what every commit
+> already does and proves nothing about the contracted one.
+
+Implemented as step 8.5 in `scripts/contract-branch-rehearsal.sh`.
+
+### The shape every future destructive migration follows
+
+```
+production clone
+  -> parity gate (the clone must really mirror production)
+  -> exact schema contract, via the real deployment mechanism
+  -> regenerate the Prisma client
+  -> verify the actual database catalogue
+  -> full gate and harness
+  -> next build against the contracted state
+  -> only then authorise production
+```
+
+Generalised, the lesson is the one this migration keeps re-learning in new costumes:
+**a verification step proves exactly the question it asks, and it is easy to mistake a
+narrow question that passes for a broad one.** The empty rehearsal branch passed "is this
+not production?"; the DDL rehearsal passed "will Postgres accept this?"; neither was the
+question that mattered.
