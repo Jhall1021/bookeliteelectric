@@ -1,3 +1,4 @@
+import { appOrigin } from "./origins";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -11,9 +12,27 @@ export const JOBBER_GRAPHQL_URL = "https://api.getjobber.com/api/graphql";
 const JOBBER_API_VERSION = "2025-04-16";
 
 export function jobberRedirectUri(): string {
-  // Must exactly match the Redirect URI entered when the app was created
-  // in Jobber's Developer Center.
-  return `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://bookeliteelectric.vercel.app"}/api/admin/jobber/callback`;
+  // Must exactly match the Redirect URI entered when the app was created in
+  // Jobber's Developer Center.
+  //
+  // The APP origin, not the storefront's: connecting Jobber is something a
+  // contractor does inside their own application, and a homeowner must never
+  // be sent there. It previously came from NEXT_PUBLIC_SITE_URL, one variable
+  // shared with customer-facing links — which worked only while both lived on
+  // one hostname.
+  //
+  // Falls back to the deployment's own origin rather than a hardcoded host.
+  // The old fallback named bookeliteelectric.vercel.app, so a misconfigured
+  // deployment sent contractors to a DIFFERENT DEPLOYMENT'S callback.
+  const origin = appOrigin();
+  if (!origin) {
+    throw new Error(
+      "No application origin is configured. Set APP_ORIGIN (or BETTER_AUTH_URL) " +
+        "so the Jobber callback points at this deployment — a guessed host would " +
+        "send the contractor somewhere else entirely."
+    );
+  }
+  return `${origin}/api/admin/jobber/callback`;
 }
 
 export async function exchangeCodeForTokens(code: string) {

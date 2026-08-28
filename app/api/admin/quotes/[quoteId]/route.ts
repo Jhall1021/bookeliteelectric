@@ -75,8 +75,20 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
     const strategy = (await db.contractor.findUnique({
       where: { id: ctx.contractorId }, select: { pricingStrategy: true },
     }))?.pricingStrategy;
+    // The quote link is homeowner-facing, so it needs the contractor's
+    // STOREFRONT, not the application this admin is signed in to.
+    const site = await db.contractorSite.findFirst({
+      where: { contractorId: ctx.contractorId, active: true },
+      select: { hostedSlug: true },
+    });
+    if (!site) {
+      emailError = "This contractor has no active storefront, so a quote link cannot be built.";
+      console.error(`[quotes] priced ${quote.id} but the contractor has no active site`);
+      return NextResponse.json({ ok: true, emailed: false, emailError });
+    }
     await sendQuoteReadyEmail({
       identity: sender.identity,
+      site,
       copy: pricingCopy(strategy),
       fromAddress: sender.fromAddress,
       id: quote.id,

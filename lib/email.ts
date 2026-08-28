@@ -1,5 +1,6 @@
 import type { StorefrontIdentity } from "./storefrontIdentity";
 import type { PricingCopy } from "./pricingCopy";
+import { storefrontUrl } from "./origins";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -127,6 +128,12 @@ export async function sendBookingConfirmationEmail(booking: {
  */
 export async function sendQuoteReadyEmail(quote: {
   identity: StorefrontIdentity;
+  /**
+   * The contractor's storefront. A quote link is HOMEOWNER-facing, so it must
+   * resolve on the storefront origin — or the contractor's own domain once
+   * they have one — and never on the contractor application.
+   */
+  site: { hostedSlug: string; customDomain?: string | null };
   /** What kind of number this is. A fixed price and an estimate are not the
    *  same message, and mail is the one surface a customer keeps. */
   copy: PricingCopy;
@@ -139,7 +146,12 @@ export async function sendQuoteReadyEmail(quote: {
   const price = `$${(quote.quotedPriceCents / 100).toLocaleString("en-US", {
     minimumFractionDigits: 2,
   })}`;
-  const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://bookeliteelectric.com"}/quote/${quote.id}`;
+  const link = storefrontUrl(quote.site, `quote/${quote.id}`);
+  if (!link) {
+    // Better to fail the send than to email a homeowner a link that 404s or,
+    // worse, one pointing at a different deployment.
+    throw new Error("No storefront origin is configured — cannot build a quote link.");
+  }
 
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
