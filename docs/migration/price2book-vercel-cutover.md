@@ -1,7 +1,7 @@
 # Price2Book Vercel cutover — plan and inventory
 
-**Status:** BLOCKED at step 1, 28 August 2026. Inventory and audit of the SOURCE account complete.
-The target is a separate Vercel account and this machine holds no credential for it.
+**Status:** PARALLEL DEPLOYMENT LIVE, 28 August 2026. BookElite still serves production; DNS
+unchanged; no repository transfer. Two environment values outstanding.
 
 Same shape as ADR-013: identify → rehearse → prove → cut over → retain rollback. This moves the
 **application host**. The database does not move — Price2Book Neon is already production.
@@ -174,3 +174,67 @@ It applies unchanged to the **host**. A Vercel project called "price2book" prove
 which deployment serves traffic, which database it holds a URL for, or where its callbacks point.
 Prove the project id, the deployment id, the database endpoint and identity marker, the domains,
 and the callback destinations — every one of them, from the running deployment.
+
+
+---
+
+## Progress — 28 August 2026
+
+### Deployed, in parallel
+
+| | |
+|---|---|
+| Project | `price2book` — `prj_zB0QVq80340s2dVt7X3c1ewKgHtT`, team `price2-book` (Pro) |
+| Deployment | `price2book-lwv32dlde-price2-book.vercel.app` — READY |
+| Commit | recorded on the deployment as `--meta gitSha`, from a **clean tree** |
+| Database | `ep-shy-butterfly-ay5t03di`, stamped `price2book-production` — **proven, not assumed** |
+| BookElite | untouched, still serving, still rollback |
+| DNS | unchanged |
+| GitHub | not transferred |
+
+Deployed with `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` set explicitly rather than by re-linking the
+repository, so there was never a command that could have hit BookElite by mistake.
+
+### Environment: migrated by classification
+
+11 copied, 5 set to the new origins, 3 deliberately left behind (`STRIPE_SECRET_KEY`,
+`STRIPE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SITE_URL`).
+
+**Two values still needed.** Vercel refuses to export Secret-type variables, so these must be
+entered by hand in the Price2Book project:
+
+- `ANTHROPIC_API_KEY` — service matching
+- `R2_BUCKET_NAME` — photo storage (**the one failing identity check**)
+
+### Smoke test on the new deployment
+
+    /elite-electric            200   renders Elite's own identity
+    /elite-electric/services   200
+    /elite-electric/why-us     200
+    /elite-electric/why-elite  307 -> /elite-electric/why-us
+    /sign-in                   200
+    /dashboard                 307 -> /sign-in     (membership gate holds)
+    /admin                     307 -> /dashboard   (compatibility)
+    /admin/services            307 -> /dashboard/services
+    /nope-not-a-tenant         404   unknown storefront refused
+    /api/services/… no site    404   site-scoped
+
+### Two things this phase found
+
+**The gate depended on git to enumerate files.** A CLI deploy ships no `.git`, so all seven
+verifiers threw and the first deployment failed on `Command failed: git ls-files` — a gate failing
+for a reason unrelated to anything it checks. `sourceFiles()` prefers git and falls back to a
+filesystem walk; proven by running the whole gate with git stubbed to exit 127.
+
+**The identity verifier encoded a stale assumption.** It asserted that destinations must match the
+URL being probed, which stopped being true the moment ADR-019 named three canonical origins: a
+preview deployment legitimately points its Jobber callback at `app.price2book.com`, because that
+is the URL registered with Jobber. It compares against the configured origins now.
+
+### Next
+
+1. Owner enters the two Secret-type variables.
+2. Point `app.price2book.com` at this project. **Additive** — a new subdomain, not a change to the
+   apex, so nothing currently served moves.
+3. Run the full acceptance list.
+4. Only then: DNS for the apex, and canonical status.
