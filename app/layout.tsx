@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import Header from "@/components/shared/Header";
 import Footer from "@/components/shared/Footer";
 import "../styles/globals.css";
+import ThemeTokens from "@/components/theme/ThemeTokens";
 
 // Self-hosted by Next.js at build time (no external request from the
 // browser, no layout shift) — this is what actually loads Inter. Before
@@ -26,6 +27,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        {/* Phase 1 emits the Elite v1 definition. Passing the resolved
+            site's brand inputs here is the Phase 2 change. */}
+        <ThemeTokens />
+      </head>
       <body>
         <Header />
         {children}

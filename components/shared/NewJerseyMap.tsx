@@ -21,7 +21,7 @@ export function NewJerseyMap(props: SVGProps<SVGSVGElement>) {
       {/* Monmouth County — northern-central coast */}
       <path
         d="M128 78 L135 68 Q140 90 136 108 Q118 115 100 108 Q96 92 104 80 Q116 74 128 78Z"
-        fill="var(--map-fill, #2452D9)"
+        fill="var(--map-fill, rgb(var(--t-accent)))"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
@@ -29,7 +29,7 @@ export function NewJerseyMap(props: SVGProps<SVGSVGElement>) {
       {/* Ocean County — directly south of Monmouth */}
       <path
         d="M136 108 Q140 130 138 152 Q120 168 98 158 Q90 135 96 112 Q118 102 136 108Z"
-        fill="var(--map-fill, #2452D9)"
+        fill="var(--map-fill, rgb(var(--t-accent)))"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
