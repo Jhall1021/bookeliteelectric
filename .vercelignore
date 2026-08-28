@@ -1,0 +1,14 @@
+# What a CLI deploy must never upload.
+#
+# `vercel deploy` uploads the working directory. Unlike a git-connected build,
+# nothing here has been filtered by .gitignore first — so local secrets sitting
+# beside the source would travel into the deployment.
+#
+# Belt and braces: these are gitignored too, but a CLI deploy is precisely the
+# path where that stops protecting anything.
+.env
+.env.*
+.vercel
+node_modules
+.next
+.git
