@@ -99,6 +99,14 @@ export default function HomeownerDemo() {
               Answer honestly, or answer “I’m not sure” — the point is what happens differently.
               Nothing here books an appointment.
             </p>
+            {/* Carried over from the "Four steps" section this replaced. It
+                lands harder next to a price being approved or withheld than
+                it did as a caption under four numbered cards. */}
+            <p className="mt-6 text-[15px] leading-[1.6] text-p2b-ink-warm lg:text-base">
+              The price they see is a price <span className="font-semibold">you approved</span>. The
+              window they choose is a window <span className="font-semibold">you opened</span>.
+            </p>
+
             {stage !== "search" && (
               <button onClick={restart}
                       className="mt-6 text-[15px] font-semibold text-p2b-accent underline underline-offset-2 hover:text-p2b-accent-hover">

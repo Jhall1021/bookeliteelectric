@@ -8,7 +8,7 @@ import EarlyAccess from "@/components/marketing/EarlyAccess";
 import { SHOTS } from "@/components/marketing/shots";
 import {
   Boundary, Control, ElectricalFirst, Faq, GuidedPricing, GuidedSetup, Integrations,
-  Journey, Outcomes, Pillars, Proof, WhileWereThere,
+  Pillars, Proof, WhileWereThere,
 } from "@/components/marketing/Sections";
 
 /**
@@ -42,15 +42,12 @@ export default function HomePage() {
             the sections below it describe the product. */}
         <HomeownerDemo />
 
-        <Journey />
-
         {/* Moved up from two-thirds down the page. The real storefront and the
             real contractor screens are the strongest evidence here, and they
             were arriving long after most visitors had decided. */}
         <ControlPanel shots={SHOTS} />
 
         <GuidedPricing />
-        <Outcomes />
         <WhileWereThere />
         <Control />
         <Boundary />

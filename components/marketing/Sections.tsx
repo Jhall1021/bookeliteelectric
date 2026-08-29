@@ -44,35 +44,22 @@ export function Pillars() {
           ))}
         </div>
       </div>
+
     </section>
   );
 }
 
-export function Journey() {
-  return (
-    <section id="how" className={`${SHELL} py-16 lg:py-[84px]`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-muted lg:text-xs">
-        What the homeowner does
-      </p>
-      <h2 className="mt-4 max-w-[24ch] text-[30px] font-bold leading-[1.2] tracking-[-0.022em] lg:mt-[18px] lg:text-[40px]">
-        Four steps, and none of them is a phone call.
-      </h2>
-      <div className="mt-9 grid gap-6 sm:grid-cols-2 lg:mt-[46px] lg:grid-cols-4 lg:gap-[22px]">
-        {STEPS.map((s) => (
-          <div key={s.n} className="border-t-2 border-p2b-accent pt-5">
-            <div className="text-[13px] font-bold text-p2b-accent">{s.n}</div>
-            <div className="mt-3 text-[19px] font-semibold">{s.title}</div>
-            <p className="mt-2.5 text-[15px] leading-[1.55] text-p2b-muted">{s.body}</p>
-          </div>
-        ))}
-      </div>
-      <p className="mt-8 text-[17px] text-p2b-ink-warm lg:mt-10">
-        The price they see is a price <span className="font-semibold">you approved</span>. The window they
-        choose is a window <span className="font-semibold">you opened</span>.
-      </p>
-    </section>
-  );
-}
+/*
+ * "Four steps, and none of them is a phone call." was here.
+ *
+ * Removed once the homeowner demo shipped: the demo performs those four steps
+ * rather than listing them, and a page that shows a thing and then describes
+ * the same thing is repeating itself at the reader's expense.
+ *
+ * Its closing line survives, in HomeownerDemo — "the price they see is a price
+ * you approved" lands harder immediately after someone has watched a price be
+ * approved or withheld than it did as a caption under four numbered cards.
+ */
 
 export function WhileWereThere() {
   return (
@@ -215,18 +202,16 @@ export function GuidedPricing() {
           ))}
         </div>
       </div>
-    </section>
-  );
-}
-
-export function Outcomes() {
-  return (
-    <section className="border-t border-p2b-line bg-p2b-canvas-alt py-16 lg:py-20">
-      <div className={SHELL}>
-        <h2 className="text-[30px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[40px]">
+      {/* "You decide what happens next" was its own full-width section. It is
+          the same subject as the tree above it — what an answer DOES — so it
+          reads better as the second half of this section than as a separate
+          one. Folded, not dropped: the headline and the closing line are the
+          approved copy and both are still on the page. */}
+      <div className="mt-14 border-t border-p2b-line pt-12 lg:mt-16 lg:pt-14">
+        <h3 className="text-[26px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[34px]">
           You decide what happens next.
-        </h2>
-        <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:mt-11 lg:grid-cols-4">
+        </h3>
+        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {OUTCOMES.map((o) => (
             <div key={o.tag}
                  className="flex flex-col rounded-[3px] border border-p2b-line bg-white px-[22px] pb-7 pt-[26px]">
@@ -238,9 +223,9 @@ export function Outcomes() {
             </div>
           ))}
         </div>
-        <p className="mt-8 max-w-[74ch] text-[17px] text-p2b-ink-warm lg:mt-9">
-          Price2Book doesn’t force every job through the same funnel. You choose the right path service
-          by service.
+        <p className="mt-7 max-w-[74ch] text-[17px] text-p2b-ink-warm">
+          Price2Book doesn’t force every job through the same funnel. You choose the right path
+          service by service.
         </p>
       </div>
     </section>
@@ -579,26 +564,31 @@ export function Boundary() {
   );
 }
 
-/** The objections a contractor raises before they will read anything else. */
+/**
+ * The objections a contractor raises before they will read anything else.
+ *
+ * Two columns rather than one long list. Ten questions stacked single-file ran
+ * to about 1,400px — the largest block on the page — for content nobody reads
+ * end to end anyway; people scan an FAQ for the one question they arrived
+ * with. Two columns halves the height and makes scanning easier, which is
+ * presentation, not substance: every question and every answer is still here
+ * in full.
+ */
 export function Faq() {
   return (
-    <section className="border-t border-p2b-line bg-p2b-canvas-alt py-16 lg:py-20">
-      <div className={`${SHELL} grid gap-10 lg:grid-cols-12 lg:items-start`}>
-        <div className="lg:col-span-4">
-          <h2 className="text-[30px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[38px]">
-            Questions contractors actually ask.
-          </h2>
-        </div>
-        <div className="lg:col-span-8">
-          <dl className="border-t border-p2b-line">
-            {FAQ.map((item) => (
-              <div key={item.q} className="border-b border-p2b-line py-5">
-                <dt className="text-[17px] font-semibold leading-[1.35]">{item.q}</dt>
-                <dd className="mt-2 text-[15px] leading-[1.6] text-p2b-muted lg:text-base">{item.a}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+    <section className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-16">
+      <div className={SHELL}>
+        <h2 className="max-w-[20ch] text-[30px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[38px]">
+          Questions contractors actually ask.
+        </h2>
+        <dl className="mt-9 grid gap-x-12 gap-y-0 border-t border-p2b-line lg:mt-11 lg:grid-cols-2">
+          {FAQ.map((item) => (
+            <div key={item.q} className="border-b border-p2b-line py-5">
+              <dt className="text-[16px] font-semibold leading-[1.35] lg:text-[17px]">{item.q}</dt>
+              <dd className="mt-2 text-[15px] leading-[1.55] text-p2b-muted">{item.a}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
     </section>
   );

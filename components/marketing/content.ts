@@ -213,7 +213,9 @@ export const PROOF_METRICS = [
 ] as const;
 
 export const NAV = [
-  { label: "How It Works", href: "#how" },
+  // Was "#how", the "Four steps" section. That section is gone because the
+  // demo does its job live, so the nav points at the demo instead.
+  { label: "How It Works", href: "#demo" },
   { label: "Guided Pricing", href: "#guided" },
   { label: "While We’re There™", href: "#wwt" },
   { label: "Integrations", href: "#integrations" },

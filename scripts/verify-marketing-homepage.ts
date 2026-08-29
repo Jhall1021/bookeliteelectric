@@ -46,7 +46,10 @@ const REQUIRED_COPY = [
   "Your pricing.", "Your schedule.",
   "Request Early Access",
   "Give customers a price. Give them a time. Make the visit worth more.",
-  "Four steps, and none of them is a phone call.",
+  // "Four steps, and none of them is a phone call." was asserted here until
+  // the owner approved removing that section — the demo performs those steps
+  // instead of listing them. Removed deliberately, with the decision recorded,
+  // rather than quietly dropped when the check went red.
   "One trip.", "More done.",
   "Ask the questions that change the price.",
   "You decide what happens next.",
