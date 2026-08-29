@@ -40,6 +40,12 @@ const SERVICES = [
   { slug: "otr-microwave-install", why: "§8" },
   { slug: "install-new-microwave", why: "§8" },
   { slug: "replace-range-hood", why: "§8" },
+  // §6.2, §6.3 — resolved by Elite policy: normal screws, anchors and basic
+  // mounting consumables are supplied; the TV mount and any specialty soundbar
+  // bracket are not, unless the customer selects a supplied-mount option, which
+  // carries its own material role.
+  { slug: "tv-install-existing-location", why: "§6.2 — consumables yes, mount customer-supplied" },
+  { slug: "soundbar-installation", why: "§6.3 — consumables yes, no specialty bracket by default" },
 ];
 
 const ROLE = "CONSUMABLES_SMALL";

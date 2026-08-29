@@ -153,3 +153,80 @@ BEL8 $85.00 -> sell $110.50    AER110CCTK  $169.00 -> sell $219.70    delta $109
 
 Both at the 30% first-tier markup, rounded to Elite's $5 increment. They should be derived
 this way rather than stored as fixed upgrade prices.
+
+---
+
+# Continuation — decisions applied, dead roles retired, Phase E roles created
+
+Each step proved against the same 269 price points. **Every one: zero movement.**
+
+## Decisions recorded
+
+- `CABLE_RG6 = $0.15/ft CONFIRMED` — confirmed intentional, kept.
+- `new-coax-line` — published **$420 stands**; suggested $405; **$15 divergence recorded, not repriced**.
+- Bathroom-fan upgrades stay **engine-derived**: BE8→AER110K = +$65.00, BEL8→AER110CCTK = $109.20 → **$110** after Elite's $5 rounding. Nothing hardcoded.
+
+## §6.2 / §6.3 resolved by Elite policy
+
+`CONSUMABLES_SMALL` ×1 added to `tv-install-existing-location` and `soundbar-installation`.
+The mount and any specialty soundbar bracket remain customer-supplied unless an
+Elite-supplied mount role is selected. Published $250 each unchanged; suggested moves to
+$255 — the same $5 divergence as the other eleven.
+
+## The two dead roles are gone
+
+`scripts/prove-component-unreachable.ts` checks **four** selection paths, not one:
+
+| Path | `NEW_SWITCH_AND_SWITCH_LEG_*` |
+|---|---|
+| Answer options on ACTIVE services | 0 |
+| Answer options on INACTIVE services | 0 |
+| The TEMPLATE a new contractor provisions | 0 |
+| The LEGACY `JobComponent` link | 0 |
+
+The legacy path nearly went unchecked. `AnswerOptionComponent.componentId` can point at a
+pre-canonical `JobComponent` **instead of** the canonical role, so a component can be
+selected with no canonical link at all — checking only the canonical side would have
+declared a live role dead.
+
+The proof is falsifiable: run against `SWITCHLEG_ACCESSIBLE_UNDER_10` it returns
+**REACHABLE (4 active, 4 template)** and the retirement script refuses it.
+
+Retired: canonical roles deactivated, Elite's economics deleted — **$300.00 and $435.00
+approved, $35.00/$45.00 material, 1h/1.5h**, recorded here because the rows are gone.
+
+## Phase E — equipment roles created, none wired to a choice yet
+
+| Role | Class | Elite cost |
+|---|---|---|
+| `BATH_FAN_STANDARD` | 80 CFM | $69 |
+| `BATH_FAN_LIGHT_STANDARD` | 80 CFM + light | $85 |
+| `BATH_FAN_HIGH_CFM` | 110 CFM | $119 |
+| `BATH_FAN_LIGHT_HIGH_CFM` | 110 CFM + light | $169 |
+| `TV_MOUNT_TILT_STANDARD` | tilting mount | $50 |
+| `TV_MOUNT_FULL_MOTION_STANDARD` | full-motion mount | $100 |
+
+Keys name the **equipment class**; the Broan model lives in Elite's contractor row as a
+note, where it can change without touching trade knowledge (§1.1).
+
+The two TV mount roles are wired into `elite-tilt-mount` and `elite-articulating-mount`,
+where the role cost reproduces the cached figure exactly — the script refuses on any
+mismatch. **That closes both `costWithoutRecipe` findings.**
+
+The four fan roles are created and costed but **nothing selects them**. Wiring the
+customer's fan-only / fan+light choice, and the 110 CFM alternatives, is tree work — Phase F.
+
+## Audit movement
+
+| Finding | Before | Now |
+|---|---|---|
+| Cached cost with no recipe | 2 | **0** |
+| Recipe with an uncosted role | 0 | 0 |
+| Component roles priced as a lump sum | 19 | **17** |
+| Services with no recipe and no cost | 34 | **21** |
+
+## Locked (Phase D)
+
+Do not decompose the switch-leg / access lump sums until the tree collects cable type,
+box new-vs-reused, and device type. Material there varies with **access**, not distance;
+any cable recipe would change the shape of the economics rather than preserve it.
