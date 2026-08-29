@@ -326,6 +326,8 @@ export type JobConfiguration = {
    * is a recommendation, not something to publish automatically.
    */
   awaitingComponentApproval: boolean;
+  /** A selected component's material recipe names a role with no cost. */
+  awaitingComponentMaterialCost: boolean;
   /**
    * Crew-hours the ANSWERS added, tracked separately from the running total.
    *
@@ -360,6 +362,7 @@ export function startConfiguration(svc: {
     techCount: svc.requiresTechCount,
     components: [],
     awaitingComponentApproval: false,
+    awaitingComponentMaterialCost: false,
     addedCrewHours: 0,
     approvedIncrementCents: 0,
     legacyModifierCents: 0,
@@ -400,6 +403,7 @@ export function startDisplayConfiguration(svc: { estimatedMinutes: number | null
     techCount: 1,
     components: [],
     awaitingComponentApproval: false,
+    awaitingComponentMaterialCost: false,
     addedCrewHours: 0,
     approvedIncrementCents: 0,
     legacyModifierCents: 0,
@@ -435,6 +439,20 @@ export type BranchContribution = {
       customerFacingLabel: string | null;
       /** Null = not approved; any route using it goes to review. */
       approvedPriceCents?: number | null;
+      /**
+       * What this component physically consumes, already costed against THIS
+       * contractor's material prices — v1.1 §1.1 and §3.1.
+       *
+       * Present only where a recipe has been authored. When it is present it
+       * REPLACES addMaterialCostCents rather than adding to it: the dollar
+       * constant was always meant to be the same materials, so counting both
+       * would double them.
+       *
+       * `resolved` false means the recipe names a role this contractor has
+       * never costed. That is not zero — it fails closed, the same way an
+       * unapproved component price does.
+       */
+      materialRecipe?: { cents: number; resolved: boolean } | null;
       // Optional, because the BROWSER doesn't receive them.
       //
       // The server sends the client only what a customer may see: the
@@ -466,6 +484,8 @@ export function applyBranch(
   let minutes = branch.overrideEstimatedMinutes ?? config.estimatedMinutes;
   let techCount = branch.overrideTechCount ?? config.techCount;
   let material = config.materialCostCents;
+  /** Set when a selected component's recipe names a role with no cost. */
+  let awaitingRecipeCost = false;
   const components = [...config.components];
 
   // Tracks the increment separately from the running total. An OVERRIDE is
@@ -501,7 +521,14 @@ export function applyBranch(
     const q = Math.max(sel.quantity, 1);
     const c = sel.component;
     if (c.addFieldLaborHours) addHours(c.addFieldLaborHours * q);
-    if (c.addMaterialCostCents) material += c.addMaterialCostCents * q;
+    // The recipe wins where one exists; the constant is what a component that
+    // has not been converted yet still uses. Never both.
+    if (c.materialRecipe) {
+      if (c.materialRecipe.resolved) material += c.materialRecipe.cents * q;
+      else awaitingRecipeCost = true;
+    } else if (c.addMaterialCostCents) {
+      material += c.addMaterialCostCents * q;
+    }
     if (c.addScheduleMinutes && minutes !== null) minutes += c.addScheduleMinutes * q;
     // Extra VANS, not extra people. Zero on every component today.
     if (c.addTechCount) techCount += c.addTechCount * q;
@@ -536,6 +563,10 @@ export function applyBranch(
 
   return {
     accessClass,
+      // A recipe naming a role this contractor has never costed fails closed,
+      // exactly as an unapproved component price does. Never zero.
+      awaitingComponentMaterialCost:
+        config.awaitingComponentMaterialCost || awaitingRecipeCost,
     fieldLaborHours: hours,
     materialCostCents: material,
     estimatedMinutes: minutes,

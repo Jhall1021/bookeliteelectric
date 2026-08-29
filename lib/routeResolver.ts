@@ -138,7 +138,14 @@ export async function loadServiceForResolution(db: PrismaClient, serviceId: stri
               // Canonical roles only — platform data under a tenant-owned
               // root, which is safe. The contractor's figures arrive
               // separately, from their own tenant-rooted query.
-              components: { include: { canonicalComponent: true } },
+              components: {
+                include: {
+                  // v1.1 §3.1 — what the component physically consumes. Platform
+                  // data under a tenant-owned root, like canonicalComponent
+                  // itself; the COST comes from the contractor's own query.
+                  canonicalComponent: { include: { materials: { include: { canonicalMaterial: true } } } },
+                },
+              },
               photoGroups: { include: { photoGroup: true } },
               // ADR-009: the contractor's policy statement, not the shared
               // pre-split text. Service-rooted, so this traversal is safe.
@@ -163,7 +170,39 @@ export async function loadServiceForResolution(db: PrismaClient, serviceId: stri
     canonicalComponentIdsIn(service)
   );
 
-  return { ...service, ownComponents };
+  /**
+   * This contractor's cost for every material role a selectable component
+   * consumes — v1.1 §3.1.
+   *
+   * A FOURTH top-level query, for the same reason as the third: ContractorMaterial
+   * is tenant-owned, so it is loaded from a tenant-owned top-level query where
+   * the guard scopes it. Reaching it by nesting under CanonicalComponent would
+   * put a hand-written contractor filter on a platform model, which is exactly
+   * the shape that let a cross-tenant read through once already.
+   */
+  const roleIds = [
+    ...new Set(
+      service.questions.flatMap((q) =>
+        q.options.flatMap((o) =>
+          o.components.flatMap((c) =>
+            (c.canonicalComponent?.materials ?? []).map((m) => m.canonicalMaterialId),
+          ),
+        ),
+      ),
+    ),
+  ];
+  const ownMaterialCosts = new Map<string, number>(
+    roleIds.length
+      ? (
+          await db.contractorMaterial.findMany({
+            where: { contractorId: owner.contractorId, canonicalMaterialId: { in: roleIds }, active: true },
+            select: { canonicalMaterialId: true, unitCostCents: true },
+          })
+        ).map((m) => [m.canonicalMaterialId, m.unitCostCents])
+      : [],
+  );
+
+  return { ...service, ownComponents, ownMaterialCosts };
 }
 
 type LoadedService = NonNullable<Awaited<ReturnType<typeof loadServiceForResolution>>>;
@@ -322,6 +361,29 @@ export function resolveRoute(
           // Possibly none: a role this contractor has never priced.
           const own = service.ownComponents.get(canonical.id);
 
+          /**
+           * The physical recipe, costed against THIS contractor's materials.
+           *
+           * Undefined when no recipe is authored — the component then falls
+           * back to its dollar constant, so conversion can proceed one role at
+           * a time without a half-converted library mispricing.
+           *
+           * A role the contractor has never costed makes the whole recipe
+           * unresolved rather than cheaper: fails closed, like the approved
+           * price above.
+           */
+          const recipe = canonical.materials ?? [];
+          const materialRecipe = recipe.length
+            ? recipe.reduce(
+                (acc, line) => {
+                  const cost = service.ownMaterialCosts.get(line.canonicalMaterialId);
+                  if (cost === undefined) return { cents: acc.cents, resolved: false };
+                  return { cents: acc.cents + cost * line.quantity, resolved: acc.resolved };
+                },
+                { cents: 0, resolved: true },
+              )
+            : null;
+
           return {
             quantity: c.quantity,
             conditionAnswerKey: c.conditionAnswerKey,
@@ -338,6 +400,9 @@ export function resolveRoute(
               // goes to review via config.awaitingComponentApproval. Never
               // zero, and never another contractor's figure.
               approvedPriceCents: own ? own.approvedPriceCents : null,
+              materialRecipe: materialRecipe
+                ? { cents: Math.round(materialRecipe.cents), resolved: materialRecipe.resolved }
+                : null,
               // Only reached when the price above is non-null, since a null
               // price stops the route before these are used.
               addFieldLaborHours: own?.addFieldLaborHours ?? 0,
@@ -397,6 +462,20 @@ export function resolveRoute(
       return { status: "INVALID", reason: `"${option.value}" points at a question that doesn't exist` };
     }
     current = next;
+  }
+
+  // A selected component consumes material this contractor has never costed.
+  // Same rule as a missing material on the service itself: no price.
+  if (config.awaitingComponentMaterialCost) {
+    return {
+      status: "REVIEW",
+      reason: "A component on this route consumes a material with no recorded cost",
+      photoLabels: [...new Set(photoLabels)],
+      photoSafetyNotes: [...new Set(photoSafetyNotes)],
+      floorPriceCents: null,
+      isPrimary,
+      config,
+    };
   }
 
   // Anything unresolved at this point becomes a review rather than a price.

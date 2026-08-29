@@ -138,6 +138,10 @@ export const PLATFORM_MODELS = new Set<string>([
   /// same basis as CanonicalMaterial. Its economics live on
   /// ContractorComponent, which is tenant-scoped.
   "CanonicalComponent",
+  /// v1.1 §1.1 — what a component role physically consumes. Trade knowledge,
+  /// carrying no money and no contractor. The cost of those materials is
+  /// tenant-owned and lives on ContractorMaterial.
+  "CanonicalComponentMaterial",
   /// ADR-020. An early-access request from the public marketing site.
   ///
   /// Platform because a lead is NOT a tenant. There is no contractorId to

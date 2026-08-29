@@ -565,6 +565,7 @@ model CanonicalMaterial {
 
   contractorMaterials      ContractorMaterial[]
   serviceMaterials         ServiceMaterial[]
+  componentMaterials       CanonicalComponentMaterial[]
   templateServiceMaterials TemplateServiceMaterial[]
 
   @@map("canonical_materials")
@@ -1240,9 +1241,53 @@ model CanonicalComponent {
 
   contractorComponents           ContractorComponent[]
   options                        AnswerOptionComponent[]
+  materials                      CanonicalComponentMaterial[]
   templateAnswerOptionComponents TemplateAnswerOptionComponent[]
 
   @@map("canonical_components")
+}
+
+/// What a component role PHYSICALLY consumes — Electrical Template v1.1 §1.1.
+///
+/// "The template defines what material the job physically needs. The contractor
+/// owns what that material costs." Fishing a cable through a finished wall
+/// consumes ten feet of 14/2 for every contractor alive; what ten feet costs is
+/// a fact about one contractor's supplier. So the recipe hangs off the
+/// CANONICAL component and carries no money, and no contractorId — ownership of
+/// the cost is already derivable through ContractorMaterial.
+///
+/// WHY THIS EXISTS
+///
+/// ContractorComponent.addMaterialCostCents is a dollar constant. It prices
+/// correctly on the day it is written and cannot move when a supplier does:
+/// $5.00 on an outlet run IS ten feet of 14/2 at $0.50, but nothing records
+/// that, so a wire price change leaves it stale and silent. Nineteen component
+/// roles carried such a constant when this was added.
+///
+/// The constant is not removed. A component with no recipe still uses it, so
+/// conversion is incremental and a half-converted library prices correctly
+/// throughout — see applyBranch, which prefers the recipe and falls back.
+model CanonicalComponentMaterial {
+  id String @id @default(cuid())
+
+  canonicalComponentId String
+  canonicalComponent   CanonicalComponent @relation(fields: [canonicalComponentId], references: [id], onDelete: Cascade)
+
+  canonicalMaterialId String
+  canonicalMaterial   CanonicalMaterial @relation(fields: [canonicalMaterialId], references: [id])
+
+  /// In the material's own unit — feet for cable, each for a device.
+  quantity Float @default(1)
+  order    Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One line per role. Two quantities of the same role in one recipe is a
+  /// data error, not a way to express "ten feet and another ten feet".
+  @@unique([canonicalComponentId, canonicalMaterialId])
+  @@index([canonicalMaterialId])
+  @@map("canonical_component_materials")
 }
 
 /// What a component costs ONE contractor, and how long it takes them.
