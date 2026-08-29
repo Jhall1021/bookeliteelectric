@@ -309,3 +309,88 @@ Both proved unreachable and were retired properly. **20 checks, 0 failures.** Ga
 
 It also reports — without failing — active roles nothing selects, as retirement
 candidates. Currently zero.
+
+---
+
+# The bathroom fan packages — one entry, two priced packages
+
+## Why not one service
+
+Both packages differ in **labour and equipment**: 1.75h with a standard fan, 2.0h with a
+fan-and-light. Nothing in the schema substitutes one material role for another —
+`applyBranch` only ever does `material +=`, and a component recipe adds to the service
+total rather than replacing part of it. So one service cannot carry both, and forcing them
+into one `fieldLaborHours` would have meant one package quietly pricing as the other.
+
+The chosen shape is the one this catalogue already uses for equipment choice: a hidden
+sibling, reached by reference. `elite-tilt-mount` has worked that way in production.
+
+Hidden is still reachable — verified, not assumed: neither `/api/services/[slug]` nor
+`/api/services/by-id` filters on `active`, while the category listings do. The sibling is
+out of the catalogue and out of search, and resolves when the reroute sends someone to it,
+carrying their answers.
+
+## Derived, never typed
+
+| Package | Labour | Equipment | Material | **Derived** | Calibration | Delta |
+|---|---|---|---|---|---|---|
+| Fan only | 1.75h | `BATH_FAN_STANDARD` | $72.00 | **$535** | $525 | +$10 |
+| Fan + light | 2.0h | `BATH_FAN_LIGHT_STANDARD` | $88.00 | **$615** | $595 | +$20 |
+
+`$525` / `$595` are compared against and never written. The script runs the package
+economics through `suggestPrimaryPrice` and **throws rather than publish** if the engine
+yields no price — so what was approved is the hours and the rounding rules, not a number.
+
+## The tree
+
+```
+replace-bathroom-exhaust-fan            PUBLIC   ADJUSTED   $535
+  Which would you like?
+    Fan only        -> qualification -> $535
+    Fan with a light -> REROUTE ------------------→ hidden sibling
+
+replace-bathroom-exhaust-fan-with-light HIDDEN   ADJUSTED   $615
+  qualification -> $615
+```
+
+Qualification is identical on both, and every answer that leaves the standard package
+routes to review with photos: nonstandard housing or ducting, higher airflow, a humidity
+sensor or heater, and difficult access. **Nothing silently reprices** — §5.5.
+
+Resolved outcomes:
+
+```
+public   PRICED 1 ($535) · REVIEW 6 · REROUTE 1 -> the hidden sibling
+hidden   PRICED 1 ($615) · REVIEW 6
+```
+
+## Proof
+
+Of the 269 price points, **exactly one service changed**, and it is the one that was meant
+to:
+
+```
+replace-bathroom-exhaust-fan
+  before  priced 0, review 1, prices []
+  after   priced 1, review 6, prices [$535]
+```
+
+§1.4 satisfied for this service: it was a public, price-less `REMOTE_QUOTE` and now shows
+a real starting price.
+
+## The gate caught the publish
+
+`audit-price-writers` refused the run: a script that writes `basePrice` **and** stamps
+`publishedPriceApprovedAt` moves a customer price outside the admin, so it has to be named
+with a written reason. Registered. Gate back to **257 checks**.
+
+## Still open under §1.4
+
+**12 active `REMOTE_QUOTE` services remain**, 9 of them with neither a price nor a starting
+label — including `240v-garage-outlet`, `hot-tub-spa-electrical`, `pool-equipment-electrical`,
+`transfer-switch` and `generator-inlet-interlock`. Each either gets a real starting package
+or gets hidden. That is Phase F.
+
+One of the nine is not a quote service at all: `remove-and-replace-existing-chandelier` is
+**ADJUSTED with no base price**, which is a different defect — a service that should price
+and cannot.

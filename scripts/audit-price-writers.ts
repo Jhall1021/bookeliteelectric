@@ -37,6 +37,15 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "exact operation. The attempt runs inside a throwaway contractor's " +
     "context against Elite's service, can only fail, and Elite's published " +
     "price is asserted unchanged immediately afterwards.",
+  "scripts/build-fan-packages.ts":
+    "Publishes the two bathroom exhaust fan packages, which the owner approved " +
+    "explicitly: 1.75 crew-hours for fan-only and 2.0 for fan-and-light, at the " +
+    "prices those hours DERIVE. The figures are not typed in — the script runs " +
+    "the package economics through suggestPrimaryPrice and throws rather than " +
+    "publish if the engine yields no price, so the approval is of the inputs and " +
+    "the rounding rules, not of a number somebody chose. The historical $525/$595 " +
+    "calibration is reported against, never written. Touches these two services " +
+    "and nothing else.",
   "scripts/demo-contractor.ts":
     "Publishes prices on the DEMONSTRATION contractor used for marketing " +
     "screenshots, and on nothing else. The figures are not invented at the " +
