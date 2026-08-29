@@ -457,8 +457,6 @@ model Contractor {
   photos                Photo[]
   jobberCrewMembers     JobberCrewMember[]
 
-  @@map("contractors")
-
   /// ADR-014 — this contractor's answers to the template's policy questions.
   policyValues ContractorPolicyValue[]
 
@@ -518,8 +516,23 @@ model Contractor {
   serviceAreaImageUrl String?
   serviceAreaImageAlt String?
 
+  /// The storefront hero photograph — ADR-016 identity, contractor-owned.
+  ///
+  /// This was a constant in components/home/Hero.tsx pointing at Elite's own
+  /// photograph, which carries Elite's logo on the technician's shirt, and
+  /// every contractor's storefront rendered it. A shared component may not
+  /// carry one tenant's branded photography.
+  ///
+  /// The fix is not a different default image. A contractor who has supplied
+  /// no hero gets NO photograph, because a missing value must never resolve
+  /// to somebody else's — the same rule the address and licence fields follow.
+  heroImageUrl String?
+  heroImageAlt String?
+
   /// ADR-016 — how this contractor prices. Presentation only; see the enum.
   pricingStrategy PricingStrategy @default(FLAT_RATE)
+
+  @@map("contractors")
 }
 
 /// A material ROLE, owned by the platform.
@@ -1522,7 +1535,7 @@ model Service {
   // workbook are NOT deliberate overrides — they're unvalidated data sitting
   // in this column. Itemizing a service's materials clears it, since that's
   // the moment its figures become real.
-  materialMultiplier     Float?
+  materialMultiplier    Float?
 
   // Why the multiplier above departs from the tier. Without it, nobody can
   // tell six months from now whether a 2.5 was a business decision or
@@ -2505,6 +2518,47 @@ model DatabaseIdentity {
   @@map("database_identity")
 }
 
+/// An early-access request from the public marketing site — ADR-020.
+///
+/// PLATFORM-owned, and one of the very few models that is. It has no
+/// contractorId because the person filling it in is not a contractor here yet;
+/// that is the whole point of the record. Nothing in the tenant-scoped query
+/// path may read it, and nothing here may be joined to a Contractor: a lead is
+/// not a tenant, and treating it as one is how a marketing form quietly
+/// becomes an unauthenticated write into somebody's data.
+///
+/// Deliberately small. Name, company, email and what they run their business
+/// on is exactly what the approved form asks for and exactly what is stored —
+/// no IP address, no user agent, no analytics identifiers.
+model EarlyAccessRequest {
+  id String @id @default(cuid())
+
+  name    String
+  company String
+  email   String
+  /// Free text — "What do you use to run your business?" A lead saying
+  /// "Jobber" is not a Jobber integration and is never read as one.
+  runsOn  String?
+
+  /// Which surface produced it, so a later campaign page is distinguishable
+  /// from the homepage without a second table.
+  source String @default("homepage")
+
+  /// Set by hand when someone has actually been contacted. Never set by the
+  /// public endpoint.
+  contactedAt DateTime?
+  note        String?
+
+  createdAt DateTime @default(now())
+
+  /// Not unique: a contractor who asks twice has asked twice, and silently
+  /// swallowing the second request would lose a real signal. De-duplication
+  /// is a reading concern.
+  @@index([email])
+  @@index([createdAt])
+  @@map("early_access_request")
+}
+
 // ─── ADR-014 · the electrical template ──────────────────────────────────────
 //
 // Trade STRUCTURE, with no economics anywhere. A template says what to ask and
@@ -2542,9 +2596,9 @@ enum TemplatePolicyType {
 /// neighbours. Internal consistency is a property of the model, not of
 /// whoever fills the form in.
 model TemplatePolicyDefinition {
-  id                String            @id @default(cuid())
+  id                String          @id @default(cuid())
   templateVersionId String
-  templateVersion   TemplateVersion   @relation(fields: [templateVersionId], references: [id], onDelete: Cascade)
+  templateVersion   TemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Cascade)
 
   /// Stable across versions, e.g. "fixture_access.height_breakpoints".
   key           String
@@ -2576,7 +2630,7 @@ model ContractorPolicyValue {
   key           String
   type          TemplatePolicyType
   unit          String?
-  boundaryCount Int      @default(0)
+  boundaryCount Int                @default(0)
   prompt        String
 
   /// Ascending, and exactly `boundaryCount` long once resolved. Empty until.
@@ -2650,11 +2704,11 @@ model TemplateService {
   questions TemplateQuestion[]
   materials TemplateServiceMaterial[]
 
+  policies TemplateServicePolicy[]
+
   @@unique([templateVersionId, key])
   @@index([templateVersionId])
   @@map("template_services")
-
-  policies TemplateServicePolicy[]
 }
 
 model TemplateQuestion {

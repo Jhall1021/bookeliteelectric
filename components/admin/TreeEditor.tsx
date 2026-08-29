@@ -203,7 +203,12 @@ export default function TreeEditor({
 
   return (
     <div className="mt-8 max-w-2xl">
-      <h2 className="font-display text-lg font-bold text-navy">Decision Tree</h2>
+      {/* "Guided Pricing" is the approved product name for this system —
+          docs/marketing/POSITIONING.md. The portal called it "Decision Tree",
+          which is what it is internally, not what it is called. A contractor
+          who reads "Guided Pricing" on the marketing site should find the same
+          words on the screen they are being sold. */}
+      <h2 className="font-display text-lg font-bold text-navy">Guided Pricing</h2>
       <p className="mt-1 text-sm text-slate">
         {isEmpty
           ? "This service has no questions — customers see its base price and book straight away. Add a question to start branching."
@@ -217,7 +222,7 @@ export default function TreeEditor({
             onClick={addQuestion}
             className="mt-4 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white hover:bg-electric-hover"
           >
-            Create Decision Tree
+            Create Guided Pricing
           </button>
         </div>
       )}

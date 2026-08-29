@@ -62,8 +62,12 @@ export default function JobberConnectionPanel({
             <span className="h-2.5 w-2.5 rounded-full bg-slate" />
             <span className="font-semibold text-navy">Not connected</span>
           </div>
+          {/* Single-tenant leftover, fixed: this used to read "your real Elite
+              Electric account", which every contractor saw. Nothing here knows
+              whose account it is, and it does not need to — "your own Jobber
+              account" is true for whoever is reading it. */}
           <p className="mt-2 text-sm text-slate">
-            You'll be sent to Jobber to log in with your real Elite Electric account and approve
+            You&rsquo;ll be sent to Jobber to log in with your own Jobber account and approve
             access.
           </p>
           <a

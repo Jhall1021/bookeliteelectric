@@ -33,6 +33,17 @@ export type StorefrontIdentity = {
   /** "NJ Electrical License #17272", assembled, or null if incomplete. */
   license: string | null;
   serviceArea: { label: string; imageUrl: string | null; imageAlt: string } | null;
+  /**
+   * The storefront hero photograph, or null when this contractor has supplied
+   * none — in which case the hero renders WITHOUT a photograph.
+   *
+   * This was a module constant in components/home/Hero.tsx pointing at Elite's
+   * own photograph, logo on the shirt and all, and every storefront rendered
+   * it. Falling back to a different stock image would repeat the mistake in a
+   * quieter register: a shared default photograph still tells every visitor
+   * that unrelated businesses are the same business.
+   */
+  heroImage: { url: string; alt: string } | null;
 };
 
 /** The shape read from the database. Kept explicit so the select stays honest. */
@@ -54,6 +65,8 @@ export type IdentityRow = {
   serviceAreaLabel: string | null;
   serviceAreaImageUrl: string | null;
   serviceAreaImageAlt: string | null;
+  heroImageUrl: string | null;
+  heroImageAlt: string | null;
 };
 
 /** The Prisma select, in one place, so no caller invents its own subset. */
@@ -63,6 +76,7 @@ export const IDENTITY_SELECT = {
   addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true,
   licenseLabel: true, licenseNumber: true,
   serviceAreaLabel: true, serviceAreaImageUrl: true, serviceAreaImageAlt: true,
+  heroImageUrl: true, heroImageAlt: true,
 } as const;
 
 const trim = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
@@ -85,6 +99,7 @@ export function resolveIdentity(row: IdentityRow): StorefrontIdentity {
   const license = label && number ? `${label} #${number}` : null;
 
   const areaLabel = trim(row.serviceAreaLabel);
+  const heroUrl = trim(row.heroImageUrl);
 
   return {
     displayName,
@@ -106,6 +121,9 @@ export function resolveIdentity(row: IdentityRow): StorefrontIdentity {
           imageAlt: trim(row.serviceAreaImageAlt) ?? `Map of the area served by ${displayName}`,
         }
       : null,
+    heroImage: heroUrl
+      ? { url: heroUrl, alt: trim(row.heroImageAlt) ?? `${displayName}` }
+      : null,
   };
 }
 
@@ -116,7 +134,7 @@ export function resolveIdentity(row: IdentityRow): StorefrontIdentity {
 export const ANONYMOUS_IDENTITY: StorefrontIdentity = {
   displayName: "This contractor", shortName: "us", legalName: "This contractor",
   logoUrl: null, logoWhiteUrl: null, phone: null, phoneHref: null, email: null,
-  address: null, license: null, serviceArea: null,
+  address: null, license: null, serviceArea: null, heroImage: null,
 };
 
 /**

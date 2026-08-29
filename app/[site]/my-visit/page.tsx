@@ -329,7 +329,7 @@ export default function MyVisitPage() {
                         className="flex w-full items-center justify-between p-4 text-left"
                       >
                         <span className="text-sm font-semibold text-navy">{cat.name}</span>
-                        <span className="text-xs text-slate">{cat.services.length} services</span>
+                        <span className="text-xs text-slate">{cat.services.length} {cat.services.length === 1 ? "service" : "services"}</span>
                       </button>
                       {openCategory === cat.id && (
                         <div className="divide-y divide-cardline border-t border-cardline">

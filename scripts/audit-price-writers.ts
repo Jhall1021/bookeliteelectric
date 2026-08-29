@@ -37,6 +37,15 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "exact operation. The attempt runs inside a throwaway contractor's " +
     "context against Elite's service, can only fail, and Elite's published " +
     "price is asserted unchanged immediately afterwards.",
+  "scripts/demo-contractor.ts":
+    "Publishes prices on the DEMONSTRATION contractor used for marketing " +
+    "screenshots, and on nothing else. The figures are not invented at the " +
+    "point of writing: crew-hours and material costs go through the same " +
+    "suggestPrimaryPrice the admin uses, so the screenshots show numbers the " +
+    "product actually computes. The tenant is created and destroyed by this " +
+    "script, its name is asserted before any deletion, and the script refuses " +
+    "to touch a contractor it did not create. No real contractor's price is " +
+    "read or written, and it never runs in the deploy gate.",
   "scripts/verify-pricing-strategy.ts":
     "Writes an approved price and approved estimate bounds onto a THROWAWAY " +
     "contractor's own service, to prove that switching pricing strategy " +

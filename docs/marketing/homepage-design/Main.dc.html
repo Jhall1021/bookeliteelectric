@@ -1,0 +1,617 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@1,8..60,400&display=swap">
+  <style>
+    body { margin: 0; background: #FBFAF7; color: #14181F;
+           font-family: Archivo, "Helvetica Neue", system-ui, sans-serif;
+           -webkit-font-smoothing: antialiased; }
+    a { color: #1B4B8F; text-decoration: none; }
+    a:hover { color: #12356A; }
+    h1, h2, h3 { margin: 0; letter-spacing: -0.022em; text-wrap: balance; }
+    p { margin: 0; text-wrap: pretty; }
+    .rule { height: 1px; background: #E6E2D9; }
+    .eyebrow { font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; font-weight: 600; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; background: #FBFAF7;">
+
+  <!-- ── header ──────────────────────────────────────────── -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 88px; border-bottom: 1px solid #E6E2D9;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{accent}}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
+      <span style="font-size: 18px; font-weight: 700; letter-spacing: -0.03em;">Price2Book</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 30px; font-size: 15px; color: #57534A;">
+      <a href="#how" style="color: #57534A;">How It Works</a>
+      <a href="#guided" style="color: #57534A;">Guided Pricing</a>
+      <a href="#wwt" style="color: #57534A;">While We&rsquo;re There&trade;</a>
+      <a href="#integrations" style="color: #57534A;">Integrations</a>
+      <a href="#access" style="color: #57534A;">Pricing</a>
+      <span style="width: 1px; height: 18px; background: #E6E2D9;"></span>
+      <a href="#" style="color: #14181F;">Sign In</a>
+      <a href="#access" style="display: inline-block; padding: 10px 18px; background: {{accent}}; color: #FBFAF7; border-radius: 2px; font-weight: 600;">Request Early Access</a>
+    </div>
+  </div>
+
+  <!-- ── hero ────────────────────────────────────────────── -->
+  <div style="padding: 92px 88px 84px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; align-items: start;">
+    <div style="grid-column: span 6;">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 26px;">
+        <div style="width: 26px; height: 2px; background: {{accent}};"></div>
+        <span class="eyebrow" style="color: {{accent}};">For residential service contractors</span>
+      </div>
+      <h1 style="font-size: 78px; line-height: 0.99; font-weight: 700;">Your pricing.<br>Your schedule.</h1>
+      <p style="margin-top: 30px; font-size: 20px; line-height: 1.5; color: #3A3730; max-width: 34ch;">
+        Give homeowners upfront prices and let them book the work you choose — using your pricing, your availability, and the software you already use to run your business.
+      </p>
+      <div style="display: flex; align-items: center; gap: 20px; margin-top: 38px;">
+        <a href="#access" style="display: inline-block; padding: 16px 30px; background: {{accent}}; color: #FBFAF7; border-radius: 2px; font-size: 16px; font-weight: 600;">Request Early Access</a>
+        <a href="#how" style="font-size: 16px; font-weight: 500;">See the Homeowner Experience →</a>
+      </div>
+      <p style="margin-top: 38px; font-size: 15px; color: #57534A;">
+        Works alongside your existing business software. <span style="color: #14181F; font-weight: 500;">No new CRM required.</span>
+      </p>
+      <p style="margin-top: 10px; font-size: 14px; color: #8A857A;">Built for residential service contractors. Proven first in electrical.</p>
+    </div>
+
+    <!-- two-sided visual: you control this → your customer sees this -->
+    <div style="grid-column: span 6; position: relative; padding: 8px 0 34px 34px;">
+      <!-- background: contractor -->
+      <div style="position: absolute; top: 0; right: 0; width: 430px; border: 1px solid #DCE4EF; border-radius: 3px; background: #F2F5FA; overflow: hidden;">
+        <div style="padding: 11px 18px; border-bottom: 1px solid #DCE4EF; background: #E8EEF7;">
+          <span class="eyebrow" style="color: {{accent}}; font-size: 11px;">Contractor · what you set</span>
+        </div>
+        <div style="padding: 18px 18px 16px;">
+          <div style="font-size: 15px; font-weight: 600; margin-bottom: 14px;">Replace Existing Ceiling Fan</div>
+          <sc-for list="{{control}}" as="c" hint-placeholder-count="4">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E4EAF3; font-size: 14px;">
+              <span style="color: #57534A;">{{c.k}}</span>
+              <span style="font-weight: 600; color: {{c.tone}};">{{c.v}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <!-- foreground: homeowner -->
+      <div style="position: relative; margin-top: 108px; width: 400px; border: 1px solid #E6E2D9; border-radius: 3px; background: #FFFFFF; box-shadow: 0 2px 6px rgba(20,24,31,.05), 0 18px 48px rgba(20,24,31,.10); overflow: hidden;">
+        <div style="padding: 11px 18px; border-bottom: 1px solid #EEEAE1; background: #FAF8F3;">
+          <span class="eyebrow" style="color: #8A857A; font-size: 11px;">Homeowner · what they see</span>
+        </div>
+        <div style="padding: 24px;">
+          <div style="font-size: 15px; font-weight: 600;">Replace Existing Ceiling Fan</div>
+          <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 12px;">
+            <span style="font-size: 44px; font-weight: 700; letter-spacing: -0.03em;">$375</span>
+            <span style="font-size: 14px; color: #57534A;">all-in</span>
+          </div>
+          <div class="rule" style="margin: 18px 0;"></div>
+          <div style="font-size: 13px; color: #57534A; margin-bottom: 10px;">Thursday</div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+            <div style="border: 1.5px solid #2E7D5B; border-radius: 2px; padding: 10px 6px; text-align: center; background: #EAF3EE;">
+              <div style="font-size: 13px; font-weight: 600; color: #1F5B41;">8–11</div>
+              <div style="font-size: 11px; color: #2E7D5B; margin-top: 2px;">available</div>
+            </div>
+            <div style="border: 1px solid #E6E2D9; border-radius: 2px; padding: 10px 6px; text-align: center;">
+              <div style="font-size: 13px; font-weight: 600;">11–2</div>
+            </div>
+            <div style="border: 1px solid #E6E2D9; border-radius: 2px; padding: 10px 6px; text-align: center; opacity: .4;">
+              <div style="font-size: 13px; font-weight: 600;">2–4:30</div>
+            </div>
+          </div>
+          <div style="margin-top: 16px; padding: 13px; background: #14181F; color: #FBFAF7; border-radius: 2px; text-align: center; font-size: 15px; font-weight: 600;">Book This Window</div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 9px; margin-top: 20px; padding-left: 4px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{accent}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <span style="font-size: 14px; color: #57534A;"><span style="color: #14181F; font-weight: 600;">You control this</span> → your customer sees this.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── three pillars ───────────────────────────────────── -->
+  <div style="padding: 78px 88px; background: #F5F2EC; border-top: 1px solid #E6E2D9;">
+    <h2 style="font-size: 36px; line-height: 1.2; font-weight: 700; max-width: 30ch;">Give customers a price. Give them a time. Make the visit worth more.</h2>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 44px;">
+      <sc-for list="{{pillars}}" as="p" hint-placeholder-count="3">
+        <div style="background: #FFFFFF; border: 1px solid #E6E2D9; border-top: 3px solid {{p.tone}}; border-radius: 3px; padding: 28px 26px 30px;">
+          <div style="font-size: 21px; font-weight: 700; color: {{p.tone}};">{{p.title}}</div>
+          <p style="margin-top: 14px; font-size: 16px; line-height: 1.55; color: #3A3730;">{{p.lead}}</p>
+          <p style="margin-top: 12px; font-size: 15px; line-height: 1.55; color: #57534A;">{{p.body}}</p>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ── homeowner journey ───────────────────────────────── -->
+  <div id="how" style="padding: 84px 88px;">
+    <p class="eyebrow" style="color: #57534A;">What the homeowner does</p>
+    <h2 style="margin-top: 18px; font-size: 40px; line-height: 1.2; font-weight: 700; max-width: 24ch;">Four steps, and none of them is a phone call.</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; margin-top: 46px;">
+      <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+        <div style="border-top: 2px solid {{accent}}; padding-top: 20px;">
+          <div style="font-size: 13px; font-weight: 700; color: {{accent}};">{{s.n}}</div>
+          <div style="margin-top: 12px; font-size: 19px; font-weight: 600;">{{s.title}}</div>
+          <p style="margin-top: 11px; font-size: 15px; line-height: 1.55; color: #57534A;">{{s.body}}</p>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin-top: 40px; font-size: 17px; color: #3A3730;">
+      The price they see is a price <span style="font-weight: 600;">you approved</span>. The window they choose is a window <span style="font-weight: 600;">you opened</span>.
+    </p>
+  </div>
+
+  <!-- ── While We're There ───────────────────────────────── -->
+  <div id="wwt" style="padding: 84px 88px; background: #EAF3EE; border-top: 1px solid #D5E5DC;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; align-items: start;">
+      <div style="grid-column: span 5;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 22px;">
+          <div style="width: 26px; height: 2px; background: #2E7D5B;"></div>
+          <span class="eyebrow" style="color: #1F5B41;">While We&rsquo;re There&trade;</span>
+        </div>
+        <h2 style="font-size: 50px; line-height: 1.06; font-weight: 700; color: #14231C;">One trip.<br>More done.</h2>
+        <p style="margin-top: 26px; font-size: 18px; line-height: 1.6; color: #2C3A32;">
+          Once a customer books their primary service, Price2Book can show additional work at your approved same-visit price.
+        </p>
+        <div style="margin-top: 30px; display: flex; flex-direction: column; gap: 16px;">
+          <div style="padding-left: 16px; border-left: 2px solid #2E7D5B;">
+            <div style="font-size: 15px; font-weight: 600; color: #14231C;">For the homeowner</div>
+            <p style="margin-top: 5px; font-size: 15px; line-height: 1.5; color: #3F4E45;">Get more done during the same visit, for less.</p>
+          </div>
+          <div style="padding-left: 16px; border-left: 2px solid #2E7D5B;">
+            <div style="font-size: 15px; font-weight: 600; color: #14231C;">For the contractor</div>
+            <p style="margin-top: 5px; font-size: 15px; line-height: 1.5; color: #3F4E45;">Make a visit you&rsquo;re already sending a technician to worth more.</p>
+          </div>
+        </div>
+        <p style="margin-top: 28px; font-size: 15px; line-height: 1.55; color: #4A5951;">
+          Same-visit pricing reflects the incremental labour, materials and direct costs once the trip and setup are already covered — not an arbitrary percentage off.
+        </p>
+      </div>
+
+      <div style="grid-column: span 7;">
+        <div style="border: 1px solid #E6E2D9; border-radius: 3px; background: #FFFFFF; overflow: hidden;">
+          <div style="padding: 14px 24px; border-bottom: 1px solid #EEEAE1; background: #FAF8F3;">
+            <span class="eyebrow" style="color: #8A857A; font-size: 11px;">Your visit</span>
+          </div>
+          <div style="padding: 22px 24px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 17px; font-weight: 600;">Install New Ceiling Fan</span>
+            <span style="font-size: 26px; font-weight: 700;">$375</span>
+          </div>
+        </div>
+        <div style="margin-top: 14px; border: 1.5px solid #2E7D5B; border-radius: 3px; background: #FFFFFF; overflow: hidden;">
+          <div style="padding: 16px 24px; background: #2E7D5B; color: #FFFFFF;">
+            <div style="font-size: 15px; font-weight: 700;">While We&rsquo;re There&trade;</div>
+            <div style="margin-top: 3px; font-size: 14px; color: #D2E7DB;">Since we&rsquo;re already coming out, you can add:</div>
+          </div>
+          <sc-for list="{{addons}}" as="a" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid #EEF3F0;">
+              <span style="font-size: 16px;">{{a.name}}</span>
+              <div style="display: flex; align-items: center; gap: 18px;">
+                <span style="font-size: 17px; font-weight: 700; color: #1F5B41;">{{a.price}}</span>
+                <span style="padding: 8px 20px; border: 1.5px solid #2E7D5B; border-radius: 2px; font-size: 14px; font-weight: 600; color: #1F5B41;">Add</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Guided Pricing ──────────────────────────────────── -->
+  <div id="guided" style="padding: 88px 88px 80px;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px;">
+      <div style="grid-column: span 5;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 22px;">
+          <div style="width: 26px; height: 2px; background: {{accent}};"></div>
+          <span class="eyebrow" style="color: {{accent}};">Guided Pricing</span>
+        </div>
+        <h2 style="font-size: 46px; line-height: 1.1; font-weight: 700;">Ask the questions that change the price.</h2>
+        <p style="margin-top: 26px; font-size: 18px; line-height: 1.6; color: #3A3730;">
+          You already know which questions you ask before giving someone a price. Price2Book lets you build that conversation into your website.
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 28px;">
+          <sc-for list="{{gpBullets}}" as="b" hint-placeholder-count="4">
+            <div style="display: flex; align-items: center; gap: 11px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{accent}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+              <span style="font-size: 16px; color: #3A3730;">{{b.t}}</span>
+            </div>
+          </sc-for>
+        </div>
+        <p style="margin-top: 30px; font-size: 17px; line-height: 1.55; color: #14181F; font-weight: 600;">Your expertise, turned into a customer experience.</p>
+        <p style="margin-top: 12px; font-size: 15px; line-height: 1.55; color: #57534A;">
+          Price2Book doesn&rsquo;t start with a booking form. It starts by understanding the job.
+        </p>
+      </div>
+
+      <div style="grid-column: span 7; border: 1px solid #E6E2D9; border-radius: 3px; background: #FFFFFF; padding: 30px 32px 34px;">
+        <div style="font-size: 16px; font-weight: 700;">Replace Ceiling Fixture</div>
+        <sc-for list="{{tree}}" as="t" hint-placeholder-count="3">
+          <div style="margin-top: 20px;">
+            <div style="width: 1px; height: 16px; background: #D8D3C8; margin-left: 11px;"></div>
+            <div style="margin-top: 8px; padding: 16px 18px; border: 1px solid #DCE4EF; border-radius: 3px; background: #F7F9FC;">
+              <div style="font-size: 15px; font-weight: 600; color: #14181F;">{{t.q}}</div>
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+                <sc-for list="{{t.answers}}" as="a" hint-placeholder-count="2">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="min-width: 140px; padding: 5px 11px; background: #FFFFFF; border: 1px solid #E6E2D9; border-radius: 2px; font-size: 14px;">{{a.label}}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A8A296" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    <span style="padding: 5px 11px; border-radius: 2px; font-size: 13px; font-weight: 600; background: {{a.bg}}; color: {{a.fg}};">{{a.action}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── four customer outcomes ──────────────────────────── -->
+  <div style="padding: 80px 88px; background: #F5F2EC; border-top: 1px solid #E6E2D9;">
+    <h2 style="font-size: 40px; line-height: 1.15; font-weight: 700;">You decide what happens next.</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; margin-top: 44px;">
+      <sc-for list="{{outcomes}}" as="o" hint-placeholder-count="4">
+        <div style="background: #FFFFFF; border: 1px solid #E6E2D9; border-radius: 3px; padding: 26px 22px 28px; display: flex; flex-direction: column;">
+          <div style="padding: 5px 11px; border-radius: 2px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; background: {{o.bg}}; color: {{o.fg}}; align-self: flex-start;">{{o.tag}}</div>
+          <div style="margin-top: 16px; font-size: 18px; font-weight: 600; line-height: 1.3;">{{o.title}}</div>
+          <p style="margin-top: 11px; font-size: 15px; line-height: 1.55; color: #57534A;">{{o.body}}</p>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin-top: 36px; font-size: 17px; color: #3A3730; max-width: 74ch;">
+      Price2Book doesn&rsquo;t force every job through the same funnel. You choose the right path service by service.
+    </p>
+  </div>
+
+  <!-- ── pricing control / trust ─────────────────────────── -->
+  <div style="padding: 88px 88px 80px;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; align-items: start;">
+      <div style="grid-column: span 6;">
+        <h2 style="font-size: 46px; line-height: 1.1; font-weight: 700;">Your labour.<br>Your materials.<br>Your rules.</h2>
+        <div style="margin-top: 32px; padding: 22px 24px; border-left: 3px solid {{accent}}; background: #F2F5FA;">
+          <div style="font-size: 21px; font-weight: 700; color: {{accent}};">Price2Book can suggest. You approve.</div>
+          <p style="margin-top: 12px; font-size: 16px; line-height: 1.6; color: #3A3730;">
+            Change your pricing inputs and Price2Book can recalculate suggested prices. You review and approve every published change.
+          </p>
+        </div>
+        <p style="margin-top: 24px; font-size: 15px; line-height: 1.6; color: #57534A;">
+          A suggested price and a published price are never the same thing until you say so.
+        </p>
+      </div>
+      <div style="grid-column: span 6; border: 1px solid #E6E2D9; border-radius: 3px; background: #FFFFFF; overflow: hidden;">
+        <div style="padding: 16px 24px; border-bottom: 1px solid #EEEAE1; background: #FAF8F3; font-size: 15px; font-weight: 600;">Replace Existing Ceiling Fan</div>
+        <sc-for list="{{breakdown}}" as="b" hint-placeholder-count="5">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 15px 24px; border-bottom: 1px solid #F3F0E9;">
+            <span style="font-size: 15px; color: #3A3730;">{{b.k}}</span>
+            <span style="font-size: 15px; color: #57534A;">{{b.v}}</span>
+          </div>
+        </sc-for>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; background: #F2F5FA;">
+          <span style="font-size: 15px; font-weight: 600; color: {{accent}};">Suggested Price</span>
+          <span style="font-size: 24px; font-weight: 700; color: {{accent}};">$375</span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-top: 1px solid #E6E2D9;">
+          <span style="font-size: 15px; font-weight: 600;">Published Price</span>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <span style="font-size: 20px; font-weight: 700;">$375</span>
+            <span style="padding: 6px 14px; background: #14181F; color: #FBFAF7; border-radius: 2px; font-size: 13px; font-weight: 600;">Approved by you</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── scheduling ──────────────────────────────────────── -->
+  <div style="padding: 80px 88px; border-top: 1px solid #E6E2D9;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; align-items: center;">
+      <div style="grid-column: span 7; border: 1px solid #E6E2D9; border-radius: 3px; background: #FFFFFF; padding: 28px 30px;">
+        <span class="eyebrow" style="color: #8A857A; font-size: 11px;">Thursday</span>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px;">
+          <sc-for list="{{windows}}" as="w" hint-placeholder-count="3">
+            <div style="border: 1px solid {{w.border}}; border-radius: 2px; padding: 16px; background: {{w.bg}};">
+              <div style="font-size: 15px; font-weight: 600; color: {{w.fg}};">{{w.time}}</div>
+              <div style="margin-top: 8px; font-size: 13px; color: {{w.noteTone}};">{{w.note}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="grid-column: span 5;">
+        <h2 style="font-size: 44px; line-height: 1.1; font-weight: 700;">You decide what can be booked.</h2>
+        <p style="margin-top: 24px; font-size: 18px; line-height: 1.6; color: #3A3730;">
+          A price isn&rsquo;t permission to put anything anywhere on your calendar. You choose your working hours, bookable services, eligible crews and available windows.
+        </p>
+        <p style="margin-top: 18px; font-size: 16px; line-height: 1.6; color: #57534A;">
+          Nobody should be able to book a four-hour job when there are only two hours left in the day.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── integrations ────────────────────────────────────── -->
+  <div id="integrations" style="padding: 84px 88px; background: #0F2340; color: #F4F6F9;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; align-items: start;">
+      <div style="grid-column: span 5;">
+        <h2 style="font-size: 46px; line-height: 1.1; font-weight: 700;">Keep the software you already use.</h2>
+        <p style="margin-top: 26px; font-size: 18px; line-height: 1.6; color: #B7C2D2;">
+          Price2Book is the pricing and booking layer in front of your business — not a replacement for the systems behind it.
+        </p>
+        <p style="margin-top: 20px; font-size: 16px; line-height: 1.6; color: #B7C2D2;">
+          Already running on a field-service platform? Keep it. Running lean on a calendar? That works too. Not using scheduling software at all? Use ours.
+        </p>
+      </div>
+      <div style="grid-column: span 7; display: flex; flex-direction: column; gap: 12px;">
+        <sc-for list="{{integrations}}" as="i" hint-placeholder-count="5">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border: 1px solid #23395C; border-radius: 3px; background: #142B4C;">
+            <div>
+              <div style="font-size: 17px; font-weight: 600;">{{i.name}}</div>
+              <div style="margin-top: 4px; font-size: 14px; color: #8FA0B8;">{{i.body}}</div>
+            </div>
+            <span style="padding: 6px 14px; border-radius: 2px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: {{i.bg}}; color: {{i.fg}};">{{i.status}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── electrical first ────────────────────────────────── -->
+  <div style="padding: 84px 88px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 26px; height: 2px; background: {{accent}};"></div>
+      <span class="eyebrow" style="color: {{accent}};">Electrical first</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; margin-top: 24px;">
+      <div style="grid-column: span 6;">
+        <h2 style="font-size: 44px; line-height: 1.12; font-weight: 700;">Start with real trade knowledge — not an empty booking form.</h2>
+        <p style="margin-top: 26px; font-size: 18px; line-height: 1.6; color: #3A3730;">
+          Price2Book starts with residential electrical service structure already built: common services, Guided Pricing questions, material roles, routing rules, and the situations that shouldn&rsquo;t receive an automatic price.
+        </p>
+        <div style="margin-top: 28px; padding: 20px 22px; border-left: 3px solid {{accent}}; background: #F2F5FA;">
+          <p style="font-size: 16px; line-height: 1.6; color: #14181F;">
+            You don&rsquo;t inherit another contractor&rsquo;s prices. You apply <span style="font-weight: 600;">your economics and your policies</span> to the underlying trade knowledge.
+          </p>
+        </div>
+        <p style="margin-top: 24px; font-size: 16px; color: #57534A;">Dozens of residential electrical services, with the questions and materials behind each one.</p>
+      </div>
+      <div style="grid-column: span 6; border: 1px solid #E6E2D9; border-radius: 3px; background: #FFFFFF; overflow: hidden;">
+        <div style="padding: 15px 24px; border-bottom: 1px solid #EEEAE1; background: #FAF8F3;">
+          <span class="eyebrow" style="color: #8A857A; font-size: 11px;">What ships with a service</span>
+        </div>
+        <sc-for list="{{ships}}" as="s" hint-placeholder-count="5">
+          <div style="display: flex; align-items: flex-start; gap: 14px; padding: 17px 24px; border-bottom: 1px solid #F3F0E9;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2E7D5B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px; flex-shrink: 0;"><path d="m5 13 4 4L19 7"/></svg>
+            <div>
+              <div style="font-size: 15px; font-weight: 600;">{{s.t}}</div>
+              <div style="margin-top: 4px; font-size: 14px; color: #57534A;">{{s.b}}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── contractor control panel ────────────────────────── -->
+  <div style="padding: 80px 88px; background: #F5F2EC; border-top: 1px solid #E6E2D9;">
+    <h2 style="font-size: 38px; line-height: 1.2; font-weight: 700; max-width: 28ch;">Everything your customer sees traces back to something you control.</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin-top: 44px;">
+      <sc-for list="{{modules}}" as="m" hint-placeholder-count="8">
+        <div style="background: #FFFFFF; border: 1px solid #E6E2D9; border-radius: 3px; padding: 20px;">
+          <div style="font-size: 16px; font-weight: 600;">{{m.t}}</div>
+          <div style="margin-top: 16px; height: 96px; border: 1px dashed #D8D3C8; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #A8A296;">[screenshot]</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ── Guided Setup ────────────────────────────────────── -->
+  <div style="padding: 84px 88px;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px;">
+      <div style="grid-column: span 5;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 22px;">
+          <div style="width: 26px; height: 2px; background: {{accent}};"></div>
+          <span class="eyebrow" style="color: {{accent}};">Guided Setup</span>
+        </div>
+        <h2 style="font-size: 46px; line-height: 1.1; font-weight: 700;">Setup is a conversation, not a form.</h2>
+        <p style="margin-top: 26px; font-size: 18px; line-height: 1.6; color: #3A3730;">
+          Answer a few questions about how you work and what you charge. Price2Book builds your starting setup from there.
+        </p>
+        <p style="margin-top: 22px; font-size: 16px; line-height: 1.6; color: #57534A;">
+          You don&rsquo;t get handed a stack of blank services and told to figure it out.
+        </p>
+      </div>
+      <div style="grid-column: span 7;">
+        <div style="display: flex; flex-direction: column;">
+          <sc-for list="{{setup}}" as="u" hint-placeholder-count="3">
+            <div style="display: flex; gap: 26px; padding: 26px 0; border-bottom: 1px solid #E6E2D9;">
+              <div style="flex-shrink: 0; width: 30px; font-size: 14px; font-weight: 700; color: {{accent}};">{{u.n}}</div>
+              <div style="flex-shrink: 0; width: 230px; font-size: 18px; font-weight: 600;">{{u.title}}</div>
+              <p style="font-size: 16px; line-height: 1.55; color: #57534A;">{{u.body}}</p>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 26px;">
+          <sc-for list="{{progression}}" as="g" hint-placeholder-count="5">
+            <span style="padding: 8px 14px; border: 1px solid #DCE4EF; border-radius: 2px; background: #F7F9FC; font-size: 14px; color: #3A3730;">{{g.t}}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── proof (factual, no invented testimonials) ───────── -->
+  <div style="padding: 72px 88px; background: #F5F2EC; border-top: 1px solid #E6E2D9;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; align-items: start;">
+      <div style="grid-column: span 5;">
+        <h2 style="font-size: 32px; line-height: 1.2; font-weight: 700;">Proof, once there is proof.</h2>
+        <p style="margin-top: 20px; font-size: 16px; line-height: 1.6; color: #57534A;">
+          Price2Book is being run on a working electrical business first. When pilot contractors have numbers worth showing, these are what we&rsquo;ll show.
+        </p>
+      </div>
+      <div style="grid-column: span 7; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px;">
+        <sc-for list="{{metrics}}" as="m" hint-placeholder-count="6">
+          <div style="padding: 18px 18px 20px; border: 1px dashed #D8D3C8; border-radius: 3px; background: #FFFFFF;">
+            <div style="font-size: 22px; font-weight: 700; color: #C4BEB1;">[ ]</div>
+            <div style="margin-top: 8px; font-size: 14px; line-height: 1.4; color: #57534A;">{{m.t}}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── final CTA ───────────────────────────────────────── -->
+  <div id="access" style="padding: 96px 88px 100px; background: #0F2340; color: #F4F6F9;">
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; align-items: end;">
+      <div style="grid-column: span 7;">
+        <h2 style="font-size: 54px; line-height: 1.07; font-weight: 700;">We&rsquo;re onboarding a<br>small number of<br>contractors.</h2>
+        <p style="margin-top: 28px; font-size: 19px; line-height: 1.6; color: #B7C2D2; max-width: 46ch;">
+          Price2Book is being built and proven with real contractors before broader release. If this sounds like how you want customers to price and book your services, we&rsquo;d like to talk.
+        </p>
+      </div>
+      <div style="grid-column: span 5;">
+        <div style="border: 1px solid #23395C; border-radius: 3px; padding: 28px; background: #142B4C;">
+          <div style="display: flex; flex-direction: column; gap: 13px;">
+            <sc-for list="{{fields}}" as="f" hint-placeholder-count="4">
+              <div style="padding: 14px 16px; border: 1px solid #23395C; border-radius: 2px; font-size: 15px; color: #7E8EA6;">{{f.t}}</div>
+            </sc-for>
+            <div style="margin-top: 6px; padding: 15px; background: {{accent}}; color: #FFFFFF; border-radius: 2px; text-align: center; font-size: 16px; font-weight: 600;">Request Early Access</div>
+          </div>
+          <p style="margin-top: 18px; font-size: 13px; line-height: 1.5; color: #7E8EA6;">No card required. Just a conversation about whether Price2Book fits how you work.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── footer ──────────────────────────────────────────── -->
+  <div style="padding: 38px 88px; display: flex; align-items: center; justify-content: space-between; background: #0B1A2F; border-top: 1px solid #1B2E4B; color: #7E8EA6; font-size: 14px;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7E8EA6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
+      <span>Price2Book</span>
+    </div>
+    <span>While We&rsquo;re There&trade; is a trademark of Price2Book.</span>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#1B4B8F","options":["#1B4B8F","#0F2340","#2E7D5B","#1D5FA8"],"section":"Brand"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const A = this.props.accent ?? '#1B4B8F';
+    return {
+      accent: A,
+      control: [
+        { k: 'Published Price', v: '$375', tone: '#14181F' },
+        { k: "While We're There™", v: '+$250', tone: '#1F5B41' },
+        { k: 'Prep Photos', v: 'Required', tone: '#14181F' },
+        { k: 'Booking', v: 'Enabled', tone: '#1F5B41' },
+      ],
+      pillars: [
+        { title: 'Price Online', tone: A,
+          lead: 'Turn the services you choose into guided upfront pricing.',
+          body: 'Ask only the questions that affect scope, price, materials, access, safety or routing.' },
+        { title: 'Book Online', tone: A,
+          lead: 'Offer appointment windows your crews can actually cover.',
+          body: 'Availability can reflect hours, service area, eligible crews and job duration.' },
+        { title: "While We're There™", tone: '#2E7D5B',
+          lead: 'Make additional same-visit work an easy yes.',
+          body: 'Offer approved additional services at the price that applies once the technician is already there.' },
+      ],
+      steps: [
+        { n: '01', title: 'Picks the work', body: 'Customers browse or search for what they need — in their words, not trade terminology.' },
+        { n: '02', title: 'Answers a few questions', body: 'Only the details that actually matter: ceiling height, existing power, access, quantity, materials, condition.' },
+        { n: '03', title: 'Sees a real price', body: 'When the service fits an approved pricing path, the customer gets an actual price.' },
+        { n: '04', title: 'Books a window', body: 'Only from availability you have opened.' },
+      ],
+      addons: [
+        { name: 'Replace GFCI Outlet', price: '+$115' },
+        { name: 'Install LED Dimmer', price: '+$130' },
+        { name: 'Replace Exterior Light', price: '+$165' },
+      ],
+      gpBullets: [
+        { t: 'Edit the questions.' },
+        { t: 'Change the answers.' },
+        { t: 'Choose what each answer does.' },
+        { t: 'Build new pricing paths without rebuilding your website.' },
+      ],
+      tree: [
+        { q: 'Is there already a fixture here?', answers: [
+          { label: 'Yes', action: 'Continue', bg: '#EAF3EE', fg: '#1F5B41' },
+          { label: 'No', action: 'Route to new-location pricing', bg: '#F0F0EC', fg: '#57534A' },
+        ]},
+        { q: 'How high is it?', answers: [
+          { label: '12 ft or less', action: 'Standard price', bg: '#EAF3EE', fg: '#1F5B41' },
+          { label: 'Over 12 ft', action: 'Require photos / review', bg: '#FDF3E4', fg: '#8A5A12' },
+        ]},
+        { q: 'Normal ladder access?', answers: [
+          { label: 'Yes', action: 'Price + book', bg: '#EAF3EE', fg: '#1F5B41' },
+          { label: 'No', action: 'Review', bg: '#FDF3E4', fg: '#8A5A12' },
+        ]},
+      ],
+      outcomes: [
+        { tag: 'Instant Price', bg: '#EAF3EE', fg: '#1F5B41', title: 'Clear scope. Price it and book it.',
+          body: 'Well-understood work goes straight through — price, window, done.' },
+        { tag: 'Prep Photos', bg: '#E8EEF7', fg: '#1B4B8F', title: 'Known price. Photos you need.',
+          body: 'The homeowner sees the price immediately and sends the photos you selected. "Help us come prepared."' },
+        { tag: 'Photo Review', bg: '#FDF3E4', fg: '#8A5A12', title: 'See it before releasing the price.',
+          body: 'Customer submits answers and photos. You review, issue the price, they approve and book.' },
+        { tag: 'Custom Quote', bg: '#F0F0EC', fg: '#57534A', title: 'Some work stays yours.',
+          body: 'Highly variable or complex services never receive an automatic price.' },
+      ],
+      breakdown: [
+        { k: 'Labour', v: 'Your rate × resolved crew hours' },
+        { k: 'Materials', v: 'Your costs, itemised' },
+        { k: 'Direct Costs', v: 'Permits, disposal, admin' },
+        { k: 'Minimum', v: 'Your service-call floor' },
+        { k: 'Scope Policy', v: 'What this price does and does not cover' },
+      ],
+      windows: [
+        { time: '8:00 – 11:00', note: '2 crews available', border: '#CFE3D8', bg: '#F3F9F5', fg: '#14181F', noteTone: '#1F5B41' },
+        { time: '11:00 – 2:00', note: '1 crew available', border: '#CFE3D8', bg: '#F3F9F5', fg: '#14181F', noteTone: '#1F5B41' },
+        { time: '2:00 – 4:30', note: "Unavailable — job won't fit", border: '#E6E2D9', bg: '#FAF8F3', fg: '#A8A296', noteTone: '#A8A296' },
+      ],
+      integrations: [
+        { name: 'Jobber', body: 'Booked work lands as a client and a job; availability reads your real calendar', status: 'Available', bg: '#1F5B41', fg: '#EAF3EE' },
+        { name: 'Price2Book Scheduler', body: "No field-service platform? Use ours", status: 'Built In', bg: '#1B4B8F', fg: '#E8EEF7' },
+        { name: 'ServiceTitan', body: 'Planned', status: 'Coming Soon', bg: '#23395C', fg: '#8FA0B8' },
+        { name: 'Housecall Pro', body: 'Planned', status: 'Coming Soon', bg: '#23395C', fg: '#8FA0B8' },
+        { name: 'Google Calendar', body: 'Planned', status: 'Coming Soon', bg: '#23395C', fg: '#8FA0B8' },
+      ],
+      ships: [
+        { t: 'Common residential services', b: 'The work homeowners actually call about' },
+        { t: 'Guided Pricing questions', b: 'The ones that change scope or price' },
+        { t: 'Material roles', b: 'What each job consumes, priced from your costs' },
+        { t: 'Routing rules', b: 'Which answers send a job to review instead of a price' },
+        { t: 'The exceptions', b: "Situations that shouldn't get an automatic price at all" },
+      ],
+      modules: [
+        { t: 'Services & Pricing' }, { t: 'Guided Pricing' },
+        { t: "While We're There™" }, { t: 'Hours & Availability' },
+        { t: 'Service Area' }, { t: 'Crew Eligibility' },
+        { t: 'Integrations' }, { t: 'Photo Review' },
+      ],
+      setup: [
+        { n: '01', title: 'Tell us how you work', body: 'Hours, service area, crew setup and scheduling preferences.' },
+        { n: '02', title: 'Tell us how you price', body: 'Labour rate, minimums, material costs and a few familiar service examples.' },
+        { n: '03', title: 'Review what Price2Book built', body: 'See your services, suggested prices and customer experience before anything goes live.' },
+      ],
+      progression: [
+        { t: 'Start from the template' }, { t: 'Add your numbers' }, { t: 'Set your policies' },
+        { t: 'Review your prices' }, { t: 'Turn on what you want' },
+      ],
+      metrics: [
+        { t: 'Fewer pricing calls' }, { t: 'After-hours bookings' }, { t: 'Office time saved' },
+        { t: "While We're There™ attach rate" }, { t: 'Average booked visit value' }, { t: 'Online-price conversion' },
+      ],
+      fields: [
+        { t: 'Name' }, { t: 'Company' }, { t: 'Email' }, { t: 'What do you use to run your business?' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

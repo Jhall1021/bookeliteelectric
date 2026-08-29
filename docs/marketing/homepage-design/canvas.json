@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",   "x": 0,    "y": 0, "w": 1440, "h": 8200, "title": "Homepage — desktop" },
+    { "file": "Mobile.dc.html", "x": 1600, "y": 0, "w": 390,  "h": 2450, "title": "Homepage — mobile" }
+  ],
+  "annotations": [
+    { "id": "spec", "x": 0, "y": -230, "w": 500,
+      "text": "Revised against the Final Consolidated Handoff.\n\nSection order per §21. Orange accent replaced with the Price2Book system: blue/navy for product, pricing, scheduling and control; green reserved for While We're There™, availability and positive states.\n\nWarm editorial character kept as instructed — the paper and typography are unchanged." },
+    { "id": "accuracy", "x": 1600, "y": -230, "w": 500,
+      "text": "Accuracy per the handoff:\n\n• Integration badges are truthful. Jobber is genuinely built (OAuth, push, crew sync, live availability) = Available. ServiceTitan / Housecall Pro / Google Calendar have no code = Coming Soon. Our scheduler = Built In.\n\n• \"Price2Book can suggest. You approve.\" replaces the old line about the rate re-deriving prices — that contradicted §13.\n\n• Service counts replaced with \"dozens\".\n\n• No invented testimonials; the proof section names the metrics to fill once pilots exist." }
+  ],
+  "launch": { "view": "focused", "file": "Main.dc.html" }
+}

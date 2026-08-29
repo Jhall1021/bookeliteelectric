@@ -19,7 +19,22 @@ const ROOTS = ["app", "components", "styles"];
  * It should keep looking like Price2Book whoever is signed in, so it is
  * deliberately outside the theme system rather than lagging behind it.
  */
-const SKIP_DIRS = [/^components\/admin\//, /^app\/admin\//];
+/**
+ * Directories this linter deliberately does not police.
+ *
+ * The admin was never themed. The MARKETING site is a stronger case: a
+ * storefront token resolves whichever contractor's theme is in :root, so using
+ * one on Price2Book's own homepage would let a contractor's colour choice
+ * repaint the product's marketing. Those pages use the p2b.* palette in
+ * tailwind.config.ts instead, and scripts/verify-marketing-homepage.ts asserts
+ * the opposite rule there — that no contractor-themed token appears in them.
+ */
+const SKIP_DIRS = [
+  /^components\/admin\//,
+  /^app\/admin\//,
+  /^components\/marketing\//,
+  /^app\/\(marketing\)\//,
+];
 
 /**
  * Two files legitimately hold colour literals.

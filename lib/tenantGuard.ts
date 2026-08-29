@@ -138,6 +138,14 @@ export const PLATFORM_MODELS = new Set<string>([
   /// same basis as CanonicalMaterial. Its economics live on
   /// ContractorComponent, which is tenant-scoped.
   "CanonicalComponent",
+  /// ADR-020. An early-access request from the public marketing site.
+  ///
+  /// Platform because a lead is NOT a tenant. There is no contractorId to
+  /// scope by — the person who filled the form in has no contractor here, and
+  /// inventing an association to give the row a home would turn an
+  /// unauthenticated public POST into a write inside somebody's tenant. It is
+  /// written by /api/early-access and read only by an operator.
+  "EarlyAccessRequest",
   "ZipCode",
   /// ADR §2.2 — public storefront identity mapped to one contractor.
   ///

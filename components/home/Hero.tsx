@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import ServiceFinder from "@/components/home/ServiceFinder";
 import { useStructure } from "@/components/theme/ThemeContext";
-import { useStorefront } from "@/components/theme/StorefrontContext";
+import { useStorefront, useIdentity } from "@/components/theme/StorefrontContext";
 
 /**
  * The storefront hero, in two compositions — ADR-015 Phase 3.
@@ -82,10 +82,36 @@ function Ladder({ ladder, strip }: { ladder: HeroProps["ladder"]; strip: boolean
   );
 }
 
-const HERO_IMAGE = {
-  src: "/images/hero-kitchen.jpg",
-  alt: "An electrician showing a homeowner a quote on a tablet in her kitchen",
-};
+/**
+ * The hero photograph, or nothing.
+ *
+ * This was a module constant pointing at Elite's own photograph — which has
+ * Elite's logo on the technician's shirt — and every contractor's storefront
+ * rendered it. It is now contractor-owned identity (ADR-016).
+ *
+ * There is deliberately no fallback image. Substituting a stock photograph
+ * would repeat the same mistake more quietly: a shared hero still tells a
+ * visitor that unrelated businesses are one business. A contractor who has
+ * supplied no photograph gets a themed panel, which is honest and still looks
+ * finished, and the layouts below are written so the absence is a design
+ * rather than a hole.
+ */
+function HeroImage({ className, sizes }: { className: string; sizes: string }) {
+  const { heroImage } = useIdentity();
+  if (!heroImage) {
+    return (
+      <div className={`${className} bg-ink/5`} aria-hidden="true">
+        <div className="h-full w-full bg-gradient-to-br from-accent/15 via-transparent to-ink/10" />
+      </div>
+    );
+  }
+  return (
+    <div className={className}>
+      <Image src={heroImage.url} alt={heroImage.alt} fill priority
+             className="object-cover" sizes={sizes} />
+    </div>
+  );
+}
 
 function SplitHero({ base, ladder, differentiators }: HeroProps) {
   const { heroAside } = useStructure();
@@ -143,10 +169,8 @@ function SplitHero({ base, ladder, differentiators }: HeroProps) {
           </ul>
         </div>
 
-        <div className="relative aspect-[4/3] overflow-hidden rounded-card">
-          <Image src={HERO_IMAGE.src} alt={HERO_IMAGE.alt} fill priority
-                 className="object-cover" sizes="(min-width: 768px) 50vw, 100vw" />
-        </div>
+        <HeroImage className="relative aspect-[4/3] overflow-hidden rounded-card"
+                   sizes="(min-width: 768px) 50vw, 100vw" />
       </div>
     </section>
   );
@@ -203,10 +227,7 @@ function CenteredHero({ base, ladder, differentiators }: HeroProps) {
 
       {/* Full-bleed band rather than a column-mate. The photograph stops being
           a companion to the copy and becomes the transition into the page. */}
-      <div className="relative h-[22rem] w-full overflow-hidden md:h-[26rem]">
-        <Image src={HERO_IMAGE.src} alt={HERO_IMAGE.alt} fill priority
-               className="object-cover" sizes="100vw" />
-      </div>
+      <HeroImage className="relative h-[22rem] w-full overflow-hidden md:h-[26rem]" sizes="100vw" />
     </section>
   );
 }
@@ -226,8 +247,7 @@ function BannerHero({ base, ladder, differentiators }: HeroProps) {
   return (
     <section className="bg-canvas text-ink">
       <div className="relative h-[26rem] w-full overflow-hidden md:h-[32rem]">
-        <Image src={HERO_IMAGE.src} alt={HERO_IMAGE.alt} fill priority
-               className="object-cover" sizes="100vw" />
+        <HeroImage className="absolute inset-0" sizes="100vw" />
         {/* A scrim rather than a flat overlay: the headline needs a readable
             ground without hiding the photograph it is sitting on. `ink` is the
             theme's dark, so this darkens toward the palette rather than toward

@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #FBFAF7; color: #14181F;
+           font-family: Archivo, "Helvetica Neue", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #1B4B8F; text-decoration: none; }
+    a:hover { color: #12356A; }
+    h1, h2 { margin: 0; letter-spacing: -0.022em; text-wrap: balance; }
+    p { margin: 0; text-wrap: pretty; }
+    .eyebrow { font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; font-weight: 600; }
+  </style>
+</helmet>
+
+<div style="width: 390px; background: #FBFAF7;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #E6E2D9;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#1B4B8F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg>
+      <span style="font-size: 16px; font-weight: 700; letter-spacing: -0.03em;">Price2Book</span>
+    </div>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14181F" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </div>
+
+  <div style="padding: 38px 20px 34px;">
+    <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 18px;">
+      <div style="width: 20px; height: 2px; background: #1B4B8F;"></div>
+      <span class="eyebrow" style="color: #1B4B8F;">For residential contractors</span>
+    </div>
+    <h1 style="font-size: 42px; line-height: 1.0; font-weight: 700;">Your pricing.<br>Your schedule.</h1>
+    <p style="margin-top: 20px; font-size: 16px; line-height: 1.55; color: #3A3730;">
+      Give homeowners upfront prices and let them book the work you choose — using your pricing, your availability, and the software you already use.
+    </p>
+    <div style="display: flex; flex-direction: column; gap: 11px; margin-top: 26px;">
+      <a href="#" style="display: block; padding: 16px; background: #1B4B8F; color: #FBFAF7; border-radius: 2px; text-align: center; font-size: 16px; font-weight: 600;">Request Early Access</a>
+      <a href="#" style="display: block; padding: 16px; border: 1px solid #14181F; color: #14181F; border-radius: 2px; text-align: center; font-size: 15px; font-weight: 500;">See the Homeowner Experience</a>
+    </div>
+    <p style="margin-top: 24px; font-size: 14px; color: #57534A;">Works alongside your existing business software. <span style="color: #14181F; font-weight: 500;">No new CRM required.</span></p>
+  </div>
+
+  <!-- two-sided, stacked on mobile -->
+  <div style="margin: 0 20px 36px;">
+    <div style="border: 1px solid #DCE4EF; border-radius: 3px; background: #F2F5FA; overflow: hidden;">
+      <div style="padding: 10px 16px; border-bottom: 1px solid #DCE4EF; background: #E8EEF7;">
+        <span class="eyebrow" style="color: #1B4B8F;">Contractor · what you set</span>
+      </div>
+      <div style="padding: 14px 16px;">
+        <sc-for list="{{control}}" as="c" hint-placeholder-count="4">
+          <div style="display: flex; justify-content: space-between; padding: 7px 0; font-size: 14px;">
+            <span style="color: #57534A;">{{c.k}}</span><span style="font-weight: 600; color: {{c.tone}};">{{c.v}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: center; padding: 10px 0;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B4B8F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+    </div>
+    <div style="border: 1px solid #E6E2D9; border-radius: 3px; background: #FFFFFF; box-shadow: 0 2px 6px rgba(20,24,31,.05), 0 14px 34px rgba(20,24,31,.08); overflow: hidden;">
+      <div style="padding: 10px 16px; border-bottom: 1px solid #EEEAE1; background: #FAF8F3;">
+        <span class="eyebrow" style="color: #8A857A;">Homeowner · what they see</span>
+      </div>
+      <div style="padding: 20px;">
+        <div style="font-size: 14px; font-weight: 600;">Replace Existing Ceiling Fan</div>
+        <div style="display: flex; align-items: baseline; gap: 9px; margin-top: 10px;">
+          <span style="font-size: 36px; font-weight: 700; letter-spacing: -0.03em;">$375</span>
+          <span style="font-size: 13px; color: #57534A;">all-in</span>
+        </div>
+        <div style="height: 1px; background: #E6E2D9; margin: 16px 0;"></div>
+        <div style="font-size: 12px; color: #57534A; margin-bottom: 9px;">Thursday</div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px;">
+          <div style="border: 1.5px solid #2E7D5B; border-radius: 2px; padding: 10px 4px; text-align: center; background: #EAF3EE;">
+            <div style="font-size: 13px; font-weight: 600; color: #1F5B41;">8–11</div>
+            <div style="font-size: 10px; color: #2E7D5B;">available</div>
+          </div>
+          <div style="border: 1px solid #E6E2D9; border-radius: 2px; padding: 10px 4px; text-align: center;"><div style="font-size: 13px; font-weight: 600;">11–2</div></div>
+          <div style="border: 1px solid #E6E2D9; border-radius: 2px; padding: 10px 4px; text-align: center; opacity: .4;"><div style="font-size: 13px; font-weight: 600;">2–4:30</div></div>
+        </div>
+        <div style="margin-top: 15px; padding: 15px; background: #14181F; color: #FBFAF7; border-radius: 2px; text-align: center; font-size: 15px; font-weight: 600;">Book This Window</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 36px 20px; background: #F5F2EC; border-top: 1px solid #E6E2D9;">
+    <h2 style="font-size: 25px; line-height: 1.22; font-weight: 700;">Give customers a price. Give them a time. Make the visit worth more.</h2>
+    <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 26px;">
+      <sc-for list="{{pillars}}" as="p" hint-placeholder-count="3">
+        <div style="background: #FFFFFF; border: 1px solid #E6E2D9; border-top: 3px solid {{p.tone}}; border-radius: 3px; padding: 20px;">
+          <div style="font-size: 18px; font-weight: 700; color: {{p.tone}};">{{p.title}}</div>
+          <p style="margin-top: 10px; font-size: 15px; line-height: 1.55; color: #3A3730;">{{p.lead}}</p>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="padding: 38px 20px; background: #EAF3EE; border-top: 1px solid #D5E5DC;">
+    <span class="eyebrow" style="color: #1F5B41;">While We&rsquo;re There&trade;</span>
+    <h2 style="margin-top: 14px; font-size: 34px; line-height: 1.08; font-weight: 700; color: #14231C;">One trip.<br>More done.</h2>
+    <p style="margin-top: 16px; font-size: 16px; line-height: 1.6; color: #2C3A32;">
+      Once a customer books their primary service, Price2Book can show additional work at your approved same-visit price.
+    </p>
+    <div style="margin-top: 22px; border: 1.5px solid #2E7D5B; border-radius: 3px; background: #FFFFFF; overflow: hidden;">
+      <div style="padding: 13px 18px; background: #2E7D5B; color: #FFFFFF; font-size: 14px; font-weight: 700;">Since we&rsquo;re already coming out:</div>
+      <sc-for list="{{addons}}" as="a" hint-placeholder-count="3">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 15px 18px; border-bottom: 1px solid #EEF3F0;">
+          <span style="font-size: 15px;">{{a.name}}</span>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 15px; font-weight: 700; color: #1F5B41;">{{a.price}}</span>
+            <span style="padding: 7px 16px; border: 1.5px solid #2E7D5B; border-radius: 2px; font-size: 13px; font-weight: 600; color: #1F5B41;">Add</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="padding: 38px 20px; background: #0F2340; color: #F4F6F9;">
+    <h2 style="font-size: 30px; line-height: 1.12; font-weight: 700;">Keep the software you already use.</h2>
+    <p style="margin-top: 16px; font-size: 16px; line-height: 1.6; color: #B7C2D2;">
+      Price2Book is the pricing and booking layer in front of your business — not a replacement for the systems behind it.
+    </p>
+    <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 22px;">
+      <sc-for list="{{integrations}}" as="i" hint-placeholder-count="3">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border: 1px solid #23395C; border-radius: 3px; background: #142B4C;">
+          <span style="font-size: 15px; font-weight: 600;">{{i.name}}</span>
+          <span style="padding: 5px 11px; border-radius: 2px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: {{i.bg}}; color: {{i.fg}};">{{i.status}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      control: [
+        { k: 'Published Price', v: '$375', tone: '#14181F' },
+        { k: "While We're There™", v: '+$250', tone: '#1F5B41' },
+        { k: 'Prep Photos', v: 'Required', tone: '#14181F' },
+        { k: 'Booking', v: 'Enabled', tone: '#1F5B41' },
+      ],
+      pillars: [
+        { title: 'Price Online', tone: '#1B4B8F', lead: 'Turn the services you choose into guided upfront pricing.' },
+        { title: 'Book Online', tone: '#1B4B8F', lead: 'Offer appointment windows your crews can actually cover.' },
+        { title: "While We're There™", tone: '#2E7D5B', lead: 'Make additional same-visit work an easy yes.' },
+      ],
+      addons: [
+        { name: 'Replace GFCI Outlet', price: '+$115' },
+        { name: 'Install LED Dimmer', price: '+$130' },
+        { name: 'Replace Exterior Light', price: '+$165' },
+      ],
+      integrations: [
+        { name: 'Jobber', status: 'Available', bg: '#1F5B41', fg: '#EAF3EE' },
+        { name: 'Price2Book Scheduler', status: 'Built In', bg: '#1B4B8F', fg: '#E8EEF7' },
+        { name: 'ServiceTitan', status: 'Coming Soon', bg: '#23395C', fg: '#8FA0B8' },
+        { name: 'Housecall Pro', status: 'Coming Soon', bg: '#23395C', fg: '#8FA0B8' },
+        { name: 'Google Calendar', status: 'Coming Soon', bg: '#23395C', fg: '#8FA0B8' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

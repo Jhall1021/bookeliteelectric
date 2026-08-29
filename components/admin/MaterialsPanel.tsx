@@ -102,7 +102,7 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
     <div className="mt-8 max-w-xl rounded-card border border-cardline bg-white p-6 shadow-card">
       <h2 className="font-display text-lg font-bold text-navy">Materials</h2>
       <p className="mt-1 text-sm text-slate">
-        What Elite pays. Markup is added on top — 30% of the first $750, 20% above
+        What you pay. Markup is added on top — 30% of the first $750, 20% above
         that — and applied to the whole package at once. Customers never see this.
       </p>
 

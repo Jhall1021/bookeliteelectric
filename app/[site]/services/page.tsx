@@ -66,7 +66,7 @@ export default async function ServicesPage({ params }: { params: { site: string 
               )}
               <div className="p-4">
                 <div className="text-sm font-semibold text-navy">{categoryName(cat)}</div>
-                <div className="mt-1 text-xs text-slate">{cat.services.length} services</div>
+                <div className="mt-1 text-xs text-slate">{cat.services.length} {cat.services.length === 1 ? "service" : "services"}</div>
               </div>
             </Link>
           );

@@ -188,7 +188,7 @@ export default function PricingPanel(p: Props) {
             />
           </div>
           <div>
-            <label className={label}>Elite crews (normally 1)</label>
+            <label className={label}>Crew members (normally 1)</label>
             <input
               type="number" step="1" min="1" value={techs}
               onChange={(e) => setTechs(e.target.value)}
@@ -336,7 +336,7 @@ export default function PricingPanel(p: Props) {
           <span className="text-xs">
             <span className="font-semibold text-navy">Can be the first service on a visit</span>
             <span className="mt-0.5 block text-slate">
-              Uncheck for add-on-only items such as the Elite TV mounts. The service-call
+              Uncheck for add-on-only items such as a TV mount. The service-call
               minimum only applies to work that can be the reason a technician is dispatched.
             </span>
           </span>
