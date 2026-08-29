@@ -8,7 +8,7 @@
  *
  * Regenerate:
  *   npx tsx scripts/demo-contractor.ts --create
- *   npx tsx scripts/capture-demo-flow.ts --service soundbar-installation
+ *   npx tsx scripts/capture-demo-flow.ts --service new-120v-outlet
  *   npx tsx scripts/demo-contractor.ts --destroy
  */
 export const DEMO_FLOW = {
@@ -16,306 +16,12 @@ export const DEMO_FLOW = {
   "contractor": "Voltmark Electric",
   "note": "A demonstration contractor. Every price and routing decision below was produced by the real pricing engine and route resolver.",
   "search": {
-    "query": "I bought a soundbar and need it mounted under my TV",
-    "serviceName": "Customer-Supplied Soundbar Installation",
+    "query": "I need another outlet in my living room",
+    "serviceName": "New 120V Outlet",
     "matchKind": "suggestion"
   },
-  "primary": "soundbar-installation",
+  "primary": "new-120v-outlet",
   "flows": {
-    "soundbar-installation": {
-      "key": "soundbar-installation",
-      "name": "Customer-Supplied Soundbar Installation",
-      "description": "Mounting a soundbar below your TV or on a shelf, with cable concealment.",
-      "steps": [
-        {
-          "key": "soundbar_tv_mounted",
-          "prompt": "Is your TV already mounted on the wall?",
-          "helpText": null,
-          "options": [
-            {
-              "value": "mounted",
-              "label": "Yes, it's already on the wall",
-              "disclaimer": null,
-              "next": "soundbar_location"
-            },
-            {
-              "value": "needs_tv_mount",
-              "label": "No — I need the TV mounted too",
-              "disclaimer": null,
-              "next": null
-            },
-            {
-              "value": "on_furniture",
-              "label": "The TV sits on furniture",
-              "disclaimer": null,
-              "next": null
-            }
-          ]
-        },
-        {
-          "key": "soundbar_location",
-          "prompt": "Where should the soundbar go?",
-          "helpText": null,
-          "options": [
-            {
-              "value": "wall_below_tv",
-              "label": "On the wall below the TV",
-              "disclaimer": null,
-              "next": "soundbar_wall"
-            },
-            {
-              "value": "on_tv_mount",
-              "label": "Attached to the TV or its mount",
-              "disclaimer": null,
-              "next": null
-            },
-            {
-              "value": "other",
-              "label": "Somewhere else, or I'm not sure",
-              "disclaimer": null,
-              "next": null
-            }
-          ]
-        },
-        {
-          "key": "soundbar_wall",
-          "prompt": "What's the wall made of?",
-          "helpText": "If you're not certain, say so — we'd rather look than guess.",
-          "options": [
-            {
-              "value": "drywall",
-              "label": "Drywall",
-              "disclaimer": null,
-              "next": "soundbar_power"
-            },
-            {
-              "value": "plaster",
-              "label": "Plaster",
-              "disclaimer": null,
-              "next": null
-            },
-            {
-              "value": "masonry",
-              "label": "Brick or concrete",
-              "disclaimer": null,
-              "next": null
-            },
-            {
-              "value": "tile_stone",
-              "label": "Tile or stone",
-              "disclaimer": null,
-              "next": null
-            },
-            {
-              "value": "other",
-              "label": "Something else, or I'm not sure",
-              "disclaimer": null,
-              "next": null
-            }
-          ]
-        },
-        {
-          "key": "soundbar_power",
-          "prompt": "Is there an outlet near where the soundbar will go?",
-          "helpText": null,
-          "options": [
-            {
-              "value": "yes",
-              "label": "Yes",
-              "disclaimer": null,
-              "next": "soundbar_cable"
-            },
-            {
-              "value": "no",
-              "label": "No",
-              "disclaimer": null,
-              "next": null
-            },
-            {
-              "value": "unsure",
-              "label": "I'm not sure",
-              "disclaimer": null,
-              "next": null
-            }
-          ]
-        },
-        {
-          "key": "soundbar_cable",
-          "prompt": "Do you have the cable to connect it to the TV?",
-          "helpText": "HDMI or optical, whichever your soundbar uses.",
-          "options": [
-            {
-              "value": "hdmi",
-              "label": "Yes, HDMI",
-              "disclaimer": null,
-              "next": "soundbar_conceal"
-            },
-            {
-              "value": "optical",
-              "label": "Yes, optical",
-              "disclaimer": null,
-              "next": "soundbar_conceal"
-            },
-            {
-              "value": "unsure_type",
-              "label": "I have one but I'm not sure which",
-              "disclaimer": null,
-              "next": "soundbar_conceal"
-            },
-            {
-              "value": "none",
-              "label": "No, I don't have one",
-              "disclaimer": null,
-              "next": "soundbar_conceal"
-            }
-          ]
-        },
-        {
-          "key": "soundbar_conceal",
-          "prompt": "Would you like the cable hidden inside the wall?",
-          "helpText": "Included either way — we just need to know before we start.",
-          "options": [
-            {
-              "value": "conceal",
-              "label": "Yes, hide it in the wall",
-              "disclaimer": null,
-              "next": null
-            },
-            {
-              "value": "surface",
-              "label": "No, leave it outside the wall",
-              "disclaimer": null,
-              "next": null
-            }
-          ]
-        }
-      ],
-      "outcomes": {
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"yes\",\"soundbar_cable\":\"hdmi\",\"soundbar_conceal\":\"conceal\"}": {
-          "status": "PRICED",
-          "priceCents": 42000,
-          "disclaimers": [],
-          "photoLabels": []
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"yes\",\"soundbar_cable\":\"hdmi\",\"soundbar_conceal\":\"surface\"}": {
-          "status": "PRICED",
-          "priceCents": 28000,
-          "disclaimers": [],
-          "photoLabels": []
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"yes\",\"soundbar_cable\":\"optical\",\"soundbar_conceal\":\"conceal\"}": {
-          "status": "PRICED",
-          "priceCents": 42000,
-          "disclaimers": [],
-          "photoLabels": []
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"yes\",\"soundbar_cable\":\"optical\",\"soundbar_conceal\":\"surface\"}": {
-          "status": "PRICED",
-          "priceCents": 28000,
-          "disclaimers": [],
-          "photoLabels": []
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"yes\",\"soundbar_cable\":\"unsure_type\",\"soundbar_conceal\":\"conceal\"}": {
-          "status": "PRICED",
-          "priceCents": 42000,
-          "disclaimers": [],
-          "photoLabels": []
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"yes\",\"soundbar_cable\":\"unsure_type\",\"soundbar_conceal\":\"surface\"}": {
-          "status": "PRICED",
-          "priceCents": 28000,
-          "disclaimers": [],
-          "photoLabels": []
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"yes\",\"soundbar_cable\":\"none\",\"soundbar_conceal\":\"conceal\"}": {
-          "status": "PRICED",
-          "priceCents": 46500,
-          "disclaimers": [],
-          "photoLabels": []
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"yes\",\"soundbar_cable\":\"none\",\"soundbar_conceal\":\"surface\"}": {
-          "status": "PRICED",
-          "priceCents": 32500,
-          "disclaimers": [],
-          "photoLabels": []
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"no\"}": {
-          "status": "REROUTE",
-          "targetName": "New 120V Outlet",
-          "targetKey": "new-120v-outlet"
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"drywall\",\"soundbar_power\":\"unsure\"}": {
-          "status": "REVIEW",
-          "reason": "This route needs the office to price it",
-          "photoLabels": [
-            "The spot where the work is going",
-            "A wider photo of the whole room or area"
-          ]
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"plaster\"}": {
-          "status": "REVIEW",
-          "reason": "This route needs the office to price it",
-          "photoLabels": [
-            "The spot where the work is going",
-            "A wider photo of the whole room or area"
-          ]
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"masonry\"}": {
-          "status": "REVIEW",
-          "reason": "This route needs the office to price it",
-          "photoLabels": [
-            "The spot where the work is going",
-            "A wider photo of the whole room or area"
-          ]
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"tile_stone\"}": {
-          "status": "REVIEW",
-          "reason": "This route needs the office to price it",
-          "photoLabels": [
-            "The spot where the work is going",
-            "A wider photo of the whole room or area"
-          ]
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"wall_below_tv\",\"soundbar_wall\":\"other\"}": {
-          "status": "REVIEW",
-          "reason": "This route needs the office to price it",
-          "photoLabels": [
-            "The spot where the work is going",
-            "A wider photo of the whole room or area"
-          ]
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"on_tv_mount\"}": {
-          "status": "REVIEW",
-          "reason": "This route needs the office to price it",
-          "photoLabels": [
-            "The spot where the work is going",
-            "A wider photo of the whole room or area",
-            "The equipment or appliance, including its model or rating label if you can see it safely"
-          ]
-        },
-        "{\"soundbar_tv_mounted\":\"mounted\",\"soundbar_location\":\"other\"}": {
-          "status": "REVIEW",
-          "reason": "This route needs the office to price it",
-          "photoLabels": [
-            "The spot where the work is going",
-            "A wider photo of the whole room or area"
-          ]
-        },
-        "{\"soundbar_tv_mounted\":\"needs_tv_mount\"}": {
-          "status": "REROUTE",
-          "targetName": "Install TV in Existing Location",
-          "targetKey": "tv-install-existing-location"
-        },
-        "{\"soundbar_tv_mounted\":\"on_furniture\"}": {
-          "status": "REVIEW",
-          "reason": "This route needs the office to price it",
-          "photoLabels": [
-            "The spot where the work is going",
-            "A wider photo of the whole room or area"
-          ]
-        }
-      }
-    },
     "new-120v-outlet": {
       "key": "new-120v-outlet",
       "name": "New 120V Outlet",
@@ -335,31 +41,31 @@ export const DEMO_FLOW = {
             {
               "value": "motor_appliance",
               "label": "A fridge, freezer, or window air conditioner",
-              "disclaimer": null,
+              "disclaimer": "These need a circuit of their own — a fridge that shares one with something else can be switched off by it without anyone noticing.",
               "next": null
             },
             {
               "value": "heating_appliance",
               "label": "A microwave, a space heater, or a treadmill",
-              "disclaimer": null,
+              "disclaimer": "These draw heavily enough that sharing a circuit tends to trip it.",
               "next": null
             },
             {
               "value": "shop_equipment",
               "label": "A compressor, a table saw, or similar shop equipment",
-              "disclaimer": null,
+              "disclaimer": "Equipment like this draws hard when it starts up.",
               "next": null
             },
             {
               "value": "ev",
               "label": "An electric vehicle",
-              "disclaimer": null,
+              "disclaimer": "That's a different job — we'll take you to the right place.",
               "next": null
             },
             {
               "value": "unsure",
               "label": "Something else, or I'm not sure",
-              "disclaimer": null,
+              "disclaimer": "Tell us what it is and send a photo of its label if you can find one — we'll work out what it needs and come back with a price.",
               "next": null
             }
           ]
@@ -371,14 +77,14 @@ export const DEMO_FLOW = {
           "options": [
             {
               "value": "tap_existing",
-              "label": "From the nearest outlet",
-              "disclaimer": null,
+              "label": "From the nearest outlet — from $280",
+              "disclaimer": "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it.",
               "next": "below_above_access"
             },
             {
               "value": "dedicated",
-              "label": "Its own circuit from the panel",
-              "disclaimer": null,
+              "label": "Its own circuit from the panel — from $685",
+              "disclaimer": "Worth it if the outlets nearby already trip, or you'd rather this one had room to spare.",
               "next": null
             }
           ]
@@ -455,7 +161,7 @@ export const DEMO_FLOW = {
         {
           "key": "outlet_finish_ack",
           "prompt": "Before we price this — one thing about your walls",
-          "helpText": "With no attic, basement or drop ceiling to work through, the wiring for this outlet has to be fished through finished walls.\n\nYour electrician will likely need to make one or more openings in the drywall or plaster to get the cable across. We keep them small and put them where they're least visible, but on a finished wall they usually can't be avoided entirely.\n\nThat's why we asked about attic and basement access — an open route usually means no openings at all and less time on site.",
+          "helpText": "With no attic, basement or drop ceiling to work through, the wiring for this outlet has to be fished through finished walls.\n\nYour electrician will likely need to make one or more openings in the drywall or plaster to get the cable across. We keep them small and put them where they're least visible, but on a finished wall they usually can't be avoided entirely.\n\nPatching, spackling, sanding, painting, wallpaper and trim aren't included unless we've put it in writing.\n\nThat's why we asked about attic and basement access — an open route usually means no openings at all and less time on site.",
           "options": [
             {
               "value": "accepted",
@@ -465,7 +171,7 @@ export const DEMO_FLOW = {
             },
             {
               "value": "review_first",
-              "label": "I'd rather someone take a look first",
+              "label": "I'd rather Voltmark take a look first",
               "disclaimer": null,
               "next": null
             }
@@ -478,19 +184,19 @@ export const DEMO_FLOW = {
           "options": [
             {
               "value": "under_10",
-              "label": "Less than {b1} feet",
+              "label": "Less than 10 feet",
               "disclaimer": null,
               "next": null
             },
             {
               "value": "10_to_20",
-              "label": "{b1} to {b2} feet",
+              "label": "10 to 20 feet",
               "disclaimer": null,
               "next": null
             },
             {
               "value": "over_20",
-              "label": "More than {b2} feet",
+              "label": "More than 20 feet",
               "disclaimer": null,
               "next": null
             },
@@ -505,189 +211,285 @@ export const DEMO_FLOW = {
       ],
       "outcomes": {
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"exterior\",\"outlet_run_distance\":\"under_10\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
+          "status": "PRICED",
+          "priceCents": 28000,
+          "disclaimers": [
+            "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it.",
+            "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $125 for a run under 10 feet or $190 for a longer one, and patching and painting aren't included. We'll show you what we're looking at and confirm before doing anything."
+          ],
           "photoLabels": []
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"exterior\",\"outlet_run_distance\":\"10_to_20\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
+          "status": "PRICED",
+          "priceCents": 35000,
+          "disclaimers": [
+            "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it.",
+            "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $125 for a run under 10 feet or $190 for a longer one, and patching and painting aren't included. We'll show you what we're looking at and confirm before doing anything."
+          ],
           "photoLabels": []
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"exterior\",\"outlet_run_distance\":\"over_20\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"exterior\",\"outlet_run_distance\":\"unsure\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"interior\",\"outlet_run_distance\":\"under_10\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
+          "status": "PRICED",
+          "priceCents": 28000,
+          "disclaimers": [
+            "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it."
+          ],
           "photoLabels": []
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"interior\",\"outlet_run_distance\":\"10_to_20\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
+          "status": "PRICED",
+          "priceCents": 35000,
+          "disclaimers": [
+            "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it."
+          ],
           "photoLabels": []
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"interior\",\"outlet_run_distance\":\"over_20\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"interior\",\"outlet_run_distance\":\"unsure\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"unsure\",\"outlet_run_distance\":\"under_10\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
+          "status": "PRICED",
+          "priceCents": 28000,
+          "disclaimers": [
+            "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it.",
+            "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $125 for a run under 10 feet or $190 for a longer one, and patching and painting aren't included. We'll show you what we're looking at and confirm before doing anything."
+          ],
           "photoLabels": []
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"unsure\",\"outlet_run_distance\":\"10_to_20\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
+          "status": "PRICED",
+          "priceCents": 35000,
+          "disclaimers": [
+            "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it.",
+            "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $125 for a run under 10 feet or $190 for a longer one, and patching and painting aren't included. We'll show you what we're looking at and confirm before doing anything."
+          ],
           "photoLabels": []
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"unsure\",\"outlet_run_distance\":\"over_20\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"has_access\",\"device_on_exterior_wall\":\"unsure\",\"outlet_run_distance\":\"unsure\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"no_access\",\"finished_space_both_sides\":\"finished_both_sides\",\"outlet_finish_ack\":\"accepted\",\"outlet_run_distance\":\"under_10\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
+          "status": "PRICED",
+          "priceCents": 40500,
+          "disclaimers": [
+            "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it."
+          ],
           "photoLabels": []
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"no_access\",\"finished_space_both_sides\":\"finished_both_sides\",\"outlet_finish_ack\":\"accepted\",\"outlet_run_distance\":\"10_to_20\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
+          "status": "PRICED",
+          "priceCents": 54000,
+          "disclaimers": [
+            "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it."
+          ],
           "photoLabels": []
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"no_access\",\"finished_space_both_sides\":\"finished_both_sides\",\"outlet_finish_ack\":\"accepted\",\"outlet_run_distance\":\"over_20\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"no_access\",\"finished_space_both_sides\":\"finished_both_sides\",\"outlet_finish_ack\":\"accepted\",\"outlet_run_distance\":\"unsure\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"no_access\",\"finished_space_both_sides\":\"finished_both_sides\",\"outlet_finish_ack\":\"review_first\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "The outlet or panel we'd be running the power from",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"no_access\",\"finished_space_both_sides\":\"exterior_wall\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"tap_existing\",\"below_above_access\":\"no_access\",\"finished_space_both_sides\":\"unsure\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The wall where the new outlet is going, floor to ceiling",
+            "A wider photo of the room"
+          ]
         },
         "{\"outlet_load_type\":\"everyday\",\"outlet_power_source\":\"dedicated\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "status": "REROUTE",
+          "targetName": "Dedicated Circuit & Outlet",
+          "targetKey": "dedicated-120v-circuit-outlet"
         },
         "{\"outlet_load_type\":\"motor_appliance\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "status": "REROUTE",
+          "targetName": "Dedicated Circuit & Outlet",
+          "targetKey": "dedicated-120v-circuit-outlet"
         },
         "{\"outlet_load_type\":\"heating_appliance\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "status": "REROUTE",
+          "targetName": "Dedicated Circuit & Outlet",
+          "targetKey": "dedicated-120v-circuit-outlet"
         },
         "{\"outlet_load_type\":\"shop_equipment\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "status": "REROUTE",
+          "targetName": "Dedicated Circuit & Outlet",
+          "targetKey": "dedicated-120v-circuit-outlet"
         },
         "{\"outlet_load_type\":\"ev\"}": {
-          "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "status": "REROUTE",
+          "targetName": "Level 2 EV Charger Installation",
+          "targetKey": "level-2-ev-charger"
         },
         "{\"outlet_load_type\":\"unsure\"}": {
           "status": "REVIEW",
-          "reason": "A material this service needs has no cost recorded",
-          "photoLabels": []
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "The nameplate label on the appliance — usually a sticker on the back or underside"
+          ]
         }
       }
     },
-    "tv-install-existing-location": {
-      "key": "tv-install-existing-location",
-      "name": "Install TV in Existing Location",
-      "description": "Mounting your TV where power and cable routing are already in place — no new outlet or cable concealment needed, so it's faster and less expensive than a full installation.",
+    "level-2-ev-charger": {
+      "key": "level-2-ev-charger",
+      "name": "Level 2 EV Charger Installation",
+      "description": "Installing a Level 2 (240V) electric vehicle charger in your garage or driveway.",
       "steps": [
         {
-          "key": "tv_size",
-          "prompt": "What size is your TV?",
-          "helpText": "Measure corner to corner on the front of your TV.",
+          "key": "panel_distance",
+          "prompt": "How far is your electrical panel from where the charger will be installed?",
+          "helpText": null,
           "options": [
             {
-              "value": "up_to_55",
-              "label": "Up to 55\"",
+              "value": "same_room",
+              "label": "Same wall or room as the panel",
               "disclaimer": null,
-              "next": "mount_supplied"
+              "next": "panel_capacity"
             },
             {
-              "value": "56_100",
-              "label": "56\"–100\"",
+              "value": "same_floor",
+              "label": "Same floor, different room",
               "disclaimer": null,
-              "next": "mount_supplied"
+              "next": "panel_capacity"
+            },
+            {
+              "value": "different_floor",
+              "label": "Different floor",
+              "disclaimer": null,
+              "next": "panel_capacity"
+            },
+            {
+              "value": "detached",
+              "label": "Detached garage",
+              "disclaimer": null,
+              "next": "panel_capacity"
             }
           ]
         },
         {
-          "key": "mount_supplied",
-          "prompt": "Are you supplying your own mount?",
+          "key": "panel_capacity",
+          "prompt": "Does your panel have an open double-pole breaker slot for the charger?",
           "helpText": null,
           "options": [
             {
               "value": "yes",
-              "label": "Yes, I have my own mount",
+              "label": "Yes",
               "disclaimer": null,
-              "next": null
+              "next": "garage_type"
             },
             {
               "value": "no",
-              "label": "No, I need a mount",
+              "label": "No",
               "disclaimer": null,
-              "next": "mount_type"
+              "next": "garage_type"
+            },
+            {
+              "value": "unsure",
+              "label": "I'm not sure",
+              "disclaimer": null,
+              "next": "garage_type"
             }
           ]
         },
         {
-          "key": "mount_type",
-          "prompt": "What type of mount would you like?",
+          "key": "garage_type",
+          "prompt": "Is this for an attached or detached garage, or an outdoor location like a driveway?",
           "helpText": null,
           "options": [
             {
-              "value": "tilt",
-              "label": "Tilt mount supplied by your electrician",
+              "value": "attached",
+              "label": "Attached garage",
               "disclaimer": null,
               "next": null
             },
             {
-              "value": "articulating",
-              "label": "Full-motion mount supplied by your electrician",
+              "value": "detached_confirm",
+              "label": "Detached garage",
+              "disclaimer": null,
+              "next": null
+            },
+            {
+              "value": "outdoor",
+              "label": "Outdoor / driveway",
               "disclaimer": null,
               "next": null
             }
@@ -695,57 +497,345 @@ export const DEMO_FLOW = {
         }
       ],
       "outcomes": {
-        "{\"tv_size\":\"up_to_55\",\"mount_supplied\":\"yes\"}": {
-          "status": "PRICED",
-          "priceCents": 26000,
-          "disclaimers": [],
-          "photoLabels": []
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"yes\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
         },
-        "{\"tv_size\":\"up_to_55\",\"mount_supplied\":\"no\",\"mount_type\":\"tilt\"}": {
-          "status": "PRICED",
-          "priceCents": 26000,
-          "disclaimers": [],
-          "photoLabels": []
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"yes\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
         },
-        "{\"tv_size\":\"up_to_55\",\"mount_supplied\":\"no\",\"mount_type\":\"articulating\"}": {
-          "status": "PRICED",
-          "priceCents": 26000,
-          "disclaimers": [],
-          "photoLabels": []
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"yes\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
         },
-        "{\"tv_size\":\"56_100\",\"mount_supplied\":\"yes\"}": {
-          "status": "PRICED",
-          "priceCents": 26000,
-          "disclaimers": [],
-          "photoLabels": []
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"no\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
         },
-        "{\"tv_size\":\"56_100\",\"mount_supplied\":\"no\",\"mount_type\":\"tilt\"}": {
-          "status": "PRICED",
-          "priceCents": 26000,
-          "disclaimers": [],
-          "photoLabels": []
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"no\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
         },
-        "{\"tv_size\":\"56_100\",\"mount_supplied\":\"no\",\"mount_type\":\"articulating\"}": {
-          "status": "PRICED",
-          "priceCents": 26000,
-          "disclaimers": [],
-          "photoLabels": []
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"no\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"unsure\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"unsure\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_room\",\"panel_capacity\":\"unsure\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"yes\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"yes\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"yes\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"no\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"no\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"no\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"unsure\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"unsure\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"same_floor\",\"panel_capacity\":\"unsure\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"yes\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"yes\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"yes\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"no\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"no\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"no\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"unsure\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"unsure\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"different_floor\",\"panel_capacity\":\"unsure\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"yes\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"yes\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"yes\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"no\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"no\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"no\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"unsure\",\"garage_type\":\"attached\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"unsure\",\"garage_type\":\"detached_confirm\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
+        },
+        "{\"panel_distance\":\"detached\",\"panel_capacity\":\"unsure\",\"garage_type\":\"outdoor\"}": {
+          "status": "REVIEW",
+          "reason": "This route needs the office to price it",
+          "photoLabels": [
+            "Panel with the door open, showing the amp rating and breakers",
+            "Where the charger will be mounted",
+            "Path between the panel and the charger location (for run distance)"
+          ]
         }
       }
     }
   },
   "addOns": [
     {
-      "name": "Video Doorbell — Existing Wiring",
-      "priceCents": 11500
+      "name": "Replace Standard Outlet",
+      "priceCents": 9500
     },
     {
-      "name": "Smart Thermostat Installation",
-      "priceCents": 11500
+      "name": "Replace hardwired Smoke Detector",
+      "priceCents": 9500
     },
     {
-      "name": "Garbage Disposal Electrical Disconnect / Reconnect",
-      "priceCents": 15500
+      "name": "Replace GFCI Outlet",
+      "priceCents": 11500
     }
   ],
   "schedule": {

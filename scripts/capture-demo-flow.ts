@@ -30,10 +30,16 @@ import { DEMO } from "./demo-contractor";
 
 const prisma = new PrismaClient();
 
-/** The service the demo walks. Chosen for a tree a homeowner can answer. */
+/**
+ * The service the demo walks, by SLUG.
+ *
+ * Was templateKey, which is null on the demo tenant now: its catalogue is
+ * cloned from a contractor whose services predate the template rather than
+ * provisioned from it, so nothing carries a template key.
+ */
 const SERVICE_KEY = process.argv.includes("--service")
   ? process.argv[process.argv.indexOf("--service") + 1]
-  : "soundbar-installation";
+  : "new-120v-outlet";
 
 const OUT = "components/marketing/demoFlow.ts";
 
@@ -48,7 +54,7 @@ const OUT = "components/marketing/demoFlow.ts";
  */
 const SEARCH_QUERY = process.argv.includes("--query")
   ? process.argv[process.argv.indexOf("--query") + 1]
-  : "I bought a soundbar and need it mounted under my TV";
+  : "I need another outlet in my living room";
 
 type Option = {
   value: string;
@@ -77,7 +83,7 @@ type Outcome =
 async function survey(contractorId: string) {
   const rows = await prisma.service.findMany({
     where: { contractorId, active: true, questions: { some: {} } },
-    select: { id: true, name: true, templateKey: true },
+    select: { id: true, name: true, slug: true },
   });
   const settings = await loadPricingSettings(prisma, contractorId);
   if (!settings) throw new Error("no pricing settings");
@@ -113,7 +119,7 @@ async function survey(contractorId: string) {
     const varies = prices.size > 1;
     const flag = both && varies ? "✓✓ both + price varies" : both ? "✓  both, one price" : priced === 0 ? "   never prices" : "   always prices";
     const money = [...prices].sort((a, b) => a - b).map((c) => `$${Math.round(c / 100)}`).join("/");
-    console.log(`  ${(r.templateKey ?? "?").padEnd(30)} ${String(svc.questions.length).padStart(2)} ${String(total).padStart(5)} ${String(priced).padStart(6)} ${String(review).padStart(6)}  ${flag.padEnd(23)} ${money}`);
+    console.log(`  ${r.slug.padEnd(30)} ${String(svc.questions.length).padStart(2)} ${String(total).padStart(5)} ${String(priced).padStart(6)} ${String(review).padStart(6)}  ${flag.padEnd(23)} ${money}`);
   }
   console.log();
 }
@@ -135,7 +141,7 @@ async function main() {
   }
 
   const row = await prisma.service.findFirst({
-    where: { contractorId: contractor.id, templateKey: SERVICE_KEY },
+    where: { contractorId: contractor.id, slug: SERVICE_KEY },
     select: { id: true, name: true, shortDescription: true },
   });
   if (!row) {
@@ -147,8 +153,8 @@ async function main() {
   if (!settings) throw new Error("the demo contractor has no pricing settings");
 
   const nameById = new Map(
-    (await prisma.service.findMany({ where: { contractorId: contractor.id }, select: { id: true, name: true, templateKey: true } }))
-      .map((x) => [x.id, { name: x.name, key: x.templateKey }]),
+    (await prisma.service.findMany({ where: { contractorId: contractor.id }, select: { id: true, name: true, slug: true } }))
+      .map((x) => [x.id, { name: x.name, key: x.slug }]),
   );
 
   /**
@@ -164,7 +170,7 @@ async function main() {
     if (!svc) throw new Error(`service ${serviceId} vanished between queries`);
     const meta = await prisma.service.findUniqueOrThrow({
       where: { id: serviceId },
-      select: { name: true, shortDescription: true, templateKey: true },
+      select: { name: true, shortDescription: true, slug: true },
     });
     const byId = new Map(svc.questions.map((q) => [q.id, q]));
     const nextKey = (o: { routeAction: string; nextQuestionId: string | null }) =>
@@ -205,7 +211,7 @@ async function main() {
     walk(steps[0]?.key ?? null, {});
 
     return {
-      flow: { key: meta.templateKey, name: meta.name, description: meta.shortDescription, steps, outcomes },
+      flow: { key: meta.slug, name: meta.name, description: meta.shortDescription, steps, outcomes },
       targets: [...targets],
     };
   }
@@ -214,12 +220,27 @@ async function main() {
   const primary = await captureFlow(row.id);
   flows[primary.flow.key ?? "primary"] = primary.flow;
 
-  // One level of reroute targets. A target that reroutes onward is rare and
-  // would make the demo a maze; the second hop says so instead of pretending.
+  /**
+   * One level of reroute targets, and only those small enough to be worth
+   * carrying.
+   *
+   * Path counts are combinatorial: Dedicated Circuit & Outlet has six
+   * questions and 1,073 distinct paths, which is a megabyte of snapshot for a
+   * destination almost nobody in a demo will walk. Above the cap the demo
+   * names the destination and says the real flow continues there, which is
+   * true and costs nothing.
+   */
+  const MAX_TARGET_PATHS = 120;
   for (const targetId of primary.targets) {
     const t = await captureFlow(targetId);
-    if (t.flow.key) flows[t.flow.key] = t.flow;
-    console.log(`  + reroute target captured: ${t.flow.name} (${t.flow.steps.length} questions)`);
+    const paths = Object.keys(t.flow.outcomes).length;
+    if (!t.flow.key) continue;
+    if (paths > MAX_TARGET_PATHS) {
+      console.log(`  - ${t.flow.name}: ${paths} paths, over the ${MAX_TARGET_PATHS} cap — named, not walked`);
+      continue;
+    }
+    flows[t.flow.key] = t.flow;
+    console.log(`  + reroute target captured: ${t.flow.name} (${t.flow.steps.length}Q, ${paths} paths)`);
   }
 
   /**

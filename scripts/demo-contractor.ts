@@ -32,9 +32,27 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
-import { suggestPrimaryPrice, suggestWwtPrice } from "../lib/pricing";
+import { cloneCatalog } from "./_cloneCatalog";
 
 const prisma = new PrismaClient();
+
+/** Whose catalogue the demonstration contractor is built from. */
+const SOURCE_SLUG = "elite-electric";
+
+/**
+ * The services the demo needs. Anything these route to is pulled in
+ * automatically, so this lists the starting points only.
+ */
+const DEMO_SERVICES = [
+  // The homeowner demo walks this one: seven questions, a real $280 price,
+  // and the routes that decide whether it can be priced at all.
+  "new-120v-outlet",
+  // Same-visit work, for the While We're There step. Real services with
+  // real same-visit prices, not a separate list of invented ones.
+  "replace-standard-outlet",
+  "replace-gfci-outlet",
+  "hardwired-smoke-detector",
+];
 
 export const DEMO = {
   slug: "voltmark-electric",
@@ -102,317 +120,25 @@ async function destroy() {
   console.log(`  removed demo contractor ${c.id} (${c.name}) and everything under it`);
 }
 
-/**
- * The economics a contractor supplies during Guided Setup.
+/*
+ * The invented economics that used to live here are gone.
  *
- * Crew-hours and material costs are the two things the template deliberately
- * does NOT carry (ADR-014: trade structure, never economics), so a freshly
- * provisioned contractor has 75 services and no prices — which is correct, and
- * unphotographable. These are plausible numbers for a demonstration business,
- * and they are run through the SAME suggestPrimaryPrice the dashboard uses, so
- * every figure on the screenshots is one the product actually computes rather
- * than one written into a fixture.
- */
-const DEMO_ECONOMICS: Record<string, { hours: number; materialCents: number }> = {
-  "home-electrical-safety-inspection": { hours: 1.5, materialCents: 0 },
-  "smart-thermostat-install": { hours: 1.0, materialCents: 0 },
-  "video-doorbell-existing-wiring": { hours: 1.0, materialCents: 0 },
-  "otr-microwave-install": { hours: 1.5, materialCents: 2_500 },
-  "install-new-microwave": { hours: 1.5, materialCents: 2_500 },
-  "dishwasher-electrical": { hours: 1.25, materialCents: 1_500 },
-  "garbage-disposal-install": { hours: 1.25, materialCents: 1_200 },
-  "replace-range-hood": { hours: 2.0, materialCents: 4_500 },
-  "tv-install-existing-location": { hours: 1.25, materialCents: 2_000 },
-  "tilt-tv-mount": { hours: 1.5, materialCents: 6_500 },
-  "articulating-tv-mount": { hours: 1.75, materialCents: 9_500 },
-  "soundbar-installation": { hours: 1.25, materialCents: 3_500 },
-  "bathroom-fan-light-combo": { hours: 2.0, materialCents: 8_500 },
-  // A reroute destination, and priced for that reason: when an answer sends
-  // someone here the flow has to CONTINUE, and a destination the contractor
-  // never priced can only end in review — which reads as the product refusing
-  // rather than redirecting.
-  "new-120v-outlet": { hours: 1.5, materialCents: 3_500 },
-};
-
-/**
- * Three services were added here as demo candidates and removed again:
- * remove-and-replace-existing-chandelier, new-exterior-flood-camera and
- * swap-out-customer-supplied-non-smart-switch. All three have unresolved
- * material roles, two have an unresolved height policy, and dress() now
- * refuses to price any of them — correctly.
- *
- * They are the better demo material on paper: three-question trees that can
- * end priced or in review. Making them usable means this contractor supplying
- * costs for nine material roles and choosing two sets of height bands, which
- * is real setup work rather than a fixture value. Worth doing when the demo
- * needs it; not worth faking, which is what forcing materialCostResolved was.
+ * Building the demo tenant from the template meant choosing crew-hours,
+ * material costs, per-answer price adjustments and reroute destinations for
+ * it — every one a number somebody made up, and one of them (forcing
+ * materialCostResolved) actively defeating a guard. Cloning a contractor who
+ * had already made those decisions removes the need to invent any of them.
  */
 
 /**
- * Answer-level economics — what an answer does to the price.
+ * Tidy up after the clone.
  *
- * The template carries the QUESTION and deliberately no economics (ADR-014),
- * so a freshly provisioned contractor has a tree where every answer costs the
- * same. That is correct, and it means the demo could show answers changing
- * the ROUTE but never the number — under a headline that says "ask the
- * questions that change the price".
- *
- * These are the additions a contractor makes in the Guided Pricing editor's
- * "Price adjustment" field.
- *
- * Crew-hours were tried first, on the reasoning that a figure computed from
- * the contractor's own rate is more honest than a typed markup. It does not
- * work here, and the reason is worth keeping: under FLAT_RATE a RESOLVE_INSTANT
- * answer serves the PUBLISHED price, so added hours never reach the number.
- * The flat adjustment is what the editor offers for this, and what the product
- * actually does.
- *
- * The amounts are still derived rather than invented: 0.75 and 0.25 crew-hours
- * at this contractor's $185 rate, rounded to their own $5 increment.
+ * Everything the old version of this did — choosing crew-hours, computing
+ * prices, publishing them, configuring answer economics and reroute targets —
+ * is now inherited from a contractor who had already made those decisions. All
+ * that is left is removing categories the copied slice did not fill.
  */
-const DEMO_ANSWER_ECONOMICS: { service: string; answer: string; addCents: number }[] = [
-  // Fishing a cable inside a finished wall is real extra work, and every
-  // contractor prices it. 0.75h x $185 = $138.75 -> $140.
-  { service: "soundbar-installation", answer: "Yes, hide it in the wall", addCents: 14_000 },
-  // Supplying the cable rather than using the customer's. 0.25h x $185 -> $45.
-  { service: "soundbar-installation", answer: "No, I don't have one", addCents: 4_500 },
-];
-
-/**
- * Where a "that's a different job" answer sends the customer.
- *
- * The template supplies the OPTION — "No, I need the TV mounted too" — and
- * deliberately not the destination, because which of their own services it
- * routes to is the contractor's decision. Left unset the resolver returns
- * INVALID, which is operator-facing and rendered as a blank screen in the
- * demo. Correct refusal, invisible failure; found by walking every path.
- */
-const DEMO_ROUTING: { service: string; answer: string; toService: string }[] = [
-  {
-    service: "soundbar-installation",
-    answer: "needs_tv_mount",
-    toService: "tv-install-existing-location",
-  },
-];
-
-/**
- * What this contractor pays for the material roles its services consume.
- *
- * ADR-014: the template carries the ROLE and never a cost, so a freshly
- * provisioned contractor has services it cannot price until it records what it
- * pays. Skipping this is why the demo's reroute destination — New 120V Outlet —
- * could only ever end in review: not a limit of the product, a contractor who
- * had not finished setting up. Which reads, on a marketing page, as the
- * product being unable to price an outlet.
- *
- * Costs are this fictional contractor's, in the same sense its $185 rate is.
- * Named roles get a considered figure; anything else gets a modest default and
- * is counted in the output, so the guess is visible rather than silent.
- */
-const DEMO_MATERIAL_COSTS: Record<string, number> = {
-  WIRE_14_2: 55,
-  WIRE_12_2: 85,
-  RECEPTACLE_STANDARD: 250,
-  GFCI_WEATHER_RESISTANT: 1_900,
-  BOX_OLD_WORK: 200,
-  BOX_FS_CAST: 950,
-  BOX_FAN_RATED: 750,
-  WALL_PLATE: 100,
-  CONSUMABLES_SMALL: 300,
-  COVER_IN_USE_BUBBLE: 850,
-  CORD_CLIPS: 150,
-};
-const DEMO_MATERIAL_DEFAULT_CENTS = 300;
-
-/** Quoted work: shown, priced by the contractor, never priced automatically. */
-const DEMO_QUOTED = ["level-2-ev-charger", "electrical-panel-replacement", "200a-service-upgrade"];
-
-/**
- * Record what this contractor pays, before provisioning reads it.
- *
- * The unresolved markers are computed at provisioning time, and provisioning
- * is create-only — running it twice collides on (contractorId, slug). So the
- * costs have to exist first. Recording them afterwards leaves every marker
- * stale, and the services fail closed against information that is no longer
- * true.
- */
-async function recordMaterialCosts(contractorId: string) {
-  const needed = await prisma.canonicalMaterial.findMany({ select: { id: true, key: true } });
-  const have = new Set(
-    (await prisma.contractorMaterial.findMany({ where: { contractorId }, select: { canonicalMaterialId: true } }))
-      .map((m) => m.canonicalMaterialId),
-  );
-
-  let named = 0, defaulted = 0;
-  for (const m of needed) {
-    if (have.has(m.id)) continue;
-    const known = DEMO_MATERIAL_COSTS[m.key];
-    if (known !== undefined) named++; else defaulted++;
-    await prisma.contractorMaterial.create({
-      data: {
-        contractorId,
-        canonicalMaterialId: m.id,
-        unitCostCents: known ?? DEMO_MATERIAL_DEFAULT_CENTS,
-      },
-    });
-  }
-  console.log(`  material costs recorded: ${named} considered, ${defaulted} at the $${DEMO_MATERIAL_DEFAULT_CENTS / 100} default`);
-
-}
-
-async function dress(contractorId: string) {
-  // Provisioning offers the whole template. A real contractor turns on the
-  // work they actually sell, so the demo does too — and the alternative reads
-  // badly and dishonestly: 75 services, 62 of them unpriced, is a picture of
-  // an abandoned setup rather than of the product working.
-  const keep = new Set([...Object.keys(DEMO_ECONOMICS), ...DEMO_QUOTED]);
-
-  /**
-   * Anything a kept service ROUTES TO has to be kept as well.
-   *
-   * An answer option can reroute to another service ("that is not this job,
-   * it is that one"). Trimming the catalogue by name alone deleted those
-   * targets and left the options pointing at nothing — and the failure is
-   * quiet: resolveRoute returns INVALID, which is operator-facing and renders
-   * as a blank screen to a customer. Found by walking every path and seeing
-   * one produce nothing at all.
-   *
-   * Resolved to a fixpoint, because a target can route onward itself.
-   */
-  const all = await prisma.service.findMany({
-    where: { contractorId },
-    select: {
-      id: true, templateKey: true,
-      questions: { select: { options: { select: { rerouteServiceId: true, referencedServiceId: true } } } },
-    },
-  });
-  const byId = new Map(all.map((s) => [s.id, s]));
-  const keyOf = (id: string) => byId.get(id)?.templateKey ?? null;
-  for (let changed = true; changed; ) {
-    changed = false;
-    for (const svc of all) {
-      if (!svc.templateKey || !keep.has(svc.templateKey)) continue;
-      for (const q of svc.questions) {
-        for (const o of q.options) {
-          for (const target of [o.rerouteServiceId, o.referencedServiceId]) {
-            const k = target ? keyOf(target) : null;
-            if (k && !keep.has(k)) { keep.add(k); changed = true; }
-          }
-        }
-      }
-    }
-  }
-
-  const surplus = await prisma.service.findMany({
-    where: { contractorId, OR: [{ templateKey: null }, { templateKey: { notIn: [...keep] } }] },
-    select: { id: true },
-  });
-  await deleteServices(surplus.map((s) => s.id));
-  console.log(`  keeping ${keep.size} services (${keep.size - Object.keys(DEMO_ECONOMICS).length - DEMO_QUOTED.length} pulled in as routing targets)`);
-
-  const settings = await prisma.pricingSettings.findUniqueOrThrow({
-    where: { contractorId },
-    select: { crewHourRateCents: true, primaryMinimumCents: true, roundingIncrementCents: true, defaultPermitAdminCents: true },
-  });
-
-  // Everything starts hidden. A demo storefront showing 75 unpriced services
-  // would misrepresent the product as badly as a fabricated price would.
-  await prisma.service.updateMany({ where: { contractorId }, data: { active: false } });
-
-  let priced = 0;
-  for (const [key, econ] of Object.entries(DEMO_ECONOMICS)) {
-    const svc = await prisma.service.findFirst({
-      where: { contractorId, templateKey: key },
-      select: {
-        id: true, requiresTechCount: true, isPrimaryEligible: true,
-        unresolvedMaterialKeys: true, unresolvedPolicyKeys: true,
-      },
-    });
-    if (!svc) { console.log(`    ! no service for template key ${key}`); continue; }
-
-    // FAIL CLOSED, like the product does.
-    //
-    // This used to set materialCostResolved: true unconditionally, which is
-    // the exact guard resolveRoute checks before it will price anything: "a
-    // homeowner-facing price may never be calculated using an unresolved
-    // required material cost". Forcing the flag to make a demo look complete
-    // defeats the guard and produces prices the real product would refuse —
-    // and it showed, as answer labels rendering raw {b1} policy placeholders
-    // because the contractor never chose the height bands behind them.
-    //
-    // A service the contractor has not finished configuring is not priced.
-    if (svc.unresolvedMaterialKeys.length || svc.unresolvedPolicyKeys.length) {
-      console.log(
-        `    ! ${key} skipped — unresolved ` +
-          [svc.unresolvedMaterialKeys.length && `${svc.unresolvedMaterialKeys.length} material(s)`,
-           svc.unresolvedPolicyKeys.length && `${svc.unresolvedPolicyKeys.length} policy(s)`]
-            .filter(Boolean).join(" and "),
-      );
-      continue;
-    }
-
-    const inputs = {
-      fieldLaborHours: econ.hours,
-      wwtLaborHours: Math.round(econ.hours * 0.6 * 100) / 100,
-      requiresTechCount: svc.requiresTechCount,
-      materialCostCents: econ.materialCents,
-      materialMultiplier: null,
-      permitAdminCents: null,
-      otherDirectCostCents: null,
-      isPrimaryEligible: svc.isPrimaryEligible,
-    };
-    const primary = suggestPrimaryPrice(inputs, settings);
-    const wwt = suggestWwtPrice(inputs, settings);
-
-    await prisma.service.update({
-      where: { id: svc.id },
-      data: {
-        fieldLaborHours: inputs.fieldLaborHours,
-        wwtLaborHours: inputs.wwtLaborHours,
-        materialCostCents: econ.materialCents,
-        materialCostResolved: true,
-        estimatedMinutes: Math.round(econ.hours * 60),
-        estimatedMinutesReviewed: true,
-        // Suggested becomes published only by an explicit act. Here that act
-        // is this line, and it is recorded — the same stamp the dashboard sets.
-        basePrice: primary.totalCents,
-        whileWeThereBasePrice: wwt.totalCents,
-        publishedPriceApprovedAt: new Date(),
-        active: true,
-      },
-    });
-    priced++;
-  }
-
-  for (const e of DEMO_ANSWER_ECONOMICS) {
-    const res = await prisma.answerOption.updateMany({
-      where: { label: e.answer, question: { service: { contractorId, templateKey: e.service } } },
-      data: { priceModifierCents: e.addCents, addFieldLaborHours: null },
-    });
-    console.log(`    ${e.service}: "${e.answer}" +$${e.addCents / 100} (${res.count} option)`);
-  }
-
-  for (const r of DEMO_ROUTING) {
-    const target = await prisma.service.findFirst({
-      where: { contractorId, templateKey: r.toService },
-      select: { id: true, name: true },
-    });
-    if (!target) { console.log(`    ! routing target ${r.toService} is not in the catalog`); continue; }
-    const res = await prisma.answerOption.updateMany({
-      where: { value: r.answer, question: { service: { contractorId, templateKey: r.service } } },
-      data: { rerouteServiceId: target.id },
-    });
-    console.log(`    ${r.service}: "${r.answer}" routes to ${target.name} (${res.count} option)`);
-  }
-
-  for (const key of DEMO_QUOTED) {
-    await prisma.service.updateMany({ where: { contractorId, templateKey: key }, data: { active: true } });
-  }
-
-  // A category with nothing in it is not a category. Trimming the catalogue
-  // leaves the contractor's category rows behind, and the portal lists every
-  // category it owns — so without this the demo shows five empty headings,
-  // which is a picture of a half-finished setup.
+async function tidy(contractorId: string) {
   const live = await prisma.service.findMany({
     where: { contractorId, active: true },
     select: { contractorCategoryId: true },
@@ -421,7 +147,12 @@ async function dress(contractorId: string) {
   await prisma.contractorCategory.deleteMany({ where: { contractorId, id: { notIn: liveCats } } });
   await prisma.contractorCategory.updateMany({ where: { id: { in: liveCats } }, data: { active: true } });
 
-  console.log(`  ${priced} services priced and published · ${DEMO_QUOTED.length} quoted · ${liveCats.length} categories live`);
+  const priced = await prisma.service.count({ where: { contractorId, active: true, basePrice: { not: null } } });
+  const total = await prisma.service.count({ where: { contractorId } });
+  const unresolved = await prisma.service.count({
+    where: { contractorId, OR: [{ unresolvedMaterialKeys: { isEmpty: false } }, { unresolvedPolicyKeys: { isEmpty: false } }] },
+  });
+  console.log(`  ${total} services · ${priced} priced · ${unresolved} with unresolved requirements · ${liveCats.length} categories`);
 }
 
 /**
@@ -499,21 +230,39 @@ async function create() {
     },
   });
 
-  // Recorded BEFORE provisioning: material costs are contractor-level and
-  // independent of any service, and provisioning is create-only — re-running
-  // it to recompute the unresolved markers collides on (contractorId, slug).
-  await recordMaterialCosts(c.id);
+  /**
+   * The catalogue comes from Elite's, not from the template.
+   *
+   * Template-provisioned services carry material quantities that come from a
+   * policy, and nothing in the product can set a policy — so those services
+   * can never be priced and a demo built on them shows only refusals. Elite's
+   * catalogue predates the template, is fully resolved, and carries real
+   * costs and real published prices. Identity is not copied; the source's name
+   * is rewritten out of every field that carried it.
+   */
+  const source = await prisma.contractor.findUnique({
+    where: { slug: SOURCE_SLUG },
+    select: { id: true, name: true, shortName: true, pricingSettings: { select: { crewHourRateCents: true, primaryMinimumCents: true, roundingIncrementCents: true, defaultPermitAdminCents: true } } },
+  });
+  if (!source) throw new Error(`No contractor "${SOURCE_SLUG}" to copy the catalogue from.`);
 
-  // The SHIPPED provisioning path, not a bespoke seeder — a screenshot of
-  // something built a different way from a real contractor's catalogue would
-  // be a picture of software that does not exist.
-  console.log("  provisioning from the electrical template…");
-  const out = execFileSync(
-    "npx",
-    ["tsx", "scripts/provision-from-template.ts", "--contractor", DEMO.slug, "--apply"],
-    { encoding: "utf8", stdio: "pipe" },
-  );
-  console.log(out.trim().split("\n").slice(-4).map((l) => `    ${l}`).join("\n"));
+  // Their rate too, so the copied prices and the rate behind them agree.
+  if (source.pricingSettings) {
+    await prisma.pricingSettings.update({
+      where: { contractorId: c.id },
+      data: source.pricingSettings,
+    });
+  }
+
+  console.log(`  copying a slice of ${source.name}'s catalogue…`);
+  const cloned = await cloneCatalog(prisma, {
+    fromContractorId: source.id,
+    toContractorId: c.id,
+    slugs: DEMO_SERVICES,
+    sourceName: new RegExp(source.shortName ?? "Elite", "gi"),
+    replacementName: DEMO.shortName,
+  });
+  console.log(`  ${cloned.services} services copied · ${cloned.renamed} text fields de-branded`);
 
   // Access for the demo operator only. This user has no platform access and
   // no membership of any real contractor.
@@ -529,7 +278,7 @@ async function create() {
     create: { userId: user.id, contractorId: c.id, role: "OWNER", active: true },
   });
 
-  await dress(c.id);
+  await tidy(c.id);
 
   const services = await prisma.service.count({ where: { contractorId: c.id, active: true } });
   console.log(`  ${services} active services · storefront /${DEMO.slug} · operator ${DEMO.userEmail}`);

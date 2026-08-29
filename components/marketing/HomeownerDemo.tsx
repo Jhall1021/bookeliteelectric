@@ -141,7 +141,13 @@ export default function HomeownerDemo() {
               window they choose is a window <span className="font-semibold">you opened</span>.
             </p>
 
-            {stage !== "search" && (
+            {/* Shown unless the card on the right already offers a reset.
+                Two "Start over" buttons is a pointless choice; none at all —
+                which the first attempt at this produced on the priced card,
+                whose own button is "Continue" — is a trap. */}
+            {stage !== "search" &&
+              !(stage === "done") &&
+              !(stage === "outcome" && outcome?.status !== "PRICED") && (
               <button onClick={restart}
                       className="mt-6 text-[15px] font-semibold text-p2b-accent underline underline-offset-2 hover:text-p2b-accent-hover">
                 Start over
