@@ -384,7 +384,7 @@ consume it.
 |---|---|
 | 1. bounded standard scopes | **done** — all seven above |
 | 2. labour | **done** — proposed with reasoning; two flagged as not believable |
-| 3. materials | **specified, blocked** — 17 roles missing, 1 ambiguous |
+| 3. materials | **specified, blocked** — 23 roles missing, 1 ambiguous |
 | 4. derive starting prices | **blocked twice** — materials, and the settings change |
 | 5. compare to historical | done where one exists: $4,995 and $3,995, both contradicting their recorded hours |
 | 6. publish | **nothing published.** All seven remain under the §1.4 rescue allowlist |
