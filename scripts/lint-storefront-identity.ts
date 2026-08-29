@@ -62,6 +62,13 @@ const ALLOWED = new Set([
   "lib/theme/structure.ts",    // ELITE_V1_STRUCTURE
   "lib/pricingCopy.ts",        // holds the flat-rate copy on purpose, keyed by strategy
   "scripts/_extractCore.ts",   // the template extractor's BRAND detector
+  // A GENERATED record of one demonstration contractor's resolved copy, not a
+  // component choosing copy for every contractor. The string is in it because
+  // that contractor is FLAT_RATE and pricingCopy() said so — which is the
+  // behaviour this linter exists to enforce, reached rather than bypassed.
+  // scripts/capture-demo-flow.ts writes it; HomeownerDemo reads it and states
+  // nothing of its own.
+  "components/marketing/demoFlow.ts",
 ]);
 /**
  * `app/admin` is only compatibility redirects now. `app/dashboard`,

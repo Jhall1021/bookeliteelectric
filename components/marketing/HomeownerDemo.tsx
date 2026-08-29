@@ -29,14 +29,54 @@ const money = (cents: number) =>
 
 type Stage = "search" | "questions" | "handoff" | "outcome" | "sameVisit" | "schedule" | "done";
 
+type OptionPrice = { cents: number | null; needsReview: boolean; perUnitCents: number | null; settles: boolean };
+
 type Flow = {
   key: string | null;
   name: string;
   description: string | null;
   steps: readonly { key: string; prompt: string; helpText: string | null;
-    options: readonly { value: string; label: string; disclaimer: string | null; next: string | null }[] }[];
+    options: readonly { value: string; label: string; disclaimer: string | null; next: string | null;
+      price?: OptionPrice }[] }[];
   outcomes: Record<string, any>;
 };
+
+/**
+ * What an answer costs, shown before it is chosen — the same presentation the
+ * storefront's QuestionStep uses, and the same restraint.
+ *
+ * The restraint is the point: only an answer that SETTLES something may say
+ * "no extra charge". An answer that merely continues carries no promise about
+ * the final price, because later questions can still move it, so it shows
+ * nothing at all rather than a reassurance it cannot keep.
+ */
+function PriceChip({ price }: { price?: OptionPrice }) {
+  if (!price) return null;
+  if (price.needsReview) {
+    // From the captured contractor's own pricing copy, not written here: the
+    // wording differs between a flat-rate contractor and one billing time and
+    // materials, and the identity linter is right to refuse a component that
+    // picks one. See lib/pricingCopy.ts.
+    return <span className="mt-1 block text-[13px] text-p2b-muted">{DEMO_FLOW.copy.confirmAfterLook}</span>;
+  }
+  if (price.cents && price.cents > 0) {
+    return (
+      <>
+        <span className="mt-1 block text-[13px] font-semibold text-p2b-green-deep">+ {money(price.cents)}</span>
+        {price.perUnitCents ? (
+          <span className="mt-0.5 block text-[13px] text-p2b-muted">{money(price.perUnitCents)} each</span>
+        ) : null}
+      </>
+    );
+  }
+  if (price.cents && price.cents < 0) {
+    return <span className="mt-1 block text-[13px] font-semibold text-p2b-green-deep">− {money(Math.abs(price.cents))}</span>;
+  }
+  if (price.settles) {
+    return <span className="mt-1 block text-[13px] text-p2b-muted">No extra charge</span>;
+  }
+  return null;
+}
 
 const FLOWS = DEMO_FLOW.flows as unknown as Record<string, Flow>;
 
@@ -221,6 +261,7 @@ export default function HomeownerDemo() {
                         <button key={o.value} onClick={() => choose(o.value)}
                                 className="rounded-sm border border-p2b-line px-4 py-3.5 text-left text-[15px] hover:border-p2b-accent hover:bg-p2b-accent-tint">
                           {o.label}
+                          <PriceChip price={o.price} />
                         </button>
                       ))}
                     </div>

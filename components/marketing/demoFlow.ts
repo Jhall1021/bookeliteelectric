@@ -20,6 +20,9 @@ export const DEMO_FLOW = {
     "serviceName": "New 120V Outlet",
     "matchKind": "suggestion"
   },
+  "copy": {
+    "confirmAfterLook": "We'll confirm your price after a quick look"
+  },
   "primary": "new-120v-outlet",
   "flows": {
     "new-120v-outlet": {
@@ -36,37 +39,73 @@ export const DEMO_FLOW = {
               "value": "everyday",
               "label": "Everyday things — lamps, a TV, chargers, a computer",
               "disclaimer": null,
-              "next": "outlet_power_source"
+              "next": "outlet_power_source",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "motor_appliance",
               "label": "A fridge, freezer, or window air conditioner",
               "disclaimer": "These need a circuit of their own — a fridge that shares one with something else can be switched off by it without anyone noticing.",
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "heating_appliance",
               "label": "A microwave, a space heater, or a treadmill",
               "disclaimer": "These draw heavily enough that sharing a circuit tends to trip it.",
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "shop_equipment",
               "label": "A compressor, a table saw, or similar shop equipment",
               "disclaimer": "Equipment like this draws hard when it starts up.",
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "ev",
               "label": "An electric vehicle",
               "disclaimer": "That's a different job — we'll take you to the right place.",
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "unsure",
               "label": "Something else, or I'm not sure",
               "disclaimer": "Tell us what it is and send a photo of its label if you can find one — we'll work out what it needs and come back with a price.",
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         },
@@ -79,13 +118,25 @@ export const DEMO_FLOW = {
               "value": "tap_existing",
               "label": "From the nearest outlet — from $280",
               "disclaimer": "The quickest way, and fine for everyday things. It shares a circuit with whatever else is already on it.",
-              "next": "below_above_access"
+              "next": "below_above_access",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "dedicated",
               "label": "Its own circuit from the panel — from $685",
               "disclaimer": "Worth it if the outlets nearby already trip, or you'd rather this one had room to spare.",
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         },
@@ -98,13 +149,25 @@ export const DEMO_FLOW = {
               "value": "has_access",
               "label": "Yes",
               "disclaimer": null,
-              "next": "device_on_exterior_wall"
+              "next": "device_on_exterior_wall",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "no_access",
               "label": "No",
               "disclaimer": null,
-              "next": "finished_space_both_sides"
+              "next": "finished_space_both_sides",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         },
@@ -117,19 +180,37 @@ export const DEMO_FLOW = {
               "value": "finished_both_sides",
               "label": "Yes — finished space above or below, or the room's on a slab",
               "disclaimer": null,
-              "next": "outlet_finish_ack"
+              "next": "outlet_finish_ack",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "exterior_wall",
               "label": "It's an exterior wall",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "unsure",
               "label": "I'm not sure",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         },
@@ -142,19 +223,37 @@ export const DEMO_FLOW = {
               "value": "exterior",
               "label": "Yes, it's an outside wall",
               "disclaimer": null,
-              "next": "outlet_run_distance"
+              "next": "outlet_run_distance",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "interior",
               "label": "No, it's an interior wall",
               "disclaimer": null,
-              "next": "outlet_run_distance"
+              "next": "outlet_run_distance",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "unsure",
               "label": "I'm not sure",
               "disclaimer": null,
-              "next": "outlet_run_distance"
+              "next": "outlet_run_distance",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         },
@@ -167,13 +266,25 @@ export const DEMO_FLOW = {
               "value": "accepted",
               "label": "I understand — go ahead",
               "disclaimer": null,
-              "next": "outlet_run_distance"
+              "next": "outlet_run_distance",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "review_first",
               "label": "I'd rather Voltmark take a look first",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         },
@@ -186,25 +297,49 @@ export const DEMO_FLOW = {
               "value": "under_10",
               "label": "Less than 10 feet",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 12500,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": true
+              }
             },
             {
               "value": "10_to_20",
               "label": "10 to 20 feet",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 26000,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": true
+              }
             },
             {
               "value": "over_20",
               "label": "More than 20 feet",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "unsure",
               "label": "I'm not sure",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         }
@@ -423,25 +558,49 @@ export const DEMO_FLOW = {
               "value": "same_room",
               "label": "Same wall or room as the panel",
               "disclaimer": null,
-              "next": "panel_capacity"
+              "next": "panel_capacity",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "same_floor",
               "label": "Same floor, different room",
               "disclaimer": null,
-              "next": "panel_capacity"
+              "next": "panel_capacity",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "different_floor",
               "label": "Different floor",
               "disclaimer": null,
-              "next": "panel_capacity"
+              "next": "panel_capacity",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "detached",
               "label": "Detached garage",
               "disclaimer": null,
-              "next": "panel_capacity"
+              "next": "panel_capacity",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         },
@@ -454,19 +613,37 @@ export const DEMO_FLOW = {
               "value": "yes",
               "label": "Yes",
               "disclaimer": null,
-              "next": "garage_type"
+              "next": "garage_type",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "no",
               "label": "No",
               "disclaimer": null,
-              "next": "garage_type"
+              "next": "garage_type",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "unsure",
               "label": "I'm not sure",
               "disclaimer": null,
-              "next": "garage_type"
+              "next": "garage_type",
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         },
@@ -479,19 +656,37 @@ export const DEMO_FLOW = {
               "value": "attached",
               "label": "Attached garage",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "detached_confirm",
               "label": "Detached garage",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             },
             {
               "value": "outdoor",
               "label": "Outdoor / driveway",
               "disclaimer": null,
-              "next": null
+              "next": null,
+              "price": {
+                "cents": 0,
+                "needsReview": false,
+                "perUnitCents": null,
+                "settles": false
+              }
             }
           ]
         }

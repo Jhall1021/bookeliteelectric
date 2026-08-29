@@ -26,6 +26,8 @@ import { PrismaClient } from "@prisma/client";
 import { writeFileSync } from "node:fs";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { keywordFallback } from "../lib/serviceMatch";
+import { answerPriceDelta } from "../lib/pricing";
+import { pricingCopy } from "../lib/pricingCopy";
 import { DEMO } from "./demo-contractor";
 
 const prisma = new PrismaClient();
@@ -62,6 +64,17 @@ type Option = {
   disclaimer: string | null;
   /** The question this answer leads to, when it leads anywhere. */
   next: string | null;
+  /**
+   * What choosing this answer does to the price, from answerPriceDelta — the
+   * same function the storefront's QuestionStep calls to price an answer
+   * before it is chosen.
+   *
+   * `settles` carries the storefront's rule with it: only an answer that
+   * RESOLVES something may claim "no extra charge". A CONTINUE answer with no
+   * charge of its own says nothing, because what the customer pays still
+   * depends on later questions.
+   */
+  price: { cents: number | null; needsReview: boolean; perUnitCents: number | null; settles: boolean };
 };
 type Step = { key: string; prompt: string; helpText: string | null; options: Option[] };
 type Outcome =
@@ -176,18 +189,71 @@ async function main() {
     const nextKey = (o: { routeAction: string; nextQuestionId: string | null }) =>
       o.routeAction === "CONTINUE" && o.nextQuestionId ? byId.get(o.nextQuestionId)?.key ?? null : null;
 
-    const steps: Step[] = svc.questions.map((q) => ({
-      key: q.key,
-      prompt: q.prompt,
-      helpText: q.helpText,
-      options: q.options.map((o) => ({
-        value: o.value, label: o.label, disclaimer: o.disclaimer, next: nextKey(o),
-      })),
-    }));
+    /**
+     * Deltas are computed while walking, because answerPriceDelta takes the
+     * answers so far and any access classification established earlier — so an
+     * answer's price is not necessarily a property of the answer alone.
+     *
+     * Collected per option across EVERY path, then checked: if an option
+     * priced differently depending on how it was reached, one number on the
+     * button would be a lie, and the capture says so rather than picking one.
+     */
+    const seen = new Map<string, Set<string>>();
+    const priceOf = new Map<string, Option["price"]>();
+    /**
+     * answerPriceDelta takes a BranchContribution, not a raw AnswerOption:
+     * its components must already carry THIS contractor's economics. Built the
+     * same way resolveRoute builds it, including the fail-closed rule — a role
+     * this contractor has never priced is null, never zero and never somebody
+     * else's figure, and the route goes to review.
+     */
+    const branchOf = (o: any) => ({
+      priceModifierCents: o.priceModifierCents,
+      approvedComponentPriceCents: o.approvedComponentPriceCents,
+      accessClassification: o.accessClassification,
+      overrideEstimatedMinutes: o.overrideEstimatedMinutes,
+      overrideTechCount: o.overrideTechCount,
+      overrideFieldLaborHours: o.overrideFieldLaborHours,
+      addFieldLaborHours: o.addFieldLaborHours,
+      addMaterialCostCents: o.addMaterialCostCents,
+      addScheduleMinutes: o.addScheduleMinutes,
+      components: (o.components ?? []).map((c: any) => {
+        const canonical = c.canonicalComponent;
+        const own = canonical ? svc.ownComponents.get(canonical.id) : null;
+        return {
+          quantity: c.quantity,
+          conditionAnswerKey: c.conditionAnswerKey,
+          conditionAnswerValue: c.conditionAnswerValue,
+          conditionAccessClass: c.conditionAccessClass,
+          component: {
+            key: canonical?.key ?? "",
+            customerFacingLabel: own?.labelOverride ?? canonical?.customerFacingLabel ?? null,
+            approvedPriceCents: own ? own.approvedPriceCents : null,
+            addFieldLaborHours: own?.addFieldLaborHours ?? 0,
+            addMaterialCostCents: own?.addMaterialCostCents ?? 0,
+            addScheduleMinutes: own?.addScheduleMinutes ?? 0,
+            addTechCount: own?.addTechCount ?? 0,
+          },
+        };
+      }),
+    });
+
+    const record = (optionId: string, o: any, answers: Record<string, string>, accessClass: any) => {
+      const d = answerPriceDelta(branchOf(o) as any, answers, accessClass);
+      const settles =
+        o.routeAction === "RESOLVE_INSTANT" ||
+        o.routeAction === "RESOLVE_ADJUSTED" ||
+        (o.routeAction === "PHOTO_REVIEW" && !o.photosBlockBooking);
+      const price = { cents: d.cents, needsReview: d.needsReview, perUnitCents: d.perUnitCents ?? null, settles };
+      const sig = JSON.stringify(price);
+      if (!seen.has(optionId)) seen.set(optionId, new Set());
+      seen.get(optionId)!.add(sig);
+      priceOf.set(optionId, price);
+    };
 
     const outcomes: Record<string, Outcome> = {};
     const targets = new Set<string>();
-    const walk = (key: string | null, answers: Record<string, string>) => {
+    const walk = (key: string | null, answers: Record<string, string>, accessClass: any = null) => {
       if (!key) {
         const route = resolveRoute(svc, answers, true, settings!);
         const k = JSON.stringify(answers);
@@ -206,9 +272,27 @@ async function main() {
       }
       const q = svc.questions.find((x) => x.key === key);
       if (!q) return;
-      for (const o of q.options) walk(nextKey(o), { ...answers, [q.key]: o.value });
+      for (const o of q.options) {
+        record(o.id, o, answers, accessClass);
+        walk(nextKey(o), { ...answers, [q.key]: o.value }, (o as any).accessClassification ?? accessClass);
+      }
     };
-    walk(steps[0]?.key ?? null, {});
+    walk(svc.questions[0]?.key ?? null, {});
+
+    const inconsistent = [...seen.entries()].filter(([, sigs]) => sigs.size > 1);
+    if (inconsistent.length) {
+      console.log(`    ! ${inconsistent.length} option(s) price differently depending on the route — showing one number would be wrong`);
+    }
+
+    const steps: Step[] = svc.questions.map((q) => ({
+      key: q.key,
+      prompt: q.prompt,
+      helpText: q.helpText,
+      options: q.options.map((o) => ({
+        value: o.value, label: o.label, disclaimer: o.disclaimer, next: nextKey(o),
+        price: priceOf.get(o.id) ?? { cents: null, needsReview: false, perUnitCents: null, settles: false },
+      })),
+    }));
 
     return {
       flow: { key: meta.slug, name: meta.name, description: meta.shortDescription, steps, outcomes },
@@ -283,6 +367,19 @@ async function main() {
     select: { dayStart: true, dayEnd: true, windowMinutes: true },
   });
 
+  /**
+   * The strategy-dependent strings, captured with the contractor.
+   *
+   * "We'll confirm your price after a quick look" is true for a flat-rate
+   * contractor and a promise a time-and-materials one cannot keep — which is
+   * why the identity linter refuses it hardcoded in a component, and it
+   * refused it here. The snapshot is of ONE contractor, so its copy travels
+   * with it rather than being chosen by the marketing page.
+   */
+  const copy = pricingCopy(
+    (await prisma.contractor.findUniqueOrThrow({ where: { id: contractor.id }, select: { pricingStrategy: true } })).pricingStrategy,
+  );
+
   const snapshot = {
     // Recorded so a reader can tell at a glance that this is not hand-written,
     // and can regenerate it.
@@ -295,6 +392,8 @@ async function main() {
       // Recorded so the page can say the match came from the matcher.
       matchKind: match.kind,
     },
+    /** Copy that depends on the captured contractor's pricing strategy. */
+    copy: { confirmAfterLook: copy.confirmAfterLookNotice },
     /** Which flow the demo starts in. */
     primary: primary.flow.key,
     /** Every flow the demo can reach, including reroute destinations. */
