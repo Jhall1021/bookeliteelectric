@@ -50,33 +50,33 @@ export default function SignInPage() {
 
   if (sent) {
     return (
-      <main className="mx-auto max-w-sm px-6 py-20">
-        <h1 className="font-display text-2xl font-bold text-navy">Check your email</h1>
-        <p className="mt-3 text-sm text-slate">
-          If <span className="font-medium text-navy">{email}</span> can access an account,
+      <div>
+        <h1 className="text-[30px] font-bold tracking-[-0.022em] lg:text-[34px]">Check your email</h1>
+        <p className="mt-3 text-[15px] leading-[1.6] text-p2b-muted">
+          If <span className="font-medium text-p2b-ink">{email}</span> can access an account,
           a sign-in link is on its way. It works once and expires in 15 minutes.
         </p>
         <button
           type="button"
           onClick={() => { setSent(false); setEmail(""); }}
-          className="mt-6 text-sm font-semibold text-electric underline"
+          className="mt-6 text-[15px] font-semibold text-p2b-accent underline underline-offset-2 hover:text-p2b-accent-hover"
         >
           Use a different address
         </button>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto max-w-sm px-6 py-20">
-      <h1 className="font-display text-2xl font-bold text-navy">Sign in</h1>
-      <p className="mt-1 text-sm text-slate">
+    <div>
+      <h1 className="text-[30px] font-bold tracking-[-0.022em] lg:text-[34px]">Sign in</h1>
+      <p className="mt-2 text-[15px] leading-[1.6] text-p2b-muted">
         We&rsquo;ll email you a link. No password to remember.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label htmlFor="email" className="text-sm font-medium text-navy">
+          <label htmlFor="email" className="text-[14px] font-medium text-p2b-ink">
             Email address
           </label>
           <input
@@ -87,23 +87,23 @@ export default function SignInPage() {
             autoFocus
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-card border border-cardline px-3 py-2"
+            className="mt-1.5 w-full rounded-sm border border-p2b-line bg-white px-4 py-3 text-[15px] focus:border-p2b-accent focus:outline-none focus:ring-1 focus:ring-p2b-accent"
             placeholder="you@example.com"
           />
         </div>
 
         {error && (
-          <div className="rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</div>
+          <div className="rounded-sm border border-p2b-error-line bg-p2b-error-bg p-3 text-sm text-p2b-error-ink">{error}</div>
         )}
 
         <button
           type="submit"
           disabled={submitting || !email.trim()}
-          className="w-full rounded-full bg-electric px-4 py-2 font-semibold text-white disabled:opacity-50"
+          className="w-full rounded-sm bg-p2b-accent px-4 py-3.5 text-base font-semibold text-white hover:bg-p2b-accent-hover disabled:opacity-50"
         >
           {submitting ? "Sending…" : "Email me a sign-in link"}
         </button>
       </form>
-    </main>
+    </div>
   );
 }

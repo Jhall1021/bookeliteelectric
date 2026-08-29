@@ -48,6 +48,10 @@ const ALLOWED = new Set([
   "lib/theme/tokens.ts", // the definition site — the values live somewhere
   "lib/email.ts", // HTML email; custom properties are not reliable in clients
   "tailwind.config.ts", // the mapping layer; its rgb() is a helper, not CSS
+  // Rendered by next/og in the edge runtime, not by a browser: there is no
+  // :root and no custom properties to resolve, so the platform's own colours
+  // have to be written out. Both are Price2Book's marks, never a contractor's.
+  "app/icon.tsx",
 ]);
 
 const HEX = /#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/;

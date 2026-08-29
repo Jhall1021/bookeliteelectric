@@ -38,6 +38,7 @@ const TRUTH: Record<string, string> = {
   ServiceTitan: "Coming Soon",
   "Housecall Pro": "Coming Soon",
   "Google Calendar": "Coming Soon",
+  "Outlook Calendar": "Coming Soon",
 };
 
 /** Copy the owner approved and that must survive an edit. */

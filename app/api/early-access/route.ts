@@ -19,7 +19,27 @@ export const dynamic = "force-dynamic";
  * into an oracle for which contractors have applied.
  */
 
-const LIMITS = { name: 120, company: 160, email: 254, runsOn: 400 } as const;
+const LIMITS = { name: 120, company: 160, email: 254, trade: 80, runsOn: 120, crewSize: 40 } as const;
+
+/**
+ * The optional fields are structured choices on the form, so the server
+ * accepts only those values and drops anything else.
+ *
+ * Not validation theatre: the point of asking "what do you run on" as a menu
+ * is that the answers are countable afterwards. One free-text "jobber pro?"
+ * silently ruins that, and a rejected submission would cost a real lead — so
+ * an unrecognised value is discarded rather than refused.
+ */
+const TRADES = [
+  "Residential electrical", "Plumbing", "HVAC", "Multi-trade", "Something else",
+] as const;
+const RUNS_ON = [
+  "Jobber", "ServiceTitan", "Housecall Pro", "Another field-service platform",
+  "Google or Outlook Calendar", "Spreadsheets or paper", "Nothing yet",
+] as const;
+const CREW_SIZES = ["Just me", "2–3", "4–6", "7–12", "13 or more"] as const;
+
+const oneOf = (v: string, allowed: readonly string[]) => (allowed.includes(v) ? v : "");
 
 /** Deliberately permissive. Rejecting unusual-but-valid addresses on a lead
  *  form costs a real customer; a malformed one costs an operator ten seconds. */
@@ -44,7 +64,9 @@ export async function POST(req: Request) {
   const name = field(b.name, LIMITS.name);
   const company = field(b.company, LIMITS.company);
   const email = field(b.email, LIMITS.email);
-  const runsOn = field(b.runsOn, LIMITS.runsOn);
+  const trade = oneOf(field(b.trade, LIMITS.trade), TRADES);
+  const runsOn = oneOf(field(b.runsOn, LIMITS.runsOn), RUNS_ON);
+  const crewSize = oneOf(field(b.crewSize, LIMITS.crewSize), CREW_SIZES);
 
   // A honeypot, not a CAPTCHA. Anything that fills a field no human can see
   // is answered exactly as a success would be — telling a bot it was caught
@@ -53,26 +75,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const missing = [
-    !name && "name",
-    !company && "company",
-    !email && "email",
-  ].filter(Boolean) as string[];
-  if (missing.length) {
+  // Per-field messages, so the form can say what is wrong beside the field
+  // that is wrong rather than printing one sentence about the whole form.
+  const errors: Record<string, string> = {};
+  if (!name) errors.name = "Please tell us your name.";
+  if (!company) errors.company = "Please tell us your company.";
+  if (!email) errors.email = "Please give us an email address.";
+  else if (!EMAIL.test(email)) errors.email = "That email address doesn’t look right.";
+  if (!trade) errors.trade = "Please choose the trade you run.";
+
+  if (Object.keys(errors).length) {
     return NextResponse.json(
-      { error: "Please fill in your name, company and email.", missing },
-      { status: 400 },
-    );
-  }
-  if (!EMAIL.test(email)) {
-    return NextResponse.json(
-      { error: "That email address doesn’t look right.", missing: ["email"] },
+      { error: "Please check the highlighted fields.", errors, missing: Object.keys(errors) },
       { status: 400 },
     );
   }
 
   await prisma.earlyAccessRequest.create({
-    data: { name, company, email, runsOn: runsOn || null, source: "homepage" },
+    data: {
+      name, company, email, trade,
+      runsOn: runsOn || null,
+      crewSize: crewSize || null,
+      source: "homepage",
+    },
   });
 
   return NextResponse.json({ ok: true });

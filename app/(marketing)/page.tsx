@@ -6,8 +6,8 @@ import ControlPanel from "@/components/marketing/ControlPanel";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
 import { SHOTS } from "@/components/marketing/shots";
 import {
-  ElectricalFirst, GuidedPricing, GuidedSetup, Integrations, Journey, Outcomes,
-  Pillars, PricingControl, Proof, Scheduling, WhileWereThere,
+  Boundary, ElectricalFirst, Faq, GuidedPricing, GuidedSetup, Integrations, Journey,
+  Outcomes, Pillars, PricingControl, Proof, Scheduling, WhileWereThere,
 } from "@/components/marketing/Sections";
 
 /**
@@ -15,10 +15,12 @@ import {
  *
  * Section order is the handoff's final order and is not incidental: the page
  * answers "what is it" (hero, pillars), "what does my customer do" (journey),
- * "what is the differentiator" (While We're There™, Guided Pricing), "who
- * stays in control" (outcomes, pricing, scheduling), "what does it cost me to
- * adopt" (integrations, electrical template, control panel, setup), and only
- * then asks for anything.
+ * "does it really work" (the real product screens, moved up from two-thirds
+ * down), "what is the differentiator" (Guided Pricing, While We're There™),
+ * "who stays in control" (outcomes, pricing, scheduling), "what is it NOT"
+ * (the boundary and the two operating modes), "what does it cost me to adopt"
+ * (integrations, electrical template, setup), answers the objections (FAQ),
+ * and only then asks for anything.
  */
 export const dynamic = "force-dynamic";
 
@@ -35,16 +37,23 @@ export default function HomePage() {
         <Hero />
         <Pillars />
         <Journey />
-        <WhileWereThere />
+
+        {/* Moved up from two-thirds down the page. The real storefront and the
+            real contractor screens are the strongest evidence here, and they
+            were arriving long after most visitors had decided. */}
+        <ControlPanel shots={SHOTS} />
+
         <GuidedPricing />
         <Outcomes />
+        <WhileWereThere />
         <PricingControl />
         <Scheduling />
+        <Boundary />
         <Integrations />
         <ElectricalFirst />
-        <ControlPanel shots={SHOTS} />
         <GuidedSetup />
         <Proof />
+        <Faq />
         <EarlyAccess />
       </main>
       <MarketingFooter />

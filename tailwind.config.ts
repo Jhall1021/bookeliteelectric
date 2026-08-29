@@ -75,12 +75,17 @@ export default {
           "navy-card": "#142B4C",
           "navy-line": "#23395C",
           "navy-deep": "#0B1A2F",
+          "navy-hairline": "#1B2E4B",
           "navy-text": "#B7C2D2",
           "navy-muted": "#7E8EA6",
           "navy-soft": "#8FA0B8",
           // Review / caution states inside Guided Pricing examples.
           "amber-tint": "#FDF3E4",
           "amber-ink": "#8A5A12",
+          // Error states on platform forms.
+          "error-line": "#E7C9C9",
+          "error-bg": "#FBF3F3",
+          "error-ink": "#8A2F2F",
         },
 
         // Legacy layer — the Elite storefront's existing names, now aliases.

@@ -2536,9 +2536,18 @@ model EarlyAccessRequest {
   name    String
   company String
   email   String
-  /// Free text — "What do you use to run your business?" A lead saying
-  /// "Jobber" is not a Jobber integration and is never read as one.
-  runsOn  String?
+  /// Which trade they run. Required: it is the first thing that decides
+  /// whether Price2Book can serve them at all, since only residential
+  /// electrical ships with real service structure today.
+  trade   String
+
+  /// What they run the business on — a structured choice, stored as text. A
+  /// lead saying "Jobber" is not a Jobber integration and is never read as one.
+  runsOn String?
+
+  /// Rough crew size, as a band rather than a number. Optional, because
+  /// requiring it costs responses from people who would have to go and count.
+  crewSize String?
 
   /// Which surface produced it, so a later campaign page is distinguishable
   /// from the homepage without a second table.

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Archivo } from "next/font/google";
+import { platformOrigin } from "@/lib/origins";
 
 /**
  * Archivo is the marketing site's typeface and nothing else's.
@@ -15,10 +16,36 @@ const archivo = Archivo({
   display: "swap",
 });
 
+const TITLE = "Price2Book — Your pricing. Your schedule.";
+const DESCRIPTION =
+  "Turn homeowner requests into safely priced, bookable work. Customers describe what they need, " +
+  "answer the questions that affect scope, and see your approved price and real availability — " +
+  "without replacing the software you already use.";
+
+/**
+ * `metadataBase` is what makes every relative URL below resolve to an absolute
+ * one. Without it Next emits relative og:image and canonical values, which
+ * some crawlers and every chat preview simply drop — the page looks fine and
+ * shares as a bare link.
+ *
+ * Resolved rather than hardcoded, so a preview deployment describes itself.
+ */
+const origin = platformOrigin();
+
 export const metadata: Metadata = {
-  title: "Price2Book — Your pricing. Your schedule.",
-  description:
-    "Give homeowners upfront prices and let them book the work you choose — using your pricing, your availability, and the software you already use to run your business.",
+  ...(origin ? { metadataBase: new URL(origin) } : {}),
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "Price2Book",
+    title: TITLE,
+    description: DESCRIPTION,
+    ...(origin ? { url: origin } : {}),
+  },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
+  robots: { index: true, follow: true },
 };
 
 /**

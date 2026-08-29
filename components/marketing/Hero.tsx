@@ -52,10 +52,13 @@ export default function Hero() {
         <div className="lg:relative lg:col-span-6 lg:pb-[34px] lg:pl-[34px] lg:pt-2">
           {/* Behind: what the contractor set. */}
           <div className="overflow-hidden rounded-[3px] border border-p2b-accent-line bg-[#F2F5FA] lg:absolute lg:right-0 lg:top-0 lg:w-[430px]">
-            <div className="border-b border-p2b-accent-line bg-p2b-accent-tint-strong px-[18px] py-[11px]">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-p2b-accent-line bg-p2b-accent-tint-strong px-[18px] py-[11px]">
               <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent">
                 Contractor · what you set
               </span>
+              {/* An unlabelled price in a hero reads as a price the platform
+                  sets, which is the opposite of what this section claims. */}
+              <span className="text-[11px] font-medium text-p2b-muted">Example contractor setup</span>
             </div>
             <div className="px-[18px] pb-4 pt-[18px]">
               <div className="mb-3.5 text-[15px] font-semibold">Replace Existing Ceiling Fan</div>

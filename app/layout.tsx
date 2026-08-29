@@ -25,7 +25,12 @@ const inter = Inter({
  */
 export const metadata: Metadata = {
   title: "Price2Book",
-  description: "Online booking for home-services contractors.",
+  // Was "Online booking for home-services contractors", which describes the
+  // homeowner's side of a product whose buyer is the contractor — and makes
+  // it sound like one more booking tool, which is the exact category
+  // POSITIONING.md says the product must not be read as.
+  description:
+    "The pricing and booking layer in front of a residential service contractor's business.",
 };
 
 /**

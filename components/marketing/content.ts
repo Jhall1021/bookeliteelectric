@@ -19,15 +19,24 @@ export const HERO = {
   eyebrow: "For residential service contractors",
   headline: ["Your pricing.", "Your schedule."],
   body:
-    "Give homeowners upfront prices and let them book the work you choose — using your pricing, your availability, and the software you already use to run your business.",
+    "Turn homeowner requests into safely priced, bookable work. Customers describe what they need, answer the questions that affect scope, and see your approved price and real availability — without replacing the software you already use.",
   primaryCta: "Request Early Access",
   secondaryCta: "See the Homeowner Experience",
   support: "Works alongside your existing business software.",
   supportEmphasis: "No new CRM required.",
-  footnote: "Built for residential service contractors. Proven first in electrical.",
+  // "Proven first in electrical" contradicted the proof section further down,
+  // which says plainly that there are no pilot results yet. This says where
+  // the product was built without implying results we do not have.
+  footnote: "Built for residential service contractors. Built first with a working residential electrical contractor.",
 } as const;
 
-/** The hero's contractor-side card: what you set, beside what they see. */
+/**
+ * The hero's contractor-side card: what you set, beside what they see.
+ *
+ * Labelled an EXAMPLE on the page. These are plausible figures for a
+ * demonstration business, and an unlabelled price in a hero reads as a price
+ * the platform sets — which is the opposite of what the section is claiming.
+ */
 export const HERO_CONTROL = [
   { k: "Published Price", v: "$375", tone: "ink" },
   { k: "While We’re There™", v: "+$250", tone: "green" },
@@ -145,6 +154,7 @@ export const INTEGRATIONS: ReadonlyArray<{
   { name: "ServiceTitan", body: "Planned", status: "Coming Soon" },
   { name: "Housecall Pro", body: "Planned", status: "Coming Soon" },
   { name: "Google Calendar", body: "Planned", status: "Coming Soon" },
+  { name: "Outlook Calendar", body: "Planned", status: "Coming Soon" },
 ];
 
 /** Labels that must never appear as an integration status on the public site. */
@@ -179,11 +189,17 @@ export const SETUP_PROGRESSION = [
 ] as const;
 
 /**
- * Proof metrics, deliberately unfilled.
+ * What the pilot is measuring.
  *
- * POSITIONING.md forbids fabricated testimonials and invented numbers. These
- * render as empty placeholders on purpose: the section says what will be shown
- * once pilot contractors have numbers, and shows nothing until they do.
+ * This was "Proof, once there is proof", rendering six empty [ ] cards. The
+ * honesty was right and the presentation was not: absent numbers in card
+ * frames read as an unfinished page rather than as a deliberate refusal to
+ * invent results.
+ *
+ * Same rule, different framing — these are stated as the objectives being
+ * measured, which is true today, instead of as results that are missing.
+ * POSITIONING.md still forbids inventing a number here, and the gate still
+ * asserts none of these carries one.
  */
 export const PROOF_METRICS = [
   "Fewer pricing calls",
@@ -199,5 +215,95 @@ export const NAV = [
   { label: "Guided Pricing", href: "#guided" },
   { label: "While We’re There™", href: "#wwt" },
   { label: "Integrations", href: "#integrations" },
-  { label: "Pricing", href: "#access" },
+  // Was "Pricing", which jumped to the early-access form with no price
+  // anywhere on the page. That reads as evasion rather than as what it is —
+  // pricing is not settled yet. It becomes "Pricing" again when there is a
+  // pricing section to point at.
+  { label: "Early Access", href: "#access" },
+] as const;
+
+/**
+ * What Price2Book handles, and what your existing systems keep handling.
+ *
+ * The sharpest thing this page can say is what the product is NOT. ADR-012
+ * and POSITIONING.md both turn on it: "anyone looking to replace Jobber" is
+ * explicitly not the buyer, and the fastest way to become ServiceTitan by
+ * accident is to let the boundary go unstated on the marketing site.
+ *
+ * Paired rows, read across.
+ */
+export const BOUNDARY: ReadonlyArray<{ ours: string; theirs: string }> = [
+  { ours: "Homeowner intent and service matching", theirs: "CRM and client records" },
+  { ours: "Trade-specific qualification", theirs: "Dispatch and technician management" },
+  { ours: "Contractor-approved pricing paths", theirs: "Invoicing and payment collection" },
+  { ours: "Bookable availability", theirs: "Payroll and accounting" },
+  { ours: "While We’re There™ additions", theirs: "Inventory and job costing" },
+  { ours: "Handoff of qualified booked work", theirs: "The rest of field-service operations" },
+];
+
+/** The two ways the product is meant to be run. */
+export const OPERATING_MODES = [
+  {
+    tag: "Add-on",
+    title: "In front of the platform you already run",
+    body:
+      "Price2Book handles pricing and booking; qualified work lands in Jobber or another field-service platform for dispatch and invoicing. Nothing about how you run the business changes.",
+  },
+  {
+    tag: "Standalone-light",
+    title: "For a contractor who doesn’t need a full CRM",
+    body:
+      "Use the branded storefront and the built-in Price2Book Scheduler on their own. No field-service platform to buy, and calendar integrations are on the way.",
+  },
+] as const;
+
+/**
+ * The objections a contractor actually raises, answered.
+ *
+ * Every answer here is a claim about what the software does today, which puts
+ * this file in the same class as the integration statuses: checked, not
+ * drafted. Anything not yet true is stated as not yet true rather than
+ * softened into sounding available.
+ */
+export const FAQ = [
+  {
+    q: "Does this replace Jobber or ServiceTitan?",
+    a: "No, and it is not meant to. Price2Book is the pricing and booking layer in front of your business. Work booked through it is handed to the system you already run — the Jobber integration is live today, and other platforms are planned.",
+  },
+  {
+    q: "Can I use it without field-service software?",
+    a: "Yes. The Price2Book Scheduler is built in, so a contractor with no platform can take online bookings without buying one.",
+  },
+  {
+    q: "Do I have to publish every service?",
+    a: "No. You choose which services customers can see, which can be priced online, and which can be booked. Anything you don’t turn on stays off your storefront.",
+  },
+  {
+    q: "What happens when a job can’t safely be priced online?",
+    a: "It doesn’t get a price. You decide service by service whether an answer routes to prep photos, to review before the price is released, or to a custom quote you write yourself.",
+  },
+  {
+    q: "Can customers book outside my service area?",
+    a: "No. Checkout turns away any booking whose ZIP code isn’t in the area you selected. It fails closed — an area you haven’t configured takes no bookings at all rather than taking every booking.",
+  },
+  {
+    q: "Can someone book a job that won’t fit in the window?",
+    a: "No. Availability reflects how long the work actually takes, so a four-hour job is not offered when two hours remain in the day.",
+  },
+  {
+    q: "Whose prices and material costs does Price2Book use?",
+    a: "Yours. The electrical template carries trade structure — questions, material roles, routing — and no economics at all. You supply the rates, costs and policies, and a suggested price is only ever published when you approve it.",
+  },
+  {
+    q: "Can I use a hosted storefront if I don’t have a website?",
+    a: "Yes. Every contractor gets a hosted storefront carrying their own name, colors and company details, whether or not they have a site to connect it to.",
+  },
+  {
+    q: "Which trades are supported?",
+    a: "Residential electrical. The structure underneath is trade-agnostic, but electrical is what ships with real service definitions, questions and routing today.",
+  },
+  {
+    q: "What does setup involve?",
+    a: "A conversation, not a stack of blank forms. You answer questions about how you work and what you charge, Price2Book builds a starting catalog from the trade template, and you review the services, suggested prices and customer experience before any of it goes live.",
+  },
 ] as const;

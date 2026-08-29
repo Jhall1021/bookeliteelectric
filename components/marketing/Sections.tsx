@@ -1,7 +1,7 @@
 import {
-  GUIDED_PRICING_BULLETS, GUIDED_PRICING_TREE, INTEGRATIONS, OUTCOMES, PILLARS,
-  PRICE_BREAKDOWN, PROOF_METRICS, SETUP_PROGRESSION, SETUP_STAGES, SHIPS_WITH_SERVICE,
-  STEPS, WINDOWS, WWT_ADDONS,
+  BOUNDARY, FAQ, GUIDED_PRICING_BULLETS, GUIDED_PRICING_TREE, INTEGRATIONS, OPERATING_MODES,
+  OUTCOMES, PILLARS, PRICE_BREAKDOWN, PROOF_METRICS, SETUP_PROGRESSION, SETUP_STAGES,
+  SHIPS_WITH_SERVICE, STEPS, WINDOWS, WWT_ADDONS,
 } from "./content";
 
 const SHELL = "mx-auto max-w-[1440px] px-5 lg:px-[88px]";
@@ -492,22 +492,104 @@ export function Proof() {
       <div className={`${SHELL} grid gap-10 lg:grid-cols-12 lg:items-start`}>
         <div className="lg:col-span-5">
           <h2 className="text-[26px] font-bold leading-[1.2] tracking-[-0.022em] lg:text-[32px]">
-            Proof, once there is proof.
+            What we’re measuring during the pilot.
           </h2>
           <p className="mt-5 text-[15px] leading-[1.6] text-p2b-muted lg:text-base">
-            Price2Book is being run on a working electrical business first. When pilot contractors have
-            numbers worth showing, these are what we’ll show.
+            Price2Book is being run on a working electrical business first. These are the outcomes
+            the pilot is set up to measure — stated as objectives, because no contractor has
+            produced numbers worth publishing yet. When they do, the numbers replace this.
           </p>
         </div>
-        {/* Empty on purpose. Fabricating a number here would be the single
-            easiest way to make the rest of this page untrustworthy. */}
-        <div className="grid grid-cols-2 gap-3.5 lg:col-span-7 lg:grid-cols-3">
+        {/* Objectives, not blank result cards. The refusal to invent a figure
+            is unchanged; what changed is that absence no longer reads as an
+            unfinished page. */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:col-span-7 lg:grid-cols-3 lg:gap-3.5">
           {PROOF_METRICS.map((m) => (
-            <div key={m} className="rounded-[3px] border border-dashed border-p2b-line-dash bg-white px-[18px] pb-5 pt-[18px]">
-              <div className="text-[22px] font-bold text-[#C4BEB1]" aria-hidden="true">[ ]</div>
-              <div className="mt-2 text-sm leading-[1.4] text-p2b-muted">{m}</div>
+            <div key={m}
+                 className="rounded-[3px] border border-p2b-line bg-white px-[18px] py-4">
+              <div className="flex items-start gap-2.5">
+                <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-p2b-accent" aria-hidden="true" />
+                <span className="text-sm leading-[1.45] text-p2b-ink-warm">{m}</span>
+              </div>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * "What Price2Book is — and isn't."
+ *
+ * The single most useful thing this page can say. POSITIONING.md names
+ * "anyone looking to replace Jobber" as the sharpest differentiator the
+ * product has, and a boundary that is only implied is a boundary that erodes:
+ * every feature request pulls toward becoming a CRM until the line is written
+ * down somewhere a buyer can read it.
+ */
+export function Boundary() {
+  return (
+    <section className={`${SHELL} py-16 lg:py-20`}>
+      <h2 className="max-w-[26ch] text-[30px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[40px]">
+        What Price2Book is — and isn’t.
+      </h2>
+
+      <div className="mt-9 overflow-hidden rounded-[3px] border border-p2b-line lg:mt-11">
+        <div className="grid grid-cols-1 sm:grid-cols-2">
+          <div className="border-b border-p2b-line bg-p2b-accent-tint px-6 py-4 text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-accent sm:border-r">
+            Price2Book handles
+          </div>
+          <div className="border-b border-p2b-line bg-p2b-surface-warm px-6 py-4 text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-muted">
+            Your existing systems keep handling
+          </div>
+        </div>
+        {BOUNDARY.map((row) => (
+          <div key={row.ours} className="grid grid-cols-1 border-b border-p2b-line-soft last:border-0 sm:grid-cols-2">
+            <div className="bg-white px-6 py-4 text-[15px] text-p2b-ink sm:border-r sm:border-p2b-line-soft">
+              {row.ours}
+            </div>
+            <div className="bg-p2b-canvas px-6 pb-4 pt-1 text-[15px] text-p2b-muted sm:pt-4">
+              {row.theirs}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-9 grid gap-5 md:grid-cols-2 lg:mt-11">
+        {OPERATING_MODES.map((m) => (
+          <div key={m.tag} className="rounded-[3px] border border-p2b-line bg-white p-6 lg:p-7">
+            <div className="inline-block rounded-sm bg-p2b-accent-tint-strong px-[11px] py-[5px] text-[11px] font-bold uppercase tracking-[0.05em] text-p2b-accent">
+              {m.tag}
+            </div>
+            <div className="mt-4 text-lg font-semibold leading-[1.3]">{m.title}</div>
+            <p className="mt-2.5 text-[15px] leading-[1.55] text-p2b-muted">{m.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** The objections a contractor raises before they will read anything else. */
+export function Faq() {
+  return (
+    <section className="border-t border-p2b-line bg-p2b-canvas-alt py-16 lg:py-20">
+      <div className={`${SHELL} grid gap-10 lg:grid-cols-12 lg:items-start`}>
+        <div className="lg:col-span-4">
+          <h2 className="text-[30px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[38px]">
+            Questions contractors actually ask.
+          </h2>
+        </div>
+        <div className="lg:col-span-8">
+          <dl className="border-t border-p2b-line">
+            {FAQ.map((item) => (
+              <div key={item.q} className="border-b border-p2b-line py-5">
+                <dt className="text-[17px] font-semibold leading-[1.35]">{item.q}</dt>
+                <dd className="mt-2 text-[15px] leading-[1.6] text-p2b-muted lg:text-base">{item.a}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </div>
     </section>

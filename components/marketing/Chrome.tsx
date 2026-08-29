@@ -60,13 +60,20 @@ export function MarketingHeader({ signInHref }: { signInHref: string }) {
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-[#1B2E4B] bg-p2b-navy-deep text-p2b-navy-muted">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-3 px-5 py-8 text-sm sm:flex-row sm:items-center sm:justify-between lg:px-[88px] lg:py-[38px]">
+    <footer className="border-t border-p2b-navy-hairline bg-p2b-navy-deep text-p2b-navy-muted">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-5 py-8 text-sm sm:flex-row sm:items-center sm:justify-between lg:px-[88px] lg:py-[38px]">
         <div className="flex items-center gap-2.5">
           <Bolt className="h-4 w-4" stroke="#7E8EA6" />
           <span>Price2Book</span>
         </div>
-        <span>While We’re There™ is a trademark of Price2Book.</span>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
+          {/* A real, monitored address — the same one that sends sign-in
+              links — rather than a form as the only way to reach anyone. */}
+          <a href="mailto:admin@price2book.com" className="text-p2b-navy-text hover:text-[#F4F6F9]">
+            admin@price2book.com
+          </a>
+          <span>While We’re There™ is a trademark of Price2Book.</span>
+        </div>
       </div>
     </footer>
   );
