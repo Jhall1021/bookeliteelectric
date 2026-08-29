@@ -288,3 +288,44 @@ auth and is the tenant boundary working.
 
 That silent bounce is a real rough edge. It belongs with the **invitations flow**, already
 deferred, and should not be fixed during a cutover.
+
+
+---
+
+## Deployed matrix — 28 August 2026
+
+Run against `app.price2book.com` with one explicitly-named test contractor,
+`__deployment-proof-DELETE-ME__`, created and deleted inside the same run.
+**35 of 35.**
+
+| Proven on the deployed host | |
+|---|---|
+| Second storefront resolves | own name, own AZ ROC licence, own phone |
+| Identity isolated | zero matches for `Elite\|732-204-7003\|Monmouth\|17272\|Allaire\|New Jersey` |
+| Six themes render | six distinct token signatures — canvas 250/251/247, radii 12/16/18/10/2/0px |
+| Brand is an input | the accent is **identical** across all six themes |
+| Assets load | CSS, four JS chunks and a `.woff2` all 200 with content |
+| T&M renders | "Know the Rate. See the Range." and a T&M payload block |
+| Flat Rate intact | Elite keeps its fixed-price promise and gets **no** T&M block |
+| No cross-tenant access | own service 200; no site identifier 404; unknown site 404 |
+| Deleted | contractor gone, site gone, storefront 404s |
+| Elite untouched | theme and pricing state byte-identical before and after |
+
+### The one failure was the probe, not the deployment
+
+The first run reported "all six themes identical on the wire". They were not. The page carries
+**two** token blocks by design — the root layout's base, then the storefront's override — and the
+assertion matched the first `--t-canvas` every time, so it read the base on all six.
+
+A bad probe is indistinguishable from a broken deployment until you look at the page. It now
+targets the `storefront-theme` block, and additionally asserts the accent is constant across
+themes — something the original check could not have caught in either direction.
+
+### Elite's theme changed during the session
+
+`elite-electric` moved from `baseline/a` to `warm-welcoming/a` at 20:43 UTC — the design picker
+working as built, during the first dashboard session. Not caused by this proof: the before/after
+fingerprint captured it as the starting state and proved it unchanged throughout.
+
+Worth a deliberate decision rather than leaving it as a side effect of exploring, since Elite is a
+live business.
