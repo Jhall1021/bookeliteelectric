@@ -27,7 +27,18 @@ import { DEMO_FLOW } from "./demoFlow";
 const money = (cents: number) =>
   `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
-type Stage = "search" | "questions" | "outcome" | "sameVisit" | "schedule" | "done";
+type Stage = "search" | "questions" | "handoff" | "outcome" | "sameVisit" | "schedule" | "done";
+
+type Flow = {
+  key: string | null;
+  name: string;
+  description: string | null;
+  steps: readonly { key: string; prompt: string; helpText: string | null;
+    options: readonly { value: string; label: string; disclaimer: string | null; next: string | null }[] }[];
+  outcomes: Record<string, any>;
+};
+
+const FLOWS = DEMO_FLOW.flows as unknown as Record<string, Flow>;
 
 const WINDOWS = [
   { label: "8:00 – 11:00", note: "2 crews available", open: true },
@@ -37,18 +48,19 @@ const WINDOWS = [
 
 export default function HomeownerDemo() {
   const [stage, setStage] = useState<Stage>("search");
+  const [flowKey, setFlowKey] = useState<string>(DEMO_FLOW.primary as string);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [stepKey, setStepKey] = useState<string>(DEMO_FLOW.steps[0]?.key ?? "");
+  const [stepKey, setStepKey] = useState<string>(FLOWS[DEMO_FLOW.primary as string]?.steps[0]?.key ?? "");
+  /** What the customer answered before being rerouted, so the demo can say so. */
+  const [handoff, setHandoff] = useState<{ from: string; to: string; carried: number } | null>(null);
   const [added, setAdded] = useState<string[]>([]);
   const [window_, setWindow] = useState<string | null>(null);
 
-  const step = DEMO_FLOW.steps.find((s) => s.key === stepKey);
+  const flow = FLOWS[flowKey];
+  const step = flow?.steps.find((s) => s.key === stepKey);
 
   /** Looked up, never computed here — the engine already decided. */
-  const outcome = useMemo(() => {
-    const key = JSON.stringify(answers);
-    return (DEMO_FLOW.outcomes as Record<string, any>)[key] ?? null;
-  }, [answers]);
+  const outcome = useMemo(() => flow?.outcomes[JSON.stringify(answers)] ?? null, [flow, answers]);
 
   const total = useMemo(() => {
     const base = outcome?.status === "PRICED" ? outcome.priceCents : 0;
@@ -63,19 +75,41 @@ export default function HomeownerDemo() {
     const next = { ...answers, [step.key]: value };
     setAnswers(next);
     const option = step.options.find((o) => o.value === value);
-    if (option?.next) setStepKey(option.next);
-    else setStage("outcome");
+    if (option?.next) { setStepKey(option.next); return; }
+
+    // A terminal answer. If the engine rerouted, move into the destination
+    // flow rather than stopping — the product's rule is no dead ends.
+    const result = flow?.outcomes[JSON.stringify(next)];
+    if (result?.status === "REROUTE" && result.targetKey && FLOWS[result.targetKey]) {
+      const target = FLOWS[result.targetKey];
+      // Answers carry across, exactly as RerouteNotice does with its handoff:
+      // any question the destination shares is already answered and not asked
+      // again.
+      const carried = Object.fromEntries(
+        Object.entries(next).filter(([k]) => target.steps.some((s) => s.key === k)),
+      );
+      setHandoff({ from: flow!.name, to: target.name, carried: Object.keys(carried).length });
+      setFlowKey(result.targetKey);
+      setAnswers(carried);
+      setStepKey(target.steps.find((s) => !(s.key in carried))?.key ?? target.steps[0]?.key ?? "");
+      setStage("handoff");
+      return;
+    }
+    setStage("outcome");
   }
 
   function restart() {
+    const first = DEMO_FLOW.primary as string;
+    setFlowKey(first);
     setAnswers({});
-    setStepKey(DEMO_FLOW.steps[0]?.key ?? "");
+    setStepKey(FLOWS[first]?.steps[0]?.key ?? "");
+    setHandoff(null);
     setAdded([]);
     setWindow(null);
     setStage("search");
   }
 
-  const asked = DEMO_FLOW.steps.filter((s) => s.key in answers).length;
+  const asked = flow ? flow.steps.filter((s) => s.key in answers).length : 0;
 
   return (
     <section id="demo" className="border-t border-p2b-line bg-p2b-canvas-alt py-16 lg:py-20">
@@ -144,11 +178,33 @@ export default function HomeownerDemo() {
                   </div>
                 )}
 
+                {stage === "handoff" && handoff && (
+                  <div>
+                    <div className="text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-accent">
+                      That’s a different job
+                    </div>
+                    <h3 className="mt-3 text-[21px] font-semibold">{handoff.to}</h3>
+                    <p className="mt-3 text-[15px] leading-[1.6] text-p2b-ink-warm">
+                      What you described isn’t {handoff.from.toLowerCase()} — it’s {handoff.to}. So
+                      you’re moved there rather than turned away, and the questions continue.
+                    </p>
+                    <p className="mt-3 text-[15px] leading-[1.6] text-p2b-muted">
+                      {handoff.carried > 0
+                        ? `Your answers come with you — ${handoff.carried} question${handoff.carried === 1 ? "" : "s"} you have already answered won't be asked again.`
+                        : "Your answers come with you; this job asks about different things, so there is nothing to skip."}
+                    </p>
+                    <button onClick={() => setStage("questions")}
+                            className="mt-5 rounded-sm bg-p2b-accent px-6 py-3 text-[15px] font-semibold text-p2b-canvas hover:bg-p2b-accent-hover">
+                      Keep going
+                    </button>
+                  </div>
+                )}
+
                 {stage === "questions" && step && (
                   <div>
                     <div className="flex items-baseline justify-between gap-4">
                       <div className="text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-accent">
-                        {DEMO_FLOW.service.name}
+                        {flow?.name}
                       </div>
                       <div className="text-[13px] text-p2b-muted">Question {asked + 1}</div>
                     </div>
@@ -170,7 +226,7 @@ export default function HomeownerDemo() {
                     <div className="text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-green-deep">
                       Can be booked online
                     </div>
-                    <h3 className="mt-3 text-[21px] font-semibold">{DEMO_FLOW.service.name}</h3>
+                    <h3 className="mt-3 text-[21px] font-semibold">{flow?.name}</h3>
                     <div className="mt-3 flex items-baseline gap-2.5">
                       <span className="text-[44px] font-bold tracking-[-0.03em]">{money(outcome.priceCents)}</span>
                       <span className="text-sm text-p2b-muted">all-in</span>
@@ -191,18 +247,19 @@ export default function HomeownerDemo() {
                     <div className="text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-amber-ink">
                       Needs review before a price
                     </div>
-                    <h3 className="mt-3 text-[21px] font-semibold">{DEMO_FLOW.service.name}</h3>
+                    <h3 className="mt-3 text-[21px] font-semibold">{flow?.name}</h3>
                     <p className="mt-3 text-[15px] leading-[1.6] text-p2b-ink-warm">
                       No price is shown, on purpose. {outcome.reason}.
                     </p>
                     <p className="mt-3 text-[15px] leading-[1.6] text-p2b-muted">
-                      This is the part that protects you. An answer the contractor decided is not
-                      safe to price automatically doesn’t get an automatic price — it goes to the
-                      office instead of guessing.
+                      On a real storefront this is not the end either: the request goes to the
+                      contractor with the answers and any photos, they issue a price, and the
+                      customer approves and books. It is a slower path, not a closed door — and it
+                      is what stops a job being priced wrongly and sight-unseen.
                     </p>
                     <button onClick={restart}
                             className="mt-5 rounded-sm border border-p2b-ink px-6 py-3 text-[15px] font-semibold text-p2b-ink hover:border-p2b-accent hover:text-p2b-accent">
-                      Try a different answer
+                      Start over
                     </button>
                   </div>
                 )}
@@ -214,13 +271,13 @@ export default function HomeownerDemo() {
                     </div>
                     <h3 className="mt-3 text-[21px] font-semibold">{outcome.targetName}</h3>
                     <p className="mt-3 text-[15px] leading-[1.6] text-p2b-ink-warm">
-                      What you described isn’t the service you started in, so you’re moved to the
-                      one that fits — with its own questions and its own price, rather than being
-                      quoted for the wrong work.
+                      What you described isn’t the service you started in, so the real flow moves
+                      you to {outcome.targetName} and carries your answers over. This demonstration
+                      only follows one reroute, so it stops here.
                     </p>
                     <button onClick={restart}
                             className="mt-5 rounded-sm border border-p2b-ink px-6 py-3 text-[15px] font-semibold text-p2b-ink hover:border-p2b-accent hover:text-p2b-accent">
-                      Try a different answer
+                      Start over
                     </button>
                   </div>
                 )}

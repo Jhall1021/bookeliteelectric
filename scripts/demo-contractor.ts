@@ -127,6 +127,11 @@ const DEMO_ECONOMICS: Record<string, { hours: number; materialCents: number }> =
   "articulating-tv-mount": { hours: 1.75, materialCents: 9_500 },
   "soundbar-installation": { hours: 1.25, materialCents: 3_500 },
   "bathroom-fan-light-combo": { hours: 2.0, materialCents: 8_500 },
+  // A reroute destination, and priced for that reason: when an answer sends
+  // someone here the flow has to CONTINUE, and a destination the contractor
+  // never priced can only end in review — which reads as the product refusing
+  // rather than redirecting.
+  "new-120v-outlet": { hours: 1.5, materialCents: 3_500 },
 };
 
 /**
@@ -190,8 +195,70 @@ const DEMO_ROUTING: { service: string; answer: string; toService: string }[] = [
   },
 ];
 
+/**
+ * What this contractor pays for the material roles its services consume.
+ *
+ * ADR-014: the template carries the ROLE and never a cost, so a freshly
+ * provisioned contractor has services it cannot price until it records what it
+ * pays. Skipping this is why the demo's reroute destination — New 120V Outlet —
+ * could only ever end in review: not a limit of the product, a contractor who
+ * had not finished setting up. Which reads, on a marketing page, as the
+ * product being unable to price an outlet.
+ *
+ * Costs are this fictional contractor's, in the same sense its $185 rate is.
+ * Named roles get a considered figure; anything else gets a modest default and
+ * is counted in the output, so the guess is visible rather than silent.
+ */
+const DEMO_MATERIAL_COSTS: Record<string, number> = {
+  WIRE_14_2: 55,
+  WIRE_12_2: 85,
+  RECEPTACLE_STANDARD: 250,
+  GFCI_WEATHER_RESISTANT: 1_900,
+  BOX_OLD_WORK: 200,
+  BOX_FS_CAST: 950,
+  BOX_FAN_RATED: 750,
+  WALL_PLATE: 100,
+  CONSUMABLES_SMALL: 300,
+  COVER_IN_USE_BUBBLE: 850,
+  CORD_CLIPS: 150,
+};
+const DEMO_MATERIAL_DEFAULT_CENTS = 300;
+
 /** Quoted work: shown, priced by the contractor, never priced automatically. */
 const DEMO_QUOTED = ["level-2-ev-charger", "electrical-panel-replacement", "200a-service-upgrade"];
+
+/**
+ * Record what this contractor pays, before provisioning reads it.
+ *
+ * The unresolved markers are computed at provisioning time, and provisioning
+ * is create-only — running it twice collides on (contractorId, slug). So the
+ * costs have to exist first. Recording them afterwards leaves every marker
+ * stale, and the services fail closed against information that is no longer
+ * true.
+ */
+async function recordMaterialCosts(contractorId: string) {
+  const needed = await prisma.canonicalMaterial.findMany({ select: { id: true, key: true } });
+  const have = new Set(
+    (await prisma.contractorMaterial.findMany({ where: { contractorId }, select: { canonicalMaterialId: true } }))
+      .map((m) => m.canonicalMaterialId),
+  );
+
+  let named = 0, defaulted = 0;
+  for (const m of needed) {
+    if (have.has(m.id)) continue;
+    const known = DEMO_MATERIAL_COSTS[m.key];
+    if (known !== undefined) named++; else defaulted++;
+    await prisma.contractorMaterial.create({
+      data: {
+        contractorId,
+        canonicalMaterialId: m.id,
+        unitCostCents: known ?? DEMO_MATERIAL_DEFAULT_CENTS,
+      },
+    });
+  }
+  console.log(`  material costs recorded: ${named} considered, ${defaulted} at the $${DEMO_MATERIAL_DEFAULT_CENTS / 100} default`);
+
+}
 
 async function dress(contractorId: string) {
   // Provisioning offers the whole template. A real contractor turns on the
@@ -431,6 +498,11 @@ async function create() {
       active: true,
     },
   });
+
+  // Recorded BEFORE provisioning: material costs are contractor-level and
+  // independent of any service, and provisioning is create-only — re-running
+  // it to recompute the unresolved markers collides on (contractorId, slug).
+  await recordMaterialCosts(c.id);
 
   // The SHIPPED provisioning path, not a bespoke seeder — a screenshot of
   // something built a different way from a real contractor's catalogue would

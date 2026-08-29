@@ -62,7 +62,7 @@ type Outcome =
   | { status: "PRICED"; priceCents: number; disclaimers: string[]; photoLabels: string[] }
   | { status: "REVIEW"; reason: string; photoLabels: string[] }
   /** The answers describe a different job. The product says so instead of pricing this one. */
-  | { status: "REROUTE"; targetName: string }
+  | { status: "REROUTE"; targetName: string; targetKey: string | null }
   | { status: "OTHER"; status_: string };
 
 /**
@@ -143,75 +143,84 @@ async function main() {
     process.exit(1);
   }
 
-  const service = await loadServiceForResolution(prisma, row.id);
-  if (!service) throw new Error("service vanished between queries");
   const settings = await loadPricingSettings(prisma, contractor.id);
   if (!settings) throw new Error("the demo contractor has no pricing settings");
 
-  const byId = new Map(service.questions.map((q) => [q.id, q]));
-
-  const steps: Step[] = service.questions.map((q) => ({
-    key: q.key,
-    prompt: q.prompt,
-    helpText: q.helpText,
-    options: q.options.map((o) => ({
-      value: o.value,
-      label: o.label,
-      disclaimer: o.disclaimer,
-      next: o.routeAction === "CONTINUE" && o.nextQuestionId
-        ? byId.get(o.nextQuestionId)?.key ?? null
-        : null,
-    })),
-  }));
+  const nameById = new Map(
+    (await prisma.service.findMany({ where: { contractorId: contractor.id }, select: { id: true, name: true, templateKey: true } }))
+      .map((x) => [x.id, { name: x.name, key: x.templateKey }]),
+  );
 
   /**
-   * Every path through the tree, each resolved by the real engine.
+   * Capture one service's tree and the outcome of every path through it.
    *
-   * Keyed by the answers that produced it, so the demo can look up any route a
-   * visitor takes rather than replaying only one scripted happy path. If a
-   * path the visitor picks ends in review, the demo says review — because the
-   * resolver said review.
+   * Returns the reroute targets it found, so the caller can capture those too.
+   * The product's rule is "no dead ends" — an answer showing the customer
+   * picked the wrong service sends them to the right one, carrying their
+   * answers. A demo that stops at the reroute misrepresents that as a refusal.
    */
-  const outcomes: Record<string, Outcome> = {};
+  async function captureFlow(serviceId: string) {
+    const svc = await loadServiceForResolution(prisma, serviceId);
+    if (!svc) throw new Error(`service ${serviceId} vanished between queries`);
+    const meta = await prisma.service.findUniqueOrThrow({
+      where: { id: serviceId },
+      select: { name: true, shortDescription: true, templateKey: true },
+    });
+    const byId = new Map(svc.questions.map((q) => [q.id, q]));
+    const nextKey = (o: { routeAction: string; nextQuestionId: string | null }) =>
+      o.routeAction === "CONTINUE" && o.nextQuestionId ? byId.get(o.nextQuestionId)?.key ?? null : null;
 
-  // Reroute targets, resolved up front so the walk can name them.
-  const rerouteNames = new Map(
-    (await prisma.service.findMany({
-      where: { contractorId: contractor.id },
-      select: { id: true, name: true },
-    })).map((x) => [x.id, x.name]),
-  );
-  const walk = (questionKey: string | null, answers: Record<string, string>) => {
-    if (!questionKey) {
-      const route = resolveRoute(service, answers, true, settings);
-      const key = JSON.stringify(answers);
-      if (route.status === "PRICED") {
-        outcomes[key] = {
-          status: "PRICED",
-          priceCents: route.priceCents,
-          disclaimers: route.disclaimers,
-          photoLabels: route.photoLabels,
-        };
-      } else if (route.status === "REVIEW") {
-        outcomes[key] = { status: "REVIEW", reason: route.reason, photoLabels: route.photoLabels };
-      } else if (route.status === "REROUTE") {
-        // Recorded by NAME, so the demo can say which job it is sending them
-        // to rather than showing an id or, as it did first, nothing at all.
-        const target = rerouteNames.get(route.targetServiceId);
-        outcomes[key] = { status: "REROUTE", targetName: target ?? "another service" };
-      } else {
-        outcomes[key] = { status: "OTHER", status_: route.status };
+    const steps: Step[] = svc.questions.map((q) => ({
+      key: q.key,
+      prompt: q.prompt,
+      helpText: q.helpText,
+      options: q.options.map((o) => ({
+        value: o.value, label: o.label, disclaimer: o.disclaimer, next: nextKey(o),
+      })),
+    }));
+
+    const outcomes: Record<string, Outcome> = {};
+    const targets = new Set<string>();
+    const walk = (key: string | null, answers: Record<string, string>) => {
+      if (!key) {
+        const route = resolveRoute(svc, answers, true, settings!);
+        const k = JSON.stringify(answers);
+        if (route.status === "PRICED") {
+          outcomes[k] = { status: "PRICED", priceCents: route.priceCents, disclaimers: route.disclaimers, photoLabels: route.photoLabels };
+        } else if (route.status === "REVIEW") {
+          outcomes[k] = { status: "REVIEW", reason: route.reason, photoLabels: route.photoLabels };
+        } else if (route.status === "REROUTE") {
+          const t = nameById.get(route.targetServiceId);
+          targets.add(route.targetServiceId);
+          outcomes[k] = { status: "REROUTE", targetName: t?.name ?? "another service", targetKey: t?.key ?? null };
+        } else {
+          outcomes[k] = { status: "OTHER", status_: route.status };
+        }
+        return;
       }
-      return;
-    }
-    const q = service.questions.find((x) => x.key === questionKey);
-    if (!q) return;
-    for (const o of q.options) {
-      walk(o.routeAction === "CONTINUE" && o.nextQuestionId ? byId.get(o.nextQuestionId)?.key ?? null : null,
-           { ...answers, [q.key]: o.value });
-    }
-  };
-  walk(steps[0]?.key ?? null, {});
+      const q = svc.questions.find((x) => x.key === key);
+      if (!q) return;
+      for (const o of q.options) walk(nextKey(o), { ...answers, [q.key]: o.value });
+    };
+    walk(steps[0]?.key ?? null, {});
+
+    return {
+      flow: { key: meta.templateKey, name: meta.name, description: meta.shortDescription, steps, outcomes },
+      targets: [...targets],
+    };
+  }
+
+  const flows: Record<string, unknown> = {};
+  const primary = await captureFlow(row.id);
+  flows[primary.flow.key ?? "primary"] = primary.flow;
+
+  // One level of reroute targets. A target that reroutes onward is rare and
+  // would make the demo a maze; the second hop says so instead of pretending.
+  for (const targetId of primary.targets) {
+    const t = await captureFlow(targetId);
+    if (t.flow.key) flows[t.flow.key] = t.flow;
+    console.log(`  + reroute target captured: ${t.flow.name} (${t.flow.steps.length} questions)`);
+  }
 
   /**
    * The search step, answered by the REAL matcher.
@@ -265,9 +274,10 @@ async function main() {
       // Recorded so the page can say the match came from the matcher.
       matchKind: match.kind,
     },
-    service: { name: row.name, description: row.shortDescription },
-    steps,
-    outcomes,
+    /** Which flow the demo starts in. */
+    primary: primary.flow.key,
+    /** Every flow the demo can reach, including reroute destinations. */
+    flows,
     addOns: addOns.map((a) => ({ name: a.name, priceCents: a.whileWeThereBasePrice! })),
     schedule: {
       dayStart: hours?.dayStart ?? "08:00",
@@ -296,11 +306,12 @@ async function main() {
       `export const DEMO_FLOW = ${JSON.stringify(snapshot, null, 2)} as const;\n`,
   );
 
-  const priced = Object.values(outcomes).filter((o) => o.status === "PRICED").length;
-  const review = Object.values(outcomes).filter((o) => o.status === "REVIEW").length;
-  const reroute = Object.values(outcomes).filter((o) => o.status === "REROUTE").length;
   console.log(`\n  ${row.name}`);
-  console.log(`  ${steps.length} questions · ${Object.keys(outcomes).length} paths (${priced} priced, ${review} review, ${reroute} reroute)`);
+  for (const [key, f] of Object.entries(flows)) {
+    const o = Object.values((f as any).outcomes) as Outcome[];
+    const n = (st: string) => o.filter((x) => x.status === st).length;
+    console.log(`    ${String(key).padEnd(30)} ${(f as any).steps.length}Q  ${o.length} paths  ${n("PRICED")} priced, ${n("REVIEW")} review, ${n("REROUTE")} reroute`);
+  }
   console.log(`  ${addOns.length} same-visit add-ons`);
   console.log(`  -> ${OUT}\n`);
 
