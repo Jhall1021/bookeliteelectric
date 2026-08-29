@@ -129,6 +129,67 @@ const DEMO_ECONOMICS: Record<string, { hours: number; materialCents: number }> =
   "bathroom-fan-light-combo": { hours: 2.0, materialCents: 8_500 },
 };
 
+/**
+ * Three services were added here as demo candidates and removed again:
+ * remove-and-replace-existing-chandelier, new-exterior-flood-camera and
+ * swap-out-customer-supplied-non-smart-switch. All three have unresolved
+ * material roles, two have an unresolved height policy, and dress() now
+ * refuses to price any of them — correctly.
+ *
+ * They are the better demo material on paper: three-question trees that can
+ * end priced or in review. Making them usable means this contractor supplying
+ * costs for nine material roles and choosing two sets of height bands, which
+ * is real setup work rather than a fixture value. Worth doing when the demo
+ * needs it; not worth faking, which is what forcing materialCostResolved was.
+ */
+
+/**
+ * Answer-level economics — what an answer does to the price.
+ *
+ * The template carries the QUESTION and deliberately no economics (ADR-014),
+ * so a freshly provisioned contractor has a tree where every answer costs the
+ * same. That is correct, and it means the demo could show answers changing
+ * the ROUTE but never the number — under a headline that says "ask the
+ * questions that change the price".
+ *
+ * These are the additions a contractor makes in the Guided Pricing editor's
+ * "Price adjustment" field.
+ *
+ * Crew-hours were tried first, on the reasoning that a figure computed from
+ * the contractor's own rate is more honest than a typed markup. It does not
+ * work here, and the reason is worth keeping: under FLAT_RATE a RESOLVE_INSTANT
+ * answer serves the PUBLISHED price, so added hours never reach the number.
+ * The flat adjustment is what the editor offers for this, and what the product
+ * actually does.
+ *
+ * The amounts are still derived rather than invented: 0.75 and 0.25 crew-hours
+ * at this contractor's $185 rate, rounded to their own $5 increment.
+ */
+const DEMO_ANSWER_ECONOMICS: { service: string; answer: string; addCents: number }[] = [
+  // Fishing a cable inside a finished wall is real extra work, and every
+  // contractor prices it. 0.75h x $185 = $138.75 -> $140.
+  { service: "soundbar-installation", answer: "Yes, hide it in the wall", addCents: 14_000 },
+  // Supplying the cable rather than using the customer's. 0.25h x $185 -> $45.
+  { service: "soundbar-installation", answer: "No, I don't have one", addCents: 4_500 },
+];
+
+/**
+ * Where a "that's a different job" answer sends the customer.
+ *
+ * The template supplies the OPTION — "No, I need the TV mounted too" — and
+ * deliberately not the destination, because which of their own services it
+ * routes to is the contractor's decision. Left unset the resolver returns
+ * INVALID, which is operator-facing and rendered as a blank screen in the
+ * demo. Correct refusal, invisible failure; found by walking every path.
+ */
+const DEMO_ROUTING: { service: string; answer: string; toService: string }[] = [
+  {
+    service: "soundbar-installation",
+    answer: "needs_tv_mount",
+    toService: "tv-install-existing-location",
+  },
+];
+
 /** Quoted work: shown, priced by the contractor, never priced automatically. */
 const DEMO_QUOTED = ["level-2-ev-charger", "electrical-panel-replacement", "200a-service-upgrade"];
 
@@ -138,11 +199,49 @@ async function dress(contractorId: string) {
   // badly and dishonestly: 75 services, 62 of them unpriced, is a picture of
   // an abandoned setup rather than of the product working.
   const keep = new Set([...Object.keys(DEMO_ECONOMICS), ...DEMO_QUOTED]);
+
+  /**
+   * Anything a kept service ROUTES TO has to be kept as well.
+   *
+   * An answer option can reroute to another service ("that is not this job,
+   * it is that one"). Trimming the catalogue by name alone deleted those
+   * targets and left the options pointing at nothing — and the failure is
+   * quiet: resolveRoute returns INVALID, which is operator-facing and renders
+   * as a blank screen to a customer. Found by walking every path and seeing
+   * one produce nothing at all.
+   *
+   * Resolved to a fixpoint, because a target can route onward itself.
+   */
+  const all = await prisma.service.findMany({
+    where: { contractorId },
+    select: {
+      id: true, templateKey: true,
+      questions: { select: { options: { select: { rerouteServiceId: true, referencedServiceId: true } } } },
+    },
+  });
+  const byId = new Map(all.map((s) => [s.id, s]));
+  const keyOf = (id: string) => byId.get(id)?.templateKey ?? null;
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const svc of all) {
+      if (!svc.templateKey || !keep.has(svc.templateKey)) continue;
+      for (const q of svc.questions) {
+        for (const o of q.options) {
+          for (const target of [o.rerouteServiceId, o.referencedServiceId]) {
+            const k = target ? keyOf(target) : null;
+            if (k && !keep.has(k)) { keep.add(k); changed = true; }
+          }
+        }
+      }
+    }
+  }
+
   const surplus = await prisma.service.findMany({
     where: { contractorId, OR: [{ templateKey: null }, { templateKey: { notIn: [...keep] } }] },
     select: { id: true },
   });
   await deleteServices(surplus.map((s) => s.id));
+  console.log(`  keeping ${keep.size} services (${keep.size - Object.keys(DEMO_ECONOMICS).length - DEMO_QUOTED.length} pulled in as routing targets)`);
 
   const settings = await prisma.pricingSettings.findUniqueOrThrow({
     where: { contractorId },
@@ -157,9 +256,33 @@ async function dress(contractorId: string) {
   for (const [key, econ] of Object.entries(DEMO_ECONOMICS)) {
     const svc = await prisma.service.findFirst({
       where: { contractorId, templateKey: key },
-      select: { id: true, requiresTechCount: true, isPrimaryEligible: true },
+      select: {
+        id: true, requiresTechCount: true, isPrimaryEligible: true,
+        unresolvedMaterialKeys: true, unresolvedPolicyKeys: true,
+      },
     });
     if (!svc) { console.log(`    ! no service for template key ${key}`); continue; }
+
+    // FAIL CLOSED, like the product does.
+    //
+    // This used to set materialCostResolved: true unconditionally, which is
+    // the exact guard resolveRoute checks before it will price anything: "a
+    // homeowner-facing price may never be calculated using an unresolved
+    // required material cost". Forcing the flag to make a demo look complete
+    // defeats the guard and produces prices the real product would refuse —
+    // and it showed, as answer labels rendering raw {b1} policy placeholders
+    // because the contractor never chose the height bands behind them.
+    //
+    // A service the contractor has not finished configuring is not priced.
+    if (svc.unresolvedMaterialKeys.length || svc.unresolvedPolicyKeys.length) {
+      console.log(
+        `    ! ${key} skipped — unresolved ` +
+          [svc.unresolvedMaterialKeys.length && `${svc.unresolvedMaterialKeys.length} material(s)`,
+           svc.unresolvedPolicyKeys.length && `${svc.unresolvedPolicyKeys.length} policy(s)`]
+            .filter(Boolean).join(" and "),
+      );
+      continue;
+    }
 
     const inputs = {
       fieldLaborHours: econ.hours,
@@ -192,6 +315,27 @@ async function dress(contractorId: string) {
       },
     });
     priced++;
+  }
+
+  for (const e of DEMO_ANSWER_ECONOMICS) {
+    const res = await prisma.answerOption.updateMany({
+      where: { label: e.answer, question: { service: { contractorId, templateKey: e.service } } },
+      data: { priceModifierCents: e.addCents, addFieldLaborHours: null },
+    });
+    console.log(`    ${e.service}: "${e.answer}" +$${e.addCents / 100} (${res.count} option)`);
+  }
+
+  for (const r of DEMO_ROUTING) {
+    const target = await prisma.service.findFirst({
+      where: { contractorId, templateKey: r.toService },
+      select: { id: true, name: true },
+    });
+    if (!target) { console.log(`    ! routing target ${r.toService} is not in the catalog`); continue; }
+    const res = await prisma.answerOption.updateMany({
+      where: { value: r.answer, question: { service: { contractorId, templateKey: r.service } } },
+      data: { rerouteServiceId: target.id },
+    });
+    console.log(`    ${r.service}: "${r.answer}" routes to ${target.name} (${res.count} option)`);
   }
 
   for (const key of DEMO_QUOTED) {

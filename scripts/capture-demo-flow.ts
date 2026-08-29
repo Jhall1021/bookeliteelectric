@@ -33,14 +33,22 @@ const prisma = new PrismaClient();
 /** The service the demo walks. Chosen for a tree a homeowner can answer. */
 const SERVICE_KEY = process.argv.includes("--service")
   ? process.argv[process.argv.indexOf("--service") + 1]
-  : "tv-install-existing-location";
+  : "soundbar-installation";
 
 const OUT = "components/marketing/demoFlow.ts";
 
 /** What a homeowner types, versus what the service is called. */
+/**
+ * What a homeowner types, versus what the service is called.
+ *
+ * Checked against the real matcher rather than chosen for how it reads —
+ * "mount my soundbar below the television" comes back `unsure`, this one comes
+ * back `suggestion`. The demo should show the matcher succeeding, and the only
+ * way to know which phrasings do is to ask it.
+ */
 const SEARCH_QUERY = process.argv.includes("--query")
   ? process.argv[process.argv.indexOf("--query") + 1]
-  : "the vent hood over my stove needs replacing";
+  : "I bought a soundbar and need it mounted under my TV";
 
 type Option = {
   value: string;
@@ -53,7 +61,62 @@ type Step = { key: string; prompt: string; helpText: string | null; options: Opt
 type Outcome =
   | { status: "PRICED"; priceCents: number; disclaimers: string[]; photoLabels: string[] }
   | { status: "REVIEW"; reason: string; photoLabels: string[] }
+  /** The answers describe a different job. The product says so instead of pricing this one. */
+  | { status: "REROUTE"; targetName: string }
   | { status: "OTHER"; status_: string };
+
+/**
+ * Which services would actually make a good demo?
+ *
+ * A demo is only worth running if the tree can end in more than one place. A
+ * service where every path prices cleanly cannot show the product declining to
+ * price something, which is half the story — so this reports the real split
+ * for every candidate rather than leaving the choice to intuition about which
+ * job "feels" representative.
+ */
+async function survey(contractorId: string) {
+  const rows = await prisma.service.findMany({
+    where: { contractorId, active: true, questions: { some: {} } },
+    select: { id: true, name: true, templateKey: true },
+  });
+  const settings = await loadPricingSettings(prisma, contractorId);
+  if (!settings) throw new Error("no pricing settings");
+
+  console.log(`\n  ${"template key".padEnd(30)} ${"Q".padStart(2)} ${"paths".padStart(5)} ${"priced".padStart(6)} ${"review".padStart(6)}  outcome                 prices`);
+  for (const r of rows) {
+    const svc = await loadServiceForResolution(prisma, r.id);
+    if (!svc) continue;
+    const byId = new Map(svc.questions.map((q) => [q.id, q]));
+    let priced = 0, review = 0, other = 0;
+    // Distinct prices matter as much as the priced/review split: the section
+    // this demo sits under is called "Ask the questions that change the
+    // price", and a tree whose answers never move the number cannot show it.
+    const prices = new Set<number>();
+    const walk = (key: string | null, answers: Record<string, string>) => {
+      if (!key) {
+        const route = resolveRoute(svc, answers, true, settings);
+        if (route.status === "PRICED") { priced++; prices.add(route.priceCents); }
+        else if (route.status === "REVIEW") review++;
+        else other++;
+        return;
+      }
+      const q = svc.questions.find((x) => x.key === key);
+      if (!q) return;
+      for (const o of q.options) {
+        walk(o.routeAction === "CONTINUE" && o.nextQuestionId ? byId.get(o.nextQuestionId)?.key ?? null : null,
+             { ...answers, [q.key]: o.value });
+      }
+    };
+    walk(svc.questions[0]?.key ?? null, {});
+    const total = priced + review + other;
+    const both = priced > 0 && review > 0;
+    const varies = prices.size > 1;
+    const flag = both && varies ? "✓✓ both + price varies" : both ? "✓  both, one price" : priced === 0 ? "   never prices" : "   always prices";
+    const money = [...prices].sort((a, b) => a - b).map((c) => `$${Math.round(c / 100)}`).join("/");
+    console.log(`  ${(r.templateKey ?? "?").padEnd(30)} ${String(svc.questions.length).padStart(2)} ${String(total).padStart(5)} ${String(priced).padStart(6)} ${String(review).padStart(6)}  ${flag.padEnd(23)} ${money}`);
+  }
+  console.log();
+}
 
 async function main() {
   const contractor = await prisma.contractor.findUnique({
@@ -63,6 +126,12 @@ async function main() {
   if (!contractor) {
     console.error(`\n  No demo contractor. Run: npx tsx scripts/demo-contractor.ts --create\n`);
     process.exit(1);
+  }
+
+  if (process.argv.includes("--survey")) {
+    await survey(contractor.id);
+    await prisma.$disconnect();
+    return;
   }
 
   const row = await prisma.service.findFirst({
@@ -104,6 +173,14 @@ async function main() {
    * resolver said review.
    */
   const outcomes: Record<string, Outcome> = {};
+
+  // Reroute targets, resolved up front so the walk can name them.
+  const rerouteNames = new Map(
+    (await prisma.service.findMany({
+      where: { contractorId: contractor.id },
+      select: { id: true, name: true },
+    })).map((x) => [x.id, x.name]),
+  );
   const walk = (questionKey: string | null, answers: Record<string, string>) => {
     if (!questionKey) {
       const route = resolveRoute(service, answers, true, settings);
@@ -117,6 +194,11 @@ async function main() {
         };
       } else if (route.status === "REVIEW") {
         outcomes[key] = { status: "REVIEW", reason: route.reason, photoLabels: route.photoLabels };
+      } else if (route.status === "REROUTE") {
+        // Recorded by NAME, so the demo can say which job it is sending them
+        // to rather than showing an id or, as it did first, nothing at all.
+        const target = rerouteNames.get(route.targetServiceId);
+        outcomes[key] = { status: "REROUTE", targetName: target ?? "another service" };
       } else {
         outcomes[key] = { status: "OTHER", status_: route.status };
       }
@@ -216,8 +298,9 @@ async function main() {
 
   const priced = Object.values(outcomes).filter((o) => o.status === "PRICED").length;
   const review = Object.values(outcomes).filter((o) => o.status === "REVIEW").length;
+  const reroute = Object.values(outcomes).filter((o) => o.status === "REROUTE").length;
   console.log(`\n  ${row.name}`);
-  console.log(`  ${steps.length} questions · ${Object.keys(outcomes).length} paths (${priced} priced, ${review} review)`);
+  console.log(`  ${steps.length} questions · ${Object.keys(outcomes).length} paths (${priced} priced, ${review} review, ${reroute} reroute)`);
   console.log(`  ${addOns.length} same-visit add-ons`);
   console.log(`  -> ${OUT}\n`);
 

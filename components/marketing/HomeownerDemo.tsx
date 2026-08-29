@@ -207,10 +207,37 @@ export default function HomeownerDemo() {
                   </div>
                 )}
 
-                {stage === "outcome" && !outcome && (
+                {stage === "outcome" && outcome?.status === "REROUTE" && (
                   <div>
-                    <p className="text-[15px] text-p2b-muted">
-                      That path isn’t in this snapshot. Start over and try another route.
+                    <div className="text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-accent">
+                      That’s a different job
+                    </div>
+                    <h3 className="mt-3 text-[21px] font-semibold">{outcome.targetName}</h3>
+                    <p className="mt-3 text-[15px] leading-[1.6] text-p2b-ink-warm">
+                      What you described isn’t the service you started in, so you’re moved to the
+                      one that fits — with its own questions and its own price, rather than being
+                      quoted for the wrong work.
+                    </p>
+                    <button onClick={restart}
+                            className="mt-5 rounded-sm border border-p2b-ink px-6 py-3 text-[15px] font-semibold text-p2b-ink hover:border-p2b-accent hover:text-p2b-accent">
+                      Try a different answer
+                    </button>
+                  </div>
+                )}
+
+                {/* Any outcome this component does not model — and any path
+                    missing from the snapshot — lands here rather than
+                    rendering nothing. A blank card is the one failure a
+                    visitor cannot interpret. */}
+                {stage === "outcome" &&
+                  (!outcome || !["PRICED", "REVIEW", "REROUTE"].includes(outcome.status)) && (
+                  <div>
+                    <div className="text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-muted">
+                      Not part of this demonstration
+                    </div>
+                    <p className="mt-3 text-[15px] leading-[1.6] text-p2b-muted">
+                      This route goes somewhere the demonstration doesn’t follow. On a real
+                      storefront it resolves; here it stops.
                     </p>
                     <button onClick={restart} className="mt-4 text-[15px] font-semibold text-p2b-accent underline">
                       Start over
