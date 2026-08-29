@@ -52,6 +52,26 @@ const WIRE_INTO: { slug: string; role: string }[] = [
   { slug: "elite-articulating-mount", role: "TV_MOUNT_FULL_MOTION_STANDARD" },
 ];
 
+/**
+ * §5.5 — the scope conditions, stated to the customer rather than modelled.
+ *
+ * Housing size, duct size, CFM requirement, humidity sensor, heater, unusual
+ * access and termination work are SCOPE conditions, not material roles. They
+ * change what the job is, not what a standard job consumes, so they belong in
+ * a disclosure and a review path — not in a recipe.
+ */
+const DISCLOSURES: { slug: string; text: string }[] = [
+  {
+    slug: "replace-bathroom-exhaust-fan",
+    text:
+      "The starting price assumes a standard-size replacement fan, an existing duct " +
+      "connection we can reuse, and normal access to the fan location. If the housing " +
+      "size, duct size or configuration is different, or the work needs a higher-airflow " +
+      "fan, a humidity sensor, a heater or unusual access, we will show you the price " +
+      "difference and get your approval before installing anything.",
+  },
+];
+
 async function main() {
   const c = await prisma.contractor.findUniqueOrThrow({
     where: { slug: CONTRACTOR }, select: { id: true, name: true },
@@ -105,6 +125,18 @@ async function main() {
         data: { serviceId: svc.id, canonicalMaterialId: idByKey.get(w.role)!, quantity: 1, order: 0 },
       });
     }
+  }
+
+  console.log(`\n  SCOPE DISCLOSURE (§5.5)\n`);
+  for (const d of DISCLOSURES) {
+    const svc = await prisma.service.findFirst({
+      where: { contractorId: c.id, slug: d.slug }, select: { id: true, slug: true, disclaimer: true },
+    });
+    if (!svc) { console.log(`  MISSING ${d.slug}`); continue; }
+    if (svc.disclaimer === d.text) { console.log(`  ${svc.slug.padEnd(30)} already set`); continue; }
+    console.log(`  ${APPLY ? "WRITE " : "would "} ${svc.slug}`);
+    console.log(`         was: ${svc.disclaimer?.slice(0, 76) ?? "(none)"}`);
+    if (APPLY) await prisma.service.update({ where: { id: svc.id }, data: { disclaimer: d.text } });
   }
 
   if (!APPLY) console.log(`\n  Nothing was changed.`);

@@ -230,3 +230,82 @@ customer's fan-only / fan+light choice, and the 110 CFM alternatives, is tree wo
 Do not decompose the switch-leg / access lump sums until the tree collects cable type,
 box new-vs-reused, and device type. Material there varies with **access**, not distance;
 any cable recipe would change the shape of the economics rather than preserve it.
+
+---
+
+# Bath-fan Phase E, and the retirement verifier
+
+## Scope conditions are not material roles
+
+Housing size, duct size and configuration, CFM requirement, humidity sensor, heater,
+unusual access and termination work are recorded as **scope/qualification conditions**.
+They change what the job *is*, not what a standard job consumes, so they belong in a
+disclosure and a review path rather than in a recipe. No roles were created for them.
+
+Service-level disclosure now on `replace-bathroom-exhaust-fan`:
+
+> The starting price assumes a standard-size replacement fan, an existing duct connection
+> we can reuse, and normal access to the fan location. If the housing size, duct size or
+> configuration is different, or the work needs a higher-airflow fan, a humidity sensor, a
+> heater or unusual access, we will show you the price difference and get your approval
+> before installing anything.
+
+Humidity-sensor and heater variants stay review/custom. The 110 CFM classes are
+**alternate equipment classes**, not automatic upgrades.
+
+## Package prices, computed from Elite's actual economics
+
+Rate $250/crew-hour, 30% first-tier material markup, $5 rounding. Material is the fan
+plus `CONSUMABLES_SMALL`.
+
+| Package | Material | Material sell | @1.5h | @1.75h | @2h |
+|---|---|---|---|---|---|
+| fan only, 80 CFM | $72.00 | $93.60 | $470 | **$535** | $595 |
+| fan + light, 80 CFM | $88.00 | $114.40 | $490 | $555 | **$615** |
+| fan only, 110 CFM *(alt)* | $122.00 | $158.60 | $535 | — | $660 |
+| fan + light, 110 CFM *(alt)* | $172.00 | $223.60 | $600 | — | $725 |
+
+### The calibration says labour differs between the packages
+
+Working backwards from the historical figures rather than forwards from a guess:
+
+```
+fan only      $525 − $93.60 material sell  = $431.40 labour = 1.73h
+fan + light   $595 − $114.40 material sell = $480.60 labour = 1.92h
+```
+
+**No single labour figure reproduces both.** The historical prices are internally
+consistent with roughly **1.75h for fan-only and 2h for fan + light** — the light adds
+wiring work, and the old prices already knew that. At those hours current economics give:
+
+| Package | Suggested | Historical | Delta |
+|---|---|---|---|
+| fan only @1.75h | $535 | $525 | **+$10** |
+| fan + light @2h | $615 | $595 | **+$20** |
+
+Both land slightly above, which is what you would expect once the fan is a real costed
+line rather than an assumption. **Nothing was published.** `replace-bathroom-exhaust-fan`
+still has no base price and still reads "Get a quote".
+
+**Open for Phase F:** this service has `fieldLaborHours` unset entirely, so the hours above
+are the comparable service's, not its own. Setting them per package is the decision that
+turns this into a real starting price.
+
+## The retirement verifier — and what it found immediately
+
+`scripts/verify-component-retirement.ts` is in the deploy gate. For every retired role it
+asserts nothing selects it through **any** of four paths, and that no contractor still
+carries its economics.
+
+It failed on its first run, on roles retired long before this work:
+
+| Role | Retired | Economics still attached |
+|---|---|---|
+| `TV_SECOND_TECHNICIAN` | yes | **$375.00 approved** |
+| `TV_LARGE_SIZE_PREMIUM_56_85` | yes | **$375.00 approved** |
+
+Both proved unreachable and were retired properly. **20 checks, 0 failures.** Gate is now
+257 checks.
+
+It also reports — without failing — active roles nothing selects, as retirement
+candidates. Currently zero.
