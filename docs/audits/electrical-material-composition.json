@@ -10,7 +10,7 @@
     "services": 75,
     "active": 69,
     "priced": 57,
-    "withRecipe": 39,
+    "withRecipe": 50,
     "withTreeComponents": 10,
     "contractorMaterialRoles": 39,
     "contractorComponentRoles": 31
@@ -306,12 +306,6 @@
         "active": true
       },
       {
-        "slug": "dishwasher-electrical",
-        "name": "Dishwasher Electrical Connection / Reconnection",
-        "bookingType": "ADJUSTED",
-        "active": true
-      },
-      {
         "slug": "electric-fireplace-circuit",
         "name": "Electric Fireplace Circuit / Outlet",
         "bookingType": "REMOTE_QUOTE",
@@ -330,22 +324,10 @@
         "active": true
       },
       {
-        "slug": "floodlight-camera-existing",
-        "name": "Floodlight Camera at Existing Fixture",
-        "bookingType": "INSTANT",
-        "active": true
-      },
-      {
         "slug": "freezer-fridge-dedicated-circuit",
         "name": "Freezer / Refrigerator Dedicated Circuit",
         "bookingType": "REMOTE_QUOTE",
         "active": false
-      },
-      {
-        "slug": "garbage-disposal-install",
-        "name": "Garbage Disposal Electrical Disconnect / Reconnect",
-        "bookingType": "ADJUSTED",
-        "active": true
       },
       {
         "slug": "generator-inlet-interlock",
@@ -363,12 +345,6 @@
         "slug": "hot-tub-spa-electrical",
         "name": "Hot Tub / Spa Electrical",
         "bookingType": "REMOTE_QUOTE",
-        "active": true
-      },
-      {
-        "slug": "install-new-microwave",
-        "name": "Install New Microwave",
-        "bookingType": "ADJUSTED",
         "active": true
       },
       {
@@ -420,12 +396,6 @@
         "active": true
       },
       {
-        "slug": "otr-microwave-install",
-        "name": "Remove and Replace Existing Microwave",
-        "bookingType": "INSTANT",
-        "active": true
-      },
-      {
         "slug": "bathroom-fan-light-combo",
         "name": "Remove and Replace Owner-Supplied Bathroom Exhaust Fan",
         "bookingType": "ADJUSTED",
@@ -435,36 +405,6 @@
         "slug": "replace-bathroom-exhaust-fan",
         "name": "Replace Bathroom Exhaust Fan — We Supply the Fan",
         "bookingType": "REMOTE_QUOTE",
-        "active": true
-      },
-      {
-        "slug": "replace-ceiling-fan",
-        "name": "Replace Existing Ceiling Fan With New Fan",
-        "bookingType": "INSTANT",
-        "active": true
-      },
-      {
-        "slug": "replace-range-hood",
-        "name": "Replace Existing Range Hood",
-        "bookingType": "ADJUSTED",
-        "active": true
-      },
-      {
-        "slug": "replace-exterior-light-fixture",
-        "name": "Replace Exterior Light Fixture",
-        "bookingType": "INSTANT",
-        "active": true
-      },
-      {
-        "slug": "replace-interior-light-fixture",
-        "name": "Replace Interior Light Fixture",
-        "bookingType": "INSTANT",
-        "active": true
-      },
-      {
-        "slug": "replace-motion-flood-light",
-        "name": "Replace Motion / Flood Light",
-        "bookingType": "INSTANT",
         "active": true
       },
       {
@@ -483,12 +423,6 @@
         "slug": "transfer-switch",
         "name": "Transfer Switch",
         "bookingType": "REMOTE_QUOTE",
-        "active": true
-      },
-      {
-        "slug": "video-doorbell-existing-wiring",
-        "name": "Video Doorbell — Existing Wiring",
-        "bookingType": "INSTANT",
         "active": true
       }
     ]
@@ -3735,12 +3669,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 25000,
         "basePriceDollars": 250,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -3751,7 +3704,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
@@ -3766,12 +3719,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 25000,
         "basePriceDollars": 250,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -3782,7 +3754,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
@@ -3797,12 +3769,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 50000,
         "basePriceDollars": 500,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -3813,7 +3804,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
@@ -3896,12 +3887,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 37500,
         "basePriceDollars": 375,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -3912,7 +3922,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
@@ -3995,12 +4005,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 37500,
         "basePriceDollars": 375,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -4011,7 +4040,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       }
     ],
@@ -4096,12 +4125,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 25000,
         "basePriceDollars": 250,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -4112,7 +4160,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
@@ -4329,12 +4377,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 25000,
         "basePriceDollars": 250,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -4345,7 +4412,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       }
     ],
@@ -5154,12 +5221,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 31500,
         "basePriceDollars": 315,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -5170,7 +5256,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
@@ -6754,12 +6840,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 25000,
         "basePriceDollars": 250,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -6770,7 +6875,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
@@ -6785,12 +6890,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 25000,
         "basePriceDollars": 250,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -6801,7 +6925,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
@@ -6816,12 +6940,31 @@
         "requiresTechCount": 1,
         "basePriceCents": 25000,
         "basePriceDollars": 250,
-        "materialCostCents": 0,
-        "materialCostDollars": 0,
+        "materialCostCents": 300,
+        "materialCostDollars": 3,
         "materialCostResolved": true,
         "unresolvedMaterialKeys": [],
         "unresolvedPolicyKeys": [],
-        "serviceMaterials": [],
+        "serviceMaterials": [
+          {
+            "role": "CONSUMABLES_SMALL",
+            "name": "Consumables — connectors, staples, sealant",
+            "unit": "job",
+            "quantity": 1,
+            "legacyMaterialId": null,
+            "contractorCost": {
+              "unitCostCents": 300,
+              "unitCostDollars": 3,
+              "unitCostMilliCents": null,
+              "confidence": "CONFIRMED",
+              "status": "OK",
+              "source": "CUSTOM",
+              "updatedAt": null,
+              "active": true
+            },
+            "costResolved": true
+          }
+        ],
         "treeComponents": [],
         "answerLevelAdditions": [],
         "flags": {
@@ -6832,7 +6975,7 @@
           "componentPricedAsLumpSum": false,
           "answerAddsLumpSumMaterial": false,
           "namedCustomerSupplied": false,
-          "structurallyMaterialFree": true
+          "structurallyMaterialFree": false
         }
       },
       {
