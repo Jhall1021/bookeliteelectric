@@ -37,6 +37,19 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "exact operation. The attempt runs inside a throwaway contractor's " +
     "context against Elite's service, can only fail, and Elite's published " +
     "price is asserted unchanged immediately afterwards.",
+  "scripts/publish-chandelier-price.ts":
+    "Restores the one price in the catalog that was approved and then lost. " +
+    "remove-and-replace-existing-chandelier is the only service carrying a " +
+    "publishedPriceApprovedAt with a NULL basePrice: the 23 Aug scope-model " +
+    "reconciliation derived $530, stamped it 91ms before its sibling in the " +
+    "same loop, and the sibling kept its money while this one did not. The " +
+    "script does not restore that figure on trust — it re-derives through " +
+    "suggestPrimaryPrice and REFUSES if the engine no longer reproduces the " +
+    "amount the standing approval was given for, because a moved cost would " +
+    "make this a pricing change rather than a restore. It refuses outright if " +
+    "any price is already present, leaves the 23 Aug approval stamp alone " +
+    "rather than relabelling an old decision as a new one, and touches this " +
+    "one service.",
   "scripts/build-fan-packages.ts":
     "Publishes the two bathroom exhaust fan packages, which the owner approved " +
     "explicitly: 1.75 crew-hours for fan-only and 2.0 for fan-and-light, at the " +
