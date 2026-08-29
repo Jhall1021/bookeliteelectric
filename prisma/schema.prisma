@@ -440,6 +440,7 @@ model Contractor {
   contractorMaterials   ContractorMaterial[]
   services              Service[]
   pricingSettings       PricingSettings?
+  pricingSettingsChanges PricingSettingsChange[]
   businessHours         BusinessHours?
   materialSettings      ContractorMaterialSettings?
   jobberConnection      JobberConnection?
@@ -2179,6 +2180,49 @@ model TroubleshootingSession {
 //     *materialMultiplier, roundingIncrement)
 // — the exact formula from the client's validated pricing engine, not a
 // simplified approximation.
+/// Every change to the figures that price a contractor's work.
+///
+/// The rate and the minimum do not move a published price when they are saved
+/// — basePrice is stored, not recomputed — which is what makes them dangerous.
+/// A rate change silently invalidates the MODEL behind every published price,
+/// and nothing said so. On 29 August a rate was changed exploratorily in the
+/// admin and 111 published price points quietly stopped agreeing with the
+/// contractor's own economics. Nobody was told, and no record existed to say
+/// what the figures had been.
+///
+/// So: who changed what, from what, to what, and how many published prices the
+/// change put out of agreement AT THE TIME. The impact count is stored rather
+/// than recomputed later, because its value is saying what was known when the
+/// decision was made.
+model PricingSettingsChange {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  changedAt       DateTime @default(now())
+  /// Null only for a change made by a script rather than a signed-in admin.
+  changedByUserId String?
+  changedByEmail  String?
+
+  fromCrewHourRateCents       Int
+  toCrewHourRateCents         Int
+  fromPrimaryMinimumCents     Int
+  toPrimaryMinimumCents       Int
+  fromRoundingIncrementCents  Int
+  toRoundingIncrementCents    Int
+  fromDefaultPermitAdminCents Int
+  toDefaultPermitAdminCents   Int
+
+  /// Published price points that disagreed with the model after this change.
+  publishedPricesAffected Int
+  /// Whether the person saving was shown that number and accepted it.
+  impactAcknowledged      Boolean @default(false)
+  note                    String?
+
+  @@index([contractorId, changedAt])
+  @@map("pricing_settings_changes")
+}
+
 model PricingSettings {
   // Was @default("default"), the same defect JobberConnection had: every row
   // would take the identical primary key, so a second contractor saving their
