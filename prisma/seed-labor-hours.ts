@@ -165,7 +165,6 @@ const QUOTE = [
   "sump-pump-dedicated-circuit",
   "240v-garage-outlet",
   "level-2-ev-charger",
-  "replace-bathroom-exhaust-fan",
   "generator-inlet-interlock",
   "transfer-switch",
   "new-exterior-lighting-locations",
@@ -175,10 +174,22 @@ const QUOTE = [
   "electrical-panel-replacement",
   "hot-tub-spa-electrical",
   "pool-equipment-electrical",
-  "new-exterior-flood-camera",
   "new-video-doorbell-wiring",
-  "remove-and-replace-existing-chandelier",
 ];
+
+/**
+ * GRADUATED — off the list, and the reason recorded so nobody puts them back.
+ *
+ *   new-exterior-flood-camera               2.5h  $705   23 Aug scope model
+ *   remove-and-replace-existing-chandelier  2.0h  $530   23 Aug scope model
+ *   replace-bathroom-exhaust-fan            1.75h $535   29 Aug fan packages
+ *
+ * Each gained a bounded scope, real crew-hours and a derived price. Leaving
+ * them here would have nulled the hours under the price on the next full run
+ * and recreated the exact defect this file's QUOTE list exists to prevent — a
+ * published price with nothing behind it. See the exterior-gfci note in
+ * ROUTE_BASE: this list has done that silently once already.
+ */
 
 /** Add-on only: no standalone labor, and none established incrementally. */
 const ADDON_ONLY = ["elite-tilt-mount", "elite-articulating-mount"];
@@ -217,10 +228,27 @@ async function main() {
   console.log(`  ✓ ${routed} ROUTE-BASED services given their base-branch hours`);
 
   let quoted = 0;
+  const graduated: string[] = [];
   for (const slug of QUOTE) {
     const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
     if (!svc) {
       missing.push(slug);
+      continue;
+    }
+    // A service that has since been given a real scope must not be quietly
+    // dragged back. This list nulls hours, and it used to do so unconditionally
+    // — which meant a service could gain a measured scope on Tuesday and lose
+    // it to a full seed run on Wednesday, leaving a published price with
+    // nothing behind it. That is the precise defect the list exists to prevent,
+    // arrived at from the other direction.
+    //
+    // Refuses rather than warns. A seed that reports a problem and does the
+    // damage anyway is monitoring, not enforcement.
+    if (svc.basePrice !== null || svc.fieldLaborHours !== null) {
+      graduated.push(
+        `${slug} — ${svc.fieldLaborHours ?? "no"} crew-hours, ` +
+          `price ${svc.basePrice === null ? "none" : `$${(svc.basePrice / 100).toFixed(0)}`}`
+      );
       continue;
     }
     // Explicitly null. A quote service with hours invites someone to trust
@@ -232,6 +260,17 @@ async function main() {
     quoted++;
   }
   console.log(`  ✓ ${quoted} QUOTE services left with no hours — correct, not incomplete`);
+
+  if (graduated.length) {
+    console.error(`\n  ✗ ${graduated.length} service(s) on the QUOTE list have a scope now:\n`);
+    for (const g of graduated) console.error(`      ${g}`);
+    console.error(
+      `\n  Nulling their hours would leave a published price with nothing behind\n` +
+        `  it. Take them off QUOTE and record why, next to the others that\n` +
+        `  graduated. Nothing was written for them.\n`
+    );
+    process.exitCode = 1;
+  }
 
   for (const slug of ADDON_ONLY) {
     const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, slug) });
