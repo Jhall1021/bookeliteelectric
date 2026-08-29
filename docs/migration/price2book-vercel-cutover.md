@@ -329,3 +329,56 @@ fingerprint captured it as the starting state and proved it unchanged throughout
 
 Worth a deliberate decision rather than leaving it as a side effect of exploring, since Elite is a
 live business.
+
+---
+
+## The apex moved — 29 August 2026
+
+`price2book.com` now serves Price2Book's marketing homepage from the Price2Book Vercel project.
+This was the step ADR-019 and ADR-020 held until the homepage was deployed and verified.
+
+| Name | Before | Now |
+|---|---|---|
+| `price2book.com` | Squarespace ("Compare. Book. Build."), A `13.248.243.5` / `76.223.105.230` | Vercel, A `216.150.1.1` / `216.150.16.1` |
+| `www.price2book.com` | Squarespace 301 to apex | Vercel **308** to apex |
+| `app.price2book.com` | Price2Book portal | unchanged |
+| Elite | `bookeliteelectric.vercel.app` | unchanged — still the rollback |
+
+Domains were attached with `scripts/vercel-domains.ts`, which asserts account, team AND project id
+against the API and refuses before writing. The estate has two Vercel accounts holding
+similarly-named projects; this is the same lesson as the Neon branch named `production`.
+
+### Two things that looked like failures and were not
+
+**A live site nobody had mentioned.** The apex was serving an existing Squarespace page. It
+answered `200`, so a status-code check would have called the cutover finished while the marketing
+site was nowhere in sight. What settled it was reading the body: `Server: DPS/2.0.0`, and none of
+"Your pricing.", "Your schedule." or "Request Early Access" present. **Identify a deployment by
+what it serves, not by whether something answers.**
+
+**`www` already had a record.** Cloudflare refused a second one. It did not need it: `www` was
+already a CNAME to the apex, and once the apex pointed at Vercel, `www` followed it there. Vercel
+reported `points here yes` for both names on the existing record. The published
+`f81826c7b00c5e9c.vercel-dns-016.com` target is one valid way to point `www` at Vercel; a CNAME to
+an apex that already points there is another.
+
+### The gap between DNS and HTTPS
+
+For about six and a half minutes the apex served the homepage over **HTTP** while HTTPS failed the
+TLS handshake — `curl` reporting `SSL_ERROR_SYSCALL`, Firefox `PR_END_OF_FILE_ERROR`. That is
+Vercel issuing the certificate, not a misconfiguration, and the two things worth checking to tell
+"slow" from "never" are: no CAA record forbidding the CA, and port 80 reachable to answer the
+challenge. Both held, and the certificate arrived on its own.
+
+### Verified after the move
+
+- `scripts/verify-marketing-homepage.ts --host https://price2book.com` — **68 passed, 0 failed**
+- `scripts/verify-legacy-redirect-scope.ts --host https://price2book.com` — **19 passed, 0 failed**
+- All four addresses canonicalise onto `https://price2book.com`
+- Elite renders identically on the old and new deployments, hero photograph intact — the
+  `heroImageUrl` backfill preserved parity, checked rather than assumed
+
+### Still NOT authorized by this
+
+Elite storefront traffic has not moved. Jobber browser OAuth consent, a real booking end to end,
+and confirmation-email acceptance remain separate cutover gates.
