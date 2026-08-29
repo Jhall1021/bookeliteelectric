@@ -112,7 +112,7 @@ export function WhileWereThere() {
               "upselling" — the sentence below is the whole reason the section
               is allowed to talk about price at all. */}
           <p className="mt-7 text-[15px] leading-[1.55] text-[#4A5951]">
-            Same-visit pricing reflects the incremental labour, materials and direct costs once the trip
+            Same-visit pricing reflects the incremental labor, materials and direct costs once the trip
             and setup are already covered — not an arbitrary percentage off.
           </p>
         </div>
@@ -253,14 +253,14 @@ export function PricingControl() {
       <div className="grid gap-10 lg:grid-cols-12 lg:items-start">
         <div className="lg:col-span-6">
           <h2 className="text-[32px] font-bold leading-[1.1] tracking-[-0.022em] lg:text-[46px]">
-            Your labour.
+            Your labor.
             <br />
             Your materials.
             <br />
             Your rules.
           </h2>
           {/* The distinction below is a correctness constraint from
-              POSITIONING.md: nothing here may imply that changing a labour
+              POSITIONING.md: nothing here may imply that changing a labor
               rate silently republishes live homeowner prices. */}
           <div className="mt-8 border-l-[3px] border-p2b-accent bg-p2b-accent-tint px-6 py-[22px]">
             <div className="text-[21px] font-bold text-p2b-accent">Price2Book can suggest. You approve.</div>

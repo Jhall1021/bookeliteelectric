@@ -15,7 +15,7 @@
  *                               what the contractor accepts or refuses,
  *                               customer-facing wording that states company
  *                               policy, permit and scope decisions
- *   contractor economics        price modifiers, published prices, labour
+ *   contractor economics        price modifiers, published prices, labor
  *                               rate and hours, material cost, markups,
  *                               monetary allowances
  *

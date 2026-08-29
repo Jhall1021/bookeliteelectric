@@ -1,5 +1,5 @@
 /**
- * Each contractor prices with its own labour rate.
+ * Each contractor prices with its own labor rate.
  *
  * WHAT WAS WRONG
  *
@@ -13,7 +13,7 @@
  * Reconciliation was worse. It read ONE settings row by `id: "default"` and
  * ALL active services unscoped, then priced every service against that row.
  * With two contractors it would grade one business's published prices against
- * another's labour rate and service-call minimum — and that report is what
+ * another's labor rate and service-call minimum — and that report is what
  * decides whether a published price is wrong.
  *
  * Creates a throwaway contractor with a deliberately CONTRADICTORY rate, so a

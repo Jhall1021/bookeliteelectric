@@ -1,5 +1,5 @@
 /**
- * Rename the labour rate to say what it means — ADR-018.
+ * Rename the labor rate to say what it means — ADR-018.
  *
  * `targetRateCents` was documented as "revenue per productive tech-hour" while
  * the engine has always charged CREW-hours. The comment and the code said

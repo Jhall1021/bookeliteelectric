@@ -57,7 +57,7 @@ export const PORTAL_MODULES: PortalModule[] = [
   { href: "/dashboard/categories", name: "Categories", group: "pricing",
     blurb: "How your services are grouped for a homeowner browsing them." },
   { href: "/dashboard/pricing-settings", name: "Your Rates", group: "pricing",
-    blurb: "Labour rate, minimums and material markup. Price2Book can suggest; you approve." },
+    blurb: "Labor rate, minimums and material markup. Price2Book can suggest; you approve." },
   { href: "/dashboard/estimates", name: "Estimated Hours", group: "pricing",
     blurb: "How long each job usually takes, and how much that varies. Only used if you bill time and materials." },
 
@@ -69,7 +69,7 @@ export const PORTAL_MODULES: PortalModule[] = [
     blurb: "Which crews can take which work." },
 
   { href: "/dashboard/design", name: "Storefront Design", group: "storefront",
-    blurb: "Choose from six designs and see each one with your own logo and colours." },
+    blurb: "Choose from six designs and see each one with your own logo and colors." },
 
   { href: "/dashboard/quotes", name: "Photo Review", group: "operations",
     blurb: "Jobs waiting on your eye before a price goes out." },

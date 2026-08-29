@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 /**
  * Estimated hours — the TIME_AND_MATERIALS calibration screen (ADR-018).
  *
- * Every service arrives with the contractor's OWN labour baseline already on
+ * Every service arrives with the contractor's OWN labor baseline already on
  * it, because the audit found all 56 active non-quote-only services carry
  * `fieldLaborHours`. So this screen does not ask a contractor to start from
  * nothing. It shows what they already told us, offers a suggested band, and

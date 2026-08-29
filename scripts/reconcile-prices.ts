@@ -88,7 +88,7 @@ const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toLocale
  * Used to read a single PricingSettings row keyed `id: "default"` and every
  * active service in the database, then price all of them against that one
  * row. With a second contractor that means grading their work against
- * somebody else's labour rate and minimum — and this report is what decides
+ * somebody else's labor rate and minimum — and this report is what decides
  * whether a published price is wrong.
  *
  * Returns the number of unexplained differences so the caller can total them.

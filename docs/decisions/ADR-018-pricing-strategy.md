@@ -21,7 +21,7 @@ never rewrites the service tree, durations, materials or previously configured e
 
 ## One scope engine, not two catalogues
 
-    service -> questions -> answers -> scope -> labour and material requirements
+    service -> questions -> answers -> scope -> labor and material requirements
 
 feeds both. There is no separate T&M catalogue and no T&M variant of a service. Only the final
 step differs. That is the payoff from separating canonical trade knowledge from contractor policy
@@ -34,7 +34,7 @@ engine has always charged **crew-hours** — `POLICY[crew.composition]: ONE_VAN_
 *"Crew-hours, not person-hours"* — and `requiresTechCount` counts **vans, not people**. The
 comment and the code said opposite things, and the code was right.
 
-That ambiguity had already produced one real defect: labour was once computed as
+That ambiguity had already produced one real defect: labor was once computed as
 `hours * techCount`, charging again for the helper who rides in every van as standard.
 
 It stops being internal under T&M, where the number is shown to the homeowner. One contractor
@@ -99,7 +99,7 @@ ready under both, because a human prices them by design.
 ## Materials stay one figure in V1
 
 Shown as an estimate under T&M. No material low/high without evidence anyone needs it: two more
-numbers per service, when the labour band is where the variance actually lives.
+numbers per service, when the labor band is where the variance actually lives.
 
 ## The flat-rate minimum is not applied to an estimate
 
@@ -123,7 +123,7 @@ maintains.
 **May:** estimate scope, estimate duration, estimate materials, calculate a range, capture the
 homeowner's authorisation.
 
-**Does not:** clock technician time, record final T&M labour, create an invoice, do job costing.
+**Does not:** clock technician time, record final T&M labor, create an invoice, do job costing.
 That is the FSM's, under either strategy.
 
 ## Contractual wording lives in the copy layer
@@ -210,7 +210,7 @@ not match adds nothing.
 
 The material markup is applied **once to the assembled package, never per part**. Summing a
 marked-up figure per selected component would overstate it; shipping raw component costs would
-reverse the cost-input decision. So V1 quotes the **labour** range and discloses that materials
+reverse the cost-input decision. So V1 quotes the **labor** range and discloses that materials
 are additional, at cost plus markup.
 
 This is a deliberate departure from the worked example in the brief. An understated total in a
@@ -230,16 +230,16 @@ does not depend on it.
 
 `db:reconcile` after the whole phase: **0 differing.**
 
-### The labour-only range is labelled for what it covers
+### The labor-only range is labelled for what it covers
 
-Because V1 quotes labour and discloses materials separately, **no customer-facing label may call
-that range a total.** `resolvedPriceLabel` under TIME_AND_MATERIALS is "Estimated labour", and
+Because V1 quotes labor and discloses materials separately, **no customer-facing label may call
+that range a total.** `resolvedPriceLabel` under TIME_AND_MATERIALS is "Estimated labor", and
 `FORBIDDEN_TOTAL_LABELS` refuses total / all-in / full price / final price / everything on any
 label applied to it. Asserted in `verify-pricing-strategy`, so the constraint is mechanical rather
 than remembered.
 
 A FLAT_RATE price genuinely does include materials, so it stays free to be a total — the verifier
-asserts the reverse there, that a fixed price is not described as labour.
+asserts the reverse there, that a fixed price is not described as labor.
 
 Lift the constraint only when the estimate actually includes materials.
 

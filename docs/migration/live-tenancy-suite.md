@@ -12,12 +12,12 @@ tenant data and restore it**:
 |---|---|
 | `verify-tenant-isolation-live` | creates a dummy contractor, its services, materials, categories, sites |
 | `verify-jobber-connection-tenancy` | **overwrites Elite's real Jobber access and refresh tokens**, then restores them |
-| `verify-pricing-settings-tenancy` | **changes Elite's live labour rate**, runs the seed and reconcile, then restores it |
+| `verify-pricing-settings-tenancy` | **changes Elite's live labor rate**, runs the seed and reconcile, then restores it |
 
 `npm run verify` runs inside `next build`, which runs on **every Vercel
 deployment**. A build cancelled, timed out, or killed part-way through one of
 these would leave Elite's real Jobber tokens set to `access_elite_2`, or their
-labour rate off by a cent — silently, in production, with the deploy showing
+labor rate off by a cent — silently, in production, with the deploy showing
 only as failed.
 
 `verify-jobber-connection-tenancy` was briefly in the gate. That was a mistake,

@@ -20,7 +20,7 @@ what they include before charging more. Included run length, distance bands, who
 part, what counts as "standard access". → **The template holds the structure; the contractor
 holds the position.** The template says *there is an included run length*; it never says 25 feet.
 
-**3. Contractor economics.** Prices, labour hours, material costs, multipliers, price
+**3. Contractor economics.** Prices, labor hours, material costs, multipliers, price
 modifiers. → **Never in the template.** Not as `0`, not as a placeholder, not as a default.
 
 ---

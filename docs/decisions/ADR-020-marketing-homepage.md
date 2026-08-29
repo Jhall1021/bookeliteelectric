@@ -17,7 +17,7 @@ POSITIONING.md and the handoff disagree, the handoff wins.
 `/` on a `price2book.com` host, in the fourteen approved sections and their approved order:
 
 > hero → three pillars → four steps → While We're There™ → Guided Pricing → four outcomes →
-> your labour/materials/rules → you decide what can be booked → keep the software you already
+> your labor/materials/rules → you decide what can be booked → keep the software you already
 > use → electrical-first template → contractor control panel → Guided Setup → proof → CTA
 
 It is a route group, `app/(marketing)/`, so it adds a shell without adding a path segment. It
@@ -52,7 +52,7 @@ becoming false while still reading well, so each is asserted by the gate:
 | Claim | Rule |
 |---|---|
 | **Integration status** | Jobber *Available*, Price2Book Scheduler *Built In*, ServiceTitan / Housecall Pro / Google Calendar *Coming Soon*. "Connected" is forbidden outright — it reads as a live link to a contractor's own account, which is a per-contractor runtime fact and cannot be true of a marketing page at all. |
-| **Suggested vs published** | "Price2Book can suggest. You approve." Nothing may imply that changing a labour rate silently republishes live homeowner prices. |
+| **Suggested vs published** | "Price2Book can suggest. You approve." Nothing may imply that changing a labor rate silently republishes live homeowner prices. |
 | **Proof** | The proof cards render empty. A number there is a fabricated result until a pilot contractor supplies a real one. |
 | **Counts** | "Dozens of residential electrical services" — never an exact number, which will change. |
 

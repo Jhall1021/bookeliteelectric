@@ -157,7 +157,7 @@ Everything that changes when the application's address changes:
 
 `/sign-in` · magic-link callback · `/dashboard` · membership selection and isolation · Elite
 storefront · a second contractor storefront · all six themes · Flat Rate guided flow · T&M guided
-flow **including component labour increments** · cart, scheduling, checkout · transactional email ·
+flow **including component labor increments** · cart, scheduling, checkout · transactional email ·
 Jobber availability · Jobber OAuth · cross-tenant refusals · `/admin/*` and `/why-elite`
 compatibility redirects.
 

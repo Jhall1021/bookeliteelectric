@@ -544,7 +544,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           estimateHighCrewHours: flow.timeAndMaterials.estimateHighCrewHours,
           estimateApproved: flow.timeAndMaterials.estimateApproved,
           addedCrewHours: state.addedCrewHours,
-          // Labour only in V1; materials are disclosed as additional rather
+          // Labor only in V1; materials are disclosed as additional rather
           // than quoted at a figure the markup rule cannot produce per part.
           materialCostCents: null,
         },

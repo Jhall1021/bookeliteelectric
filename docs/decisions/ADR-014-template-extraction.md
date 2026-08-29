@@ -110,7 +110,7 @@ rows.
 
 A **`TemplateVersion`** — an immutable, published snapshot of trade structure for a trade
 (`electrical`, `v1`). It contains template services, their questions, answer options,
-routing, photo requirements, and material *roles*. It contains **no prices, no labour hours,
+routing, photo requirements, and material *roles*. It contains **no prices, no labor hours,
 no material costs, no policy values.**
 
 A template is not a contractor. It has no `contractorId`, no pricing settings, no schedule,
@@ -171,7 +171,7 @@ conflict and **defaults to keeping theirs**.
 An adoption event may only write **structure**. It may add a question, add an answer option,
 change wording, add a photo requirement, change routing.
 
-It may **never** write `priceModifierCents`, labour hours, material costs, or any published
+It may **never** write `priceModifierCents`, labor hours, material costs, or any published
 price. A newly adopted answer option arrives with a **null** price modifier and the service
 is marked as needing review — it cannot publish a price nobody set, which is ADR-003 applied
 to template updates.
@@ -205,7 +205,7 @@ Extraction is a real process, per service:
 ### The acceptance test
 
 > Can Price2Book take Electrical Template v1 and create a brand-new electrical contractor
-> whose initial catalogue is structurally correct, with **no** Elite prices, labour hours,
+> whose initial catalogue is structurally correct, with **no** Elite prices, labor hours,
 > material costs or policy values anywhere in it?
 
 Mechanised as a verifier: provision a throwaway contractor from v1, then assert that every

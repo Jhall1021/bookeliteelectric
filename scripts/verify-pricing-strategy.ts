@@ -104,7 +104,7 @@ function estimating() {
     estimateApproved: true, addedCrewHours: 0, materialCostCents: 15000 }, SETTINGS);
   ok(good.ok && good.lowHours === 5 && good.highHours === 8, "a valid band estimates");
   ok(good.ok && good.lowLaborCents === 74500 && good.highLaborCents === 119200,
-    `labour is hours x crew-hour rate (${good.ok ? good.lowLaborCents : "-"}–${good.ok ? good.highLaborCents : "-"} at $149)`);
+    `labor is hours x crew-hour rate (${good.ok ? good.lowLaborCents : "-"}–${good.ok ? good.highLaborCents : "-"} at $149)`);
   ok(good.ok && good.lowTotalCents === 89500 && good.highTotalCents === 134200,
     "…and materials are added once, as a single estimated figure");
 
@@ -149,19 +149,19 @@ function noCrossing() {
     `the commitment differs ("${flat.commitCta}" vs "${tm.commitCta}")`);
   ok(!/price/i.test(tm.headline), "T&M's headline promises no price");
 
-  // V1 quotes LABOUR and discloses materials separately, so no label the
+  // V1 quotes LABOR and discloses materials separately, so no label the
   // customer sees may promote that range into the whole bill.
   const mislabelled = TM_RANGE_LABELS(tm).filter((l) => FORBIDDEN_TOTAL_LABELS.test(l));
   ok(mislabelled.length === 0,
-    `no T&M label calls the labour-only range a total ("${tm.resolvedPriceLabel}")`,
+    `no T&M label calls the labor-only range a total ("${tm.resolvedPriceLabel}")`,
     mislabelled.join(", "));
-  ok(/labour|labor/i.test(tm.resolvedPriceLabel),
+  ok(/labor/i.test(tm.resolvedPriceLabel),
     "…and it says what the range actually covers");
   ok(tm.materialsNotice !== null && /materials/i.test(tm.materialsNotice!),
     "materials are disclosed as a separate charge");
   // The flat-rate price DOES include everything, so it is free to be a total.
-  ok(!/labour|labor/i.test(flat.resolvedPriceLabel),
-    "a flat-rate price is not described as labour — it includes materials");
+  ok(!/labor/i.test(flat.resolvedPriceLabel),
+    "a flat-rate price is not described as labor — it includes materials");
 
   // The estimate card must not author its own contractual wording.
   const card = readFileSync("components/guided-flow/EstimateRangeCard.tsx", "utf8");

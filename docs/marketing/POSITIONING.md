@@ -93,7 +93,7 @@ imagery as the primary visual language.
 ## Homepage order
 
 Hero → three pillars → four steps → While We're There™ → Guided Pricing → four customer
-outcomes → *Your labour. Your materials. Your rules.* → *You decide what can be booked* →
+outcomes → *Your labor. Your materials. Your rules.* → *You decide what can be booked* →
 *Keep the software you already use* → electrical-first template → contractor control panel
 → Guided Setup → proof (when it exists) → early-access CTA.
 
@@ -105,7 +105,7 @@ These are correctness constraints, not style preferences:
   is not integrated. Today: Jobber is genuinely built (OAuth, booking push, crew sync, live
   availability) = *Available*; the Price2Book scheduler = *Built In*; ServiceTitan,
   Housecall Pro and Google Calendar have no code = *Coming Soon*.
-- **Never imply that changing a labour rate silently changes live homeowner prices.**
+- **Never imply that changing a labor rate silently changes live homeowner prices.**
   Suggested and published prices stay visibly distinct: *Price2Book can suggest. You
   approve.*
 - **Do not fabricate testimonials.** Until real pilot contractors supply them, show factual

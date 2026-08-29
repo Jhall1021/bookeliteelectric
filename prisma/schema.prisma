@@ -2156,7 +2156,7 @@ model PricingSettings {
   /// always worked this way (POLICY[crew.composition]: ONE_VAN_LEAD_PLUS_HELPER)
   /// but the field was called targetRateCents and documented as "per productive
   /// tech-hour", which is the opposite. It had already caused one real defect:
-  /// labour was once computed as `hours * techCount` and charged again for the
+  /// labor was once computed as `hours * techCount` and charged again for the
   /// helper who rides in every van as standard.
   ///
   /// The ambiguity stops being internal under TIME_AND_MATERIALS, where this

@@ -108,8 +108,8 @@ export const OUTCOMES = [
 ] as const;
 
 export const PRICE_BREAKDOWN = [
-  { k: "Labour", v: "Your rate × resolved crew hours" },
-  { k: "Materials", v: "Your costs, itemised" },
+  { k: "Labor", v: "Your rate × resolved crew hours" },
+  { k: "Materials", v: "Your costs, itemized" },
   { k: "Direct Costs", v: "Permits, disposal, admin" },
   { k: "Minimum", v: "Your service-call floor" },
   { k: "Scope Policy", v: "What this price does and does not cover" },
@@ -166,7 +166,7 @@ export const SHIPS_WITH_SERVICE = [
 
 export const SETUP_STAGES = [
   { n: "01", title: "Tell us how you work", body: "Hours, service area, crew setup and scheduling preferences." },
-  { n: "02", title: "Tell us how you price", body: "Labour rate, minimums, material costs and a few familiar service examples." },
+  { n: "02", title: "Tell us how you price", body: "Labor rate, minimums, material costs and a few familiar service examples." },
   { n: "03", title: "Review what Price2Book built", body: "See your services, suggested prices and customer experience before anything goes live." },
 ] as const;
 

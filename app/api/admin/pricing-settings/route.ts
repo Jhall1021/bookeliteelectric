@@ -19,7 +19,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Invalid values" }, { status: 400 });
   }
 
-  // ADR-007a: keyed by contractor. `id: "default"` meant one labour rate for
+  // ADR-007a: keyed by contractor. `id: "default"` meant one labor rate for
   // every contractor — and this route SETS the rate that prices their work.
   await db.pricingSettings.upsert({
     where: { contractorId: ctx.contractorId },

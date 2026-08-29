@@ -55,6 +55,10 @@ const REQUIRED_COPY = [
   "Everything your customer sees traces back to something you control.",
   "Setup is a conversation, not a form.",
   "Price2Book can suggest. You approve.",
+  // US spelling, from the handoff. "Your labour." shipped once and had to be
+  // corrected on the live site; a headline is exactly the kind of line nobody
+  // re-reads after the first review.
+  "Your labor.",
   "No new CRM required.",
 ];
 
@@ -104,6 +108,18 @@ async function statics() {
     "a literal app.price2book.com would send preview traffic to production");
   ok(read("app/(marketing)/page.tsx").includes("appOrigin()"),
     "…via appOrigin()");
+
+  console.log("\n  US SPELLING");
+  // The approved copy is US English throughout. These are the forms that
+  // actually turned up in this codebase, not a general dictionary.
+  const BRITISH = /\b(labour|itemis(e|ed|ing)|customis|organis|recognis|colour|licence|catalogue|analyse|optimis|summaris|behaviour|honour|neighbour|labelled|modelling|defence)\b/i;
+  for (const f of readdirSync("components/marketing")) {
+    const src = read(`components/marketing/${f}`);
+    // Only the copy, not the comments — prose about the code is not the site.
+    const strings = src.match(/"[^"\n]{4,}"|'[^'\n]{4,}'|`[^`]{4,}`/g) ?? [];
+    const hit = strings.find((t) => BRITISH.test(t));
+    ok(!hit, `components/marketing/${f} uses US spelling`, hit?.slice(0, 80) ?? "");
+  }
 
   console.log("\n  NOTHING FABRICATED");
   ok(content.PROOF_METRICS.every((m: string) => !/\d/.test(m)),

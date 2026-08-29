@@ -11,7 +11,7 @@
  * That is the payoff from separating canonical trade knowledge from contractor
  * policy and economics: the trade knowledge did not have to change at all.
  *
- * WHAT THIS DOES NOT DO. It does not clock a technician, record final labour,
+ * WHAT THIS DOES NOT DO. It does not clock a technician, record final labor,
  * produce an invoice, or do job costing. Price2Book estimates scope, estimates
  * duration, estimates materials, presents a range, and captures the
  * homeowner's authorisation. Everything after that is the FSM's.
@@ -44,7 +44,7 @@ export type EstimateInputs = {
    * keep cost inputs off the customer payload.
    *
    * Rather than publish a materials number that is wrong whenever the route
-   * selects components, V1 quotes the LABOUR range and discloses that
+   * selects components, V1 quotes the LABOR range and discloses that
    * materials are additional. An understated total in a customer-facing
    * estimate is a promise problem, not a rounding one.
    */
@@ -84,7 +84,7 @@ export function estimateRange(inputs: EstimateInputs, settings: PricingSettings)
 
   // Materials stay a single figure in V1. A material low/high would be two
   // more numbers per service with no evidence anyone needs them, and the
-  // labour band is where the real variance lives.
+  // labor band is where the real variance lives.
   const materialCents = inputs.materialCostCents;
 
   // The minimum is NOT applied. It is a floor on a fixed price — a promise

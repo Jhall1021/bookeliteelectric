@@ -61,7 +61,7 @@ async function main() {
     `SELECT column_name FROM information_schema.columns WHERE table_name IN
      ('template_services','template_questions','template_answer_options')`) as { column_name: string }[];
   const econ = cols.map((c) => c.column_name).filter((c) =>
-    /price|cost|labor|labour|hours|minutes|markup|multiplier|cents/i.test(c));
+    /price|cost|labor|hours|minutes|markup|multiplier|cents/i.test(c));
   ok(econ.length === 0, "no economic column exists on any template table", `found: ${econ.join(", ")}`);
 
   console.log("\n  NONE OF ELITE'S ECONOMICS COPIED");

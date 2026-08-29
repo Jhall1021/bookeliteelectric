@@ -57,13 +57,13 @@ export default function EstimateRangeCard(
       <h2 className="mt-1 font-display text-xl font-bold text-ink">{serviceName}</h2>
 
       <div className="mt-4 divide-y divide-line border-y border-line">
-        {row("Our labour rate", `${formatCents(estimate.crewHourRateCents)} / crew hour`)}
+        {row("Our labor rate", `${formatCents(estimate.crewHourRateCents)} / crew hour`)}
         {row("Estimated time", hours)}
         {estimate.materialCents !== null && row("Estimated materials", formatCents(estimate.materialCents))}
       </div>
 
       {/* The emphasised figure is labelled for what it COVERS. With materials
-          disclosed separately, this range is labour — naming it a total would
+          disclosed separately, this range is labor — naming it a total would
           promote it into the whole bill in the reader's head, which is the one
           misreading this layout must not permit. */}
       <div className="mt-3">

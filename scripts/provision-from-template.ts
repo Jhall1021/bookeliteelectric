@@ -7,7 +7,7 @@
  *
  * WHAT IT REFUSES TO DO
  *
- * Write a single economic value. Price, labour, materials cost, markups and
+ * Write a single economic value. Price, labor, materials cost, markups and
  * allowances all arrive UNRESOLVED, and unresolved means the service cannot
  * publish a price — ADR-003's guarantee, reached from a new direction.
  *
