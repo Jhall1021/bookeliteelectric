@@ -247,97 +247,105 @@ export function Outcomes() {
   );
 }
 
-export function PricingControl() {
+/**
+ * Pricing control and scheduling control, in one section.
+ *
+ * These were two full-width sections making the same argument — "you decide
+ * what it costs" and "you decide what can be booked" — one after the other,
+ * in a page that already says "you choose" and "you approve" a dozen times.
+ * The claim is important and the repetition was costing more than it bought.
+ *
+ * COMBINED, NOT CUT. Both approved headlines survive as the two columns'
+ * subheads. The first merge dropped them and the gate caught it, which is
+ * what REQUIRED_COPY is for: "shorten this" is an instruction about length,
+ * never a licence to lose the sentences somebody chose.
+ */
+export function Control() {
   return (
-    <section className={`${SHELL} py-16 lg:pb-20 lg:pt-[88px]`}>
-      <div className="grid gap-10 lg:grid-cols-12 lg:items-start">
-        <div className="lg:col-span-6">
-          <h2 className="text-[32px] font-bold leading-[1.1] tracking-[-0.022em] lg:text-[46px]">
-            Your labor.
-            <br />
-            Your materials.
-            <br />
-            Your rules.
-          </h2>
-          {/* The distinction below is a correctness constraint from
-              POSITIONING.md: nothing here may imply that changing a labor
-              rate silently republishes live homeowner prices. */}
-          <div className="mt-8 border-l-[3px] border-p2b-accent bg-p2b-accent-tint px-6 py-[22px]">
-            <div className="text-[21px] font-bold text-p2b-accent">Price2Book can suggest. You approve.</div>
-            <p className="mt-3 text-base leading-[1.6] text-p2b-ink-warm">
-              Change your pricing inputs and Price2Book can recalculate suggested prices. You review and
-              approve every published change.
+    <section className={`${SHELL} py-16 lg:py-20`}>
+      <h2 className="max-w-[24ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[44px]">
+        You decide what it costs, and what can be booked.
+      </h2>
+
+      <div className="mt-9 grid gap-10 lg:mt-12 lg:grid-cols-2 lg:gap-12">
+        <div>
+          <h3 className="text-[22px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[26px]">
+            Your labor. Your materials. Your rules.
+          </h3>
+
+          <div className="mt-5 border-l-[3px] border-p2b-accent bg-p2b-accent-tint px-6 py-[22px]">
+            <div className="text-[19px] font-bold text-p2b-accent lg:text-[21px]">
+              Price2Book can suggest. You approve.
+            </div>
+            {/* A correctness constraint from POSITIONING.md: nothing here may
+                imply that changing a labor rate silently republishes live
+                homeowner prices. */}
+            <p className="mt-3 text-[15px] leading-[1.6] text-p2b-ink-warm lg:text-base">
+              Change your pricing inputs and Price2Book recalculates a suggestion. A suggested
+              price and a published price are never the same thing until you say so.
             </p>
           </div>
-          <p className="mt-6 text-[15px] leading-[1.6] text-p2b-muted">
-            A suggested price and a published price are never the same thing until you say so.
-          </p>
-        </div>
 
-        <div className="overflow-hidden rounded-[3px] border border-p2b-line bg-white lg:col-span-6">
-          <div className="border-b border-[#EEEAE1] bg-p2b-surface-warm px-6 py-4 text-[15px] font-semibold">
-            Replace Existing Ceiling Fan
-          </div>
-          {PRICE_BREAKDOWN.map((b) => (
-            <div key={b.k}
-                 className="flex items-center justify-between gap-4 border-b border-p2b-line-soft px-6 py-[15px]">
-              <span className="text-[15px] text-p2b-ink-warm">{b.k}</span>
-              <span className="text-right text-[14px] text-p2b-muted lg:text-[15px]">{b.v}</span>
+          <div className="mt-5 overflow-hidden rounded-[3px] border border-p2b-line bg-white">
+            <div className="border-b border-[#EEEAE1] bg-p2b-surface-warm px-5 py-3.5 text-[14px] font-semibold">
+              Replace Existing Ceiling Fan
             </div>
-          ))}
-          <div className="flex items-center justify-between bg-p2b-accent-tint px-6 py-5">
-            <span className="text-[15px] font-semibold text-p2b-accent">Suggested Price</span>
-            <span className="text-2xl font-bold text-p2b-accent">$375</span>
-          </div>
-          <div className="flex items-center justify-between gap-3 border-t border-p2b-line px-6 py-[18px]">
-            <span className="text-[15px] font-semibold">Published Price</span>
-            <div className="flex items-center gap-3.5">
-              <span className="text-xl font-bold">$375</span>
-              <span className="rounded-sm bg-p2b-ink px-3.5 py-1.5 text-[13px] font-semibold text-p2b-canvas">
-                Approved by you
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function Scheduling() {
-  return (
-    <section className="border-t border-p2b-line py-16 lg:py-20">
-      <div className={`${SHELL} grid gap-10 lg:grid-cols-12 lg:items-center`}>
-        <div className="rounded-[3px] border border-p2b-line bg-white px-6 py-7 lg:col-span-7 lg:px-[30px] lg:py-7">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-muted-soft">
-            Thursday
-          </span>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:mt-[18px]">
-            {WINDOWS.map((w) => (
-              <div key={w.time}
-                   className={`rounded-sm border p-4 ${
-                     w.open ? "border-[#CFE3D8] bg-[#F3F9F5]" : "border-p2b-line bg-p2b-surface-warm"}`}>
-                <div className={`text-[15px] font-semibold ${w.open ? "text-p2b-ink" : "text-p2b-faint"}`}>
-                  {w.time}
-                </div>
-                <div className={`mt-2 text-[13px] ${w.open ? "text-p2b-green-deep" : "text-p2b-faint"}`}>
-                  {w.note}
-                </div>
+            {PRICE_BREAKDOWN.map((b) => (
+              <div key={b.k} className="flex items-center justify-between gap-4 border-b border-p2b-line-soft px-5 py-3">
+                <span className="text-[14px] text-p2b-ink-warm">{b.k}</span>
+                <span className="text-right text-[13px] text-p2b-muted">{b.v}</span>
               </div>
             ))}
+            <div className="flex items-center justify-between bg-p2b-accent-tint px-5 py-3.5">
+              <span className="text-[14px] font-semibold text-p2b-accent">Suggested</span>
+              <span className="text-xl font-bold text-p2b-accent">$375</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-p2b-line px-5 py-3.5">
+              <span className="text-[14px] font-semibold">Published</span>
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-bold">$375</span>
+                <span className="rounded-sm bg-p2b-ink px-3 py-1 text-[12px] font-semibold text-p2b-canvas">
+                  Approved by you
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="lg:col-span-5">
-          <h2 className="text-[30px] font-bold leading-[1.1] tracking-[-0.022em] lg:text-[44px]">
+
+        <div>
+          <h3 className="text-[22px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[26px]">
             You decide what can be booked.
-          </h2>
-          <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm lg:mt-6 lg:text-lg">
-            A price isn’t permission to put anything anywhere on your calendar. You choose your working
-            hours, bookable services, eligible crews and available windows.
+          </h3>
+
+          <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+            A price isn’t permission to put anything anywhere on your calendar. Availability
+            reflects your hours, your bookable services, eligible crews and how long the job
+            actually takes.
           </p>
-          <p className="mt-4 text-[15px] leading-[1.6] text-p2b-muted lg:mt-[18px] lg:text-base">
-            Nobody should be able to book a four-hour job when there are only two hours left in the day.
+          <p className="mt-4 text-[15px] leading-[1.6] text-p2b-muted lg:text-base">
+            Nobody should be able to book a four-hour job when there are only two hours left in
+            the day.
           </p>
+
+          <div className="mt-6 rounded-[3px] border border-p2b-line bg-white px-5 py-6 lg:px-6">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-muted-soft">
+              Thursday
+            </span>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {WINDOWS.map((w) => (
+                <div key={w.time}
+                     className={`rounded-sm border p-4 ${
+                       w.open ? "border-[#CFE3D8] bg-[#F3F9F5]" : "border-p2b-line bg-p2b-surface-warm"}`}>
+                  <div className={`text-[15px] font-semibold ${w.open ? "text-p2b-ink" : "text-p2b-faint"}`}>
+                    {w.time}
+                  </div>
+                  <div className={`mt-2 text-[13px] ${w.open ? "text-p2b-green-deep" : "text-p2b-faint"}`}>
+                    {w.note}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </section>

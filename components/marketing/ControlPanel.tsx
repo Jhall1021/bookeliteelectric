@@ -1,4 +1,5 @@
 import Image from "next/image";
+import ScreenshotViewer from "./ScreenshotViewer";
 
 /**
  * "Everything your customer sees traces back to something you control."
@@ -41,31 +42,6 @@ const MODULES = [
   "Photo Review",
 ] as const;
 
-function Tile({ shot, label }: { shot: Shot; label: string }) {
-  if (!shot) {
-    // Not yet presentation-ready. An empty frame is honest; a mocked-up
-    // screenshot of a screen that does not look like this would not be.
-    return (
-      <div className="mt-4 flex h-40 items-center justify-center lg:h-[150px] rounded-sm border border-dashed border-p2b-line-dash text-[13px] text-p2b-faint">
-        Coming soon
-      </div>
-    );
-  }
-  return (
-    <div className="mt-4 overflow-hidden rounded-sm border border-p2b-line bg-white">
-      <Image
-        src={shot.src}
-        alt={shot.alt}
-        width={shot.w}
-        height={shot.h}
-        sizes="(min-width: 1024px) 300px, (min-width: 640px) 45vw, 90vw"
-        className="h-40 w-full object-cover object-top lg:h-[150px]"
-      />
-      <span className="sr-only">{label}</span>
-    </div>
-  );
-}
-
 export default function ControlPanel({ shots }: { shots: ControlPanelShots }) {
   return (
     <section className="border-t border-p2b-line bg-p2b-canvas-alt py-16 lg:py-20">
@@ -94,14 +70,8 @@ export default function ControlPanel({ shots }: { shots: ControlPanelShots }) {
           </figure>
         )}
 
-        <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:mt-11 lg:grid-cols-4 lg:gap-[18px]">
-          {MODULES.map((m) => (
-            <div key={m} className="rounded-[3px] border border-p2b-line bg-white p-5">
-              <div className="text-base font-semibold">{m}</div>
-              <Tile shot={shots.modules[m] ?? null} label={m} />
-            </div>
-          ))}
-        </div>
+        <ScreenshotViewer modules={MODULES} shots={shots.modules} />
+
       </div>
     </section>
   );

@@ -3,11 +3,12 @@ import { MarketingHeader, MarketingFooter } from "@/components/marketing/Chrome"
 import { SIGN_IN_PATH } from "@/components/marketing/content";
 import Hero from "@/components/marketing/Hero";
 import ControlPanel from "@/components/marketing/ControlPanel";
+import HomeownerDemo from "@/components/marketing/HomeownerDemo";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
 import { SHOTS } from "@/components/marketing/shots";
 import {
-  Boundary, ElectricalFirst, Faq, GuidedPricing, GuidedSetup, Integrations, Journey,
-  Outcomes, Pillars, PricingControl, Proof, Scheduling, WhileWereThere,
+  Boundary, Control, ElectricalFirst, Faq, GuidedPricing, GuidedSetup, Integrations,
+  Journey, Outcomes, Pillars, Proof, WhileWereThere,
 } from "@/components/marketing/Sections";
 
 /**
@@ -36,6 +37,11 @@ export default function HomePage() {
       <main>
         <Hero />
         <Pillars />
+
+        {/* The demo sits high on purpose. It explains the product faster than
+            the sections below it describe the product. */}
+        <HomeownerDemo />
+
         <Journey />
 
         {/* Moved up from two-thirds down the page. The real storefront and the
@@ -46,8 +52,7 @@ export default function HomePage() {
         <GuidedPricing />
         <Outcomes />
         <WhileWereThere />
-        <PricingControl />
-        <Scheduling />
+        <Control />
         <Boundary />
         <Integrations />
         <ElectricalFirst />

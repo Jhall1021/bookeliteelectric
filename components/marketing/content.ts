@@ -21,7 +21,9 @@ export const HERO = {
   body:
     "Turn homeowner requests into safely priced, bookable work. Customers describe what they need, answer the questions that affect scope, and see your approved price and real availability — without replacing the software you already use.",
   primaryCta: "Request Early Access",
-  secondaryCta: "See the Homeowner Experience",
+  // Was "See the Homeowner Experience", which scrolled to four written steps.
+  // A description of an experience is not one. It now runs the real flow.
+  secondaryCta: "Try the Homeowner Demo",
   support: "Works alongside your existing business software.",
   supportEmphasis: "No new CRM required.",
   // "Proven first in electrical" contradicted the proof section further down,

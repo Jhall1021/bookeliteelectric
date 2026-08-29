@@ -37,7 +37,7 @@ export default function Hero() {
                className="rounded-sm bg-p2b-accent px-[30px] py-4 text-center text-base font-semibold text-p2b-canvas hover:bg-p2b-accent-hover">
               {HERO.primaryCta}
             </a>
-            <a href="#how"
+            <a href="#demo"
                className="rounded-sm border border-p2b-ink px-[30px] py-4 text-center text-[15px] font-medium text-p2b-ink hover:border-p2b-accent hover:text-p2b-accent sm:border-0 sm:px-0 sm:py-0 sm:text-base">
               {HERO.secondaryCta} <span aria-hidden="true">→</span>
             </a>
