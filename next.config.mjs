@@ -17,8 +17,32 @@
  * Elite implicitly from a soleContractorId fallback, which would have been the
  * easy version and would have left a second, unaddressed way to reach one
  * tenant's catalog.
+ *
+ * HOST-SCOPED — ADR-019.
+ *
+ * These are compatibility for ELITE'S domain and must never fire on
+ * Price2Book's. `/` redirecting to Elite is correct on bookeliteelectric.com
+ * and catastrophic on price2book.com, where it would send anyone typing the
+ * product's name straight into one contractor's booking storefront instead of
+ * the marketing site.
+ *
+ * Expressed as an EXCLUSION rather than an allowlist, deliberately. An
+ * allowlist of Elite hosts would silently drop the redirects on any host
+ * nobody remembered to add — a preview URL, a new alias — and the symptom
+ * would be a customer's bookmarked link 404ing. The failure mode of the
+ * exclusion is the safer direction: an unknown host keeps the compatibility
+ * behaviour, and only Price2Book's own hosts are carved out.
  */
 const LEGACY_SITE = "elite-electric";
+
+/**
+ * Any Price2Book host: the apex, www, app, and anything else under the domain.
+ * Next matches `value` as a regex against the Host header.
+ */
+const PRICE2BOOK_HOST = "(.*\\.)?price2book\\.com";
+
+/** Applied to every legacy redirect: fire UNLESS this is a Price2Book host. */
+const NOT_PRICE2BOOK = [{ type: "host", value: PRICE2BOOK_HOST }];
 
 const nextConfig = {
   images: {
@@ -28,7 +52,7 @@ const nextConfig = {
     ],
   },
   async redirects() {
-    return [
+    const legacy = [
       { source: "/", destination: `/${LEGACY_SITE}`, permanent: false },
       { source: "/services", destination: `/${LEGACY_SITE}/services`, permanent: false },
       {
@@ -56,6 +80,11 @@ const nextConfig = {
       { source: "/how-it-works", destination: `/${LEGACY_SITE}/how-it-works`, permanent: false },
       { source: "/why-elite", destination: `/${LEGACY_SITE}/why-elite`, permanent: false },
     ];
+
+    // Applied in ONE place, so a redirect added later cannot forget the
+    // scoping — the failure would be silent and only visible on the marketing
+    // host, which is the host nobody tests legacy links against.
+    return legacy.map((r) => ({ ...r, missing: NOT_PRICE2BOOK }));
   },
 };
 
