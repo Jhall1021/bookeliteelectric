@@ -104,6 +104,14 @@ async function main() {
   const primary = suggestPrimaryPrice(inputs, settings);
   const wwt = suggestWwtPrice(inputs, settings);
 
+  // The engine returns null when it cannot price something. Publishing that as
+  // a number is the failure this whole exercise is about.
+  if (primary.totalCents === null || wwt.totalCents === null) {
+    console.error(`  The engine produced no price. Refusing to publish one it`);
+    console.error(`  cannot derive.\n`);
+    process.exit(1);
+  }
+
   console.log(`  ${svc.name.trim()}`);
   console.log(`      ${svc.active ? "active" : "inactive"}  ${svc.bookingType}`);
   console.log(`      recipe: ${svc.materials.map((m) => `${m.canonicalMaterial?.key ?? "?"} x${m.quantity}`).join(", ") || "(none)"}`);

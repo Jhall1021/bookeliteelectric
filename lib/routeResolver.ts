@@ -40,6 +40,7 @@ import {
   canonicalComponentIdsIn,
   type OwnComponentMap,
 } from "./contractorComponents";
+import { findTroubleshootingService } from "./troubleshooting";
 import {
   disclaimerIsActive,
   disclaimerAccessClass,
@@ -79,6 +80,18 @@ export type ResolvedRoute =
     }
   | {
       status: "REROUTE";
+      /**
+       * WHY the hand-off happened, because the two kinds are not the same
+       * journey and a caller that treats them alike gets one of them wrong.
+       *
+       *   SERVICE         the customer's answers still apply — they were
+       *                   describing the destination's job all along, so the
+       *                   answers travel with them.
+       *   TROUBLESHOOTING the customer is being told we don't yet know what
+       *                   the job IS. The diagnostic has its own tree and
+       *                   none of these answers belong to it.
+       */
+      via: "SERVICE" | "TROUBLESHOOTING";
       targetServiceId: string;
       carriedAnswers: Record<string, string>;
     }
@@ -202,7 +215,40 @@ export async function loadServiceForResolution(db: PrismaClient, serviceId: stri
       : [],
   );
 
-  return { ...service, ownComponents, ownMaterialCosts };
+  /**
+   * The contractor's diagnostic service, when this tree can send anyone there.
+   *
+   * A FIFTH tenant-rooted top-level query, and only when it is needed: most
+   * trees have no REROUTE_TROUBLESHOOTING option at all, and a query on every
+   * resolution to answer a question the tree never asks is waste.
+   *
+   * `resolveRoute` is a pure function — it cannot look this up when it reaches
+   * the answer, so the lookup happens here and the result travels with the
+   * service. Scoped to `owner.contractorId`, which is what makes it impossible
+   * for one contractor's tree to resolve to another's diagnostic.
+   *
+   * Both failure shapes stay distinguishable from "not needed": null with a
+   * problem string means we asked and could not answer, and the resolver
+   * refuses. Null with no problem means nothing in this tree ever asks.
+   */
+  const routesToTroubleshooting = service.questions.some((q) =>
+    q.options.some((o) => o.routeAction === "REROUTE_TROUBLESHOOTING")
+  );
+  let troubleshootingServiceId: string | null = null;
+  let troubleshootingProblem: string | null = null;
+  if (routesToTroubleshooting) {
+    const found = await findTroubleshootingService(db, owner.contractorId);
+    if (found.ok) troubleshootingServiceId = found.service.id;
+    else troubleshootingProblem = found.problem;
+  }
+
+  return {
+    ...service,
+    ownComponents,
+    ownMaterialCosts,
+    troubleshootingServiceId,
+    troubleshootingProblem,
+  };
 }
 
 type LoadedService = NonNullable<Awaited<ReturnType<typeof loadServiceForResolution>>>;
@@ -326,11 +372,48 @@ export function resolveRoute(
 
     // Reroutes stop the walk. The target service prices it, with whatever
     // answers still apply carried across.
-    if (option.routeAction === "REROUTE_SERVICE" || option.routeAction === "REROUTE_TROUBLESHOOTING") {
+    //
+    // The two reroute actions carry their destination DIFFERENTLY, and
+    // collapsing them into one rule is what broke this. REROUTE_SERVICE names
+    // a specific other service on the answer row. REROUTE_TROUBLESHOOTING
+    // names a ROLE — "this is a diagnostic job" — and the contractor's own
+    // diagnostic service is looked up from that role. Requiring an explicit id
+    // for the second treated a deliberate design as missing data, and marked
+    // 47 of the commonest answers a homeowner gives ("it stopped working",
+    // "I'm not sure what's wrong") INVALID on the server while the storefront
+    // showed the customer the hand-off.
+    if (option.routeAction === "REROUTE_SERVICE") {
       if (!option.rerouteServiceId) {
         return { status: "INVALID", reason: `Reroute from "${current.key}" has no target service` };
       }
-      return { status: "REROUTE", targetServiceId: option.rerouteServiceId, carriedAnswers: answers };
+      return {
+        status: "REROUTE",
+        via: "SERVICE",
+        targetServiceId: option.rerouteServiceId,
+        carriedAnswers: answers,
+      };
+    }
+
+    if (option.routeAction === "REROUTE_TROUBLESHOOTING") {
+      // Resolved at load time against THIS service's contractor, so a
+      // contractor can never be handed another contractor's diagnostic.
+      if (!service.troubleshootingServiceId) {
+        return {
+          status: "INVALID",
+          reason:
+            `"${current.key}" routes to troubleshooting, but ` +
+            `${service.troubleshootingProblem ?? "no diagnostic service was resolved"}`,
+        };
+      }
+      return {
+        status: "REROUTE",
+        via: "TROUBLESHOOTING",
+        targetServiceId: service.troubleshootingServiceId,
+        // Deliberately empty. These answers describe a service the customer
+        // turns out not to be booking; the diagnostic asks its own questions.
+        // Carrying them would look like continuity and be noise.
+        carriedAnswers: {},
+      };
     }
 
     // applyBranch returns the new configuration directly — it isn't wrapped.

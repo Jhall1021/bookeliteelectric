@@ -15,14 +15,24 @@ export async function pathProof(slug = "elite-electric") {
   const svcs = await prisma.service.findMany({
     where: { contractorId: c.id, active: true }, select: { id: true, slug: true },
   });
-  const out: Record<string, { priced: number; review: number; other: number; prices: number[] }> = {};
+  /**
+   * `handoff` used to be inside `other`, which is how 47 troubleshooting
+   * routes hid for as long as they did: the bucket was named for what it was
+   * not, so nothing in it ever looked wrong. A reroute is a real outcome the
+   * customer experiences — it gets counted as one, and `other` goes back to
+   * meaning what its name says.
+   */
+  const out: Record<
+    string,
+    { priced: number; review: number; handoff: number; other: number; prices: number[] }
+  > = {};
   for (const row of svcs) {
     const svc = await loadServiceForResolution(prisma as any, row.id);
     if (!svc) continue;
     const byId = new Map(svc.questions.map((q) => [q.id, q]));
     const nk = (o: any) =>
       o.routeAction === "CONTINUE" && o.nextQuestionId ? byId.get(o.nextQuestionId)?.key ?? null : null;
-    let priced = 0, review = 0, other = 0, paths = 0;
+    let priced = 0, review = 0, handoff = 0, other = 0, paths = 0;
     const prices = new Set<number>();
     const walk = (k: string | null, ans: Record<string, string>) => {
       if (paths > 4000) return;
@@ -30,7 +40,9 @@ export async function pathProof(slug = "elite-electric") {
         paths++;
         const r = resolveRoute(svc as any, ans, true, settings!);
         if (r.status === "PRICED") { priced++; prices.add(r.priceCents); }
-        else if (r.status === "REVIEW") review++; else other++;
+        else if (r.status === "REVIEW") review++;
+        else if (r.status === "REROUTE") handoff++;
+        else other++;
         return;
       }
       const q = svc.questions.find((x) => x.key === k);
@@ -38,7 +50,7 @@ export async function pathProof(slug = "elite-electric") {
       for (const o of q.options) walk(nk(o), { ...ans, [q.key]: o.value });
     };
     walk(svc.questions[0]?.key ?? null, {});
-    out[row.slug] = { priced, review, other, prices: [...prices].sort((a, b) => a - b) };
+    out[row.slug] = { priced, review, handoff, other, prices: [...prices].sort((a, b) => a - b) };
   }
   await prisma.$disconnect();
   return out;

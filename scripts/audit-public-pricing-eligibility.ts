@@ -106,17 +106,11 @@ async function main() {
             return;
           }
 
-          // GuidedFlowEngine.tsx treats REROUTE_TROUBLESHOOTING as a terminal
-          // that hands the customer to electrical-troubleshooting, and needs
-          // no rerouteServiceId to do it. routeResolver.ts requires one and
-          // calls it INVALID without it. The customer sees the hand-off; only
-          // server-side resolution and offline tree walks see the INVALID.
-          // Scored as the hand-off the customer actually gets, and reported
-          // as a divergence rather than hidden in a bucket.
-          if (r.status === "INVALID" && /Reroute from .* has no target service/.test(String(r.reason))) {
-            handoff++;
-            return;
-          }
+          // The REROUTE_TROUBLESHOOTING special case that used to live here is
+          // gone: the resolver now returns a real REROUTE for those, handled
+          // above. Kept as a note because its absence is the point — this
+          // audit no longer has to know about a divergence that no longer
+          // exists. See scripts/verify-troubleshooting-route.ts.
 
           if (r.status === "PRICED") priced++;
           else if (r.status === "REVIEW") review++;

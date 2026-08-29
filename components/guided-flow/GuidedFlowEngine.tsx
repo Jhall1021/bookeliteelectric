@@ -82,7 +82,20 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // sent there from a failed outlet swap was quoted one number and charged
   // another. Read it from the service instead; the hardcode was the bug, not
   // the specific figure.
-  const [troubleshootingCents, setTroubleshootingCents] = useState<number | null>(null);
+  /**
+   * The contractor's diagnostic service, resolved by the server.
+   *
+   * Was a bare price fetched from a hard-coded Elite slug, with the button's
+   * URL hard-coded separately. Both are now the one thing the server resolved
+   * by ROLE, so the destination shown here is the destination /api/visit would
+   * send the customer to. `null` means the lookup has not answered yet or
+   * refused — the button fails closed rather than guessing a URL.
+   */
+  const [troubleshooting, setTroubleshooting] = useState<{
+    /** Relative to the storefront root. Built by the server, not from parts. */
+    path: string;
+    basePrice: number | null;
+  } | null>(null);
   // Stored under a reserved key in answersSnapshot rather than its own column
   // — it's part of the record of what the customer told us, same as any
   // answer, and it reaches the job sheet without extra plumbing.
@@ -302,13 +315,28 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           },
         };
       case "REROUTE_SERVICE":
+        // A reroute with no target used to fall through to a PRICED job at the
+        // running total — the customer booked and paid for a service the tree
+        // had just decided they were not buying. The server calls that INVALID,
+        // so the storefront was the lenient one. Uncertain scope is a review,
+        // and our own missing data is uncertain scope.
+        if (!option.rerouteServiceId) {
+          return {
+            kind: "terminal",
+            config: nextConfig,
+            state: {
+              kind: "photo_review",
+              blocking: true,
+              message: "We need to look at this one before we can price it.",
+              labels: option.requiredPhotoLabels,
+              safetyNotes: option.photoSafetyNotes,
+            },
+          };
+        }
         return {
           kind: "terminal",
           config: nextConfig,
-          state: option.rerouteServiceId
-            ? { kind: "reroute", serviceId: option.rerouteServiceId, reason: option.label }
-            : { kind: "resolved", priceCents: total, disclaimer: null,
-                addedCrewHours: nextConfig.addedCrewHours },
+          state: { kind: "reroute", serviceId: option.rerouteServiceId, reason: option.label },
         };
       default:
         return {
@@ -412,10 +440,17 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
     if (result.state.kind === "troubleshooting") {
       // Fetched on demand rather than up front — most flows never reach it.
-      siteFetch("/api/services/electrical-troubleshooting")
-        .then((r) => r.json())
-        .then((t: { basePrice?: number }) => setTroubleshootingCents(t?.basePrice ?? null))
-        .catch(() => setTroubleshootingCents(null));
+      // By role: this storefront's diagnostic, whatever it is called.
+      siteFetch("/api/troubleshooting")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((t) =>
+          setTroubleshooting(
+            t && typeof t.path === "string"
+              ? { path: t.path, basePrice: t.basePrice ?? null }
+              : null
+          )
+        )
+        .catch(() => setTroubleshooting(null));
     }
 
     setConfig(result.config);
@@ -588,18 +623,30 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         )}
         <p className="mt-2 text-slate">
           Based on your answer, we'd rather diagnose the issue first than have you book the
-          wrong repair. Our Electrical Troubleshooting visit
-          {troubleshootingCents !== null ? ` is ${formatCents(troubleshootingCents)},` : ""} includes
+          wrong repair. Our diagnostic visit
+          {troubleshooting?.basePrice != null ? ` is ${formatCents(troubleshooting.basePrice)},` : ""} includes
           the visit and the first 60 minutes of diagnostic time.
         </p>
-        <button
-          onClick={() => router.push(`${base}/services/panels-troubleshooting/electrical-troubleshooting`)}
-          className="mt-6 rounded-pill bg-electric px-7 py-3 font-semibold text-white hover:bg-electric-hover"
-        >
-          {troubleshootingCents !== null
-            ? `Book Troubleshooting — ${formatCents(troubleshootingCents)}`
-            : "Book Troubleshooting"}
-        </button>
+        {/*
+          No button until the server has said where it goes. A "Book
+          Troubleshooting" button built from a guessed URL is worse than no
+          button: it looks like the hand-off worked and lands on a 404. The
+          same refusal the resolver makes, made visibly.
+        */}
+        {troubleshooting ? (
+          <button
+            onClick={() => router.push(`${base}/${troubleshooting.path}`)}
+            className="mt-6 rounded-pill bg-electric px-7 py-3 font-semibold text-white hover:bg-electric-hover"
+          >
+            {troubleshooting.basePrice != null
+              ? `Book Troubleshooting — ${formatCents(troubleshooting.basePrice)}`
+              : "Book Troubleshooting"}
+          </button>
+        ) : (
+          <p className="mt-6 text-sm text-slate">
+            Give us a call and we'll get a diagnostic visit on the books.
+          </p>
+        )}
       </div>
     );
   }
