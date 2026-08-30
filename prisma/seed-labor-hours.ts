@@ -170,7 +170,6 @@ const QUOTE = [
   "outdoor-landscape-lighting",
   "under-cabinet-led-lighting",
   "200a-service-upgrade",
-  "electrical-panel-replacement",
   "hot-tub-spa-electrical",
   "pool-equipment-electrical",
 ];
@@ -186,6 +185,10 @@ const QUOTE = [
  *                                                        (scoped and derived;
  *                                                         unpublished pending
  *                                                         the copper recheck)
+ *   electrical-panel-replacement            6.0h  —      29 Aug Phase F rescue
+ *                                                        (PROVISIONAL hours;
+ *                                                         derived $2,155, held
+ *                                                         for inspection)
  *
  * Each gained a bounded scope, real crew-hours and a derived price. Leaving
  * them here would have nulled the hours under the price on the next full run
