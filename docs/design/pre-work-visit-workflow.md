@@ -218,3 +218,92 @@ service-specific workflow in production without special-casing anything.
 **The 200A-only path is avoidable, and cheaply.** What is not avoidable is
 payment: the deposit is the one part of this workflow with nothing underneath
 it.
+
+
+---
+
+# Approved, with two refinements — 29 August 2026
+
+The three-piece architecture above is accepted. **Built dormant** in this
+change: schema, gating rule and proof, with `requiresPreWorkVisit = false` on
+every service so nothing reaches it.
+
+**Public activation waits for real payment.** The interim product — the
+workflow without the deposit — is explicitly not shipping. The intended
+experience requires the $249 commitment, and a booking page that promises a
+deposit it cannot take is not a smaller version of the product.
+
+## Refinement 1 — scope state, not a boolean
+
+`outOfScopeFound: Boolean` is replaced by `PreWorkScopeState`:
+
+| state | installation |
+|---|---|
+| `PENDING_VERIFICATION` | blocked — the visit has not happened |
+| `STANDARD_SCOPE_VERIFIED` | **allowed** at the booked price |
+| `OUT_OF_SCOPE_REVIEW` | blocked until a person resolves it |
+| `EXCEPTION_RESOLVED` | allowed |
+
+A boolean could say something was wrong but not whether anybody had dealt with
+it, and *found but resolved* is the state that decides whether work may
+proceed. `installationMayProceed()` in `lib/preWorkVisit.ts` is the rule, and
+an unrecognized state **blocks** rather than falling through — adding a state
+has to mean deciding what it does.
+
+**The visit still never changes the price.** Reaching `OUT_OF_SCOPE_REVIEW` is
+what opens a change-approval conversation; it is not an adjustment somebody
+makes on site.
+
+## Refinement 2 — Price2Book does not schedule the installation
+
+V1 is:
+
+```
+fixed-price booking -> $249 deposit -> pre-work appointment
+                    -> permit/prerequisites -> contractor coordinates installation
+```
+
+The customer schedules the **pre-work visit** at checkout, and nothing else.
+For a Jobber-connected contractor the installation stays in their normal Jobber
+workflow. `AppointmentKind` carries `INSTALLATION` structurally so the model
+does not have to change later, but **no dispatch module is being built** to
+support it.
+
+## Deposit — real accounting, not a status string
+
+```
+booked total − deposit paid = remaining project balance
+```
+
+`depositCents` lives on **Service**, because $249 is Elite's decision about two
+of their services rather than a platform constant. It is credited toward the
+project: not the site-visit fee, not the permit fee. It will not be represented
+through the free-text `paymentStatus` field, which is a separate change.
+
+## The release conditions
+
+`electrical-panel-replacement` and `200a-service-upgrade` opt in first, and
+**both stay unpublished** until all six hold:
+
+1. provisional labor assumptions approved (6 h and 8 h)
+2. pre-work workflow complete
+3. deposit collection works
+4. checkout atomicity covers Appointment + PreWorkVisit + payment state
+5. Jobber behavior proven
+6. all existing normal booking flows proven unchanged
+
+Built as **isolated logical changes** — payment, appointment remodeling and
+public activation do not land together.
+
+## What this change contains
+
+Schema only, plus the rule and its proof. `Appointment` and `PreWorkVisit` are
+classified in `lib/tenantGuard.ts` as derived through `Booking -> Visit`, the
+same chain `LineItem` and `Booking` already use.
+
+`verify-pre-work-visit.ts` proves both halves: the gating rule for every state,
+and that **nothing is using any of it** — no service opted in, no rows, and all
+24 bookings still carrying the arrival window they always had. The argument for
+building ahead of payment was that the defaults make it unreachable, and that
+argument is only as good as the fact, so the fact is checked rather than
+asserted.

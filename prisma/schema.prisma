@@ -1507,6 +1507,37 @@ model Service {
   contractorId          String
   contractor            Contractor          @relation(fields: [contractorId], references: [id], onDelete: Restrict)
 
+  /// PRE-WORK VISIT WORKFLOW — opt-in, per service.
+  ///
+  /// Some fixed-price jobs can be sold confidently online but still need
+  /// physical verification before installation: a 200A service upgrade is
+  /// priced from a bounded scope the homeowner confirmed, and somebody still
+  /// has to stand in front of the meter before a permit is filed.
+  ///
+  /// FALSE ON EVERY EXISTING SERVICE, and that is the safety property rather
+  /// than a default nobody thought about. A service that has not opted in
+  /// takes the identical code path it took before this existed, so the
+  /// migration that introduced the workflow could not change any behavior.
+  requiresPreWorkVisit Boolean @default(false)
+
+  /// Contractor economics, not a platform constant. Elite's $249 is Elite's
+  /// decision about two of their services; another contractor's number will
+  /// differ, and neither is the product's to assert.
+  ///
+  /// Credited toward the project — it is not a site-visit fee and not the
+  /// permit fee, both of which would be a different promise to the customer.
+  depositCents         Int?
+  depositCreditsToJob  Boolean @default(true)
+
+  /// How long the verification visit takes. Distinct from estimatedMinutes,
+  /// which describes the INSTALLATION.
+  preWorkVisitMinutes  Int?
+
+  /// Whether installation may be scheduled before the pre-work visit has
+  /// verified the scope. Default true: the point of the visit is that what
+  /// follows depends on it.
+  installationRequiresPreWorkCompletion Boolean @default(true)
+
   materialCostCents Int?
 
   /// Whether every material ROLE this service requires resolves to a cost
@@ -2027,6 +2058,10 @@ model Booking {
   jobberJobId              String?
   status                   BookingStatus           @default(SCHEDULED)
   troubleshootingSession   TroubleshootingSession?
+  /// Additive. `arrivalWindowId` above is untouched and still the appointment
+  /// every existing booking has; these are the expand-phase representation.
+  appointments             Appointment[]
+  preWorkVisit             PreWorkVisit?
   createdAt                DateTime                @default(now())
 
   @@map("bookings")
@@ -2145,6 +2180,7 @@ model ArrivalWindow {
   capacityTotal  Int
   capacityBooked Int         @default(0)
   bookings       Booking[]
+  appointments   Appointment[]
 
   // Closes the checkout find-or-create race. The constraint alone does not
   // fix it — it converts two silent successes into one success and one
@@ -2157,6 +2193,102 @@ model ArrivalWindow {
 // ---------------------------------------------------------------------------
 // Troubleshooting ($249 diagnostic service)
 // ---------------------------------------------------------------------------
+
+enum AppointmentKind {
+  /// The verification visit. Scheduled at booking for an opted-in service.
+  PRE_WORK
+  /// The work itself. Structurally supported so the model does not have to
+  /// change later — but Price2Book does not own second-stage scheduling in
+  /// V1: for a Jobber-connected contractor the installation is coordinated in
+  /// their normal Jobber workflow, and building a dispatch module to avoid
+  /// that would be inventing a product nobody asked for.
+  INSTALLATION
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELED
+}
+
+/// What the pre-work visit established, as a state rather than a flag.
+///
+/// A boolean `outOfScopeFound` could say something was wrong but not whether
+/// anybody had dealt with it, and "found but resolved" is the state that
+/// decides whether installation may proceed. Four states, because three of
+/// them gate something different.
+enum PreWorkScopeState {
+  /// Booked, visit not yet completed. Installation blocked.
+  PENDING_VERIFICATION
+  /// The home matches the bounded scope that was sold. Installation may
+  /// proceed at the booked price — which is the ordinary outcome, and the
+  /// one the fixed price was a promise about.
+  STANDARD_SCOPE_VERIFIED
+  /// Something genuinely outside the sold scope was found. Installation
+  /// blocked until a person resolves it. THE VISIT ITSELF NEVER CHANGES THE
+  /// PRICE; reaching this state is what opens a change-approval conversation.
+  OUT_OF_SCOPE_REVIEW
+  /// The exception was reviewed and approved. Installation may proceed.
+  EXCEPTION_RESOLVED
+}
+
+/// One appointment on a booking.
+///
+/// ADDITIVE, DELIBERATELY. `Booking.arrivalWindowId` is unchanged and still
+/// carries the appointment every existing booking has. During expand, an
+/// opted-in booking writes BOTH — the legacy field and a PRE_WORK row — so no
+/// existing read changes and no existing row moves. Reads switch later, if the
+/// workflow earns it.
+model Appointment {
+  id              String            @id @default(cuid())
+  bookingId       String
+  booking         Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  kind            AppointmentKind
+  arrivalWindowId String
+  arrivalWindow   ArrivalWindow     @relation(fields: [arrivalWindowId], references: [id])
+  status          AppointmentStatus @default(SCHEDULED)
+  completedAt     DateTime?
+  /// Jobber models a Job as containing Visits, which is this shape exactly.
+  /// Null until the appointment is pushed.
+  jobberVisitId   String?
+  preWorkVisit    PreWorkVisit?
+  createdAt       DateTime          @default(now())
+
+  @@index([bookingId, kind])
+  @@map("appointments")
+}
+
+/// What the pre-work visit is FOR, as distinct from when it is.
+///
+/// Modeled on TroubleshootingSession: a workflow record attached 1:1 to a
+/// booking, holding its own state, and invisible to every booking that does
+/// not have one.
+model PreWorkVisit {
+  id            String            @id @default(cuid())
+  bookingId     String            @unique
+  booking       Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  /// The PRE_WORK appointment, once one is scheduled.
+  appointmentId String?           @unique
+  appointment   Appointment?      @relation(fields: [appointmentId], references: [id])
+
+  scopeState    PreWorkScopeState @default(PENDING_VERIFICATION)
+  completedAt   DateTime?
+  /// What the technician established on site.
+  findings      String?
+  /// Elite can start the permit process as soon as the job is booked, before
+  /// the visit — recorded here because "has the permit been started" is a
+  /// prerequisite question, not a scheduling one.
+  permitStartedAt DateTime?
+
+  /// Set only when scopeState is OUT_OF_SCOPE_REVIEW or beyond.
+  exceptionNote             String?
+  exceptionResolvedAt       DateTime?
+  exceptionResolvedByUserId String?
+
+  createdAt DateTime @default(now())
+
+  @@map("pre_work_visits")
+}
 
 model TroubleshootingSession {
   id                 String   @id @default(cuid())

@@ -308,6 +308,11 @@ export const DERIVED_TENANT_MODELS = new Map<string, readonly string[]>([
   /// Booking be correctly owned through its Visit while pointing at another
   /// contractor's window. The relation now exists, so the owner is reachable.
   ["ArrivalWindow", ["serviceArea"]],
+  /// The pre-work visit workflow, 29 August. Both derive through
+  /// Booking -> Visit — the same chain LineItem and Booking already use, and
+  /// for the same reason: the visit is what says whose booking it is.
+  ["Appointment", ["booking", "visit"]],
+  ["PreWorkVisit", ["booking", "visit"]],
 ]);
 
 /** `["question","service"]` -> `{ question: { service: { contractorId } } }`. */
