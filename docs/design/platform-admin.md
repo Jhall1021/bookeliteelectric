@@ -340,18 +340,155 @@ operation the platform will ever run on itself.
 
 ---
 
-## Open questions for the product decision, not for engineering
+## Decided — 29 August 2026
 
-1. **Contractor lifecycle** — Trial / Active / Past Due / Suspended /
-   Cancelled / Internal. Is that a field on `Contractor`, or derived from
-   billing state with only Suspended stored? Deriving it means Stripe outages
-   change what the console reports.
-2. **What "Attention Needed" counts** (Storyboard 1). It should be
-   contractor-actionable, not everything a verifier can fail.
-3. **Whether `PLATFORM_SUPPORT` may enter a contractor at all**, or only read
-   the health screen. The handoff leans cautious; the schema already reserves
-   the role.
-4. **Elite's re-onboarding fidelity target** — must the rebuilt Elite match
-   today's Elite price-for-price (271 distinct price points), or is it a fresh
-   contractor that happens to be Elite? The first is a far stronger proof and a
-   far harder one, and the answer changes what Guided Setup must capture.
+The four open questions are closed. Recorded here rather than in a reply,
+because the reasons matter more than the answers when this is picked up later.
+
+### 1. Contractor lifecycle is its own field
+
+An explicit enum on `Contractor`, **not** derived from billing:
+
+```
+SETUP · TRIAL · ACTIVE · PAST_DUE · SUSPENDED · CANCELLED · INTERNAL
+```
+
+Billing is an *input* to lifecycle, never lifecycle itself. A contractor can be
+billing-active but manually suspended, comped with no Stripe subscription at
+all, in setup before billing starts, or cancelled and retained for history.
+None of those are expressible as a projection of Stripe, and the console must
+be able to say what state an account is in when Stripe is unreachable.
+
+### 2. "Attention Needed" is strictly actionable
+
+A contractor appears there only when a person at Price2Book should reasonably
+do something today: payment failed · invitation expired · Jobber disconnected ·
+unresolved material costs blocking launch · launch check failing · embed not
+detected after setup · email delivery failing · stuck in onboarding · a
+template update needing deliberate review.
+
+Not every verifier warning. The section answers *"what needs somebody's
+attention today?"* — not *"what technical conditions can the software
+enumerate?"* Those are different lists and only one of them is a work queue.
+
+### 3. `PLATFORM_SUPPORT` enters, but read-only by default
+
+**May:** view the control center, pricing and configuration, health,
+integrations, site and embed status; enter explicit Support Mode; reproduce
+storefront behaviour.
+
+**May not, by default:** change pricing or material costs, provision templates,
+touch billing, activate or suspend a contractor, change platform roles, publish
+template updates.
+
+Safe write actions — "resend invitation", "reconnect integration" — get granted
+**individually and explicitly** if they are ever wanted. Never as general write
+access. This is what `SupportEventKind`'s ENTERED / EXITED / **MUTATED** split
+was designed for: a read-only look and an intervention are different events
+because they are different permissions.
+
+### 4. Elite must rebuild price-for-price
+
+Not "a fresh contractor that happens to be Elite". The target:
+
+> Provision Elite from the canonical Electrical template, complete every
+> contractor-owned decision through normal Guided Setup / Platform Admin, and
+> arrive at the same intended catalogue economics as today's Elite.
+
+**The 271 distinct price points are the regression target**, unless a
+difference is explicitly approved during the migration. `scripts/_pathProof.ts`
+is already the instrument — it has been the before/after proof for every
+migration in this phase, and it walks every resolvable path of every active
+service.
+
+This is the harder proof, and it is the one worth having: if fresh provisioning
+reproduces Elite, then the template holds the trade knowledge, Guided Setup
+captures the contractor policy, contractor costs are sufficient, the engine
+reproduces the economics, and Elite no longer depends on seeds. That is the
+proof Contractor #2 works, obtained before there is a Contractor #2 to risk.
+
+---
+
+## Named milestone — Guided Setup: Pricing Policy Resolution
+
+**Release-blocking, not polish.** Promoted out of the headline finding above
+because it is the bridge between *"here is the Electrical template"* and
+*"this contractor has a usable price book"*.
+
+A provisioned contractor must resolve every `TemplatePolicyDefinition` — the
+included wire length, distance bands, access allowances, height thresholds.
+Ten definitions today; 52 of template v1's 123 service-material rows depend on
+them.
+
+**The UI must not expose these as database objects.** They are commercial
+decisions and should read like them:
+
+> **How much wire is included in your standard new-outlet price?** `25 ft`
+>
+> **When should additional distance pricing begin?** `Over 25 ft`
+>
+> **What ceiling height is included in your standard fixture price?** `Up to 12 ft`
+
+Underneath, those answers create the `ContractorPolicyValue` rows that
+provisioning deliberately omitted. Provisioning is already right to omit them —
+writing 25 ft would ship Elite's allowance to every contractor, and writing 0
+would invent a decision.
+
+**Exit criterion:** a newly provisioned electrical contractor reaches **zero
+unresolved pricing-policy decisions** through normal UI, with no script and no
+database edit.
+
+---
+
+## Locked sequence
+
+1. Finish Electrical Template v1.1
+2. Complete EV charger scope normalisation
+3. Build and lock Guided Setup
+4. **Guided Setup must include `ContractorPolicyValue` resolution for every
+   template policy quantity — release-blocking prerequisite**
+5. Prove a newly provisioned electrical contractor reaches zero unresolved
+   pricing-policy decisions through normal UI
+6. Platform Admin foundation — enforce `PlatformAccess`,
+   `withPlatformContractor`, platform audit, contractor lifecycle, directory,
+   create/invite/provision, onboarding checklist
+7. Hosted-site and embed workflows
+8. Stripe billing
+9. Launch-readiness gate
+10. Re-onboard Elite end-to-end **on a verified Neon rehearsal branch**
+11. Target price-for-price fidelity with current Elite unless a difference is
+    explicitly approved
+12. Fix anything requiring a seed, a script-only path, a direct database edit
+    or an Elite-specific workaround
+13. RC proof
+14. Contractor #2
+
+### Roles, in the order they earn their existence
+
+| role | when |
+|---|---|
+| `PLATFORM_ADMIN` | exists |
+| `PLATFORM_SUPPORT` | with the foundation, at step 6 — read-only by default |
+| `PLATFORM_OWNER` | **when the staff-management screen ships.** Somebody must hold exclusive authority to grant and revoke platform access, and that role should not exist before the screen that needs it |
+| `PLATFORM_BILLING` | step 8, when there is billing to authorise |
+
+### The architecture rule, confirmed as hard
+
+```ts
+withPlatformContractor(platformCtx, contractorId, fn)
+```
+
+Platform authorization resolves **before** the contractor id is trusted; then
+the call enters the same `withContractor` tenant guard every other path uses.
+Platform Admin holds a controlled key into a tenant — never a bypass around
+tenancy. `ContractorMembership` and `PlatformAccess` stay independent, and
+neither is ever derived from the other.
+
+### On the rehearsal
+
+Step 10 runs against a Neon branch, verified by
+`scripts/verify-database-identity.ts`, before it ever runs against
+`price2book-production`. That verifier exists because a rehearsal against a
+database *named* production — which was empty — cost this migration two
+attempts. Deleting and rebuilding Elite is the highest-stakes operation the
+platform will ever perform on itself.
