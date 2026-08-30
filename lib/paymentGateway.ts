@@ -29,16 +29,12 @@ export type AuthorizeArgs = {
   /** Outbound idempotency, so a retried authorize cannot create two holds. */
   idempotencyKey: string;
   /**
-   * The card to hold against.
+   * The card to hold against — the homeowner's, tokenized in the browser.
    *
-   * In production this is the homeowner's payment method, collected by the
-   * checkout UI — which is a later release. Optional so this release can be
-   * exercised end to end with a Stripe test payment method, and so the
-   * eventual UI has somewhere to put a real one without changing the shape.
-   *
-   * WITHOUT IT the intent is created and sits at `requires_payment_method`: a
-   * hold against nothing, which cannot be captured. That is the correct
-   * behavior — an authorization needs something to authorize against.
+   * Optional, and the proof harness passes a Stripe test method. WITHOUT IT
+   * the intent is created and sits at `requires_payment_method`: a hold
+   * against nothing, which cannot be captured. That is the correct behavior —
+   * an authorization needs something to authorize against.
    */
   paymentMethod?: string;
 };
@@ -54,11 +50,33 @@ export type GatewayIntent = {
   id: string;
   status: string;
   amountCents: number;
+  /**
+   * Only ever needed to let Stripe.js finish an authentication challenge on an
+   * intent the SERVER created. It authorizes completing that one intent — not
+   * creating one, and not changing its amount. The browser still cannot author
+   * money movement.
+   */
+  clientSecret?: string | null;
+  /**
+   * Read back on resume to prove the intent presented after authentication is
+   * the one this visit created. NEVER used to establish tenancy — that comes
+   * from the connected account and the session's own visit.
+   */
+  metadata?: Record<string, string>;
 };
 
 export type PaymentGateway = {
   authorizeDeposit(args: AuthorizeArgs): Promise<GatewayIntent>;
   captureDeposit(args: CaptureArgs): Promise<GatewayIntent>;
+  /**
+   * Read an existing authorization back from Stripe. The resume path uses it
+   * to check what actually happened during authentication, rather than
+   * believing what the browser reports about it.
+   */
+  retrieveAuthorization(args: {
+    stripeAccountId: string;
+    paymentIntentId: string;
+  }): Promise<GatewayIntent>;
   /** Best-effort. A hold that is never canceled expires on its own. */
   cancelAuthorization(args: CaptureArgs): Promise<void>;
 };
@@ -79,6 +97,8 @@ export function stripeGateway(): PaymentGateway | null {
     id: pi.id,
     status: pi.status,
     amountCents: pi.amount,
+    clientSecret: pi.client_secret,
+    metadata: pi.metadata ?? {},
   });
 
   return {
@@ -115,6 +135,15 @@ export function stripeGateway(): PaymentGateway | null {
           ...connectedAccountContext(args.stripeAccountId),
           idempotencyKey: args.idempotencyKey,
         }
+      );
+      return toIntent(pi);
+    },
+
+    async retrieveAuthorization(args) {
+      const pi = await stripe.paymentIntents.retrieve(
+        args.paymentIntentId,
+        undefined,
+        connectedAccountContext(args.stripeAccountId)
       );
       return toIntent(pi);
     },

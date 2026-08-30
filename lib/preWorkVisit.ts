@@ -67,10 +67,21 @@ export function installationMayProceed(args: {
   }
 }
 
-/** What the customer is told the deposit is, and is not. */
-export const DEPOSIT_DISCLOSURE = (depositCents: number) =>
+/**
+ * What the customer is told the deposit is, and is not. Shared by every
+ * service that takes one — the deposit promise does not vary by trade.
+ */
+export const DEPOSIT_SENTENCE = (depositCents: number) =>
   `A $${(depositCents / 100).toFixed(0)} deposit is required when booking and will be ` +
-  `applied toward your project. Once booked, we'll begin the permit process and ` +
-  `schedule a brief on-site visit to verify your existing electrical service and ` +
-  `gather everything needed for installation. After the required approvals are ` +
-  `complete, we'll coordinate your installation date.`;
+  `applied toward your project.`;
+
+/**
+ * WHAT COMES AFTER IT IS PER-SERVICE, and lives on `Service.preWorkCustomerNote`.
+ *
+ * It was one constant, which meant every pre-work service promised "we'll begin
+ * the permit process". That is true of a 200-amp service upgrade and is NOT
+ * something to promise for every panel replacement, where permit handling
+ * varies. A promise that holds for one service is not a platform constant, and
+ * the moment it is written as one it gets made to customers it was never
+ * true for.
+ */

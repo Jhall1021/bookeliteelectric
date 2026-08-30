@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSite, useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
-import DepositPayment, { type PaymentMethodCreator } from "./DepositPayment";
+import DepositPayment, { type DepositCardApi } from "./DepositPayment";
 
 type DepositInfo = {
   depositDueCents: number;
@@ -37,7 +37,7 @@ export default function CheckoutDetailsForm() {
   // because "Confirm" on a deposit service before the card field has mounted
   // would submit a booking with no payment method.
   const [deposit, setDeposit] = useState<DepositInfo | null>(null);
-  const createPaymentMethod = useRef<PaymentMethodCreator | null>(null);
+  const cardApi = useRef<DepositCardApi | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -62,13 +62,13 @@ export default function CheckoutDetailsForm() {
     // nothing authorized — rather than somewhere inside checkout.
     let paymentMethodId: string | undefined;
     if (depositDue) {
-      const create = createPaymentMethod.current;
-      if (!create) {
+      const api = cardApi.current;
+      if (!api) {
         setSubmitting(false);
         setError("The payment form isn't ready yet — please wait a moment and try again.");
         return;
       }
-      const result = await create();
+      const result = await api.create();
       if (result.error || !result.paymentMethodId) {
         setSubmitting(false);
         setError(result.error ?? "We couldn't verify that card.");
@@ -77,19 +77,45 @@ export default function CheckoutDetailsForm() {
       paymentMethodId = result.paymentMethodId;
     }
 
-    const res = await siteFetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        date: params.get("date"),
-        windowStart: params.get("windowStart"),
-        windowEnd: params.get("windowEnd"),
-        paymentMethodId,
-      }),
-    });
+    const book = (extra: Record<string, unknown>) =>
+      siteFetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          date: params.get("date"),
+          windowStart: params.get("windowStart"),
+          windowEnd: params.get("windowEnd"),
+          ...extra,
+        }),
+      });
 
-    const data = await res.json();
+    let res = await book({ paymentMethodId });
+    let data = await res.json();
+
+    // The bank wants the cardholder to authenticate. This is a real card, not
+    // a declined one: no booking exists yet, and the SAME intent is waiting.
+    // The customer completes the challenge and we ask the server to finish —
+    // sending the intent id, never a new authorization.
+    if (res.ok && data.requiresAction && typeof data.clientSecret === "string") {
+      const api = cardApi.current;
+      const authed = api
+        ? await api.authenticate(data.clientSecret)
+        : { ok: false, error: "The payment form isn't ready yet — please try again." };
+
+      if (!authed.ok) {
+        setSubmitting(false);
+        // No booking, no capture. The hold expires on its own.
+        setError(authed.error ?? "We couldn't verify you with your bank, so nothing was charged.");
+        return;
+      }
+
+      // The server re-reads the intent from Stripe and decides. Whatever the
+      // browser believes happened is not the verdict.
+      res = await book({ resumePaymentIntentId: data.paymentIntentId });
+      data = await res.json();
+    }
+
     setSubmitting(false);
 
     if (res.ok && data.bookingId) {
@@ -150,7 +176,7 @@ export default function CheckoutDetailsForm() {
             creditsToJob={deposit.creditsToJob ?? true}
             publishableKey={deposit.publishableKey}
             stripeAccountId={deposit.stripeAccountId}
-            creatorRef={createPaymentMethod}
+            apiRef={cardApi}
           />
         ) : depositDue ? (
           <div className="rounded-card bg-amber-50 p-3 text-sm text-amber-900">

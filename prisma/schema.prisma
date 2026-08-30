@@ -1582,6 +1582,15 @@ model Service {
   /// that has not been given one — this cannot change a button nobody set.
   ctaLabel             String?
 
+  /// What the customer is told happens AFTER booking, for a service whose
+  /// installation cannot be scheduled straight away. Per-service because the
+  /// promise is: a permit process that is routine for one service may not be
+  /// for another, and the wording commits the contractor either way.
+  ///
+  /// Shown after the shared deposit sentence. Null means the service says
+  /// nothing extra, which is correct for everything that books directly.
+  preWorkCustomerNote  String?
+
   /// Contractor economics, not a platform constant. Elite's $249 is Elite's
   /// decision about two of their services; another contractor's number will
   /// differ, and neither is the product's to assert.

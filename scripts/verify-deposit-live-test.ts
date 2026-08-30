@@ -29,7 +29,7 @@ import {
   type V2Account,
 } from "../lib/stripeConnect";
 import { stripeGateway } from "../lib/paymentGateway";
-import { runDepositCheckout, preWorkMayProceed } from "../lib/depositFlow";
+import { runDepositCheckout, resumeDepositCheckout, preWorkMayProceed } from "../lib/depositFlow";
 import { recordCapture } from "../lib/depositRecording";
 import { tenantForConnectEvent } from "../lib/stripeWebhook";
 import { reconcile } from "../lib/paymentLedger";
@@ -248,6 +248,75 @@ async function main() {
   ok(`15. the ledger reports the capture`, r.netPaidCents === TEST_CENTS, `${r.netPaidCents}`);
   ok(`16. no path reached BALANCE_DUE or SETTLED`,
     !["BALANCE_DUE", "SETTLED"].includes(final.paymentState), final.paymentState);
+
+  // ── 17-21: a REAL card whose bank demands authentication ───────────────
+  //
+  // `pm_card_authenticationRequired` is Stripe's test card for 3-D Secure. It
+  // is not a declined card, and the point of these checks is that Stripe
+  // itself says so — the earlier proofs use a fake gateway that returns
+  // whatever it is told to.
+  //
+  // The challenge itself needs a browser, so this proves the half that can be
+  // proven headlessly: the customer gets a way through, and NOTHING commits
+  // until they take it.
+  const authIdem = `e2e_3ds_${booking.id}`;
+  let authWroteBooking = false;
+  const authAttempt = await runDepositCheckout(
+    {
+      stripeAccountId: contractor.stripeAccountId,
+      amountCents: TEST_CENTS,
+      idempotencyKey: authIdem,
+      metadata: { price2book_visit_id: `e2e_${booking.id}` },
+      paymentMethod: "pm_card_authenticationRequired",
+    },
+    {
+      gateway, connect: refreshed,
+      writeLocal: async () => { authWroteBooking = true; return booking.id; },
+      recordCapture: async () => {},
+      recordCaptureFailure: async () => {},
+    }
+  );
+
+  ok(`17. Stripe reports a real card as needing authentication, not declined`,
+    authAttempt.outcome === "requires_action", authAttempt.outcome);
+  ok(`18.   and the customer is given a way to complete it`,
+    authAttempt.outcome === "requires_action" && Boolean(authAttempt.clientSecret));
+  ok(`19.   and NO booking was written`, !authWroteBooking);
+
+  if (authAttempt.outcome === "requires_action") {
+    const pending = await stripe.paymentIntents.retrieve(
+      authAttempt.paymentIntentId, undefined, { stripeAccount: contractor.stripeAccountId }
+    );
+    console.log(`\n  3DS PaymentIntent ${pending.id}  status=${pending.status}  captured=${pending.amount_received}\n`);
+    ok(`20.   and Stripe is holding nothing yet`,
+      pending.status === "requires_action" && pending.amount_received === 0,
+      `${pending.status} / ${pending.amount_received}`);
+
+    // The customer walked away. Resuming without authenticating must refuse.
+    const abandoned = await resumeDepositCheckout(
+      {
+        stripeAccountId: contractor.stripeAccountId,
+        amountCents: TEST_CENTS,
+        idempotencyKey: authIdem,
+        paymentIntentId: authAttempt.paymentIntentId,
+        expectedMetadata: { price2book_visit_id: `e2e_${booking.id}` },
+      },
+      {
+        gateway, connect: refreshed,
+        writeLocal: async () => { authWroteBooking = true; return booking.id; },
+        recordCapture: async () => {}, recordCaptureFailure: async () => {},
+      }
+    );
+    ok(`21. an unauthenticated resume books nothing and captures nothing`,
+      abandoned.outcome === "authorize_failed" && !authWroteBooking, abandoned.outcome);
+
+    // Leave no hold behind on a proof run.
+    await gateway.cancelAuthorization({
+      stripeAccountId: contractor.stripeAccountId,
+      paymentIntentId: authAttempt.paymentIntentId,
+      idempotencyKey: `${authIdem}:cleanup`,
+    }).catch(() => {});
+  }
 
   // ── cleanup ────────────────────────────────────────────────────────────
   await prisma.$executeRawUnsafe(`ALTER TABLE payment_events DISABLE TRIGGER payment_events_append_only`);

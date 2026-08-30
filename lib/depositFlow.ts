@@ -34,6 +34,12 @@ import { connectReadiness, type ConnectFacts } from "./stripeConnect";
 
 export type DepositAttempt =
   | { outcome: "not_ready"; reason: string }
+  /**
+   * The card is real and the bank wants the cardholder to prove it. NOT a
+   * decline: no booking and no capture yet, and the SAME intent is waiting to
+   * be finished. The customer authenticates and comes back to `resumeDeposit`.
+   */
+  | { outcome: "requires_action"; paymentIntentId: string; clientSecret: string }
   | { outcome: "authorize_failed"; error: string }
   | { outcome: "write_failed"; error: string; authorizationCanceled: boolean }
   | { outcome: "capture_failed"; bookingId: string; paymentIntentId: string; error: string }
@@ -94,33 +100,115 @@ export async function runDepositCheckout(
   }
 
   // An authorization that did not COMPLETE is not an authorization, and Stripe
-  // does not throw for one. A card needing 3-D Secure comes back
-  // `requires_action`; a missing card comes back `requires_payment_method`.
-  // Both look like success to a caller that only catches exceptions — and both
-  // would write a booking against money nobody is holding.
+  // does not throw for one — so status is checked, not just exceptions.
   //
-  // This release has no step that can hand the homeowner off to their bank and
-  // resume, so there is nothing to continue: cancel the hold and refuse. The
-  // customer keeps their money and gets no booking, which is the honest
-  // outcome. Adding 3-D Secure is what changes this, not relaxing it.
+  //   requires_action          a REAL card whose bank wants the cardholder to
+  //                            authenticate. Not a decline. The hold is left
+  //                            alive and the customer is sent to finish it.
+  //   anything else            no usable hold (requires_payment_method,
+  //                            processing, canceled...). Cancel and refuse.
+  //
+  // Either way, no booking is written here.
+  if (intent.status === "requires_action") {
+    if (!intent.clientSecret) {
+      // Cannot be finished without one, so it is not a recoverable state —
+      // treat it as the failure it actually is rather than stranding the hold.
+      await cancelQuietly(req, deps, intent.id, "cancel-unfinishable");
+      return { outcome: "authorize_failed", error: "authentication is required but cannot be started" };
+    }
+    return { outcome: "requires_action", paymentIntentId: intent.id, clientSecret: intent.clientSecret };
+  }
+
   if (intent.status !== "requires_capture") {
-    await deps.gateway
-      .cancelAuthorization({
-        stripeAccountId: req.stripeAccountId,
-        paymentIntentId: intent.id,
-        idempotencyKey: `${req.idempotencyKey}:cancel-incomplete`,
-      })
-      .catch(() => {});
+    await cancelQuietly(req, deps, intent.id, "cancel-incomplete");
     return {
       outcome: "authorize_failed",
       error: `the authorization did not complete (${intent.status})`,
     };
   }
 
+  return commitAndCapture(req, deps, intent.id);
+}
+
+/**
+ * The customer has finished authenticating. Take it from there — WITHOUT
+ * authorizing again.
+ *
+ * The browser reports that it completed a challenge. This does not believe it:
+ * the intent is read back from Stripe on the connected account, and it must be
+ * the same intent, for the same visit, for the amount THIS SERVER computed,
+ * and actually be holding money. A browser that lies gets no booking.
+ *
+ * `expectedAmountCents` is recomputed by the caller from the visit's services
+ * rather than carried through the browser, so the server remains the sole
+ * author of the amount across the authentication round trip.
+ */
+export async function resumeDepositCheckout(
+  req: DepositRequest & { paymentIntentId: string; expectedMetadata?: Record<string, string> },
+  deps: DepositFlowDeps
+): Promise<DepositAttempt> {
+  const readiness = connectReadiness(deps.connect);
+  if (!readiness.ready) return { outcome: "not_ready", reason: readiness.reason };
+
+  let intent;
+  try {
+    intent = await deps.gateway.retrieveAuthorization({
+      stripeAccountId: req.stripeAccountId,
+      paymentIntentId: req.paymentIntentId,
+    });
+  } catch (e) {
+    return { outcome: "authorize_failed", error: msg(e) };
+  }
+
+  // The amount is the server's, not the browser's. An intent for a different
+  // amount than this visit owes is not this visit's intent, whatever id was
+  // presented.
+  if (intent.amountCents !== req.amountCents) {
+    return {
+      outcome: "authorize_failed",
+      error: "the authorization does not match the deposit due on this visit",
+    };
+  }
+
+  // Correlation, not tenancy: tenancy already came from the session's own
+  // visit and the connected account. This only refuses an intent belonging to
+  // some OTHER visit on the same account.
+  for (const [k, v] of Object.entries(req.expectedMetadata ?? {})) {
+    if (intent.metadata?.[k] !== v) {
+      return { outcome: "authorize_failed", error: "the authorization belongs to a different checkout" };
+    }
+  }
+
+  // Authentication failed, was abandoned, or never happened. `requires_action`
+  // arriving here means the customer did not finish; there is nothing held.
+  if (intent.status !== "requires_capture") {
+    if (intent.status !== "requires_action") {
+      await cancelQuietly(req, deps, intent.id, "cancel-unauthenticated");
+    }
+    return {
+      outcome: "authorize_failed",
+      error: `authentication did not complete (${intent.status})`,
+    };
+  }
+
+  return commitAndCapture(req, deps, intent.id);
+}
+
+/**
+ * Local transaction, then capture — the ordering the whole design exists to
+ * protect. Both the direct path and the post-authentication path go through
+ * HERE rather than each implementing it, so there is exactly one place where
+ * money is taken and exactly one order it can happen in.
+ */
+async function commitAndCapture(
+  req: DepositRequest,
+  deps: DepositFlowDeps,
+  paymentIntentId: string
+): Promise<DepositAttempt> {
   // ── 2. TRANSACTION ─────────────────────────────────────────────────────
   let bookingId: string;
   try {
-    bookingId = await deps.writeLocal(intent.id);
+    bookingId = await deps.writeLocal(paymentIntentId);
   } catch (e) {
     // The hold is reversible and this is the whole reason for authorizing
     // first. Cancellation is best-effort: an uncanceled hold expires on its
@@ -130,7 +218,7 @@ export async function runDepositCheckout(
     try {
       await deps.gateway.cancelAuthorization({
         stripeAccountId: req.stripeAccountId,
-        paymentIntentId: intent.id,
+        paymentIntentId,
         idempotencyKey: `${req.idempotencyKey}:cancel`,
       });
       canceled = true;
@@ -145,16 +233,32 @@ export async function runDepositCheckout(
   try {
     await deps.gateway.captureDeposit({
       stripeAccountId: req.stripeAccountId,
-      paymentIntentId: intent.id,
+      paymentIntentId,
       idempotencyKey: `${req.idempotencyKey}:capture`,
     });
   } catch (e) {
-    await deps.recordCaptureFailure(bookingId, intent.id, msg(e));
-    return { outcome: "capture_failed", bookingId, paymentIntentId: intent.id, error: msg(e) };
+    await deps.recordCaptureFailure(bookingId, paymentIntentId, msg(e));
+    return { outcome: "capture_failed", bookingId, paymentIntentId, error: msg(e) };
   }
 
-  await deps.recordCapture(bookingId, intent.id);
-  return { outcome: "captured", bookingId, paymentIntentId: intent.id };
+  await deps.recordCapture(bookingId, paymentIntentId);
+  return { outcome: "captured", bookingId, paymentIntentId };
+}
+
+/** Best effort: an uncanceled hold expires on its own. */
+async function cancelQuietly(
+  req: DepositRequest,
+  deps: DepositFlowDeps,
+  paymentIntentId: string,
+  suffix: string
+): Promise<void> {
+  await deps.gateway
+    .cancelAuthorization({
+      stripeAccountId: req.stripeAccountId,
+      paymentIntentId,
+      idempotencyKey: `${req.idempotencyKey}:${suffix}`,
+    })
+    .catch(() => {});
 }
 
 function msg(e: unknown): string {

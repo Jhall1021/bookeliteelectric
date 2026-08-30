@@ -13,7 +13,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { connectReadiness, stripeClient } from "../lib/stripeConnect";
 import { checkCountry } from "../lib/contractorIdentity";
@@ -36,6 +36,17 @@ const CHECKED = new Date("2026-08-29T00:00:00.000Z");
  * destination charge. Twice now a check has failed on the paragraph explaining
  * why it exists. audit-guard-adoption solved this the same way.
  */
+/** Every .ts/.tsx under a directory. */
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const full = `${dir}/${e.name}`;
+    if (e.isDirectory()) { if (e.name !== "node_modules") out.push(...walk(full)); }
+    else out.push(full);
+  }
+  return out;
+}
+
 function stripComments(src: string): string {
   return src
     .split("\n")
@@ -328,6 +339,39 @@ async function main() {
     /automatic_payment_methods:\s*\{\s*enabled:\s*true,\s*allow_redirects:\s*"never"\s*\}/.test(gatewayLib));
   ok(`   and the hold is still authorize-then-capture`,
     /capture_method:\s*"manual"/.test(gatewayLib));
+
+  // ── the publishable key reaches the browser; the secret never can ─────
+  //
+  // Stripe.js cannot mount without a publishable key, and a client component
+  // cannot read server env. The safe way to close that gap is for a SERVER
+  // route to hand the publishable key down. The unsafe ways all look similar
+  // enough to reach for by accident, so they are named here.
+  {
+    const depositRoute = stripComments(readFileSync("app/api/checkout/deposit/route.ts", "utf8"));
+    const cardUi = stripComments(
+      readFileSync("app/[site]/checkout/details/DepositPayment.tsx", "utf8")
+    );
+
+    ok(`the publishable key reaches the browser through a server route`,
+      /process\.env\.STRIPE_PUBLISHABLE_KEY/.test(depositRoute));
+    ok(`   and that route cannot hand back the secret key`,
+      !/STRIPE_SECRET_KEY/.test(depositRoute));
+
+    // A client component reading process.env at all is the shape of the
+    // mistake: whatever it names, it is asking the bundler for a value.
+    ok(`   and the card component reads no environment variable of its own`,
+      !/process\.env/.test(cardUi));
+
+    // The one spelling that WOULD ship a secret to every visitor.
+    const everySource = ["lib", "app", "components", "scripts"]
+      .flatMap((d) => walk(d))
+      .filter((f) => /\.tsx?$/.test(f));
+    const exposed = everySource.filter((f) =>
+      /NEXT_PUBLIC_[A-Z_]*(SECRET|SK_|PRIVATE)/.test(readFileSync(f, "utf8"))
+    );
+    ok(`   and no secret is exposed under a NEXT_PUBLIC_ name`,
+      exposed.length === 0, exposed.join(", "));
+  }
 
   // The direction that fails silently.
   ok(`the payment gateway does NOT inherit the preview version`,

@@ -1,5 +1,5 @@
 import { formatCents } from "@/lib/flow-types";
-import { DEPOSIT_DISCLOSURE } from "@/lib/preWorkVisit";
+import { DEPOSIT_SENTENCE } from "@/lib/preWorkVisit";
 import { notFound } from "next/navigation";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
 
@@ -23,7 +23,10 @@ export default async function ConfirmationPage({
         // What the customer is owed an answer about: did a deposit get taken,
         // and does a pre-work visit come next.
         visit: { include: { lineItems: { include: { service: {
-          select: { requiresPreWorkVisit: true, depositCreditsToJob: true },
+          select: {
+            requiresPreWorkVisit: true, depositCreditsToJob: true,
+            preWorkCustomerNote: true,
+          },
         } } } } },
       },
     })
@@ -33,6 +36,12 @@ export default async function ConfirmationPage({
 
   const services = booking.visit.lineItems.map((li) => li.service);
   const preWorkRequired = services.some((s) => s.requiresPreWorkVisit);
+  // Each service says its own. Deduplicated so a visit carrying two of them
+  // does not repeat a paragraph back at the customer.
+  const preWorkNotes = [...new Set(
+    services.filter((s) => s.requiresPreWorkVisit && s.preWorkCustomerNote)
+            .map((s) => s.preWorkCustomerNote as string)
+  )];
   const creditsToJob = services.every((s) => s.depositCreditsToJob);
   // The STATE decides, not the amount: a booking whose capture failed has a
   // deposit due and no money taken, and must not be told it paid one.
@@ -93,7 +102,10 @@ export default async function ConfirmationPage({
       {preWorkRequired && (
         <div className="mt-6 rounded-card border border-cardline bg-warmwhite p-5 text-left text-sm text-slate">
           <div className="font-semibold text-navy">What happens next</div>
-          <p className="mt-2">{DEPOSIT_DISCLOSURE(booking.depositDueCents ?? 0)}</p>
+          <p className="mt-2">{DEPOSIT_SENTENCE(booking.depositDueCents ?? 0)}</p>
+          {preWorkNotes.map((note) => (
+            <p key={note} className="mt-2">{note}</p>
+          ))}
         </div>
       )}
 

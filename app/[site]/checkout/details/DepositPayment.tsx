@@ -30,7 +30,17 @@ import { useEffect, useMemo, type MutableRefObject } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 
-export type PaymentMethodCreator = () => Promise<{ paymentMethodId?: string; error?: string }>;
+/**
+ * What the form can ask the mounted Stripe instance to do.
+ *
+ * `create` turns the card into a PaymentMethod. `authenticate` finishes a
+ * challenge on an intent the SERVER created and the server named — the browser
+ * never creates one, and cannot change its amount.
+ */
+export type DepositCardApi = {
+  create: () => Promise<{ paymentMethodId?: string; error?: string }>;
+  authenticate: (clientSecret: string) => Promise<{ ok: boolean; error?: string }>;
+};
 
 /** Cached per account: loadStripe must not be called on every render. */
 const stripeCache = new Map<string, ReturnType<typeof loadStripe>>();
@@ -43,39 +53,57 @@ function stripeFor(publishableKey: string, stripeAccount: string) {
   return p;
 }
 
-function CardFields({ creatorRef }: { creatorRef: MutableRefObject<PaymentMethodCreator | null> }) {
+function CardFields({ apiRef }: { apiRef: MutableRefObject<DepositCardApi | null> }) {
   const stripe = useStripe();
   const elements = useElements();
 
   useEffect(() => {
-    if (!stripe || !elements) { creatorRef.current = null; return; }
-    creatorRef.current = async () => {
-      // Runs Stripe's own validation first. Without it, an incomplete card
-      // reaches createPaymentMethod as a generic failure instead of an inline
-      // "your card number is incomplete" on the field itself.
-      const submitted = await elements.submit();
-      if (submitted.error) return { error: submitted.error.message ?? "Please check your card details." };
+    if (!stripe || !elements) { apiRef.current = null; return; }
+    apiRef.current = {
+      async create() {
+        // Runs Stripe's own validation first. Without it, an incomplete card
+        // reaches createPaymentMethod as a generic failure instead of an inline
+        // "your card number is incomplete" on the field itself.
+        const submitted = await elements.submit();
+        if (submitted.error) return { error: submitted.error.message ?? "Please check your card details." };
 
-      const { paymentMethod, error } = await stripe.createPaymentMethod({ elements });
-      if (error || !paymentMethod) {
-        return { error: error?.message ?? "We couldn't verify that card." };
-      }
-      return { paymentMethodId: paymentMethod.id };
+        const { paymentMethod, error } = await stripe.createPaymentMethod({ elements });
+        if (error || !paymentMethod) {
+          return { error: error?.message ?? "We couldn't verify that card." };
+        }
+        return { paymentMethodId: paymentMethod.id };
+      },
+
+      /**
+       * Runs the bank's challenge on the intent the server already created.
+       * `handleNextAction` — NOT `confirmPayment` — because there is nothing
+       * left to confirm: the intent exists, its amount is set, and the only
+       * thing missing is the cardholder proving who they are.
+       *
+       * Its own result is not the verdict. The server re-reads the intent from
+       * Stripe afterwards and decides; this only reports whether the challenge
+       * could be run at all.
+       */
+      async authenticate(clientSecret: string) {
+        const { error } = await stripe.handleNextAction({ clientSecret });
+        if (error) return { ok: false, error: error.message ?? "We couldn't verify you with your bank." };
+        return { ok: true };
+      },
     };
-    return () => { creatorRef.current = null; };
-  }, [stripe, elements, creatorRef]);
+    return () => { apiRef.current = null; };
+  }, [stripe, elements, apiRef]);
 
   return <PaymentElement options={{ layout: "tabs" }} />;
 }
 
 export default function DepositPayment({
-  depositDueCents, creditsToJob, publishableKey, stripeAccountId, creatorRef,
+  depositDueCents, creditsToJob, publishableKey, stripeAccountId, apiRef,
 }: {
   depositDueCents: number;
   creditsToJob: boolean;
   publishableKey: string;
   stripeAccountId: string;
-  creatorRef: MutableRefObject<PaymentMethodCreator | null>;
+  apiRef: MutableRefObject<DepositCardApi | null>;
 }) {
   const options = useMemo(
     () =>
@@ -108,7 +136,7 @@ export default function DepositPayment({
       </p>
       <div className="mt-4">
         <Elements stripe={stripeFor(publishableKey, stripeAccountId)} options={options}>
-          <CardFields creatorRef={creatorRef} />
+          <CardFields apiRef={apiRef} />
         </Elements>
       </div>
       <p className="mt-3 text-xs text-slate">

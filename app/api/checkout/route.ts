@@ -9,7 +9,7 @@ import {
 } from "@/lib/jobber";
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
 import { preWorkProjectConflict, depositDueCentsFor } from "@/lib/paymentLedger";
-import { runDepositCheckout } from "@/lib/depositFlow";
+import { runDepositCheckout, resumeDepositCheckout } from "@/lib/depositFlow";
 import { stripeGateway } from "@/lib/paymentGateway";
 import { recordCapture, recordCaptureFailure } from "@/lib/depositRecording";
 import { sendBookingConfirmationEmail } from "@/lib/email";
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
-  const { name, email, phone, address, zipCode, date, windowStart, windowEnd, paymentMethodId } = body;
+  const { name, email, phone, address, zipCode, date, windowStart, windowEnd, paymentMethodId, resumePaymentIntentId } = body;
 
   // ADR-011. Keyed on the contractor the site resolved to. Unkeyed, a
   // visitor with a cart on another contractor's storefront would have checked
@@ -418,37 +418,63 @@ export async function POST(req: Request) {
       );
     }
 
-    const attempt = await runDepositCheckout(
-      {
-        stripeAccountId: contractor.stripeAccountId ?? "",
-        amountCents: depositDueCents,
-        // Stable for this visit, so a double-submitted checkout cannot create
-        // a second hold or a second capture.
-        idempotencyKey: `visit_${visit.id}`,
-        // The homeowner's card, tokenized in the browser by Stripe. Without it
-        // the authorization comes back `requires_payment_method` and the flow
-        // refuses — which is why this release could not have been published
-        // before the checkout UI existed to supply one.
-        paymentMethod: typeof paymentMethodId === "string" ? paymentMethodId : undefined,
-        metadata: {
-          // Correlation only. Tenancy comes from the connected account on the
-          // way back in, never from this.
-          price2book_visit_id: visit.id,
-          price2book_contractor_id: site.contractorId,
-        },
+    // The SAME metadata on the way out and on the way back. On resume it is
+    // compared against what Stripe actually holds, so an intent id belonging
+    // to another checkout is refused even on the right connected account.
+    const correlation = {
+      // Correlation only. Tenancy comes from the connected account on the
+      // way back in, never from this.
+      price2book_visit_id: visit.id,
+      price2book_contractor_id: site.contractorId,
+    };
+
+    const depositRequest = {
+      stripeAccountId: contractor.stripeAccountId ?? "",
+      // Recomputed on BOTH paths from the services on this visit, so the
+      // browser cannot influence the amount across the authentication round
+      // trip. The server stays the sole author of what is charged.
+      amountCents: depositDueCents,
+      // Stable for this visit, so a double-submitted checkout cannot create
+      // a second hold or a second capture.
+      idempotencyKey: `visit_${visit.id}`,
+      metadata: correlation,
+      // The homeowner's card, tokenized in the browser by Stripe.
+      paymentMethod: typeof paymentMethodId === "string" ? paymentMethodId : undefined,
+    };
+
+    const depositDeps = {
+      gateway,
+      connect: contractor,
+      writeLocal: async (intentId: string) => (await writeCheckout(intentId)).booking.id,
+      recordCapture: async (bookingId: string, intentId: string) => {
+        await recordCapture(prisma, bookingId, intentId, depositDueCents);
       },
-      {
-        gateway,
-        connect: contractor,
-        writeLocal: async (intentId) => (await writeCheckout(intentId)).booking.id,
-        recordCapture: async (bookingId, intentId) => {
-          await recordCapture(prisma, bookingId, intentId, depositDueCents);
-        },
-        recordCaptureFailure: async (bookingId, intentId, error) => {
-          await recordCaptureFailure(prisma, bookingId, intentId, error);
-        },
-      }
-    );
+      recordCaptureFailure: async (bookingId: string, intentId: string, error: string) => {
+        await recordCaptureFailure(prisma, bookingId, intentId, error);
+      },
+    };
+
+    // Two ways in, one ordering. `resume` picks up an intent the customer has
+    // just authenticated — it does NOT authorize again, so the same hold that
+    // was created before the challenge is the one that gets captured.
+    const attempt =
+      typeof resumePaymentIntentId === "string" && resumePaymentIntentId
+        ? await resumeDepositCheckout(
+            { ...depositRequest, paymentIntentId: resumePaymentIntentId, expectedMetadata: correlation },
+            depositDeps
+          )
+        : await runDepositCheckout(depositRequest, depositDeps);
+
+    // The card is real; the bank wants the cardholder to prove it. No booking
+    // exists yet and nothing has been captured. The client secret finishes
+    // THIS intent — it cannot create one or change its amount.
+    if (attempt.outcome === "requires_action") {
+      return NextResponse.json({
+        requiresAction: true,
+        clientSecret: attempt.clientSecret,
+        paymentIntentId: attempt.paymentIntentId,
+      });
+    }
 
     if (attempt.outcome === "not_ready") {
       return NextResponse.json(

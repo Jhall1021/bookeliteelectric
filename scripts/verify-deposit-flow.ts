@@ -16,7 +16,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
-import { runDepositCheckout, preWorkMayProceed } from "../lib/depositFlow";
+import { runDepositCheckout, resumeDepositCheckout, preWorkMayProceed } from "../lib/depositFlow";
 import { recordCapture, recordCaptureFailure } from "../lib/depositRecording";
 import { tenantForConnectEvent } from "../lib/stripeWebhook";
 import type { PaymentGateway, GatewayIntent } from "../lib/paymentGateway";
@@ -45,6 +45,14 @@ function fakeGateway(opts: {
   failCapture?: boolean;
   /** Capture succeeds but the caller never hears — the timeout case. */
   captureSucceedsThenTimesOut?: boolean;
+  /** A real card whose bank wants the cardholder to authenticate. */
+  authorizeRequiresAction?: boolean;
+  /** Omit the client secret, so the challenge cannot be started at all. */
+  withoutClientSecret?: boolean;
+  /** What `retrieveAuthorization` reports after the challenge. */
+  retrieveStatus?: string;
+  retrieveAmountCents?: number;
+  retrieveMetadata?: Record<string, string>;
 } = {}) {
   const calls: string[] = [];
   const keys: string[] = [];
@@ -56,6 +64,15 @@ function fakeGateway(opts: {
       keys.push(a.idempotencyKey);
       if (!a.stripeAccountId) throw new Error("no connected account supplied");
       if (opts.failAuthorize) throw new Error("card declined");
+      if (opts.authorizeRequiresAction) {
+        return {
+          id: "pi_test_1",
+          status: "requires_action",
+          amountCents: a.amountCents,
+          clientSecret: opts.withoutClientSecret ? null : "pi_test_1_secret",
+          metadata: a.metadata ?? {},
+        } as GatewayIntent;
+      }
       return { id: "pi_test_1", status: "requires_capture", amountCents: a.amountCents } as GatewayIntent;
     },
     async captureDeposit(a) {
@@ -68,6 +85,15 @@ function fakeGateway(opts: {
         throw new Error("ETIMEDOUT waiting for response");
       }
       return { id: a.paymentIntentId, status: "succeeded", amountCents: DEPOSIT } as GatewayIntent;
+    },
+    async retrieveAuthorization(a) {
+      calls.push("retrieve");
+      return {
+        id: a.paymentIntentId,
+        status: opts.retrieveStatus ?? "requires_capture",
+        amountCents: opts.retrieveAmountCents ?? DEPOSIT,
+        metadata: opts.retrieveMetadata ?? { price2book_visit_id: "visit_1" },
+      } as GatewayIntent;
     },
     async cancelAuthorization() { calls.push("cancel"); },
   };
@@ -276,6 +302,100 @@ async function main() {
     checkout.indexOf("if (depositDueCents > 0) {") <
       checkout.indexOf("await pushBookingToJobber("),
     "the deposit branch returns before the push block");
+
+  // ── 18-25: cardholder authentication (3-D Secure) ──────────────────────
+  //
+  // `requires_action` is NOT a declined card. It is a real card whose bank
+  // wants the cardholder to prove they are present. The whole point of these
+  // checks is that the customer gets a way through it WITHOUT any of the
+  // ordering guarantees loosening on the way.
+  {
+    const REQ = {
+      stripeAccountId: READY.stripeAccountId!,
+      amountCents: DEPOSIT,
+      idempotencyKey: "visit_3ds",
+      metadata: { price2book_visit_id: "visit_1" },
+    };
+    const deps = (f: ReturnType<typeof fakeGateway>, order: string[]) => ({
+      gateway: f.gateway, connect: READY,
+      writeLocal: async () => { order.push("write"); return "bk_3ds"; },
+      recordCapture: async () => { order.push("record"); },
+      recordCaptureFailure: async () => { order.push("record_failure"); },
+    });
+
+    const order: string[] = [];
+    const f = fakeGateway({ authorizeRequiresAction: true });
+    const r = await runDepositCheckout(REQ, deps(f, order));
+
+    ok(`18. a card needing authentication is not treated as declined`,
+      r.outcome === "requires_action", r.outcome);
+    ok(`19.   and NO booking is written before the customer authenticates`,
+      !order.includes("write"), order.join(" -> ") || "nothing written");
+    ok(`20.   and nothing is captured`, !f.calls.includes("capture"), f.calls.join(" -> "));
+    ok(`21.   and the hold is NOT canceled — it is what gets captured later`,
+      !f.calls.includes("cancel"), f.calls.join(" -> "));
+
+    // The resume path is the one that could quietly undo the design: it must
+    // not authorize again, and it must not trust the browser.
+    const f2 = fakeGateway({});
+    const order2: string[] = [];
+    const r2 = await resumeDepositCheckout(
+      { ...REQ, paymentIntentId: "pi_test_1", expectedMetadata: { price2book_visit_id: "visit_1" } },
+      deps(f2, order2)
+    );
+    ok(`22. after authentication the SAME intent is captured, with no second authorization`,
+      r2.outcome === "captured" && !f2.calls.includes("authorize") &&
+        (r2 as { paymentIntentId: string }).paymentIntentId === "pi_test_1",
+      f2.calls.join(" -> "));
+    ok(`23.   and the local transaction still precedes the capture`,
+      order2.join(",").startsWith("write") && f2.calls.indexOf("capture") > f2.calls.indexOf("retrieve"),
+      `${order2.join(" -> ")} | ${f2.calls.join(" -> ")}`);
+
+    // A browser that finished nothing, or lies about which intent it finished.
+    const f3 = fakeGateway({ retrieveStatus: "requires_action" });
+    const order3: string[] = [];
+    const r3 = await resumeDepositCheckout(
+      { ...REQ, paymentIntentId: "pi_test_1" }, deps(f3, order3)
+    );
+    ok(`24. an abandoned challenge books nothing and captures nothing`,
+      r3.outcome === "authorize_failed" && !order3.includes("write") && !f3.calls.includes("capture"),
+      `${r3.outcome} | ${f3.calls.join(" -> ")}`);
+
+    const f4 = fakeGateway({ retrieveAmountCents: 100 });
+    const order4: string[] = [];
+    const r4 = await resumeDepositCheckout(
+      { ...REQ, paymentIntentId: "pi_test_1" }, deps(f4, order4)
+    );
+    ok(`25. the SERVER's amount decides — an intent for another amount is refused`,
+      r4.outcome === "authorize_failed" && !order4.includes("write"), r4.outcome);
+
+    const f5 = fakeGateway({ retrieveMetadata: { price2book_visit_id: "someone_elses_visit" } });
+    const order5: string[] = [];
+    const r5 = await resumeDepositCheckout(
+      { ...REQ, paymentIntentId: "pi_test_1", expectedMetadata: { price2book_visit_id: "visit_1" } },
+      deps(f5, order5)
+    );
+    ok(`26.   and an intent from another checkout is refused`,
+      r5.outcome === "authorize_failed" && !order5.includes("write"), r5.outcome);
+
+    // Nothing to hand the customer means nothing they can finish.
+    const f6 = fakeGateway({ authorizeRequiresAction: true, withoutClientSecret: true });
+    const order6: string[] = [];
+    const r6 = await runDepositCheckout(REQ, deps(f6, order6));
+    ok(`27. an unfinishable challenge is canceled rather than left stranded`,
+      r6.outcome === "authorize_failed" && f6.calls.includes("cancel"), f6.calls.join(" -> "));
+  }
+
+  // The browser must never be able to name the amount. It sends a payment
+  // method or an intent id; the server recomputes what is due from the visit.
+  {
+    const checkoutSrc = readFileSync("app/api/checkout/route.ts", "utf8");
+    ok(`28. the checkout route never takes an amount from the request body`,
+      !/(amountCents|depositCents)\s*[:=]\s*(body|req)\./.test(checkoutSrc) &&
+        /amountCents: depositDueCents/.test(checkoutSrc));
+    ok(`29.   and the resume path recomputes it rather than trusting the round trip`,
+      /\.\.\.depositRequest, paymentIntentId: resumePaymentIntentId/.test(checkoutSrc));
+  }
 
   console.log();
   if (fail) { console.log(`  ${fail} check(s) failed.\n`); process.exit(1); }
