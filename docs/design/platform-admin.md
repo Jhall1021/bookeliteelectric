@@ -438,6 +438,41 @@ would invent a decision.
 unresolved pricing-policy decisions** through normal UI, with no script and no
 database edit.
 
+### And the larger half of the same milestone: crew-hours
+
+`TemplateService` carries `bookingType`, `photoState`, `requiresTechCount`,
+questions, materials and policies. It carries **no labour hours at all**, and
+`provision-from-template.ts` does not mention `fieldLaborHours` anywhere — it
+arrives null, like every other economic value.
+
+That is the correct design, and it is the schema's own reasoning: how long a
+job takes belongs to the crew doing it, not to the trade. Elite's 6.0 h for a
+panel replacement is Elite's calibration, and shipping it to Contractor #2 as
+fact would be the same mistake as shipping Elite's 25 ft of included wire.
+
+But it means a provisioned contractor has **no hours on any of 75 services**,
+and a service with no hours produces no price. So Guided Setup must capture
+crew-hours as well as policy values, and that is the bigger half by an order of
+magnitude: **10 policy definitions against 75 services**.
+
+Which makes the shape of that flow a real product question rather than a form.
+Asking a contractor for 75 numbers before they can sell anything is not
+onboarding, it is homework. Plausible reductions, in rough order of promise:
+
+1. **Ask per category, not per service.** "How long does a standard outlet
+   swap take your crew?" sets a family, and the outliers get corrected.
+2. **Ask for the ones that carry the most revenue first**, so a contractor can
+   go live on twenty services and finish the tail later.
+3. **Offer Elite's figures as a visible starting point** — clearly labelled as
+   another contractor's, editable, never silent. That is the difference
+   between a default and an assertion.
+
+Option 3 is the one to be careful with. A pre-filled number that nobody reads
+becomes fact, and the whole canonical/contractor split exists to stop exactly
+that. If it is offered, it has to be obviously borrowed and obviously
+editable — and the launch gate should refuse a contractor who never touched
+any of them.
+
 ---
 
 ## Locked sequence
