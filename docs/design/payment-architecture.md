@@ -451,6 +451,58 @@ not "the column is populated". A booking flow that offers a deposit to a
 homeowner whose contractor cannot accept it fails at the worst possible moment
 — after the customer has committed and before anything is recoverable.
 
+## 10c. The account configuration, and what it cost to get wrong
+
+**29 August 2026, found by the first real Stripe call.**
+
+`accounts.create` was written with `controller.fees.payer = "application"`,
+which assigns Stripe's card-processing fees to **the platform**. Stripe
+rejected it:
+
+```
+fees[payer]=application is not supported when creating an account
+with the full dashboard
+```
+
+The 400 was a symptom. The bug was the fee assignment — had the combination
+been legal, it would have shipped, worked perfectly, and billed Price2Book for
+card processing on every homeowner transaction in the country.
+
+### The three properties, each an economic decision
+
+```ts
+controller: {
+  fees:             { payer: "account" },   // the CONTRACTOR pays processing
+  losses:           { payments: "stripe" }, // disputes sit with the contractor
+  stripe_dashboard: { type: "full" },       // a real account they can log into
+}
+```
+
+Together this is what Stripe calls a **Standard** account. Written as explicit
+controller properties rather than `type: "standard"` so the three decisions are
+visible in code instead of implied by a shorthand — and so changing one has to
+be typed on purpose.
+
+**Direct charges are unchanged.** The fix did not move to destination charges,
+which would have made Price2Book merchant of record for every homeowner
+transaction. `verify-stripe-connect` now asserts the absence of
+`on_behalf_of`, `transfer_data` and `application_fee` for that reason.
+
+### Guarded, because it has no symptom
+
+An account created with the wrong fee payer works. Nothing fails, nothing
+warns, and the cost arrives on a statement. Four assertions now run in the
+deploy gate: who pays fees, who bears disputes, who gets the dashboard, and
+that charges are not routed through the platform.
+
+### Noted, not acted on
+
+The same response carried `We recommend building your integration using
+Accounts v2`. That is a recommendation, not the cause — the 400 was specifically
+the fee-payer/full-dashboard conflict, and the current account API expresses the
+approved architecture without difficulty. Migrating APIs opportunistically
+during payment testing would mix two kinds of risk. Worth revisiting on its own.
+
 ## 11. Contractor-owned vs platform-owned
 
 | contractor owns | platform owns |

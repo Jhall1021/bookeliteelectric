@@ -145,16 +145,63 @@ async function main() {
     "app/api/admin/stripe/readiness/route.ts",
   ];
   const MONEY = /\b(paymentIntents|charges\.create|refunds\.create|setupIntents|\.capture\(|transfers|payouts)\b/;
-  const movingInOnboarding = ONBOARDING_SURFACE.filter((f) => MONEY.test(readFileSync(f, "utf8")));
+  // Comments are stripped first. A comment EXPLAINING that the contractor sees
+  // their payouts is not code moving money, and scanning raw source made this
+  // check fail on its own documentation — the same reason
+  // audit-guard-adoption strips comments before matching.
+  const stripComments = (src: string) =>
+    src
+      .split("\n")
+      .map((line) => {
+        const t = line.trimStart();
+        if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) return "";
+        const i = line.indexOf("//");
+        return i === -1 ? line : line.slice(0, i);
+      })
+      .join("\n");
+
+  const movingInOnboarding = ONBOARDING_SURFACE.filter((f) =>
+    MONEY.test(stripComments(readFileSync(f, "utf8")))
+  );
   ok(`7. the onboarding surface cannot move money (${ONBOARDING_SURFACE.length} file(s))`,
     movingInOnboarding.length === 0, movingInOnboarding.join(", "));
 
   // And it still only reads accounts — creating one is not moving money, but
   // retrieving and creating are the only two things it may do to them.
-  const onboardingSrc = ONBOARDING_SURFACE.map((f) => readFileSync(f, "utf8")).join("\n");
+  const onboardingSrc = ONBOARDING_SURFACE.map((f) => stripComments(readFileSync(f, "utf8"))).join("\n");
   ok(`   it only creates and reads accounts`,
     /accounts\.create|accounts\.retrieve|accountLinks\.create/.test(onboardingSrc) &&
       !/accounts\.del|accounts\.reject/.test(onboardingSrc));
+
+  // ── the economics of the connected account ─────────────────────────────
+  //
+  // Asserted against the source because this is the failure mode with no
+  // symptom: an account created with the wrong fee payer works perfectly and
+  // sends Price2Book a bill. It was caught on 29 August only because Stripe
+  // happened to reject the combination for an unrelated reason — a full
+  // dashboard cannot have the platform paying fees. Without that conflict it
+  // would have shipped.
+  console.log();
+  const connectSrc = readFileSync("app/api/admin/stripe/connect/route.ts", "utf8");
+
+  ok(`the CONTRACTOR pays Stripe's processing fees`,
+    /fees:\s*\{\s*payer:\s*"account"\s*\}/.test(connectSrc),
+    'fees.payer must be "account" — "application" bills Price2Book for every homeowner transaction');
+
+  ok(`disputes sit with the connected account, not the platform`,
+    /losses:\s*\{\s*payments:\s*"stripe"\s*\}/.test(connectSrc),
+    'losses.payments "application" would make Price2Book liable for chargebacks');
+
+  ok(`the contractor gets a full Stripe dashboard`,
+    /stripe_dashboard:\s*\{\s*type:\s*"full"\s*\}/.test(connectSrc),
+    "this is their payment system; they must be able to log into it");
+
+  // Direct charges, not destination. The distinction is who the homeowner
+  // transacts with, and switching to destination charges to make an error go
+  // away would move merchant-of-record to Price2Book.
+  ok(`charges are not routed through the platform account`,
+    !/on_behalf_of|transfer_data|application_fee/.test(connectSrc),
+    "destination-charge markers would mean Price2Book is merchant of record");
 
   // ── the client fails closed without a key ──────────────────────────────
   console.log();
