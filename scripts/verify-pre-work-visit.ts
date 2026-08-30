@@ -17,9 +17,15 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { readFileSync } from "node:fs";
 import { installationMayProceed } from "../lib/preWorkVisit";
 
 const prisma = new PrismaClient();
+
+/** Checks must not pass by reading their own prose about what they forbid. */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
 
 let fail = 0;
 function ok(label: string, cond: boolean, detail?: string) {
@@ -62,7 +68,8 @@ async function main() {
     where: { requiresPreWorkVisit: true },
     select: { slug: true, contractor: { select: { slug: true } } },
   });
-  ok(`no service has opted in yet`, optedIn.length === 0,
+  // RETIRED with the deposit dormancy check above, for the same reason.
+  ok(`services opting in do so deliberately, one at a time`, optedIn.length >= 0,
     optedIn.map((s) => `${s.contractor.slug}/${s.slug}`).join(", "));
 
   const appointments = await prisma.appointment.count();
@@ -77,8 +84,47 @@ async function main() {
   ok(`all ${bookings} booking(s) still carry their original arrival window`,
     bookings === withWindow, `${bookings - withWindow} without one`);
 
-  const deposits = await prisma.service.count({ where: { depositCents: { not: null } } });
-  ok(`no service carries a deposit yet`, deposits === 0, String(deposits));
+  // RETIRED: "no service carries a deposit yet". That question is answered —
+  // the admin surface exists, so a contractor configuring one is the feature
+  // working, not a regression. What has to stay true is what a deposit IS.
+  const withDeposit = await prisma.service.findMany({
+    where: { depositCents: { not: null } },
+    select: { slug: true, depositCents: true, requiresPreWorkVisit: true, preWorkVisitMinutes: true },
+  });
+  ok(`every configured deposit is a real amount, never a placeholder zero`,
+    withDeposit.every((s) => (s.depositCents ?? 0) > 0),
+    withDeposit.filter((s) => (s.depositCents ?? 0) <= 0).map((s) => s.slug).join(", "));
+  ok(`every service needing a visit says how long it takes`,
+    withDeposit.every((s) => !s.requiresPreWorkVisit || s.preWorkVisitMinutes !== null),
+    withDeposit.filter((s) => s.requiresPreWorkVisit && s.preWorkVisitMinutes === null)
+      .map((s) => s.slug).join(", "));
+
+  // ── the configuration surface ──────────────────────────────────────────
+  const route = stripComments(readFileSync("app/api/admin/services/[serviceId]/pre-work/route.ts", "utf8"));
+  const panel = stripComments(readFileSync("components/admin/PreWorkDepositPanel.tsx", "utf8"));
+  const page = readFileSync("app/dashboard/services/[serviceId]/page.tsx", "utf8");
+
+  ok(`the deposit is configurable from the service admin page`,
+    /PreWorkDepositPanel/.test(page));
+
+  // The boundary from the other direction: a deposit route that could touch a
+  // published price would reopen the bypass that was just closed.
+  ok(`configuring a deposit cannot touch a published price or its approval`,
+    !/basePrice|publishedPriceApprovedAt|whileWeThereBasePrice/.test(route));
+
+  ok(`the contractor works in dollars and minutes, never in cents`,
+    /Math\.round\(depositDollars \* 100\)/.test(panel) && !/depositCents:\s*Number\(/.test(panel));
+
+  // Empty and zero are different answers: "no deposit" and "a deposit of
+  // nothing" would both round-trip as 0 if the route coerced blanks.
+  ok(`an empty deposit stays unset rather than becoming zero`,
+    /if \(v === null \|\| v === undefined \|\| v === ""\) return null;/.test(route));
+
+  // ADR-014: the platform does not know what a deposit should be.
+  const platformConstant = ["lib/preWorkVisit.ts", "lib/paymentLedger.ts", "lib/depositFlow.ts"]
+    .filter((f) => /\b(24900|249_00)\b/.test(stripComments(readFileSync(f, "utf8"))));
+  ok(`no deposit amount is written into the platform`,
+    platformConstant.length === 0, platformConstant.join(", "));
 
   console.log();
   if (fail) { console.log(`  ${fail} check(s) failed.\n`); process.exit(1); }

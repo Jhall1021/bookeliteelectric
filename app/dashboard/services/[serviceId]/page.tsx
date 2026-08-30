@@ -4,6 +4,8 @@ import ServiceEditForm from "@/components/admin/ServiceEditForm";
 import TreeEditor from "@/components/admin/TreeEditor";
 import PricingPanel from "@/components/admin/PricingPanel";
 import MaterialsPanel from "@/components/admin/MaterialsPanel";
+import PreWorkDepositPanel from "@/components/admin/PreWorkDepositPanel";
+import { connectReadiness } from "@/lib/stripeConnect";
 import { categoryName, requireContractorCategory } from "@/lib/categories";
 import { withAdminContractor } from "@/lib/adminContext";
 
@@ -44,6 +46,17 @@ export default async function EditServicePage({ params }: { params: { serviceId:
   // settings regardless of who was asking. Keyed by contractor now, on the
   // guarded client.
   const settings = await db.pricingSettings.findUnique({ where: { contractorId } });
+
+  // Reported to the deposit panel, never enforced there: checkout already
+  // refuses a deposit on an unready account, and a contractor should be able
+  // to configure one before finishing Stripe onboarding.
+  const contractor = await db.contractor.findUniqueOrThrow({
+    where: { id: contractorId },
+    select: {
+      stripeAccountId: true, stripeMerchantConfigured: true, stripeCardPaymentsStatus: true,
+      stripeOnboardingBlocked: true, stripeReadinessCheckedAt: true,
+    },
+  });
 
   // For the "link this option's price to another service" dropdown.
   const allServices = await db.service.findMany({
@@ -100,6 +113,17 @@ export default async function EditServicePage({ params }: { params: { serviceId:
               }
             : null
         }
+      />
+
+      <PreWorkDepositPanel
+        serviceId={service.id}
+        requiresPreWorkVisit={service.requiresPreWorkVisit}
+        preWorkVisitMinutes={service.preWorkVisitMinutes}
+        depositCents={service.depositCents}
+        depositCreditsToJob={service.depositCreditsToJob}
+        ctaLabel={service.ctaLabel}
+        preWorkCustomerNote={service.preWorkCustomerNote}
+        stripeReady={connectReadiness(contractor).ready}
       />
 
       <MaterialsPanel serviceId={service.id} />
