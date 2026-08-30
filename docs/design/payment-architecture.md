@@ -6,9 +6,37 @@ The framing that decides most of this, stated first because it changes the
 answer to half the questions below:
 
 > **This is the contractor's payment system.** Money moves from a homeowner to
-> Elite. Price2Book facilitates it and never owns it. It is not, and must never
-> share machinery with, the future system by which Price2Book bills contractors
-> for the software.
+> the contractor. Price2Book facilitates it and never owns it. It is not, and
+> must never share machinery with, the future system by which Price2Book bills
+> contractors for the software.
+
+Written throughout in terms of *the contractor*, deliberately. Payments are
+where this codebase most has to prove it is a platform rather than one
+company's software with a template bolted on, and a document that reasons about
+a named tenant would be evidence against that.
+
+---
+
+## Revised 29 August 2026, after review
+
+Nine changes, six of them corrections rather than additions:
+
+| | change |
+|---|---|
+| 1 | Connect **direct charges** confirmed as the architecture |
+| 2 | tenant-specific language removed — this document reasons about *the contractor* |
+| 3 | historical bookings become **`LEGACY_UNTRACKED`**, not `NOT_REQUIRED` |
+| 4 | **`METHOD_READY`** added between card collection and completion |
+| 5 | **at most one pre-work project per booking** in V1 |
+| 6 | the balance formula was **wrong** — obligation and cash are two ledgers |
+| 7 | `PaymentEvent` idempotent by unique constraint; webhook `account` is the tenancy authority |
+| 8 | Connect readiness means **charges enabled**, not an id being present |
+| 9 | release boundaries unchanged |
+
+Items 3 and 6 were both cases of a model asserting something false. Mapping 24
+historical bookings to "no payment required" would have said something untrue
+about every one of them, permanently. And the first balance formula claimed a
+refunded, canceled job still owed its full price.
 
 ---
 
@@ -105,24 +133,93 @@ checkout from the services actually on the visit, and **snapshotted onto the
 booking** — the same discipline `LineItem` already follows, so a later change
 to `Service.depositCents` cannot retroactively alter what somebody agreed to.
 
-## 5. Reconciliation
+### V1 rule: at most one pre-work project per booking
+
+The sum is arithmetically fine and structurally ambiguous. `PreWorkVisit` is
+1:1 on `Booking`, so two deposit-bearing services on one visit would mean two
+projects, a $498 deposit, two permits, two verification visits — **and one
+workflow record.** There is no correct behavior available; the model simply
+has nowhere to put the second one.
+
+So checkout refuses the combination, as a gate before the transaction alongside
+the existing unpriced-line and service-area gates. Normal services still ride
+along freely; only a second pre-work service is refused, and the customer is
+told to book it separately.
+
+**This costs nothing today.** The two trees are already mutually exclusive —
+panel replacement's "I need more capacity" reroutes to the service upgrade, and
+the upgrade's "same size, just old" reroutes back — so no customer can reach
+both through the guided flow. The gate exists for the catalog path, and for the
+day a third pre-work service is added by someone who does not remember this
+paragraph.
+
+## 5. Reconciliation — two ledgers, not one
+
+The formula in the first draft was wrong, and it is worth showing how:
 
 ```
-booked total  −  captured  +  refunded  =  remaining balance
+booked total − captured + refunded = remaining        ← WRONG
 ```
 
-Three of those four are not fields — they are **sums over an event log**. The
-recommendation is an append-only `PaymentEvent` table with `Booking.totalCents`
-as the only stored figure, because:
+A $3,085 job, $249 deposit paid, then the job is canceled and the deposit
+refunded:
 
-- a mutable `amountPaid` column has to be correct after every partial refund,
-  retry and dispute, and there is no way to check it against anything;
-- an event log can be replayed, and disagreement between the log and a cached
-  total is a detectable bug rather than an invisible one.
+```
+$3,085 − $249 + $249 = $3,085 still owed
+```
 
-This codebase already prefers that shape: `SupportAccessEvent` and
-`PricingSettingsChange` are both append-only records whose value is that they
-cannot be edited into agreement.
+The homeowner owes nothing. The formula treats a refund as if it restored an
+obligation, when a refund is a **cash movement** and cancellation is a change
+to **what is owed**. Those are different facts and one ledger cannot hold both.
+
+### What the customer owes, and what money moved
+
+```
+adjusted amount due  =  booked total  +  approved additions  −  approved credits
+net paid             =  captures  −  refunds
+remaining balance    =  adjusted amount due  −  net paid
+```
+
+The same cancellation, correctly: the cancellation records a **credit** of
+$3,085, so `adjusted = 3085 + 0 − 3085 = 0`; the refund makes `net paid =
+249 − 249 = 0`; `remaining = 0`. Both the obligation and the cash are accounted
+for, separately, because they moved for different reasons.
+
+### Two append-only tables
+
+**`PaymentEvent`** — money moved. Authorization created, authorization
+canceled, capture, refund. Every row corresponds to something Stripe did, and
+carries the Stripe object that did it.
+
+**`BookingAdjustment`** — what is owed changed. Addition or credit, an amount,
+a reason, and who approved it. Every row corresponds to a **decision a person
+made**, which is why it cannot be derived from the payment log: no amount of
+looking at captures tells you whether a cancellation was agreed.
+
+`Booking.totalCents` stays immutable and stays the original booked price. It is
+never adjusted, because "what we sold them" and "what they currently owe" are
+both worth being able to answer a year later.
+
+### This is where the pre-work exception lands
+
+`OUT_OF_SCOPE_REVIEW` → the customer approves additional scope → a
+`BookingAdjustment` of kind `ADDITION`, with the approval recorded. The booked
+price is not rewritten, the original promise stays legible, and the change has
+a name and an approver.
+
+**No change-order UI is being built now.** What is being built is a ledger that
+can represent one honestly, so the eventual UI writes rows rather than needing
+the accounting model rethought around it.
+
+### Why append-only, again
+
+A mutable `amountPaid` column has to be correct after every partial refund,
+retry, dispute and cancellation, and there is nothing to check it against. Two
+event logs can be replayed, and disagreement between a log and a cached total
+becomes a detectable bug rather than an invisible one.
+
+`SupportAccessEvent` and `PricingSettingsChange` are both already append-only
+for the same reason.
 
 ## 6. Payment state without free-text
 
@@ -135,16 +232,58 @@ paymentState   PaymentState     // WHERE it has got to — new enum, replaces th
 
 ```prisma
 enum PaymentState {
-  NOT_REQUIRED          // REMOTE_QUOTE_NO_UPFRONT, and every booking today
-  AWAITING_METHOD       // booking exists, no card yet
-  DEPOSIT_AUTHORIZED    // held, not taken
-  DEPOSIT_CAPTURED      // money moved; pre-work may proceed
-  BALANCE_DUE           // work done, final capture outstanding
-  SETTLED               // nothing owed either way
-  FAILED                // a capture or authorization failed; retryable
-  REFUNDED              // fully returned
+  /// Historical. A booking made before this system existed, whose payment
+  /// happened — if it happened — outside it.
+  ///
+  /// NOT the same as NOT_REQUIRED, and the distinction is the point. All 24
+  /// existing bookings carry a PaymentModel saying card-on-file was intended.
+  /// Mapping them to "no payment required" would assert something false about
+  /// every one of them, and the assertion would be permanent: nothing later
+  /// could tell a genuinely free job from a job whose money was never tracked.
+  LEGACY_UNTRACKED
+
+  /// Genuinely nothing to collect. REMOTE_QUOTE_NO_UPFRONT, and any future
+  /// arrangement where Price2Book is not in the money path at all.
+  NOT_REQUIRED
+
+  /// Booking exists, no payment method captured yet.
+  AWAITING_METHOD
+
+  /// A card is saved and usable, and the work has not been done. Days or weeks
+  /// can pass here, which is why it is a state rather than an instant between
+  /// two others.
+  METHOD_READY
+
+  /// Deposit held, not taken.
+  DEPOSIT_AUTHORIZED
+  /// Deposit taken. The pre-work visit may be scheduled and pushed.
+  DEPOSIT_CAPTURED
+
+  /// Work complete, final amount outstanding.
+  BALANCE_DUE
+  /// Nothing owed in either direction.
+  SETTLED
+
+  /// An authorization or capture failed. Retryable, and visible.
+  FAILED
+  /// Fully returned.
+  REFUNDED
 }
 ```
+
+**Two sequences through one machine**, which is what makes this reusable rather
+than a feature for two services:
+
+```
+normal      AWAITING_METHOD -> METHOD_READY -> BALANCE_DUE -> SETTLED
+deposit     AWAITING_METHOD -> DEPOSIT_AUTHORIZED -> DEPOSIT_CAPTURED
+                            -> BALANCE_DUE -> SETTLED
+```
+
+`METHOD_READY` exists because "the card is saved" and "the work is finished and
+billable" are separated by however long the job takes to schedule. Collapsing
+them would make `BALANCE_DUE` mean two things and leave no state that answers
+"is this booking ready to be worked?"
 
 `FAILED` and `REFUNDED` are states rather than absences, which is the whole
 argument against the free-text column: `"pending_card_capture_setup"` cannot be
@@ -197,7 +336,8 @@ rather than inventing a booking.
 **Authorization, yes. Capture, not necessarily — but it should.**
 
 The whole product argument for the deposit is that it converts an enquiry into
-a commitment before Elite spends money on a permit and a truck roll. An
+a commitment before the contractor spends money on a permit and a truck
+roll. An
 appointment created before the money is committed is the thing the deposit
 exists to prevent.
 
@@ -219,15 +359,97 @@ Assuming Stripe. The shape is not Stripe-specific but the names are.
 | failed payment | intent `status`, plus webhooks for retry |
 | the contractor's account | **Connect account** — see below |
 
-**Connect, and specifically direct charges.** The homeowner is paying Elite,
-not Price2Book. With direct charges the connected account is the merchant of
-record: Elite's name on the statement, Elite's dispute, Elite's payout,
-Elite's liability. Destination charges would make Price2Book the merchant of
-record for every homeowner transaction in the country, which is a different
-company than the one being built.
+**Connect, and specifically direct charges.** The homeowner is paying the
+contractor, not Price2Book. With direct charges the connected account is the
+merchant of record: the contractor's name on the statement, their dispute,
+their payout, their liability. Stripe documents direct charges as the fit for a
+SaaS platform enabling its customers to take payments, which is exactly this.
+
+Destination charges would make Price2Book the merchant of record for every
+homeowner transaction in the country, which is a different company than the one
+being built.
 
 That means `Contractor` gains a `stripeAccountId` and an onboarding state, and
 **Price2Book never holds the money.**
+
+## 10a. Connect implementation rules, locked
+
+Direct charges put the money on the connected account, and that has consequences
+the platform code has to respect rather than work around.
+
+### Objects live on the connected account
+
+`PaymentIntent`, `Charge`, `Customer`, `PaymentMethod` and `Refund` for
+homeowner money exist **in the connected account's context**, not the
+platform's. Platform-level visibility into them is limited by design.
+
+**Every Stripe API call for homeowner money is made explicitly in the
+connected-account context.** Not by convention, not by a default set somewhere
+— explicitly, at the call site, so a call that forgets is a call that fails
+rather than one that quietly reads the platform account.
+
+### Webhooks: the account is the tenancy authority
+
+Connect delivers connected-account activity with the connected account
+identified on the event. So:
+
+1. **Map `event.account` → contractor first.** Before any tenant data is read
+   or written. An event whose account matches no contractor is logged and
+   dropped, never guessed at.
+2. **Never treat a contractor id in Stripe `metadata` as tenancy authority.**
+   Metadata is useful for correlation and is attacker-influenceable in a way
+   the account id is not. It may confirm what the account already established;
+   it may never establish it.
+
+This is the same rule the storefront already follows and states in
+`app/api/services/[slug]/route.ts`: *"The site identifier the caller carries
+decides the tenant. Resolving it from the requested resource would authorise
+access to that resource using itself."* A metadata contractor id is exactly
+that shape.
+
+### Idempotency is a schema constraint, not a code path
+
+```prisma
+model PaymentEvent {
+  stripeEventId String @unique   // webhook delivery identity
+  ...
+}
+```
+
+Stripe retries webhooks. A retry that creates a second capture row would
+overstate `net paid` by the amount of a real payment, and nothing downstream
+could tell it from a genuine second capture.
+
+**A unique constraint makes the second insert fail rather than succeed.** The
+handler catches the violation and returns 200 — the event was already
+processed, which is exactly what Stripe should be told. Doing this with an
+existence check instead would leave a race between the check and the insert,
+and financial races are the kind that get discovered from a customer's
+statement.
+
+Outbound calls carry an **idempotency key** for the same reason in the other
+direction: a retried capture must not take the money twice.
+
+## 10b. Connect readiness is a capability, not an id
+
+`stripeAccountId IS NOT NULL` means an account was created. It does not mean
+the contractor can accept a card.
+
+Stripe requires the connected account to have completed onboarding and to hold
+an active payments capability before direct charges succeed. A contractor can
+sit for days with an account that exists, onboarding incomplete, and charges
+disabled.
+
+So readiness is a **checked state, refreshed from Stripe**, and the launch gate
+means:
+
+```
+connected  AND  onboarding requirements satisfied  AND  charges enabled
+```
+
+not "the column is populated". A booking flow that offers a deposit to a
+homeowner whose contractor cannot accept it fails at the worst possible moment
+— after the customer has committed and before anything is recoverable.
 
 ## 11. Contractor-owned vs platform-owned
 
@@ -280,14 +502,15 @@ which is a real requirement, and a later one.
 
 Four additions. None of them special-cases a service.
 
-1. **`Contractor.stripeAccountId`** + onboarding state. Connect, direct
-   charges.
+1. **`Contractor.stripeAccountId`** plus a refreshed readiness state —
+   connected, onboarded, and charges actually enabled. Connect, direct charges.
 2. **`Booking.paymentState`** (enum, replacing the free-text string) and
-   **`Booking.depositDueCents`** (snapshotted at checkout from the services on
-   the visit).
-3. **`PaymentEvent`** — append-only, tenant-owned via `Booking → Visit`. Kind,
-   amount, Stripe object id, occurred-at. Balance is a sum over this, not a
-   column.
+   **`Booking.depositDueCents`** (snapshotted at checkout). Existing bookings
+   migrate to `LEGACY_UNTRACKED`, never `NOT_REQUIRED`.
+3. **`PaymentEvent`** and **`BookingAdjustment`** — both append-only, both
+   tenant-owned via `Booking → Visit`. One records money moving, the other
+   records what is owed changing. `PaymentEvent.stripeEventId` is unique, so a
+   webhook replay cannot duplicate a financial row.
 4. **Ordering**: authorize → transaction → capture → webhook, with the pre-work
    appointment gated on `DEPOSIT_CAPTURED`.
 
