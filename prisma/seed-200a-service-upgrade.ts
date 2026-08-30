@@ -4,9 +4,13 @@
  *   npx tsx prisma/seed-200a-service-upgrade.ts          report
  *   npx tsx prisma/seed-200a-service-upgrade.ts --apply  build
  *
- * Phase F rescue #4. Built to DERIVE, not to publish. The 8.0 crew-hours are
- * provisional, and $4,995 is a comparison point, never a target: the whole
- * value of assembling the economics is finding out what they say on their own.
+ * Phase F rescue #4. The 8.0 crew-hours are APPROVED (29 Aug 2026), and
+ * $4,995 remains a comparison point rather than a target — deliberately not
+ * back-solved toward. The bounded scope and its twelve review routes remove
+ * the uncertainty the old blanket price had to carry.
+ *
+ * CONTRACTOR CALIBRATION, NOT TEMPLATE FACT. TemplateService carries no labor
+ * fields and must not gain any; a future contractor establishes their own.
  *
  * THE PROMISE
  *
@@ -44,12 +48,25 @@ const prisma = new PrismaClient();
 
 const SLUG = "200a-service-upgrade";
 
-// POLICY[service_upgrade.standard_labor_hours]: 8.0  PROVISIONAL
+// POLICY[service_upgrade.standard_labor_hours]: 8.0  APPROVED 29 Aug 2026
 // POLICY[service_upgrade.service_type]: OVERHEAD
 // POLICY[service_upgrade.roof_penetration]: false
 // POLICY[service_upgrade.max_circuits]: 30
 const STANDARD_HOURS = 8.0;
-const WWT_HOURS = 8.0; // nothing about this job gets shorter for being second
+/**
+ * NULL, and that is the decision rather than a gap.
+ *
+ * A While We're There price says: the van is already outside, so this costs
+ * less. That promise cannot be made about a project that takes a deposit,
+ * requires a verification visit, waits on a permit, and schedules its
+ * installation separately. There is no version of it that happens because a
+ * crew is already at the house.
+ *
+ * lib/visitPrimary.ts reads a null whileWeThereBasePrice as "cannot be demoted
+ * to an add-on", and a null wwtLaborHours means the engine can never derive
+ * one. So this is the existing model expressing primary-only, not a new flag.
+ */
+const WWT_HOURS = null; // nothing about this job gets shorter for being second
 const MAX_CIRCUITS = 30;
 const FEEDER_FT = 20;
 
@@ -110,7 +127,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`  labor ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit   (PROVISIONAL)`);
+  console.log(`  labor ${STANDARD_HOURS}h standalone, no same-visit price   (approved)`);
   console.log(`  recipe ${RECIPE.map(([k, q]) => `${k}x${q}`).join(", ")}`);
   console.log(`  permit allowance $${((service.permitAdminCents ?? 0) / 100).toFixed(2)} — excluded by policy`);
   console.log();

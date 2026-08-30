@@ -50,6 +50,23 @@ async function main() {
   const gKeys = got.questions.map((q) => q.key).sort().join(",");
   ok(tKeys === gKeys, "every question key present");
 
+  // The template owns scope and trade structure; the contractor owns
+  // economics. Elite's 6.0 hours for a panel replacement is Elite's
+  // calibration, and shipping it to the next contractor as fact would be the
+  // same error as shipping Elite's 25 ft of included wire. Asserted against
+  // the generated types rather than trusted, because the way this rule breaks
+  // is somebody adding a helpful default to the template model.
+  console.log("\n  THE TEMPLATE CARRIES NO ECONOMICS");
+  const ECONOMIC = [
+    "fieldLaborHours", "wwtLaborHours", "basePrice", "whileWeThereBasePrice",
+    "materialCostCents", "materialMultiplier", "permitAdminCents",
+    "otherDirectCostCents", "depositCents",
+  ];
+  const templateFields = new Set(Object.keys(tpl));
+  const leaked = ECONOMIC.filter((f) => templateFields.has(f));
+  ok(leaked.length === 0, `TemplateService carries none of ${ECONOMIC.length} economic fields`,
+    `leaked: ${leaked.join(", ")}`);
+
   console.log("\n  CANONICAL IDENTITY RESOLVES");
   const cc = await prisma.contractorCategory.findFirstOrThrow({ where: { contractorId: proof.id }, select: { canonicalCategoryId: true } });
   ok(cc.canonicalCategoryId === tpl.canonicalCategoryId, "category resolves to the same canonical concept as the template");

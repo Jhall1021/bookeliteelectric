@@ -4,9 +4,15 @@
  *   npx tsx prisma/seed-panel-replacement.ts          report
  *   npx tsx prisma/seed-panel-replacement.ts --apply  build
  *
- * Phase F rescue #3. Built to DERIVE, not to publish: the 6.0 crew-hours are
- * provisional and the whole point of assembling the economics is to see what
- * they produce before anyone decides whether they are right.
+ * Phase F rescue #3. The 6.0 crew-hours were provisional while the economics
+ * were assembled, and are now APPROVED (29 Aug 2026) — deliberately NOT
+ * back-solved toward the historical $3,995. The bounded scope and its review
+ * routes remove the uncertainty that a blanket price had to absorb, so a lower
+ * number is a narrower promise rather than a discount.
+ *
+ * CONTRACTOR CALIBRATION, NOT TEMPLATE FACT. How long this takes belongs to
+ * the crew doing it. TemplateService carries no labor fields and must not gain
+ * any; a future contractor establishes their own.
  *
  * THE PROMISE
  *
@@ -44,13 +50,26 @@ const prisma = new PrismaClient();
 
 const SLUG = "electrical-panel-replacement";
 
-// POLICY[panel_replacement.standard_labor_hours]: 6.0  PROVISIONAL
+// POLICY[panel_replacement.standard_labor_hours]: 6.0  APPROVED 29 Aug 2026
 // POLICY[panel_replacement.max_circuits]: 30
 // POLICY[panel_replacement.same_location]: true
 // POLICY[panel_replacement.same_amperage]: true
 // POLICY[panel_replacement.permit_allowance_cents]: 0  — excluded, disclaimed
 const STANDARD_HOURS = 6.0;
-const WWT_HOURS = 5.75;
+/**
+ * NULL, and that is the decision rather than a gap.
+ *
+ * A While We're There price says: the van is already outside, so this costs
+ * less. That promise cannot be made about a project that takes a deposit,
+ * requires a verification visit, waits on a permit, and schedules its
+ * installation separately. There is no version of it that happens because a
+ * crew is already at the house.
+ *
+ * lib/visitPrimary.ts reads a null whileWeThereBasePrice as "cannot be demoted
+ * to an add-on", and a null wwtLaborHours means the engine can never derive
+ * one. So this is the existing model expressing primary-only, not a new flag.
+ */
+const WWT_HOURS = null;
 const MAX_CIRCUITS = 30;
 
 const IDENTIFY_PANEL = [
@@ -124,7 +143,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`  labor ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit   (PROVISIONAL)`);
+  console.log(`  labor ${STANDARD_HOURS}h standalone, no same-visit price   (approved)`);
   console.log(`  recipe ${RECIPE.map(([k, q]) => `${k}x${q}`).join(", ")}`);
   console.log(`  permit allowance currently $${((service.permitAdminCents ?? 0) / 100).toFixed(2)}`);
   console.log();
