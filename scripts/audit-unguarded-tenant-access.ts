@@ -44,6 +44,28 @@ const GUARDED_IDENTIFIERS = new Set(["db", "tx", "guarded"]);
  * `file::Model` -> the reason it is acceptable today.
  */
 const CLASSIFIED: Record<string, string> = {
+  // ---- Stripe Connect webhook, Payment Release #3 -----------------------
+  //
+  // A webhook has NO SESSION AND NO SITE HEADER. There is no caller carrying a
+  // tenant identifier, so there is no guarded client to obtain — the guard's
+  // whole premise is that the tenant is known before the query runs.
+  //
+  // The tenant is established FIRST, from `event.account`, which Stripe sets
+  // on connected-account activity. Only then does this query run, and it
+  // scopes by the relation explicitly:
+  //
+  //     booking: { visit: { contractorId: tenant.contractorId } }
+  //
+  // That is the same filter the guard would apply, applied by hand because the
+  // guard cannot be reached from here. Metadata is never consulted for
+  // tenancy — it may confirm what the account established and may never
+  // establish it, which is the same rule the storefront states about site
+  // identifiers.
+  "app/api/stripe/webhook/route.ts::PaymentEvent":
+    "no session or site header exists on a webhook; the tenant comes from event.account " +
+    "and the query is scoped by the booking -> visit relation by hand",
+
+
   // The six "awaiting per-contractor auth" entries are GONE as of 27 August.
   // Admin surfaces resolve their contractor from the signed-in user's
   // membership through withAdminContractor, so there is nothing left here to

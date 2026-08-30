@@ -2344,6 +2344,18 @@ model PaymentEvent {
   createdAt  DateTime @default(now())
   note       String?
 
+  /// ONE CAPTURE PER INTENT. The real financial idempotency, and it is not the
+  /// same guarantee as stripeEventId.
+  ///
+  /// A capture can arrive twice by two different routes: the synchronous call
+  /// that made it, and the webhook confirming it. Those carry different event
+  /// ids — or none — but the same PaymentIntent, so only this constraint stops
+  /// the ledger recording the money twice.
+  ///
+  /// Nullable columns permit many NULLs in Postgres, so rows with no Stripe
+  /// object (a manual adjustment, a test fixture) are unaffected. Refunds are
+  /// unaffected too: each Refund has its own re_... id.
+  @@unique([kind, stripeObjectId])
   @@index([bookingId, occurredAt])
   @@map("payment_events")
 }

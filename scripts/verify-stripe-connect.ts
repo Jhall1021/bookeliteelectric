@@ -126,38 +126,35 @@ async function main() {
       stripeReadinessCheckedAt: c.stripeReadinessCheckedAt,
     }).ready));
 
-  // ── 7: no money can move in this release ───────────────────────────────
+  // ── 7: ONBOARDING itself cannot move money ─────────────────────────────
   //
-  // Asserted against the source rather than promised in a comment. If a
-  // charge appears in a later release, this check is what notices it arrived
-  // in the onboarding one.
-  const paymentFiles = execSync(
-    `grep -rlE "stripeClient|from \\"stripe\\"|require\\(.stripe.\\)" lib app scripts 2>/dev/null || true`,
-    { encoding: "utf8" }
-  ).split("\n").filter(Boolean);
-  const MONEY = /\b(paymentIntents|charges\.create|refunds|setupIntents|capture|transfers|payouts)\b/;
-  // Both payment verifiers necessarily contain every term they forbid — the
-  // terms are in their patterns. Same distinction the spelling gate draws: a
-  // word being the SUBJECT is not a word being a mistake.
-  const ENUMERATE_MONEY_TERMS = [
-    "scripts/verify-stripe-connect.ts",
-    "scripts/verify-payment-ledger.ts",
+  // RESCOPED, 29 August. This asserted that NO file in the repository could
+  // move money, which was true when onboarding was the only payment code and
+  // became false the moment Release #3 added a gateway that captures deposits.
+  //
+  // The enduring claim is narrower and is the one this release actually makes:
+  // the ONBOARDING path does not move money. Connecting a Stripe account,
+  // refreshing readiness and reporting it are read-only with respect to funds,
+  // and that should stay true however much payment code exists elsewhere.
+  //
+  // Same reasoning as retiring the "Release #2 has not landed early" check:
+  // preserve the invariant, not the wording it was first written in.
+  const ONBOARDING_SURFACE = [
+    "lib/stripeConnect.ts",
+    "app/api/admin/stripe/connect/route.ts",
+    "app/api/admin/stripe/readiness/route.ts",
   ];
-  const moving = paymentFiles
-    .filter((f) => !ENUMERATE_MONEY_TERMS.some((e) => f.endsWith(e)))
-    .filter((f) => MONEY.test(readFileSync(f, "utf8")));
-  ok(`7. no code in this release can move money (${paymentFiles.length} Stripe-touching file(s))`,
-    moving.length === 0, moving.join(", "));
+  const MONEY = /\b(paymentIntents|charges\.create|refunds\.create|setupIntents|\.capture\(|transfers|payouts)\b/;
+  const movingInOnboarding = ONBOARDING_SURFACE.filter((f) => MONEY.test(readFileSync(f, "utf8")));
+  ok(`7. the onboarding surface cannot move money (${ONBOARDING_SURFACE.length} file(s))`,
+    movingInOnboarding.length === 0, movingInOnboarding.join(", "));
 
-  // The "Release #2 has not landed early" check lived here and has been
-  // RETIRED, deliberately rather than deleted quietly: Release #2 shipped on
-  // 29 August, so the question it asked is answered and a check kept past its
-  // question is one nobody reads.
-  //
-  // What survives is the claim that still means something — that ONBOARDING
-  // cannot move money, which is checked above and does not depend on what
-  // later releases add. scripts/verify-payment-ledger.ts now carries the
-  // equivalent assertion for the ledger.
+  // And it still only reads accounts — creating one is not moving money, but
+  // retrieving and creating are the only two things it may do to them.
+  const onboardingSrc = ONBOARDING_SURFACE.map((f) => readFileSync(f, "utf8")).join("\n");
+  ok(`   it only creates and reads accounts`,
+    /accounts\.create|accounts\.retrieve|accountLinks\.create/.test(onboardingSrc) &&
+      !/accounts\.del|accounts\.reject/.test(onboardingSrc));
 
   // ── the client fails closed without a key ──────────────────────────────
   console.log();

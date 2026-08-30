@@ -109,6 +109,82 @@ async function main() {
     ok(after.windows === 0, "NO orphaned ArrivalWindow survived the failure", `found ${after.windows}`);
     ok(after.bookings === 0, "and no Booking, obviously", `found ${after.bookings}`);
 
+    // ── THE DEPOSIT ROWS ROLL BACK TOO ────────────────────────────────────
+    //
+    // A deposit checkout writes five more rows inside the same transaction:
+    // Appointment, PreWorkVisit and a PaymentEvent recording the hold. If any
+    // of those survived a failed checkout, a contractor would have a pre-work
+    // visit on the calendar for a booking that does not exist — and a ledger
+    // row for money nobody is holding.
+    const afterDeposit = {
+      appointments: await prisma.appointment.count({ where: { booking: { visitId: visit.id } } }),
+      preWork: await prisma.preWorkVisit.count({ where: { booking: { visitId: visit.id } } }),
+      events: await prisma.paymentEvent.count({ where: { booking: { visitId: visit.id } } }),
+    };
+    ok(afterDeposit.appointments === 0, "NO orphaned Appointment survived the failure",
+       `found ${afterDeposit.appointments}`);
+    ok(afterDeposit.preWork === 0, "NO orphaned PreWorkVisit survived the failure",
+       `found ${afterDeposit.preWork}`);
+    ok(afterDeposit.events === 0, "NO orphaned PaymentEvent survived the failure",
+       `found ${afterDeposit.events}`);
+
+    // ── FAILING LATER, NOT ONLY AT THE BOOKING ────────────────────────────
+    //
+    // The probe above fails at the Booking, which is the FIRST place the
+    // deposit rows could not exist yet. A deposit checkout has three more
+    // write points after it, so failing only there proves the easy half.
+    // This one gets all the way to the PaymentEvent and dies on the last row.
+    let lateThrew = false;
+    try {
+      await prisma.$transaction(async (tx) => {
+        const cust = await tx.customer.create({
+          data: { contractorId: c.id, name: "late probe", email: "late@example.test" },
+        });
+        const win = await tx.arrivalWindow.create({
+          data: {
+            date: new Date("2030-01-02"), startTime: "8:00 AM", endTime: "11:00 AM",
+            serviceAreaId: area.id, capacityTotal: 4,
+          },
+        });
+        const bk = await tx.booking.create({
+          data: {
+            visitId: visit.id, customerId: cust.id, address: "1 Test Way", zipCode: "07701",
+            arrivalWindowId: win.id, totalCents: 1,
+            paymentModel: "CARD_ON_FILE_CAPTURE_AFTER_COMPLETION",
+            paymentStatus: "probe", paymentState: "DEPOSIT_AUTHORIZED", depositDueCents: 24900,
+          },
+        });
+        const appt = await tx.appointment.create({
+          data: { bookingId: bk.id, kind: "PRE_WORK", arrivalWindowId: win.id },
+        });
+        await tx.preWorkVisit.create({
+          data: { bookingId: bk.id, appointmentId: appt.id },
+        });
+        // Fails on the LAST row: a PaymentEvent naming a booking that will not
+        // survive. Everything before it has already been written.
+        await tx.paymentEvent.create({
+          data: {
+            bookingId: "does-not-exist", kind: "AUTHORIZATION_CREATED",
+            amountCents: 24900, stripeObjectId: "pi_late_probe",
+          },
+        });
+      });
+    } catch {
+      lateThrew = true;
+    }
+    ok(lateThrew, "a deposit transaction failing at its LAST row still throws");
+
+    const afterLate = {
+      customers: await prisma.customer.count({ where: { contractorId: c.id } }),
+      bookings: await prisma.booking.count({ where: { visitId: visit.id } }),
+      appointments: await prisma.appointment.count({ where: { booking: { visitId: visit.id } } }),
+      preWork: await prisma.preWorkVisit.count({ where: { booking: { visitId: visit.id } } }),
+      events: await prisma.paymentEvent.count({ where: { stripeObjectId: "pi_late_probe" } }),
+    };
+    ok(Object.values(afterLate).every((n) => n === 0),
+       "and every row it had already written rolled back",
+       JSON.stringify(afterLate));
+
     const v = await prisma.visit.findUniqueOrThrow({ where: { id: visit.id } });
     ok(v.status === "OPEN", "the Visit is still OPEN — not half checked out", `got ${v.status}`);
 

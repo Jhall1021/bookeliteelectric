@@ -119,7 +119,26 @@ const ADOPTED_FILES: string[] = [
  * Empty since 27 August: the last entry was recordQuery writing ServiceQuery,
  * which ADR-008 re-keyed and moved onto the guarded client.
  */
-const ALLOWED_UNGUARDED: Record<string, string> = {};
+const ALLOWED_UNGUARDED: Record<string, string> = {
+  // Payment Release #3. recordCapture and recordCaptureFailure run AFTER the
+  // checkout transaction commits and write PaymentEvent, which is a DERIVED
+  // model — and the guard refuses `create` on derived models by design,
+  // because there is no column to stamp and the extension has no client with
+  // which to prove the parent's owner. Its own comment: "A create that
+  // invented an owner would be the denormalization this class exists to
+  // avoid, arriving through the back door."
+  //
+  // So these take the unguarded client for exactly the reason writeCheckout in
+  // the same file already does. Ownership is not being asserted: the booking
+  // id was returned by a transaction that ran under this contractor's
+  // already-verified visit, so the parent is proven by construction rather
+  // than by a filter.
+  "app/api/checkout/route.ts::recordCapture":
+    "writes PaymentEvent (derived; guarded create is refused by design) for a booking id " +
+    "the site-scoped transaction just returned",
+  "app/api/checkout/route.ts::recordCaptureFailure":
+    "same booking, same reason — records a failed capture so it stays visible and retryable",
+};
 
 /** Identifiers that ARE the unguarded application client. */
 const UNGUARDED_IDENTIFIERS = ["prisma", "platformDb"];

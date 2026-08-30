@@ -184,20 +184,25 @@ async function main() {
     unpublished.every((s) => s.basePrice === null),
     unpublished.map((s) => `${s.slug}=${s.basePrice}`).join(", "));
 
-  const stripeFiles = execSync(
-    `grep -rlE "stripeClient|from \\"stripe\\"" lib app scripts 2>/dev/null || true`,
-    { encoding: "utf8" }
-  )
-    .split("\n")
-    .filter(Boolean)
-    // Both payment verifiers necessarily contain every term they forbid — the
-    // terms are in their patterns. Third time this codebase has drawn the same
-    // distinction: a word being the SUBJECT is not a word being a mistake.
-    .filter((f) => !ENUMERATE_MONEY_TERMS.some((e) => f.endsWith(e)));
+  // RESCOPED, 29 August. This asserted that NO file could move money, which
+  // was true while the ledger was the newest payment code and became false the
+  // moment Release #3 added a gateway that captures deposits.
+  //
+  // The enduring claim is the one this release actually makes: THE LEDGER does
+  // not move money. It records what moved. That should stay true however much
+  // payment code exists elsewhere, and it is the property that lets the ledger
+  // be trusted as a record rather than suspected as an actor.
+  //
+  // Third time this codebase has preserved an invariant rather than its
+  // original wording — see the retired "Release #2 has not landed early" check
+  // and the rescoped onboarding one.
+  const LEDGER_SURFACE = ["lib/paymentLedger.ts", "lib/depositRecording.ts"];
   const MONEY = /\b(paymentIntents|charges\.create|refunds\.create|setupIntents|\.capture\(|transfers|payouts)\b/;
-  const moving = stripeFiles.filter((f) => MONEY.test(readFileSync(f, "utf8")));
-  ok(`10. no Stripe API capable of moving money exists (${stripeFiles.length} file(s))`,
-    moving.length === 0, moving.join(", "));
+  const movingInLedger = LEDGER_SURFACE.filter((f) => MONEY.test(readFileSync(f, "utf8")));
+  ok(`10. the ledger records money but cannot move it (${LEDGER_SURFACE.length} file(s))`,
+    movingInLedger.length === 0, movingInLedger.join(", "));
+  ok(`    and it imports no payment gateway`,
+    !LEDGER_SURFACE.some((f) => /paymentGateway|from "stripe"/.test(readFileSync(f, "utf8"))));
 
   ok(`9. checkout still refuses unpriced lines and still writes one transaction`,
     /unpriced\.length > 0/.test(readFileSync("app/api/checkout/route.ts", "utf8")) &&

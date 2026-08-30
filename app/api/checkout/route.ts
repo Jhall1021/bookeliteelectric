@@ -9,6 +9,9 @@ import {
 } from "@/lib/jobber";
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
 import { preWorkProjectConflict, depositDueCentsFor } from "@/lib/paymentLedger";
+import { runDepositCheckout } from "@/lib/depositFlow";
+import { stripeGateway } from "@/lib/paymentGateway";
+import { recordCapture, recordCaptureFailure } from "@/lib/depositRecording";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { loadIdentity } from "@/lib/storefrontIdentity";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
@@ -266,7 +269,10 @@ export async function POST(req: Request) {
   // confirmation email run after it commits, because a transaction held open
   // across a network call holds database locks for as long as a third party
   // takes to answer.
-  const writeCheckout = () => prisma.$transaction(async (tx) => {
+  // Takes the authorized PaymentIntent so the deposit rows are written in the
+  // SAME transaction as the booking. Undefined for every non-deposit checkout,
+  // which therefore takes a byte-identical path to the one it took before.
+  const writeCheckout = (authorizedIntentId?: string) => prisma.$transaction(async (tx) => {
     const customer = await tx.customer.create({
       data: { contractorId: site.contractorId, name, email, phone },
     });
@@ -320,9 +326,48 @@ export async function POST(req: Request) {
         // money handled outside this system exactly as one made last month
         // did, and labeling it AWAITING_METHOD would claim a lifecycle it
         // cannot enter.
-        paymentState: "LEGACY_UNTRACKED",
+        // A deposit booking enters the lifecycle at DEPOSIT_AUTHORIZED — the
+        // hold exists, the money has not moved. Everything else stays outside
+        // this system exactly as it was.
+        paymentState: authorizedIntentId ? "DEPOSIT_AUTHORIZED" : "LEGACY_UNTRACKED",
       },
     });
+
+    // ── the deposit rows, atomically with the booking ────────────────────
+    //
+    // Appointment and PreWorkVisit are created HERE rather than after capture,
+    // so a booking can never exist without the workflow rows describing it.
+    // They are INERT until DEPOSIT_CAPTURED: preWorkMayProceed gates
+    // scheduling and the Jobber push, so the rows existing is not the same as
+    // the visit being real.
+    if (authorizedIntentId) {
+      const appointment = await tx.appointment.create({
+        data: {
+          bookingId: booking.id,
+          kind: "PRE_WORK",
+          arrivalWindowId: arrivalWindow.id,
+          status: "SCHEDULED",
+        },
+      });
+      await tx.preWorkVisit.create({
+        data: {
+          bookingId: booking.id,
+          appointmentId: appointment.id,
+          scopeState: "PENDING_VERIFICATION",
+        },
+      });
+      // The authorization is a ledger fact even though no money moved: it
+      // records that a hold exists, which is what makes an abandoned checkout
+      // distinguishable from one that never started.
+      await tx.paymentEvent.create({
+        data: {
+          bookingId: booking.id,
+          kind: "AUTHORIZATION_CREATED",
+          amountCents: depositDueCents,
+          stripeObjectId: authorizedIntentId,
+        },
+      });
+    }
 
     await tx.visit.update({ where: { id: visit.id }, data: { status: "CHECKED_OUT" } });
 
@@ -350,6 +395,86 @@ export async function POST(req: Request) {
   // schema change rather than with it.
   const isUniqueViolation = (e: unknown) =>
     typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
+
+  // ── DEPOSIT PATH ─────────────────────────────────────────────────────
+  //
+  // Authorize -> transaction -> capture. Reached only when a service on the
+  // visit carries a deposit; every other checkout falls through to the path
+  // below, unchanged.
+  if (depositDueCents > 0) {
+    const contractor = await db.contractor.findUniqueOrThrow({
+      where: { id: site.contractorId },
+      select: {
+        stripeAccountId: true, stripeDetailsSubmitted: true, stripeChargesEnabled: true,
+        stripeCardPaymentsStatus: true, stripeReadinessCheckedAt: true,
+      },
+    });
+    const gateway = stripeGateway();
+    if (!gateway) {
+      return NextResponse.json(
+        { error: "Online payment isn't available right now.", detail: "Stripe is not configured." },
+        { status: 503 }
+      );
+    }
+
+    const attempt = await runDepositCheckout(
+      {
+        stripeAccountId: contractor.stripeAccountId ?? "",
+        amountCents: depositDueCents,
+        // Stable for this visit, so a double-submitted checkout cannot create
+        // a second hold or a second capture.
+        idempotencyKey: `visit_${visit.id}`,
+        metadata: {
+          // Correlation only. Tenancy comes from the connected account on the
+          // way back in, never from this.
+          price2book_visit_id: visit.id,
+          price2book_contractor_id: site.contractorId,
+        },
+      },
+      {
+        gateway,
+        connect: contractor,
+        writeLocal: async (intentId) => (await writeCheckout(intentId)).booking.id,
+        recordCapture: async (bookingId, intentId) => {
+          await recordCapture(prisma, bookingId, intentId, depositDueCents);
+        },
+        recordCaptureFailure: async (bookingId, intentId, error) => {
+          await recordCaptureFailure(prisma, bookingId, intentId, error);
+        },
+      }
+    );
+
+    if (attempt.outcome === "not_ready") {
+      return NextResponse.json(
+        { error: "This service can't be booked online yet.", detail: attempt.reason },
+        { status: 409 }
+      );
+    }
+    if (attempt.outcome === "authorize_failed" || attempt.outcome === "write_failed") {
+      return NextResponse.json(
+        { error: "We couldn't complete your booking.", detail: attempt.error },
+        { status: 502 }
+      );
+    }
+
+    // captured OR capture_failed: the booking exists either way and the
+    // customer is told so. A failed capture is an operator's problem to chase,
+    // not a reason to make the customer's booking vanish.
+    // GUARDED. A read on a derived model can be scoped — the guard merges the
+    // owner filter onto the where clause — so unlike the writes above there is
+    // no reason to reach for the unguarded client here.
+    const made = await db.booking.findUniqueOrThrow({
+      where: { id: attempt.bookingId },
+      select: { id: true, paymentState: true },
+    });
+    return NextResponse.json({
+      bookingId: made.id,
+      paymentState: made.paymentState,
+      depositDueCents,
+      // The pre-work visit is not schedulable until the deposit captures.
+      preWorkReady: made.paymentState === "DEPOSIT_CAPTURED",
+    });
+  }
 
   let customer, arrivalWindow, booking;
   try {
