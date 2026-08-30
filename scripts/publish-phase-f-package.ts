@@ -37,6 +37,26 @@ const APPROVED: Record<string, { standalone: number; sameVisit: number; note: st
     standalone: 138500, sameVisit: 132000,
     note: "Owner-approved 29 Aug 2026 at the derived figure: 4.0 crew-hours, $292.49 material.",
   },
+  // The four garage configurations. Four rows because there are four
+  // recipes — a 6-30 on 10/2 and a 14-50 on 6/3 are different jobs, and
+  // collapsing them into one row with typed modifiers would put three of the
+  // four economies nowhere the reconciler could see them.
+  "240v-garage-outlet": {
+    standalone: 72500, sameVisit: 66500,
+    note: "Owner-approved 29 Aug 2026. 30A 3-prong (NEMA 6-30 on 10/2) — the public service, and the cheapest configuration, which is what a \"from\" price should mean.",
+  },
+  "240v-garage-outlet-14-30": {
+    standalone: 73500, sameVisit: 67500,
+    note: "Owner-approved 29 Aug 2026. 30A 4-prong (NEMA 14-30 on 10/3). Hidden; reached by reroute from the public tree.",
+  },
+  "240v-garage-outlet-6-50": {
+    standalone: 78000, sameVisit: 72000,
+    note: "Owner-approved 29 Aug 2026. 50A 3-prong (NEMA 6-50 on 6/2) — the welder configuration. Hidden; reached by reroute.",
+  },
+  "240v-garage-outlet-14-50": {
+    standalone: 81500, sameVisit: 75000,
+    note: "Owner-approved 29 Aug 2026. 50A 4-prong (NEMA 14-50 on 6/3). Hidden; reached by reroute.",
+  },
   "under-cabinet-led-lighting": {
     standalone: 123500, sameVisit: 117000,
     note:

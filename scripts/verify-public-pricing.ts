@@ -29,10 +29,6 @@ const prisma = new PrismaClient();
  * scope. Removing an entry is how a rescue finishes; nothing else clears it.
  */
 const UNDER_RESCUE: Record<string, string> = {
-  "240v-garage-outlet":
-    "Phase F rescue. Standard scope drafted (exposed garage wall, run within " +
-    "25 ft, panel in the garage with two open spaces). Blocked on material " +
-    "roles for 240V receptacles and conductors heavier than 12 AWG.",
   "200a-service-upgrade":
     "Phase F rescue. Standard scope drafted (overhead, meter and panel in " +
     "place, no relocation). Blocked on service-equipment material roles AND " +
