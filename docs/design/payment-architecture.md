@@ -451,57 +451,82 @@ not "the column is populated". A booking flow that offers a deposit to a
 homeowner whose contractor cannot accept it fails at the worst possible moment
 — after the customer has committed and before anything is recoverable.
 
-## 10c. The account configuration, and what it cost to get wrong
+## 10c. Accounts v2, and what the first real call cost to get wrong
 
-**29 August 2026, found by the first real Stripe call.**
+**29 August 2026.** Two findings from the first Stripe calls, in order.
+
+### The fee assignment was wrong, and had no symptom
 
 `accounts.create` was written with `controller.fees.payer = "application"`,
-which assigns Stripe's card-processing fees to **the platform**. Stripe
-rejected it:
+which assigns Stripe's processing fees to **the platform**. Stripe rejected it
+for an unrelated reason — a full dashboard cannot have the platform paying fees
+— and that rejection is the only reason it was found. Had the combination been
+legal it would have shipped, worked perfectly, and billed Price2Book for card
+processing on every homeowner transaction in the country.
 
-```
-fees[payer]=application is not supported when creating an account
-with the full dashboard
-```
+### Then the sandbox required Accounts v2
 
-The 400 was a symptom. The bug was the fee assignment — had the combination
-been legal, it would have shipped, worked perfectly, and billed Price2Book for
-card processing on every homeowner transaction in the country.
+Not a recommendation any more: v1 account creation is refused. **v1
+compatibility is deliberately not enabled** — running both shapes would mean
+two definitions of "is this contractor ready" and eventually a disagreement
+nobody notices until money is involved.
 
-### The three properties, each an economic decision
+### The configuration in use
 
 ```ts
-controller: {
-  fees:             { payer: "account" },   // the CONTRACTOR pays processing
-  losses:           { payments: "stripe" }, // disputes sit with the contractor
-  stripe_dashboard: { type: "full" },       // a real account they can log into
-}
+v2.core.accounts.create({
+  include: ["configuration.merchant", "requirements"],
+  configuration: { merchant: { capabilities: { card_payments: { requested: true } } } },
+  dashboard: "full",
+  defaults: {
+    responsibilities: {
+      fees_collector:   "stripe",
+      losses_collector: "stripe",
+    },
+  },
+})
 ```
 
-Together this is what Stripe calls a **Standard** account. Written as explicit
-controller properties rather than `type: "standard"` so the three decisions are
-visible in code instead of implied by a shorthand — and so changing one has to
-be typed on purpose.
+Three economic decisions, each stated rather than defaulted:
 
-**Direct charges are unchanged.** The fix did not move to destination charges,
-which would have made Price2Book merchant of record for every homeowner
-transaction. `verify-stripe-connect` now asserts the absence of
-`on_behalf_of`, `transfer_data` and `application_fee` for that reason.
+| property | meaning |
+|---|---|
+| `fees_collector: "stripe"` | Stripe collects processing fees **directly from the contractor**. Price2Book does not pay them. |
+| `losses_collector: "stripe"` | Stripe carries an **unrecoverable negative balance**. Note the precision: the charge still belongs to the contractor, and a refund or chargeback reduces *their* connected balance. This says only that a shortfall does not land on the platform. |
+| `dashboard: "full"` | A real Stripe account the contractor logs into, sees payouts in, and could take elsewhere. |
 
-### Guarded, because it has no symptom
+**Direct charges are unchanged.** No destination charges, no `on_behalf_of`, no
+`transfer_data`, no application fee — and the verifier asserts their absence so
+a future "fix" of that shape fails the gate.
 
-An account created with the wrong fee payer works. Nothing fails, nothing
-warns, and the cost arrives on a statement. Four assertions now run in the
-deploy gate: who pays fees, who bears disputes, who gets the dashboard, and
-that charges are not routed through the platform.
+### What did NOT migrate
 
-### Noted, not acted on
+**PaymentIntents stay on the v1 API**, in the connected-account context. A v2
+account id works with them, direct-charge intents continue to live on the
+connected account, and moving the payment flow because the account lifecycle
+moved would have mixed two migrations into one release.
 
-The same response carried `We recommend building your integration using
-Accounts v2`. That is a recommendation, not the cause — the 400 was specifically
-the fee-payer/full-dashboard conflict, and the current account API expresses the
-approved architecture without difficulty. Migrating APIs opportunistically
-during payment testing would mix two kinds of risk. Worth revisiting on its own.
+Only three things changed: account creation, onboarding links, and readiness
+retrieval.
+
+### Readiness, re-derived from v2 facts
+
+Same product meaning, different evidence. An account exists, a merchant
+configuration exists, no onboarding requirement is outstanding,
+`card_payments` is `active`, and **readiness was actually refreshed from
+Stripe**. Never-asked is still not ready.
+
+The stored columns were reshaped rather than translated —
+`stripeMerchantConfigured`, `stripeCardPaymentsStatus`,
+`stripeOnboardingBlocked` — because no contractor had connected an account, so
+the v1 columns held nothing to preserve, and a column named `charges_enabled`
+holding something else is worse than no column.
+
+### Guarded, because the fee bug had no symptom
+
+Five assertions run in the deploy gate: who collects fees, who carries a
+shortfall, who gets the dashboard, that card payments are requested, and that
+**v1 account creation is not present**.
 
 ## 11. Contractor-owned vs platform-owned
 

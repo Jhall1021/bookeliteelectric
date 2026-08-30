@@ -29,9 +29,12 @@ import Stripe from "stripe";
  */
 export type ConnectFacts = {
   stripeAccountId: string | null;
-  stripeDetailsSubmitted: boolean;
-  stripeChargesEnabled: boolean;
+  /** The merchant configuration exists on the v2 account. */
+  stripeMerchantConfigured: boolean;
+  /** v2 merchant capability: "active", "pending", "unsupported", or null. */
   stripeCardPaymentsStatus: string | null;
+  /** Outstanding onboarding requirements that block charging. */
+  stripeOnboardingBlocked: boolean;
   stripeReadinessCheckedAt: Date | null;
 };
 
@@ -62,11 +65,11 @@ export function connectReadiness(facts: ConnectFacts): Readiness {
   if (facts.stripeReadinessCheckedAt === null) {
     return { ready: false, reason: "readiness has never been checked with Stripe" };
   }
-  if (!facts.stripeDetailsSubmitted) {
-    return { ready: false, reason: "Stripe onboarding is not complete" };
+  if (!facts.stripeMerchantConfigured) {
+    return { ready: false, reason: "the account has no merchant configuration" };
   }
-  if (!facts.stripeChargesEnabled) {
-    return { ready: false, reason: "Stripe has not enabled charges on this account" };
+  if (facts.stripeOnboardingBlocked) {
+    return { ready: false, reason: "Stripe is still waiting on onboarding requirements" };
   }
   if (facts.stripeCardPaymentsStatus !== "active") {
     return {
@@ -76,8 +79,31 @@ export function connectReadiness(facts: ConnectFacts): Readiness {
         `${facts.stripeCardPaymentsStatus ?? "unknown"}, not active`,
     };
   }
-  return { ready: true, reason: "onboarding complete and card payments active" };
+  return { ready: true, reason: "merchant configured and card payments active" };
 }
+
+/**
+ * The v2 account shape this code depends on.
+ *
+ * Declared here because the installed SDK ships the v2 methods without strict
+ * parameter or response types. A cast that hides a wrong shape is dangerous;
+ * this one names exactly what is read, so a change in Stripe's response breaks
+ * against something written down rather than against `any`.
+ */
+export type V2Account = {
+  id: string;
+  configuration?: {
+    merchant?: {
+      capabilities?: {
+        card_payments?: { status?: string };
+      };
+    };
+  };
+  requirements?: {
+    /** Entries Stripe is still waiting on. Presence blocks charging. */
+    entries?: unknown[];
+  };
+};
 
 /**
  * The platform's Stripe client.
@@ -97,25 +123,26 @@ export function stripeClient(): Stripe | null {
   return new Stripe(key, { apiVersion: "2025-10-29.clover" as Stripe.LatestApiVersion });
 }
 
-/** Read the capability status Stripe reports for card payments. */
-export function cardPaymentsStatus(account: Stripe.Account): string | null {
-  return account.capabilities?.card_payments ?? null;
+/** The v2 merchant capability status, or null if there is no merchant config. */
+export function cardPaymentsStatus(account: V2Account): string | null {
+  return account.configuration?.merchant?.capabilities?.card_payments?.status ?? null;
 }
 
 /**
- * Turn a Stripe account into the facts worth storing.
+ * Turn a v2 account into the facts worth storing.
  *
- * `charges_enabled` and `details_submitted` are Stripe's own summary of
- * whether the account works; the capability is the specific permission a
- * direct card charge needs. All three are stored because they fail
- * independently, and an operator asking "why is this contractor not ready"
- * deserves a specific answer.
+ * Three facts because they fail independently, and an operator asking "why is
+ * this contractor not ready" deserves a specific answer rather than a boolean.
  */
-export function factsFromAccount(account: Stripe.Account, checkedAt: Date) {
+export function factsFromAccount(account: V2Account, checkedAt: Date) {
   return {
-    stripeDetailsSubmitted: account.details_submitted ?? false,
-    stripeChargesEnabled: account.charges_enabled ?? false,
+    stripeMerchantConfigured: Boolean(account.configuration?.merchant),
     stripeCardPaymentsStatus: cardPaymentsStatus(account),
+    // Any outstanding requirement blocks. Fails closed on an unexpected shape:
+    // if `entries` is missing we treat it as unblocked ONLY because the
+    // capability check above still has to pass, and a pending capability is
+    // what an outstanding requirement produces.
+    stripeOnboardingBlocked: (account.requirements?.entries?.length ?? 0) > 0,
     stripeReadinessCheckedAt: checkedAt,
   };
 }

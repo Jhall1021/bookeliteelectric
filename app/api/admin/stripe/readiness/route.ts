@@ -12,13 +12,15 @@
 
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
-import { stripeClient, factsFromAccount, connectReadiness } from "@/lib/stripeConnect";
+import {
+  stripeClient, factsFromAccount, connectReadiness, type V2Account,
+} from "@/lib/stripeConnect";
 
 const SELECT = {
   stripeAccountId: true,
-  stripeDetailsSubmitted: true,
-  stripeChargesEnabled: true,
+  stripeMerchantConfigured: true,
   stripeCardPaymentsStatus: true,
+  stripeOnboardingBlocked: true,
   stripeReadinessCheckedAt: true,
 } as const;
 
@@ -60,9 +62,16 @@ export async function POST() {
       );
     }
 
-    let account;
+    let account: V2Account;
     try {
-      account = await stripe.accounts.retrieve(contractor.stripeAccountId);
+      // V2 RETRIEVAL, asking for the two things readiness is derived from.
+      // v1 compatibility is deliberately not enabled, so this is the only
+      // shape in play.
+      account = (await (stripe as unknown as {
+        v2: { core: { accounts: { retrieve(id: string, p?: unknown): Promise<V2Account> } } };
+      }).v2.core.accounts.retrieve(contractor.stripeAccountId, {
+        include: ["configuration.merchant", "requirements"],
+      })) as V2Account;
     } catch (e) {
       console.error(`[stripe] readiness refresh failed for ${contractor.stripeAccountId}:`, e);
       return NextResponse.json(

@@ -405,8 +405,9 @@ export async function POST(req: Request) {
     const contractor = await db.contractor.findUniqueOrThrow({
       where: { id: site.contractorId },
       select: {
-        stripeAccountId: true, stripeDetailsSubmitted: true, stripeChargesEnabled: true,
-        stripeCardPaymentsStatus: true, stripeReadinessCheckedAt: true,
+        stripeAccountId: true, stripeMerchantConfigured: true,
+          stripeCardPaymentsStatus: true, stripeOnboardingBlocked: true,
+          stripeReadinessCheckedAt: true,
       },
     });
     const gateway = stripeGateway();

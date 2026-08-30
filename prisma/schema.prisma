@@ -459,15 +459,28 @@ model Contractor {
 
   /// WHAT STRIPE LAST REPORTED, not what we hope is true.
   ///
+  /// ACCOUNTS V2 SHAPE. The sandbox required v2, so these are v2 facts: a
+  /// merchant configuration and its card_payments capability, rather than v1's
+  /// details_submitted and charges_enabled. Reshaped rather than translated
+  /// because no contractor had connected an account yet, so the old columns
+  /// carried nothing to preserve — and a column whose name says charges_enabled
+  /// while holding something else is worse than no column.
+  ///
   /// An account id means an account was created. It does not mean the
-  /// contractor can accept a card: onboarding can sit incomplete for days with
-  /// charges disabled. These three are the facts a readiness decision is made
-  /// from, refreshed from Stripe rather than inferred from our own flow.
-  stripeDetailsSubmitted Boolean @default(false)
-  stripeChargesEnabled   Boolean @default(false)
-  /// Stripe's capability status for card payments: "active", "pending",
-  /// "inactive", or null when never checked.
+  /// contractor can accept a card.
+  ///
+  /// The merchant configuration exists on the account. Without it there is
+  /// nothing that could take a payment.
+  stripeMerchantConfigured Boolean @default(false)
+  /// Stripe's capability status for card payments on the merchant
+  /// configuration: "active", "pending", "unsupported", or null when never
+  /// checked. Only "active" is ready.
   stripeCardPaymentsStatus String?
+  /// Onboarding has outstanding requirements that block charging. Stored
+  /// separately from the capability because "the capability is pending" and
+  /// "Stripe is waiting on a document" are different conversations to have
+  /// with a contractor.
+  stripeOnboardingBlocked Boolean @default(false)
 
   /// When those three were last refreshed. Null means never asked, which is
   /// NOT ready — an unanswered question is not a yes.

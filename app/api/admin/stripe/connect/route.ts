@@ -13,7 +13,7 @@
 
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
-import { stripeClient, factsFromAccount } from "@/lib/stripeConnect";
+import { stripeClient, factsFromAccount, type V2Account } from "@/lib/stripeConnect";
 import { appOrigin } from "@/lib/origins";
 
 export async function POST() {
@@ -41,38 +41,55 @@ export async function POST() {
       // arrangement where the contractor, not Price2Book, is who the homeowner
       // transacts with.
       //
-      // THE THREE CONTROLLER PROPERTIES ARE THREE ECONOMIC DECISIONS, and each
-      // one is stated rather than defaulted, because getting any of them wrong
-      // costs somebody real money.
+      // ACCOUNTS V2. The sandbox requires it, and v1 compatibility is
+      // deliberately NOT enabled — running both shapes would mean two
+      // definitions of "is this contractor ready" and eventually a
+      // disagreement nobody notices until money is involved.
       //
-      //   fees.payer = "account"
-      //     THE CONTRACTOR PAYS STRIPE'S PROCESSING FEES. This said
-      //     "application" until 29 August, which would have made Price2Book
-      //     liable for card-processing fees on every homeowner transaction in
-      //     the country — a cost model nobody chose. Stripe rejected it as
-      //     incompatible with a full dashboard, which is how it was found; the
-      //     400 was a symptom, the fee assignment was the bug.
+      // THE CONFIGURATION IS THREE ECONOMIC DECISIONS, each stated rather than
+      // defaulted, because getting any of them wrong costs somebody real
+      // money.
       //
-      //   losses.payments = "stripe"
-      //     Disputes and chargebacks sit with the connected account, not with
-      //     Price2Book. The homeowner transacted with the contractor, so the
-      //     contractor answers for it.
+      //   fees_collector: "stripe"
+      //     Stripe collects its processing fees DIRECTLY FROM THE CONTRACTOR.
+      //     Price2Book does not pay them. The v1 attempt at this said
+      //     fees.payer = "application", which would have billed Price2Book for
+      //     card processing on every homeowner transaction in the country —
+      //     found only because Stripe rejected it for an unrelated reason.
       //
-      //   stripe_dashboard.type = "full"
-      //     The contractor gets a real Stripe account they can log into, see
-      //     their payouts in, and take elsewhere. This is their payment
-      //     system; Price2Book facilitates it and does not own it.
+      //   losses_collector: "stripe"
+      //     Stripe carries an unrecoverable negative balance, not Price2Book.
+      //     NOTE THE PRECISE MEANING: the charge still belongs to the
+      //     contractor, and a refund or chargeback reduces THEIR connected
+      //     balance. This says only that if that balance cannot cover it,
+      //     the liability does not land on the platform.
       //
-      // Together these are what Stripe calls a Standard account. Written as
-      // explicit controller properties rather than `type: "standard"` so the
-      // three decisions are visible in the code instead of implied by a
-      // shorthand — and so a future change to one of them has to be typed on
-      // purpose.
-      const account = await stripe.accounts.create({
-        controller: {
-          fees: { payer: "account" },
-          losses: { payments: "stripe" },
-          stripe_dashboard: { type: "full" },
+      //   dashboard: "full"
+      //     A real Stripe account the contractor logs into, sees payouts in,
+      //     and could take elsewhere. This is their payment system.
+      //
+      // DIRECT CHARGES ARE UNCHANGED. No destination charges, no
+      // on_behalf_of, no transfer_data, no application fee.
+      //
+      // Cast because the installed SDK ships the v2 methods without parameter
+      // types. The shape below is Stripe's documented v2 merchant
+      // configuration, written out in full rather than spread from a helper so
+      // that what is being sent is readable at the call site.
+      const account = (await (stripe as unknown as {
+        v2: { core: { accounts: { create(p: unknown): Promise<V2Account> } } };
+      }).v2.core.accounts.create({
+        include: ["configuration.merchant", "requirements"],
+        configuration: {
+          merchant: {
+            capabilities: { card_payments: { requested: true } },
+          },
+        },
+        dashboard: "full",
+        defaults: {
+          responsibilities: {
+            fees_collector: "stripe",
+            losses_collector: "stripe",
+          },
         },
         metadata: {
           // Correlation only. NEVER read back as tenancy authority — the
@@ -80,7 +97,8 @@ export async function POST() {
           // influenceable in a way an account id is not.
           price2book_contractor_id: contractor.id,
         },
-      });
+      })) as V2Account;
+
       accountId = account.id;
 
       await db.contractor.update({
@@ -90,12 +108,22 @@ export async function POST() {
     }
 
     const origin = appOrigin();
-    const link = await stripe.accountLinks.create({
+    // V2 ACCOUNT LINK, targeting the merchant configuration — the thing the
+    // contractor is actually onboarding for. A link that did not name it would
+    // collect details for an account that still could not take a card.
+    const link = (await (stripe as unknown as {
+      v2: { core: { accountLinks: { create(p: unknown): Promise<{ url: string }> } } };
+    }).v2.core.accountLinks.create({
       account: accountId,
-      type: "account_onboarding",
-      refresh_url: `${origin}/admin/payments?stripe=refresh`,
-      return_url: `${origin}/admin/payments?stripe=return`,
-    });
+      use_case: {
+        type: "account_onboarding",
+        account_onboarding: {
+          configurations: ["merchant"],
+          refresh_url: `${origin}/admin/payments?stripe=refresh`,
+          return_url: `${origin}/admin/payments?stripe=return`,
+        },
+      },
+    })) as { url: string };
 
     return NextResponse.json({ onboardingUrl: link.url, stripeAccountId: accountId });
   });

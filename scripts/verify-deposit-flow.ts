@@ -32,9 +32,9 @@ function ok(label: string, cond: boolean, detail?: string) {
 
 const READY: ConnectFacts = {
   stripeAccountId: "acct_test_ready",
-  stripeDetailsSubmitted: true,
-  stripeChargesEnabled: true,
+  stripeMerchantConfigured: true,
   stripeCardPaymentsStatus: "active",
+  stripeOnboardingBlocked: false,
   stripeReadinessCheckedAt: new Date("2026-08-29"),
 };
 const DEPOSIT = 24900;
@@ -146,7 +146,7 @@ async function main() {
   for (const [label, connect] of [
     ["no account", { ...READY, stripeAccountId: null }],
     ["never checked", { ...READY, stripeReadinessCheckedAt: null }],
-    ["charges disabled", { ...READY, stripeChargesEnabled: false }],
+    ["onboarding blocked", { ...READY, stripeOnboardingBlocked: true }],
     ["capability inactive", { ...READY, stripeCardPaymentsStatus: "pending" }],
   ] as [string, ConnectFacts][]) {
     const f = fakeGateway();

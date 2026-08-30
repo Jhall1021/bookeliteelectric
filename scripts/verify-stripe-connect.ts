@@ -27,45 +27,71 @@ function ok(label: string, cond: boolean, detail?: string) {
 
 const CHECKED = new Date("2026-08-29T00:00:00.000Z");
 
+/**
+ * Comments are stripped before any source is matched.
+ *
+ * Every check below looks for terms that its own documentation has to mention
+ * — a comment saying "no destination charges, no on_behalf_of" is not a
+ * destination charge. Twice now a check has failed on the paragraph explaining
+ * why it exists. audit-guard-adoption solved this the same way.
+ */
+function stripComments(src: string): string {
+  return src
+    .split("\n")
+    .map((line) => {
+      const t = line.trimStart();
+      if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) return "";
+      const i = line.indexOf("//");
+      return i === -1 ? line : line.slice(0, i);
+    })
+    .join("\n");
+}
+
 async function main() {
   console.log(`\nSTRIPE CONNECT — READINESS\n`);
 
   // ── 1-4: every way readiness can fail, and the one way it succeeds ──────
   const noAccount = connectReadiness({
-    stripeAccountId: null, stripeDetailsSubmitted: false, stripeChargesEnabled: false,
-    stripeCardPaymentsStatus: null, stripeReadinessCheckedAt: null,
+    stripeAccountId: null, stripeMerchantConfigured: false,
+    stripeCardPaymentsStatus: null, stripeOnboardingBlocked: false,
+    stripeReadinessCheckedAt: null,
   });
   ok(`1. no Stripe account -> NOT ready`, !noAccount.ready, noAccount.reason);
 
   const neverChecked = connectReadiness({
-    stripeAccountId: "acct_test", stripeDetailsSubmitted: true, stripeChargesEnabled: true,
-    stripeCardPaymentsStatus: "active", stripeReadinessCheckedAt: null,
+    stripeAccountId: "acct_test", stripeMerchantConfigured: true,
+    stripeCardPaymentsStatus: "active", stripeOnboardingBlocked: false,
+    stripeReadinessCheckedAt: null,
   });
   ok(`   an account we have never asked Stripe about -> NOT ready`, !neverChecked.ready,
     neverChecked.reason);
 
   const incomplete = connectReadiness({
-    stripeAccountId: "acct_test", stripeDetailsSubmitted: false, stripeChargesEnabled: false,
-    stripeCardPaymentsStatus: "pending", stripeReadinessCheckedAt: CHECKED,
+    stripeAccountId: "acct_test", stripeMerchantConfigured: false,
+    stripeCardPaymentsStatus: "pending", stripeOnboardingBlocked: false,
+    stripeReadinessCheckedAt: CHECKED,
   });
-  ok(`2. account created, onboarding incomplete -> NOT ready`, !incomplete.ready, incomplete.reason);
+  ok(`2. account created, no merchant configuration -> NOT ready`, !incomplete.ready, incomplete.reason);
 
   const noCharges = connectReadiness({
-    stripeAccountId: "acct_test", stripeDetailsSubmitted: true, stripeChargesEnabled: false,
-    stripeCardPaymentsStatus: "pending", stripeReadinessCheckedAt: CHECKED,
+    stripeAccountId: "acct_test", stripeMerchantConfigured: true,
+    stripeCardPaymentsStatus: "pending", stripeOnboardingBlocked: true,
+    stripeReadinessCheckedAt: CHECKED,
   });
-  ok(`3. onboarding done, charges not enabled -> NOT ready`, !noCharges.ready, noCharges.reason);
+  ok(`3. merchant configured, onboarding requirements outstanding -> NOT ready`, !noCharges.ready, noCharges.reason);
 
   const noCapability = connectReadiness({
-    stripeAccountId: "acct_test", stripeDetailsSubmitted: true, stripeChargesEnabled: true,
-    stripeCardPaymentsStatus: "inactive", stripeReadinessCheckedAt: CHECKED,
+    stripeAccountId: "acct_test", stripeMerchantConfigured: true,
+    stripeCardPaymentsStatus: "unsupported", stripeOnboardingBlocked: false,
+    stripeReadinessCheckedAt: CHECKED,
   });
-  ok(`   charges enabled but card_payments inactive -> NOT ready`, !noCapability.ready,
+  ok(`   unblocked but card_payments not active -> NOT ready`, !noCapability.ready,
     noCapability.reason);
 
   const ready = connectReadiness({
-    stripeAccountId: "acct_test", stripeDetailsSubmitted: true, stripeChargesEnabled: true,
-    stripeCardPaymentsStatus: "active", stripeReadinessCheckedAt: CHECKED,
+    stripeAccountId: "acct_test", stripeMerchantConfigured: true,
+    stripeCardPaymentsStatus: "active", stripeOnboardingBlocked: false,
+    stripeReadinessCheckedAt: CHECKED,
   });
   ok(`4. fully enabled account -> READY`, ready.ready, ready.reason);
 
@@ -121,8 +147,8 @@ async function main() {
     contractors.every((c) => c.stripeAccountId === null));
   ok(`   no contractor is payment-ready`,
     contractors.every((c) => !connectReadiness({
-      stripeAccountId: c.stripeAccountId, stripeDetailsSubmitted: false,
-      stripeChargesEnabled: false, stripeCardPaymentsStatus: null,
+      stripeAccountId: c.stripeAccountId, stripeMerchantConfigured: false,
+      stripeCardPaymentsStatus: null, stripeOnboardingBlocked: false,
       stripeReadinessCheckedAt: c.stripeReadinessCheckedAt,
     }).ready));
 
@@ -145,21 +171,6 @@ async function main() {
     "app/api/admin/stripe/readiness/route.ts",
   ];
   const MONEY = /\b(paymentIntents|charges\.create|refunds\.create|setupIntents|\.capture\(|transfers|payouts)\b/;
-  // Comments are stripped first. A comment EXPLAINING that the contractor sees
-  // their payouts is not code moving money, and scanning raw source made this
-  // check fail on its own documentation — the same reason
-  // audit-guard-adoption strips comments before matching.
-  const stripComments = (src: string) =>
-    src
-      .split("\n")
-      .map((line) => {
-        const t = line.trimStart();
-        if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) return "";
-        const i = line.indexOf("//");
-        return i === -1 ? line : line.slice(0, i);
-      })
-      .join("\n");
-
   const movingInOnboarding = ONBOARDING_SURFACE.filter((f) =>
     MONEY.test(stripComments(readFileSync(f, "utf8")))
   );
@@ -182,19 +193,27 @@ async function main() {
   // dashboard cannot have the platform paying fees. Without that conflict it
   // would have shipped.
   console.log();
-  const connectSrc = readFileSync("app/api/admin/stripe/connect/route.ts", "utf8");
+  const connectSrc = stripComments(readFileSync("app/api/admin/stripe/connect/route.ts", "utf8"));
 
-  ok(`the CONTRACTOR pays Stripe's processing fees`,
-    /fees:\s*\{\s*payer:\s*"account"\s*\}/.test(connectSrc),
-    'fees.payer must be "account" — "application" bills Price2Book for every homeowner transaction');
+  ok(`Stripe collects its fees from the CONTRACTOR`,
+    /fees_collector:\s*"stripe"/.test(connectSrc),
+    'anything else can put processing fees on the platform');
 
-  ok(`disputes sit with the connected account, not the platform`,
-    /losses:\s*\{\s*payments:\s*"stripe"\s*\}/.test(connectSrc),
-    'losses.payments "application" would make Price2Book liable for chargebacks');
+  ok(`an unrecoverable negative balance does not land on the platform`,
+    /losses_collector:\s*"stripe"/.test(connectSrc),
+    "the charge still belongs to the contractor and refunds reduce THEIR balance; " +
+      "this is only about who carries a shortfall");
 
   ok(`the contractor gets a full Stripe dashboard`,
-    /stripe_dashboard:\s*\{\s*type:\s*"full"\s*\}/.test(connectSrc),
+    /dashboard:\s*"full"/.test(connectSrc),
     "this is their payment system; they must be able to log into it");
+
+  ok(`the merchant configuration requests card payments`,
+    /card_payments:\s*\{\s*requested:\s*true\s*\}/.test(connectSrc));
+
+  ok(`v1 account compatibility is not enabled`,
+    !/stripe\.accounts\.create|controller:\s*\{/.test(connectSrc),
+    "two account shapes would mean two definitions of ready");
 
   // Direct charges, not destination. The distinction is who the homeowner
   // transacts with, and switching to destination charges to make an error go

@@ -24,7 +24,9 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { stripeClient, connectReadiness, factsFromAccount } from "../lib/stripeConnect";
+import {
+  stripeClient, connectReadiness, factsFromAccount, type V2Account,
+} from "../lib/stripeConnect";
 import { stripeGateway } from "../lib/paymentGateway";
 import { runDepositCheckout, preWorkMayProceed } from "../lib/depositFlow";
 import { recordCapture } from "../lib/depositRecording";
@@ -72,11 +74,25 @@ async function main() {
   if (!stripe || !gateway) { console.error(`  no Stripe client\n`); process.exit(1); }
 
   // ── the contractor ─────────────────────────────────────────────────────
+  // A missing connected account is a STATE, not an error. Before onboarding
+  // has run there is nothing to test, and saying so is more useful than a
+  // stack trace with a Prisma code in it.
   const contractor = slug
-    ? await prisma.contractor.findUniqueOrThrow({ where: { slug }, select: ALL })
-    : await prisma.contractor.findFirstOrThrow({
+    ? await prisma.contractor.findUnique({ where: { slug }, select: ALL })
+    : await prisma.contractor.findFirst({
         where: { stripeAccountId: { not: null } }, select: ALL,
       });
+
+  if (!contractor) {
+    const all = await prisma.contractor.findMany({ select: { slug: true, stripeAccountId: true } });
+    console.log(`\n  No contractor with a connected Stripe account yet.\n`);
+    for (const c of all) {
+      console.log(`     ${c.slug.padEnd(24)} ${c.stripeAccountId ?? "no account"}`);
+    }
+    console.log(`\n  Connect one through POST /api/admin/stripe/connect, finish`);
+    console.log(`  onboarding until card_payments is active, then rerun.\n`);
+    process.exit(2);
+  }
   console.log(`\n  contractor  ${contractor.slug}`);
   console.log(`  account     ${contractor.stripeAccountId ?? "none"}\n`);
 
@@ -88,16 +104,20 @@ async function main() {
     process.exit(2);
   }
 
-  const account = await stripe.accounts.retrieve(contractor.stripeAccountId);
+  const account = (await (stripe as unknown as {
+    v2: { core: { accounts: { retrieve(id: string, p?: unknown): Promise<V2Account> } } };
+  }).v2.core.accounts.retrieve(contractor.stripeAccountId, {
+    include: ["configuration.merchant", "requirements"],
+  })) as V2Account;
   const facts = factsFromAccount(account, new Date());
   await prisma.contractor.update({ where: { id: contractor.id }, data: facts });
   const refreshed = { stripeAccountId: contractor.stripeAccountId, ...facts };
   const readiness = connectReadiness(refreshed);
 
   console.log(`  REFRESHED FROM STRIPE`);
-  console.log(`     details_submitted        ${facts.stripeDetailsSubmitted}`);
-  console.log(`     charges_enabled          ${facts.stripeChargesEnabled}`);
+  console.log(`     merchant configured      ${facts.stripeMerchantConfigured}`);
   console.log(`     card_payments capability ${facts.stripeCardPaymentsStatus ?? "null"}`);
+  console.log(`     onboarding blocked       ${facts.stripeOnboardingBlocked}`);
   console.log(`     -> ${readiness.ready ? "READY" : "NOT READY"}: ${readiness.reason}\n`);
 
   if (!readiness.ready) {
@@ -213,8 +233,8 @@ async function main() {
 }
 
 const ALL = {
-  id: true, slug: true, stripeAccountId: true, stripeDetailsSubmitted: true,
-  stripeChargesEnabled: true, stripeCardPaymentsStatus: true, stripeReadinessCheckedAt: true,
+  id: true, slug: true, stripeAccountId: true, stripeMerchantConfigured: true,
+  stripeCardPaymentsStatus: true, stripeOnboardingBlocked: true, stripeReadinessCheckedAt: true,
 } as const;
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(async () => { await prisma.$disconnect(); });
