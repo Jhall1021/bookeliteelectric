@@ -118,17 +118,27 @@ async function main() {
   try {
     // Contractor A's readiness is a property of A's row. Reading B's requires
     // B's id, which the route never accepts.
+    const READINESS_SELECT = {
+      stripeAccountId: true, stripeMerchantConfigured: true,
+      stripeCardPaymentsStatus: true, stripeOnboardingBlocked: true,
+      stripeReadinessCheckedAt: true,
+    } as const;
     const a = await prisma.contractor.findUniqueOrThrow({
-      where: { slug: "elite-electric" },
-      select: { stripeAccountId: true },
+      where: { slug: "elite-electric" }, select: READINESS_SELECT,
     });
     const b = await prisma.contractor.findUniqueOrThrow({
-      where: { id: probe.id },
-      select: { stripeAccountId: true },
+      where: { id: probe.id }, select: READINESS_SELECT,
     });
-    ok(`   one contractor's readiness is not the other's`,
-      a.stripeAccountId === null && b.stripeAccountId === null,
-      "both null today, which is the same answer for different reasons");
+    // Was "both are null today", which is a much weaker claim and stopped
+    // being true the moment a contractor onboarded. Now it can assert the
+    // thing that matters: one contractor being ready says nothing about
+    // another.
+    const bReady = connectReadiness(b);
+    ok(`   readiness belongs to a contractor, not to the platform`,
+      a.stripeAccountId !== b.stripeAccountId && !bReady.ready,
+      `probe ready=${bReady.ready}`);
+    ok(`   a contractor with no account is never ready, whatever another has`,
+      b.stripeAccountId === null && !bReady.ready, bReady.reason);
   } finally {
     if (!probe.slug.startsWith("stripe-probe-")) {
       throw new Error("refusing to delete a contractor this probe did not create");
@@ -141,17 +151,30 @@ async function main() {
   const bookings = await prisma.booking.count();
   ok(`6. all ${bookings} existing booking(s) still present`, bookings === 24, String(bookings));
 
+  // These asserted "no contractor has an account yet" and "none is
+  // payment-ready". Both were Release #1 dormancy claims and both stopped
+  // being true on 30 August, when a contractor actually onboarded. Retired for
+  // the same reason as the earlier ones: a check kept past its question is one
+  // nobody reads.
+  //
+  // What replaces them is the claim that still means something — readiness is
+  // never inferred from our own flow reaching a screen. It is derived from
+  // facts Stripe reported, and a contractor we have not asked about is not
+  // ready however far along they look.
   const contractors = await prisma.contractor.findMany({
-    select: { slug: true, stripeAccountId: true, stripeReadinessCheckedAt: true },
+    select: {
+      slug: true, stripeAccountId: true, stripeMerchantConfigured: true,
+      stripeCardPaymentsStatus: true, stripeOnboardingBlocked: true,
+      stripeReadinessCheckedAt: true,
+    },
   });
-  ok(`   no contractor has a Stripe account yet`,
-    contractors.every((c) => c.stripeAccountId === null));
-  ok(`   no contractor is payment-ready`,
-    contractors.every((c) => !connectReadiness({
-      stripeAccountId: c.stripeAccountId, stripeMerchantConfigured: false,
-      stripeCardPaymentsStatus: null, stripeOnboardingBlocked: false,
-      stripeReadinessCheckedAt: c.stripeReadinessCheckedAt,
-    }).ready));
+  const readyOnes = contractors.filter((c) => connectReadiness(c).ready);
+  console.log(`       ${readyOnes.length} of ${contractors.length} contractor(s) payment-ready`);
+  ok(`   every ready contractor was actually checked with Stripe`,
+    readyOnes.every((c) => c.stripeReadinessCheckedAt !== null),
+    "readiness is what Stripe reported, never what our flow assumed");
+  ok(`   and every ready contractor has card_payments active`,
+    readyOnes.every((c) => c.stripeCardPaymentsStatus === "active" && c.stripeMerchantConfigured));
 
   // ── 7: ONBOARDING itself cannot move money ─────────────────────────────
   //
@@ -297,6 +320,16 @@ async function main() {
   ok(`   and neither reaches for the stable one`,
     !/stripeClient\(\)/.test(connectSrc) && !/stripeClient\(\)/.test(readinessSrc));
 
+  // A deposit hold only works on methods that support authorize-then-capture.
+  // Without this the intent inherits whatever the CONTRACTOR enabled in their
+  // own dashboard, so it works for contractors with only cards and breaks for
+  // the ones who turned on Klarna or Cash App — a failure the platform never
+  // sees in its own testing.
+  ok(`a deposit hold cannot be redirected onto a non-card method`,
+    /automatic_payment_methods:\s*\{\s*enabled:\s*true,\s*allow_redirects:\s*"never"\s*\}/.test(gatewayLib));
+  ok(`   and the hold is still authorize-then-capture`,
+    /capture_method:\s*"manual"/.test(gatewayLib));
+
   // The direction that fails silently.
   ok(`the payment gateway does NOT inherit the preview version`,
     !/connectLifecycleStripe|preview/.test(gatewayLib),
@@ -305,6 +338,35 @@ async function main() {
   ok(`   and webhook verification does too`,
     /stripeClient\(\)/.test(webhookSrc) && !/connectLifecycleStripe/.test(webhookSrc),
     "a signature verified against a preview version is a different contract");
+
+  // THE HARNESS MUST NOT BYPASS THE BOUNDARY IT TESTS.
+  //
+  // verify-deposit-live-test reached for the stable client to retrieve a v2
+  // account and failed with a preview-version error — against an account
+  // production had already retrieved successfully. That produced a FALSE
+  // FAILURE, which is the benign half.
+  //
+  // The malign half is what this check is really for: a harness on a different
+  // client is not exercising the architecture it claims to. A false pass would
+  // be indistinguishable from a real one.
+  const harnessSrc = stripComments(readFileSync("scripts/verify-deposit-live-test.ts", "utf8"));
+  const v2Lines = harnessSrc
+    .split("\n")
+    .filter((l) => /v2\.core\.accounts|v2\.core\.accountLinks/.test(l));
+  ok(`the live harness performs v2 account calls`, v2Lines.length > 0,
+    "if it stopped, this check would pass by doing nothing");
+
+  // Find what each v2 call is invoked ON. The client identifier appears on the
+  // opening line of the cast, a few lines above the method.
+  const badClientOnV2 = /\(stripe as unknown as \{[\s\S]{0,200}?v2\.core\.accounts/.test(harnessSrc);
+  ok(`   and every one uses connectLifecycleStripe(), never the stable client`,
+    !badClientOnV2,
+    "a harness on the wrong client tests a shape the application does not have");
+
+  ok(`   while its PaymentIntent calls stay on the stable client`,
+    /stripe\.paymentIntents\./.test(harnessSrc) &&
+      !/lifecycle\.paymentIntents|lifecycle as unknown as[\s\S]{0,200}?paymentIntents/.test(harnessSrc),
+    "the boundary runs both ways in the harness too");
 
   ok(`the two versions are actually different`,
     /STABLE_API_VERSION\s*=\s*"2025-10-29\.clover"/.test(connectLib),

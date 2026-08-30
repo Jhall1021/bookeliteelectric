@@ -25,7 +25,8 @@
 
 import { PrismaClient } from "@prisma/client";
 import {
-  stripeClient, connectReadiness, factsFromAccount, type V2Account,
+  stripeClient, connectLifecycleStripe, connectReadiness, factsFromAccount,
+  type V2Account,
 } from "../lib/stripeConnect";
 import { stripeGateway } from "../lib/paymentGateway";
 import { runDepositCheckout, preWorkMayProceed } from "../lib/depositFlow";
@@ -69,9 +70,17 @@ async function main() {
   ok(`a webhook signing secret is configured`, webhookSecret.length > 0,
     "belongs to this endpoint and environment; never shared with production");
 
-  const stripe = stripeClient();
+  // TWO CLIENTS, THE SAME TWO PRODUCTION USES.
+  //
+  // A harness that reached for one client for everything would be testing a
+  // shape the application does not have — and this one did, which is how it
+  // produced a preview-version failure against an account production had
+  // already retrieved successfully. A false failure from a test that bypasses
+  // the boundary is the better outcome; the worse one is a false PASS.
+  const lifecycle = connectLifecycleStripe();   // v2 account lifecycle only
+  const stripe = stripeClient();                // PaymentIntents only
   const gateway = stripeGateway();
-  if (!stripe || !gateway) { console.error(`  no Stripe client\n`); process.exit(1); }
+  if (!lifecycle || !stripe || !gateway) { console.error(`  no Stripe client\n`); process.exit(1); }
 
   // ── the contractor ─────────────────────────────────────────────────────
   // A missing connected account is a STATE, not an error. Before onboarding
@@ -104,7 +113,10 @@ async function main() {
     process.exit(2);
   }
 
-  const account = (await (stripe as unknown as {
+  // Through the SAME preview-pinned client production uses. The v2 methods do
+  // not exist on the stable version, so reaching for `stripe` here fails —
+  // and would have kept failing against an account that was perfectly fine.
+  const account = (await (lifecycle as unknown as {
     v2: { core: { accounts: { retrieve(id: string, p?: unknown): Promise<V2Account> } } };
   }).v2.core.accounts.retrieve(contractor.stripeAccountId, {
     include: ["configuration.merchant", "requirements"],
@@ -135,7 +147,14 @@ async function main() {
   let capturedIntentId = "";
 
   const attempt = await runDepositCheckout(
-    { stripeAccountId: contractor.stripeAccountId, amountCents: TEST_CENTS, idempotencyKey: idem },
+    {
+      stripeAccountId: contractor.stripeAccountId,
+      amountCents: TEST_CENTS,
+      idempotencyKey: idem,
+      // Stripe's documented test card. Stands in for the homeowner's payment
+      // method, which the checkout UI will supply in a later release.
+      paymentMethod: "pm_card_visa",
+    },
     {
       gateway, connect: refreshed,
       writeLocal: async (intentId) => {
@@ -160,6 +179,15 @@ async function main() {
       where: { stripeObjectId: capturedIntentId, kind: "AUTHORIZATION_CREATED" },
     })) === 1);
   ok(`4. capture succeeded exactly once`, attempt.outcome === "captured", attempt.outcome);
+
+  // Stop HERE rather than carrying an empty intent id into the Stripe calls
+  // below: a 404 on `/v1/payment_intents/` hides the reason the flow actually
+  // failed, and the reason is the only useful thing on a failed run.
+  if (attempt.outcome !== "captured") {
+    console.error(`\n  FLOW DID NOT CAPTURE: ${attempt.outcome}`);
+    console.error(`  ${"error" in attempt ? attempt.error : (attempt as { reason: string }).reason}\n`);
+    process.exit(1);
+  }
 
   // The connected account goes in OPTIONS, not params — the same explicit
   // context every homeowner-money call in this codebase carries.

@@ -28,6 +28,19 @@ export type AuthorizeArgs = {
   metadata?: Record<string, string>;
   /** Outbound idempotency, so a retried authorize cannot create two holds. */
   idempotencyKey: string;
+  /**
+   * The card to hold against.
+   *
+   * In production this is the homeowner's payment method, collected by the
+   * checkout UI — which is a later release. Optional so this release can be
+   * exercised end to end with a Stripe test payment method, and so the
+   * eventual UI has somewhere to put a real one without changing the shape.
+   *
+   * WITHOUT IT the intent is created and sits at `requires_payment_method`: a
+   * hold against nothing, which cannot be captured. That is the correct
+   * behavior — an authorization needs something to authorize against.
+   */
+  paymentMethod?: string;
 };
 
 export type CaptureArgs = {
@@ -75,7 +88,24 @@ export function stripeGateway(): PaymentGateway | null {
           amount: args.amountCents,
           currency: args.currency ?? "usd",
           capture_method: "manual",
+          // A deposit is a HOLD: authorize now, capture after the booking
+          // commits. Redirect-based methods (Klarna, Cash App) do not support
+          // that shape, and a connected account can enable them in its own
+          // dashboard without telling us — so the intent is constrained here
+          // rather than left to each contractor's dashboard settings.
+          //
+          // Otherwise this fails per-contractor: it works on accounts with
+          // only cards enabled and fails on the ones that turned something
+          // else on, which is the kind of break nobody sees until a real
+          // homeowner hits it.
+          automatic_payment_methods: { enabled: true, allow_redirects: "never" },
           metadata: args.metadata,
+          // Confirmed at creation when a card is supplied, which is what turns
+          // "an intent exists" into "money is actually held". Without it the
+          // intent waits for a payment method and captures nothing.
+          ...(args.paymentMethod
+            ? { payment_method: args.paymentMethod, confirm: true }
+            : {}),
         },
         {
           ...connectedAccountContext(args.stripeAccountId),

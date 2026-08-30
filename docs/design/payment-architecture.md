@@ -677,3 +677,47 @@ Not one change:
 Step 2 can be built and proven the way the pre-work workflow was: dormant,
 defaults making it unreachable, and a verifier that checks the dormancy rather
 than asserting it.
+
+## 10d. A deposit hold is a card authorization, and says so
+
+The first end-to-end run against a real connected test account failed at
+authorize:
+
+> ...some of these payment methods might redirect your customer off of your
+> page, you must provide a `return_url`.
+
+The intent was inheriting whatever the **contractor** had enabled in their own
+Stripe dashboard — on this account, Klarna and Cash App alongside cards.
+
+That is not a test-harness quirk to work around. A deposit is a *hold*:
+authorize at booking, capture once the booking commits. Redirect-based methods
+do not support that shape, so the deposit intent now states the constraint
+itself:
+
+```ts
+capture_method: "manual",
+automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+```
+
+The failure mode this closes is the dangerous kind: it works on every account
+with only cards enabled, and breaks on the ones where the contractor turned
+something else on. Nothing in platform testing would show it — the break
+arrives as a real homeowner failing to book, on one contractor, for reasons
+that live in that contractor's dashboard rather than in our code.
+
+Two Connect checks now hold the line (45 total, 0 failing): the hold cannot be
+redirected onto a non-card method, and it is still authorize-then-capture.
+
+**The card itself.** `authorizeDeposit` takes an optional `paymentMethod`.
+Checkout will supply the homeowner's card; the harness supplies Stripe's
+`pm_card_visa`. Optional, because without one the intent is created and sits at
+`requires_payment_method` — a hold against nothing. That is the correct
+behavior, and it is what the first run did before this was threaded through.
+
+**Proven end to end, test mode, no live key:** $2.49 authorized on
+`acct_1UADEdFxY108DLPf`, local row written *before* capture, captured once,
+`pi_3UADlMFxY108DLPf03odI2vV` → `succeeded`. Repeating the capture with the same
+key moved money once and converged on one ledger row; a repeat webhook was
+harmless; tenancy resolved from `event.account` while metadata claiming another
+contractor did not win. Ledger: booked 50000, net paid 249, remaining 49751.
+Test rows removed and the booking returned to `LEGACY_UNTRACKED`.

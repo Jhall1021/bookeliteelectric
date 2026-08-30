@@ -57,6 +57,8 @@ export type DepositRequest = {
   /** Stable per checkout attempt, so a retry cannot create a second hold. */
   idempotencyKey: string;
   metadata?: Record<string, string>;
+  /** The homeowner's card. Supplied by checkout; a test card in the harness. */
+  paymentMethod?: string;
 };
 
 export async function runDepositCheckout(
@@ -84,6 +86,7 @@ export async function runDepositCheckout(
       stripeAccountId: req.stripeAccountId,
       amountCents: req.amountCents,
       metadata: req.metadata,
+      paymentMethod: req.paymentMethod,
       idempotencyKey: `${req.idempotencyKey}:authorize`,
     });
   } catch (e) {
