@@ -322,7 +322,10 @@ many feet in total — under 12, more, not sure? (3) Is the backsplash tiled
 already? (4) Is there an outlet or switch on the wall below the cabinets?
 (5) Photo of the kitchen showing the cabinets and the wall beneath them.
 
-**Crew-hours.** **2.5 h** standalone. Reasoned from `recessed-lighting`
+**Crew-hours.** **4.0 h** standalone — revised from 2.5 h on 29 Aug when
+architecture B was chosen, since tape, channel and a concealed driver is
+materially more work than hanging bar fixtures. Originally reasoned from
+`recessed-lighting`
 (1.25 h for the first light including a 25 ft home run) doubled for three
 separate runs of concealed bar, a driver, and a switch leg through a stud bay.
 The seed's 120 min is close and was reached independently.
