@@ -444,6 +444,34 @@ model Contractor {
   businessHours         BusinessHours?
   materialSettings      ContractorMaterialSettings?
   jobberConnection      JobberConnection?
+
+  /// STRIPE CONNECT — the contractor's own payment account.
+  ///
+  /// Homeowner money moves from the homeowner to THIS contractor. Price2Book
+  /// facilitates and never holds it: with direct charges the connected account
+  /// is the merchant of record, so the statement, the dispute, the payout and
+  /// the liability are all theirs.
+  ///
+  /// Nothing here is Price2Book's own billing of the contractor. That is a
+  /// separate Stripe surface on the platform account, with the contractor as
+  /// the customer, and the two must never share a field, a table or a webhook.
+  stripeAccountId String? @unique
+
+  /// WHAT STRIPE LAST REPORTED, not what we hope is true.
+  ///
+  /// An account id means an account was created. It does not mean the
+  /// contractor can accept a card: onboarding can sit incomplete for days with
+  /// charges disabled. These three are the facts a readiness decision is made
+  /// from, refreshed from Stripe rather than inferred from our own flow.
+  stripeDetailsSubmitted Boolean @default(false)
+  stripeChargesEnabled   Boolean @default(false)
+  /// Stripe's capability status for card payments: "active", "pending",
+  /// "inactive", or null when never checked.
+  stripeCardPaymentsStatus String?
+
+  /// When those three were last refreshed. Null means never asked, which is
+  /// NOT ready — an unanswered question is not a yes.
+  stripeReadinessCheckedAt DateTime?
   serviceAreas          ServiceArea[]
   contractorComponents  ContractorComponent[]
   contractorCategories  ContractorCategory[]

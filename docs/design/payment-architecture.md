@@ -515,7 +515,8 @@ Four additions. None of them special-cases a service.
    appointment gated on `DEPOSIT_CAPTURED`.
 
 `PaymentModel` stays as it is. The `CARD_ON_FILE_CAPTURE_AFTER_COMPLETION` path
-becomes `AWAITING_METHOD → BALANCE_DUE → SETTLED` with no deposit event, and
+becomes `AWAITING_METHOD → METHOD_READY → BALANCE_DUE → SETTLED` with no
+deposit event, and
 the deposit path adds two events to the same log. **Neither is a special case
 of the other** — they are two sequences through one state machine, which is
 what makes this reusable rather than a 200A feature.
@@ -527,7 +528,8 @@ Not one change:
 1. **Connect onboarding** — a contractor can connect a Stripe account. No
    charges. Provable on its own.
 2. **The model** — `PaymentEvent`, `paymentState`, `depositDueCents`, dormant,
-   with every existing booking mapped to `NOT_REQUIRED`.
+   with every existing booking mapped to `LEGACY_UNTRACKED` — never
+   `NOT_REQUIRED`, which would assert something false about all 24 of them.
 3. **Deposit capture** — the authorize/transaction/capture path, on a test
    account, with the atomicity verifier extended.
 4. **Activation** — the two panel services opt in and publish.
