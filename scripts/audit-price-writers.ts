@@ -37,6 +37,15 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "exact operation. The attempt runs inside a throwaway contractor's " +
     "context against Elite's service, can only fail, and Elite's published " +
     "price is asserted unchanged immediately afterwards.",
+  "scripts/publish-phase-f-package.ts":
+    "One publisher for the Phase F starting packages, replacing a bespoke script " +
+    "per service once the gates stopped changing. Publishes ONLY a slug listed in " +
+    "its own APPROVED map with the exact figure the owner signed off, and refuses " +
+    "if the engine no longer derives that figure — an approval is given for a " +
+    "number, and a material cost can move between the approval and the write (10/3 " +
+    "moved 64%). Also refuses an existing price, unresolved material, any recipe " +
+    "role on a cost hold, and a tree that does not enforce the scope the price " +
+    "assumes.",
   "scripts/publish-generator-package.ts":
     "Publishes the Phase F generator inlet package at the price its economics " +
     "DERIVE — 3.0 owner-approved crew-hours and a five-role recipe through " +

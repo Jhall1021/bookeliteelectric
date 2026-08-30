@@ -33,10 +33,6 @@ const UNDER_RESCUE: Record<string, string> = {
     "Phase F rescue. Standard scope drafted (exposed garage wall, run within " +
     "25 ft, panel in the garage with two open spaces). Blocked on material " +
     "roles for 240V receptacles and conductors heavier than 12 AWG.",
-  "hot-tub-spa-electrical":
-    "Phase F rescue. Standard scope drafted (tub set, exterior surface run " +
-    "within 25 ft, no trenching). Blocked on a GFCI spa-disconnect role and " +
-    "heavy conductor/conduit roles.",
   "200a-service-upgrade":
     "Phase F rescue. Standard scope drafted (overhead, meter and panel in " +
     "place, no relocation). Blocked on service-equipment material roles AND " +
@@ -46,10 +42,6 @@ const UNDER_RESCUE: Record<string, string> = {
     "Phase F rescue. Standard scope drafted (same amperage, same location, " +
     "service conductors reused). Blocked on panel/breaker material roles and " +
     "the same crew-hour confirmation as the service upgrade.",
-  "under-cabinet-led-lighting":
-    "Phase F rescue. Standard scope drafted (kitchen, up to 3 runs and 12 " +
-    "linear ft, powered from an existing circuit below). Blocked on LED " +
-    "under-cabinet fixture and driver roles.",
   "level-2-ev-charger":
     "Phase F, held back deliberately. 36 review routes means the tree needs " +
     "normalising around the facts that actually price it before any package " +

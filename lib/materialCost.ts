@@ -268,11 +268,53 @@ export async function recomputeServiceMaterialCost(
  * This is the function a supplier sync calls after updating a cost, and the
  * reason the sync can't quietly do nothing.
  */
-export async function recomputeServicesUsingRole(
-  db: Db,
-  canonicalMaterialId: string,
-  contractorId: string
-): Promise<RecomputeResult[]> {
+/**
+ * NAMED ARGUMENTS, DELIBERATELY.
+ *
+ * This took `(db, canonicalMaterialId, contractorId)` positionally. Both ids
+ * are cuid strings, so a caller who swapped them type-checked cleanly, matched
+ * nothing, and got back an empty array — which reads exactly like "no service
+ * uses this role". It happened: a copper cost was updated, the recompute was
+ * called with the last two arguments reversed, and it reported zero services
+ * recomputed. The service that did use the role kept a stale material cache,
+ * and was one command away from publishing a price derived from a superseded
+ * figure.
+ *
+ * Two changes, because either alone is insufficient:
+ *
+ *   1. The arguments are named, so there is no position to get wrong.
+ *   2. Both ids are CHECKED to resolve. A wrong id now throws instead of
+ *      quietly matching nothing — so an empty result means what it says,
+ *      which is the property the caller was relying on all along.
+ *
+ * The second matters more. Named arguments stop this particular mistake; the
+ * existence check stops the whole class, including an id that is simply stale
+ * or from another environment.
+ */
+export async function recomputeServicesUsingRole(args: {
+  db: Db;
+  canonicalMaterialId: string;
+  contractorId: string;
+}): Promise<RecomputeResult[]> {
+  const { db, canonicalMaterialId, contractorId } = args;
+
+  const [role, contractor] = await Promise.all([
+    db.canonicalMaterial.findUnique({ where: { id: canonicalMaterialId }, select: { id: true } }),
+    db.contractor.findUnique({ where: { id: contractorId }, select: { id: true } }),
+  ]);
+  if (!role) {
+    throw new Error(
+      `recomputeServicesUsingRole: no CanonicalMaterial "${canonicalMaterialId}". ` +
+        `An empty result would have been indistinguishable from "nothing uses this role".`
+    );
+  }
+  if (!contractor) {
+    throw new Error(
+      `recomputeServicesUsingRole: no Contractor "${contractorId}". ` +
+        `An empty result would have been indistinguishable from "nothing uses this role".`
+    );
+  }
+
   const uses = await db.serviceMaterial.findMany({
     where: { canonicalMaterialId, service: { contractorId } },
     select: { serviceId: true },
@@ -482,7 +524,11 @@ export async function setContractorMaterialCost(
 
   // Only this contractor's services.
   const affected = changed
-    ? await recomputeServicesUsingRole(db, cm.canonicalMaterialId, cm.contractorId)
+    ? await recomputeServicesUsingRole({
+        db,
+        canonicalMaterialId: cm.canonicalMaterialId,
+        contractorId: cm.contractorId,
+      })
     : [];
 
   if (changed) {
