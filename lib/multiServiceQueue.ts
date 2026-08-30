@@ -3,7 +3,7 @@
  *
  * WHY A QUEUE AND NOT A BULK ADD
  *
- * The service finder can now recognise two or three jobs in one sentence. It
+ * The service finder can now recognize two or three jobs in one sentence. It
  * cannot add them to the visit, because most services have a question tree
  * and POST /api/visit needs an answer snapshot — a bedroom outlet and an
  * ethernet run both ask where the wiring goes. So "continue with both" means

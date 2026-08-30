@@ -275,7 +275,7 @@ export async function POST(req: Request) {
   // @@unique([date, startTime, endTime, serviceAreaId]) to close it — but a
   // constraint on its own does not fix a race. It converts "both silently
   // succeed, capacity split across two rows" into "one succeeds, one throws",
-  // and something has to turn the throw into correct behaviour. That is this.
+  // and something has to turn the throw into correct behavior. That is this.
   //
   // Retrying the WHOLE transaction rather than catching inside it is not a
   // stylistic choice: in Postgres an error aborts the enclosing transaction,

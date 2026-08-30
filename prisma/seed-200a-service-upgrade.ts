@@ -88,7 +88,7 @@ async function main() {
     where: await serviceSlugKey(prisma, SLUG),
     select: { id: true, contractorId: true, permitAdminCents: true },
   });
-  if (!service) { console.error(`  ${SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!service) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
 
   for (const [key] of RECIPE) {
     const role = await prisma.canonicalMaterial.findUnique({ where: { key }, select: { id: true } });
@@ -235,7 +235,7 @@ async function main() {
     review(qMove.id, "No — I'd like the meter or panel moved", "relocating", 2),
     review(qMove.id, "I'm not sure", "unsure_move", 3),
 
-    cont(qAccess.id, "Wood, vinyl or fibre-cement siding, with clear access to it", "standard_wall", 1, qCircuits.id),
+    cont(qAccess.id, "Wood, vinyl or fiber-cement siding, with clear access to it", "standard_wall", 1, qCircuits.id),
     review(qAccess.id, "Brick, stone or stucco", "masonry", 2),
     review(qAccess.id, "The riser would have to go through the roof overhang", "roof", 3),
     review(qAccess.id, "Something else, or hard to get to", "unsure_wall", 4),

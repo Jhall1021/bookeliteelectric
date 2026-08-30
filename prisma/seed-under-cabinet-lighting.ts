@@ -3,7 +3,7 @@
  *
  *   npx tsx prisma/seed-under-cabinet-lighting.ts --apply
  *
- * Architecture B, as decided: tape in aluminium channel with a remote driver,
+ * Architecture B, as decided: tape in aluminum channel with a remote driver,
  * not integrated bar fixtures. That choice is why the labor moved from 2.5 to
  * 4.0 crew-hours — cutting tape to length, mounting and cutting channel,
  * concealing a driver and making the low-voltage connections is a different
@@ -47,7 +47,7 @@ const DISCLOSURE =
   "Pricing assumes up to " + INCLUDED_FT + " feet of lighting in one " +
   "continuous run under normal wood cabinets, powered from an existing outlet " +
   "or switch on the wall below, with one dimmer. Separate runs, a tiled " +
-  "backsplash already in place, no usable power nearby, or colour-changing or " +
+  "backsplash already in place, no usable power nearby, or color-changing or " +
   "smart control may change the price. Any difference will be shown and " +
   "approved before work begins. " + PERMIT_DISCLAIMER;
 
@@ -70,7 +70,7 @@ async function main() {
     where: await serviceSlugKey(prisma, SLUG),
     select: { id: true, contractorId: true },
   });
-  if (!service) { console.error(`  ${SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!service) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
 
   for (const [key] of RECIPE) {
     const role = await prisma.canonicalMaterial.findUnique({ where: { key }, select: { id: true } });
@@ -97,7 +97,7 @@ async function main() {
       permitAdminCents: 0,
       shortDescription:
         "Hardwired LED lighting under your kitchen cabinets — tape in an " +
-        "aluminium channel with a diffuser, so you see light rather than dots, " +
+        "aluminum channel with a diffuser, so you see light rather than dots, " +
         "on a dimmer.",
     },
   });
@@ -188,7 +188,7 @@ async function main() {
       requiredPhotoLabels: IDENTIFY, photosBlockBooking: false,
       approvedComponentPriceCents: 0, withGroups: true,
     },
-    review(qControl.id, "Colour-changing, or from my phone", "smart", 2),
+    review(qControl.id, "Color-changing, or from my phone", "smart", 2),
   ];
 
   for (const o of OPTIONS) {

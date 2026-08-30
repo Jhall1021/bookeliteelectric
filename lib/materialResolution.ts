@@ -22,7 +22,7 @@
  * That is a feature. What must not happen is those services quietly pricing
  * as though the unpriced materials were free.
  *
- * DEFENCE IN DEPTH
+ * Defense IN DEPTH
  *
  *   1. Activation is blocked  — a service cannot go live until every role it
  *                               requires resolves. Catches configuration

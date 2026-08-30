@@ -78,7 +78,7 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "amount the standing approval was given for, because a moved cost would " +
     "make this a pricing change rather than a restore. It refuses outright if " +
     "any price is already present, leaves the 23 Aug approval stamp alone " +
-    "rather than relabelling an old decision as a new one, and touches this " +
+    "rather than relabeling an old decision as a new one, and touches this " +
     "one service.",
   "scripts/build-fan-packages.ts":
     "Publishes the two bathroom exhaust fan packages, which the owner approved " +
@@ -232,7 +232,7 @@ function main() {
 
   // Exits non-zero so this can gate a build. It reported and returned 0 until
   // 27 August, which made ADR-003's "enforced" a description of intent rather
-  // than of behaviour — an unsanctioned price writer would have printed a
+  // than of behavior — an unsanctioned price writer would have printed a
   // warning into a log nobody reads and shipped.
   process.exitCode = problems.length === 0 ? 0 : 1;
 }

@@ -23,7 +23,7 @@ these would have been given a lump-sum material allowance — which is precisely
 the `addMaterialCostCents`-as-a-dollar-amount antipattern the v1.1 audit was
 written to find.
 
-### 2. The pricing settings changed today, and the catalogue has not
+### 2. The pricing settings changed today, and the catalog has not
 
 `PricingSettings` for Elite was updated at **21:47 UTC today**:
 
@@ -61,7 +61,7 @@ and externally absurd.
 
 Three ways forward, and it is not my call:
 
-1. **The restructure is intended** → reprice the catalogue to the new model
+1. **The restructure is intended** → reprice the catalog to the new model
    first, then derive the seven into a consistent book.
 2. **The restructure is intended, phased** → derive the seven at the new model
    and accept a mixed book until the rest follows.
@@ -198,12 +198,12 @@ standard package covers.
 
 **Standard scope.** Single-family, **overhead** service. Existing 100 A or 125 A
 replaced with 200 A. **Meter socket and panel both stay where they are, on the
-same wall.** Up to 30 existing branch circuits relanded and labelled. Two ground
+same wall.** Up to 30 existing branch circuits relanded and labeled. Two ground
 rods and a water bond. Permit and utility coordination included as a fixed
 allowance.
 
 **Disqualifying → review.** Underground service · meter or panel relocating ·
-mast, riser or weatherhead damage · any subpanel · aluminium branch wiring ·
+mast, riser or weatherhead damage · any subpanel · aluminum branch wiring ·
 knob-and-tube · more than 30 circuits · load calculation calling for more than
 200 A · service entrance through finished space · anything structural.
 
@@ -240,11 +240,11 @@ garage outlet.
 ### 5. `electrical-panel-replacement` — Electrical Panel Replacement
 
 **Standard scope.** Same amperage, **same location**, existing service
-conductors and meter reused. Up to 30 branch circuits relanded and labelled.
+conductors and meter reused. Up to 30 branch circuits relanded and labeled.
 Grounding and bonding brought to current code. Permit included.
 
 **Disqualifying → review.** Amperage changing (that is the service upgrade) ·
-panel relocating · service conductors too short to reland · aluminium branch
+panel relocating · service conductors too short to reland · aluminum branch
 wiring · knob-and-tube · more than 30 circuits · federal-pacific or Zinsco
 requiring extra remediation · any meter or utility work.
 
@@ -274,15 +274,15 @@ of labor. Same three explanations, same recommendation.
 **Standard scope.** Front door, **customer supplies the doorbell**. A
 transformer installed at an existing junction box or a panel knockout, and
 18/2 bell wire fished **within 25 ft** through an **accessible attic, basement
-or crawlspace**. Wood, vinyl or fibre-cement siding or a standard wood frame.
+or crawlspace**. Wood, vinyl or fiber-cement siding or a standard wood frame.
 
 **Disqualifying → review.** Brick, stucco or stone drilling · no accessible
 attic, basement or crawlspace (slab with finished ceilings) · run over 25 ft ·
-second storey with no access above · customer wants an interior chime added ·
+second story with no access above · customer wants an interior chime added ·
 existing chime to be reused but not found.
 
 **Questions.** (1) Is there an attic, basement or crawlspace above or below the
-door? (2) What is the door surrounded by — wood/vinyl/fibre cement, or brick/
+door? (2) What is the door surrounded by — wood/vinyl/fiber cement, or brick/
 stucco/stone? (3) Do you want an indoor chime as well? (4) Are you supplying the
 doorbell? (5) Photo of the doorway from outside.
 
@@ -401,11 +401,11 @@ EV charger untouched, as instructed — its scope-normalisation pass is separate
 **29 August 2026, recorded because it is the frame for every number in this
 document.**
 
-> The old Elite catalogue often priced UNCERTAINTY. The new Price2Book
-> catalogue prices a DEFINED STANDARD JOB and sends uncertainty to review.
+> The old Elite catalog often priced UNCERTAINTY. The new Price2Book
+> catalog prices a DEFINED STANDARD JOB and sends uncertainty to review.
 
 A single price attached to "electrical panel replacement" had to be survivable
-across every panel replacement — the aluminium-branch one, the
+across every panel replacement — the aluminum-branch one, the
 forty-circuit one, the one where the service conductors turn out three inches
 too short. It could not ask a question, so it had to carry the bad cases.
 

@@ -76,7 +76,7 @@ const HEIGHT_KEY = "flood_camera_height";
  * Both photos, every time, on every path.
  *
  * The close-up shows where it goes. The wide shot is the one that actually
- * earns its place: it shows the storey, the soffit, what the wall is made of,
+ * earns its place: it shows the story, the soffit, what the wall is made of,
  * whether a ladder can stand anywhere useful, and what's growing in front of
  * it. Half the things that turn this into a difficult job are visible in the
  * wide shot and in none of the answers.
@@ -241,7 +241,7 @@ async function main() {
       },
       {
         questionId: qHeight.id,
-        label: "9 to 12 feet — normal single storey",
+        label: "9 to 12 feet — normal single story",
         value: "9_12",
         routeAction: "RESOLVE_INSTANT",
         nextQuestionId: null,
@@ -252,7 +252,7 @@ async function main() {
       },
       {
         questionId: qHeight.id,
-        label: "Higher than 12 feet, or a second storey",
+        label: "Higher than 12 feet, or a second story",
         value: "over_12",
         routeAction: "PHOTO_REVIEW",
         nextQuestionId: null,

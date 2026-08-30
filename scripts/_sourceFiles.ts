@@ -7,7 +7,7 @@
  * `Command failed: git ls-files` and took the build down — a gate failing for
  * a reason unrelated to anything it checks.
  *
- * Git is still preferred when present: it honours .gitignore for free, so a
+ * Git is still preferred when present: it honors .gitignore for free, so a
  * stray file in node_modules or .next cannot join the scan. The filesystem
  * walk is the fallback, with the same exclusions applied by hand.
  */

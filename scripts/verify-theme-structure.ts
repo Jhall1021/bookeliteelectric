@@ -1,7 +1,7 @@
 /**
  * A variant is a different page, not a different palette — ADR-015 Phase 3.
  *
- * The bar this enforces: remove colour and logo, and two variants of the same
+ * The bar this enforces: remove color and logo, and two variants of the same
  * family are still obviously different. That cannot be checked by looking at
  * tokens, so it is checked on the STRUCTURE — the closed set of composition
  * choices a variant is allowed to make.
@@ -45,7 +45,7 @@ function main() {
         const diff = structureDistance(defs[i].structure, defs[j].structure);
         ok(diff.length >= MIN_VARIANT_DISTANCE,
           `${definitionKey(defs[i])} vs ${definitionKey(defs[j])}: ${diff.length} of ${STRUCTURE_AXES.length} axes differ`,
-          `only [${diff.join(", ")}] — a variant pair this close is a recolour`);
+          `only [${diff.join(", ")}] — a variant pair this close is a recolor`);
       }
   }
 

@@ -178,7 +178,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       }
       if (!VALID_ROUTE_ACTIONS.has(o.routeAction)) {
         return NextResponse.json(
-          { error: `"${o.label}" has an unrecognised route action` },
+          { error: `"${o.label}" has an unrecognized route action` },
           { status: 400 }
         );
       }

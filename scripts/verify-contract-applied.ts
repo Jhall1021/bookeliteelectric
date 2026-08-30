@@ -1,7 +1,7 @@
 /**
  * Assert a database is in the CONTRACTED state.
  *
- * Reads the database catalogue, never schema.prisma. The whole reason this
+ * Reads the database catalog, never schema.prisma. The whole reason this
  * exists is that the schema file and the database disagreed once already and
  * nothing compared them.
  *
@@ -46,7 +46,7 @@ const OPEN_VISIT_INDEX = "visits_open_per_contractor_session";
 
 async function main() {
   const host = (url ?? "").replace(/^.*@/, "").split("/")[0];
-  console.log(`\nCONTRACTED STATE — verified against the database catalogue`);
+  console.log(`\nCONTRACTED STATE — verified against the database catalog`);
   console.log(`  target: ${host}\n`);
 
   console.log("  1. all ten contractorId columns are NOT NULL");

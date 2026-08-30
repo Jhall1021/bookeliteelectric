@@ -39,7 +39,7 @@ async function main() {
 
   // ── the positive case ───────────────────────────────────────────────────
   //
-  // Pick whichever role the catalogue uses most, so the proof does not depend
+  // Pick whichever role the catalog uses most, so the proof does not depend
   // on one slug surviving a future refactor.
   const usage = await prisma.serviceMaterial.groupBy({
     by: ["canonicalMaterialId"],

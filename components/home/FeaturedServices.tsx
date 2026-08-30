@@ -67,9 +67,9 @@ export default function FeaturedServices({ items }: { items: FeaturedItem[] }) {
               ratio. Six cards side by side need a uniform height, and the
               source photos range from about 0.87 to 1.78 — letting them vary
               made the row ragged. The icon fallback matches the same box so a
-              service without a photo is not a shorter card than its neighbours.
+              service without a photo is not a shorter card than its neighbors.
 
-              ServiceIntro still honours each image's native ratio; that screen
+              ServiceIntro still honors each image's native ratio; that screen
               has the room, and preserving the provided crop is why the field
               exists. Only this grid is constrained. */}
           {s.image ? (
@@ -83,7 +83,7 @@ export default function FeaturedServices({ items }: { items: FeaturedItem[] }) {
             </div>
           )}
           <div className="p-4">
-            {/* The short marketing label, not the catalogue name — "TV Mount
+            {/* The short marketing label, not the catalog name — "TV Mount
                 Installation" reads better on a tile than "Professional TV
                 Installation". */}
             <div className="text-sm font-semibold text-ink">{s.label}</div>

@@ -95,7 +95,7 @@ async function main() {
     where: await serviceSlugKey(prisma, SLUG),
     select: { id: true, contractorId: true, name: true, basePrice: true },
   });
-  if (!service) { console.error(`  ${SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!service) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
 
   // Every role must be costed before a recipe is written against it, or the
   // service becomes unresolvable and silently stops pricing.
@@ -247,7 +247,7 @@ async function main() {
     // interlock exists before anyone drives out.
     {
       questionId: qSurface.id,
-      label: "Wood, vinyl or fibre-cement siding",
+      label: "Wood, vinyl or fiber-cement siding",
       value: "standard_siding",
       routeAction: "PHOTO_REVIEW",
       nextQuestionId: null,

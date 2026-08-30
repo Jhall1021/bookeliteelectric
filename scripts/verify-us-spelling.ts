@@ -29,9 +29,43 @@ import { execSync } from "node:child_process";
 
 const prisma = new PrismaClient();
 
-/** british -> american. Whole-word, case-insensitive. */
+/**
+ * british -> american, matched as SUBSTRINGS rather than whole words.
+ *
+ * "colours", "centred", "mislabelled", "greyscale" and "recolour" all have to
+ * be caught, and a whole-word rule misses every one of them. Each stem here
+ * was checked to make sure it cannot appear inside an unrelated English word —
+ * which is not theoretical: an earlier draft of the sweep included "tyre", and
+ * "tyre" is a substring of "properTYREsult".
+ */
 const FORBIDDEN: Record<string, string> = {
   labour: "labor",
+  catalogue: "catalog",
+  colour: "color",
+  behaviour: "behavior",
+  licence: "license",
+  labelled: "labeled",
+  labelling: "labeling",
+  centre: "center",
+  aluminium: "aluminum",
+  grey: "gray",
+  fibre: "fiber",
+  cancelled: "canceled",
+  cancelling: "canceling",
+  storey: "story",
+  itemise: "itemize",
+  neighbour: "neighbor",
+  recognise: "recognize",
+  organisation: "organization",
+  organise: "organize",
+  defence: "defense",
+  honour: "honor",
+  customise: "customize",
+  summarise: "summarize",
+  optimise: "optimize",
+  analyse: "analyze",
+  modelling: "modeling",
+  travelling: "traveling",
 };
 
 const ROOTS = ["lib", "app", "components", "scripts", "prisma", "docs"];
@@ -40,14 +74,22 @@ const ROOTS = ["lib", "app", "components", "scripts", "prisma", "docs"];
 const ENUMERATE_FORBIDDEN = [
   "scripts/verify-us-spelling.ts",
   "scripts/verify-marketing-homepage.ts",
+  "scripts/_spellingScan.ts",
 ];
+
+/**
+ * Recorded snapshots, not prose. flat-rate-baseline.json holds service slugs
+ * and resolved prices captured at a point in time; rewriting a word inside a
+ * recorded proof would quietly change what it proves.
+ */
+const RECORDED = ["docs/migration/flat-rate-baseline.json"];
 
 let fail = 0;
 
 function sourceScan() {
   console.log(`\n  SOURCE\n`);
   const files = execSync(
-    `find ${ROOTS.join(" ")} -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.md' -o -name '*.html' \\) 2>/dev/null || true`,
+    `find ${ROOTS.join(" ")} -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.md' -o -name '*.html' -o -name '*.json' \\) 2>/dev/null || true`,
     { encoding: "utf8" }
   )
     .split("\n")
@@ -61,10 +103,11 @@ function sourceScan() {
     // marketing regex from "labour" to "labor", turning a rule that caught
     // British spelling into one that rejected American spelling. It failed
     // loudly, which is the only reason it was noticed within the minute.
-    .filter((f) => !ENUMERATE_FORBIDDEN.some((e) => f.endsWith(e)));
+    .filter((f) => !ENUMERATE_FORBIDDEN.some((e) => f.endsWith(e)))
+    .filter((f) => !RECORDED.some((r) => f.endsWith(r)));
 
   for (const [bad, good] of Object.entries(FORBIDDEN)) {
-    const re = new RegExp(`\\b${bad}\\b`, "gi");
+    const re = new RegExp(bad, "gi");
     const hits: string[] = [];
     for (const f of files) {
       const text = readFileSync(f, "utf8");
@@ -109,7 +152,7 @@ async function databaseScan() {
       if (typeof v === "string") rows.push({ where: `option ${o.value}.${f}`, text: v });
 
   for (const [bad, good] of Object.entries(FORBIDDEN)) {
-    const re = new RegExp(`\\b${bad}\\b`, "i");
+    const re = new RegExp(bad, "i");
     const hits = rows.filter((r) => re.test(r.text));
     if (hits.length) {
       fail++;

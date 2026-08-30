@@ -360,7 +360,7 @@ whose purpose is to eliminate them. Contractor #2 is also electrical, so
 has a second real consumer and is no longer speculative.
 
 **`navGroup` is contractor-side, explicitly.** Elite uses it so New Outlets
-cluster near Outlets & Switches. That is storefront organisation, not electrical
+cluster near Outlets & Switches. That is storefront organization, not electrical
 truth; another contractor may want *New Installations* / *Repairs &
 Replacements*. Same for `sortOrder`, `active`, and display-name overrides.
 
@@ -375,7 +375,7 @@ admin now.
 
 1. Create canonical rows from the distinct existing Elite categories.
 2. Create one Elite `ContractorCategory` for each.
-3. Preserve Elite's current sort order, nav group and icon behaviour.
+3. Preserve Elite's current sort order, nav group and icon behavior.
 4. Switch service/category reads to the contractor category.
 5. Prove the catalog renders identically.
 6. Create a Demo contractor category set with deliberately different ordering
@@ -389,10 +389,10 @@ this pass.**
 
 ## ADR-007 — The tenant guard's real contract — NEW, 27 August
 
-**Decided 27 August, from measured behaviour. Enforced** by
+**Decided 27 August, from measured behavior. Enforced** by
 `scripts/audit-platform-tenant-relations.ts`, which exits non-zero on an
 unreviewed platform-rooted read of tenant data and runs inside `npm run verify`.
-The *live* harness that proved the underlying behaviour is operationally
+The *live* harness that proved the underlying behavior is operationally
 verified, not gated — it writes a throwaway contractor. See ADR-003.
 
 > **The guard secures top-level tenant queries. Relations inherit isolation only
@@ -647,7 +647,7 @@ every contractor. They may differ in active service catalog, slugs and routes,
 scope policy, supported work, trade vocabulary, and future template versions.
 
 **A cache hit from Contractor A must never decide Contractor B's service
-suggestion.** Accept the duplicated AI and cache cost: tenant-correct behaviour
+suggestion.** Accept the duplicated AI and cache cost: tenant-correct behavior
 matters more than maximising cache reuse.
 
 `ServiceQuery` analytics stay contractor-separated for the same reason —
@@ -765,7 +765,7 @@ global one kept (fails), `contractorId` optional (fails), fully re-keyed
 The ADR is not the place someone reaching pass four will look first. Following
 the same principle as the seed path — encode the decision where the work
 happens — this decision is also written at each site that would otherwise
-preserve the current behaviour:
+preserve the current behavior:
 
 - `prisma/schema.prisma`, on the `ServiceQuery` model and on the
   `normalizedText @unique` field itself
@@ -1049,7 +1049,7 @@ The handoff cites the ADR for two things this reconstruction cannot restore.
   `next build`, so the Vercel deploy fails on a recurrence. Proven by deleting
   the guard again and watching the gate exit 1. `audit-price-writers.ts` was
   changed to exit non-zero at the same time — it had only ever reported, which
-  made ADR-003's "enforced" a statement of intent rather than of behaviour.
+  made ADR-003's "enforced" a statement of intent rather than of behavior.
 
 ---
 
@@ -1175,7 +1175,7 @@ partial-unique candidate (`WHERE status = 'OPEN'`), checked meanwhile by
 Constraints get added when the data has been shown to satisfy them, not when the invariant
 sounds right.
 
-### Migration provenance is not application behaviour
+### Migration provenance is not application behavior
 
 Backfill derived ownership from existing relations wherever a relation existed: 30 of 33
 visits, 26 of 27 customers, 6 of 6 photos, 21 of 21 crew members.
@@ -1235,7 +1235,7 @@ onboarding**, and validates the near-final:
 correctly and completely — guarded access, derived ownership, the sweeps, the two-contractor
 harness. The dummy contractor stays as the adversarial fixture it already is.
 
-**What it changes is what counts as urgent.** Do not optimise the current architecture for
+**What it changes is what counts as urgent.** Do not optimize the current architecture for
 getting Contractor #2 live early, and do not treat "Contractor #2 could sign up" as a
 deadline that justifies a shortcut. Their onboarding is postponed until the V1
 release-candidate checklist is satisfied.

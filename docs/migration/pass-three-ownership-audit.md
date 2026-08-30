@@ -228,7 +228,7 @@ Sequence:
 
 Acceptance stays as set: schema-derived permanent sweep, zero unexplained tenant paths,
 positive controls for both contractors, cross-tenant IDs failing in both directions,
-nested and transaction behaviour proven rather than assumed, a Preview browser pass over
+nested and transaction behavior proven rather than assumed, a Preview browser pass over
 the customer-visible Visit/Quote/Booking flow, and a reconcile if any pricing-bearing path
 is touched.
 

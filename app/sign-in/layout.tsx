@@ -29,7 +29,7 @@ export const metadata: Metadata = {
  * The page inside used the storefront token names — navy, slate, electric —
  * which resolve to whichever contractor theme is in :root. On a platform page
  * that is the same mistake the marketing site avoids by owning a palette:
- * a contractor's colour choice must not repaint Price2Book's own screens.
+ * a contractor's color choice must not repaint Price2Book's own screens.
  */
 export default function SignInLayout({ children }: { children: React.ReactNode }) {
   const home = platformOrigin() ?? "/";

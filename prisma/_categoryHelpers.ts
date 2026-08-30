@@ -149,7 +149,7 @@ export async function upsertCategory(
  *
  * Accepts several slugs because a couple of seeds already probe for
  * alternatives ("appliance-install" or "appliance-installation"). Returns null
- * rather than throwing so those seeds keep their skip-and-log behaviour.
+ * rather than throwing so those seeds keep their skip-and-log behavior.
  */
 export async function findCategory(
   prisma: PrismaClient,
@@ -202,7 +202,7 @@ export async function categoryOfService(
   // era seeds; scoping to Elite explicitly would need a contractor argument
   // threaded through every caller, and "the service with this slug" is still
   // unambiguous while one contractor exists. It stops being unambiguous the
-  // moment a second one has a catalogue — at which point this helper must
+  // moment a second one has a catalog — at which point this helper must
   // take a contractorId rather than guess.
   const s = await prisma.service.findFirst({
     where: { slug },

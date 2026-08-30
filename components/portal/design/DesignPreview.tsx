@@ -52,7 +52,7 @@ export type DesignPreviewProps = {
   scale: number;
 };
 
-/** Representative catalogue rows. Structure is the point, not the prices. */
+/** Representative catalog rows. Structure is the point, not the prices. */
 const SAMPLE_SERVICES = (priceLead: string, noPrice: string): FeaturedItem[] => [
   { slug: "a", label: "Outlet Replacement", href: "#", price: `${priceLead} $189`, icon: "outlet", image: null },
   { slug: "b", label: "Ceiling Fan Install", href: "#", price: `${priceLead} $345`, icon: "fan", image: null },

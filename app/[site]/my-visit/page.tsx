@@ -254,7 +254,7 @@ export default function MyVisitPage() {
               <p className="mt-1 text-sm text-slate">
                 {/* Was "your visit fee is already covered — anything you add
                     skips it, so it's priced lower". Two problems: there is no
-                    itemised visit fee to skip, and same-visit pricing isn't
+                    itemized visit fee to skip, and same-visit pricing isn't
                     always lower. A dedicated circuit costs the same either
                     way, because none of the work gets shorter when the van is
                     already outside. */}

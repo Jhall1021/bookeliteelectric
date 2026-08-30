@@ -572,7 +572,7 @@ function zonedWallTimeToUtc(dateISO: string, hours: number, minutes: number): Da
 
 // Fallback only. The real windows are generated from BusinessHours — see
 // lib/businessHours.ts — and these are what you get if that record is missing
-// or unreadable. They match the defaults, so behaviour is unchanged rather
+// or unreadable. They match the defaults, so behavior is unchanged rather
 // than absent.
 export const FIXED_ARRIVAL_WINDOWS = [
   { start: "8:00 AM", end: "11:00 AM" },

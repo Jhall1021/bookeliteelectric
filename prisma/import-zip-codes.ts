@@ -90,7 +90,7 @@ function normaliseType(raw: string): string {
 /**
  * Work out the classification from whatever the file provides.
  *
- * This matters more than it looks: the admin greys out anything that isn't
+ * This matters more than it looks: the admin grays out anything that isn't
  * STANDARD, because a PO Box code can't be a service address. Get it wrong
  * and someone can select a ZIP no house has.
  */

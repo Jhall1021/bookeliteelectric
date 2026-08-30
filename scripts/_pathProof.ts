@@ -1,8 +1,8 @@
 /**
  * Every resolvable path of every active service, with its outcome and price.
  *
- * The proof that a behaviour-neutral change was behaviour-neutral. A passing
- * unit test says the formula is right; this says the catalogue did not move —
+ * The proof that a behavior-neutral change was behavior-neutral. A passing
+ * unit test says the formula is right; this says the catalog did not move —
  * which is the claim §16 actually makes.
  */
 import { PrismaClient } from "@prisma/client";

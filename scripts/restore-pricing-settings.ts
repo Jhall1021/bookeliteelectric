@@ -6,14 +6,14 @@
  *
  * On 29 August the row moved to $150/hr with a $290 minimum. That was
  * exploratory — the owner trying figures in the admin — and it was never
- * meant to reach the catalogue. It did not reach published prices, because
+ * meant to reach the catalog. It did not reach published prices, because
  * basePrice is stored rather than recomputed. What it did reach was the
  * MODEL: 111 published price points stopped agreeing with the contractor's
  * own stated economics, and every price this engine derived from that moment
  * on would have been drawn against a rate nobody had decided to adopt.
  *
  * The settings are owner data, so this script does not guess what they should
- * be. It restores the figures the catalogue was actually built on — the ones
+ * be. It restores the figures the catalog was actually built on — the ones
  * prisma/seed-pricing-settings.ts documents and every published price
  * reconciles against — and refuses if the row already holds them.
  */
@@ -23,7 +23,7 @@ import { eliteContractorId } from "../prisma/_componentHelpers";
 
 const prisma = new PrismaClient();
 
-/** What the catalogue was priced at, and what it reconciles against. */
+/** What the catalog was priced at, and what it reconciles against. */
 const RATE_CENTS = 25000;
 const MINIMUM_CENTS = 25000;
 

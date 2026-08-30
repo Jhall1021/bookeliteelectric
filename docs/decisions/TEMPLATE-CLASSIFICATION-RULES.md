@@ -1,10 +1,10 @@
 # Classifying trade content — physical fact, configurable policy, contractor economics
 
-Extraction is classification, not copying. Every value in a contractor's catalogue sits in
+Extraction is classification, not copying. Every value in a contractor's catalog sits in
 exactly one of three layers, and which layer it sits in determines whether it enters the
 template, enters as a configurable slot, or does not enter at all.
 
-Written while resolving the electrical catalogue, but deliberately trade-agnostic: plumbing
+Written while resolving the electrical catalog, but deliberately trade-agnostic: plumbing
 and HVAC will meet the same questions, and should not have to answer them again from scratch.
 
 ---
@@ -56,9 +56,9 @@ contractor's pricing granularity, not the trade's. Splitting 9–10 from 11–12
 what you stand on; it changes what you charge.
 
 ### The identity test — for who supplies the part
-- If the supply arrangement **distinguishes one service from another in the catalogue**, it is
+- If the supply arrangement **distinguishes one service from another in the catalog**, it is
   part of that service's identity and canonical. "Customer-supplied smart switch" is a real,
-  universal way to structure a trade catalogue.
+  universal way to structure a trade catalog.
 - If it is a passing statement of **how this contractor prefers to work**, it is policy.
   "We supply the fan" is Elite choosing to stock fans.
 
@@ -80,7 +80,7 @@ Not every refusal needs authored text. Recognising which kind you have is most o
 **a. Teach the classifier.** The value was canonical all along and the detector was being
 appropriately careful. The fix is a rule in `scripts/_extractCore.ts`, so the next trade never
 asks again. *Standardized electrical ratings are canonical* is one rule that retired five
-refusals here and will retire every amperage and voltage in every future electrical catalogue.
+refusals here and will retire every amperage and voltage in every future electrical catalog.
 
 **b. Author the wording.** The value genuinely is business-specific and Price2Book must
 deliberately decide what it says universally. Goes in the trade's wording manifest with a

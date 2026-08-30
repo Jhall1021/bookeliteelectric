@@ -28,7 +28,7 @@ const LIMITS = { name: 120, company: 160, email: 254, trade: 80, runsOn: 120, cr
  * Not validation theatre: the point of asking "what do you run on" as a menu
  * is that the answers are countable afterwards. One free-text "jobber pro?"
  * silently ruins that, and a rejected submission would cost a real lead — so
- * an unrecognised value is discarded rather than refused.
+ * an unrecognized value is discarded rather than refused.
  */
 const TRADES = [
   "Residential electrical", "Plumbing", "HVAC", "Multi-trade", "Something else",

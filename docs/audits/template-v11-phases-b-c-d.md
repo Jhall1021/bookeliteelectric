@@ -42,7 +42,7 @@ and so does the owner-supplied bathroom fan.
 
 Published prices unchanged. The **suggested** price moves $5 on each — $3 of
 cost, marked up, rounded to Elite's $5 increment — and that divergence is the
-reportable signal (§16), not a licence to reprice:
+reportable signal (§16), not a license to reprice:
 
 | | published | suggested before | suggested after |
 |---|---|---|---|
@@ -79,7 +79,7 @@ were converted.
 recipe would make material vary with distance — which these constants
 deliberately do not. Converting by matching would invent a distance-dependence
 that is not in the current economics: a change in the shape of the model, not in
-its representation, and not behaviour-neutral.
+its representation, and not behavior-neutral.
 
 Decomposition confirms it. `SWITCHLEG_ACCESSIBLE_UNDER_10` at $35.00 against a
 plausible package — `SWITCH_STANDARD` $2 + `BOX_OLD_WORK` $3 + `WALL_PLATE` $1 +
@@ -98,7 +98,7 @@ a run defined as *under ten feet*. The remainder is not cable.
 
 `NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE` and `NEW_SWITCH_AND_SWITCH_LEG_FINISHED`
 carry full economics — $35/$45 material, 1 h/1.5 h labor, $300/$435 approved —
-and **nothing selects them.** Zero attachments across the catalogue. Either the
+and **nothing selects them.** Zero attachments across the catalog. Either the
 answers that used them were removed, or they were configured ahead of a tree
 change that never landed. Left alone; they price nothing today.
 

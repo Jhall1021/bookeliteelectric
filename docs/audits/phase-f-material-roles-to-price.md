@@ -98,7 +98,7 @@ The 50 A variant also uses `WIRE_6_3` below.
 
 | role | unit | what to price | qty |
 |---|---|---|---|
-| `PANEL_MAIN_BREAKER` | each | Like-for-like main-breaker load centre at the existing amperage. Excludes branch breakers. | 1 |
+| `PANEL_MAIN_BREAKER` | each | Like-for-like main-breaker load center at the existing amperage. Excludes branch breakers. | 1 |
 | `GROUND_ROD` | each | 8 ft copper-clad electrode. | 2 |
 | `GROUND_CLAMP` | each | Acorn or water-pipe clamp. | 2 |
 | `WIRE_GROUND_6` | ft | 6 AWG bare copper. | 15 |
@@ -107,9 +107,9 @@ The 50 A variant also uses `WIRE_6_3` below.
 
 | role | unit | what to price | qty |
 |---|---|---|---|
-| `PANEL_200A_MAIN_BREAKER` | each | 200 A main-breaker load centre. Separate from the replacement panel on purpose: an upgrade is a different product and the two must price apart. | 1 |
+| `PANEL_200A_MAIN_BREAKER` | each | 200 A main-breaker load center. Separate from the replacement panel on purpose: an upgrade is a different product and the two must price apart. | 1 |
 | `METER_SOCKET_200A` | each | Utility-approved 200 A meter enclosure. | 1 |
-| `SERVICE_ENTRANCE_CABLE_200A` | ft | SER or SE-U for 200 A, socket to load centre. | 20 |
+| `SERVICE_ENTRANCE_CABLE_200A` | ft | SER or SE-U for 200 A, socket to load center. | 20 |
 | `WIRE_GROUND_6` | ft | (as above) | 25 |
 
 ### Breakers, now split by amperage — 3 roles
@@ -220,7 +220,7 @@ tape is sold, while the products surveyed were integrated fixtures counted each
 | role | unit | what to price |
 |---|---|---|
 | `LED_TAPE` | ft | Warm-white high-CRI tape, cut to length. No driver, no housing |
-| `LED_CHANNEL_DIFFUSER` | ft | Aluminium extrusion and lens the tape mounts into |
+| `LED_CHANNEL_DIFFUSER` | ft | Aluminum extrusion and lens the tape mounts into |
 | `LED_DRIVER` | each | One hardwired driver sized to the run |
 
 **Standard package**: up to 12 linear feet, **one continuous run**, usable

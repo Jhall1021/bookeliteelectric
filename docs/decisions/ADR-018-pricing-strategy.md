@@ -13,17 +13,17 @@ A contractor makes one of two fundamentally different promises to a homeowner:
     FLAT_RATE           scope + economics                              -> one approved fixed price
     TIME_AND_MATERIALS  scope + approved bounds + crew-hour rate + materials -> an estimated range
 
-Contractor-level in V1. **No per-service overrides** — a catalogue where some services quote
+Contractor-level in V1. **No per-service overrides** — a catalog where some services quote
 fixed and others estimate is a support problem before it is a feature.
 
 Pricing strategy is an **interpretation and publishing mode over contractor-owned inputs**. It
 never rewrites the service tree, durations, materials or previously configured economics.
 
-## One scope engine, not two catalogues
+## One scope engine, not two catalogs
 
     service -> questions -> answers -> scope -> labor and material requirements
 
-feeds both. There is no separate T&M catalogue and no T&M variant of a service. Only the final
+feeds both. There is no separate T&M catalog and no T&M variant of a service. Only the final
 step differs. That is the payoff from separating canonical trade knowledge from contractor policy
 and economics in ADR-001 and ADR-014: **the trade knowledge did not have to change at all.**
 
@@ -40,7 +40,7 @@ That ambiguity had already produced one real defect: labor was once computed as
 It stops being internal under T&M, where the number is shown to the homeowner. One contractor
 billing "$149/hour" for a single technician and another billing "$225/hour" for a two-man crew
 must mean different things by the same field. Renamed to **`crewHourRateCents`** by
-expand–contract; the **value is unchanged**, because the behaviour was never wrong.
+expand–contract; the **value is unchanged**, because the behavior was never wrong.
 `db:reconcile` after the rename: **0 differing.**
 
 ## Estimate bounds are contractor calibration
@@ -230,7 +230,7 @@ does not depend on it.
 
 `db:reconcile` after the whole phase: **0 differing.**
 
-### The labor-only range is labelled for what it covers
+### The labor-only range is labeled for what it covers
 
 Because V1 quotes labor and discloses materials separately, **no customer-facing label may call
 that range a total.** `resolvedPriceLabel` under TIME_AND_MATERIALS is "Estimated labor", and

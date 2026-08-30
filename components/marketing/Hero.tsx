@@ -56,7 +56,7 @@ export default function Hero() {
               <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent">
                 Contractor · what you set
               </span>
-              {/* An unlabelled price in a hero reads as a price the platform
+              {/* An unlabeled price in a hero reads as a price the platform
                   sets, which is the opposite of what this section claims. */}
               <span className="text-[11px] font-medium text-p2b-muted">Example contractor setup</span>
             </div>

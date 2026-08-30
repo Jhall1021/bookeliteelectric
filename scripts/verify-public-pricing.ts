@@ -4,14 +4,14 @@
  *   npx tsx scripts/verify-public-pricing.ts
  *
  * "Get a quote" in the price slot is not a starting price. It is the absence
- * of one, formatted. A customer scanning a catalogue is comparing numbers, and
+ * of one, formatted. A customer scanning a catalog is comparing numbers, and
  * a service that opts out of that comparison while sitting in the same grid is
  * borrowing the credibility of the ones that didn't.
  *
  * A quote-only service is an honest product. A quote-only service PRESENTED AS
  * a priced one is not, and that is the only thing this rule forbids. The
  * remedy is always one of two things: give it a bounded scope and a derived
- * price, or take it out of the public catalogue until it has one.
+ * price, or take it out of the public catalog until it has one.
  *
  * THE ALLOWLIST IS DATED AND FINITE.
  *
@@ -98,7 +98,7 @@ async function main() {
   if (violations) {
     console.log(`  ✗ ${violations} service(s) are public with nothing in the price slot,`);
     console.log(`    and are not on the rescue list. Each one either gets a bounded`);
-    console.log(`    scope and a derived price, or comes out of the catalogue.\n`);
+    console.log(`    scope and a derived price, or comes out of the catalog.\n`);
     process.exit(1);
   }
 

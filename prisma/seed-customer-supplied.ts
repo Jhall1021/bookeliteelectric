@@ -79,7 +79,7 @@ async function seedSmartSwitch(slug: string) {
         disclaimer: SMART_SWITCH_DISCLAIMER,
       },
       {
-        // §18: loss of power, intermittent behaviour, or an unknown fault is
+        // §18: loss of power, intermittent behavior, or an unknown fault is
         // a diagnostic job. Selling a smart switch wouldn't fix it.
         questionId: q.id,
         label: "No — it doesn't work, or works only sometimes",

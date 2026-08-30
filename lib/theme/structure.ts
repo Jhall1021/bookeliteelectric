@@ -1,13 +1,13 @@
 /**
  * Structural vocabulary for storefront variants — ADR-015 Phase 3.
  *
- * A variant that only swaps colours is a skin. Two contractors on the same
- * template have to be able to look UNRELATED, and colour is the first thing a
+ * A variant that only swaps colors is a skin. Two contractors on the same
+ * template have to be able to look UNRELATED, and color is the first thing a
  * homeowner stops noticing. So a variant chooses COMPOSITION: what the header
  * is shaped like, whether the hero reads as one column or two, whether
  * services are tiles or rows, what separates one section from the next.
  *
- * The test this vocabulary has to pass: remove colour and logo, and the
+ * The test this vocabulary has to pass: remove color and logo, and the
  * variants are still obviously different pages.
  *
  * Every axis is closed. Contractors do not get knobs — they choose among
@@ -19,15 +19,15 @@ export type ThemeStructure = {
   /**
    * Header composition.
    *   inline   logo left, links right, one row
-   *   stacked  logo centred, links on a second row beneath a rule
-   *   split    logo centred between two groups of links
+   *   stacked  logo centerd, links on a second row beneath a rule
+   *   split    logo centerd between two groups of links
    */
   nav: "inline" | "stacked" | "split";
 
   /**
    * Hero composition.
    *   split     two columns — copy beside a panel
-   *   centered  one column, centred, the booking entry as the focal point
+   *   centered  one column, centerd, the booking entry as the focal point
    *   banner    full-bleed statement with the entry point below it
    */
   hero: "split" | "centered" | "banner";

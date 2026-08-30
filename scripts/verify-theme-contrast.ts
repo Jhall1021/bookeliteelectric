@@ -1,10 +1,10 @@
 /**
  * Every theme a contractor can produce is readable — ADR-015 Phase 2.
  *
- * A theme system that only works for the brand colours we happened to try is
+ * A theme system that only works for the brand colors we happened to try is
  * not a theme system. So every definition is resolved against a SWEEP of brand
- * colours — the full hue circle at several lightnesses, plus the awkward cases
- * (pure white, pure black, a fluorescent yellow, a colour one step off the
+ * colors — the full hue circle at several lightnesses, plus the awkward cases
+ * (pure white, pure black, a fluorescent yellow, a color one step off the
  * page background) — and every semantic foreground/background pair the theme
  * can emit is measured.
  *
@@ -22,7 +22,7 @@ const ok = (c: boolean, label: string, detail = "") => {
   console.log(`  ${c ? "ok  " : "FAIL"} ${label}${c ? "" : `\n         ${detail}`}`);
 };
 
-/** The hue circle at four lightnesses, plus the colours that break things. */
+/** The hue circle at four lightnesses, plus the colors that break things. */
 function brandSweep(): string[] {
   const out: string[] = [];
   for (let h = 0; h < 360; h += 15)
@@ -31,14 +31,14 @@ function brandSweep(): string[] {
   return [...out,
     "#ffffff", "#000000", "#fafaf8", // white, black, and the page ground itself
     "#ffff00", "#00ff00", "#00ffff", // the fluorescents that defeat white text
-    "#7f7f7f", "#f8f8f6",            // mid grey, and one step off the background
+    "#7f7f7f", "#f8f8f6",            // mid gray, and one step off the background
   ];
 }
 
 function main() {
   console.log("\nTHEME CONTRAST\n");
   const brands = brandSweep();
-  console.log(`  ${DEFINITIONS.length} definition(s) x ${brands.length} brand colour(s) x ${CONTRAST_PAIRS.length} pairs\n`);
+  console.log(`  ${DEFINITIONS.length} definition(s) x ${brands.length} brand color(s) x ${CONTRAST_PAIRS.length} pairs\n`);
 
   // The parity definition must still emit exactly what Phase 1 proved.
   const baseline = resolveStorefrontTheme({}, { family: "baseline", variant: "a", version: 1 });
@@ -73,19 +73,19 @@ function main() {
   ok(failures.length === 0, `every resolved theme meets the contract (${DEFINITIONS.length * brands.length} resolutions)`,
     `${failures.length} failing:\n         ` + failures.slice(0, 6).join("\n         "));
 
-  console.log(`\n  ${adjusted.length} brand colour(s) needed a derived shade; ` +
+  console.log(`\n  ${adjusted.length} brand color(s) needed a derived shade; ` +
     `${unusable.length} could not be used at all and fell back.`);
 
   // The contractor's brand is an INPUT. Adjusting it must not be silent, and
   // must not be mistaken for having changed what they stored.
   const pale = resolveStorefrontTheme(readBrandInputs({ primary: "#fdfdfb" }), { family: "modern-clean", variant: "a", version: 1 });
   const note = pale.notes.find((n) => n.kind === "brand-adjusted" || n.kind === "brand-unusable");
-  ok(note !== undefined, "a brand colour too pale to read is reported, not silently used");
+  ok(note !== undefined, "a brand color too pale to read is reported, not silently used");
   ok(pale.colors.accent !== "253 253 251", "and the derived accent is not the unreadable original");
 
   const dark = resolveStorefrontTheme(readBrandInputs({ primary: "#123499" }), { family: "modern-clean", variant: "a", version: 1 });
   ok(dark.notes.length === 0 && dark.colors.accent === "18 52 153",
-    "a brand colour that already reads is used exactly as given",
+    "a brand color that already reads is used exactly as given",
     `got ${dark.colors.accent} with ${dark.notes.length} note(s)`);
 
   // Button text is chosen, not assumed. White is right for most brands and

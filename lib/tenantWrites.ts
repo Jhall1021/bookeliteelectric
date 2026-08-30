@@ -116,7 +116,7 @@ export async function withProvenAnswerOption<T>(
  * For routes that take a list of ids from a request body — a reorder, a bulk
  * delete. A guarded `deleteMany` would already filter safely, but silently:
  * the caller learns nothing about the ids that did not match. This refuses the
- * whole operation instead, which is the right behaviour when a client has sent
+ * whole operation instead, which is the right behavior when a client has sent
  * something it should not have.
  */
 export async function proveAllOwned(

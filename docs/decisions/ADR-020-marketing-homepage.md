@@ -34,7 +34,7 @@ site, too narrow 404s a customer's bookmark.
 
 ## Its own palette, deliberately
 
-Every other colour in `tailwind.config.ts` resolves to a CSS custom property so a contractor's
+Every other color in `tailwind.config.ts` resolves to a CSS custom property so a contractor's
 resolved theme can repaint the storefront at request time. The marketing site belongs to the
 platform, so a contractor's choice must never reach it — `bg-canvas` on a marketing page would
 silently inherit whichever theme happened to be in `:root`.
@@ -81,7 +81,7 @@ a platform.
 `scripts/demo-contractor.ts` provisions **Voltmark Electric** through the shipped path from the
 real electrical template, prices it through the same `suggestPrimaryPrice` the dashboard uses, and
 deletes itself afterwards. Its telephone number is in the 555-01xx range reserved for fiction and
-its address is a `.example` domain that can never resolve. It has no street address or licence
+its address is a `.example` domain that can never resolve. It has no street address or license
 number at all, because the identity resolver omits an incomplete one entirely — inventing a
 plausible address for a business that does not exist would be fabricating a record.
 

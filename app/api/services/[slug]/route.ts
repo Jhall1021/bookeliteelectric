@@ -181,7 +181,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
           ...o.requiredPhotoLabels,
         ],
         // Safe to send: these are pictures of ordinary fixtures, chosen to
-        // help someone recognise their own. Nothing about Elite's costs.
+        // help someone recognize their own. Nothing about Elite's costs.
         illustrationUrls: o.illustrationUrls,
         // De-duplicated: two groups may carry the same panel warning, and the
         // customer should see it once.

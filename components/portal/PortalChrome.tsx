@@ -14,7 +14,7 @@ import { PORTAL_MODULES } from "@/lib/portalModules";
  * would make it ambiguous whose software this is — which matters most on the
  * screen where a contractor is deciding what their customers will see.
  *
- * Blue/navy throughout, per the approved colour system: core product,
+ * Blue/navy throughout, per the approved color system: core product,
  * pricing, scheduling, configuration and contractor control. Green is reserved
  * for While We're There™, availability and positive states, so it is not spent
  * on navigation.

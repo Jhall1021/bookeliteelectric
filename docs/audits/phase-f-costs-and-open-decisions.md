@@ -92,7 +92,7 @@ derived same-visit (1.75 h)                  $465.00
 ```
 
 **Calibration.** There is no historical price for this service, so the check is
-against its two neighbours:
+against its two neighbors:
 
 | | price | hours |
 |---|---|---|
@@ -103,7 +103,7 @@ against its two neighbours:
 
 New wiring is materially "mount the doorbell" plus "install a transformer",
 plus a fish that neither of those includes. Two independent routes — one from
-crew-hours and materials, one from adding two published neighbours — land $10
+crew-hours and materials, one from adding two published neighbors — land $10
 apart. That is the strongest calibration evidence available for a service that
 has never carried a price.
 
@@ -201,6 +201,6 @@ than price a tape package from integrated-fixture listings.
 | `240v-garage-outlet` | needs decision 1, then 4 receptacle roles and 2 cable roles |
 | `under-cabinet-led-lighting` | needs decision 2, then roles and a labor revisit |
 
-Rate and minimum are $250/$250. Catalogue reconciles at 2 unexplained
+Rate and minimum are $250/$250. Catalog reconciles at 2 unexplained
 divergences (`new-coax-line`) plus 2 approved exceptions. 0 services moved,
 271 distinct price points.

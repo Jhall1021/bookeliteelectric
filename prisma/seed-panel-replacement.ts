@@ -12,7 +12,7 @@
  *
  *   A like-for-like main-breaker panel, at the SAME service size, in the SAME
  *   place, reusing the existing service conductors and meter. Up to 30 branch
- *   circuits relanded and labelled, grounding and bonding brought to current
+ *   circuits relanded and labeled, grounding and bonding brought to current
  *   code.
  *
  * TWO ANSWERS LEAVE THIS SERVICE ENTIRELY
@@ -20,14 +20,14 @@
  * "I need more capacity" is a service upgrade, not a panel replacement, and
  * gets rerouted to it. "Something isn't working" is a diagnostic — selling
  * somebody a panel to fix a fault nobody has found yet is the worst thing this
- * catalogue could do, so it routes to the $249 troubleshooting visit.
+ * catalog could do, so it routes to the $249 troubleshooting visit.
  *
  * Neither is a dead end and neither is a guess. Both are the honest answer to
  * what the customer actually said.
  *
  * WHAT THE HOMEOWNER IS NOT ASKED
  *
- * Whether their branch wiring is aluminium. Whether the panel is a Zinsco or a
+ * Whether their branch wiring is aluminum. Whether the panel is a Zinsco or a
  * Federal Pacific. Whether the service conductors are long enough to reland.
  * Those decide the price and none of them is knowable from a kitchen — so the
  * priced route ends in a non-blocking photo review and the photographs answer
@@ -62,7 +62,7 @@ const DISCLOSURE =
   "Pricing assumes a like-for-like replacement at the same service size, in " +
   "the same location, reusing your existing service conductors and meter, " +
   "with up to " + MAX_CIRCUITS + " circuits relanded. A larger service, a new " +
-  "location, aluminium branch wiring, or conductors too short to reland may " +
+  "location, aluminum branch wiring, or conductors too short to reland may " +
   "change the price. Any difference will be shown and approved before work " +
   "begins. " +
   // Elite's default, and settled: the fee belongs to a jurisdiction, not to
@@ -102,7 +102,7 @@ async function main() {
     where: await serviceSlugKey(prisma, SLUG),
     select: { id: true, contractorId: true, permitAdminCents: true },
   });
-  if (!service) { console.error(`  ${SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!service) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
 
   for (const [key] of RECIPE) {
     const role = await prisma.canonicalMaterial.findUnique({ where: { key }, select: { id: true } });
@@ -219,7 +219,7 @@ async function main() {
     },
     {
       // Selling a panel to fix a fault nobody has diagnosed is the worst thing
-      // this catalogue could do. Find the fault first.
+      // this catalog could do. Find the fault first.
       questionId: qReason.id, label: "Something isn't working right — breakers tripping, lights flickering",
       value: "fault", order: 3, routeAction: "REROUTE_TROUBLESHOOTING",
       nextQuestionId: null, requiredPhotoLabels: [], approvedComponentPriceCents: null, withGroups: false,

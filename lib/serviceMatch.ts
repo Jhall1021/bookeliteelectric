@@ -370,7 +370,7 @@ type CatalogService = { slug: string; name: string; categorySlug: string };
 /**
  * Resolve ONE job against the catalog.
  *
- * The whole of the old single-service logic, unchanged in behaviour and now
+ * The whole of the old single-service logic, unchanged in behavior and now
  * shared: a one-job request runs through this and is returned in exactly the
  * shape it always was, so every existing path in the UI keeps working.
  */

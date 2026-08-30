@@ -72,7 +72,7 @@ const EXPECTED = {
 };
 
 /**
- * Making a column NOT NULL shows up TWICE in the catalogue: once as the
+ * Making a column NOT NULL shows up TWICE in the catalog: once as the
  * column's is_nullable flipping, and once as a new `<table>_<column>_not_null`
  * row in pg_constraint. They are one change seen through two views.
  *

@@ -74,7 +74,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // this service is an add-on: it anchors on whileWeThereBasePrice and is
   // NOT the primary job. Previously the flow always assumed it was the first
   // service, so anything added by browsing was charged the full standalone
-  // rate — contradicting the promise made on the homepage and honoured
+  // rate — contradicting the promise made on the homepage and honored
   // correctly by /my-visit.
   const [isAddOn, setIsAddOn] = useState(false);
   // The troubleshooting reroute screen used to hardcode $249 in both the body
@@ -118,7 +118,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       siteFetch(`/api/services/${serviceSlug}`).then((r) => r.json()),
       // Tolerate a failure here rather than blocking the whole flow — worst
       // case the customer is treated as a first-time booker, which is the
-      // old behaviour, not a broken page.
+      // old behavior, not a broken page.
       siteFetch("/api/visit")
         .then((r) => r.json())
         .catch(() => ({ lineItems: [] })),

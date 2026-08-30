@@ -6,7 +6,7 @@
  * opposite things, and the code was right. That ambiguity had already produced
  * one defect, and it becomes customer-facing under TIME_AND_MATERIALS.
  *
- * A pure rename: the VALUE is unchanged, because the engine's behaviour was
+ * A pure rename: the VALUE is unchanged, because the engine's behavior was
  * never wrong. Nothing about any published price moves.
  */
 import { PrismaClient } from "@prisma/client";

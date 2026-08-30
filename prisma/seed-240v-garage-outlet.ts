@@ -106,7 +106,7 @@ async function ensureService(cfg: Config, contractorId: string, templateId: stri
   if (existing) return existing.id;
 
   // Siblings are cloned from the public service's own categorisation so they
-  // cannot drift into a different part of the catalogue.
+  // cannot drift into a different part of the catalog.
   const base = await prisma.service.findUniqueOrThrow({
     where: { id: templateId },
     select: { categoryId: true, contractorCategoryId: true, icon: true },
@@ -254,7 +254,7 @@ async function main() {
     where: await serviceSlugKey(prisma, PUBLIC_SLUG),
     select: { id: true, contractorId: true },
   });
-  if (!pub) { console.error(`  ${PUBLIC_SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!pub) { console.error(`  ${PUBLIC_SLUG} not in the catalog.\n`); process.exit(1); }
 
   for (const cfg of CONFIGS) {
     for (const key of [cfg.receptacle, cfg.cable, cfg.breaker, ...SHARED.map(([k]) => k)]) {

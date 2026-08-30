@@ -37,7 +37,7 @@ export const BRAND = /\bElite(\s+Electric(\s+&\s+Lighting)?)?\b/i;
  * extract as ordinary labels.
  *
  * Both read as "a number with a unit", which is why this stayed fail-closed
- * until the distinction was written down rather than guessed at per catalogue.
+ * until the distinction was written down rather than guessed at per catalog.
  */
 export const THRESHOLD = /\b\d+(\.\d+)?\s?(ft|feet|foot|in|inch(es)?|lb|lbs|pounds?)\b/i;
 
@@ -56,7 +56,7 @@ export const STANDARD_RATING = /\b\d+(\.\d+)?\s?(amps?|volts?|watts?|kw|va)\b/i;
  * "You supply the fixture; we run the wiring" and "Customer-Supplied Smart
  * Switch" describe a STANDARD SERVICE PATTERN. Customer supplies equipment,
  * electrician installs it, is a real and universal way to structure a trade
- * catalogue — it distinguishes one service from another, so it is part of that
+ * catalog — it distinguishes one service from another, so it is part of that
  * service's identity and extracts as canonical.
  *
  * "We supply the fan" is the opposite: this contractor choosing to stock fans.

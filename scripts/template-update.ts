@@ -4,7 +4,7 @@
  * The hard half. Provisioning a new contractor is straightforward; the real
  * question is what happens six months later when the template learns that a
  * scope question should be better, without overwriting what a contractor has
- * already customised or priced.
+ * already customized or priced.
  *
  *   --status   what changed between the provisioned version and the newest.
  *              READ ONLY. Nothing is written, ever, by this mode.

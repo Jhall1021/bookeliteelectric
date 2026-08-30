@@ -9,12 +9,12 @@
  * material role for another: material only ever `+=` in applyBranch. So a
  * single service cannot carry both. The fan-only package stays on the public
  * service; the fan-and-light package is a hidden sibling the tree reroutes to,
- * which is the pattern this catalogue already uses for equipment choices
+ * which is the pattern this catalog already uses for equipment choices
  * (elite-tilt-mount is hidden and reached by reference).
  *
  * Hidden is reachable: neither /api/services/[slug] nor /api/services/by-id
  * filters on `active`, while the category listings do. So the sibling is out of
- * the catalogue and out of search, and still resolves when the reroute sends
+ * the catalog and out of search, and still resolves when the reroute sends
  * someone to it — carrying their answers, as RerouteNotice does.
  *
  * §1.4 is satisfied at the end of this: the public service stops being a

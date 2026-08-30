@@ -24,7 +24,7 @@
  * the exact DDL is visible, reviewable and individually asserted.
  *
  * Index names follow Prisma's own convention (`table_col_idx`,
- * `table_col_key`) so a later `db push` recognises them as already present
+ * `table_col_key`) so a later `db push` recognizes them as already present
  * rather than trying to create them again.
  *
  * Idempotent: IF NOT EXISTS throughout, and every index is verified to exist
@@ -104,7 +104,7 @@ async function main() {
     console.log(`  CREATED  ${i.name}\n             ${i.why}`);
   }
 
-  // Verify from the catalogue, not from the fact the statements ran.
+  // Verify from the catalog, not from the fact the statements ran.
   console.log(`\n  VERIFY — read back from pg_indexes`);
   let missing = 0;
   for (const i of INDEXES) {

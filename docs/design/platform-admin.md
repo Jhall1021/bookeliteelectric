@@ -119,11 +119,11 @@ one. Cross-tenant access is not something a query can do by accident.
 `TemplateService`, `TemplateQuestion`, `TemplateAnswerOption`,
 `TemplateServiceMaterial`, `TemplateServicePolicy`, `TemplatePolicyDefinition`,
 plus `scripts/provision-from-template.ts` and `scripts/template-update.ts`, with
-`verify-template-provisioning`, `verify-template-catalogue` and
+`verify-template-provisioning`, `verify-template-catalog` and
 `verify-template-update` in the deploy gate.
 
 The handoff's "editing a canonical template does not modify contractor live
-catalogues" is already the implemented behaviour.
+catalogs" is already the implemented behavior.
 
 ### Storefront / sites — built
 
@@ -278,7 +278,7 @@ needs that does not exist.
 | 7 | Hosted Site | `ContractorSite.hostedSlug`, theme system | Content sections. The handoff's "controlled layout, not Wix" matches the existing theme model, which already refuses arbitrary composition. |
 | 8 | Billing | **nothing** | Stripe integration, plan/state mirror, `stripeCustomerId`. Largest new build. |
 | 9 | Contractor Health | `verify-*` suite, `JobberConnection` | Mostly rendering checks that already run in the deploy gate. |
-| 10 | Templates | full template model + `template-update.ts` | A read UI plus the adopt/skip flow. The "never silently mutate" rule is already the implemented behaviour. |
+| 10 | Templates | full template model + `template-update.ts` | A read UI plus the adopt/skip flow. The "never silently mutate" rule is already the implemented behavior. |
 | 11 | Onboarding Queue | — | Workflow state. Needs the same lifecycle field as Storyboard 2, plus stage/assignee. |
 
 **Two schema additions carry most of the storyboards**: a contractor lifecycle
@@ -316,7 +316,7 @@ now      finish Electrical Template v1.1        (in progress)
          EV scope normalization
          Guided Setup contract
            ^^ MUST include the policy-resolution surface. Without it,
-              provisioning produces a catalogue nobody can price, and
+              provisioning produces a catalog nobody can price, and
               Platform Admin's material screen has nothing to write to.
 
 then     Platform Admin foundation
@@ -350,12 +350,12 @@ because the reasons matter more than the answers when this is picked up later.
 An explicit enum on `Contractor`, **not** derived from billing:
 
 ```
-SETUP · TRIAL · ACTIVE · PAST_DUE · SUSPENDED · CANCELLED · INTERNAL
+SETUP · TRIAL · ACTIVE · PAST_DUE · SUSPENDED · Canceled · INTERNAL
 ```
 
 Billing is an *input* to lifecycle, never lifecycle itself. A contractor can be
 billing-active but manually suspended, comped with no Stripe subscription at
-all, in setup before billing starts, or cancelled and retained for history.
+all, in setup before billing starts, or canceled and retained for history.
 None of those are expressible as a projection of Stripe, and the console must
 be able to say what state an account is in when Stripe is unreachable.
 
@@ -375,7 +375,7 @@ enumerate?"* Those are different lists and only one of them is a work queue.
 
 **May:** view the control center, pricing and configuration, health,
 integrations, site and embed status; enter explicit Support Mode; reproduce
-storefront behaviour.
+storefront behavior.
 
 **May not, by default:** change pricing or material costs, provision templates,
 touch billing, activate or suspend a contractor, change platform roles, publish
@@ -393,7 +393,7 @@ Not "a fresh contractor that happens to be Elite". The target:
 
 > Provision Elite from the canonical Electrical template, complete every
 > contractor-owned decision through normal Guided Setup / Platform Admin, and
-> arrive at the same intended catalogue economics as today's Elite.
+> arrive at the same intended catalog economics as today's Elite.
 
 **The 271 distinct price points are the regression target**, unless a
 difference is explicitly approved during the migration. `scripts/_pathProof.ts`
@@ -438,11 +438,11 @@ canonical/contractor split exists to prevent it.
 ### What onboarding must not be
 
 Seventy-five labor entries before anybody can sell anything. That is homework,
-not onboarding, and a contractor who abandons it halfway has a catalogue that
+not onboarding, and a contractor who abandons it halfway has a catalog that
 does nothing.
 
 The goal is not "finish configuring the entire electrical trade". It is **get a
-first useful catalogue live, safely, and expand it.**
+first useful catalog live, safely, and expand it.**
 
 ### Mechanism 1 — core-service-first activation
 
@@ -461,7 +461,7 @@ invisible to the gate precisely because it is not for sale.
 
 **One thing the console will need that the schema does not distinguish.**
 `Service.active = false` is already carrying three different meanings, and that
-is measured in Elite's live catalogue today, not hypothesised:
+is measured in Elite's live catalog today, not hypothesised:
 
 | meaning | count | example |
 |---|---|---|
@@ -510,14 +510,14 @@ becomes fact the moment somebody clicks past it, and "another contractor's
 calibration" is exactly the class of value this architecture spent four phases
 separating out.
 
-Later they may be useful as **clearly labelled aggregate benchmarks** — "most
+Later they may be useful as **clearly labeled aggregate benchmarks** — "most
 electrical contractors book 2 to 3 hours for this" — which is a different
 object from a default: it informs a decision instead of making one.
 
 ### Exit criterion
 
 > A freshly provisioned contractor goes template → configures a manageable core
-> catalogue → passes launch readiness → sells services, with the long tail
+> catalog → passes launch readiness → sells services, with the long tail
 > completed later, and reaches **zero unresolved economics on every active
 > service** through normal UI, with no script and no database edit.
 
@@ -529,7 +529,7 @@ object from a default: it informs a decision instead of making one.
 4. **Guided Setup must include Contractor Pricing Setup — labor hours,
    material costs and policy quantities — release-blocking prerequisite**
 5. Prove a newly provisioned electrical contractor can configure a core
-   catalogue and pass launch readiness through normal UI, with the long tail
+   catalog and pass launch readiness through normal UI, with the long tail
    left for later
 6. Platform Admin foundation — enforce `PlatformAccess`,
    `withPlatformContractor`, platform audit, contractor lifecycle, directory,

@@ -236,7 +236,7 @@ async function main() {
         recipeRowWithoutRole: mats.some((m) => m.role === null),
         /** A component the tree can select whose economics this contractor lacks. */
         componentWithoutEconomics: components.some((c) => !c.economicsResolved),
-        /** A component priced as a lump sum rather than an itemised recipe. */
+        /** A component priced as a lump sum rather than an itemized recipe. */
         componentPricedAsLumpSum: components.some(
           (c) => (c.contractorEconomics?.addMaterialCostCents ?? 0) > 0,
         ),
@@ -251,7 +251,7 @@ async function main() {
     };
   });
 
-  // Component roles priced as a lump sum, collected once across the catalogue.
+  // Component roles priced as a lump sum, collected once across the catalog.
   const lumpSumComponents = [...ownComponents.values()]
     .filter((c) => c.addMaterialCostCents > 0)
     .map((c) => ({

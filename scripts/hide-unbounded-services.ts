@@ -1,5 +1,5 @@
 /**
- * Four services leave the public catalogue — 29 August 2026.
+ * Four services leave the public catalog — 29 August 2026.
  *
  *   npx tsx scripts/hide-unbounded-services.ts          report
  *   npx tsx scripts/hide-unbounded-services.ts --apply  hide
@@ -13,7 +13,7 @@
  * them. A starting price is a promise about scope; where there is no bounded
  * scope, the number is a guess wearing a promise.
  *
- * HIDDEN, NOT DELETED. `active: false` takes a service out of the catalogue
+ * HIDDEN, NOT DELETED. `active: false` takes a service out of the catalog
  * and out of search while leaving it reachable by direct reference, so the
  * office can still put one on a visit and a narrowed version can be brought
  * back later. Nothing here is destroyed and nothing is repriced.
@@ -70,7 +70,7 @@ const HIDE: { slug: string; why: string; toRevisit: string }[] = [
 async function main() {
   const apply = process.argv.includes("--apply");
 
-  console.log(`\nLEAVING THE PUBLIC CATALOGUE — 29 August 2026\n`);
+  console.log(`\nLEAVING THE PUBLIC Catalog — 29 August 2026\n`);
 
   let changed = 0;
   for (const h of HIDE) {
@@ -79,7 +79,7 @@ async function main() {
       select: { id: true, name: true, active: true, basePrice: true, bookingType: true },
     });
     if (!svc) {
-      console.log(`  ! ${h.slug} not in the catalogue — skipped\n`);
+      console.log(`  ! ${h.slug} not in the catalog — skipped\n`);
       continue;
     }
 

@@ -65,7 +65,7 @@ const dest = new PrismaClient({ datasources: { db: { url: destUrl } } });
 let failures = 0;
 const host = (u: string) => u.replace(/^.*@/, "").split(".")[0];
 
-/** Each dimension is a labelled map: key -> canonical description. */
+/** Each dimension is a labeled map: key -> canonical description. */
 type Dim = { name: string; rows: Record<string, string> };
 
 const QUERIES: { name: string; sql: string; key: (r: any) => string; val: (r: any) => string }[] = [
@@ -113,7 +113,7 @@ const QUERIES: { name: string; sql: string; key: (r: any) => string; val: (r: an
           WHERE ns.nspname='public' GROUP BY 1 ORDER BY 1`,
     key: (r) => r.n,
     // Ordered labels: enum order is part of the type, and a reordered enum
-    // changes comparison and sort behaviour without changing any label.
+    // changes comparison and sort behavior without changing any label.
     val: (r) => r.v,
   },
 ];

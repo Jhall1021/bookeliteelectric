@@ -94,7 +94,7 @@ export default function ServiceIntro({
         </div>
 
         {/* Was "skips the visit fee" and "they'll cost less". Neither
-            survives contact with the pricing model: there is no itemised
+            survives contact with the pricing model: there is no itemized
             visit fee to skip, and a same-visit price isn't always lower —
             a dedicated circuit costs the same either way, because the run,
             the breaker and the testing all happen in full regardless of why

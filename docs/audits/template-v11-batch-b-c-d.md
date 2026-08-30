@@ -87,7 +87,7 @@ be converted, and the reason is visible in the numbers:
 **Material varies with access. It does not vary with distance.** Doubling the run from
 "under 10 feet" to "10–20 feet" adds zero material and only labor. A cable recipe would
 necessarily make material scale with distance, so converting these would not be a
-behaviour-neutral migration — it would change the shape of the economics. These constants
+behavior-neutral migration — it would change the shape of the economics. These constants
 were never built as cable packages, and no arithmetic will make them into one.
 
 They also do not decompose. A plausible switch package —
@@ -322,12 +322,12 @@ fan-and-light. Nothing in the schema substitutes one material role for another �
 total rather than replacing part of it. So one service cannot carry both, and forcing them
 into one `fieldLaborHours` would have meant one package quietly pricing as the other.
 
-The chosen shape is the one this catalogue already uses for equipment choice: a hidden
+The chosen shape is the one this catalog already uses for equipment choice: a hidden
 sibling, reached by reference. `elite-tilt-mount` has worked that way in production.
 
 Hidden is still reachable — verified, not assumed: neither `/api/services/[slug]` nor
 `/api/services/by-id` filters on `active`, while the category listings do. The sibling is
-out of the catalogue and out of search, and resolves when the reroute sends someone to it,
+out of the catalog and out of search, and resolves when the reroute sends someone to it,
 carrying their answers.
 
 ## Derived, never typed

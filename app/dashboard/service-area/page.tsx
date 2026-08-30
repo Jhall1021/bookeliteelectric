@@ -26,7 +26,7 @@ export default async function ServiceAreaPage() {
   // which made a selected county look unselected.
   // The single territory's ZIPs. Not flattened across every record — Elite
   // has one territory, and counting a second one's ZIPs here would tick
-  // counties that checkout doesn't actually honour.
+  // counties that checkout doesn't actually honor.
   const chosen = new Set(areas[0]?.zipCodes ?? []);
   const map = new Map<
     string,

@@ -4,15 +4,15 @@
  *   contractor brand inputs + pinned theme definition -> resolved storefront theme
  *
  * The contractor stores CHOICES ONLY — family, variant, pinned version, and
- * their brand colours. Button style, card style, navigation variant, hero
+ * their brand colors. Button style, card style, navigation variant, hero
  * treatment, spacing and typography are DERIVED here and never persisted on
  * the contractor, so the theme they chose and the theme they render cannot
  * drift apart, and a definition's next version reaches nobody until they adopt
  * it.
  *
- * The contractor's brand colour is preserved as an INPUT. If it cannot be read
+ * The contractor's brand color is preserved as an INPUT. If it cannot be read
  * on the page the resolver derives a safe shade FROM it and says so; it does
- * not write a different colour back over what they gave us.
+ * not write a different color back over what they gave us.
  */
 import {
   ELITE_V1_COLORS, ELITE_V1_SHAPES, cssVar,
@@ -49,7 +49,7 @@ export type ThemeNote =
 /**
  * A contractor's stored brand configuration — `Contractor.brandColors`, the
  * field the schema has always had. Read through one shape so a second
- * competing brand-colour source cannot grow beside it.
+ * competing brand-color source cannot grow beside it.
  */
 export type BrandInputs = { primary?: string | null; accent?: string | null };
 

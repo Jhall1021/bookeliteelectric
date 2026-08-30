@@ -1,12 +1,12 @@
 /**
- * The storefront has exactly one source of colour — ADR-015.
+ * The storefront has exactly one source of color — ADR-015.
  *
- * A brand colour written directly into a component is invisible to the theme
+ * A brand color written directly into a component is invisible to the theme
  * resolver, so a contractor's chosen theme repaints everything around it and
  * leaves that one element wearing Elite's blue. Worse, it is silent: the page
  * looks fine on Elite, which is the only place anyone checks.
  *
- * So: no colour literals in the rendered storefront. Colour enters through the
+ * So: no color literals in the rendered storefront. Color enters through the
  * semantic tokens in lib/theme/tokens.ts and nowhere else.
  */
 import { readFileSync } from "node:fs";
@@ -24,7 +24,7 @@ const ROOTS = ["app", "components", "styles"];
  *
  * The admin was never themed. The MARKETING site is a stronger case: a
  * storefront token resolves whichever contractor's theme is in :root, so using
- * one on Price2Book's own homepage would let a contractor's colour choice
+ * one on Price2Book's own homepage would let a contractor's color choice
  * repaint the product's marketing. Those pages use the p2b.* palette in
  * tailwind.config.ts instead, and scripts/verify-marketing-homepage.ts asserts
  * the opposite rule there — that no contractor-themed token appears in them.
@@ -37,11 +37,11 @@ const SKIP_DIRS = [
 ];
 
 /**
- * Two files legitimately hold colour literals.
+ * Two files legitimately hold color literals.
  *
  * lib/theme/tokens.ts is the definition site — the values have to live
  * somewhere. lib/email.ts renders HTML email, where custom properties are not
- * reliably supported; those colours are resolved server-side and inlined, and
+ * reliably supported; those colors are resolved server-side and inlined, and
  * making that theme-aware is its own piece of work.
  */
 const ALLOWED = new Set([
@@ -49,7 +49,7 @@ const ALLOWED = new Set([
   "lib/email.ts", // HTML email; custom properties are not reliable in clients
   "tailwind.config.ts", // the mapping layer; its rgb() is a helper, not CSS
   // Rendered by next/og in the edge runtime, not by a browser: there is no
-  // :root and no custom properties to resolve, so the platform's own colours
+  // :root and no custom properties to resolve, so the platform's own colors
   // have to be written out. Both are Price2Book's marks, never a contractor's.
   "app/icon.tsx",
 ]);
@@ -71,9 +71,9 @@ for (const file of files) {
   });
 }
 
-console.log(`\nSTOREFRONT COLOUR SOURCE\n  ${files.length} file(s) scanned`);
+console.log(`\nSTOREFRONT Color SOURCE\n  ${files.length} file(s) scanned`);
 if (problems.length) {
-  console.error(`\n  ${problems.length} colour literal(s) outside the token layer:\n`);
+  console.error(`\n  ${problems.length} color literal(s) outside the token layer:\n`);
   for (const p of problems) console.error(`    ${p}`);
   console.error(`\n  Add a semantic token in lib/theme/tokens.ts and use it, or — if this`);
   console.error(`  genuinely cannot go through CSS custom properties — add the file to`);
@@ -86,7 +86,7 @@ for (const file of files) {
   if (ALLOWED.has(file) || SKIP_DIRS.some((d) => d.test(file))) continue;
   builtin += (readFileSync(file, "utf8").match(BUILTIN) ?? []).length;
 }
-console.log(`  PASS — no colour literals outside the token layer.`);
+console.log(`  PASS — no color literals outside the token layer.`);
 console.log(`  ${builtin} use(s) of Tailwind's built-in palette (white/black/gray/…).`);
 console.log(`  Those bypass the theme too, but they are Phase 3 work: a dark variant`);
 console.log(`  needs text-accent-ink where the page currently says text-white. Not a`);

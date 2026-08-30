@@ -82,7 +82,7 @@ would redirect to itself forever.
 ## Price2Book's surface, not the contractor's
 
 The storefront wears the contractor's identity and their chosen design (ADR-015, ADR-016). The
-portal wears Price2Book's: navy and blue per the approved colour system, green reserved for While
+portal wears Price2Book's: navy and blue per the approved color system, green reserved for While
 We're There™ and availability rather than spent on navigation.
 
 The contractor's name is shown at all times. This account can belong to more than one business

@@ -6,7 +6,7 @@ import {
 
 const SHELL = "mx-auto max-w-[1440px] px-5 lg:px-[88px]";
 
-/** Tag colouring shared by Guided Pricing actions and the four outcomes. */
+/** Tag coloring shared by Guided Pricing actions and the four outcomes. */
 const TONE: Record<string, string> = {
   go: "bg-p2b-green-tint text-p2b-green-deep",
   accent: "bg-p2b-accent-tint-strong text-p2b-accent",
@@ -243,7 +243,7 @@ export function GuidedPricing() {
  * COMBINED, NOT CUT. Both approved headlines survive as the two columns'
  * subheads. The first merge dropped them and the gate caught it, which is
  * what REQUIRED_COPY is for: "shorten this" is an instruction about length,
- * never a licence to lose the sentences somebody chose.
+ * never a license to lose the sentences somebody chose.
  */
 export function Control() {
   return (
@@ -337,7 +337,7 @@ export function Control() {
   );
 }
 
-/** Status pill colouring. "Coming Soon" is deliberately the quietest. */
+/** Status pill coloring. "Coming Soon" is deliberately the quietest. */
 const STATUS_STYLE: Record<string, string> = {
   Available: "bg-p2b-green-deep text-p2b-green-tint",
   "Built In": "bg-p2b-accent text-p2b-accent-tint-strong",

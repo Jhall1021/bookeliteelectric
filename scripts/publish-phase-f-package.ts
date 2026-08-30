@@ -92,7 +92,7 @@ async function main() {
       permitAdminCents: true, otherDirectCostCents: true, isPrimaryEligible: true,
     },
   });
-  if (!svc) { console.error(`  not in the catalogue.\n`); process.exit(1); }
+  if (!svc) { console.error(`  not in the catalog.\n`); process.exit(1); }
 
   if (svc.basePrice !== null || svc.whileWeThereBasePrice !== null) {
     console.log(`  Already published. Repricing is a reconciliation decision.\n`); return;

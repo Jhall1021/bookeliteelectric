@@ -72,7 +72,7 @@ export default function DesignPicker(props: DesignPickerProps) {
       <header className="mb-8">
         <h1 className="font-display text-2xl font-bold text-navy">Your storefront design</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate">
-          Every design shows your own logo, colours and company details, so what you see here is
+          Every design shows your own logo, colors and company details, so what you see here is
           what your customers will see. Picking one changes how your storefront looks — never what
           you sell or what you charge.
         </p>

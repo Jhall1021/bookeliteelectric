@@ -23,7 +23,7 @@ const FALLBACK_FROM = process.env.RESEND_FROM_EMAIL || "Price2Book <onboarding@r
  * unconditionally, which meant a second contractor's customers would have been
  * thanked by a company they never hired.
  *
- * Colours stay inlined here rather than coming from the theme: mail clients do
+ * Colors stay inlined here rather than coming from the theme: mail clients do
  * not reliably support custom properties, and a themed transactional email is
  * its own piece of work.
  */

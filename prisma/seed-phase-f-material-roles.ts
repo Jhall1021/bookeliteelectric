@@ -190,18 +190,18 @@ const ROLES: Role[] = [
   // ── panel and service ───────────────────────────────────────────────────
   {
     key: "PANEL_MAIN_BREAKER",
-    name: "Main-breaker load centre",
+    name: "Main-breaker load center",
     unit: "each",
     notes:
-      "Replacement load centre at the existing service amperage. Excludes " +
+      "Replacement load center at the existing service amperage. Excludes " +
       "branch breakers, which are counted separately.",
   },
   {
     key: "PANEL_200A_MAIN_BREAKER",
-    name: "200A main-breaker load centre",
+    name: "200A main-breaker load center",
     unit: "each",
     notes:
-      "Service-upgrade load centre with a 200A main. Separate from " +
+      "Service-upgrade load center with a 200A main. Separate from " +
       "PANEL_MAIN_BREAKER because a service upgrade is a different product " +
       "from a like-for-like replacement and the two must be priced apart.",
   },
@@ -216,7 +216,7 @@ const ROLES: Role[] = [
     name: "200A service entrance cable",
     unit: "ft",
     notes:
-      "SER or SE-U sized for a 200A service, meter socket to load centre.",
+      "SER or SE-U sized for a 200A service, meter socket to load center.",
   },
   {
     key: "GROUND_ROD",

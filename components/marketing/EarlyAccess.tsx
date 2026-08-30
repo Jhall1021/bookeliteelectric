@@ -59,7 +59,7 @@ function ChoiceRow({ name, label, options, required, error }: {
   name: string; label: string; options: string[]; required?: boolean; error?: string;
 }) {
   // A select showing its placeholder must LOOK like a placeholder. Left alone
-  // it renders in the input colour and reads as an answered field.
+  // it renders in the input color and reads as an answered field.
   const [chosen, setChosen] = useState(false);
   return (
     <div>

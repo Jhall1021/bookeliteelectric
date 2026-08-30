@@ -251,7 +251,7 @@ export function suggestWwtPrice(
 }
 
 /**
- * Dispatch shape for a booking, honouring any branch-level override.
+ * Dispatch shape for a booking, honoring any branch-level override.
  *
  * techCount here counts ELITE VANS, not people. One van carries a lead and a
  * helper, so a value of 1 is two people on site. It reaches Jobber as the

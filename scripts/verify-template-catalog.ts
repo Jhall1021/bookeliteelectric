@@ -1,19 +1,19 @@
 /**
- * Electrical Template v1 is independent of Elite — ADR-014, catalogue scale.
+ * Electrical Template v1 is independent of Elite — ADR-014, catalog scale.
  *
  * The single-service proof showed the mechanism works. This one asks the
  * question that actually decides whether we have a product: can a contractor
  * who is not Elite be stood up from this template without inheriting Elite's
  * prices, allowances, thresholds, policies or name.
  *
- * It creates a throwaway contractor, provisions the whole catalogue into it,
+ * It creates a throwaway contractor, provisions the whole catalog into it,
  * and deletes it. Elite is fingerprinted before and after — a proof that the
  * exercise changed nothing about them is worth more than any assurance that it
  * was not supposed to.
  *
  * MUTATES REAL DATA. Lives in `npm run verify:template`, never in the deploy
  * gate: a killed build partway through would leave a throwaway contractor and
- * a half-provisioned catalogue behind.
+ * a half-provisioned catalog behind.
  */
 import { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
@@ -25,7 +25,7 @@ import { hasHoles } from "../lib/policyBands";
 
 loadEnv();
 const prisma = new PrismaClient();
-const THROWAWAY = "__template-catalogue-proof__";
+const THROWAWAY = "__template-catalog-proof__";
 const TRADE = "electrical";
 const VERSION = 1;
 
@@ -61,7 +61,7 @@ async function fingerprintElite(contractorId: string) {
 }
 
 async function main() {
-  console.log(`\nELECTRICAL TEMPLATE v${VERSION} — CATALOGUE-SCALE INDEPENDENCE\n`);
+  console.log(`\nELECTRICAL TEMPLATE v${VERSION} — Catalog-SCALE INDEPENDENCE\n`);
 
   const elite = await prisma.contractor.findFirstOrThrow({
     where: { slug: { notIn: [THROWAWAY] } }, select: { id: true, name: true, slug: true },
@@ -93,7 +93,7 @@ async function main() {
         include: { components: true, conditionalDisclaimers: true } } } } },
     });
 
-    // 1 — the whole catalogue arrives
+    // 1 — the whole catalog arrives
     ok(got.length === 75 && got.length === tplServices.length,
       `all 75 services provision (${got.length} of ${tplServices.length} template services)`);
 

@@ -2,14 +2,14 @@
  * A generic storefront names nobody, and promises nothing it cannot keep.
  *
  * ADR-016. This exists because the same class of bug has now been found four
- * separate times: Elite's name in the header, their licence in the footer,
+ * separate times: Elite's name in the header, their license in the footer,
  * their phone in a safety escalation, their county in an image's alt text.
  * Each was invisible because the page looked right — on Elite, which is the
  * only storefront anyone opens.
  *
  * Two families of check:
  *
- *   IDENTITY  a specific business's name, logo, phone, address, licence or
+ *   IDENTITY  a specific business's name, logo, phone, address, license or
  *             territory, written into a component every contractor renders.
  *
  *   PRICING   copy that assumes a fixed price. True for a flat-rate
@@ -38,7 +38,7 @@ const IDENTITY_PATTERNS: { re: RegExp; what: string }[] = [
   { re: /elite-logo/i, what: "a specific company's logo asset" },
   { re: /\b732[-.\s]?204[-.\s]?7003\b|\b7322047003\b/, what: "a specific company's phone number" },
   { re: /\b1309\s+Allaire\b|\bOcean,\s*NJ\b|\b07712\b/, what: "a specific company's address" },
-  { re: /\bLicense\s*#\s*\d|\bNJ\s+Electrical\s+License\b/i, what: "a specific company's licence" },
+  { re: /\bLicense\s*#\s*\d|\bNJ\s+Electrical\s+License\b/i, what: "a specific company's license" },
   { re: /\bMonmouth\b|\bOcean\s+Count(y|ies)\b/i, what: "a specific company's service territory" },
   { re: /\bBookEliteElectric\b/i, what: "a specific company's domain" },
   { re: /nj-service-area-map/i, what: "a specific company's territory image" },
@@ -65,7 +65,7 @@ const ALLOWED = new Set([
   // A GENERATED record of one demonstration contractor's resolved copy, not a
   // component choosing copy for every contractor. The string is in it because
   // that contractor is FLAT_RATE and pricingCopy() said so — which is the
-  // behaviour this linter exists to enforce, reached rather than bypassed.
+  // behavior this linter exists to enforce, reached rather than bypassed.
   // scripts/capture-demo-flow.ts writes it; HomeownerDemo reads it and states
   // nothing of its own.
   "components/marketing/demoFlow.ts",

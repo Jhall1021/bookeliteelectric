@@ -5,7 +5,7 @@
 **Superseded in part by** [homepage-handoff-2026-08-28.docx](homepage-handoff-2026-08-28.docx),
 the Final Consolidated Handoff. Where the two disagree, the handoff wins. The audience
 definition below is unchanged; the product vocabulary and homepage structure come from the
-handoff and are summarised under "Product vocabulary" and "Homepage order".
+handoff and are summarized under "Product vocabulary" and "Homepage order".
 
 ## The one-line pitch
 
@@ -39,7 +39,7 @@ That person is concrete. "Home-service companies" is not.
 | Not | Why |
 |---|---|
 | **Homeowners** | They experience the storefront, but they are not the buyer. |
-| **Enterprise service companies** | They expect call centres, territory management, advanced dispatch, enterprise reporting, custom workflows. |
+| **Enterprise service companies** | They expect call centers, territory management, advanced dispatch, enterprise reporting, custom workflows. |
 | **Brand-new one-man shops with no pricing system** | May become customers later. Price2Book is most compelling when a functioning business wants to be easier to buy from. |
 | **Anyone looking to replace Jobber** | This is the sharpest differentiator we have. |
 
@@ -82,7 +82,7 @@ Price2Book sits between the homeowner and the contractor's existing operation:
 **homeowner → Price2Book → the contractor's existing workflow.** It is deliberately not a
 CRM, accounting, payroll or dispatch platform. **Do not lead with AI.**
 
-## Colour system
+## Color system
 
 - **Blue / navy** — core product: pricing, scheduling, configuration, contractor control.
 - **Green** — While We're There™, availability, positive and successful states.

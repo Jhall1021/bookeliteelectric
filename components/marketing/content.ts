@@ -35,8 +35,8 @@ export const HERO = {
 /**
  * The hero's contractor-side card: what you set, beside what they see.
  *
- * Labelled an EXAMPLE on the page. These are plausible figures for a
- * demonstration business, and an unlabelled price in a hero reads as a price
+ * Labeled an EXAMPLE on the page. These are plausible figures for a
+ * demonstration business, and an unlabeled price in a hero reads as a price
  * the platform sets — which is the opposite of what the section is claiming.
  */
 export const HERO_CONTROL = [

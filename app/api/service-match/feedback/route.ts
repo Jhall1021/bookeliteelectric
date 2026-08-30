@@ -7,7 +7,7 @@ import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
  * Did the customer take the suggestion?
  *
  * The single most useful signal here. A service suggested often and accepted
- * rarely is named in words nobody recognises — which is a content problem the
+ * rarely is named in words nobody recognizes — which is a content problem the
  * matching can't fix, and one nothing else would surface.
  *
  * Fire-and-forget: the customer is already navigating, and a failure here

@@ -1,5 +1,5 @@
 /**
- * Clone a slice of one contractor's catalogue onto another — ADR-020.
+ * Clone a slice of one contractor's catalog onto another — ADR-020.
  *
  * WHY THIS EXISTS
  *
@@ -12,10 +12,10 @@
  * demo built on them could only ever show the product declining to price
  * things.
  *
- * Elite's own catalogue predates the template and has no policy-driven
+ * Elite's own catalog predates the template and has no policy-driven
  * quantities: 75 of 75 services fully resolved, real material costs, real
  * published prices. Cloning a slice of it gives the demonstration contractor a
- * catalogue that actually works, with economics that are real rather than
+ * catalog that actually works, with economics that are real rather than
  * invented.
  *
  * WHAT IT DOES NOT CARRY

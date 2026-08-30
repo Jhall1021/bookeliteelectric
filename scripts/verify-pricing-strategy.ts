@@ -144,17 +144,17 @@ function noCrossing() {
   ok(tm.estimateNotice !== null && /estimate/i.test(tm.estimateNotice!),
     "an estimate always carries one");
   ok(!/estimate/i.test(flat.resolvedPriceLabel) && /estimat/i.test(tm.resolvedPriceLabel),
-    `the resolved figure is labelled differently ("${flat.resolvedPriceLabel}" vs "${tm.resolvedPriceLabel}")`);
+    `the resolved figure is labeled differently ("${flat.resolvedPriceLabel}" vs "${tm.resolvedPriceLabel}")`);
   ok(/book/i.test(flat.commitCta) && /authori/i.test(tm.commitCta),
     `the commitment differs ("${flat.commitCta}" vs "${tm.commitCta}")`);
   ok(!/price/i.test(tm.headline), "T&M's headline promises no price");
 
   // V1 quotes LABOR and discloses materials separately, so no label the
   // customer sees may promote that range into the whole bill.
-  const mislabelled = TM_RANGE_LABELS(tm).filter((l) => FORBIDDEN_TOTAL_LABELS.test(l));
-  ok(mislabelled.length === 0,
+  const mislabeled = TM_RANGE_LABELS(tm).filter((l) => FORBIDDEN_TOTAL_LABELS.test(l));
+  ok(mislabeled.length === 0,
     `no T&M label calls the labor-only range a total ("${tm.resolvedPriceLabel}")`,
-    mislabelled.join(", "));
+    mislabeled.join(", "));
   ok(/labor/i.test(tm.resolvedPriceLabel),
     "…and it says what the range actually covers");
   ok(tm.materialsNotice !== null && /materials/i.test(tm.materialsNotice!),

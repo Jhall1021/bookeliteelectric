@@ -77,7 +77,7 @@ async function main() {
     data: {
       slug: SLUG, name: "Northgate Electric", active: true,
       themeFamily: family, themeVariant: variant, themeVersion: version,
-      // A brand colour unlike Elite's, so the screenshot also shows the
+      // A brand color unlike Elite's, so the screenshot also shows the
       // resolver deriving an accent rather than reusing the fixed one.
       brandColors: { primary: "#0B7A5B" },
       // A DIFFERENT business in every respect a homeowner can see: different

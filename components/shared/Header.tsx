@@ -81,8 +81,8 @@ export default function Header() {
     </Link>
   );
 
-  // STACKED: the logo centres on its own row and the links sit beneath a rule,
-  // spanning the width. A different header, not the same header in new colours.
+  // STACKED: the logo centers on its own row and the links sit beneath a rule,
+  // spanning the width. A different header, not the same header in new colors.
   if (stacked) {
     return (
       <header className="sticky top-0 z-40 border-b border-line bg-surface">

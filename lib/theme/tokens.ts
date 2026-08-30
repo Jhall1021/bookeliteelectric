@@ -4,7 +4,7 @@
  * TWO LAYERS, deliberately.
  *
  *   semantic     what a theme definition emits: ink, canvas, accent, line…
- *   legacy name  the Tailwind colour names the Elite storefront already uses
+ *   legacy name  the Tailwind color names the Elite storefront already uses
  *                (navy, electric, warmwhite, cardline…), each resolving to a
  *                semantic token rather than to a hex
  *
@@ -14,12 +14,12 @@
  * New work should reach for the semantic names; the legacy names can be
  * retired gradually instead of in one flag day.
  *
- * Colours are stored as SPACE-SEPARATED RGB CHANNELS, not hex, because that is
+ * Colors are stored as SPACE-SEPARATED RGB CHANNELS, not hex, because that is
  * the only form Tailwind's `<alpha-value>` placeholder can compose with. A hex
  * here silently breaks every `bg-navy/50` in the tree.
  */
 
-/** Every semantic colour a theme definition must supply. */
+/** Every semantic color a theme definition must supply. */
 export const SEMANTIC_COLORS = {
   canvas: "the page ground",
   surface: "cards and panels sitting on the canvas",
@@ -37,7 +37,7 @@ export const SEMANTIC_COLORS = {
 
 export type SemanticColor = keyof typeof SEMANTIC_COLORS;
 
-/** Non-colour values a theme controls. Phase 3 variants differ here, not just in palette. */
+/** Non-color values a theme controls. Phase 3 variants differ here, not just in palette. */
 export const SEMANTIC_SHAPES = {
   radiusCard: "corner radius on cards and inputs",
   radiusPill: "corner radius on pills and primary buttons",
@@ -82,7 +82,7 @@ export const ELITE_V1_SHAPES: Record<SemanticShape, string> = {
 };
 
 /**
- * Legacy Tailwind colour name -> semantic token.
+ * Legacy Tailwind color name -> semantic token.
  *
  * `slate` deliberately shadows Tailwind's built-in slate scale, exactly as it
  * did before this change; nothing in the storefront used the built-in one.

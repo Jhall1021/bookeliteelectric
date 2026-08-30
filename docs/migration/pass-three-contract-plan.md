@@ -252,7 +252,7 @@ production clone
   -> parity gate (the clone must really mirror production)
   -> exact schema contract, via the real deployment mechanism
   -> regenerate the Prisma client
-  -> verify the actual database catalogue
+  -> verify the actual database catalog
   -> full gate and harness
   -> next build against the contracted state
   -> only then authorise production

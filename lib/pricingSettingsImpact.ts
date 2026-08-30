@@ -4,7 +4,7 @@
  * Saving these figures does not move a published price — basePrice is stored,
  * not recomputed — and that is exactly what makes the change quiet. What it
  * moves is the MODEL every published price is judged against. Change the rate
- * and a catalogue that reconciled yesterday is out by a hundred prices today,
+ * and a catalog that reconciled yesterday is out by a hundred prices today,
  * with nothing on screen to say so.
  *
  * This measures that before the save, so the number can be shown to the person

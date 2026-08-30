@@ -18,8 +18,8 @@ import { useStorefront, useIdentity } from "@/components/theme/StorefrontContext
  * horizontal strip, and the photograph as a full-bleed band underneath. The
  * eye starts in the middle and moves down the page.
  *
- * They are different pages in greyscale, which is the point. A variant that
- * only changes colour is a skin.
+ * They are different pages in grayscale, which is the point. A variant that
+ * only changes color is a skin.
  *
  * The branch is on STRUCTURE, never on which contractor is being rendered.
  *

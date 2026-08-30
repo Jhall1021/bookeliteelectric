@@ -27,7 +27,7 @@ copy of this service, not to Elite's.
 ## The defect
 
 One field. The service carried an owner approval stamp with no price behind
-it — the only row in the catalogue in that state:
+it — the only row in the catalog in that state:
 
 ```
 active  ADJUSTED   basePrice NULL   publishedPriceApprovedAt 2026-08-24
@@ -94,7 +94,7 @@ REVIEW            existing location  / staircase or open foyer
 REVIEW            new location — no light there now
 ```
 
-Catalogue-wide, across all 69 active services:
+Catalog-wide, across all 69 active services:
 
 ```
 services compared : 69

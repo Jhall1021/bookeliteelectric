@@ -210,7 +210,7 @@ export function pricingCopy(strategy: PricingStrategy | null | undefined): Prici
  * a contractor billing time and materials, and invisible until one complains.
  */
 /**
- * Words a labor-only range may not be labelled with.
+ * Words a labor-only range may not be labeled with.
  *
  * The whole risk of quoting labor and disclosing materials separately is that
  * a label quietly promotes the figure into the whole bill. So the language is

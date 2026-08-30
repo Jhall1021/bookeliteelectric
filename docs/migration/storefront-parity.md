@@ -3,7 +3,7 @@
 ## Why this exists
 
 Phase 1 moved the storefront's palette from hardcoded Tailwind hexes to CSS
-custom properties. That is a change to *how* colour reaches the browser and
+custom properties. That is a change to *how* color reaches the browser and
 must be a change to *nothing else*. Until that separation is proven, "Elite
 looks like Elite" and "Elite's CSS is hardcoded" are the same fact, and no
 second contractor can be given a different look without forking the storefront.
@@ -42,7 +42,7 @@ Swap `hash` for a per-property distinct-value map to localise it.
 
 Chosen for coverage rather than importance: the marketing home, a category
 grid, a service detail with the question tree, a long-copy page, and the page
-carrying the inline SVG map (the one place a brand colour was written into a
+carrying the inline SVG map (the one place a brand color was written into a
 component rather than a class).
 
 ## Phase 1 result — 2026-08-28

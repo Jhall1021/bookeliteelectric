@@ -56,7 +56,7 @@ const COSTS: Cost[] = [
       "2026. Priced per foot because a kitchen is measured in feet, not reels." },
   { key: "LED_CHANNEL_DIFFUSER", packagePriceCents: 2997, packageQuantity: 16.25, packageUnit: "ft",
     evidence:
-      "Aluminium channel with diffuser, five 39-inch sections = 16.25 ft per " +
+      "Aluminum channel with diffuser, five 39-inch sections = 16.25 ft per " +
       "pack. Retail check 29 Aug 2026. The pack is the purchase; the foot is " +
       "the unit a recipe counts." },
   { key: "LED_DRIVER", packagePriceCents: 5895, packageQuantity: 1, packageUnit: "each",

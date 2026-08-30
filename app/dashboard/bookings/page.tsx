@@ -77,7 +77,7 @@ export default async function AdminBookingsPage() {
     <div>
       <h1 className="font-display text-2xl font-bold text-navy">Bookings</h1>
       <p className="mt-1 text-sm text-slate">
-        {upcoming.length} upcoming, {completed.length} completed or cancelled.
+        {upcoming.length} upcoming, {completed.length} completed or canceled.
       </p>
 
       <div className="mt-6 space-y-4">
@@ -87,7 +87,7 @@ export default async function AdminBookingsPage() {
 
       {completed.length > 0 && (
         <div className="mt-10">
-          <h2 className="font-display text-lg font-bold text-navy">Completed / Cancelled</h2>
+          <h2 className="font-display text-lg font-bold text-navy">Completed / Canceled</h2>
           <div className="mt-4 space-y-4">
             {completed.map((b) => <BookingCard key={b.id} b={b} />)}
           </div>

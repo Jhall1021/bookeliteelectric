@@ -9,10 +9,10 @@ import { useIdentity } from "@/components/theme/StorefrontContext";
  * The footer is where a storefront states who it belongs to — ADR-016.
  *
  * Every line here used to be Elite's, written into the component: their logo,
- * their name, their street, their phone, their New Jersey licence number. A
+ * their name, their street, their phone, their New Jersey license number. A
  * provisioned contractor inherited all of it, which meant the theme system
- * could give them their own composition and their own colour while the footer
- * still published somebody else's licence.
+ * could give them their own composition and their own color while the footer
+ * still published somebody else's license.
  *
  * Everything now comes from contractor configuration, and anything incomplete
  * is OMITTED rather than defaulted. A missing address renders no address; it
@@ -69,7 +69,7 @@ export default function Footer() {
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-accent-ink/10 pt-6 text-xs text-accent-ink/50">
           <span>© {new Date().getFullYear()} {id.legalName}. All rights reserved.</span>
-          {/* Required by SimpleMaps' free licence: their ZIP database powers
+          {/* Required by SimpleMaps' free license: their ZIP database powers
               the service-area check at checkout, and using the Basic tier
               obliges a visible link on a page reachable from the root.
               If the ZIP reference data is ever sourced elsewhere, this link

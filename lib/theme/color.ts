@@ -1,16 +1,16 @@
 /**
- * Colour maths for the theme resolver — ADR-015 Phase 2.
+ * Color maths for the theme resolver — ADR-015 Phase 2.
  *
- * The contractor's brand colour is an INPUT and is never rewritten. What a
+ * The contractor's brand color is an INPUT and is never rewritten. What a
  * contractor gave us is what we show back to them and what we put on their
- * logo line. But a brand colour chosen for a van wrap is under no obligation
+ * logo line. But a brand color chosen for a van wrap is under no obligation
  * to be readable as button text on an off-white card, so the resolver derives
  * UI shades FROM it and proves those shades meet contrast.
  *
  * Ratios follow WCAG 2.1 relative luminance. Derivation walks lightness in
  * HSL, which is not perceptually even — but the search does not need to be
  * even, only to converge, and the ACCEPTANCE is a real contrast measurement
- * rather than a claim about the colour space.
+ * rather than a claim about the color space.
  */
 
 export type Rgb = { r: number; g: number; b: number };
@@ -80,8 +80,8 @@ export function fromHsl({ h, s, l }: { h: number; s: number; l: number }): Rgb {
 /**
  * Snap to the 8-bit channels the browser will actually receive.
  *
- * Everything downstream measures the QUANTIZED colour, because the alternative
- * is validating a float and shipping its rounded neighbour — which is how a
+ * Everything downstream measures the QUANTIZED color, because the alternative
+ * is validating a float and shipping its rounded neighbor — which is how a
  * derived accent measured at 4.50 reaches a page at 4.49.
  */
 export const quantize = ({ r, g, b }: Rgb): Rgb =>
@@ -100,13 +100,13 @@ export type Adjustment = { color: Rgb; ratio: number; moved: boolean; direction:
  * the nearest shade of it that does.
  *
  * Deliberately preserves hue and saturation: the result should still read as
- * the contractor's colour. It tries BOTH directions and keeps whichever moves
+ * the contractor's color. It tries BOTH directions and keeps whichever moves
  * least, because darkening a pale brand and lightening a dark one both produce
  * something that no longer looks like the brand.
  *
  * Returns the original with `moved: false` when nothing could satisfy the
  * constraint — the caller decides whether that is a warning or a failure, and
- * silently returning an unreadable colour is not on the menu.
+ * silently returning an unreadable color is not on the menu.
  */
 export function ensureContrast(color: Rgb, backgrounds: Rgb[], min: number): Adjustment {
   // Quantized on the way in AND on the way through: what is measured here is
@@ -119,7 +119,7 @@ export function ensureContrast(color: Rgb, backgrounds: Rgb[], min: number): Adj
 
   let best: Adjustment | null = null;
   for (const dir of [-1, 1] as const) {
-    // 1% steps: fine enough that the result still reads as the same colour,
+    // 1% steps: fine enough that the result still reads as the same color,
     // coarse enough to terminate.
     for (let step = 1; step <= 100; step++) {
       const c = quantize(shade(color, dir * step * 0.01));
@@ -135,7 +135,7 @@ export function ensureContrast(color: Rgb, backgrounds: Rgb[], min: number): Adj
 
 /**
  * Pick the most readable of `candidates` against `bg`. Used for text placed ON
- * a brand colour, where the honest answer is usually white or the theme's ink
+ * a brand color, where the honest answer is usually white or the theme's ink
  * rather than a tint of the brand itself.
  */
 export function mostReadable(bg: Rgb, candidates: Rgb[]): { color: Rgb; ratio: number } {

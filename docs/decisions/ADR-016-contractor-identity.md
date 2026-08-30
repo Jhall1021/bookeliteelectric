@@ -13,7 +13,7 @@
         -> resolved customer storefront
 
 Each layer owns its own data and none reaches into another. A theme definition never carries a
-company name. Identity never carries a colour ramp. Neither decides how a price is calculated.
+company name. Identity never carries a color ramp. Neither decides how a price is calculated.
 
 That separation is what lets Contractor A run Premium B on flat rate while Contractor B runs the
 same Premium B on time and materials, with neither theme knowing anything about pricing.
@@ -21,17 +21,17 @@ same Premium B on time and materials, with neither theme knowing anything about 
 ## A — identity
 
 The theme system could already give a provisioned contractor their own composition and their own
-colour. The storefront would still have published Elite's logo, name, street, phone and **New
-Jersey licence number** — because those were written into the components every contractor renders.
+color. The storefront would still have published Elite's logo, name, street, phone and **New
+Jersey license number** — because those were written into the components every contractor renders.
 
 Now resolved from contractor configuration at the `[site]` boundary, alongside the theme.
 
 **The editable surface is deliberately small**: short name, legal name, logo, phone, support
-email, address, licence label and number, service-area label and image. Enough to stop a
+email, address, license label and number, service-area label and image. Enough to stop a
 contractor appearing as somebody else. Not a CMS.
 
-**Incomplete means omitted, never defaulted.** A contractor with no licence on file renders no
-licence line. An address shows whole or not at all — half of one looks like a bug because it is.
+**Incomplete means omitted, never defaulted.** A contractor with no license on file renders no
+license line. An address shows whole or not at all — half of one looks like a bug because it is.
 Nothing falls back to another contractor's value, ever.
 
 Converted: header (logo, nav labels, CTA), footer (all of it), the trust page, the service-area
@@ -51,7 +51,7 @@ one inheriting copy written for a flat-rate business.
 Presentation and interpretation only. It **never mutates the canonical service or template
 structure** — same question tree, same components, same scope, read differently at the end.
 
-One default per contractor. No per-service overrides in V1: a catalogue where some services quote
+One default per contractor. No per-service overrides in V1: a catalog where some services quote
 fixed and others estimate is a support problem before it is a feature.
 
 Price2Book still does no time tracking and no invoicing. The FSM owns actual hours, actual
@@ -64,7 +64,7 @@ decides what a headline looks like; it must never decide what the headline claim
 
 `lint-storefront-identity` refuses two things in any generic customer-facing component:
 
-- **identity** — a specific business's name, logo, phone, address, licence or territory
+- **identity** — a specific business's name, logo, phone, address, license or territory
 - **fixed-price assumptions** — "know your price", "upfront fixed price", "accept quote",
   "skip the estimate"
 
@@ -87,11 +87,11 @@ Two regressions were caught by that proof and would not have been caught by look
 - De-branding the root metadata left every storefront titled "Price2Book". The `[site]` layout
   supplies per-contractor metadata now — the tab and the share card belong to the contractor.
 - Rewriting the home page's service-area block, I added a call to action the original never had.
-  Licence to change the *content* of a heading is not licence to add an element.
+  License to change the *content* of a heading is not license to add an element.
 
-**A second contractor appears as themselves.** Northgate Electric — Mesa AZ, an ROC licence, a
+**A second contractor appears as themselves.** Northgate Electric — Mesa AZ, an ROC license, a
 different phone — on Premium B with TIME_AND_MATERIALS: hero reads "Know the Rate. See the
-Range.", how-it-works reads "See Your Estimate", the footer carries an Arizona licence, and a
+Range.", how-it-works reads "See Your Estimate", the footer carries an Arizona license, and a
 scan for `Elite|732-204|Monmouth|17272|Allaire|New Jersey` returns **nothing**.
 
 ## The `/why-us` route

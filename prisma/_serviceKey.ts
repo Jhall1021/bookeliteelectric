@@ -6,7 +6,7 @@
  * unique selector, and every lookup has to say whose slug it means.
  *
  * These callers are seeds and one-shot scripts from the single-contractor era.
- * They legitimately mean Elite's catalogue, so they resolve Elite explicitly
+ * They legitimately mean Elite's catalog, so they resolve Elite explicitly
  * rather than assuming whatever row comes back first. That is the same
  * distinction the migration-provenance rule draws: naming a contractor on
  * purpose is fine; defaulting to one silently is not.

@@ -1,7 +1,7 @@
 /**
  * Extract ONE Elite service into the electrical template — ADR-014.
  *
- * Not a relabelling. Elite's rows carry electrical knowledge AND Elite's
+ * Not a relabeling. Elite's rows carry electrical knowledge AND Elite's
  * business decisions in the same columns, so this walks the tree field by
  * field and emits only the structure.
  *
@@ -27,7 +27,7 @@
  *
  * Economics were not confined to economic columns. Two answer LABELS carried
  * Elite's prices ("From the nearest outlet — from $280"), and sixteen answer
- * texts across the catalogue name Elite by name. A copy that trusted field
+ * texts across the catalog name Elite by name. A copy that trusted field
  * types would have shipped both to every future contractor.
  *
  *   --service <slug>   which Elite service to extract

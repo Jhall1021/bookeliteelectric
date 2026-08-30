@@ -166,7 +166,7 @@ export type RecomputeResult = {
  * NON-DESTRUCTIVE. Reads ServiceMaterial rows, writes only
  * `Service.materialCostCents`. It never deletes or recreates an assembly —
  * that distinction matters, because the seed's version does exactly that as
- * part of itemizing, and a nightly supplier sync calling into that behaviour
+ * part of itemizing, and a nightly supplier sync calling into that behavior
  * would silently rebuild every recipe in the catalog.
  *
  * A service with no itemized materials is left ALONE. Its flat

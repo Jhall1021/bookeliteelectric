@@ -20,10 +20,10 @@ The shape from the product discussion is right and this ADR adopts it:
 - **Template and theme are strictly separate.** ADR-014 answers *what does this contractor
   sell and how is it scoped*. This answers *what do they look like*. Two contractors on
   Electrical Template v1 must be able to look unrelated.
-- **Contractor inputs are few**: theme family, chosen variant, logo, primary colour,
+- **Contractor inputs are few**: theme family, chosen variant, logo, primary color,
   optional accent, photography.
 - **Price2Book keeps everything else**: typography, spacing, card and button treatment,
-  navigation, category layout, Guided Pricing presentation, checkout, mobile behaviour.
+  navigation, category layout, Guided Pricing presentation, checkout, mobile behavior.
 - **Variant-driven components**, never `if (contractor === "elite")`.
 
 ## Four things this ADR decides differently
@@ -65,20 +65,20 @@ must never silently restyle a live storefront.
 
 ### 2. "Looks professionally designed" is a guarantee, so it needs enforcement
 
-A contractor supplies a primary colour. Some will supply one that fails contrast against
-their theme's surfaces — pale yellow on white, mid-grey on grey. The promise that Price2Book
+A contractor supplies a primary color. Some will supply one that fails contrast against
+their theme's surfaces — pale yellow on white, mid-gray on gray. The promise that Price2Book
 guarantees a professional result is not kept by hoping.
 
 **Contrast is a correctness property, not a matter of taste.** It is the visual equivalent
 of ADR-003: the same way no price publishes without approval, no palette publishes that a
 homeowner cannot read.
 
-The theme resolver computes derived shades from the primary colour and asserts WCAG AA
+The theme resolver computes derived shades from the primary color and asserts WCAG AA
 against every surface the theme pairs it with. Failing combinations are **adjusted by the
-resolver, or the colour is refused with an explanation** — never accepted and rendered.
+resolver, or the color is refused with an explanation** — never accepted and rendered.
 A permanent check in the deploy gate, in the manner of the other gates.
 
-This also settles a question the discussion left open — deriving secondary colours
+This also settles a question the discussion left open — deriving secondary colors
 automatically is not merely a convenience. It is what makes the guarantee enforceable,
 because a derived shade can be constrained and a hand-picked one cannot.
 
@@ -100,9 +100,9 @@ inert until there is a third contractor in a shared ZIP.
 ### 4. Website brand extraction is deferred
 
 "Enter your URL and we detect your palette" is a genuinely good onboarding moment and a
-large, long-tailed feature: fetching, CSS parsing, colour clustering, font detection, and a
+large, long-tailed feature: fetching, CSS parsing, color clustering, font detection, and a
 real question about copying a site we do not own. It is **not** a V1 requirement — the
-contractor can supply a logo and a colour in under a minute.
+contractor can supply a logo and a color in under a minute.
 
 Recorded as a V2 idea so it is not quietly smuggled into V1 scope.
 
@@ -150,7 +150,7 @@ Three families beats six half-built ones. A fourth is additive later; a broken o
 > bookable, what a homeowner is asked, or what they are charged.**
 
 Same class as the tenant guard, and it gets the same treatment: a permanent check proving a
-theme cannot reach pricing, availability, Guided Pricing logic or checkout behaviour. The
+theme cannot reach pricing, availability, Guided Pricing logic or checkout behavior. The
 storefront may look completely different; the engine underneath is identical, and that is
 provable rather than assumed.
 
@@ -162,8 +162,8 @@ should choose how their storefront looks, not receive Elite's with a new logo.
 Open question for the owner: **this or the remaining 74 template services first.** They are
 independent. Template extraction is nearly mechanical now that the prerequisites are done;
 the theme system is more design work than engineering. Doing the 74 first means Contractor
-#2 has a full catalogue in a themed storefront; doing themes first means the visible product
-is ready sooner and the catalogue lands after.
+#2 has a full catalog in a themed storefront; doing themes first means the visible product
+is ready sooner and the catalog lands after.
 
 
 ---
@@ -190,9 +190,9 @@ Price2Book page with a logo pasted on top.
 1. **Tokenize the existing Elite storefront.** Hardcoded palette becomes CSS
    custom-property-backed Tailwind tokens. Elite rendering unchanged. Wire the *existing*
    contractor brand configuration into the resolver rather than adding a second competing
-   brand-colour source.
+   brand-color source.
 2. **Theme resolver** — `contractor brand inputs + pinned theme definition → resolved theme`.
-   Derived palettes enforce accessible contrast. The contractor's original brand colour is
+   Derived palettes enforce accessible contrast. The contractor's original brand color is
    preserved as an input and safe UI shades are derived from it; their stored brand is never
    silently rewritten. Automated contrast validation covers every semantic
    foreground/background pair the theme can emit.
@@ -232,7 +232,7 @@ carried. Same typeface either way; the probe collapses duplicate families and do
   variant that actually breaks under them.
 - The admin is deliberately outside the theme system. It is Price2Book's own surface and
   should look like Price2Book whoever is signed in.
-- `lib/email.ts` inlines colour because custom properties are not reliable in mail clients.
+- `lib/email.ts` inlines color because custom properties are not reliable in mail clients.
   Making transactional email theme-aware is its own piece of work.
 
 ---
@@ -247,15 +247,15 @@ theme they chose and the theme they render from coming apart. The version is a p
 sense as the service template: publishing v2 of a definition changes nothing for anyone until
 they adopt it.
 
-### The brand colour is an input, not a suggestion
+### The brand color is an input, not a suggestion
 
-A colour chosen for a van wrap is under no obligation to be readable as button text on an
+A color chosen for a van wrap is under no obligation to be readable as button text on an
 off-white card. So the resolver **derives a shade from it** rather than rewriting what they
 stored — preserving hue and saturation, trying both directions and keeping whichever moves
 least, because darkening a pale brand and lightening a dark one both produce something that
 no longer looks like the brand. Every adjustment is reported as a note; nothing is silent.
 
-Button text is **chosen, not assumed**. White is right for most brand colours and wrong for a
+Button text is **chosen, not assumed**. White is right for most brand colors and wrong for a
 fluorescent yellow.
 
 ### The contrast contract
@@ -266,8 +266,8 @@ product, because *which text lands on which surface* is a fact about the design.
 
 `verify-theme-contrast` resolves every definition against a sweep — the hue circle at four
 lightnesses and two saturations, plus white, black, the page ground itself, the fluorescents
-that defeat white text, and a colour one step off the background — and measures every pair.
-**400 resolutions × 19 pairs, all passing.** 122 of the 200 brand colours needed a derived
+that defeat white text, and a color one step off the background — and measures every pair.
+**400 resolutions × 19 pairs, all passing.** 122 of the 200 brand colors needed a derived
 shade; none were unusable.
 
 ### Two things the verifier caught
@@ -279,7 +279,7 @@ invented a pair the design never makes, which is exactly the failure its own com
 about. Fixed by naming the real ground and adding the dark-hero pairs that were missing
 entirely, not by lowering a threshold.
 
-**Validating a float and shipping its rounded neighbour.** Four brand colours resolved to
+**Validating a float and shipping its rounded neighbor.** Four brand colors resolved to
 accents measuring 4.50 in the resolver and 4.49 on the page, because `ensureContrast` worked
 in floating point and `toChannels` rounded to 8-bit on the way out. Everything is quantized at
 the measurement boundary now: what is measured is what the stylesheet carries.
@@ -300,8 +300,8 @@ palette.
 
 ## Phase 3 — six real storefronts, 28 August 2026
 
-Three families, two structural variants each. A variant that only swaps colours is a skin;
-colour is the first thing a homeowner stops noticing, so a variant chooses **composition**.
+Three families, two structural variants each. A variant that only swaps colors is a skin;
+color is the first thing a homeowner stops noticing, so a variant chooses **composition**.
 
 ### The structural vocabulary
 
@@ -314,17 +314,17 @@ All three variant pairs differ on **8 of 8 axes**.
 ### Proven end-to-end, not asserted
 
 One throwaway storefront per definition, all seven provisioned and rendered, all given the
-**same** brand colour so every difference is structural. Each resolved to the identical accent
+**same** brand color so every difference is structural. Each resolved to the identical accent
 `rgb(11, 122, 91)`:
 
 | variant | nav | hero ground | hero cols | h1 | section pad | rules | card radius |
 |---|---|---|---|---|---|---|---|
 | modern-clean-a | 1 row | navy | 2 | 700 / none / start | 64px | 2 | 12px |
-| modern-clean-b | 2 rows, centred | canvas | 1 | 300 / upper / center | 96px | 0 | 16px |
+| modern-clean-b | 2 rows, centerd | canvas | 1 | 300 / upper / center | 96px | 0 | 16px |
 | warm-welcoming-a | 1 row | cream | 1 (banner) | 700 / none / start | 64px | 0 | 18px |
 | warm-welcoming-b | 1 row, split | warm dark | 2 | 300 / upper / start | 40px | 2 | 10px |
 | premium-a | 1 row, split | near-white | 1 (banner) | 300 / upper / start | 96px | 0 | 2px |
-| premium-b | 2 rows, centred | near-black | 2 | 700 / none / start | 64px | 0 | 0px |
+| premium-b | 2 rows, centerd | near-black | 2 | 700 / none / start | 64px | 0 | 0px |
 
 Contrast holds across all of it: **1400 resolutions × 19 pairs**, none failing.
 
@@ -375,7 +375,7 @@ and three fingerprints changed, every one accounted for:
   24px padding), both transparent and unbordered — and the new wrappers hash identically to a
   wrapper already in the page.
 - The payment section's explicit `bg-warmwhite` became transparent over a canvas body of the
-  same colour.
+  same color.
 
 Same pixels, different declarations. The `/services` and service-detail pages hash byte-identical.
 
@@ -401,7 +401,7 @@ ask for the newest.
 ### The preview renders the real components
 
 `DesignPreview` mounts the actual `Header`, `Hero` and `FeaturedServices` inside the actual
-providers, at reduced scale, with the contractor's own logo, brand colour, identity and pricing
+providers, at reduced scale, with the contractor's own logo, brand color, identity and pricing
 model. It is not a mock-up of the storefront; it is the storefront's components. A mock-up would
 drift, and would drift silently.
 

@@ -20,10 +20,10 @@
  *
  * Every identifier below is deliberately unusable: a 555-01xx telephone number
  * (reserved for fiction) and a .example address (a reserved TLD that can never
- * resolve). No street address or licence number is set at all, because the
+ * resolve). No street address or license number is set at all, because the
  * identity resolver omits an incomplete one entirely rather than half-render
- * it — which is exactly the behaviour we want here. Inventing a plausible
- * address and licence for a business that does not exist would be fabricating
+ * it — which is exactly the behavior we want here. Inventing a plausible
+ * address and license for a business that does not exist would be fabricating
  * a record, and a screenshot is a publication.
  *
  *   npx tsx scripts/demo-contractor.ts --create
@@ -36,7 +36,7 @@ import { cloneCatalog } from "./_cloneCatalog";
 
 const prisma = new PrismaClient();
 
-/** Whose catalogue the demonstration contractor is built from. */
+/** Whose catalog the demonstration contractor is built from. */
 const SOURCE_SLUG = "elite-electric";
 
 /**
@@ -214,7 +214,7 @@ async function create() {
   });
 
   // A territory with no ZIP codes fails closed — nobody can book — and the
-  // portal says so in as many words. Correct behaviour, and a screenshot of a
+  // portal says so in as many words. Correct behavior, and a screenshot of a
   // contractor who cannot take a booking is not what this demonstrates, so the
   // demo picks a couple of real counties the way a contractor would.
   const zips = await prisma.zipCode.findMany({
@@ -231,12 +231,12 @@ async function create() {
   });
 
   /**
-   * The catalogue comes from Elite's, not from the template.
+   * The catalog comes from Elite's, not from the template.
    *
    * Template-provisioned services carry material quantities that come from a
    * policy, and nothing in the product can set a policy — so those services
    * can never be priced and a demo built on them shows only refusals. Elite's
-   * catalogue predates the template, is fully resolved, and carries real
+   * catalog predates the template, is fully resolved, and carries real
    * costs and real published prices. Identity is not copied; the source's name
    * is rewritten out of every field that carried it.
    */
@@ -244,7 +244,7 @@ async function create() {
     where: { slug: SOURCE_SLUG },
     select: { id: true, name: true, shortName: true, pricingSettings: { select: { crewHourRateCents: true, primaryMinimumCents: true, roundingIncrementCents: true, defaultPermitAdminCents: true } } },
   });
-  if (!source) throw new Error(`No contractor "${SOURCE_SLUG}" to copy the catalogue from.`);
+  if (!source) throw new Error(`No contractor "${SOURCE_SLUG}" to copy the catalog from.`);
 
   // Their rate too, so the copied prices and the rate behind them agree.
   if (source.pricingSettings) {
@@ -254,7 +254,7 @@ async function create() {
     });
   }
 
-  console.log(`  copying a slice of ${source.name}'s catalogue…`);
+  console.log(`  copying a slice of ${source.name}'s catalog…`);
   const cloned = await cloneCatalog(prisma, {
     fromContractorId: source.id,
     toContractorId: c.id,

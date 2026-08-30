@@ -54,7 +54,7 @@ export type BoundaryProblem = { code: string; message: string };
 
 /**
  * A band set is valid only as a set: the right count, all positive, and
- * strictly ascending. Equal neighbours would produce an empty band that no
+ * strictly ascending. Equal neighbors would produce an empty band that no
  * answer could ever be true of.
  */
 export function validateBoundaries(

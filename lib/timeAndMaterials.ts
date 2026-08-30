@@ -1,7 +1,7 @@
 /**
  * Turning a resolved scope into an estimated RANGE — ADR-018.
  *
- * ONE SCOPE ENGINE, TWO INTERPRETATIONS. There is no separate T&M catalogue.
+ * ONE SCOPE ENGINE, TWO INTERPRETATIONS. There is no separate T&M catalog.
  * The same service, the same questions, the same answers, the same components
  * produce the same scope; only the last step differs:
  *

@@ -81,7 +81,7 @@ export async function findTroubleshootingService(
         select: { canonicalCategory: { select: { slug: true } } },
       },
     },
-    // Deterministic, so an ambiguous catalogue reports the same pair every
+    // Deterministic, so an ambiguous catalog reports the same pair every
     // time rather than a different one per call. It still refuses.
     orderBy: { slug: "asc" },
   });

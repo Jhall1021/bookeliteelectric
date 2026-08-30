@@ -110,7 +110,7 @@ const COSTS: Cost[] = [
   { key: "SERVICE_ENTRANCE_CABLE_200A", packagePriceCents: 830, packageQuantity: 1, packageUnit: "ft",
     confidence: "CONFIRMED",
     evidence:
-      "4/0-4/0-4/0-2/0 aluminium SER, sold by the foot. Retail check 29 Aug 2026." },
+      "4/0-4/0-4/0-2/0 aluminum SER, sold by the foot. Retail check 29 Aug 2026." },
 
   // Three ratings, one price today. Recorded separately anyway: the point of
   // the split is that a divergence between ratings becomes VISIBLE when it
@@ -141,7 +141,7 @@ const COSTS: Cost[] = [
     confidence: "ASSUMED",
     evidence:
       "Owner decision, 29 Aug 2026: $225 provisional for a mainstream " +
-      "like-for-like replacement load centre. Observed 100-150A range roughly " +
+      "like-for-like replacement load center. Observed 100-150A range roughly " +
       "$128-$248. Deliberately not the cheapest and deliberately not " +
       "SKU-specific; large, specialty or high-space-count equipment is outside " +
       "the standard package." },
@@ -150,7 +150,7 @@ const COSTS: Cost[] = [
     confidence: "ASSUMED",
     evidence:
       "Owner decision, 29 Aug 2026: $275 provisional for a mainstream 200A " +
-      "main-breaker load centre. Observed range roughly $166-$291 by series and " +
+      "main-breaker load center. Observed range roughly $166-$291 by series and " +
       "space count. Same boundary as the replacement panel." },
 ];
 

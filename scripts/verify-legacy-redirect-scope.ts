@@ -100,7 +100,7 @@ async function live(host: string) {
       ok(res.status === expect && !/\/elite-electric/.test(loc),
         `${path.padEnd(18)} answers ${expect}${loc ? ` -> ${loc}` : ""}`, `got ${res.status} ${loc}`);
     }
-    // The tenant-addressed storefront is NOT legacy behaviour and must survive.
+    // The tenant-addressed storefront is NOT legacy behavior and must survive.
     const store = await fetch(`${host}/elite-electric`, { redirect: "manual" });
     ok(store.status === 200, "…and /elite-electric still serves directly", `status ${store.status}`);
   }

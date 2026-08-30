@@ -160,7 +160,7 @@ material out of the price.
 
 ---
 
-## Failure behaviour
+## Failure behavior
 
 A failed refresh never changes a cost.
 

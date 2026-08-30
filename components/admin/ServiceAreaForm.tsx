@@ -141,7 +141,7 @@ export default function ServiceAreaForm({
   return (
     <div className="mt-6">
       {/* Shouldn't happen, but if a second area exists it must be visible
-          rather than silently ignored — checkout only honours the first
+          rather than silently ignored — checkout only honors the first
           ACTIVE one, so a hidden second territory would be a phantom. */}
       {extraAreas > 0 && (
         <p className="mb-3 rounded-card border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

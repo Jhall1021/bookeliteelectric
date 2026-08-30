@@ -110,7 +110,7 @@ async function main() {
     ok(home.status === 200, `/${HOSTED} resolves`, `status ${home.status}`);
     const t = text(home.body);
     ok(/Northgate Electric/.test(t), "renders the second contractor's own name");
-    ok(/AZ ROC License #331902/.test(t), "…and their own licence");
+    ok(/AZ ROC License #331902/.test(t), "…and their own license");
     ok(/\(602\) 555-0148/.test(t), "…and their own phone");
 
     // ---- identity isolation ---------------------------------------------
@@ -155,7 +155,7 @@ async function main() {
       ok(r.status === 200 && /Northgate Electric/.test(text(r.body)),
         `${key.padEnd(20)} renders  [${structure}]`, `status ${r.status}`);
     }
-    // Six designs must be six designs at the wire, not one page recoloured
+    // Six designs must be six designs at the wire, not one page recolored
     // — and not one page at all.
     ok(new Set(seen.values()).size >= 3,
       `the six themes emit distinct tokens (${new Set(seen.values()).size} distinct signatures)`,

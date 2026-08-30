@@ -391,7 +391,7 @@ async function main() {
   // it. It does NOT decide whether these models need contractorId — who owns
   // the data is a separate question from where the guard runs.
   //
-  // This section reports observed behaviour rather than asserting an
+  // This section reports observed behavior rather than asserting an
   // expectation, because the point is to find out.
   console.log(`\nNESTED READS — where does the guard execute?\n`);
 

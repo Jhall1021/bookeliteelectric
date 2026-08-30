@@ -25,7 +25,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "family, variant and version are required." }, { status: 400 });
     }
 
-    // Resolved against the real catalogue, not trusted from the request. An
+    // Resolved against the real catalog, not trusted from the request. An
     // unknown design would otherwise be stored and then silently fall back to
     // the baseline at render time — the storefront would look wrong and the
     // settings page would say it was fine.

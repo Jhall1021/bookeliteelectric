@@ -28,7 +28,7 @@ const ok = (c: boolean, label: string, detail = "") => {
   console.log(`  ${c ? "ok  " : "FAIL"} ${label}${c ? "" : `\n         ${detail}`}`);
 };
 
-function behaviour() {
+function behavior() {
   console.log("\n  RESOLUTION");
   const prev = { ...process.env };
   process.env.APP_ORIGIN = "https://app.price2book.com";
@@ -89,7 +89,7 @@ function noHardcodedHosts() {
 }
 
 /**
- * Comments are documentation, not behaviour. A note explaining that a file
+ * Comments are documentation, not behavior. A note explaining that a file
  * USED to read NEXT_PUBLIC_SITE_URL is exactly the comment worth keeping, and
  * matching against it flagged the fix as the bug.
  */
@@ -121,7 +121,7 @@ function correctOriginPerAudience() {
 
 function main() {
   console.log("\nORIGINS");
-  behaviour();
+  behavior();
   noHardcodedHosts();
   correctOriginPerAudience();
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);

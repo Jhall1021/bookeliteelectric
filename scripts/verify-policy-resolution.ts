@@ -42,7 +42,7 @@ function statics() {
   // produce overlapping or empty bands.
   ok(validateBoundaries([10, 20], 2).length === 0, "ascending boundaries validate");
   ok(validateBoundaries([20, 10], 2).some((p) => p.code === "ascending"), "descending boundaries are refused");
-  ok(validateBoundaries([10, 10], 2).some((p) => p.code === "ascending"), "equal neighbours are refused (empty band)");
+  ok(validateBoundaries([10, 10], 2).some((p) => p.code === "ascending"), "equal neighbors are refused (empty band)");
   ok(validateBoundaries([10], 2).some((p) => p.code === "count"), "a short set is refused");
   ok(validateBoundaries([0, 20], 2).some((p) => p.code === "positive"), "zero is not a boundary");
   ok(validateBoundaries([-5, 20], 2).some((p) => p.code === "positive"), "negative is not a boundary");

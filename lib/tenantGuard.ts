@@ -190,7 +190,7 @@ export const PLATFORM_MODELS = new Set<string>([
  * Models awaiting removal in the contract phase.
  *
  * SEPARATE FROM PLATFORM_MODELS ON PURPOSE. Both pass through the guard, so
- * this changes no runtime behaviour — but "shared trade knowledge" and "dead
+ * this changes no runtime behavior — but "shared trade knowledge" and "dead
  * structure we have not deleted yet" are not the same thing, and one set
  * holding both meanings makes every future question about it ambiguous.
  *

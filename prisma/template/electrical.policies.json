@@ -130,8 +130,8 @@
       "policyKey": "exterior_mount_height.breakpoints",
       "patterns": {
         "under_8": "{b1} feet or less",
-        "9_12": "{b1+1} to {b2} feet — normal single storey",
-        "over_12": "Higher than {b2} feet, or a second storey"
+        "9_12": "{b1+1} to {b2} feet — normal single story",
+        "over_12": "Higher than {b2} feet, or a second story"
       }
     },
     "new-coax-line_distance": {

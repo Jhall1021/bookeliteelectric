@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function PortalOverviewPage() {
   const data = await withAdminContractor(async (db, ctx) => {
-    // The catalogue splits four ways, and the difference matters: a
+    // The catalog splits four ways, and the difference matters: a
     // REMOTE_QUOTE service has no published price BY DESIGN, so counting it
     // alongside services that are merely unfinished invents work that does not
     // exist. "52 of 69" said seventeen were outstanding when thirteen were
@@ -69,7 +69,7 @@ export default async function PortalOverviewPage() {
       {/* Facts, not vanity metrics. Each one is something the contractor can act on. */}
       <dl className="mt-8 grid gap-4 sm:grid-cols-3">
         {/* Says what it counts. A contractor seeing "69 services" here and
-            "75 services" on the catalogue page would rightly wonder which
+            "75 services" on the catalog page would rightly wonder which
             screen was broken; the answer is the six they have hidden. */}
         <Stat label="Priced and bookable online" value={String(data.priced)}
               href="/dashboard/services"
@@ -88,10 +88,10 @@ export default async function PortalOverviewPage() {
               note={site ? `price2book.com/${site}` : "No storefront address yet"} />
       </dl>
 
-      {/* The whole catalogue accounted for, so no number on this page is a
+      {/* The whole catalog accounted for, so no number on this page is a
           mystery next to a number on another. */}
       <p className="mt-3 text-xs text-slate">
-        Your catalogue: <strong className="font-semibold text-navy">{total}</strong> services —{" "}
+        Your catalog: <strong className="font-semibold text-navy">{total}</strong> services —{" "}
         {data.priced} priced and bookable, {data.quoteOnly} quote-only (a homeowner asks and you
         price it), {data.needsPrice} still needing a price, {data.hidden} hidden from customers.
       </p>

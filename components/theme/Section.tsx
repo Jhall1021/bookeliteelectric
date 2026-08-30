@@ -6,7 +6,7 @@ import { useStructure } from "@/components/theme/ThemeContext";
  * A page section, separated and spaced the way the variant asks — ADR-015.
  *
  * HAIRLINE draws a rule between sections; BAND alternates the ground so the
- * boundary is a change of colour; SPACE uses neither and lets the rhythm do
+ * boundary is a change of color; SPACE uses neither and lets the rhythm do
  * the work. Density then decides how much rhythm there is.
  *
  * Sections used to carry `border-t border-cardline` and `py-16` inline, which

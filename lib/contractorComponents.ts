@@ -64,7 +64,7 @@ export type OwnComponentMap = ReadonlyMap<string, OwnComponent>;
  * canonicalComponentId), so there is at most one row per role either way, and
  * the nested include this replaces did not filter on it. Adding that filter
  * here would silently reprice every service whose contractor had deactivated a
- * component — a behaviour change wearing a refactor's clothes.
+ * component — a behavior change wearing a refactor's clothes.
  */
 export async function loadOwnComponents(
   db: Db,

@@ -39,7 +39,7 @@ type Shot = {
    * Scroll the heading containing this text to the top before capturing.
    * Some surfaces put the interesting part well below the fold — the Guided
    * Pricing editor sits under a long pricing form — and a screenshot of the
-   * top of that page shows a different feature from the one it is labelled.
+   * top of that page shows a different feature from the one it is labeled.
    */
   /**
    * Capture width in CSS px, defaulting to the full viewport.

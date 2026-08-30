@@ -101,7 +101,7 @@ const ADD: Role[] = [
   },
   {
     key: "LED_CHANNEL_DIFFUSER",
-    name: "Aluminium channel with diffuser",
+    name: "Aluminum channel with diffuser",
     unit: "ft",
     notes:
       "Extrusion and lens the tape mounts into. Priced per foot alongside the " +

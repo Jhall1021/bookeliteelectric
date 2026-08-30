@@ -173,7 +173,7 @@ async function dns(token: string) {
     if (set.length) console.log(`      SET ${kind.padEnd(8)} ${set.join("   ")}`);
   }
   console.log(`
-    On Cloudflare each record must be DNS only (grey cloud), not proxied.
+    On Cloudflare each record must be DNS only (gray cloud), not proxied.
     A proxied record is what made app.price2book.com answer 525 until it was
     switched, and an orange-clouded apex is why price2book.com answers nothing
     on http and https alike right now.

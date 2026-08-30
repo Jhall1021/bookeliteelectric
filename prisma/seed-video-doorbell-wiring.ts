@@ -9,7 +9,7 @@
  *
  * THE SCOPE, STATED AS A PROMISE
  *
- *   A doorbell at a ground-floor door, on wood, vinyl or fibre-cement, with a
+ *   A doorbell at a ground-floor door, on wood, vinyl or fiber-cement, with a
  *   reachable attic, basement or crawlspace to run 18/2 through, a transformer
  *   landed at an existing junction box or a panel knockout, the customer's own
  *   doorbell, and no indoor chime.
@@ -80,7 +80,7 @@ async function main() {
     where: await serviceSlugKey(prisma, SLUG),
     select: { id: true, contractorId: true, name: true, basePrice: true, bookingType: true },
   });
-  if (!service) { console.error(`  ${SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!service) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
 
   // The reroute target has to exist before a tree points at it. A reroute with
   // no destination is the defect this codebase spent a whole pass removing.
@@ -208,13 +208,13 @@ async function main() {
       },
       review(qExisting.id, "There's a button, but I don't know if it works", "unknown", 3),
 
-      // Q2 — access, and the storey, in one answerable question
+      // Q2 — access, and the story, in one answerable question
       cont(qAccess.id, "Yes — the door's on the ground floor and there's an attic, basement or crawlspace we can get into", "accessible", 1, qSurface.id),
       review(qAccess.id, "The door's upstairs, or there's no way in above or below it", "no_access", 2),
       review(qAccess.id, "I'm not sure", "unsure_access", 3),
 
       // Q3 — what we're drilling
-      cont(qSurface.id, "Wood, vinyl or fibre-cement siding, or a wood door frame", "standard", 1, qSupply.id),
+      cont(qSurface.id, "Wood, vinyl or fiber-cement siding, or a wood door frame", "standard", 1, qSupply.id),
       review(qSurface.id, "Brick, stucco or stone", "masonry", 2),
       review(qSurface.id, "Something else, or I'm not sure", "unsure_surface", 3),
 

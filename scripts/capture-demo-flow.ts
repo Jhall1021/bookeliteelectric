@@ -35,7 +35,7 @@ const prisma = new PrismaClient();
 /**
  * The service the demo walks, by SLUG.
  *
- * Was templateKey, which is null on the demo tenant now: its catalogue is
+ * Was templateKey, which is null on the demo tenant now: its catalog is
  * cloned from a contractor whose services predate the template rather than
  * provisioned from it, so nothing carries a template key.
  */

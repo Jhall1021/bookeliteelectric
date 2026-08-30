@@ -37,7 +37,7 @@
  * WHAT IT DOES NOT TOUCH
  *
  * No pricing formula, published price, labor figure, material rule or
- * reconciliation behaviour. Reconcile must read 108 of 108 before and after.
+ * reconciliation behavior. Reconcile must read 108 of 108 before and after.
  *
  * The `"default"` id is left alone deliberately. Removing that dependency is
  * the contract phase, after the loaders take a contractor.
@@ -148,7 +148,7 @@ async function main() {
 
   // A missing configuration row is worth naming now. Once the loaders require
   // a contractor, an absent row becomes a hard failure at booking time rather
-  // than a silent default — which is the intended behaviour, but only if the
+  // than a silent default — which is the intended behavior, but only if the
   // row is created deliberately at onboarding.
   const missing = rows.filter((r) => r.label !== "ServiceArea" && r.total === 0);
   if (missing.length) {

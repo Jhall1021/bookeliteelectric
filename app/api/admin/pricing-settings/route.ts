@@ -10,7 +10,7 @@ import type { PricingSettings } from "@/lib/pricing";
 //
 // But it is not harmless either, and for a long time this route behaved as
 // though it were. A rate change leaves every published price where it is while
-// moving the model those prices are judged against — so a catalogue that
+// moving the model those prices are judged against — so a catalog that
 // reconciled yesterday can be out by a hundred prices today with nothing on
 // screen saying so. That happened: a rate typed in exploratorily on 29 August
 // put 111 published price points out of agreement, and the only reason anyone

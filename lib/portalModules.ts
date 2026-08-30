@@ -29,7 +29,7 @@ export type PortalModule = {
   blurb: string;
   /** Which pillar this serves, for grouping. */
   group: "pricing" | "availability" | "storefront" | "operations";
-  /** Not yet built. Shown, greyed, rather than hidden — see below. */
+  /** Not yet built. Shown, grayed, rather than hidden — see below. */
   comingSoon?: boolean;
 };
 

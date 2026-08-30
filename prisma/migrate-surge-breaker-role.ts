@@ -39,7 +39,7 @@ async function main() {
     where: await serviceSlugKey(prisma, SLUG),
     select: { id: true, name: true, basePrice: true, whileWeThereBasePrice: true, materialCostCents: true },
   });
-  if (!svc) { console.error(`  ${SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!svc) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
 
   const from = await prisma.canonicalMaterial.findUnique({ where: { key: FROM }, select: { id: true } });
   const to = await prisma.canonicalMaterial.findUnique({ where: { key: TO }, select: { id: true } });

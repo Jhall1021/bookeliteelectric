@@ -217,7 +217,7 @@ export function auditFile(file: string, rawSrc: string): Finding[] {
 }
 
 // ---------------------------------------------------------------------------
-// Self-test. Permanent rather than a one-off, so the check's own behaviour is
+// Self-test. Permanent rather than a one-off, so the check's own behavior is
 // re-proven on every run instead of trusted from the day it was written.
 // ---------------------------------------------------------------------------
 

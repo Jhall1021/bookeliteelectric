@@ -11,7 +11,7 @@
  *   2. PROVENANCE — for rows with no relation to derive from, fall back to
  *      the single contractor that historically owned all of this data.
  *
- * Provenance is migration knowledge, never application behaviour. Runtime
+ * Provenance is migration knowledge, never application behavior. Runtime
  * code must never assume "the only contractor is Elite." So this script
  * refuses to use provenance unless it can PROVE the assumption for this
  * dataset, right now, against two conditions:

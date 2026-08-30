@@ -73,7 +73,7 @@ async function main() {
     where: await serviceSlugKey(prisma, SLUG),
     select: { id: true, contractorId: true },
   });
-  if (!service) { console.error(`  ${SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!service) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
 
   for (const [key] of RECIPE) {
     const role = await prisma.canonicalMaterial.findUnique({ where: { key }, select: { id: true } });

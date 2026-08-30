@@ -12,7 +12,7 @@ Price2Book's differentiator is that a contractor starts from **real trade knowle
 an empty booking form. That knowledge exists today — 75 services, 150 questions, 539 answer
 options, 123 material links — but it exists **only as Elite Electric's rows**.
 
-There is no template. There is a catalogue belonging to Contractor #1, and 36 places in the
+There is no template. There is a catalog belonging to Contractor #1, and 36 places in the
 codebase where we have already marked a decision as Elite's rather than the trade's:
 
 ```
@@ -78,7 +78,7 @@ them.
 Divergence is free — the contractor's rows are simply their rows.
 
 The cost is real and should be named: **drift**. Ten contractors provisioned from v1 and
-never updated are ten catalogues nobody can improve centrally. That cost is acceptable
+never updated are ten catalogs nobody can improve centrally. That cost is acceptable
 because the alternative is silent change, and it is mitigated — not solved — by §"Template
 updates" below.
 
@@ -140,7 +140,7 @@ reads through it at request time. It exists so a future update can ask *"has thi
 changed the thing I am about to offer to change?"*
 
 A contractor-authored service has both fields null, and that is the whole difference between
-the two — no behavioural distinction, no restriction, no second class.
+the two — no behavioral distinction, no restriction, no second class.
 
 ### How customisation works, and whether divergence is total
 
@@ -183,7 +183,7 @@ to template updates.
 ## How Elite becomes Template v1
 
 **Not by declaring Elite's rows canonical.** They contain both electrical knowledge and
-Elite's business decisions, and a template built by relabelling them would carry Elite's
+Elite's business decisions, and a template built by relabeling them would carry Elite's
 economics into every future contractor while looking like trade knowledge.
 
 Extraction is a real process, per service:
@@ -205,7 +205,7 @@ Extraction is a real process, per service:
 ### The acceptance test
 
 > Can Price2Book take Electrical Template v1 and create a brand-new electrical contractor
-> whose initial catalogue is structurally correct, with **no** Elite prices, labor hours,
+> whose initial catalog is structurally correct, with **no** Elite prices, labor hours,
 > material costs or policy values anywhere in it?
 
 Mechanised as a verifier: provision a throwaway contractor from v1, then assert that every

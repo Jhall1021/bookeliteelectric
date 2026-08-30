@@ -2,7 +2,7 @@
  * Versioned theme definitions — ADR-015 Phase 2.
  *
  * A contractor stores CHOICES ONLY: family, variant, pinned version, and their
- * brand colours. Everything a browser needs is derived here. Nothing derived is
+ * brand colors. Everything a browser needs is derived here. Nothing derived is
  * persisted on the contractor, so the theme they chose and the theme they are
  * rendering cannot drift apart, and a definition's v2 cannot reach anyone who
  * has not adopted it.
@@ -89,7 +89,7 @@ export const CONTRAST_PAIRS: readonly { fg: SemanticColor; bg: SemanticColor; mi
   { fg: "inkStrong", bg: "canvas", min: 4.5, note: "footer text" },
   { fg: "muted", bg: "canvas", min: 4.5, note: "supporting text on the page" },
   { fg: "muted", bg: "surface", min: 4.5, note: "supporting text on a card" },
-  // mutedSoft is a DARK-SURFACE token, not a quiet grey for the light page.
+  // mutedSoft is a DARK-SURFACE token, not a quiet gray for the light page.
   // Every use of it in the storefront sits on the navy hero or a dark-toned
   // block, where it measures 6.44:1. Asserting it against `canvas` invented a
   // pair the design never makes — the exact failure the note above warns
@@ -113,10 +113,10 @@ export const CONTRAST_PAIRS: readonly { fg: SemanticColor; bg: SemanticColor; mi
 /**
  * The Elite look as a definition.
  *
- * Every colour is `fixed`, which is what makes it the parity baseline: pinned
+ * Every color is `fixed`, which is what makes it the parity baseline: pinned
  * here with no brand input, Elite resolves to exactly the values Phase 1
  * proved unchanged. A contractor picking this family gets the brand-derived
- * behaviour instead — see MODERN_CLEAN_A below.
+ * behavior instead — see MODERN_CLEAN_A below.
  */
 export const ELITE_BASELINE: ThemeDefinition = {
   family: "baseline", variant: "a", version: 1,
@@ -133,9 +133,9 @@ export const ELITE_BASELINE: ThemeDefinition = {
 /**
  * The same look, but with the accent taken from the contractor's brand.
  *
- * The brand colour is preserved as the input and only moved if it cannot be
+ * The brand color is preserved as the input and only moved if it cannot be
  * read on the page. Button text is chosen rather than assumed: white is right
- * for most brand colours and wrong for a bright yellow one.
+ * for most brand colors and wrong for a bright yellow one.
  */
 export const MODERN_CLEAN_A: ThemeDefinition = {
   family: "modern-clean", variant: "a", version: 1,
@@ -164,20 +164,20 @@ export const MODERN_CLEAN_A: ThemeDefinition = {
 /**
  * Modern & Clean B — the same family, a different page.
  *
- * Not a recolour of A. The header centres and splits onto two rows, the hero
- * becomes a single centred column with the booking entry sitting directly in
+ * Not a recolor of A. The header centers and splits onto two rows, the hero
+ * becomes a single centerd column with the booking entry sitting directly in
  * the flow rather than in a panel, services become full-width rows instead of
  * tiles, sections are separated by space rather than rules, cards lift off the
  * page instead of being outlined, and the headline is light and spaced instead
  * of bold.
  *
- * Print it in greyscale beside A and they are still obviously different pages.
+ * Print it in grayscale beside A and they are still obviously different pages.
  * That is the bar.
  */
 export const MODERN_CLEAN_B: ThemeDefinition = {
   family: "modern-clean", variant: "b", version: 1,
   label: "Modern & Clean B",
-  blurb: "Centred and airy, with booking front and centre and your services in a clean list.",
+  blurb: "Centerd and airy, with booking front and center and your services in a clean list.",
   selectable: true,
   colors: { ...MODERN_CLEAN_A.colors },
   shapes: {
@@ -265,7 +265,7 @@ export const WARM_WELCOMING_B: ThemeDefinition = {
 
 /**
  * Premium — a cooler, tighter palette with a near-black ink and very little
- * chroma outside the brand accent, so the contractor's colour is the only
+ * chroma outside the brand accent, so the contractor's color is the only
  * thing on the page with any saturation.
  */
 const PREMIUM_COLORS: Record<SemanticColor, Derivation> = {
@@ -292,7 +292,7 @@ const PREMIUM_SHAPES: Record<SemanticShape, string> = {
 export const PREMIUM_A: ThemeDefinition = {
   family: "premium", variant: "a", version: 1,
   label: "Premium A",
-  blurb: "Photo-led and generously spaced, with sharp edges and very little colour.",
+  blurb: "Photo-led and generously spaced, with sharp edges and very little color.",
   selectable: true,
   colors: { ...PREMIUM_COLORS }, shapes: { ...PREMIUM_SHAPES },
   structure: {

@@ -116,7 +116,7 @@ capability the product does not have.
 
 ### D. Read by code but NOT currently set — decide deliberately
 
-| Variable | Behaviour when unset |
+| Variable | Behavior when unset |
 |---|---|
 | `BETTER_AUTH_URL` | Falls back to `VERCEL_PROJECT_PRODUCTION_URL` on production. **Once a custom domain exists this must be set explicitly**, or magic links return to `*.vercel.app`. |
 | `RESEND_FROM_EMAIL` | Falls back to `Price2Book <onboarding@resend.dev>`. Fine until a verified sender exists. |
@@ -272,7 +272,7 @@ about a question other than the one being asked.
 | `app.price2book.com` → NXDOMAIN | A cached negative answer; three public resolvers said otherwise |
 
 And one that looked like a different problem than it was: **HTTP 525** reads as an SSL failure and
-was a Cloudflare proxy-mode setting. Grey cloud, fixed in a minute.
+was a Cloudflare proxy-mode setting. Gray cloud, fixed in a minute.
 
 The habit that resolved all four was the same — ask an independent source, and prefer an
 identifier over a name.
@@ -300,7 +300,7 @@ Run against `app.price2book.com` with one explicitly-named test contractor,
 
 | Proven on the deployed host | |
 |---|---|
-| Second storefront resolves | own name, own AZ ROC licence, own phone |
+| Second storefront resolves | own name, own AZ ROC license, own phone |
 | Identity isolated | zero matches for `Elite\|732-204-7003\|Monmouth\|17272\|Allaire\|New Jersey` |
 | Six themes render | six distinct token signatures — canvas 250/251/247, radii 12/16/18/10/2/0px |
 | Brand is an input | the accent is **identical** across all six themes |

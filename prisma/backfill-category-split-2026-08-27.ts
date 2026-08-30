@@ -28,7 +28,7 @@
  * resolves to today.
  *
  * `sortOrder` and `navGroup` move to ContractorCategory, because they are
- * storefront organisation rather than electrical truth. Elite's current values
+ * storefront organization rather than electrical truth. Elite's current values
  * are carried over exactly.
  *
  * The seam already existed: prisma/seed.ts deliberately does not sync

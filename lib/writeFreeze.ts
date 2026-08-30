@@ -80,7 +80,7 @@ export const writeFreezeExtension = Prisma.defineExtension({
       },
     },
     // Raw SQL does not pass through $allModels, so it is intercepted here.
-    // $queryRaw is left alone — it is how the verifiers read the catalogue,
+    // $queryRaw is left alone — it is how the verifiers read the catalog,
     // and reading is the half of the system that stays up.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async $executeRaw({ args, query }: any) {

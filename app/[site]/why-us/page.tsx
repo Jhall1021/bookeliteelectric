@@ -5,14 +5,14 @@ import { useIdentity, usePricingCopy } from "@/components/theme/StorefrontContex
 /**
  * The trust page — ADR-016.
  *
- * Every point here was Elite's: their New Jersey licence number, their
+ * Every point here was Elite's: their New Jersey license number, their
  * flat-rate promise, their company name in the opening sentence. A provisioned
  * contractor inherited all three, which meant a storefront could advertise a
- * licence its owner does not hold.
+ * license its owner does not hold.
  *
  * The points are now assembled from contractor identity and the pricing model.
  * A claim that cannot be substantiated from contractor data is not made: no
- * licence on file means no licence bullet, not a vaguer one.
+ * license on file means no license bullet, not a vaguer one.
  *
  * The canonical route is /why-us. It used to be /why-elite, which was fine
  * while Elite was the only tenant and wrong the moment a second one existed:

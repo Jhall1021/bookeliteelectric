@@ -5,7 +5,7 @@
  * The half that actually matters. Creating Contractor #2's first price book is
  * straightforward; the architecture is designed for what happens six months
  * later, when the template learns something and the contractor has already
- * customised and priced their tree.
+ * customized and priced their tree.
  */
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
@@ -45,7 +45,7 @@ async function main() {
     where: { key: "below_above_access", service: { contractorId: c0.id, templateKey: KEY } },
     data: { prompt: "Can we get to it from below or above without cutting drywall?" },
   });
-  if (edited.count !== 1) throw new Error(`expected to customise exactly one question, updated ${edited.count}`);
+  if (edited.count !== 1) throw new Error(`expected to customize exactly one question, updated ${edited.count}`);
 
   const base = "scripts/template-update.ts";
   const args = ["--contractor", PROOF, "--service", KEY];
@@ -55,7 +55,7 @@ async function main() {
   ok(/newest is v2/.test(status), "it reports a newer version exists");
   ok(/\+ question\s+\[afci_protection\]/.test(status), "the new question is offered");
   ok(/\+ option\s+outlet_run_distance\/over_40/.test(status), "the new answer option is offered");
-  ok(/CONFLICT/.test(status), "the wording change they already customised is flagged as a CONFLICT");
+  ok(/CONFLICT/.test(status), "the wording change they already customized is flagged as a CONFLICT");
 
   console.log("\n  NOTHING CHANGES BEFORE EXPLICIT ADOPTION");
   const before = await svcNow();

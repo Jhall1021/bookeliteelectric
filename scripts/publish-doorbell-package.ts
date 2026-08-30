@@ -46,7 +46,7 @@ async function main() {
       permitAdminCents: true, otherDirectCostCents: true, isPrimaryEligible: true,
     },
   });
-  if (!svc) { console.error(`  ${SLUG} not in the catalogue.\n`); process.exit(1); }
+  if (!svc) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
 
   if (svc.basePrice !== null || svc.whileWeThereBasePrice !== null) {
     console.log(`  Already published at $${((svc.basePrice ?? 0) / 100).toFixed(2)} / $${((svc.whileWeThereBasePrice ?? 0) / 100).toFixed(2)}.`);
@@ -122,14 +122,14 @@ async function main() {
   console.log();
 
   // Calibration, reported and never used as an input.
-  const neighbours = await prisma.service.findMany({
+  const neighbors = await prisma.service.findMany({
     where: { contractorId: svc.contractorId, slug: { in: ["video-doorbell-existing-wiring", "doorbell-transformer-replacement"] } },
     select: { slug: true, basePrice: true, fieldLaborHours: true },
   });
-  const sum = neighbours.reduce((n, s) => n + (s.basePrice ?? 0), 0);
-  const hrs = neighbours.reduce((n, s) => n + (s.fieldLaborHours ?? 0), 0);
-  console.log(`  calibration — this job is both neighbours plus a fish:`);
-  for (const n of neighbours) console.log(`      ${n.slug.padEnd(36)} $${((n.basePrice ?? 0) / 100).toFixed(0)}  ${n.fieldLaborHours}h`);
+  const sum = neighbors.reduce((n, s) => n + (s.basePrice ?? 0), 0);
+  const hrs = neighbors.reduce((n, s) => n + (s.fieldLaborHours ?? 0), 0);
+  console.log(`  calibration — this job is both neighbors plus a fish:`);
+  for (const n of neighbors) console.log(`      ${n.slug.padEnd(36)} $${((n.basePrice ?? 0) / 100).toFixed(0)}  ${n.fieldLaborHours}h`);
   console.log(`      ${"sum".padEnd(36)} $${(sum / 100).toFixed(0)}  ${hrs}h`);
   console.log(`      ${"derived".padEnd(36)} $${(primary.totalCents / 100).toFixed(0)}  ${svc.fieldLaborHours}h   (delta $${((primary.totalCents - sum) / 100).toFixed(0)})`);
   console.log();

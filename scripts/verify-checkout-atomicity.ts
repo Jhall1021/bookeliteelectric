@@ -13,7 +13,7 @@
  * nothing survived. It runs offline against the real database using a
  * throwaway contractor, and cleans up whatever it made.
  *
- * Deliberately NOT a test of the route's HTTP behaviour: the route reaches
+ * Deliberately NOT a test of the route's HTTP behavior: the route reaches
  * Jobber before it writes anything, so an end-to-end run needs live Jobber
  * credentials. The transaction is the part that can be proven here, and it is
  * the part pass three changed.

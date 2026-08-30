@@ -7,7 +7,7 @@ import { ELITE_V1_STRUCTURE, type ThemeStructure } from "@/lib/theme/structure";
  * The resolved STRUCTURE, available to any storefront component — ADR-015
  * Phase 3.
  *
- * Colour reaches components through CSS custom properties, which need no
+ * Color reaches components through CSS custom properties, which need no
  * context. Composition cannot: whether the header is one row or two is a
  * branch in the tree, not a value in a stylesheet.
  *

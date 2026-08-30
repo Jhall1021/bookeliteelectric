@@ -25,43 +25,43 @@ the model is deliberately narrow:
 
 ```ts
 ThemeChoice = { family, variant, version }   // what the contractor picked
-BrandInputs = { primary?, accent? }          // the ONLY two colours they supply
+BrandInputs = { primary?, accent? }          // the ONLY two colors they supply
 ```
 
-Everything else — all twelve semantic colours (`canvas`, `surface`, `ink`,
+Everything else — all twelve semantic colors (`canvas`, `surface`, `ink`,
 `inkSoft`, `inkStrong`, `muted`, `mutedSoft`, `accent`, `accentHover`,
 `accentInk`, `line`, `positive`) and all six shapes (`radiusCard`,
 `radiusPill`, `shadowCard`, `shadowRaised`, `fontDisplay`, `fontBody`) — is
-**derived** by `lib/theme/resolve.ts` from those two colours plus the chosen
+**derived** by `lib/theme/resolve.ts` from those two colors plus the chosen
 variant.
 
 `readBrandInputs` says why, in its own words:
 
-> *"Read through one shape so a second competing brand-colour source cannot
+> *"Read through one shape so a second competing brand-color source cannot
 > grow beside it."*
 
-A scanner that writes a scraped background colour, text colour and button
-colour as independent stored values **is** that second competing source. So:
+A scanner that writes a scraped background color, text color and button
+color as independent stored values **is** that second competing source. So:
 
 | your item | where it goes |
 |---|---|
 | company logo | `Contractor.logoUrl` — an asset, stored directly |
 | favicon | asset, only if the logo is unusable — see below |
-| primary brand colour | `BrandInputs.primary` — **stored** |
-| secondary / accent colour | `BrandInputs.accent` — **stored** |
-| dark / text colour | **evidence**, not stored. Informs which family is proposed |
-| background colour | **evidence**, not stored. Informs family + variant |
-| button colour | **evidence**. Usually corroborates `accent`; a disagreement is a signal the scan guessed wrong |
+| primary brand color | `BrandInputs.primary` — **stored** |
+| secondary / accent color | `BrandInputs.accent` — **stored** |
+| dark / text color | **evidence**, not stored. Informs which family is proposed |
+| background color | **evidence**, not stored. Informs family + variant |
+| button color | **evidence**. Usually corroborates `accent`; a disagreement is a signal the scan guessed wrong |
 | heading font | **evidence** → proposes a `family`, never a font stack |
 | body font | **evidence** → same |
 
-The scan's real output is therefore **two colours, a logo, and a recommended
+The scan's real output is therefore **two colors, a logo, and a recommended
 `ThemeChoice`** — with the other six observations shown as the reasoning behind
 the recommendation rather than as fields to edit.
 
 That is also what keeps this on the right side of the hosted-site boundary
 already drawn: *Price2Book controls structure and layout; the contractor
-chooses content, photos, logo, colours.* A scan that imported a site's actual
+chooses content, photos, logo, colors.* A scan that imported a site's actual
 typography and spacing would be reimplementing that site, which is the "we are
 not a website agency" line.
 
@@ -100,7 +100,7 @@ ThemeNote =
 `verify-theme-contrast.ts` proves it in the deploy gate — including the case
 where a yellow brand still yields readable button text.
 
-**So a scraped colour goes through the same resolver as a typed one**, and needs
+**So a scraped color goes through the same resolver as a typed one**, and needs
 no contrast logic of its own. What the scan owes the contractor is honesty about
 the result:
 
@@ -108,7 +108,7 @@ the result:
 > enough contrast for button text, so we darkened it to #A88C00 — here's how
 > both look."*
 
-A scan whose colours silently arrive adjusted, with no note, would be worse than
+A scan whose colors silently arrive adjusted, with no note, would be worse than
 no scan: the contractor would believe their brand was imported and see something
 subtly wrong.
 
@@ -137,7 +137,7 @@ unless it is bounded.
   only thing between a typed URL and a credential.
 
 **The fetched page is untrusted data, never instructions.** If a later version
-sends page text to a model to summarise what the company does, that text is
+sends page text to a model to summarize what the company does, that text is
 attacker-controlled: a contractor's site — or a site they do not own but typed
 in — can contain "ignore previous instructions". Treat scraped content as
 quoted data at every layer, and never let it reach a tool-using context.
@@ -145,9 +145,9 @@ quoted data at every layer, and never let it reach a tool-using context.
 **Every extracted value is validated before it is shown**, not merely before it
 is stored:
 
-- colours must parse as colours, and are normalised to hex; anything else is
+- colors must parse as colors, and are normalised to hex; anything else is
   discarded rather than passed through
-- fonts must map to a known, licensable family; an unrecognised name becomes
+- fonts must map to a known, licensable family; an unrecognized name becomes
   "we couldn't match this", never a raw stack
 - the logo must be a real image, within a size cap, of a plausible aspect ratio;
   an SVG is sanitised or rasterised, because an SVG is a script container
@@ -193,13 +193,13 @@ visible.
 A meaningful share of contractor websites will defeat this, and the feature is
 only good if failing is unremarkable:
 
-| case | behaviour |
+| case | behavior |
 |---|---|
-| JS-rendered site (no server HTML) | fall back to favicon + `og:image`, propose colours only if confident |
+| JS-rendered site (no server HTML) | fall back to favicon + `og:image`, propose colors only if confident |
 | Cloudflare / bot challenge | fail cleanly, offer manual entry |
 | parked domain, or no site | skip the step entirely |
-| Wix/Squarespace stock theme | colours are the template's, not the brand's — propose, flag low confidence |
-| logo is a wordmark on a coloured field | keep it; that is what `logoWhiteUrl` exists for |
+| Wix/Squarespace stock theme | colors are the template's, not the brand's — propose, flag low confidence |
+| logo is a wordmark on a colored field | keep it; that is what `logoWhiteUrl` exists for |
 | site is a Facebook page | out of scope for V1; say so rather than half-working |
 
 **Confidence must be shown, not hidden.** "We're fairly sure about your blue,
@@ -248,12 +248,12 @@ six weeks later, and an audit that records only successes cannot say it.
 
 ## V1 boundary
 
-**In:** one page fetch, logo, favicon fallback, primary and accent colour, font
+**In:** one page fetch, logo, favicon fallback, primary and accent color, font
 evidence, a recommended `ThemeChoice`, a live preview, explicit apply, ownership
 assertion, audit.
 
 **Out:** multi-page crawling, headless-browser rendering, automatic re-scans on
-a schedule, logo background removal, colour extraction from photographs,
+a schedule, logo background removal, color extraction from photographs,
 importing layout or spacing, generating copy.
 
 The success test is not "the scan is accurate". It is:

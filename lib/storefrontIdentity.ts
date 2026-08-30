@@ -7,12 +7,12 @@
  *     -> resolved customer storefront
  *
  * Each layer owns its own data and none reaches into another. A theme
- * definition never carries a company name; identity never carries a colour
+ * definition never carries a company name; identity never carries a color
  * ramp; neither decides how a price is calculated.
  *
  * Every field has a defined fallback, because a contractor mid-setup should
- * render a storefront missing a licence line — not a broken page, and never
- * somebody else's licence.
+ * render a storefront missing a license line — not a broken page, and never
+ * somebody else's license.
  */
 
 /** Exactly what the storefront reads. Narrower than the Contractor row. */

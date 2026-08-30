@@ -1,5 +1,5 @@
 /**
- * Extract the whole Elite catalogue into Electrical Template v1 — ADR-014.
+ * Extract the whole Elite catalog into Electrical Template v1 — ADR-014.
  *
  * Runs all services as a BATCH and collects refusals into review groups rather
  * than stopping at the first. Extraction is classification, and the refusals
@@ -19,7 +19,7 @@
  * `--from` is required rather than inferred. An earlier version read "every
  * Service row", which was indistinguishable from correct while Elite was the
  * only contractor and silently extracted a throwaway proof contractor's
- * catalogue back into the template the moment one existed. Extraction reads
+ * catalog back into the template the moment one existed. Extraction reads
  * across a tenant boundary by nature, so it names the tenant out loud.
  */
 import { PrismaClient } from "@prisma/client";
@@ -272,7 +272,7 @@ async function main() {
   const from = arg("from");
   if (!from) {
     console.error(`\n  --from <contractor-slug> is required.\n`);
-    console.error(`  Extraction reads one contractor's catalogue and turns it into the`);
+    console.error(`  Extraction reads one contractor's catalog and turns it into the`);
     console.error(`  canonical template. Which contractor is not something to infer.\n`);
     const all = await prisma.contractor.findMany({ select: { slug: true, name: true } });
     for (const c of all) console.error(`    ${c.slug}  (${c.name})`);
@@ -287,7 +287,7 @@ async function main() {
     where: { contractorId: source.id, ...(only ? { slug: only } : {}) },
     select: { slug: true }, orderBy: { slug: "asc" },
   });
-  console.log(`\nEXTRACT CATALOGUE  ->  ${TRADE} v${version}   ${apply ? "APPLY" : "REPORT ONLY"}`);
+  console.log(`\nEXTRACT Catalog  ->  ${TRADE} v${version}   ${apply ? "APPLY" : "REPORT ONLY"}`);
   console.log(`  source: ${source.name} (${from}) — ${all.length} service(s)\n`);
   SOURCE_ID = source.id;
 
@@ -323,7 +323,7 @@ async function main() {
     console.log();
   }
 
-  // ---- catalogue report --------------------------------------------------
+  // ---- catalog report --------------------------------------------------
   console.log("─".repeat(78));
   console.log(`\nELECTRICAL TEMPLATE v${version} — WHAT WAS EXTRACTED\n`);
   const rows: [string, number | string][] = [
@@ -353,7 +353,7 @@ async function main() {
 
   const tv = await prisma.templateVersion.upsert({
     where: { trade_version: { trade: TRADE, version } }, update: {},
-    create: { trade: TRADE, version, notes: `extracted from Elite's catalogue` },
+    create: { trade: TRADE, version, notes: `extracted from Elite's catalog` },
   });
   // Services the source no longer has must not linger from an earlier run.
   const keep = built.map((e) => e.key);
