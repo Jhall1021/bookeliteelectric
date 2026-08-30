@@ -53,7 +53,7 @@ Visit (a cart)  --1:1-->  Booking  --N:1-->  ArrivalWindow
   |                          |
   +-- LineItem[]             +-- jobberJobId
                              +-- estimatedDurationMinutes
-                             +-- status: SCHEDULED | COMPLETED | CANCELLED
+                             +-- status: SCHEDULED | COMPLETED | CANCELED
 ```
 
 **`Booking` IS the appointment.** It carries `arrivalWindowId` (non-null),
@@ -103,13 +103,13 @@ So this is additive work in `lib/jobber.ts`, not a re-model.
 
 ## Recommendation — three additive pieces
 
-Nothing below changes the behaviour of a service that does not opt in. That is
+Nothing below changes the behavior of a service that does not opt in. That is
 by construction, not by care: the defaults make every existing service take the
 identical code path it takes now.
 
 ### 1. Service-level configuration
 
-Five fields on `Service`, all defaulting to the current behaviour:
+Five fields on `Service`, all defaulting to the current behavior:
 
 ```prisma
 requiresPreWorkVisit                 Boolean @default(false)
@@ -120,7 +120,7 @@ installationRequiresPreWorkCompletion Boolean @default(true)
 ```
 
 `requiresPreWorkVisit = false` on every existing row means the whole workflow is
-unreachable until a service opts in. **A migration that cannot change behaviour
+unreachable until a service opts in. **A migration that cannot change behavior
 is a migration that cannot break anything.**
 
 `depositCents` on the service, not on the booking, is what makes it reusable —
@@ -136,7 +136,7 @@ model Appointment {
   kind            AppointmentKind   // PRE_WORK | INSTALLATION
   arrivalWindowId String
   arrivalWindow   ArrivalWindow     @relation(...)
-  status          AppointmentStatus // SCHEDULED | COMPLETED | CANCELLED
+  status          AppointmentStatus // SCHEDULED | COMPLETED | CANCELED
   completedAt     DateTime?
   jobberVisitId   String?
   @@index([bookingId, kind])

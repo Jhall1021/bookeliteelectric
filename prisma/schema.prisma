@@ -1998,7 +1998,10 @@ enum PaymentModel {
 enum BookingStatus {
   SCHEDULED
   COMPLETED
-  CANCELLED
+  /// US spelling, like every other identifier here. Renamed 29 Aug 2026 when
+  /// it turned out to be the only British-spelled identifier in the schema —
+  /// no booking had ever held it, so the rename cost nothing.
+  CANCELED
 }
 
 model Booking {
