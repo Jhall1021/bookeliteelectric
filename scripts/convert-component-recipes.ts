@@ -55,7 +55,7 @@ const CONVERSIONS: {
   {
     component: "OUTLET_RUN_FINISHED_10_20",
     expectCents: 500,
-    why: "same ten feet; the finished route differs in labour, not in material",
+    why: "same ten feet; the finished route differs in labor, not in material",
     recipe: [{ role: "WIRE_14_2", quantity: 10 }],
   },
   {
@@ -83,7 +83,7 @@ const CONVERSIONS: {
   {
     component: "RECESSED_ADDITIONAL_FINISHED",
     expectCents: 3800,
-    why: "same package; the finished ceiling costs labour, not material",
+    why: "same package; the finished ceiling costs labor, not material",
     recipe: [
       { role: "RECESSED_WAFER", quantity: 1 },
       { role: "WIRE_14_2", quantity: 10 },

@@ -71,7 +71,7 @@ guessed. Both are $0 with no recipe today.
 §4.5 says not to convert these by matching a dollar amount. Having looked, they **cannot**
 be converted, and the reason is visible in the numbers:
 
-| Role | Material | Labour | Attachments |
+| Role | Material | Labor | Attachments |
 |---|---|---|---|
 | `SWITCHLEG_ACCESSIBLE_UNDER_10` | $35.00 | 1h | 4 |
 | `SWITCHLEG_ACCESSIBLE_10_20` | **$35.00** | 1.25h | 4 |
@@ -85,7 +85,7 @@ be converted, and the reason is visible in the numbers:
 | `NEW_SWITCH_AND_SWITCH_LEG_FINISHED` | $45.00 | 1.5h | **0** |
 
 **Material varies with access. It does not vary with distance.** Doubling the run from
-"under 10 feet" to "10–20 feet" adds zero material and only labour. A cable recipe would
+"under 10 feet" to "10–20 feet" adds zero material and only labor. A cable recipe would
 necessarily make material scale with distance, so converting these would not be a
 behaviour-neutral migration — it would change the shape of the economics. These constants
 were never built as cable packages, and no arithmetic will make them into one.
@@ -104,7 +104,7 @@ is required or an existing one reused, and the device type. None is collected.
 ### Dead roles
 
 `NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE` and `_FINISHED` carry full economics — $35/$45
-material, 1h/1.5h labour, **approved prices of $300 and $435** — and **no answer anywhere
+material, 1h/1.5h labor, **approved prices of $300 and $435** — and **no answer anywhere
 selects them.** Configured, priced, unreachable. Left alone; they are either a gap in the
 tree or roles that should be retired.
 
@@ -265,16 +265,16 @@ plus `CONSUMABLES_SMALL`.
 | fan only, 110 CFM *(alt)* | $122.00 | $158.60 | $535 | — | $660 |
 | fan + light, 110 CFM *(alt)* | $172.00 | $223.60 | $600 | — | $725 |
 
-### The calibration says labour differs between the packages
+### The calibration says labor differs between the packages
 
 Working backwards from the historical figures rather than forwards from a guess:
 
 ```
-fan only      $525 − $93.60 material sell  = $431.40 labour = 1.73h
-fan + light   $595 − $114.40 material sell = $480.60 labour = 1.92h
+fan only      $525 − $93.60 material sell  = $431.40 labor = 1.73h
+fan + light   $595 − $114.40 material sell = $480.60 labor = 1.92h
 ```
 
-**No single labour figure reproduces both.** The historical prices are internally
+**No single labor figure reproduces both.** The historical prices are internally
 consistent with roughly **1.75h for fan-only and 2h for fan + light** — the light adds
 wiring work, and the old prices already knew that. At those hours current economics give:
 
@@ -316,7 +316,7 @@ candidates. Currently zero.
 
 ## Why not one service
 
-Both packages differ in **labour and equipment**: 1.75h with a standard fan, 2.0h with a
+Both packages differ in **labor and equipment**: 1.75h with a standard fan, 2.0h with a
 fan-and-light. Nothing in the schema substitutes one material role for another —
 `applyBranch` only ever does `material +=`, and a component recipe adds to the service
 total rather than replacing part of it. So one service cannot carry both, and forcing them
@@ -332,7 +332,7 @@ carrying their answers.
 
 ## Derived, never typed
 
-| Package | Labour | Equipment | Material | **Derived** | Calibration | Delta |
+| Package | Labor | Equipment | Material | **Derived** | Calibration | Delta |
 |---|---|---|---|---|---|---|
 | Fan only | 1.75h | `BATH_FAN_STANDARD` | $72.00 | **$535** | $525 | +$10 |
 | Fan + light | 2.0h | `BATH_FAN_LIGHT_STANDARD` | $88.00 | **$615** | $595 | +$20 |

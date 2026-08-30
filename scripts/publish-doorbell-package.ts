@@ -54,7 +54,7 @@ async function main() {
     return;
   }
   if (svc.fieldLaborHours === null || svc.wwtLaborHours === null) {
-    console.error(`  No crew-hours. Refusing to price labour that nobody established.\n`);
+    console.error(`  No crew-hours. Refusing to price labor that nobody established.\n`);
     process.exit(1);
   }
   if (!svc.materialCostResolved) {

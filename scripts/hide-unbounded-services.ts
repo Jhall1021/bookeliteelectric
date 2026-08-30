@@ -60,7 +60,7 @@ const HIDE: { slug: string; why: string; toRevisit: string }[] = [
     slug: "new-exterior-lighting-locations",
     why:
       "'New locations' is unbounded by definition: the count is unknown, the " +
-      "power source is unknown, and the wall construction decides the labour.",
+      "power source is unknown, and the wall construction decides the labor.",
     toRevisit:
       "replace-exterior-light-fixture already covers the bounded case. A " +
       "single new exterior location with defined access could join it.",

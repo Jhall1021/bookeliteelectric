@@ -30,7 +30,7 @@
  *
  * Elite's default and the strongest case for it: a service upgrade always
  * needs a permit, the fee is set by the town, and it varies between towns for
- * identical work. Folding an estimate into labour would make the base price
+ * identical work. Folding an estimate into labor would make the base price
  * wrong in both directions and untraceable in both.
  */
 
@@ -110,7 +110,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`  labour ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit   (PROVISIONAL)`);
+  console.log(`  labor ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit   (PROVISIONAL)`);
   console.log(`  recipe ${RECIPE.map(([k, q]) => `${k}x${q}`).join(", ")}`);
   console.log(`  permit allowance $${((service.permitAdminCents ?? 0) / 100).toFixed(2)} — excluded by policy`);
   console.log();

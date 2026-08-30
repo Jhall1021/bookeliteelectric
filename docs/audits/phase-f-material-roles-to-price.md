@@ -229,7 +229,7 @@ Review for multiple separated runs · no usable power · masonry or tile drillin
 beyond normal penetrations · a driver with difficult access · RGB,
 tunable-white or smart control · unusually deep or high cabinetry · over 12 ft.
 
-**Labour revised 2.5 h → 4.0 h.** Cutting tape, mounting channel, concealing a
+**Labor revised 2.5 h → 4.0 h.** Cutting tape, mounting channel, concealing a
 driver and making the low-voltage connections is materially more work than
 screwing up three bar fixtures. Provisional; it will be derived through the
 engine and compared against the old $1,200–$1,800 calibration, never

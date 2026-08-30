@@ -214,7 +214,7 @@ many breakers are in the panel now?
 
 **Crew-hours.** **8.0 h proposed — and this is the one figure I do not believe.**
 The seed records 480 min. But the historical price was **$4,995**, and 8 crew-hours
-at the *old* $250 rate is $2,000 of labour; even generous service-equipment
+at the *old* $250 rate is $2,000 of labor; even generous service-equipment
 material does not close a $3,000 gap. Either the real figure is 14–16 crew-hours,
 or two vans were assumed, or $4,995 carried margin the model never saw. **Do not
 publish this until an actual job is measured.**
@@ -253,7 +253,7 @@ is the panel staying in exactly the same spot?
 
 **Crew-hours.** **6.0 h proposed**, and the same doubt applies: the seed says
 360 min, the historical price was **$3,995**, and 6 h at the old rate is $1,500
-of labour. Same three explanations, same recommendation.
+of labor. Same three explanations, same recommendation.
 
 **Material recipe.** **`PANEL_MAIN_BREAKER ×1`** ❌ · **`GROUND_ROD ×2`** ❌ ·
 **`GROUND_CLAMP ×2`** ❌ · **`WIRE_GROUND_6 ×15`** ❌ · `BREAKER_SINGLE_POLE ×20` ✅ ·
@@ -386,7 +386,7 @@ consume it.
 | step | state |
 |---|---|
 | 1. bounded standard scopes | **done** — all seven above |
-| 2. labour | **done** — proposed with reasoning; two flagged as not believable |
+| 2. labor | **done** — proposed with reasoning; two flagged as not believable |
 | 3. materials | **specified, blocked** — 23 roles missing, 1 ambiguous |
 | 4. derive starting prices | **blocked twice** — materials, and the settings change |
 | 5. compare to historical | done where one exists: $4,995 and $3,995, both contradicting their recorded hours |
@@ -416,7 +416,7 @@ promise.**
 
 The arithmetic supports it. Panel replacement comes out $1,840 under its old $3,995 and the service upgrade $1,910 under its old
 $4,995 — nearly identical gaps across two jobs whose derived prices differ by
-$930. Under-estimated labour would scale with the job. A flat residual does
+$930. Under-estimated labor would scale with the job. A flat residual does
 not; it looks like something the old prices carried that these do not.
 
 The practical consequence: **a review route is not a failure of the pricing

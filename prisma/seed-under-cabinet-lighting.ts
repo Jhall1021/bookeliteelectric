@@ -4,7 +4,7 @@
  *   npx tsx prisma/seed-under-cabinet-lighting.ts --apply
  *
  * Architecture B, as decided: tape in aluminium channel with a remote driver,
- * not integrated bar fixtures. That choice is why the labour moved from 2.5 to
+ * not integrated bar fixtures. That choice is why the labor moved from 2.5 to
  * 4.0 crew-hours — cutting tape to length, mounting and cutting channel,
  * concealing a driver and making the low-voltage connections is a different
  * job from screwing three finished fixtures to the underside of a cabinet.
@@ -82,7 +82,7 @@ async function main() {
     if (!cost) { console.error(`  ${key} has no cost.\n`); process.exit(1); }
   }
 
-  console.log(`  labour ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit   (PROVISIONAL)`);
+  console.log(`  labor ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit   (PROVISIONAL)`);
   console.log(`  recipe ${RECIPE.map(([k, q]) => `${k}x${q}`).join(", ")}`);
   if (!apply) { console.log(`\n  Report only.\n`); return; }
 

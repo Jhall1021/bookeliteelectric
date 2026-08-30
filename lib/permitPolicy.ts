@@ -6,7 +6,7 @@
  *
  * The reason is that a permit fee is not work Elite controls. It is set by a
  * jurisdiction, varies between towns for identical work, and changes without
- * anyone here being told. Folding an estimate of it into labour or material
+ * anyone here being told. Folding an estimate of it into labor or material
  * would make the base price wrong in two directions at once: too high where the
  * fee is small or waived, too low where it is not, and untraceable in both
  * because the number would be hiding inside a figure that claims to describe

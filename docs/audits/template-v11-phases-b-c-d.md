@@ -66,7 +66,7 @@ were converted.
 
 ### The constants do not behave like cable
 
-| Role | Material | Labour |
+| Role | Material | Labor |
 |---|---|---|
 | `SWITCHLEG_ACCESSIBLE_UNDER_10` | $35.00 | 1.0 h |
 | `SWITCHLEG_ACCESSIBLE_10_20` | **$35.00** | 1.25 h |
@@ -75,7 +75,7 @@ were converted.
 | `SWITCH_POWER_RUN_ACCESSIBLE` | $21.80 | 1.0 h |
 | `SWITCH_POWER_RUN_FINISHED` | **$21.80** | 1.5 h |
 
-**Material varies with access. Labour varies with distance.** A cable-quantity
+**Material varies with access. Labor varies with distance.** A cable-quantity
 recipe would make material vary with distance — which these constants
 deliberately do not. Converting by matching would invent a distance-dependence
 that is not in the current economics: a change in the shape of the model, not in
@@ -97,7 +97,7 @@ a run defined as *under ten feet*. The remainder is not cable.
 ### Two dead roles
 
 `NEW_SWITCH_AND_SWITCH_LEG_ACCESSIBLE` and `NEW_SWITCH_AND_SWITCH_LEG_FINISHED`
-carry full economics — $35/$45 material, 1 h/1.5 h labour, $300/$435 approved —
+carry full economics — $35/$45 material, 1 h/1.5 h labor, $300/$435 approved —
 and **nothing selects them.** Zero attachments across the catalogue. Either the
 answers that used them were removed, or they were configured ahead of a tree
 change that never landed. Left alone; they price nothing today.
@@ -115,7 +115,7 @@ opening a $15 divergence. **Not written. Awaiting explicit approval.**
 
 ## Exhaust fan reference costs — checked against the engine, not written (§5.5)
 
-Priced through `suggestPrimaryPrice` on `bathroom-fan-light-combo` (2 h labour),
+Priced through `suggestPrimaryPrice` on `bathroom-fan-light-combo` (2 h labor),
 adding each fan as the equipment line:
 
 | Fan | Cost | Engine price |
@@ -135,4 +135,4 @@ would mean storing a number the engine does not derive, which is what §5.5 says
 not to do. Flagged for Phase E rather than resolved here.
 
 Also noted: `replace-bathroom-exhaust-fan` currently has **no base price and no
-labour hours** — the undefined equipment state §5.5 describes.
+labor hours** — the undefined equipment state §5.5 describes.

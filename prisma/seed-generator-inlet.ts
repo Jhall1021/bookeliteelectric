@@ -109,7 +109,7 @@ async function main() {
     if (!cost) { console.error(`  ${key} has no cost for this contractor. Refusing.\n`); process.exit(1); }
   }
 
-  console.log(`  labour ${STANDARD_HOURS}h standalone / ${WWT_HOURS}h same-visit`);
+  console.log(`  labor ${STANDARD_HOURS}h standalone / ${WWT_HOURS}h same-visit`);
   console.log(`  recipe ${RECIPE.map(([k, q]) => `${k}x${q}`).join(", ")}`);
   console.log();
   if (!apply) { console.log(`  Report only. Re-run with --apply to build.\n`); return; }

@@ -4,7 +4,7 @@
  *
  * ONE PUBLIC ENTRY, TWO PRICED PACKAGES.
  *
- * The packages differ in BOTH labour and equipment — 1.75h with a standard fan,
+ * The packages differ in BOTH labor and equipment — 1.75h with a standard fan,
  * 2.0h with a fan-and-light — and nothing in the schema can substitute one
  * material role for another: material only ever `+=` in applyBranch. So a
  * single service cannot carry both. The fan-only package stays on the public

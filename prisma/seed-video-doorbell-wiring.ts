@@ -95,7 +95,7 @@ async function main() {
   }
 
   console.log(`  reroute target: video-doorbell-existing-wiring @ $${((existingWiring.basePrice ?? 0) / 100).toFixed(0)}`);
-  console.log(`  labour ${STANDARD_HOURS}h standalone / ${WWT_HOURS}h same-visit`);
+  console.log(`  labor ${STANDARD_HOURS}h standalone / ${WWT_HOURS}h same-visit`);
   console.log(`  recipe ${RECIPE.map(([k, q]) => `${k}x${q}`).join(", ")}`);
   console.log();
 

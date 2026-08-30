@@ -425,7 +425,7 @@ contractor material cost none
 contractor policy values none
 ```
 
-**This is correct and stays.** Do not add labour hours to `TemplateService`.
+**This is correct and stays.** Do not add labor hours to `TemplateService`.
 How long a job takes belongs to the crew doing it; what a contractor pays for
 6/3 belongs to their supplier; what length of run they include in a price is
 their commercial decision. Shipping Elite's 6.0 hours to Contractor #2 would be
@@ -437,7 +437,7 @@ canonical/contractor split exists to prevent it.
 
 ### What onboarding must not be
 
-Seventy-five labour entries before anybody can sell anything. That is homework,
+Seventy-five labor entries before anybody can sell anything. That is homework,
 not onboarding, and a contractor who abandons it halfway has a catalogue that
 does nothing.
 
@@ -484,9 +484,9 @@ chose not to sell.
 Whether that becomes a status enum or is derived from what a service holds is a
 design decision. What is not optional is that the console can tell them apart.
 
-### Mechanism 2 — explicit grouped labour setup
+### Mechanism 2 — explicit grouped labor setup
 
-Guided Setup may group materially similar services and ask **one** labour
+Guided Setup may group materially similar services and ask **one** labor
 question for the group. Bounded by four rules:
 
 1. **Show exactly which services the value will apply to.** A list, not a count.
@@ -494,9 +494,9 @@ question for the group. Bounded by four rules:
    step, not a side effect of answering.
 3. **Outliers get their own value.** A group is a starting point, not a claim
    that every member is identical.
-4. **Never silently infer category-wide labour.** An inferred number nobody saw
+4. **Never silently infer category-wide labor.** An inferred number nobody saw
    is indistinguishable from a measured one the moment it is stored, and this
-   codebase already carries the scar: 44 of 45 services once held a labour
+   codebase already carries the scar: 44 of 45 services once held a labor
    figure back-fitted to hit a target price, and §3.1 exists because of it.
 
 `wwtLaborHours` is asked **only for services that support same-visit pricing**.
@@ -526,7 +526,7 @@ object from a default: it informs a decision instead of making one.
 1. Finish Electrical Template v1.1
 2. Complete EV charger scope normalisation
 3. Build and lock Guided Setup
-4. **Guided Setup must include Contractor Pricing Setup — labour hours,
+4. **Guided Setup must include Contractor Pricing Setup — labor hours,
    material costs and policy quantities — release-blocking prerequisite**
 5. Prove a newly provisioned electrical contractor can configure a core
    catalogue and pass launch readiness through normal UI, with the long tail

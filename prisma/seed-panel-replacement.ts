@@ -124,7 +124,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`  labour ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit   (PROVISIONAL)`);
+  console.log(`  labor ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit   (PROVISIONAL)`);
   console.log(`  recipe ${RECIPE.map(([k, q]) => `${k}x${q}`).join(", ")}`);
   console.log(`  permit allowance currently $${((service.permitAdminCents ?? 0) / 100).toFixed(2)}`);
   console.log();

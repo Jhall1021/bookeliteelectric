@@ -178,7 +178,7 @@ kitchen is ~$120–$165 of fixtures. Faster to install, less finish work.
 
 **If B — tape in channel with a remote driver** (your preference, and mine):
 one role is not enough. It wants roughly `LED_TAPE` (ft), `LED_CHANNEL_DIFFUSER`
-(ft) and `LED_DRIVER` (each) — and the labour goes up, because cutting,
+(ft) and `LED_DRIVER` (each) — and the labor goes up, because cutting,
 channel-mounting and concealing a driver is more work than screwing up three
 bar fixtures. The 2.5 h in the scope document was reasoned against a
 bar-fixture install and would need revisiting for B.
@@ -199,7 +199,7 @@ than price a tape package from integrated-fixture listings.
 | `200a-service-upgrade` | all roles costed — ready to build, hours provisional at 8 h |
 | `hot-tub-spa-electrical` | needs `CONDUIT_FITTINGS_1` |
 | `240v-garage-outlet` | needs decision 1, then 4 receptacle roles and 2 cable roles |
-| `under-cabinet-led-lighting` | needs decision 2, then roles and a labour revisit |
+| `under-cabinet-led-lighting` | needs decision 2, then roles and a labor revisit |
 
 Rate and minimum are $250/$250. Catalogue reconciles at 2 unexplained
 divergences (`new-coax-line`) plus 2 approved exceptions. 0 services moved,

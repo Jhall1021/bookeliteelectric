@@ -59,7 +59,7 @@ const REQUIRED_COPY = [
   "Everything your customer sees traces back to something you control.",
   "Setup is a conversation, not a form.",
   "Price2Book can suggest. You approve.",
-  // US spelling, from the handoff. "Your labour." shipped once and had to be
+  // US spelling, from the handoff. "Your labor." shipped once and had to be
   // corrected on the live site; a headline is exactly the kind of line nobody
   // re-reads after the first review.
   "Your labor.",
@@ -116,6 +116,12 @@ async function statics() {
   console.log("\n  US SPELLING");
   // The approved copy is US English throughout. These are the forms that
   // actually turned up in this codebase, not a general dictionary.
+  //
+  // This line enumerates the spellings it REJECTS, so it necessarily contains
+  // them. A repo-wide find-and-replace once rewrote "labour" here and turned
+  // the rule into one that rejected the correct spelling instead — the check
+  // went on passing its own file and failing the copy it was protecting.
+  // scripts/verify-us-spelling.ts skips this file for that reason.
   const BRITISH = /\b(labour|itemis(e|ed|ing)|customis|organis|recognis|colour|licence|catalogue|analyse|optimis|summaris|behaviour|honour|neighbour|labelled|modelling|defence)\b/i;
   for (const f of readdirSync("components/marketing")) {
     const src = read(`components/marketing/${f}`);

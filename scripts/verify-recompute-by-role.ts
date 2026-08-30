@@ -43,7 +43,10 @@ async function main() {
   // on one slug surviving a future refactor.
   const usage = await prisma.serviceMaterial.groupBy({
     by: ["canonicalMaterialId"],
-    where: { service: { contractorId: elite.id } },
+    // Nullable on the join: rows predating the canonical/contractor split
+    // carried the old materialId instead. Excluded rather than narrowed later,
+    // so the id this proof runs on is a real role by construction.
+    where: { service: { contractorId: elite.id }, canonicalMaterialId: { not: null } },
     _count: { serviceId: true },
     orderBy: { _count: { serviceId: "desc" } },
     take: 1,
@@ -53,6 +56,10 @@ async function main() {
     process.exit(1);
   }
   const busiestId = usage[0].canonicalMaterialId;
+  if (!busiestId) {
+    console.error(`  The busiest row has no canonical role — this proof cannot run.\n`);
+    process.exit(1);
+  }
   const busiest = await prisma.canonicalMaterial.findUniqueOrThrow({
     where: { id: busiestId }, select: { key: true },
   });
