@@ -37,6 +37,16 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "exact operation. The attempt runs inside a throwaway contractor's " +
     "context against Elite's service, can only fail, and Elite's published " +
     "price is asserted unchanged immediately afterwards.",
+  "scripts/publish-generator-package.ts":
+    "Publishes the Phase F generator inlet package at the price its economics " +
+    "DERIVE — 3.0 owner-approved crew-hours and a five-role recipe through " +
+    "suggestPrimaryPrice, refusing if the engine yields none. Four gates before " +
+    "the write: the tree must enforce the scope (exactly one pricing route, at " +
+    "least eight reaching review, none reaching nothing), no price may already " +
+    "exist, the material cost must be resolved, and NO ROLE IN THE RECIPE MAY BE " +
+    "ON A COST HOLD. That last one is why this service waited: its 10/3 was " +
+    "costed from a short package and the recheck moved it $2.88/ft. Touches this " +
+    "one service.",
   "scripts/publish-doorbell-package.ts":
     "Publishes the Phase F video-doorbell starting package at the price its own " +
     "economics DERIVE — 2.0 owner-approved crew-hours and a three-role recipe " +

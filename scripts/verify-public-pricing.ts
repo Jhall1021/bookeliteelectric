@@ -37,10 +37,6 @@ const UNDER_RESCUE: Record<string, string> = {
     "Phase F rescue. Standard scope drafted (tub set, exterior surface run " +
     "within 25 ft, no trenching). Blocked on a GFCI spa-disconnect role and " +
     "heavy conductor/conduit roles.",
-  "generator-inlet-interlock":
-    "Phase F rescue. Standard scope drafted (listed interlock available for " +
-    "the panel, inlet within 10 ft, 30 A). Blocked on inlet-box, interlock-kit " +
-    "and 10/3 conductor roles.",
   "200a-service-upgrade":
     "Phase F rescue. Standard scope drafted (overhead, meter and panel in " +
     "place, no relocation). Blocked on service-equipment material roles AND " +
