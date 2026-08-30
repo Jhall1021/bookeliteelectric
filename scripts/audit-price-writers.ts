@@ -30,6 +30,13 @@ const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"
  * whether or not its number happens to be right.
  */
 const APPROVED_PUBLISHERS: Record<string, string> = {
+  "scripts/verify-pricing-boundary.ts":
+    "ATTEMPTS to break the price/approval pair — clearing the approval from a " +
+    "priced service, and clearing the price from an approved one — and proves " +
+    "Postgres REFUSES both. A constraint nobody has tried to break is a " +
+    "constraint nobody knows is still connected. Both attempts run inside a " +
+    "transaction that always rolls back, and the script re-reads every " +
+    "published price afterwards to prove none moved.",
   "scripts/verify-tenant-isolation-live.ts":
     "ATTEMPTS a basePrice write and proves it is REFUSED. The admin pricing " +
     "route publishes prices by service id, and until 27 Aug did so with no " +
@@ -98,6 +105,13 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "script, its name is asserted before any deletion, and the script refuses " +
     "to touch a contractor it did not create. No real contractor's price is " +
     "read or written, and it never runs in the deploy gate.",
+  "scripts/verify-template-update.ts":
+    "Sets an approved price on a THROWAWAY contractor's service so it can " +
+    "prove that adopting a template update takes that price back DOWN. " +
+    "Proving a service stops publishing an un-re-approved number requires a " +
+    "published number to start from. The contractor is created and destroyed " +
+    "by the test, no real contractor's price is read or written, and it runs " +
+    "in verify:template rather than the deploy gate.",
   "scripts/verify-pricing-strategy.ts":
     "Writes an approved price and approved estimate bounds onto a THROWAWAY " +
     "contractor's own service, to prove that switching pricing strategy " +
@@ -110,7 +124,8 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
   "prisma/reconcile-scope-services.ts":
     "Named owner-approved migration, 23 Aug: chandelier and flood/camera, once both had scope models.",
   "scripts/template-update.ts":
-    "Adopting a template update CLEARS publishedPriceApprovedAt and sets " +
+    "Adopting a template update CLEARS the published price and its approval "  +
+    "together, and sets " +
     "materialCostResolved false. It un-approves: a structural change may have " +
     "introduced a decision nobody has priced, so the service must stop being " +
     "publishable until the contractor prices it. ADR-014 forbids an adoption " +

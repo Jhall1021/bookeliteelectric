@@ -77,7 +77,13 @@ async function main() {
      `it became "${stillMine.prompt}"`);
 
   console.log("\n  ADOPTION APPLIES STRUCTURE ONLY");
-  await prisma.service.update({ where: { id: after.id }, data: { publishedPriceApprovedAt: new Date(), materialCostResolved: true } });
+  // A published price and its approval are one fact now, so the fixture sets
+  // both. It used to stamp an approval onto a service with no price, which the
+  // database refuses — and which was never a state a real service could be in.
+  await prisma.service.update({
+    where: { id: after.id },
+    data: { basePrice: 25000, publishedPriceApprovedAt: new Date(), materialCostResolved: true },
+  });
   run(base, ...args, "--adopt", "afci_protection");
   const adopted = await svcNow();
   const q = adopted.questions.find((x) => x.key === "afci_protection");
@@ -88,7 +94,10 @@ async function main() {
 
   console.log("\n  A NEW STRUCTURAL REQUIREMENT MAKES THE SERVICE UNRESOLVED AGAIN");
   ok(adopted.materialCostResolved === false, "materialCostResolved was reset to false by the adoption");
-  ok(adopted.publishedPriceApprovedAt === null, "the previously approved published price was cleared");
+  ok(adopted.publishedPriceApprovedAt === null, "the approval was cleared");
+  ok(adopted.basePrice === null,
+     "and the PRICE came down with it — the service stops publishing a number nobody re-approved",
+     `basePrice is still ${adopted.basePrice}`);
 
   console.log("\n  ONE ADOPTION DOES NOT ADOPT THE REST");
   const remaining = run(base, ...args, "--status");

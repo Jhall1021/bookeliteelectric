@@ -125,3 +125,75 @@ $3,085.00 stay derived by `suggestPrimaryPrice` and are never typed in.
 `scripts/activate-prework-services.ts` is the interim path and the price-writer
 audit already flags it — *"stamps its own approval"*. That flag is correct and
 should stay until activation runs through the admin lifecycle instead.
+
+---
+
+# Implemented — 30 Aug 2026
+
+All three bypasses are closed, and the guard is outcome-aware.
+
+## The guard now asks the right question
+
+§1.4 was *"a public service shows a real starting price, or it is not
+public"* — which treats **active** and **priced** as synonyms. It now asks
+whether the service's own tree can deliver a homeowner to a fixed price
+(`lib/activationOutcome.ts`), by walking every route the customer can take.
+`bookingType` is a declaration; the tree is the behavior.
+
+A route that would price on a service with no published price resolves
+INVALID with *"has no published base price"*. That is not a broken tree — it
+is a tree promising a price the service cannot deliver, and it counts as a
+promise.
+
+Result across the catalog:
+
+| | |
+|---|---|
+| 58 | promise a price and show an approved one |
+| 1 | resolves by quote or review, and owes no price |
+| 2 | under an explicit, dated rescue |
+| 4 | priced before the boundary existed, awaiting re-approval |
+
+## `level-2-ev-charger` needs no exception, today
+
+0 pricing routes, 36 review, 0 dead. It promises a quote and delivers a
+quote, so under the outcome-aware rule it passes on its own merits and its
+rescue entry has been removed. **The tree normalisation is still wanted, but
+it is a quality goal, not a broken promise to a customer** — it was only ever
+on that list because the old rule could not tell those apart.
+
+The rescue mechanism now holds two entries, both for the pre-work services,
+and both clear when those publish through the normal lifecycle. Nothing else
+needs it.
+
+## What the constraint found
+
+`services_price_requires_approval` is installed `NOT VALID` — enforcing every
+new write while leaving six pre-existing rows alone. Validate it with
+`--validate` once the backlog clears.
+
+It immediately exposed a latent bug. `template-update.ts` cleared
+`publishedPriceApprovedAt` on adoption, under a comment saying *"the service
+goes back to unresolved rather than publishing something nobody priced"* — but
+left `basePrice` on the storefront. The service kept publishing exactly what
+the comment said it must not, because nothing read the stamp. Adoption now
+takes the price down with the approval.
+
+## Drift: reported, never corrected
+
+15 active services have published prices their inputs no longer derive —
+mostly $250 → $255, and `new-coax-line` at $420 → $405. None was touched.
+`verify-pricing-boundary` re-reads every published price after reporting and
+fails if any moved.
+
+## The bypass script is gone
+
+`activate-prework-services.ts` was deleted rather than allowlisted. Once the
+boundary exists, that script *is* the bypass it forbids, and the price-writer
+audit said so. The two services will publish through the same action a
+contractor uses.
+
+**What that still needs:** `depositCents`, `requiresPreWorkVisit`,
+`preWorkVisitMinutes`, `ctaLabel` and `preWorkCustomerNote` have no admin
+surface yet. The pricing screen publishes a price; nothing yet configures a
+deposit. That is the remaining gap between here and a legitimate activation.

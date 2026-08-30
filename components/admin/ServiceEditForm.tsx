@@ -25,8 +25,6 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
   const [name, setName] = useState(service.name);
   const [description, setDescription] = useState(service.shortDescription ?? "");
   const [disclaimer, setDisclaimer] = useState(service.disclaimer ?? "");
-  const [basePrice, setBasePrice] = useState(centsToDollarsStr(service.basePrice));
-  const [wwtPrice, setWwtPrice] = useState(centsToDollarsStr(service.whileWeThereBasePrice));
   const [startingLabel, setStartingLabel] = useState(service.startingPriceLabel ?? "");
   const [active, setActive] = useState(service.active);
   const [saving, setSaving] = useState(false);
@@ -46,8 +44,6 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         name,
         shortDescription: description || null,
         disclaimer: disclaimer || null,
-        basePrice: basePrice ? Math.round(parseFloat(basePrice) * 100) : null,
-        whileWeThereBasePrice: wwtPrice ? Math.round(parseFloat(wwtPrice) * 100) : null,
         startingPriceLabel: startingLabel || null,
         active,
       }),
@@ -84,28 +80,33 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         />
       </div>
 
+      {/* READ-ONLY, deliberately.
+          A price typed here used to go straight to the customer without ever
+          passing through the pricing engine or anyone's approval — the number
+          somebody typed simply became the number a homeowner paid. Prices now
+          have one way in: the Pricing tab derives one from crew hours and
+          material cost, and publishing it is an explicit act that gets
+          stamped. This shows what is published; it does not set it. */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-medium text-navy">Base price ($)</label>
-          <input
-            type="number" step="0.01" min="0"
-            value={basePrice}
-            onChange={(e) => setBasePrice(e.target.value)}
-            placeholder="Leave blank for Custom Quote"
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
-          />
+          <label className="text-sm font-medium text-navy">Published base price</label>
+          <div className="mt-1 rounded-card border border-cardline bg-warmwhite px-4 py-2.5 text-sm text-slate">
+            {service.basePrice === null ? "Not published" : `$${(service.basePrice / 100).toFixed(2)}`}
+          </div>
         </div>
         <div>
-          <label className="text-sm font-medium text-navy">While We're There price ($)</label>
-          <input
-            type="number" step="0.01" min="0"
-            value={wwtPrice}
-            onChange={(e) => setWwtPrice(e.target.value)}
-            placeholder="Leave blank if none"
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
-          />
+          <label className="text-sm font-medium text-navy">While We&rsquo;re There price</label>
+          <div className="mt-1 rounded-card border border-cardline bg-warmwhite px-4 py-2.5 text-sm text-slate">
+            {service.whileWeThereBasePrice === null
+              ? "None"
+              : `$${(service.whileWeThereBasePrice / 100).toFixed(2)}`}
+          </div>
         </div>
       </div>
+      <p className="-mt-2 text-xs text-slate">
+        Prices are set on the Pricing tab, where they are derived from your crew hours and
+        material costs and published as an explicit approval.
+      </p>
 
       <div>
         <label className="text-sm font-medium text-navy">

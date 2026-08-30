@@ -146,9 +146,16 @@ async function main() {
 
   // A structural addition can introduce a new economic decision. The service
   // goes back to unresolved rather than publishing something nobody priced.
+  //
+  // THE PRICE COMES DOWN WITH THE APPROVAL. Clearing only the stamp left the
+  // old price on the storefront — the service kept publishing exactly what
+  // this comment says it must not, because until the price/approval pair
+  // became a database invariant nothing read the stamp. The customer now sees
+  // no price until the contractor prices what the adoption added, which is
+  // what "unresolved again" was always supposed to mean.
   await prisma.service.update({
     where: { id: svc.id },
-    data: { materialCostResolved: false, publishedPriceApprovedAt: null },
+    data: { materialCostResolved: false, publishedPriceApprovedAt: null, basePrice: null },
   });
   console.log(`  adopted "${adopt}" — structure only. The service is unresolved again ` +
               `until you price what it added.\n`);

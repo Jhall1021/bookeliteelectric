@@ -33,8 +33,6 @@ export default function NewServiceForm({ categories }: { categories: { id: strin
   const [slugTouched, setSlugTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [bookingType, setBookingType] = useState("INSTANT");
-  const [basePrice, setBasePrice] = useState("");
-  const [wwtPrice, setWwtPrice] = useState("");
   const [startingLabel, setStartingLabel] = useState("");
   const [icon, setIcon] = useState("");
   const [saving, setSaving] = useState(false);
@@ -59,8 +57,6 @@ export default function NewServiceForm({ categories }: { categories: { id: strin
         slug,
         shortDescription: description || null,
         bookingType,
-        basePrice: basePrice ? Math.round(parseFloat(basePrice) * 100) : null,
-        whileWeThereBasePrice: wwtPrice ? Math.round(parseFloat(wwtPrice) * 100) : null,
         startingPriceLabel: startingLabel || null,
         icon: icon || null,
       }),
@@ -136,28 +132,15 @@ export default function NewServiceForm({ categories }: { categories: { id: strin
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-sm font-medium text-navy">Base price ($)</label>
-          <input
-            type="number" step="0.01" min="0"
-            value={basePrice}
-            onChange={(e) => setBasePrice(e.target.value)}
-            placeholder="Leave blank for Custom Quote"
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-navy">While We're There price ($)</label>
-          <input
-            type="number" step="0.01" min="0"
-            value={wwtPrice}
-            onChange={(e) => setWwtPrice(e.target.value)}
-            placeholder="Leave blank if none"
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
-          />
-        </div>
-      </div>
+      {/* No price fields here on purpose. A new service is created unpriced,
+          then priced on its Pricing tab from crew hours and material cost and
+          published as an explicit approval. Typing a price at creation was the
+          shortest path from somebody's guess to a homeowner's invoice. */}
+      <p className="rounded-card bg-warmwhite p-3 text-xs text-slate">
+        You&rsquo;ll set the price after creating this service, on its Pricing tab — it&rsquo;s
+        worked out from your crew hours and material costs, and you approve it before
+        customers see it.
+      </p>
 
       <div>
         <label className="text-sm font-medium text-navy">

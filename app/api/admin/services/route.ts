@@ -10,7 +10,10 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { categoryId, name, slug, shortDescription, bookingType, basePrice, whileWeThereBasePrice, startingPriceLabel, icon } = body;
+  // No price is accepted at creation. A service is created unpriced and priced
+  // through its pricing route's publish action, which derives the figure and
+  // stamps the approval. See app/api/admin/services/[serviceId]/pricing.
+  const { categoryId, name, slug, shortDescription, bookingType, startingPriceLabel, icon } = body;
 
   if (!categoryId || !name || !slug || !bookingType) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -87,8 +90,6 @@ export async function POST(req: Request) {
       slug,
       shortDescription: shortDescription ?? null,
       bookingType,
-      basePrice: typeof basePrice === "number" ? basePrice : null,
-      whileWeThereBasePrice: typeof whileWeThereBasePrice === "number" ? whileWeThereBasePrice : null,
       startingPriceLabel: startingPriceLabel ?? null,
       icon: icon ?? null,
       active: true,

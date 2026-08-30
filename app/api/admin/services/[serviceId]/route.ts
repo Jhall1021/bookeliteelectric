@@ -48,7 +48,14 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   const contractorId = ctx.contractorId;
 
   const body = await req.json();
-  const { name, shortDescription, disclaimer, basePrice, whileWeThereBasePrice, startingPriceLabel, active } = body;
+  // basePrice and whileWeThereBasePrice are NOT read from the body.
+  //
+  // They used to be, which meant a number typed into the service editor
+  // reached a homeowner without passing through the pricing engine or anyone's
+  // approval. A customer-facing price now has exactly one way in — the publish
+  // action on this service's pricing route, which derives it and stamps
+  // publishedPriceApprovedAt. Anything sent here is ignored on purpose.
+  const { name, shortDescription, disclaimer, startingPriceLabel, active } = body;
 
   if (!name || typeof name !== "string") {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -102,8 +109,6 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       name,
       shortDescription: shortDescription ?? null,
       disclaimer: disclaimer ?? null,
-      basePrice: typeof basePrice === "number" ? basePrice : null,
-      whileWeThereBasePrice: typeof whileWeThereBasePrice === "number" ? whileWeThereBasePrice : null,
       startingPriceLabel: startingPriceLabel ?? null,
       active: wantsActive,
     },
