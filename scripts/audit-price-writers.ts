@@ -37,6 +37,17 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "exact operation. The attempt runs inside a throwaway contractor's " +
     "context against Elite's service, can only fail, and Elite's published " +
     "price is asserted unchanged immediately afterwards.",
+  "scripts/publish-doorbell-package.ts":
+    "Publishes the Phase F video-doorbell starting package at the price its own " +
+    "economics DERIVE — 2.0 owner-approved crew-hours and a three-role recipe " +
+    "through suggestPrimaryPrice, refusing outright if the engine yields no " +
+    "price. The figure is never typed in. Before writing it, the script walks " +
+    "the service's own tree and refuses unless exactly one route prices, at " +
+    "least five reach review, and none reaches nothing: a starting price is a " +
+    "promise about scope, and publishing one over a tree that does not enforce " +
+    "that scope would be the chandelier defect committed on purpose. Refuses if " +
+    "any price is already present, since repricing is a reconciliation decision. " +
+    "Touches this one service.",
   "scripts/publish-chandelier-price.ts":
     "Restores the one price in the catalog that was approved and then lost. " +
     "remove-and-replace-existing-chandelier is the only service carrying a " +

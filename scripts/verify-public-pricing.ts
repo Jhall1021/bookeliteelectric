@@ -50,10 +50,6 @@ const UNDER_RESCUE: Record<string, string> = {
     "Phase F rescue. Standard scope drafted (same amperage, same location, " +
     "service conductors reused). Blocked on panel/breaker material roles and " +
     "the same crew-hour confirmation as the service upgrade.",
-  "new-video-doorbell-wiring":
-    "Phase F rescue. Standard scope drafted (accessible attic or basement, " +
-    "run within 25 ft, customer supplies the doorbell). Blocked on one role: " +
-    "18/2 bell wire.",
   "under-cabinet-led-lighting":
     "Phase F rescue. Standard scope drafted (kitchen, up to 3 runs and 12 " +
     "linear ft, powered from an existing circuit below). Blocked on LED " +

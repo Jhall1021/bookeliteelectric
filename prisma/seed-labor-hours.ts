@@ -174,7 +174,6 @@ const QUOTE = [
   "electrical-panel-replacement",
   "hot-tub-spa-electrical",
   "pool-equipment-electrical",
-  "new-video-doorbell-wiring",
 ];
 
 /**
@@ -183,6 +182,7 @@ const QUOTE = [
  *   new-exterior-flood-camera               2.5h  $705   23 Aug scope model
  *   remove-and-replace-existing-chandelier  2.0h  $530   23 Aug scope model
  *   replace-bathroom-exhaust-fan            1.75h $535   29 Aug fan packages
+ *   new-video-doorbell-wiring               2.0h  $530   29 Aug Phase F rescue
  *
  * Each gained a bounded scope, real crew-hours and a derived price. Leaving
  * them here would have nulled the hours under the price on the next full run
