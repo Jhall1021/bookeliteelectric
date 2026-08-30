@@ -143,6 +143,21 @@ async function main() {
   const booking = await prisma.booking.findFirstOrThrow({
     select: { id: true, totalCents: true, paymentState: true },
   });
+  // A LEGACY_UNTRACKED booking carries no payment rows by definition, so any
+  // present are leftovers from a harness run that crashed before its cleanup.
+  // Removed here rather than tolerated: the previous run left a CAPTURE row
+  // behind and the next run's ledger check read 498 instead of 249 — a proof
+  // failing on its own debris, which is worse than not running.
+  if (booking.paymentState === "LEGACY_UNTRACKED") {
+    const stale = await prisma.paymentEvent.count({ where: { bookingId: booking.id } });
+    if (stale > 0) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE payment_events DISABLE TRIGGER payment_events_append_only`);
+      await prisma.paymentEvent.deleteMany({ where: { bookingId: booking.id } });
+      await prisma.$executeRawUnsafe(`ALTER TABLE payment_events ENABLE TRIGGER payment_events_append_only`);
+      console.log(`  cleared ${stale} leftover payment row(s) from an interrupted run\n`);
+    }
+  }
+
   const idem = `p2b_e2e_${Date.now()}`;
   let capturedIntentId = "";
 
@@ -259,14 +274,19 @@ async function main() {
   // The challenge itself needs a browser, so this proves the half that can be
   // proven headlessly: the customer gets a way through, and NOTHING commits
   // until they take it.
-  const authIdem = `e2e_3ds_${booking.id}`;
+  // Per RUN, not per booking. Keyed on the booking, Stripe's idempotency
+  // correctly returned the PREVIOUS run's intent — already canceled — and the
+  // proof failed on its own leftovers rather than on anything real.
+  const authRun = `${Date.now()}`;
+  const authIdem = `e2e_3ds_${authRun}`;
+  const authVisit = `e2e_${authRun}`;
   let authWroteBooking = false;
   const authAttempt = await runDepositCheckout(
     {
       stripeAccountId: contractor.stripeAccountId,
       amountCents: TEST_CENTS,
       idempotencyKey: authIdem,
-      metadata: { price2book_visit_id: `e2e_${booking.id}` },
+      metadata: { price2book_visit_id: authVisit },
       paymentMethod: "pm_card_authenticationRequired",
     },
     {
@@ -299,7 +319,7 @@ async function main() {
         amountCents: TEST_CENTS,
         idempotencyKey: authIdem,
         paymentIntentId: authAttempt.paymentIntentId,
-        expectedMetadata: { price2book_visit_id: `e2e_${booking.id}` },
+        expectedMetadata: { price2book_visit_id: authVisit },
       },
       {
         gateway, connect: refreshed,
@@ -310,17 +330,132 @@ async function main() {
     ok(`21. an unauthenticated resume books nothing and captures nothing`,
       abandoned.outcome === "authorize_failed" && !authWroteBooking, abandoned.outcome);
 
-    // Leave no hold behind on a proof run.
-    await gateway.cancelAuthorization({
-      stripeAccountId: contractor.stripeAccountId,
-      paymentIntentId: authAttempt.paymentIntentId,
-      idempotencyKey: `${authIdem}:cleanup`,
-    }).catch(() => {});
+    // ── 22-24: the customer refreshes MID-CHALLENGE ─────────────────────
+    //
+    // The single most likely real-world interruption, and the one that could
+    // quietly double-authorize: the page reloads while the bank's window is
+    // open and the form submits again. Stripe's idempotency is what makes
+    // this safe, so it is proved against Stripe rather than assumed.
+    const afterRefresh = await runDepositCheckout(
+      {
+        stripeAccountId: contractor.stripeAccountId,
+        amountCents: TEST_CENTS,
+        idempotencyKey: authIdem,
+        metadata: { price2book_visit_id: authVisit },
+        paymentMethod: "pm_card_authenticationRequired",
+      },
+      {
+        gateway, connect: refreshed,
+        writeLocal: async () => { authWroteBooking = true; return booking.id; },
+        recordCapture: async () => {}, recordCaptureFailure: async () => {},
+      }
+    );
+    ok(`22. a refresh mid-authentication resumes the SAME authorization`,
+      afterRefresh.outcome === "requires_action" &&
+        afterRefresh.paymentIntentId === authAttempt.paymentIntentId,
+      afterRefresh.outcome === "requires_action"
+        ? afterRefresh.paymentIntentId
+        : `${afterRefresh.outcome}: ${"error" in afterRefresh ? afterRefresh.error : ""}`);
+    ok(`23.   and still writes no booking`, !authWroteBooking);
+
+    // Asked of Stripe, not inferred: how many intents does this checkout own?
+    const owned = await stripe.paymentIntents.list(
+      { limit: 100 }, { stripeAccount: contractor.stripeAccountId }
+    );
+    const mine = owned.data.filter((pi) => pi.metadata?.price2book_visit_id === authVisit);
+    ok(`24.   and Stripe holds exactly ONE PaymentIntent for this checkout`,
+      mine.length === 1, `${mine.length} intent(s): ${mine.map((m) => m.id).join(", ")}`);
+
+    // ── 25-27: authentication FAILS ─────────────────────────────────────
+    //
+    // Modeled by canceling the intent, which is the state a failed or expired
+    // challenge leaves behind: the intent exists, and it is holding nothing.
+    // What matters is that the resume path refuses it.
+    await stripe.paymentIntents
+      .cancel(authAttempt.paymentIntentId, undefined, { stripeAccount: contractor.stripeAccountId })
+      .catch(() => {});
+    const failedResume = await resumeDepositCheckout(
+      {
+        stripeAccountId: contractor.stripeAccountId,
+        amountCents: TEST_CENTS,
+        idempotencyKey: authIdem,
+        paymentIntentId: authAttempt.paymentIntentId,
+        expectedMetadata: { price2book_visit_id: authVisit },
+      },
+      {
+        gateway, connect: refreshed,
+        writeLocal: async () => { authWroteBooking = true; return booking.id; },
+        recordCapture: async () => {}, recordCaptureFailure: async () => {},
+      }
+    );
+    ok(`25. failed authentication creates no booking`,
+      failedResume.outcome === "authorize_failed" && !authWroteBooking, failedResume.outcome);
+
+    const dead = await stripe.paymentIntents.retrieve(
+      authAttempt.paymentIntentId, undefined, { stripeAccount: contractor.stripeAccountId }
+    );
+    ok(`26.   and Stripe took nothing`,
+      dead.amount_received === 0 && dead.status === "canceled",
+      `${dead.status} / ${dead.amount_received}`);
+    ok(`27.   and no payment row was invented for it`,
+      (await prisma.paymentEvent.count({
+        where: { stripeObjectId: authAttempt.paymentIntentId },
+      })) === 0);
   }
+
+  // ── 28-31: replay after success ────────────────────────────────────────
+  //
+  // The customer's browser retries a request that already succeeded — a
+  // refresh on the confirmation step, or a double submit that arrived late.
+  {
+    const bookingsBefore = await prisma.booking.count();
+    const replay = await resumeDepositCheckout(
+      {
+        stripeAccountId: contractor.stripeAccountId,
+        amountCents: TEST_CENTS,
+        idempotencyKey: idem,
+        paymentIntentId: capturedIntentId,
+        expectedMetadata: {},
+      },
+      {
+        gateway, connect: refreshed,
+        writeLocal: async () => { throw new Error("a replay must not write a second booking"); },
+        recordCapture: async () => {},
+        recordCaptureFailure: async () => {},
+      }
+    );
+    ok(`28. replaying a completed checkout creates no second booking`,
+      replay.outcome !== "captured" && (await prisma.booking.count()) === bookingsBefore,
+      replay.outcome);
+
+    const settled = await stripe.paymentIntents.retrieve(
+      capturedIntentId, undefined, { stripeAccount: contractor.stripeAccountId }
+    );
+    ok(`29.   and Stripe captured exactly once`,
+      settled.amount_received === TEST_CENTS, `${settled.amount_received}`);
+    ok(`30.   and the ledger still holds ONE capture row`,
+      (await prisma.paymentEvent.count({
+        where: { stripeObjectId: capturedIntentId, kind: "CAPTURE" },
+      })) === 1);
+
+    // The state advances once and stays there — it is not re-advanced by a
+    // repeat, and there is no second transition to a settled state.
+    const st = await prisma.booking.findUniqueOrThrow({
+      where: { id: booking.id }, select: { paymentState: true },
+    });
+    ok(`31.   and the payment state advanced exactly once, to DEPOSIT_CAPTURED`,
+      st.paymentState === "DEPOSIT_CAPTURED", st.paymentState);
+  }
+
+  // ── 32: nothing downstream can run on an unpaid booking ────────────────
+  ok(`32. scheduling is refused at every state before DEPOSIT_CAPTURED`,
+    ["PENDING", "DEPOSIT_AUTHORIZED", "DEPOSIT_FAILED", "LEGACY_UNTRACKED"]
+      .every((st) => !preWorkMayProceed(st).allowed) &&
+      preWorkMayProceed("DEPOSIT_CAPTURED").allowed);
 
   // ── cleanup ────────────────────────────────────────────────────────────
   await prisma.$executeRawUnsafe(`ALTER TABLE payment_events DISABLE TRIGGER payment_events_append_only`);
-  await prisma.paymentEvent.deleteMany({ where: { stripeObjectId: capturedIntentId } });
+  await prisma.paymentEvent.deleteMany({ where: { bookingId: booking.id } });
   await prisma.$executeRawUnsafe(`ALTER TABLE payment_events ENABLE TRIGGER payment_events_append_only`);
   await prisma.booking.update({ where: { id: booking.id }, data: { paymentState: "LEGACY_UNTRACKED" } });
   console.log(`  test rows removed; booking returned to LEGACY_UNTRACKED\n`);

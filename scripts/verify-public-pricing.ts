@@ -44,8 +44,27 @@ const UNDER_RESCUE: Record<string, string> = {
     "is drawn. Not a rescue until that pass runs.",
 };
 
+/**
+ * `--assume-priced=slug,slug` answers a question the normal run cannot:
+ * WOULD these services pass §1.4 on their own, with no rescue exception at
+ * all? It treats the named slugs as priced and drops the entire allowlist.
+ *
+ * It changes nothing and writes nothing. The point is to know the answer
+ * BEFORE publishing a price, rather than publishing one to find out.
+ */
+const assumePriced = new Set(
+  (process.argv.find((a) => a.startsWith("--assume-priced="))?.split("=")[1] ?? "")
+    .split(",").map((x) => x.trim()).filter(Boolean)
+);
+const dryRun = assumePriced.size > 0 || process.argv.includes("--no-rescue");
+
 async function main() {
   console.log(`\nPUBLIC PRICING — §1.4\n`);
+  if (dryRun) {
+    console.log(`  DRY RUN — no rescue allowlist${
+      assumePriced.size ? `, assuming priced: ${[...assumePriced].join(", ")}` : ""
+    }\n  Nothing is written; this reports what WOULD hold.\n`);
+  }
 
   const contractors = await prisma.contractor.findMany({
     select: { id: true, slug: true, name: true },
@@ -66,9 +85,9 @@ async function main() {
 
     const offenders: typeof services = [];
     for (const s of services) {
-      if (s.basePrice !== null) { priced++; continue; }
+      if (s.basePrice !== null || assumePriced.has(s.slug)) { priced++; continue; }
       staleAllowlist.delete(s.slug);
-      if (UNDER_RESCUE[s.slug]) { allowed++; continue; }
+      if (!dryRun && UNDER_RESCUE[s.slug]) { allowed++; continue; }
       offenders.push(s);
     }
 
