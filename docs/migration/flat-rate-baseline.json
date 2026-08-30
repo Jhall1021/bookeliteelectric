@@ -5,7 +5,7 @@
     "components": []
   },
   "240v-garage-outlet": {
-    "total": null,
+    "total": 72500,
     "awaiting": false,
     "components": []
   },
@@ -106,7 +106,7 @@
     "components": []
   },
   "generator-inlet-interlock": {
-    "total": null,
+    "total": 104000,
     "awaiting": false,
     "components": []
   },
@@ -121,7 +121,7 @@
     "components": []
   },
   "hot-tub-spa-electrical": {
-    "total": null,
+    "total": 138500,
     "awaiting": false,
     "components": []
   },
@@ -175,13 +175,8 @@
     "awaiting": false,
     "components": []
   },
-  "new-exterior-lighting-locations": {
-    "total": null,
-    "awaiting": false,
-    "components": []
-  },
   "new-video-doorbell-wiring": {
-    "total": null,
+    "total": 53000,
     "awaiting": false,
     "components": []
   },
@@ -200,16 +195,6 @@
     "awaiting": false,
     "components": []
   },
-  "outdoor-landscape-lighting": {
-    "total": null,
-    "awaiting": false,
-    "components": []
-  },
-  "pool-equipment-electrical": {
-    "total": null,
-    "awaiting": false,
-    "components": []
-  },
   "range-receptacle-replacement": {
     "total": 26500,
     "awaiting": false,
@@ -225,7 +210,7 @@
     ]
   },
   "remove-and-replace-existing-chandelier": {
-    "total": null,
+    "total": 53000,
     "awaiting": false,
     "components": []
   },
@@ -235,7 +220,7 @@
     "components": []
   },
   "replace-bathroom-exhaust-fan": {
-    "total": null,
+    "total": 53500,
     "awaiting": false,
     "components": []
   },
@@ -329,11 +314,6 @@
     "awaiting": false,
     "components": []
   },
-  "transfer-switch": {
-    "total": null,
-    "awaiting": false,
-    "components": []
-  },
   "tv-install-existing-location": {
     "total": 25000,
     "awaiting": false,
@@ -345,7 +325,7 @@
     "components": []
   },
   "under-cabinet-led-lighting": {
-    "total": null,
+    "total": 123500,
     "awaiting": false,
     "components": []
   },

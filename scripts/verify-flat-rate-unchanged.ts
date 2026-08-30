@@ -1,12 +1,27 @@
 /**
- * Adding T&M did not change what a flat-rate customer pays — ADR-018.
+ * FLAT-RATE REGRESSION BASELINE.
  *
- * The engine gained an accumulator and the flow gained a branch. Both sit on
- * the path every existing Elite booking already takes, so "it should be fine"
- * is not good enough: the flat-rate route is replayed through the REAL engine
- * and its resolved prices are compared against a recorded baseline.
+ * Established flat-rate outputs must not change unless the change is
+ * explicitly approved and the baseline is deliberately re-recorded.
  *
- * Reads only. Safe to run any time.
+ * **A failing snapshot is never authority to update itself.** Red here means
+ * one of two things, and they are not interchangeable: something changed that
+ * nobody approved, or something changed that somebody did. The first is a bug.
+ * The second is a decision, and it is finished by proving the whole diff maps
+ * to approved changes and THEN running --record on purpose.
+ *
+ * Originally recorded for ADR-018, to answer whether adding time-and-materials
+ * changed what a flat-rate customer pays. It answered that, then stayed red
+ * through Phase F — which is the verifier working. Phase F withdrew four
+ * services and published seven previously-price-less ones by explicit owner
+ * approval, and a snapshot that quietly absorbed those would have been worth
+ * nothing afterwards. See docs/migration/flat-rate-baseline-reset-2026-08-29.md
+ * for that diff and its approvals.
+ *
+ * The flat-rate route is replayed through the REAL engine and its resolved
+ * prices compared against the recorded baseline.
+ *
+ * Reads only, unless --record is passed. Safe to run any time.
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
@@ -97,7 +112,7 @@ async function replay() {
 }
 
 async function main() {
-  console.log("\nFLAT RATE — UNCHANGED BY T&M\n");
+  console.log("\nFLAT-RATE REGRESSION BASELINE\n");
   const now = await replay();
   const count = Object.keys(now).length;
 
