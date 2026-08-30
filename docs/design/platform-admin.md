@@ -409,81 +409,128 @@ proof Contractor #2 works, obtained before there is a Contractor #2 to risk.
 
 ---
 
-## Named milestone — Guided Setup: Pricing Policy Resolution
+## Named milestone — Contractor Pricing Setup / Pricing Readiness
 
-**Release-blocking, not polish.** Promoted out of the headline finding above
-because it is the bridge between *"here is the Electrical template"* and
-*"this contractor has a usable price book"*.
+**Release-blocking.** Renamed from "Pricing Policy Resolution", which was
+accurate about the smaller half and misleading about the shape of the work.
 
-A provisioned contractor must resolve every `TemplatePolicyDefinition` — the
-included wire length, distance bands, access allowances, height thresholds.
-Ten definitions today; 52 of template v1's 123 service-material rows depend on
-them.
+### What provisioning deliberately does not supply
 
-**The UI must not expose these as database objects.** They are commercial
-decisions and should read like them:
+A freshly provisioned contractor arrives with **no economics of any kind**:
 
-> **How much wire is included in your standard new-outlet price?** `25 ft`
->
-> **When should additional distance pricing begin?** `Over 25 ft`
->
-> **What ceiling height is included in your standard fixture price?** `Up to 12 ft`
+```
+fieldLaborHours          null
+wwtLaborHours            null
+contractor material cost none
+contractor policy values none
+```
 
-Underneath, those answers create the `ContractorPolicyValue` rows that
-provisioning deliberately omitted. Provisioning is already right to omit them —
-writing 25 ft would ship Elite's allowance to every contractor, and writing 0
-would invent a decision.
+**This is correct and stays.** Do not add labour hours to `TemplateService`.
+How long a job takes belongs to the crew doing it; what a contractor pays for
+6/3 belongs to their supplier; what length of run they include in a price is
+their commercial decision. Shipping Elite's 6.0 hours to Contractor #2 would be
+the same error as shipping Elite's 25 ft of included wire, and the whole
+canonical/contractor split exists to prevent it.
 
-**Exit criterion:** a newly provisioned electrical contractor reaches **zero
-unresolved pricing-policy decisions** through normal UI, with no script and no
-database edit.
+> **The governing rule: the template owns scope and trade structure. The
+> contractor owns economics.**
 
-### And the larger half of the same milestone: crew-hours
+### What onboarding must not be
 
-`TemplateService` carries `bookingType`, `photoState`, `requiresTechCount`,
-questions, materials and policies. It carries **no labour hours at all**, and
-`provision-from-template.ts` does not mention `fieldLaborHours` anywhere — it
-arrives null, like every other economic value.
+Seventy-five labour entries before anybody can sell anything. That is homework,
+not onboarding, and a contractor who abandons it halfway has a catalogue that
+does nothing.
 
-That is the correct design, and it is the schema's own reasoning: how long a
-job takes belongs to the crew doing it, not to the trade. Elite's 6.0 h for a
-panel replacement is Elite's calibration, and shipping it to Contractor #2 as
-fact would be the same mistake as shipping Elite's 25 ft of included wire.
+The goal is not "finish configuring the entire electrical trade". It is **get a
+first useful catalogue live, safely, and expand it.**
 
-But it means a provisioned contractor has **no hours on any of 75 services**,
-and a service with no hours produces no price. So Guided Setup must capture
-crew-hours as well as policy values, and that is the bigger half by an order of
-magnitude: **10 policy definitions against 75 services**.
+### Mechanism 1 — core-service-first activation
 
-Which makes the shape of that flow a real product question rather than a form.
-Asking a contractor for 75 numbers before they can sell anything is not
-onboarding, it is homework. Plausible reductions, in rough order of promise:
+A contractor configures and activates a smaller high-value launch set.
+Everything else stays inactive, shown as **Needs Pricing** rather than as
+failure.
 
-1. **Ask per category, not per service.** "How long does a standard outlet
-   swap take your crew?" sets a family, and the outliers get corrected.
-2. **Ask for the ones that carry the most revenue first**, so a contractor can
-   go live on twenty services and finish the tail later.
-3. **Offer Elite's figures as a visible starting point** — clearly labelled as
-   another contractor's, editable, never silent. That is the difference
-   between a default and an assertion.
+**Launch readiness asks that every ACTIVE public service resolves fully. It
+does not ask that all 75 template services are active.**
 
-Option 3 is the one to be careful with. A pre-filled number that nobody reads
-becomes fact, and the whole canonical/contractor split exists to stop exactly
-that. If it is offered, it has to be obviously borrowed and obviously
-editable — and the launch gate should refuse a contractor who never touched
-any of them.
+That rule already exists and already runs: `scripts/verify-public-pricing.ts`
+checks `active: true` services only, which is why Elite passes it today with
+three services deliberately unconfigured and four deliberately withdrawn. The
+core-first model composes with it for free — an unconfigured service is
+invisible to the gate precisely because it is not for sale.
 
----
+**One thing the console will need that the schema does not distinguish.**
+`Service.active = false` is already carrying three different meanings, and that
+is measured in Elite's live catalogue today, not hypothesised:
+
+| meaning | count | example |
+|---|---|---|
+| **Routing target** — configured, priced, deliberately not listed | 7 | the three garage siblings, the fan sibling, the two TV mounts |
+| **Withdrawn** — no bounded scope exists, hidden on purpose | 4 | pool equipment, transfer switch, landscape lighting |
+| **Deferred** — real service, not yet scoped, waiting its turn | 4 | the inactive dedicated-circuit family |
+
+A fourth arrives with provisioning: **not configured yet**, which is the state
+every one of a new contractor's 75 services starts in.
+
+These are indistinguishable in the database and must not be indistinguishable
+in Platform Admin. A routing target is finished and correct. A withdrawn
+service is a decision somebody made. A deferred one is a backlog item. An
+unconfigured one is this week's work queue. The setup checklist that reports
+"12 of 75 configured" is worthless if it counts a deliberately hidden sibling
+as an outstanding task — and worse than worthless if it counts a withdrawn
+service as one, because it would send staff to configure something the owner
+chose not to sell.
+
+Whether that becomes a status enum or is derived from what a service holds is a
+design decision. What is not optional is that the console can tell them apart.
+
+### Mechanism 2 — explicit grouped labour setup
+
+Guided Setup may group materially similar services and ask **one** labour
+question for the group. Bounded by four rules:
+
+1. **Show exactly which services the value will apply to.** A list, not a count.
+2. **The contractor explicitly confirms the bulk application.** A confirmation
+   step, not a side effect of answering.
+3. **Outliers get their own value.** A group is a starting point, not a claim
+   that every member is identical.
+4. **Never silently infer category-wide labour.** An inferred number nobody saw
+   is indistinguishable from a measured one the moment it is stored, and this
+   codebase already carries the scar: 44 of 45 services once held a labour
+   figure back-fitted to hit a target price, and §3.1 exists because of it.
+
+`wwtLaborHours` is asked **only for services that support same-visit pricing**.
+Asking a contractor how much shorter a panel replacement gets when the crew is
+already on site is asking about a thing that does not happen.
+
+### No borrowed defaults in V1
+
+Elite's figures are **not** prefilled for anyone else. A pre-filled number
+becomes fact the moment somebody clicks past it, and "another contractor's
+calibration" is exactly the class of value this architecture spent four phases
+separating out.
+
+Later they may be useful as **clearly labelled aggregate benchmarks** — "most
+electrical contractors book 2 to 3 hours for this" — which is a different
+object from a default: it informs a decision instead of making one.
+
+### Exit criterion
+
+> A freshly provisioned contractor goes template → configures a manageable core
+> catalogue → passes launch readiness → sells services, with the long tail
+> completed later, and reaches **zero unresolved economics on every active
+> service** through normal UI, with no script and no database edit.
 
 ## Locked sequence
 
 1. Finish Electrical Template v1.1
 2. Complete EV charger scope normalisation
 3. Build and lock Guided Setup
-4. **Guided Setup must include `ContractorPolicyValue` resolution for every
-   template policy quantity — release-blocking prerequisite**
-5. Prove a newly provisioned electrical contractor reaches zero unresolved
-   pricing-policy decisions through normal UI
+4. **Guided Setup must include Contractor Pricing Setup — labour hours,
+   material costs and policy quantities — release-blocking prerequisite**
+5. Prove a newly provisioned electrical contractor can configure a core
+   catalogue and pass launch readiness through normal UI, with the long tail
+   left for later
 6. Platform Admin foundation — enforce `PlatformAccess`,
    `withPlatformContractor`, platform audit, contractor lifecycle, directory,
    create/invite/provision, onboarding checklist
