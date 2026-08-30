@@ -1366,3 +1366,8 @@ copy inherits the row but not the match, and fails until a human deliberately re
 Postgres cannot answer this question on Neon by itself: production and a branch of it report
 the same `system_identifier`, the same `current_database()` and the same
 `inet_server_addr()`. Measured, not assumed.
+- **ADR-021 — the flat-rate regression guard.** Established flat-rate
+  outputs must not change unless the change is explicitly approved and the
+  baseline is deliberately re-recorded. A failing snapshot is never authority
+  to update itself. Reference state: 276 price points across 65 active
+  services.
