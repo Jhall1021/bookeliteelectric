@@ -169,7 +169,6 @@ const QUOTE = [
   "new-exterior-lighting-locations",
   "outdoor-landscape-lighting",
   "under-cabinet-led-lighting",
-  "200a-service-upgrade",
   "hot-tub-spa-electrical",
   "pool-equipment-electrical",
 ];
@@ -188,6 +187,10 @@ const QUOTE = [
  *   electrical-panel-replacement            6.0h  —      29 Aug Phase F rescue
  *                                                        (PROVISIONAL hours;
  *                                                         derived $2,155, held
+ *                                                         for inspection)
+ *   200a-service-upgrade                    8.0h  —      29 Aug Phase F rescue
+ *                                                        (PROVISIONAL hours;
+ *                                                         derived $3,085, held
  *                                                         for inspection)
  *
  * Each gained a bounded scope, real crew-hours and a derived price. Leaving

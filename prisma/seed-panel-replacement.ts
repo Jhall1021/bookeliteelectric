@@ -38,6 +38,7 @@ import { PrismaClient } from "@prisma/client";
 import { serviceSlugKey } from "./_serviceKey";
 import { upsertQuestion } from "./_moduleHelpers";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
+import { PERMIT_DISCLAIMER } from "../lib/permitPolicy";
 
 const prisma = new PrismaClient();
 
@@ -62,7 +63,10 @@ const DISCLOSURE =
   "with up to " + MAX_CIRCUITS + " circuits relanded. A larger service, a new " +
   "location, aluminium branch wiring, or conductors too short to reland may " +
   "change the price. Any difference will be shown and approved before work " +
-  "begins.";
+  "begins. " +
+  // Elite's default: the fee belongs to a jurisdiction, not to the work, so
+  // it is named rather than folded into labour or material.
+  PERMIT_DISCLAIMER;
 
 /**
  * Twenty circuits is the standard allowance, and it is deliberately a MIX.
