@@ -414,8 +414,7 @@ place, up to thirty circuits, and everything else now routes to review where a
 person prices it. **So a lower number is not a discount; it is a narrower
 promise.**
 
-The arithmetic supports it. Before the permit allowance, panel replacement came
-out $1,840 under its old $3,995 and the service upgrade $1,910 under its old
+The arithmetic supports it. Panel replacement comes out $1,840 under its old $3,995 and the service upgrade $1,910 under its old
 $4,995 — nearly identical gaps across two jobs whose derived prices differ by
 $930. Under-estimated labour would scale with the job. A flat residual does
 not; it looks like something the old prices carried that these do not.

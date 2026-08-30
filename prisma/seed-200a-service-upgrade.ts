@@ -130,6 +130,11 @@ async function main() {
       startingPriceLabel: null,
       photoState: "PREPARATION",
       disclaimer: DISCLOSURE,
+      // Explicitly zero rather than left unset. A null here inherits
+      // PricingSettings.defaultPermitAdminCents, so an unset field would
+      // silently start carrying a permit the moment that default moved —
+      // while this disclaimer went on promising the fee was outside the price.
+      permitAdminCents: 0,
     },
   });
 

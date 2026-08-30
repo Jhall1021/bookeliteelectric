@@ -44,6 +44,21 @@ async function main() {
     withAllowance.map((s) => `${s.slug}: $${((s.permitAdminCents ?? 0) / 100).toFixed(2)}`).join(", ")
   );
 
+  // 1b — a promise of exclusion must be backed by an explicit zero.
+  //
+  // permitAdminCents is nullable and a null inherits the contractor's
+  // defaultPermitAdminCents. So a service that SAYS the fee is excluded while
+  // leaving the field unset would start including one the moment that default
+  // moved, with its disclaimer still saying otherwise. Zero is a decision;
+  // null is the absence of one.
+  const promisesExcluded = services.filter((s) => s.disclaimer?.includes(PERMIT_DISCLAIMER));
+  const unsetButPromising = promisesExcluded.filter((s) => s.permitAdminCents === null);
+  ok(
+    `every service promising no permit sets the allowance to an explicit 0 (${promisesExcluded.length} promise it)`,
+    unsetButPromising.length === 0,
+    unsetButPromising.map((s) => s.slug).join(", ")
+  );
+
   // 2 — one sentence, verbatim
   const talkAboutPermits = services.filter((s) => s.disclaimer && MENTIONS_PERMIT.test(s.disclaimer));
   const paraphrased = talkAboutPermits.filter(

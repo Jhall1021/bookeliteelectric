@@ -48,13 +48,14 @@ export const MENTIONS_PERMIT = /\bpermit/i;
  * needs the disclaimer to say so rather than the default sentence.
  */
 export const PERMIT_INCLUDED_SLUGS: string[] = [
-  // Owner decision, 29 Aug 2026: a $250 permit allowance is carried in the
-  // price. A panel replacement always needs a permit, the local fee is
-  // predictable enough for Elite to stand behind a figure, and quoting a
-  // $2,155 job and then adding $250 reads as a surprise for something nobody
-  // could have avoided.
+  // Empty, and that is Elite's settled position as of 29 Aug 2026: no service
+  // carries a permit fee in its price. A $250 allowance was tried on
+  // electrical-panel-replacement and withdrawn the same day — the base price
+  // should describe the work Elite controls, and a jurisdiction's fee is not
+  // that.
   //
-  // It passes through at COST — the engine adds permitAdminCents after the
-  // material markup, so the customer pays the $250, not $250 plus margin.
-  "electrical-panel-replacement",
+  // The mechanism stays because the policy explicitly allows an exception
+  // ("unless a service explicitly says otherwise"), and the verifier proves it
+  // works: a slug added here must carry a real allowance, must say the permit
+  // is included, and must not also carry the excluded sentence.
 ];
