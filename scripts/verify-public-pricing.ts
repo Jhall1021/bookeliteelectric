@@ -82,6 +82,15 @@ const UNDER_RESCUE: Record<string, string> = {
  * Dated and finite, like the rescue list above it.
  */
 const AWAITING_APPROVAL: Record<string, string> = {
+  "elite-articulating-mount":
+    "Add-on only and inactive — an Elite-supplied mount fitted during a TV " +
+    "installation. Its labor hours were null (unknown) where the true answer " +
+    "was 0 (none), so the engine derived nothing; completed 30 Aug 2026. " +
+    "Published $200.00 is material at the 2.0x multiplier and now derives " +
+    "exactly. Needs the approval stamp only.",
+  "elite-tilt-mount":
+    "As above. Published $125.00 is material at 2.5x and now derives exactly. " +
+    "Needs the approval stamp only.",
   "new-coax-line":
     "Published $420.00; inputs now derive $405.00. Needs re-approval, and the " +
     "$15 gap is a decision for the contractor rather than something to " +
@@ -198,6 +207,24 @@ async function main() {
 
   // An allowlist entry for a service that is already priced, hidden or gone is
   // dead weight that makes the list look longer than the problem is.
+  // The approval backlog is not limited to ACTIVE services — the Postgres
+  // constraint governs every row, so an inactive service carrying an
+  // unapproved price is just as much a blocker. Scanning only the active ones
+  // made two real entries look stale.
+  const everyUnapproved = await prisma.service.findMany({
+    where: { basePrice: { not: null }, publishedPriceApprovedAt: null },
+    select: { slug: true },
+  });
+  for (const u of everyUnapproved) staleApproval.delete(u.slug);
+
+  const undeclared = everyUnapproved.filter((u) => !AWAITING_APPROVAL[u.slug]);
+  if (undeclared.length) {
+    console.log(`  ${undeclared.length} unapproved price(s) not on the backlog list:`);
+    for (const u of undeclared) console.log(`      ${u.slug}`);
+    console.log(`  Add them with a reason, or re-approve them.\n`);
+    violations += undeclared.length;
+  }
+
   if (staleApproval.size) {
     console.log(`  ${staleApproval.size} stale approval-backlog entr(ies) — now approved or gone:`);
     for (const s of staleApproval) console.log(`      ${s}`);
