@@ -120,7 +120,49 @@ export type V2Account = {
 export function stripeClient(): Stripe | null {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) return null;
-  return new Stripe(key, { apiVersion: "2025-10-29.clover" as Stripe.LatestApiVersion });
+  return new Stripe(key, { apiVersion: STABLE_API_VERSION as Stripe.LatestApiVersion });
+}
+
+/**
+ * The STABLE API version, used by everything that touches homeowner money.
+ *
+ * PaymentIntents, captures, refunds and webhook signature verification all run
+ * here. A preview version is a moving target by definition, and the payment
+ * path is the last place that belongs.
+ */
+export const STABLE_API_VERSION = "2025-10-29.clover";
+
+/**
+ * The PREVIEW version the v2 Connect account lifecycle requires.
+ *
+ * Stripe's v2 account methods are not reachable on the stable version — the
+ * sandbox answers "The API method cannot be found ... explicitly specify a
+ * .preview Stripe-Version". So the account lifecycle is pinned here.
+ */
+export const CONNECT_LIFECYCLE_API_VERSION = "2026-02-25.preview";
+
+/**
+ * A SECOND client, for the Connect account lifecycle only.
+ *
+ * Creating an account, generating an onboarding link, and reading back
+ * readiness — nothing else. It exists as its own function rather than as an
+ * option passed at each call site because the boundary is the point: a
+ * per-call option is something a future call can forget, and forgetting it
+ * would either fail loudly (fine) or silently pull the payment path onto a
+ * preview API (not fine).
+ *
+ * WHAT MUST NOT USE THIS. PaymentIntents, captures, refunds, webhook
+ * verification. Those stay on the stable version through `stripeClient()`, and
+ * scripts/verify-stripe-connect.ts asserts the separation rather than trusting
+ * it — the failure mode is a payment flow quietly running on an API Stripe
+ * reserves the right to change.
+ */
+export function connectLifecycleStripe(): Stripe | null {
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!key) return null;
+  return new Stripe(key, {
+    apiVersion: CONNECT_LIFECYCLE_API_VERSION as Stripe.LatestApiVersion,
+  });
 }
 
 /** The v2 merchant capability status, or null if there is no merchant config. */

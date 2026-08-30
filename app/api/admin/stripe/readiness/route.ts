@@ -13,7 +13,7 @@
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 import {
-  stripeClient, factsFromAccount, connectReadiness, type V2Account,
+  connectLifecycleStripe, factsFromAccount, connectReadiness, type V2Account,
 } from "@/lib/stripeConnect";
 
 const SELECT = {
@@ -46,7 +46,9 @@ export async function POST() {
       return NextResponse.json({ ...contractor, ...connectReadiness(contractor) });
     }
 
-    const stripe = stripeClient();
+    // The account lifecycle runs on the pinned preview version. Homeowner
+    // money does not come near this client.
+    const stripe = connectLifecycleStripe();
     if (!stripe) {
       // FAILS CLOSED. Stripe unreachable means readiness is UNCONFIRMED, and
       // unconfirmed is not ready. The stored facts are returned unchanged so

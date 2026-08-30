@@ -522,6 +522,32 @@ The stored columns were reshaped rather than translated —
 the v1 columns held nothing to preserve, and a column named `charges_enabled`
 holding something else is worse than no column.
 
+### Two clients, two API versions
+
+The sandbox then rejected the *version*, not the shape:
+
+```
+The API method cannot be found ... explicitly specify a .preview Stripe-Version
+```
+
+The v2 account methods are unreachable on the stable version. So there are two
+clients, and the separation is deliberate:
+
+| client | version | used by |
+|---|---|---|
+| `connectLifecycleStripe()` | `2026-02-25.preview` | account create, account links, readiness retrieval |
+| `stripeClient()` | `2025-10-29.clover` | PaymentIntents, captures, webhook signature verification |
+
+A dedicated function rather than a per-call option, because a per-call option
+is something a future call can forget — and forgetting it would either fail
+loudly at Stripe (fine) or silently pull the payment path onto a preview API
+(not fine). **A preview version is a moving target by definition, and the
+payment path is the last place that belongs.**
+
+The boundary is asserted in **both directions**, because each fails
+differently. The lifecycle losing its pin fails loudly. The payment path
+gaining one does not fail at all.
+
 ### Guarded, because the fee bug had no symptom
 
 Five assertions run in the deploy gate: who collects fees, who carries a

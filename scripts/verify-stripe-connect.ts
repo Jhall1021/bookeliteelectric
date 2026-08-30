@@ -222,6 +222,45 @@ async function main() {
     !/on_behalf_of|transfer_data|application_fee/.test(connectSrc),
     "destination-charge markers would mean Price2Book is merchant of record");
 
+  // ── the API-version boundary ───────────────────────────────────────────
+  //
+  // Two clients, two versions, and the separation is the point. The v2 account
+  // methods are unreachable on the stable version — the sandbox answers "The
+  // API method cannot be found ... explicitly specify a .preview
+  // Stripe-Version" — so the lifecycle is pinned to a preview. Homeowner money
+  // must not follow it there: a preview API is a moving target by definition,
+  // and the payment path is the last place that belongs.
+  //
+  // Asserted in BOTH directions, because each has its own failure. The
+  // lifecycle silently losing the pin fails loudly at Stripe. The payment path
+  // silently gaining it does not fail at all.
+  console.log();
+  const connectLib = stripComments(readFileSync("lib/stripeConnect.ts", "utf8"));
+  const gatewayLib = stripComments(readFileSync("lib/paymentGateway.ts", "utf8"));
+  const readinessSrc = stripComments(readFileSync("app/api/admin/stripe/readiness/route.ts", "utf8"));
+  const webhookSrc = stripComments(readFileSync("app/api/stripe/webhook/route.ts", "utf8"));
+
+  ok(`the Connect lifecycle is pinned to the required preview version`,
+    /CONNECT_LIFECYCLE_API_VERSION\s*=\s*"2026-02-25\.preview"/.test(connectLib));
+
+  ok(`both account-lifecycle routes use the pinned client`,
+    /connectLifecycleStripe\(\)/.test(connectSrc) && /connectLifecycleStripe\(\)/.test(readinessSrc));
+  ok(`   and neither reaches for the stable one`,
+    !/stripeClient\(\)/.test(connectSrc) && !/stripeClient\(\)/.test(readinessSrc));
+
+  // The direction that fails silently.
+  ok(`the payment gateway does NOT inherit the preview version`,
+    !/connectLifecycleStripe|preview/.test(gatewayLib),
+    "PaymentIntents and captures must stay on the stable API");
+  ok(`   it uses the stable client`, /stripeClient\(\)/.test(gatewayLib));
+  ok(`   and webhook verification does too`,
+    /stripeClient\(\)/.test(webhookSrc) && !/connectLifecycleStripe/.test(webhookSrc),
+    "a signature verified against a preview version is a different contract");
+
+  ok(`the two versions are actually different`,
+    /STABLE_API_VERSION\s*=\s*"2025-10-29\.clover"/.test(connectLib),
+    "a boundary between two identical values proves nothing");
+
   // ── the client fails closed without a key ──────────────────────────────
   console.log();
   const hadKey = Boolean(process.env.STRIPE_SECRET_KEY?.trim());

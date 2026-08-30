@@ -13,12 +13,16 @@
 
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
-import { stripeClient, factsFromAccount, type V2Account } from "@/lib/stripeConnect";
+import {
+  connectLifecycleStripe, factsFromAccount, type V2Account,
+} from "@/lib/stripeConnect";
 import { appOrigin } from "@/lib/origins";
 
 export async function POST() {
   return withAdminRoute(async (db, ctx) => {
-    const stripe = stripeClient();
+    // The account lifecycle runs on the pinned preview version. Homeowner
+    // money does not come near this client.
+    const stripe = connectLifecycleStripe();
     if (!stripe) {
       // No key configured. Says so rather than pretending the contractor is
       // simply not ready — those are different problems with different owners.
