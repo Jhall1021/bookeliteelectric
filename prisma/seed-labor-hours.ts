@@ -165,7 +165,6 @@ const QUOTE = [
   "sump-pump-dedicated-circuit",
   "240v-garage-outlet",
   "level-2-ev-charger",
-  "generator-inlet-interlock",
   "transfer-switch",
   "new-exterior-lighting-locations",
   "outdoor-landscape-lighting",
@@ -183,6 +182,10 @@ const QUOTE = [
  *   remove-and-replace-existing-chandelier  2.0h  $530   23 Aug scope model
  *   replace-bathroom-exhaust-fan            1.75h $535   29 Aug fan packages
  *   new-video-doorbell-wiring               2.0h  $530   29 Aug Phase F rescue
+ *   generator-inlet-interlock               3.0h  —      29 Aug Phase F rescue
+ *                                                        (scoped and derived;
+ *                                                         unpublished pending
+ *                                                         the copper recheck)
  *
  * Each gained a bounded scope, real crew-hours and a derived price. Leaving
  * them here would have nulled the hours under the price on the next full run
