@@ -11,6 +11,13 @@
  * directly, and `publishedPriceApprovedAt` is dashboard reporting, not a gate.
  * So this is the activation, and it defaults to showing what it WOULD do.
  *
+ * The visit duration is a per-SERVICE seed, written to
+ * `Service.preWorkVisitMinutes` — a column the contractor owns and can edit.
+ * It was briefly a constant in this file, which would have made 30 minutes a
+ * Price2Book rule about everyone's panel work rather than Elite's estimate of
+ * their own. How long it takes to look at a panel is a trade judgment, and it
+ * belongs to whoever is driving there.
+ *
  * The price is not typed in. It is derived by `suggestPrimaryPrice` — the same
  * function `PATCH /api/admin/services/[id]/pricing` calls — from the crew
  * hours, material cost and the contractor's own rate and minimum. A number
@@ -32,6 +39,7 @@ const PLAN = [
     slug: "electrical-panel-replacement",
     expectedCents: 215500,
     ctaLabel: "Book My Panel Replacement",
+    preWorkVisitMinutes: 30,
     // No permit-process promise: permit handling varies for a like-for-like
     // panel replacement, and a promise made here is made to every customer.
     preWorkCustomerNote:
@@ -43,6 +51,7 @@ const PLAN = [
     slug: "200a-service-upgrade",
     expectedCents: 308500,
     ctaLabel: "Book My Service Upgrade",
+    preWorkVisitMinutes: 30,
     // A service upgrade is permitted work, so the stronger promise holds.
     preWorkCustomerNote:
       "Once booked, we'll begin the permit process and schedule a brief on-site " +
@@ -53,8 +62,6 @@ const PLAN = [
 ];
 
 const DEPOSIT_CENTS = 24900;
-/** The verification visit, not the installation. */
-const PRE_WORK_MINUTES = 30;
 
 function money(c: number | null) { return c === null ? "—" : `$${(c / 100).toFixed(2)}`; }
 
@@ -98,7 +105,7 @@ async function main() {
     console.log(`     derived      ${money(primary.totalCents)}  (approved ${money(p.expectedCents)})`);
     console.log(`     base price   ${money(svc.basePrice)} -> ${money(primary.totalCents)}`);
     console.log(`     deposit      ${money(svc.depositCents)} -> ${money(DEPOSIT_CENTS)}`);
-    console.log(`     pre-work     ${svc.requiresPreWorkVisit} -> true (${PRE_WORK_MINUTES} min)`);
+    console.log(`     pre-work     ${svc.requiresPreWorkVisit} -> true (${p.preWorkVisitMinutes} min)`);
     console.log(`     WWT price    ${money(svc.whileWeThereBasePrice)} (must stay empty)`);
 
     if (refuseIf(primary.totalCents !== p.expectedCents,
@@ -119,7 +126,7 @@ async function main() {
           depositCents: DEPOSIT_CENTS,
           depositCreditsToJob: true,
           requiresPreWorkVisit: true,
-          preWorkVisitMinutes: PRE_WORK_MINUTES,
+          preWorkVisitMinutes: p.preWorkVisitMinutes,
           installationRequiresPreWorkCompletion: true,
           ctaLabel: p.ctaLabel,
           preWorkCustomerNote: p.preWorkCustomerNote,
