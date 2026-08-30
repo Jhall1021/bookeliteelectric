@@ -16,6 +16,7 @@ import { withAdminRoute } from "@/lib/adminContext";
 import {
   connectLifecycleStripe, factsFromAccount, type V2Account,
 } from "@/lib/stripeConnect";
+import { checkCountry } from "@/lib/contractorIdentity";
 import { appOrigin } from "@/lib/origins";
 
 export async function POST() {
@@ -34,8 +35,28 @@ export async function POST() {
 
     const contractor = await db.contractor.findUniqueOrThrow({
       where: { id: ctx.contractorId },
-      select: { id: true, name: true, stripeAccountId: true },
+      select: { id: true, name: true, stripeAccountId: true, countryCode: true },
     });
+
+    // COUNTRY, BEFORE STRIPE IS CALLED.
+    //
+    // A v2 account refuses configuration.merchant without identity.country, so
+    // this could have been a Stripe error. It is checked here instead because
+    // "we do not know where this contractor operates" and "Price2Book has not
+    // opened in their country" are product answers, and a contractor deserves
+    // to be told which one applies rather than shown a validation code.
+    //
+    // The value comes from the CONTRACTOR ROW, never from a constant here.
+    // Writing "US" at this call site would turn the current tenant's location
+    // into a platform assumption — the same error as shipping their crew-hours
+    // in the template.
+    const country = checkCountry(contractor.countryCode);
+    if (!country.ok) {
+      return NextResponse.json(
+        { error: "Payments can't be set up for this account yet.", detail: country.reason },
+        { status: 409 }
+      );
+    }
 
     let accountId = contractor.stripeAccountId;
 
@@ -83,6 +104,9 @@ export async function POST() {
         v2: { core: { accounts: { create(p: unknown): Promise<V2Account> } } };
       }).v2.core.accounts.create({
         include: ["configuration.merchant", "requirements"],
+        // Required before configuration.merchant is accepted, and taken from
+        // the contractor rather than assumed.
+        identity: { country: country.countryCode },
         configuration: {
           merchant: {
             capabilities: { card_payments: { requested: true } },

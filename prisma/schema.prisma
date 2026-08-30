@@ -543,6 +543,18 @@ model Contractor {
   city         String?
   state        String?
   postalCode   String?
+  /// ISO 3166-1 alpha-2. Contractor identity, not a payment field.
+  ///
+  /// Stripe surfaced it — a v2 account refuses configuration.merchant without
+  /// identity.country — but it belongs here regardless. The onboarding wizard
+  /// will want it for addresses, tax, phone formatting and possibly service
+  /// area, and the address above was already sitting here without one.
+  ///
+  /// Nullable because it is unknown until somebody says so, and unknown must
+  /// stay distinguishable from assumed. A contractor with no country cannot
+  /// open a Stripe account, which is the correct outcome rather than a
+  /// default quietly making them American.
+  countryCode  String?
 
   /// Split so the number is never welded into a sentence: "NJ Electrical
   /// License" + "17272". A contractor in another state labels it differently.

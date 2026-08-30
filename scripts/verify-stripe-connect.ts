@@ -16,6 +16,7 @@ import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { connectReadiness, stripeClient } from "../lib/stripeConnect";
+import { checkCountry } from "../lib/contractorIdentity";
 
 const prisma = new PrismaClient();
 
@@ -221,6 +222,54 @@ async function main() {
   ok(`charges are not routed through the platform account`,
     !/on_behalf_of|transfer_data|application_fee/.test(connectSrc),
     "destination-charge markers would mean Price2Book is merchant of record");
+
+  // ── country, and where it is allowed to come from ──────────────────────
+  //
+  // Stripe surfaced this by refusing configuration.merchant without
+  // identity.country, but the interesting property is not that the field
+  // exists — it is WHERE THE VALUE COMES FROM. A "US" written at the Stripe
+  // call site would work perfectly for the current tenant and turn their
+  // location into a platform assumption, which is the same error as shipping
+  // one contractor's crew-hours in the template.
+  console.log();
+
+  /** The refusal reason, or "" when the check passed. */
+  const why = (c: string | null) => {
+    const r = checkCountry(c);
+    return r.ok ? "" : r.reason;
+  };
+
+  ok(`an unknown country is refused`, !checkCountry(null).ok, why(null));
+  ok(`   and blank counts as unknown`, !checkCountry("   ").ok);
+  ok(`a malformed code is refused`, !checkCountry("USA").ok, why("USA"));
+  ok(`an unsupported country is refused`, !checkCountry("GB").ok, why("GB"));
+  ok(`   unknown and unsupported give different reasons`,
+    why(null) !== "" && why("GB") !== "" && why(null) !== why("GB"),
+    "a contractor deserves to know which one applies");
+  const us = checkCountry("us");
+  ok(`a supported country is accepted and normalized`, us.ok && us.countryCode === "US");
+
+  // The refusal happens BEFORE Stripe, which is the whole point of checking it
+  // here rather than letting the API answer.
+  ok(`the route refuses before any Stripe call`,
+    connectSrc.indexOf("checkCountry(") < connectSrc.indexOf("accounts.create"),
+    "a validation code from Stripe is a worse answer than a product one");
+
+  ok(`the country comes from the contractor row, never a constant`,
+    /identity:\s*\{\s*country:\s*country\.countryCode\s*\}/.test(connectSrc) &&
+      !/"US"/.test(connectSrc),
+    'a literal "US" here would make the current tenant the platform default');
+
+  ok(`the supported list is a product decision, not Stripe configuration`,
+    /SUPPORTED_COUNTRIES/.test(readFileSync("lib/contractorIdentity.ts", "utf8")) &&
+      !/SUPPORTED_COUNTRIES/.test(stripComments(readFileSync("lib/stripeConnect.ts", "utf8"))),
+    "the day a second country opens, nobody should be searching the payment code");
+
+  // Tenancy: the country is read from the session's own contractor row.
+  ok(`one contractor cannot supply the country for another`,
+    /select:\s*\{[^}]*countryCode: true/.test(connectSrc) &&
+      !/body[^\n]*country|country[^\n]*body/.test(connectSrc),
+    "a country read from the request would let one admin configure another's account");
 
   // ── the API-version boundary ───────────────────────────────────────────
   //

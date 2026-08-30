@@ -548,6 +548,43 @@ The boundary is asserted in **both directions**, because each fails
 differently. The lifecycle losing its pin fails loudly. The payment path
 gaining one does not fail at all.
 
+### Country: contractor identity, surfaced by Stripe
+
+The next refusal was `identity_country_required` — a v2 account will not accept
+`configuration.merchant` without `identity.country`.
+
+**Handled as identity, not as payment configuration.** `Contractor` already
+carried `addressLine1`, `city`, `state` and `postalCode` and no country, which
+is a gap the onboarding wizard would have hit anyway for tax, phone formatting
+and possibly service-area rules. Stripe asked first.
+
+```prisma
+/// ISO 3166-1 alpha-2. Nullable, because unknown must stay distinguishable
+/// from assumed.
+countryCode String?
+```
+
+**Nullable and backfilled, never defaulted.** A schema default would make every
+future contractor American until somebody noticed — the same error as shipping
+one contractor's crew-hours in the template. Elite's `US` was written by a
+backfill script from data already in the row: Ocean, NJ, an NJ license label
+and a New Jersey service area.
+
+`lib/contractorIdentity.ts` holds `SUPPORTED_COUNTRIES = ["US"]` because *"we
+currently support contractors in the United States"* is a **product decision**.
+Written as a constant in the Connect route it would read as a Stripe
+requirement, and the day a second country opens somebody would go looking for
+it in the payment code.
+
+The route refuses **before calling Stripe**, and distinguishes the two
+refusals: *nobody has said where this contractor operates* and *Price2Book has
+not opened there* are different conversations, and a Stripe validation code
+answers neither.
+
+`identity.country` comes from `contractor.countryCode`. The verifier asserts
+there is no literal `"US"` anywhere in the route — that value working perfectly
+for the current tenant is exactly what would make it invisible.
+
 ### Guarded, because the fee bug had no symptom
 
 Five assertions run in the deploy gate: who collects fees, who carries a
