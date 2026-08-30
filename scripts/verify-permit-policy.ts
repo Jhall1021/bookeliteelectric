@@ -14,7 +14,9 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { PERMIT_DISCLAIMER, MENTIONS_PERMIT, PERMIT_INCLUDED_SLUGS } from "../lib/permitPolicy";
+import {
+  PERMIT_DISCLAIMER, PERMIT_INCLUDED_DISCLAIMER, MENTIONS_PERMIT, PERMIT_INCLUDED_SLUGS,
+} from "../lib/permitPolicy";
 
 const prisma = new PrismaClient();
 
@@ -57,16 +59,30 @@ async function main() {
   // price contradict each other.
   const included = services.filter((s) => PERMIT_INCLUDED_SLUGS.includes(s.slug));
   for (const s of included) {
+    // The list and the price must agree. A slug listed as including a permit
+    // but carrying no allowance is a promise with nothing behind it.
     ok(
-      `${s.slug} includes a permit and says so`,
-      Boolean(s.disclaimer && MENTIONS_PERMIT.test(s.disclaimer) && !s.disclaimer.includes(PERMIT_DISCLAIMER)),
-      `on the include list but its disclaimer ${s.disclaimer ? "carries the EXCLUDED sentence" : "says nothing about permits"}`
+      `${s.slug} carries a real permit allowance`,
+      (s.permitAdminCents ?? 0) > 0,
+      `on the include list with $${((s.permitAdminCents ?? 0) / 100).toFixed(2)}`
+    );
+    ok(
+      `${s.slug} says the permit is included`,
+      Boolean(s.disclaimer?.includes(PERMIT_INCLUDED_DISCLAIMER)),
+      `disclaimer does not carry the included sentence`
+    );
+    // Opposite promises. One service must not make both.
+    ok(
+      `${s.slug} does not also say permits are excluded`,
+      !s.disclaimer?.includes(PERMIT_DISCLAIMER),
+      `carries BOTH the included and the excluded sentence`
     );
   }
 
   console.log();
   if (fail) { console.log(`  ${fail} check(s) failed.\n`); process.exit(1); }
-  console.log(`  Permit fees stay outside the price, and say so in one voice.\n`);
+  console.log(`  Every permit fee is either named or excluded, in one voice, and no`);
+  console.log(`  service says both.\n`);
 }
 
 main()

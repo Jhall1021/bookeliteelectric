@@ -38,7 +38,7 @@ import { PrismaClient } from "@prisma/client";
 import { serviceSlugKey } from "./_serviceKey";
 import { upsertQuestion } from "./_moduleHelpers";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
-import { PERMIT_DISCLAIMER } from "../lib/permitPolicy";
+import { PERMIT_INCLUDED_DISCLAIMER } from "../lib/permitPolicy";
 
 const prisma = new PrismaClient();
 
@@ -48,6 +48,8 @@ const SLUG = "electrical-panel-replacement";
 // POLICY[panel_replacement.max_circuits]: 30
 // POLICY[panel_replacement.same_location]: true
 // POLICY[panel_replacement.same_amperage]: true
+// POLICY[panel_replacement.permit_allowance_cents]: 25000
+const PERMIT_ALLOWANCE_CENTS = 25000;
 const STANDARD_HOURS = 6.0;
 const WWT_HOURS = 5.75;
 const MAX_CIRCUITS = 30;
@@ -64,9 +66,10 @@ const DISCLOSURE =
   "location, aluminium branch wiring, or conductors too short to reland may " +
   "change the price. Any difference will be shown and approved before work " +
   "begins. " +
-  // Elite's default: the fee belongs to a jurisdiction, not to the work, so
-  // it is named rather than folded into labour or material.
-  PERMIT_DISCLAIMER;
+  // The exception to Elite's default. A panel replacement always needs a
+  // permit and the local fee is predictable enough to stand behind, so it is
+  // carried in the price rather than sprung afterwards.
+  PERMIT_INCLUDED_DISCLAIMER;
 
 /**
  * Twenty circuits is the standard allowance, and it is deliberately a MIX.
@@ -142,6 +145,9 @@ async function main() {
       startingPriceLabel: null,
       photoState: "PREPARATION",
       disclaimer: DISCLOSURE,
+      // Passes through at cost: the engine adds this AFTER the material
+      // markup, so the customer pays the fee, not the fee plus margin.
+      permitAdminCents: PERMIT_ALLOWANCE_CENTS,
     },
   });
 

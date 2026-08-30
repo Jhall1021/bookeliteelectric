@@ -393,3 +393,33 @@ consume it.
 | 6. publish | **nothing published.** All seven remain under the §1.4 rescue allowlist |
 
 EV charger untouched, as instructed — its scope-normalisation pass is separate.
+
+---
+
+## Why the new prices are lower, and why that is not underpricing
+
+**29 August 2026, recorded because it is the frame for every number in this
+document.**
+
+> The old Elite catalogue often priced UNCERTAINTY. The new Price2Book
+> catalogue prices a DEFINED STANDARD JOB and sends uncertainty to review.
+
+A single price attached to "electrical panel replacement" had to be survivable
+across every panel replacement — the aluminium-branch one, the
+forty-circuit one, the one where the service conductors turn out three inches
+too short. It could not ask a question, so it had to carry the bad cases.
+
+The bounded version does not. It promises a like-for-like swap, same size, same
+place, up to thirty circuits, and everything else now routes to review where a
+person prices it. **So a lower number is not a discount; it is a narrower
+promise.**
+
+The arithmetic supports it. Before the permit allowance, panel replacement came
+out $1,840 under its old $3,995 and the service upgrade $1,910 under its old
+$4,995 — nearly identical gaps across two jobs whose derived prices differ by
+$930. Under-estimated labour would scale with the job. A flat residual does
+not; it looks like something the old prices carried that these do not.
+
+The practical consequence: **a review route is not a failure of the pricing
+model, it is the pricing model working.** Counting them is how we tell a
+bounded service from an unbounded one wearing a number.

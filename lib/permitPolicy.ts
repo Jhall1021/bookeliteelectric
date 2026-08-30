@@ -23,9 +23,19 @@
  * cannot appear.
  */
 
-/** The exact wording. Append to a service's disclaimer; never paraphrase. */
+/** The exact wording where a permit is NOT in the price. Never paraphrase. */
 export const PERMIT_DISCLAIMER =
   "Permit fees, if required, are not included and will be added separately.";
+
+/**
+ * The exact wording where a permit IS in the price.
+ *
+ * A service cannot carry both sentences, and the verifier refuses if one does.
+ * They are opposite promises, and a disclaimer that made both would be worse
+ * than saying nothing.
+ */
+export const PERMIT_INCLUDED_DISCLAIMER =
+  "The electrical permit for this work is included in the price shown.";
 
 /** Loose enough to catch a paraphrase, so the verifier can object to one. */
 export const MENTIONS_PERMIT = /\bpermit/i;
@@ -37,4 +47,14 @@ export const MENTIONS_PERMIT = /\bpermit/i;
  * An entry here is a decision that a specific service DOES include one, and it
  * needs the disclaimer to say so rather than the default sentence.
  */
-export const PERMIT_INCLUDED_SLUGS: string[] = [];
+export const PERMIT_INCLUDED_SLUGS: string[] = [
+  // Owner decision, 29 Aug 2026: a $250 permit allowance is carried in the
+  // price. A panel replacement always needs a permit, the local fee is
+  // predictable enough for Elite to stand behind a figure, and quoting a
+  // $2,155 job and then adding $250 reads as a surprise for something nobody
+  // could have avoided.
+  //
+  // It passes through at COST — the engine adds permitAdminCents after the
+  // material markup, so the customer pays the $250, not $250 plus margin.
+  "electrical-panel-replacement",
+];
