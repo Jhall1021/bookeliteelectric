@@ -136,21 +136,28 @@ async function main() {
     { encoding: "utf8" }
   ).split("\n").filter(Boolean);
   const MONEY = /\b(paymentIntents|charges\.create|refunds|setupIntents|capture|transfers|payouts)\b/;
-  // This file necessarily contains every term it forbids — they are in the
-  // pattern above. Same distinction the spelling gate draws: a word being the
-  // SUBJECT is not a word being a mistake.
+  // Both payment verifiers necessarily contain every term they forbid — the
+  // terms are in their patterns. Same distinction the spelling gate draws: a
+  // word being the SUBJECT is not a word being a mistake.
+  const ENUMERATE_MONEY_TERMS = [
+    "scripts/verify-stripe-connect.ts",
+    "scripts/verify-payment-ledger.ts",
+  ];
   const moving = paymentFiles
-    .filter((f) => !f.endsWith("scripts/verify-stripe-connect.ts"))
+    .filter((f) => !ENUMERATE_MONEY_TERMS.some((e) => f.endsWith(e)))
     .filter((f) => MONEY.test(readFileSync(f, "utf8")));
   ok(`7. no code in this release can move money (${paymentFiles.length} Stripe-touching file(s))`,
     moving.length === 0, moving.join(", "));
 
-  // Release #2's models must not have arrived early.
-  const early = execSync(
-    `grep -lE "model (PaymentEvent|BookingAdjustment)|paymentState" prisma/schema.prisma 2>/dev/null || true`,
-    { encoding: "utf8" }
-  ).trim();
-  ok(`   the Release #2 ledger has not landed early`, early === "", early);
+  // The "Release #2 has not landed early" check lived here and has been
+  // RETIRED, deliberately rather than deleted quietly: Release #2 shipped on
+  // 29 August, so the question it asked is answered and a check kept past its
+  // question is one nobody reads.
+  //
+  // What survives is the claim that still means something — that ONBOARDING
+  // cannot move money, which is checked above and does not depend on what
+  // later releases add. scripts/verify-payment-ledger.ts now carries the
+  // equivalent assertion for the ledger.
 
   // ── the client fails closed without a key ──────────────────────────────
   console.log();

@@ -8,6 +8,7 @@ import {
   windowToDateRange,
 } from "@/lib/jobber";
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
+import { preWorkProjectConflict, depositDueCentsFor } from "@/lib/paymentLedger";
 import { sendBookingConfirmationEmail } from "@/lib/email";
 import { loadIdentity } from "@/lib/storefrontIdentity";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
@@ -42,7 +43,23 @@ export async function POST(req: Request) {
   // that cart out here, against this contractor's crew and service area.
   const visit = await db.visit.findFirst({
     where: { contractorId: site.contractorId, sessionId, status: "OPEN" },
-    include: { lineItems: { include: { service: { select: { name: true } } } } },
+    include: {
+      lineItems: {
+        include: {
+          service: {
+            select: {
+              name: true,
+              slug: true,
+              // For the one-project invariant and the deposit snapshot. Both
+              // are decided from the services actually on this visit, never
+              // from a list of slugs written down somewhere else.
+              requiresPreWorkVisit: true,
+              depositCents: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!visit || visit.lineItems.length === 0) {
@@ -71,6 +88,34 @@ export async function POST(req: Request) {
             : `${unpriced.length} items on your visit are still being priced. We'll email you as soon as they're ready.`,
       },
       { status: 409 }
+    );
+  }
+
+  // V1 INVARIANT: at most one pre-work project per booking.
+  //
+  // PreWorkVisit is 1:1 on Booking, so two deposit-bearing services on one
+  // visit would mean two projects, two permits, two verification visits — and
+  // one workflow record. There is no correct behavior to pick; the model has
+  // nowhere to put the second one.
+  //
+  // Refused here, alongside the unpriced-line gate, because both are the same
+  // kind of check: something that must be true before any row is written.
+  // Normal services ride along freely.
+  const preWork = preWorkProjectConflict(
+    visit.lineItems.map((li) => ({
+      slug: li.service.slug,
+      requiresPreWorkVisit: li.service.requiresPreWorkVisit,
+    }))
+  );
+  if (preWork.conflict) {
+    return NextResponse.json(
+      {
+        error: "One project at a time",
+        detail:
+          "These need their own visit each, so we can verify and permit them separately.",
+        slugs: preWork.slugs,
+      },
+      { status: 400 }
     );
   }
 
@@ -192,6 +237,15 @@ export async function POST(req: Request) {
   // fallback is belt-and-braces rather than a real branch.
   const totalCents = visit.lineItems.reduce((sum, li) => sum + (li.computedPriceCents ?? 0), 0);
 
+  // Snapshotted, not read live. A later change to a contractor's depositCents
+  // must not alter what somebody already agreed to — the same discipline
+  // LineItem already follows for price and resolved crew-hours.
+  //
+  // Zero when nothing is due, which is a different fact from the null carried
+  // by every booking made before this system existed. Evaluated-and-none is
+  // not the same as never-evaluated.
+  const depositDueCents = depositDueCentsFor(visit.lineItems.map((li) => li.service));
+
   // ONE TRANSACTION for all four related writes.
   //
   // These used to run as four independent statements. A failure part-way
@@ -260,6 +314,13 @@ export async function POST(req: Request) {
         // paymentStatus reflects that no charge has happened yet.
         paymentModel: "CARD_ON_FILE_CAPTURE_AFTER_COMPLETION",
         paymentStatus: "pending_card_capture_setup",
+        // Evaluated by the deposit system, so a real number rather than null.
+        depositDueCents,
+        // LEGACY_UNTRACKED until capture ships. A booking made today has its
+        // money handled outside this system exactly as one made last month
+        // did, and labeling it AWAITING_METHOD would claim a lifecycle it
+        // cannot enter.
+        paymentState: "LEGACY_UNTRACKED",
       },
     });
 

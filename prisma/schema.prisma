@@ -2090,6 +2090,32 @@ model Booking {
   /// every existing booking has; these are the expand-phase representation.
   appointments             Appointment[]
   preWorkVisit             PreWorkVisit?
+
+  /// WHERE THE MONEY HAS GOT TO, as distinct from paymentModel above, which
+  /// says what the arrangement IS. Those were one free-text column and they
+  /// are different kinds of thing.
+  ///
+  /// Defaults to LEGACY_UNTRACKED so a booking created without the payment
+  /// system deliberately putting it somewhere is labeled truthfully rather
+  /// than optimistically.
+  paymentState             PaymentState            @default(LEGACY_UNTRACKED)
+
+  /// The deposit this booking required, snapshotted from the services on the
+  /// visit at checkout — never read live from Service, so a later change to a
+  /// contractor's depositCents cannot alter what somebody already agreed to.
+  ///
+  /// NULL AND ZERO MEAN DIFFERENT THINGS, the same way LEGACY_UNTRACKED and
+  /// NOT_REQUIRED do:
+  ///
+  ///   null  this booking was never evaluated by the deposit system
+  ///   0     it was evaluated, and no deposit was due
+  ///
+  /// Blurring the two would turn 24 historical unknowns into 24 assertions
+  /// that no deposit was required, which is a claim nobody made.
+  depositDueCents          Int?
+
+  paymentEvents            PaymentEvent[]
+  adjustments              BookingAdjustment[]
   createdAt                DateTime                @default(now())
 
   @@map("bookings")
@@ -2221,6 +2247,133 @@ model ArrivalWindow {
 // ---------------------------------------------------------------------------
 // Troubleshooting ($249 diagnostic service)
 // ---------------------------------------------------------------------------
+
+/// Where a booking's money has got to.
+///
+/// Two sequences through one machine, which is what makes it reusable rather
+/// than a feature for two services:
+///
+///   normal    AWAITING_METHOD -> METHOD_READY -> BALANCE_DUE -> SETTLED
+///   deposit   AWAITING_METHOD -> DEPOSIT_AUTHORIZED -> DEPOSIT_CAPTURED
+///                             -> BALANCE_DUE -> SETTLED
+enum PaymentState {
+  /// Outside this payment system entirely. Every booking made before it
+  /// existed, and every booking made until deposit capture ships.
+  ///
+  /// NOT the same as NOT_REQUIRED, and the distinction is permanent: all 24
+  /// existing bookings carry a PaymentModel saying card-on-file was intended,
+  /// so calling them "no payment required" would assert something false about
+  /// each one, and nothing later could tell a genuinely free job from one
+  /// whose money was never tracked.
+  LEGACY_UNTRACKED
+
+  /// Genuinely nothing to collect — REMOTE_QUOTE_NO_UPFRONT, and any future
+  /// arrangement where Price2Book is not in the money path at all.
+  NOT_REQUIRED
+
+  /// Booked, no usable payment method yet.
+  AWAITING_METHOD
+  /// A card is saved and the work is not done. Days or weeks live here, which
+  /// is why it is a state and not an instant between two others.
+  METHOD_READY
+
+  /// Deposit held, not taken.
+  DEPOSIT_AUTHORIZED
+  /// Deposit taken. The pre-work visit may be scheduled and pushed.
+  DEPOSIT_CAPTURED
+
+  /// Work done, final amount outstanding.
+  BALANCE_DUE
+  /// Nothing owed in either direction.
+  SETTLED
+
+  /// An authorization or capture failed. Retryable, and visible — a booking
+  /// the customer believes in must not silently disappear.
+  FAILED
+  /// Fully returned.
+  REFUNDED
+}
+
+/// Money moved. Every row corresponds to something Stripe did.
+enum PaymentEventKind {
+  AUTHORIZATION_CREATED
+  AUTHORIZATION_CANCELED
+  CAPTURE
+  REFUND
+}
+
+/// What is owed changed. Every row corresponds to a decision a person made.
+enum BookingAdjustmentKind {
+  /// Approved extra scope — where an OUT_OF_SCOPE_REVIEW the customer accepts
+  /// lands, without rewriting the booked price.
+  ADDITION
+  /// A cancellation, a goodwill reduction, an approved discount.
+  CREDIT
+}
+
+/// CASH MOVEMENT. Append-only.
+///
+/// A mutable amountPaid column would have to stay correct through every
+/// partial refund, retry, dispute and cancellation, with nothing to check it
+/// against. A log can be replayed, so disagreement with any cache is a
+/// detectable bug rather than an invisible one. Same reasoning as
+/// SupportAccessEvent and PricingSettingsChange.
+///
+/// Enforced append-only by a database trigger, not by convention — see
+/// prisma/append-only-financial-tables.sql.
+model PaymentEvent {
+  id          String           @id @default(cuid())
+  bookingId   String
+  booking     Booking          @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  kind        PaymentEventKind
+  /// Always POSITIVE. The kind carries the direction, so a sign error cannot
+  /// turn a refund into a capture.
+  amountCents Int
+  currency    String           @default("usd")
+
+  /// Stripe's delivery identity for the webhook that produced this row.
+  /// UNIQUE, so a replayed webhook fails on insert rather than adding a second
+  /// capture nobody can distinguish from a real one. Null for a row not
+  /// created by a webhook.
+  stripeEventId  String?       @unique
+  /// The object the money is on — pi_..., re_.... Not unique: one intent
+  /// legitimately produces an authorization and then a capture.
+  stripeObjectId String?
+
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  note       String?
+
+  @@index([bookingId, occurredAt])
+  @@map("payment_events")
+}
+
+/// WHAT IS OWED. Append-only.
+///
+/// Cannot be derived from PaymentEvent: no amount of looking at captures tells
+/// you whether a cancellation was agreed. A refund is cash movement; a
+/// cancellation is a change to the obligation, and one ledger cannot hold both
+/// without claiming a refunded, canceled job still owes its full price.
+model BookingAdjustment {
+  id          String                @id @default(cuid())
+  bookingId   String
+  booking     Booking               @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  kind        BookingAdjustmentKind
+  /// Always POSITIVE; the kind carries the direction.
+  amountCents Int
+  /// Required. An adjustment with no stated reason is a number somebody will
+  /// have to reverse-engineer from a date.
+  reason      String
+
+  approvedByUserId String?
+  approvedByEmail  String?
+
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([bookingId, occurredAt])
+  @@map("booking_adjustments")
+}
 
 enum AppointmentKind {
   /// The verification visit. Scheduled at booking for an opted-in service.

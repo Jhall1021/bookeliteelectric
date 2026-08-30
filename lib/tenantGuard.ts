@@ -313,6 +313,11 @@ export const DERIVED_TENANT_MODELS = new Map<string, readonly string[]>([
   /// for the same reason: the visit is what says whose booking it is.
   ["Appointment", ["booking", "visit"]],
   ["PreWorkVisit", ["booking", "visit"]],
+  /// The financial ledgers. Same chain, and the reason is sharper here than
+  /// anywhere else: a payment row reachable across a tenant boundary is one
+  /// contractor able to read what another was paid.
+  ["PaymentEvent", ["booking", "visit"]],
+  ["BookingAdjustment", ["booking", "visit"]],
 ]);
 
 /** `["question","service"]` -> `{ question: { service: { contractorId } } }`. */
