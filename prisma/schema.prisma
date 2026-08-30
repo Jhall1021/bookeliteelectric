@@ -1573,6 +1573,15 @@ model Service {
   /// migration that introduced the workflow could not change any behavior.
   requiresPreWorkVisit Boolean @default(false)
 
+  /// What the booking button says, when "Add to My Visit" is the wrong
+  /// promise. A homeowner booking a $3,085 service upgrade is committing to
+  /// the project, not adding a line to a cart, and the button should say the
+  /// thing they are actually doing.
+  ///
+  /// Null everywhere else, which keeps the existing wording for every service
+  /// that has not been given one — this cannot change a button nobody set.
+  ctaLabel             String?
+
   /// Contractor economics, not a platform constant. Elite's $249 is Elite's
   /// decision about two of their services; another contractor's number will
   /// differ, and neither is the product's to assert.

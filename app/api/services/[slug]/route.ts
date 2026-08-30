@@ -127,6 +127,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     basePrice: service.basePrice,
     whileWeThereBasePrice: service.whileWeThereBasePrice,
     startingPriceLabel: service.startingPriceLabel,
+    ctaLabel: service.ctaLabel,
     shortDescription: service.shortDescription,
     icon:
       service.icon ??

@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
-  const { name, email, phone, address, zipCode, date, windowStart, windowEnd } = body;
+  const { name, email, phone, address, zipCode, date, windowStart, windowEnd, paymentMethodId } = body;
 
   // ADR-011. Keyed on the contractor the site resolved to. Unkeyed, a
   // visitor with a cart on another contractor's storefront would have checked
@@ -425,6 +425,11 @@ export async function POST(req: Request) {
         // Stable for this visit, so a double-submitted checkout cannot create
         // a second hold or a second capture.
         idempotencyKey: `visit_${visit.id}`,
+        // The homeowner's card, tokenized in the browser by Stripe. Without it
+        // the authorization comes back `requires_payment_method` and the flow
+        // refuses — which is why this release could not have been published
+        // before the checkout UI existed to supply one.
+        paymentMethod: typeof paymentMethodId === "string" ? paymentMethodId : undefined,
         metadata: {
           // Correlation only. Tenancy comes from the connected account on the
           // way back in, never from this.

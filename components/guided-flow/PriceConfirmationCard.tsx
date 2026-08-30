@@ -5,12 +5,14 @@ import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 type Props = {
   serviceName: string;
+  /** Overrides the button wording. See Service.ctaLabel. */
+  ctaLabel?: string | null;
   priceCents: number;
   disclaimer: string | null;
   onAddToVisit: () => void;
 };
 
-export default function PriceConfirmationCard({ serviceName, priceCents, disclaimer, onAddToVisit }: Props) {
+export default function PriceConfirmationCard({ serviceName, ctaLabel, priceCents, disclaimer, onAddToVisit }: Props) {
   const pcopy = usePricingCopy();
   return (
     <div className="ray-accent rounded-card border border-cardline bg-white p-8 text-center shadow-card">
@@ -33,7 +35,7 @@ export default function PriceConfirmationCard({ serviceName, priceCents, disclai
         onClick={onAddToVisit}
         className="mt-6 w-full rounded-pill bg-electric py-3.5 font-semibold text-white transition hover:bg-electric-hover sm:w-auto sm:px-10"
       >
-        Add to My Visit
+        {ctaLabel ?? "Add to My Visit"}
       </button>
       <p className="mt-3 text-xs text-muted">{pcopy.priceHeldNotice}</p>
     </div>

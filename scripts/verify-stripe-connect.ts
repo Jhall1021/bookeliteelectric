@@ -320,12 +320,11 @@ async function main() {
   ok(`   and neither reaches for the stable one`,
     !/stripeClient\(\)/.test(connectSrc) && !/stripeClient\(\)/.test(readinessSrc));
 
-  // A deposit hold only works on methods that support authorize-then-capture.
-  // Without this the intent inherits whatever the CONTRACTOR enabled in their
-  // own dashboard, so it works for contractors with only cards and breaks for
-  // the ones who turned on Klarna or Cash App — a failure the platform never
-  // sees in its own testing.
-  ok(`a deposit hold cannot be redirected onto a non-card method`,
+  // The deposit flow authorizes synchronously, before the local booking
+  // transaction, so it cannot hand the homeowner off mid-flow. Without this
+  // the intent inherits whatever the CONTRACTOR enabled in their own
+  // dashboard — a failure the platform never sees in its own testing.
+  ok(`the deposit flow cannot inherit a redirect-capable method`,
     /automatic_payment_methods:\s*\{\s*enabled:\s*true,\s*allow_redirects:\s*"never"\s*\}/.test(gatewayLib));
   ok(`   and the hold is still authorize-then-capture`,
     /capture_method:\s*"manual"/.test(gatewayLib));

@@ -93,6 +93,30 @@ export async function runDepositCheckout(
     return { outcome: "authorize_failed", error: msg(e) };
   }
 
+  // An authorization that did not COMPLETE is not an authorization, and Stripe
+  // does not throw for one. A card needing 3-D Secure comes back
+  // `requires_action`; a missing card comes back `requires_payment_method`.
+  // Both look like success to a caller that only catches exceptions — and both
+  // would write a booking against money nobody is holding.
+  //
+  // This release has no step that can hand the homeowner off to their bank and
+  // resume, so there is nothing to continue: cancel the hold and refuse. The
+  // customer keeps their money and gets no booking, which is the honest
+  // outcome. Adding 3-D Secure is what changes this, not relaxing it.
+  if (intent.status !== "requires_capture") {
+    await deps.gateway
+      .cancelAuthorization({
+        stripeAccountId: req.stripeAccountId,
+        paymentIntentId: intent.id,
+        idempotencyKey: `${req.idempotencyKey}:cancel-incomplete`,
+      })
+      .catch(() => {});
+    return {
+      outcome: "authorize_failed",
+      error: `the authorization did not complete (${intent.status})`,
+    };
+  }
+
   // ── 2. TRANSACTION ─────────────────────────────────────────────────────
   let bookingId: string;
   try {

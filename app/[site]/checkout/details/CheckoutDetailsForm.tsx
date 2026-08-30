@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSite, useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
+import DepositPayment, { type PaymentMethodCreator } from "./DepositPayment";
+
+type DepositInfo = {
+  depositDueCents: number;
+  creditsToJob?: boolean;
+  ready?: boolean;
+  stripeAccountId?: string | null;
+  publishableKey?: string | null;
+};
 
 export default function CheckoutDetailsForm() {
   // Storefront navigation must carry the site slug. These were root paths,
@@ -23,11 +32,50 @@ export default function CheckoutDetailsForm() {
   const [timeConflict, setTimeConflict] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", address: "", zipCode: "" });
 
+  // What this visit owes, asked of the server rather than assumed from a slug.
+  // `null` while unknown: the button stays disabled until the answer arrives,
+  // because "Confirm" on a deposit service before the card field has mounted
+  // would submit a booking with no payment method.
+  const [deposit, setDeposit] = useState<DepositInfo | null>(null);
+  const createPaymentMethod = useRef<PaymentMethodCreator | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    siteFetch("/api/checkout/deposit")
+      .then((r) => (r.ok ? r.json() : { depositDueCents: 0 }))
+      .then((d: DepositInfo) => { if (live) setDeposit(d); })
+      .catch(() => { if (live) setDeposit({ depositDueCents: 0 }); });
+    return () => { live = false; };
+  }, [siteFetch]);
+
+  const depositDue = (deposit?.depositDueCents ?? 0) > 0;
+  const depositBlocked = depositDue && !(deposit?.ready && deposit.publishableKey && deposit.stripeAccountId);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     setTimeConflict(false);
+
+    // The card is turned into a PaymentMethod BEFORE the booking request, so a
+    // card the customer mistyped fails here — with no booking attempted and
+    // nothing authorized — rather than somewhere inside checkout.
+    let paymentMethodId: string | undefined;
+    if (depositDue) {
+      const create = createPaymentMethod.current;
+      if (!create) {
+        setSubmitting(false);
+        setError("The payment form isn't ready yet — please wait a moment and try again.");
+        return;
+      }
+      const result = await create();
+      if (result.error || !result.paymentMethodId) {
+        setSubmitting(false);
+        setError(result.error ?? "We couldn't verify that card.");
+        return;
+      }
+      paymentMethodId = result.paymentMethodId;
+    }
 
     const res = await siteFetch("/api/checkout", {
       method: "POST",
@@ -37,6 +85,7 @@ export default function CheckoutDetailsForm() {
         date: params.get("date"),
         windowStart: params.get("windowStart"),
         windowEnd: params.get("windowEnd"),
+        paymentMethodId,
       }),
     });
 
@@ -92,15 +141,28 @@ export default function CheckoutDetailsForm() {
           </div>
         ))}
 
-        {/* Describes what actually happens today.
-            This previously said the customer's card would be securely saved —
-            at the moment they're handing over their address, on a form that
-            never asks for a card and with no Stripe integration behind it.
-            The claim goes back when card capture is real, not before. */}
-        <p className="text-xs text-slate">
-          Nothing to pay now — we&rsquo;ll sort payment out once the work is done. The price
-          you see is the price you pay.
-        </p>
+        {/* Card capture is real as of Release #4, so the deposit block appears
+            for services that carry one. Everything else still pays nothing up
+            front, and is still told exactly that. */}
+        {depositDue && deposit?.ready && deposit.publishableKey && deposit.stripeAccountId ? (
+          <DepositPayment
+            depositDueCents={deposit.depositDueCents}
+            creditsToJob={deposit.creditsToJob ?? true}
+            publishableKey={deposit.publishableKey}
+            stripeAccountId={deposit.stripeAccountId}
+            creatorRef={createPaymentMethod}
+          />
+        ) : depositDue ? (
+          <div className="rounded-card bg-amber-50 p-3 text-sm text-amber-900">
+            Online booking for this service isn&rsquo;t available right now. Please call us and
+            we&rsquo;ll get you scheduled.
+          </div>
+        ) : (
+          <p className="text-xs text-slate">
+            Nothing to pay now — we&rsquo;ll sort payment out once the work is done. The price
+            you see is the price you pay.
+          </p>
+        )}
 
         {error && (
           <div className="rounded-card bg-red-50 p-3 text-sm text-red-700">
@@ -122,10 +184,14 @@ export default function CheckoutDetailsForm() {
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || deposit === null || depositBlocked}
           className="w-full rounded-pill bg-electric py-3.5 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
         >
-          {submitting ? "Booking..." : "Confirm Appointment"}
+          {submitting
+            ? "Booking..."
+            : depositDue
+              ? `Confirm & Pay ${((deposit?.depositDueCents ?? 0) / 100).toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 })} Deposit`
+              : "Confirm Appointment"}
         </button>
       </form>
     </main>

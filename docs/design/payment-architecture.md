@@ -678,7 +678,7 @@ Step 2 can be built and proven the way the pre-work workflow was: dormant,
 defaults making it unreachable, and a verifier that checks the dormancy rather
 than asserting it.
 
-## 10d. A deposit hold is a card authorization, and says so
+## 10d. The deposit authorization is synchronous, and says so
 
 The first end-to-end run against a real connected test account failed at
 authorize:
@@ -689,10 +689,20 @@ authorize:
 The intent was inheriting whatever the **contractor** had enabled in their own
 Stripe dashboard — on this account, Klarna and Cash App alongside cards.
 
-That is not a test-harness quirk to work around. A deposit is a *hold*:
-authorize at booking, capture once the booking commits. Redirect-based methods
-do not support that shape, so the deposit intent now states the constraint
-itself:
+That is not a test-harness quirk to work around, and the reason is narrower
+than "redirect methods can't be held". Some redirect-capable methods —
+including Klarna and Cash App Pay — do support manual capture. The constraint
+is ours:
+
+> The Price2Book deposit flow requires a **synchronous, non-redirect
+> authorization before the local booking transaction**. It therefore must not
+> inherit redirect-capable methods from an individual contractor's Stripe
+> Dashboard.
+
+The flow is authorize → commit → capture, with no step that hands the homeowner
+off to another site and waits for them to return. So the deposit intent states
+that constraint itself rather than inheriting whichever methods a contractor
+happens to have enabled:
 
 ```ts
 capture_method: "manual",
@@ -705,8 +715,15 @@ something else on. Nothing in platform testing would show it — the break
 arrives as a real homeowner failing to book, on one contractor, for reasons
 that live in that contractor's dashboard rather than in our code.
 
-Two Connect checks now hold the line (45 total, 0 failing): the hold cannot be
-redirected onto a non-card method, and it is still authorize-then-capture.
+Two Connect checks now hold the line (45 total, 0 failing): the deposit flow
+cannot inherit a redirect-capable method, and it is still
+authorize-then-capture. `automatic_payment_methods.allow_redirects = "never"`
+is the approved production guard.
+
+If a later release adds an asynchronous authorization path — one that can hand
+the homeowner off and resume — this constraint is the thing to revisit, and the
+reason above is what to re-read. It is a property of *this* flow, not a fact
+about payment methods.
 
 **The card itself.** `authorizeDeposit` takes an optional `paymentMethod`.
 Checkout will supply the homeowner's card; the harness supplies Stripe's

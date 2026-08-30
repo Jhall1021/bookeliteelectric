@@ -19,6 +19,8 @@ type Props = {
   // button books instead of advancing. Add a tree in the admin builder and
   // this flips back on its own — it's derived, never stored.
   directBook: boolean;
+  /** Overrides the button wording. See Service.ctaLabel. */
+  ctaLabel?: string | null;
   // Service-level caveat. Normally shown by PriceConfirmationCard, but a
   // directBook flow never reaches that screen, so it has to appear here or
   // it would silently vanish on exactly the flat-price services it exists
@@ -42,6 +44,7 @@ export default function ServiceIntro({
   icon,
   serviceSlug,
   directBook,
+  ctaLabel,
   disclaimer,
   isAddOn,
   standalonePrice,
@@ -121,7 +124,7 @@ export default function ServiceIntro({
           className="mt-6 w-full rounded-pill bg-electric py-3.5 font-semibold text-white transition hover:bg-electric-hover sm:w-auto sm:px-10"
         >
           {directBook && basePrice !== null
-            ? `Add to My Visit — ${formatCents(basePrice)}`
+            ? `${ctaLabel ?? "Add to My Visit"} — ${formatCents(basePrice)}`
             : "Get My Price"}
         </button>
 

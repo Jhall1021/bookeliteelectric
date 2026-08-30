@@ -7,6 +7,8 @@ import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 type Props = {
   serviceName: string;
+  /** Overrides the button wording. See Service.ctaLabel. */
+  ctaLabel?: string | null;
   priceCents: number;
   disclaimer: string | null;
   labels: string[];
@@ -34,6 +36,7 @@ type UploadState = "idle" | "uploading" | "done";
  */
 export default function PricedPhotoReview({
   serviceName,
+  ctaLabel,
   priceCents,
   disclaimer,
   labels,
@@ -165,7 +168,9 @@ export default function PricedPhotoReview({
         disabled={!allSelected || submitting}
         className="mt-6 w-full rounded-pill bg-electric py-3.5 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40"
       >
-        {submitting ? "Uploading..." : `Add to My Visit — ${formatCents(priceCents)}`}
+        {submitting
+          ? "Uploading..."
+          : `${ctaLabel ?? "Add to My Visit"} — ${formatCents(priceCents)}`}
       </button>
 
       {!allSelected && (

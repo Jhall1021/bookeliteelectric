@@ -545,6 +545,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         description={flow.shortDescription}
         basePrice={anchorPrice}
         startingPriceLabel={flow.startingPriceLabel}
+        ctaLabel={flow.ctaLabel}
         icon={flow.icon}
         serviceSlug={serviceSlug}
         directBook={directBook}
@@ -593,6 +594,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     return withBack(
       <PriceConfirmationCard
         serviceName={flow.name}
+        ctaLabel={flow.ctaLabel}
         priceCents={state.priceCents}
         disclaimer={state.disclaimer}
         onAddToVisit={handleAddToVisit}
@@ -655,6 +657,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     return withBack(
       <PricedPhotoReview
         serviceName={flow.name}
+        ctaLabel={flow.ctaLabel}
         priceCents={state.priceCents}
         disclaimer={state.disclaimer}
         labels={state.labels}

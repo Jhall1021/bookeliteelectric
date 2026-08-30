@@ -88,16 +88,20 @@ export function stripeGateway(): PaymentGateway | null {
           amount: args.amountCents,
           currency: args.currency ?? "usd",
           capture_method: "manual",
-          // A deposit is a HOLD: authorize now, capture after the booking
-          // commits. Redirect-based methods (Klarna, Cash App) do not support
-          // that shape, and a connected account can enable them in its own
-          // dashboard without telling us — so the intent is constrained here
-          // rather than left to each contractor's dashboard settings.
+          // The deposit flow requires a SYNCHRONOUS, NON-REDIRECT authorization
+          // before the local booking transaction: authorize, commit, capture.
+          // It therefore must not inherit redirect-capable methods from an
+          // individual contractor's Stripe Dashboard.
           //
-          // Otherwise this fails per-contractor: it works on accounts with
-          // only cards enabled and fails on the ones that turned something
-          // else on, which is the kind of break nobody sees until a real
-          // homeowner hits it.
+          // This is NOT a claim that redirect methods cannot be captured
+          // manually — some, including Klarna and Cash App Pay, can. The
+          // constraint is narrower and it is ours: this V1 flow has no step
+          // that hands the homeowner off and waits for them to come back.
+          //
+          // Left unconstrained this fails per-contractor: it works on accounts
+          // with only cards enabled and fails on the ones that turned
+          // something else on, which is the kind of break nobody sees until a
+          // real homeowner hits it.
           automatic_payment_methods: { enabled: true, allow_redirects: "never" },
           metadata: args.metadata,
           // Confirmed at creation when a card is supplied, which is what turns

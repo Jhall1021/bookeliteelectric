@@ -121,6 +121,8 @@ export type ServiceFlowDTO = {
   basePrice: number | null; // cents
   whileWeThereBasePrice: number | null;
   startingPriceLabel: string | null;
+  /** Overrides the booking button's wording. See Service.ctaLabel. */
+  ctaLabel: string | null;
   shortDescription: string | null;
   icon: string | null; // service icon, already resolved against category fallback
   // Cost inputs used to live here so the browser could price a route. It

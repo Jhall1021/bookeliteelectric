@@ -53,3 +53,18 @@ not while money is moving.
 ---
 
 Neither of these blocks Release #3.
+
+## Stripe Connect onboarding return URL — 404
+
+**Raised:** 30 Aug 2026, during Release #4 scoping. **Owner decision:** do not
+block Release #4 for it.
+
+The return URL Stripe sends a contractor back to after Connect onboarding lands
+on a 404. It does not affect homeowner booking — the contractor is already
+onboarded and `connectReadiness()` is refreshed from Stripe rather than from
+anything the return URL sets — so it changes nothing about Release #4.
+
+It does matter before contractor onboarding becomes a real product workflow.
+**Fix it during Guided Setup / Platform Admin, before a contractor who is not
+Elite is asked to onboard themselves.** Today the only contractor who has been
+through it was walked through it by hand.
