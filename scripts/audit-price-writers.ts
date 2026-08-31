@@ -30,6 +30,15 @@ const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"
  * whether or not its number happens to be right.
  */
 const APPROVED_PUBLISHERS: Record<string, string> = {
+  "scripts/verify-onboarding-readiness.ts":
+    "Builds a THROWAWAY contractor with one priced, approved service so it can " +
+    "prove the two conditional readiness rules: Stripe blocks only once a " +
+    "service actually asks for a deposit, and zero eligible crew blocks only " +
+    "once Jobber is the scheduling authority. Both need a service the engine " +
+    "considers intended, and intent requires an approved price. The contractor " +
+    "and its service are created and destroyed by the test, no real " +
+    "contractor's price is read or written, and the readiness engine itself " +
+    "writes nothing at all.",
   "scripts/verify-pricing-boundary.ts":
     "ATTEMPTS to break the price/approval pair — clearing the approval from a " +
     "priced service, and clearing the price from an approved one — and proves " +

@@ -90,7 +90,7 @@ These are conditions of the closure, not observations about it.
    price/cost/deposit/customer/email/phone/address ever appears on it.
 2. **Any future platform-rooted nested read gets an explicit isolation
    review.** No current code path has that shape. It is not a defect today and
-   it is not a licence tomorrow.
+   it is not a license tomorrow.
 3. **The full cross-tenant suite is rerun during the first persistent
    Contractor #2 onboarding** — `verify-cross-tenant-resource-access`,
    `verify-tenant-isolation-live`, `audit-unguarded-tenant-access`,

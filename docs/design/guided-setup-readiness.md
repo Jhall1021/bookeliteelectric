@@ -49,7 +49,7 @@ Deriving costs one query pass and cannot lie.
 ## 2. Blocker and warning rules
 
 A **blocker** means: a real homeowner, right now, would either be unable to
-complete a booking, or would complete one the contractor cannot honour.
+complete a booking, or would complete one the contractor cannot honor.
 A **warning** means: safe, but the contractor is leaving something on the table
 or should look before launch.
 
@@ -234,3 +234,71 @@ inferred for the slice (a contractor with a `JobberConnection` is external).
 **Second slice** adds `ContractorOnboarding` and the declared mode. **Third**
 adds stage navigation and acknowledgements. The wizard screens come last,
 against a readiness model already proven.
+
+
+---
+
+# Slice one — built 31 Aug 2026
+
+`lib/onboardingReadiness.ts`, `scripts/verify-onboarding-readiness.ts` (16
+checks, in the deploy gate) and a read-only `/dashboard/setup`. No writes, no
+migration, no wizard.
+
+## The two fixtures disagree, which is the point
+
+| | Elite | Fresh provision |
+|---|---|---|
+| `canLaunch` | **true** | **false** |
+| blockers | 0 | 5 |
+| warnings | 32 | 4 |
+| intended services | 71 | 0 |
+
+Fresh blockers: `SITE_MISSING`, `COUNTRY_MISSING`,
+`PRICING_SETTINGS_MISSING`, `SERVICE_AREA_EMPTY`, `NOTHING_ACTIVATABLE` —
+which is exactly the shape of what `provision-from-template` leaves behind. It
+installs a full electrical catalog and refuses to write a single economic
+value, so the catalog exists and nothing about it can be sold yet.
+
+## A rule that was wrong, caught by the fixture
+
+`BUSINESS_HOURS_MISSING` was written as a blocker. Elite has **no
+`BusinessHours` row at all** and has been taking bookings throughout, because
+`loadBusinessHours` returns `DEFAULT_BUSINESS_HOURS` when the row is absent. A
+homeowner can book; the contractor simply has not said whether those hours are
+theirs.
+
+It is now `BUSINESS_HOURS_DEFAULTED`, a warning. This is the entire argument
+for checking an orchestrator against a live tenant rather than reasoning about
+it: the rule was plausible, and it would have told Elite they could not launch
+while they were demonstrably launched.
+
+## The missing domain fact
+
+**There is no contractor-owned enablement fact.** `active` means already live.
+A template-provisioned service the contractor has not thought about is
+indistinguishable from one they have decided to sell.
+
+Intent is therefore inferred, and deliberately **outcome-aware** rather than
+"has an approved price" — a `REMOTE_QUOTE` service legitimately has no
+`basePrice`, and making price the universal proxy would silently drop every
+quote-only service out of the payment and launch checks:
+
+| Signal | Reason recorded |
+|---|---|
+| `active` | already live |
+| promises a price + approved | priced and approved, not yet live |
+| promises no price + has a tree | resolves by quote or review, and has a tree |
+
+The third arm is the weak one. When no service is live, the assessment says so
+in `notes` rather than presenting an inference as a fact.
+
+**Recommendation for slice two:** add the enablement fact to
+`ContractorOnboarding` alongside `schedulingMode` — a contractor-owned set of
+services selected for launch. Until then the proxy stands, and it is reported.
+
+## Scheduling mode
+
+Inferred for this slice: a contractor with a `JobberConnection` is external.
+Proven both ways — zero eligible crew is legitimate standalone and a blocker
+once Jobber is the authority. Explicit `schedulingMode` becomes authoritative
+at Stage 5.
