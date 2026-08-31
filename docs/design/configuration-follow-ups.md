@@ -95,10 +95,24 @@ The fail-open path is gone: availability no longer returns every window when
 it cannot read the calendar. `JOBBER_LOCAL_STUB=1` remains, gated on the flag
 AND on not being a production build.
 
-**Still open as a product question, deliberately not answered here:** with no
-eligible crew configured at all, availability is still computed without
-Jobber. That is a configuration state rather than an outage, and it was left
-alone to keep this change narrow.
+**Zero eligible crew — DECIDED 31 Aug 2026, to be enforced by Guided Setup.**
+
+The answer depends on something Price2Book does not currently record: whether
+this contractor has an authoritative external scheduling provider.
+
+- **External provider configured (Jobber).** Zero eligible or bookable crew is
+  a CONFIGURATION-READINESS FAILURE, not an empty calendar. Availability must
+  not silently fall back to native business-hours windows and present capacity
+  nobody verified — that is the same fabrication this section just removed,
+  arriving by a different door.
+- **Standalone Price2Book, no external provider.** Zero Jobber crew is
+  legitimate and expected, and native scheduling configuration is the
+  authority.
+
+This is a Guided Setup / configuration-readiness requirement, not a scheduling
+change: the missing piece is that a contractor declares which provider is
+authoritative. Until that exists, the current behavior is unchanged and this
+is deliberately NOT another scheduling subsystem.
 
 ---
 
