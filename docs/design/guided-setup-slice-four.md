@@ -59,7 +59,7 @@ Refusals, before anything is written:
 |---|---|
 | catalog already installed for this trade | refuse, report what exists |
 | no published `TemplateVersion` for the trade | refuse |
-| trade not set on the contractor | refuse |
+| the contractor has not chosen a canonical trade | refuse — see the amendment below |
 
 Rollback is the transaction aborting. There is no compensating cleanup path,
 because a partially-installed catalog is never allowed to exist.
@@ -194,3 +194,81 @@ Review & Launch stage is where they choose to change it.
 Scheduling, payments and launch stages. No activation. No version picker. No
 markup field. No Plumbing provisioning — only the seam that will let it plug
 in unchanged.
+
+
+---
+
+# Amendment — trade selection, 31 Aug 2026
+
+The design listed *"trade not set"* as a preflight refusal while Slice Three's
+Trade stage is read-only. Inspecting that gap found something more important
+than a missing writer.
+
+## There is no trade writer, and `Contractor.trade` is not the trade
+
+```prisma
+/// Feeds the AI service finder's prompt, which currently says "a
+/// residential electrician" as a literal.
+trade  String  @default("residential electrician")
+```
+
+`Contractor.trade` is **display prose for a prompt**. Elite's value is
+`"residential electrician"`. Meanwhile `TemplateVersion.trade` is a key:
+`"electrical"`. Two different concepts wearing the same word.
+
+Nothing writes `Contractor.trade` — the only `trade` writer in the codebase is
+the marketing early-access form, which writes `EarlyAccessRequest.trade`, a
+different model entirely. And `provision-from-template` never reads the
+contractor's trade at all: it takes `--trade`, defaulting to `"electrical"`.
+
+So the preflight as written could not work, and would have been wrong twice
+over: `Contractor.trade` is never unset (it has a default), and it is not the
+value that selects a catalog.
+
+## The smallest durable fix
+
+**Add `Contractor.canonicalTrade String?`** — which canonical catalog this
+contractor's work comes from, in `TemplateVersion.trade`'s vocabulary.
+
+Do **not** overload `trade`. It is a phrase a contractor may want to word
+their own way — *"licensed plumber"* reads differently from *"plumbing
+contractor"* — and turning it into a key would either break the finder's
+phrasing or force every contractor in a trade to describe themselves
+identically. Two facts, two fields.
+
+Null means not chosen, which is the honest preflight refusal the design wanted.
+
+## The writer
+
+`PATCH /api/admin/business-profile`, the general route Slice Three already
+added. Trade is durable business configuration, so it belongs with the rest of
+the contractor's own details rather than behind the wizard — the same
+reasoning that kept selection out of `/api/admin/setup`.
+
+Values come from the published `TemplateVersion.trade` set, not a hardcoded
+list, so Plumbing appears the day its template is published and nothing about
+the writer changes.
+
+## The reverse transition, locked
+
+| State | Trade may change? |
+|---|---|
+| no catalog provisioned | yes |
+| any service carries a `templateVersionId` | **refused** |
+
+Enforced in the writer: if any of this contractor's services carries template
+provenance, changing `canonicalTrade` is refused with a named reason.
+
+Changing trade after provisioning is a catalog migration — what happens to
+priced services, live bookings, and a storefront advertising work the
+contractor no longer does. That is a real problem and it is **out of scope for
+Slice Four**. Refusing is not a limitation to apologise for; a wizard that
+casually swapped a contractor's trade would be destroying a priced catalog by
+accident.
+
+## V1 scope
+
+Electrical is the only published catalog, so it is the only selectable value.
+The architecture is not Electrical-only: the option list is read from
+published template versions, and the refusal, the writer and the preflight are
+all trade-neutral.
