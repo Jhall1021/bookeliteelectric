@@ -302,3 +302,71 @@ Inferred for this slice: a contractor with a `JobberConnection` is external.
 Proven both ways — zero eligible crew is legitimate standalone and a blocker
 once Jobber is the authority. Explicit `schedulingMode` becomes authoritative
 at Stage 5.
+
+
+---
+
+# Slice two — the writable foundation, 31 Aug 2026
+
+## Where each fact lives, and why
+
+| Fact | Owner | Reasoning |
+|---|---|---|
+| `Service.offered` | **Service** | Which services a contractor sells is durable business configuration, not wizard progress. It belongs beside the service it describes. |
+| `Contractor.schedulingAuthority` | **Contractor** | Who owns the calendar stays meaningful every day after setup. Provider-neutral: Jobber is integration #1, not the architecture. |
+| `ContractorOnboarding` | **new table** | Resume point, acknowledgements, completion. Nothing else. |
+
+Four states, now genuinely distinct:
+
+```
+provisioned   the row exists — the template installed it
+offered       the contractor decided they sell this      Service.offered
+ready         derived, per outcome, from existing systems
+active        publicly live                              Service.active
+```
+
+**Selection never depends on price.** A `REMOTE_QUOTE` service legitimately has
+no `basePrice`, so making an approved price the signal for intent would drop
+every quote-only service out of the payment and launch checks.
+
+## Migration
+
+`prisma db push` — three additive changes, no data loss:
+`Service.offered` (default false), `Contractor.schedulingAuthority`
+(nullable enum `NATIVE | EXTERNAL`), and `contractor_onboarding`.
+
+Backfilled from evidence rather than guessed: a service that is **already
+live** is offered by demonstration (65 of Elite's 79), and a contractor with a
+Jobber connection has already answered the authority question by connecting it.
+Contractors without one stay **undeclared**, which is a blocker — declaring on
+their behalf is how availability nobody verified gets shown.
+
+## The bug the fixtures caught
+
+A quote-only service was being told it owed an approved price. When pricing
+settings are missing the tree cannot be resolved, and the booking type was
+being lost along with it — so every service looked like it promised a price. A
+`REMOTE_QUOTE` service owes none, and that has to hold whether or not the rest
+of setup is finished.
+
+## Readiness after adopting explicit intent
+
+| | Elite | Fresh provision |
+|---|---|---|
+| `canLaunch` | true | false |
+| blockers | 0 | 6 |
+| warnings | 32 | 4 |
+| intended | **65** (was 71 inferred) | 0 |
+
+The inference was over-counting by six: services Elite has priced but never
+chose to sell. Explicit selection is what removed them.
+
+Fresh blockers add `SCHEDULING_AUTHORITY_UNDECLARED` to slice one's five.
+
+## What the write paths cannot do
+
+Three narrow routes — selection, scheduling authority, progress. None writes
+`basePrice`, `publishedPriceApprovedAt` or `active`, and that is asserted.
+Deselecting a live service is refused with `SERVICE_IS_LIVE`: taking something
+off the storefront by a side door is exactly the collapse this separation
+exists to prevent.

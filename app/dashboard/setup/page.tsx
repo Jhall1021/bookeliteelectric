@@ -1,6 +1,7 @@
 import { withAdminContractor } from "@/lib/adminContext";
 import { assessOnboarding, type Stage } from "@/lib/onboardingReadiness";
 import Link from "next/link";
+import SetupControls from "./SetupControls";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,15 @@ const TONE: Record<Stage["status"], { dot: string; label: string; text: string }
 export default async function SetupPage() {
   return withAdminContractor(async (db, ctx) => {
     const r = await assessOnboarding(db, ctx.contractorId);
+    const contractor = await db.contractor.findUniqueOrThrow({
+      where: { id: ctx.contractorId },
+      select: { schedulingAuthority: true },
+    });
+    const services = await db.service.findMany({
+      where: { contractorId: ctx.contractorId },
+      select: { id: true, slug: true, name: true, offered: true, active: true },
+      orderBy: { name: "asc" },
+    });
 
     return (
       <div className="mx-auto max-w-3xl">
@@ -102,6 +112,11 @@ export default async function SetupPage() {
             );
           })}
         </ol>
+
+        <SetupControls
+          authority={contractor.schedulingAuthority as "NATIVE" | "EXTERNAL" | null}
+          services={services}
+        />
 
         {r.notes.length > 0 && (
           <div className="mt-6 rounded-card bg-warmwhite p-4 text-xs text-slate">

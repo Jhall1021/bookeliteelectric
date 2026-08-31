@@ -21,6 +21,7 @@ import { PrismaClient } from "@prisma/client";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { assessOnboarding, type OnboardingReadiness } from "../lib/onboardingReadiness";
+import { readFileSync } from "node:fs";
 import { provision, destroyContractor } from "./_throwaway";
 
 const raw = new PrismaClient();
@@ -67,6 +68,9 @@ async function main() {
     codes(f, "blocker").join(", "));
   ok(`6. and on having nothing it could actually sell`,
     codes(f, "blocker").includes("NOTHING_ACTIVATABLE"));
+  ok(`   because every provisioned service starts UNSELECTED`,
+    (await raw.service.count({ where: { contractorId: fresh.id, offered: true } })) === 0,
+    `${await raw.service.count({ where: { contractorId: fresh.id, offered: true } })} offered`);
   ok(`7. the two fixtures disagree, which is the point`,
     e.canLaunch && !f.canLaunch);
 
@@ -79,15 +83,17 @@ async function main() {
   const after = codes(await assess(fresh.id), "blocker").includes("COUNTRY_MISSING");
   ok(`8. changing a domain fact changes readiness immediately`, before && !after,
     `before=${before} after=${after}`);
-  ok(`   with no onboarding state to update`,
-    !(await raw.$queryRawUnsafe<unknown[]>(
-      `select 1 from information_schema.tables where table_name = 'contractor_onboarding'`
-    )).length);
+  ok(`   with no onboarding row involved at all`,
+    (await raw.contractorOnboarding.count({ where: { contractorId: fresh.id } })) === 0);
 
   // ── conditional rules ──────────────────────────────────────────────────
   await destroyContractor(raw, PROBE);
   const probe = await raw.contractor.create({
-    data: { slug: PROBE, name: "Readiness probe", active: false, countryCode: "US" },
+    data: {
+      slug: PROBE, name: "Readiness probe", active: false, countryCode: "US",
+      // Declared, so the crew rules below are exercised deliberately.
+      schedulingAuthority: "NATIVE",
+    },
     select: { id: true },
   });
   try {
@@ -99,6 +105,8 @@ async function main() {
         slug: `${PROBE}-svc`, name: "Probe service", contractorId: probe.id,
         categoryId: cat.categoryId, bookingType: "ADJUSTED", active: false,
         basePrice: 50000, publishedPriceApprovedAt: new Date(),
+        // Intent is a decision now, not an inference from having a price.
+        offered: true,
       },
       select: { id: true },
     });
@@ -118,6 +126,7 @@ async function main() {
     ok(`11. zero crew is fine when Price2Book schedules`,
       !codes(standalone, "blocker").includes("NO_ELIGIBLE_CREW"));
 
+    await raw.contractor.update({ where: { id: probe.id }, data: { schedulingAuthority: "EXTERNAL" } });
     await raw.jobberConnection.create({
       data: {
         contractorId: probe.id, accessToken: "probe", refreshToken: "probe",
@@ -132,11 +141,102 @@ async function main() {
     await destroyContractor(raw, PROBE);
   }
 
-  // ── the honest gap ─────────────────────────────────────────────────────
-  ok(`13. intent stays outcome-aware, not "has a price"`,
-    f.intended.every((i) => i.reason !== "priced and approved, not yet live") ||
-      f.intended.some((i) => i.reason.includes("quote")),
-    f.intended.map((i) => i.reason).join("; ") || "none intended");
+  // ── selection is a decision, and only a decision ───────────────────────
+  const fixed = await raw.service.findFirstOrThrow({
+    where: { contractorId: fresh.id, bookingType: { not: "REMOTE_QUOTE" } },
+    select: { id: true, slug: true },
+  });
+  const quoteOnly = await raw.service.findFirst({
+    where: { contractorId: fresh.id, bookingType: "REMOTE_QUOTE" },
+    select: { id: true, slug: true },
+  });
+
+  await raw.service.update({ where: { id: fixed.id }, data: { offered: true } });
+  const afterSelect = await raw.service.findUniqueOrThrow({
+    where: { id: fixed.id },
+    select: { active: true, basePrice: true, publishedPriceApprovedAt: true },
+  });
+  ok(`13. selecting a service does not publish a price`,
+    afterSelect.basePrice === null && afterSelect.publishedPriceApprovedAt === null);
+  ok(`14.  and does not put it on the storefront`, afterSelect.active === false);
+
+  const withFixed = await assess(fresh.id);
+  ok(`15. selecting a fixed-price service surfaces its real requirements`,
+    withFixed.intended.some((i) => i.slug === fixed.slug) &&
+      withFixed.blockers.some((x) => x.serviceSlug === fixed.slug),
+    withFixed.blockers.filter((x) => x.serviceSlug === fixed.slug).map((x) => x.code).join(", "));
+
+  if (quoteOnly) {
+    await raw.service.update({ where: { id: fixed.id }, data: { offered: false } });
+    await raw.service.update({ where: { id: quoteOnly.id }, data: { offered: true } });
+    const withQuote = await assess(fresh.id);
+    ok(`16. a quote-only service is included WITHOUT a manufactured price`,
+      withQuote.intended.some((i) => i.slug === quoteOnly.slug) &&
+        !withQuote.blockers.some((x) => x.serviceSlug === quoteOnly.slug && x.code === "PRICE_NOT_APPROVED"),
+      withQuote.blockers.filter((x) => x.serviceSlug === quoteOnly.slug).map((x) => x.code).join(", "));
+    await raw.service.update({ where: { id: quoteOnly.id }, data: { offered: false } });
+  } else {
+    console.log(`  (no REMOTE_QUOTE service in the template to probe with)`);
+  }
+
+  await raw.service.update({ where: { id: fixed.id }, data: { offered: true } });
+  const selected = await assess(fresh.id);
+  await raw.service.update({ where: { id: fixed.id }, data: { offered: false } });
+  const deselected = await assess(fresh.id);
+  ok(`17. deselecting removes that service's requirements`,
+    selected.blockers.some((x) => x.serviceSlug === fixed.slug) &&
+      !deselected.blockers.some((x) => x.serviceSlug === fixed.slug));
+
+  // ── scheduling authority is declared, and changes the rules ────────────
+  await raw.contractor.update({ where: { id: fresh.id }, data: { schedulingAuthority: null } });
+  const undeclared = await assess(fresh.id);
+  ok(`18. an undeclared calendar owner is a blocker, not a default`,
+    codes(undeclared, "blocker").includes("SCHEDULING_AUTHORITY_UNDECLARED"));
+
+  await raw.contractor.update({ where: { id: fresh.id }, data: { schedulingAuthority: "NATIVE" } });
+  const native = await assess(fresh.id);
+  ok(`19. native scheduling with no crew is legitimate`,
+    !codes(native, "blocker").includes("NO_ELIGIBLE_CREW") &&
+      !codes(native, "blocker").includes("SCHEDULING_AUTHORITY_UNDECLARED"));
+
+  await raw.contractor.update({ where: { id: fresh.id }, data: { schedulingAuthority: "EXTERNAL" } });
+  const external = await assess(fresh.id);
+  ok(`20. switching to an external calendar blocks on zero bookable crew`,
+    codes(external, "blocker").includes("NO_ELIGIBLE_CREW"));
+  ok(`    and on there being no calendar connected`,
+    codes(external, "blocker").includes("PROVIDER_NOT_CONNECTED"));
+  ok(`21. the switch took effect with nothing to invalidate`,
+    !codes(native, "blocker").includes("NO_ELIGIBLE_CREW") &&
+      codes(external, "blocker").includes("NO_ELIGIBLE_CREW"));
+
+  // ── onboarding state survives, and holds nothing derived ──────────────
+  await raw.contractorOnboarding.create({
+    data: { contractorId: fresh.id, currentStage: "scheduling", acknowledged: { services: "2026-08-31T00:00:00.000Z" } },
+  });
+  const resumed = await raw.contractorOnboarding.findUniqueOrThrow({ where: { contractorId: fresh.id } });
+  ok(`22. onboarding can be left and resumed with choices intact`,
+    resumed.currentStage === "scheduling" &&
+      (resumed.acknowledged as Record<string, string>).services !== undefined &&
+      (await raw.contractor.findUniqueOrThrow({ where: { id: fresh.id }, select: { schedulingAuthority: true } }))
+        .schedulingAuthority === "EXTERNAL");
+  const cols = await raw.$queryRawUnsafe<{ column_name: string }[]>(
+    `select column_name from information_schema.columns where table_name = 'contractor_onboarding'`
+  );
+  ok(`23. and stores no readiness, blockers or launchability`,
+    !cols.some((c) => /ready|blocker|warning|launch/i.test(c.column_name)),
+    cols.map((c) => c.column_name).join(","));
+
+  // ── no write path can approve or activate ─────────────────────────────
+  const routes = ["selection", "scheduling-authority", "progress"].map((r) =>
+    readFileSync(`app/api/admin/setup/${r}/route.ts`, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+  );
+  ok(`24. no Guided Setup write path can stamp a price approval`,
+    !routes.some((r) => /publishedPriceApprovedAt|basePrice/.test(r)));
+  // The earlier form matched `select: { active: true }`, which reads rather
+  // than writes — a check that would have failed for looking at the field.
+  ok(`25.  or put a service on the storefront`,
+    !routes.some((r) => /data:\s*\{[^}]*\bactive\b/.test(r)));
 
   await destroyContractor(raw, FRESH);
   console.log();

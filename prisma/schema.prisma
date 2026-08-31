@@ -150,6 +150,15 @@ model ContractorSite {
   @@map("contractor_sites")
 }
 
+/// Who decides whether a slot is free. See Contractor.schedulingAuthority.
+enum SchedulingAuthority {
+  /// Price2Book's own business hours, arrival windows and service area.
+  NATIVE
+  /// An external calendar (Jobber today) is the source of truth. Availability
+  /// that cannot be verified against it must never be shown or accepted.
+  EXTERNAL
+}
+
 enum BookingType {
   INSTANT // resolves to a fixed price immediately
   ADJUSTED // fixed price with defined surcharge branches
@@ -554,6 +563,24 @@ model Contractor {
   /// stay distinguishable from assumed. A contractor with no country cannot
   /// open a Stripe account, which is the correct outcome rather than a
   /// default quietly making them American.
+  /// Who is authoritative about whether a time slot is really free.
+  ///
+  /// Durable operating configuration, NOT onboarding state: it stays
+  /// meaningful long after setup finishes and decides how the scheduling
+  /// rules behave every day afterwards — most sharply, whether zero bookable
+  /// crew is a legitimate standalone setup or a configuration failure.
+  ///
+  /// Provider-neutral on purpose. Jobber is integration #1, not the
+  /// architecture; a second provider changes which connection row is read,
+  /// not what this field means.
+  ///
+  /// Null means undeclared, which is a readiness blocker rather than a
+  /// default — guessing wrong in either direction either fabricates capacity
+  /// or refuses bookings a contractor could take.
+  onboarding          ContractorOnboarding?
+
+  schedulingAuthority SchedulingAuthority?
+
   countryCode  String?
 
   /// Split so the number is never welded into a sentence: "NJ Electrical
@@ -1571,6 +1598,32 @@ model Service {
   /// than a default nobody thought about. A service that has not opted in
   /// takes the identical code path it took before this existed, so the
   /// migration that introduced the workflow could not change any behavior.
+  /// Does this contractor actually intend to OFFER this service?
+  ///
+  /// Four distinct states, and conflating any two has already caused a bug
+  /// in this codebase:
+  ///
+  ///   provisioned  the row exists — the template installed it
+  ///   offered      the contractor decided they sell this        <- this field
+  ///   ready        derived: priced, costed, schedulable, payable
+  ///   active       publicly live on the storefront
+  ///
+  /// `active` cannot stand in for this. It means ALREADY LIVE, so a freshly
+  /// provisioned service nobody has thought about looks identical to one the
+  /// contractor deliberately chose — exactly the inference Guided Setup
+  /// slice one had to make and report as a gap.
+  ///
+  /// DELIBERATELY INDEPENDENT OF PRICE. A REMOTE_QUOTE service legitimately
+  /// has no `basePrice`, and making an approved price the signal for intent
+  /// would drop every quote-only service out of the payment and launch
+  /// checks. Selection is a business decision; readiness is derived
+  /// afterwards, per outcome.
+  ///
+  /// Default false: a provisioned catalog is an offer of possibilities, not a
+  /// set of commitments. Backfilled true for services already active, which
+  /// are offered by demonstration.
+  offered              Boolean @default(false)
+
   requiresPreWorkVisit Boolean @default(false)
 
   /// What the booking button says, when "Add to My Visit" is the wrong
@@ -3295,4 +3348,38 @@ model TemplateAnswerOptionPhotoGroup {
 
   @@unique([templateAnswerOptionId, photoGroupId])
   @@map("template_answer_option_photo_groups")
+}
+
+/// Where a contractor got to in Guided Setup, and what they have acknowledged.
+///
+/// ONBOARDING STATE ONLY. Readiness, blockers, warnings and launchability are
+/// DERIVED on every call and must never be stored — a stored flag goes stale
+/// the moment a price is edited or Stripe onboarding lapses, and it goes stale
+/// in the dangerous direction, saying ready when it is not.
+///
+/// Nor does this own business configuration. Which services a contractor
+/// offers lives on Service.offered, and who schedules lives on
+/// Contractor.schedulingAuthority, because both stay true long after setup is
+/// finished and neither is a fact about a wizard.
+model ContractorOnboarding {
+  id           String     @id @default(cuid())
+  contractorId String     @unique
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// Resume point. Never gates anything, so a stale value cannot unblock a
+  /// launch — the worst it can do is open the wrong page.
+  currentStage String     @default("business")
+
+  /// Stage key -> ISO timestamp. "I have looked at my prices" is a fact about
+  /// a human, and no other table could hold it.
+  acknowledged Json       @default("{}")
+
+  /// Set when the contractor finished setup. Not permission to sell — that is
+  /// derived readiness plus the services actually activated.
+  completedAt  DateTime?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("contractor_onboarding")
 }

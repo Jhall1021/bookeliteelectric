@@ -68,53 +68,21 @@ const w = (code: string, message: string, extra: Partial<Finding> = {}): Finding
   ({ code, severity: "warning", message, ...extra });
 
 /**
- * Which services is this contractor actually trying to launch?
+ * Which services is this contractor trying to launch?
  *
- * OUTCOME-AWARE, deliberately. "Has an approved price" is NOT a universal
- * proxy for intent: a REMOTE_QUOTE service legitimately has no `basePrice`,
- * and treating price as the signal would quietly exclude every quote-only
- * service from the payment and launch checks.
+ * `Service.offered` — a fact the contractor set, not an inference.
  *
- * THE SCHEMA HAS NO CLEAN ANSWER TO THIS. There is no contractor-owned
- * "I intend to offer this" fact — `active` means already live, and a
- * template-provisioned service the contractor has not decided about looks
- * identical to one they have. So V1 uses the best available signal and SAYS
- * SO, rather than letting a proxy harden into a rule:
- *
- *   active                          already live — unambiguously intended
- *   promises a price + approved     they priced it and approved it
- *   promises no price + configured  a quote-only service with a tree
- *
- * The third arm is the weak one, and it is why `notes` exists.
+ * Slice one had to guess: it read an approved price as intent, which is wrong
+ * for every legitimately quote-only service, and said so in `notes` rather
+ * than pretending otherwise. The guess is gone. Selection is now independent
+ * of price by construction, so a REMOTE_QUOTE service is included in
+ * readiness without anyone manufacturing a number for it.
  */
-async function intendedServices(
-  db: PrismaClient,
-  contractorId: string,
-  settings: unknown
-): Promise<{ svc: Record<string, unknown>; reason: string }[]> {
-  const all = await db.service.findMany({ where: { contractorId } });
-  const out: { svc: Record<string, unknown>; reason: string }[] = [];
-
-  for (const s of all as unknown as Record<string, unknown>[]) {
-    if (s.active) { out.push({ svc: s, reason: "already live" }); continue; }
-    const full = settings ? await loadServiceForResolution(db as never, s.id as string) : null;
-    const promise = pricePromiseOf(
-      full ? ({ ...full, bookingType: s.bookingType } as never) : null,
-      settings
-    );
-    if (promise.promisesFixedPrice) {
-      if (s.basePrice !== null && s.publishedPriceApprovedAt !== null) {
-        out.push({ svc: s, reason: "priced and approved, not yet live" });
-      }
-      continue;
-    }
-    // Quote-only or review-only: no price is expected, so price cannot be the
-    // signal. A tree is the closest thing to a decision the schema records.
-    if (full && (full as { questions: unknown[] }).questions.length > 0) {
-      out.push({ svc: s, reason: "resolves by quote or review, and has a tree" });
-    }
-  }
-  return out;
+async function offeredServices(db: PrismaClient, contractorId: string) {
+  return (await db.service.findMany({
+    where: { contractorId, offered: true },
+    orderBy: { slug: "asc" },
+  })) as unknown as Record<string, unknown>[];
 }
 
 export async function assessOnboarding(
@@ -164,13 +132,11 @@ export async function assessOnboarding(
     findings["pricing-foundation"].push(w("MINIMUM_UNSET", "No service-call minimum. Short jobs will price at labor alone."));
   }
 
-  const intended = await intendedServices(db, contractorId, settings);
-  if (intended.length > 0 && !intended.some((i) => i.reason === "already live")) {
-    notes.push(
-      "No service is live yet, so 'intended for launch' was inferred from pricing " +
-      "and tree configuration. The schema has no contractor-owned enablement fact."
-    );
-  }
+  const offered = await offeredServices(db, contractorId);
+  const intended = offered.map((svc) => ({
+    svc,
+    reason: svc.active ? "offered and live" : "offered, not yet live",
+  }));
 
   const held = settings ? await servicesOnHold(db, contractorId) : [];
   for (const h of held) {
@@ -194,8 +160,14 @@ export async function assessOnboarding(
   for (const { svc } of intended) {
     const slug = svc.slug as string;
     const full = settings ? await loadServiceForResolution(db as never, svc.id as string) : null;
+    // When pricing settings are missing the tree cannot be resolved, but the
+    // BOOKING TYPE is still known — and losing it here told every quote-only
+    // service it owed an approved price. A REMOTE_QUOTE service owes none, and
+    // that must hold whether or not the rest of the setup is finished.
     const promise = pricePromiseOf(
-      full ? ({ ...full, bookingType: svc.bookingType } as never) : null,
+      (full
+        ? { ...full, bookingType: svc.bookingType }
+        : { questions: [], bookingType: svc.bookingType }) as never,
       settings
     );
 
@@ -237,11 +209,12 @@ export async function assessOnboarding(
 
   // ── 5. Scheduling ──────────────────────────────────────────────────────
   //
-  // Mode is INFERRED for this read-only slice: a contractor with a Jobber
-  // connection is treated as external. Once Stage 5 exists, the declared
-  // schedulingMode is authoritative and this inference goes away.
+  // DECLARED, not inferred. Slice one read a Jobber connection as proof of
+  // intent; a contractor can have a stale connection and schedule natively, or
+  // intend to connect one and not have yet. Guessing either way is how
+  // availability nobody verified reaches a homeowner.
+  const mode = c.schedulingAuthority; // "NATIVE" | "EXTERNAL" | null
   const connection = await db.jobberConnection.findFirst({ where: { contractorId } });
-  const mode: "EXTERNAL" | "STANDALONE" = connection ? "EXTERNAL" : "STANDALONE";
   const hours = await db.businessHours.findFirst({ where: { contractorId } });
   const area = await db.serviceArea.findFirst({ where: { contractorId, active: true } });
   const crews = await db.jobberCrewMember.count({
@@ -263,9 +236,21 @@ export async function assessOnboarding(
   // Zero eligible crew is a CONFIGURATION FAILURE when an external provider is
   // authoritative, and legitimate when it is not. Availability must never fall
   // back to native windows and present capacity nobody verified.
+  if (mode === null) {
+    findings.scheduling.push(b("SCHEDULING_AUTHORITY_UNDECLARED",
+      "Tell us who owns your calendar — Price2Book, or a system you already use. The answer changes what has to be true before anyone can book."));
+  }
+  if (mode === "EXTERNAL" && !connection) {
+    findings.scheduling.push(b("PROVIDER_NOT_CONNECTED",
+      "An external calendar is set as your source of truth, but none is connected."));
+  }
   if (mode === "EXTERNAL" && crews === 0) {
     findings.scheduling.push(b("NO_ELIGIBLE_CREW",
-      "Jobber is your scheduling system but no crew is marked bookable, so nothing can be scheduled."));
+      "Your external calendar decides availability, but no crew is marked bookable — so nothing can be scheduled."));
+  }
+  if (mode === "NATIVE" && connection) {
+    findings.scheduling.push(w("PROVIDER_CONNECTED_BUT_NATIVE",
+      "You have an external calendar connected but Price2Book is set as your source of truth. Availability comes from Price2Book."));
   }
 
   // ── 6. Payments ────────────────────────────────────────────────────────

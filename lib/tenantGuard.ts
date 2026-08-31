@@ -50,6 +50,10 @@ import { requireTenant, CrossTenantError } from "./tenantContext";
  * produces a Prisma error, so aspiration here would break every query.
  */
 export const TENANT_SCOPED_MODELS = new Set<string>([
+  /// Guided Setup progress. Tenant-owned like everything else a contractor
+  /// decides — and deliberately holds no readiness, because readiness is
+  /// derived from the systems that own each rule.
+  "ContractorOnboarding",
   "Service",
   "ContractorMaterial",
   "ContractorComponent",
