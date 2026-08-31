@@ -1,7 +1,10 @@
 # Guided Setup — Slice Four design
 
-**Status:** design for review. No implementation until the global gate is
-green. 31 Aug 2026.
+**Status: APPROVED, 31 Aug 2026.** Implementation begins once the global gate
+is green — currently red on `lib/plumbing/families.ts:247`, which belongs to
+the parallel Plumbing workstream.
+
+No further design changes unless implementation reveals a concrete defect.
 
 Goal: a brand-new Electrical contractor moves from *trade selected* to
 *canonical catalog installed and my economics being configured*.
@@ -370,3 +373,49 @@ migration stay out of Slice Four.
 *Select your trade → Electrical*, then *Install Electrical template*. One
 enrollment row. No multi-trade UI, no removal workflow. The relation is what
 makes the second trade a feature rather than a migration.
+
+
+---
+
+# Locked semantics
+
+Approved 31 Aug 2026. These three names mean three different things and are
+not to be collapsed:
+
+| Name | Meaning | Owner |
+|---|---|---|
+| `Contractor.trade` | contractor-authored descriptive prose — *"residential electrician"* | contractor |
+| `ContractorTrade.tradeKey` | canonical Price2Book trade enrollment | contractor |
+| `TemplateVersion.trade` | canonical trade key for a versioned template | platform |
+
+Provisioning resolves, in this order:
+
+```
+ContractorTrade.tradeKey
+  -> latest published TemplateVersion for that trade
+  -> atomic catalog installation
+```
+
+**Enrollment is version-independent.** Template upgrades remain adoption
+decisions, handled by the existing `template-update` path — which already
+clears a published price along with its approval when a structural change
+lands.
+
+## Slice Four V1 boundaries
+
+- one initial trade enrollment in the UX; Electrical is the only published
+  trade today
+- no multi-trade onboarding
+- no trade-removal or catalog-migration workflow
+- removal of an enrollment is **refused** while services provisioned from that
+  trade remain
+- available trades derive from distinct published `TemplateVersion.trade`
+  values, never a hardcoded list
+
+## `CanonicalTrade` is deliberately not introduced
+
+Validating enrollment keys against published `TemplateVersion.trade` values is
+sufficient, and introducing a trade entity would reach into the template
+system for no benefit this slice needs. If one arrives later, `tradeKey`
+becomes a foreign key and the enrollment model is untouched — which is the
+whole reason enrollment is a relation rather than a scalar.
