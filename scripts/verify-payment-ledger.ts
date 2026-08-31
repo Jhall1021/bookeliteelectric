@@ -176,13 +176,32 @@ async function main() {
   const c = await prisma.contractor.findUniqueOrThrow({
     where: { slug: "elite-electric" }, select: { id: true },
   });
-  const unpublished = await prisma.service.findMany({
-    where: { contractorId: c.id, slug: { in: ["electrical-panel-replacement", "200a-service-upgrade"] } },
-    select: { slug: true, basePrice: true },
+  // RETIRED, 31 August: "both pre-work services remain unpublished". They are
+  // published now, deliberately, through the pricing lifecycle — so that check
+  // had become an assertion that the release had not happened. What has to
+  // stay true is that a service asking a homeowner for a deposit is COHERENT:
+  // a real price somebody approved, a real deposit, and a visit whose length
+  // is known before anyone is asked to pay for it.
+  const preWork = await prisma.service.findMany({
+    where: { contractorId: c.id, requiresPreWorkVisit: true },
+    select: {
+      slug: true, basePrice: true, publishedPriceApprovedAt: true,
+      depositCents: true, preWorkVisitMinutes: true, whileWeThereBasePrice: true,
+    },
   });
-  ok(`11. both pre-work services remain unpublished`,
-    unpublished.every((s) => s.basePrice === null),
-    unpublished.map((s) => `${s.slug}=${s.basePrice}`).join(", "));
+  const incoherent = preWork.filter(
+    (s) =>
+      s.basePrice === null ||
+      s.publishedPriceApprovedAt === null ||
+      (s.depositCents ?? 0) <= 0 ||
+      s.preWorkVisitMinutes === null
+  );
+  ok(`11. every pre-work service has an approved price, a deposit and a visit length`,
+    incoherent.length === 0,
+    incoherent.map((s) => s.slug).join(", "));
+  ok(`    and none of them carries a While We're There price`,
+    preWork.every((s) => s.whileWeThereBasePrice === null),
+    preWork.filter((s) => s.whileWeThereBasePrice !== null).map((s) => s.slug).join(", "));
 
   // RESCOPED, 29 August. This asserted that NO file could move money, which
   // was true while the ledger was the newest payment code and became false the

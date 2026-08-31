@@ -44,54 +44,26 @@ import { pricePromiseOf, unapprovedPriceSources } from "../lib/activationOutcome
 
 const prisma = new PrismaClient();
 
-/**
- * Public, price-less, and knowingly so — while Phase F gives each a bounded
- * scope. Removing an entry is how a rescue finishes; nothing else clears it.
- */
-const UNDER_RESCUE: Record<string, string> = {
-  "200a-service-upgrade":
-    "Phase F rescue. Standard scope drafted (overhead, meter and panel in " +
-    "place, no relocation). Blocked on service-equipment material roles AND " +
-    "on owner confirmation of crew-hours — the $4,995 historical price does " +
-    "not reconcile with the 8 hours the seed records.",
-  "electrical-panel-replacement":
-    "Phase F rescue. Standard scope drafted (same amperage, same location, " +
-    "service conductors reused). Blocked on panel/breaker material roles and " +
-    "the same crew-hour confirmation as the service upgrade.",
-  // level-2-ev-charger came off this list on 30 Aug 2026. Under the
-  // outcome-aware rule it needs no exception: 36 review routes, 0 pricing
-  // routes, 0 dead routes — it promises a quote and delivers a quote. Its tree
-  // normalisation is still wanted, but that is a quality goal, not a broken
-  // promise to a customer, and it was only ever on this list because the old
-  // rule could not tell those apart.
-};
+// THE RESCUE ALLOWLIST IS GONE — 31 Aug 2026.
+//
+// It existed because the old rule could not tell an honest quote-only service
+// from an unfinished one, so both needed an exception. Outcome-aware
+// activation tells them apart on its own: level-2-ev-charger passes because
+// its tree promises a quote and delivers one, and the two pre-work services
+// passed the moment they were priced and approved.
+//
+// Removed rather than emptied. An exception list with nothing on it is a door
+// somebody opens later, and the whole reason this one stayed honest was that
+// every entry named what would clear it.
 
 // The AWAITING_APPROVAL backlog is GONE, not emptied — every price published
 // before the approval boundary existed has been through the lifecycle, and an
 // empty exception list is just a door someone opens later. An unapproved
 // price is now simply a violation.
 
-/**
- * `--assume-priced=slug,slug` answers a question the normal run cannot:
- * WOULD these services pass §1.4 on their own, with no rescue exception at
- * all? It treats the named slugs as priced and drops the entire allowlist.
- *
- * It changes nothing and writes nothing. The point is to know the answer
- * BEFORE publishing a price, rather than publishing one to find out.
- */
-const assumePriced = new Set(
-  (process.argv.find((a) => a.startsWith("--assume-priced="))?.split("=")[1] ?? "")
-    .split(",").map((x) => x.trim()).filter(Boolean)
-);
-const dryRun = assumePriced.size > 0 || process.argv.includes("--no-rescue");
-
 async function main() {
   console.log(`\nPUBLIC PRICING — §1.4\n`);
-  if (dryRun) {
-    console.log(`  DRY RUN — no rescue allowlist${
-      assumePriced.size ? `, assuming priced: ${[...assumePriced].join(", ")}` : ""
-    }\n  Nothing is written; this reports what WOULD hold.\n`);
-  }
+
 
   const contractors = await prisma.contractor.findMany({
     select: { id: true, slug: true, name: true },
@@ -99,7 +71,6 @@ async function main() {
   });
 
   let violations = 0;
-  let allowed = 0;
   let priced = 0;
   /** Legitimately unpriced: no route the customer can take reaches a price. */
   let quoteOnly = 0;
@@ -107,7 +78,6 @@ async function main() {
   const unpriceable = new Set<string>();
   /** Unpriced services whose promise could not be computed. */
   const unverifiable: string[] = [];
-  const staleAllowlist = new Set(Object.keys(UNDER_RESCUE));
 
   for (const c of contractors) {
     const services = await prisma.service.findMany({
@@ -136,7 +106,7 @@ async function main() {
     const offenders: { slug: string; bookingType: string; why: string }[] = [];
 
     for (const s of services) {
-      const treated = s.basePrice !== null || assumePriced.has(s.slug);
+      const treated = s.basePrice !== null;
 
       // Approval is checked on anything carrying a price, whatever its
       // outcome: a remote-quote anchor price is still a number a customer
@@ -193,8 +163,6 @@ async function main() {
         continue;
       }
 
-      staleAllowlist.delete(s.slug);
-      if (!dryRun && UNDER_RESCUE[s.slug]) { allowed++; continue; }
       offenders.push({
         slug: s.slug, bookingType: s.bookingType,
         why: `${promise.reason}, but no price is published`,
@@ -214,7 +182,6 @@ async function main() {
 
   console.log(`  ${priced} service(s) promise a price and show an approved one.`);
   console.log(`  ${quoteOnly} resolve by quote or review, and owe no price.`);
-  console.log(`  ${allowed} under an explicit, dated rescue.`);
   console.log();
 
   // An allowlist entry for a service that is already priced, hidden or gone is
@@ -243,12 +210,6 @@ async function main() {
     console.log(`  but every price they DO carry was still checked for approval.`);
     if (unverifiable.length) console.log(`      unchecked: ${unverifiable.join(", ")}`);
     console.log();
-  }
-
-  if (staleAllowlist.size) {
-    console.log(`  ${staleAllowlist.size} stale allowlist entr(ies) — no longer public and price-less:`);
-    for (const s of staleAllowlist) console.log(`      ${s}`);
-    console.log(`  Remove them; a rescue that finished should stop being listed.\n`);
   }
 
   if (violations) {

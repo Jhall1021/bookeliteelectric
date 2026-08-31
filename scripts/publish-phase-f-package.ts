@@ -31,8 +31,28 @@ import { serviceSlugKey } from "../prisma/_serviceKey";
 
 const prisma = new PrismaClient();
 
-/** What the owner approved, in cents. A slug absent from here cannot publish. */
-const APPROVED: Record<string, { standalone: number; sameVisit: number; note: string }> = {
+/**
+ * What the owner approved, in cents. A slug absent from here cannot publish.
+ *
+ * `sameVisit: null` means the service HAS no add-on price — not that nobody
+ * approved one. The two pre-work services are the first of these: a panel
+ * replacement is not something a crew adds to a visit they are already on.
+ */
+const APPROVED: Record<string, { standalone: number; sameVisit: number | null; note: string }> = {
+  "electrical-panel-replacement": {
+    standalone: 215500, sameVisit: null,
+    note:
+      "Owner-approved 30 Aug 2026 at the derived figure: 6.0 crew-hours, " +
+      "$503.42 material. No While We're There price — a panel replacement is " +
+      "its own visit. Carries a $249 deposit and a required pre-work visit.",
+  },
+  "200a-service-upgrade": {
+    standalone: 308500, sameVisit: null,
+    note:
+      "Owner-approved 30 Aug 2026 at the derived figure: 8.0 crew-hours, " +
+      "$837.82 material. No While We're There price. Carries a $249 deposit, " +
+      "a required pre-work visit, and permit fees excluded by disclaimer.",
+  },
   "hot-tub-spa-electrical": {
     standalone: 138500, sameVisit: 132000,
     note: "Owner-approved 29 Aug 2026 at the derived figure: 4.0 crew-hours, $292.49 material.",
@@ -97,8 +117,14 @@ async function main() {
   if (svc.basePrice !== null || svc.whileWeThereBasePrice !== null) {
     console.log(`  Already published. Repricing is a reconciliation decision.\n`); return;
   }
-  if (svc.fieldLaborHours === null || svc.wwtLaborHours === null) {
+  // A null wwtLaborHours is only acceptable when the approval says this
+  // service has no add-on price at all. Otherwise it is a missing input.
+  if (svc.fieldLaborHours === null) {
     console.error(`  No crew-hours. Refusing.\n`); process.exit(1);
+  }
+  if (svc.wwtLaborHours === null && approved.sameVisit !== null) {
+    console.error(`  No add-on crew-hours, but an add-on price was approved. Refusing.\n`);
+    process.exit(1);
   }
   if (!svc.materialCostResolved) {
     console.error(`  Material cost unresolved. Refusing.\n`); process.exit(1);
@@ -147,12 +173,21 @@ async function main() {
   };
   const primary = suggestPrimaryPrice(inputs, settings as unknown as PricingSettings);
   const wwt = suggestWwtPrice(inputs, settings as unknown as PricingSettings);
-  if (primary.totalCents === null || wwt.totalCents === null) {
+  if (primary.totalCents === null) {
     console.error(`\n  The engine produced no price. Refusing.\n`); process.exit(1);
   }
+  if (approved.sameVisit !== null && wwt.totalCents === null) {
+    console.error(`\n  The engine produced no add-on price, but one was approved. Refusing.\n`);
+    process.exit(1);
+  }
+  if (approved.sameVisit === null && wwt.totalCents !== null) {
+    console.error(`\n  REFUSED — an add-on price appeared on a service approved without one.\n`);
+    process.exit(1);
+  }
 
-  console.log(`  derived $${(primary.totalCents / 100).toFixed(2)} / $${(wwt.totalCents / 100).toFixed(2)}`);
-  console.log(`  approved $${(approved.standalone / 100).toFixed(2)} / $${(approved.sameVisit / 100).toFixed(2)}`);
+  const money = (c: number | null) => (c === null ? "none" : `$${(c / 100).toFixed(2)}`);
+  console.log(`  derived ${money(primary.totalCents)} / ${money(wwt.totalCents)}`);
+  console.log(`  approved ${money(approved.standalone)} / ${money(approved.sameVisit)}`);
 
   if (primary.totalCents !== approved.standalone || wwt.totalCents !== approved.sameVisit) {
     console.error(`\n  REFUSED — the engine no longer derives the approved figure.`);
@@ -168,7 +203,9 @@ async function main() {
     where: { id: svc.id },
     data: {
       basePrice: primary.totalCents,
-      whileWeThereBasePrice: wwt.totalCents,
+      // Left alone when the service has no add-on price, rather than written
+      // as null — publishing a primary price must not silently clear one.
+      ...(approved.sameVisit === null ? {} : { whileWeThereBasePrice: wwt.totalCents }),
       publishedPriceApprovedAt: new Date(),
     },
   });

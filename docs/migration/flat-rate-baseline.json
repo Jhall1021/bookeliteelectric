@@ -1,6 +1,6 @@
 {
   "200a-service-upgrade": {
-    "total": null,
+    "total": 308500,
     "awaiting": false,
     "components": []
   },
@@ -55,7 +55,7 @@
     "components": []
   },
   "electrical-panel-replacement": {
-    "total": null,
+    "total": 215500,
     "awaiting": false,
     "components": []
   },

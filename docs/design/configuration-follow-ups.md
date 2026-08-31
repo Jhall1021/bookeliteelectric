@@ -68,3 +68,28 @@ It does matter before contractor onboarding becomes a real product workflow.
 **Fix it during Guided Setup / Platform Admin, before a contractor who is not
 Elite is asked to onboard themselves.** Today the only contractor who has been
 through it was walked through it by hand.
+
+## Checkout returns a blank 500 when Jobber is unreachable — PRE-PILOT BLOCKER
+
+**Raised:** 31 Aug 2026, during the Deposit V1 browser proof. **Owner
+decision:** carry forward explicitly; must be resolved before real customer or
+pilot traffic. Deliberately NOT folded into Deposit V1.
+
+`pickCrewForWindow` throws when Jobber's OAuth refresh fails, and
+`POST /api/checkout` returns **500 with an empty body**. The schedule page
+calls the same function and fails open; checkout does not. So a Jobber outage
+means nobody can book at all, and what the customer sees is a blank failure
+rather than an explanation.
+
+No money is at risk — this happens before the deposit branch, so nothing is
+authorized and nothing is captured. That is why it was not treated as a
+payment defect.
+
+**What needs deciding, not just fixing:** failing open risks double-booking a
+crew; failing closed stops all bookings. The schedule page and checkout
+currently answer that question differently, which is the actual defect —
+whichever answer is right, both should give it.
+
+`JOBBER_LOCAL_STUB=1` exists only so local Stripe proofs can run. It is gated
+on the flag AND on not being a production build, because "pretend the calendar
+is empty" is exactly the assumption that double-books a crew.
