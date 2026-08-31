@@ -225,10 +225,12 @@ So the preflight as written could not work, and would have been wrong twice
 over: `Contractor.trade` is never unset (it has a default), and it is not the
 value that selects a catalog.
 
-## The smallest durable fix
+## The smallest durable fix — a relation, not a scalar
 
-**Add `Contractor.canonicalTrade String?`** — which canonical catalog this
-contractor's work comes from, in `TemplateVersion.trade`'s vocabulary.
+**Superseded below.** `Contractor.canonicalTrade String?` was the first
+proposal; it encodes *one contractor, one trade* into the tenant model, and a
+contractor who offers Electrical and Plumbing would require undoing it. The
+enrollment relation below replaces it.
 
 Do **not** overload `trade`. It is a phrase a contractor may want to word
 their own way — *"licensed plumber"* reads differently from *"plumbing
@@ -272,3 +274,99 @@ Electrical is the only published catalog, so it is the only selectable value.
 The architecture is not Electrical-only: the option list is read from
 published template versions, and the refusal, the writer and the preflight are
 all trade-neutral.
+
+
+---
+
+# Amendment 2 — trade enrollment as a relation, 31 Aug 2026
+
+## Recommendation: the relation. No schema reason argues against it.
+
+Five existing models already have exactly this shape — a contractor's own row
+for a platform concept, unique on the pair:
+
+| Model | Pairs contractor with |
+|---|---|
+| `ContractorCategory` | `CanonicalCategory` |
+| `ContractorMaterial` | `CanonicalMaterial` |
+| `ContractorComponent` | `CanonicalComponent` |
+| `ContractorDisclaimer` | `CanonicalDisclaimer` |
+| `ContractorPolicyValue` | a policy definition |
+
+`ContractorTrade` is the same idea and reads like the rest of the schema:
+
+```prisma
+model ContractorTrade {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// The canonical trade catalog this contractor is enrolled in. Matches
+  /// TemplateVersion.trade — "electrical", "plumbing".
+  ///
+  /// Enrollment is VERSION-INDEPENDENT on purpose: a contractor is enrolled
+  /// in Electrical, not in Electrical v1. Provisioning resolves the latest
+  /// published version at install time, and a later version is an adoption
+  /// decision rather than a different enrollment.
+  tradeKey     String
+  enrolledAt   DateTime   @default(now())
+
+  @@unique([contractorId, tradeKey])
+  @@index([contractorId])
+  @@map("contractor_trades")
+}
+```
+
+`Contractor` gains `trades ContractorTrade[]`, matching the existing
+`contractorCategories` / `contractorMaterials` naming. Tenant-scoped in the
+guard, like every other contractor-owned row.
+
+## One honest deviation from its siblings
+
+Every model in that table points at a **canonical row**. `ContractorTrade`
+points at a **string key**, because there is no `CanonicalTrade` entity —
+trade exists only as a `String` on `TemplateVersion`.
+
+Two ways to close that, and the smaller one is right for now:
+
+- **Introduce `CanonicalTrade` and make both a foreign key.** Correct
+  eventually — a trade will want a display name, an icon, an ordering — but it
+  reaches into the template system to change `TemplateVersion.trade`, which is
+  scope this slice does not need.
+- **Reference the key, validate at the writer.** Options come from distinct
+  published `TemplateVersion.trade` values, so an unknown key cannot be
+  enrolled. A typo is refused by the same list that populates the UI.
+
+If `CanonicalTrade` ever arrives, `tradeKey` becomes a foreign key and nothing
+about enrollment is undone — which is exactly the property the scalar lacked.
+
+## The one real cost, stated
+
+A scalar would sit on the `Contractor` row the readiness engine already loads;
+the relation costs one more query in the engine and one on the setup page.
+That is small, and it buys not having to migrate a tenant model the first time
+someone sells two trades.
+
+## Semantics, settled
+
+| | |
+|---|---|
+| `Contractor.trade` | contractor-authored prose — *"residential electrician"* |
+| `ContractorTrade.tradeKey` | which canonical catalog(s) they are enrolled in |
+| `TemplateVersion.trade` | the canonical key for a versioned template |
+
+Provisioning resolves: **enrollment → latest published version for that trade
+→ atomic install.**
+
+## Reverse transition
+
+Enrollment may be created before provisioning. Once any service exists whose
+`templateVersionId` belongs to a version of that trade, **removing or changing
+that enrollment is refused** while those services remain. Catalog removal and
+migration stay out of Slice Four.
+
+## V1 UX is unchanged
+
+*Select your trade → Electrical*, then *Install Electrical template*. One
+enrollment row. No multi-trade UI, no removal workflow. The relation is what
+makes the second trade a feature rather than a migration.
