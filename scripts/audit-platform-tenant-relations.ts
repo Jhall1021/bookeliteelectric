@@ -71,6 +71,11 @@ const REVIEWED_SAFE: Record<string, Exception> = {
     "Rooted at contractorMaterial.findMany — ContractorMaterial is tenant-owned, " +
     "so the guard scopes it. This is the relation on ContractorMaterial, not the " +
     "same-named one on the deprecated Material.",
+  "app/dashboard/setup/page.tsx:services":
+    "A local TYPE ANNOTATION named `services`, not a Prisma traversal. The read " +
+    "it describes is db.service.findMany rooted at Service, which is " +
+    "tenant-owned and scoped by the guard. Flagged by name alone, like the " +
+    "categories page below.",
   "app/dashboard/categories/page.tsx:services":
     "ContractorCategory.services, not Contractor.services. The root is " +
     "ContractorCategory, which is tenant-owned, so the guard scopes it.",

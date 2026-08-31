@@ -1,5 +1,11 @@
 /**
- * Which services this contractor offers.
+ * Whether this contractor offers this service.
+ *
+ * Beside the other per-service admin routes — pricing, pre-work, tree —
+ * because `Service.offered` is durable business configuration that the
+ * Services area owns permanently. Guided Setup walks a contractor through
+ * setting it the first time; it does not own it, and there is deliberately no
+ * onboarding-only copy of this list that could drift from the portal.
  *
  * WHAT THIS CANNOT DO, by construction: publish a price, stamp an approval, or
  * make a service live. It writes one boolean. Selecting a service says "I sell
@@ -10,20 +16,20 @@
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 
-export async function PATCH(req: Request) {
-  let body: { serviceId?: unknown; offered?: unknown };
+export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
+  let body: { offered?: unknown };
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
-  if (typeof body.serviceId !== "string" || typeof body.offered !== "boolean") {
-    return NextResponse.json({ error: "serviceId and offered are required." }, { status: 400 });
+  if (typeof body.offered !== "boolean") {
+    return NextResponse.json({ error: "offered is required." }, { status: 400 });
   }
 
   return withAdminRoute(async (db) => {
     // Guarded: a service id from another contractor resolves to nothing here,
     // and takes the same 404 as one that does not exist.
     const service = await db.service.findUnique({
-      where: { id: body.serviceId as string },
+      where: { id: params.serviceId },
       select: { id: true, slug: true, active: true },
     });
     if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });

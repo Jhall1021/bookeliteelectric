@@ -21,7 +21,7 @@ import { PrismaClient } from "@prisma/client";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { assessOnboarding, type OnboardingReadiness } from "../lib/onboardingReadiness";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { provision, destroyContractor } from "./_throwaway";
 
 const raw = new PrismaClient();
@@ -35,6 +35,22 @@ const codes = (r: OnboardingReadiness, s: "blocker" | "warning") =>
   (s === "blocker" ? r.blockers : r.warnings).map((f) => f.code);
 const assess = (id: string) =>
   withTenant({ contractorId: id, source: "test" }, () => assessOnboarding(guarded, id));
+
+/**
+ * Remove EVERYTHING this suite creates, not just the contractor.
+ *
+ * `destroyContractor` follows the service graph; it does not know about the
+ * storefront and onboarding rows this suite adds. A crashed run once left a
+ * third contractor owning `new-120v-outlet`, and the template suite then
+ * asserted against the wrong tenant's price — a failure in a different file,
+ * caused by debris from this one. Teardown has to cover what the test wrote.
+ */
+async function teardown(slug: string) {
+  await raw.contractorSite.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorOnboarding.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.jobberConnection.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await destroyContractor(raw, slug).catch(() => {});
+}
 
 async function main() {
   console.log(`\nGUIDED SETUP — READINESS ENGINE\n`);
@@ -50,7 +66,7 @@ async function main() {
   ok(`3. its live services are the intended set`, e.intended.length > 0);
 
   // ── fixture 2: freshly provisioned, nothing decided ────────────────────
-  await destroyContractor(raw, FRESH);
+  await teardown(FRESH);
   await raw.contractor.create({ data: { slug: FRESH, name: "Fresh electrical", active: false } });
   provision(FRESH);
   const fresh = await raw.contractor.findFirstOrThrow({ where: { slug: FRESH }, select: { id: true } });
@@ -87,7 +103,7 @@ async function main() {
     (await raw.contractorOnboarding.count({ where: { contractorId: fresh.id } })) === 0);
 
   // ── conditional rules ──────────────────────────────────────────────────
-  await destroyContractor(raw, PROBE);
+  await teardown(PROBE);
   const probe = await raw.contractor.create({
     data: {
       slug: PROBE, name: "Readiness probe", active: false, countryCode: "US",
@@ -137,8 +153,7 @@ async function main() {
     ok(`12.  and blocks once Jobber is the authority`,
       codes(external, "blocker").includes("NO_ELIGIBLE_CREW"));
   } finally {
-    await raw.jobberConnection.deleteMany({ where: { contractorId: probe.id } });
-    await destroyContractor(raw, PROBE);
+    await teardown(PROBE);
   }
 
   // ── selection is a decision, and only a decision ───────────────────────
@@ -227,9 +242,15 @@ async function main() {
     cols.map((c) => c.column_name).join(","));
 
   // ── no write path can approve or activate ─────────────────────────────
-  const routes = ["selection", "scheduling-authority", "progress"].map((r) =>
-    readFileSync(`app/api/admin/setup/${r}/route.ts`, "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
+  const WRITE_PATHS = [
+    "app/api/admin/setup/scheduling-authority/route.ts",
+    "app/api/admin/setup/progress/route.ts",
+    "app/api/admin/setup/storefront/route.ts",
+    "app/api/admin/business-profile/route.ts",
+    "app/api/admin/services/[serviceId]/offered/route.ts",
+  ];
+  const routes = WRITE_PATHS.map((f) =>
+    readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
   );
   ok(`24. no Guided Setup write path can stamp a price approval`,
     !routes.some((r) => /publishedPriceApprovedAt|basePrice/.test(r)));
@@ -238,7 +259,61 @@ async function main() {
   ok(`25.  or put a service on the storefront`,
     !routes.some((r) => /data:\s*\{[^}]*\bactive\b/.test(r)));
 
-  await destroyContractor(raw, FRESH);
+  // ── slice three: business profile, storefront, destinations ───────────
+  await raw.contractor.update({
+    where: { id: fresh.id },
+    data: { name: "Fresh electrical", phone: null, supportEmail: null, countryCode: null },
+  });
+  const beforeProfile = codes(await assess(fresh.id), "blocker");
+  await raw.contractor.update({ where: { id: fresh.id }, data: { countryCode: "US" } });
+  const afterProfile = codes(await assess(fresh.id), "blocker");
+  ok(`26. a business-profile change moves readiness on the next render`,
+    beforeProfile.includes("COUNTRY_MISSING") && !afterProfile.includes("COUNTRY_MISSING"));
+
+  const beforeSite = codes(await assess(fresh.id), "blocker");
+  await raw.contractorSite.create({
+    data: {
+      contractorId: fresh.id, hostedSlug: FRESH,
+      publicId: `site_${"0".repeat(32)}`, active: true,
+    },
+  });
+  const afterSite = codes(await assess(fresh.id), "blocker");
+  ok(`27. creating a storefront clears SITE_MISSING`,
+    beforeSite.includes("SITE_MISSING") && !afterSite.includes("SITE_MISSING"));
+
+  // Routing identity is issued, never typed. A contractor who could set
+  // publicId could point their storefront at another tenant's routing key.
+  // Comments stripped: both files NAME the fields they refuse to accept, and
+  // a check that failed on its own explanation would be noise.
+  const strip = (f: string) =>
+    readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const storefrontRoute = strip("app/api/admin/setup/storefront/route.ts");
+  const profileRoute = strip("app/api/admin/business-profile/route.ts");
+  ok(`28. no write path accepts a routing identity from the request`,
+    !/body\.(publicId|hostedSlug)/.test(storefrontRoute) &&
+      !/(publicId|hostedSlug)/.test(profileRoute));
+
+  // Every blocker must lead somewhere that exists.
+  const all = await assess(fresh.id);
+  const missing: string[] = [];
+  for (const fnd of [...all.blockers, ...all.warnings]) {
+    if (!fnd.href) { missing.push(`${fnd.code} (no href)`); continue; }
+    const route = fnd.href.replace(/^\//, "");
+    const page = `app/${route}/page.tsx`;
+    if (!existsSync(page)) missing.push(`${fnd.code} -> ${fnd.href}`);
+  }
+  ok(`29. every finding leads to a page that exists`, missing.length === 0, missing.join(", "));
+
+  // Locked stages have no writer at all in this slice.
+  const setupPage = readFileSync("app/dashboard/setup/page.tsx", "utf8");
+  ok(`30. locked stages cannot write — only three stages are open`,
+    /OPEN_STAGES = \["business", "trade", "services"\]/.test(setupPage));
+  ok(`31. and selection is the Services control, not an onboarding copy`,
+    /ServiceSelectionList/.test(setupPage) &&
+      existsSync("components/admin/ServiceSelectionList.tsx") &&
+      !existsSync("app/api/admin/setup/selection/route.ts"));
+
+  await teardown(FRESH);
   console.log();
   console.log(fail ? `  ${fail} check(s) failed.\n` : `  Live and unfinished are told apart, by the systems that already know.\n`);
   await raw.$disconnect();
@@ -247,7 +322,7 @@ async function main() {
 }
 main().catch(async (e) => {
   console.error(e);
-  await destroyContractor(raw, FRESH).catch(() => {});
-  await destroyContractor(raw, PROBE).catch(() => {});
+  await teardown(FRESH);
+  await teardown(PROBE);
   process.exit(1);
 });

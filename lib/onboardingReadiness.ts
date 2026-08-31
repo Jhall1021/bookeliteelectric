@@ -85,6 +85,48 @@ async function offeredServices(db: PrismaClient, contractorId: string) {
   })) as unknown as Record<string, unknown>[];
 }
 
+/**
+ * What this service promises a homeowner — the ONE implementation.
+ *
+ * The setup screen previews what selecting a service will require ("needs a
+ * price", "quote only"). That preview must come from the same logic as the
+ * readiness verdict, or the two eventually disagree and the contractor
+ * believes whichever they read first. So both call this.
+ */
+export async function promiseFor(
+  db: PrismaClient,
+  svc: { id: string; bookingType: string },
+  settings: unknown
+) {
+  const full = settings ? await loadServiceForResolution(db as never, svc.id) : null;
+  // The booking type survives a missing pricing configuration. Losing it told
+  // every quote-only service it owed an approved price.
+  return pricePromiseOf(
+    (full
+      ? { ...full, bookingType: svc.bookingType }
+      : { questions: [], bookingType: svc.bookingType }) as never,
+    settings
+  );
+}
+
+/** Per-service promises for a whole catalog, for the selection screen. */
+export async function catalogPromises(
+  db: PrismaClient,
+  contractorId: string
+): Promise<Map<string, { promisesFixedPrice: boolean }>> {
+  let settings: unknown = null;
+  try { settings = await loadPricingSettings(db as never, contractorId); } catch { settings = null; }
+  const services = await db.service.findMany({
+    where: { contractorId }, select: { id: true, bookingType: true },
+  });
+  const out = new Map<string, { promisesFixedPrice: boolean }>();
+  for (const s of services) {
+    const p = await promiseFor(db, s as { id: string; bookingType: string }, settings);
+    out.set(s.id, { promisesFixedPrice: p.promisesFixedPrice });
+  }
+  return out;
+}
+
 export async function assessOnboarding(
   db: PrismaClient,
   contractorId: string
@@ -99,12 +141,16 @@ export async function assessOnboarding(
   const c = await db.contractor.findUniqueOrThrow({ where: { id: contractorId } });
   const site = await db.contractorSite.findFirst({ where: { contractorId, active: true } });
 
-  if (!c.name?.trim()) findings.business.push(b("BUSINESS_NAME_MISSING", "Your business name is empty — the storefront cannot render without it."));
-  if (!site) findings.business.push(b("SITE_MISSING", "No active storefront address, so there is nowhere to send a homeowner."));
-  if (!c.countryCode) findings.business.push(b("COUNTRY_MISSING", "No country set. Payments refuse before they reach Stripe without one."));
-  if (!c.phone && !c.supportEmail) findings.business.push(w("CONTACT_MISSING", "No phone or support email. When scheduling is briefly unavailable, there is nothing to offer a stuck customer."));
-  if (!c.licenseNumber) findings.business.push(w("LICENSE_MISSING", "No license number shown on your storefront."));
-  if (!c.logoUrl) findings.business.push(w("BRANDING_DEFAULTS", "No logo uploaded — your storefront uses defaults."));
+  const IN_SETUP = "/dashboard/setup";
+  if (!c.name?.trim()) findings.business.push(b("BUSINESS_NAME_MISSING", "Your business name is empty — the storefront cannot render without it.", { href: IN_SETUP }));
+  // Actionable now: the contractor creates their own storefront, and the
+  // server issues the routing identity. It used to be a blocker with nobody
+  // to ask.
+  if (!site) findings.business.push(b("SITE_MISSING", "You don't have a Price2Book storefront yet, so there is nowhere to send a homeowner.", { href: IN_SETUP }));
+  if (!c.countryCode) findings.business.push(b("COUNTRY_MISSING", "No country set. Payments refuse before they reach Stripe without one.", { href: IN_SETUP }));
+  if (!c.phone && !c.supportEmail) findings.business.push(w("CONTACT_MISSING", "No phone or support email. When scheduling is briefly unavailable, there is nothing to offer a stuck customer.", { href: IN_SETUP }));
+  if (!c.licenseNumber) findings.business.push(w("LICENSE_MISSING", "No license number shown on your storefront.", { href: IN_SETUP }));
+  if (!c.logoUrl) findings.business.push(w("BRANDING_DEFAULTS", "No logo uploaded — your storefront uses defaults.", { href: "/dashboard/design" }));
 
   // ── 2. Trade & template ────────────────────────────────────────────────
   const services = await db.service.findMany({
@@ -112,9 +158,12 @@ export async function assessOnboarding(
     select: { id: true, slug: true, templateVersionId: true, active: true },
   });
   if (services.length === 0) {
-    findings.trade.push(b("NO_SERVICES", "No services yet. Install the Electrical template to get a catalog to price."));
+    // Trade-neutral on purpose. Electrical is the first Guided Setup trade,
+    // not the shape of the framework — Plumbing will install through the same
+    // path and is structurally different.
+    findings.trade.push(b("NO_SERVICES", "No services yet. Installing your trade's catalog gives you something to price.", { href: "/dashboard/services" }));
   } else if (!services.some((s) => s.templateVersionId)) {
-    findings.trade.push(w("TEMPLATE_NOT_INSTALLED", "No service came from a canonical template. Hand-built catalogs are supported but get no template updates."));
+    findings.trade.push(w("TEMPLATE_NOT_INSTALLED", "No service came from a canonical template. Hand-built catalogs are supported but get no template updates.", { href: "/dashboard/services" }));
   }
 
   // ── 3. Pricing foundation ──────────────────────────────────────────────
@@ -122,14 +171,14 @@ export async function assessOnboarding(
   try {
     settings = await loadPricingSettings(db as never, contractorId);
   } catch {
-    findings["pricing-foundation"].push(b("PRICING_SETTINGS_MISSING", "Your labor rate and minimum have not been set. Nothing can be priced until they are."));
+    findings["pricing-foundation"].push(b("PRICING_SETTINGS_MISSING", "Your labor rate and minimum have not been set. Nothing can be priced until they are.", { href: "/dashboard/pricing-settings" }));
   }
   const st = settings as { crewHourRateCents?: number; primaryMinimumCents?: number } | null;
   if (st && !(st.crewHourRateCents! > 0)) {
-    findings["pricing-foundation"].push(b("LABOR_RATE_UNSET", "Your crew-hour rate is zero, so every price would be materials alone."));
+    findings["pricing-foundation"].push(b("LABOR_RATE_UNSET", "Your crew-hour rate is zero, so every price would be materials alone.", { href: "/dashboard/pricing-settings" }));
   }
   if (st && st.primaryMinimumCents === 0) {
-    findings["pricing-foundation"].push(w("MINIMUM_UNSET", "No service-call minimum. Short jobs will price at labor alone."));
+    findings["pricing-foundation"].push(w("MINIMUM_UNSET", "No service-call minimum. Short jobs will price at labor alone.", { href: "/dashboard/pricing-settings" }));
   }
 
   const offered = await offeredServices(db, contractorId);
@@ -142,7 +191,8 @@ export async function assessOnboarding(
   for (const h of held) {
     if (!intended.some((i) => i.svc.slug === h.slug)) continue;
     findings["pricing-foundation"].push(b("MATERIAL_COST_ON_HOLD",
-      `${h.slug} depends on ${h.heldRoles.length} material cost(s) still on hold.`, { serviceSlug: h.slug }));
+      `${h.slug} depends on ${h.heldRoles.length} material cost(s) still on hold.`,
+      { serviceSlug: h.slug, href: "/dashboard/services" }));
   }
   for (const { svc } of intended) {
     const unresolved = [
@@ -152,28 +202,21 @@ export async function assessOnboarding(
     if (svc.materialCostResolved === false || unresolved.length > 0) {
       findings["pricing-foundation"].push(b("MATERIAL_COSTS_UNRESOLVED",
         `${svc.slug} has ${unresolved.length || "some"} material or policy value(s) you have not costed yet.`,
-        { serviceSlug: svc.slug as string }));
+        { serviceSlug: svc.slug as string, href: "/dashboard/services" }));
     }
   }
 
   // ── 4. Services & pricing review ───────────────────────────────────────
   for (const { svc } of intended) {
     const slug = svc.slug as string;
-    const full = settings ? await loadServiceForResolution(db as never, svc.id as string) : null;
-    // When pricing settings are missing the tree cannot be resolved, but the
-    // BOOKING TYPE is still known — and losing it here told every quote-only
-    // service it owed an approved price. A REMOTE_QUOTE service owes none, and
-    // that must hold whether or not the rest of the setup is finished.
-    const promise = pricePromiseOf(
-      (full
-        ? { ...full, bookingType: svc.bookingType }
-        : { questions: [], bookingType: svc.bookingType }) as never,
-      settings
+    const promise = await promiseFor(
+      db, { id: svc.id as string, bookingType: svc.bookingType as string }, settings
     );
 
     if (promise.routes.dead > 0) {
       findings.services.push(b("TREE_HAS_DEAD_ROUTE",
-        `${slug} has ${promise.routes.dead} answer path(s) that reach nothing.`, { serviceSlug: slug }));
+        `${slug} has ${promise.routes.dead} answer path(s) that reach nothing.`,
+        { serviceSlug: slug, href: "/dashboard/services" }));
     }
 
     if (!promise.promisesFixedPrice) continue; // quote-only: no price is owed
@@ -184,26 +227,29 @@ export async function assessOnboarding(
         // copy linter, and a fixed-price claim is one TIME_AND_MATERIALS
         // cannot keep. What is true either way is that a route reaches an
         // amount and nobody has approved one.
-        `${slug} reaches an amount for a homeowner, but none has been approved.`, { serviceSlug: slug }));
+        `${slug} reaches an amount for a homeowner, but none has been approved.`,
+        { serviceSlug: slug, href: "/dashboard/services" }));
     }
     if (settings) {
       const derived = suggestPrimaryPrice(svc as never, settings as never).totalCents;
       if (derived === null) {
         findings.services.push(b("PRICE_UNDERIVABLE",
-          `${slug} cannot be priced yet — an input is missing, not zero.`, { serviceSlug: slug }));
+          `${slug} cannot be priced yet — an input is missing, not zero.`,
+          { serviceSlug: slug, href: "/dashboard/services" }));
       } else if (svc.basePrice !== null && derived !== svc.basePrice) {
         findings.services.push(w("PRICE_DRIFTED",
           `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
-          { serviceSlug: slug }));
+          { serviceSlug: slug, href: "/dashboard/services" }));
       } else if (svc.publishedPriceApprovedAt === null && derived !== null) {
         findings.services.push(w("SUGGESTED_NOT_APPROVED",
           `${slug} has a suggested price of $${(derived / 100).toFixed(2)} waiting for you to approve it.`,
-          { serviceSlug: slug }));
+          { serviceSlug: slug, href: "/dashboard/services" }));
       }
     }
     if (promise.routes.priced > 0 && promise.routes.review === 0) {
       findings.services.push(w("TREE_UNBOUNDED",
-        `${slug} prices every answer path. Nothing sends an unusual job to review.`, { serviceSlug: slug }));
+        `${slug} prices every answer path. Nothing sends an unusual job to review.`,
+        { serviceSlug: slug, href: "/dashboard/services" }));
     }
   }
 
@@ -228,29 +274,33 @@ export async function assessOnboarding(
   // rule was caught overstating itself.
   if (!hours) {
     findings.scheduling.push(w("BUSINESS_HOURS_DEFAULTED",
-      "You are using our default working hours and arrival windows. Confirm they match how you actually work."));
+      "You are using our default working hours and arrival windows. Confirm they match how you actually work.",
+      { href: "/dashboard/business-hours" }));
   }
   if (!area || area.zipCodes.length === 0) {
-    findings.scheduling.push(b("SERVICE_AREA_EMPTY", "No service area, so every address a homeowner enters would be refused."));
+    findings.scheduling.push(b("SERVICE_AREA_EMPTY", "No service area, so every address a homeowner enters would be refused.", { href: "/dashboard/service-area" }));
   }
   // Zero eligible crew is a CONFIGURATION FAILURE when an external provider is
   // authoritative, and legitimate when it is not. Availability must never fall
   // back to native windows and present capacity nobody verified.
   if (mode === null) {
     findings.scheduling.push(b("SCHEDULING_AUTHORITY_UNDECLARED",
-      "Tell us who owns your calendar — Price2Book, or a system you already use. The answer changes what has to be true before anyone can book."));
+      "Tell us who owns your calendar — Price2Book, or a system you already use. The answer changes what has to be true before anyone can book.",
+      { href: IN_SETUP }));
   }
   if (mode === "EXTERNAL" && !connection) {
     findings.scheduling.push(b("PROVIDER_NOT_CONNECTED",
-      "An external calendar is set as your source of truth, but none is connected."));
+      "An external calendar is set as your source of truth, but none is connected.", { href: "/dashboard/jobber" }));
   }
   if (mode === "EXTERNAL" && crews === 0) {
     findings.scheduling.push(b("NO_ELIGIBLE_CREW",
-      "Your external calendar decides availability, but no crew is marked bookable — so nothing can be scheduled."));
+      "Your external calendar decides availability, but no crew is marked bookable — so nothing can be scheduled.",
+      { href: "/dashboard/jobber/crews" }));
   }
   if (mode === "NATIVE" && connection) {
     findings.scheduling.push(w("PROVIDER_CONNECTED_BUT_NATIVE",
-      "You have an external calendar connected but Price2Book is set as your source of truth. Availability comes from Price2Book."));
+      "You have an external calendar connected but Price2Book is set as your source of truth. Availability comes from Price2Book.",
+      { href: IN_SETUP }));
   }
 
   // ── 6. Payments ────────────────────────────────────────────────────────
@@ -262,27 +312,29 @@ export async function assessOnboarding(
     const readiness = connectReadiness(c);
     if (!c.stripeAccountId) {
       findings.payments.push(b("STRIPE_NOT_CONNECTED",
-        `${depositing.length} service(s) ask for a deposit, but Stripe is not connected.`));
+        `${depositing.length} service(s) ask for a deposit, but Stripe is not connected.`,
+        { href: "/dashboard/payments" }));
     } else if (!readiness.ready) {
       findings.payments.push(b("STRIPE_NOT_READY",
-        `Stripe is connected but cannot take payments yet — ${readiness.reason}.`));
+        `Stripe is connected but cannot take payments yet — ${readiness.reason}.`,
+        { href: "/dashboard/payments" }));
     }
   }
 
   // ── 7. Launch ──────────────────────────────────────────────────────────
   if (intended.length === 0) {
     findings.launch.push(b("NOTHING_ACTIVATABLE",
-      "Nothing is ready to sell yet. Price and approve at least one service."));
+      "Nothing is ready to sell yet. Choose the work you offer, then price it.", { href: IN_SETUP }));
   }
   for (const i of intended) {
     if (i.svc.requiresPreWorkVisit && ((i.svc.depositCents as number | null) ?? 0) === 0) {
       findings.launch.push(w("PRE_WORK_WITHOUT_DEPOSIT",
         `${i.svc.slug} needs a site visit before installation but takes no deposit.`,
-        { serviceSlug: i.svc.slug as string }));
+        { serviceSlug: i.svc.slug as string, href: "/dashboard/services" }));
     }
   }
   if (intended.length === 1) {
-    findings.launch.push(w("SINGLE_SERVICE_LAUNCH", "You are launching with one service. That works — worth a second look first."));
+    findings.launch.push(w("SINGLE_SERVICE_LAUNCH", "You are launching with one service. That works — worth a second look first.", { href: IN_SETUP }));
   }
 
   const TITLES: Record<StageKey, string> = {
@@ -292,7 +344,10 @@ export async function assessOnboarding(
   };
   const HREF: Partial<Record<StageKey, string>> = {
     "pricing-foundation": "/dashboard/pricing-settings", services: "/dashboard/services",
-    scheduling: "/dashboard/business-hours", payments: "/dashboard/payments",
+    scheduling: "/dashboard/business-hours",
+    // Exists as of slice three. It pointed at a 404 before, so a "Fix" button
+    // led nowhere.
+    payments: "/dashboard/payments",
   };
 
   const order: StageKey[] = ["business", "trade", "pricing-foundation", "services", "scheduling", "payments", "launch"];
