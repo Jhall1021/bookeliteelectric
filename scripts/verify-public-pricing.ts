@@ -66,30 +66,10 @@ const UNDER_RESCUE: Record<string, string> = {
   // rule could not tell those apart.
 };
 
-/**
- * Priced before the approval boundary existed, and never stamped.
- *
- * These carry a real price with no `publishedPriceApprovedAt`, because until
- * 30 Aug 2026 nothing required one — the service editor wrote `basePrice`
- * straight from a typed field. They are not wrong prices; three of the four
- * reproduce their derived figure exactly. They are unapproved ones.
- *
- * WHAT CLEARS AN ENTRY: the contractor re-approves the price through the
- * pricing screen's publish action, which stamps it. Nothing here may stamp
- * them — a script approving its own output is the governance failure this
- * whole boundary exists to prevent, and `audit-price-writers` would flag it.
- *
- * Dated and finite, like the rescue list above it.
- */
-const AWAITING_APPROVAL: Record<string, string> = {
-  "new-coax-line":
-    "Publishes $420.00; its inputs derive $405.00. NOT a stamp to apply — " +
-    "under the current model coax should cost LESS than its ethernet sibling " +
-    "(identical 1.5 crew-hours and an identical five-role recipe, with " +
-    "cheaper cable), yet it publishes $5.00 more. Either $420.00 rests on an " +
-    "input nobody recorded, or it predates derivation entirely. The " +
-    "contractor decides; nothing here may overwrite it.",
-};
+// The AWAITING_APPROVAL backlog is GONE, not emptied — every price published
+// before the approval boundary existed has been through the lifecycle, and an
+// empty exception list is just a door someone opens later. An unapproved
+// price is now simply a violation.
 
 /**
  * `--assume-priced=slug,slug` answers a question the normal run cannot:
@@ -123,11 +103,6 @@ async function main() {
   let priced = 0;
   /** Legitimately unpriced: no route the customer can take reaches a price. */
   let quoteOnly = 0;
-  /** Priced before the boundary existed; waiting on a contractor's approval. */
-  let unapproved = 0;
-  const staleApproval = new Set(Object.keys(AWAITING_APPROVAL));
-  /** Live services offering a price that is on the backlog. */
-  const reachesBacklog = new Set<string>();
   /** Contractors with no pricing settings — nothing of theirs can be priced. */
   const unpriceable = new Set<string>();
   /** Unpriced services whose promise could not be computed. */
@@ -167,8 +142,6 @@ async function main() {
       // outcome: a remote-quote anchor price is still a number a customer
       // reads, so it still needs someone to have accepted it.
       if (s.basePrice !== null && s.publishedPriceApprovedAt === null) {
-        staleApproval.delete(s.slug);
-        if (!dryRun && AWAITING_APPROVAL[s.slug]) { unapproved++; continue; }
         offenders.push({
           slug: s.slug, bookingType: s.bookingType,
           why: "carries a price that nobody approved — it did not come through the publish action",
@@ -193,18 +166,13 @@ async function main() {
       );
       // Known, dated entries stay covered by the backlog they are already on.
       // Anything else is a live route offering a price nobody approved.
-      // Under --no-rescue the backlog is dropped too, which is what lets the
-      // regression proof watch this rule actually bite on real data instead
-      // of only on a fixture.
-      const undeclaredViaAddOn = viaAddOn.filter((slug) => dryRun || !AWAITING_APPROVAL[slug]);
-      if (undeclaredViaAddOn.length) {
+      if (viaAddOn.length) {
         offenders.push({
           slug: s.slug, bookingType: s.bookingType,
-          why: `offers an unapproved price through ${undeclaredViaAddOn.join(", ")}`,
+          why: `offers an unapproved price through ${viaAddOn.join(", ")}`,
         });
         continue;
       }
-      if (viaAddOn.length) reachesBacklog.add(s.slug);
 
       if (treated) { priced++; continue; }
 
@@ -247,12 +215,6 @@ async function main() {
   console.log(`  ${priced} service(s) promise a price and show an approved one.`);
   console.log(`  ${quoteOnly} resolve by quote or review, and owe no price.`);
   console.log(`  ${allowed} under an explicit, dated rescue.`);
-  console.log(`  ${unapproved} priced before the approval boundary, awaiting re-approval.`);
-  if (reachesBacklog.size) {
-    console.log(`\n  ${reachesBacklog.size} live service(s) offer one of those prices as an add-on:`);
-    for (const s of reachesBacklog) console.log(`      ${s}`);
-    console.log(`  Those routes are live, so re-approving the backlog clears these too.`);
-  }
   console.log();
 
   // An allowlist entry for a service that is already priced, hidden or gone is
@@ -265,14 +227,13 @@ async function main() {
     where: { basePrice: { not: null }, publishedPriceApprovedAt: null },
     select: { slug: true },
   });
-  for (const u of everyUnapproved) staleApproval.delete(u.slug);
-
-  const undeclared = everyUnapproved.filter((u) => !AWAITING_APPROVAL[u.slug]);
-  if (undeclared.length) {
-    console.log(`  ${undeclared.length} unapproved price(s) not on the backlog list:`);
-    for (const u of undeclared) console.log(`      ${u.slug}`);
-    console.log(`  Add them with a reason, or re-approve them.\n`);
-    violations += undeclared.length;
+  // Inactive services are included: an inactive row can still be an add-on
+  // price source, which is exactly how two mounts reached homeowners unseen.
+  if (everyUnapproved.length) {
+    console.log(`  ${everyUnapproved.length} service(s) carry a price nobody approved:`);
+    for (const u of everyUnapproved) console.log(`      ${u.slug}`);
+    console.log(`  Re-approve them through the pricing screen.\n`);
+    violations += everyUnapproved.length;
   }
 
   if (unpriceable.size) {
@@ -282,12 +243,6 @@ async function main() {
     console.log(`  but every price they DO carry was still checked for approval.`);
     if (unverifiable.length) console.log(`      unchecked: ${unverifiable.join(", ")}`);
     console.log();
-  }
-
-  if (staleApproval.size) {
-    console.log(`  ${staleApproval.size} stale approval-backlog entr(ies) — now approved or gone:`);
-    for (const s of staleApproval) console.log(`      ${s}`);
-    console.log(`  Remove them; the backlog should shrink to nothing.\n`);
   }
 
   if (staleAllowlist.size) {

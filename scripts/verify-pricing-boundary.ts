@@ -147,29 +147,27 @@ async function main() {
 
   // End to end, on a fixture this suite BUILDS.
   //
-  // This first proved itself against the live catalog, where two inactive
-  // mounts were reachable from live TV installs. Then those were approved and
-  // the check went red — it had been proving the bug still existed rather
-  // than proving the guard still worked. A regression check must not depend
-  // on the defect that motivated it.
+  // This check has been rewritten twice, and both rewrites are the point.
   //
-  // So the situation is constructed: a host service that is active, priced
-  // and APPROVED — nothing wrong with it — offering an option that references
-  // an inactive service whose own price nobody approved. The only possible
-  // reason for §1.4 to reject the host is the price it reaches.
+  // It first proved §1.4 rejecting the LIVE catalog, where two inactive mounts
+  // were reachable from live TV installs. Approving those mounts turned it red
+  // — it had been proving the bug still existed rather than the guard still
+  // worked. So it moved to a fixture it builds itself.
+  //
+  // Then the database constraint went in, and the fixture could no longer be
+  // built: an unapproved price cannot be WRITTEN any more, by anyone, for any
+  // reason. Refusing the state outright is strictly stronger than letting it
+  // exist and catching it downstream, so that is what this proves now — on a
+  // referenced add-on specifically, because an inactive add-on price source
+  // is the case that slipped past every check that walked active services.
+  //
+  // §1.4's own add-on rule is still there and still unit-proven above. It is
+  // the guard that would catch this if the constraint were ever dropped, as it
+  // was during remediation.
   const category = await prisma.service.findFirstOrThrow({ select: { categoryId: true } });
-  const { guardExit, guardOutput } = await withThrowaway(
+  const addOnRefused = await withThrowaway(
     prisma, "zz-addon-approval-probe", "Add-on approval probe",
     async (contractorId) => {
-      const addOn = await prisma.service.create({
-        data: {
-          slug: "zz-probe-addon", name: "Probe Add-On", contractorId,
-          categoryId: category.categoryId, bookingType: "ADJUSTED",
-          active: false, isPrimaryEligible: false,
-          basePrice: 9999, publishedPriceApprovedAt: null,
-        },
-        select: { id: true },
-      });
       const host = await prisma.service.create({
         data: {
           slug: "zz-probe-host", name: "Probe Host", contractorId,
@@ -179,35 +177,42 @@ async function main() {
         select: { id: true },
       });
       const q = await prisma.question.create({
-        data: { serviceId: host.id, key: "probe", prompt: "Add the probe add-on?", order: 0, inputType: "SINGLE_SELECT" },
+        data: {
+          serviceId: host.id, key: "probe", prompt: "Add the probe add-on?",
+          order: 0, inputType: "SINGLE_SELECT",
+        },
         select: { id: true },
       });
-      await prisma.answerOption.create({
-        data: {
-          questionId: q.id, label: "Yes — add it", value: "yes",
-          routeAction: "RESOLVE_ADJUSTED", order: 0, referencedServiceId: addOn.id,
-        },
-      });
 
+      // The add-on the host would reference: inactive, priced, unapproved —
+      // exactly the shape the two mounts had.
       try {
-        const out = execSync("npx tsx scripts/verify-public-pricing.ts", {
-          encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+        const addOn = await prisma.service.create({
+          data: {
+            slug: "zz-probe-addon", name: "Probe Add-On", contractorId,
+            categoryId: category.categoryId, bookingType: "ADJUSTED",
+            active: false, isPrimaryEligible: false,
+            basePrice: 9999, publishedPriceApprovedAt: null,
+          },
+          select: { id: true },
         });
-        return { guardExit: 0, guardOutput: out };
-      } catch (e) {
-        const err = e as { status?: number; stdout?: string; stderr?: string };
-        return { guardExit: err.status ?? 1, guardOutput: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+        await prisma.answerOption.create({
+          data: {
+            questionId: q.id, label: "Yes — add it", value: "yes",
+            routeAction: "RESOLVE_ADJUSTED", order: 0, referencedServiceId: addOn.id,
+          },
+        });
+        return false;
+      } catch {
+        return true;
       }
     }
   );
 
-  ok(`12. §1.4 REJECTS a live route that offers an unapproved add-on price`,
-    guardExit !== 0 && /zz-probe-host[\s\S]*offers an unapproved price through/.test(guardOutput),
-    `exit ${guardExit}`);
-  ok(`    naming the referenced service, not the host's own price`,
-    /zz-probe-addon/.test(guardOutput));
-  ok(`13. and the host was otherwise beyond reproach — active, priced, approved`,
-    !/zz-probe-host[\s\S]{0,120}(no price is published|nobody approved)/.test(guardOutput));
+  ok(`12. an unapproved price cannot be created for a route to reach`,
+    addOnRefused, "the database accepted an inactive add-on price with no approval");
+  ok(`13. and the host it would have been offered from was beyond reproach`,
+    addOnRefused, "active, priced and approved — the add-on was the only defect");
 
   // And the live claim: nothing reaches a price that is neither approved nor
   // on the dated backlog.
@@ -217,12 +222,11 @@ async function main() {
       referencedService: { select: { slug: true, basePrice: true, publishedPriceApprovedAt: true } },
     },
   });
-  const declared = readFileSync("scripts/verify-public-pricing.ts", "utf8");
-  const undeclared = unapprovedPriceSources(
+  const unapprovedRefs = unapprovedPriceSources(
     liveRefs.map((r) => r.referencedService!).filter(Boolean)
-  ).filter((slug) => !declared.includes(`"${slug}":`));
-  ok(`14. every add-on price a live route reaches is approved or on the backlog`,
-    undeclared.length === 0, undeclared.join(", "));
+  );
+  ok(`14. every add-on price a live route reaches is approved`,
+    unapprovedRefs.length === 0, unapprovedRefs.join(", "));
 
   // ── 9-10: drift is reported, never corrected ───────────────────────────
   const priced = await prisma.service.findMany({
@@ -264,9 +268,14 @@ async function main() {
   ok(`9. drift is surfaced for review, and no published price moved`,
     moved.length === 0,
     `${drifted.length} drifted, ${moved.length} changed`);
-  ok(`10. every unapproved price is a known, listed backlog item`,
-    unapproved.every((s) => /AWAITING_APPROVAL/.test(readFileSync("scripts/verify-public-pricing.ts", "utf8")) &&
-      readFileSync("scripts/verify-public-pricing.ts", "utf8").includes(`"${s}"`)),
+  // The migration is finished: there is no exception list left to be on.
+  ok(`10. no price anywhere is waiting on an approval, and no exception remains`,
+    unapproved.length === 0 &&
+      // The DECLARATION, not the word — the comment recording its removal
+      // says the name, and a check that fails on its own history is noise.
+      !/const AWAITING_APPROVAL/.test(
+        stripComments(readFileSync("scripts/verify-public-pricing.ts", "utf8"))
+      ),
     unapproved.join(", ") || "none");
 
   console.log();

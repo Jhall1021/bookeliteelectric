@@ -36,8 +36,29 @@ const prisma = new PrismaClient();
 const COMMIT = process.argv.includes("--commit");
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 
+/**
+ * A DELIBERATE repricing, not a re-approval — so it is listed apart from the
+ * five above, which were forbidden from moving a cent.
+ *
+ * new-coax-line published $420.00 and derives $405.00. The owner reviewed the
+ * evidence on 30 Aug 2026 and chose the derived figure: its sibling
+ * new-ethernet-line has identical crew-hours and an identical five-role
+ * recipe with MORE expensive cable, derives $415.00 and publishes $415.00
+ * exactly — so under the current model coax should sit $10 below ethernet,
+ * not $5 above it. No recorded labor, material or policy input produces
+ * $420.00.
+ *
+ * The instruction was explicit: do not invent an input to preserve the legacy
+ * number. The point of the migration is to eliminate unexplained hand-set
+ * prices, not to rationalise them afterwards.
+ */
+const REPRICED_TO_DERIVED: Record<string, string> = {
+  "new-coax-line": "owner-reviewed 30 Aug 2026 — publishes the derived price",
+};
+
 /** Owner-authorized 30 Aug 2026. Each reproduces its published price exactly. */
 const APPROVED = [
+  "new-coax-line",
   "new-ethernet-line",
   "new-wall-sconce",
   "replace-wall-sconce",
@@ -70,13 +91,27 @@ async function main() {
     // The migration must not move money. Either number disagreeing means the
     // inputs have changed since this list was written, and that is a pricing
     // decision for the contractor rather than a stamp to apply.
-    if (primary.totalCents !== s.basePrice) {
-      console.log(`     REFUSED: the engine no longer reproduces the published base price\n`);
-      refuse++; continue;
-    }
-    if (wwt.totalCents !== s.whileWeThereBasePrice) {
-      console.log(`     REFUSED: the derived add-on price differs from the published one\n`);
-      refuse++; continue;
+    const reprice = REPRICED_TO_DERIVED[slug];
+    if (reprice) {
+      // The one case where the amounts are MEANT to move. Announced rather
+      // than silent: a repricing that reads like a migration is how a price
+      // changes without anyone deciding it should.
+      console.log(`     REPRICING — ${reprice}`);
+      console.log(`     base ${money(s.basePrice)} -> ${money(primary.totalCents)}` +
+                  `   wwt ${money(s.whileWeThereBasePrice)} -> ${money(wwt.totalCents)}`);
+      if (primary.totalCents === null) {
+        console.log(`     REFUSED: the engine derives no price to publish\n`);
+        refuse++; continue;
+      }
+    } else {
+      if (primary.totalCents !== s.basePrice) {
+        console.log(`     REFUSED: the engine no longer reproduces the published base price\n`);
+        refuse++; continue;
+      }
+      if (wwt.totalCents !== s.whileWeThereBasePrice) {
+        console.log(`     REFUSED: the derived add-on price differs from the published one\n`);
+        refuse++; continue;
+      }
     }
 
     if (COMMIT) {
@@ -88,7 +123,9 @@ async function main() {
           publishedPriceApprovedAt: new Date(),
         },
       });
-      console.log(`     APPROVED — same amounts, now with a decision behind them`);
+      console.log(reprice
+        ? `     PUBLISHED at the derived price, with a decision behind it`
+        : `     APPROVED — same amounts, now with a decision behind them`);
     }
     console.log();
   }

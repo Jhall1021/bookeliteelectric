@@ -225,3 +225,70 @@ mounts rather than any price of their own.
 
 The two live TV routes are covered by the same dated backlog the mounts are
 on, so re-approving those two prices clears the routes with them.
+
+---
+
+# Closed — 30 Aug 2026
+
+Every price in the catalog now carries a decision, and Postgres holds the pair
+together for all 79 services.
+
+## The last legacy price
+
+`new-coax-line` published $420.00 and derived $405.00. It was published at
+$405.00 — the derived figure — rather than given an input to justify the old
+number.
+
+The sibling settled it. `new-ethernet-line` has identical crew-hours (1.5) and
+an identical five-role recipe, with MORE expensive cable ($29.00 vs $23.00).
+It derives $415.00 and publishes $415.00 exactly. So under the current model
+coax should sit $10 below ethernet, not $5 above it, and no recorded labor,
+material or policy input produces $420.00. Reaching it would have needed
+material cost of ~$34.62 or ~1.56 crew-hours — neither a round number nor
+anything in the data.
+
+The migration's purpose was to eliminate unexplained hand-set prices, not to
+rationalise them afterwards, so no input was invented to preserve it. The
+repricing is listed separately from the five re-approvals, which were
+forbidden from moving a cent.
+
+## Final state
+
+| | |
+|---|---|
+| services | 79 |
+| carrying a published price | 68 (6 of them inactive add-on sources) |
+| price without approval | **0** |
+| approval without price | **0** |
+| constraint | installed and `convalidated: true` |
+| approval backlog | removed, not emptied |
+
+`AWAITING_APPROVAL` is gone rather than left empty: an exception list with
+nothing on it is a door someone opens later. An unapproved price is now simply
+a violation, and the whole-dataset scan includes inactive rows — which is how
+two mounts reached homeowners unseen in the first place.
+
+## What the closing pass found
+
+**§1.4 crashed on a contractor with no pricing settings.** It loaded them
+eagerly per contractor, and loading throws when there are none — so one tenant
+part-way through onboarding would take the deploy gate down with an error
+about pricing for someone who has no prices. Missing settings only costs the
+ability to ask what a tree PROMISES; the approval checks need none, and they
+are the ones protecting a homeowner, so they still run.
+
+**The add-on regression proof was rewritten twice, and both rewrites matter.**
+It first proved §1.4 rejecting the live catalog — then approving the mounts
+turned it red, because it had been proving the bug still existed rather than
+the guard still working. It moved to a fixture it builds itself. Then the
+constraint went in and the fixture could no longer be built at all: an
+unapproved price cannot be written any more, by anyone. Refusing the state
+outright is strictly stronger than catching it downstream, so that is what it
+proves now. §1.4's own add-on rule stays, unit-proven, as the guard that would
+catch this if the constraint were ever dropped — as it was during remediation.
+
+**The flat-rate baseline caught the reprice and nothing else:**
+`new-coax-line: 42000 -> 40500`. Re-recorded deliberately, per ADR-021.
+
+Nothing further should be added to this boundary unless a failing proof
+exposes something new.
