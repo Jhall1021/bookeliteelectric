@@ -481,6 +481,31 @@ type JobberVisit = { id: string; startAt: string | null; endAt: string | null; a
 // overlap can be computed precisely in application code below, rather
 // than trusting a single-field filter to catch every edge case (e.g. a
 // visit that started before the candidate window but runs into it).
+/**
+ * Price2Book could not find out what the calendar says.
+ *
+ * A DISTINCT condition, not a generic failure, because the whole policy turns
+ * on telling it apart from "there is nothing free". Pricing fails OPEN — a
+ * Jobber outage must never stop a homeowner answering the tree or seeing a
+ * price. Scheduling fails CLOSED — we must not show or accept a slot we cannot
+ * verify, because the cost of guessing is two crews sent to one house.
+ *
+ * It used to be neither. `getWindowAvailabilityForDay` swallowed the outage
+ * and returned every window as available, so the schedule page cheerfully
+ * offered slots nobody had checked; `pickCrewForWindow` let the same failure
+ * escape as a 500 with an empty body. The same outage produced a fabricated
+ * yes on one screen and a blank error on the next.
+ */
+export class SchedulingUnavailableError extends Error {
+  /** Nothing is wrong with the request — the same call may succeed shortly. */
+  readonly retriable = true;
+  constructor(cause?: unknown) {
+    super("Scheduling availability could not be verified.");
+    this.name = "SchedulingUnavailableError";
+    this.cause = cause;
+  }
+}
+
 async function fetchJobberVisitsForDay(contractorId: string, dateISO: string): Promise<JobberVisit[]> {
   // LOCAL DEVELOPMENT ONLY. Jobber's OAuth credentials are per-application and
   // a developer machine usually has none that work, so every checkout 500s on
@@ -533,7 +558,15 @@ export async function countAvailableCrewsForWindow(
 ): Promise<number> {
   if (eligibleJobberUserIds.length === 0) return 0;
 
-  const dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
+  // Same condition as the schedule step, deliberately: the two screens must
+  // not answer an outage differently. This runs BEFORE any Stripe call, so a
+  // failure here costs the customer a retry rather than an authorization.
+  let dayVisits: JobberVisit[];
+  try {
+    dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
+  } catch (err) {
+    throw new SchedulingUnavailableError(err);
+  }
 
   const busyUserIds = new Set<string>();
   for (const visit of dayVisits) {
@@ -686,12 +719,15 @@ export async function getWindowAvailabilityForDay(
     return windows.map((w) => ({ ...w, available: fitsInTheDay(w) }));
   }
 
+  // NO LONGER FAILS OPEN. Returning every window as available during an
+  // outage is a promise about someone else's calendar that nobody checked —
+  // and the customer would have gone on to pay a deposit for it.
   let dayVisits: JobberVisit[];
   try {
     dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
   } catch (err) {
-    console.error(`Jobber availability check failed for ${dateISO}, failing open:`, err);
-    return windows.map((w) => ({ ...w, available: fitsInTheDay(w) }));
+    console.error(`Jobber availability check failed for ${dateISO}:`, err);
+    throw new SchedulingUnavailableError(err);
   }
 
   return windows.map((w) => {
@@ -740,7 +776,15 @@ export async function pickCrewForWindow(
 ): Promise<string | null> {
   if (eligibleJobberUserIds.length === 0) return null;
 
-  const dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
+  // Same condition as the schedule step, deliberately: the two screens must
+  // not answer an outage differently. This runs BEFORE any Stripe call, so a
+  // failure here costs the customer a retry rather than an authorization.
+  let dayVisits: JobberVisit[];
+  try {
+    dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
+  } catch (err) {
+    throw new SchedulingUnavailableError(err);
+  }
 
   const busyUserIds = new Set<string>();
   const scheduledMinutesByUser = new Map<string, number>();

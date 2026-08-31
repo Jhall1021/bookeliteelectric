@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { formatCents } from "@/lib/flow-types";
+import { usePricingCopy } from "@/components/theme/StorefrontContext";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
 import { useStorefrontBase } from "@/components/site/SiteContext";
@@ -19,6 +20,8 @@ type Props = {
   // button books instead of advancing. Add a tree in the admin builder and
   // this flips back on its own — it's derived, never stored.
   directBook: boolean;
+  /** At least one honest route ends somewhere other than a price here. */
+  mayNotQualify?: boolean;
   /** Overrides the button wording. See Service.ctaLabel. */
   ctaLabel?: string | null;
   // Service-level caveat. Normally shown by PriceConfirmationCard, but a
@@ -44,12 +47,14 @@ export default function ServiceIntro({
   icon,
   serviceSlug,
   directBook,
+  mayNotQualify,
   ctaLabel,
   disclaimer,
   isAddOn,
   standalonePrice,
   onContinue,
 }: Props) {
+  const pcopy = usePricingCopy();
   // Storefront navigation carries the site slug. These were root paths,
   // working only because the legacy Elite redirects catch them.
   const base = useStorefrontBase();
@@ -102,6 +107,18 @@ export default function ServiceIntro({
             a dedicated circuit costs the same either way, because the run,
             the breaker and the testing all happen in full regardless of why
             the van is outside. */}
+        {/* "Starting at $2,155" on its own reads like an estimate, and under
+            FLAT_RATE it is the opposite of one: the questions establish scope,
+            and a qualifying project gets a price that does not move. Said
+            here, before anyone answers anything — and keyed by pricing
+            strategy, because a time-and-materials contractor must not make
+            this promise. */}
+        {!directBook && !isAddOn && (
+          <p className="mt-2 text-sm text-slate">
+            {mayNotQualify ? pcopy.qualifyLeadMayReview : pcopy.qualifyLeadAlwaysPrices}
+          </p>
+        )}
+
         {isAddOn ? (
           <p className="mt-1 text-xs text-success">
             Same-visit pricing — you already have a service booked, so this is priced
@@ -125,8 +142,12 @@ export default function ServiceIntro({
         >
           {directBook && basePrice !== null
             ? `${ctaLabel ?? "Add to My Visit"} — ${formatCents(basePrice)}`
-            : "Get My Price"}
+            : pcopy.qualifyCta}
         </button>
+
+        {!directBook && !isAddOn && (
+          <p className="mt-3 text-xs text-slate">{pcopy.qualifyTrustLine}</p>
+        )}
 
         <p className="mt-4 text-xs text-slate">
           Not what you're looking for? <a href={`${base}/services`} className="text-electric">Browse all services</a>

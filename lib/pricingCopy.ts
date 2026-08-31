@@ -75,6 +75,26 @@ export type PricingCopy = {
 
   // --- the guided flow, where a figure is actually produced ---------------
   /** Headline over the resolved figure at the end of the tree. */
+  /**
+   * What the intro screen promises BEFORE the questions are answered.
+   *
+   * "Starting at $2,155" alone reads like an estimate, and under FLAT_RATE it
+   * is the opposite of one — the questions establish scope, and a qualifying
+   * project is then quoted a price that does not move. Under
+   * TIME_AND_MATERIALS the same screen must not promise that.
+   *
+   * Two variants, chosen from the TREE rather than from the service: a tree
+   * whose every route prices always ends in a number, while one with review or
+   * hand-off routes may legitimately not. Promising an exact price on a tree
+   * that can send someone to review would be a promise broken by design.
+   */
+  qualifyLeadMayReview: string;
+  qualifyLeadAlwaysPrices: string;
+  /** The one-line reassurance under the button. */
+  qualifyTrustLine: string;
+  /** The button, when questions still have to be answered. */
+  qualifyCta: string;
+
   priceReadyTitle: string;
   /** How long the figure stands. */
   priceHeldNotice: string;
@@ -125,6 +145,17 @@ const FLAT_RATE: PricingCopy = {
   sameVisitBody:
     "Book your first service at the regular price. When being on-site already saves us time on the rest, you get that saving too.",
 
+  qualifyLeadMayReview:
+    "Answer a few questions to check your project. If it qualifies for online " +
+    "pricing, you'll see your exact price before you book.",
+  qualifyLeadAlwaysPrices:
+    "Answer a few questions and you'll see your exact price before you book.",
+  qualifyTrustLine:
+    "No estimates — qualifying projects receive a fixed price before booking.",
+  // "Check", not "Get": some legitimate routes end in review rather than a
+  // price, and a button that promises one would be wrong on those.
+  qualifyCta: "Check My Price",
+
   priceReadyTitle: "Here's Your Price!",
   priceHeldNotice: "Your price is locked in for 30 days.",
   priceForServiceLead: "Your price for",
@@ -170,6 +201,17 @@ const TIME_AND_MATERIALS: PricingCopy = {
     "You see the hourly rate and an estimated range for the work before you book. The final bill reflects the time the job actually takes and the materials it actually needs.",
   sameVisitBody:
     "Adding work to a visit we are already making saves the trip and the setup, and the estimate for the extra work reflects that.",
+
+  qualifyLeadMayReview:
+    "Answer a few questions about your project. If we can estimate it online, " +
+    "you'll see the expected range before you book.",
+  qualifyLeadAlwaysPrices:
+    "Answer a few questions and you'll see the expected range before you book.",
+  // Deliberately NOT a fixed-price promise: this contractor bills actual time
+  // and materials, and the range is the honest claim.
+  qualifyTrustLine:
+    "You'll see the expected range before booking. Final billing follows actual time and materials.",
+  qualifyCta: "Check My Estimate",
 
   priceReadyTitle: "Here's Your Estimate",
   priceHeldNotice: "This estimate is good for 30 days. Final billing is based on actual time and materials.",

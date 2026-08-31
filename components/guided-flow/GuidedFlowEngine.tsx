@@ -539,6 +539,23 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       flow.bookingType !== "REMOTE_QUOTE" &&
       anchorPrice !== null;
 
+    // Can a homeowner answer honestly and still NOT get a price here?
+    //
+    // Read off the tree rather than the service, so it stays true for whatever
+    // a contractor builds. A blocking photo review, a remote quote or a
+    // hand-off all end somewhere other than a number on this service — and a
+    // screen that promised "you'll see your exact price" would be lying on
+    // exactly those routes.
+    const mayNotQualify = flow.questions.some((q) =>
+      q.options.some(
+        (o) =>
+          o.routeAction === "REMOTE_QUOTE" ||
+          o.routeAction === "REROUTE_SERVICE" ||
+          o.routeAction === "REROUTE_TROUBLESHOOTING" ||
+          (o.routeAction === "PHOTO_REVIEW" && o.photosBlockBooking)
+      )
+    );
+
     return withBack(
       <ServiceIntro
         name={flow.name}
@@ -549,6 +566,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         icon={flow.icon}
         serviceSlug={serviceSlug}
         directBook={directBook}
+        mayNotQualify={mayNotQualify}
         disclaimer={flow.disclaimer}
         isAddOn={isAddOn}
         standalonePrice={flow.basePrice}

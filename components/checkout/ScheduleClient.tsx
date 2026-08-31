@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
+import { useIdentity } from "@/components/theme/StorefrontContext";
 
 type Window = { start: string; end: string; available: boolean };
 type DayMeta = { date: string; dateISO: string };
@@ -11,12 +12,19 @@ export default function ScheduleClient({
   days,
   initialWindows,
   estimatedDurationMinutes,
+  initiallyUnavailable = false,
 }: {
   days: DayMeta[];
   initialWindows: Window[];
   estimatedDurationMinutes: number | null;
+  /** The first day's availability could not be verified on the server. */
+  initiallyUnavailable?: boolean;
 }) {
   const siteFetch = useSiteFetch();
+  // Resolved from THIS contractor, and omitted when they have not supplied
+  // one. A fallback here would put another contractor's phone number on the
+  // one screen where a stuck customer is most likely to call it.
+  const { phone, phoneHref } = useIdentity();
   // Storefront navigation carries the site slug. These were root paths,
   // working only because the legacy Elite redirects catch them.
   const base = useStorefrontBase();
@@ -25,6 +33,8 @@ export default function ScheduleClient({
   const [selectedWindow, setSelectedWindow] = useState<number | null>(null);
   const [windows, setWindows] = useState<Window[]>(initialWindows);
   const [loading, setLoading] = useState(false);
+  // Distinct from "no windows are free". We do not know, so we do not say.
+  const [unavailable, setUnavailable] = useState(initiallyUnavailable);
 
   async function selectDay(i: number) {
     setSelectedDay(i);
@@ -41,12 +51,21 @@ export default function ScheduleClient({
     if (res.ok) {
       const data = await res.json();
       setWindows(data.windows);
+      setUnavailable(false);
+    } else if (res.status === 503) {
+      // We could not reach the calendar. Show nothing rather than everything:
+      // this used to fall through with the previous day's windows still on
+      // screen, which is the same fabrication by a slower route.
+      setWindows([]);
+      setUnavailable(true);
     }
     setLoading(false);
   }
 
   const currentDay = days[selectedDay];
   const anyAvailableThisDay = windows.some((w) => w.available);
+
+  async function retry() { await selectDay(selectedDay); }
 
   function continueToDetails() {
     if (selectedWindow === null) return;
@@ -80,12 +99,45 @@ export default function ScheduleClient({
 
       <div className="mt-6 space-y-3">
         {loading && <p className="text-sm text-slate">Checking real-time availability...</p>}
-        {!loading && !anyAvailableThisDay && (
+
+        {/* "We could not check" is not "nothing is free", and the customer is
+            told which one it is. Offering every window during an outage was a
+            promise about a calendar nobody had read — and the next screen
+            would have taken a deposit for it. */}
+        {!loading && unavailable && (
+          <div className="rounded-card border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <div className="font-semibold">We can&rsquo;t check our schedule right now</div>
+            <p className="mt-1">
+              This is temporary and nothing has been booked or charged. Please try again in a
+              moment
+              {phone ? (
+                <>
+                  , or call us on{" "}
+                  <a href={phoneHref ?? undefined} className="whitespace-nowrap font-semibold underline">
+                    {phone}
+                  </a>{" "}
+                  and we&rsquo;ll book you in.
+                </>
+              ) : (
+                "."
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={retry}
+              className="mt-3 rounded-pill bg-electric px-5 py-2 text-sm font-semibold text-white transition hover:bg-electric-hover"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!loading && !unavailable && !anyAvailableThisDay && (
           <p className="rounded-card bg-warmwhite p-4 text-sm text-slate">
             Nothing open this day — try another date above.
           </p>
         )}
-        {!loading &&
+        {!loading && !unavailable &&
           windows.map((w, i) => (
             <button
               key={i}

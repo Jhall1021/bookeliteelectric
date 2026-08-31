@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getWindowAvailabilityForDay } from "@/lib/jobber";
+import { getWindowAvailabilityForDay, SchedulingUnavailableError } from "@/lib/jobber";
 import {
   loadBusinessHours,
   nextWorkingDays,
@@ -84,22 +84,33 @@ export default async function SchedulePage({ params }: { params: { site: string 
     })
   );
   const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
-  const firstDayWindows = await getWindowAvailabilityForDay(
-    site.contractorId,
-    days[0].dateISO,
-    eligibleIds,
-    estimatedDurationMinutes,
-    {
-      windows: generateArrivalWindows(businessHours),
-      dayEndDisplay: toDisplay(toMinutes(businessHours.dayEnd)),
-    }
-  );
+  // The server-rendered first day gets the same treatment as every later one:
+  // if the calendar cannot be read, the page says so rather than shipping a
+  // list of windows nobody verified.
+  let firstDayWindows: { start: string; end: string; available: boolean }[] = [];
+  let schedulingUnavailable = false;
+  try {
+    firstDayWindows = await getWindowAvailabilityForDay(
+      site.contractorId,
+      days[0].dateISO,
+      eligibleIds,
+      estimatedDurationMinutes,
+      {
+        windows: generateArrivalWindows(businessHours),
+        dayEndDisplay: toDisplay(toMinutes(businessHours.dayEnd)),
+      }
+    );
+  } catch (err) {
+    if (!(err instanceof SchedulingUnavailableError)) throw err;
+    schedulingUnavailable = true;
+  }
 
   return (
     <ScheduleClient
       days={days}
       initialWindows={firstDayWindows}
       estimatedDurationMinutes={estimatedDurationMinutes}
+      initiallyUnavailable={schedulingUnavailable}
     />
   );
 }

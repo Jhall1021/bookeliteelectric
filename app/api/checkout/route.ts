@@ -4,6 +4,7 @@ import { getOrCreateSessionId } from "@/lib/session";
 import {
   pushBookingToJobber,
   pickCrewForWindow,
+  SchedulingUnavailableError,
   effectiveBusySpan,
   windowToDateRange,
 } from "@/lib/jobber";
@@ -221,13 +222,37 @@ export async function POST(req: Request) {
       { status: 409 }
     );
   }
-  const assignedCrewId = await pickCrewForWindow(
-    site.contractorId,
-    dateISO,
-    windowStartDate,
-    windowEndDate,
-    eligibleCrews.map((c) => c.jobberUserId)
-  );
+  // REVALIDATED HERE, before anything irreversible.
+  //
+  // The customer picked this window on a previous screen; Jobber may have gone
+  // down since. This call is the last point at which availability is checked,
+  // and it sits BEFORE the deposit branch on purpose — so an outage costs a
+  // retry, never an authorization on somebody's card.
+  //
+  // It used to escape as a 500 with an empty body while the schedule step
+  // failed open on the same call. Both now answer with the same condition.
+  let assignedCrewId: string | null;
+  try {
+    assignedCrewId = await pickCrewForWindow(
+      site.contractorId,
+      dateISO,
+      windowStartDate,
+      windowEndDate,
+      eligibleCrews.map((c) => c.jobberUserId)
+    );
+  } catch (err) {
+    if (!(err instanceof SchedulingUnavailableError)) throw err;
+    return NextResponse.json(
+      {
+        error: "SCHEDULING_UNAVAILABLE",
+        retriable: true,
+        message:
+          "We can't confirm that arrival window right now. Nothing has been charged — " +
+          "please try again in a moment.",
+      },
+      { status: 503 }
+    );
+  }
 
   if (!assignedCrewId) {
     return NextResponse.json(

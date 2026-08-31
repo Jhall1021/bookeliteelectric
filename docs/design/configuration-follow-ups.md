@@ -69,6 +69,41 @@ It does matter before contractor onboarding becomes a real product workflow.
 Elite is asked to onboard themselves.** Today the only contractor who has been
 through it was walked through it by hand.
 
+## RESOLVED 31 Aug 2026 — checkout's blank 500 on a Jobber outage
+
+Policy, as decided: **pricing fails open, scheduling fails closed,
+gracefully.** A Jobber outage must never stop a homeowner answering the
+decision tree or seeing a price — that is pricing, and it depends on nobody's
+calendar. Once a real arrival window is at stake, Price2Book must not show or
+accept availability it could not verify.
+
+`SchedulingUnavailableError` is now a named, retriable condition rather than a
+generic failure, because the whole policy turns on telling "we could not
+check" apart from "nothing is free". Both surfaces answer it identically —
+`503 SCHEDULING_UNAVAILABLE` with `retriable: true` — and the schedule step
+shows a temporary state with a Try again button instead of slots, clearing the
+window list rather than leaving stale ones on screen.
+
+Checkout revalidates before anything irreversible: the call sits ahead of both
+the booking write and the deposit branch, so an outage costs a retry and never
+an authorization. Proven against a genuinely unreachable Jobber rather than a
+simulated one — a developer machine's OAuth credentials do not match an
+application, so the outage is real (`verify-scheduling-availability`, 14
+checks).
+
+The fail-open path is gone: availability no longer returns every window when
+it cannot read the calendar. `JOBBER_LOCAL_STUB=1` remains, gated on the flag
+AND on not being a production build.
+
+**Still open as a product question, deliberately not answered here:** with no
+eligible crew configured at all, availability is still computed without
+Jobber. That is a configuration state rather than an outage, and it was left
+alone to keep this change narrow.
+
+---
+
+### Original report
+
 ## Checkout returns a blank 500 when Jobber is unreachable — PRE-PILOT BLOCKER
 
 **Raised:** 31 Aug 2026, during the Deposit V1 browser proof. **Owner
