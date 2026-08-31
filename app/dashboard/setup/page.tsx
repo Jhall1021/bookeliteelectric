@@ -7,6 +7,10 @@ import BusinessPanel from "./BusinessPanel";
 import StageRail from "./StageRail";
 import TradePanel from "./TradePanel";
 import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
+import SchedulingPanel from "./SchedulingPanel";
+import PaymentsPanel from "./PaymentsPanel";
+import LaunchPanel, { type Launchable } from "./LaunchPanel";
+import { connectReadiness } from "@/lib/stripeConnect";
 import {
   availableTrades, preflight, templateVersionSource, type CatalogPreview,
 } from "@/lib/templateProvisioning";
@@ -31,7 +35,10 @@ export const dynamic = "force-dynamic";
  * they have no panel and no writer in this slice.
  */
 
-const OPEN_STAGES = ["business", "trade", "services", "pricing-foundation"] as const;
+const OPEN_STAGES = [
+  "business", "trade", "services", "pricing-foundation",
+  "scheduling", "payments", "launch",
+] as const;
 
 export default async function SetupPage({
   searchParams,
@@ -67,7 +74,60 @@ export default async function SetupPage({
       (s) => (OPEN_STAGES as readonly string[]).includes(s.key) && s.status === "ready"
     ).length;
 
+    let jobberConnected = false;
+    let eligibleCrew = 0;
+    let depositing: { name: string; depositCents: number }[] = [];
+    let stripe = { ready: false, reason: "" };
+    let launchable: Launchable[] = [];
+
     const stage = r.stages.find((s) => s.key === current)!;
+
+    if (current === "scheduling") {
+      jobberConnected = (await db.jobberConnection.count({ where: { contractorId: ctx.contractorId } })) > 0;
+      eligibleCrew = await db.jobberCrewMember.count({
+        where: { contractorId: ctx.contractorId, eligibleForWebsiteBookings: true },
+      });
+    }
+
+    if (current === "payments" || current === "launch") {
+      const rows = await db.service.findMany({
+        where: { contractorId: ctx.contractorId, offered: true, depositCents: { gt: 0 } },
+        select: { name: true, depositCents: true },
+        orderBy: { name: "asc" },
+      });
+      depositing = rows.map((x) => ({ name: x.name, depositCents: x.depositCents! }));
+      const cc = await db.contractor.findUniqueOrThrow({
+        where: { id: ctx.contractorId },
+        select: {
+          stripeAccountId: true, stripeMerchantConfigured: true, stripeCardPaymentsStatus: true,
+          stripeOnboardingBlocked: true, stripeReadinessCheckedAt: true,
+        },
+      });
+      const readiness = connectReadiness(cc);
+      stripe = { ready: readiness.ready, reason: readiness.reason };
+    }
+
+    if (current === "launch") {
+      // A service is launchable when its OWN requirements are met. The
+      // per-service activation route re-checks the same things when the
+      // contractor actually presses the button, so this list is a preview of
+      // that answer rather than a second opinion.
+      const offeredRows = await db.service.findMany({
+        where: { contractorId: ctx.contractorId, offered: true },
+        orderBy: { name: "asc" },
+      });
+      const promises = await catalogPromises(db, ctx.contractorId);
+      launchable = offeredRows.map((svc) => {
+        const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
+        const needsPrice = promisesFixedPrice && svc.publishedPriceApprovedAt === null;
+        const needsCosts = svc.materialCostResolved === false;
+        return {
+          id: svc.id, name: svc.name, active: svc.active,
+          ready: !needsPrice && !needsCosts,
+          reason: needsPrice ? "needs an approved price" : needsCosts ? "needs its material costs" : null,
+        };
+      });
+    }
 
     // ── panel data ───────────────────────────────────────────────────────
     let selection: Awaited<ReturnType<typeof catalogPromises>> | null = null;

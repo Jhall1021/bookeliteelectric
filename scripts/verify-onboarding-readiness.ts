@@ -309,11 +309,27 @@ async function main() {
 
   // Locked stages have no writer at all in this slice.
   const setupPage = readFileSync("app/dashboard/setup/page.tsx", "utf8");
-  // Scheduling, payments and launch stay locked: no panel and no writer.
-  ok(`30. locked stages cannot write — scheduling, payments and launch are closed`,
-    /OPEN_STAGES = \["business", "trade", "services", "pricing-foundation"\]/.test(setupPage) &&
-      !/current === "payments"/.test(setupPage) &&
-      !/current === "launch"/.test(setupPage));
+  // RETIRED: "scheduling, payments and launch are closed". They are open now,
+  // deliberately — that check had become an assertion that the release had not
+  // happened. What must stay true is that opening a stage gave it no power to
+  // price or publish: every write still goes to a named sanctioned route.
+  const SANCTIONED = [
+    "/api/admin/business-profile",
+    "/api/admin/setup/scheduling-authority",
+    "/api/admin/setup/progress",
+    "/api/admin/setup/storefront",
+    "/api/admin/setup/install-catalog",
+    "/api/admin/services/",
+  ];
+  const setupDir = ["page.tsx", "BusinessPanel.tsx", "SchedulingAuthorityControl.tsx",
+    "StageRail.tsx", "TradePanel.tsx", "PricingFoundationPanel.tsx",
+    "SchedulingPanel.tsx", "PaymentsPanel.tsx", "LaunchPanel.tsx"];
+  const endpoints = setupDir.flatMap((f) =>
+    [...strip(`app/dashboard/setup/${f}`).matchAll(/fetch\(\s*[`"']([^`"'$]*)/g)].map((m) => m[1])
+  );
+  const rogue = endpoints.filter((e) => !SANCTIONED.some((ok2) => e.startsWith(ok2)));
+  ok(`30. every Guided Setup write goes to a sanctioned route`,
+    rogue.length === 0, rogue.join(", "));
   ok(`31. and selection is the Services control, not an onboarding copy`,
     /ServiceSelectionList/.test(setupPage) &&
       existsSync("components/admin/ServiceSelectionList.tsx") &&
@@ -370,6 +386,47 @@ async function main() {
   });
   ok(`37. a fresh install has no adoption backlog`, stale === 0,
     `${stale} service(s) still at the snapshot despite a later delta`);
+
+  // ── slices five to seven ──────────────────────────────────────────────
+  const setupSrc = readFileSync("app/dashboard/setup/page.tsx", "utf8");
+  const launchSrc = readFileSync("app/dashboard/setup/LaunchPanel.tsx", "utf8");
+  const schedulingSrc = readFileSync("app/dashboard/setup/SchedulingPanel.tsx", "utf8");
+  const activationSrc = readFileSync("app/api/admin/services/[serviceId]/route.ts", "utf8");
+
+  // Launch reuses the per-service route, one call each, so every service meets
+  // the same guard. A bulk endpoint would be a second activation path.
+  const launchCode = strip("app/dashboard/setup/LaunchPanel.tsx");
+  ok(`38. launch activates through the existing per-service route`,
+    launchCode.includes("/api/admin/services/") && launchCode.includes("${s.id}") &&
+      !/bulk|activateAll|activate-many/i.test(launchCode));
+  ok(`39.  one service at a time, with failures reported per service`,
+    /for \(const s of eligible/.test(launchSrc) && /results/.test(launchSrc));
+  ok(`40.  and it never sends a price or an approval`,
+    !/basePrice|publishedPriceApprovedAt|offered/.test(
+      (launchSrc.match(/JSON\.stringify\(\{[\s\S]*?\}\)/g) ?? []).join("\n")));
+
+  // The activation guard now enforces §1.4's rule, not only material costs.
+  ok(`41. activation refuses a service that can quote a price with none approved`,
+    /PRICE_NOT_APPROVED/.test(activationSrc) && /promise\.promisesFixedPrice/.test(activationSrc));
+  ok(`42.  through the same promise function readiness uses`,
+    /promiseFor/.test(activationSrc));
+
+  // Scheduling writes only the authority and links out for the rest.
+  ok(`43. scheduling writes only the authority choice`,
+    /SchedulingAuthorityControl/.test(schedulingSrc) &&
+      !/businessHours|serviceArea|jobberCrewMember/.test(
+        (schedulingSrc.match(/JSON\.stringify\(\{[\s\S]*?\}\)/g) ?? []).join("\n")));
+  // Comments stripped: the panel's own doc names the fallback it refuses, and
+  // a check that fails on its own explanation is noise.
+  ok(`44.  and never falls back to native when an external calendar is authoritative`,
+    !/fallback|fall back/i.test(strip("app/dashboard/setup/SchedulingPanel.tsx")));
+
+  // Every stage is open now, and none of them can price or activate outside
+  // the sanctioned routes.
+  ok(`45. all seven stages are open`,
+    /"business", "trade", "services", "pricing-foundation",[\s\S]{0,40}"scheduling", "payments", "launch",/.test(setupSrc));
+  ok(`46.  and the setup page itself writes nothing`,
+    !/db\.(service|contractor|contractorTrade)\.(update|create|upsert|delete)/.test(setupSrc));
 
   await teardown(FRESH);
   console.log();
