@@ -27,7 +27,9 @@
 
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { suggestPrimaryPrice } from "../lib/pricing";
+import { unapprovedPriceSources } from "../lib/activationOutcome";
 
 const prisma = new PrismaClient();
 let fail = 0;
@@ -121,6 +123,63 @@ async function main() {
     ok(`7. until then, every unapproved price is listed and none is new`,
       backlog > 0, `${backlog} in the backlog`);
   }
+
+  // ── 11-14: a price reached through an ADD-ON is still customer-facing ──
+  //
+  // The two Elite TV mounts are `active: false` and undiscoverable on their
+  // own, and both are offered inside two LIVE TV installations, priced from
+  // the mount's basePrice with priceModifierCents forced to zero. Their
+  // $200.00 and $125.00 reached homeowners with no approval behind either,
+  // and §1.4 was green throughout — because it walked active services and
+  // checked each one's OWN price. Inactive is not the same as unreachable.
+  const d = (iso: string) => new Date(iso);
+  ok(`11. an unapproved referenced price is reported`,
+    unapprovedPriceSources([{ slug: "mount", basePrice: 20000, publishedPriceApprovedAt: null }])
+      .join() === "mount");
+  ok(`    and an approved one is not`,
+    unapprovedPriceSources([
+      { slug: "mount", basePrice: 20000, publishedPriceApprovedAt: d("2026-08-30") },
+    ]).length === 0);
+  ok(`    and a referenced service with no price of its own is not`,
+    unapprovedPriceSources([{ slug: "quote-only", basePrice: null, publishedPriceApprovedAt: null }])
+      .length === 0);
+
+  // End to end on real data, not a fixture: --no-rescue drops both the rescue
+  // list and the approval backlog, so §1.4 must reject the LIVE TV routes for
+  // the prices they reach rather than for prices of their own.
+  let guardOutput = "";
+  let guardExit = 0;
+  try {
+    guardOutput = execSync("npx tsx scripts/verify-public-pricing.ts --no-rescue", {
+      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string };
+    guardExit = err.status ?? 1;
+    guardOutput = err.stdout ?? "";
+  }
+  ok(`12. §1.4 REJECTS a live route that offers an unapproved add-on price`,
+    guardExit !== 0 &&
+      /tv-installation[\s\S]*offers an unapproved price through/.test(guardOutput) &&
+      /tv-install-existing-location/.test(guardOutput),
+    `exit ${guardExit}`);
+  ok(`    naming the referenced service, not the host's own price`,
+    /elite-tilt-mount/.test(guardOutput) && /elite-articulating-mount/.test(guardOutput));
+
+  // And the live claim: nothing reaches a price that is neither approved nor
+  // on the dated backlog.
+  const liveRefs = await prisma.answerOption.findMany({
+    where: { referencedServiceId: { not: null }, question: { service: { active: true } } },
+    select: {
+      referencedService: { select: { slug: true, basePrice: true, publishedPriceApprovedAt: true } },
+    },
+  });
+  const declared = readFileSync("scripts/verify-public-pricing.ts", "utf8");
+  const undeclared = unapprovedPriceSources(
+    liveRefs.map((r) => r.referencedService!).filter(Boolean)
+  ).filter((slug) => !declared.includes(`"${slug}":`));
+  ok(`14. every add-on price a live route reaches is approved or on the backlog`,
+    undeclared.length === 0, undeclared.join(", "));
 
   // ── 9-10: drift is reported, never corrected ───────────────────────────
   const priced = await prisma.service.findMany({

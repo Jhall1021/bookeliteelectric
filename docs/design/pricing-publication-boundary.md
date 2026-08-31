@@ -197,3 +197,31 @@ contractor uses.
 `preWorkVisitMinutes`, `ctaLabel` and `preWorkCustomerNote` have no admin
 surface yet. The pricing screen publishes a price; nothing yet configures a
 deposit. That is the remaining gap between here and a legitimate activation.
+
+## The hole inactive services were hiding — 30 Aug 2026
+
+**Not enforced when tested, so it was closed.**
+
+An answer option may reference another service, and is then priced from that
+service's `basePrice` with `priceModifierCents` forced to zero. The two Elite
+TV mounts work exactly this way: both `active: false`, both undiscoverable on
+their own, and both offered inside two LIVE TV installations.
+
+So their $200.00 and $125.00 were reaching homeowners with no approval behind
+either — and §1.4 was green the whole time, because it walked active services
+and checked each one's own price slot. **Inactive is not the same as
+unreachable.**
+
+The rule is now about price *sources* rather than services: everything a
+customer route can put in front of someone must have been approved, including
+what it reaches by reference. `unapprovedPriceSources()` is the whole change —
+§1.4 collects each active service's referenced options and refuses any that
+reaches an unapproved price.
+
+Proven four ways, one of them end to end on real data: `--no-rescue` drops
+both the rescue list and the approval backlog, and §1.4 then rejects
+`tv-installation` and `tv-install-existing-location` by name, citing the
+mounts rather than any price of their own.
+
+The two live TV routes are covered by the same dated backlog the mounts are
+on, so re-approving those two prices clears the routes with them.

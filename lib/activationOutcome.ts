@@ -100,6 +100,33 @@ export function pricePromiseOf(
   };
 }
 
+/**
+ * A price a customer can reach does not have to belong to the service they
+ * are looking at.
+ *
+ * An answer option may reference ANOTHER service, and the option is then
+ * priced from that service's `basePrice` — with `priceModifierCents` forced to
+ * zero, so the referenced price is the only number in play. The two Elite TV
+ * mounts work exactly this way: both are `active: false` and undiscoverable
+ * on their own, and both are offered inside two live TV installations.
+ *
+ * That made them invisible to a guard that walked active services and checked
+ * each one's OWN price. Their $200.00 and $125.00 reached homeowners with no
+ * approval behind either, and §1.4 was green the whole time. Inactive is not
+ * the same as unreachable.
+ *
+ * So the rule is about price SOURCES, not about services: everything a
+ * customer route can put in front of someone must have been approved,
+ * including the ones reached by reference.
+ */
+export function unapprovedPriceSources(
+  referenced: readonly { slug: string; basePrice: number | null; publishedPriceApprovedAt: Date | null }[]
+): string[] {
+  return referenced
+    .filter((r) => r.basePrice !== null && r.publishedPriceApprovedAt === null)
+    .map((r) => r.slug);
+}
+
 /** Dead routes are a separate defect from an unkept price promise. */
 export function deadRouteCount(p: PricePromise): number {
   return p.routes.dead;

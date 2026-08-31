@@ -40,7 +40,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { loadServiceForResolution, loadPricingSettings } from "../lib/routeResolver";
-import { pricePromiseOf } from "../lib/activationOutcome";
+import { pricePromiseOf, unapprovedPriceSources } from "../lib/activationOutcome";
 
 const prisma = new PrismaClient();
 
@@ -135,6 +135,8 @@ async function main() {
   /** Priced before the boundary existed; waiting on a contractor's approval. */
   let unapproved = 0;
   const staleApproval = new Set(Object.keys(AWAITING_APPROVAL));
+  /** Live services offering a price that is on the backlog. */
+  const reachesBacklog = new Set<string>();
   const staleAllowlist = new Set(Object.keys(UNDER_RESCUE));
 
   for (const c of contractors) {
@@ -165,6 +167,37 @@ async function main() {
         });
         continue;
       }
+      // A price a customer reaches through an ADD-ON is still a price this
+      // service puts in front of them. Checked whatever the host's own price
+      // slot says, because a fully approved service can still offer an
+      // unapproved one — and the referenced service being inactive hides it
+      // from every check that walks the active catalog.
+      const referenced = await prisma.answerOption.findMany({
+        where: { question: { serviceId: s.id }, referencedServiceId: { not: null } },
+        select: {
+          referencedService: {
+            select: { slug: true, basePrice: true, publishedPriceApprovedAt: true },
+          },
+        },
+      });
+      const viaAddOn = unapprovedPriceSources(
+        referenced.map((r) => r.referencedService!).filter(Boolean)
+      );
+      // Known, dated entries stay covered by the backlog they are already on.
+      // Anything else is a live route offering a price nobody approved.
+      // Under --no-rescue the backlog is dropped too, which is what lets the
+      // regression proof watch this rule actually bite on real data instead
+      // of only on a fixture.
+      const undeclaredViaAddOn = viaAddOn.filter((slug) => dryRun || !AWAITING_APPROVAL[slug]);
+      if (undeclaredViaAddOn.length) {
+        offenders.push({
+          slug: s.slug, bookingType: s.bookingType,
+          why: `offers an unapproved price through ${undeclaredViaAddOn.join(", ")}`,
+        });
+        continue;
+      }
+      if (viaAddOn.length) reachesBacklog.add(s.slug);
+
       if (treated) { priced++; continue; }
 
       // Unpriced. Whether that is a defect depends entirely on what the
@@ -203,6 +236,11 @@ async function main() {
   console.log(`  ${quoteOnly} resolve by quote or review, and owe no price.`);
   console.log(`  ${allowed} under an explicit, dated rescue.`);
   console.log(`  ${unapproved} priced before the approval boundary, awaiting re-approval.`);
+  if (reachesBacklog.size) {
+    console.log(`\n  ${reachesBacklog.size} live service(s) offer one of those prices as an add-on:`);
+    for (const s of reachesBacklog) console.log(`      ${s}`);
+    console.log(`  Those routes are live, so re-approving the backlog clears these too.`);
+  }
   console.log();
 
   // An allowlist entry for a service that is already priced, hidden or gone is
