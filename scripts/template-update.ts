@@ -37,15 +37,24 @@ async function detect(contractorSlug: string, serviceKey: string) {
     include: { questions: { include: { options: true } } },
   });
   const from = await prisma.templateVersion.findUniqueOrThrow({ where: { id: svc.templateVersionId! } });
-  const latest = await prisma.templateVersion.findFirstOrThrow({
-    where: { trade: from.trade }, orderBy: { version: "desc" },
+  // The newest version that actually CONTAINS this service — not simply the
+  // newest version.
+  //
+  // This used to take the highest version number and then demand the service
+  // be in it, which crashed with P2025 for every service a delta does not
+  // touch: 74 of Electrical's 75 today. A delta is changes to some services,
+  // so "has there been an update to THIS service" is a question about the
+  // service, not about the trade's version counter.
+  const newest = await prisma.templateService.findFirst({
+    where: { key: serviceKey, templateVersion: { trade: from.trade } },
+    orderBy: { templateVersion: { version: "desc" } },
+    include: { templateVersion: true, questions: { include: { options: true } } },
   });
+  if (!newest) return { svc, from, latest: from, changes: [] as Change[] };
+  const latest = newest.templateVersion;
   if (latest.id === from.id) return { svc, from, latest, changes: [] as Change[] };
 
-  const newer = await prisma.templateService.findFirstOrThrow({
-    where: { templateVersionId: latest.id, key: serviceKey },
-    include: { questions: { include: { options: true } } },
-  });
+  const newer = newest;
   const older = await prisma.templateService.findFirstOrThrow({
     where: { templateVersionId: from.id, key: serviceKey },
     include: { questions: { include: { options: true } } },

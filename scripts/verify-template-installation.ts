@@ -125,6 +125,48 @@ async function main() {
       policies.length > 0 && policies.every((p) => (p.boundaries as unknown[]).length === 0),
       `${policies.length}`);
 
+    // ── snapshot + deltas = the CURRENT catalog state ──────────────────
+    //
+    // Neither shortcut is safe. "Latest version" installs Electrical v2, a
+    // one-service update. "Earliest version" is right for Electrical today and
+    // wrong the moment a trade republishes a complete catalog. TemplateVersion
+    // says which it is, and nothing infers it.
+    const snapshot = await raw.templateVersion.findFirstOrThrow({
+      where: { trade: "electrical", kind: "SNAPSHOT" }, orderBy: { version: "desc" },
+    });
+    const deltas = await raw.templateVersion.findMany({
+      where: { trade: "electrical", kind: "DELTA", version: { gt: snapshot.version } },
+      select: { id: true, version: true },
+    });
+    ok(`16. the catalog resolves from a declared SNAPSHOT`,
+      pre.preview.version === snapshot.version, `installed v${pre.preview.version}`);
+    ok(`17.  and every published version says which kind it is`,
+      (await raw.templateVersion.count()) > 0);
+
+    if (deltas.length > 0) {
+      // The delta redefines new-120v-outlet with an extra question. A new
+      // contractor should receive the CURRENT state, not the snapshot's.
+      const deltaKeys = (await raw.templateService.findMany({
+        where: { templateVersionId: { in: deltas.map((d) => d.id) } },
+        select: { key: true, templateVersionId: true },
+      }));
+      const k = deltaKeys[0];
+      const mine = await raw.service.findFirstOrThrow({
+        where: { contractorId: c.id, templateKey: k.key },
+        select: { templateVersionId: true, _count: { select: { questions: true } } },
+      });
+      const inSnapshot = await raw.templateService.findFirst({
+        where: { templateVersionId: snapshot.id, key: k.key },
+        select: { _count: { select: { questions: true } } },
+      });
+      ok(`18. a later DELTA is folded in, so the contractor gets today's catalog`,
+        mine._count.questions !== inSnapshot?._count.questions,
+        `${inSnapshot?._count.questions} in snapshot, ${mine._count.questions} installed`);
+      ok(`19.  and provenance records the version the definition CAME from`,
+        mine.templateVersionId === k.templateVersionId,
+        "stamping the snapshot would make adoption offer changes already applied");
+    }
+
     // ── installing twice is refused, not duplicated ────────────────────
     const second = await withTenant({ contractorId: c.id, source: "test" }, () =>
       preflight(guarded, c.id, source)

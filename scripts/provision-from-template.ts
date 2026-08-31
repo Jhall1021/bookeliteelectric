@@ -44,6 +44,7 @@ async function main() {
   const contractorSlug = arg("contractor");
   const trade = arg("trade") ?? "electrical";
   const only = arg("service");
+  const atVersion = arg("version") ? Number(arg("version")) : undefined;
   const apply = process.argv.includes("--apply");
   if (!contractorSlug) { console.error("  --contractor <slug> required"); process.exit(1); }
 
@@ -55,7 +56,7 @@ async function main() {
   // implementation and wrote service by service, so a failure part-way left a
   // partial catalog nobody could see. Keeping the CLI on the shipped path
   // means the tested path and the used path cannot drift apart.
-  const source = templateVersionSource(prisma, trade, only);
+  const source = templateVersionSource(prisma, trade, only, atVersion);
   const pre = await preflight(prisma, contractor.id, source);
   if (!pre.ok) { console.error(`\n  ${pre.code}: ${pre.message}\n`); process.exit(1); }
 

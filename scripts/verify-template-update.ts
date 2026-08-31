@@ -33,7 +33,13 @@ async function svcNow() {
 async function main() {
   console.log("\nTEMPLATE UPDATE CYCLE\n");
   await withThrowaway(prisma, PROOF, "Throwaway Proof Electric", async () => {
-  provision(PROOF, ["--service", KEY]);
+  // Pinned to v1 ON PURPOSE. Provisioning now installs the CURRENT catalog
+  // state — the snapshot with later deltas folded in — so a contractor
+  // provisioned today is already up to date and has nothing to adopt. That is
+  // correct, and it means the only way to exercise adoption is to stand up the
+  // situation it exists for: a contractor who installed before the delta
+  // shipped.
+  provision(PROOF, ["--service", KEY, "--version", "1"]);
 
   // The contractor edits one question's wording in their own words. This used
   // to arrive by accident, carried on a hand-made fixture nobody maintained —

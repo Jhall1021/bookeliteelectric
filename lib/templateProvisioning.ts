@@ -59,28 +59,26 @@ export type CatalogPreview = {
 };
 
 /**
- * Electrical's source: the published template rows.
+ * The current catalog state for a trade: the latest SNAPSHOT, with every
+ * later DELTA folded in.
  *
- * Resolves the BASE CATALOG — the earliest published version for the trade —
- * not the latest.
+ * `TemplateVersion.kind` says which is which — explicitly, because both
+ * obvious shortcuts are wrong. "Latest version" would install Electrical v2,
+ * a one-service update. "Earliest version" happens to be right for Electrical
+ * today and breaks the moment a trade republishes a complete catalog. Neither
+ * is a property of template versions; both are facts about this data's
+ * history.
  *
- * WHY, BECAUSE IT IS COUNTERINTUITIVE
+ * FOLDING, NOT ADOPTING. A new contractor gets the current state directly: the
+ * snapshot's services, overlaid by any later delta that redefines one, in
+ * version order. There is no second update engine here — adoption exists for
+ * contractors who ALREADY have a catalog and have since customized it, which
+ * is a different and much harder problem. A contractor with nothing yet has
+ * nothing to conflict with.
  *
- * `TemplateVersion` rows are not all complete catalogs. Electrical v1 is the
- * full 75-service catalog; v2 contains ONE service and is described as
- * "AFCI question + insulation option + clearer wording" — it is an update
- * DELTA, not a snapshot. Installing "the latest published version" would have
- * given a brand-new contractor a one-service catalog.
- *
- * So installation takes the base catalog, and everything published after it is
- * carried forward by the existing adoption path, which is what
- * template-update was built to do. Enrollment still names a trade rather than
- * a version.
- *
- * THE MODELING GAP THIS EXPOSES: nothing in the schema distinguishes a
- * complete catalog from a delta. "Earliest published" is a true reading of
- * today's data, not a law. When a second trade or a re-published catalog
- * arrives, TemplateVersion should say which kind it is.
+ * Trade-neutral: Plumbing publishes its composed 63-service catalog as a
+ * SNAPSHOT and this resolves it identically, knowing nothing about either
+ * trade.
  */
 export function templateVersionSource(
   db: PrismaClient,
@@ -92,19 +90,53 @@ export function templateVersionSource(
    * catalog, not a service. Kept because the provisioning suite legitimately
    * proves one service end to end, and removing it silently broke that suite.
    */
-  onlyKey?: string
+  onlyKey?: string,
+  /**
+   * Install AT a named version instead of the current folded state.
+   *
+   * For tests and repairs only. Adoption exists for contractors who
+   * provisioned BEFORE a delta was published, and the only way to stand that
+   * situation up deliberately is to install at the older version — otherwise
+   * a freshly provisioned contractor is already current and has nothing to
+   * adopt, which is correct behavior that makes the update path untestable.
+   *
+   * Onboarding never passes this: a contractor installs the catalog as it is
+   * today, not as it was.
+   */
+  atVersion?: number
 ): CanonicalCatalogSource {
   return {
     trade,
     async load() {
-      const tv = await db.templateVersion.findFirst({
-        where: { trade },
-        orderBy: [{ publishedAt: "asc" }, { version: "asc" }],
-      });
-      if (!tv) throw new Error(`No published template for trade "${trade}".`);
+      const snapshot = atVersion
+        ? await db.templateVersion.findFirst({ where: { trade, version: atVersion } })
+        : await db.templateVersion.findFirst({
+            where: { trade, kind: "SNAPSHOT" },
+            orderBy: { version: "desc" },
+          });
+      if (!snapshot) {
+        throw new Error(
+          atVersion
+            ? `No published version ${atVersion} for trade "${trade}".`
+            : `No published SNAPSHOT catalog for trade "${trade}".`
+        );
+      }
 
-      const services = await db.templateService.findMany({
-        where: { templateVersionId: tv.id, ...(onlyKey ? { key: onlyKey } : {}) },
+      // Deltas published after the snapshot. Ascending, so a later one wins
+      // over an earlier one for the same service key. Pinning to a version
+      // folds nothing — that is the point of pinning.
+      const deltas = atVersion
+        ? []
+        : await db.templateVersion.findMany({
+            where: { trade, kind: "DELTA", version: { gt: snapshot.version } },
+            orderBy: { version: "asc" },
+            select: { id: true, version: true },
+          });
+
+      const tv = snapshot;
+      const versionIds = [snapshot.id, ...deltas.map((d) => d.id)];
+      const rows = await db.templateService.findMany({
+        where: { templateVersionId: { in: versionIds }, ...(onlyKey ? { key: onlyKey } : {}) },
         include: {
           materials: { include: { canonicalMaterial: { select: { key: true } } } },
           questions: {
@@ -123,6 +155,19 @@ export function templateVersionSource(
         },
       });
 
+      // Fold: snapshot first, then each delta in version order, later
+      // definitions replacing earlier ones for the same service key.
+      const rank = new Map(versionIds.map((id, i) => [id, i]));
+      const byKey = new Map<string, Record<string, never>>();
+      for (const r of rows as unknown as Record<string, never>[]) {
+        const row = r as unknown as { key: string; templateVersionId: string };
+        const held = byKey.get(row.key) as unknown as { templateVersionId: string } | undefined;
+        if (!held || rank.get(row.templateVersionId)! > rank.get(held.templateVersionId)!) {
+          byKey.set(row.key, r);
+        }
+      }
+      const services = [...byKey.values()];
+
       // Every policy these services actually reach, whether through an answer
       // option or attached to the service itself.
       const policies = new Map<string, Record<string, unknown>>();
@@ -140,8 +185,14 @@ export function templateVersionSource(
       }
 
       return {
-        trade, version: tv.version, templateVersionId: tv.id,
-        services: services as unknown as CanonicalService[], policies,
+        trade,
+        version: tv.version,
+        // Provenance records the SNAPSHOT the catalog was installed from. A
+        // folded delta is recorded per row by templateKey, and adoption reads
+        // the version each service actually came from.
+        templateVersionId: tv.id,
+        services: services as unknown as CanonicalService[],
+        policies,
       };
     },
   };
@@ -271,8 +322,19 @@ export async function installCatalog(
       for (const raw of catalog.services) {
         const s = raw as unknown as Record<string, never> & {
           key: string; slug: string; name: string; canonicalCategoryId: string;
+          templateVersionId: string;
           materials: never[]; questions: never[]; policies: never[];
         };
+
+        // Provenance is per ROW, from the version this definition actually
+        // came from — not the snapshot the install started at.
+        //
+        // Stamping the snapshot everywhere made a freshly provisioned service
+        // claim it came from v1 while carrying v2's content, so adoption
+        // offered three changes that were already applied. Provenance has to
+        // say where the row IS, or the update path is comparing against a
+        // version the contractor never had.
+        const fromVersionId = s.templateVersionId;
 
         const cc = await t.contractorCategory.upsert({
           where: {
@@ -301,7 +363,7 @@ export async function installCatalog(
             photoState: (s as unknown as { photoState: never }).photoState,
             isPrimaryEligible: (s as unknown as { isPrimaryEligible: boolean }).isPrimaryEligible,
             requiresTechCount: (s as unknown as { requiresTechCount: number }).requiresTechCount,
-            templateVersionId: catalog.templateVersionId, templateKey: s.key,
+            templateVersionId: fromVersionId, templateKey: s.key,
             // NOTHING economic, and nothing offered or live. `offered` keeps
             // its default of false: a provisioned catalog is a set of
             // possibilities, not a set of commitments.
@@ -358,7 +420,7 @@ export async function installCatalog(
             data: {
               serviceId: svc.id, key: qq.key, prompt: qq.prompt, helpText: qq.helpText,
               inputType: qq.inputType, order: qq.order,
-              templateVersionId: catalog.templateVersionId, templateKey: qq.key,
+              templateVersionId: fromVersionId, templateKey: qq.key,
             },
             select: { id: true },
           });
@@ -407,7 +469,7 @@ export async function installCatalog(
                 policyKey: o.templatePolicyDefinition?.key ?? null,
                 // priceModifierCents keeps its schema default. The template has
                 // no opinion about it and neither may provisioning.
-                templateVersionId: catalog.templateVersionId,
+                templateVersionId: fromVersionId,
                 templateKey: `${qq.key}/${o.value}`,
               },
               select: { id: true },

@@ -353,7 +353,10 @@ async function main() {
 
   const tv = await prisma.templateVersion.upsert({
     where: { trade_version: { trade: TRADE, version } }, update: {},
-    create: { trade: TRADE, version, notes: `extracted from Elite's catalog` },
+    // A SNAPSHOT: extraction produces the complete catalog for the trade, and
+    // prunes services the source no longer has. Declared rather than defaulted
+    // — a version that does not say what it is cannot be installed safely.
+    create: { trade: TRADE, version, kind: "SNAPSHOT", notes: `extracted from Elite's catalog` },
   });
   // Services the source no longer has must not linger from an earlier run.
   const keep = built.map((e) => e.key);

@@ -3184,11 +3184,35 @@ model TemplateServicePolicy {
   @@map("template_service_policies")
 }
 
+/// Is this version a complete catalog, or changes onto an earlier one?
+///
+/// EXPLICIT, never inferred. Electrical happens to have v1 as a 75-service
+/// catalog and v2 as a one-service update, so "latest is complete" and
+/// "earliest is the base" both look true today. Neither is: they are facts
+/// about this data's history, and a Plumbing snapshot published after an
+/// Electrical delta would break either rule instantly.
+///
+/// Inferring from version number, service count or publication date would put
+/// that guess in the one place it does real damage — a new contractor
+/// receiving a one-service catalog and no way to tell.
+enum TemplateVersionKind {
+  /// A complete installable catalog state. Everything the trade offers.
+  SNAPSHOT
+  /// Changes intended to be adopted onto an earlier catalog state. Contains
+  /// only the services that changed.
+  DELTA
+}
+
 model TemplateVersion {
   id          String   @id @default(cuid())
   /// e.g. "electrical". Trade-agnostic by design; only electrical exists now.
   trade       String
   version     Int
+  /// REQUIRED, with no default. A default would mean a version published
+  /// without declaring itself is silently treated as one kind or the other —
+  /// and the failure mode of guessing DELTA-as-SNAPSHOT is a contractor
+  /// receiving a one-service catalog, which is exactly the defect this closes.
+  kind        TemplateVersionKind
   publishedAt DateTime @default(now())
   notes       String?
 

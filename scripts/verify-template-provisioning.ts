@@ -25,14 +25,21 @@ async function main() {
   provision(PROOF, ["--service", KEY]);
   const proof = { id: proofId };
 
-  // Pinned to v1 deliberately. This lookup used to match on key alone, which
-  // was indistinguishable from correct until the update suite's simulated v2
-  // outlived a run — then it compared the v1 provisioning against the v2
-  // template and reported a structure mismatch that was really a version mix-up.
-  const v1 = await prisma.templateVersion.findUniqueOrThrow({
-    where: { trade_version: { trade: "electrical", version: 1 } }, select: { id: true } });
+  // The EFFECTIVE definition — the newest version containing this key — not a
+  // pinned version.
+  //
+  // This was pinned to v1 after an earlier mix-up: matching on key alone
+  // compared a v1 provisioning against the v2 template and reported a
+  // structure mismatch that was really a version confusion. Pinning fixed the
+  // symptom and then became wrong itself, because provisioning now installs
+  // the current catalog state — the snapshot with later deltas folded in — so
+  // a v1 expectation fails against a correctly installed v2 definition.
+  //
+  // Resolving the same way provisioning does keeps the two honest together,
+  // and still names a specific version rather than matching on key alone.
   const tpl = await prisma.templateService.findFirstOrThrow({
-    where: { key: KEY, templateVersionId: v1.id },
+    where: { key: KEY, templateVersion: { trade: "electrical" } },
+    orderBy: { templateVersion: { version: "desc" } },
     include: { questions: { include: { options: true } }, materials: true },
   });
   const inc = { questions: { include: { options: true } }, materials: true } as const;

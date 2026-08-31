@@ -267,7 +267,10 @@ async function main() {
 
   const tv = await prisma.templateVersion.upsert({
     where: { trade_version: { trade: TRADE, version } },
-    update: {}, create: { trade: TRADE, version, notes: `extracted from ${slug}` },
+    // A DELTA: this extracts ONE service into a version, which is changes
+    // onto an earlier catalog rather than a catalog. Installing it as one
+    // would give a contractor a single-service business.
+    update: {}, create: { trade: TRADE, version, kind: "DELTA", notes: `extracted from ${slug}` },
   });
   await prisma.templateService.deleteMany({ where: { templateVersionId: tv.id, key: svc.slug } });
   const ts = await prisma.templateService.create({
