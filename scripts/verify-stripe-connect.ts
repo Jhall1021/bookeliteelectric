@@ -331,12 +331,14 @@ async function main() {
   ok(`   and neither reaches for the stable one`,
     !/stripeClient\(\)/.test(connectSrc) && !/stripeClient\(\)/.test(readinessSrc));
 
-  // The deposit flow authorizes synchronously, before the local booking
-  // transaction, so it cannot hand the homeowner off mid-flow. Without this
-  // the intent inherits whatever the CONTRACTOR enabled in their own
-  // dashboard — a failure the platform never sees in its own testing.
-  ok(`the deposit flow cannot inherit a redirect-capable method`,
-    /automatic_payment_methods:\s*\{\s*enabled:\s*true,\s*allow_redirects:\s*"never"\s*\}/.test(gatewayLib));
+  // Was an allow_redirects subtraction, which let us_bank_account through —
+  // not redirect-based, but equally unable to support this flow's
+  // authorize-now-capture-later shape. The browser proof caught the Payment
+  // Element offering Bank and Klarna on a live checkout.
+  ok(`the deposit names the one method it supports, rather than subtracting`,
+    /payment_method_types:\s*\["card"\]/.test(gatewayLib));
+  ok(`   and does not inherit the contractor's dashboard selection`,
+    !/automatic_payment_methods/.test(gatewayLib));
   ok(`   and the hold is still authorize-then-capture`,
     /capture_method:\s*"manual"/.test(gatewayLib));
 
@@ -361,6 +363,15 @@ async function main() {
     // mistake: whatever it names, it is asking the bundler for a value.
     ok(`   and the card component reads no environment variable of its own`,
       !/process\.env/.test(cardUi));
+
+    // The UI must not offer what the server will refuse. PaymentElement was
+    // asked to restrict itself to card and ignored it — the live browser proof
+    // caught it offering Bank and Klarna on a real checkout, either of which
+    // the server rejects after the customer has entered their details.
+    // CardElement cannot offer anything else, which is a restriction that does
+    // not depend on an option being honored.
+    ok(`   and the deposit collects a card, not a menu the server would refuse`,
+      /CardElement/.test(cardUi) && !/PaymentElement/.test(cardUi));
 
     // The one spelling that WOULD ship a secret to every visitor.
     const everySource = ["lib", "app", "components", "scripts"]

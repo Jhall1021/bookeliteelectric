@@ -738,3 +738,69 @@ key moved money once and converged on one ledger row; a repeat webhook was
 harmless; tenancy resolved from `event.account` while metadata claiming another
 contractor did not win. Ledger: booked 50000, net paid 249, remaining 49751.
 Test rows removed and the booking returned to `LEGACY_UNTRACKED`.
+
+## 10e. The browser legs — Deposit V1, proven and closed
+
+Both real-browser 3-D Secure legs ran against Stripe on Elite's connected test
+account, through the actual customer checkout.
+
+### Success — booking `cmthapjol000b9c8azz24tii6`
+
+Twenty checks, each read back from Stripe and the ledger rather than from what
+the browser reported.
+
+| | |
+|---|---|
+| PaymentIntents for the visit | exactly **1** (`pi_3UAVb2FxY108DLPf0F7AuHZ2`) |
+| Authentication | Stripe: `three_d_secure.result: authenticated` |
+| Amount | `24900`, the server's figure, unchanged across the round trip |
+| Capture | once — `amount_received 24900`, one `CAPTURE` row |
+| Payment state | `DEPOSIT_CAPTURED`, never `BALANCE_DUE`/`SETTLED` |
+| Ledger | booked 50000, net paid 24900, remaining 25100 |
+| Scheduling | permitted only at `DEPOSIT_CAPTURED`; pre-work visit present |
+| Jobber | `jobberJobId` null — never pushed |
+| Replay | no second booking, no second capture, no extra ledger row |
+
+### Failure — `pi_3UAVKCFxY108DLPf0CvoV3Jo`
+
+Not an abandonment. Stripe's own verdict:
+
+> `payment_intent_authentication_failure` — The provided PaymentMethod has
+> failed authentication.
+
+Nothing captured, nothing capturable, **no booking for that visit at all**, no
+payment row, and resuming it is refused — twice, identically. A failed
+challenge leaves no trace that anything could schedule work against.
+
+## 10f. What the browser proof caught: a door painted on a wall
+
+The Payment Element was offering **Bank and Klarna** beside Card on a live
+checkout, despite being told `paymentMethodTypes: ["card"]`. It ignored the
+option. A customer choosing either would have entered their details and then
+been refused by the server.
+
+Both sides are now restricted by construction rather than by request:
+
+- **Server:** `payment_method_types: ["card"]`, replacing
+  `automatic_payment_methods` + `allow_redirects: "never"`. That pairing read
+  like the same rule and was not — it inherits the contractor's dashboard and
+  subtracts redirect-capable methods, which left `us_bank_account` eligible.
+  ACH cannot support authorize-now-capture-later the way this flow needs.
+  Naming the one supported method is stricter than subtracting from an
+  inherited set, and easier to read.
+- **Client:** `CardElement` instead of `PaymentElement`. It cannot offer
+  anything else, so the restriction does not depend on an option being
+  honored.
+
+Guarded both ways in `verify-stripe-connect` (51 checks).
+
+## 10g. Noted, not fixed — checkout dies when Jobber is unreachable
+
+`pickCrewForWindow` throws and the route returns **500 with an empty body**.
+The schedule page fails open on the same call; checkout does not. So a Jobber
+outage means no bookings at all, presented as a blank failure.
+
+No money is at risk — this happens before the deposit branch — so it is not a
+payment defect and was deliberately left alone. **It is a pre-pilot
+reliability item.** A dev-only, double-gated stub (`JOBBER_LOCAL_STUB=1`, and
+never in a production build) exists purely so local Stripe proofs can run.

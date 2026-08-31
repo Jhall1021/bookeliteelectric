@@ -108,21 +108,23 @@ export function stripeGateway(): PaymentGateway | null {
           amount: args.amountCents,
           currency: args.currency ?? "usd",
           capture_method: "manual",
-          // The deposit flow requires a SYNCHRONOUS, NON-REDIRECT authorization
-          // before the local booking transaction: authorize, commit, capture.
-          // It therefore must not inherit redirect-capable methods from an
-          // individual contractor's Stripe Dashboard.
+          // A V1 deposit is a CARD authorization, named as one.
           //
-          // This is NOT a claim that redirect methods cannot be captured
-          // manually — some, including Klarna and Cash App Pay, can. The
-          // constraint is narrower and it is ours: this V1 flow has no step
-          // that hands the homeowner off and waits for them to come back.
+          // This was `automatic_payment_methods` with `allow_redirects: never`,
+          // which reads like the same rule and is not. It inherits whatever the
+          // contractor enabled and then subtracts the redirect-capable ones —
+          // so `us_bank_account`, which is not redirect-based, stayed eligible
+          // even though ACH cannot support authorize-now-capture-later the way
+          // this flow needs. The browser proof showed the Payment Element
+          // offering Bank and Klarna on a live checkout.
           //
-          // Left unconstrained this fails per-contractor: it works on accounts
-          // with only cards enabled and fails on the ones that turned
-          // something else on, which is the kind of break nobody sees until a
-          // real homeowner hits it.
-          automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+          // Naming the one method the flow actually supports is both stricter
+          // and easier to read than a subtraction. It is NOT a claim that
+          // redirect methods can never be captured manually — some, including
+          // Klarna and Cash App Pay, can. The constraint is ours: this flow
+          // authorizes synchronously before the booking transaction and has no
+          // step that hands the homeowner off and waits for them to return.
+          payment_method_types: ["card"],
           metadata: args.metadata,
           // Confirmed at creation when a card is supplied, which is what turns
           // "an intent exists" into "money is actually held". Without it the

@@ -482,6 +482,17 @@ type JobberVisit = { id: string; startAt: string | null; endAt: string | null; a
 // than trusting a single-field filter to catch every edge case (e.g. a
 // visit that started before the candidate window but runs into it).
 async function fetchJobberVisitsForDay(contractorId: string, dateISO: string): Promise<JobberVisit[]> {
+  // LOCAL DEVELOPMENT ONLY. Jobber's OAuth credentials are per-application and
+  // a developer machine usually has none that work, so every checkout 500s on
+  // a scheduling call that has nothing to do with what is being tested.
+  //
+  // Deliberately double-gated — the flag alone is not enough, it must also not
+  // be a production build — because "pretend the calendar is empty" is exactly
+  // the assumption that double-books a crew if it ever escaped.
+  if (process.env.NODE_ENV !== "production" && process.env.JOBBER_LOCAL_STUB === "1") {
+    return [];
+  }
+
   // Midnight-to-midnight in Eastern time, not UTC — a visit at 11pm
   // Eastern is already the next UTC calendar day, and a naive UTC-day
   // boundary would misattribute or miss it entirely.

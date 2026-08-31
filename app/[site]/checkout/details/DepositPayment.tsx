@@ -16,19 +16,29 @@
  * and the cancel path when the commit fails. Creating an intent here would put
  * a second author on money movement.
  *
- * WHY `paymentMethodTypes: ["card"]` IS PINNED
+ * WHY CardElement AND NOT PaymentElement
  *
- * The server refuses redirect-capable methods
- * (`automatic_payment_methods.allow_redirects: "never"`), because this flow
- * authorizes synchronously before the booking transaction and has no step that
- * can hand the customer off and resume. Pinning the same constraint here means
- * the customer is never OFFERED a method the server would then reject. The
- * server guard is the one that matters; this one keeps the UI honest about it.
+ * The server accepts exactly one method — `payment_method_types: ["card"]` —
+ * because the flow authorizes synchronously before the booking transaction and
+ * has no step that can hand the customer off and resume.
+ *
+ * PaymentElement was asked to match, via `paymentMethodTypes: ["card"]`, and
+ * IGNORED IT: the live browser proof showed it offering Bank and Klarna beside
+ * Card on a real checkout. A customer picking either would have been refused
+ * by the server after entering their details — the payment equivalent of a
+ * door painted on a wall.
+ *
+ * CardElement cannot offer anything else. The UI is restricted by what it IS
+ * rather than by an option a future Stripe.js release might interpret
+ * differently, which is the only kind of restriction worth relying on here.
+ *
+ * The day the flow can handle a redirect or an async method is the day to
+ * revisit this — not before.
  */
 
 import { useEffect, useMemo, type MutableRefObject } from "react";
 import { loadStripe } from "@stripe/stripe-js";
-import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js";
 
 /**
  * What the form can ask the mounted Stripe instance to do.
@@ -61,14 +71,13 @@ function CardFields({ apiRef }: { apiRef: MutableRefObject<DepositCardApi | null
     if (!stripe || !elements) { apiRef.current = null; return; }
     apiRef.current = {
       async create() {
-        // Runs Stripe's own validation first. Without it, an incomplete card
-        // reaches createPaymentMethod as a generic failure instead of an inline
-        // "your card number is incomplete" on the field itself.
-        const submitted = await elements.submit();
-        if (submitted.error) return { error: submitted.error.message ?? "Please check your card details." };
+        const card = elements.getElement(CardElement);
+        if (!card) return { error: "The card form isn't ready yet — please try again." };
 
-        const { paymentMethod, error } = await stripe.createPaymentMethod({ elements });
+        const { paymentMethod, error } = await stripe.createPaymentMethod({ type: "card", card });
         if (error || !paymentMethod) {
+          // Stripe's message names the actual field ("Your card number is
+          // incomplete"), which is more use than anything generic here.
           return { error: error?.message ?? "We couldn't verify that card." };
         }
         return { paymentMethodId: paymentMethod.id };
@@ -93,7 +102,11 @@ function CardFields({ apiRef }: { apiRef: MutableRefObject<DepositCardApi | null
     return () => { apiRef.current = null; };
   }, [stripe, elements, apiRef]);
 
-  return <PaymentElement options={{ layout: "tabs" }} />;
+  return (
+    <div className="rounded-card border border-cardline bg-white px-4 py-3">
+      <CardElement options={{ hidePostalCode: false }} />
+    </div>
+  );
 }
 
 export default function DepositPayment({
@@ -105,20 +118,9 @@ export default function DepositPayment({
   stripeAccountId: string;
   apiRef: MutableRefObject<DepositCardApi | null>;
 }) {
-  const options = useMemo(
-    () =>
-      ({
-        mode: "payment" as const,
-        amount: depositDueCents,
-        currency: "usd",
-        // The browser makes a PaymentMethod, not an intent. See the header.
-        paymentMethodCreation: "manual" as const,
-        // Held, not taken — the server captures after the booking commits.
-        captureMethod: "manual" as const,
-        paymentMethodTypes: ["card"],
-      }),
-    [depositDueCents]
-  );
+  // No deferred-intent options: CardElement collects a card and nothing else,
+  // and the PaymentIntent is still created server-side by runDepositCheckout.
+  const options = useMemo(() => ({}), []);
 
   const dollars = (depositDueCents / 100).toLocaleString("en-US", {
     style: "currency", currency: "USD", minimumFractionDigits: 0,
