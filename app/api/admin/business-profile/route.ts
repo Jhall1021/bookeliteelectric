@@ -14,11 +14,18 @@
  * No pricing, no activation, no storefront routing identity. `hostedSlug` and
  * `publicId` are addresses the platform issues, not fields a contractor types
  * — see the storefront route beside this one.
+ *
+ * IT ALSO OWNS TRADE ENROLMENT, for the same reason it owns the rest: which
+ * canonical catalog a contractor works from stays true long after setup
+ * finishes. `Contractor.trade` — the descriptive prose the service finder
+ * reads — is a different fact and is edited separately here; enrolment never
+ * touches it.
  */
 
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 import { checkCountry } from "@/lib/contractorIdentity";
+import { availableTrades, provisionedFromTrade } from "@/lib/templateProvisioning";
 
 /** Trimmed; empty becomes null, which is distinct from "not sent". */
 function optionalText(v: unknown): string | null | undefined {
@@ -66,8 +73,78 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
   }
 
+  const tradeKey = optionalText(body.tradeKey);
+
   return withAdminRoute(async (db, ctx) => {
-    await db.contractor.update({ where: { id: ctx.contractorId }, data });
-    return NextResponse.json({ ok: true, changed: Object.keys(data) });
+    if (tradeKey !== undefined) {
+      const result = await setTradeEnrolment(db, ctx.contractorId, tradeKey);
+      if (!result.ok) {
+        return NextResponse.json({ error: result.code, message: result.message }, { status: 409 });
+      }
+    }
+    if (Object.keys(data).length > 0) {
+      await db.contractor.update({ where: { id: ctx.contractorId }, data });
+    }
+    return NextResponse.json({
+      ok: true,
+      changed: [...Object.keys(data), ...(tradeKey !== undefined ? ["tradeKey"] : [])],
+    });
   });
+}
+
+/**
+ * Enrol this contractor in a canonical trade, or refuse.
+ *
+ * V1 allows ONE enrolment, which is a UX decision rather than a model one —
+ * ContractorTrade is a relation precisely so a second trade is a feature
+ * rather than a migration.
+ */
+async function setTradeEnrolment(
+  db: Parameters<Parameters<typeof withAdminRoute>[0]>[0],
+  contractorId: string,
+  tradeKey: string | null
+): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
+  const existing = await db.contractorTrade.findMany({ where: { contractorId } });
+
+  for (const e of existing) {
+    if (e.tradeKey === tradeKey) return { ok: true };
+    // A catalog that has been installed is priced, possibly live and possibly
+    // booked against. Withdrawing the enrolment underneath it would leave a
+    // storefront advertising work the contractor no longer says they do —
+    // a migration, not a setting, and out of scope by design.
+    const provisioned = await provisionedFromTrade(db, contractorId, e.tradeKey);
+    if (provisioned > 0) {
+      return {
+        ok: false,
+        code: "TRADE_HAS_PROVISIONED_SERVICES",
+        message:
+          `You have ${provisioned} service(s) installed from the ${e.tradeKey} catalog. ` +
+          `Changing trade would leave them behind, so it isn't something we can do here.`,
+      };
+    }
+  }
+
+  if (tradeKey === null) {
+    await db.contractorTrade.deleteMany({ where: { contractorId } });
+    return { ok: true };
+  }
+
+  // Validated against published catalogs, so an unknown key cannot be
+  // enrolled and the list that populates the UI is the list that refuses a
+  // typo.
+  const trades = await availableTrades(db);
+  if (!trades.includes(tradeKey)) {
+    return {
+      ok: false, code: "TRADE_NOT_AVAILABLE",
+      message: `"${tradeKey}" is not a trade Price2Book publishes a catalog for yet.`,
+    };
+  }
+
+  await db.contractorTrade.deleteMany({ where: { contractorId, tradeKey: { not: tradeKey } } });
+  await db.contractorTrade.upsert({
+    where: { contractorId_tradeKey: { contractorId, tradeKey } },
+    update: {},
+    create: { contractorId, tradeKey },
+  });
+  return { ok: true };
 }

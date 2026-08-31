@@ -5,6 +5,14 @@ import ServiceSelectionList from "@/components/admin/ServiceSelectionList";
 import SchedulingAuthorityControl from "./SchedulingAuthorityControl";
 import BusinessPanel from "./BusinessPanel";
 import StageRail from "./StageRail";
+import TradePanel from "./TradePanel";
+import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
+import {
+  availableTrades, preflight, templateVersionSource, type CatalogPreview,
+} from "@/lib/templateProvisioning";
+import { suggestPrimaryPrice, formatBreakdown } from "@/lib/pricing";
+import { loadPricingSettings } from "@/lib/routeResolver";
+import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +31,7 @@ export const dynamic = "force-dynamic";
  * they have no panel and no writer in this slice.
  */
 
-const OPEN_STAGES = ["business", "trade", "services"] as const;
+const OPEN_STAGES = ["business", "trade", "services", "pricing-foundation"] as const;
 
 export default async function SetupPage({
   searchParams,
@@ -68,6 +76,15 @@ export default async function SetupPage({
       offered: boolean; active: boolean; promisesFixedPrice: boolean;
     }[] = [];
     let templateCount = 0;
+    let trades: string[] = [];
+    let enrolled: string | null = null;
+    let preview: CatalogPreview | null = null;
+    let previewError: string | null = null;
+    let rateSettings: {
+      crewHourRateCents: number; primaryMinimumCents: number;
+      roundingIncrementCents: number; defaultPermitAdminCents: number;
+    } | null = null;
+    let pricing: ServicePricing[] = [];
 
     if (current === "services") {
       selection = await catalogPromises(db, ctx.contractorId);
@@ -93,6 +110,48 @@ export default async function SetupPage({
       templateCount = await db.service.count({
         where: { contractorId: ctx.contractorId, templateVersionId: { not: null } },
       });
+      trades = await availableTrades(db);
+      const enrolment = await db.contractorTrade.findFirst({
+        where: { contractorId: ctx.contractorId }, orderBy: { enrolledAt: "asc" },
+      });
+      enrolled = enrolment?.tradeKey ?? null;
+      if (enrolled) {
+        // The SAME source the installer reads, so the preview cannot promise a
+        // different catalog than the install delivers.
+        const pre = await preflight(db, ctx.contractorId, templateVersionSource(prisma, enrolled));
+        if (pre.ok) preview = pre.preview; else previewError = pre.message;
+      }
+    }
+
+    if (current === "pricing-foundation") {
+      rateSettings = await db.pricingSettings.findUnique({
+        where: { contractorId: ctx.contractorId },
+        select: {
+          crewHourRateCents: true, primaryMinimumCents: true,
+          roundingIncrementCents: true, defaultPermitAdminCents: true,
+        },
+      });
+      let settings: unknown = null;
+      try { settings = await loadPricingSettings(db as never, ctx.contractorId); } catch { settings = null; }
+      if (settings) {
+        const offeredRows = await db.service.findMany({
+          where: { contractorId: ctx.contractorId, offered: true },
+          orderBy: { name: "asc" },
+        });
+        const promises = await catalogPromises(db, ctx.contractorId);
+        pricing = offeredRows.map((svc) => {
+          const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
+          const b = promisesFixedPrice ? suggestPrimaryPrice(svc as never, settings as never) : null;
+          return {
+            slug: svc.slug, name: svc.name,
+            derivedCents: b?.totalCents ?? null,
+            publishedCents: svc.basePrice,
+            approved: svc.publishedPriceApprovedAt !== null,
+            promisesFixedPrice,
+            breakdown: b && b.totalCents !== null ? formatBreakdown(b) : null,
+          };
+        });
+      }
     }
     const totalServices = await db.service.count({ where: { contractorId: ctx.contractorId } });
 
@@ -158,27 +217,13 @@ export default async function SetupPage({
 
             {current === "trade" && (
               <div className="mt-4 space-y-4">
-                {/* Read-only. Installing a whole catalog immediately creates
-                    pricing work, so it belongs with the pricing stage rather
-                    than behind a button here. */}
-                <div className="rounded-card border border-cardline bg-white p-5 shadow-card text-sm">
-                  <dl className="space-y-3">
-                    <div className="flex justify-between">
-                      <dt className="text-slate">Trade</dt>
-                      <dd className="font-medium text-navy">{c.trade ?? "Not set"}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-slate">Services in your catalog</dt>
-                      <dd className="font-medium text-navy">{totalServices}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-slate">From a canonical template</dt>
-                      <dd className="font-medium text-navy">
-                        {templateCount > 0 ? `${templateCount} service${templateCount === 1 ? "" : "s"}` : "None"}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
+                <TradePanel
+                  availableTrades={trades}
+                  enrolled={enrolled}
+                  installedCount={templateCount}
+                  preview={preview}
+                  previewError={previewError}
+                />
                 <p className="text-xs text-slate">
                   Your trade&rsquo;s catalog gives you the structure — the questions, the scope rules
                   and what each job includes. What it costs and what you charge stays yours.
@@ -199,6 +244,18 @@ export default async function SetupPage({
                 <div className="mt-4">
                   <ServiceSelectionList services={services} />
                 </div>
+              </div>
+            )}
+
+            {current === "pricing-foundation" && (
+              <div className="mt-4">
+                <PricingFoundationPanel
+                  settings={rateSettings}
+                  roleFindings={stage.findings.filter((f) => f.code === "MATERIAL_COST_UNRESOLVED")}
+                  policyFindings={stage.findings.filter((f) => f.code === "POLICY_UNRESOLVED")}
+                  services={pricing}
+                  foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
+                />
               </div>
             )}
 

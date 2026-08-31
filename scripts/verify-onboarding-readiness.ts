@@ -23,6 +23,9 @@ import { withTenant } from "../lib/tenantContext";
 import { assessOnboarding, type OnboardingReadiness } from "../lib/onboardingReadiness";
 import { existsSync, readFileSync } from "node:fs";
 import { provision, destroyContractor } from "./_throwaway";
+import {
+  availableTrades, provisionedFromTrade, templateVersionSource, preflight,
+} from "../lib/templateProvisioning";
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
@@ -306,12 +309,67 @@ async function main() {
 
   // Locked stages have no writer at all in this slice.
   const setupPage = readFileSync("app/dashboard/setup/page.tsx", "utf8");
-  ok(`30. locked stages cannot write — only three stages are open`,
-    /OPEN_STAGES = \["business", "trade", "services"\]/.test(setupPage));
+  // Scheduling, payments and launch stay locked: no panel and no writer.
+  ok(`30. locked stages cannot write — scheduling, payments and launch are closed`,
+    /OPEN_STAGES = \["business", "trade", "services", "pricing-foundation"\]/.test(setupPage) &&
+      !/current === "payments"/.test(setupPage) &&
+      !/current === "launch"/.test(setupPage));
   ok(`31. and selection is the Services control, not an onboarding copy`,
     /ServiceSelectionList/.test(setupPage) &&
       existsSync("components/admin/ServiceSelectionList.tsx") &&
       !existsSync("app/api/admin/setup/selection/route.ts"));
+
+  // ── slice four: enrolment ─────────────────────────────────────────────
+  const trades = await availableTrades(raw);
+  ok(`32. trade choices come from published catalogs, not a list`,
+    trades.includes("electrical") && trades.length > 0, trades.join(", "));
+
+  // A trade with only deltas has no catalog to install, so it must not be
+  // offered as a choice.
+  const deltaOnly = await raw.templateVersion.findMany({
+    where: { kind: "DELTA" }, select: { trade: true },
+  });
+  const snapshotTrades = new Set(trades);
+  ok(`33.  and a trade with no SNAPSHOT is not offered`,
+    deltaOnly.every((d) => snapshotTrades.has(d.trade) ||
+      !deltaOnly.some((x) => x.trade === d.trade && !snapshotTrades.has(x.trade))));
+
+  // Enrolment before provisioning is free; after it, refused.
+  await raw.contractorTrade.create({ data: { contractorId: fresh.id, tradeKey: "electrical" } });
+  const provisioned = await provisionedFromTrade(raw, fresh.id, "electrical");
+  ok(`34. a provisioned trade cannot be casually swapped`, provisioned > 0,
+    `${provisioned} service(s) carry electrical provenance`);
+
+  // ── slice four: install refuses to seed economics ────────────────────
+  const installed = await raw.service.findMany({ where: { contractorId: fresh.id } });
+  ok(`35. installation seeded no economics at all`,
+    installed.every((s) =>
+      s.basePrice === null && s.publishedPriceApprovedAt === null &&
+      s.fieldLaborHours === null && s.materialCostCents === null &&
+      s.materialMultiplier === null && s.depositCents === null));
+  ok(`36.  left everything unoffered and inactive`,
+    installed.every((s) => !s.offered && !s.active));
+
+  // A fresh install already includes applicable deltas, so there is nothing
+  // waiting to be adopted.
+  const stale = await raw.service.count({
+    where: {
+      contractorId: fresh.id,
+      templateVersionId: {
+        in: (await raw.templateVersion.findMany({
+          where: { trade: "electrical", kind: "SNAPSHOT" }, select: { id: true },
+        })).map((v) => v.id),
+      },
+      templateKey: {
+        in: (await raw.templateService.findMany({
+          where: { templateVersion: { trade: "electrical", kind: "DELTA" } },
+          select: { key: true },
+        })).map((t) => t.key),
+      },
+    },
+  });
+  ok(`37. a fresh install has no adoption backlog`, stale === 0,
+    `${stale} service(s) still at the snapshot despite a later delta`);
 
   await teardown(FRESH);
   console.log();

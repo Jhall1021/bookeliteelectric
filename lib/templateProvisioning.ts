@@ -543,3 +543,46 @@ export async function installCatalog(
     { timeout: 180_000, maxWait: 20_000 }
   );
 }
+
+
+/**
+ * Trades a contractor could enrol in — derived, never listed.
+ *
+ * A trade is available when it has a published SNAPSHOT, because a trade with
+ * only deltas has no catalog to install. Reading it from the published data
+ * means Plumbing appears the day its catalog is published and no onboarding
+ * code changes.
+ */
+export async function availableTrades(db: PrismaClient): Promise<string[]> {
+  const rows = await db.templateVersion.findMany({
+    where: { kind: "SNAPSHOT" },
+    select: { trade: true },
+    distinct: ["trade"],
+    orderBy: { trade: "asc" },
+  });
+  return rows.map((r) => r.trade);
+}
+
+/**
+ * Services this contractor holds that came from a given trade's catalog.
+ *
+ * What makes an enrolment un-removable: a catalog that has been installed is
+ * priced, possibly live, and possibly booked against. Withdrawing the
+ * enrolment underneath it is a migration, not a setting.
+ */
+export async function provisionedFromTrade(
+  db: PrismaClient,
+  contractorId: string,
+  tradeKey: string
+): Promise<number> {
+  // Service.templateVersionId is provenance WITHOUT a relation — deliberately,
+  // since it is never read at request time — so the versions are resolved
+  // first rather than joined.
+  const versions = await db.templateVersion.findMany({
+    where: { trade: tradeKey }, select: { id: true },
+  });
+  if (versions.length === 0) return 0;
+  return db.service.count({
+    where: { contractorId, templateVersionId: { in: versions.map((v) => v.id) } },
+  });
+}

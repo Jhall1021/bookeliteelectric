@@ -157,7 +157,22 @@ export async function assessOnboarding(
     where: { contractorId },
     select: { id: true, slug: true, templateVersionId: true, active: true },
   });
+  const enrolment = await db.contractorTrade.findFirst({
+    where: { contractorId }, orderBy: { enrolledAt: "asc" },
+  });
+
+  // Enrolment is what lets a contractor INSTALL a catalog — it is not a
+  // condition of being ready. Elite has 79 services, a live storefront and no
+  // enrolment at all, because its catalog predates templates; demanding one
+  // would tell a working business it could not launch. So the blocker only
+  // applies to a contractor who has nothing to sell yet.
   if (services.length === 0) {
+    if (!enrolment) {
+      findings.trade.push(b("TRADE_NOT_SELECTED",
+        "Tell us your trade so we can give you the right catalog to price.", { href: IN_SETUP }));
+    }
+  }
+  if (services.length === 0 && enrolment) {
     // Trade-neutral on purpose. Electrical is the first Guided Setup trade,
     // not the shape of the framework — Plumbing will install through the same
     // path and is structurally different.
@@ -194,16 +209,33 @@ export async function assessOnboarding(
       `${h.slug} depends on ${h.heldRoles.length} material cost(s) still on hold.`,
       { serviceSlug: h.slug, href: "/dashboard/services" }));
   }
+  // GROUPED BY ROLE, not repeated per service.
+  //
+  // One uncosted role blocks every service that uses it — 38 roles across 75
+  // services is 38 decisions, not 75 problems. Listing it per service makes
+  // one decision look like dozens and hides how few are actually left.
+  const roleToServices = new Map<string, string[]>();
+  const policyToServices = new Map<string, string[]>();
   for (const { svc } of intended) {
-    const unresolved = [
-      ...((svc.unresolvedMaterialKeys as string[]) ?? []),
-      ...((svc.unresolvedPolicyKeys as string[]) ?? []),
-    ];
-    if (svc.materialCostResolved === false || unresolved.length > 0) {
-      findings["pricing-foundation"].push(b("MATERIAL_COSTS_UNRESOLVED",
-        `${svc.slug} has ${unresolved.length || "some"} material or policy value(s) you have not costed yet.`,
-        { serviceSlug: svc.slug as string, href: "/dashboard/services" }));
+    for (const k of (svc.unresolvedMaterialKeys as string[]) ?? []) {
+      (roleToServices.get(k) ?? roleToServices.set(k, []).get(k)!).push(svc.slug as string);
     }
+    for (const k of (svc.unresolvedPolicyKeys as string[]) ?? []) {
+      (policyToServices.get(k) ?? policyToServices.set(k, []).get(k)!).push(svc.slug as string);
+    }
+  }
+  for (const [role, slugs] of [...roleToServices].sort()) {
+    // Material costs are edited on a service's Materials panel; there is no
+    // role-level surface yet. Naming one service that uses the role keeps the
+    // link actionable without pretending a page exists.
+    findings["pricing-foundation"].push(b("MATERIAL_COST_UNRESOLVED",
+      `You haven't told us what ${role} costs you — ${slugs.length} service${slugs.length === 1 ? "" : "s"} need${slugs.length === 1 ? "s" : ""} it, including ${slugs[0]}.`,
+      { href: "/dashboard/services" }));
+  }
+  for (const [key, slugs] of [...policyToServices].sort()) {
+    findings["pricing-foundation"].push(b("POLICY_UNRESOLVED",
+      `One of your policies is undecided (${key}) — ${slugs.length} service${slugs.length === 1 ? "" : "s"} depend${slugs.length === 1 ? "s" : ""} on it.`,
+      { href: "/dashboard/services" }));
   }
 
   // ── 4. Services & pricing review ───────────────────────────────────────
