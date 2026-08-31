@@ -79,6 +79,26 @@ blind spot in `verify-tenant-isolation-live` rather than fixed — it is a known
 property of rooting a query at a platform model and traversing into tenant
 data. No current code path does it.
 
+## Standing obligations
+
+These are conditions of the closure, not observations about it.
+
+1. **`ContractorSite` stays routing/identity data.** It may remain
+   platform-readable only while it holds no contractor economics, customer
+   data, pricing, payment or other sensitive tenant-owned state. Guarded by
+   `verify-cross-tenant-resource-access`, which fails if a field matching
+   price/cost/deposit/customer/email/phone/address ever appears on it.
+2. **Any future platform-rooted nested read gets an explicit isolation
+   review.** No current code path has that shape. It is not a defect today and
+   it is not a licence tomorrow.
+3. **The full cross-tenant suite is rerun during the first persistent
+   Contractor #2 onboarding** — `verify-cross-tenant-resource-access`,
+   `verify-tenant-isolation-live`, `audit-unguarded-tenant-access`,
+   `audit-guard-adoption`, `verify-booking-tenancy`,
+   `verify-tenant-context-retention`. Every proof today runs against a tenant
+   the test creates and destroys; a second tenant that PERSISTS exercises
+   ordering, cookies, sessions and cached context that a transient one cannot.
+
 ## Verdict
 
 **Ready for Contractor #2.** Tenant identity comes from trusted server-side
