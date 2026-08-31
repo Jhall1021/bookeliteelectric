@@ -405,11 +405,16 @@ async function main() {
     !/basePrice|publishedPriceApprovedAt|offered/.test(
       (launchSrc.match(/JSON\.stringify\(\{[\s\S]*?\}\)/g) ?? []).join("\n")));
 
-  // The activation guard now enforces §1.4's rule, not only material costs.
-  ok(`41. activation refuses a service that can quote a price with none approved`,
-    /PRICE_NOT_APPROVED/.test(activationSrc) && /promise\.promisesFixedPrice/.test(activationSrc));
-  ok(`42.  through the same promise function readiness uses`,
-    /promiseFor/.test(activationSrc));
+  // The refusal itself is proven BEHAVIORALLY in verify-launch-behavior,
+  // against a real installed catalog. What belongs here is the structural
+  // claim that behavior rests on: one activation authority, which the route
+  // delegates to rather than reimplementing.
+  ok(`41. there is exactly one activation authority`,
+    /activationRefusal/.test(activationSrc) &&
+      !/PRICE_NOT_APPROVED|MATERIALS_UNRESOLVED/.test(strip("app/api/admin/services/[serviceId]/route.ts").replace(/refusal\.code/g, "")));
+  ok(`42.  and no bulk activation path exists beside it`,
+    !existsSync("app/api/admin/services/activate-many/route.ts") &&
+      !existsSync("app/api/admin/setup/launch/route.ts"));
 
   // Scheduling writes only the authority and links out for the rest.
   ok(`43. scheduling writes only the authority choice`,

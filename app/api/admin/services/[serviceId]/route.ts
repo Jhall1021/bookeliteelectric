@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { withAdminContractor } from "@/lib/adminContext";
-import { promiseFor } from "@/lib/onboardingReadiness";
-import { loadPricingSettings } from "@/lib/routeResolver";
+import { activationRefusal } from "@/lib/serviceActivation";
 
 
 /**
@@ -66,72 +65,20 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   const wantsActive = !!active;
 
   if (wantsActive) {
-    const service = await db.service.findUnique({
-      where: { id: params.serviceId },
-      select: {
-        id: true,
-        active: true,
-        slug: true,
-        bookingType: true,
-        publishedPriceApprovedAt: true,
-        materialCostResolved: true,
-        unresolvedMaterialKeys: true,
-      },
-    });
-
-    if (!service) {
-      return NextResponse.json({ error: "Unknown service" }, { status: 404 });
-    }
-
-    // Asked of the TREE, through the same function readiness and §1.4 use, so
-    // the three cannot disagree about what a service promises.
-    let settings: unknown = null;
-    try { settings = await loadPricingSettings(db as never, contractorId); } catch { settings = null; }
-    const promise = await promiseFor(
-      db, { id: service.id, bookingType: service.bookingType }, settings
-    );
-
-
-    // Only blocks the transition INTO active. A service already live with a
-    // material problem is handled by the pricing guard, and refusing to save
-    // an unrelated wording change on it would help nobody.
-    // §1.4, enforced AT ACTIVATION rather than only in CI.
-    //
-    // The guard below covers material costs. It did not cover the promise the
-    // service makes: a tree that can quote a homeowner a fixed price, on a
-    // service with no approved price, is exactly what §1.4 forbids — and it
-    // was only caught by a verifier after the fact. One service slipping
-    // through was a build failure; Guided Setup's launch activates many at
-    // once, so the same gap becomes a storefront quoting prices nobody
-    // approved.
-    if (!service.active && promise.promisesFixedPrice && service.publishedPriceApprovedAt === null) {
+    // The shared decision, so the route and the tests exercise the same code.
+    const refusal = await activationRefusal(db, contractorId, params.serviceId);
+    if (refusal) {
+      if (refusal.code === "UNKNOWN_SERVICE") {
+        return NextResponse.json({ error: "Unknown service" }, { status: 404 });
+      }
+      console.error(`[admin/services] refused to activate ${params.serviceId}: ${refusal.code}`);
       return NextResponse.json(
         {
-          error: "PRICE_NOT_APPROVED",
-          message:
-            "This service can't go live yet — a homeowner could reach a price on it, " +
-            "and no price has been approved.",
-        },
-        { status: 409 }
-      );
-    }
-
-    if (!service.active && service.materialCostResolved === false) {
-      const keys = service.unresolvedMaterialKeys ?? [];
-      console.error(
-        `[admin/services] refused to activate ${service.slug}: ` +
-          `unresolved material roles ${keys.join(", ") || "(none recorded)"}`
-      );
-      return NextResponse.json(
-        {
-          error: "MATERIALS_UNRESOLVED",
-          message:
-            keys.length > 0
-              ? `This service can't go live yet — no cost has been entered for ` +
-                `${keys.join(", ")}. Add those costs and try again.`
-              : `This service can't go live yet — one of the materials it needs ` +
-                `has no cost recorded.`,
-          unresolvedMaterialKeys: keys,
+          error: refusal.code,
+          message: refusal.message,
+          ...(refusal.unresolvedMaterialKeys
+            ? { unresolvedMaterialKeys: refusal.unresolvedMaterialKeys }
+            : {}),
         },
         { status: 409 }
       );

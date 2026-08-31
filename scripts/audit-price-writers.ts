@@ -30,6 +30,14 @@ const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"
  * whether or not its number happens to be right.
  */
 const APPROVED_PUBLISHERS: Record<string, string> = {
+  "scripts/verify-launch-behavior.ts":
+    "READS these fields, never writes them. It proves the opposite property: " +
+    "that activating a service writes no price and stamps no approval, and " +
+    "that a service whose tree can quote a price is REFUSED activation while " +
+    "none is approved. The flagged line is a select on a throwaway " +
+    "contractor's own service, checked immediately after activation to show " +
+    "the price columns are still null. No real contractor's price is read or " +
+    "written.",
   "scripts/verify-onboarding-readiness.ts":
     "Builds a THROWAWAY contractor with one priced, approved service so it can " +
     "prove the two conditional readiness rules: Stripe blocks only once a " +
