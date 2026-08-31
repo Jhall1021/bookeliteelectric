@@ -37,6 +37,16 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "constraint nobody knows is still connected. Both attempts run inside a " +
     "transaction that always rolls back, and the script re-reads every " +
     "published price afterwards to prove none moved.",
+  "scripts/republish-legacy-approved-prices.ts":
+    "Re-approves five prices published before the approval boundary existed, " +
+    "at amounts that do not change: each one's inputs already reproduce its " +
+    "published figure to the cent, so the stamp records a decision about a " +
+    "number that was already correct. Owner-authorized 30 Aug 2026 for five " +
+    "named slugs only. It derives through the same suggestPrimaryPrice the " +
+    "admin route calls and REFUSES if the engine no longer reproduces what is " +
+    "published — which would make it a repricing rather than a re-approval. " +
+    "new-coax-line is deliberately excluded: it publishes $420.00 and derives " +
+    "$405.00, and that gap is a decision, not a migration.",
   "scripts/verify-tenant-isolation-live.ts":
     "ATTEMPTS a basePrice write and proves it is REFUSED. The admin pricing " +
     "route publishes prices by service id, and until 27 Aug did so with no " +

@@ -30,6 +30,7 @@ import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { suggestPrimaryPrice } from "../lib/pricing";
 import { unapprovedPriceSources } from "../lib/activationOutcome";
+import { withThrowaway } from "./_throwaway";
 
 const prisma = new PrismaClient();
 let fail = 0;
@@ -144,27 +145,69 @@ async function main() {
     unapprovedPriceSources([{ slug: "quote-only", basePrice: null, publishedPriceApprovedAt: null }])
       .length === 0);
 
-  // End to end on real data, not a fixture: --no-rescue drops both the rescue
-  // list and the approval backlog, so §1.4 must reject the LIVE TV routes for
-  // the prices they reach rather than for prices of their own.
-  let guardOutput = "";
-  let guardExit = 0;
-  try {
-    guardOutput = execSync("npx tsx scripts/verify-public-pricing.ts --no-rescue", {
-      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (e) {
-    const err = e as { status?: number; stdout?: string };
-    guardExit = err.status ?? 1;
-    guardOutput = err.stdout ?? "";
-  }
+  // End to end, on a fixture this suite BUILDS.
+  //
+  // This first proved itself against the live catalog, where two inactive
+  // mounts were reachable from live TV installs. Then those were approved and
+  // the check went red — it had been proving the bug still existed rather
+  // than proving the guard still worked. A regression check must not depend
+  // on the defect that motivated it.
+  //
+  // So the situation is constructed: a host service that is active, priced
+  // and APPROVED — nothing wrong with it — offering an option that references
+  // an inactive service whose own price nobody approved. The only possible
+  // reason for §1.4 to reject the host is the price it reaches.
+  const category = await prisma.service.findFirstOrThrow({ select: { categoryId: true } });
+  const { guardExit, guardOutput } = await withThrowaway(
+    prisma, "zz-addon-approval-probe", "Add-on approval probe",
+    async (contractorId) => {
+      const addOn = await prisma.service.create({
+        data: {
+          slug: "zz-probe-addon", name: "Probe Add-On", contractorId,
+          categoryId: category.categoryId, bookingType: "ADJUSTED",
+          active: false, isPrimaryEligible: false,
+          basePrice: 9999, publishedPriceApprovedAt: null,
+        },
+        select: { id: true },
+      });
+      const host = await prisma.service.create({
+        data: {
+          slug: "zz-probe-host", name: "Probe Host", contractorId,
+          categoryId: category.categoryId, bookingType: "ADJUSTED",
+          active: true, basePrice: 50000, publishedPriceApprovedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      const q = await prisma.question.create({
+        data: { serviceId: host.id, key: "probe", prompt: "Add the probe add-on?", order: 0, inputType: "SINGLE_SELECT" },
+        select: { id: true },
+      });
+      await prisma.answerOption.create({
+        data: {
+          questionId: q.id, label: "Yes — add it", value: "yes",
+          routeAction: "RESOLVE_ADJUSTED", order: 0, referencedServiceId: addOn.id,
+        },
+      });
+
+      try {
+        const out = execSync("npx tsx scripts/verify-public-pricing.ts", {
+          encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+        });
+        return { guardExit: 0, guardOutput: out };
+      } catch (e) {
+        const err = e as { status?: number; stdout?: string; stderr?: string };
+        return { guardExit: err.status ?? 1, guardOutput: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+      }
+    }
+  );
+
   ok(`12. §1.4 REJECTS a live route that offers an unapproved add-on price`,
-    guardExit !== 0 &&
-      /tv-installation[\s\S]*offers an unapproved price through/.test(guardOutput) &&
-      /tv-install-existing-location/.test(guardOutput),
+    guardExit !== 0 && /zz-probe-host[\s\S]*offers an unapproved price through/.test(guardOutput),
     `exit ${guardExit}`);
   ok(`    naming the referenced service, not the host's own price`,
-    /elite-tilt-mount/.test(guardOutput) && /elite-articulating-mount/.test(guardOutput));
+    /zz-probe-addon/.test(guardOutput));
+  ok(`13. and the host was otherwise beyond reproach — active, priced, approved`,
+    !/zz-probe-host[\s\S]{0,120}(no price is published|nobody approved)/.test(guardOutput));
 
   // And the live claim: nothing reaches a price that is neither approved nor
   // on the dated backlog.

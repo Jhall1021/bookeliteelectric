@@ -82,22 +82,13 @@ const UNDER_RESCUE: Record<string, string> = {
  * Dated and finite, like the rescue list above it.
  */
 const AWAITING_APPROVAL: Record<string, string> = {
-  "elite-articulating-mount":
-    "Add-on only and inactive — an Elite-supplied mount fitted during a TV " +
-    "installation. Its labor hours were null (unknown) where the true answer " +
-    "was 0 (none), so the engine derived nothing; completed 30 Aug 2026. " +
-    "Published $200.00 is material at the 2.0x multiplier and now derives " +
-    "exactly. Needs the approval stamp only.",
-  "elite-tilt-mount":
-    "As above. Published $125.00 is material at 2.5x and now derives exactly. " +
-    "Needs the approval stamp only.",
   "new-coax-line":
-    "Published $420.00; inputs now derive $405.00. Needs re-approval, and the " +
-    "$15 gap is a decision for the contractor rather than something to " +
-    "overwrite silently.",
-  "new-ethernet-line": "Published $415.00, matches its derived price. Needs the approval stamp only.",
-  "new-wall-sconce": "Published $340.00, matches its derived price. Needs the approval stamp only.",
-  "replace-wall-sconce": "Published $255.00, matches its derived price. Needs the approval stamp only.",
+    "Publishes $420.00; its inputs derive $405.00. NOT a stamp to apply — " +
+    "under the current model coax should cost LESS than its ethernet sibling " +
+    "(identical 1.5 crew-hours and an identical five-role recipe, with " +
+    "cheaper cable), yet it publishes $5.00 more. Either $420.00 rests on an " +
+    "input nobody recorded, or it predates derivation entirely. The " +
+    "contractor decides; nothing here may overwrite it.",
 };
 
 /**
@@ -137,6 +128,10 @@ async function main() {
   const staleApproval = new Set(Object.keys(AWAITING_APPROVAL));
   /** Live services offering a price that is on the backlog. */
   const reachesBacklog = new Set<string>();
+  /** Contractors with no pricing settings — nothing of theirs can be priced. */
+  const unpriceable = new Set<string>();
+  /** Unpriced services whose promise could not be computed. */
+  const unverifiable: string[] = [];
   const staleAllowlist = new Set(Object.keys(UNDER_RESCUE));
 
   for (const c of contractors) {
@@ -149,7 +144,20 @@ async function main() {
       orderBy: { slug: "asc" },
     });
 
-    const settings = await loadPricingSettings(prisma as never, c.id);
+    // A contractor part-way through onboarding has no pricing settings yet,
+    // and loading them THROWS. §1.4 was calling this before it knew whether it
+    // needed them, so one un-onboarded contractor took the whole deploy gate
+    // down with an error about pricing for a tenant that has no prices.
+    //
+    // Missing settings only costs the ability to ask what a tree PROMISES.
+    // The approval checks below need no settings at all, and they are the ones
+    // that protect a homeowner, so they still run.
+    let settings: Awaited<ReturnType<typeof loadPricingSettings>> | null = null;
+    try {
+      settings = await loadPricingSettings(prisma as never, c.id);
+    } catch {
+      unpriceable.add(c.slug);
+    }
     const offenders: { slug: string; bookingType: string; why: string }[] = [];
 
     for (const s of services) {
@@ -202,6 +210,10 @@ async function main() {
 
       // Unpriced. Whether that is a defect depends entirely on what the
       // service's own tree promises the customer.
+      // Without settings there is no way to ask what the tree promises. The
+      // service is reported as unverifiable rather than assumed innocent.
+      if (!settings) { unverifiable.push(s.slug); continue; }
+
       const full = await loadServiceForResolution(prisma as never, s.id);
       const promise = pricePromiseOf(
         full ? ({ ...full, bookingType: s.bookingType } as never) : null,
@@ -261,6 +273,15 @@ async function main() {
     for (const u of undeclared) console.log(`      ${u.slug}`);
     console.log(`  Add them with a reason, or re-approve them.\n`);
     violations += undeclared.length;
+  }
+
+  if (unpriceable.size) {
+    console.log(`  ${unpriceable.size} contractor(s) have no pricing settings yet:`);
+    for (const c of unpriceable) console.log(`      ${c}`);
+    console.log(`  Their unpriced services cannot be checked for a price promise,`);
+    console.log(`  but every price they DO carry was still checked for approval.`);
+    if (unverifiable.length) console.log(`      unchecked: ${unverifiable.join(", ")}`);
+    console.log();
   }
 
   if (staleApproval.size) {
