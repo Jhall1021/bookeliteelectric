@@ -54,6 +54,8 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// decides — and deliberately holds no readiness, because readiness is
   /// derived from the systems that own each rule.
   "ContractorOnboarding",
+  /// Which canonical trade catalogs this contractor is enrolled in.
+  "ContractorTrade",
   "Service",
   "ContractorMaterial",
   "ContractorComponent",

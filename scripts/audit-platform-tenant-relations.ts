@@ -71,6 +71,12 @@ const REVIEWED_SAFE: Record<string, Exception> = {
     "Rooted at contractorMaterial.findMany — ContractorMaterial is tenant-owned, " +
     "so the guard scopes it. This is the relation on ContractorMaterial, not the " +
     "same-named one on the deprecated Material.",
+  "lib/templateProvisioning.ts:options":
+    "TemplateQuestion.options, not Question.options. The root is " +
+    "TemplateService — a platform model — and every row beneath it is template " +
+    "data the whole platform shares, not one contractor's tree. The two " +
+    "relations share a name and nothing else; a real read of Question.options " +
+    "rooted at a platform model in this file would still be flagged.",
   "app/dashboard/setup/page.tsx:services":
     "A local TYPE ANNOTATION named `services`, not a Prisma traversal. The read " +
     "it describes is db.service.findMany rooted at Service, which is " +

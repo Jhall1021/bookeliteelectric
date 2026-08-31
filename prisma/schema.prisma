@@ -578,6 +578,7 @@ model Contractor {
   /// default — guessing wrong in either direction either fabricates capacity
   /// or refuses bookings a contractor could take.
   onboarding          ContractorOnboarding?
+  trades              ContractorTrade[]
 
   schedulingAuthority SchedulingAuthority?
 
@@ -3382,4 +3383,46 @@ model ContractorOnboarding {
   updatedAt    DateTime   @updatedAt
 
   @@map("contractor_onboarding")
+}
+
+/// Which canonical Price2Book trade catalog(s) this contractor is enrolled in.
+///
+/// A RELATION, not a field on Contractor, because one contractor may
+/// legitimately sell Electrical and Plumbing. Encoding one-trade-per-tenant as
+/// a scalar would have to be undone the first time that happens, and this
+/// matches five models that already exist — ContractorCategory,
+/// ContractorMaterial, ContractorComponent, ContractorDisclaimer and
+/// ContractorPolicyValue are each a contractor's own row for a platform
+/// concept, unique on the pair.
+///
+/// THREE NAMES THAT MUST NOT COLLAPSE:
+///
+///   Contractor.trade         contractor-authored prose, "residential
+///                            electrician" — feeds the service finder's prompt
+///   ContractorTrade.tradeKey canonical enrollment, this model
+///   TemplateVersion.trade    the canonical key for a versioned template
+model ContractorTrade {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// Matches TemplateVersion.trade — "electrical", "plumbing".
+  ///
+  /// A string rather than a foreign key because trade is not an entity in this
+  /// schema; it exists only as a String on TemplateVersion. Enrollment is
+  /// validated against distinct PUBLISHED template trade keys, so an unknown
+  /// value cannot be enrolled. If a CanonicalTrade entity ever arrives this
+  /// becomes a foreign key and nothing about enrollment is undone — which is
+  /// the property a scalar on Contractor would not have had.
+  ///
+  /// VERSION-INDEPENDENT ON PURPOSE. A contractor is enrolled in Electrical,
+  /// not in Electrical v1. Provisioning resolves the latest published version
+  /// at install time, and moving to a later version is an adoption decision
+  /// rather than a different enrollment.
+  tradeKey     String
+  enrolledAt   DateTime   @default(now())
+
+  @@unique([contractorId, tradeKey])
+  @@index([contractorId])
+  @@map("contractor_trades")
 }
