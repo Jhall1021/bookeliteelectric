@@ -3,6 +3,7 @@ import { assessOnboarding, catalogPromises, type Finding } from "@/lib/onboardin
 import { categoryName, requireContractorCategory } from "@/lib/categories";
 import ServiceSelectionList from "@/components/admin/ServiceSelectionList";
 import SchedulingAuthorityControl from "./SchedulingAuthorityControl";
+import NativeCapacityControl from "./NativeCapacityControl";
 import BusinessPanel from "./BusinessPanel";
 import StageRail from "./StageRail";
 import TradePanel from "./TradePanel";
@@ -58,6 +59,7 @@ export default async function SetupPage({
       select: {
         name: true, legalName: true, phone: true, supportEmail: true,
         licenseNumber: true, countryCode: true, trade: true, schedulingAuthority: true,
+        nativeConcurrentJobs: true,
       },
     });
     const site = await db.contractorSite.findFirst({
@@ -360,6 +362,12 @@ export default async function SetupPage({
                 <SchedulingAuthorityControl
                   authority={c.schedulingAuthority as "NATIVE" | "EXTERNAL" | null}
                 />
+                {/* Only when Price2Book keeps the calendar. An external
+                    provider answers this from its own schedule, and asking
+                    twice would invite two different answers. */}
+                {c.schedulingAuthority === "NATIVE" && (
+                  <NativeCapacityControl concurrentJobs={c.nativeConcurrentJobs} />
+                )}
               </div>
             )}
 
