@@ -40,4 +40,35 @@ export const SHOTS: Record<string, Shot | null> = {
     w: 2080,
     h: 1240,
   },
+
+  // THE CONTRACTOR'S PANEL — /product/what-you-control.
+  //
+  // These four were captured in the same run as guidedPricing and sat here
+  // unreferenced, which is exactly what the note above anticipated: a later
+  // section can use one without a new capture run. All four are Voltmark
+  // Electric, the demonstration contractor from scripts/demo-contractor.ts.
+  servicesPricing: {
+    src: "/marketing/services-pricing.png",
+    alt: "The Services & Pricing catalog, listing each service with its price, labor hours, same-visit price and materials",
+    w: 2080,
+    h: 1240,
+  },
+  storefrontDesign: {
+    src: "/marketing/storefront-design.png",
+    alt: "The storefront design picker, showing selectable layouts previewed with the contractor's own branding",
+    w: 2080,
+    h: 1240,
+  },
+  hoursAvailability: {
+    src: "/marketing/hours-availability.png",
+    alt: "The Hours & Availability screen, where working hours and bookable windows are set",
+    w: 2080,
+    h: 1240,
+  },
+  serviceArea: {
+    src: "/marketing/service-area.png",
+    alt: "The Service Area screen, where the postcodes a contractor will travel to are set",
+    w: 2080,
+    h: 1240,
+  },
 };

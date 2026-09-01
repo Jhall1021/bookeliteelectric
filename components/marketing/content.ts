@@ -551,6 +551,7 @@ export const PRODUCT_PAGES: ReadonlyArray<{ name: string; href: string | null; s
   { name: "Guided Pricing", href: "/product/guided-pricing" },
   { name: "While We\u2019re There\u2122", href: "/product/while-were-there" },
   { name: "Online Booking", href: "/product/online-booking" },
+  { name: "What You Control", href: "/product/what-you-control" },
   // No page, on purpose. A dedicated Product page is itself a capability
   // claim, and embedding has not crossed the shipped threshold the rest of
   // this site is held to — EMBED_STATUS still reads "In build for V1". The
