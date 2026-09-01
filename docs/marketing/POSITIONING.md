@@ -230,6 +230,18 @@ These are correctness constraints, not style preferences:
   rule for any future product demonstration on the marketing site, and it is why the hero
   renders real storefront components instead of copies of them.
 
+## The site becomes more than one page — 1 September 2026
+
+The information architecture, the page responsibilities and the trade status
+rules now live in [SITEMAP.md](SITEMAP.md). This file stays authoritative for
+copy rules, claim rules and the frozen hero; that one owns what each surface is
+for. The governing split: product pages explain the mechanism, trade pages prove
+the depth, the homepage says why it matters, the demo lets them try it.
+
+**Trade claims are capability claims.** Electrical is available now; plumbing is
+in build; HVAC is next. A qualifier comes off only when that trade's template is
+committed and frozen — never when it merely works.
+
 ## The hero is closed — 1 September 2026
 
 `ffe6dcd` and `c1c24d5` are the finished hero. **No further polishing** unless an actual
