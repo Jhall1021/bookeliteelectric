@@ -9,6 +9,8 @@ import {
 } from "@/lib/categories";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { findOpenVisit } from "@/lib/openVisit";
+import { canPlaceAlongside } from "@/lib/sameVisit";
+import { selectPrimary } from "@/lib/visitPrimary";
 
 // Returns EVERY active service, grouped by category, so the homeowner can
 // add anything from any category "while we're there." Services already in
@@ -58,6 +60,10 @@ export async function GET(req: Request) {
           id: true,
           slug: true,
           name: true,
+          // Read so placement can be asked through selectPrimary below, then
+          // dropped from the payload — the browser decides nothing from a
+          // standalone price here, and `...s` would otherwise ship it.
+          basePrice: true,
           whileWeThereBasePrice: true,
           startingPriceLabel: true,
           bookingType: true,
@@ -95,7 +101,36 @@ export async function GET(req: Request) {
 
   const quickPicks = withServices
     .flatMap((c) => c.services.filter((s) => s.whileWeThereBasePrice !== null))
-    .slice(0, 6);
+    .slice(0, 6)
+    .map(({ basePrice: _unused, ...rest }) => rest);
 
-  return NextResponse.json({ quickPicks, categories: withServices });
+  // BROWSE IS FILTERED THE SAME WAY THE ADD WOULD BE.
+  //
+  // quickPicks already only offered services with an add-on price, but "browse
+  // all" offered everything — so a homeowner whose visit already holds a
+  // service that can only be primary could pick a second one and be refused
+  // with PRIMARY_UNRESOLVABLE. Rare (15 of Elite's 2,080 pairs) and a dead end
+  // every time it happened.
+  //
+  // Asked through selectPrimary itself rather than by re-testing "has an
+  // add-on price", so the offer and the add cannot disagree about what is
+  // possible.
+  const onVisit = await withSite(site, (db) =>
+    db.service.findMany({
+      where: { id: { in: [...quantityByService.keys()] } },
+      select: { slug: true, basePrice: true, whileWeThereBasePrice: true },
+    })
+  );
+  const placeable = withServices.map((c) => ({
+    ...c,
+    services: c.services
+      .filter((s) =>
+        canPlaceAlongside(onVisit, {
+          slug: s.slug, basePrice: s.basePrice, whileWeThereBasePrice: s.whileWeThereBasePrice,
+        }, selectPrimary)
+      )
+      .map(({ basePrice: _unused, ...rest }) => rest),
+  })).filter((c) => c.services.length > 0);
+
+  return NextResponse.json({ quickPicks, categories: placeable });
 }

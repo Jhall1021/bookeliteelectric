@@ -23,6 +23,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { connectReadiness } from "./stripeConnect";
 import { pricePromiseOf } from "./activationOutcome";
+import { servicesWithoutAddOnPrice } from "./sameVisit";
 import { suggestPrimaryPrice } from "./pricing";
 import { servicesOnHold } from "./materialHolds";
 import { loadServiceForResolution, loadPricingSettings } from "./routeResolver";
@@ -363,6 +364,30 @@ export async function assessOnboarding(
         `${slug} prices every answer path. Nothing sends an unusual job to review.`,
         { serviceSlug: slug, href: "/dashboard/services" }));
     }
+  }
+
+  // THE SAME-VISIT PROMISE, only if it can be kept.
+  //
+  // A WARNING, not a blocker: a contractor who only ever does one job per
+  // visit has a working business and a working storefront, and refusing to
+  // launch them would invent a requirement. What they should not have is
+  // copy offering something the cart will refuse — so the storefront goes
+  // quiet on its own (lib/sameVisit) and this says why, once, rather than
+  // per service.
+  const noAddOn = await servicesWithoutAddOnPrice(db, contractorId);
+  const liveCount = await db.service.count({ where: { contractorId, active: true } });
+  if (liveCount >= 2 && noAddOn.length === liveCount) {
+    findings.services.push(w("SAME_VISIT_UNAVAILABLE",
+      `None of your live services has an add-on price, so a homeowner can only ` +
+      `book one thing per visit. We've taken the same-visit pricing promise off ` +
+      `your storefront until at least one has one.`,
+      { href: "/dashboard/services" }));
+  } else if (noAddOn.length > 1) {
+    findings.services.push(w("SAME_VISIT_PARTIAL",
+      `${noAddOn.length} of your live services have no add-on price, including ` +
+      `${noAddOn[0]}. Each can still be booked on its own, but two of them can't ` +
+      `share a visit — so we don't offer one alongside another.`,
+      { href: "/dashboard/services" }));
   }
 
   // ── 5. Scheduling ──────────────────────────────────────────────────────

@@ -59,6 +59,8 @@ export default function MyVisitPage() {
   const [totalCents, setTotalCents] = useState(0);
   const [awaitingQuote, setAwaitingQuote] = useState(0);
   const [quickPicks, setQuickPicks] = useState<ServiceOption[]>([]);
+  /** Whether this contractor can place a second service on one visit. */
+  const [sameVisit, setSameVisit] = useState(false);
   const [categories, setCategories] = useState<CategoryGroup[]>([]);
   const [browsingAll, setBrowsingAll] = useState(false);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export default function MyVisitPage() {
       siteFetch("/api/visit/while-we-there").then((r) => r.json()),
     ]);
     setLineItems(visitRes.lineItems ?? []);
+    setSameVisit(visitRes.sameVisitAvailable === true);
     setTotalCents(visitRes.totalCents ?? 0);
     setAwaitingQuote(visitRes.awaitingQuote ?? 0);
     setQuickPicks(wwtRes.quickPicks ?? []);
@@ -246,7 +249,12 @@ export default function MyVisitPage() {
             </div>
           </div>
 
-          {(quickPicks.length > 0 || categories.length > 0) && (
+          {/* The upsell is the same promise, made at the moment a homeowner
+              would act on it — so it is gated on the same fact. Offering
+              "anything else while we're there" to a contractor who cannot
+              place a second service is how BrightPath's homeowner reached
+              PRIMARY_UNRESOLVABLE. */}
+          {sameVisit && (quickPicks.length > 0 || categories.length > 0) && (
             <div className="mt-10">
               <h2 className="font-display text-lg font-bold text-navy">
                 Would you like us to take care of anything else while we're there?

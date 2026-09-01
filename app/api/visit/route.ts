@@ -11,6 +11,7 @@ import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { findOpenVisit, findOrCreateOpenVisit } from "@/lib/openVisit";
 import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
 import { categorySlug, requireContractorCategory } from "@/lib/categories";
+import { sameVisitAvailable } from "@/lib/sameVisit";
 
 // POST body: { serviceId, computedPriceCents, isPrimary, answersSnapshot,
 //              photos?: { url, label }[] }
@@ -515,7 +516,10 @@ export async function GET(req: Request) {
   });
 
   if (!visit) {
-    return NextResponse.json({ lineItems: [], totalCents: 0 });
+    return NextResponse.json({
+      lineItems: [], totalCents: 0,
+      sameVisitAvailable: await sameVisitAvailable(db, site.contractorId),
+    });
   }
 
   // Only what's actually priced. An unpriced line contributes nothing to the
@@ -575,6 +579,12 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     visitId: visit.id,
+    // Whether a SECOND service could be placed on this visit at all. The cart
+    // asks "anything else while we're there?", and a contractor with two or
+    // more services that can only ever be primary cannot answer yes to any of
+    // them — the add is refused as PRIMARY_UNRESOLVABLE. Derived server-side
+    // so the promise and the placement rule cannot drift apart.
+    sameVisitAvailable: await sameVisitAvailable(db, site.contractorId),
     lineItems: Array.from(groups.values()).map((g) => ({
       serviceId: g.serviceId,
       serviceName: g.serviceName,

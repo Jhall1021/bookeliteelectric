@@ -126,7 +126,12 @@ function SplitHero({ base, ladder, differentiators }: HeroProps) {
           {/* The same-visit callout. Warm card against the dark ground so it
               reads as a distinct object rather than more hero copy — the one
               place on this page where the palette inverts, which is what earns
-              it attention without a badge or a starburst. */}
+              it attention without a badge or a starburst.
+
+              AN EMPTY LADDER MEANS THE CONTRACTOR CANNOT KEEP THIS PROMISE, so
+              the whole callout goes rather than rendering a headline over
+              nothing. See lib/sameVisit. */}
+          {ladder.length > 0 && (
           <div className="mt-6 max-w-[30rem] overflow-hidden rounded-card bg-canvas text-ink shadow-card">
             <div className="px-5 pt-3.5">
               <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-accent">
@@ -139,6 +144,7 @@ function SplitHero({ base, ladder, differentiators }: HeroProps) {
             </div>
             <Ladder ladder={ladder} strip={heroAside === "strip"} />
           </div>
+          )}
 
           <div className="mt-6">
             <ServiceFinder tone="dark" />
@@ -217,12 +223,14 @@ function CenteredHero({ base, ladder, differentiators }: HeroProps) {
           ))}
         </ul>
 
+        {ladder.length > 0 && (
         <div className="mx-auto max-w-xl">
           <div className="mt-12 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">
             Add more in the same visit
           </div>
           <Ladder ladder={ladder} strip={heroAside === "strip"} />
         </div>
+        )}
       </div>
 
       {/* Full-bleed band rather than a column-mate. The photograph stops being
@@ -285,12 +293,14 @@ function BannerHero({ base, ladder, differentiators }: HeroProps) {
             </ul>
           </div>
 
+          {ladder.length > 0 && (
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-accent">
               Add more in the same visit
             </div>
             <Ladder ladder={ladder} strip={heroAside === "strip"} />
           </div>
+          )}
         </div>
       </div>
     </section>

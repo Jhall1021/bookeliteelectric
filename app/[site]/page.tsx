@@ -5,6 +5,7 @@ import FeaturedServices, { type FeaturedItem } from "@/components/home/FeaturedS
 import Section from "@/components/theme/Section";
 import Card from "@/components/theme/Card";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
+import { sameVisitAvailable } from "@/lib/sameVisit";
 import { prisma } from "@/lib/prisma";
 import { ANONYMOUS_IDENTITY, IDENTITY_SELECT, resolveIdentity } from "@/lib/storefrontIdentity";
 import { pricingCopy } from "@/lib/pricingCopy";
@@ -21,11 +22,14 @@ import { getServiceImage } from "@/lib/serviceImages";
  * What's left is the three things a homeowner can't get from the competition,
  * with the same-visit pricing in the middle where the eye lands.
  */
-const DIFFERENTIATORS = (pricingPromise: string) => [
+const DIFFERENTIATORS = (pricingPromise: string, sameVisit: boolean) => [
   // The pricing promise is the contractor's model talking. "Upfront flat-rate
   // pricing" is a claim a time-and-materials contractor cannot make.
   pricingPromise,
-  "Same-visit pricing on extra work",
+  // And same-visit pricing is a claim a contractor with no add-on prices
+  // cannot make. It was unconditional, so it described what Price2Book
+  // supports rather than what this contractor offers.
+  ...(sameVisit ? ["Same-visit pricing on extra work"] : []),
   "Narrow arrival windows",
 ];
 
@@ -90,6 +94,10 @@ export default async function HomePage({ params }: { params: { site: string } })
 
   // Live prices, so a repricing reaches the homepage without anyone
   // remembering to edit this file.
+  // Whether this contractor can actually place a second service on one visit.
+  // Everything below that promises same-visit pricing is gated on it.
+  const sameVisit = await withSite(site, (db) => sameVisitAvailable(db, site.contractorId));
+
   const featured = await withSite(site, (db) =>
     db.service.findMany({
     where: { slug: { in: FEATURED.map((f) => f.slug) }, active: true },
@@ -132,8 +140,8 @@ export default async function HomePage({ params }: { params: { site: string } })
     <main>
       <Hero
         base={`/${params.site}`}
-        ladder={PRICING_LADDER}
-        differentiators={DIFFERENTIATORS(copy.pricingDifferentiator)}
+        ladder={sameVisit ? PRICING_LADDER : []}
+        differentiators={DIFFERENTIATORS(copy.pricingDifferentiator, sameVisit)}
       />
 
       {/* How pricing works */}
@@ -160,6 +168,11 @@ export default async function HomePage({ params }: { params: { site: string } })
             </p>
           </Card>
 
+          {/* Step two is the same-visit promise in prose. A contractor who
+              cannot place a second service on one visit does not get to make
+              it — the homeowner would read it, take the offer and be refused
+              at the cart. */}
+          {sameVisit && (
           <Card className="p-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
               2
@@ -173,6 +186,7 @@ export default async function HomePage({ params }: { params: { site: string } })
               that saving is in the price. You see each one before you add it.
             </p>
           </Card>
+          )}
 
           <Card className="p-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-electric text-sm font-bold text-white">
