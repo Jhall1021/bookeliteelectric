@@ -1,4 +1,5 @@
 import { withAdminContractor } from "@/lib/adminContext";
+import { platformOrigin } from "@/lib/origins";
 import { assessOnboarding, catalogPromises, type Finding } from "@/lib/onboardingReadiness";
 import { categoryName, requireContractorCategory } from "@/lib/categories";
 import ServiceSelectionList from "@/components/admin/ServiceSelectionList";
@@ -363,7 +364,8 @@ export default async function SetupPage({
                 It sits with the storefront address because that is where the
                 question "where do my customers find this" is answered. */}
             {current === "business" && site && (
-              <EmbedOriginsControl origins={site.embedOrigins} publicId={site.publicId} />
+              <EmbedOriginsControl origins={site.embedOrigins} publicId={site.publicId}
+                                   embedOrigin={platformOrigin()} />
             )}
 
             {stage.key === "scheduling" && (

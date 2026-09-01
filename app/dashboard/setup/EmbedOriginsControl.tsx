@@ -14,8 +14,8 @@ import { useRouter } from "next/navigation";
  * their site is exactly one step from needing it.
  */
 export default function EmbedOriginsControl({
-  origins, publicId,
-}: { origins: string[]; publicId: string | null }) {
+  origins, publicId, embedOrigin,
+}: { origins: string[]; publicId: string | null; embedOrigin: string | null }) {
   const router = useRouter();
   const [value, setValue] = useState(origins.join("\n"));
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
@@ -37,8 +37,15 @@ export default function EmbedOriginsControl({
     router.refresh();
   }
 
-  const snippet = publicId
-    ? `<div id="p2b"></div>\n<script src="https://price2book.com/embed.js" data-site="${publicId}" async></script>`
+  // RESOLVED, NEVER WRITTEN. The host came from a literal, which sent every
+  // preview deployment's contractor a snippet pointing at production — and
+  // scripts/verify-origins.ts fails the build on exactly that. It arrives as a
+  // prop because this is a client component and origins are server config.
+  // No snippet is shown when the platform origin is unset: a snippet with a
+  // guessed host is worse than none, since a contractor pastes it into their
+  // own website.
+  const snippet = publicId && embedOrigin
+    ? `<div id="p2b"></div>\n<script src="${embedOrigin}/embed.js" data-site="${publicId}" async></script>`
     : null;
 
   return (
