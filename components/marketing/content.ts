@@ -24,6 +24,9 @@
  * already market.
  */
 
+import { formatCents } from "@/lib/flow-types";
+import { HERO_FLOW } from "./heroFlow";
+
 /** Where the "Sign In" affordance points. Deliberately not a marketing link. */
 export const SIGN_IN_PATH = "/sign-in";
 
@@ -89,15 +92,26 @@ export const HERO_SERVICE = "New 120V Outlet";
  * That last one is the part a competitor cannot fake, and the page had been
  * spending its While We're There™ words on "one trip, more done" instead.
  */
+/** The captured price pair this section explains. */
+const SAME_VISIT = HERO_FLOW.sameVisitExamples[0];
+
 export const WWT = {
   eyebrow: "While We’re There™",
   headline: ["One trip.", "More done."],
+  // Was "...at the price that applies when a technician is already coming",
+  // which described the mechanism and left the reader to work out that the
+  // price is lower. The saving is the reason a homeowner says yes, so the
+  // sentence says it — and ties it to the trip being covered rather than to a
+  // discount, which is the distinction the next bullet defends.
   lead:
-    "Once a homeowner has booked their main job, Price2Book can offer more work at the price that applies when a technician is already coming.",
+    "Once a homeowner has booked their main job, Price2Book can offer more work at your same-visit price — less than the same job costs as a visit of its own, because the trip and the setup are already covered.",
   mechanic: [
     {
       t: "It is a second price you set",
-      b: "A service carries two: what it costs as its own visit, and what it costs added to one already happening. Replacing a GFCI outlet is $185 on its own and $115 while a technician is there — both are numbers you set.",
+      b:
+        "A service carries two: what it costs as its own visit, and what it costs added to one already happening. " +
+        `${SAME_VISIT.name} is ${formatCents(SAME_VISIT.standaloneCents)} on its own and ` +
+        `${formatCents(SAME_VISIT.sameVisitCents)} while a technician is there — both are numbers you set.`,
     },
     {
       t: "It is not a discount",
@@ -117,61 +131,55 @@ export const WWT = {
 } as const;
 
 /**
- * The worked example, in both directions: what the contractor set, and what
- * the homeowner is shown.
+ * The example, and why every number in it is captured.
  *
- * Labeled an EXAMPLE on the page. Both figures are the demonstration
- * contractor's own, produced by the pricing engine and carried in
- * demoFlow.ts — $280 for the outlet, $115 as the same-visit price for the
- * GFCI swap. The homepage and the live demonstration two sections above it
- * therefore cannot disagree, and verify-marketing-homepage.ts asserts they do
- * not.
- */
-/**
- * The example, and why it is built the way it is.
+ * THE TWO PRICES ARE THE WHOLE POINT. A same-visit price shown on its own is
+ * just an add-on price; the mechanic only becomes visible beside what the same
+ * service costs as its own visit. That pair is the product's data model
+ * exactly — `basePrice` and `whileWeThereBasePrice` on a service.
  *
- * THE TWO PRICES ARE THE WHOLE POINT. A same-visit price is meaningless shown
- * on its own — "+$115" is just an add-on price, and the page spent a revision
- * asserting a mechanic it never actually showed. The GFCI swap therefore
- * carries BOTH of its prices everywhere it appears: $185 as its own visit,
- * $115 added to a visit already happening. That pair is the product's data
- * model exactly — `basePrice` and `whileWeThereBasePrice` on a service.
+ * ONE OF THEM USED TO BE INVENTED, AND IT BROKE THE OTHER. The standalone
+ * figure was written by hand at $185 against a captured $115, and the owner
+ * read the result as a same-visit price that was too high for a job whose own
+ * visit includes the trip. They were right, and the fault was the invented
+ * number: the real standalone is $280, which makes the same-visit price 41% of
+ * it rather than 62%. Both halves now come from the contractor's catalog
+ * through scripts/capture-hero-flow.ts, so the section cannot be made to lie
+ * by a plausible-looking guess again.
  *
  * IT MIRRORS THE REAL STOREFRONT, it does not invent a presentation. A
  * category page already renders the same-visit figure in the positive color
  * with the standalone price struck through beneath it and the words "while
- * we're there" — see app/[site]/services/[category]/page.tsx. The homeowner
- * card below is that treatment, not a marketing flourish.
- *
- * THE NUMBERS. $280 for the outlet and $115 for the same-visit GFCI swap are
- * the demonstration contractor's real figures, produced by the engine and
- * carried in demoFlow.ts — so the live demo further up this page and this card
- * cannot disagree about what Voltmark charges. $185 as the standalone GFCI
- * price is the one illustrative figure here: the demo's add-on list carries
- * only same-visit prices, and a second price is needed to show what a second
- * price means. It is plausible for a swap that has to carry its own trip.
+ * we're there" — see app/[site]/services/[category]/page.tsx.
  */
+const example = SAME_VISIT;
+const money = (cents: number) => formatCents(cents);
+
 export const WWT_EXAMPLE = {
-  primary: { name: "New 120V Outlet", price: "$280" },
-  addOn: { name: "Replace GFCI Outlet", price: "+$115", alone: "$185" },
-  total: "$395",
+  primary: { name: HERO_FLOW.primary.name, price: money(HERO_FLOW.primary.priceCents) },
+  addOn: {
+    name: example.name,
+    price: `+${money(example.sameVisitCents)}`,
+    alone: money(example.standaloneCents),
+  },
+  total: money(HERO_FLOW.primary.priceCents + example.sameVisitCents),
   /** What the contractor set, service by service. */
   set: [
     {
-      service: "New 120V Outlet",
+      service: HERO_FLOW.primary.name,
       note: "The job they came for",
       rows: [
-        { k: "Its own visit", v: "$280", tone: "ink" },
+        { k: "Its own visit", v: money(HERO_FLOW.primary.priceCents), tone: "ink" },
         { k: "Same-visit price", v: "Not set", tone: "muted" },
         { k: "Booking", v: "Enabled", tone: "green" },
       ],
     },
     {
-      service: "Replace GFCI Outlet",
+      service: example.name,
       note: "Two prices — one service",
       rows: [
-        { k: "Its own visit", v: "$185", tone: "ink" },
-        { k: "Same-visit price", v: "$115", tone: "green" },
+        { k: "Its own visit", v: money(example.standaloneCents), tone: "ink" },
+        { k: "Same-visit price", v: money(example.sameVisitCents), tone: "green" },
         // Not a second "Booking: Enabled" row. Repeating the first card's
         // control teaches nothing; this one names the switch that decides
         // whether the service is offered alongside another at all.

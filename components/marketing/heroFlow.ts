@@ -983,6 +983,14 @@ export const HERO_FLOW = {
     "mayNotQualify": true
   },
   "totalCents": 37500,
+  "sameVisitExamples": [
+    {
+      "slug": "replace-gfci-outlet",
+      "name": "Replace GFCI Outlet",
+      "standaloneCents": 28000,
+      "sameVisitCents": 11500
+    }
+  ],
   "schedule": {
     "hours": {
       "workingDays": [

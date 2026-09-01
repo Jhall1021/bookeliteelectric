@@ -93,6 +93,17 @@ const FROM = arg("from") ?? "elite-electric";
 /** The job the hero walks, and the same-visit work it is offered alongside. */
 const PRIMARY = arg("service") ?? "new-120v-outlet";
 const ADD_ON = arg("add-on") ?? "replace-standard-outlet";
+/**
+ * Services captured for their PRICE PAIR only, not their tree.
+ *
+ * The While We're There™ section needs a service that carries both prices so
+ * it can show what "a second price you set" means. It used to show a captured
+ * same-visit figure beside a standalone one that was written by hand, and the
+ * invented number made the real one look wrong — the owner caught that the
+ * same-visit price read as too high against it. Now both come from the
+ * contractor's catalog, and the drift check covers them like everything else.
+ */
+const ALSO = (arg("also") ?? "replace-gfci-outlet").split(",").filter(Boolean);
 const OUT = "components/marketing/heroFlow.ts";
 
 type Chosen = { questionKey: string; prompt: string; helpText: string | null; optionValue: string; optionLabel: string };
@@ -211,7 +222,7 @@ async function main() {
   }
 
   const services = await prisma.service.findMany({
-    where: { contractorId: contractor.id, slug: { in: [PRIMARY, ADD_ON] } },
+    where: { contractorId: contractor.id, slug: { in: [PRIMARY, ADD_ON, ...ALSO] } },
     select: { id: true, slug: true, name: true, shortDescription: true, basePrice: true,
               whileWeThereBasePrice: true, active: true, estimatedMinutes: true },
   });
@@ -245,6 +256,22 @@ async function main() {
    * a homeowner would actually be offered today. Capturing the raw row instead
    * produced `null` here and would have left the hero inventing a calendar.
    */
+  const sameVisitExamples = ALSO.map((slug) => {
+    const row = bySlug.get(slug);
+    if (!row) throw new Error(`${FROM} has no service "${slug}"`);
+    if (row.whileWeThereBasePrice === null || row.basePrice === null) {
+      throw new Error(`${slug} does not carry both prices, so it cannot illustrate the pair`);
+    }
+    return {
+      slug: row.slug, name: row.name,
+      standaloneCents: row.basePrice, sameVisitCents: row.whileWeThereBasePrice,
+    };
+  });
+  for (const e of sameVisitExamples) {
+    const pct = Math.round((e.sameVisitCents / e.standaloneCents) * 100);
+    console.log(`  ${e.slug}: $${e.standaloneCents / 100} alone, $${e.sameVisitCents / 100} same-visit (${pct}%)`);
+  }
+
   const hours = await loadBusinessHours(prisma as any, contractor.id);
   const windows = generateArrivalWindows(hours);
   console.log(`  windows: ${windows.map((w) => `${w.start}–${w.end}`).join(", ")}`);
@@ -283,6 +310,8 @@ async function main() {
       mayNotQualify: addOnWalk.mayNotQualify,
     },
     totalCents: primaryWalk.shortest.priceCents + (addOnRow.whileWeThereBasePrice ?? 0),
+    /** Price pairs the marketing page uses to explain the mechanic. */
+    sameVisitExamples,
     schedule: { hours, windows },
   });
 
