@@ -101,6 +101,15 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "that scope would be the chandelier defect committed on purpose. Refuses if " +
     "any price is already present, since repricing is a reconciliation decision. " +
     "Touches this one service.",
+  "scripts/reset-contractor-two-for-ui.ts":
+    "ONLY EVER WRITES NULL. Retracts BrightPath's approvals so the " +
+    "self-service proof has to re-earn them through the admin surfaces " +
+    "instead of inheriting them from an earlier scripted run — a proof that " +
+    "starts from an approved price proves nothing about approving one. It " +
+    "names its contractor by slug, sets no figure anywhere, and cannot raise " +
+    "or lower what a customer is shown: the only reachable outcome is that " +
+    "the storefront stops showing a price at all, which is the safe " +
+    "direction and is asserted at the end of the run.",
   "scripts/verify-policy-resolution.ts":
     "STAMPS an approval and then removes it again, inside the refusal probe. " +
     "Activation refuses an undecided policy as a BACKSTOP for services " +
