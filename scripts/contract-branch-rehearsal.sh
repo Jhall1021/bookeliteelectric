@@ -4,13 +4,26 @@
 # Runs the REAL production procedure — the actual schema.prisma and a real
 # `prisma db push` — against a throwaway branch, then verifies the branch
 # database itself. Nothing here touches production; every step that talks to a
-# database uses REHEARSAL_DATABASE_URL, and the script refuses to run if that
-# points at the production host.
+# database uses REHEARSAL_DATABASE_URL, and the script refuses to run unless
+# that target has been PROVED to be a branch of the current production lineage.
+#
+# THE GUARD THIS REPLACED WAS WRONG FOR FIVE DAYS.
+#
+# It refused a URL containing `ep-icy-hill-axkgrsjb`. That endpoint stopped
+# being production on 28 August 2026, so from that day the check protected
+# nothing: it accepted any host that merely was not the OLD one — including
+# current production, whose entire schema this script pushes over with
+# --accept-data-loss.
+#
+# A denylist of one hostname is not a safety property. The target is now judged
+# by LINEAGE (Neon's system_identifier, identical across branches of a project
+# and different between projects) plus the DatabaseIdentity marker, which
+# separates the stamped original from a branch of it. Positive test: a target
+# is accepted only once shown to be a production branch, never for failing to
+# match a denylist. See scripts/_lineage.ts.
 #
 # Restores prisma/schema.prisma on exit, however it exits.
 set -euo pipefail
-
-PROD_HOST="ep-icy-hill-axkgrsjb"
 
 # Load .env so REHEARSAL_DATABASE_URL can live there rather than being
 # exported by hand. A var in .env is NOT visible to `npx tsx` otherwise —
@@ -25,9 +38,10 @@ if [ -z "${REHEARSAL_DATABASE_URL:-}" ]; then
 fi
 
 : "${REHEARSAL_DATABASE_URL:?REHEARSAL_DATABASE_URL is not set — see docs/migration/pass-three-contract-plan.md}"
-case "$REHEARSAL_DATABASE_URL" in
-  *"$PROD_HOST"*) echo "REFUSING: REHEARSAL_DATABASE_URL points at the production host."; exit 1;;
-esac
+# Proves the target is a branch of production and not production itself, the
+# archive, an unrelated database, or one that cannot be identified at all.
+# Exits non-zero with a reason; `set -e` stops the rehearsal here.
+npx tsx scripts/verify-rehearsal-target.ts
 
 BEFORE=/tmp/branch-before.json
 AFTER=/tmp/branch-after.json
