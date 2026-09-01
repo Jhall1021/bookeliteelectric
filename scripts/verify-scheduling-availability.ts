@@ -17,10 +17,27 @@
  * fabricated a yes; the next gave a blank error; and between them sat a
  * deposit.
  *
- * The behavioral checks below run against the REAL Jobber integration. On a
- * developer machine its OAuth credentials do not match an application, so the
- * outage is genuine rather than simulated — which is the only reason this can
- * be proved without a stub.
+ * HOW THE OUTAGE IS PRODUCED, AND WHY IT CHANGED
+ *
+ * These checks used to run against the REAL Jobber integration and rely on a
+ * developer machine's OAuth credentials not matching an application — "the
+ * outage is genuine rather than simulated" was the argument. It was not a
+ * test. It asserted a property of the ambient environment, so it passed
+ * locally, failed in the Vercel build where the credentials work, and blocked
+ * a production deployment with two checks reporting `(undefined)` — which was
+ * the truthful report that nothing had gone wrong.
+ *
+ * The fetch is now injected (lib/jobber's VisitFetcher). Both directions are
+ * proved deterministically and neither depends on credentials, on the network,
+ * or on which environment this runs in:
+ *
+ *   unavailable   a fetcher that throws  -> SchedulingUnavailableError, and no
+ *                 window is offered
+ *   available     a fetcher returning a fixed day of visits -> real
+ *                 availability, with the busy crew's window closed
+ *
+ * Production passes no fetcher and gets the real one. Nothing about the
+ * shipped behavior depends on any of this.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -29,7 +46,16 @@ import {
   getWindowAvailabilityForDay,
   pickCrewForWindow,
   SchedulingUnavailableError,
+  type VisitFetcher,
 } from "../lib/jobber";
+
+/**
+ * A fixed date, so the run is identical every day.
+ *
+ * It was "2026-09-01", which was the day the check was written and is now the
+ * day it broke — a hardcoded present tense that quietly becomes the past.
+ */
+const DAY = "2030-06-05";
 
 const prisma = new PrismaClient();
 let fail = 0;
@@ -54,10 +80,32 @@ async function main() {
   const ids = crews.map((x) => x.jobberUserId);
   if (ids.length === 0) { console.error(`  No eligible crew — cannot exercise the Jobber path.\n`); process.exit(2); }
 
-  // ── behavior, against a real unreachable Jobber ────────────────────────
+  // ── behavior, against an injected provider ─────────────────────────────
+  //
+  // The failing fetcher stands in for any way the provider can be unreachable
+  // — expired token, outage, rate limit. What matters to the caller is that it
+  // threw, not why.
+  const OUTAGE = () => Promise.reject(new Error("Jobber unreachable (injected)"));
+
+  /**
+   * A day the fixture decides: the first eligible crew is busy 8am-noon.
+   *
+   * Deliberately real-shaped rather than empty. An empty day proves only that
+   * nothing crashed; a day with one busy crew proves availability is actually
+   * computed from what came back.
+   */
+  const BUSY_VISIT = {
+    id: "fixture-visit-1",
+    startAt: `${DAY}T12:00:00.000Z`,
+    endAt: `${DAY}T16:00:00.000Z`,
+    allDay: false,
+    assignedUserIds: [ids[0]],
+  };
+  const AVAILABLE: VisitFetcher = async () => [BUSY_VISIT];
+
   let availErr: unknown;
   try {
-    await getWindowAvailabilityForDay(c.id, "2026-09-01", ids);
+    await getWindowAvailabilityForDay(c.id, DAY, ids, undefined, undefined, OUTAGE);
   } catch (e) { availErr = e; }
   ok(`1. the schedule step refuses to invent availability`,
     availErr instanceof SchedulingUnavailableError,
@@ -67,14 +115,24 @@ async function main() {
 
   let pickErr: unknown;
   try {
-    await pickCrewForWindow(c.id, "2026-09-01",
-      new Date("2026-09-01T12:00:00Z"), new Date("2026-09-01T15:00:00Z"), ids);
+    await pickCrewForWindow(c.id, DAY,
+      new Date(`${DAY}T12:00:00Z`), new Date(`${DAY}T15:00:00Z`), ids, OUTAGE);
   } catch (e) { pickErr = e; }
   ok(`2. checkout's revalidation raises the SAME condition`,
     pickErr instanceof SchedulingUnavailableError,
     pickErr instanceof Error ? pickErr.name : String(pickErr));
   ok(`   so one screen cannot fail open while the other fails closed`,
     availErr instanceof SchedulingUnavailableError && pickErr instanceof SchedulingUnavailableError);
+
+  // The success path, so "fails closed" cannot be satisfied by failing always.
+  const windows = await getWindowAvailabilityForDay(c.id, DAY, ids, undefined, undefined, AVAILABLE);
+  ok(`   a reachable provider produces real availability instead`,
+    Array.isArray(windows) && windows.length > 0, `${windows?.length} window(s)`);
+
+  const crew = await pickCrewForWindow(c.id, DAY,
+    new Date(`${DAY}T12:00:00Z`), new Date(`${DAY}T15:00:00Z`), ids, AVAILABLE);
+  ok(`   and the crew the fixture says is busy is not offered for that window`,
+    crew !== ids[0], `picked ${crew ?? "nobody"}`);
 
   // ── the answers each surface gives ─────────────────────────────────────
   const availRoute = strip(readFileSync("app/api/availability/[dateISO]/route.ts", "utf8"));

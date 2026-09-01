@@ -506,6 +506,22 @@ export class SchedulingUnavailableError extends Error {
   }
 }
 
+/**
+ * How a day's visits are fetched — the one seam scheduling tests need.
+ *
+ * `verify-scheduling-availability` has to prove two opposite things: that a
+ * reachable provider produces real availability, and that an unreachable one
+ * fails closed. It used to prove the second by relying on the ambient Jobber
+ * credentials being broken, which is not a test — it passed on a developer
+ * machine and failed in the Vercel build, where the credentials work, and it
+ * blocked a production deployment.
+ *
+ * So the fetch is injectable. Production passes nothing and gets the real
+ * implementation; nothing about production behavior depends on test
+ * configuration, and there is no environment flag to get wrong.
+ */
+export type VisitFetcher = (contractorId: string, dateISO: string) => Promise<JobberVisit[]>;
+
 async function fetchJobberVisitsForDay(contractorId: string, dateISO: string): Promise<JobberVisit[]> {
   // LOCAL DEVELOPMENT ONLY. Jobber's OAuth credentials are per-application and
   // a developer machine usually has none that work, so every checkout 500s on
@@ -554,7 +570,9 @@ export async function countAvailableCrewsForWindow(
   dateISO: string,
   windowStart: Date,
   windowEnd: Date,
-  eligibleJobberUserIds: string[]
+  eligibleJobberUserIds: string[],
+  /** Test seam. Omitted in production, which is every caller. */
+  fetchVisits: VisitFetcher = fetchJobberVisitsForDay
 ): Promise<number> {
   if (eligibleJobberUserIds.length === 0) return 0;
 
@@ -563,7 +581,7 @@ export async function countAvailableCrewsForWindow(
   // failure here costs the customer a retry rather than an authorization.
   let dayVisits: JobberVisit[];
   try {
-    dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
+    dayVisits = await fetchVisits(contractorId, dateISO);
   } catch (err) {
     throw new SchedulingUnavailableError(err);
   }
@@ -691,7 +709,9 @@ export async function getWindowAvailabilityForDay(
    * doesn't acquire its own opinion about when Elite works. Omitted, it falls
    * back to the constants above.
    */
-  schedule?: { windows: { start: string; end: string }[]; dayEndDisplay: string }
+  schedule?: { windows: { start: string; end: string }[]; dayEndDisplay: string },
+  /** Test seam. Omitted in production, which is every caller. */
+  fetchVisits: VisitFetcher = fetchJobberVisitsForDay
 ): Promise<{ start: string; end: string; available: boolean }[]> {
   const windows = schedule?.windows?.length ? schedule.windows : FIXED_ARRIVAL_WINDOWS;
   const dayEnd = schedule?.dayEndDisplay ?? WORKDAY_END_DISPLAY;
@@ -724,7 +744,7 @@ export async function getWindowAvailabilityForDay(
   // and the customer would have gone on to pay a deposit for it.
   let dayVisits: JobberVisit[];
   try {
-    dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
+    dayVisits = await fetchVisits(contractorId, dateISO);
   } catch (err) {
     console.error(`Jobber availability check failed for ${dateISO}:`, err);
     throw new SchedulingUnavailableError(err);
@@ -772,7 +792,9 @@ export async function pickCrewForWindow(
   dateISO: string,
   windowStart: Date,
   windowEnd: Date,
-  eligibleJobberUserIds: string[]
+  eligibleJobberUserIds: string[],
+  /** Test seam. Omitted in production, which is every caller. */
+  fetchVisits: VisitFetcher = fetchJobberVisitsForDay
 ): Promise<string | null> {
   if (eligibleJobberUserIds.length === 0) return null;
 
@@ -781,7 +803,7 @@ export async function pickCrewForWindow(
   // failure here costs the customer a retry rather than an authorization.
   let dayVisits: JobberVisit[];
   try {
-    dayVisits = await fetchJobberVisitsForDay(contractorId, dateISO);
+    dayVisits = await fetchVisits(contractorId, dateISO);
   } catch (err) {
     throw new SchedulingUnavailableError(err);
   }
