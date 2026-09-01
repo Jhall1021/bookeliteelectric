@@ -1,70 +1,57 @@
 import Hero from "@/components/marketing/Hero";
-import HomeownerDemo from "@/components/marketing/HomeownerDemo";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
 import {
-  Everywhere, JourneyIntro, KeepYourStack, Pillars, Rules, StartSmall, TradeFoundation,
-  WhileWereThere,
+  DemoCta, Everywhere, GuidedPricingTeaser, NotYourCRM, Pillars, StartSmall, TradeSignal,
+  WhileWereThereTeaser,
 } from "@/components/marketing/Sections";
 
 /**
- * The Price2Book marketing homepage — ADR-020, shortened 31 August 2026.
+ * The Price2Book homepage — restructured 1 September 2026, once there were
+ * destinations to restructure around.
  *
- * SEVEN SECTIONS, DOWN FROM FOURTEEN. The old page answered every question a
- * contractor could have, in order, and each answer was true. It was also
- * roughly twice as long as the argument needed, because contractor control
- * was proved six separate times and the boundary with their existing software
- * was drawn in four places.
+ * ITS JOB IS ONE SENTENCE: make a contractor understand why Price2Book
+ * matters, trust that it is real, and know where to click next. Every "how
+ * does it work" answer now has a canonical home, so the homepage stopped being
+ * the only place anything could be said — which is what let it stop saying
+ * everything.
  *
- * The order now: what is it and where does it live (hero), what does it do
- * (pillars), what does my customer actually experience (the live
- * demonstration), how does one visit become worth more (While We're There™),
- * where can I put it (the pricing link — new, and the thing the page never
- * said before), who is in control (one section, not five), what do I keep and
- * why is this not a form builder, and only then the ask.
+ * WHAT LEFT, AND WHERE IT WENT. Not hidden behind accordions; removed:
  *
- * WHILE WE'RE THERE™ CAME BACK, and deliberately. The first pass folded it
- * into a pillar card, which reduced the product's most distinctive mechanic to
- * a slogan. It is a section again — a shorter one that explains the second
- * price rather than admiring it — and it absorbed the contractor-control card
- * that used to sit in the hero without an example to belong to.
+ *   the interactive demo    → /demo
+ *   contractor control      → /product/guided-pricing
+ *   the two-price argument  → /product/while-were-there
+ *   scheduling detail       → /product/online-booking
+ *   the integration matrix  → /integrations
+ *   the electrical catalog  → /trades/electrical
+ *   adoption in full        → /how-it-fits
  *
- * Removed rather than moved: the eight-module screenshot gallery, the boundary
- * table and operating modes, the pilot-metrics section, and the FAQ. Every
- * claim any of them made that was not already made elsewhere is now made once,
- * in the section it belongs to. What is genuinely gone is recorded in
- * docs/marketing/POSITIONING.md.
+ * WHAT DID NOT LEAVE IS THE PROOF. The hero still runs the real product
+ * against captured live data, the Guided Pricing teaser still shows a real
+ * question, and While We're There™ still shows a real price pair. Moving the
+ * explanation off-page was the point; moving the credibility off-page would
+ * have been a different and much worse change.
+ *
+ * The order is the argument: what it is (hero), who it is for (trades), what
+ * it does (pillars), how much of my business it touches (start small) — that
+ * one moved high deliberately, because it is the objection that stops people
+ * reading — then the three ideas worth a teaser, the boundary, the invitation,
+ * and the ask.
  */
 export const dynamic = "force-dynamic";
 
 export default function HomePage() {
   return (
     <main>
-        <Hero />
-        <Pillars />
-
-        {/* The demo explains the product faster than any section describing
-            it, so it sits high and the written journey is reduced to the four
-            words above it. */}
-        <JourneyIntro />
-        <HomeownerDemo />
-
-        {/* Immediately after the demonstration, which ends on a visit: the
-            same-visit price is the next thing that happens to that visit, and
-            most readers will not have clicked far enough to meet it live. */}
-        <WhileWereThere />
-
-        <Everywhere />
-        <Rules />
-
-        {/* The three "you don't have to change" answers, together: what goes
-            live is yours (Rules), how much of the business goes live is yours
-            (StartSmall), and the software behind it stays yours
-            (KeepYourStack). The adoption objection belongs between the other
-            two, not after the ask. */}
-        <StartSmall />
-        <KeepYourStack />
-        <TradeFoundation />
-        <EarlyAccess />
+      <Hero />
+      <TradeSignal />
+      <Pillars />
+      <StartSmall />
+      <GuidedPricingTeaser />
+      <WhileWereThereTeaser />
+      <Everywhere />
+      <NotYourCRM />
+      <DemoCta />
+      <EarlyAccess />
     </main>
   );
 }

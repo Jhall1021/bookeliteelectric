@@ -64,7 +64,11 @@ const RESOLUTION: Record<string, { label: string; dot: string; text: string; leg
     label: "Priced online",
     dot: "bg-p2b-green",
     text: "text-p2b-green-deep",
-    legend: "The questions resolve to a fixed price, and the job can be booked.",
+    // Not "a fixed price": the same template serves a flat-rate contractor
+    // and one billing time and materials, and only the first of those ends in
+    // a fixed number. What is true for both is that the route resolves online
+    // without going to the office.
+    legend: "The questions settle the scope online, and the job can be booked without a callback.",
   },
   priced_with_photos: {
     label: "Priced, photos help",
@@ -114,10 +118,10 @@ export default function TradePage({ data }: { data: TradePageData }) {
       <section className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">
         <div className={SHELL}>
           <h2 className="max-w-[26ch] text-[28px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[38px]">
-            What Price2Book has already modeled.
+            Start with real trade knowledge — not an empty booking form.
           </h2>
           <p className="mt-4 max-w-[80ch] text-[16px] leading-[1.6] text-p2b-muted lg:text-[17px]">
-            Every service below ships with the questions that change its scope, the materials it
+            Dozens of residential electrical services, and every one below ships with the questions that change its scope, the materials it
             consumes and the rules that decide whether it can be priced online at all. You supply
             the rates and policies; none of your economics are in here.
           </p>

@@ -200,16 +200,19 @@ export const PILLARS = [
   {
     title: "Price Online",
     tone: "accent",
+    href: "/product/guided-pricing",
     lead: "Homeowners answer the questions that actually affect the job.",
     body: "They see a price you approved when the work qualifies for one.",
   },
   {
     title: "Book Online",
     tone: "accent",
+    href: "/product/online-booking",
     lead: "Only offer appointments you are prepared to honor.",
     body: "Availability reflects your hours, your crews and how long the job really takes.",
   },
   {
+    href: "/product/while-were-there",
     // "One trip. More done." is the approved While We're There™ brand line and
     // survives the merge of that section into this strip.
     title: "While We’re There™",
@@ -219,11 +222,19 @@ export const PILLARS = [
   },
 ] as const;
 
-/** The homeowner journey, as four words rather than four numbered cards. */
+/**
+ * The homeowner journey, as four words rather than four numbered cards.
+ *
+ * The third step used to read "See your price", which is only true for a
+ * flat-rate contractor — a time-and-materials one shows an estimate range, and
+ * a route that ends in review shows neither yet. "Get an answer" is true of
+ * every configuration and every outcome, and it carries the contrast that
+ * actually matters to a homeowner: an answer now, rather than a callback.
+ */
 export const JOURNEY = [
   "Choose the work",
   "Answer a few questions",
-  "See your price",
+  "Get an answer",
   "Book",
 ] as const;
 
@@ -516,7 +527,14 @@ export const PRODUCT_PAGES: ReadonlyArray<{ name: string; href: string | null; s
 export const TRADES: ReadonlyArray<{ name: string; status: TradeStatus; href: string | null }> = [
   { name: "Electrical", status: "Available now", href: "/trades/electrical" },
   { name: "Plumbing", status: "In build", href: null },
+  // In the list because the homepage must show the breadth, and not a link
+  // because there is no canonical HVAC product behind the claim. The menu
+  // renders it the same way it renders Plumbing: text with a status.
+  { name: "HVAC", status: "Next", href: null },
 ];
+
+/** The homepage's one-line breadth signal, read from the same statuses. */
+export const TRADE_SIGNAL = "Built for the trades that live on service calls.";
 
 /**
  * The navigation, moving to the shape SITEMAP.md sets.

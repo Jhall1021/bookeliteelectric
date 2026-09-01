@@ -63,7 +63,10 @@ export default function WhileWereTherePage() {
         <h1 className="max-w-[19ch] text-[40px] font-bold leading-[1.04] tracking-[-0.022em] text-p2b-green-ink lg:text-[64px]">
           One visit. More work. A price that reflects the trip you’re already making.
         </h1>
-        <p className="mt-6 max-w-[68ch] text-[17px] leading-[1.55] text-p2b-ink-warm lg:text-xl">
+        <p className="mt-5 text-[21px] font-bold leading-[1.2] tracking-[-0.022em] text-p2b-green-deep lg:text-[26px]">
+          One trip. More done.
+        </p>
+        <p className="mt-5 max-w-[68ch] text-[17px] leading-[1.55] text-p2b-ink-warm lg:text-xl">
           A service can carry two prices: what it costs as a visit of its own, and what it costs
           added to a visit that is already happening. The second is not a discount — it is what the
           work costs once somebody is already standing there.

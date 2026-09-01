@@ -168,7 +168,17 @@ async function statics() {
   }
 
   console.log("\n  THE APPROVED COPY IS STILL THERE");
-  const pageSrc = [read("app/(marketing)/page.tsx"), marketingSrc].join("\n");
+  /**
+   * Scanned across every marketing route, not just the homepage.
+   *
+   * The restructure moved whole arguments to the pages that own them — "You
+   * decide what can be booked." is on /product/online-booking now, "One trip.
+   * More done." on /product/while-were-there. The rule was never "this line is
+   * on the homepage"; it is "this line the owner approved still exists on the
+   * site". Scanning one file would have made a correct move look like a
+   * deletion, and the pressure would have been to paste the copy back.
+   */
+  const pageSrc = [...marketingRoutes(), ...marketingFiles()].map(read).join("\n");
   for (const line of REQUIRED_COPY) {
     ok(pageSrc.includes(line), `"${line.slice(0, 52)}${line.length > 52 ? "…" : ""}"`);
   }
@@ -287,7 +297,11 @@ async function statics() {
   const copyOnly = pageSrc
     .split("\n")
     .filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//"))
-    .join("\n");
+    .join("\n")
+    // A bare quoted percentage is a CSS length — width: "100%" in the OG
+    // image — not an invented statistic. Real prose says "40% fewer calls"
+    // unquoted, and that still trips.
+    .replace(/["'`]\d+%["'`]/g, "");
   const fab = copyOnly.match(FABRICATED);
   ok(!fab, "no invented result or adoption figure",
     `POSITIONING.md forbids invented proof until a pilot supplies real ones: ${fab?.[0] ?? ""}`);
@@ -407,8 +421,10 @@ async function statics() {
         "an available trade should have a page; an unavailable one must not be clickable");
     }
   }
-  ok(!trades.some((t) => /hvac/i.test(t.name)),
-    "HVAC is not in the trades menu",
+  // HVAC belongs in the list — the homepage has to show the breadth — but a
+  // link would be a claim there is a product behind it.
+  const hvac = trades.find((t) => /hvac/i.test(t.name));
+  ok(!hvac || hvac.href === null, "HVAC is named but not clickable",
     "there is no canonical HVAC product behind the claim");
   ok(!existsSync("app/(marketing)/trades/hvac/page.tsx") &&
      !existsSync("app/(marketing)/trades/plumbing/page.tsx"),

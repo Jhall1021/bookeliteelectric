@@ -207,7 +207,7 @@ export default function OnlineBookingPage() {
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-5">
             <h2 className="max-w-[22ch] text-[28px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[38px]">
-              You set the day. Price2Book stays inside it.
+              You decide what can be booked.
             </h2>
             <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm">
               Which days you work, when crews start and finish, how wide an arrival window you are
@@ -223,7 +223,7 @@ export default function OnlineBookingPage() {
               },
               {
                 t: "A day with no room shows no windows",
-                b: "Not a full-looking calendar with everything greyed out, and never a window Price2Book cannot honor. If there is nothing to offer, there is nothing to click.",
+                b: "Not a full-looking calendar with everything grayed out, and never a window Price2Book cannot honor. If there is nothing to offer, there is nothing to click.",
               },
               {
                 t: "The last check happens at checkout",

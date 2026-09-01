@@ -158,8 +158,8 @@ export default function HowItFitsPage() {
           <div className="lg:col-span-6">
             <p className="text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
               Price2Book is a pricing and booking engine, not an operating model you have to adopt.
-              It doesn’t require flat-rate pricing across the business, a particular way of
-              scheduling, or a change to how you quote the work you’d rather quote.
+              It doesn’t require you to price your whole business one way, schedule it a particular
+              way, or change how you quote the work you would rather quote yourself.
             </p>
             <p className="mt-4 text-[16px] leading-[1.6] text-p2b-muted">
               It sits in front of the business you already run and handles one part of it: the

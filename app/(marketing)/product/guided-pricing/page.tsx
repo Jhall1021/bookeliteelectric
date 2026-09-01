@@ -141,8 +141,8 @@ export default function GuidedPricingPage() {
             Not every path ends in a price.
           </h2>
           <p className="mt-4 max-w-[76ch] text-[16px] leading-[1.6] text-p2b-muted lg:text-[17px]">
-            These are the things an answer is allowed to do, with the number of answers in the
-            electrical template that do each. It is worth reading the first two numbers together:
+            You decide what happens next. These are the things an answer is allowed to do, with the
+            number of answers in the electrical template that do each. It is worth reading the first two numbers together:
             more answers ask to look at the job than release a price.
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:mt-10 lg:grid-cols-3">
@@ -174,11 +174,14 @@ export default function GuidedPricingPage() {
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-5">
             <h2 className="max-w-[22ch] text-[28px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[38px]">
-              You decide what Price2Book is allowed to promise.
+              Your pricing. Your rules.
             </h2>
             <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm">
               The template brings the trade structure. What any of it costs, and whether a customer
-              ever sees it, is yours.
+              ever sees it, is yours. Your labor. Your materials. Your rules.
+            </p>
+            <p className="mt-4 text-[19px] font-bold leading-[1.3] text-p2b-accent lg:text-[21px]">
+              Price2Book can suggest. You approve.
             </p>
           </div>
           <div className="flex flex-col gap-3.5 lg:col-span-7">
@@ -192,7 +195,7 @@ export default function GuidedPricingPage() {
                 b: "A service you have not turned on isn’t on your storefront, can’t be priced and can’t be booked. Start with ten; the rest of the catalog waits.",
               },
               {
-                t: "You choose where the boundary of known work sits",
+                t: "You choose where known work ends",
                 b: "Service by service, an answer can release a price, ask for photos, hold the price until you have looked, or go to a quote you write yourself.",
               },
               {

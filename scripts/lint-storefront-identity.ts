@@ -69,6 +69,14 @@ const ALLOWED = new Set([
   // scripts/capture-demo-flow.ts writes it; HomeownerDemo reads it and states
   // nothing of its own.
   "components/marketing/demoFlow.ts",
+  // The same case, from the second capture. scripts/capture-hero-flow.ts
+  // records pricingCopy(contractor.pricingStrategy).confirmAfterLookNotice for
+  // ONE contractor, and StorefrontIsland hands it to the real
+  // StorefrontProvider so the storefront components read it through
+  // usePricingCopy(). The string is present because the strategy resolver put
+  // it there — this linter's rule reached, not bypassed. A component choosing
+  // that wording for every contractor would still be caught.
+  "components/marketing/heroFlow.ts",
 ]);
 /**
  * `app/admin` is only compatibility redirects now. `app/dashboard`,

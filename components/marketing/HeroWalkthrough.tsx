@@ -254,7 +254,7 @@ export default function HeroWalkthrough() {
         y: t.top - box.top + t.height / 2,
         pressed: false,
       });
-      // The press lands late in the dwell, so the pointer is seen travelling
+      // The press lands late in the dwell, so the pointer is seen traveling
       // first and clicking second.
       const press = setTimeout(() => setCursor((c) => (c ? { ...c, pressed: true } : c)), 380);
       return () => clearTimeout(press);
@@ -354,8 +354,16 @@ export default function HeroWalkthrough() {
             proportions honest, and a clipped bottom edge reads as the page
             fold it actually is. */}
         <div ref={scalerRef} className="relative overflow-hidden" style={{ height: PAGE_HEIGHT * scale }}>
+          {/* THE FRAME IS A DEMONSTRATION, NOT A STOREFRONT.
+              ServiceIntro renders the storefront's own "Browse all services"
+              link, which resolves against the surface's base path — "" here,
+              so it pointed at /services and 404'd on the marketing host. The
+              components are the storefront's and must not be edited, so the
+              island stops taking clicks instead: the walkthrough is driven by
+              its own timer, Pause and Replay live outside the frame, and the
+              interactive version is at /demo. */}
           <div
-            className="origin-top-left"
+            className="origin-top-left pointer-events-none"
             style={{ width: PAGE_WIDTH, height: PAGE_HEIGHT, transform: `scale(${scale})` }}
           >
             <div
