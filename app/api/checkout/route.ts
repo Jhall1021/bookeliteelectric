@@ -12,7 +12,9 @@ import {
   SchedulingNotConfiguredError,
 } from "@/lib/schedulingAvailability";
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
-import { preWorkProjectConflict, depositDueCentsFor } from "@/lib/paymentLedger";
+import { preWorkProjectConflict } from "@/lib/paymentLedger";
+import { applySalesTax } from "@/lib/salesTax";
+import { decideDeposit } from "@/lib/depositPolicy";
 import { runDepositCheckout, resumeDepositCheckout } from "@/lib/depositFlow";
 import { stripeGateway } from "@/lib/paymentGateway";
 import { recordCapture, recordCaptureFailure } from "@/lib/depositRecording";
@@ -62,6 +64,7 @@ export async function POST(req: Request) {
               // from a list of slugs written down somewhere else.
               requiresPreWorkVisit: true,
               depositCents: true,
+              depositRule: true,
             },
           },
         },
@@ -292,7 +295,41 @@ export async function POST(req: Request) {
   // Zero when nothing is due, which is a different fact from the null carried
   // by every booking made before this system existed. Evaluated-and-none is
   // not the same as never-evaluated.
-  const depositDueCents = depositDueCentsFor(visit.lineItems.map((li) => li.service));
+  // ── TAX, then the deposit that depends on it ───────────────────────────
+  //
+  // Both resolve BEFORE the authorization below, because both change what the
+  // homeowner is agreeing to. Neither can move `totalCents`, which stays the
+  // pre-tax subtotal the contractor's approved prices add up to.
+  const taxSettings = await db.contractor.findUniqueOrThrow({
+    where: { id: site.contractorId },
+    select: {
+      salesTaxEnabled: true, salesTaxRatePpm: true,
+      depositAmountCents: true, depositOnEveryBooking: true,
+      depositSubtotalThresholdCents: true, depositDurationThresholdMinutes: true,
+    },
+  });
+  const tax = applySalesTax(totalCents, taxSettings);
+
+  // ONE deposit for the booking, decided from the whole booking. This summed
+  // a figure per service, so two deposit-bearing services asked for two
+  // deposits against one appointment.
+  //
+  // The duration is the block the scheduling engine reserves — the same
+  // `estimatedDurationMinutes` the calendar is blocked with, never a second
+  // number that could disagree with it.
+  const deposit = decideDeposit(
+    {
+      subtotalCents: totalCents,
+      durationMinutes: estimatedDurationMinutes,
+      services: visit.lineItems.map((li) => ({
+        slug: li.service.slug,
+        depositRule: li.service.depositRule,
+      })),
+    },
+    taxSettings,
+    tax.totalWithTaxCents
+  );
+  const depositDueCents = deposit.amountCents;
 
   // ONE TRANSACTION for all four related writes.
   //
@@ -358,7 +395,13 @@ export async function POST(req: Request) {
         address,
         zipCode: normalizedZip,
         arrivalWindowId: arrivalWindow.id,
+        // Pre-tax, unchanged in meaning. The three tax fields beside it record
+        // what the homeowner actually agreed to, so a later rate change cannot
+        // rewrite a figure somebody already accepted.
         totalCents,
+        salesTaxRatePpm: tax.ratePpm,
+        salesTaxCents: tax.taxCents,
+        totalWithTaxCents: tax.totalWithTaxCents,
         estimatedDurationMinutes,
         // Card-on-file, captured after completion — decided in the approved
         // architecture. Real Stripe SetupIntent wiring is Phase 6; for now

@@ -66,8 +66,38 @@ export default async function ConfirmationPage({
         <div className="mt-1 text-slate">
           {booking.arrivalWindow.startTime} – {booking.arrivalWindow.endTime}
         </div>
-        <div className="mt-4 border-t border-cardline pt-4 text-sm text-slate">
-          Total: <span className="font-semibold text-navy">{formatCents(booking.totalCents)}</span>
+        {/* THE SNAPSHOT, not a recalculation. These are the figures the
+            homeowner agreed to; a rate the contractor changes next month must
+            not rewrite what this page says. Bookings taken before tax existed
+            carry null and show the single total they were quoted. */}
+        <div className="mt-4 border-t border-cardline pt-4 text-sm">
+          {booking.salesTaxCents !== null && booking.totalWithTaxCents !== null ? (
+            <>
+              <div className="flex justify-between text-slate">
+                <span>Service subtotal</span>
+                <span className="text-navy">{formatCents(booking.totalCents)}</span>
+              </div>
+              {booking.salesTaxCents > 0 && (
+                <div className="mt-1 flex justify-between text-slate">
+                  <span>
+                    Sales tax
+                    {booking.salesTaxRatePpm
+                      ? ` (${(booking.salesTaxRatePpm / 10_000).toFixed(3).replace(/\.?0+$/, "")}%)`
+                      : ""}
+                  </span>
+                  <span className="text-navy">{formatCents(booking.salesTaxCents)}</span>
+                </div>
+              )}
+              <div className="mt-2 flex justify-between border-t border-cardline pt-2 font-semibold">
+                <span className="text-navy">Total</span>
+                <span className="text-navy">{formatCents(booking.totalWithTaxCents)}</span>
+              </div>
+            </>
+          ) : (
+            <div className="text-slate">
+              Total: <span className="font-semibold text-navy">{formatCents(booking.totalCents)}</span>
+            </div>
+          )}
         </div>
         {/* Deposit bookings now say what actually moved. A page that says
             "nothing to pay" to someone whose card was just charged $249 is
@@ -81,14 +111,19 @@ export default async function ConfirmationPage({
             <div className="mt-1 flex justify-between text-sm text-slate">
               <span>{creditsToJob ? "Remaining, applied to your project" : "Remaining"}</span>
               <span className="font-semibold text-navy">
-                {formatCents(booking.totalCents - (booking.depositDueCents ?? 0))}
+                {formatCents(
+                  (booking.totalWithTaxCents ?? booking.totalCents) - (booking.depositDueCents ?? 0)
+                )}
               </span>
             </div>
-            {/* Price2Book collects the DEPOSIT. It does not collect the
-                balance, and must not imply it will — BALANCE_DUE and SETTLED
-                have no production transition, by design. */}
+            {/* The approved sentence. The homeowner is booking with the
+                contractor: naming a second company, or saying the balance is
+                "arranged directly with" somebody, tells them they are being
+                handed off. Price2Book still does not collect the balance —
+                that stays true without being said to the customer. */}
             <div className="mt-3 text-xs text-slate">
-              The remaining balance is arranged directly with your contractor.
+              Your deposit will be applied to the total. The remaining balance will be due
+              when the work is complete.
             </div>
           </>
         ) : (

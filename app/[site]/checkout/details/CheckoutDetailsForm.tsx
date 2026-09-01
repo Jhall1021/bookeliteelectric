@@ -7,6 +7,11 @@ import DepositPayment, { type DepositCardApi } from "./DepositPayment";
 
 type DepositInfo = {
   depositDueCents: number;
+  subtotalCents?: number;
+  salesTaxRatePpm?: number | null;
+  salesTaxCents?: number;
+  totalWithTaxCents?: number;
+  remainingCents?: number;
   creditsToJob?: boolean;
   ready?: boolean;
   stripeAccountId?: string | null;
@@ -142,6 +147,11 @@ export default function CheckoutDetailsForm() {
     }
   }
 
+  const money = (c: number) =>
+    (c / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  /** 66_250 -> "6.625%". Mirrors lib/salesTax's formatRate for the browser. */
+  const rate = (ppm: number) => `${(ppm / 10_000).toFixed(3).replace(/\.?0+$/, "")}%`;
+
   return (
     <main className="mx-auto max-w-lg px-6 py-12">
       <h1 className="font-display text-2xl font-bold text-navy">Almost done</h1>
@@ -167,6 +177,48 @@ export default function CheckoutDetailsForm() {
           </div>
         ))}
 
+        {/* THE WHOLE FINANCIAL PICTURE, BEFORE THEY CONFIRM.
+            Subtotal, the tax and the rate it came from, the total, what is due
+            today and what is left. The homeowner is booking with the
+            contractor; nothing here names Price2Book, Stripe or anybody's
+            internal software, because none of that is theirs to think about. */}
+        {deposit && deposit.totalWithTaxCents !== undefined && (
+          <div className="rounded-card border border-cardline bg-warmwhite p-4 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate">Service subtotal</span>
+              <span className="text-navy">{money(deposit.subtotalCents ?? 0)}</span>
+            </div>
+            {(deposit.salesTaxCents ?? 0) > 0 && (
+              <div className="mt-1 flex justify-between">
+                <span className="text-slate">
+                  Sales tax{deposit.salesTaxRatePpm ? ` (${rate(deposit.salesTaxRatePpm)})` : ""}
+                </span>
+                <span className="text-navy">{money(deposit.salesTaxCents ?? 0)}</span>
+              </div>
+            )}
+            <div className="mt-2 flex justify-between border-t border-cardline pt-2 font-semibold">
+              <span className="text-navy">Total</span>
+              <span className="text-navy">{money(deposit.totalWithTaxCents ?? 0)}</span>
+            </div>
+            {deposit.depositDueCents > 0 && (
+              <>
+                <div className="mt-2 flex justify-between">
+                  <span className="text-slate">Deposit due today</span>
+                  <span className="text-navy">{money(deposit.depositDueCents)}</span>
+                </div>
+                <div className="mt-1 flex justify-between">
+                  <span className="text-slate">Remaining balance</span>
+                  <span className="text-navy">{money(deposit.remainingCents ?? 0)}</span>
+                </div>
+                <p className="mt-3 text-xs text-slate">
+                  Your deposit will be applied to the total. The remaining balance will be
+                  due when the work is complete.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Card capture is real as of Release #4, so the deposit block appears
             for services that carry one. Everything else still pays nothing up
             front, and is still told exactly that. */}
@@ -185,8 +237,7 @@ export default function CheckoutDetailsForm() {
           </div>
         ) : (
           <p className="text-xs text-slate">
-            Nothing to pay now — we&rsquo;ll sort payment out once the work is done. The price
-            you see is the price you pay.
+            Nothing to pay now — the price you see is the price you pay.
           </p>
         )}
 

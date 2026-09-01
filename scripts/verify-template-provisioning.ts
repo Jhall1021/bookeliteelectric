@@ -20,7 +20,16 @@ const ok = (c: boolean, l: string, d = "") => { c ? pass++ : fail++; console.log
 
 async function main() {
   console.log("\nTEMPLATE PROVISIONING\n");
-  const elite = await prisma.contractor.findFirstOrThrow({ where: { slug: { not: PROOF } }, select: { id: true } });
+  // NAMED, not "whoever isn't the fixture".
+  //
+  // The same defect as verify-template-update had: with one real tenant,
+  // "not the proof contractor" meant Elite; with two it means whichever row
+  // comes back first, and BrightPath — provisioned FROM the template, with
+  // provenance and prices — fails every assertion that Elite is the
+  // hand-built source. The failure reads as Elite having been altered.
+  const elite = await prisma.contractor.findFirstOrThrow({
+    where: { slug: "elite-electric" }, select: { id: true },
+  });
   await withThrowaway(prisma, PROOF, "Throwaway Proof Electric", async (proofId) => {
   provision(PROOF, ["--service", KEY]);
   const proof = { id: proofId };

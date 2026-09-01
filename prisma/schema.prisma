@@ -163,6 +163,18 @@ model ContractorSite {
 }
 
 /// Who decides whether a slot is free. See Contractor.schedulingAuthority.
+/// What one service says about deposits, against the company policy.
+enum DepositRule {
+  /// The default. This service says nothing; the contractor's rules decide.
+  USE_COMPANY_POLICY
+  /// Always, whatever the rules say — a panel replacement the contractor
+  /// wants secured regardless of price or how long it takes.
+  ALWAYS_REQUIRE
+  /// Never on its own account. It does NOT exempt a booking that another
+  /// service or a company rule already requires a deposit for.
+  NEVER_REQUIRE
+}
+
 enum SchedulingAuthority {
   /// Price2Book's own business hours, arrival windows and service area.
   NATIVE
@@ -613,6 +625,43 @@ model Contractor {
   /// than a default. Any number picked here would be someone's guess about
   /// how many vans a contractor owns.
   nativeConcurrentJobs Int?
+
+  /// ── SALES TAX ──────────────────────────────────────────────────────────
+  ///
+  /// The contractor's own decision, applied deterministically. Price2Book does
+  /// not determine jurisdiction, nexus, taxability or recognition, and does not
+  /// call a tax service: it multiplies a rate the contractor entered by the
+  /// pre-tax subtotal so the homeowner sees a truthful total before booking.
+  /// Final billing and filing stay with the contractor, who is already merchant
+  /// of record.
+  salesTaxEnabled Boolean @default(false)
+
+  /// PARTS PER MILLION, so the arithmetic is integers all the way down.
+  /// 6.625% is 66_250 — a rate with three decimal places of percent, which
+  /// basis points cannot hold (6.625% is 662.5bp) and a float should not.
+  salesTaxRatePpm Int?
+
+  /// ── DEPOSIT POLICY ─────────────────────────────────────────────────────
+  ///
+  /// One deposit per booking, not one per service. The rules below are OR:
+  /// if any enabled rule matches the booking, a deposit is required.
+  ///
+  /// The amount is the contractor's, one figure, capped at the booking's
+  /// tax-inclusive total — see lib/depositPolicy.
+  depositAmountCents Int?
+
+  /// Rule 1: every online booking.
+  depositOnEveryBooking Boolean @default(false)
+
+  /// Rule 2: the PRE-TAX subtotal reaches this. Null means the rule is off.
+  /// Pre-tax deliberately — tax must never push a job over the line.
+  depositSubtotalThresholdCents Int?
+
+  /// Rule 3: the booking consumes this much of the day. Null means off.
+  /// Measured with the SAME duration the scheduling engine reserves
+  /// (Booking.estimatedDurationMinutes), never a second field that could
+  /// disagree with the calendar.
+  depositDurationThresholdMinutes Int?
 
   countryCode  String?
 
@@ -1683,8 +1732,16 @@ model Service {
   ///
   /// Credited toward the project — it is not a site-visit fee and not the
   /// permit fee, both of which would be a different promise to the customer.
+  /// DEPRECATED as the deposit AMOUNT — superseded by
+  /// Contractor.depositAmountCents, because a booking takes one deposit and
+  /// summing per-service figures charged a multi-service booking twice. Not
+  /// read by the deposit path any more; kept until the contract step so a
+  /// contractor's old figure is not silently destroyed.
   depositCents         Int?
   depositCreditsToJob  Boolean @default(true)
+
+  /// What this service says about deposits. Default USE_COMPANY_POLICY.
+  depositRule          DepositRule @default(USE_COMPANY_POLICY)
 
   /// How long the verification visit takes. Distinct from estimatedMinutes,
   /// which describes the INSTALLATION.
@@ -2242,6 +2299,19 @@ model Booking {
   /// Blurring the two would turn 24 historical unknowns into 24 assertions
   /// that no deposit was required, which is a claim nobody made.
   depositDueCents          Int?
+
+  /// ── THE TAX SNAPSHOT ───────────────────────────────────────────────────
+  ///
+  /// `totalCents` above keeps its meaning: the PRE-TAX subtotal. These three
+  /// record what the homeowner actually agreed to, so a contractor changing
+  /// their rate next month cannot alter a figure somebody already accepted.
+  ///
+  /// Null means tax was never evaluated — every booking before this existed.
+  /// Zero means evaluated and none due, the same distinction depositDueCents
+  /// already draws.
+  salesTaxRatePpm          Int?
+  salesTaxCents            Int?
+  totalWithTaxCents        Int?
 
   paymentEvents            PaymentEvent[]
   adjustments              BookingAdjustment[]

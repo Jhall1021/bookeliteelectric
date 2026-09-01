@@ -141,9 +141,15 @@ export default function DepositPayment({
           <CardFields apiRef={apiRef} />
         </Elements>
       </div>
+      {/* THE HOMEOWNER IS BOOKING WITH THE CONTRACTOR.
+          This said the balance was "arranged directly with your contractor",
+          which tells a customer they are dealing with two companies and that
+          one of them is going to hand them off. It also named Stripe, which is
+          plumbing they did not ask about. The summary above already states the
+          deposit and the remaining balance; this says when the rest is due, in
+          the contractor's voice. */}
       <p className="mt-3 text-xs text-slate">
-        Your card is held securely by Stripe and charged when your booking is confirmed.
-        The remaining balance is arranged directly with your contractor.
+        Your card is charged when your booking is confirmed.
       </p>
     </div>
   );

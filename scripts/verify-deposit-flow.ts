@@ -285,11 +285,23 @@ async function main() {
   ok(`13. no booking's totalCents was touched by payment`,
     bookings.every((b) => b.totalCents > 0));
 
+  // FOLLOWS THE AUTHORITY, which moved. The evidence used to be that checkout
+  // called depositDueCentsFor — the function that read the amount off the
+  // services. That summed a figure per service, so two deposit-bearing
+  // services asked one booking for two deposits; the amount is now one
+  // contractor-level setting decided by lib/depositPolicy.
+  //
+  // The claim is unchanged and is checked in one more place than before: no
+  // payment file carries the number, AND neither does the policy that now
+  // decides it.
   ok(`14. the deposit amount is snapshotted, never hardcoded`,
     !/24900|249\s*\*\s*100/.test(readFileSync("lib/depositFlow.ts", "utf8")) &&
     !/24900/.test(readFileSync("lib/paymentGateway.ts", "utf8")) &&
-    checkout.includes("depositDueCentsFor"),
-    "no payment file contains the number");
+    !/24900/.test(
+      readFileSync("lib/depositPolicy.ts", "utf8").replace(/\/\*[\s\S]*?\*\//g, "")
+    ) &&
+    checkout.includes("decideDeposit"),
+    "a payment file, or the policy itself, contains the number");
 
   ok(`15. pre-work rows are atomic with the booking but inert until capture`,
     checkout.includes("tx.appointment.create") && checkout.includes("tx.preWorkVisit.create") &&
