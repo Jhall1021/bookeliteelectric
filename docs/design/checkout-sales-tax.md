@@ -3,6 +3,75 @@
 **Status:** proposed. Nothing implemented, and **no Stripe Tax Transaction is
 created in V1** — see "What we deliberately do not do".
 
+## What is actually built today — inspected, not assumed
+
+**No tax code exists anywhere.** Not a field, not a setting, not a call. The
+design below is unimplemented in full.
+
+What the checkout does today, in order: resolve the site, check the ZIP against
+the service area, reserve the arrival window, sum the line items into
+`totalCents`, snapshot `depositDueCents` from the services on the visit,
+authorize the deposit if one is due, write the booking in one transaction, then
+capture.
+
+Three findings change what "blocked" means:
+
+**1. Price2Book never collects a final balance.** `BALANCE_DUE` and `SETTLED`
+exist in `PaymentState` and **nothing writes either**. The only states ever
+written are `DEPOSIT_AUTHORIZED`, `DEPOSIT_CAPTURED`, `FAILED` and the legacy
+one. The deposit screen says it outright: *"The remaining balance is arranged
+directly with your contractor."*
+
+**2. So the unresolved policy question governs a flow that does not exist.**
+Booking now and collecting the balance later is not something this product
+does — the balance leaves the system entirely. Whatever the recognition answer
+turns out to be, it cannot today be implemented by Price2Book, because
+Price2Book is not present at the moment it would apply.
+
+**3. The ledger needs no change.** `remainingBalanceCents` is a pure function
+over a `bookedTotalCents` it is handed. Making it tax-aware is choosing which
+number to pass, at the call site, not editing the ledger.
+
+What the homeowner currently sees: "Subtotal" on My Visit, "Total" on the
+confirmation, and either *"Nothing to pay now"* or *"Confirm & Pay $249
+Deposit"*. There is no tax line, and the total and the deposit are never shown
+together as parts of one figure.
+
+## The separation
+
+**Mechanically safe whatever the accounting answer is.** All of it is
+QUOTATION AND DISCLOSURE — telling the homeowner the true total and recording
+what was agreed. A calculation is not a transaction, and none of this asserts
+when tax is recognized:
+
+- `Contractor.taxMode` (`OFF | AUTOMATIC`) as a declared setting.
+- One `stripe.tax.calculations.create` on the connected account, from the job
+  address, before the deposit is authorized.
+- Showing subtotal, tax, project total, deposit due now and remaining balance
+  before the homeowner confirms.
+- Persisting `taxCents`, `totalWithTaxCents`, `taxCalculationId`,
+  `taxCalculatedAt` on the booking.
+- Fail-closed and retriable, never a silent zero.
+- Passing the tax-inclusive figure to `remainingBalanceCents`.
+- NOT attaching the calculation to the deposit PaymentIntent.
+
+**Genuinely blocked on recognition timing** — and note that every item attaches
+to collecting a balance, which is the thing Price2Book does not do:
+
+- Creating a Stripe Tax Transaction at all.
+- Which moment creates it: booking, deposit, completion, final payment.
+- What happens when the 90-day calculation expires before the balance is
+  collected, and who absorbs a rate change.
+- Reversal on cancellation or refund.
+- Whether an adjustment recalculates tax or applies the snapshotted rate.
+
+**The consequence worth stating plainly.** Because the balance is settled off
+the platform, Price2Book's tax role in V1 is to QUOTE a correct total and
+RECORD what was quoted. Remittance belongs to the contractor, who is already
+merchant of record. Building the safe half changes nothing about who owes what
+to a state, and leaves every recognition option open — none of the four
+possible answers is foreclosed by a stored calculation id.
+
 ## The rule
 
 Every Price2Book service price is **pre-tax**. Tax is calculated at checkout
