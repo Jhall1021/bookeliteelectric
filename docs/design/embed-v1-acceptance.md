@@ -74,3 +74,33 @@ is a defect to report, not a reason to relax the origin allowlist or the token
 rules.
 
 _Not yet performed._
+
+
+---
+
+## Test-infrastructure debt
+
+**Fixed throwaway slugs collide across workstreams.** Four verifiers create a
+fixture under a constant slug:
+
+| verifier | slug |
+| --- | --- |
+| `verify-activation-dependencies` | fixed → **now run-unique** |
+| `verify-launch-behavior` | `test-launch-behavior` |
+| `verify-policy-resolution` | `test-policy-refusal` |
+| `verify-template-installation` | `test-template-install` |
+
+In a shared worktree with parallel workstreams, two runs of the same verifier
+race: the second run's teardown deletes the first run's fixture mid-assertion,
+and the failure reads as a product defect. This happened once here — a failure
+that passed on rerun, which is the worst kind, because it teaches everybody to
+re-run past a real signal.
+
+`verify-activation-dependencies` is fixed: the slug carries a per-run suffix,
+and abandoned fixtures are swept by PREFIX **and age**, never by prefix alone —
+sweeping every sibling would delete a concurrent run's live fixture, which is
+the same collision reintroduced by the cleanup meant to prevent it. Proved with
+two concurrent runs, both green, nothing left behind.
+
+The other three are the identical one-file change and no product semantics are
+involved. Opportunistic, not blocking.

@@ -31,20 +31,68 @@ import { destroyContractor } from "./_throwaway";
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
-const SLUG = "test-activation-dependencies";
+/**
+ * RUN-UNIQUE, because the worktree is shared.
+ *
+ * A fixed slug means two runs of this verifier — one per workstream, both
+ * exercising the same shared foundation — race on the same throwaway
+ * contractor: the second run's teardown deletes the first run's fixture
+ * mid-assertion, and the failure reads as a product defect. That happened once
+ * in this repo and passed on rerun, which is the worst version: a flake nobody
+ * can reproduce and everybody learns to re-run past.
+ *
+ * The prefix stays fixed so stale fixtures from a crashed run are still
+ * sweepable — the self-healing the fixed slug gave us is kept, without the
+ * collision it cost.
+ */
+const PREFIX = "test-activation-dependencies";
+const SLUG = `${PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
 
 let fail = 0;
 const ok = (l: string, c: boolean, d?: string) => { if (!c) fail++; console.log(`  ${c ? "✓" : "✗"} ${l}${c || !d ? "" : `  (${d})`}`); };
 const inTenant = <T>(id: string, fn: () => Promise<T>) =>
   withTenant({ contractorId: id, source: "test" }, fn);
 
+/**
+ * Fixtures left by a run that died before its own teardown.
+ *
+ * Sweeping siblings is what makes the unique slug safe — without it a crash
+ * leaks a contractor nobody will ever name again — but it has to sweep only
+ * what is genuinely abandoned. A first draft deleted every sibling, which
+ * would take out a CONCURRENT run's live fixture mid-assertion: the exact
+ * cross-workstream collision the unique slug exists to prevent, reintroduced
+ * by the cleanup. Two parallel runs passed anyway, on timing.
+ *
+ * So: old enough that no run could still be using it. This verifier takes
+ * about a minute; an hour is far past any plausible run and well short of
+ * leaving rubbish around.
+ */
+const STALE_AFTER_MS = 60 * 60 * 1000;
+
+async function sweepStale() {
+  const stale = await raw.contractor.findMany({
+    where: {
+      slug: { startsWith: PREFIX },
+      NOT: { slug: SLUG },
+      createdAt: { lt: new Date(Date.now() - STALE_AFTER_MS) },
+    },
+    select: { slug: true },
+  });
+  for (const c of stale) await removeContractor(c.slug);
+  if (stale.length) console.log(`  (swept ${stale.length} abandoned fixture(s))`);
+}
+
+async function removeContractor(slug: string) {
+  await raw.contractorPolicyValue.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorCategory.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorSite.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorOnboarding.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorTrade.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await destroyContractor(raw, slug).catch(() => {});
+}
+
 async function teardown() {
-  await raw.contractorPolicyValue.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorCategory.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorSite.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorOnboarding.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorTrade.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await destroyContractor(raw, SLUG).catch(() => {});
+  await removeContractor(SLUG);
 }
 
 /** Everything except the dependency, so only the dependency can refuse. */
@@ -71,6 +119,7 @@ async function clearUnrelatedBlockers(contractorId: string, serviceId: string, h
 
 async function main() {
   console.log(`\nACTIVATION DEPENDENCIES — where the answers lead\n`);
+  await sweepStale();
   await teardown();
 
   const c = await raw.contractor.create({

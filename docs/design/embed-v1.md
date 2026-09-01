@@ -223,3 +223,39 @@ The requirement, for after it lands:
   apply to.
 
 Explicit pre-pilot storefront item. Not a blocker for the embed.
+
+
+## Host resolution — FROZEN
+
+**No unresolved public hostname may default to a contractor tenant.**
+
+The order, when custom-domain runtime is built:
+
+1. **A recognized Price2Book/platform host** → platform behavior.
+2. **An explicitly allowlisted legacy Elite host** → Elite compatibility redirects.
+3. **A verified custom host** → its matching `ContractorSite`, into the same
+   storefront engine every other surface uses.
+4. **An unknown host** → a safe, neutral unknown-host response. Not a
+   contractor, not a guess.
+
+### What this replaces, and why it has to
+
+`next.config.mjs` currently applies the legacy Elite redirects to every host
+EXCEPT `*.price2book.com`. Verified live: on any other host, `/`, `/services`,
+`/my-visit` and `/service-area` all 307 to `/elite-electric`.
+
+That was a deliberate choice, and its stated reasoning was that an exclusion
+fails safer than an allowlist — an unknown host keeps working rather than
+404ing a customer's bookmark. That reasoning was correct when there was one
+tenant and no custom domains. It is now exactly backwards: the failure mode of
+an exclusion is that **the first contractor to point `pricing.contractor.com`
+at Price2Book gets Elite Electric's storefront on their own domain.**
+
+Rule 4 is the fix, and rule 2 is what keeps Elite's real links working — their
+hosts named, rather than inferred from not being ours.
+
+**This is not implemented yet, and must not be worked around when it is.** The
+"unknown host defaults to Elite" assumption comes out as part of building
+custom-domain runtime (section A above), not before and not after. A custom
+host resolving to the wrong contractor is the same class of defect as a visit
+token resolving across tenants, and it is not fixed by being careful.
