@@ -103,18 +103,38 @@ same way the original deposit work was proved.
 
 ## Hierarchy, and keeping one engine
 
-1. `contractor.com/pricing` with the embed — the recommended default.
-2. `book.contractor.com` — a custom hosted subdomain. Worth noting this one
-   solves the cookie problem outright by being first-party, so it is the better
-   answer for a contractor who can manage DNS, not merely a nicer URL.
-3. `price2book.com/<slug>` — fallback, demos, internal testing, no-website
-   contractors.
+**Revised.** A contractor-owned subdomain is a first-class preferred mode, not
+a nicer URL further down the list — because being first-party removes the
+third-party-cookie constraint entirely rather than working around it. The
+embed stays the universal mode precisely because it asks nothing of the
+contractor beyond pasting a snippet.
+
+| mode | address | when |
+| --- | --- | --- |
+| **custom subdomain** | `pricing.contractor.com` | preferred wherever DNS can be managed. First-party: the visit cookie just works, no partitioned storage, no token seam, no framing headers |
+| **embed** | `contractor.com/pricing` | the universal low-friction mode. Nothing to configure but a snippet, and it keeps the homeowner on the page they were already reading |
+| **hosted** | `price2book.com/<slug>` | fallback, demos, internal testing, and contractors with no website |
+
+The two are complements rather than rivals: a contractor can start with the
+embed the day they sign up and move to a subdomain when someone is willing to
+touch DNS, with the same engine and the same public link strategy behind both.
+The universal-link pitch is unaffected — `pricing.contractor.com` goes on a
+truck just as well as `contractor.com/pricing`.
 
 All three resolve the same `ContractorSite` and run the same engine. The rule
 to hold: **no behaviour may branch on which surface it is.** Pricing,
 scheduling, tax, deposits and booking read the resolved contractor and nothing
 about the frame. The only legitimate differences are presentation chrome, the
 session-token seam above, and the framing headers.
+
+That rule is now enforced rather than stated. `lib/storefrontSurface.ts`
+declares the three surfaces and their base paths, `SiteProvider` carries the
+surface so links are built from it rather than guessed from the URL, and
+`scripts/verify-storefront-surfaces.ts` asserts the contract: a surface may not
+be marked delivered without a verifier covering it, no engine module may read
+the surface at all, and no customer-facing component may link to a storefront
+route without its base. Both remaining conflicts below were closed by that
+extraction before any embed code exists.
 
 ## Conflicts with current assumptions
 
@@ -123,22 +143,22 @@ Six, and the first three are load-bearing:
 1. **The session cookie.** As above. Nothing in the visit flow works in a
    cross-origin frame until this is resolved.
 
-2. **`useStorefrontBase()` derives the base from the first path segment.** It
-   returns `/${first}` unless the segment is in `NON_STOREFRONT_SEGMENTS`
-   (`admin`, `api`, `_next`). Under `/embed/<publicId>/...` it would return
-   `/embed`, and every internal link would be wrong. This is the same class of
-   defect as the `/my-visit` bug fixed this session — where a homeowner adding
-   a service on BrightPath's storefront was navigated to Elite's cart — so it
-   should be fixed by making the hook embed-aware, not by another convention.
+2. ~~**`useStorefrontBase()` derives the base from the first path segment.**~~
+   **CLOSED.** The base is declared by the surface and carried on the provider;
+   deriving from the pathname survives only for components rendering above it,
+   and `embed` joined the non-storefront segments. A verifier asserts the hook
+   reads the declared surface, and that no customer-facing component links to a
+   storefront route without its base — the defect that sent a homeowner adding
+   a service on BrightPath's storefront to Elite's cart.
 
-3. **Storefront gates assume the hosted page is the customer surface.**
-   `verify-storefront-price-promise`, `verify-same-visit-promise`,
-   `lint-storefront-identity` and the category and cross-reference rules all
-   check `/[site]`. If the embed becomes the real surface and the gates keep
-   checking the fallback, they go green while the thing customers use is
-   unchecked. That is precisely how "storey" survived: the live scan was green
-   because it was scanning the remediated copy rather than the source. Whatever
-   the embed renders must be covered by the same checks.
+3. ~~**Storefront gates assume the hosted page is the customer surface.**~~
+   **CLOSED as a silent risk.** The gates still only check `/[site]`, which is
+   correct while it is the only thing delivered — but the surface list now
+   records which surfaces ship and which verifiers cover each, and marking one
+   delivered without coverage fails the build. The risk was never that the
+   embed would be unchecked; it was that nobody would notice. That is how
+   "storey" survived a green spelling gate for months: the scan read the
+   remediated copy rather than the source everyone installs from.
 
 4. **Setup tells the contractor their address is the hosted slug.** "Homeowners
    book you at /brightpath-electric" is now the fallback address, not the

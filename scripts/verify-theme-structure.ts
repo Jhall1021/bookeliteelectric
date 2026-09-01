@@ -70,7 +70,20 @@ function main() {
     .split("\n").filter((f) => /\.tsx?$/.test(f) && !OWN_SURFACE.some((d) => d.test(f)));
   // `typeof contractorId !== "string"` is a shape guard, not a branch on which
   // contractor — excluded explicitly so the rule keeps meaning what it says.
-  const IDENTITY = /(?<!typeof\s)\b(contractor|site|tenant)(Id|Slug|Name)?\s*(===|!==)\s*["'`]|slug\s*===\s*["'`]/;
+  //
+  // The lookbehind has to be on BOTH alternatives. It was only on the first,
+  // so `typeof body.slug === "string"` — a shape guard, and precisely what the
+  // line above says is excluded — was reported as branching on identity. The
+  // rule was right and the expression did not implement it.
+  // The lookbehind spans the object path, because `typeof` sits before it:
+  // in `typeof body.slug === "string"` the word immediately preceding `slug`
+  // is `body.`, not `typeof`, so a fixed-width lookbehind never sees it.
+  const NOT_TYPEOF = String.raw`(?<!typeof\s[\w.]{0,40})`;
+  const IDENTITY = new RegExp(
+    String.raw`${NOT_TYPEOF}\b(contractor|site|tenant)(Id|Slug|Name)?\s*(===|!==)\s*["'\`]` +
+    "|" +
+    String.raw`${NOT_TYPEOF}\bslug\s*(===|!==)\s*["'\`]`
+  );
   const offenders: string[] = [];
   for (const f of files) {
     readFileSync(f, "utf8").split("\n").forEach((line, i) => {

@@ -24,20 +24,33 @@
 
 import { createContext, useContext, useCallback, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { hostedSurface, type StorefrontSurface } from "@/lib/storefrontSurface";
 
-const SiteContext = createContext<{ publicId: string; hostedSlug: string } | null>(null);
+const SiteContext = createContext<
+  { publicId: string; hostedSlug: string; surface: StorefrontSurface } | null
+>(null);
 
 export function SiteProvider({
   publicId,
   hostedSlug,
+  surface,
   children,
 }: {
   publicId: string;
   hostedSlug: string;
+  /**
+   * Where this storefront is being delivered. Defaults to the hosted surface
+   * so existing callers are unchanged; an embed or a custom domain passes its
+   * own, and every link below follows without a second code path.
+   */
+  surface?: StorefrontSurface;
   children: ReactNode;
 }) {
+  const resolved = surface ?? hostedSurface(hostedSlug);
   return (
-    <SiteContext.Provider value={{ publicId, hostedSlug }}>{children}</SiteContext.Provider>
+    <SiteContext.Provider value={{ publicId, hostedSlug, surface: resolved }}>
+      {children}
+    </SiteContext.Provider>
   );
 }
 
@@ -128,12 +141,16 @@ export function useSiteFetch() {
  */
 export function useStorefrontBase(): string {
   const site = useContext(SiteContext);
+  // DECLARED, not derived. The surface knows its own base — "/elite-electric"
+  // hosted, "/embed/pub_…" embedded, "" on a custom domain — and the guess
+  // below is only for components rendering above the provider.
+  if (site) return site.surface.basePath;
+
   const pathname = usePathname();
-  if (site) return `/${site.hostedSlug}`;
   const first = pathname?.split("/").filter(Boolean)[0];
   if (!first || NON_STOREFRONT_SEGMENTS.has(first)) return "";
   return `/${first}`;
 }
 
 /** Root segments that are not a storefront. */
-const NON_STOREFRONT_SEGMENTS = new Set(["admin", "api", "_next"]);
+const NON_STOREFRONT_SEGMENTS = new Set(["admin", "api", "_next", "embed"]);
