@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { suggestPrimaryPrice, suggestWwtPrice } from "@/lib/pricing";
+import { publishSuggestedPrice } from "@/lib/pricePublication";
 import { withAdminContractor } from "@/lib/adminContext";
 
 
@@ -76,44 +76,26 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     data.photoState = body.photoState;
   }
 
+  // Inputs are saved first, so the derivation publishes what the contractor
+  // just entered rather than what was there before.
   if (action === "publish") {
-    // ADR-007a: keyed by contractor, not the pre-tenant "default" row.
-    const settings = await db.pricingSettings.findUnique({ where: { contractorId } });
-    if (!settings) {
+    try {
+      await db.service.update({ where: { id: params.serviceId }, data });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown database error";
+      return NextResponse.json({ error: `Could not save: ${message}` }, { status: 500 });
+    }
+
+    // The single publication authority — see lib/pricePublication.ts. This
+    // route says WHICH service; it does not decide what the price is.
+    const published = await publishSuggestedPrice(db, contractorId, params.serviceId);
+    if (!published.ok) {
       return NextResponse.json(
-        { error: "Pricing settings not configured — cannot compute a price to publish." },
+        { error: published.refusal.code, message: published.refusal.message },
         { status: 400 }
       );
     }
-
-    const inputs = {
-      fieldLaborHours: data.fieldLaborHours as number | null,
-      wwtLaborHours: data.wwtLaborHours as number | null,
-      requiresTechCount: data.requiresTechCount as number,
-      materialCostCents: data.materialCostCents as number | null,
-      materialMultiplier: data.materialMultiplier as number | null,
-      permitAdminCents: data.permitAdminCents as number | null,
-      otherDirectCostCents: data.otherDirectCostCents as number | null,
-      isPrimaryEligible: data.isPrimaryEligible as boolean,
-    };
-
-    const primary = suggestPrimaryPrice(inputs, settings);
-    if (primary.totalCents === null) {
-      return NextResponse.json(
-        { error: primary.unavailableReason ?? "No suggested price to publish" },
-        { status: 400 }
-      );
-    }
-
-    data.basePrice = primary.totalCents;
-    data.publishedPriceApprovedAt = new Date();
-
-    // The While We're There price only moves when its own hours exist. A
-    // service can legitimately have a published primary price and no add-on
-    // price at all, so a null here must leave the existing value alone rather
-    // than wiping it.
-    const wwt = suggestWwtPrice(inputs, settings);
-    if (wwt.totalCents !== null) data.whileWeThereBasePrice = wwt.totalCents;
+    return NextResponse.json({ ok: true, basePrice: published.basePrice });
   }
 
   try {

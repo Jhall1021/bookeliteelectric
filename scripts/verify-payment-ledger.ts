@@ -38,9 +38,25 @@ async function main() {
   console.log(`\nPAYMENT LEDGER — DORMANT\n`);
 
   // ── 1-3: the historical migration told the truth ───────────────────────
-  const bookings = await prisma.booking.findMany({
-    select: { id: true, paymentState: true, depositDueCents: true, totalCents: true, paymentModel: true },
+  //
+  // SCOPED TO HISTORY, 31 August. These read every booking in the table and
+  // asserted things only ever true of the twenty-four that predate the
+  // ledger — most sharply that depositDueCents is null everywhere. Checkout
+  // has evaluated a deposit on every booking it writes since Release #3, so
+  // the first homeowner to book through a second contractor's storefront
+  // failed this, correctly recording that no deposit was due.
+  //
+  // The boundary is a date rather than "rows with a null deposit", which
+  // would make the claim circular — it would be asserting the thing it
+  // selected on. Everything after it is a live booking and is the
+  // reconciliation section's business, not the migration's.
+  const LEDGER_SHIPPED = new Date("2026-08-25T00:00:00Z");
+  const all = await prisma.booking.findMany({
+    select: { id: true, paymentState: true, depositDueCents: true, totalCents: true, paymentModel: true, createdAt: true },
   });
+  const bookings = all.filter((b) => b.createdAt < LEDGER_SHIPPED);
+  const since = all.filter((b) => b.createdAt >= LEDGER_SHIPPED);
+
   ok(`1. all ${bookings.length} historical booking(s) are LEGACY_UNTRACKED`,
     bookings.every((b) => b.paymentState === "LEGACY_UNTRACKED"));
   ok(`2. none is falsely labeled NOT_REQUIRED`,
@@ -50,7 +66,15 @@ async function main() {
     bookings.every((b) => b.depositDueCents === null),
     "null is 'never evaluated'; 0 would be 'evaluated, none due'");
   ok(`3. every totalCents is a real published amount`,
-    bookings.every((b) => b.totalCents > 0), "none zeroed or rewritten");
+    all.every((b) => b.totalCents > 0), "none zeroed or rewritten");
+
+  // The other half of the same distinction: a booking taken since the ledger
+  // shipped must have ASKED. "None was due" and "nobody looked" are the two
+  // states this column exists to tell apart, so a null here would be the
+  // migration's ambiguity reappearing on new business.
+  ok(`   and all ${since.length} booking(s) since carry an evaluated deposit`,
+    since.every((b) => b.depositDueCents !== null),
+    "a live booking must have asked what was due, even if the answer was nothing");
 
   // ── 4: reconciliation, seven cases ─────────────────────────────────────
   console.log(`\n  RECONCILIATION\n`);

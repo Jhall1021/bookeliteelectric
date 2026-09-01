@@ -159,8 +159,20 @@ async function main() {
 
   // ── 6-7: this release moved nothing ─────────────────────────────────────
   console.log();
-  const bookings = await prisma.booking.count();
-  ok(`6. all ${bookings} existing booking(s) still present`, bookings === 24, String(bookings));
+
+  // RETIRED, 31 August. This counted bookings and asserted the total was
+  // exactly 24 — Release #1's way of saying the Connect work had destroyed
+  // nothing. That question was answered when the release shipped, and what
+  // the frozen number meant afterwards was "nobody may take a booking": the
+  // first homeowner to check out through a second contractor's storefront
+  // failed the build, having done nothing wrong.
+  //
+  // Retired rather than rebased to 25, which would only move the date of the
+  // next false failure. The enduring claim — that no booking belongs to the
+  // wrong contractor, or to none — is verify-booking-tenancy's, and it is
+  // asserted from the data's own shape instead of a remembered total. Same
+  // reason as the dormancy claims below: a check kept past its question is
+  // one nobody reads.
 
   // These asserted "no contractor has an account yet" and "none is
   // payment-ready". Both were Release #1 dormancy claims and both stopped

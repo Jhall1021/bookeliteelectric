@@ -67,8 +67,21 @@ async function main() {
       !/basePrice|whileWeThereBasePrice/.test(posts(newForm)));
   ok(`   and neither still holds a price field to type into`,
     !/setBasePrice|setWwtPrice/.test(editForm) && !/setBasePrice|setWwtPrice/.test(newForm));
-  ok(`4. the pricing route still derives rather than accepting a number`,
-    /suggestPrimaryPrice\(/.test(pricingRoute) && !/basePrice:\s*num\(body/.test(pricingRoute));
+  // The derivation MOVED, so this follows it rather than passing by absence.
+  //
+  // The route used to call suggestPrimaryPrice itself. It now delegates to
+  // publishSuggestedPrice, the single publication authority — which is what
+  // lets the admin route, Guided Setup and the tests publish through one
+  // implementation. Asserting only on the route would go green the moment the
+  // authority stopped deriving, so both halves of the chain are checked here:
+  // the route delegates and takes no figure, and the authority derives and
+  // takes no figure.
+  const publication = stripComments(readFileSync("lib/pricePublication.ts", "utf8"));
+  ok(`4. the pricing route delegates to the publication authority`,
+    /publishSuggestedPrice\(/.test(pricingRoute) && !/basePrice:\s*num\(body/.test(pricingRoute));
+  ok(`   and that authority derives rather than accepting a number`,
+    /suggestPrimaryPrice\(/.test(publication) &&
+      !/\bbasePrice\s*[,)]/.test(publication.split("export async function")[1] ?? ""));
 
   // ── 5: the draft is not stored ─────────────────────────────────────────
   const schema = readFileSync("prisma/schema.prisma", "utf8");

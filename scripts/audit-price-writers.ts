@@ -101,6 +101,15 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "that scope would be the chandelier defect committed on purpose. Refuses if " +
     "any price is already present, since repricing is a reconciliation decision. " +
     "Touches this one service.",
+  "lib/pricePublication.ts":
+    "THE publication authority. Everything that publishes a price goes through " +
+    "publishSuggestedPrice, so the one place that stamps an approval is here — " +
+    "which is the point of extracting it: the admin route, the onboarding of a " +
+    "new contractor and the tests all run this same code rather than three " +
+    "sympathetic copies. It takes no figure from its caller. It derives through " +
+    "suggestPrimaryPrice and refuses with NO_SUGGESTED_PRICE if the engine " +
+    "yields nothing, so an approval can only ever be stamped on a number the " +
+    "contractor's own economics produced.",
   "scripts/publish-chandelier-price.ts":
     "Restores the one price in the catalog that was approved and then lost. " +
     "remove-and-replace-existing-chandelier is the only service carrying a " +
@@ -215,7 +224,12 @@ function main() {
         // `basePrice: true` is a Prisma select. `basePrice: number | null` is
         // a type. Neither changes anything, and reporting them buried the
         // three real problems in 200 lines of noise.
-        if (/^(true|false)[,\s]*$/.test(value)) continue;
+        //
+        // Closers are stripped first: a one-line select closes on the same
+        // line (`...select: { publishedPriceApprovedAt: true } });`), and the
+        // unstripped `true } });` slipped past this test into the look-back
+        // below, where any unrelated update within fourteen lines convicted it.
+        if (/^(true|false)$/.test(value.replace(/[)}\];,\s]+$/, ""))) continue;
         if (/^(number|string|Date|Int|Float)\b/.test(value)) continue;
 
         // The decisive test: is this inside a write? Prisma writes put the

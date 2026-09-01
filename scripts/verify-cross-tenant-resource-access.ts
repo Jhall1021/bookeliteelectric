@@ -2,6 +2,8 @@
  * A valid identifier belonging to somebody else is still not a key.
  *
  *   npx tsx scripts/verify-cross-tenant-resource-access.ts
+ *   npx tsx scripts/verify-cross-tenant-resource-access.ts \
+ *     --attacker=brightpath-electric --victim=elite-electric
  *
  * THE INVARIANT
  *
@@ -19,8 +21,16 @@
  * A test that probes with a made-up id proves the database has no such row.
  * It proves nothing about isolation, because the row it is looking for does
  * not exist for anyone. These probes use Elite's ACTUAL primary keys, read
- * beforehand, and then try to reach them from a throwaway contractor's
- * context — which is precisely what a hostile or careless caller would do.
+ * beforehand, and then try to reach them from another contractor's context —
+ * which is precisely what a hostile or careless caller would do.
+ *
+ * WHY THE ATTACKER CAN BE A REAL CONTRACTOR
+ *
+ * The default probe attacks from a throwaway contractor created for the run.
+ * That tenant is INACTIVE and owns nothing, so a guard could pass here by
+ * short-circuiting on either fact and still leak between two live tenants.
+ * `--attacker` and `--victim` point the same probes at real, persistent
+ * contractors, in either direction, where neither shortcut is available.
  *
  * Read AND write, because a guard that hides a row from a read but lets an
  * update through has not isolated anything.
@@ -36,6 +46,9 @@ const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
 
 const DUMMY_SLUG = "test-cross-tenant-probe";
+const arg = (k: string) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split("=")[1];
+const VICTIM = arg("victim") ?? "elite-electric";
+const ATTACKER = arg("attacker") ?? null; // null => throwaway
 let fail = 0;
 const ok = (l: string, c: boolean, d?: string) => { if (!c) fail++; console.log(`  ${c ? "✓" : "✗"} ${l}${c || !d ? "" : `  (${d})`}`); };
 
@@ -57,48 +70,55 @@ async function refuses(what: string, run: () => Promise<unknown>): Promise<boole
 }
 
 async function main() {
-  console.log(`\nCROSS-TENANT RESOURCE ACCESS — with Elite's real ids\n`);
-
-  const elite = await raw.contractor.findFirstOrThrow({
-    where: { slug: "elite-electric" }, select: { id: true },
+  const victim = await raw.contractor.findFirstOrThrow({
+    where: { slug: VICTIM }, select: { id: true, name: true },
   });
+  console.log(`\nCROSS-TENANT RESOURCE ACCESS — ${ATTACKER ?? "a throwaway contractor"} ` +
+    `against ${victim.name}'s real ids\n`);
 
-  // Elite's real primary keys, read outside any tenant context.
+  // The victim's real primary keys, read outside any tenant context.
   const ids = await asPlatform(async () => ({
-    service: (await raw.service.findFirst({ where: { contractorId: elite.id } }))?.id,
-    visit: (await raw.visit.findFirst({ where: { contractorId: elite.id } }))?.id,
-    booking: (await raw.booking.findFirst({ where: { visit: { contractorId: elite.id } } }))?.id,
-    customer: (await raw.customer.findFirst({ where: { contractorId: elite.id } }))?.id,
-    quote: (await raw.quote.findFirst({ where: { visit: { contractorId: elite.id } } }))?.id,
-    crew: (await raw.jobberCrewMember.findFirst({ where: { contractorId: elite.id } }))?.id,
-    area: (await raw.serviceArea.findFirst({ where: { contractorId: elite.id } }))?.id,
-    hours: (await raw.businessHours.findFirst({ where: { contractorId: elite.id } }))?.id,
-    settings: (await raw.pricingSettings.findFirst({ where: { contractorId: elite.id } }))?.id,
-    site: (await raw.contractorSite.findFirst({ where: { contractorId: elite.id } }))?.id,
-    material: (await raw.contractorMaterial.findFirst({ where: { contractorId: elite.id } }))?.id,
-    question: (await raw.question.findFirst({ where: { service: { contractorId: elite.id } } }))?.id,
-    payment: (await raw.paymentEvent.findFirst({ where: { booking: { visit: { contractorId: elite.id } } } }))?.id,
+    service: (await raw.service.findFirst({ where: { contractorId: victim.id } }))?.id,
+    visit: (await raw.visit.findFirst({ where: { contractorId: victim.id } }))?.id,
+    booking: (await raw.booking.findFirst({ where: { visit: { contractorId: victim.id } } }))?.id,
+    customer: (await raw.customer.findFirst({ where: { contractorId: victim.id } }))?.id,
+    quote: (await raw.quote.findFirst({ where: { visit: { contractorId: victim.id } } }))?.id,
+    crew: (await raw.jobberCrewMember.findFirst({ where: { contractorId: victim.id } }))?.id,
+    area: (await raw.serviceArea.findFirst({ where: { contractorId: victim.id } }))?.id,
+    hours: (await raw.businessHours.findFirst({ where: { contractorId: victim.id } }))?.id,
+    settings: (await raw.pricingSettings.findFirst({ where: { contractorId: victim.id } }))?.id,
+    site: (await raw.contractorSite.findFirst({ where: { contractorId: victim.id } }))?.id,
+    material: (await raw.contractorMaterial.findFirst({ where: { contractorId: victim.id } }))?.id,
+    question: (await raw.question.findFirst({ where: { service: { contractorId: victim.id } } }))?.id,
+    payment: (await raw.paymentEvent.findFirst({ where: { booking: { visit: { contractorId: victim.id } } } }))?.id,
   }));
 
   // A real, live session id from one of Elite's open visits.
-  const eliteSession = await asPlatform(async () =>
+  const victimSession = await asPlatform(async () =>
     (await raw.visit.findFirst({
-      where: { contractorId: elite.id, status: "OPEN", sessionId: { not: null } },
+      where: { contractorId: victim.id, status: "OPEN", sessionId: { not: null } },
       select: { sessionId: true },
     }))?.sessionId ?? null
   );
 
   const missing = Object.entries(ids).filter(([, v]) => !v).map(([k]) => k);
-  if (missing.length) console.log(`  (no Elite row to probe with for: ${missing.join(", ")})\n`);
+  if (missing.length) console.log(`  (no ${victim.name} row to probe with for: ${missing.join(", ")})\n`);
 
-  await raw.contractor.deleteMany({ where: { slug: DUMMY_SLUG } });
-  const dummy = await raw.contractor.create({
-    data: { slug: DUMMY_SLUG, name: "Cross-tenant probe", active: false },
-    select: { id: true },
-  });
+  // A real attacker is used as it stands and is NEVER cleaned up; only the
+  // throwaway this run creates is torn down.
+  const attacker = ATTACKER
+    ? await raw.contractor.findFirstOrThrow({ where: { slug: ATTACKER }, select: { id: true } })
+    : await (async () => {
+        await raw.contractor.deleteMany({ where: { slug: DUMMY_SLUG } });
+        return raw.contractor.create({
+          data: { slug: DUMMY_SLUG, name: "Cross-tenant probe", active: false },
+          select: { id: true },
+        });
+      })();
+  if (attacker.id === victim.id) throw new Error("attacker and victim are the same contractor");
 
   try {
-    await withTenant({ contractorId: dummy.id, source: "test" }, async () => {
+    await withTenant({ contractorId: attacker.id, source: "test" }, async () => {
       const g = guarded as unknown as Record<string, {
         findUnique(a: unknown): Promise<unknown>;
         findFirst(a: unknown): Promise<unknown>;
@@ -127,7 +147,7 @@ async function main() {
           g[c.model].findUnique({ where: { id: c.id } }));
         const readFirst = await refuses(`${c.model}.findFirst`, () =>
           g[c.model].findFirst({ where: { id: c.id } }));
-        ok(`${c.label.padEnd(20)} Elite's real row is unreachable by id`,
+        ok(`${c.label.padEnd(20)} the other contractor's real row is unreachable by id`,
           readUnique && readFirst, `unique=${readUnique} first=${readFirst}`);
       }
 
@@ -139,7 +159,7 @@ async function main() {
       // The write mechanism is covered thoroughly by
       // verify-tenant-isolation-live; this is the one probe that shows reads
       // and writes agree on the same id, inside a transaction that always
-      // rolls back so a guard failure cannot damage Elite's catalog.
+      // rolls back so a guard failure cannot damage the victim's catalog.
       if (ids.service) {
         let landed = false;
         try {
@@ -152,15 +172,23 @@ async function main() {
         } catch (e) {
           if (!(e instanceof Error) || e.message !== "ROLLBACK") landed = false;
         }
-        ok(`a real UPDATE against Elite's service changes nothing`, !landed);
+        ok(`a real UPDATE against the other contractor's service changes nothing`, !landed);
       }
 
       // Counting is a read too: a count that sees another tenant's rows leaks
       // how much work they have, which is commercially real even without ids.
+      //
+      // A real attacker owns rows of its own, so the assertion is not "sees
+      // nothing" but "sees exactly its own" — the throwaway's own count is
+      // zero, which keeps the original meaning without a second code path.
       const svcCount = await guarded.service.count();
-      const eliteCount = await asPlatform(() => raw.service.count({ where: { contractorId: elite.id } }));
-      ok(`counts do not include the other contractor's rows`,
-        svcCount === 0 && eliteCount > 0, `probe ${svcCount}, Elite ${eliteCount}`);
+      const [ownCount, victimCount] = await asPlatform(async () => [
+        await raw.service.count({ where: { contractorId: attacker.id } }),
+        await raw.service.count({ where: { contractorId: victim.id } }),
+      ]);
+      ok(`counts include only the caller's own rows`,
+        svcCount === ownCount && victimCount > 0,
+        `saw ${svcCount}, owns ${ownCount}, victim has ${victimCount}`);
 
       // ContractorSite is READABLE across tenants, deliberately: reading it is
       // what establishes tenant context, so requiring context to read it would
@@ -168,13 +196,13 @@ async function main() {
       // the classification is checked rather than assumed.
       // A BROWSER SESSION IS NOT A TENANT (ADR-011).
       //
-      // `elite_session_id` is one cookie with no contractor dimension, so the
+      // The session cookie is one cookie with no contractor dimension, so the
       // same visitor carries it onto every storefront. Resolving a visit from
       // the session alone would hand contractor A's cart to contractor B —
       // which is why the lookup takes the contractor first and the session
-      // second. Proved with a REAL session id belonging to Elite.
-      if (eliteSession) {
-        const stolen = await findOpenVisit(guarded, dummy.id, eliteSession);
+      // second. Proved with a REAL session id belonging to the victim.
+      if (victimSession) {
+        const stolen = await findOpenVisit(guarded, attacker.id, victimSession);
         ok(`a real booking session from another storefront resolves to nothing`,
           stolen === null, stolen ? "returned a visit" : "");
       }
@@ -190,7 +218,7 @@ async function main() {
         site ? Object.keys(site as Record<string, unknown>).join(",") : "");
     });
   } finally {
-    await raw.contractor.deleteMany({ where: { slug: DUMMY_SLUG } });
+    if (!ATTACKER) await raw.contractor.deleteMany({ where: { slug: DUMMY_SLUG } });
   }
 
   console.log();

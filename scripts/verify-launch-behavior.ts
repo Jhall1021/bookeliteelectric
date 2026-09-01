@@ -101,9 +101,18 @@ async function main() {
   if (!quoteOnly) {
     console.log(`  (no REMOTE_QUOTE service in the catalog to launch)`);
   } else {
+    // Every blocker that is NOT about price is cleared first, because the
+    // claim under test is only that a quote-only service needs no price. The
+    // material keys were always cleared here; the policy keys joined them
+    // when activation started refusing undecided policies, and leaving them
+    // would make this assert "nothing else is wrong either" — which is a
+    // different, and much more brittle, claim.
     await raw.service.update({
       where: { id: quoteOnly.id },
-      data: { offered: true, materialCostResolved: true, unresolvedMaterialKeys: [] },
+      data: {
+        offered: true, materialCostResolved: true,
+        unresolvedMaterialKeys: [], unresolvedPolicyKeys: [],
+      },
     });
 
     const before = await inTenant(c.id, () => assessOnboarding(guarded, c.id));

@@ -164,10 +164,55 @@ async function databaseScan() {
   }
 }
 
+/**
+ * The CANONICAL catalog — the copy every future contractor installs.
+ *
+ * Scanned separately from the live scan above because the two can disagree,
+ * and when they do it is always this way round: "storey" reached a homeowner
+ * on a brand-new contractor's storefront while the live scan was green,
+ * because Elite's rows had been remediated in place years earlier and the
+ * template they were copied from never was. A fix applied to one tenant looks
+ * finished and reintroduces itself on the next install.
+ *
+ * Template text is trade knowledge, so it is checked for every trade at once
+ * rather than per-trade.
+ */
+async function canonicalScan() {
+  console.log(`\n  CANONICAL TEMPLATE CONTENT\n`);
+
+  const questions = await prisma.templateQuestion.findMany({
+    select: { key: true, prompt: true, helpText: true },
+  });
+  const options = await prisma.templateAnswerOption.findMany({
+    select: { value: true, label: true, labelPattern: true },
+  });
+
+  const rows: { where: string; text: string }[] = [];
+  for (const q of questions)
+    for (const [f, v] of Object.entries({ prompt: q.prompt, helpText: q.helpText }))
+      if (typeof v === "string") rows.push({ where: `template question ${q.key}.${f}`, text: v });
+  for (const o of options)
+    for (const [f, v] of Object.entries({ label: o.label, labelPattern: o.labelPattern }))
+      if (typeof v === "string") rows.push({ where: `template option ${o.value}.${f}`, text: v });
+
+  for (const [bad, good] of Object.entries(FORBIDDEN)) {
+    const re = new RegExp(bad, "i");
+    const hits = rows.filter((r) => re.test(r.text));
+    if (hits.length) {
+      fail++;
+      console.log(`  ✗ "${bad}" is in ${hits.length} CANONICAL field(s) — every new contractor would install it — should be "${good}"`);
+      for (const h of hits.slice(0, 8)) console.log(`        ${h.where}`);
+    } else {
+      console.log(`  ✓ no "${bad}" in ${rows.length} canonical field(s)`);
+    }
+  }
+}
+
 async function main() {
   console.log(`\nUS SPELLING`);
   sourceScan();
   await databaseScan();
+  await canonicalScan();
   console.log();
   if (fail) {
     console.log(`  ${fail} check(s) failed.\n`);

@@ -17,9 +17,11 @@ import { promiseFor } from "./onboardingReadiness";
 import { loadPricingSettings } from "./routeResolver";
 
 export type ActivationRefusal = {
-  code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED";
+  code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
+      | "POLICY_UNRESOLVED";
   message: string;
   unresolvedMaterialKeys?: string[];
+  unresolvedPolicyKeys?: string[];
 };
 
 /**
@@ -39,7 +41,7 @@ export async function activationRefusal(
     select: {
       id: true, slug: true, active: true, bookingType: true,
       publishedPriceApprovedAt: true, materialCostResolved: true,
-      unresolvedMaterialKeys: true,
+      unresolvedMaterialKeys: true, unresolvedPolicyKeys: true,
     },
   });
   if (!service) {
@@ -81,6 +83,28 @@ export async function activationRefusal(
             `Add those costs and try again.`
           : `This service can't go live yet — one of the materials it needs has no cost recorded.`,
       unresolvedMaterialKeys: keys,
+    };
+  }
+
+  // An undecided policy is a HOLE IN THE STOREFRONT, not a back-office gap.
+  //
+  // A band question's labels are written against the policy's boundaries, so
+  // until those numbers exist the option a homeowner reads is the pattern
+  // itself: "{b1} feet or less". BrightPath launched with exactly that on a
+  // live, priced service — readiness called it a blocker, the repo has
+  // asserted it since verify-policy-resolution was written, and activation
+  // was the one place that did not ask. That is the same gap §1.4 closed for
+  // prices: a check that only runs in CI is a check the storefront can
+  // outrun.
+  const policies = service.unresolvedPolicyKeys ?? [];
+  if (policies.length > 0) {
+    return {
+      code: "POLICY_UNRESOLVED",
+      message:
+        `This service can't go live yet — it asks the homeowner a question whose ` +
+        `answers are written from ${policies.join(", ")}, and that hasn't been decided. ` +
+        `Until it is, the choices would read as "{b1} feet or less".`,
+      unresolvedPolicyKeys: policies,
     };
   }
 
