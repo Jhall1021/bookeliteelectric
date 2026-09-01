@@ -580,6 +580,47 @@ export const TRADE_SIGNAL = "Built for the trades that live on service calls.";
  * order give them their own. What is NOT here is anything pointing at a page
  * that does not exist — the menus carry status rows for that instead.
  */
+/**
+ * A photograph for each category in the captured electrical template.
+ *
+ * KEYED BY THE TEMPLATE'S OWN SLUG, so the homepage grid is the catalog a
+ * contractor is actually provisioned from rather than a list typed here. The
+ * template decides which categories exist and in what order; this only says
+ * what each one looks like.
+ *
+ * These are the product's own generic service photographs from public/images
+ * — the same ones a storefront uses before a contractor supplies their own.
+ * None of them belongs to a real contractor, which is the whole reason this
+ * grid can be published while a screenshot of a real storefront cannot.
+ *
+ * A category with no entry renders as a plain tile rather than a broken one,
+ * and verify-marketing-homepage fails if the template gains a category this
+ * map has not been told about.
+ */
+export const CATEGORY_IMAGES: Record<string, string> = {
+  "outlets-switches": "/images/service-standard-switch.jpg",
+  "new-outlets": "/images/service-new-outlet.jpg",
+  lighting: "/images/service-light-fixture.jpg",
+  fans: "/images/service-ceiling-fan.jpg",
+  "tv-media": "/images/service-tv-mounting.jpg",
+  "dedicated-circuits": "/images/category-dedicated-circuits.jpg",
+  "appliance-install": "/images/service-appliance-microwave.jpg",
+  "safety-protection": "/images/service-smoke-and-co.jpg",
+  "smart-home-security": "/images/service-video-doorbell.jpg",
+  "panels-troubleshooting": "/images/service-panel-replacement.jpg",
+  "ev-garage": "/images/service-ev-charger.jpg",
+  "generator-backup-power": "/images/service-generator-inlet-interlock.jpg",
+  "pool-spa": "/images/service-pool-and-spa.jpg",
+};
+
+/** The catalog grid's own words. The numbers are read from the capture. */
+export const CATALOG = {
+  eyebrow: "What your customer browses",
+  headline: "Before you change a thing.",
+  lead:
+    "Every electrical contractor on Price2Book is provisioned from the same canonical catalog. Each category below carries the services in it, and each service carries the questions that change its scope. You rename it, reprice it, hide what you don\u2019t do and add what you do \u2014 and your customer browses the result.",
+} as const;
+
 export const NAV = [
   { label: "Product", href: "/product/guided-pricing" },
   { label: "How It Fits", href: "/how-it-fits" },

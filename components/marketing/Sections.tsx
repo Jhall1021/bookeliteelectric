@@ -2,8 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { formatCents } from "@/lib/flow-types";
 import {
-  BOUNDARY_LINE, CUSTOMER_URL, EMBED_STATUS, EVERYWHERE, JOURNEY, JOURNEY_NOTE, NO_JARGON,
-  PILLARS, SETUP_PROGRESSION, START_SMALL, TRADES, TRADE_SIGNAL,
+  BOUNDARY_LINE, CATALOG, CATEGORY_IMAGES, CUSTOMER_URL, EMBED_STATUS, EVERYWHERE, JOURNEY,
+  JOURNEY_NOTE, NO_JARGON, PILLARS, SETUP_PROGRESSION, START_SMALL, TRADES, TRADE_SIGNAL,
 } from "./content";
 import { DEMO_FLOW } from "./demoFlow";
 import { HERO_FLOW } from "./heroFlow";
@@ -445,6 +445,85 @@ export function Everywhere() {
  * repeat — two about price and one about scheduling — and a contractor
  * recognizes their own week in them faster than they read a claim about it.
  */
+/**
+ * The catalog a homeowner browses — the third thing on the page, on purpose.
+ *
+ * WHY A GRID AND NOT A SCREENSHOT. The obvious way to show this is to
+ * photograph a storefront, and the site cannot: a real storefront is a real
+ * contractor's, and shots.ts refuses that for good reasons. Rendering it from
+ * the captured template is not a workaround, it is better evidence — the
+ * categories and the counts ARE the template, so the section cannot drift
+ * away from what a contractor is actually provisioned with. If the catalog
+ * changes, this changes with it.
+ *
+ * NO PRICES. The capture carries trade structure and no economics, which is
+ * exactly why it is publishable. A visitor sees the shape of the catalog and
+ * has nothing to argue with one contractor's number about.
+ */
+export function CatalogGrid() {
+  const T = ELECTRICAL_TEMPLATE;
+  return (
+    <section className="border-t border-p2b-line py-14 lg:py-[72px]">
+      <div className={SHELL}>
+        <div className="mb-5 flex items-center gap-2.5">
+          <div className="h-0.5 w-[26px] bg-p2b-accent" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent lg:text-xs">
+            {CATALOG.eyebrow}
+          </span>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-12">
+          <h2 className="max-w-[22ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:col-span-5 lg:text-[42px]">
+            {T.categoryCount} categories. {T.serviceCount} services.
+            <br />
+            {CATALOG.headline}
+          </h2>
+          <p className="text-[17px] leading-[1.6] text-p2b-ink-warm lg:col-span-7">{CATALOG.lead}</p>
+        </div>
+
+        <ul className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
+          {T.categories.map((c) => {
+            const img = CATEGORY_IMAGES[c.slug];
+            return (
+              <li
+                key={c.slug}
+                className="overflow-hidden rounded-[4px] border border-p2b-line bg-white"
+              >
+                {img ? (
+                  <div className="relative aspect-[4/3] w-full bg-p2b-canvas-alt">
+                    <Image
+                      src={img}
+                      alt=""
+                      fill
+                      sizes="(min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : null}
+                <div className="px-4 py-3.5">
+                  <div className="text-[15px] font-semibold leading-[1.3] text-p2b-ink lg:text-[16px]">
+                    {c.name}
+                  </div>
+                  <div className="mt-1 text-[13px] text-p2b-muted">
+                    {c.services.length} {(c.services.length as number) === 1 ? "service" : "services"}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* The catalog is a starting point, not a ceiling — said once, here,
+            so the grid does not read as the limit of what can be offered. */}
+        <p className="mt-7 max-w-[70ch] text-[15px] leading-[1.6] text-p2b-muted">
+          This is the electrical template. Plumbing is in build, and a trade Price2Book has not
+          templated yet is built the same way — categories, services, and the questions that price
+          them.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function StartSmall() {
   return (
     <section id="start-small" className={`${SHELL} py-14 lg:py-[72px]`}>

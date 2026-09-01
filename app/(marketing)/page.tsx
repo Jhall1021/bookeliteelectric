@@ -1,8 +1,8 @@
 import Hero from "@/components/marketing/Hero";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
 import {
-  DemoCta, Everywhere, GuidedPricingTeaser, NotYourCRM, Pillars, StartSmall, TradeSignal,
-  WhileWereThereTeaser,
+  CatalogGrid, DemoCta, Everywhere, GuidedPricingTeaser, NotYourCRM, Pillars, StartSmall,
+  TradeSignal, WhileWereThereTeaser,
 } from "@/components/marketing/Sections";
 
 /**
@@ -45,6 +45,7 @@ export default function HomePage() {
       <Hero />
       <TradeSignal />
       <Pillars />
+      <CatalogGrid />
       <StartSmall />
       <GuidedPricingTeaser />
       <WhileWereThereTeaser />

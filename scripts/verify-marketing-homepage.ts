@@ -310,6 +310,35 @@ async function statics() {
     'POSITIONING.md requires "Dozens of residential electrical services"');
   ok(pageSrc.includes("Dozens of residential electrical services"), "…the approved phrasing is used");
 
+  console.log("\n  THE CATALOG GRID IS THE TEMPLATE");
+  // The grid's whole claim is that it shows the catalog a contractor is
+  // actually provisioned from. That only stays true if the template drives it
+  // — so a category the template gains, and this map has not been told about,
+  // is a silently photo-less tile and a gate failure.
+  const template = await import(pathToFileURL(`${process.cwd()}/components/marketing/trades/electricalTemplate.ts`).href)
+    .then((m) => m.ELECTRICAL_TEMPLATE).catch(() => null);
+  ok(!!template, "the electrical template fixture loads");
+  if (template) {
+    const images = content.CATEGORY_IMAGES as Record<string, string>;
+    const missing = template.categories.filter((c: any) => !images[c.slug]).map((c: any) => c.slug);
+    ok(missing.length === 0, `all ${template.categories.length} template categories have a photograph`,
+      `no image for: ${missing.join(", ")}`);
+    const stale = Object.keys(images).filter((k) => !template.categories.some((c: any) => c.slug === k));
+    ok(stale.length === 0, "…and none is mapped that the template no longer has",
+      `stale: ${stale.join(", ")}`);
+    for (const [slug, src] of Object.entries(images)) {
+      ok(existsSync(`public${src}`), `${slug.padEnd(24)} → ${src}`, "mapped but absent from public/");
+    }
+    // The reason this grid may be published at all: no economics in the
+    // capture. Checked as MONEY, not as the word — "resolution": "priced" is a
+    // routing label and says nothing about what anything costs.
+    const catalogBlob = JSON.stringify(template.categories);
+    const priceKeys = /"(basePrice|priceCents|whileWeThereBasePrice|computedPrice[A-Za-z]*|amountCents)"/;
+    ok(!/\$\s?\d/.test(catalogBlob) && !priceKeys.test(catalogBlob),
+      "the published catalog carries no money",
+      "the capture is publishable precisely because it has no economics");
+  }
+
   console.log("\n  SCREENSHOTS");
   const capture = read("scripts/capture-marketing-shots.ts");
   ok(capture.includes("assertDemoOnly"),
