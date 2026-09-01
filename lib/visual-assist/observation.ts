@@ -27,7 +27,7 @@
 export type ObservationVisibility = "CLEAR" | "PARTIAL" | "NOT_VISIBLE";
 
 export type ObservationBasis =
-  /** Recognised by its shape/form alone. */
+  /** Recognized by its shape/form alone. */
   | "VISIBLE_SHAPE"
   /** Read off printed text — a nameplate, a rating, a logo. */
   | "VISIBLE_TEXT"
@@ -58,7 +58,7 @@ export type VisualObservation<T> = {
    * The characters actually read, when the basis involved text.
    *
    * Observational evidence, never application input — §36. It is not a
-   * lookup key, not a query fragment, and not an instruction. Sanitised on
+   * lookup key, not a query fragment, and not an instruction. Sanitized on
    * the way in by `sanitizeRawText`.
    */
   rawText?: string | null;
@@ -92,7 +92,7 @@ export const RAW_TEXT_MAX = 120;
  * customer sees `Square&amp;nbsp;D`. The rule that actually protects us is
  * that this value is never rendered as HTML and never concatenated into a
  * query — both enforced elsewhere. What this does is narrower and worth
- * doing anyway: normalise the encoding, remove the characters that have no
+ * doing anyway: normalize the encoding, remove the characters that have no
  * business on a nameplate, and cap the length.
  *
  * Angle brackets go because no equipment label contains one and their only
@@ -166,11 +166,11 @@ export function parseObservation<T>(
     typeof visibility !== "string" ||
     !OBSERVATION_VISIBILITIES.includes(visibility as ObservationVisibility)
   ) {
-    return reject(`visibility ${JSON.stringify(visibility)} not recognised`);
+    return reject(`visibility ${JSON.stringify(visibility)} not recognized`);
   }
   const basis = o.basis;
   if (typeof basis !== "string" || !OBSERVATION_BASES.includes(basis as ObservationBasis)) {
-    return reject(`basis ${JSON.stringify(basis)} not recognised`);
+    return reject(`basis ${JSON.stringify(basis)} not recognized`);
   }
 
   const rawText = sanitizeRawText(o.rawText);
