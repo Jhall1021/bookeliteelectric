@@ -319,6 +319,18 @@ export const PRICE_CHAIN = [
   "The price a homeowner sees",
 ] as const;
 
+/**
+ * The service the suggested/published card is worked through, and its price.
+ *
+ * Captured, for the same reason every other figure on this page is: a
+ * hand-typed $280 goes on saying $280 after the contractor moves the price,
+ * and the hero two sections above it would already be showing the new one.
+ */
+export const PRICE_EXAMPLE = {
+  service: HERO_FLOW.primary.name,
+  price: formatCents(HERO_FLOW.primary.priceCents),
+} as const;
+
 export const PRICE_BREAKDOWN = [
   { k: "Labor", v: "Your rate × resolved crew hours" },
   { k: "Materials", v: "Your costs, itemized" },

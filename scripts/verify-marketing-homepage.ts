@@ -320,6 +320,29 @@ async function statics() {
   // it is forbidden to hardcode — "the $280, the $260/$95 pair" — which is
   // prose about the code, not the page. The US-spelling check above learned
   // the same lesson the same way.
+  /**
+   * NO PRICE IS TYPED BY HAND, ANYWHERE ON THIS PAGE.
+   *
+   * Generalized from the walkthrough to every marketing component, because the
+   * defects keep coming from the same place. Three so far: a header asserting
+   * "1 service in your visit" above a cart holding two; a standalone price
+   * guessed at $185 that made a captured $115 look wrong; and a suggested /
+   * published card still saying $280 after the capture had moved on. Each was
+   * a hand-typed claim about product state sitting next to captured ones.
+   *
+   * Prices belong in heroFlow.ts, which is generated, or in content.ts, which
+   * derives from it. A dollar figure in JSX is the bug.
+   */
+  for (const f of readdirSync("components/marketing")) {
+    if (!f.endsWith(".tsx")) continue;
+    const src = read(`components/marketing/${f}`)
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+    const hit = src.match(/[>"'\s]\$\d[\d,.]*/);
+    ok(!hit, `components/marketing/${f} hardcodes no price`,
+      `found ${hit?.[0].trim()} — take it from the capture instead`);
+  }
+
   const walkCode = walk
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n")

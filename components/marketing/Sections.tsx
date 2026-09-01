@@ -1,7 +1,8 @@
 import Image from "next/image";
 import {
   BOUNDARY_LINE, CUSTOMER_URL, EVERYWHERE, INTEGRATIONS, JOURNEY, JOURNEY_NOTE,
-  OUTCOMES, PILLARS, PRICE_BREAKDOWN, PRICE_CHAIN, SETUP_PROGRESSION, START_SMALL, WINDOWS,
+  OUTCOMES, PILLARS, PRICE_BREAKDOWN, PRICE_CHAIN, PRICE_EXAMPLE, SETUP_PROGRESSION,
+  START_SMALL, WINDOWS,
   WWT, WWT_EXAMPLE,
 } from "./content";
 import { SHOTS } from "./shots";
@@ -401,8 +402,12 @@ export function Rules() {
           </div>
 
           <div className="mt-5 overflow-hidden rounded-[3px] border border-p2b-line bg-white">
+            {/* The service and both figures come from the capture. Typed by
+                hand they would keep saying $280 after the contractor moved
+                the price, while the hero two sections up showed the new one —
+                the page disagreeing with itself about one number. */}
             <div className="border-b border-[#EEEAE1] bg-p2b-surface-warm px-5 py-3 text-[14px] font-semibold">
-              New 120V Outlet
+              {PRICE_EXAMPLE.service}
             </div>
             {PRICE_BREAKDOWN.map((b) => (
               <div key={b.k} className="flex items-center justify-between gap-4 border-b border-p2b-line-soft px-5 py-2.5">
@@ -412,12 +417,12 @@ export function Rules() {
             ))}
             <div className="flex items-center justify-between bg-p2b-accent-tint px-5 py-3">
               <span className="text-[14px] font-semibold text-p2b-accent">Suggested</span>
-              <span className="text-xl font-bold text-p2b-accent">$280</span>
+              <span className="text-xl font-bold text-p2b-accent">{PRICE_EXAMPLE.price}</span>
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-p2b-line px-5 py-3">
               <span className="text-[14px] font-semibold">Published</span>
               <div className="flex items-center gap-3">
-                <span className="text-lg font-bold">$280</span>
+                <span className="text-lg font-bold">{PRICE_EXAMPLE.price}</span>
                 <span className="rounded-sm bg-p2b-ink px-3 py-1 text-[12px] font-semibold text-p2b-canvas">
                   Approved by you
                 </span>
