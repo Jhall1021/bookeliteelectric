@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Archivo } from "next/font/google";
-import { platformOrigin } from "@/lib/origins";
+import { appOrigin, platformOrigin } from "@/lib/origins";
+import { MarketingHeader, MarketingFooter } from "@/components/marketing/Chrome";
+import { SIGN_IN_PATH } from "@/components/marketing/content";
 
 /**
  * Archivo is the marketing site's typeface and nothing else's.
@@ -58,10 +60,25 @@ export const metadata: Metadata = {
  * homepage from Elite's storefront root, and it is verified by
  * scripts/verify-legacy-redirect-scope.ts rather than assumed.
  */
+/**
+ * THE CHROME LIVES HERE, not on the homepage — SITEMAP.md.
+ *
+ * It was on the page while the site was one page, which was fine and stopped
+ * being fine the moment a second one existed: a trade page would either
+ * repeat the header and footer or quietly ship without them. Everything every
+ * marketing surface shares — the Price2Book header and navigation, the
+ * footer, Archivo, the warm canvas — is the layout's job now.
+ *
+ * `signInHref` is resolved from APP_ORIGIN rather than hardcoded, so a preview
+ * deployment links to its own portal instead of production's.
+ */
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
+  const signInHref = `${appOrigin() ?? ""}${SIGN_IN_PATH}`;
   return (
     <div className={`${archivo.variable} font-marketing bg-p2b-canvas text-p2b-ink antialiased`}>
+      <MarketingHeader signInHref={signInHref} />
       {children}
+      <MarketingFooter />
     </div>
   );
 }

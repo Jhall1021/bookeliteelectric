@@ -447,12 +447,31 @@ export const SETUP_PROGRESSION = [
   "Turn on what you want",
 ] as const;
 
+/**
+ * Trades, with their status — SITEMAP.md.
+ *
+ * A CAPABILITY CLAIM, checked like the integration statuses beside it. Only
+ * electrical has a committed canonical template, so only electrical has a
+ * page: plumbing is a status line in the menu rather than a link, and HVAC has
+ * no entry at all here because a nav item is a stronger claim than a sentence.
+ *
+ * A qualifier comes off when that trade's template is committed and frozen —
+ * never when it merely works.
+ */
+export type TradeStatus = "Available now" | "In build" | "Next";
+
+export const TRADES: ReadonlyArray<{ name: string; status: TradeStatus; href: string | null }> = [
+  { name: "Electrical", status: "Available now", href: "/trades/electrical" },
+  { name: "Plumbing", status: "In build", href: null },
+];
+
 export const NAV = [
-  { label: "How It Works", href: "#demo" },
+  { label: "How It Works", href: "/#demo" },
   { label: "While We’re There™", href: "#wwt" },
-  { label: "Your Pricing Link", href: "#everywhere" },
-  { label: "Your Rules", href: "#rules" },
+  { label: "Your Pricing Link", href: "/#everywhere" },
+  { label: "Your Rules", href: "/#rules" },
   // "Early Access" was here and pointed at the same place as the filled
   // button beside it. Two affordances for one action is not a nav.
-  { label: "Integrations", href: "#integrations" },
+  { label: "Trades", href: "/trades/electrical" },
+  { label: "Integrations", href: "/#integrations" },
 ] as const;

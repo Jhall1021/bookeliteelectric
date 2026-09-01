@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { HERO, NAV } from "./content";
+import { HERO, NAV, TRADES } from "./content";
 
 /**
  * The Price2Book logo, as delivered by the designer.
@@ -58,21 +58,56 @@ export function MarketingHeader({ signInHref }: { signInHref: string }) {
   return (
     <header className="border-b border-p2b-line">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-6 px-5 py-3.5 lg:px-[88px] lg:py-5">
-        <a href="#top" aria-label="Price2Book — home">
+        <a href="/" aria-label="Price2Book — home">
           <Logo />
         </a>
 
         <nav className="hidden items-center gap-[30px] text-[15px] text-p2b-muted xl:flex">
-          {NAV.map((item) => (
-            <a key={item.href} href={item.href} className="hover:text-p2b-ink">
-              {item.label}
-            </a>
-          ))}
+          {NAV.map((item) =>
+            /* Trades opens; everything else is still a link, because the
+               pages the other menus will hold do not exist yet and a menu
+               pointing at nothing is worse than no menu. The dropdown is CSS
+               only — hover and focus-within — so it needs no client component
+               and works with a keyboard. */
+            item.label === "Trades" ? (
+              <div key={item.href} className="group relative">
+                <a href={item.href} className="hover:text-p2b-ink">
+                  {item.label} <span aria-hidden="true" className="text-[11px]">▾</span>
+                </a>
+                <div className="invisible absolute left-1/2 top-full z-20 w-[228px] -translate-x-1/2 pt-3 opacity-0 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                  <div className="rounded-[3px] border border-p2b-line bg-white py-1.5 shadow-[0_10px_28px_rgba(20,24,31,.10)]">
+                    {TRADES.map((t) =>
+                      t.href ? (
+                        <a key={t.name} href={t.href}
+                           className="flex items-center justify-between gap-3 px-4 py-2.5 text-[15px] text-p2b-ink hover:bg-p2b-canvas-alt">
+                          {t.name}
+                        </a>
+                      ) : (
+                        /* Not a link. There is no page behind it, and there
+                           must not be one until the template is frozen. */
+                        <div key={t.name}
+                             className="flex cursor-default items-center justify-between gap-3 px-4 py-2.5 text-[15px] text-p2b-faint">
+                          {t.name}
+                          <span className="rounded-sm bg-p2b-canvas-alt px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-p2b-muted-soft">
+                            {t.status}
+                          </span>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <a key={item.href} href={item.href} className="hover:text-p2b-ink">
+                {item.label}
+              </a>
+            ),
+          )}
           <span className="h-[18px] w-px bg-p2b-line" />
           <a href={signInHref} className="font-medium text-p2b-ink hover:text-p2b-accent">
             Sign In
           </a>
-          <a href="#access"
+          <a href="/#access"
              className="rounded-sm bg-p2b-accent px-[18px] py-2.5 font-semibold text-p2b-canvas hover:bg-p2b-accent-hover">
             {HERO.primaryCta}
           </a>
@@ -81,7 +116,7 @@ export function MarketingHeader({ signInHref }: { signInHref: string }) {
         {/* Below xl the nav collapses to the same two actions, same hierarchy. */}
         <div className="flex items-center gap-4 text-[14px] xl:hidden">
           <a href={signInHref} className="font-medium text-p2b-ink">Sign In</a>
-          <a href="#access"
+          <a href="/#access"
              className="rounded-sm bg-p2b-accent px-3.5 py-2 font-semibold text-p2b-canvas">
             Early Access
           </a>

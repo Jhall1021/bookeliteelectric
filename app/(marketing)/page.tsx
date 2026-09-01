@@ -1,6 +1,3 @@
-import { appOrigin } from "@/lib/origins";
-import { MarketingHeader, MarketingFooter } from "@/components/marketing/Chrome";
-import { SIGN_IN_PATH } from "@/components/marketing/content";
 import Hero from "@/components/marketing/Hero";
 import HomeownerDemo from "@/components/marketing/HomeownerDemo";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
@@ -40,15 +37,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default function HomePage() {
-  // Resolved rather than hardcoded, so a preview deployment sends people to
-  // its own portal instead of production's. Falls back to a relative path,
-  // which is correct on any host that serves both.
-  const signInHref = `${appOrigin() ?? ""}${SIGN_IN_PATH}`;
-
   return (
-    <>
-      <MarketingHeader signInHref={signInHref} />
-      <main>
+    <main>
         <Hero />
         <Pillars />
 
@@ -75,8 +65,6 @@ export default function HomePage() {
         <KeepYourStack />
         <TradeFoundation />
         <EarlyAccess />
-      </main>
-      <MarketingFooter />
-    </>
+    </main>
   );
 }

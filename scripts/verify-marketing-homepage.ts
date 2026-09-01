@@ -20,7 +20,7 @@
  *   npx tsx scripts/verify-marketing-homepage.ts [--host https://…]
  */
 import { pathToFileURL } from "node:url";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string, detail = "") => {
@@ -30,6 +30,23 @@ const ok = (c: boolean, label: string, detail = "") => {
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined; };
 
 const read = (p: string) => (existsSync(p) ? readFileSync(p, "utf8") : "");
+
+/**
+ * Every source file under components/marketing, at any depth.
+ *
+ * Was readdirSync of one directory, which broke the moment trade pages needed
+ * a subdirectory — and the interesting half of that failure is that it broke
+ * LOUDLY. Had it silently skipped the folder, the spelling, tenant-token and
+ * hardcoded-price rules would have stopped covering the newest files on the
+ * site, which is exactly where they are most needed.
+ */
+function marketingFiles(dir = "components/marketing"): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).flatMap((entry) => {
+    const full = `${dir}/${entry}`;
+    return statSync(full).isDirectory() ? marketingFiles(full) : [full];
+  });
+}
 
 /** What each named integration is actually allowed to claim, today. */
 const TRUTH: Record<string, string> = {
@@ -132,8 +149,7 @@ async function statics() {
   }
 
   console.log("\n  NO CAPABILITY THE PRODUCT DOES NOT HAVE");
-  const marketingSrc = readdirSync("components/marketing")
-    .map((f) => read(`components/marketing/${f}`)).join("\n");
+  const marketingSrc = marketingFiles().map(read).join("\n");
   for (const banned of content.FORBIDDEN_INTEGRATION_LABELS) {
     // Scoped to status position: the word may legitimately appear in prose
     // ("Not connected" is a real per-contractor state in the PORTAL), but
@@ -161,8 +177,12 @@ async function statics() {
   ok(!/https:\/\/app\.price2book\.com/.test(pageSrc),
     "the portal URL is resolved, not hardcoded",
     "a literal app.price2book.com would send preview traffic to production");
-  ok(read("app/(marketing)/page.tsx").includes("appOrigin()"),
-    "…via appOrigin()");
+  // The sign-in href moved to the route group's layout when the chrome did,
+  // so the check follows it. The rule is unchanged: resolved, never hardcoded.
+  ok(read("app/(marketing)/layout.tsx").includes("appOrigin()"),
+    "…via appOrigin() in the marketing layout");
+  ok(!/https:\/\/app\.price2book\.com/.test(marketingFiles().map(read).join("\n")),
+    "…and no marketing component hardcodes it either");
 
   console.log("\n  US SPELLING");
   // The approved copy is US English throughout. These are the forms that
@@ -174,12 +194,12 @@ async function statics() {
   // went on passing its own file and failing the copy it was protecting.
   // scripts/verify-us-spelling.ts skips this file for that reason.
   const BRITISH = /\b(labour|itemis(e|ed|ing)|customis|organis|recognis|colour|licence|catalogue|analyse|optimis|summaris|behaviour|honour|neighbour|labelled|modelling|defence)\b/i;
-  for (const f of readdirSync("components/marketing")) {
-    const src = read(`components/marketing/${f}`);
+  for (const f of marketingFiles()) {
+    const src = read(f);
     // Only the copy, not the comments — prose about the code is not the site.
     const strings = src.match(/"[^"\n]{4,}"|'[^'\n]{4,}'|`[^`]{4,}`/g) ?? [];
     const hit = strings.find((t) => BRITISH.test(t));
-    ok(!hit, `components/marketing/${f} uses US spelling`, hit?.slice(0, 80) ?? "");
+    ok(!hit, `${f} uses US spelling`, hit?.slice(0, 80) ?? "");
   }
 
   console.log("\n  THE EMBED IS NOT ADVERTISED AS SHIPPED");
@@ -333,13 +353,13 @@ async function statics() {
    * Prices belong in heroFlow.ts, which is generated, or in content.ts, which
    * derives from it. A dollar figure in JSX is the bug.
    */
-  for (const f of readdirSync("components/marketing")) {
+  for (const f of marketingFiles()) {
     if (!f.endsWith(".tsx")) continue;
-    const src = read(`components/marketing/${f}`)
+    const src = read(f)
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
     const hit = src.match(/[>"'\s]\$\d[\d,.]*/);
-    ok(!hit, `components/marketing/${f} hardcodes no price`,
+    ok(!hit, `${f} hardcodes no price`,
       `found ${hit?.[0].trim()} — take it from the capture instead`);
   }
 
@@ -351,6 +371,67 @@ async function statics() {
   ok(!/prompt:\s*["']/.test(walkCode) && !/["'>]\s*\$\d{2,}/.test(walkCode),
     "…and hardcodes no question or price of its own",
     "every number and every prompt must come from the fixture");
+
+  console.log("\n  TRADES CLAIM ONLY WHAT SHIPS");
+  /**
+   * A trade in the navigation is a capability claim, exactly like an
+   * integration status — and a stronger one, because a menu item implies a
+   * destination. Only a trade with a committed canonical template may have a
+   * page, and only a trade with a page may be a link.
+   *
+   * The strongest half of this is not the assertion below but the routing
+   * decision it guards: trade routes are explicit files, not a [trade]
+   * segment, so a config value cannot resolve one into existence.
+   */
+  const trades: ReadonlyArray<{ name: string; status: string; href: string | null }> = content.TRADES;
+  ok(trades.length > 0, `${trades.length} trade(s) named`);
+  for (const t of trades) {
+    if (t.href) {
+      const route = `app/(marketing)${t.href}/page.tsx`;
+      ok(existsSync(route), `${t.name} is a link and ${route} exists`,
+        "a trade may only be clickable when its page is a real file");
+      ok(t.status === "Available now", `…and claims "Available now"`,
+        `claims "${t.status}" while being clickable`);
+    } else {
+      ok(t.status !== "Available now", `${t.name} is not a link, and does not claim to be available`,
+        "an available trade should have a page; an unavailable one must not be clickable");
+    }
+  }
+  ok(!trades.some((t) => /hvac/i.test(t.name)),
+    "HVAC is not in the trades menu",
+    "there is no canonical HVAC product behind the claim");
+  ok(!existsSync("app/(marketing)/trades/hvac/page.tsx") &&
+     !existsSync("app/(marketing)/trades/plumbing/page.tsx"),
+    "no trade page exists ahead of its template",
+    "freeze first, market second — SITEMAP.md");
+  ok(!existsSync("app/(marketing)/trades/[trade]"),
+    "trade routes are explicit files, not a dynamic segment",
+    "a [trade] segment can resolve an unshipped trade into a public page");
+
+  console.log("\n  THE ELECTRICAL TRADE PAGE IS CAPTURED, NOT WRITTEN");
+  const tradeFixture = "components/marketing/trades/electricalTemplate.ts";
+  ok(existsSync(tradeFixture), "the electrical template fixture exists");
+  const et = await import(pathToFileURL(`${process.cwd()}/${tradeFixture}`).href)
+    .then((m) => m.ELECTRICAL_TEMPLATE).catch(() => null);
+  ok(!!et, "…and it parses");
+  if (et) {
+    ok(et.generatedBy === "scripts/capture-trade-electrical.ts", "it is generated, not hand-written");
+    ok(et.categories.length > 0 && et.serviceCount > 0,
+      `${et.categories.length} categories, ${et.serviceCount} services`);
+    // The counter-example is the honest half of the page and the half a
+    // marketer would be tempted to drop. If the catalog ever stops carrying
+    // work it refuses to price, the page's central claim is gone.
+    ok((et.counts.quoted ?? 0) > 0,
+      `${et.counts.quoted} services are never auto-priced`,
+      "a trade page showing only priceable work implies everything is priceable");
+    ok(et.example?.options?.length > 1 &&
+       new Set(et.example.options.map((o: any) => o.routeAction)).size > 1,
+      "the Guided Pricing example's answers do different things",
+      "a question whose answers all do the same thing proves nothing about routing");
+  }
+  const tradePage = read("components/marketing/trades/TradePage.tsx");
+  ok(!/\bconst [A-Z_]*(SERVICES|CATALOG)\b/.test(tradePage),
+    "the trade page keeps no catalog of its own");
 
   console.log("\n  THE LOGO IS THE DELIVERED ARTWORK");
   // The header composes the mark and the wordmark itself, so both halves have
@@ -378,13 +459,13 @@ async function statics() {
   // :root — themeCss takes a selector for exactly this case. So these two
   // files are allowed contractor tokens, and are then held to the stricter
   // rule below: the theme they emit must be scoped.
-  const ISLAND = ["StorefrontIsland.tsx", "HeroWalkthrough.tsx"];
+  const ISLAND = ["components/marketing/StorefrontIsland.tsx", "components/marketing/HeroWalkthrough.tsx"];
   const tenantTokens = /\b(bg|text|border|from|to|via)-(canvas|surface|ink|muted|accent|line|positive|navy|electric|warmwhite|slate|success|charcoal|cardline)\b/;
-  for (const f of readdirSync("components/marketing")) {
+  for (const f of marketingFiles()) {
     if (ISLAND.includes(f)) continue;
-    const src = read(`components/marketing/${f}`);
+    const src = read(f);
     const hit = src.split("\n").find((l) => tenantTokens.test(l));
-    ok(!hit, `components/marketing/${f} uses no contractor-themed token`, hit?.trim().slice(0, 90) ?? "");
+    ok(!hit, `${f} uses no contractor-themed token`, hit?.trim().slice(0, 90) ?? "");
   }
   const island = read("components/marketing/StorefrontIsland.tsx");
   ok(island.includes("themeCss(theme, `.${scope}`)"),
