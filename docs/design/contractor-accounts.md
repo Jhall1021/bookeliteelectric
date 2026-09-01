@@ -8,13 +8,14 @@
 the magic-link plugin as the only method. `ContractorMembership` is the
 authority for tenant access and `resolveAdminContractor` reads it on the
 unguarded client — deliberately, because it is the query that decides which
-tenant context to open. `ContractorInvitation` already exists with an email, a
-role, and a SHA-256 `tokenHash` whose raw token lives only in the email.
+tenant context to open. `ContractorInvitation` exists in the schema with an
+email, a role and a SHA-256 `tokenHash`.
 
-So invitation into an **existing** contractor is built. What has no product
-flow at all is a brand-new user **creating** a contractor and becoming its
-OWNER. The BrightPath proof needed a direct membership write, which was fine
-for a fixture and is not acceptable for release.
+**Neither way in was built.** A brand-new user creating a contractor had no
+flow at all, and invitations turn out to be schema without an implementation —
+see the section at the foot of this document. The BrightPath proof needed a
+direct membership write, which was fine for a fixture and is not acceptable for
+release. Creation is now built; invitations are not.
 
 ## Authentication
 
@@ -28,8 +29,9 @@ for a fixture and is not acceptable for release.
 | brute force / rate limit | per-email and per-IP throttling on sign-in, reset request, and verification resend |
 | revocable sessions | better-auth stores sessions in the database — expose a list-and-revoke surface, and revoke all on password change |
 
-**Magic link stops being the normal login.** It stays for recovery, for
-invitation acceptance, and as the fallback when someone cannot get in. That is
+**Magic link stops being the normal login.** It stays for recovery, as the
+fallback when someone cannot get in, and for invitation acceptance if that is
+ever built. That is
 a narrowing of its role, not a removal: the proof in this session was blocked
 for an hour because signing in required an inbox round-trip, and a contractor
 between jobs will hit the same wall.
@@ -65,7 +67,7 @@ The missing flow. Four steps, and the third is the one that matters:
 client — it must, because there is no tenant context until the row exists, and
 the guard refuses `create` on a contractor-scoped model without one. That is
 the same seam `resolveAdminContractor` already uses, and it stays the *only*
-place a membership is written outside an invitation acceptance. Everything
+place a membership is written at all. Everything
 downstream continues to resolve tenancy from `ContractorMembership`, and the
 cross-tenant suite runs against the new tenant like any other.
 
@@ -74,10 +76,10 @@ Three guards worth writing down before this is built:
 - **Slug and hosted address are claimed atomically** with the contractor, and
   are globally unique. Two signups racing for `elite-electric` must not both
   win, and the loser should get a clear rename rather than a constraint error.
-- **Nothing grants OWNER except creation and invitation acceptance.** A single
-  authority (`lib/contractorCreation.ts`) alongside the existing invitation
-  path, so a third way cannot appear quietly — the pattern already used for
-  activation, publication and policy resolution.
+- **Nothing grants OWNER except creation.** One authority
+  (`lib/contractorCreation.ts`), so a second way cannot appear quietly — the
+  pattern already used for activation, publication and policy resolution. An
+  invitation path, when built, must be the only other one.
 - **A verified email is required to hold a membership**, so an unverified
   address can never reach another contractor's data even transiently.
 
