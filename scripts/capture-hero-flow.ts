@@ -103,7 +103,14 @@ const ADD_ON = arg("add-on") ?? "replace-standard-outlet";
  * same-visit price read as too high against it. Now both come from the
  * contractor's catalog, and the drift check covers them like everything else.
  */
-const ALSO = (arg("also") ?? "replace-gfci-outlet").split(",").filter(Boolean);
+const ALSO = (arg("also") ??
+  // A ladder, not a list: the same-visit price is defended as "not a discount",
+  // and the only way to prove that is to show services whose gap DIFFERS. These
+  // span the labor range, shortest first, so the ratio can be read rising with
+  // the hours. The first entry stays replace-gfci-outlet because the homepage's
+  // While We're There™ section reads sameVisitExamples[0].
+  "replace-gfci-outlet,replace-standard-outlet,usb-outlet-upgrade,dryer-receptacle-replacement,smart-outlet-upgrade,replace-ceiling-fan,bathroom-fan-light-combo"
+).split(",").filter(Boolean);
 const OUT = "components/marketing/heroFlow.ts";
 
 type Chosen = { questionKey: string; prompt: string; helpText: string | null; optionValue: string; optionLabel: string };
@@ -272,7 +279,8 @@ async function main() {
   const services = await prisma.service.findMany({
     where: { contractorId: contractor.id, slug: { in: [PRIMARY, ADD_ON, ...ALSO] } },
     select: { id: true, slug: true, name: true, shortDescription: true, basePrice: true,
-              whileWeThereBasePrice: true, active: true, estimatedMinutes: true },
+              whileWeThereBasePrice: true, active: true, estimatedMinutes: true,
+              fieldLaborHours: true },
   });
   const bySlug = new Map(services.map((s) => [s.slug, s]));
   for (const slug of [PRIMARY, ADD_ON]) {
@@ -313,12 +321,32 @@ async function main() {
     return {
       slug: row.slug, name: row.name,
       standaloneCents: row.basePrice, sameVisitCents: row.whileWeThereBasePrice,
+      /** Why the gap differs. A short job is mostly trip; a long one is mostly work. */
+      crewHours: row.fieldLaborHours,
     };
   });
   for (const e of sameVisitExamples) {
     const pct = Math.round((e.sameVisitCents / e.standaloneCents) * 100);
     console.log(`  ${e.slug}: $${e.standaloneCents / 100} alone, $${e.sameVisitCents / 100} same-visit (${pct}%)`);
   }
+
+  /**
+   * How much of the catalog can be offered this way at all.
+   *
+   * lib/sameVisit's first rule: a contractor may make the promise only if some
+   * live service carries an add-on price, and a service without one can never
+   * be demoted — it can only ever be the main job. So the page can say which
+   * services qualify without claiming that all of them do.
+   */
+  const live = await prisma.service.findMany({
+    where: { contractorId: contractor.id, active: true },
+    select: { whileWeThereBasePrice: true },
+  });
+  const eligibility = {
+    live: live.length,
+    withSameVisitPrice: live.filter((s) => s.whileWeThereBasePrice !== null).length,
+  };
+  console.log(`  same-visit eligible: ${eligibility.withSameVisitPrice} of ${eligibility.live} live services`);
 
   const hours = await loadBusinessHours(prisma as any, contractor.id);
   const windows = generateArrivalWindows(hours);
@@ -360,6 +388,8 @@ async function main() {
     totalCents: primaryWalk.shortest.priceCents + (addOnRow.whileWeThereBasePrice ?? 0),
     /** Price pairs the marketing page uses to explain the mechanic. */
     sameVisitExamples,
+    /** How much of a real catalog carries a same-visit price at all. */
+    sameVisitEligibility: eligibility,
     schedule: { hours, windows },
   });
 

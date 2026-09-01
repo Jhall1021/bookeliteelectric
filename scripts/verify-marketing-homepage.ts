@@ -40,6 +40,15 @@ const read = (p: string) => (existsSync(p) ? readFileSync(p, "utf8") : "");
  * hardcoded-price rules would have stopped covering the newest files on the
  * site, which is exactly where they are most needed.
  */
+/** Every page under the marketing route group, at any depth. */
+function marketingRoutes(dir = "app/(marketing)"): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).flatMap((entry) => {
+    const full = `${dir}/${entry}`;
+    return statSync(full).isDirectory() ? marketingRoutes(full) : [full];
+  });
+}
+
 function marketingFiles(dir = "components/marketing"): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).flatMap((entry) => {
@@ -353,7 +362,8 @@ async function statics() {
    * Prices belong in heroFlow.ts, which is generated, or in content.ts, which
    * derives from it. A dollar figure in JSX is the bug.
    */
-  for (const f of marketingFiles()) {
+  const priceScanned = [...marketingFiles(), ...marketingRoutes()];
+  for (const f of priceScanned) {
     if (!f.endsWith(".tsx")) continue;
     const src = read(f)
       .replace(/\/\*[\s\S]*?\*\//g, "")

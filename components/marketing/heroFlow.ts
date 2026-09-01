@@ -988,9 +988,56 @@ export const HERO_FLOW = {
       "slug": "replace-gfci-outlet",
       "name": "Replace GFCI Outlet",
       "standaloneCents": 28000,
-      "sameVisitCents": 11500
+      "sameVisitCents": 11500,
+      "crewHours": 0.5
+    },
+    {
+      "slug": "replace-standard-outlet",
+      "name": "Replace Standard Outlet",
+      "standaloneCents": 26000,
+      "sameVisitCents": 9500,
+      "crewHours": 0.33
+    },
+    {
+      "slug": "usb-outlet-upgrade",
+      "name": "USB / USB-C Outlet Upgrade",
+      "standaloneCents": 30000,
+      "sameVisitCents": 13500,
+      "crewHours": 0.5
+    },
+    {
+      "slug": "dryer-receptacle-replacement",
+      "name": "Remove and Replace Existing 220V Dryer Outlet",
+      "standaloneCents": 26500,
+      "sameVisitCents": 14000,
+      "crewHours": 0.75
+    },
+    {
+      "slug": "smart-outlet-upgrade",
+      "name": "Smart Outlet Upgrade",
+      "standaloneCents": 33500,
+      "sameVisitCents": 21000,
+      "crewHours": 0.75
+    },
+    {
+      "slug": "replace-ceiling-fan",
+      "name": "Replace Existing Ceiling Fan With New Fan",
+      "standaloneCents": 31500,
+      "sameVisitCents": 25000,
+      "crewHours": 1.25
+    },
+    {
+      "slug": "bathroom-fan-light-combo",
+      "name": "Remove and Replace Owner-Supplied Bathroom Exhaust Fan",
+      "standaloneCents": 50000,
+      "sameVisitCents": 44000,
+      "crewHours": 2
     }
   ],
+  "sameVisitEligibility": {
+    "live": 65,
+    "withSameVisitPrice": 59
+  },
   "schedule": {
     "hours": {
       "workingDays": [
