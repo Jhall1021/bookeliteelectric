@@ -39,24 +39,6 @@ import {
 import { PLUMBING_TEMPLATE_TRADE, PLUMBING_TEMPLATE_VERSION } from "./index";
 
 /** Mirrors TemplateVersionKind. A plumbing V1 is a complete catalog state. */
-/**
- * Roles the mappings declare that no mechanism can carry yet.
- *
- * COPPER and PEX attach no component — joining copper to copper is the job,
- * not an addition to it — so their fittings have no component recipe to ride,
- * and the intersection rule correctly keeps them off the service because a
- * copper job does not consume PEX rings. They are therefore declared, used by
- * lib/plumbing/scope.ts at runtime, and invisible to readiness.
- *
- * Listed rather than quietly tolerated. The verifier asserts this set EXACTLY,
- * so a fifth orphan is a failure rather than a slow leak, and closing the gap
- * is a deliberate V2 decision — it needs a canonical component for the
- * like-for-like joint, which is catalog expansion and out of scope here.
- */
-export const ROLES_WITHOUT_A_CARRIER: readonly string[] = [
-  "copper_fitting", "pex_fitting", "pex_ring", "solder_or_press_consumable",
-];
-
 export type TemplateKind = "SNAPSHOT" | "DELTA";
 
 export type CanonicalRow = { key: string; name: string };
@@ -74,6 +56,15 @@ export type TemplateOptionRow = {
   policyKey: string | null;
   /** Canonical components THIS answer selects. Identity only, never a price. */
   componentKeys: string[];
+  /**
+   * Canonical material roles this branch consumes as BASE work.
+   *
+   * Not an add-on. Joining copper consumes a copper fitting and solder;
+   * joining PEX consumes a PEX fitting and a ring. Neither is optional and
+   * neither belongs to the other branch, which is why they ride the answer
+   * rather than the service or a component.
+   */
+  materialKeys: string[];
 };
 
 export type TemplateQuestionRow = {
@@ -148,6 +139,52 @@ export function referencedCanonicalKeys(): { materials: string[]; components: st
 }
 
 
+
+
+/**
+ * Base material roles an ANSWER consumes, that nothing else carries.
+ *
+ * The last of the three carriers, and the one the platform could not express
+ * until AnswerOptionMaterial existed. A role qualifies when its branch attaches
+ * no component to ride on, and the service-level intersection correctly
+ * excludes it because a sibling branch does not consume it.
+ *
+ * COPPER -> copper_fitting, solder_or_press_consumable
+ * PEX    -> pex_fitting, pex_ring
+ *
+ * Derived, never listed: a fifth such role appears here the moment the mappings
+ * declare one, instead of waiting for someone to notice.
+ */
+export function branchMaterialsForAnswer(factKey: string, value: string): readonly string[] {
+  const table = TABLE_FOR_FACT[factKey];
+  if (!table) return [];
+  const entry = (table as Record<string, ScopeConsequence>)[value];
+  if (!entry || value === "UNKNOWN") return [];
+  // Roles a component already carries are not the answer's to declare — that
+  // would be the double-count the service-level rule also guards against.
+  const recipes = componentRecipes();
+  const viaComponent = new Set(entry.components.flatMap((c) => recipes.get(c) ?? []));
+  const shared = sharedAcross(table as Record<string, ScopeConsequence>);
+  return entry.materialRoles.filter((r) => !viaComponent.has(r) && !shared.includes(r));
+}
+
+/** Roles every non-UNKNOWN value of a fact consumes — the service's, not a branch's. */
+function sharedAcross(table: Record<string, ScopeConsequence>): string[] {
+  const entries = Object.entries(table).filter(([v]) => v !== "UNKNOWN");
+  if (entries.length === 0) return [];
+  let acc = [...entries[0][1].materialRoles];
+  for (const [, c] of entries.slice(1)) acc = acc.filter((r) => c.materialRoles.includes(r));
+  return acc;
+}
+
+const TABLE_FOR_FACT: Record<string, unknown> = {
+  combustion_class: COMBUSTION_SCOPE,
+  shutoff_condition: SHUTOFF_SCOPE,
+  pipe_material: PIPE_MATERIAL_SCOPE,
+  // Effect-free, permanently. An observation may not select work, and that
+  // includes selecting the material the work would consume.
+  fixture_condition: undefined,
+};
 
 /**
  * What each canonical COMPONENT physically consumes.
@@ -277,6 +314,9 @@ function serviceRow(svc: PlumbingService, composed: ComposedService): TemplateSe
         componentKeys: o.establishes
           ? [...componentsForAnswer(o.establishes.factKey, o.establishes.value)]
           : [],
+        materialKeys: o.establishes
+          ? [...branchMaterialsForAnswer(o.establishes.factKey, o.establishes.value)]
+          : [],
       })),
     })),
   };
@@ -322,6 +362,7 @@ export type PayloadTotals = {
   serviceMaterials: number;
   optionComponents: number;
   componentMaterials: number;
+  optionMaterials: number;
 };
 
 export function payloadTotals(p: PlumbingPublishPayload): PayloadTotals {
@@ -339,5 +380,6 @@ export function payloadTotals(p: PlumbingPublishPayload): PayloadTotals {
     serviceMaterials: p.services.reduce((n, s) => n + s.materialRoles.length, 0),
     optionComponents: options.reduce((n, o) => n + o.componentKeys.length, 0),
     componentMaterials: p.componentMaterials.reduce((n, c) => n + c.materialKeys.length, 0),
+    optionMaterials: options.reduce((n, o) => n + o.materialKeys.length, 0),
   };
 }

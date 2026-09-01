@@ -30,6 +30,7 @@ import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { activationRefusal } from "../lib/serviceActivation";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
+import { activationMaterialRoles } from "../lib/materialResolution";
 import { buildPlumbingPayload } from "../lib/plumbing/publish";
 import { PLUMBING_SERVICES, service as canonicalService } from "../lib/plumbing/catalog";
 import { composeService } from "../lib/plumbing/composition";
@@ -88,6 +89,23 @@ async function main() {
   console.log(`       ${verdict.probe.endpoint}  lineage ${verdict.probe.lineage}`);
 
   const db = new PrismaClient({ datasources: { db: { url } } });
+
+  // A fresh branch descends from production, and production does not yet carry
+  // the branch-material primitive. Detected rather than pushed: `prisma db push`
+  // is the caller's decision on a database this script did not create.
+  try {
+    await db.$queryRawUnsafe("select 1 from answer_option_materials limit 1");
+    await db.$queryRawUnsafe("select 1 from template_answer_option_materials limit 1");
+    ok(true, "the branch carries the AnswerOptionMaterial primitive");
+  } catch {
+    ok(false, "the branch carries the AnswerOptionMaterial primitive",
+      `Missing answer_option_materials / template_answer_option_materials.\n` +
+      `         Apply the schema to the branch first:\n` +
+      `           DATABASE_URL="$REHEARSAL_DATABASE_URL" npx prisma db push --skip-generate`);
+    await db.$disconnect();
+    console.log(`\n  ${pass} passed, ${fail} failed.\n`);
+    process.exit(1);
+  }
   const guarded = withTenantGuard(new PrismaClient({ datasources: { db: { url } } })) as unknown as PrismaClient;
 
   // Canonical fingerprint BEFORE anything a contractor does.
@@ -398,6 +416,100 @@ async function main() {
       "PL-SVC-001 attaches no component — no repair is selected");
     ok(plSvc001.materials.length === 0,
       "PL-SVC-001 infers no material role from the symptom", `${plSvc001.materials.length} role(s)`);
+
+    // ── BRANCH BASE MATERIAL: copper vs PEX ──────────────────────────────
+    //
+    // The shape the shared primitive was added for. Neither branch may acquire
+    // the other's roles, and a missing cost on either must block activation on
+    // its own.
+    const pipeSvc = await db.service.findFirstOrThrow({
+      where: { contractorId: ids[A_SLUG], slug: "pipe-section-repair" },
+      select: { id: true, slug: true },
+    });
+    const branchRoles = async (value: string) => {
+      const opt = await db.answerOption.findFirst({
+        where: { value, question: { key: "existing_pipe_material", service: { id: pipeSvc.id } } },
+        select: { id: true, materials: { select: { canonicalMaterial: { select: { key: true } } } } },
+      });
+      return { id: opt?.id, keys: (opt?.materials ?? []).map((m) => m.canonicalMaterial.key) };
+    };
+    const copper = await branchRoles("copper");
+    const pex = await branchRoles("pex");
+    ok(copper.keys.includes("copper_fitting") && copper.keys.includes("solder_or_press_consumable"),
+      "COPPER branch exposes its copper roles", copper.keys.join(", "));
+    ok(pex.keys.includes("pex_fitting") && pex.keys.includes("pex_ring"),
+      "PEX branch exposes its PEX roles", pex.keys.join(", "));
+    ok(!copper.keys.some((k) => k.startsWith("pex_")) && !pex.keys.some((k) => k.startsWith("copper_")),
+      "neither branch consumes the other's roles");
+
+    // Reachability: a review-only branch must not create a requirement.
+    const galv = await branchRoles("galvanized");
+    const galvOpt = await db.answerOption.findFirst({
+      where: { value: "galvanized", question: { key: "existing_pipe_material", service: { id: pipeSvc.id } } },
+      select: { routeAction: true } });
+    ok(String(galvOpt?.routeAction) === "REMOTE_QUOTE",
+      "the galvanized branch is quote-only, so it should not gate activation",
+      String(galvOpt?.routeAction));
+    const activationKeys = (await activationMaterialRoles(db as never, pipeSvc.id)).map((r) => r.key);
+    ok(!activationKeys.some((k) => k === "dielectric_union" || k === "threaded_adapter"),
+      "a quote-only branch contributes no activation requirement", activationKeys.join(", "));
+    ok(activationKeys.includes("copper_fitting") && activationKeys.includes("pex_ring"),
+      "both priceable branches DO contribute", activationKeys.join(", "));
+
+    // Missing cost on ONE branch role blocks activation on its own.
+    await db.service.update({ where: { id: pipeSvc.id },
+      data: { basePrice: 21_900, publishedPriceApprovedAt: new Date() } });
+    const copperRole = await db.canonicalMaterial.findUniqueOrThrow({ where: { key: "copper_fitting" }, select: { id: true } });
+    await db.contractorMaterial.deleteMany({ where: { contractorId: ids[A_SLUG], canonicalMaterialId: copperRole.id } });
+    const rBranch = await activationRefusal(db, ids[A_SLUG], pipeSvc.id);
+    ok(rBranch?.code === "MATERIALS_UNRESOLVED" && (rBranch.unresolvedMaterialKeys ?? []).includes("copper_fitting"),
+      "an uncosted COPPER role blocks activation by itself",
+      `got ${rBranch?.code}: ${(rBranch?.unresolvedMaterialKeys ?? []).join(", ")}`);
+    const svcRow = await db.service.findUniqueOrThrow({ where: { id: pipeSvc.id }, select: { materialCostCents: true } });
+    ok(svcRow.materialCostCents !== 0,
+      "NO-ZERO: the uncosted branch role never became a $0 material cost",
+      `materialCostCents = ${svcRow.materialCostCents}`);
+    await db.contractorMaterial.create({
+      data: { contractorId: ids[A_SLUG], canonicalMaterialId: copperRole.id, unitCostCents: 2_400 } });
+    const rCleared = await activationRefusal(db, ids[A_SLUG], pipeSvc.id);
+    ok(rCleared === null, "supplying the COPPER cost clears that blocker", `still ${rCleared?.code}`);
+
+    // ── COMPONENT RECIPE MATERIAL reaches activation ─────────────────────
+    const heaterForRecipe = await db.service.findFirstOrThrow({
+      where: { contractorId: ids[A_SLUG], slug: "tank-water-heater-replacement-gas" }, select: { id: true } });
+    await db.service.update({ where: { id: heaterForRecipe.id },
+      data: { basePrice: 289_000, publishedPriceApprovedAt: new Date() } });
+    const heaterKeys = (await activationMaterialRoles(db as never, heaterForRecipe.id)).map((r) => r.key);
+    ok(heaterKeys.includes("vent_pipe_pvc") && heaterKeys.includes("vent_connector_metal"),
+      "both vent configurations' recipe materials reach activation readiness", heaterKeys.join(", "));
+    const pvcRole = await db.canonicalMaterial.findUniqueOrThrow({ where: { key: "vent_pipe_pvc" }, select: { id: true } });
+    await db.contractorMaterial.deleteMany({ where: { contractorId: ids[A_SLUG], canonicalMaterialId: pvcRole.id } });
+    const rRecipe = await activationRefusal(db, ids[A_SLUG], heaterForRecipe.id);
+    ok(rRecipe?.code === "MATERIALS_UNRESOLVED" && (rRecipe.unresolvedMaterialKeys ?? []).includes("vent_pipe_pvc"),
+      "an uncosted component-recipe material blocks activation",
+      `got ${rRecipe?.code}: ${(rRecipe?.unresolvedMaterialKeys ?? []).join(", ")}`);
+    await db.contractorMaterial.create({
+      data: { contractorId: ids[A_SLUG], canonicalMaterialId: pvcRole.id, unitCostCents: 5_600 } });
+    ok((await activationRefusal(db, ids[A_SLUG], heaterForRecipe.id)) === null,
+      "supplying the recipe material cost clears that blocker");
+
+    // ── TENANT ISOLATION of the new primitive ────────────────────────────
+    const bKeys = (await activationMaterialRoles(db as never,
+      (await db.service.findFirstOrThrow({ where: { contractorId: ids[B_SLUG], slug: "pipe-section-repair" }, select: { id: true } })).id
+    )).map((r) => r.key);
+    ok(bKeys.includes("copper_fitting"), "B's copy of the service requires the same canonical roles");
+    const bSvc = await db.service.findFirstOrThrow({ where: { contractorId: ids[B_SLUG], slug: "pipe-section-repair" }, select: { id: true } });
+    await db.service.update({ where: { id: bSvc.id }, data: { basePrice: 9_900, publishedPriceApprovedAt: new Date() } });
+    const rB = await activationRefusal(db, ids[B_SLUG], bSvc.id);
+    ok(rB?.code === "MATERIALS_UNRESOLVED",
+      "A's costs do not satisfy B's readiness — B still blocked", `got ${rB?.code ?? "null (activation allowed)"}`);
+
+    // ── CANONICAL INDEPENDENCE ───────────────────────────────────────────
+    const tplBranchMats = await db.templateAnswerOptionMaterial.count();
+    ok(tplBranchMats > 0, `template branch-material rows exist (${tplBranchMats})`);
+    const tplWithCost = await db.$queryRawUnsafe<{ n: bigint }[]>(
+      "select count(*)::int as n from template_answer_option_materials where quantity <= 0");
+    ok(Number(tplWithCost[0].n) === 0, "no template branch-material row carries a non-positive quantity");
 
     // ── GUARD 1: price approval, in isolation ────────────────────────────
     //

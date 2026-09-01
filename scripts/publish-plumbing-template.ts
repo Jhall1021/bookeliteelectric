@@ -181,6 +181,16 @@ async function write(db: PrismaClient, p: PlumbingPublishPayload) {
           });
           // What this ANSWER selects. Identity only — the approved increment
           // lives on the contractor's ContractorComponent and never here.
+          // Base material of the branch itself — AnswerOption -> Material.
+          for (const mk of o.materialKeys) {
+            const mat = materialByKey.get(mk);
+            if (!mat) throw new Error(`Answer ${s.key}/${q.key}/${o.value} consumes unknown role "${mk}".`);
+            await t.templateAnswerOptionMaterial.upsert({
+              where: { templateAnswerOptionId_canonicalMaterialId: { templateAnswerOptionId: opt.id, canonicalMaterialId: mat } },
+              update: { quantity: 1 },
+              create: { templateAnswerOptionId: opt.id, canonicalMaterialId: mat, quantity: 1 },
+            });
+          }
           for (const ck of o.componentKeys) {
             const comp = componentByKey.get(ck);
             if (!comp) throw new Error(`Answer ${s.key}/${q.key}/${o.value} selects unknown component "${ck}".`);
@@ -221,7 +231,7 @@ async function main() {
   console.log(`  ${totals.policies} policy question(s), ${totals.categories} canonical categories`);
   console.log(`  ${totals.materials} material role(s), ${totals.components} component(s) — none costed`);
   console.log(`  ${totals.serviceMaterials} required service-material link(s), ${totals.optionComponents} answer-selected component link(s)`);
-  console.log(`  ${totals.componentMaterials} component-material recipe row(s) — the branch-specific half`);
+  console.log(`  ${totals.componentMaterials} component-material recipe row(s), ${totals.optionMaterials} branch base-material link(s)`);
   console.log(`  ${totals.bandOptions} band answer(s) still holding their {b1} holes\n`);
 
   if (jsonPath) { writeFileSync(jsonPath, JSON.stringify(payload, null, 2)); console.log(`  Payload written to ${jsonPath}\n`); }

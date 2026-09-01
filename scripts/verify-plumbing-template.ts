@@ -31,7 +31,7 @@ import {
 // the file that lists the forbidden words: asserting an invariant about a thing
 // requires looking at the thing.
 import { PLUMBING_FAMILY_KEYS, PLUMBING_FAMILIES, family } from "../lib/plumbing/families";
-import { buildPlumbingPayload, payloadTotals, referencedCanonicalKeys, componentRecipes, ROLES_WITHOUT_A_CARRIER } from "../lib/plumbing/publish";
+import { buildPlumbingPayload, payloadTotals, referencedCanonicalKeys, componentRecipes, branchMaterialsForAnswer } from "../lib/plumbing/publish";
 import { composeService, composeAll, answerComposed, factsEstablishedBy, GATE_FACT } from "../lib/plumbing/composition";
 import { PLUMBING_PRIMITIVES, PLUMBING_PRIMITIVE_KEYS } from "../lib/plumbing/primitives";
 import { PLUMBING_REQUIREMENT_KEYS } from "../lib/plumbing/roles";
@@ -585,12 +585,39 @@ function publishPayload() {
     "and the service does not globally require both configurations",
     heater.materialRoles.map((m) => m.key).join(", "));
 
-  // The known carrier gap, asserted EXACTLY so a fifth orphan fails the gate.
-  const carried = new Set([...serviceRoles, ...recipeRoles]);
+  // ── ZERO ORPHANS. The allowlist is gone. ───────────────────────────────
+  //
+  // Three carriers now exist, and every declared role must reach one:
+  //
+  //   TemplateServiceMaterial       consumed on every path
+  //   CanonicalComponentMaterial    consumed by a component a branch selects
+  //   TemplateAnswerOptionMaterial  base material of the branch itself
+  //
+  // The third is a shared platform primitive added because this gate could not
+  // be made true without it, and the alternatives — a synthetic "copper joint"
+  // component, or a union that makes a copper job consume PEX rings — were
+  // both lies about the work.
+  const branchRoles = new Set(payload.services.flatMap((s) =>
+    s.questions.flatMap((q) => q.options.flatMap((o) => o.materialKeys))));
+  const carried = new Set([...serviceRoles, ...recipeRoles, ...branchRoles]);
   const orphans = payload.materials.map((m) => m.key).filter((k) => !carried.has(k)).sort();
-  ok(JSON.stringify(orphans) === JSON.stringify([...ROLES_WITHOUT_A_CARRIER].sort()),
-    `exactly ${ROLES_WITHOUT_A_CARRIER.length} declared roles have no carrier, and they are the documented ones`,
-    `found: ${orphans.join(", ")}`);
+  ok(orphans.length === 0,
+    "every canonical material role has a readiness carrier — zero orphans",
+    `uncarried: ${orphans.join(", ")}`);
+
+  // Branch materials go to the branch that consumes them, and nowhere else.
+  ok(branchMaterialsForAnswer("pipe_material", "COPPER").includes("copper_fitting"),
+    "the COPPER branch declares its own copper roles");
+  ok(branchMaterialsForAnswer("pipe_material", "PEX").includes("pex_ring"),
+    "the PEX branch declares its own PEX roles");
+  ok(!branchMaterialsForAnswer("pipe_material", "COPPER").some((r) => r.startsWith("pex_")) &&
+     !branchMaterialsForAnswer("pipe_material", "PEX").some((r) => r.startsWith("copper_")),
+    "neither branch acquires the other's roles");
+  ok(branchMaterialsForAnswer("fixture_condition", "DEGRADED").length === 0,
+    "existing_condition declares no branch material — still effect-free");
+  const branchAndService = [...branchRoles].filter((r) => serviceRoles.has(r) || recipeRoles.has(r));
+  ok(branchAndService.length === 0,
+    "no role is carried twice (branch and service/component)", branchAndService.join(", "));
 
   // Condition stays effect-free here too.
   const conditionComponents = CONDITION_SCOPE.DEGRADED.components.concat(CONDITION_SCOPE.SERVICEABLE.components);
