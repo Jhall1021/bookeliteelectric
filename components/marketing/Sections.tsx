@@ -2,9 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { formatCents } from "@/lib/flow-types";
 import {
-  BOUNDARY_LINE, CUSTOMER_URL, EMBED_STATUS, EVERYWHERE, JOURNEY, JOURNEY_NOTE, PILLARS,
-  SETUP_PROGRESSION, START_SMALL, TRADES, TRADE_SIGNAL,
+  BOUNDARY_LINE, CUSTOMER_URL, EMBED_STATUS, EVERYWHERE, JOURNEY, JOURNEY_NOTE, NO_JARGON,
+  PILLARS, SETUP_PROGRESSION, START_SMALL, TRADES, TRADE_SIGNAL,
 } from "./content";
+import { DEMO_FLOW } from "./demoFlow";
 import { HERO_FLOW } from "./heroFlow";
 import { ELECTRICAL_TEMPLATE } from "./trades/electricalTemplate";
 import GuidedQuestionCard from "./GuidedQuestionCard";
@@ -143,11 +144,42 @@ export function GuidedPricingTeaser() {
           <h2 className="max-w-[20ch] text-[28px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[38px]">
             Price the jobs that are clear. Route the ones that aren’t.
           </h2>
+          <p className="mt-4 text-[19px] font-semibold leading-[1.35] text-p2b-ink lg:text-[21px]">
+            No trade terminology required.
+          </p>
           <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm">
             Homeowners answer what they can see. Their answers decide whether the job gets your
             approved price, needs a photograph first, or belongs somewhere else entirely — and
             nobody is asked to work out what is wrong with their own house.
           </p>
+
+          {/* The customer does not need the words for any of it. The search
+              phrase is the one demoFlow captured, with the matcher's own
+              verdict on it — a claim about language, evidenced in language. */}
+          <div className="mt-7 rounded-[3px] border border-p2b-line bg-white px-5 py-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-muted-soft">
+              What a customer typed
+            </div>
+            <p className="mt-2 text-[16px] italic leading-[1.5] text-p2b-ink-warm">
+              “{DEMO_FLOW.search.query}”
+            </p>
+            <div className="mt-2.5 flex items-center gap-2.5">
+              <Arrow className="h-3.5 w-3.5 shrink-0 rotate-90" />
+              <span className="text-[15px] font-semibold text-p2b-accent">
+                {DEMO_FLOW.search.serviceName}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3.5">
+            {NO_JARGON.map((n) => (
+              <div key={n.t}>
+                <div className="text-[15px] font-semibold text-p2b-ink">{n.t}</div>
+                <p className="mt-1 text-[15px] leading-[1.5] text-p2b-muted">{n.b}</p>
+              </div>
+            ))}
+          </div>
+
           <More href="/product/guided-pricing">How Guided Pricing works</More>
         </div>
         <div className="lg:col-span-7">

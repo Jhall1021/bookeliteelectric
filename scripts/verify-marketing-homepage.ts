@@ -470,6 +470,34 @@ async function statics() {
       "the native scheduler does not count technicians — docs/debt/crew-size-not-in-availability-2026-09-01.md");
   }
 
+  console.log("\n  VISUAL ASSIST IS NOT MARKETED YET");
+  /**
+   * There is no homeowner-reachable Visual Assist flow — the implementation is
+   * uncommitted and nothing in app/ or components/ reaches it. Photos are
+   * COLLECTED today; nothing reads them. So the marketing site may say a
+   * customer needs no trade terminology, which is true and shipped, and may
+   * not say a photograph is identified, which is not.
+   *
+   * Naming the feature is included: a section, a nav item or an "In build"
+   * card is a claim, and the owner's instruction is that none of them appears
+   * until the real flow is reachable and stable enough to capture without
+   * staging. Lifting this is a deliberate act, like every other status gate.
+   */
+  const PHOTO_OVERCLAIM = [
+    "visual assist", "identifies what", "identify the equipment", "identifies the equipment",
+    "from a photo", "photo identification", "recognizes the equipment", "knows what it is looking at",
+    "tell us what it sees", "reads the photo",
+  ];
+  const marketingCopy = [...marketingFiles(), ...marketingRoutes()]
+    .map((f) => read(f).replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"))
+    .join("\n")
+    .toLowerCase();
+  for (const phrase of PHOTO_OVERCLAIM) {
+    ok(!marketingCopy.includes(phrase),
+      `never claims "${phrase}"`,
+      "Visual Assist is not customer-reachable — docs/marketing/POSITIONING.md holds the boundary");
+  }
+
   console.log("\n  PRODUCT PAGES CLAIM ONLY WHAT EXISTS");
   const productPages: ReadonlyArray<{ name: string; href: string | null }> = content.PRODUCT_PAGES;
   for (const p of productPages) {

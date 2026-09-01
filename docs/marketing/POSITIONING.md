@@ -242,6 +242,63 @@ the depth, the homepage says why it matters, the demo lets them try it.
 in build; HVAC is next. A qualifier comes off only when that trade's template is
 committed and frozen — never when it merely works.
 
+## Visual Assist — the claim boundary, written before the feature ships
+
+**Status: NOT MARKETABLE.** Recorded 1 September 2026 so the positioning survives
+until implementation reaches marketing — not because any of it may be said yet.
+
+At the time of writing there is no homeowner-reachable Visual Assist flow.
+Thirteen files under `lib/visual-assist/` are uncommitted, nothing in `app/` or
+`components/` references them, and there is no surface to upload a photo to for
+identification. **No homepage section, no nav item, and no "In build" card**
+until a real customer-facing flow exists and its interaction shape is stable
+enough to capture without staging.
+
+### The positioning, preserved
+
+> **They don't have to know what it's called. They can show Price2Book.**
+
+### The architecture boundary — say this whenever the feature is described
+
+> Visual Assist identifies clearly observable equipment and configuration. The
+> homeowner confirms it. The contractor's approved Price2Book rules still
+> determine scope and price.
+
+The order matters and is the whole safety argument: photo → identify what is
+visible → **homeowner confirms** → normal Guided Pricing continues → the
+contractor's approved pricing applies. Identification never reaches a price
+without a human agreeing to it first.
+
+### Never marketed as
+
+- AI diagnosis
+- AI electrician
+- AI plumber
+- photo estimating
+- AI repair recommendations
+- AI-generated pricing
+- automatic code or safety inspection
+
+Nor with the vocabulary of the implementation — classifier, multimodal,
+computer vision, confidence score, model, inference. The visitor's takeaway is
+"my customer can take a picture instead of knowing the technical name", and
+every one of those words moves them away from it.
+
+### What may be said TODAY, and is
+
+The shipped half of the same promise, in the Guided Pricing teaser and gated
+against overreach:
+
+- a homeowner describes the work in their own words and the matcher finds the
+  service — the phrase and the match are captured in `demoFlow.ts`
+- "I'm not sure" is a valid answer on every tree and never resolves to a price
+- photos are **collected** where a route needs them, for preparation or for the
+  office to look before pricing
+
+**Photos are collected. Nothing reads them.** Any wording implying Price2Book
+identifies equipment from a photograph is the claim that has to wait, and
+`scripts/verify-marketing-homepage.ts` fails the build on it.
+
 ## The hero is closed — 1 September 2026
 
 `ffe6dcd` and `c1c24d5` are the finished hero. **No further polishing** unless an actual

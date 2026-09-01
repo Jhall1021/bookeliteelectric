@@ -256,6 +256,41 @@ export const OUTCOMES = [
 ] as const;
 
 /**
+ * "No trade terminology required" — the shipped half of it.
+ *
+ * The eventual version of this idea is Visual Assist: a homeowner photographs
+ * what they cannot name. That is not customer-reachable yet, and
+ * POSITIONING.md holds the claim boundary until it is.
+ *
+ * What IS true today is most of the same promise, and all three points below
+ * are behaviors a homeowner meets right now rather than intentions:
+ *
+ *   own words     the real matcher takes a sentence and finds the service —
+ *                 demoFlow.ts records its verdict on the phrase it was given
+ *   not sure      an escape hatch ships on the trees and never resolves to a
+ *                 price, so nobody has to guess to get past a question
+ *   photos        collected where a route needs them, for preparation or for
+ *                 the office to look before pricing
+ *
+ * The third is worded carefully. Photos are COLLECTED today; nothing reads
+ * them. Any wording implying identification is the claim that has to wait.
+ */
+export const NO_JARGON = [
+  {
+    t: "In their own words",
+    b: "A homeowner describes the job the way they would say it out loud, and Price2Book matches that to the service it belongs to.",
+  },
+  {
+    t: "“I’m not sure” is an answer",
+    b: "Every tree carries it, and it never buys a price. Not knowing routes the job onward instead of forcing a guess.",
+  },
+  {
+    t: "Photos where the job needs them",
+    b: "Some routes ask for a picture — so the technician arrives prepared, or so you can look before the price is released.",
+  },
+] as const;
+
+/**
  * "One pricing engine. Everywhere customers find you."
  *
  * The new section, and the reason the page could afford one: Price2Book is
