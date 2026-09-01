@@ -369,6 +369,53 @@ export const FORBIDDEN_INTEGRATION_LABELS = [
 ] as const;
 
 /**
+ * "You don't have to flat-rate your whole business."
+ *
+ * The objection that stops a contractor before any feature matters, and the
+ * page had no answer to it. Everything else here argues about what Price2Book
+ * does; this argues about how much of their business they have to hand it,
+ * and the answer is as little as ten jobs.
+ *
+ * It is also the product's origin, in the owner's words: a way to stop wasting
+ * time on calls for simple jobs. The three quoted calls are the ones that
+ * actually repeat — two price questions and the scheduling back-and-forth,
+ * which is the one people forget is a cost.
+ *
+ * NOTHING HERE IS A NEW CAPABILITY CLAIM. Service-by-service activation is
+ * already how the product works and is already asserted further up the page;
+ * this section is about what a contractor should DO with that control on day
+ * one. "Ten services or a hundred" is a choice, not a catalog size — the rule
+ * against advertising service counts is about what ships in the template.
+ */
+export const START_SMALL = {
+  eyebrow: "Start where it hurts",
+  headline: "You don’t have to flat-rate your whole business.",
+  lead:
+    "Price2Book can run as much — or as little — of your service work as you want. Start with the jobs that generate the same phone call over and over.",
+  calls: [
+    "How much to replace a ceiling fan?",
+    "What do you charge to install an outlet?",
+    "When can you come? Does Tuesday work? What about Thursday?",
+  ],
+  after:
+    "Put those services online and customers get the price, answer the qualifying questions and choose an appointment themselves.",
+  split: [
+    {
+      tag: "Put these online first",
+      tone: "accent",
+      body: "The predictable, repetitive work — the jobs you quote the same way every time, and the ones that fill your day with scheduling back-and-forth.",
+    },
+    {
+      tag: "Leave these exactly as they are",
+      tone: "neutral",
+      body: "Bigger jobs, troubleshooting calls, estimates and custom work. They keep running the way they run today.",
+    },
+  ],
+  scale: "Ten services or a hundred. You decide what customers can price and book online, and you can add more whenever it makes sense.",
+  close: "Price2Book fits your business — your business doesn’t have to fit Price2Book.",
+} as const;
+
+/**
  * The boundary, in one sentence.
  *
  * This was a six-row table of "Price2Book handles" against "your existing

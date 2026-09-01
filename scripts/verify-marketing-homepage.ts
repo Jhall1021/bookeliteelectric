@@ -77,6 +77,10 @@ const REQUIRED_COPY = [
   "You decide what happens next.",
   "You decide what can be booked.",
   "Keep the software you already use.",
+  // The adoption objection, in the owner's own words. The second line is the
+  // whole positioning in nine words and is the last thing the section says.
+  "You don\u2019t have to flat-rate your whole business.",
+  "Price2Book fits your business",
   "Start with real trade knowledge",
   "Setup is a conversation, not a form.",
   "Price2Book can suggest. You approve.",

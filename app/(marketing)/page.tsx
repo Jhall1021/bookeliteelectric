@@ -5,7 +5,8 @@ import Hero from "@/components/marketing/Hero";
 import HomeownerDemo from "@/components/marketing/HomeownerDemo";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
 import {
-  Everywhere, JourneyIntro, KeepYourStack, Pillars, Rules, TradeFoundation, WhileWereThere,
+  Everywhere, JourneyIntro, KeepYourStack, Pillars, Rules, StartSmall, TradeFoundation,
+  WhileWereThere,
 } from "@/components/marketing/Sections";
 
 /**
@@ -64,6 +65,13 @@ export default function HomePage() {
 
         <Everywhere />
         <Rules />
+
+        {/* The three "you don't have to change" answers, together: what goes
+            live is yours (Rules), how much of the business goes live is yours
+            (StartSmall), and the software behind it stays yours
+            (KeepYourStack). The adoption objection belongs between the other
+            two, not after the ask. */}
+        <StartSmall />
         <KeepYourStack />
         <TradeFoundation />
         <EarlyAccess />

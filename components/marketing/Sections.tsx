@@ -1,7 +1,7 @@
 import Image from "next/image";
 import {
   BOUNDARY_LINE, CUSTOMER_URL, EVERYWHERE, INTEGRATIONS, JOURNEY, JOURNEY_NOTE,
-  OUTCOMES, PILLARS, PRICE_BREAKDOWN, PRICE_CHAIN, SETUP_PROGRESSION, WINDOWS,
+  OUTCOMES, PILLARS, PRICE_BREAKDOWN, PRICE_CHAIN, SETUP_PROGRESSION, START_SMALL, WINDOWS,
   WWT, WWT_EXAMPLE,
 } from "./content";
 import { SHOTS } from "./shots";
@@ -501,6 +501,78 @@ export function Rules() {
             </figcaption>
           </figure>
         )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * "You don't have to flat-rate your whole business."
+ *
+ * The adoption objection, answered before the page asks for anything. Every
+ * other section argues about what the product does; this one is the only place
+ * that says how much of a business has to change to get value from it, which
+ * is the thing a contractor is actually weighing.
+ *
+ * The three quoted calls do the work of a paragraph. They are the calls that
+ * repeat — two about price and one about scheduling — and a contractor
+ * recognises their own week in them faster than they read a claim about it.
+ */
+export function StartSmall() {
+  return (
+    <section id="start-small" className={`${SHELL} py-14 lg:py-[72px]`}>
+      <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
+        <div className="lg:col-span-6">
+          <div className="mb-5 flex items-center gap-2.5">
+            <div className="h-0.5 w-[26px] bg-p2b-accent" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent lg:text-xs">
+              {START_SMALL.eyebrow}
+            </span>
+          </div>
+          <h2 className="max-w-[20ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[42px]">
+            {START_SMALL.headline}
+          </h2>
+          <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+            {START_SMALL.lead}
+          </p>
+
+          {/* The calls themselves. Quoted, because a contractor hears these in
+              their own voice and does not need to be told they are expensive. */}
+          <div className="mt-6 flex flex-col gap-2.5 border-l-2 border-p2b-line-dash pl-5">
+            {START_SMALL.calls.map((c) => (
+              <p key={c} className="text-[16px] italic leading-[1.5] text-p2b-muted lg:text-[17px]">
+                “{c}”
+              </p>
+            ))}
+          </div>
+
+          <p className="mt-6 text-[16px] leading-[1.6] text-p2b-ink-warm lg:text-[17px]">
+            {START_SMALL.after}
+          </p>
+        </div>
+
+        <div className="lg:col-span-6">
+          <div className="grid gap-4">
+            {START_SMALL.split.map((s) => (
+              <div key={s.tag}
+                   className={`rounded-[3px] border bg-white px-6 py-5 ${
+                     s.tone === "accent" ? "border-p2b-accent-line border-l-[3px] border-l-p2b-accent" : "border-p2b-line"}`}>
+                <div className={`text-[11px] font-bold uppercase tracking-[0.06em] ${
+                  s.tone === "accent" ? "text-p2b-accent" : "text-p2b-muted-soft"}`}>
+                  {s.tag}
+                </div>
+                <p className="mt-2.5 text-[15px] leading-[1.55] text-p2b-ink-warm lg:text-base">{s.body}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-6 text-[16px] leading-[1.6] text-p2b-ink-warm lg:text-[17px]">
+            {START_SMALL.scale}
+          </p>
+          <p className="mt-4 text-[18px] font-semibold leading-[1.4] tracking-[-0.01em] lg:text-[20px]">
+            {START_SMALL.close}
+          </p>
+        </div>
       </div>
     </section>
   );
