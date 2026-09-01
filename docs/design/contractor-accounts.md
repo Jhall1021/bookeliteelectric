@@ -86,3 +86,28 @@ Three guards worth writing down before this is built:
 `ContractorMembership` stays authoritative. The tenant guard, the site-identifier
 routing, and ADR-011's "a browser session is not a tenant" are untouched — this
 adds a way to bring a tenant into existence, not a new way to reach one.
+
+
+## Invitations — schema only, NOT implemented
+
+`ContractorInvitation` exists in the schema with an email, a role and a
+SHA-256 `tokenHash`. There is **no creation route, no acceptance route and no
+library** — nothing anywhere writes or redeems one. The model is a design that
+was never built.
+
+Consequences, recorded so nobody assumes otherwise:
+
+- No invitation email exists. `/start` surfaces a pending invitation if a row
+  is present but says to ask whoever invited them; it deliberately does not
+  promise a link, because there is none to open.
+- The replay semantics required of the other signed links cannot be tested for
+  invitations, because there is no flow to replay. That is a gap in coverage
+  only in the sense that there is nothing to cover.
+- Today the only sanctioned way into a tenant is creating one
+  (`lib/contractorCreation.ts`). A second person on one contractor's account
+  currently requires a membership written by hand — the exact thing the
+  bootstrap work removed for owners.
+
+**Classification: a separate account enhancement.** Not part of Embed V1, and
+not a dependency of it. It becomes urgent the first time a contractor needs a
+second person in the dashboard.

@@ -177,3 +177,49 @@ Six, and the first three are load-bearing:
    came from an Instagram QR code, the loader has to forward that context, and
    it must do so without becoming a way to pass anything the server would
    trust.
+
+
+## Custom domains — the split, and what is not built
+
+**Nothing of this is delivered.** `custom-domain` stays `delivered: false` in
+`lib/storefrontSurface.ts`, and the surface contract fails the build if anyone
+marks it otherwise without a verifier. `storefrontBaseFor` already returns `""`
+for it, so the link layer is ready and the runtime is not.
+
+**A — runtime host resolution.** A verified hostname maps to a `ContractorSite`
+and the existing engine serves it. Needs: an exact host → site mapping with one
+active host mapping to exactly one contractor; resolution from the `Host`
+header only, never from anything the client asserts; unknown or unverified
+hosts answering as if they were never valid; and TLS terminating for the host
+on the deployment platform. This is the smaller half and it is what the embed's
+cookie problem is genuinely solved by — a first-party origin needs no token
+seam, no partitioned storage and no framing headers.
+
+**B — self-service domain onboarding.** DNS instructions, ownership
+verification before activation, certificate issuance, and revocation that
+stops resolving immediately. This is a product in its own right and is not a
+prerequisite for A: a hostname can be verified and mapped by hand for the first
+contractors while B is designed.
+
+Do not let A wait for B.
+
+## Browser-tab identity — carried, not taken
+
+`app/[site]/layout.tsx` scopes the storefront's `title` and `description` to the
+contractor (ADR-016) but not `icons`, so a root `app/icon.*` applies to
+contractor storefronts as well. The parallel homepage workstream currently has
+`app/icon.tsx` deleted and `app/icon.png` added in its working tree; that branch
+is live and this is not the workstream to reach into.
+
+The requirement, for after it lands:
+
+- Price2Book marketing and admin surfaces keep Price2Book's favicon and metadata.
+- Hosted and custom-domain contractor storefronts must not inherit it — they
+  carry the contractor's identity where one exists.
+- The **embed needs none of this**. It has no browser tab of its own: the tab
+  belongs to the contractor's page, which already has their favicon. Giving the
+  frame its own icon would be inventing browser chrome for something that is
+  not a browsing context. This is the one surface the favicon question does not
+  apply to.
+
+Explicit pre-pilot storefront item. Not a blocker for the embed.
