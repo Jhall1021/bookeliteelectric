@@ -285,13 +285,19 @@ export default async function HomePage({ params }: { params: { site: string } })
         </div>
       </Section>
 
-      {/* Popular services */}
+      {/* Popular services — only when there are any.
+          A contractor between installing their catalog and launching it has
+          nothing live, and this rendered the heading over an empty grid:
+          a storefront that looks broken rather than one that is not open yet.
+          The embed entry above already guarded this; the hosted page did not. */}
+      {featuredItems.length > 0 && (
       <Section>
         <div className="mx-auto max-w-6xl px-6">
           <h2 className="font-display text-2xl font-bold text-ink">Most Popular Services</h2>
           <FeaturedServices items={featuredItems} />
         </div>
       </Section>
+      )}
 
       {/* Service area */}
       <Section divide alt className="text-center">
