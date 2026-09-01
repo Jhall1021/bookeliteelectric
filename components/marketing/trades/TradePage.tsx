@@ -1,4 +1,5 @@
 import Link from "next/link";
+import GuidedQuestionCard from "@/components/marketing/GuidedQuestionCard";
 
 /**
  * The shared shape of every trade page — SITEMAP.md.
@@ -83,17 +84,6 @@ const RESOLUTION: Record<string, { label: string; dot: string; text: string; leg
     text: "text-p2b-muted",
     legend: "Too variable to price sight-unseen. It collects information and goes to a quote or an on-site visit.",
   },
-};
-
-/** What each route action does, in words a contractor would use. */
-const ROUTE_ACTION: Record<string, { label: string; tone: string }> = {
-  RESOLVE_INSTANT: { label: "Price it", tone: "bg-p2b-green-tint text-p2b-green-deep" },
-  RESOLVE_ADJUSTED: { label: "Price it", tone: "bg-p2b-green-tint text-p2b-green-deep" },
-  CONTINUE: { label: "Ask the next question", tone: "bg-p2b-accent-tint-strong text-p2b-accent" },
-  PHOTO_REVIEW: { label: "Look before pricing", tone: "bg-p2b-amber-tint text-p2b-amber-ink" },
-  REROUTE_SERVICE: { label: "That's a different job", tone: "bg-[#F0F0EC] text-p2b-muted" },
-  REROUTE_TROUBLESHOOTING: { label: "Send to troubleshooting", tone: "bg-[#F0F0EC] text-p2b-muted" },
-  QUOTE: { label: "Quote it", tone: "bg-[#F0F0EC] text-p2b-muted" },
 };
 
 export default function TradePage({ data }: { data: TradePageData }) {
@@ -212,31 +202,7 @@ export default function TradePage({ data }: { data: TradePageData }) {
           </div>
 
           <div className="lg:col-span-7">
-            <div className="rounded-[3px] border border-p2b-line bg-white px-5 py-6 lg:px-8 lg:py-7">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-muted-soft">
-                {data.example.service}
-              </div>
-              <div className="mt-3 text-[19px] font-semibold leading-[1.3] lg:text-[21px]">
-                {data.example.prompt}
-              </div>
-              {data.example.helpText && (
-                <p className="mt-2 text-[15px] leading-[1.5] text-p2b-muted">{data.example.helpText}</p>
-              )}
-              <div className="mt-5 flex flex-col gap-2.5">
-                {data.example.options.map((o) => {
-                  const action = ROUTE_ACTION[o.routeAction] ?? { label: o.routeAction, tone: "bg-[#F0F0EC] text-p2b-muted" };
-                  return (
-                    <div key={o.label}
-                         className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-p2b-line px-4 py-3">
-                      <span className="text-[15px] text-p2b-ink-warm">{o.label}</span>
-                      <span className={`shrink-0 rounded-sm px-3 py-1 text-[12px] font-semibold ${action.tone}`}>
-                        {action.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <GuidedQuestionCard example={data.example} />
           </div>
         </div>
       </section>

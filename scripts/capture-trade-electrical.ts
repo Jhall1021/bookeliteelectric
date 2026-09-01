@@ -166,6 +166,39 @@ async function main() {
   if (!example) throw new Error("no template question carries options — nothing to show");
   delete example.score;
 
+  /**
+   * The outcome vocabulary, counted from what the template actually does.
+   *
+   * The Guided Pricing page must not invent a taxonomy and then ask the
+   * product to fit it. So the outcomes it shows are the RouteAction values
+   * that appear on real answers, with the number of answers using each — a
+   * route action nobody uses is not part of the story, and one the marketing
+   * page never imagined still shows up.
+   */
+  const answers = await prisma.templateAnswerOption.findMany({
+    where: { templateQuestion: { templateService: { templateVersionId: version.id } } },
+    select: { label: true, routeAction: true },
+  });
+  const routing: Record<string, number> = {};
+  for (const a of answers) routing[a.routeAction] = (routing[a.routeAction] ?? 0) + 1;
+
+  /**
+   * "I'm not sure" is the load-bearing evidence for the whole page.
+   *
+   * The objection Guided Pricing has to kill is "you are trusting homeowners
+   * to diagnose their own jobs". The answer is not a paragraph — it is that
+   * the trees SHIP an escape hatch and that it never resolves to a price.
+   * Counted rather than claimed, and the page's central assertion fails the
+   * capture if it ever stops being true.
+   */
+  const unsure = answers.filter((a) => /\b(not sure|unsure|don't know|do not know)\b/i.test(a.label));
+  const unsureRoutes: Record<string, number> = {};
+  for (const a of unsure) unsureRoutes[a.routeAction] = (unsureRoutes[a.routeAction] ?? 0) + 1;
+  const unsurePriced = (unsureRoutes.RESOLVE_INSTANT ?? 0) + (unsureRoutes.RESOLVE_ADJUSTED ?? 0);
+
+  console.log(`  routing: ${Object.entries(routing).map(([k, v]) => `${k} ${v}`).join(" · ")}`);
+  console.log(`  "not sure" answers: ${unsure.length}, of which priced automatically: ${unsurePriced}`);
+
   const snapshot = {
     generatedBy: "scripts/capture-trade-electrical.ts",
     trade: TRADE,
@@ -177,6 +210,10 @@ async function main() {
     counts,
     categories,
     example,
+    /** Every route action real answers use, and how many use it. */
+    routing,
+    /** The escape hatch, and where it goes. */
+    unsure: { total: unsure.length, routes: unsureRoutes, pricedAutomatically: unsurePriced },
   };
 
   console.log(`  template v${version.version} · ${categories.length} categories · ${services.length} services`);

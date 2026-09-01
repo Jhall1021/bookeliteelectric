@@ -408,6 +408,30 @@ async function statics() {
     "trade routes are explicit files, not a dynamic segment",
     "a [trade] segment can resolve an unshipped trade into a public page");
 
+  console.log("\n  PRODUCT PAGES CLAIM ONLY WHAT EXISTS");
+  const productPages: ReadonlyArray<{ name: string; href: string | null }> = content.PRODUCT_PAGES;
+  for (const p of productPages) {
+    if (!p.href) { ok(true, `${p.name} is listed without a link`); continue; }
+    ok(existsSync(`app/(marketing)${p.href}/page.tsx`), `${p.name} links to a page that exists`,
+      "a menu item implies a destination; build the page or leave it off the list");
+  }
+  // PriceSight is a design document in another workstream. A nav item for it
+  // would be the same defect as a "Connected" integration.
+  ok(!productPages.some((p) => /pricesight/i.test(p.name)),
+    "PriceSight is not in the product menu",
+    "it has not shipped — SITEMAP.md holds it out of navigation");
+
+  console.log("\n  GUIDED PRICING ARGUES FROM COUNTED EVIDENCE");
+  const gp = read("app/(marketing)/product/guided-pricing/page.tsx");
+  ok(existsSync("app/(marketing)/product/guided-pricing/page.tsx"), "the page exists");
+  // The page's central claim is a measurement. If it were ever typed as a
+  // literal it could go stale silently, which is the whole failure this
+  // codebase keeps rediscovering.
+  ok(gp.includes("T.unsure.total") && gp.includes("T.unsure.pricedAutomatically"),
+    "the \u201cI\u2019m not sure\u201d evidence is read from the capture");
+  ok(!/\b\d{2,}\s+answers\b/.test(gp.replace(/\/\*[\s\S]*?\*\//g, "")),
+    "…and no count is typed into the copy");
+
   console.log("\n  THE ELECTRICAL TRADE PAGE IS CAPTURED, NOT WRITTEN");
   const tradeFixture = "components/marketing/trades/electricalTemplate.ts";
   ok(existsSync(tradeFixture), "the electrical template fixture exists");
@@ -416,6 +440,14 @@ async function statics() {
   ok(!!et, "…and it parses");
   if (et) {
     ok(et.generatedBy === "scripts/capture-trade-electrical.ts", "it is generated, not hand-written");
+    // The page asserts that saying "I'm not sure" never buys a price. That is
+    // the objection it exists to kill, so it is checked rather than trusted.
+    ok(et.unsure.total > 0, `${et.unsure.total} "I'm not sure" answers ship in the template`,
+      "the escape hatch is the evidence that homeowners are not asked to diagnose");
+    ok(et.unsure.pricedAutomatically === 0,
+      "…and none of them resolves to a price",
+      `${et.unsure.pricedAutomatically} do — the Guided Pricing page's central claim is now false`);
+    ok(Object.keys(et.routing).length > 1, "more than one route action is in real use");
     ok(et.categories.length > 0 && et.serviceCount > 0,
       `${et.categories.length} categories, ${et.serviceCount} services`);
     // The counter-example is the honest half of the page and the half a

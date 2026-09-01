@@ -645,5 +645,22 @@ export const ELECTRICAL_TEMPLATE = {
         "routeAction": "PHOTO_REVIEW"
       }
     ]
+  },
+  "routing": {
+    "REROUTE_TROUBLESHOOTING": 47,
+    "RESOLVE_INSTANT": 62,
+    "CONTINUE": 211,
+    "PHOTO_REVIEW": 193,
+    "REROUTE_SERVICE": 13,
+    "RESOLVE_ADJUSTED": 13
+  },
+  "unsure": {
+    "total": 97,
+    "routes": {
+      "REROUTE_TROUBLESHOOTING": 15,
+      "PHOTO_REVIEW": 78,
+      "CONTINUE": 4
+    },
+    "pricedAutomatically": 0
   }
 } as const;

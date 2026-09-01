@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { HERO, NAV, TRADES } from "./content";
+import { HERO, NAV, PRODUCT_PAGES, TRADES } from "./content";
 
 /**
  * The Price2Book logo, as delivered by the designer.
@@ -45,6 +45,53 @@ export function Logo({ reverse = false, className = "" }: { reverse?: boolean; c
 }
 
 /**
+ * A navigation menu, and the rule it enforces by shape.
+ *
+ * An item with no href renders as text with its status beside it, not as a
+ * dead link — the menu is where a capability claim is loudest, so a page that
+ * does not exist must not look like one that does. Trades uses that for
+ * "Plumbing — In Build"; Product will use it for nothing, because a product
+ * page either exists or stays off the list.
+ *
+ * CSS only — hover plus focus-within — so it needs no client component and
+ * still opens for a keyboard.
+ */
+function Menu(
+  { label, href, items }:
+  { label: string; href: string; items: { name: string; href: string | null; status?: string }[] },
+) {
+  return (
+    <div className="group relative">
+      <a href={href} className="hover:text-p2b-ink">
+        {label} <span aria-hidden="true" className="text-[11px]">▾</span>
+      </a>
+      <div className="invisible absolute left-1/2 top-full z-20 w-[236px] -translate-x-1/2 pt-3 opacity-0 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+        <div className="rounded-[3px] border border-p2b-line bg-white py-1.5 shadow-[0_10px_28px_rgba(20,24,31,.10)]">
+          {items.map((i) =>
+            i.href ? (
+              <a key={i.name} href={i.href}
+                 className="flex items-center justify-between gap-3 px-4 py-2.5 text-[15px] text-p2b-ink hover:bg-p2b-canvas-alt">
+                {i.name}
+              </a>
+            ) : (
+              <div key={i.name}
+                   className="flex cursor-default items-center justify-between gap-3 px-4 py-2.5 text-[15px] text-p2b-faint">
+                {i.name}
+                {i.status && (
+                  <span className="rounded-sm bg-p2b-canvas-alt px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-p2b-muted-soft">
+                    {i.status}
+                  </span>
+                )}
+              </div>
+            ),
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * The header carries the CTA split the owner set: "Request Early Access" is
  * the primary marketing action and "Sign In" is the quieter action for people
  * who already have an account. Sign In is a plain link with no button
@@ -70,33 +117,11 @@ export function MarketingHeader({ signInHref }: { signInHref: string }) {
                only — hover and focus-within — so it needs no client component
                and works with a keyboard. */
             item.label === "Trades" ? (
-              <div key={item.href} className="group relative">
-                <a href={item.href} className="hover:text-p2b-ink">
-                  {item.label} <span aria-hidden="true" className="text-[11px]">▾</span>
-                </a>
-                <div className="invisible absolute left-1/2 top-full z-20 w-[228px] -translate-x-1/2 pt-3 opacity-0 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-                  <div className="rounded-[3px] border border-p2b-line bg-white py-1.5 shadow-[0_10px_28px_rgba(20,24,31,.10)]">
-                    {TRADES.map((t) =>
-                      t.href ? (
-                        <a key={t.name} href={t.href}
-                           className="flex items-center justify-between gap-3 px-4 py-2.5 text-[15px] text-p2b-ink hover:bg-p2b-canvas-alt">
-                          {t.name}
-                        </a>
-                      ) : (
-                        /* Not a link. There is no page behind it, and there
-                           must not be one until the template is frozen. */
-                        <div key={t.name}
-                             className="flex cursor-default items-center justify-between gap-3 px-4 py-2.5 text-[15px] text-p2b-faint">
-                          {t.name}
-                          <span className="rounded-sm bg-p2b-canvas-alt px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-p2b-muted-soft">
-                            {t.status}
-                          </span>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </div>
-              </div>
+              <Menu key={item.href} label={item.label} href={item.href}
+                    items={TRADES.map((t) => ({ name: t.name, href: t.href, status: t.status }))} />
+            ) : item.label === "Product" ? (
+              <Menu key={item.href} label={item.label} href={item.href}
+                    items={PRODUCT_PAGES.map((p) => ({ name: p.name, href: p.href }))} />
             ) : (
               <a key={item.href} href={item.href} className="hover:text-p2b-ink">
                 {item.label}

@@ -460,6 +460,18 @@ export const SETUP_PROGRESSION = [
  */
 export type TradeStatus = "Available now" | "In build" | "Next";
 
+/**
+ * Product pages, and the ones that do not exist yet — SITEMAP.md.
+ *
+ * Same rule as TRADES: a menu item implies a destination, so only a page that
+ * is a real file may be listed. The others are built in order and appear as
+ * they land; PriceSight stays out entirely until it ships, because a nav item
+ * is a stronger claim than a paragraph.
+ */
+export const PRODUCT_PAGES: ReadonlyArray<{ name: string; href: string | null }> = [
+  { name: "Guided Pricing", href: "/product/guided-pricing" },
+];
+
 export const TRADES: ReadonlyArray<{ name: string; status: TradeStatus; href: string | null }> = [
   { name: "Electrical", status: "Available now", href: "/trades/electrical" },
   { name: "Plumbing", status: "In build", href: null },
@@ -472,6 +484,7 @@ export const NAV = [
   { label: "Your Rules", href: "/#rules" },
   // "Early Access" was here and pointed at the same place as the filled
   // button beside it. Two affordances for one action is not a nav.
+  { label: "Product", href: "/product/guided-pricing" },
   { label: "Trades", href: "/trades/electrical" },
   { label: "Integrations", href: "/#integrations" },
 ] as const;
