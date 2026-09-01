@@ -55,19 +55,25 @@ const SINK = process.env.PLATFORM_MAIL_SINK ?? "/tmp/p2b-mail.jsonl";
  * Reads the dev sink the same way a person reads their inbox: find the message
  * addressed to them, take the URL out of it.
  */
-async function verificationLinkFor(email: string): Promise<string | null> {
+async function linkFor(email: string, subjectMatch?: RegExp): Promise<string | null> {
   const { readFile } = await import("node:fs/promises");
   let raw = "";
   try { raw = await readFile(SINK, "utf8"); } catch { return null; }
   const mine = raw
     .split("\n")
     .filter(Boolean)
-    .map((l) => { try { return JSON.parse(l) as { to: string; text: string }; } catch { return null; } })
-    .filter((m): m is { to: string; text: string } => m !== null && m.to === email);
+    .map((l) => {
+      try { return JSON.parse(l) as { to: string; subject: string; text: string }; }
+      catch { return null; }
+    })
+    .filter((m): m is { to: string; subject: string; text: string } =>
+      m !== null && m.to === email && (!subjectMatch || subjectMatch.test(m.subject)));
   const last = mine.at(-1);
   if (!last) return null;
   return last.text.match(/https?:\/\/\S+/)?.[0] ?? null;
 }
+
+const verificationLinkFor = (email: string) => linkFor(email, /confirm/i);
 
 let fail = 0;
 const ok = (label: string, cond: boolean, detail = "") => {
@@ -78,8 +84,9 @@ const ok = (label: string, cond: boolean, detail = "") => {
 const jar: string[] = [];
 async function call(
   path: string,
-  init?: { method?: string; body?: unknown; headers?: Record<string, string> }
+  init?: { method?: string; body?: unknown; headers?: Record<string, string>; jar?: string[] }
 ) {
+  const cookies = init?.jar ?? jar;
   const res = await fetch(BASE + path, {
     method: init?.method ?? (init?.body ? "POST" : "GET"),
     headers: {
@@ -89,7 +96,7 @@ async function call(
       // working, not an obstacle to route around. A browser always sends one;
       // a script has to say who it is.
       origin: BASE,
-      cookie: jar.join("; "),
+      cookie: cookies.join("; "),
       ...(init?.headers ?? {}),
     },
     body: init?.body ? JSON.stringify(init.body) : undefined,
@@ -98,8 +105,8 @@ async function call(
   for (const c of res.headers.getSetCookie?.() ?? []) {
     const kv = c.split(";")[0];
     const name = kv.split("=")[0];
-    const i = jar.findIndex((e) => e.startsWith(`${name}=`));
-    if (i >= 0) jar[i] = kv; else jar.push(kv);
+    const i = cookies.findIndex((e) => e.startsWith(`${name}=`));
+    if (i >= 0) cookies[i] = kv; else cookies.push(kv);
   }
   const text = await res.text();
   let body: unknown = text;
@@ -230,11 +237,95 @@ async function main() {
     wrongPassword.status === noSuchAccount.status,
     `${wrongPassword.status} vs ${noSuchAccount.status}`);
 
-  // ── 10. the credential endpoint rate-limits ────────────────────────────
+  // ── 11. a confirmation link cannot be replayed into a session ──────────
   //
-  // Exercised, not read off the configuration. A rate limit that silently
-  // does nothing looks exactly like protection, which is why lib/auth.ts
-  // refused to claim one until it was proved.
+  // The token is signed, not stored, so nothing marks it used. What must not
+  // happen is that opening it again — from a forwarded email, a shared device,
+  // a browser history — hands someone a fresh authenticated session for the
+  // account. Checked with an EMPTY cookie jar, which is what an attacker
+  // holding only the link has.
+  const stranger: string[] = [];
+  await call(link.replace(BASE, ""), { jar: stranger });
+  const strangerReach = await call("/dashboard/setup", { jar: stranger });
+  ok(`11. replaying the confirmation link grants no session`,
+    strangerReach.status !== 200,
+    `${strangerReach.status} — a replayed link reached the dashboard`);
+
+  // ── 12. a reset link is spent once the password changes ────────────────
+  const reset = await call("/api/auth/request-password-reset", {
+    body: { email: EMAIL, redirectTo: "/reset-password" },
+  });
+  ok(`12. a password reset can be requested`, reset.status === 200, String(reset.status));
+
+  const resetLink = await linkFor(EMAIL, /reset/i);
+  ok(`    and arrives as a link`, resetLink !== null);
+  const resetToken = resetLink?.match(/[?&]token=([^&]+)/)?.[1]
+    ?? resetLink?.split("/").pop()?.split("?")[0] ?? null;
+  ok(`    carrying a token`, !!resetToken);
+
+  if (resetToken) {
+    const NEW_PASSWORD = "a-different-correct-horse-9";
+    const first = await call("/api/auth/reset-password", {
+      body: { newPassword: NEW_PASSWORD, token: resetToken },
+    });
+    ok(`    the password changes once`, first.status === 200, `${first.status} ${first.text.slice(0, 90)}`);
+
+    const replay = await call("/api/auth/reset-password", {
+      body: { newPassword: "third-password-entirely-99", token: resetToken },
+    });
+    ok(`13. the same reset token cannot be used again`, replay.status !== 200,
+      `${replay.status} — a spent reset link changed the password a second time`);
+
+    // And the change really took: the old password stops working.
+    // NOT merely "non-200". Throttling also answers non-200, and an earlier
+    // draft ran this after the rate-limit probe had already exhausted the
+    // window — so it passed on a 429 and proved nothing about the password.
+    const oldPw = await call("/api/auth/sign-in/email", { body: { email: EMAIL, password: PASSWORD } });
+    ok(`    the old password no longer signs in`,
+      oldPw.status !== 200 && oldPw.status !== 429,
+      `${oldPw.status}${oldPw.status === 429 ? " — throttled, so this proved nothing" : ""}`);
+  }
+
+  // ── 14. a garbage or expired token is refused ──────────────────────────
+  //
+  // Signed tokens fail closed on a bad signature the same way they fail on an
+  // expired claim — both are "this did not come from us, intact". A forged one
+  // stands in for an expired one, which cannot be manufactured without waiting.
+  const forged = await call("/api/auth/verify-email?token=not.a.real.token&callbackURL=/start");
+  ok(`14. a token that did not come from us is refused`,
+    forged.status !== 200 || /invalid|error/i.test(forged.text),
+    `${forged.status} ${forged.text.slice(0, 90)}`);
+
+  const forgedReset = await call("/api/auth/reset-password", {
+    body: { newPassword: "should-never-be-set-1234", token: "not.a.real.token" },
+  });
+  ok(`    and so is a forged reset token`, forgedReset.status !== 200, String(forgedReset.status));
+
+  // ── 15. a revoked session cannot reach contractor-admin surfaces ───────
+  const live: string[] = [];
+  const freshSignIn = await call("/api/auth/sign-in/email", {
+    body: { email: EMAIL, password: "a-different-correct-horse-9" }, jar: live,
+  });
+  ok(`15. the new password signs in`, freshSignIn.status === 200, String(freshSignIn.status));
+
+  const beforeRevoke = await call("/dashboard/setup", { jar: live });
+  ok(`    and reaches the dashboard`, beforeRevoke.status === 200, String(beforeRevoke.status));
+
+  await call("/api/auth/sign-out", { method: "POST", body: {}, jar: live });
+  const afterRevoke = await call("/dashboard/setup", { jar: live });
+  ok(`    revoking it closes the dashboard`, afterRevoke.status !== 200,
+    `${afterRevoke.status} — a revoked session still reached contractor admin`);
+
+  // ── 16. the credential endpoint rate-limits ────────────────────────────
+  //
+  // LAST ON PURPOSE. Exhausting the window makes every later sign-in answer
+  // 429, which is indistinguishable from a refusal — an earlier ordering had
+  // the revocation and old-password checks passing on throttling rather than
+  // on the thing they name.
+  //
+  // Exercised, not read off the configuration: a rate limit that silently does
+  // nothing looks exactly like protection, which is why lib/auth.ts refused to
+  // claim one until it was proved.
   let limited = false;
   for (let i = 0; i < 12 && !limited; i++) {
     const r = await call("/api/auth/sign-in/email", {
@@ -242,7 +333,7 @@ async function main() {
     });
     if (r.status === 429) limited = true;
   }
-  ok(`10. repeated password attempts are refused with 429`, limited,
+  ok(`16. repeated password attempts are refused with 429`, limited,
     "twelve attempts went through unthrottled");
 
   await teardown();
