@@ -12,14 +12,14 @@
  * carries real customers: the gates would keep passing while nothing anyone
  * uses was checked.
  *
- * That is not hypothetical. The canonical catalog shipped "storey" for months
- * with a green spelling gate, because the gate read the copy that had already
- * been remediated rather than the source everyone installs from. A rule
- * checked against the wrong surface is a rule nobody is enforcing.
+ * That is not hypothetical. The canonical catalog shipped a British spelling for
+ * months with a green spelling gate, because the gate read the copy that had
+ * already been remediated rather than the source everyone installs from. A
+ * rule checked against the wrong surface is a rule nobody is enforcing.
  *
  * So the surfaces are declared in lib/storefrontSurface and this asserts the
  * contract holds over the declared set: a surface may not be marked delivered
- * without a verifier that covers it, and no code may make behaviour depend on
+ * without a verifier that covers it, and no code may make behavior depend on
  * which surface is rendering.
  */
 

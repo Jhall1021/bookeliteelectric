@@ -69,7 +69,7 @@ async function main() {
       await tx.contractor.update({
         where: { id: contractorId },
         // Only the amount and the service rule. No company-wide threshold is
-        // invented: the old behaviour was "these services, always", and that
+        // invented: the old behavior was "these services, always", and that
         // is exactly ALWAYS_REQUIRE. Guessing a $1,000 rule they never set
         // would change who pays a deposit.
         data: { depositAmountCents: amount },

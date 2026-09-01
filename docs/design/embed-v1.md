@@ -50,12 +50,12 @@ in `lib/session.ts`. In a cross-origin iframe it is a third-party cookie:
 Safari's ITP and Firefox's Total Cookie Protection and is on its way out in
 Chrome. So the cart does not survive a single navigation inside the embed. This
 is not a detail to discover during implementation; it is the thing the
-implementation is organised around.
+implementation is organized around.
 
 Three options, and the recommendation is the third:
 
 1. **`SameSite=None; Partitioned` (CHIPS).** Smallest change, works in Chrome,
-   partitioned per top-level site — which is the behaviour we want anyway,
+   partitioned per top-level site — which is the behavior we want anyway,
    since a visit belongs to one contractor's page. Does not cover Safari and
    Firefox reliably. Not sufficient alone.
 2. **Storage Access API.** Requires a user gesture and a permission prompt
@@ -122,7 +122,7 @@ The universal-link pitch is unaffected — `pricing.contractor.com` goes on a
 truck just as well as `contractor.com/pricing`.
 
 All three resolve the same `ContractorSite` and run the same engine. The rule
-to hold: **no behaviour may branch on which surface it is.** Pricing,
+to hold: **no behavior may branch on which surface it is.** Pricing,
 scheduling, tax, deposits and booking read the resolved contractor and nothing
 about the frame. The only legitimate differences are presentation chrome, the
 session-token seam above, and the framing headers.
@@ -157,7 +157,7 @@ Six, and the first three are load-bearing:
    records which surfaces ship and which verifiers cover each, and marking one
    delivered without coverage fails the build. The risk was never that the
    embed would be unchecked; it was that nobody would notice. That is how
-   "storey" survived a green spelling gate for months: the scan read the
+   a British spelling survived a green gate for months: the scan read the
    remediated copy rather than the source everyone installs from.
 
 4. **Setup tells the contractor their address is the hosted slug.** "Homeowners

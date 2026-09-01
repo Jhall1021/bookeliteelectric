@@ -108,7 +108,7 @@ export function depositRequiredFor(
  * whose customer books $200 of work must not be asked for more than the job
  * costs — and refusing the booking would be worse: it turns a configuration
  * choice into a lost customer. Taking the whole amount is the smallest safe
- * behaviour, and it is deterministic.
+ * behavior, and it is deterministic.
  *
  * Capped at the TAX-INCLUSIVE total rather than the subtotal, because that is
  * what the homeowner owes; a deposit that exceeded it would leave a negative

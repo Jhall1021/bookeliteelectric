@@ -153,8 +153,8 @@ export async function createContractorForUser(
           // request carries. Generated here so the tenant is addressable the
           // moment it exists.
           // `site_` + 16 random bytes, matching every publicId already issued.
-          // A second prefix would be a second thing to recognise, and the
-          // embed route has to recognise it.
+          // A second prefix would be a second thing to recognize, and the
+          // embed route has to recognize it.
           publicId: `site_${randomBytes(16).toString("hex")}`,
           active: true,
         },

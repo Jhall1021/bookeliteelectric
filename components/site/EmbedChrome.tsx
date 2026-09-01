@@ -33,7 +33,7 @@ export default function EmbedChrome() {
   // see that what they added is still there. Refreshed on navigation because
   // adding a service is what changes it.
   useEffect(() => {
-    let cancelled = false;
+    let canceled = false;
     (async () => {
       if (!siteFetch) return;
       try {
@@ -43,12 +43,12 @@ export default function EmbedChrome() {
           (sum: number, li: { quantity: number }) => sum + li.quantity,
           0
         );
-        if (!cancelled) setItemCount(count);
+        if (!canceled) setItemCount(count);
       } catch {
         // A cart badge is a nice-to-have; a failed read must not break the page.
       }
     })();
-    return () => { cancelled = true; };
+    return () => { canceled = true; };
   }, [siteFetch, pathname]);
   return (
     <div className="flex items-center justify-between border-b border-cardline px-4 py-2.5">

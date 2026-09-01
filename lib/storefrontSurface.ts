@@ -17,7 +17,7 @@
  * So the surface is declared rather than guessed, and the base comes from it.
  *
  * ONE ENGINE. A surface changes the shape of a URL and nothing else. No
- * pricing, scheduling, tax, deposit or booking behaviour may branch on it —
+ * pricing, scheduling, tax, deposit or booking behavior may branch on it —
  * if a rule differs between hosted and embedded, that is a second storefront
  * and the whole point of this file is that there is not one.
  */

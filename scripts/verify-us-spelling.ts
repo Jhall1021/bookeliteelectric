@@ -106,13 +106,34 @@ function sourceScan() {
     .filter((f) => !ENUMERATE_FORBIDDEN.some((e) => f.endsWith(e)))
     .filter((f) => !RECORDED.some((r) => f.endsWith(r)));
 
+  /**
+   * American words that CONTAIN a British one.
+   *
+   * "analyses" is the correct American plural of analysis and contains
+   * "analyse"; a substring match calls it a misspelling. Reported as seven
+   * failures in a design document that was spelled correctly, which is how a
+   * spelling gate teaches people to ignore it.
+   *
+   * Masked before matching rather than added to a per-file allow list: the
+   * word is right wherever it appears, and the next document to use it should
+   * not have to be excused.
+   */
+  //
+  // No word boundary: it also appears inside identifiers a schema legitimately
+  // uses, like `pricesight_analyses`, where the preceding underscore is a word
+  // character and a \b would not match. "analyses" is correct wherever it
+  // appears, so it is masked wherever it appears.
+  const AMERICAN_CONTAINING_BRITISH = [/analyses/gi];
+  const mask = (line: string) =>
+    AMERICAN_CONTAINING_BRITISH.reduce((l, re) => l.replace(re, (m) => "·".repeat(m.length)), line);
+
   for (const [bad, good] of Object.entries(FORBIDDEN)) {
     const re = new RegExp(bad, "gi");
     const hits: string[] = [];
     for (const f of files) {
       const text = readFileSync(f, "utf8");
       text.split("\n").forEach((line, i) => {
-        if (re.test(line)) hits.push(`${f}:${i + 1}  ${line.trim().slice(0, 70)}`);
+        if (re.test(mask(line))) hits.push(`${f}:${i + 1}  ${line.trim().slice(0, 70)}`);
         re.lastIndex = 0;
       });
     }
