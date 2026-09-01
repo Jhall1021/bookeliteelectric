@@ -13,6 +13,13 @@ import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
 import { renderBandLabel, hasHoles, boundariesUsed, validateBoundaries, UnresolvedPolicyError } from "../lib/policyBands";
+import { withTenantGuard } from "../lib/tenantGuard";
+import { withTenant } from "../lib/tenantContext";
+import { publishSuggestedPrice } from "../lib/pricePublication";
+import { activationRefusal } from "../lib/serviceActivation";
+import { resolvePolicy } from "../lib/policyResolution";
+import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
+import { destroyContractor } from "./_throwaway";
 
 loadEnv();
 let pass = 0, fail = 0;
@@ -86,11 +93,125 @@ async function live(prisma: PrismaClient) {
     published.slice(0, 4).map((s) => `${s.slug}: ${s.unresolvedPolicyKeys.join(",")}`).join(" | "));
 }
 
+/**
+ * THE REFUSALS, EXERCISED.
+ *
+ * `live()` above asserts that no published service currently depends on an
+ * unresolved policy — a true and useful claim, and one that stays green if
+ * both refusals are deleted, because it only reports the state of whatever
+ * rows happen to exist. BrightPath passed it for weeks by having no services.
+ *
+ * These prove the two boundaries actually refuse, and that deciding the policy
+ * is what lifts them — not clearing a flag.
+ */
+async function behavior(prisma: PrismaClient) {
+  console.log(`\n  REFUSALS\n`);
+  const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
+  const SLUG = "test-policy-refusal";
+  const inTenant = <T>(id: string, fn: () => Promise<T>) =>
+    withTenant({ contractorId: id, source: "test" }, fn);
+
+  const teardown = async () => {
+    for (const m of ["contractorPolicyValue", "contractorCategory", "contractorSite", "contractorOnboarding", "contractorTrade"] as const) {
+      await (prisma as unknown as Record<string, { deleteMany(a: unknown): Promise<unknown> }>)[m]
+        .deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
+    }
+    await destroyContractor(prisma, SLUG).catch(() => {});
+  };
+  await teardown();
+
+  try {
+    const c = await prisma.contractor.create({
+      data: { slug: SLUG, name: "Policy refusal probe", active: false, countryCode: "US" },
+      select: { id: true },
+    });
+    await prisma.contractorTrade.create({ data: { contractorId: c.id, tradeKey: "electrical" } });
+    const pre = await preflight(prisma, c.id, templateVersionSource(prisma, "electrical"));
+    if (!pre.ok) throw new Error(pre.code);
+    await installCatalog(prisma, c.id, pre.catalog);
+    await prisma.pricingSettings.create({
+      data: {
+        contractorId: c.id, crewHourRateCents: 21500, primaryMinimumCents: 21500,
+        roundingIncrementCents: 500, defaultPermitAdminCents: 0,
+      },
+    });
+
+    // A service carrying a real unresolved policy, with everything else
+    // cleared so only the policy can refuse.
+    const svc = await prisma.service.findFirst({
+      where: { contractorId: c.id, NOT: { unresolvedPolicyKeys: { isEmpty: true } } },
+      select: { id: true, slug: true, unresolvedPolicyKeys: true },
+    });
+    if (!svc) { ok(false, "a freshly installed catalog carries an unresolved policy", "none found"); return; }
+    const key = svc.unresolvedPolicyKeys[0];
+    await prisma.service.update({
+      where: { id: svc.id },
+      data: { offered: true, fieldLaborHours: 1, materialCostResolved: true, unresolvedMaterialKeys: [] },
+    });
+
+    const refusedPublish = await inTenant(c.id, () => publishSuggestedPrice(guarded, c.id, svc.id));
+    ok(!refusedPublish.ok && refusedPublish.refusal.code === "POLICY_UNRESOLVED",
+      "publishing a price is refused while a policy is undecided",
+      refusedPublish.ok ? "published" : refusedPublish.refusal.code);
+
+    // ACTIVATION IS THE BACKSTOP, not a second gate on the same path.
+    //
+    // Publication refuses first, so a service that came through the authority
+    // can never reach activation with an undecided policy and no price. The
+    // case activation exists for is the one BrightPath was actually in: an
+    // approval stamped before the publication guard existed. Simulated by
+    // stamping one directly — which is the only way this state now arises.
+    await prisma.service.update({
+      where: { id: svc.id },
+      data: { basePrice: 21500, publishedPriceApprovedAt: new Date() },
+    });
+    const refusedActivate = await inTenant(c.id, () => activationRefusal(guarded, c.id, svc.id));
+    ok(refusedActivate?.code === "POLICY_UNRESOLVED",
+      "and a service already carrying a price is still refused activation",
+      refusedActivate?.code ?? "allowed");
+    await prisma.service.update({
+      where: { id: svc.id },
+      data: { basePrice: null, publishedPriceApprovedAt: null },
+    });
+
+    // Deciding it renders the labels. THIS is what lifts the refusal — a
+    // surface that only cleared the key would leave the holes on screen.
+    // EVERY key this service waits on, not just the first: a service can sit
+    // behind two decisions, and answering one of them is not an answer.
+    let allDecided = true;
+    let lastMessage = "";
+    for (const k of svc.unresolvedPolicyKeys) {
+      const value = await prisma.contractorPolicyValue.findFirstOrThrow({
+        where: { contractorId: c.id, key: k }, select: { boundaryCount: true },
+      });
+      const decided = await resolvePolicy(prisma, c.id, k,
+        value.boundaryCount === 0
+          ? { choice: "We supply it" }
+          : { boundaries: Array.from({ length: value.boundaryCount }, (_, i) => (i + 1) * 10) });
+      if (!decided.ok) { allDecided = false; lastMessage = decided.refusal.message; }
+    }
+    ok(allDecided, `deciding ${svc.unresolvedPolicyKeys.length} policy(ies) is accepted`, lastMessage);
+
+    const stillHoley = await prisma.answerOption.count({
+      where: { label: { contains: "{b" }, question: { service: { contractorId: c.id, id: svc.id } } },
+    });
+    ok(stillHoley === 0, "and rewrites the labels rather than only clearing the flag",
+      `${stillHoley} label(s) still hold a pattern`);
+
+    const after = await inTenant(c.id, () => publishSuggestedPrice(guarded, c.id, svc.id));
+    ok(after.ok, "the same service can then be priced", after.ok ? "" : after.refusal.code);
+  } finally {
+    await teardown();
+  }
+  await (guarded as unknown as PrismaClient).$disconnect();
+}
+
 async function main() {
   console.log("\nPOLICY RESOLUTION\n");
   statics();
   const prisma = new PrismaClient();
   await live(prisma);
+  await behavior(prisma);
   await prisma.$disconnect();
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);
   process.exit(fail === 0 ? 0 : 1);

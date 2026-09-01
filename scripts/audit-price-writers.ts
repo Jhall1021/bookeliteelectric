@@ -101,6 +101,16 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "that scope would be the chandelier defect committed on purpose. Refuses if " +
     "any price is already present, since repricing is a reconciliation decision. " +
     "Touches this one service.",
+  "scripts/verify-policy-resolution.ts":
+    "STAMPS an approval and then removes it again, inside the refusal probe. " +
+    "Activation refuses an undecided policy as a BACKSTOP for services " +
+    "published before that guard existed — BrightPath was in exactly that " +
+    "state — and publication now refuses first, so the only way to reach it " +
+    "is to put a service into it directly. Written onto a throwaway " +
+    "contractor built for the run, cleared on the next line, and the " +
+    "contractor is destroyed in the finally block. No real service is " +
+    "touched and no figure is invented: the amount is the one the fixture's " +
+    "own economics derive.",
   "lib/pricePublication.ts":
     "THE publication authority. Everything that publishes a price goes through " +
     "publishSuggestedPrice, so the one place that stamps an approval is here — " +

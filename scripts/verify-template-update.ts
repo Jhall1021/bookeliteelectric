@@ -112,8 +112,15 @@ async function main() {
      "and is still absent from the contractor's tree");
 
   console.log("\n  ELITE IS UNTOUCHED BY ANY OF IT");
+  // NAMED, not "the other one".
+  //
+  // This selected whichever contractor with this slug was not the probe, which
+  // was unambiguous while Elite was the only real tenant. BrightPath installs
+  // the same canonical catalog and so owns the same slug, and the check
+  // started reporting BrightPath's freshly provisioned service — 8 questions,
+  // no price, template provenance — as evidence that Elite had been altered.
   const elite = await prisma.service.findFirstOrThrow({
-    where: { slug: KEY, contractorId: { not: adopted.contractorId } },
+    where: { slug: KEY, contractor: { slug: "elite-electric" } },
     include: { questions: true },
   });
   ok(elite.questions.length === 7, `Elite still has ${elite.questions.length} questions, not the template's 8`);
