@@ -335,7 +335,7 @@ export default function ServiceFinder({ tone = "light" }: { tone?: "light" | "da
                        specific job — so the flow engine sends them to the next
                        one as each is added, instead of back to the cart. */
                     startQueue(chosen, text);
-                    router.push(queuedServiceHref(chosen[0]));
+                    router.push(queuedServiceHref(chosen[0], base));
                   }}
                   className="mt-4 w-full rounded-pill bg-electric px-6 py-3 text-sm font-semibold text-white hover:bg-electric-hover"
                 >

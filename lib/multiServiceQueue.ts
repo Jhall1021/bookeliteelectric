@@ -132,6 +132,18 @@ export function advanceQueue(justAddedSlug: string): QueuedService | null {
 }
 
 /** Where a queued service lives. */
-export function queuedServiceHref(s: QueuedService): string {
-  return `/services/${s.categorySlug}/${s.slug}`;
+/**
+ * Where to send the customer for the next queued service.
+ *
+ * `base` IS REQUIRED, and that is the whole point of the signature. This
+ * returned a bare "/services/..." with no storefront segment, so on any
+ * hosted storefront the next service in a multi-service run resolved against
+ * whichever contractor the root happens to serve. A homeowner partway through
+ * booking with one electrician was handed another one's catalog.
+ *
+ * Making it a parameter rather than a convention means the compiler asks the
+ * question at every call site. Pass "" only for a single-tenant root.
+ */
+export function queuedServiceHref(s: QueuedService, base: string): string {
+  return `${base}/services/${s.categorySlug}/${s.slug}`;
 }

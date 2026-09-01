@@ -495,7 +495,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // also when this service isn't part of a run, so nothing changes for
     // anyone who arrived here any other way.
     const next = advanceQueue(serviceSlug);
-    router.push(next ? queuedServiceHref(next) : "/my-visit");
+    // BOTH destinations carry the storefront. "/my-visit" unscoped sent a
+    // homeowner who had just added a $215 fixture on one contractor's site to
+    // a different contractor's empty cart.
+    router.push(next ? queuedServiceHref(next, base) : `${base}/my-visit`);
   }
 
   async function handleAddToVisit() {
