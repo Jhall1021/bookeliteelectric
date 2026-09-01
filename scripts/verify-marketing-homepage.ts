@@ -418,6 +418,42 @@ async function statics() {
     "trade routes are explicit files, not a dynamic segment",
     "a [trade] segment can resolve an unshipped trade into a public page");
 
+  console.log("\n  SCHEDULING CLAIMS DO NOT OUTRUN THE SCHEDULER");
+  /**
+   * Crew size is not an input to availability — see
+   * docs/debt/crew-size-not-in-availability-2026-09-01.md. techCount appears
+   * nowhere in schedulingAvailability, nativeScheduling or jobber, so a
+   * two-technician job consumes one job's worth of capacity.
+   *
+   * The marketing site may say the scheduler accounts for the whole visit, its
+   * duration, answer- and quantity-driven duration changes, operating hours
+   * and declared capacity — all true today. It may NOT imply that staffing is
+   * counted. These phrases have no other use on a marketing page right now, so
+   * their presence is the claim.
+   *
+   * "crew" on its own is deliberately not here: "your crews start at 8" is
+   * true and useful, and banning the word would push copy into worse English
+   * for no gain.
+   */
+  const CAPACITY_OVERCLAIM = [
+    "technician count", "crew size", "staffing capacity", "crew capacity",
+    "number of technicians", "how many technicians", "two technicians\u2019 worth",
+    "technicians available", "crew availability",
+  ];
+  // Comments stripped: EarlyAccess documents its "crew size" FORM FIELD, which
+  // asks a contractor how big their business is and has nothing to do with
+  // scheduling. Prose about the code is not the site — the same distinction
+  // the spelling and price checks make.
+  const schedulingCopy = [...marketingFiles(), ...marketingRoutes()]
+    .map((f) => read(f).replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n"))
+    .join("\n")
+    .toLowerCase();
+  for (const phrase of CAPACITY_OVERCLAIM) {
+    ok(!schedulingCopy.includes(phrase.toLowerCase()),
+      `never claims "${phrase}"`,
+      "the native scheduler does not count technicians — docs/debt/crew-size-not-in-availability-2026-09-01.md");
+  }
+
   console.log("\n  PRODUCT PAGES CLAIM ONLY WHAT EXISTS");
   const productPages: ReadonlyArray<{ name: string; href: string | null }> = content.PRODUCT_PAGES;
   for (const p of productPages) {

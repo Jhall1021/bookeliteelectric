@@ -468,10 +468,16 @@ export type TradeStatus = "Available now" | "In build" | "Next";
  * they land; PriceSight stays out entirely until it ships, because a nav item
  * is a stronger claim than a paragraph.
  */
-export const PRODUCT_PAGES: ReadonlyArray<{ name: string; href: string | null }> = [
+export const PRODUCT_PAGES: ReadonlyArray<{ name: string; href: string | null; status?: string }> = [
   { name: "Guided Pricing", href: "/product/guided-pricing" },
   { name: "While We\u2019re There\u2122", href: "/product/while-were-there" },
   { name: "Online Booking", href: "/product/online-booking" },
+  // No page, on purpose. A dedicated Product page is itself a capability
+  // claim, and embedding has not crossed the shipped threshold the rest of
+  // this site is held to — EMBED_STATUS still reads "In build for V1". The
+  // row says so instead of linking to a polished explanation of something a
+  // contractor cannot install.
+  { name: "Website Embed", href: null, status: "In build" },
 ];
 
 export const TRADES: ReadonlyArray<{ name: string; status: TradeStatus; href: string | null }> = [
@@ -479,14 +485,18 @@ export const TRADES: ReadonlyArray<{ name: string; status: TradeStatus; href: st
   { name: "Plumbing", status: "In build", href: null },
 ];
 
+/**
+ * The navigation, moving to the shape SITEMAP.md sets.
+ *
+ * Every item goes somewhere real: Product, How It Fits and Trades are pages,
+ * Integrations and Demo are homepage sections until steps 6 and 7 of the build
+ * order give them their own. What is NOT here is anything pointing at a page
+ * that does not exist — the menus carry status rows for that instead.
+ */
 export const NAV = [
-  { label: "How It Works", href: "/#demo" },
-  { label: "While We’re There™", href: "#wwt" },
-  { label: "Your Pricing Link", href: "/#everywhere" },
-  { label: "Your Rules", href: "/#rules" },
-  // "Early Access" was here and pointed at the same place as the filled
-  // button beside it. Two affordances for one action is not a nav.
   { label: "Product", href: "/product/guided-pricing" },
+  { label: "How It Fits", href: "/how-it-fits" },
   { label: "Trades", href: "/trades/electrical" },
   { label: "Integrations", href: "/#integrations" },
+  { label: "Demo", href: "/#demo" },
 ] as const;
