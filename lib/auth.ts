@@ -75,6 +75,69 @@ function platformMailer(): { client: Resend; from: string } {
  * personal data and nothing about what the account can reach — a sign-in link
  * that lands in the wrong inbox should reveal as little as possible.
  */
+/**
+ * One send, one place to get the sender wrong.
+ *
+ * A DEVELOPMENT SINK, because these emails are the only step of account
+ * creation a test cannot perform. Verification and reset tokens are SIGNED,
+ * not stored — `createEmailVerificationToken` puts them in the URL and nothing
+ * lands in the `verification` table — so there is no row a harness can read to
+ * stand in for opening the inbox. Without a sink, proving that a stranger can
+ * sign up and verify would mean either mailing a real person or reproducing
+ * the library's token signing, and the second is a test that passes while the
+ * product is broken.
+ *
+ * Refuses outright in production: a file containing live sign-in links is
+ * exactly the thing not to write, and an env var set by accident should fail
+ * loudly rather than quietly divert a contractor's mail.
+ */
+async function sendPlatformMail(to: string, subject: string, text: string, what: string) {
+  const sink = process.env.PLATFORM_MAIL_SINK;
+  if (sink) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("PLATFORM_MAIL_SINK is set in production — refusing to divert mail.");
+    }
+    const { appendFile } = await import("node:fs/promises");
+    await appendFile(sink, JSON.stringify({ to, subject, text, at: new Date().toISOString() }) + "\n");
+    return;
+  }
+
+  const { client, from } = platformMailer();
+  const { error } = await client.emails.send({ from, to, subject, text });
+  // Throw rather than swallow, for the same reason the magic link does: a
+  // silently failed email is a locked-out contractor with nothing to look at.
+  if (error) throw new Error(`${what} send failed: ${error.message}`);
+}
+
+function verifyEmail(url: string) {
+  return {
+    subject: "Confirm your email address",
+    text: [
+      "Welcome to Price2Book. Confirm this address to finish setting up your account.",
+      "",
+      `Confirm: ${url}`,
+      "",
+      "If you didn't create a Price2Book account, you can ignore this — nothing " +
+        "happens until the link is opened.",
+    ].join("\n"),
+  };
+}
+
+function resetEmail(url: string) {
+  return {
+    subject: "Reset your Price2Book password",
+    text: [
+      "Someone asked to reset the password for this Price2Book account.",
+      "",
+      `Choose a new password: ${url}`,
+      "",
+      "This link works once and expires in an hour.",
+      "",
+      "If this wasn't you, nothing has changed and your current password still works.",
+    ].join("\n"),
+  };
+}
+
 function magicLinkEmail(url: string, minutes: number) {
   return {
     subject: "Sign in to Price2Book",
@@ -166,15 +229,68 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
 
-  // Passwords are deliberately NOT enabled. Magic link only for the pilot.
-  //
-  // No password storage, no reset flow, no "I forgot my password" during a
-  // two-contractor pilot. The account model underneath is unaffected, so
-  // passkeys can be added later, and passwords too if deliverability turns
-  // out to cause real friction. Building both now would be building one of
-  // them for nobody.
+  /**
+   * PASSWORDS ARE THE NORMAL LOGIN NOW.
+   *
+   * Magic-link-only was right for a two-contractor pilot and wrong for
+   * release: every sign-in cost an inbox round-trip, which is a wall for a
+   * contractor between jobs and was a wall in this repo's own proof runs.
+   * Magic link keeps two jobs — recovery, and accepting an invitation — where
+   * a one-time link is genuinely the better mechanism.
+   *
+   * Hashing is Better Auth's own (scrypt). Not hand-rolled, and not swapped
+   * for something familiar: the library's verifier and the stored format have
+   * to agree, and that agreement is not ours to reinvent.
+   */
   emailAndPassword: {
-    enabled: false,
+    enabled: true,
+    // No session until the address is confirmed. A membership is what reaches
+    // a tenant's data, and an unverified address must never hold one.
+    requireEmailVerification: true,
+    // Longer than the usual 8. This is the credential to a business's pricing
+    // and its customers' addresses.
+    minPasswordLength: 12,
+    autoSignIn: false,
+    sendResetPassword: async ({ user, url }) => {
+      const { subject, text } = resetEmail(url);
+      await sendPlatformMail(user.email, subject, text, "Password reset");
+    },
+  },
+
+  emailVerification: {
+    sendOnSignUp: true,
+    // Signing them in once they have proved the address saves a second trip
+    // through the login form immediately after confirming.
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      const { subject, text } = verifyEmail(url);
+      await sendPlatformMail(user.email, subject, text, "Verification email");
+    },
+  },
+
+  /**
+   * Rate limiting, configured rather than assumed.
+   *
+   * The note at the foot of this file used to say this was deliberately left
+   * out because a rate limit that silently does nothing is worse than none —
+   * it looks like protection. That reasoning stands, so the acceptance proof
+   * exercises these paths rather than trusting the configuration.
+   *
+   * The credential endpoints are much tighter than the default: guessing a
+   * password and enumerating which addresses have accounts are the two things
+   * worth slowing down, and neither has a legitimate reason to be fast.
+   */
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 3600, max: 5 },
+      "/forget-password": { window: 3600, max: 5 },
+      "/send-verification-email": { window: 3600, max: 5 },
+      "/sign-in/magic-link": { window: 3600, max: 5 },
+    },
   },
 
   plugins: [
@@ -184,35 +300,23 @@ export const auth = betterAuth({
       expiresIn: MAGIC_LINK_MINUTES * 60,
 
       sendMagicLink: async ({ email, url }) => {
-        const { client, from } = platformMailer();
         const { subject, text } = magicLinkEmail(url, MAGIC_LINK_MINUTES);
-
-        const { error } = await client.emails.send({
-          from,
-          to: email,
-          subject,
-          text,
-        });
-
-        // Throw rather than swallow. A silently failed sign-in email is a
-        // locked-out contractor with nothing to look at — the caller needs to
-        // know the send failed so it can say so.
-        if (error) {
-          throw new Error(`Magic link send failed: ${error.message}`);
-        }
+        await sendPlatformMail(email, subject, text, "Magic link");
       },
     }),
   ],
 });
 
 /**
- * NOT YET CONFIGURED, and deliberately left out of this pass:
+ * Rate limiting is configured above and PROVED in
+ * scripts/verify-account-bootstrap.ts, which drives the real endpoints until
+ * one refuses. That is deliberate: this note previously said the rules were
+ * left out because a rate limit that silently does nothing looks like
+ * protection, and configuring one without exercising it would have made the
+ * comment true instead of fixing it.
  *
- *   - resend cooldown and rate limiting on the sign-in endpoint
- *   - generic responses that don't reveal whether an email has an account
- *
- * Both are requirements. Neither is guessed at here, because Better Auth's
- * rate-limit configuration is something to verify against the running
- * library rather than infer — and a rate limit that silently does nothing is
- * worse than one that isn't there, since it looks like protection.
+ * Still open, and not guessed at here: whether Better Auth's sign-in failure
+ * response distinguishes "no such account" from "wrong password". It must not,
+ * and the bootstrap proof asserts the two are indistinguishable rather than
+ * assuming the library's default is safe.
  */

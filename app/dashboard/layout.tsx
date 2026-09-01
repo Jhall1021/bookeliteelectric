@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import PortalChrome from "@/components/portal/PortalChrome";
-import { AmbiguousContractorError, resolveAdminContractor } from "@/lib/adminContext";
+import { AmbiguousContractorError, NoMembershipError, resolveAdminContractor } from "@/lib/adminContext";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -22,6 +22,12 @@ export default async function PortalLayout({ children }: { children: React.React
     ctx = await resolveAdminContractor();
   } catch (e) {
     if (e instanceof AmbiguousContractorError) redirect("/choose");
+    // SIGNED IN BUT BELONGING TO NOBODY IS NOT A SIGN-IN PROBLEM.
+    //
+    // This sent them back to a form they had just completed, with nothing
+    // saying why — the dead end that made a hand-written membership the only
+    // way to reach setup.
+    if (e instanceof NoMembershipError) redirect("/start");
     redirect("/sign-in");
   }
 

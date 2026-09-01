@@ -5,19 +5,24 @@ import { platformOrigin } from "@/lib/origins";
 const archivo = Archivo({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-archivo" });
 
 /**
- * Sign-in described as what it is — ADR-020.
+ * The shell for every account page — ADR-020.
  *
- * The title was "Price2Book" and the description "Online booking for
- * home-services contractors", inherited from the root layout. That describes
- * the homeowner's side of the product to the contractor signing in to run it,
- * and it undersells what they are signing in to.
+ * Was /sign-in's own layout. Sign-up, password reset and choosing a new
+ * password want the identical frame, and four copies of it is four places for
+ * it to drift.
  *
- * noindex because a sign-in form has nothing to offer a search result, and
+ * The title stays account-side rather than homeowner-side: the root layout
+ * describes booking to a homeowner, which undersells what a contractor is
+ * signing in to. It is deliberately not per-page — these pages are client
+ * components and cannot export their own metadata, and a shared honest title
+ * beats a server wrapper per page whose only job is a string.
+ *
+ * noindex because an account form has nothing to offer a search result, and
  * robots.ts disallows it too — belt and braces, since the two are read by
  * different crawlers in different orders.
  */
 export const metadata: Metadata = {
-  title: "Sign in — Price2Book",
+  title: "Your account — Price2Book",
   description:
     "Sign in to your Price2Book account to manage your services, pricing, Guided Pricing questions, availability and storefront.",
   robots: { index: false, follow: false },

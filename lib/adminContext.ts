@@ -77,10 +77,19 @@ export class AmbiguousContractorError extends Error {
 }
 
 /** The signed-in user, or null. Identity only — no authorization. */
-export async function currentUser(): Promise<{ id: string; email: string } | null> {
+export async function currentUser(): Promise<
+  { id: string; email: string; emailVerified: boolean } | null
+> {
   const session = await auth.api.getSession({ headers: headers() });
   if (!session?.user?.id) return null;
-  return { id: session.user.id, email: session.user.email };
+  // emailVerified travels with the user because creating a tenant depends on
+  // it, and re-reading the row at the call site would be a second source of
+  // truth for the same fact.
+  return {
+    id: session.user.id,
+    email: session.user.email,
+    emailVerified: session.user.emailVerified === true,
+  };
 }
 
 /**
