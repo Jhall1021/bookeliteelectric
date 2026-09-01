@@ -1,12 +1,46 @@
-import { HERO, NAV, SIGN_IN_PATH } from "./content";
+import Image from "next/image";
+import { HERO, NAV } from "./content";
 
-/** The Price2Book mark. Inline so the header never waits on a request. */
-export function Bolt({ className, stroke }: { className?: string; stroke: string }) {
+/**
+ * The Price2Book logo, as delivered by the designer.
+ *
+ * TWO PIECES, NOT ONE FILE. The brand lockup is icon + wordmark + the tagline
+ * "Your Pricing. Your schedule." At header size that tagline renders about
+ * seven pixels tall and turns to mush, and it would sit directly above an H1
+ * that says the same two sentences at 78px. So the header composes the icon
+ * and the wordmark itself and leaves the tagline to the hero, which is where
+ * the line actually does its work.
+ *
+ * The reverse pair is the same art with the navy remapped to the page's light
+ * ink, for the navy footer — a navy logo on a navy field is an invisible
+ * logo, and tinting it with CSS would flatten the green out of the check.
+ *
+ * These are raster. The vector pack in hand (AI/EPS/PDF) contains three
+ * earlier logo concepts, none of which is the revision that was approved, so
+ * the assets are cut from the delivered 5000px artwork at 4× and cropped
+ * tight. Swap in the vector when the designer sends the final one; nothing
+ * outside this file and public/marketing/ has to change.
+ */
+const MARK = { w: 575, h: 576 };
+const WORDMARK = { w: 1588, h: 244 };
+
+export function Logo({ reverse = false, className = "" }: { reverse?: boolean; className?: string }) {
+  const suffix = reverse ? "-reverse" : "";
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.9"
-         strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
-      <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
-    </svg>
+    <span className={`flex items-center ${className}`}>
+      <Image
+        src={`/marketing/price2book-mark${suffix}.png`}
+        alt="" aria-hidden="true"
+        width={MARK.w} height={MARK.h} priority
+        className="h-[26px] w-auto lg:h-[30px]"
+      />
+      <Image
+        src={`/marketing/price2book-wordmark${suffix}.png`}
+        alt="Price2Book"
+        width={WORDMARK.w} height={WORDMARK.h} priority
+        className="ml-2 h-[15px] w-auto lg:ml-2.5 lg:h-[17px]"
+      />
+    </span>
   );
 }
 
@@ -23,10 +57,9 @@ export function Bolt({ className, stroke }: { className?: string; stroke: string
 export function MarketingHeader({ signInHref }: { signInHref: string }) {
   return (
     <header className="border-b border-p2b-line">
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-6 px-5 py-4 lg:px-[88px] lg:py-6">
-        <a href="#top" className="flex items-center gap-2 text-p2b-ink">
-          <Bolt className="h-[19px] w-[19px] lg:h-[22px] lg:w-[22px]" stroke="#1B4B8F" />
-          <span className="text-base font-bold tracking-[-0.03em] lg:text-lg">Price2Book</span>
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-6 px-5 py-3.5 lg:px-[88px] lg:py-5">
+        <a href="#top" aria-label="Price2Book — home">
+          <Logo />
         </a>
 
         <nav className="hidden items-center gap-[30px] text-[15px] text-p2b-muted xl:flex">
@@ -62,10 +95,7 @@ export function MarketingFooter() {
   return (
     <footer className="border-t border-p2b-navy-hairline bg-p2b-navy-deep text-p2b-navy-muted">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-5 py-8 text-sm sm:flex-row sm:items-center sm:justify-between lg:px-[88px] lg:py-[38px]">
-        <div className="flex items-center gap-2.5">
-          <Bolt className="h-4 w-4" stroke="#7E8EA6" />
-          <span>Price2Book</span>
-        </div>
+        <Logo reverse />
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
           {/* A real, monitored address — the same one that sends sign-in
               links — rather than a form as the only way to reach anyone. */}

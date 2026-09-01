@@ -21,14 +21,15 @@ export default function Image() {
           fontFamily: "Helvetica, Arial, sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#1B4B8F"
-               strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />
-          </svg>
-          <div style={{ fontSize: 34, fontWeight: 700, color: "#14181F", letterSpacing: "-0.03em" }}>
-            Price2Book
-          </div>
+        {/* The wordmark, in the brand's own colors — navy with a green "2".
+            Set as text rather than as the delivered artwork because this
+            renders on the edge, where the only ways to place a PNG are a
+            base64 blob checked into the source or a network fetch that can
+            fail and take the whole card with it. */}
+        <div style={{ display: "flex", alignItems: "baseline", fontSize: 38, fontWeight: 700, letterSpacing: "-0.03em" }}>
+          <div style={{ color: "#003091" }}>Price</div>
+          <div style={{ color: "#3AB54A" }}>2</div>
+          <div style={{ color: "#003091" }}>Book</div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column" }}>
@@ -39,7 +40,7 @@ export default function Image() {
             Your schedule.
           </div>
           <div style={{ marginTop: 28, fontSize: 30, color: "#57534A", lineHeight: 1.35, maxWidth: 900 }}>
-            Upfront prices and real availability for residential service contractors — without
+            Add upfront prices and real availability to the website you already have — without
             replacing the software you already use.
           </div>
         </div>

@@ -7,9 +7,21 @@
  * cannot be checked. `scripts/verify-marketing-homepage.ts` asserts against
  * this module directly.
  *
- * Source of truth: docs/marketing/homepage-handoff-2026-08-28.docx (copy) and
- * docs/marketing/homepage-design/ (the design it was approved in). Where the
- * two disagree the handoff wins — that is stated in docs/marketing/POSITIONING.md.
+ * Source of truth: docs/marketing/homepage-handoff-2026-08-28.docx (copy),
+ * docs/marketing/homepage-design/ (the design it was approved in), and the
+ * 31 August 2026 shortening pass recorded in docs/marketing/POSITIONING.md.
+ * Where they disagree the most recent owner direction wins.
+ *
+ * THE SHORTENING PASS CHANGED WHAT THIS PAGE ARGUES, NOT ONLY HOW LONG IT IS.
+ *
+ * The page used to prove contractor control six separate times — what can be
+ * priced, what can be booked, labor and materials, Guided Pricing, the
+ * boundary, the operating modes — and each proof was true. Said once, the
+ * claim lands; said six times it reads as a page that does not trust itself.
+ * Everything about control now lives in ONE section, and the room that bought
+ * went to the thing the page never said at all: the contractor keeps their
+ * own website, and the pricing page they get can be used everywhere they
+ * already market.
  */
 
 /** Where the "Sign In" affordance points. Deliberately not a marketing link. */
@@ -18,104 +30,285 @@ export const SIGN_IN_PATH = "/sign-in";
 export const HERO = {
   eyebrow: "For residential service contractors",
   headline: ["Your pricing.", "Your schedule."],
+  // Was "Turn homeowner requests into safely priced, bookable work." That
+  // described the product without saying where it lives, which is the first
+  // question a contractor with a website actually has.
   body:
-    "Turn homeowner requests into safely priced, bookable work. Customers describe what they need, answer the questions that affect scope, and see your approved price and real availability — without replacing the software you already use.",
+    "Add Price2Book to the website you already have. Homeowners answer a few questions, see your approved price when the work qualifies, and book from your availability — without replacing the software you already use.",
   primaryCta: "Request Early Access",
-  // Was "See the Homeowner Experience", which scrolled to four written steps.
-  // A description of an experience is not one. It now runs the real flow.
   secondaryCta: "Try the Homeowner Demo",
   support: "Works alongside your existing business software.",
   supportEmphasis: "No new CRM required.",
-  // "Proven first in electrical" contradicted the proof section further down,
-  // which says plainly that there are no pilot results yet. This says where
-  // the product was built without implying results we do not have.
   footnote: "Built for residential service contractors. Built first with a working residential electrical contractor.",
 } as const;
 
 /**
- * The hero's contractor-side card: what you set, beside what they see.
+ * The website line, and the one piece of it that has not shipped.
  *
- * Labeled an EXAMPLE on the page. These are plausible figures for a
- * demonstration business, and an unlabeled price in a hero reads as a price
- * the platform sets — which is the opposite of what the section is claiming.
+ * The whole page now points at contractor.com/pricing, and the embed that
+ * puts Price2Book inside that page is a core release item being built — not
+ * something a contractor can install today. docs/design/embed-v1.md carries
+ * status "proposed". So the page shows the destination and says plainly which
+ * half of it is not there yet, rather than letting a mock-up imply a working
+ * snippet.
  */
-export const HERO_CONTROL = [
-  { k: "Published Price", v: "$375", tone: "ink" },
-  { k: "While We’re There™", v: "+$250", tone: "green" },
-  { k: "Prep Photos", v: "Required", tone: "ink" },
-  { k: "Booking", v: "Enabled", tone: "green" },
-] as const;
+export const EMBED_STATUS = {
+  label: "In build for V1",
+  line:
+    "Embedding Price2Book into your own page is a V1 release item and is being built now. Every contractor also gets a hosted Price2Book page, which is what a contractor without a website uses.",
+} as const;
+
+/** The URL the hero, and the whole page, holds up as the normal one. */
+export const CUSTOMER_URL = "yourcompany.com/pricing";
+
+/** The service the hero prices, and the one the demonstration actually runs. */
+export const HERO_SERVICE = "New 120V Outlet";
+
+/**
+ * While We're There™ — the section, not the slogan.
+ *
+ * The hero used to carry a "Contractor · what you set" card with a bare
+ * "While We're There™ +$95" row on it, which named a price for an addition
+ * nobody had named. That card has moved here, where the mechanic it is an
+ * example OF is actually explained, and it now shows both halves: the job the
+ * homeowner booked, and the separate same-visit price the contractor set on
+ * the work being offered alongside it.
+ *
+ * EVERY CLAIM BELOW IS THE CODE'S, NOT A COPYWRITER'S. See lib/sameVisit.ts
+ * and lib/visitPrimary.ts:
+ *
+ *   two prices        a service carries basePrice and whileWeThereBasePrice,
+ *                     and the second one is nullable
+ *   never unconditional   a service with no same-visit price cannot be
+ *                     demoted, so it can only ever be the main job
+ *   checked first     canPlaceAlongside asks selectPrimary whether the
+ *                     addition fits BEFORE the offer is shown, so the 0.7% of
+ *                     pairs Elite cannot place never reach a homeowner as a
+ *                     refusal
+ *
+ * That last one is the part a competitor cannot fake, and the page had been
+ * spending its While We're There™ words on "one trip, more done" instead.
+ */
+export const WWT = {
+  eyebrow: "While We’re There™",
+  headline: ["One trip.", "More done."],
+  lead:
+    "Once a homeowner has booked their main job, Price2Book can offer more work at the price that applies when a technician is already coming.",
+  mechanic: [
+    {
+      t: "It is a second price you set",
+      b: "A service carries two: what it costs as its own visit, and what it costs added to one already happening. Replacing a GFCI outlet is $185 on its own and $115 while a technician is there — both are numbers you set.",
+    },
+    {
+      t: "It is not a discount",
+      b: "The same-visit price reflects the incremental labor and materials once the trip and the setup are already covered — not a percentage off.",
+    },
+    {
+      t: "Nothing is offered unless you set one",
+      b: "A service with no same-visit price is only ever the main job on a visit. You choose which work is worth offering this way, and which is not.",
+    },
+    {
+      t: "And only when it actually fits",
+      b: "Price2Book checks the addition against the visit before offering it, so a homeowner is never shown something that cannot be done on the same trip.",
+    },
+  ],
+  forHomeowner: "Get more done in one trip, at a price that reflects the trip already being covered.",
+  forContractor: "Make a visit you are already sending a technician to worth more.",
+} as const;
+
+/**
+ * The worked example, in both directions: what the contractor set, and what
+ * the homeowner is shown.
+ *
+ * Labeled an EXAMPLE on the page. Both figures are the demonstration
+ * contractor's own, produced by the pricing engine and carried in
+ * demoFlow.ts — $280 for the outlet, $115 as the same-visit price for the
+ * GFCI swap. The homepage and the live demonstration two sections above it
+ * therefore cannot disagree, and verify-marketing-homepage.ts asserts they do
+ * not.
+ */
+/**
+ * The example, and why it is built the way it is.
+ *
+ * THE TWO PRICES ARE THE WHOLE POINT. A same-visit price is meaningless shown
+ * on its own — "+$115" is just an add-on price, and the page spent a revision
+ * asserting a mechanic it never actually showed. The GFCI swap therefore
+ * carries BOTH of its prices everywhere it appears: $185 as its own visit,
+ * $115 added to a visit already happening. That pair is the product's data
+ * model exactly — `basePrice` and `whileWeThereBasePrice` on a service.
+ *
+ * IT MIRRORS THE REAL STOREFRONT, it does not invent a presentation. A
+ * category page already renders the same-visit figure in the positive color
+ * with the standalone price struck through beneath it and the words "while
+ * we're there" — see app/[site]/services/[category]/page.tsx. The homeowner
+ * card below is that treatment, not a marketing flourish.
+ *
+ * THE NUMBERS. $280 for the outlet and $115 for the same-visit GFCI swap are
+ * the demonstration contractor's real figures, produced by the engine and
+ * carried in demoFlow.ts — so the live demo further up this page and this card
+ * cannot disagree about what Voltmark charges. $185 as the standalone GFCI
+ * price is the one illustrative figure here: the demo's add-on list carries
+ * only same-visit prices, and a second price is needed to show what a second
+ * price means. It is plausible for a swap that has to carry its own trip.
+ */
+export const WWT_EXAMPLE = {
+  primary: { name: "New 120V Outlet", price: "$280" },
+  addOn: { name: "Replace GFCI Outlet", price: "+$115", alone: "$185" },
+  total: "$395",
+  /** What the contractor set, service by service. */
+  set: [
+    {
+      service: "New 120V Outlet",
+      note: "The job they came for",
+      rows: [
+        { k: "Its own visit", v: "$280", tone: "ink" },
+        { k: "Same-visit price", v: "Not set", tone: "muted" },
+        { k: "Booking", v: "Enabled", tone: "green" },
+      ],
+    },
+    {
+      service: "Replace GFCI Outlet",
+      note: "Two prices — one service",
+      rows: [
+        { k: "Its own visit", v: "$185", tone: "ink" },
+        { k: "Same-visit price", v: "$115", tone: "green" },
+        // Not a second "Booking: Enabled" row. Repeating the first card's
+        // control teaches nothing; this one names the switch that decides
+        // whether the service is offered alongside another at all.
+        { k: "Offered alongside", v: "On", tone: "green" },
+      ],
+    },
+  ],
+  /**
+   * Read the card above across, not down: a service with no same-visit price
+   * can only ever be the job a visit is built around. That is the actual rule
+   * in lib/visitPrimary, and it is why the outlet's row says "Not set".
+   */
+  readAcross:
+    "A service with no same-visit price can only ever be the main job on a visit. The outlet is what the visit is for; the GFCI swap is what fits alongside it.",
+} as const;
 
 export const PILLARS = [
   {
     title: "Price Online",
     tone: "accent",
-    lead: "Turn the services you choose into guided upfront pricing.",
-    body: "Ask only the questions that affect scope, price, materials, access, safety or routing.",
+    lead: "Homeowners answer the questions that actually affect the job.",
+    body: "They see a price you approved when the work qualifies for one.",
   },
   {
     title: "Book Online",
     tone: "accent",
-    lead: "Offer appointment windows your crews can actually cover.",
-    body: "Availability can reflect hours, service area, eligible crews and job duration.",
+    lead: "Only offer appointments you are prepared to honor.",
+    body: "Availability reflects your hours, your crews and how long the job really takes.",
   },
   {
+    // "One trip. More done." is the approved While We're There™ brand line and
+    // survives the merge of that section into this strip.
     title: "While We’re There™",
     tone: "green",
-    lead: "Make additional same-visit work an easy yes.",
-    body: "Offer approved additional services at the price that applies once the technician is already there.",
+    lead: "One trip. More done.",
+    body: "Where you have set a same-visit price, eligible extra work can be added to a visit already coming.",
   },
 ] as const;
 
-export const STEPS = [
-  { n: "01", title: "Picks the work", body: "Customers browse or search for what they need — in their words, not trade terminology." },
-  { n: "02", title: "Answers a few questions", body: "Only the details that actually matter: ceiling height, existing power, access, quantity, materials, condition." },
-  { n: "03", title: "Sees a real price", body: "When the service fits an approved pricing path, the customer gets an actual price." },
-  { n: "04", title: "Books a window", body: "Only from availability you have opened." },
+/** The homeowner journey, as four words rather than four numbered cards. */
+export const JOURNEY = [
+  "Choose the work",
+  "Answer a few questions",
+  "See your price",
+  "Book",
 ] as const;
 
-export const WWT_ADDONS = [
-  { name: "Replace GFCI Outlet", price: "+$115" },
-  { name: "Install LED Dimmer", price: "+$130" },
-  { name: "Replace Exterior Light", price: "+$165" },
-] as const;
-
-export const GUIDED_PRICING_BULLETS = [
-  "Edit the questions.",
-  "Change the answers.",
-  "Choose what each answer does.",
-  "Build new pricing paths without rebuilding your website.",
-] as const;
-
-export const GUIDED_PRICING_TREE = [
-  {
-    q: "Is there already a fixture here?",
-    answers: [
-      { label: "Yes", action: "Continue", tone: "go" },
-      { label: "No", action: "Route to new-location pricing", tone: "neutral" },
-    ],
-  },
-  {
-    q: "How high is it?",
-    answers: [
-      { label: "12 ft or less", action: "Standard price", tone: "go" },
-      { label: "Over 12 ft", action: "Require photos / review", tone: "review" },
-    ],
-  },
-  {
-    q: "Normal ladder access?",
-    answers: [
-      { label: "Yes", action: "Price + book", tone: "go" },
-      { label: "No", action: "Review", tone: "review" },
-    ],
-  },
-] as const;
+/**
+ * What happens when a price cannot responsibly be produced.
+ *
+ * One sentence, where the page used to spend a section on routing. The four
+ * outcomes below are the same idea compressed to their labels: the point is
+ * that the contractor picks, not how the router works.
+ */
+export const JOURNEY_NOTE =
+  "If Price2Book can’t responsibly produce a price from the information available, it routes the job to the appropriate next step instead of guessing.";
 
 export const OUTCOMES = [
-  { tag: "Instant Price", tone: "go", title: "Clear scope. Price it and book it.", body: "Well-understood work goes straight through — price, window, done." },
-  { tag: "Prep Photos", tone: "accent", title: "Known price. Photos you need.", body: "The homeowner sees the price immediately and sends the photos you selected. “Help us come prepared.”" },
-  { tag: "Photo Review", tone: "review", title: "See it before releasing the price.", body: "Customer submits answers and photos. You review, issue the price, they approve and book." },
-  { tag: "Custom Quote", tone: "neutral", title: "Some work stays yours.", body: "Highly variable or complex services never receive an automatic price." },
+  { tag: "Instant Price", tone: "go", body: "Clear scope — price it and book it." },
+  { tag: "Prep Photos", tone: "accent", body: "Price now, with the photos you asked for." },
+  { tag: "Photo Review", tone: "review", body: "You see it before the price is released." },
+  { tag: "Custom Quote", tone: "neutral", body: "Some work never gets an automatic price." },
+] as const;
+
+/**
+ * "One pricing engine. Everywhere customers find you."
+ *
+ * The new section, and the reason the page could afford one: Price2Book is
+ * not another website for the contractor to maintain. It is a pricing and
+ * booking capability that attaches to a page they already own, and that page
+ * is a link they can put anywhere.
+ */
+export const EVERYWHERE = {
+  headline: "One pricing engine. Everywhere customers find you.",
+  body:
+    "Add Price2Book to your website, then use that same pricing page everywhere you market your business. One link, one QR code — not a second website to keep up to date.",
+  channels: [
+    "Your website",
+    "Instagram bio",
+    "Google Business Profile",
+    "Facebook",
+    "Text messages",
+    "Email signature",
+    "QR codes",
+    "Truck & yard signs",
+    "Invoices & postcards",
+  ],
+  /**
+   * Stated as direction, not availability. Service deep links exist inside
+   * the storefront today (queuedServiceHref), but nothing a contractor can
+   * paste into an Instagram ad ships yet, and the embed they would paste it
+   * into is itself unbuilt.
+   */
+  directionLabel: "Where this goes",
+  direction:
+    "Service-specific links are the next step: an EV charger ad or a QR code that opens straight into that service’s questions, its price and its booking.",
+} as const;
+
+/**
+ * Guided Pricing, shown rather than described.
+ *
+ * SOURCED FROM THE REAL TREE. Both questions below are the prompts the
+ * demonstration contractor's New 120V Outlet service actually asks — see
+ * demoFlow.ts, which is generated by walking that service and resolving every
+ * path through the engine. The page used to show an invented three-question
+ * tree that ended with "Normal ladder access?", which asks a homeowner to
+ * judge what normal is; these ask what they can see.
+ *
+ * Two questions, not the whole tree. The homepage has to prove the idea, not
+ * reproduce the service.
+ */
+export const GUIDED_PRICING_TREE = [
+  {
+    q: "What will you be plugging in?",
+    answers: [
+      { label: "Lamps, a TV, chargers", action: "Continue", tone: "go" },
+      { label: "A fridge or window AC", action: "Route to its own circuit", tone: "neutral" },
+      { label: "An electric vehicle", action: "Route to EV charger", tone: "neutral" },
+    ],
+  },
+  {
+    q: "Is there a basement or attic directly above or below?",
+    answers: [
+      { label: "Yes", action: "Price it", tone: "go" },
+      { label: "No", action: "Explain wall openings first", tone: "review" },
+    ],
+  },
+] as const;
+
+/** How a published price is arrived at, read left to right. */
+export const PRICE_CHAIN = [
+  "The services you turn on",
+  "Guided Pricing questions",
+  "Your labor, materials and policies",
+  "A suggested price",
+  "Your approval",
+  "The price a homeowner sees",
 ] as const;
 
 export const PRICE_BREAKDOWN = [
@@ -123,7 +316,6 @@ export const PRICE_BREAKDOWN = [
   { k: "Materials", v: "Your costs, itemized" },
   { k: "Direct Costs", v: "Permits, disposal, admin" },
   { k: "Minimum", v: "Your service-call floor" },
-  { k: "Scope Policy", v: "What this price does and does not cover" },
 ] as const;
 
 export const WINDOWS = [
@@ -168,146 +360,32 @@ export const FORBIDDEN_INTEGRATION_LABELS = [
   "Synced",
 ] as const;
 
-export const SHIPS_WITH_SERVICE = [
-  { t: "Common residential services", b: "The work homeowners actually call about" },
-  { t: "Guided Pricing questions", b: "The ones that change scope or price" },
-  { t: "Material roles", b: "What each job consumes, priced from your costs" },
-  { t: "Routing rules", b: "Which answers send a job to review instead of a price" },
-  { t: "The exceptions", b: "Situations that shouldn’t get an automatic price at all" },
-] as const;
+/**
+ * The boundary, in one sentence.
+ *
+ * This was a six-row table of "Price2Book handles" against "your existing
+ * systems keep handling", plus two operating-mode cards underneath. The
+ * distinction is the sharpest thing the product has and it does not need a
+ * table to land — POSITIONING.md asks for the line, not the inventory.
+ */
+export const BOUNDARY_LINE =
+  "Price2Book handles pricing, qualification, availability and booking. Your CRM, invoicing, dispatch, payroll and job costing stay exactly where they are.";
 
-export const SETUP_STAGES = [
-  { n: "01", title: "Tell us how you work", body: "Hours, service area, crew setup and scheduling preferences." },
-  { n: "02", title: "Tell us how you price", body: "Labor rate, minimums, material costs and a few familiar service examples." },
-  { n: "03", title: "Review what Price2Book built", body: "See your services, suggested prices and customer experience before anything goes live." },
-] as const;
-
+/** Setup, as a progression rather than a four-screen essay. */
 export const SETUP_PROGRESSION = [
-  "Start from the template",
+  "Start from the trade template",
   "Add your numbers",
   "Set your policies",
   "Review your prices",
   "Turn on what you want",
 ] as const;
 
-/**
- * What the pilot is measuring.
- *
- * This was "Proof, once there is proof", rendering six empty [ ] cards. The
- * honesty was right and the presentation was not: absent numbers in card
- * frames read as an unfinished page rather than as a deliberate refusal to
- * invent results.
- *
- * Same rule, different framing — these are stated as the objectives being
- * measured, which is true today, instead of as results that are missing.
- * POSITIONING.md still forbids inventing a number here, and the gate still
- * asserts none of these carries one.
- */
-export const PROOF_METRICS = [
-  "Fewer pricing calls",
-  "After-hours bookings",
-  "Office time saved",
-  "While We’re There™ attach rate",
-  "Average booked visit value",
-  "Online-price conversion",
-] as const;
-
 export const NAV = [
-  // Was "#how", the "Four steps" section. That section is gone because the
-  // demo does its job live, so the nav points at the demo instead.
   { label: "How It Works", href: "#demo" },
-  { label: "Guided Pricing", href: "#guided" },
   { label: "While We’re There™", href: "#wwt" },
+  { label: "Your Pricing Link", href: "#everywhere" },
+  { label: "Your Rules", href: "#rules" },
+  // "Early Access" was here and pointed at the same place as the filled
+  // button beside it. Two affordances for one action is not a nav.
   { label: "Integrations", href: "#integrations" },
-  // Was "Pricing", which jumped to the early-access form with no price
-  // anywhere on the page. That reads as evasion rather than as what it is —
-  // pricing is not settled yet. It becomes "Pricing" again when there is a
-  // pricing section to point at.
-  { label: "Early Access", href: "#access" },
-] as const;
-
-/**
- * What Price2Book handles, and what your existing systems keep handling.
- *
- * The sharpest thing this page can say is what the product is NOT. ADR-012
- * and POSITIONING.md both turn on it: "anyone looking to replace Jobber" is
- * explicitly not the buyer, and the fastest way to become ServiceTitan by
- * accident is to let the boundary go unstated on the marketing site.
- *
- * Paired rows, read across.
- */
-export const BOUNDARY: ReadonlyArray<{ ours: string; theirs: string }> = [
-  { ours: "Homeowner intent and service matching", theirs: "CRM and client records" },
-  { ours: "Trade-specific qualification", theirs: "Dispatch and technician management" },
-  { ours: "Contractor-approved pricing paths", theirs: "Invoicing and payment collection" },
-  { ours: "Bookable availability", theirs: "Payroll and accounting" },
-  { ours: "While We’re There™ additions", theirs: "Inventory and job costing" },
-  { ours: "Handoff of qualified booked work", theirs: "The rest of field-service operations" },
-];
-
-/** The two ways the product is meant to be run. */
-export const OPERATING_MODES = [
-  {
-    tag: "Add-on",
-    title: "In front of the platform you already run",
-    body:
-      "Price2Book handles pricing and booking; qualified work lands in Jobber or another field-service platform for dispatch and invoicing. Nothing about how you run the business changes.",
-  },
-  {
-    tag: "Standalone-light",
-    title: "For a contractor who doesn’t need a full CRM",
-    body:
-      "Use the branded storefront and the built-in Price2Book Scheduler on their own. No field-service platform to buy, and calendar integrations are on the way.",
-  },
-] as const;
-
-/**
- * The objections a contractor actually raises, answered.
- *
- * Every answer here is a claim about what the software does today, which puts
- * this file in the same class as the integration statuses: checked, not
- * drafted. Anything not yet true is stated as not yet true rather than
- * softened into sounding available.
- */
-export const FAQ = [
-  {
-    q: "Does this replace Jobber or ServiceTitan?",
-    a: "No, and it is not meant to. Price2Book is the pricing and booking layer in front of your business. Work booked through it is handed to the system you already run — the Jobber integration is live today, and other platforms are planned.",
-  },
-  {
-    q: "Can I use it without field-service software?",
-    a: "Yes. The Price2Book Scheduler is built in, so a contractor with no platform can take online bookings without buying one.",
-  },
-  {
-    q: "Do I have to publish every service?",
-    a: "No. You choose which services customers can see, which can be priced online, and which can be booked. Anything you don’t turn on stays off your storefront.",
-  },
-  {
-    q: "What happens when a job can’t safely be priced online?",
-    a: "It doesn’t get a price. You decide service by service whether an answer routes to prep photos, to review before the price is released, or to a custom quote you write yourself.",
-  },
-  {
-    q: "Can customers book outside my service area?",
-    a: "No. Checkout turns away any booking whose ZIP code isn’t in the area you selected. It fails closed — an area you haven’t configured takes no bookings at all rather than taking every booking.",
-  },
-  {
-    q: "Can someone book a job that won’t fit in the window?",
-    a: "No. Availability reflects how long the work actually takes, so a four-hour job is not offered when two hours remain in the day.",
-  },
-  {
-    q: "Whose prices and material costs does Price2Book use?",
-    a: "Yours. The electrical template carries trade structure — questions, material roles, routing — and no economics at all. You supply the rates, costs and policies, and a suggested price is only ever published when you approve it.",
-  },
-  {
-    q: "Can I use a hosted storefront if I don’t have a website?",
-    a: "Yes. Every contractor gets a hosted storefront carrying their own name, colors and company details, whether or not they have a site to connect it to.",
-  },
-  {
-    q: "Which trades are supported?",
-    a: "Residential electrical. The structure underneath is trade-agnostic, but electrical is what ships with real service definitions, questions and routing today.",
-  },
-  {
-    q: "What does setup involve?",
-    a: "A conversation, not a stack of blank forms. You answer questions about how you work and what you charge, Price2Book builds a starting catalog from the trade template, and you review the services, suggested prices and customer experience before any of it goes live.",
-  },
 ] as const;

@@ -1,5 +1,3 @@
-import type { ControlPanelShots } from "./ControlPanel";
-
 /**
  * Product screenshots used on the marketing site.
  *
@@ -13,61 +11,33 @@ import type { ControlPanelShots } from "./ControlPanel";
  *    addresses on these screens. A screenshot is a publication, and a
  *    published screenshot cannot be un-published.
  *
- * An entry is added only once the file exists. A missing entry renders as an
- * honest "coming soon" frame rather than a mock-up of a screen that does not
- * look like that yet.
+ * WHAT THE SHORTENING PASS REMOVED, AND WHY IT IS NOT A LOSS.
+ *
+ * The page carried a storefront hero shot and an eight-module screenshot
+ * gallery. Both are gone. The gallery was proving "everything your customer
+ * sees traces back to something you control" a third time, after the hero and
+ * the live demonstration had already made it. The storefront shot had a
+ * second problem the owner named: it showed the TV & Media category, where a
+ * card reading "Full-Motion Articulating Mount — From $450" makes a visitor
+ * stop and argue about one contractor's price instead of reading the page.
+ *
+ * Replacing that shot needs a demonstration tenant in the database, which
+ * this marketing workstream does not create. It is listed as a follow-up
+ * rather than faked from a real tenant's storefront.
+ *
+ * Other captured screens stay in public/marketing/ unreferenced, so a future
+ * section can use one without a new capture run.
  */
-const shot = (file: string, alt: string, h: number) => ({
-  src: `/marketing/${file}.png`,
-  alt,
+export type Shot = { src: string; alt: string; w: number; h: number };
+
+export const SHOTS: Record<string, Shot | null> = {
   // Captured at 1440 CSS px with deviceScaleFactor 2 by
   // scripts/capture-marketing-shots.ts. Stating the intrinsic size here is
   // what lets next/image reserve the space, so the page does not reflow.
-  w: 2080,
-  h,
-});
-
-export const SHOTS: ControlPanelShots = {
-  storefront: {
-    src: "/marketing/storefront.png",
-    alt: "A contractor’s storefront listing TV and media services with upfront prices",
-    w: 2880,
-    h: 1520,
-  },
-  modules: {
-    "Services & Pricing": shot(
-      "services-pricing",
-      "The Services & Pricing screen, listing a contractor’s services and what is priced",
-      1240,
-    ),
-    "Guided Pricing": shot(
-      "guided-pricing",
-      "The Guided Pricing editor, showing a question, its answers and what each answer does",
-      1240,
-    ),
-    "Storefront Design": shot(
-      "storefront-design",
-      "The storefront design picker, previewing the contractor’s own storefront",
-      1240,
-    ),
-    "Hours & Availability": shot(
-      "hours-availability",
-      "The working-hours screen, where a contractor sets the days and times customers can book",
-      1240,
-    ),
-    "Service Area": shot(
-      "service-area",
-      "The service-area screen, showing the counties and ZIP codes a contractor travels to",
-      1240,
-    ),
-    Integrations: shot(
-      "integrations",
-      "The integrations screen, showing the Jobber connection",
-      1240,
-    ),
-    // Crew Eligibility and Photo Review are deliberately absent — see the
-    // notReady entries in scripts/capture-marketing-shots.ts. Both surfaces
-    // are empty without a connected Jobber account or real customer
-    // submissions, and neither may be faked to fill a slot.
+  guidedPricing: {
+    src: "/marketing/guided-pricing.png",
+    alt: "The Guided Pricing editor, showing a question, its answers and what each answer does",
+    w: 2080,
+    h: 1240,
   },
 };

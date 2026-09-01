@@ -152,31 +152,31 @@ export default function HomeownerDemo() {
   const asked = flow ? flow.steps.filter((s) => s.key in answers).length : 0;
 
   return (
-    <section id="demo" className="border-t border-p2b-line bg-p2b-canvas-alt py-16 lg:py-20">
+    <section id="demo" className="pb-14 pt-7 lg:pb-[72px] lg:pt-8">
       <div className="mx-auto max-w-[1440px] px-5 lg:px-[88px]">
-        <div className="grid gap-10 lg:grid-cols-12 lg:items-start">
+        <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
           <div className="lg:col-span-4">
-            <div className="mb-5 flex items-center gap-2.5">
+            <div className="mb-4 flex items-center gap-2.5">
               <div className="h-0.5 w-[26px] bg-p2b-accent" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent lg:text-xs">
                 Try it yourself
               </span>
             </div>
-            <h2 className="text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[40px]">
-              This is what your customer does.
-            </h2>
-            <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+            {/* The heading and the four-word journey moved up into
+                JourneyIntro when the page was shortened, so this rail carries
+                only what the visitor needs while they are using the thing. */}
+            <p className="text-[16px] leading-[1.6] text-p2b-ink-warm lg:text-[17px]">
               A real service from a demonstration contractor, with its real questions. The price and
               the decision to book or review come from the same engine that runs the product.
             </p>
-            <p className="mt-4 text-[15px] leading-[1.6] text-p2b-muted">
+            <p className="mt-3.5 text-[15px] leading-[1.6] text-p2b-muted">
               Answer honestly, or answer “I’m not sure” — the point is what happens differently.
               Nothing here books an appointment.
             </p>
             {/* Carried over from the "Four steps" section this replaced. It
                 lands harder next to a price being approved or withheld than
                 it did as a caption under four numbered cards. */}
-            <p className="mt-6 text-[15px] leading-[1.6] text-p2b-ink-warm lg:text-base">
+            <p className="mt-5 text-[15px] leading-[1.6] text-p2b-ink-warm lg:text-base">
               The price they see is a price <span className="font-semibold">you approved</span>. The
               window they choose is a window <span className="font-semibold">you opened</span>.
             </p>
