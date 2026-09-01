@@ -471,6 +471,7 @@ export type TradeStatus = "Available now" | "In build" | "Next";
 export const PRODUCT_PAGES: ReadonlyArray<{ name: string; href: string | null }> = [
   { name: "Guided Pricing", href: "/product/guided-pricing" },
   { name: "While We\u2019re There\u2122", href: "/product/while-were-there" },
+  { name: "Online Booking", href: "/product/online-booking" },
 ];
 
 export const TRADES: ReadonlyArray<{ name: string; status: TradeStatus; href: string | null }> = [

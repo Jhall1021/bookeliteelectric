@@ -370,6 +370,8 @@ async function main() {
       name: primaryRow.name,
       description: primaryRow.shortDescription,
       dto: await flowDto(PRIMARY),
+      /** What this job asks of the calendar, before anything is added to it. */
+      estimatedMinutes: primaryRow.estimatedMinutes,
       path: primaryWalk.shortest.path,
       priceCents: primaryWalk.shortest.priceCents,
       mayNotQualify: primaryWalk.mayNotQualify,
@@ -379,6 +381,7 @@ async function main() {
       name: addOnRow.name,
       description: addOnRow.shortDescription,
       dto: await flowDto(ADD_ON),
+      estimatedMinutes: addOnRow.estimatedMinutes,
       path: addOnWalk.shortest.path,
       /** What it costs as its own visit, and added to one already happening. */
       standaloneCents: addOnRow.basePrice,
@@ -390,7 +393,16 @@ async function main() {
     sameVisitExamples,
     /** How much of a real catalog carries a same-visit price at all. */
     sameVisitEligibility: eligibility,
-    schedule: { hours, windows },
+    schedule: {
+      hours, windows,
+      /**
+       * The visit's total, summed the way app/[site]/checkout/schedule does:
+       * every line item on the visit, primary and same-visit alike. Carried
+       * here so the Online Booking page can show the arithmetic rather than
+       * assert that it happens.
+       */
+      visitMinutes: (primaryRow.estimatedMinutes ?? 0) + (addOnRow.estimatedMinutes ?? 0),
+    },
   });
 
   const body = `${JSON.stringify(snapshot, null, 2)} as const;\n`;

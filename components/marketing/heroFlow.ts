@@ -681,6 +681,7 @@ export const HERO_FLOW = {
         }
       ]
     },
+    "estimatedMinutes": 60,
     "path": [
       {
         "questionKey": "outlet_load_type",
@@ -962,6 +963,7 @@ export const HERO_FLOW = {
         }
       ]
     },
+    "estimatedMinutes": 20,
     "path": [
       {
         "questionKey": "device_replacement_reason",
@@ -1065,6 +1067,7 @@ export const HERO_FLOW = {
         "start": "2:00 PM",
         "end": "4:30 PM"
       }
-    ]
+    ],
+    "visitMinutes": 80
   }
 } as const;
