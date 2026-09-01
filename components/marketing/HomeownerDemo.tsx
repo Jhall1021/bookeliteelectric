@@ -94,6 +94,8 @@ export default function HomeownerDemo() {
   /** What the customer answered before being rerouted, so the demo can say so. */
   const [handoff, setHandoff] = useState<{ from: string; to: string; carried: number } | null>(null);
   const [added, setAdded] = useState<string[]>([]);
+  /** Whether the visitor asked what else carries a same-visit price. */
+  const [browsedAll, setBrowsedAll] = useState(false);
   const [window_, setWindow] = useState<string | null>(null);
 
   const flow = FLOWS[flowKey];
@@ -145,6 +147,7 @@ export default function HomeownerDemo() {
     setStepKey(FLOWS[first]?.steps[0]?.key ?? "");
     setHandoff(null);
     setAdded([]);
+    setBrowsedAll(false);
     setWindow(null);
     setStage("search");
   }
@@ -355,8 +358,14 @@ export default function HomeownerDemo() {
                       While We’re There™
                     </div>
                     <h3 className="mt-3 text-[21px] font-semibold">Since we’re already coming out</h3>
+                    {/* "Quick picks", because that is what the real surface
+                        calls them — app/[site]/my-visit/page.tsx shows a short
+                        suggested list and a link to the rest. Three items with
+                        no way past them read as the whole of While We're
+                        There™, which undersells it badly. */}
                     <p className="mt-2 text-[15px] text-p2b-muted">
-                      The contractor approved these at a same-visit price. Adding one is optional.
+                      A few quick picks the contractor approved at a same-visit price. Adding one is
+                      optional.
                     </p>
                     <div className="mt-4 divide-y divide-p2b-line-soft border-y border-p2b-line-soft">
                       {DEMO_FLOW.addOns.map((a) => {
@@ -381,6 +390,30 @@ export default function HomeownerDemo() {
                         );
                       })}
                     </div>
+                    {/* The real storefront's own affordance, in its own words
+                        — "Browse all services →" opens the full catalog by
+                        category, and anything the contractor has priced for a
+                        same visit shows that price there. The demonstration
+                        carries three services and no catalog, so the link says
+                        what would happen rather than pretending to do it. */}
+                    <div className="mt-3.5">
+                      <button
+                        onClick={() => setBrowsedAll(true)}
+                        className="text-[14px] font-semibold text-p2b-accent hover:text-p2b-accent-hover"
+                      >
+                        Browse all services <span aria-hidden="true">→</span>
+                      </button>
+                      {browsedAll && (
+                        <p className="mt-2 text-[14px] leading-[1.55] text-p2b-muted">
+                          On a real storefront this opens {DEMO_FLOW.contractor}&rsquo;s whole catalog
+                          by category, and every service they have set a same-visit price on shows it
+                          there — same-visit pricing isn&rsquo;t limited to the few above. This
+                          demonstration carries {DEMO_FLOW.addOns.length} services and no catalog to
+                          open.
+                        </p>
+                      )}
+                    </div>
+
                     <div className="mt-4 flex items-baseline justify-between">
                       <span className="text-[15px] font-semibold">Visit total</span>
                       <span className="text-2xl font-bold">{money(total)}</span>

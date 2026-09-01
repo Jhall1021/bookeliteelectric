@@ -111,6 +111,12 @@ type Chosen = { questionKey: string; prompt: string; helpText: string | null; op
 async function main() {
   assertReadOnly();
   const checking = process.argv.includes("--check");
+  /**
+   * Read-only lookup, so choosing a marketing example is a question asked of
+   * the catalog rather than guessed from a seed file. Prints both prices and
+   * the ratio between them, because the ratio is what a reader judges.
+   */
+  const finding = arg("find");
   console.log(`\nHERO FLOW — ${checking ? "checking against" : "capturing from"} ${FROM}\n`);
 
   const contractor = await prisma.contractor.findUnique({
@@ -124,6 +130,48 @@ async function main() {
     select: { publicId: true, hostedSlug: true },
   });
   if (!site) throw new Error(`${FROM} has no site row, so the storefront API cannot be asked for its flow`);
+
+  /**
+   * The rates the captured prices were built from — read, never written.
+   *
+   * The marketing page has twice now run into a price whose RATIO looked
+   * wrong, and the ratio is a consequence of these two numbers plus how much
+   * of a job is trip versus labor. Printing them turns "the prices look off"
+   * into a question that can be answered with the contractor's own inputs.
+   */
+  if (process.argv.includes("--rates")) {
+    const ps = await prisma.pricingSettings.findUnique({ where: { contractorId: contractor.id } });
+    console.log(`  ${FROM} pricing settings:\n`);
+    for (const [k, v] of Object.entries(ps ?? {})) {
+      if (typeof v === "number" && /Cents$/.test(k)) console.log(`  ${k.padEnd(34)} $${v / 100}`);
+      else if (typeof v === "number" || typeof v === "boolean") console.log(`  ${k.padEnd(34)} ${v}`);
+    }
+    console.log();
+    await prisma.$disconnect();
+    return;
+  }
+
+  if (finding) {
+    const rows = await prisma.service.findMany({
+      where: { contractorId: contractor.id, active: true,
+               name: { contains: finding, mode: "insensitive" } },
+      select: { slug: true, name: true, basePrice: true, whileWeThereBasePrice: true,
+                fieldLaborHours: true, estimatedMinutes: true },
+      orderBy: { name: "asc" },
+    });
+    console.log(`  ${rows.length} active service(s) matching "${finding}" on ${FROM}\n`);
+    for (const r of rows) {
+      const pair = r.basePrice !== null && r.whileWeThereBasePrice !== null
+        ? `$${r.basePrice / 100} alone · $${r.whileWeThereBasePrice / 100} same-visit ` +
+          `(${Math.round((r.whileWeThereBasePrice / r.basePrice) * 100)}%)`
+        : r.whileWeThereBasePrice === null ? "no same-visit price — cannot be offered alongside" : "no standalone price";
+      const hrs = r.fieldLaborHours !== null && r.fieldLaborHours !== undefined ? `${r.fieldLaborHours}h crew` : `${r.estimatedMinutes}min`;
+      console.log(`  ${r.slug.padEnd(30)} ${hrs.padEnd(10)} ${pair}`);
+    }
+    console.log();
+    await prisma.$disconnect();
+    return;
+  }
 
   const settings = await loadPricingSettings(prisma as any, contractor.id);
   if (!settings) throw new Error(`${FROM} has no pricing settings`);
