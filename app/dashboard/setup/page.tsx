@@ -4,6 +4,7 @@ import { categoryName, requireContractorCategory } from "@/lib/categories";
 import ServiceSelectionList from "@/components/admin/ServiceSelectionList";
 import SchedulingAuthorityControl from "./SchedulingAuthorityControl";
 import NativeCapacityControl from "./NativeCapacityControl";
+import EmbedOriginsControl from "./EmbedOriginsControl";
 import BusinessPanel from "./BusinessPanel";
 import StageRail from "./StageRail";
 import TradePanel from "./TradePanel";
@@ -64,7 +65,7 @@ export default async function SetupPage({
     });
     const site = await db.contractorSite.findFirst({
       where: { contractorId: ctx.contractorId, active: true },
-      select: { hostedSlug: true },
+      select: { hostedSlug: true, publicId: true, embedOrigins: true },
     });
 
     const stageMeta = r.stages.map((s) => ({
@@ -355,6 +356,14 @@ export default async function SetupPage({
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
                 />
               </div>
+            )}
+
+            {/* The embed is the recommended way to use Price2Book, and until
+                now a contractor could not switch it on without an API call.
+                It sits with the storefront address because that is where the
+                question "where do my customers find this" is answered. */}
+            {current === "business" && site && (
+              <EmbedOriginsControl origins={site.embedOrigins} publicId={site.publicId} />
             )}
 
             {stage.key === "scheduling" && (

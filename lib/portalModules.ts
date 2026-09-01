@@ -58,13 +58,17 @@ export const PORTAL_MODULES: PortalModule[] = [
     blurb: "How your services are grouped for a homeowner browsing them." },
   { href: "/dashboard/pricing-settings", name: "Your Rates", group: "pricing",
     blurb: "Labor rate, minimums and material markup. Price2Book can suggest; you approve." },
+  { href: "/dashboard/policies", name: "Your Pricing Policies", group: "pricing",
+    blurb: "The judgment calls that are yours — the heights and distances where the work changes, and who supplies what." },
+  { href: "/dashboard/billing", name: "Tax & Deposits", group: "pricing",
+    blurb: "Whether you charge sales tax and at what rate, and which jobs need a deposit before you book them." },
   { href: "/dashboard/estimates", name: "Estimated Hours", group: "pricing",
     blurb: "How long each job usually takes, and how much that varies. Only used if you bill time and materials." },
 
   { href: "/dashboard/business-hours", name: "Hours & Availability", group: "availability",
     blurb: "When you take work, and the arrival windows a homeowner can pick." },
   { href: "/dashboard/service-area", name: "Service Area", group: "availability",
-    blurb: "The postcodes you serve, checked before anyone can book." },
+    blurb: "The ZIP codes you serve, checked before anyone can book." },
   { href: "/dashboard/jobber/crews", name: "Crew Eligibility", group: "availability",
     blurb: "Which crews can take which work." },
 
