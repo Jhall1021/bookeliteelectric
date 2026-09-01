@@ -145,7 +145,7 @@ export function templateVersionSource(
               options: {
                 orderBy: { order: "asc" },
                 include: {
-                  components: true, disclaimers: true, photoGroups: true,
+                  components: true, materials: true, disclaimers: true, photoGroups: true,
                   templatePolicyDefinition: true,
                 },
               },
@@ -440,6 +440,7 @@ export async function installCatalog(
               components: { canonicalComponentId: string; quantity: number;
                 conditionAnswerKey: string | null; conditionAnswerValue: string | null }[];
               disclaimers: { canonicalDisclaimerId: string }[];
+              materials: { canonicalMaterialId: string; quantity: number; order: number }[];
               photoGroups: { photoGroupId: string }[];
             };
 
@@ -492,6 +493,31 @@ export async function installCatalog(
                   answerOptionId: ao.id, canonicalComponentId: c.canonicalComponentId,
                   quantity: c.quantity, conditionAnswerKey: c.conditionAnswerKey,
                   conditionAnswerValue: c.conditionAnswerValue,
+                },
+              });
+            }
+
+            /**
+             * Branch material — ALWAYS linked, priced or not.
+             *
+             * Deliberately unlike the component and ServiceMaterial rules
+             * above, which skip what the contractor has not costed. Those feed
+             * a TOTAL, and a row with no cost would break the sum, so an
+             * uncosted role goes to unresolvedMaterialKeys instead.
+             *
+             * AnswerOptionMaterial feeds no total. It is structure — this
+             * branch consumes this role — and the cost is looked up at
+             * activation. Skipping the unpriced ones would delete the only
+             * evidence the branch needs anything, which is precisely the
+             * invisibility this primitive was added to end.
+             */
+            for (const m of o.materials) {
+              await t.answerOptionMaterial.create({
+                data: {
+                  answerOptionId: ao.id,
+                  canonicalMaterialId: m.canonicalMaterialId,
+                  quantity: m.quantity,
+                  order: m.order,
                 },
               });
             }

@@ -141,6 +141,10 @@ export const PLATFORM_MODELS = new Set<string>([
   "TemplateAnswerOption",
   "TemplateServiceMaterial",
   "TemplateAnswerOptionComponent",
+  /// The template half of the branch-material primitive. Trade knowledge —
+  /// which role a physical branch consumes — carrying no money and no
+  /// contractor, exactly like TemplateServiceMaterial beside it.
+  "TemplateAnswerOptionMaterial",
   "TemplateAnswerOptionDisclaimer",
   "TemplateAnswerOptionPhotoGroup",
   "Contractor",
@@ -298,6 +302,9 @@ export const DERIVED_TENANT_MODELS = new Map<string, readonly string[]>([
   ["AnswerOption", ["question", "service"]],
   ["QuestionDisclaimer", ["question", "service"]],
   ["AnswerOptionComponent", ["answerOption", "question", "service"]],
+  /// Same owner path as the component join it mirrors: a branch material has
+  /// no contractorId of its own and takes one from the tree it hangs in.
+  ["AnswerOptionMaterial", ["answerOption", "question", "service"]],
   ["AnswerOptionPhotoGroup", ["answerOption", "question", "service"]],
   ["AnswerOptionDisclaimer", ["answerOption", "question", "service"]],
   /// PASS THREE, 27 August. The booking flow's derived models.

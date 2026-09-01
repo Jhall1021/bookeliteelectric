@@ -215,3 +215,138 @@ export function describeMissing(missing: RequiredRole[]): string {
     `and ${names.length - 3} more`
   );
 }
+
+// ---------------------------------------------------------------------------
+// ACTIVATION READINESS — the union over reachable priceable paths
+// ---------------------------------------------------------------------------
+
+/**
+ * Every material role a service could consume on some priceable route.
+ *
+ * WHY THIS IS A SECOND FUNCTION AND NOT A WIDER requiredRolesFor()
+ *
+ * The note above anticipated widening the one place that decides "required".
+ * That was right about the reachable-paths logic and wrong about the location,
+ * for a reason that only shows up once branch material exists:
+ * requiredRolesFor() also feeds the material TOTAL, via assessMaterialReadiness
+ * into Service.materialCostCents. Widening it would add copper fittings AND PEX
+ * rings to the same job's cost, and no job consumes both.
+ *
+ * So the two questions are separated, because they are genuinely different:
+ *
+ *   CONSUMPTION  what this job uses    -> requiredRolesFor, drives the total
+ *   ACTIVATION   what the contractor   -> here, drives the blocker and nothing
+ *                must have configured     else
+ *
+ * A copper job never acquires PEX material merely because activation required
+ * the contractor to configure both possibilities.
+ *
+ * OPEN SHARED-PLATFORM QUESTION, RECORDED RATHER THAN SOLVED HERE
+ *
+ * This gates the transition INTO active. It says nothing about a service that
+ * is already live when a required cost is later removed — a contractor
+ * deleting a ContractorMaterial row, a template update introducing a role, a
+ * bad import. Runtime still fails closed in that case (routeResolver returns
+ * REVIEW rather than quoting), so no wrong price reaches a homeowner; what is
+ * absent is anything telling the contractor their live service has started
+ * silently sending customers to review.
+ *
+ * That is consistent with how every other activation rule behaves today —
+ * activationRefusal returns null immediately for an active service, by design —
+ * so it is not a regression this function introduced. It applies to every
+ * trade and every blocker, not just materials, and deciding it opportunistically
+ * inside a plumbing amendment would be the wrong place. Left for a deliberate
+ * platform decision about whether live services need continuous readiness.
+ *
+ * WHAT COUNTS AS REACHABLE AND PRICEABLE
+ *
+ * An option contributes when a homeowner could reach a PRICE through it:
+ * CONTINUE and the two RESOLVEs always, and PHOTO_REVIEW only when the photos
+ * do not block booking — that is the case where the price is already locked and
+ * the photographs are preparation for the technician.
+ *
+ * Review, quote and safety branches contribute nothing. A contractor should not
+ * have to cost the materials of a route that always ends with a person looking
+ * at it, and requiring that would block activation on work nobody quotes.
+ */
+const PRICEABLE_ACTIONS = ["CONTINUE", "RESOLVE_INSTANT", "RESOLVE_ADJUSTED"] as const;
+
+export async function activationMaterialRoles(
+  db: Db,
+  serviceId: string
+): Promise<RequiredRole[]> {
+  const base = await requiredRolesFor(db, serviceId);
+  const byId = new Map<string, RequiredRole>();
+  for (const r of base) byId.set(r.canonicalMaterialId, r);
+
+  const options = await db.answerOption.findMany({
+    where: { question: { serviceId } },
+    select: {
+      routeAction: true,
+      photosBlockBooking: true,
+      materials: {
+        select: { quantity: true, canonicalMaterial: { select: { id: true, key: true, name: true } } },
+      },
+      components: {
+        select: {
+          canonicalComponent: {
+            select: {
+              materials: {
+                select: { quantity: true, canonicalMaterial: { select: { id: true, key: true, name: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const priceable = (o: (typeof options)[number]) =>
+    (PRICEABLE_ACTIONS as readonly string[]).includes(String(o.routeAction)) ||
+    (String(o.routeAction) === "PHOTO_REVIEW" && o.photosBlockBooking === false);
+
+  for (const o of options) {
+    if (!priceable(o)) continue;
+
+    // Branch-selected base material — AnswerOption -> Material.
+    for (const m of o.materials) {
+      if (!m.canonicalMaterial) continue;
+      const { id, key, name } = m.canonicalMaterial;
+      if (!byId.has(id)) byId.set(id, { canonicalMaterialId: id, key, name, quantity: m.quantity });
+    }
+
+    // Material consumed by a component this branch selects.
+    for (const c of o.components) {
+      for (const m of c.canonicalComponent?.materials ?? []) {
+        const { id, key, name } = m.canonicalMaterial;
+        if (!byId.has(id)) byId.set(id, { canonicalMaterialId: id, key, name, quantity: m.quantity });
+      }
+    }
+  }
+
+  return [...byId.values()];
+}
+
+/**
+ * Can this service go live, as far as material economics are concerned?
+ *
+ * Presence only. It deliberately computes no total: a union across mutually
+ * exclusive branches is not the cost of any job, and returning one would invite
+ * a caller to use it as though it were.
+ */
+export async function assessActivationMaterialReadiness(
+  db: Db,
+  serviceId: string,
+  contractorId: string
+): Promise<{ ready: boolean; missing: RequiredRole[] }> {
+  const required = await activationMaterialRoles(db, serviceId);
+  if (required.length === 0) return { ready: true, missing: [] };
+
+  const costs = await contractorCostsFor(
+    db,
+    contractorId,
+    required.map((r) => r.canonicalMaterialId)
+  );
+  const missing = required.filter((r) => !costs.get(r.canonicalMaterialId));
+  return { ready: missing.length === 0, missing };
+}

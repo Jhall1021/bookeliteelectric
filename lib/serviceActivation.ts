@@ -15,6 +15,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { promiseFor } from "./onboardingReadiness";
 import { loadPricingSettings } from "./routeResolver";
+import { assessActivationMaterialReadiness } from "./materialResolution";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
@@ -84,6 +85,40 @@ export async function activationRefusal(
           ? `This service can't go live yet — no cost has been entered for ${keys.join(", ")}. ` +
             `Add those costs and try again.`
           : `This service can't go live yet — one of the materials it needs has no cost recorded.`,
+      unresolvedMaterialKeys: keys,
+    };
+  }
+
+  /**
+   * Branch and component material, checked before the storefront can offer a
+   * fixed price on a route that consumes it.
+   *
+   * The check above covers Service -> Material, which is what
+   * materialCostResolved tracks. It cannot see the other two shapes:
+   *
+   *   AnswerOption -> Material                 base material of a branch
+   *   AnswerOption -> Component -> Material    material a branch's component uses
+   *
+   * Both were invisible to activation until now — a contractor could take a
+   * service live with a copper branch whose fittings they had never costed, and
+   * only find out when every copper customer silently fell through to review.
+   * Route resolution already refused to quote those (REVIEW on
+   * awaitingComponentMaterialCost), so no wrong price ever reached a homeowner;
+   * what was missing was telling the CONTRACTOR before they launched.
+   * Activation is the proactive guard; route resolution stays the runtime net.
+   *
+   * Reported as MATERIALS_UNRESOLVED because it is the same problem with the
+   * same fix — enter the cost — and a second code would be two names for one
+   * thing.
+   */
+  const branchMaterials = await assessActivationMaterialReadiness(db, serviceId, contractorId);
+  if (!branchMaterials.ready) {
+    const keys = branchMaterials.missing.map((m) => m.key);
+    return {
+      code: "MATERIALS_UNRESOLVED",
+      message:
+        `This service can't go live yet — a route a homeowner can reach consumes ` +
+        `${keys.join(", ")}, and no cost has been entered for ${keys.length === 1 ? "it" : "them"}.`,
       unresolvedMaterialKeys: keys,
     };
   }

@@ -470,13 +470,13 @@ model Contractor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contractorMaterials   ContractorMaterial[]
-  services              Service[]
-  pricingSettings       PricingSettings?
+  contractorMaterials    ContractorMaterial[]
+  services               Service[]
+  pricingSettings        PricingSettings?
   pricingSettingsChanges PricingSettingsChange[]
-  businessHours         BusinessHours?
-  materialSettings      ContractorMaterialSettings?
-  jobberConnection      JobberConnection?
+  businessHours          BusinessHours?
+  materialSettings       ContractorMaterialSettings?
+  jobberConnection       JobberConnection?
 
   /// STRIPE CONNECT — the contractor's own payment account.
   ///
@@ -513,24 +513,24 @@ model Contractor {
   /// separately from the capability because "the capability is pending" and
   /// "Stripe is waiting on a document" are different conversations to have
   /// with a contractor.
-  stripeOnboardingBlocked Boolean @default(false)
+  stripeOnboardingBlocked  Boolean @default(false)
 
   /// When those three were last refreshed. Null means never asked, which is
   /// NOT ready — an unanswered question is not a yes.
   stripeReadinessCheckedAt DateTime?
-  serviceAreas          ServiceArea[]
-  contractorComponents  ContractorComponent[]
-  contractorCategories  ContractorCategory[]
-  contractorDisclaimers ContractorDisclaimer[]
-  sites                 ContractorSite[]
-  serviceQueries        ServiceQuery[]
-  memberships           ContractorMembership[]
-  invitations           ContractorInvitation[]
-  supportEvents         SupportAccessEvent[]
-  visits                Visit[]
-  customers             Customer[]
-  photos                Photo[]
-  jobberCrewMembers     JobberCrewMember[]
+  serviceAreas             ServiceArea[]
+  contractorComponents     ContractorComponent[]
+  contractorCategories     ContractorCategory[]
+  contractorDisclaimers    ContractorDisclaimer[]
+  sites                    ContractorSite[]
+  serviceQueries           ServiceQuery[]
+  memberships              ContractorMembership[]
+  invitations              ContractorInvitation[]
+  supportEvents            SupportAccessEvent[]
+  visits                   Visit[]
+  customers                Customer[]
+  photos                   Photo[]
+  jobberCrewMembers        JobberCrewMember[]
 
   /// ADR-014 — this contractor's answers to the template's policy questions.
   policyValues ContractorPolicyValue[]
@@ -601,8 +601,8 @@ model Contractor {
   /// Null means undeclared, which is a readiness blocker rather than a
   /// default — guessing wrong in either direction either fabricates capacity
   /// or refuses bookings a contractor could take.
-  onboarding          ContractorOnboarding?
-  trades              ContractorTrade[]
+  onboarding   ContractorOnboarding?
+  trades       ContractorTrade[]
 
   schedulingAuthority SchedulingAuthority?
 
@@ -663,7 +663,7 @@ model Contractor {
   /// disagree with the calendar.
   depositDurationThresholdMinutes Int?
 
-  countryCode  String?
+  countryCode String?
 
   /// Split so the number is never welded into a sentence: "NJ Electrical
   /// License" + "17272". A contractor in another state labels it differently.
@@ -726,10 +726,12 @@ model CanonicalMaterial {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contractorMaterials      ContractorMaterial[]
-  serviceMaterials         ServiceMaterial[]
-  componentMaterials       CanonicalComponentMaterial[]
-  templateServiceMaterials TemplateServiceMaterial[]
+  contractorMaterials           ContractorMaterial[]
+  serviceMaterials              ServiceMaterial[]
+  componentMaterials            CanonicalComponentMaterial[]
+  templateServiceMaterials      TemplateServiceMaterial[]
+  answerOptionMaterials         AnswerOptionMaterial[]
+  templateAnswerOptionMaterials TemplateAnswerOptionMaterial[]
 
   @@map("canonical_materials")
 }
@@ -1704,7 +1706,7 @@ model Service {
   /// Default false: a provisioned catalog is an offer of possibilities, not a
   /// set of commitments. Backfilled true for services already active, which
   /// are offered by demonstration.
-  offered              Boolean @default(false)
+  offered Boolean @default(false)
 
   requiresPreWorkVisit Boolean @default(false)
 
@@ -1715,7 +1717,7 @@ model Service {
   ///
   /// Null everywhere else, which keeps the existing wording for every service
   /// that has not been given one — this cannot change a button nobody set.
-  ctaLabel             String?
+  ctaLabel String?
 
   /// What the customer is told happens AFTER booking, for a service whose
   /// installation cannot be scheduled straight away. Per-service because the
@@ -1724,7 +1726,7 @@ model Service {
   ///
   /// Shown after the shared deposit sentence. Null means the service says
   /// nothing extra, which is correct for everything that books directly.
-  preWorkCustomerNote  String?
+  preWorkCustomerNote String?
 
   /// Contractor economics, not a platform constant. Elite's $249 is Elite's
   /// decision about two of their services; another contractor's number will
@@ -1737,15 +1739,15 @@ model Service {
   /// summing per-service figures charged a multi-service booking twice. Not
   /// read by the deposit path any more; kept until the contract step so a
   /// contractor's old figure is not silently destroyed.
-  depositCents         Int?
-  depositCreditsToJob  Boolean @default(true)
+  depositCents        Int?
+  depositCreditsToJob Boolean @default(true)
 
   /// What this service says about deposits. Default USE_COMPANY_POLICY.
-  depositRule          DepositRule @default(USE_COMPANY_POLICY)
+  depositRule DepositRule @default(USE_COMPANY_POLICY)
 
   /// How long the verification visit takes. Distinct from estimatedMinutes,
   /// which describes the INSTALLATION.
-  preWorkVisitMinutes  Int?
+  preWorkVisitMinutes Int?
 
   /// Whether installation may be scheduled before the pre-work visit has
   /// verified the scope. Default true: the point of the visit is that what
@@ -2076,6 +2078,7 @@ model AnswerOption {
 
   /// Named reusable components selected by this answer (§13-§14).
   components AnswerOptionComponent[]
+  materials  AnswerOptionMaterial[]
 
   /// Conditional text attached to this answer — rendered only when its
   /// condition holds. Supersedes accessFinishedDisclaimer, which stays for
@@ -2284,7 +2287,7 @@ model Booking {
   /// Defaults to LEGACY_UNTRACKED so a booking created without the payment
   /// system deliberately putting it somewhere is labeled truthfully rather
   /// than optimistically.
-  paymentState             PaymentState            @default(LEGACY_UNTRACKED)
+  paymentState PaymentState @default(LEGACY_UNTRACKED)
 
   /// The deposit this booking required, snapshotted from the services on the
   /// visit at checkout — never read live from Service, so a later change to a
@@ -2298,7 +2301,7 @@ model Booking {
   ///
   /// Blurring the two would turn 24 historical unknowns into 24 assertions
   /// that no deposit was required, which is a claim nobody made.
-  depositDueCents          Int?
+  depositDueCents Int?
 
   /// ── THE TAX SNAPSHOT ───────────────────────────────────────────────────
   ///
@@ -2309,13 +2312,13 @@ model Booking {
   /// Null means tax was never evaluated — every booking before this existed.
   /// Zero means evaluated and none due, the same distinction depositDueCents
   /// already draws.
-  salesTaxRatePpm          Int?
-  salesTaxCents            Int?
-  totalWithTaxCents        Int?
+  salesTaxRatePpm   Int?
+  salesTaxCents     Int?
+  totalWithTaxCents Int?
 
-  paymentEvents            PaymentEvent[]
-  adjustments              BookingAdjustment[]
-  createdAt                DateTime                @default(now())
+  paymentEvents PaymentEvent[]
+  adjustments   BookingAdjustment[]
+  createdAt     DateTime            @default(now())
 
   @@map("bookings")
 }
@@ -2419,7 +2422,7 @@ model ServiceArea {
 }
 
 model ArrivalWindow {
-  id             String      @id @default(cuid())
+  id             String        @id @default(cuid())
   date           DateTime
   startTime      String // "08:00"
   endTime        String // "11:00"
@@ -2429,9 +2432,9 @@ model ArrivalWindow {
   // contractor's ArrivalWindow. Declaring the relation makes ArrivalWindow
   // derive its owner via serviceArea, and makes Booking.arrivalWindowId a
   // checkable secondary tenant reference.
-  serviceArea    ServiceArea @relation(fields: [serviceAreaId], references: [id])
+  serviceArea    ServiceArea   @relation(fields: [serviceAreaId], references: [id])
   capacityTotal  Int
-  capacityBooked Int         @default(0)
+  capacityBooked Int           @default(0)
   bookings       Booking[]
   appointments   Appointment[]
 
@@ -2534,7 +2537,7 @@ model PaymentEvent {
   /// UNIQUE, so a replayed webhook fails on insert rather than adding a second
   /// capture nobody can distinguish from a real one. Null for a row not
   /// created by a webhook.
-  stripeEventId  String?       @unique
+  stripeEventId  String? @unique
   /// The object the money is on — pi_..., re_.... Not unique: one intent
   /// legitimately produces an authorization and then a capture.
   stripeObjectId String?
@@ -2656,17 +2659,17 @@ model Appointment {
 /// booking, holding its own state, and invisible to every booking that does
 /// not have one.
 model PreWorkVisit {
-  id            String            @id @default(cuid())
-  bookingId     String            @unique
-  booking       Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  id            String       @id @default(cuid())
+  bookingId     String       @unique
+  booking       Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   /// The PRE_WORK appointment, once one is scheduled.
-  appointmentId String?           @unique
-  appointment   Appointment?      @relation(fields: [appointmentId], references: [id])
+  appointmentId String?      @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
 
-  scopeState    PreWorkScopeState @default(PENDING_VERIFICATION)
-  completedAt   DateTime?
+  scopeState      PreWorkScopeState @default(PENDING_VERIFICATION)
+  completedAt     DateTime?
   /// What the technician established on site.
-  findings      String?
+  findings        String?
   /// Elite can start the permit process as soon as the job is booked, before
   /// the visit — recorded here because "has the permit been started" is a
   /// prerequisite question, not a scheduling one.
@@ -3306,7 +3309,7 @@ enum TemplateVersionKind {
 }
 
 model TemplateVersion {
-  id          String   @id @default(cuid())
+  id          String              @id @default(cuid())
   /// e.g. "electrical". Trade-agnostic by design; only electrical exists now.
   trade       String
   version     Int
@@ -3315,7 +3318,7 @@ model TemplateVersion {
   /// and the failure mode of guessing DELTA-as-SNAPSHOT is a contractor
   /// receiving a one-service catalog, which is exactly the defect this closes.
   kind        TemplateVersionKind
-  publishedAt DateTime @default(now())
+  publishedAt DateTime            @default(now())
   notes       String?
 
   services TemplateService[]
@@ -3409,6 +3412,7 @@ model TemplateAnswerOption {
   templatePolicyDefinition   TemplatePolicyDefinition? @relation(fields: [templatePolicyDefinitionId], references: [id], onDelete: Restrict)
 
   components  TemplateAnswerOptionComponent[]
+  materials   TemplateAnswerOptionMaterial[]
   disclaimers TemplateAnswerOptionDisclaimer[]
   photoGroups TemplateAnswerOptionPhotoGroup[]
 
@@ -3455,6 +3459,80 @@ model TemplateAnswerOptionComponent {
   @@map("template_answer_option_components")
 }
 
+/// A material role the SELECTED BRANCH consumes as base work.
+///
+/// THE GAP THIS CLOSES
+///
+/// Price2Book could express two things and not a third:
+///
+///   Service -> Material                        unconditional service material
+///   AnswerOption -> Component -> Material      an answer that ADDS work
+///   AnswerOption -> Material                   <- this, and it did not exist
+///
+/// The third is not an optional extra. Joining copper to copper consumes a
+/// copper fitting and solder; joining PEX consumes a PEX fitting and a ring.
+/// Neither is an addition to the job — each IS the job, on that branch.
+///
+/// Before this existed the only ways to model it were both wrong. Inventing a
+/// synthetic "copper joint" component would dress base work up as an add-on
+/// and put a price on something nobody is choosing to buy. Putting both sets
+/// on ServiceMaterial would describe a copper job as consuming PEX rings,
+/// which is false about the work and would be charged to somebody.
+///
+/// Discovered by the Plumbing V1 two-contractor rehearsal. It is a PLATFORM
+/// primitive, not a plumbing one: any trade with mutually exclusive base
+/// materials — conduit versus MC cable, copper versus PEX — needs the same
+/// shape.
+model TemplateAnswerOptionMaterial {
+  id                     String               @id @default(cuid())
+  templateAnswerOptionId String
+  templateAnswerOption   TemplateAnswerOption @relation(fields: [templateAnswerOptionId], references: [id], onDelete: Cascade)
+  canonicalMaterialId    String
+  canonicalMaterial      CanonicalMaterial    @relation(fields: [canonicalMaterialId], references: [id])
+
+  /// A count of the thing the branch consumes. Float to match every other
+  /// material quantity in the schema; never a price and never an allowance.
+  quantity Float @default(1)
+  order    Int   @default(0)
+
+  @@unique([templateAnswerOptionId, canonicalMaterialId])
+  @@map("template_answer_option_materials")
+}
+
+/// One contractor's branch material, provisioned from the template.
+///
+/// Mirrors AnswerOptionComponent exactly where it matters:
+///
+///   TENANCY     derived, through answerOption -> question -> service. There
+///               is no contractorId to stamp, so the guard resolves the owner
+///               by walking the parents, and lib/tenantGuard.ts lists it in
+///               DERIVED_TENANT_MODELS beside AnswerOptionComponent.
+///   UNIQUENESS  one line per role per answer. Attaching the same role twice
+///               would double-count it in the material total.
+///   DELETION    Cascade from the answer, Restrict from the canonical role —
+///               deleting a tree removes its rows; retiring a role that
+///               something still consumes is refused.
+///
+/// Deliberately WITHOUT the component join's conditionAnswerKey /
+/// conditionAccessClass fields. Those exist because one component can describe
+/// two variants of added work depending on an earlier answer. A base material
+/// is already conditioned by the branch it hangs on, and a field with no
+/// consumer is a promise the code does not keep.
+model AnswerOptionMaterial {
+  id                  String            @id @default(cuid())
+  answerOptionId      String
+  answerOption        AnswerOption      @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+  canonicalMaterialId String
+  canonicalMaterial   CanonicalMaterial @relation(fields: [canonicalMaterialId], references: [id], onDelete: Restrict)
+
+  quantity Float @default(1)
+  order    Int   @default(0)
+
+  @@unique([answerOptionId, canonicalMaterialId])
+  @@index([canonicalMaterialId])
+  @@map("answer_option_materials")
+}
+
 model TemplateAnswerOptionDisclaimer {
   id                     String               @id @default(cuid())
   templateAnswerOptionId String
@@ -3495,18 +3573,18 @@ model ContractorOnboarding {
 
   /// Resume point. Never gates anything, so a stale value cannot unblock a
   /// launch — the worst it can do is open the wrong page.
-  currentStage String     @default("business")
+  currentStage String @default("business")
 
   /// Stage key -> ISO timestamp. "I have looked at my prices" is a fact about
   /// a human, and no other table could hold it.
-  acknowledged Json       @default("{}")
+  acknowledged Json @default("{}")
 
   /// Set when the contractor finished setup. Not permission to sell — that is
   /// derived readiness plus the services actually activated.
-  completedAt  DateTime?
+  completedAt DateTime?
 
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("contractor_onboarding")
 }
@@ -3545,8 +3623,8 @@ model ContractorTrade {
   /// not in Electrical v1. Provisioning resolves the latest published version
   /// at install time, and moving to a later version is an adoption decision
   /// rather than a different enrollment.
-  tradeKey     String
-  enrolledAt   DateTime   @default(now())
+  tradeKey   String
+  enrolledAt DateTime @default(now())
 
   @@unique([contractorId, tradeKey])
   @@index([contractorId])
