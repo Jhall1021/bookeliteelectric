@@ -1,15 +1,53 @@
-# Repo seeds have drifted from production — found 1 September 2026
+# Provisioning drift: a new contractor would not inherit the current product
 
-**Status:** open. **Deliberately not fixed** in the change that found it.
+**Found:** 1 September 2026. **Status:** open, and **a pre-onboarding
+correctness item rather than ordinary technical debt** — settled by the owner
+the day it was found. **Deliberately not fixed** in the change that found it.
 
-Found while capturing the marketing homepage's hero walkthrough read-only from
-the live `elite-electric` catalog (`scripts/capture-hero-flow.ts`). The hero
-needed the real questions and the real prices; comparing what came back against
-the repo's own seed files showed the seeds are behind production.
+## Why this is not documentation drift
+
+Production is authoritative for what customers pay today. The seeds are
+authoritative for what a NEW contractor gets provisioned. When they disagree,
+contractor #2 does not inherit slightly old numbers — they inherit **a
+materially different product**, and two contractors end up running different
+semantics because they were onboarded on different dates.
+
+The prices are the mild half. The behavioral half is the reason this blocks
+onboarding: the live `replace-standard-outlet` tree asks *"Why are you
+replacing this?"* first, and routes *"It stopped working"*, *"I'm not sure
+what's wrong"* and *"a burning smell, sparks, or several things dead"* to
+troubleshooting. **The seeded tree has no such question**, so a contractor
+provisioned from it would sell a replacement for symptoms the live product
+declines to price and sends for diagnosis. That is a safety-semantics
+difference, not a pricing one.
+
+## The question this job has to answer first
+
+> **What is the canonical source from which a new contractor receives the
+> current service catalog, decision trees, pricing defaults, routing behavior
+> and safety semantics?**
+
+Answer that correctly and the individual stale files below become a
+consequence to clean up. Answer it by patching the files instead, and the same
+drift reappears the next time production moves — which it will, because
+production is where the product is actually developed.
+
+## How it was found
+
+Capturing the marketing homepage's hero walkthrough read-only from the live
+`elite-electric` catalog (`scripts/capture-hero-flow.ts`). The hero needed the
+real questions and the real prices; comparing what came back against the repo's
+own seed files showed the seeds are behind production.
+
+Worth noting how easily this stayed invisible: nothing was failing. The seeds
+are only read when a catalog is provisioned, so the drift was silent until
+something compared the two — and the only reason anything did was that a
+marketing page decided to source itself from production instead of from a
+mock-up.
 
 Nothing here was changed. The homepage takes production as its source of truth
 and the drift check keeps it there, so the hero is correct either way — but the
-seeds are now a trap for anyone who reads them expecting current values.
+seeds are a trap for anyone who reads them expecting current values.
 
 ## What differs
 
@@ -28,7 +66,7 @@ smell, sparks, or several things dead"* all `REROUTE_TROUBLESHOOTING`, while
 recreates this service without that question produces a materially different
 product — one that sells a replacement for a fault it should be diagnosing.
 
-## Why it was not fixed here
+## Why it was not fixed in the change that found it
 
 The change that found it is a marketing homepage change. Reconciling seeds
 against production is pricing and catalog work: it needs a decision about which
@@ -39,18 +77,13 @@ in its own pass.
 
 ## What to look at when it is picked up
 
-1. **The direction is not obvious.** Production is authoritative for what
-   customers are being charged today. The seeds are authoritative for what a
-   NEW contractor gets provisioned. If they disagree, contractor #2 launches
-   with contractor #1's old prices — which is the actual defect, not the
-   mismatch itself.
-2. **Check the whole catalog, not these two rows.** Two services were compared
+1. **Check the whole catalog, not these two rows.** Two services were compared
    because two services were needed. The sample size is two; the finding is
    probably not.
-3. **`prisma/seed.ts` prices are Elite's retail figures.** Whether a template
+2. **`prisma/seed.ts` prices are Elite's retail figures.** Whether a template
    for other contractors should carry them at all is a separate question, and
    POSITIONING.md already says the electrical template carries trade structure
    and no economics.
-4. The hero fixture does not depend on any of this being fixed. It reads
+3. The hero fixture does not depend on any of this being fixed. It reads
    production directly and `npx tsx scripts/capture-hero-flow.ts --check` fails
    the build if production moves.

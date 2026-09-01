@@ -223,6 +223,31 @@ These are correctness constraints, not style preferences:
   production moves. Two consequences worth stating: the walk is as long as the real tree
   (five questions to a price, not three), and **the repo's seed files are not a source of
   truth for prices** — see [stale-seed-prices-2026-09-01](../debt/stale-seed-prices-2026-09-01.md).
+- **Anything that claims product state must come from product state.** The one defect that
+  survived every check in the hero pass was the one piece of UI state still asserted by
+  hand: a header reading "1 service in your visit" above a cart holding two. Everything
+  sourced from the capture was correct because the capture made it correct. This is the
+  rule for any future product demonstration on the marketing site, and it is why the hero
+  renders real storefront components instead of copies of them.
+
+## The hero is closed — 1 September 2026
+
+`ffe6dcd` and `c1c24d5` are the finished hero. **No further polishing** unless an actual
+visual or product defect appears; a demonstration that keeps being adjusted stops being a
+demonstration of anything stable.
+
+The shape it settled into, for anyone building the next one:
+
+> live truth → read-only capture → deterministic fixture → real storefront components →
+> contractor-themed island → build-breaking drift detection
+
+**Future direction, explicitly not current scope.** The cart, scheduling and confirmation
+frames are still composed in the island's theme, because those surfaces are pages rather
+than extractable components. They should eventually migrate to real storefront components
+for the same reason `ServiceIntro`, `QuestionStep` and `PriceConfirmationCard` earned their
+place — and the "1 service in your visit" defect is the evidence: it happened in composed
+chrome, and it could not have happened in a component fed by the fixture. There is no need
+to do that work now, and no reason to open the hero to do it.
 
 ## Call to action
 
