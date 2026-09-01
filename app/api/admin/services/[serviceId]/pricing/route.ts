@@ -90,8 +90,15 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     // route says WHICH service; it does not decide what the price is.
     const published = await publishSuggestedPrice(db, contractorId, params.serviceId);
     if (!published.ok) {
+      // THE SENTENCE IN `error`, THE CODE BESIDE IT.
+      //
+      // These were the other way round, and the panel — which renders `error`,
+      // like every other admin form — showed a contractor the literal word
+      // POLICY_UNRESOLVED where a refusal had been written for them to read.
+      // The authority's message names the undecided policy and says what the
+      // homeowner would otherwise see; the code is for logs and tests.
       return NextResponse.json(
-        { error: published.refusal.code, message: published.refusal.message },
+        { error: published.refusal.message, code: published.refusal.code },
         { status: 400 }
       );
     }
