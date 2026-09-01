@@ -8,6 +8,9 @@ import { StorefrontProvider } from "@/components/theme/StorefrontContext";
 import { ANONYMOUS_IDENTITY, IDENTITY_SELECT, resolveIdentity } from "@/lib/storefrontIdentity";
 import { pricingCopy } from "@/lib/pricingCopy";
 import Header from "@/components/shared/Header";
+import EmbedChrome from "@/components/site/EmbedChrome";
+import EmbedAttribution from "@/components/site/EmbedAttribution";
+import EmbedHeight from "@/components/site/EmbedHeight";
 import Footer from "@/components/shared/Footer";
 import { readBrandInputs, resolveStorefrontTheme } from "@/lib/theme/resolve";
 import { prisma } from "@/lib/prisma";
@@ -90,6 +93,7 @@ export default async function SiteLayout({
   const brand = readBrandInputs(c?.brandColors);
   const choice = c ? { family: c.themeFamily, variant: c.themeVariant, version: c.themeVersion } : undefined;
   const theme = resolveStorefrontTheme(brand, choice);
+  const isEmbed = segmentIsPublicId(params.site);
   return (
     <SiteProvider
       publicId={site.publicId}
@@ -102,9 +106,17 @@ export default async function SiteLayout({
         copy: pricingCopy(c?.pricingStrategy),
       }}>
         <ThemeStructureProvider structure={theme.structure}>
-          <Header />
+          {/* PRESENTATION ONLY — the embed drops the standalone site's chrome.
+              A full header and footer inside somebody's own page renders a
+              second website in the middle of the first: their name twice,
+              their navigation twice, two "Book Service" buttons. What the
+              workflow needs survives; what a standalone site needs does not.
+              Nothing about pricing, routing, the visit, scheduling or booking
+              changes — those never see the surface. */}
+          {isEmbed && <EmbedHeight />}
+          {isEmbed ? <EmbedChrome /> : <Header />}
           {children}
-          <Footer />
+          {isEmbed ? <EmbedAttribution /> : <Footer />}
         </ThemeStructureProvider>
       </StorefrontProvider>
     </SiteProvider>

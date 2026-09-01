@@ -11,7 +11,8 @@ import { ANONYMOUS_IDENTITY, IDENTITY_SELECT, resolveIdentity } from "@/lib/stor
 import { pricingCopy } from "@/lib/pricingCopy";
 import { formatCents } from "@/lib/flow-types";
 import { getServiceImage } from "@/lib/serviceImages";
-import { storefrontBaseFor } from "@/lib/storefrontSurface";
+import { storefrontBaseFor, segmentIsPublicId } from "@/lib/storefrontSurface";
+import ServiceFinder from "@/components/home/ServiceFinder";
 
 /**
  * Three above the fold, not six.
@@ -138,6 +139,42 @@ export default async function HomePage({ params }: { params: { site: string } })
       href: `${base}/services/${live.contractorCategory?.canonicalCategory.slug ?? svc.category}/${svc.slug}`,
     }];
   });
+
+  // ── the embedded entry point ───────────────────────────────────────────
+  //
+  // A standalone storefront homepage introduces the business: a full-height
+  // hero, how the pricing works, payment options, the service area, the
+  // credentials. Inside the contractor's own website every one of those is
+  // something their page has already said, and a homeowner who scrolled past
+  // it once should not meet it again in a box halfway down.
+  //
+  // So the embed opens on the WORK: say what you need, or pick from what they
+  // do most. Everything below this line is the standalone presentation and is
+  // simply not rendered — no route, no price and no visit behaves differently.
+  if (segmentIsPublicId(params.site)) {
+    return (
+      <main className="px-4 py-5">
+        <h1 className="font-display text-xl font-bold text-navy">
+          {copy.pricingDifferentiator}
+        </h1>
+        <p className="mt-1 text-sm text-slate">Pick your time. Book online.</p>
+        <div className="mt-4">
+          <ServiceFinder />
+        </div>
+        {featuredItems.length > 0 && (
+          <div className="mt-8">
+            <h2 className="font-display text-base font-bold text-ink">Most booked</h2>
+            <FeaturedServices items={featuredItems} />
+          </div>
+        )}
+        <p className="mt-8 text-sm">
+          <Link href={`${base}/services`} className="font-medium text-electric">
+            Browse all services
+          </Link>
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main>

@@ -19,6 +19,7 @@
  *   contractor has not registered.
  */
 
+import { readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -140,6 +141,55 @@ async function main() {
   ok(`the contractor dashboard is framable by nobody`,
     /frame-ancestors 'none'/.test(dash.headers.get("content-security-policy") ?? ""),
     dash.headers.get("content-security-policy") ?? "(absent)");
+
+  // ── NO STANDALONE CHROME INSIDE SOMEBODY ELSE'S PAGE ───────────────────
+  //
+  // The observed failure: the embed rendered the full storefront header, so a
+  // contractor's own page showed their name, their nav and a Book Service
+  // button twice — one set directly above the other. A second website inside
+  // the first.
+  //
+  // Asserted on RENDERED markup only. Next serializes the whole copy object
+  // into the flight payload, so the headline and every section title appear in
+  // the response body as data whether or not anything draws them — a check
+  // reading the raw HTML would fail forever and be deleted for crying wolf.
+  const visible = (html: string) =>
+    html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<template[\s\S]*?<\/template>/g, "");
+
+  const embedBody = visible((await get(embed)).text);
+  const hostedBody = visible((await get(`/${site.hostedSlug}`)).text);
+
+  const STANDALONE = [
+    { label: "the hero headline", find: "Skip the Estimate" },
+    { label: "the pricing explainer", find: "How Our Pricing Works" },
+    { label: "payment options", find: "Flexible Payment Options" },
+    { label: "the service-area section", find: "Our Service Area" },
+    { label: "the credentials strip", find: "Licensed &amp; insured" },
+  ];
+  for (const { label, find } of STANDALONE) {
+    ok(`the embed drops ${label}`, !embedBody.includes(find), "still rendered inside the frame");
+  }
+
+  // The hosted page must still HAVE them, or the checks above could pass by
+  // deleting the standalone storefront rather than by scoping it.
+  ok(`   and the hosted storefront still has its hero`,
+    hostedBody.includes("Skip the Estimate"),
+    "the standalone page lost its chrome too — this scoped nothing");
+
+  // What the workflow still needs.
+  ok(`the embed keeps a way back to the catalog`, embedBody.includes("All services"));
+  ok(`the embed keeps a visible cart`, embedBody.includes("My Visit"));
+  ok(`the embed carries subtle attribution`, embedBody.includes("Powered by Price2Book"));
+  ok(`   and the hosted storefront does not`, !hostedBody.includes("Powered by Price2Book"),
+    "attribution belongs on somebody else's page, not on the contractor's own storefront");
+
+  // The frame reports its height so it stops looking embedded, and reports
+  // ONLY that: a two-way channel is the thing not to build.
+  const reporter = readFileSync("components/site/EmbedHeight.tsx", "utf8");
+  ok(`the frame reports its height to the parent`, /p2b:height/.test(reporter));
+  ok(`   and never listens to it`,
+    !/addEventListener\(\s*["'`]message/.test(reporter),
+    "the frame accepts messages from the parent page");
 
   // ── the loader asserts nothing ─────────────────────────────────────────
   const loader = await get("/embed.js");
