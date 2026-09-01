@@ -602,22 +602,57 @@ async function statics() {
     "a shared default would put one contractor's branded imagery on every storefront");
 }
 
+/**
+ * Fetch a route and return its markup plus a tag-stripped reading of it.
+ */
+async function probe(host: string, path: string) {
+  const res = await fetch(`${host}${path}`, {
+    redirect: "manual",
+    headers: { "user-agent": "price2book-verify" },
+  });
+  const html = res.status === 200 ? await res.text() : "";
+  const text = html.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ");
+  return { status: res.status, html, text };
+}
+
 async function live(host: string) {
   console.log(`\n  LIVE — ${host}`);
-  const res = await fetch(host, { redirect: "manual", headers: { "user-agent": "price2book-verify" } });
-  ok(res.status === 200, `/ answers 200`, `status ${res.status}`);
-  if (res.status !== 200) return;
-  const html = await res.text();
-  const text = html.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ");
+
+  const home = await probe(host, "/");
+  ok(home.status === 200, `/ answers 200`, `status ${home.status}`);
+  if (home.status !== 200) return;
+
+  ok(home.text.includes("Your pricing.") && home.text.includes("Your schedule."),
+    "the approved headline is served");
+  ok(home.text.includes("Request Early Access"), "the primary CTA is served");
+  ok(/\/sign-in/.test(home.html), "a sign-in link is served");
+
+  // THE STATUS TABLE MOVED. The 1 September restructure gave the integration
+  // claims their own page, so probing "/" for them asserted the old shape of
+  // the site rather than the truth of the claims — and would have gone on
+  // passing while "Coming Soon" turned into "Connected" on the page that
+  // actually says it. The evidence is fetched from where the claims live.
+  const integrations = await probe(host, "/integrations");
+  ok(integrations.status === 200, `/integrations answers 200`, `status ${integrations.status}`);
+  if (integrations.status !== 200) return;
 
   for (const [name, status] of Object.entries(TRUTH)) {
-    ok(text.includes(name), `names ${name}`);
-    ok(text.includes(status), `…shows "${status}" somewhere`);
+    ok(integrations.text.includes(name), `names ${name}`);
+    ok(integrations.text.includes(status), `…shows "${status}" somewhere`);
   }
-  ok(!/\bConnected\b/.test(text), 'the word "Connected" appears nowhere on the page');
-  ok(text.includes("Your pricing.") && text.includes("Your schedule."), "the approved headline is served");
-  ok(text.includes("Request Early Access"), "the primary CTA is served");
-  ok(/\/sign-in/.test(html), "a sign-in link is served");
+
+  // "Coming Soon" must stay an intention. A date, or a promise that it is
+  // scheduled for this contractor, is the overclaim this page exists to avoid.
+  ok(integrations.text.includes("It is not a date"),
+    'the "Coming Soon" disclaimer is served',
+    "a planned integration reads as a commitment without it");
+
+  // Forbidden on BOTH surfaces: the homepage still names platforms (in the
+  // early-access form), so neither page may assert a connection.
+  ok(!/\bConnected\b/.test(home.text),
+    'the word "Connected" appears nowhere on the homepage');
+  ok(!/\bConnected\b/.test(integrations.text),
+    'the word "Connected" appears nowhere on /integrations');
 }
 
 async function main() {
