@@ -270,6 +270,15 @@ export async function assessOnboarding(
   }
 
   // ── 4. Services & pricing review ───────────────────────────────────────
+  //
+  // The diagnostic, because a great many trees hand off to it. Whether a dead
+  // route is a defect or merely a sequencing fact depends entirely on whether
+  // this service exists and is on its way live.
+  const diagnostic = await db.service.findFirst({
+    where: { contractorId, bookingType: "TROUBLESHOOT_ONLY" },
+    select: { name: true, offered: true, active: true },
+  });
+
   for (const { svc } of intended) {
     const slug = svc.slug as string;
     const promise = await promiseFor(
@@ -277,9 +286,36 @@ export async function assessOnboarding(
     );
 
     if (promise.routes.dead > 0) {
-      findings.services.push(b("TREE_HAS_DEAD_ROUTE",
-        `${slug} has ${promise.routes.dead} answer path(s) that reach nothing.`,
-        { serviceSlug: slug, href: "/dashboard/services" }));
+      // A DEADLOCK, FOUND BY CLICKING THROUGH IT.
+      //
+      // Every one of these dead routes was "goes to troubleshooting, and
+      // there is no live diagnostic". That is true, and it is fixed by
+      // launching the diagnostic — which this finding, as a blocker,
+      // prevented: Review & launch disabled its own button and told the
+      // contractor to sort the blockers first. There was no order in which
+      // they could.
+      //
+      // The finding is about a LIVE storefront leading a homeowner nowhere. A
+      // service that is not live yet leads nobody anywhere, and activation
+      // already refuses in dependency order, so while the prerequisite is
+      // merely waiting its turn this is a note about sequence.
+      //
+      // Still a blocker when the destination does not exist or is not being
+      // offered at all: no launch will fix that one.
+      const onlyDiagnostic = promise.deadReasons.every((r) => /routes to troubleshooting/.test(r));
+      const resolvesOnLaunch =
+        onlyDiagnostic && diagnostic !== null && diagnostic.offered && !diagnostic.active;
+
+      findings.services.push(
+        resolvesOnLaunch
+          ? w("HANDOFF_NOT_LIVE_YET",
+              `${slug} sends "it stopped working" to ${diagnostic!.name}, which isn't live yet. ` +
+              `Put that live and this resolves itself — we launch it first for you.`,
+              { serviceSlug: slug, href: IN_SETUP })
+          : b("TREE_HAS_DEAD_ROUTE",
+              `${slug} has ${promise.routes.dead} answer path(s) that reach nothing.`,
+              { serviceSlug: slug, href: "/dashboard/services" })
+      );
     }
 
     if (!promise.promisesFixedPrice) continue; // quote-only: no price is owed

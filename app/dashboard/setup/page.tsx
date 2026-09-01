@@ -371,6 +371,34 @@ export default async function SetupPage({
               </div>
             )}
 
+            {current === "payments" && (
+              <div className="mt-4">
+                <PaymentsPanel
+                  depositing={depositing}
+                  stripeReady={stripe.ready}
+                  stripeReason={stripe.reason}
+                  findings={stage.findings}
+                />
+              </div>
+            )}
+
+            {/* THE LAST STAGE HAD NO PANEL.
+                Both of these were imported, given their data, and never
+                rendered — so Review & launch showed a contractor "Nothing
+                outstanding here" and no way to put anything live, which is a
+                dead end at the exact moment the setup exists to reach. The
+                launch list still activates one service at a time through the
+                per-service route; nothing about the wiring changes that. */}
+            {current === "launch" && (
+              <div className="mt-4">
+                <LaunchPanel
+                  services={launchable}
+                  canLaunch={r.canLaunch}
+                  blockerCount={r.blockers.length}
+                />
+              </div>
+            )}
+
             {blockersFirst.length > 0 && (
               <section className="mt-6 rounded-card border border-cardline bg-warmwhite p-5">
                 <h3 className="text-sm font-semibold text-navy">
