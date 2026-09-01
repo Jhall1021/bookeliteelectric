@@ -438,6 +438,39 @@ export const START_SMALL = {
 export const BOUNDARY_LINE =
   "Price2Book handles pricing, qualification, availability and booking. Your CRM, invoicing, dispatch, payroll and job costing stay exactly where they are.";
 
+/**
+ * The boundary as roles, which is the Integrations page's opening argument.
+ *
+ * The homepage carries BOUNDARY_LINE — one sentence, because a homepage should
+ * not spend a table on it. The Integrations page is where the inventory
+ * belongs, and it comes back deliberately rather than by accident: this is the
+ * page a contractor arrives at asking whether they have to replace what they
+ * run, and the answer is a division of responsibility, not a feature list.
+ *
+ * ARCHITECTURE FIRST, INTEGRATION STATUS SECOND. Nothing in the right-hand
+ * column implies a live connection to the system that owns it. What it says is
+ * that Price2Book does not want that job.
+ */
+export const BOUNDARY_ROLES = {
+  ours: [
+    "Homeowner qualification",
+    "Approved pricing",
+    "Guided Pricing outcomes",
+    "Building the visit",
+    "Presenting appropriate booking options",
+    "Customer self-booking",
+  ],
+  theirs: [
+    "CRM and customer records",
+    "Dispatch and work orders",
+    "Invoicing",
+    "Payments, where applicable",
+    "Payroll",
+    "Job costing",
+    "The rest of how you run the business",
+  ],
+} as const;
+
 /** Setup, as a progression rather than a four-screen essay. */
 export const SETUP_PROGRESSION = [
   "Start from the trade template",
@@ -497,6 +530,6 @@ export const NAV = [
   { label: "Product", href: "/product/guided-pricing" },
   { label: "How It Fits", href: "/how-it-fits" },
   { label: "Trades", href: "/trades/electrical" },
-  { label: "Integrations", href: "/#integrations" },
-  { label: "Demo", href: "/#demo" },
+  { label: "Integrations", href: "/integrations" },
+  { label: "Demo", href: "/demo" },
 ] as const;
