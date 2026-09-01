@@ -298,6 +298,28 @@ export default function HeroWalkthrough() {
 
   const restart = () => { setStep(0); setPlaying(true); };
 
+  /**
+   * What the contractor's own header says is in the visit.
+   *
+   * DERIVED, because the first version was the string "1 service in your
+   * visit" shown from the price scene onward — which sat above a cart listing
+   * two services and totalling $375, and above a confirmation for a visit that
+   * was no longer pending at all. Small, and exactly the failure this whole
+   * pass exists to prevent: the page saying something the product would not.
+   *
+   * A service joins the visit when its price is accepted, so the count steps
+   * up at the offer and again at the cart, and goes quiet once the visit is
+   * booked.
+   */
+  const visitLabel = useMemo(() => {
+    const at = (kind: Scene["kind"]) => SCENES.findIndex((s) => s.kind === kind);
+    const count = step >= at("confirm") ? 0
+      : step >= at("cart") ? 2
+      : step >= at("offer") ? 1
+      : 0;
+    return count ? `${count} service${count === 1 ? "" : "s"} in your visit` : "";
+  }, [step]);
+
   const primaryCents = HERO_FLOW.primary.priceCents;
   const sameVisitCents = HERO_FLOW.addOn.sameVisitCents ?? 0;
   const standaloneCents = HERO_FLOW.addOn.standaloneCents ?? 0;
@@ -345,7 +367,7 @@ export default function HeroWalkthrough() {
             <div className="mb-4 flex items-center justify-between border-b border-cardline pb-3">
               <span className="text-[15px] font-semibold text-navy">{HERO_FLOW.identity.name}</span>
               <span className="text-[12px] text-slate">
-                {step > SCENES.findIndex((s) => s.kind === "price") ? "1 service in your visit" : " "}
+                {visitLabel || " "}
               </span>
             </div>
 
