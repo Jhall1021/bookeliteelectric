@@ -72,16 +72,19 @@ type Scene =
  *   cart      $280 became $375 without anyone making a phone call
  *   confirm   it finished — this is a booking, not a lead form
  *
- * Total ≈ 26s.
+ * Total ≈ 30s. Slowed from 26 at the owner's request after watching it: the
+ * questions were the part that felt hurried, and they gained the most — a
+ * viewer needs long enough to read the prompt AND see which answer the cursor
+ * takes, which is two acts, not one.
  */
 const DWELL: Record<Scene["kind"], number> = {
-  intro: 2400,
-  question: 1300,
-  price: 2900,
-  offer: 2900,
-  cart: 2900,
-  schedule: 2100,
-  confirm: 3700,
+  intro: 2700,
+  question: 1600,
+  price: 3200,
+  offer: 3200,
+  cart: 3200,
+  schedule: 2400,
+  confirm: 4000,
 };
 
 /**
