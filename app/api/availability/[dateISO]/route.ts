@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getWindowAvailabilityForDay, SchedulingUnavailableError } from "@/lib/jobber";
+import { loadBusinessHours, generateArrivalWindows, toDisplay, toMinutes } from "@/lib/businessHours";
+import {
+  windowAvailabilityForDay,
+  SchedulingUnavailableError,
+  SchedulingNotConfiguredError,
+} from "@/lib/schedulingAvailability";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 
 // Deliberately un-cached — always hits Jobber fresh. This is what makes
@@ -20,16 +25,31 @@ export async function GET(req: Request, { params }: { params: { dateISO: string 
   }
 
   return withSite(site, async (db) => {
-    const eligibleCrews = await db.jobberCrewMember.findMany({
-      where: { eligibleForWebsiteBookings: true },
-      select: { jobberUserId: true },
-    });
-    const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
-
+    // The crew list is no longer read here. Who is authoritative about this
+    // contractor's calendar is the scheduling authority's business, and
+    // reading crews at the call site is what let a NATIVE contractor be
+    // answered by Jobber's rules.
+    const businessHours = await loadBusinessHours(db, site.contractorId);
     try {
-      const windows = await getWindowAvailabilityForDay(site.contractorId, params.dateISO, eligibleIds);
+      const windows = await windowAvailabilityForDay(db, site.contractorId, params.dateISO, {
+        windows: generateArrivalWindows(businessHours),
+        dayEndDisplay: toDisplay(toMinutes(businessHours.dayEnd)),
+      });
       return NextResponse.json({ windows });
     } catch (err) {
+      if (err instanceof SchedulingNotConfiguredError) {
+        // NOT retriable, and deliberately not an empty window list: a day with
+        // no windows reads as "fully booked", which is a different and
+        // untrue thing to tell a homeowner.
+        return NextResponse.json(
+          {
+            error: "SCHEDULING_NOT_CONFIGURED",
+            retriable: false,
+            message: "Online booking isn't available for this business yet. Please give us a call.",
+          },
+          { status: 503 }
+        );
+      }
       if (!(err instanceof SchedulingUnavailableError)) throw err;
       // A named, retriable condition rather than a 500. The client shows a
       // temporary state instead of slots; it does not fall back to offering

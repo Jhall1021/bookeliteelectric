@@ -582,6 +582,26 @@ model Contractor {
 
   schedulingAuthority SchedulingAuthority?
 
+  /// How many jobs this contractor can run AT ONCE in one arrival window,
+  /// when Price2Book is the scheduling authority.
+  ///
+  /// The whole native-capacity fact, deliberately. NATIVE scheduling has no
+  /// external calendar to ask, so the alternatives were to fabricate capacity
+  /// or to refuse every booking — and the first is what happened: BrightPath
+  /// offered a homeowner three arrival windows it could not honor, because
+  /// availability read a crew list that only means anything to Jobber.
+  ///
+  /// A COUNT, not a roster. A native booking need not name a technician, and
+  /// requiring one would make this a dispatch system; what Price2Book has to
+  /// know is how many appointments it may legitimately accept for the same
+  /// window. Provider-neutral: EXTERNAL contractors ignore it entirely and
+  /// their capacity stays their provider's answer.
+  ///
+  /// Null means undeclared, which is a scheduling readiness blocker rather
+  /// than a default. Any number picked here would be someone's guess about
+  /// how many vans a contractor owns.
+  nativeConcurrentJobs Int?
+
   countryCode  String?
 
   /// Split so the number is never welded into a sentence: "NJ Electrical

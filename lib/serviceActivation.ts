@@ -18,10 +18,12 @@ import { loadPricingSettings } from "./routeResolver";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
-      | "POLICY_UNRESOLVED";
+      | "POLICY_UNRESOLVED" | "DEPENDENCY_UNAVAILABLE";
   message: string;
   unresolvedMaterialKeys?: string[];
   unresolvedPolicyKeys?: string[];
+  /** Slugs the contractor must launch first, when the refusal is a dependency. */
+  missingPrerequisites?: string[];
 };
 
 /**
@@ -108,7 +110,84 @@ export async function activationRefusal(
     };
   }
 
+  // WHERE THE ANSWERS LEAD, not just what they cost.
+  //
+  // A tree can hand a homeowner off — "it stopped working" goes to the
+  // diagnostic, "that's a different job" goes to another service. Those
+  // destinations have to exist and be live, and until now nothing checked:
+  // BrightPath launched outlet replacement while its diagnostic was still
+  // held back, so the two commonest answers a homeowner gives reached
+  // nothing. The contractor was never told; the fix was to launch
+  // troubleshooting first, which is an ordering rule nobody could know.
+  //
+  // Asked at activation so the ordering enforces itself. Review & Launch may
+  // sort its calls into dependency order, but it still makes them one at a
+  // time through here.
+  const blocked = await unavailableDependencies(db, contractorId, service.id, promise);
+  if (blocked.length > 0) {
+    const named = blocked.map((d) => d.label);
+    return {
+      code: "DEPENDENCY_UNAVAILABLE",
+      message:
+        `This service can't go live yet — an answer a homeowner can give leads to ` +
+        `${named.join(" and ")}, which ${named.length === 1 ? "isn't" : "aren't"} live. ` +
+        `Launch ${named.length === 1 ? "it" : "those"} first and this can follow.`,
+      missingPrerequisites: blocked.map((d) => d.slug).filter((x): x is string => x !== null),
+    };
+  }
+
   return null;
+}
+
+/**
+ * Destinations this service's tree reaches that a homeowner could not actually
+ * be sent to.
+ *
+ * Two kinds, and they fail differently. A REROUTE_SERVICE names its target on
+ * the answer row, and the resolver hands it back WITHOUT checking that it is
+ * live — so an inactive target looks like a working hand-off and has to be
+ * caught here. A REROUTE_TROUBLESHOOTING names a role instead, resolved
+ * against the contractor's own active diagnostic; when there is none the
+ * resolver already fails the route, so it arrives as a dead-route reason.
+ */
+async function unavailableDependencies(
+  db: PrismaClient,
+  contractorId: string,
+  serviceId: string,
+  promise: { handoffTargets: string[]; deadReasons: string[] }
+): Promise<{ slug: string | null; label: string }[]> {
+  const out: { slug: string | null; label: string }[] = [];
+
+  if (promise.handoffTargets.length > 0) {
+    const targets = await db.service.findMany({
+      where: { id: { in: promise.handoffTargets }, contractorId },
+      select: { id: true, slug: true, name: true, active: true },
+    });
+    for (const t of targets) {
+      if (!t.active) out.push({ slug: t.slug, label: `"${t.name}"` });
+    }
+    // A target that is not this contractor's at all is a catalog defect rather
+    // than an ordering problem, but it is equally unreachable, so it is named
+    // too rather than passing silently.
+    const found = new Set(targets.map((t) => t.id));
+    for (const id of promise.handoffTargets) {
+      if (!found.has(id)) out.push({ slug: null, label: "a service that isn't in your catalog" });
+    }
+  }
+
+  if (promise.deadReasons.some((r) => /routes to troubleshooting/.test(r))) {
+    const diagnostic = await db.service.findFirst({
+      where: { contractorId, bookingType: "TROUBLESHOOT_ONLY" },
+      select: { slug: true, name: true, active: true },
+    });
+    out.push(
+      diagnostic
+        ? { slug: diagnostic.slug, label: `your diagnostic visit ("${diagnostic.name}")` }
+        : { slug: null, label: "a diagnostic visit, which you don't offer yet" }
+    );
+  }
+
+  return out;
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   categoryName,
 } from "@/lib/categories";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
+import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/serviceCopy";
 
 export default async function CategoryPage({
   params,
@@ -51,7 +52,20 @@ export default async function CategoryPage({
     })
   );
 
-  if (!category) return notFound();
+  // An empty category is not a page. The tiles no longer link to one, but a
+  // bookmark, a search result or a typed URL still can, and rendering a
+  // heading over nothing tells a homeowner this contractor does no such work
+  // — when what is true is that they do not offer it online.
+  if (!category || category.services.length === 0) return notFound();
+
+  // Catalog copy is written for the trade and cross-refers to sibling
+  // services. Resolved against what this contractor actually has live, so a
+  // homeowner is never sent after something that isn't on this storefront.
+  const catalogNames = await withSite(site, (db) =>
+    db.service.findMany({ select: { name: true, active: true } })
+  );
+  const available = serviceAvailabilityLookup(catalogNames);
+  const describe = (text: string | null) => resolveServiceReferences(text, available);
 
   // Once anything is in the visit, every further service is priced at its
   // While We're There rate. Showing the standalone price here and a lower
@@ -98,8 +112,8 @@ export default async function CategoryPage({
               )}
               <div className="p-4">
                 <div className="text-sm font-semibold text-navy">{svc.name}</div>
-                {svc.shortDescription && (
-                  <p className="mt-1 text-sm text-slate">{svc.shortDescription}</p>
+                {describe(svc.shortDescription) && (
+                  <p className="mt-1 text-sm text-slate">{describe(svc.shortDescription)}</p>
                 )}
                 {addOnPricing && svc.whileWeThereBasePrice !== null ? (
                   <div className="mt-2 text-sm font-medium">

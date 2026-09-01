@@ -81,6 +81,7 @@ async function main() {
   const checkout = strip(readFileSync("app/api/checkout/route.ts", "utf8"));
   const client = strip(readFileSync("components/checkout/ScheduleClient.tsx", "utf8"));
   const jobber = strip(readFileSync("lib/jobber.ts", "utf8"));
+  const scheduling = strip(readFileSync("lib/schedulingAvailability.ts", "utf8"));
 
   ok(`3. availability answers 503 SCHEDULING_UNAVAILABLE, not a 500`,
     /SCHEDULING_UNAVAILABLE/.test(availRoute) && /status:\s*503/.test(availRoute));
@@ -90,12 +91,22 @@ async function main() {
     /retriable:\s*true/.test(availRoute) && /retriable:\s*true/.test(checkout));
 
   // ── nothing irreversible happens on that path ──────────────────────────
-  const revalidateAt = checkout.indexOf("pickCrewForWindow(");
+  //
+  // FOLLOWS THE CALL, which moved. Checkout used to ask Jobber directly via
+  // pickCrewForWindow; it now asks reserveWindow, the authority that decides
+  // which calendar is even relevant — Jobber's for an EXTERNAL contractor,
+  // Price2Book's declared capacity for a NATIVE one. The ORDERING claim is
+  // unchanged and is the whole point: whatever answers, it answers before a
+  // card is touched and before a booking row exists.
+  const revalidateAt = checkout.indexOf("reserveWindow(");
   const depositAt = checkout.indexOf("if (depositDueCents > 0)");
   const writeAt = checkout.indexOf("writeCheckout(");
   ok(`5. availability is revalidated BEFORE the deposit is authorized`,
     revalidateAt > 0 && depositAt > revalidateAt, `${revalidateAt} < ${depositAt}`);
   ok(`   and before the booking is written`, revalidateAt > 0 && writeAt > revalidateAt);
+  ok(`   and the authority it calls asks a real calendar, not a default`,
+    /pickCrewForWindow\(/.test(scheduling) && /nativeWindowHasRoom\(/.test(scheduling) &&
+      !/return\s*\{\s*ok:\s*true/.test(scheduling.split("export async function reserveWindow")[1]?.split("if (mode === null)")[0] ?? ""));
   ok(`6. the refusal returns rather than falling through to a booking`,
     /SCHEDULING_UNAVAILABLE[\s\S]{0,200}status:\s*503\s*\)\s*;\s*\}/.test(checkout) ||
     /return NextResponse\.json\(\s*\{\s*error:\s*"SCHEDULING_UNAVAILABLE"/.test(checkout));

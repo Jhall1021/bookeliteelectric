@@ -13,6 +13,7 @@ import {
   loadOwnComponents,
   canonicalComponentIdsIn,
 } from "@/lib/contractorComponents";
+import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/serviceCopy";
 
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
@@ -88,6 +89,13 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     return NextResponse.json({ error: "Service not found" }, { status: 404 });
   }
 
+  // Names and availability for this contractor's whole catalog, so a quoted
+  // reference in the copy can be told apart from a quoted phrase that is not
+  // a service at all.
+  const catalogNames = await withSite(site, (db) =>
+    db.service.findMany({ select: { name: true, active: true } })
+  );
+
   // Tenant-rooted: ContractorComponent -> its canonical role, not the other
   // way round. A role missing from this map is one this contractor has never
   // priced, which fails closed below rather than defaulting to zero.
@@ -128,7 +136,12 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     whileWeThereBasePrice: service.whileWeThereBasePrice,
     startingPriceLabel: service.startingPriceLabel,
     ctaLabel: service.ctaLabel,
-    shortDescription: service.shortDescription,
+    // Cross-references resolved against THIS contractor's live catalog: copy
+    // written for the trade may point at a service they do not offer.
+    shortDescription: resolveServiceReferences(
+      service.shortDescription,
+      serviceAvailabilityLookup(catalogNames)
+    ),
     icon:
       service.icon ??
       categoryIcon(requireContractorCategory(service.slug, service.contractorCategory)),

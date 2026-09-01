@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { getWindowAvailabilityForDay, SchedulingUnavailableError } from "@/lib/jobber";
+import {
+  windowAvailabilityForDay,
+  SchedulingUnavailableError,
+  SchedulingNotConfiguredError,
+} from "@/lib/schedulingAvailability";
 import {
   loadBusinessHours,
   nextWorkingDays,
@@ -77,31 +81,30 @@ export default async function SchedulePage({ params }: { params: { site: string 
   // Guarded: crew members are contractor-owned (ADR-011). Unscoped, this
   // returned every contractor's crew and so decided this storefront's
   // availability from other businesses' schedules.
-  const eligibleCrews = await withSite(site, (db) =>
-    db.jobberCrewMember.findMany({
-      where: { eligibleForWebsiteBookings: true },
-      select: { jobberUserId: true },
-    })
-  );
-  const eligibleIds = eligibleCrews.map((c) => c.jobberUserId);
   // The server-rendered first day gets the same treatment as every later one:
   // if the calendar cannot be read, the page says so rather than shipping a
   // list of windows nobody verified.
   let firstDayWindows: { start: string; end: string; available: boolean }[] = [];
   let schedulingUnavailable = false;
   try {
-    firstDayWindows = await getWindowAvailabilityForDay(
-      site.contractorId,
-      days[0].dateISO,
-      eligibleIds,
-      estimatedDurationMinutes,
-      {
-        windows: generateArrivalWindows(businessHours),
-        dayEndDisplay: toDisplay(toMinutes(businessHours.dayEnd)),
-      }
+    firstDayWindows = await withSite(site, (db) =>
+      windowAvailabilityForDay(
+        db,
+        site.contractorId,
+        days[0].dateISO,
+        {
+          windows: generateArrivalWindows(businessHours),
+          dayEndDisplay: toDisplay(toMinutes(businessHours.dayEnd)),
+        },
+        estimatedDurationMinutes
+      )
     );
   } catch (err) {
-    if (!(err instanceof SchedulingUnavailableError)) throw err;
+    // Both conditions show the same thing here: no windows, and a message
+    // instead of a list. They differ in whether trying again would help, which
+    // matters to the contractor's dashboard rather than to this homeowner.
+    if (!(err instanceof SchedulingUnavailableError) &&
+        !(err instanceof SchedulingNotConfiguredError)) throw err;
     schedulingUnavailable = true;
   }
 

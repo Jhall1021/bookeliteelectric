@@ -7,6 +7,7 @@ import {
   categoryIcon,
   categoryName,
   categorySlug,
+  customerVisibleCategories,
 } from "@/lib/categories";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
 
@@ -19,7 +20,9 @@ export default async function ServicesPage({ params }: { params: { site: string 
   // canonical taxonomy and picking this contractor's rows out of it would be
   // the unsafe direction. The contractorId filter is gone: the guard supplies
   // it from the site's context.
-  const categories = await withSite(site, (db) =>
+  // Only categories with something live in them. `services` is already
+  // filtered to active below, so this reads the same list the tiles count.
+  const categories = customerVisibleCategories(await withSite(site, (db) =>
     db.contractorCategory.findMany({
       where: { active: true },
       orderBy: { sortOrder: "asc" },
@@ -28,7 +31,7 @@ export default async function ServicesPage({ params }: { params: { site: string 
         services: { where: { active: true }, select: { id: true } },
       },
     })
-  );
+  ));
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">

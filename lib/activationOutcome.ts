@@ -37,6 +37,17 @@ export type PricePromise = {
   promisesFixedPrice: boolean;
   reason: string;
   routes: { priced: number; review: number; handoff: number; dead: number };
+  /** Why each dead route died, deduplicated. Empty when `routes.dead` is 0. */
+  deadReasons: string[];
+  /**
+   * Service ids a customer route hands off to, via REROUTE_SERVICE.
+   *
+   * Collected because the resolver does NOT check whether the destination is
+   * available — it returns REROUTE with the id, and a hand-off to a service
+   * the contractor has not launched counts as a route that works. Only the
+   * caller has the database to answer that, so the ids come out here.
+   */
+  handoffTargets: string[];
 };
 
 /** Guards a tree whose nextQuestionId happens to point backwards. */
@@ -60,6 +71,8 @@ export function pricePromiseOf(
         ? "no tree, and remote quote resolves by quote rather than by amount"
         : "no tree, so the service books directly against its published amount",
       routes: { priced: 0, review: 0, handoff: 0, dead: 0 },
+      deadReasons: [],
+      handoffTargets: [],
     };
   }
 
@@ -71,6 +84,7 @@ export function pricePromiseOf(
 
   const routes = { priced: 0, review: 0, handoff: 0, dead: 0 };
   const deadReasons: string[] = [];
+  const handoffTargets = new Set<string>();
 
   const walk = (key: string | null, answers: Record<string, string>, depth: number) => {
     if (depth > MAX_DEPTH) { routes.dead++; deadReasons.push("route exceeded maximum depth"); return; }
@@ -78,7 +92,11 @@ export function pricePromiseOf(
       const r = resolveRoute(full as never, answers, true, settings as never);
       if (r.status === "PRICED") routes.priced++;
       else if (r.status === "REVIEW") routes.review++;
-      else if (r.status === "REROUTE") routes.handoff++;
+      else if (r.status === "REROUTE") {
+        routes.handoff++;
+        const target = (r as { targetServiceId?: string }).targetServiceId;
+        if (target) handoffTargets.add(target);
+      }
       // See the header: a promise the service cannot keep, not a dead route.
       else if (/has no published (base|add-on) price/.test(String(r.reason))) routes.priced++;
       else { routes.dead++; deadReasons.push(String(r.reason)); }
@@ -97,6 +115,8 @@ export function pricePromiseOf(
       ? `${routes.priced} route(s) resolve to a published amount`
       : `no route resolves to an amount — ${routes.review} review, ${routes.handoff} hand-off`,
     routes,
+    deadReasons: [...new Set(deadReasons)],
+    handoffTargets: [...handoffTargets],
   };
 }
 

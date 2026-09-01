@@ -117,14 +117,50 @@ export default async function SetupPage({
         orderBy: { name: "asc" },
       });
       const promises = await catalogPromises(db, ctx.contractorId);
-      launchable = offeredRows.map((svc) => {
+
+      // ORDERED SO THE CONTRACTOR NEVER LEARNS THE ORDERING RULE.
+      //
+      // Several services hand a homeowner off — "it stopped working" goes to
+      // the diagnostic — and activation refuses while the destination is not
+      // live. That is the correct refusal, but a contractor ticking every box
+      // at once should not have to discover that troubleshooting had to go
+      // first. Prerequisites are launched before the services that need them.
+      //
+      // Ordering ONLY. Every service still goes through the same per-service
+      // route and the same activationRefusal; nothing here decides that any
+      // service may go live.
+      const diagnosticId = offeredRows.find((s) => s.bookingType === "TROUBLESHOOT_ONLY")?.id ?? null;
+      const prerequisiteOf = (id: string) => {
+        const p = promises.get(id);
+        const deps = new Set(p?.handoffTargets ?? []);
+        if (p?.needsDiagnostic && diagnosticId) deps.add(diagnosticId);
+        return deps;
+      };
+      const ordered: typeof offeredRows = [];
+      const placed = new Set<string>();
+      const place = (svc: (typeof offeredRows)[number], seen: Set<string>) => {
+        if (placed.has(svc.id) || seen.has(svc.id)) return; // cycles: leave order be
+        seen.add(svc.id);
+        for (const depId of prerequisiteOf(svc.id)) {
+          const dep = offeredRows.find((r) => r.id === depId);
+          if (dep) place(dep, seen);
+        }
+        if (!placed.has(svc.id)) { placed.add(svc.id); ordered.push(svc); }
+      };
+      for (const svc of offeredRows) place(svc, new Set());
+
+      launchable = ordered.map((svc) => {
         const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
         const needsPrice = promisesFixedPrice && svc.publishedPriceApprovedAt === null;
         const needsCosts = svc.materialCostResolved === false;
+        const needsPolicy = svc.unresolvedPolicyKeys.length > 0;
         return {
           id: svc.id, name: svc.name, active: svc.active,
-          ready: !needsPrice && !needsCosts,
-          reason: needsPrice ? "needs an approved price" : needsCosts ? "needs its material costs" : null,
+          ready: !needsPrice && !needsCosts && !needsPolicy,
+          reason: needsPrice ? "needs an approved price"
+            : needsCosts ? "needs its material costs"
+            : needsPolicy ? "needs one of your pricing policies decided"
+            : null,
         };
       });
     }

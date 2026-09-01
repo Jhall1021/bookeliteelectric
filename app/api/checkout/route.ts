@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
 import {
   pushBookingToJobber,
-  pickCrewForWindow,
-  SchedulingUnavailableError,
   effectiveBusySpan,
   windowToDateRange,
 } from "@/lib/jobber";
+import {
+  reserveWindow,
+  SchedulingUnavailableError,
+  SchedulingNotConfiguredError,
+} from "@/lib/schedulingAvailability";
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
 import { preWorkProjectConflict, depositDueCentsFor } from "@/lib/paymentLedger";
 import { runDepositCheckout, resumeDepositCheckout } from "@/lib/depositFlow";
@@ -194,10 +197,6 @@ export async function POST(req: Request) {
   // Guarded: crew members are contractor-owned (ADR-011). This decides
   // whether a window is bookable, so another contractor's crew calendar must
   // never be able to open or close a slot on this one.
-  const eligibleCrews = await db.jobberCrewMember.findMany({
-    where: { eligibleForWebsiteBookings: true },
-    select: { jobberUserId: true },
-  });
   const [windowStartDate, windowEndDate] = effectiveBusySpan(dateISO, windowStart, windowEnd, estimatedDurationMinutes);
 
   // Would this job run past the end of the crew's day?
@@ -231,16 +230,36 @@ export async function POST(req: Request) {
   //
   // It used to escape as a 500 with an empty body while the schedule step
   // failed open on the same call. Both now answer with the same condition.
-  let assignedCrewId: string | null;
+  // ASKED THROUGH THE SAME AUTHORITY THE SCHEDULE SCREEN USED.
+  //
+  // This called pickCrewForWindow directly with a Jobber crew list, whatever
+  // the contractor's scheduling mode. For a NATIVE contractor that list is
+  // always empty, so every booking was refused as "just taken" — after the
+  // homeowner had entered their name, address and phone.
+  //
+  // A native booking comes back with no crew id and that is legitimate: the
+  // refusal is `ok`, never the absence of a name.
+  let reserved: { ok: boolean; assignedCrewId: string | null };
   try {
-    assignedCrewId = await pickCrewForWindow(
-      site.contractorId,
-      dateISO,
-      windowStartDate,
-      windowEndDate,
-      eligibleCrews.map((c) => c.jobberUserId)
+    reserved = await reserveWindow(
+      db, site.contractorId, dateISO, windowStart, windowEnd, windowStartDate, windowEndDate
     );
   } catch (err) {
+    if (err instanceof SchedulingNotConfiguredError) {
+      // Not retriable and not a race. Saying "try again in a moment" would be
+      // false, and saying "just taken" is what sent BrightPath's homeowners
+      // back to pick another window that would fail identically.
+      return NextResponse.json(
+        {
+          error: "SCHEDULING_NOT_CONFIGURED",
+          retriable: false,
+          message:
+            "Online booking isn't available for this business yet. Nothing has been charged — " +
+            "please give us a call and we'll get you scheduled.",
+        },
+        { status: 503 }
+      );
+    }
     if (!(err instanceof SchedulingUnavailableError)) throw err;
     return NextResponse.json(
       {
@@ -253,8 +272,9 @@ export async function POST(req: Request) {
       { status: 503 }
     );
   }
+  const assignedCrewId = reserved.assignedCrewId;
 
-  if (!assignedCrewId) {
+  if (!reserved.ok) {
     return NextResponse.json(
       { error: "Sorry, that arrival window was just taken. Please go back and pick another." },
       { status: 409 }
@@ -555,6 +575,14 @@ export async function POST(req: Request) {
   // non-blocking — either one failing never prevents the customer from
   // getting their booking confirmed on the site itself.
   const jobberPush = (async () => {
+    // NOTHING TO PUSH FOR A NATIVE CONTRACTOR.
+    //
+    // A native booking names no technician and has no external calendar
+    // behind it, so there is no provider to inform. jobberJobId stays null,
+    // which already means "committed here, not pushed" — and for this
+    // contractor it is the permanent, correct state rather than a recovery
+    // condition the admin action should try to clear.
+    if (assignedCrewId === null) return;
     try {
       let result;
       try {

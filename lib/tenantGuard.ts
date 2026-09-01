@@ -66,6 +66,11 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// homeowner-facing text lives here because it IS policy — whether they
   /// patch, whether they paint, what language they use.
   "ContractorDisclaimer",
+  /// One contractor's answer to a canonical policy question — where their
+  /// price steps for height or distance, who supplies the equipment. The
+  /// template holds the shape of the band; these are the numbers, and they
+  /// are commercially specific to this contractor.
+  "ContractorPolicyValue",
   /// CONFIGURATION, scoped in an earlier pass and left in PENDING_TENANT_SCOPE
   /// by mistake until 27 August. All five carry contractorId today —
   /// PricingSettings, BusinessHours, ContractorMaterialSettings and

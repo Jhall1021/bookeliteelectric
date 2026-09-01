@@ -21,6 +21,7 @@ import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { templateVersionSource, preflight, installCatalog, availableTrades } from "../lib/templateProvisioning";
 import { publishSuggestedPrice } from "../lib/pricePublication";
+import { resolvePolicy } from "../lib/policyResolution";
 import { activateService } from "../lib/serviceActivation";
 import { assessOnboarding } from "../lib/onboardingReadiness";
 import { hostedSlugProblem } from "../lib/siteRouting";
@@ -43,18 +44,44 @@ const OFFERS = [
 /**
  * How long each job takes this crew.
  *
- * A REQUIRED economic input with NO SURFACE IN GUIDED SETUP — the first run
- * reached launch with zero live services because of it. The template
- * deliberately writes no labor hours (ADR-014, correct), Pricing Foundation
- * covers contractor-wide economics and material costs, and nothing anywhere
- * asks how long a job takes. These are BrightPath's answers, typed here
- * because there is nowhere in the product to type them.
+ * BrightPath's own answers, written to the SAME durable field the pricing
+ * panel edits — Service.fieldLaborHours, at /dashboard/services/{id}. The
+ * surface existed all along; what did not was any reason for a contractor to
+ * find it. The first run reached launch with zero live services because
+ * readiness said only "an input is missing, not zero" and linked to the
+ * service list. It now names the input the engine asked for and links to the
+ * service's own pricing panel.
+ *
+ * Not defaulted, then or now: how long a job takes is the contractor's number,
+ * and inventing one to clear a blocker is the defect the engine refuses a
+ * price to avoid.
  */
 const CREW_HOURS: Record<string, number> = {
   "replace-standard-outlet": 0.75,
   "replace-interior-light-fixture": 1.0,
   "replace-led-dimmer": 0.75,
   "electrical-troubleshooting": 1.0,
+};
+
+/**
+ * BrightPath's answers to the decisions the catalog cannot make for them.
+ *
+ * Breakpoints in feet, ascending. These are the numbers a contractor types at
+ * /dashboard/policies; recorded here so the run is reproducible, and applied
+ * through the same resolvePolicy authority the page posts to — which is what
+ * rewrites the band labels a homeowner reads.
+ */
+const POLICIES: Record<string, number[] | string> = {
+  "fixture_work_height.breakpoints": [10, 14, 20],
+  "chandelier_ceiling_height.breakpoints": [12],
+  "data_cable_run.breakpoints": [50],
+  "exterior_mount_height.breakpoints": [10, 16],
+  "exterior_outlet_run.breakpoints": [25, 50],
+  "outlet_run.breakpoints": [25, 50],
+  "panel_circuit_run.breakpoints": [30, 60],
+  "sconce_run.breakpoints": [15],
+  "switch_leg_run.breakpoints": [20, 40],
+  "bathroom_fan.supply_arrangement": "We supply the fan",
 };
 
 /** BrightPath's own economics — their answers, not defaults. */
@@ -213,23 +240,39 @@ async function main() {
  * than rebuilt, which is what a real contractor coming back to setup does.
  */
 async function finish(contractorId: string) {
-  // A BOOKABLE CREW.
+  // NATIVE CAPACITY, NOT A CREW ROSTER.
   //
-  // Checkout will not assign a job without a crew row marked
-  // `eligibleForWebsiteBookings`, and it does not branch on scheduling mode —
-  // but readiness only demands one when scheduling is EXTERNAL. BrightPath is
-  // NATIVE, so it launched, priced and offered arrival windows with no crew,
-  // and every booking died at the last step. Entered here for the same reason
-  // as the crew hours: it is required, and nothing asks for it.
-  const crewCount = await raw.jobberCrewMember.count({ where: { contractorId } });
-  if (crewCount === 0) {
-    await raw.jobberCrewMember.create({
-      data: {
-        contractorId, jobberUserId: `brightpath-crew-1`, name: "Marisol Vega",
-        eligibleForWebsiteBookings: true,
-      },
+  // The first run put a Jobber crew member on a contractor who has never had
+  // Jobber, because checkout would not assign a job without one whatever the
+  // scheduling mode. Native scheduling now asks the only question it actually
+  // needs answered: how many jobs can run in one arrival window. BrightPath
+  // runs two vans.
+  const nowNative = await raw.contractor.findUniqueOrThrow({
+    where: { id: contractorId }, select: { nativeConcurrentJobs: true },
+  });
+  if (nowNative.nativeConcurrentJobs === null) {
+    await raw.contractor.update({
+      where: { id: contractorId }, data: { nativeConcurrentJobs: 2 },
     });
-    console.log("  bookable crew added (nothing in setup asks for this)");
+    console.log("  native capacity: 2 jobs at once");
+  }
+  // The crew row the first run needed is removed: a native contractor must not
+  // depend on one, and leaving it would hide whether that is true.
+  const staleCrew = await raw.jobberCrewMember.deleteMany({ where: { contractorId } });
+  if (staleCrew.count > 0) console.log(`  removed ${staleCrew.count} crew row(s) — native scheduling needs none`);
+
+  // ── the contractor's policy decisions ──────────────────────────────────
+  for (const [key, answer] of Object.entries(POLICIES)) {
+    const existing = await raw.contractorPolicyValue.findFirst({
+      where: { contractorId, key }, select: { resolvedAt: true },
+    });
+    if (!existing || existing.resolvedAt) continue;
+    const res = await resolvePolicy(
+      raw, contractorId, key,
+      Array.isArray(answer) ? { boundaries: answer } : { choice: answer }
+    );
+    if (!res.ok) { note("blocked", "policy", `${key}: ${res.refusal.code} — ${res.refusal.message}`); continue; }
+    console.log(`  decided ${key} — ${res.optionsRelabeled} label(s) rewritten`);
   }
 
   const offered = await raw.service.findMany({

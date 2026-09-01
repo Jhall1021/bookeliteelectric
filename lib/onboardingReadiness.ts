@@ -109,22 +109,39 @@ export async function promiseFor(
   );
 }
 
+export type CatalogPromise = {
+  promisesFixedPrice: boolean;
+  /** Services a customer route hands off to. They must be live for it to work. */
+  handoffTargets: string[];
+  /** A route sends the homeowner to the diagnostic, which isn't live. */
+  needsDiagnostic: boolean;
+};
+
 /** Per-service promises for a whole catalog, for the selection screen. */
 export async function catalogPromises(
   db: PrismaClient,
   contractorId: string
-): Promise<Map<string, { promisesFixedPrice: boolean }>> {
+): Promise<Map<string, CatalogPromise>> {
   let settings: unknown = null;
   try { settings = await loadPricingSettings(db as never, contractorId); } catch { settings = null; }
   const services = await db.service.findMany({
     where: { contractorId }, select: { id: true, bookingType: true },
   });
-  const out = new Map<string, { promisesFixedPrice: boolean }>();
+  const out = new Map<string, CatalogPromise>();
   for (const s of services) {
     const p = await promiseFor(db, s as { id: string; bookingType: string }, settings);
-    out.set(s.id, { promisesFixedPrice: p.promisesFixedPrice });
+    out.set(s.id, {
+      promisesFixedPrice: p.promisesFixedPrice,
+      handoffTargets: p.handoffTargets,
+      needsDiagnostic: p.deadReasons.some((r) => /routes to troubleshooting/.test(r)),
+    });
   }
   return out;
+}
+
+/** "Actual field labor hours…" reads better mid-sentence than shouted. */
+function lowerFirst(s: string): string {
+  return s.length > 1 && s[1] === s[1].toLowerCase() ? s[0].toLowerCase() + s.slice(1) : s;
 }
 
 export async function assessOnboarding(
@@ -232,10 +249,24 @@ export async function assessOnboarding(
       `You haven't told us what ${role} costs you — ${slugs.length} service${slugs.length === 1 ? "" : "s"} need${slugs.length === 1 ? "s" : ""} it, including ${slugs[0]}.`,
       { href: "/dashboard/services" }));
   }
+  // ASKS THE QUESTION, rather than naming the key.
+  //
+  // This read "One of your policies is undecided (fixture_work_height.breakpoints)"
+  // and linked to the service list, where there was nothing to do about it —
+  // no surface for deciding a policy existed at all. The prompt is written in
+  // the contractor's language and is already stored on the row.
+  const policyPrompts = new Map(
+    (await db.contractorPolicyValue.findMany({
+      where: { contractorId }, select: { key: true, prompt: true },
+    })).map((v) => [v.key, v.prompt])
+  );
   for (const [key, slugs] of [...policyToServices].sort()) {
+    const ask = policyPrompts.get(key);
     findings["pricing-foundation"].push(b("POLICY_UNRESOLVED",
-      `One of your policies is undecided (${key}) — ${slugs.length} service${slugs.length === 1 ? "" : "s"} depend${slugs.length === 1 ? "s" : ""} on it.`,
-      { href: "/dashboard/services" }));
+      ask
+        ? `${ask} — ${slugs.length} service${slugs.length === 1 ? "" : "s"} can't be priced until you say, including ${slugs[0]}.`
+        : `One of your policies is undecided (${key}) — ${slugs.length} service${slugs.length === 1 ? "" : "s"} depend${slugs.length === 1 ? "s" : ""} on it.`,
+      { href: "/dashboard/policies" }));
   }
 
   // ── 4. Services & pricing review ───────────────────────────────────────
@@ -263,11 +294,24 @@ export async function assessOnboarding(
         { serviceSlug: slug, href: "/dashboard/services" }));
     }
     if (settings) {
-      const derived = suggestPrimaryPrice(svc as never, settings as never).totalCents;
+      const suggestion = suggestPrimaryPrice(svc as never, settings as never);
+      const derived = suggestion.totalCents;
       if (derived === null) {
-        findings.services.push(b("PRICE_UNDERIVABLE",
-          `${slug} cannot be priced yet — an input is missing, not zero.`,
-          { serviceSlug: slug, href: "/dashboard/services" }));
+        // NAMES THE INPUT, AND LINKS TO WHERE IT IS EDITED.
+        //
+        // This said "an input is missing, not zero" and pointed at the service
+        // list. Both halves failed a real contractor: BrightPath reached Review
+        // & Launch with four services and no way to learn that what was missing
+        // was crew-hours, or that the field for them is on each service's own
+        // pricing panel. The engine has always said which input it wanted —
+        // this passes that sentence through instead of paraphrasing it away.
+        //
+        // Deliberately NOT auto-filled. How long a job takes is the
+        // contractor's own number, and inventing one to clear a blocker is the
+        // §3.1 defect the engine refuses a price to avoid.
+        findings.services.push(b("LABOR_INPUTS_MISSING",
+          `${slug} can't be priced yet — ${lowerFirst(suggestion.unavailableReason ?? "an input is missing, not zero")}.`,
+          { serviceSlug: slug, href: `/dashboard/services/${svc.id as string}` }));
       } else if (svc.basePrice !== null && derived !== svc.basePrice) {
         findings.services.push(w("PRICE_DRIFTED",
           `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
@@ -328,6 +372,16 @@ export async function assessOnboarding(
     findings.scheduling.push(b("NO_ELIGIBLE_CREW",
       "Your external calendar decides availability, but no crew is marked bookable — so nothing can be scheduled.",
       { href: "/dashboard/jobber/crews" }));
+  }
+  // The native counterpart of NO_ELIGIBLE_CREW, and the reason that rule
+  // could not simply be widened: what an external contractor owes is a roster
+  // their provider knows about, and what a native contractor owes is a number.
+  // BrightPath owed the number, was never asked for it, and so launched
+  // offering arrival windows that checkout could not honor.
+  if (mode === "NATIVE" && !((c.nativeConcurrentJobs ?? 0) > 0)) {
+    findings.scheduling.push(b("NATIVE_CAPACITY_UNSET",
+      "Price2Book decides your availability, but you haven't said how many jobs you can run at once — so we can't tell a homeowner which arrival windows are really open.",
+      { href: IN_SETUP }));
   }
   if (mode === "NATIVE" && connection) {
     findings.scheduling.push(w("PROVIDER_CONNECTED_BUT_NATIVE",

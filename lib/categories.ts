@@ -187,3 +187,28 @@ export function requireContractorDisclaimer<T>(key: string, d: T | null | undefi
   }
   return d;
 }
+
+/**
+ * Does this category have anything a homeowner can actually book?
+ *
+ * STOREFRONT NAVIGATION IS DERIVED, NOT DECLARED. A ContractorCategory row
+ * exists for every category the installed catalog covers, whether or not the
+ * contractor offers anything in it — which is right for the dashboard, where
+ * an empty category is a place to add work, and wrong for the storefront,
+ * where it is a door into an empty room.
+ *
+ * Invisible on a mature catalog: Elite has live services in nearly every
+ * category. BrightPath launched with three, so nine of its thirteen category
+ * tiles read "0 services" and led nowhere.
+ *
+ * A rule rather than a filter written at each call site, because the next
+ * navigation surface should inherit it rather than remember it.
+ */
+export function categoryIsCustomerVisible(c: { services: unknown[] }): boolean {
+  return c.services.length > 0;
+}
+
+/** The customer-visible subset, in the order given. */
+export function customerVisibleCategories<T extends { services: unknown[] }>(cats: T[]): T[] {
+  return cats.filter(categoryIsCustomerVisible);
+}
