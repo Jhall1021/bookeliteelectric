@@ -114,6 +114,23 @@ async function call(
   return { status: res.status, body, text, location: res.headers.get("location") };
 }
 
+/**
+ * Sign in, waiting out the rate limit rather than failing on it.
+ *
+ * The window is 60 seconds and this proof deliberately exhausts it at the end,
+ * so a second run inside a minute met a 429 on its FIRST sign-in and reported
+ * a broken password. That is the check misreading the protection it exists to
+ * confirm — throttling is a "not yet", not a refusal, and only the probe at
+ * the end is entitled to treat a 429 as the answer it wanted.
+ */
+async function signIn(email: string, password: string, jar?: string[]) {
+  const first = await call("/api/auth/sign-in/email", { body: { email, password }, jar });
+  if (first.status !== 429) return first;
+  console.log(`     (rate-limited — waiting out the window)`);
+  await new Promise((r) => setTimeout(r, 61_000));
+  return call("/api/auth/sign-in/email", { body: { email, password }, jar });
+}
+
 async function teardown() {
   const user = await prisma.user.findFirst({ where: { email: EMAIL }, select: { id: true } });
   await prisma.contractorMembership.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
@@ -175,10 +192,9 @@ async function main() {
   ok(`   and the account is now verified`, afterVerify.emailVerified === true);
 
   // ── 4. sign in with the password ───────────────────────────────────────
-  const signIn = await call("/api/auth/sign-in/email", {
-    body: { email: EMAIL, password: PASSWORD },
-  });
-  ok(`4. the password signs the account in`, signIn.status === 200, `${signIn.status} ${signIn.text.slice(0, 90)}`);
+  const signedIn = await signIn(EMAIL, PASSWORD);
+  ok(`4. the password signs the account in`, signedIn.status === 200,
+    `${signedIn.status} ${signedIn.text.slice(0, 90)}`);
 
   // ── 5. create the contractor, through the sanctioned route ─────────────
   const before = await prisma.contractorMembership.count({ where: { userId: afterVerify.id } });
@@ -203,7 +219,7 @@ async function main() {
   const site = await prisma.contractorSite.findFirst({
     where: { contractorId: contractor?.id ?? "" }, select: { hostedSlug: true, publicId: true },
   });
-  ok(`   it has a storefront identity`, site?.hostedSlug === SLUG && !!site?.publicId?.startsWith("pub_"));
+  ok(`   it has a storefront identity`, site?.hostedSlug === SLUG && !!site?.publicId?.startsWith("site_"));
 
   const onboarding = await prisma.contractorOnboarding.findFirst({
     where: { contractorId: contractor?.id ?? "" }, select: { currentStage: true },
@@ -280,7 +296,7 @@ async function main() {
     // NOT merely "non-200". Throttling also answers non-200, and an earlier
     // draft ran this after the rate-limit probe had already exhausted the
     // window — so it passed on a 429 and proved nothing about the password.
-    const oldPw = await call("/api/auth/sign-in/email", { body: { email: EMAIL, password: PASSWORD } });
+    const oldPw = await signIn(EMAIL, PASSWORD);
     ok(`    the old password no longer signs in`,
       oldPw.status !== 200 && oldPw.status !== 429,
       `${oldPw.status}${oldPw.status === 429 ? " — throttled, so this proved nothing" : ""}`);
@@ -303,9 +319,7 @@ async function main() {
 
   // ── 15. a revoked session cannot reach contractor-admin surfaces ───────
   const live: string[] = [];
-  const freshSignIn = await call("/api/auth/sign-in/email", {
-    body: { email: EMAIL, password: "a-different-correct-horse-9" }, jar: live,
-  });
+  const freshSignIn = await signIn(EMAIL, "a-different-correct-horse-9", live);
   ok(`15. the new password signs in`, freshSignIn.status === 200, String(freshSignIn.status));
 
   const beforeRevoke = await call("/dashboard/setup", { jar: live });

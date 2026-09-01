@@ -76,10 +76,36 @@ export const SURFACES: { kind: SurfaceKind; delivered: boolean; why: string }[] 
   },
   {
     kind: "embed",
-    delivered: false,
+    delivered: true,
     why: "an iframe on the contractor's own page — the universal low-friction mode",
   },
 ];
+
+/** A publicId addresses the embed; anything else is a hosted slug. */
+export function segmentIsPublicId(segment: string): boolean {
+  return /^site_[0-9a-f]{8,}$/.test(segment);
+}
+
+/**
+ * The link prefix for the surface a storefront segment arrived on.
+ *
+ * A PURE FUNCTION OF THE SEGMENT, deliberately: it needs no database, so a
+ * component deep in the tree can build a correct link without resolving the
+ * site again, and there is no async version to forget to await.
+ *
+ * EVERY customer-facing link must come from here rather than from the raw
+ * route param. `/${params.site}` looks equivalent and is not: under an embed
+ * the segment is a publicId, so the link becomes `/site_abc/services/...` —
+ * which resolves, and silently drops the homeowner out of `/embed/...` and so
+ * out of the embed surface mid-journey. Found by clicking through a real
+ * embed, where the header links were right and the category links were not,
+ * because only the header went through the surface.
+ */
+export function storefrontBaseFor(segment: string): string {
+  return segmentIsPublicId(segment)
+    ? embedSurface(segment).basePath
+    : hostedSurface(segment).basePath;
+}
 
 /** Join a base path and a route, without doubling or dropping the slash. */
 export function surfaceHref(surface: StorefrontSurface, path: string): string {

@@ -25,6 +25,22 @@
 import { createContext, useContext, useCallback, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { hostedSurface, type StorefrontSurface } from "@/lib/storefrontSurface";
+import { embedVisitToken } from "@/lib/visitToken.client";
+
+/**
+ * Attach the visit token, but only where the cookie cannot do the job.
+ *
+ * Hosted and custom-domain storefronts are first-party and keep using the
+ * cookie; sending a second identifier there would be two sources of truth for
+ * one visit. Inside an embed the cookie is never sent, so the frame supplies
+ * the token it holds.
+ */
+function withVisitToken(headers: Headers, surface: StorefrontSurface | undefined) {
+  if (surface?.kind !== "embed") return headers;
+  const token = embedVisitToken();
+  if (token) headers.set("x-price2book-visit", token);
+  return headers;
+}
 
 const SiteContext = createContext<
   { publicId: string; hostedSlug: string; surface: StorefrontSurface } | null
@@ -89,6 +105,7 @@ export function useSiteFetchOptional():
   | null {
   const site = useContext(SiteContext);
   const publicId = site?.publicId ?? null;
+  const surface = site?.surface ?? null;
   // The hook is called unconditionally and returns null AFTER, rather than
   // returning early — a conditional hook call breaks the rules of hooks, and
   // the header renders both inside and outside a storefront.
@@ -96,9 +113,10 @@ export function useSiteFetchOptional():
     (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       headers.set("x-price2book-site", publicId as string);
+      withVisitToken(headers, surface ?? undefined);
       return fetch(input, { ...init, headers });
     },
-    [publicId]
+    [publicId, surface]
   );
   return publicId === null ? null : fetcher;
 }
@@ -111,14 +129,15 @@ export function useSiteFetchOptional():
  * should not learn whether a storefront exists.
  */
 export function useSiteFetch() {
-  const { publicId } = useSite();
+  const { publicId, surface } = useSite();
   return useCallback(
     (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       headers.set("x-price2book-site", publicId);
+      withVisitToken(headers, surface);
       return fetch(input, { ...init, headers });
     },
-    [publicId]
+    [publicId, surface]
   );
 }
 

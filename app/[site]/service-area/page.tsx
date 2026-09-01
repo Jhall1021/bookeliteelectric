@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useIdentity, usePricingCopy } from "@/components/theme/StorefrontContext";
+import { storefrontBaseFor } from "@/lib/storefrontSurface";
 
 /**
  * Where the contractor works — ADR-016.
@@ -17,6 +18,8 @@ import { useIdentity, usePricingCopy } from "@/components/theme/StorefrontContex
  * know their territory.
  */
 export default function ServiceAreaPage({ params }: { params: { site: string } }) {
+  // Every link below is built from the SURFACE, never from the raw segment.
+  const base = storefrontBaseFor(params.site);
   const id = useIdentity();
   const copy = usePricingCopy();
   const area = id.serviceArea;
@@ -41,7 +44,7 @@ export default function ServiceAreaPage({ params }: { params: { site: string } }
 
       <div className="mt-10">
         <Link
-          href={`/${params.site}/services`}
+          href={`${base}/services`}
           className="inline-block rounded-pill bg-accent px-7 py-3 font-semibold text-accent-ink transition hover:bg-accent-hover"
         >
           {copy.primaryCta}

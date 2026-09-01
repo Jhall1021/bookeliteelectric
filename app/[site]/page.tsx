@@ -11,6 +11,7 @@ import { ANONYMOUS_IDENTITY, IDENTITY_SELECT, resolveIdentity } from "@/lib/stor
 import { pricingCopy } from "@/lib/pricingCopy";
 import { formatCents } from "@/lib/flow-types";
 import { getServiceImage } from "@/lib/serviceImages";
+import { storefrontBaseFor } from "@/lib/storefrontSurface";
 
 /**
  * Three above the fold, not six.
@@ -76,6 +77,8 @@ const FEATURED = [
 ];
 
 export default async function HomePage({ params }: { params: { site: string } }) {
+  // Every link below is built from the SURFACE, never from the raw segment.
+  const base = storefrontBaseFor(params.site);
   // ADR §2.2. The storefront is identified by the URL segment, before any
   // catalog query. The featured list below names service SLUGS, and resolving
   // the tenant from one of those would be the forbidden shape: the request
@@ -132,14 +135,14 @@ export default async function HomePage({ params }: { params: { site: string } })
       // Keeps its fallback rather than throwing: this is a curated static list
       // carrying its own category constant, so a missing row degrades to the
       // hardcoded slug instead of taking the homepage down.
-      href: `/${params.site}/services/${live.contractorCategory?.canonicalCategory.slug ?? svc.category}/${svc.slug}`,
+      href: `${base}/services/${live.contractorCategory?.canonicalCategory.slug ?? svc.category}/${svc.slug}`,
     }];
   });
 
   return (
     <main>
       <Hero
-        base={`/${params.site}`}
+        base={base}
         ladder={sameVisit ? PRICING_LADDER : []}
         differentiators={DIFFERENTIATORS(copy.pricingDifferentiator, sameVisit)}
       />

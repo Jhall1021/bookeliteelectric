@@ -86,6 +86,26 @@ const nextConfig = {
     // host, which is the host nobody tests legacy links against.
     return legacy.map((r) => ({ ...r, missing: NOT_PRICE2BOOK }));
   },
+
+  /**
+   * The embed serves the SAME pages, not copies of them — Embed V1.
+   *
+   * `/embed/<publicId>/...` rewrites onto the `[site]` tree with the publicId
+   * as the segment, which `siteBySegment` resolves alongside a hosted slug.
+   * The browser keeps the /embed URL; Next renders the storefront that already
+   * exists.
+   *
+   * A REWRITE, not a redirect: an iframe that redirected out of /embed would
+   * leave the contractor's address bar showing price2book.com, and a second
+   * route tree would be a second storefront engine one release away from
+   * diverging. The surface only ever changes the shape of a link.
+   */
+  async rewrites() {
+    return [
+      { source: "/embed/:publicId", destination: "/:publicId" },
+      { source: "/embed/:publicId/:path*", destination: "/:publicId/:path*" },
+    ];
+  },
 };
 
 export default nextConfig;

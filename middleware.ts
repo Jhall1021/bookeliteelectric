@@ -20,8 +20,45 @@ function frozen(): boolean {
   return v === "1" || v === "true";
 }
 
-export function middleware(req: NextRequest) {
-  if (!frozen() || READ_ONLY.has(req.method)) return NextResponse.next();
+/**
+ * Who may frame what — Embed V1.
+ *
+ * There was no `frame-ancestors` and no `X-Frame-Options` anywhere, so every
+ * page including the dashboard could be framed by anyone. Shipping an embed
+ * makes that a decision rather than an oversight, and the decision is: nothing
+ * may be framed except an embedded storefront, and that only by the origins
+ * its contractor registered.
+ *
+ * The embed's policy is per-contractor and this runs on the Edge, where Prisma
+ * is unavailable in Next 14 — so it asks the internal resolver. An unknown
+ * identifier, an inactive site and a contractor with no registered domain all
+ * answer `'none'`, which fails closed and tells a prober nothing.
+ */
+async function framePolicy(req: NextRequest): Promise<string> {
+  const m = req.nextUrl.pathname.match(/^\/embed\/(site_[0-9a-f]+)/);
+  if (!m) return "frame-ancestors 'none'";
+  try {
+    const res = await fetch(
+      new URL(`/api/internal/embed-policy?publicId=${encodeURIComponent(m[1])}`, req.nextUrl.origin),
+      { headers: { accept: "application/json" } }
+    );
+    if (!res.ok) return "frame-ancestors 'none'";
+    const body = (await res.json()) as { policy?: string };
+    return typeof body.policy === "string" ? body.policy : "frame-ancestors 'none'";
+  } catch {
+    // A resolver that cannot be reached must not open the frame. An embed that
+    // stops working is a contractor calling support; an embed anyone can frame
+    // is a homeowner handing their address to a stranger.
+    return "frame-ancestors 'none'";
+  }
+}
+
+export async function middleware(req: NextRequest) {
+  if (!frozen() || READ_ONLY.has(req.method)) {
+    const res = NextResponse.next();
+    res.headers.set("Content-Security-Policy", await framePolicy(req));
+    return res;
+  }
 
   return NextResponse.json(
     {
@@ -37,5 +74,6 @@ export function middleware(req: NextRequest) {
 export const config = {
   // Everything except Next's own assets and the auth endpoints, which must
   // keep working so an admin can still sign in and watch the window.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth).*)"],
+  // The internal policy resolver is excluded, or asking it would ask it again.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|api/internal/embed-policy).*)"],
 };

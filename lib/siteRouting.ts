@@ -34,6 +34,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "./prisma";
 import { notFound } from "next/navigation";
+import { segmentIsPublicId, storefrontBaseFor } from "./storefrontSurface";
+export { segmentIsPublicId, storefrontBaseFor };
 import { withContractor } from "./tenantRoute";
 
 /**
@@ -215,7 +217,29 @@ export function withSite<T>(
  * storefront should be indistinguishable from a URL that was never valid.
  */
 export async function requireHostedSite(siteSegment: string): Promise<ResolvedSite> {
-  const site = await siteByHostedSlug(siteSegment);
+  const site = await siteBySegment(siteSegment);
   if (!site) notFound();
   return site;
+}
+
+/**
+ * A storefront segment is a hosted slug OR an opaque publicId.
+ *
+ * ONE ROUTE TREE, THREE SURFACES. `/embed/<publicId>` rewrites onto the same
+ * `[site]` pages rather than getting its own copy of them — a second tree
+ * would be a second storefront engine within a release of diverging, which is
+ * the one thing the embed must not become.
+ *
+ * The two cannot be confused: a publicId is `site_` + hex, and a hosted slug
+ * may not contain an underscore (see lib/contractorCreation's SLUG_SHAPE), so
+ * no contractor can ever claim an address that looks like an identifier.
+ *
+ * Neither form is a credential. Both are re-resolved server-side on every
+ * request, and both yield the same ResolvedSite — the client cannot assert a
+ * tenant by choosing which shape to send.
+ */
+export async function siteBySegment(segment: string): Promise<ResolvedSite | null> {
+  return segmentIsPublicId(segment)
+    ? siteByPublicId(segment)
+    : siteByHostedSlug(segment);
 }

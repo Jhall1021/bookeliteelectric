@@ -12,12 +12,15 @@ import {
 } from "@/lib/categories";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
 import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/serviceCopy";
+import { storefrontBaseFor } from "@/lib/storefrontSurface";
 
 export default async function CategoryPage({
   params,
 }: {
   params: { site: string; category: string };
 }) {
+  // Every link below is built from the SURFACE, never from the raw segment.
+  const base = storefrontBaseFor(params.site);
   // ADR §2.2. Tenant first, from the URL — never from the category or any
   // service it contains.
   const site = await requireHostedSite(params.site);
@@ -76,7 +79,7 @@ export default async function CategoryPage({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href={`/${params.site}/services`} className="text-sm text-electric">← All categories</Link>
+      <Link href={`${base}/services`} className="text-sm text-electric">← All categories</Link>
       <h1 className="mt-4 font-display text-2xl font-bold text-navy">{categoryName(category)}</h1>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -87,7 +90,7 @@ export default async function CategoryPage({
           return (
             <Link
               key={svc.id}
-              href={`/${params.site}/services/${params.category}/${svc.slug}`}
+              href={`${base}/services/${params.category}/${svc.slug}`}
               className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:border-electric"
             >
               {/* Restructured from the previous horizontal row (36px icon

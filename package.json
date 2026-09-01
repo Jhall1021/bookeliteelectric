@@ -26,6 +26,7 @@
     "contract:rehearse:branch": "bash scripts/contract-branch-rehearsal.sh",
     "verify:tenancy": "tsx scripts/verify-tenant-isolation-live.ts && tsx scripts/verify-jobber-connection-tenancy.ts && tsx scripts/verify-pricing-settings-tenancy.ts",
     "verify:bootstrap": "tsx scripts/verify-account-bootstrap.ts",
+    "verify:embed": "tsx scripts/verify-embed-surface.ts",
     "db:parity": "tsx scripts/db-parity.ts",
     "verify:freeze": "tsx scripts/verify-write-freeze.ts",
     "template:extract": "tsx scripts/extract-template-service.ts",

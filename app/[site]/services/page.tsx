@@ -10,8 +10,11 @@ import {
   customerVisibleCategories,
 } from "@/lib/categories";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
+import { storefrontBaseFor } from "@/lib/storefrontSurface";
 
 export default async function ServicesPage({ params }: { params: { site: string } }) {
+  // Every link below is built from the SURFACE, never from the raw segment.
+  const base = storefrontBaseFor(params.site);
   // ADR §2.2. The tenant is resolved from the URL's site segment FIRST, before
   // any tenant-owned query — never from a service the request names.
   const site = await requireHostedSite(params.site);
@@ -44,7 +47,7 @@ export default async function ServicesPage({ params }: { params: { site: string 
           return (
             <Link
               key={cat.id}
-              href={`/${params.site}/services/${slug}`}
+              href={`${base}/services/${slug}`}
               className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               {/* Photo band above the text, matching the homepage Popular
@@ -80,7 +83,7 @@ export default async function ServicesPage({ params }: { params: { site: string 
         <p className="font-medium">Not sure what you need?</p>
         <p className="mt-1 text-sm text-white/70">Tell us what's going on and we'll point you in the right direction.</p>
         <Link
-          href={`/${params.site}/troubleshooting`}
+          href={`${base}/troubleshooting`}
           className="mt-4 inline-block rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white hover:bg-electric-hover"
         >
           I Don't Know What's Wrong

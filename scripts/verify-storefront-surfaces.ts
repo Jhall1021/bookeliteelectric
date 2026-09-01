@@ -50,10 +50,17 @@ const COVERAGE: Record<string, string[]> = {
     "scripts/lint-storefront-identity.ts",
     "scripts/audit-storefront-navigation.ts",
   ],
-  // Deliberately empty until each ships. The check below turns that emptiness
+  // Deliberately empty until it ships. The check below turns that emptiness
   // into a build failure at exactly the moment it starts mattering.
   "custom-domain": [],
-  embed: [],
+  embed: [
+    "scripts/verify-embed-surface.ts",
+    // The rules that are about WHAT a storefront may say hold on every
+    // surface, because they are checked against the shared engine rather
+    // than against a page — the embed renders the same components.
+    "scripts/verify-same-visit-promise.ts",
+    "scripts/verify-storefront-price-promise.ts",
+  ],
 };
 
 function bases() {
@@ -61,7 +68,7 @@ function bases() {
 
   ok(surfaceHref(hostedSurface("elite-electric"), "/my-visit") === "/elite-electric/my-visit",
     "hosted links carry the contractor's slug");
-  ok(surfaceHref(embedSurface("pub_abc"), "/my-visit") === "/embed/pub_abc/my-visit",
+  ok(surfaceHref(embedSurface("site_abc"), "/my-visit") === "/embed/site_abc/my-visit",
     "embedded links carry the embed route and the publicId");
   ok(surfaceHref(customDomainSurface(), "/my-visit") === "/my-visit",
     "on a contractor's own domain the storefront is the root");
@@ -70,7 +77,7 @@ function bases() {
   // contractor the root serves, which sent a homeowner mid-booking to another
   // contractor's empty cart. No surface may produce an unprefixed link except
   // the one where the root genuinely IS the storefront.
-  const prefixed = [hostedSurface("x"), embedSurface("pub_x")]
+  const prefixed = [hostedSurface("x"), embedSurface("site_x")]
     .every((s) => surfaceHref(s, "/services").startsWith(s.basePath) && s.basePath !== "");
   ok(prefixed, "every non-root surface prefixes its links");
 }

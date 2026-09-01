@@ -90,9 +90,24 @@ export default function BusinessPanel({
       <div className="rounded-card border border-cardline bg-white p-5 shadow-card">
         <h2 className="font-display text-lg font-bold text-navy">Your Price2Book storefront</h2>
         {hostedSlug ? (
-          <p className="mt-1 text-sm text-slate">
-            Homeowners book you at <span className="font-medium text-navy">/{hostedSlug}</span>.
-          </p>
+          <>
+            {/* THE HOSTED ADDRESS IS THE FALLBACK, NOT THE HEADLINE.
+                This said "Homeowners book you at /slug" full stop, which
+                tells a contractor with a perfectly good website that their
+                public address is now somewhere else. Most of them have a
+                site, and adding Price2Book to it is the easier sell than
+                sending customers elsewhere. */}
+            <p className="mt-1 text-sm text-slate">
+              This always works: <span className="font-medium text-navy">/{hostedSlug}</span>.
+            </p>
+            <p className="mt-2 text-sm text-slate">
+              Most businesses put Price2Book on their own website instead — a page
+              like <span className="font-medium text-navy">yourcompany.com/pricing</span> —
+              so customers stay on your site. That page becomes the one link you
+              put everywhere. We&rsquo;ll set that up with you; nothing here is
+              required to start taking bookings.
+            </p>
+          </>
         ) : (
           <>
             <p className="mt-1 text-sm text-slate">

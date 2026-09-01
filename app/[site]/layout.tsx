@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { requireHostedSite } from "@/lib/siteRouting";
+import { requireHostedSite, segmentIsPublicId } from "@/lib/siteRouting";
+import { embedSurface, hostedSurface } from "@/lib/storefrontSurface";
 import { SiteProvider } from "@/components/site/SiteContext";
 import ThemeTokens from "@/components/theme/ThemeTokens";
 import { ThemeStructureProvider } from "@/components/theme/ThemeContext";
@@ -55,6 +56,22 @@ export async function generateMetadata({ params }: { params: { site: string } })
   };
 }
 
+/**
+ * Which surface is serving this request, from the segment that reached us.
+ *
+ * `/embed/<publicId>` rewrites to `/<publicId>`, so the segment IS the
+ * surface signal — a publicId means an embed, a slug means the hosted page.
+ * Read here, at the boundary that already resolved the site, and handed to
+ * the provider so every link beneath is built from it rather than guessed.
+ *
+ * A custom domain will resolve by Host rather than by segment and returns the
+ * root-based surface; that path is not delivered yet, so it is not inferred
+ * here on the strength of a header nobody sets.
+ */
+function surfaceForSegment(segment: string, site: { publicId: string; hostedSlug: string }) {
+  return segmentIsPublicId(segment) ? embedSurface(site.publicId) : hostedSurface(site.hostedSlug);
+}
+
 export default async function SiteLayout({
   children,
   params,
@@ -74,7 +91,11 @@ export default async function SiteLayout({
   const choice = c ? { family: c.themeFamily, variant: c.themeVariant, version: c.themeVersion } : undefined;
   const theme = resolveStorefrontTheme(brand, choice);
   return (
-    <SiteProvider publicId={site.publicId} hostedSlug={site.hostedSlug}>
+    <SiteProvider
+      publicId={site.publicId}
+      hostedSlug={site.hostedSlug}
+      surface={surfaceForSegment(params.site, site)}
+    >
       <ThemeTokens brand={brand} choice={choice} />
       <StorefrontProvider value={{
         identity: c ? resolveIdentity(c) : ANONYMOUS_IDENTITY,

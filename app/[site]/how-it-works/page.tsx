@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
+import { storefrontBaseFor } from "@/lib/storefrontSurface";
 
 const STEPS = [
   {
@@ -24,6 +25,8 @@ const STEPS = [
 ];
 
 export default function HowItWorksPage({ params }: { params: { site: string } }) {
+  // Every link below is built from the SURFACE, never from the raw segment.
+  const base = storefrontBaseFor(params.site);
   const pcopy = usePricingCopy();
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
@@ -46,7 +49,7 @@ export default function HowItWorksPage({ params }: { params: { site: string } })
 
       <div className="mt-12 rounded-card border border-cardline bg-white p-6 text-center shadow-card">
         <Link
-          href={`/${params.site}/services`}
+          href={`${base}/services`}
           className="inline-block rounded-pill bg-electric px-7 py-3 font-semibold text-white transition hover:bg-electric-hover"
         >
           Book Your Service

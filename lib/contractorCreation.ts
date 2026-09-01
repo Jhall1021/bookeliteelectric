@@ -152,7 +152,10 @@ export async function createContractorForUser(
           // Opaque, stable, globally unique — the routing key a storefront
           // request carries. Generated here so the tenant is addressable the
           // moment it exists.
-          publicId: `pub_${randomBytes(16).toString("hex")}`,
+          // `site_` + 16 random bytes, matching every publicId already issued.
+          // A second prefix would be a second thing to recognise, and the
+          // embed route has to recognise it.
+          publicId: `site_${randomBytes(16).toString("hex")}`,
           active: true,
         },
       });

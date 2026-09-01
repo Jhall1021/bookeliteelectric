@@ -15,12 +15,15 @@ import { getSessionId } from "@/lib/session";
 import ScheduleClient from "@/components/checkout/ScheduleClient";
 import { redirect } from "next/navigation";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
+import { storefrontBaseFor } from "@/lib/storefrontSurface";
 
 // Same reasoning as the API route — never statically cache this page.
 // The whole point is a live check every time someone actually looks.
 export const dynamic = "force-dynamic";
 
 export default async function SchedulePage({ params }: { params: { site: string } }) {
+  // Every link below is built from the SURFACE, never from the raw segment.
+  const base = storefrontBaseFor(params.site);
   // ADR §2.2. Booking hours belong to a contractor, so the storefront has to
   // be resolved before they are read.
   const site = await requireHostedSite(params.site);
@@ -67,7 +70,7 @@ export default async function SchedulePage({ params }: { params: { site: string 
   // disables the button, but a customer who bookmarked this page or hit back
   // would otherwise walk straight past it.
   const awaitingQuote = visit?.lineItems.some((li) => li.computedPriceCents === null) ?? false;
-  if (awaitingQuote) redirect(`/${params.site}/my-visit`);
+  if (awaitingQuote) redirect(`${base}/my-visit`);
 
   const hasCompleteEstimates = !!visit && visit.lineItems.every((li) => li.estimatedMinutes !== null);
   const estimatedDurationMinutes = hasCompleteEstimates

@@ -143,6 +143,18 @@ model ContractorSite {
   /// A retired site stops resolving. Its contractor's data is untouched.
   active Boolean @default(true)
 
+  /// Origins allowed to frame this contractor's embedded storefront.
+  ///
+  /// Exact origins — "https://eliteelectricnj.com" — never bare hostnames and
+  /// never wildcards. `frame-ancestors` is the only thing standing between an
+  /// embed and any site that fancies putting a real contractor's booking flow
+  /// inside their own page, so the list has to say precisely who.
+  ///
+  /// EMPTY MEANS NOBODY. Not "anyone": a contractor who has not registered a
+  /// domain has not authorised one, and defaulting an unset list to open is
+  /// how an allowlist becomes decoration.
+  embedOrigins String[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
