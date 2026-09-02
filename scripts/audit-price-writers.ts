@@ -47,6 +47,15 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "and its service are created and destroyed by the test, no real " +
     "contractor's price is read or written, and the readiness engine itself " +
     "writes nothing at all.",
+  "scripts/verify-material-readiness-lifecycle.ts":
+    "Proves a missing material cost blocks activation, stops blocking when the " +
+    "contractor enters the cost, and blocks again when it is removed — the B1 " +
+    "defect, where a blocker captured at provisioning could never be cleared. " +
+    "It sets and withdraws an approved price on its OWN throwaway contractors, " +
+    "created and destroyed inside the run, because the price gate is checked " +
+    "before the material gate and would otherwise mask the thing under test. No " +
+    "real contractor's price is read or written, and it refuses to run anywhere " +
+    "but a proven branch of production.",
   "scripts/verify-pricing-boundary.ts":
     "ATTEMPTS to break the price/approval pair — clearing the approval from a " +
     "priced service, and clearing the price from an approved one — and proves " +
