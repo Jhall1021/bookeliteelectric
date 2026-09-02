@@ -14,13 +14,32 @@ contractor control. The Plumbing catalog and code are unchanged; this reads them
 | Mode | Supported | Excluded |
 | --- | --- | --- |
 | `PRICE_ONLINE` | **49 / 63** | 14 |
-| `GUIDED_ESTIMATE` | **58 / 63** | 5 |
-| `ONSITE_VISIT` | **57 / 63** | 6 |
+| `GUIDED_ESTIMATE` | **56 / 63** | 7 |
+| `ONSITE_VISIT` | **57 / 63** as frozen · **63 / 63** as capability | 6 · 0 |
 
-**41 services support all three.** No service supports zero. Every exclusion
-below names a capability fact, never an outcome.
+**39 services support all three** as frozen. No service supports zero. Every
+exclusion below names a capability fact, never an outcome.
+
+The `ONSITE_VISIT` row carries two numbers because the audit in §"`ONSITE_VISIT`"
+found that all six exclusions rest on economics rather than structure. The frozen
+model says 57; the governing rule says 63. That gap is recorded, not resolved.
 
 ---
+
+## Governing rule — `isPrimaryEligible` is structural, not economic
+
+Settled 2 September 2026, in favor of the schema contract.
+
+`ADD_ON_ONLY` may exclude `ONSITE_VISIT` **only when the service is inherently an
+addition to another visit by scope or product definition** — work that would not
+make sense on its own even if a plumber were already standing there for free.
+
+Contractor minimums, travel economics, truck-roll cost, and whether a standalone
+visit is profitable are **contractor-owned** and must never determine canonical
+capability. The test:
+
+> If travel and minimum-charge economics disappeared entirely, would this still
+> inherently be an add-on rather than a valid standalone service?
 
 ## The exclusion vocabulary
 
@@ -70,6 +89,8 @@ Five reasons, drawn from the frozen rationale rather than invented. Each names
 | `sump-pump-new-installation` | `SUBSURFACE_SCOPE` | the pit does not exist; the ground it goes into cannot be assessed from images |
 | `gas-leak-locate` | `ONSITE_LOCALIZATION` | the deciding fact is the leak's position, found by instrument |
 | `plumbing-service-call` | *the visit is the product* | PL-SVC-001 exists to establish a scope nobody has yet; estimating it would presuppose the answer |
+| `toilet-flange-repair` | `CONCEALED_SCOPE` | the deciding fact is under the toilet. Photographs of the base, the rocking and the floor give context but do not distinguish a repair ring from a broken flange, damaged piping or subfloor involvement |
+| `whole-home-repipe-assessment` | *the visit is the product* | the assessment IS someone attending to establish scope; estimating the assessment would presuppose its result |
 
 **`excavation` is not itself the reason.** It is a work characteristic. Three of
 these carry `requires: ["excavation"]` and the reason recorded is
@@ -77,33 +98,40 @@ these carry `requires: ["excavation"]` and the reason recorded is
 that excavation implies exclusion; a service that broke ground where the scope
 *was* remotely establishable would be judged on its own facts.
 
-## `ONSITE_VISIT` — 6 exclusions
+## `ONSITE_VISIT` — 6 exclusions as frozen, 0 that survive the rule
 
-Corrected from an earlier draft that recorded 63/63. Physical possibility is not
-capability: these six are canonically `WHILE_WE_ARE_THERE_ONLY`
-(`isPrimaryEligible = false`), meaning **the work is not sellable as the reason
-for a dedicated visit**.
+The frozen model excludes six services via `isPrimaryEligible = false`. Audited
+against the governing rule above, **none of the six survives it.**
 
-| Service | Reason |
-| --- | --- |
-| `water-heater-expansion-tank` | `ADD_ON_ONLY` |
-| `water-heater-tpr-valve-replacement` | `ADD_ON_ONLY` |
-| `toilet-supply-line-replacement` | `ADD_ON_ONLY` |
-| `sink-drain-assembly-replacement` | `ADD_ON_ONLY` |
-| `p-trap-replacement` | `ADD_ON_ONLY` |
-| `water-hammer-arrestor-installation` | `ADD_ON_ONLY` |
+| Service | Would a homeowner call about this alone? | Inherently an add-on? |
+| --- | --- | --- |
+| `water-heater-expansion-tank` | yes — an inspection flags it, or pressure symptoms appear | **no** |
+| `water-heater-tpr-valve-replacement` | yes — "water is coming out of a pipe on my heater" | **no** |
+| `toilet-supply-line-replacement` | yes — a burst or weeping supply line | **no** |
+| `sink-drain-assembly-replacement` | yes — a leaking basket strainer | **no** |
+| `p-trap-replacement` | yes — the classic leak under the sink | **no** |
+| `water-hammer-arrestor-installation` | yes — "my pipes bang" | **no** |
 
-All six retain `PRICE_ONLINE`: they price perfectly well **as additions to a
-visit being made for something else**.
+Every one corresponds to a distinct homeowner complaint that would prompt a
+dedicated call. None is work that only makes sense while already doing something
+else — the shape an inherent add-on takes, as in "haul away the old unit" or "add
+a shutoff while the wall is open".
 
-**A tension worth naming.** `TemplateService.isPrimaryEligible` is described in
-the schema as "structural, not economic", but Plumbing's own comment justifies
-it partly by the service-call minimum — which *is* economics. The canonical
-reading is the structural one: the work is an add-on to another visit. If the
-platform later decides `isPrimaryEligible` is economic after all, these six move
-back to supporting `ONSITE_VISIT` and this table changes.
+**So the exclusion is economics wearing structure's clothes.** Plumbing's own
+comment gives the game away: *"a terrible reason to send a van; offering it as a
+primary service sells a visit that cannot pay for itself, and the service-call
+minimum then makes the customer's price look absurd."* Every clause there is
+about cost, not about the work.
 
----
+**Recorded as a capability tension, not corrected.** Changing it means editing
+`metadata.visit` on six frozen services, which needs a reopening condition — most
+plausibly *"a service's actual trade semantics are proven wrong"*. This report
+does not take that decision.
+
+Consequences if it is later corrected: `ONSITE_VISIT` becomes 63/63, all-three
+rises from 39 to 45, and the six keep `PRICE_ONLINE` either way — they already
+price correctly as additions, and would simply also be sellable alone, with each
+contractor's minimum deciding whether they bother.
 
 ## Fact classification — §5
 
@@ -157,22 +185,50 @@ authority, and `catalog.ts` comments are its source.
 
 ---
 
-## Ambiguous ownership
+## Resolved — the two former ambiguities
 
-Two services where the mode set is a product judgment this report does not
-settle:
+Both settled 2 September 2026, conservatively.
 
-1. **`toilet-flange-repair`.** `PRICE_ONLINE` is clearly out — `CONCEALED_SCOPE`.
-   Whether `GUIDED_ESTIMATE` is genuinely useful is unresolved: photographs of
-   the base, the rocking and the floor may support a range, or the decisive fact
-   may appear only once the toilet is lifted. Recorded as supported; flagged as
-   the judgment to make deliberately.
-2. **`whole-home-repipe-assessment`.** Modeled as an assessment — the assessment
-   is what is sold. Whether that makes it a `GUIDED_ESTIMATE` of the repipe or an
-   `ONSITE_VISIT` product in its own right depends on what Guided Estimates
-   decides an "assessment" is.
+### `toilet-flange-repair` — `GUIDED_ESTIMATE` excluded
 
-`gas-leak-locate` is **not** ambiguous and is the clearest case in the catalog:
-the repair scope does not exist until the leak is located, so both
-`PRICE_ONLINE` and `GUIDED_ESTIMATE` are excluded and `ONSITE_VISIT` is the
-product.
+`PRICE_ONLINE` ❌ `CONCEALED_SCOPE` · `GUIDED_ESTIMATE` ❌ `CONCEALED_SCOPE` ·
+`ONSITE_VISIT` ✅
+
+The decisive condition is literally concealed beneath the toilet. Context photos
+do not reveal whether the job is a repair ring, a broken flange, damaged piping
+or subfloor involvement — so a contractor still lacks the fact they need to price
+it remotely.
+
+> **The discipline this sets.** Collecting useful information is not enough. The
+> collected information must be *sufficient for a contractor to make a meaningful
+> remote pricing judgment*. Otherwise Guided Estimates degrades into a fancy lead
+> form.
+
+A future branch — *"is the toilet already removed and the flange exposed?"* —
+could legitimately change this, because it would change the fact available. That
+is a canonical refinement to make deliberately, not a reason to overstate the
+current generic service.
+
+### `whole-home-repipe-assessment` — `GUIDED_ESTIMATE` excluded
+
+`PRICE_ONLINE` ❌ · `GUIDED_ESTIMATE` ❌ · `ONSITE_VISIT` ✅
+
+The assessment **is** the onsite product: someone attends to establish a scope.
+
+**Do not infer that a repipe PROJECT could not support `GUIDED_ESTIMATE`.** That
+is a different canonical service and a different capability question. A
+hypothetical `whole-home-repipe` might well support it — house size, floors,
+fixture counts, accessible basement or crawl space, existing pipe material,
+utility-room context and photographs could plausibly be sufficient. The two must
+not be conflated.
+
+This distinction will likely recur: *Equipment Replacement* may support
+`GUIDED_ESTIMATE` while *Equipment Replacement Assessment* is inherently onsite.
+
+## Unresolved ownership
+
+None. Both former ambiguities are settled above.
+
+`gas-leak-locate` remains the clearest case in the catalog: the repair scope does
+not exist until the leak is located, so both remote modes are excluded and
+`ONSITE_VISIT` is the product.
