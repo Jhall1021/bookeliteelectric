@@ -1,6 +1,48 @@
 # G2 — trade-scoped troubleshooting
 
-*2 September 2026. Audit and proposal. **No code written.** Branch
+> ## IMPLEMENTED — pending G1 integration, 2 September 2026
+>
+> Architecture, runtime implementation and the database application are
+> **approved and accepted**. Merge is **held** until G1 lands, because both
+> change `prisma/schema.prisma`, `lib/routeResolver.ts` and `GuidedFlowEngine.tsx`.
+>
+> | | |
+> | --- | --- |
+> | Acceptance | **28/28** — all eight cases, against a multi-trade contractor the verifier builds and removes |
+> | `Service.tradeKey` | Applied to `price2book-production`: `text`, nullable, **no default** |
+> | Backfill | 154 stamped `electrical`; 0 unclassified, 0 classified as anything else |
+> | Regressions | `tsc` clean · troubleshooting route contract passes · ADR-021 **2 passed, 0 failed** |
+>
+> **Locked decisions — D1–D4.**
+>
+> **D1 — Provenance-less services get an explicit dated backfill, never a
+> default.** `Service.tradeKey` is nullable with no schema default. Null means
+> *trade not established* and fails closed; it does not mean electrical.
+>
+> **D2 — `/api/troubleshooting` takes the originating service, not a trade.**
+> The browser sends `serviceId`; the server resolves it in-tenant and reads the
+> durable trade. A client-supplied `tradeKey` is never accepted. One trade, one
+> answer — no per-trade list.
+>
+> **D3 — G2 does not depend on `ContractorTrade`.** That table answers which
+> trades a *contractor* sells; routing depends on which trade a *service*
+> belongs to. Elite's missing enrolment rows are a separate concern with a
+> separate owner, and are untouched.
+>
+> **D4 — One runtime routing authority; planning surfaces may query separately.**
+> See §4.1.
+>
+> **Custom-service authoring is trade-scoped.** `/dashboard/services/new` shows
+> a required Trade choice from the server-authoritative published set, the API
+> validates it and stamps `tradeKey`. Never inferred — including from "only one
+> trade exists today". A single option is preselected but still stored as a
+> choice.
+>
+> **The invariant is `active_service_has_trade`**, broader than the original
+> route-reachable rule: every active service must have a trade, so a new
+> null-trade service cannot exist even before anything routes through it.
+
+*Audit and proposal below, written before implementation. Branch
 `feat/g2-trade-scoped-troubleshooting`, cut from `main` at `3fbd2d5`. The active
 Plumbing rehearsal branch is not touched.*
 
@@ -124,7 +166,33 @@ applied to access slots. A null-trade service is not "electrical by default".
 
 ---
 
-## 4. The API, deliberately not locked yet
+## 4.1 One RUNTIME authority — and two legitimate planning queries
+
+*Corrected after implementation. "All four now call
+`findTroubleshootingService`" would be false, and the difference matters.*
+
+> **One runtime routing authority. Planning surfaces may use separate
+> availability queries, but must preserve the same trade identity and ambiguity
+> semantics.**
+
+| Surface | Asks | Uses |
+| --- | --- | --- |
+| `routeResolver`, `/api/troubleshooting` | *What ACTIVE diagnostic can this customer be routed to in this trade?* | `findTroubleshootingService` — the one runtime authority |
+| `serviceActivation` | The same question, about the same destination | `findTroubleshootingService` |
+| `onboardingReadiness` | *Is there a prerequisite in this trade, and what STATE is it in?* — needs the row **when it is not yet active** | Own scoped query |
+| `dashboard/setup` launch ordering | *Which offered-but-not-live service must launch first?* | Own trade-indexed map |
+
+The two exceptions are availability differences, not identity differences.
+Teaching the runtime authority to optionally return inactive rows would blur a
+safety boundary that is currently useful: it exists to answer what a homeowner
+can actually reach.
+
+**Both preserve identity semantics exactly** — contractor plus exact `tradeKey`,
+other trades invisible, zero same-trade candidates a distinct deliberate
+outcome, and multiple same-trade candidates refusing rather than choosing a
+winner. That last property is what the pre-G2 `findFirst` violated.
+
+## 4.2 The API, as locked
 
 The likely shape is `findTroubleshootingService(db, contractorId, tradeKey)`.
 **This proposal does not lock that signature**, because the audit's answer to

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { withAdminContractor } from "@/lib/adminContext";
+import { availableTrades } from "@/lib/templateProvisioning";
 
 
 export async function POST(req: Request) {
@@ -13,10 +14,29 @@ export async function POST(req: Request) {
   // No price is accepted at creation. A service is created unpriced and priced
   // through its pricing route's publish action, which derives the figure and
   // stamps the approval. See app/api/admin/services/[serviceId]/pricing.
-  const { categoryId, name, slug, shortDescription, bookingType, startingPriceLabel, icon } = body;
+  const { categoryId, name, slug, shortDescription, bookingType, startingPriceLabel, icon, tradeKey } = body;
 
   if (!categoryId || !name || !slug || !bookingType) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  // TRADE IS REQUIRED, AND EXPLICIT — G2.
+  //
+  // A custom service created without one would be exactly the defect G2 exists
+  // to remove: a live service with no durable trade identity, unable to resolve
+  // its own troubleshooting destination, and invisible to every scoped lookup.
+  // The backfill closed the historical set; this closes the tap.
+  //
+  // NEVER INFERRED. Not from the category, not from the contractor's name, not
+  // from "only one trade exists today" — the last is the tempting one and it is
+  // the one that quietly breaks on the day a second trade ships. A single
+  // available trade may be PRESELECTED in the form, but what is stored is still
+  // a choice somebody made.
+  if (typeof tradeKey !== "string" || tradeKey.trim() === "") {
+    return NextResponse.json(
+      { error: "Choose which trade this service belongs to." },
+      { status: 400 }
+    );
   }
 
   // GUARD-ADOPTED (ADR-007a).
@@ -41,6 +61,18 @@ export async function POST(req: Request) {
   // category, which is a cross-tenant foreign key written by the request body.
   // The hand-written `contractorId` filter is gone: the guard scopes this
   // centrally, so a category belonging to someone else simply is not found.
+  // Validated against published catalogs, the same server-authoritative set the
+  // form is populated from — so the list that offers a choice is the list that
+  // refuses a typo, and a client cannot post a trade Price2Book has no catalog
+  // for.
+  const trades = await availableTrades(prisma);
+  if (!trades.includes(tradeKey)) {
+    return NextResponse.json(
+      { error: `"${tradeKey}" is not a trade Price2Book publishes a catalog for yet.` },
+      { status: 400 }
+    );
+  }
+
   const contractorCategory = await db.contractorCategory.findFirst({
     where: { id: categoryId },
     include: { canonicalCategory: { select: { slug: true } } },
@@ -92,6 +124,9 @@ export async function POST(req: Request) {
       bookingType,
       startingPriceLabel: startingPriceLabel ?? null,
       icon: icon ?? null,
+      // The durable trade identity — G2. Stamped from the validated explicit
+      // choice, the same way provisioning stamps `catalog.trade`.
+      tradeKey,
       active: true,
     },
   });
