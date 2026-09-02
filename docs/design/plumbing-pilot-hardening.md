@@ -137,3 +137,95 @@ composing `existing_condition`.
 
 Shape 3 is a stress case, not a pilot target. 95 decisions is defensible for a
 full catalog but it is not how a first contractor should meet the product.
+
+
+---
+
+# Track B — the live onboarding simulation
+
+*Run on `ep-delicate-bird-aycd7vp1` from the frozen `main` worktree.
+`scripts/pilot-plumbing-onboarding.ts` reproduces it.*
+
+## Shape 1 passed completely
+
+One contractor, one decision, full chain:
+
+```
+enrolled -> 63 installed (nothing priced, offered or live)
+         -> crew-hour rate + minimum
+         -> offered water-heater-flush (62 left alone)
+         -> PRICE_NOT_APPROVED -> approved $189.00
+         -> LIVE
+         -> homeowner answers one question -> PRICED at $189.00
+```
+
+**One contractor decision from enrollment to a bookable, priced service.**
+
+## Shape 2 exposed a hard dead end — B1
+
+Three of six starter services could not be launched, and **cannot be recovered
+through any shipped path**.
+
+`toilet-replacement`, `toilet-internals-repair` and `kitchen-faucet-replacement`
+block on `MATERIALS_UNRESOLVED` for `supply_line_flex`. The message says: *"no
+cost has been entered for supply_line_flex. Add those costs and try again."*
+
+The contractor does exactly that. Measured afterwards:
+
+| | |
+| --- | --- |
+| contractor cost for `supply_line_flex` | **entered, 2500c** |
+| `Service.unresolvedMaterialKeys` | still `["supply_line_flex"]` |
+| `materialCostResolved` | still `false` |
+| `ServiceMaterial` rows | **0** |
+| `recomputeServiceMaterialCost` | returns `null` — *"not itemized, nothing to recompute"* |
+| activation | still `MATERIALS_UNRESOLVED` |
+
+**The mechanism.** Provisioning creates a `ServiceMaterial` link *only if the
+contractor already has the cost*; otherwise it records the key in
+`unresolvedMaterialKeys` and creates no link. Recompute reads `ServiceMaterial`
+rows — of which there are none — so it exits early and never clears the key.
+Entering the cost afterwards changes nothing.
+
+**There is no recovery.** `serviceMaterial.create` appears in exactly one place
+in shipped code: inside `installCatalog` itself. Nothing in `lib/` or `app/`
+creates it. Re-provisioning is refused (`CATALOG_ALREADY_INSTALLED`). Only a
+developer running a one-off script can unblock the contractor.
+
+*Classification:* **shared platform, blocking for pilot.** Not a Plumbing defect
+— it affects any trade provisioned before costs are entered. It is the same
+ordering trap as
+[the component gap](provisioning-component-resolution-gap.md), but worse: the
+product prints an instruction that does not work.
+
+## B2 — `LABOR_INPUTS_MISSING` is a blocker that does not block
+
+Guided Setup reports it as a **blocker** for `water-heater-flush` — a service
+that was already live and priced a homeowner at $189.00. Activation does not
+consult labor inputs; an approved published price is sufficient. A contractor
+reading the readiness panel sees a red item on a service that is working.
+
+*Classification:* setup UX.
+
+## B3 — `DEPENDENCY_UNAVAILABLE` did not fire
+
+Deliberately launching in the wrong order did **not** produce it: the starter
+catalog's `existing_condition` services blocked earlier, on B1. The A1 concern
+stands unproven either way — it needs a contractor whose materials are complete
+but whose `PL-SVC-001` is not yet live.
+
+## Track A invariants — all held under live conditions
+
+- unoffered services stayed irrelevant: **57 raised nothing**
+- readiness scoped to `offeredServices`: confirmed, 6 of 63
+- material and policy blockers stayed **grouped by role**, not per service
+- prerequisite launch ordering worked: `plumbing-service-call` first
+- launch failures stayed **per-service**, each with its own reason
+- policy blockers rendered the contractor's question, not the key:
+  *"When clearing a drain, how far down the line do you go…"*
+
+## Recommendation
+
+**B1 must be fixed before a real plumber sees this.** Shape 1 is genuinely
+one decision and works end to end; Shape 2 strands half the catalog with an
+instruction that cannot succeed.
