@@ -32,6 +32,32 @@
  * Inactive counts as missing. A contractor who switched the diagnostic off
  * has said they do not sell it, and routing customers to a service that is not
  * for sale is not a smaller failure than routing them nowhere.
+ *
+ * SCOPED BY TRADE — G2
+ *
+ * The lookup used to ask only "which service is this CONTRACTOR's diagnostic".
+ * For a contractor selling one trade that is the same question; for one selling
+ * Electrical and Plumbing it is not, and the answer was "ambiguous" — so every
+ * REROUTE_TROUBLESHOOTING route on a multi-trade contractor fell to review,
+ * quietly, because a review is not an error anybody investigates.
+ *
+ * ANOTHER TRADE'S DIAGNOSTIC IS NOW INVISIBLE, NOT AMBIGUOUS. That distinction
+ * is the design: a filter that merely broke the tie would still be treating a
+ * Plumbing service call as a candidate answer to an Electrical question. It is
+ * not a worse candidate — it is not a candidate.
+ *
+ * `tradeKey` is a SERVER-DERIVED value, read from a concrete Service's own
+ * `Service.tradeKey`. A caller that does not legitimately hold a trade must
+ * obtain one from an authoritative server-owned object; it may never guess, and
+ * the browser may never supply one. The client says which service it is
+ * rendering; the server decides what that service means.
+ *
+ * THE ONE AUTHORITY
+ *
+ * Four places used to answer this question and three did it with `findFirst`
+ * and no `orderBy` — silently picking a row, non-deterministically. They all
+ * consume this function now. No local query, no `.find()` over offered rows, no
+ * slug, category or name inference.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -64,11 +90,32 @@ export type TroubleshootingLookup =
  */
 export async function findTroubleshootingService(
   db: PrismaClient,
-  contractorId: string
+  contractorId: string,
+  /**
+   * The originating service's own trade. Server-derived, never client-supplied.
+   *
+   * Required rather than optional: an optional trade would make the unscoped
+   * lookup reachable by omission, and the caller that forgot it would get the
+   * pre-G2 behavior back without anything failing.
+   */
+  tradeKey: string
 ): Promise<TroubleshootingLookup> {
+  // A caller with no established trade has not asked a well-formed question.
+  // Refused here rather than resolved unscoped, because "any trade" is exactly
+  // the ambiguity this parameter exists to remove.
+  if (typeof tradeKey !== "string" || tradeKey.trim() === "") {
+    return {
+      ok: false,
+      problem:
+        "no trade was established for the originating service, so its diagnostic " +
+        "cannot be resolved — Service.tradeKey is null or empty",
+    };
+  }
+
   const found = await db.service.findMany({
     where: {
       contractorId,
+      tradeKey,
       bookingType: TROUBLESHOOTING_BOOKING_TYPE,
       active: true,
     },
@@ -90,16 +137,17 @@ export async function findTroubleshootingService(
     return {
       ok: false,
       problem:
-        `no active ${TROUBLESHOOTING_BOOKING_TYPE} service for this contractor`,
+        `no active ${TROUBLESHOOTING_BOOKING_TYPE} service for this contractor ` +
+        `in trade "${tradeKey}"`,
     };
   }
   if (found.length > 1) {
     return {
       ok: false,
       problem:
-        `${found.length} active ${TROUBLESHOOTING_BOOKING_TYPE} services ` +
-        `(${found.map((s) => s.slug).join(", ")}) — which one is the ` +
-        `diagnostic visit is not decidable`,
+        `${found.length} active ${TROUBLESHOOTING_BOOKING_TYPE} services in ` +
+        `trade "${tradeKey}" (${found.map((s) => s.slug).join(", ")}) — which one ` +
+        `is the diagnostic visit is not decidable`,
     };
   }
 
@@ -114,4 +162,40 @@ export async function findTroubleshootingService(
       categorySlug: s.contractorCategory?.canonicalCategory?.slug ?? null,
     },
   };
+}
+
+
+/**
+ * The trade a live service belongs to, or a refusal — G2.
+ *
+ * The ONE sanctioned way for a caller to obtain a `tradeKey`. Everything that
+ * needs to resolve a diagnostic starts from a concrete Service and reads its
+ * stored identity; nothing derives a trade from a slug, a category, a name, or
+ * the contractor's enrolment.
+ *
+ * Tenant-rooted and scoped to `contractorId` even when handed an already-scoped
+ * client — the same rule loadServiceForResolution documents, and for the same
+ * reason: a boundary that holds only because the caller remembered to scope the
+ * client is not a boundary.
+ */
+export async function tradeOfService(
+  db: PrismaClient,
+  contractorId: string,
+  serviceId: string
+): Promise<{ ok: true; tradeKey: string } | { ok: false; problem: string }> {
+  const svc = await db.service.findFirst({
+    where: { id: serviceId, contractorId },
+    select: { slug: true, tradeKey: true },
+  });
+  if (!svc) return { ok: false, problem: "unknown service for this contractor" };
+  if (!svc.tradeKey) {
+    // Fails closed. A service whose trade was never established cannot resolve
+    // its own destination, and guessing one here would be the inference the
+    // whole design forbids.
+    return {
+      ok: false,
+      problem: `${svc.slug} has no tradeKey, so its diagnostic destination is not resolvable`,
+    };
+  }
+  return { ok: true, tradeKey: svc.tradeKey };
 }
