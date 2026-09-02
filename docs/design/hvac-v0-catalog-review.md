@@ -528,7 +528,15 @@ hand it to a person. Two book somebody to attend. **None predicts a repair.**
 
 # Part 6 — G1 re-audit: the three tune-ups
 
-*Requested before catalog lock. The result changes G1's status.*
+*Requested before catalog lock. The result changed G1's status.*
+
+> **RESOLVED, 2 September 2026.** This audit did its job: it found three routine
+> tune-ups declared single-location while promising work at both, and escalated
+> G1 from "constrains V1" to a blocker. Scoped access shipped and was accepted on
+> a zero-delta ADR-021 proof. The three tune-ups keep their honest scope **and**
+> their `FIXED` disposition, and `location_scope_matches_promised_work` now
+> prevents the misdeclaration that started it. Kept in full — the reasoning is
+> why the invariant exists.
 
 ## 6.1 The question, and the short answer
 
@@ -708,8 +716,10 @@ promise the trade does not recognize.
 
 # Part 7 — Service decisions from the trade pass
 
-*Applied. The three tune-ups marked ⏸ hold their product decision but not their
-implementation status until G1 lands (Part 6).*
+*Applied. The three tune-ups marked ⏸ held their implementation status pending
+G1.* **That hold is released — G1 was accepted 2 September 2026 and all three
+keep `FIXED`.** The ⏸ marks are left in place as the record of what was
+conditional and on what.
 
 | Service | Name change | Disposition | Other decisions applied |
 | --- | --- | --- | --- |
@@ -752,8 +762,12 @@ describe the same 22 services under three conditions.
 | | FIXED | CONDITIONAL_FIXED | REMOTE_QUOTE | APPOINTMENT_ONLY | Total |
 | --- | --- | --- | --- | --- | --- |
 | **V1 catalog** (incl. deferred Vent Covers) | 8 | 7 | 5 | 2 | **22** |
-| **Default SHIP**, G1 solved | 7 | 7 | 5 | 2 | **21** |
-| **Default SHIP**, G1 slipped *(holding position)* | 4 | 10 | 5 | 2 | **21** |
+| **Default SHIP** — the actual state | 7 | 7 | 5 | 2 | **21** |
+| ~~Default SHIP, G1 slipped~~ *(holding position, never needed)* | 4 | 10 | 5 | 2 | **21** |
+
+**G1 was accepted as solved on 2 September 2026**, so the second row is the real
+disposition and the third never applied. The three tune-ups keep `FIXED`; no
+service moved to `CONDITIONAL_FIXED` for a G1 reason.
 
 The trade pass moved two services — Outdoor Unit Pad and Mini-Split Deep Cleaning — from
 `FIXED` to `CONDITIONAL_FIXED`, for the same reason in both cases: a bounded standard case

@@ -1,8 +1,33 @@
 # G1 — scoped access
 
-**A shared-platform proposal. Direction approved by product 2 September 2026, with the
-nine decisions in §2 attached. Not implemented: no shared file has been modified by the
-workstream that raised this.**
+> ## ACCEPTED — G1 is solved, 2 September 2026
+>
+> Implemented, proved and accepted by the platform owner. **G1 is closed as a
+> platform blocker.**
+>
+> | | |
+> | --- | --- |
+> | ADR-021 | **2 passed, 0 failed** — 65 services, zero G1-caused price delta |
+> | Existing Electrical | Preserved exactly; no tree rewritten; five previously-repriced routes hold their original `FINISHED` components |
+> | Scoped coexistence | `INDOOR_EQUIPMENT = FINISHED` alongside `OUTDOOR_EQUIPMENT = ACCESSIBLE`, neither displacing the other |
+> | `verify-access-slots.ts` | 67/67, no database |
+> | Writer baseline | 8 reviewed pairs; tripwire proven to fail on a new pair **and** on a changed writer set |
+> | Plumbing | Untouched |
+>
+> **One correction to the design as approved.** The `one_access_writer_per_slot`
+> premise in §2 and §6.1 was **rejected on evidence** and replaced by:
+>
+> > Access facts are isolated by slot. Within one slot, ordered successive writes
+> > are valid **refinement** and the last applicable writer wins.
+>
+> Eight active Electrical services refine access deliberately, and refusing it
+> repriced five routes downward. The isolation half — different slots never
+> colliding — is what scoped access actually buys, and it is enough. §6.1 below
+> is preserved as the rejected premise; §9's acceptance checks 2 and 3 are read
+> against the corrected rule.
+
+**Origin: a shared-platform proposal, direction approved by product 2 September 2026
+with the nine decisions in §2 attached.**
 
 Raised by the HVAC workstream; **HVAC is not the owner of this change.** Sources:
 `docs/design/hvac-v0-catalog-review.md` Part 6 (the audit that raised it) and
@@ -231,7 +256,14 @@ ships.**
 
 They solve different failures and must not be collapsed into one.
 
-### 6.1 `one_access_writer_per_slot` — platform, structural
+### 6.1 ~~`one_access_writer_per_slot`~~ — REJECTED ON EVIDENCE
+
+*Preserved as the premise that was tested and failed. Eight active Electrical
+services write one slot more than once, deliberately, each question narrowing
+the last. This rule would have refused all eight and repriced five routes.
+Replaced by refinement — see the acceptance box at the top.*
+
+The rejected rule read:
 
 Replaces today's global one-access-writer constraint. A service may have one writer for
 `INDOOR_EQUIPMENT` and one for `OUTDOOR_EQUIPMENT`; it may **never** have two competing

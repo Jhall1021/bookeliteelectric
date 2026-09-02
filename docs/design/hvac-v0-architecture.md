@@ -29,16 +29,17 @@ where it binds:
 | # | Decision | Where it lives |
 | --- | --- | --- |
 | 1 | **`maintenanceScope` approved** as metadata, **not** an eighth Guided Pricing primitive | §C.4 |
-| 2 | **Keep the G1 double refusal** — `REMOTE_QUOTE` booking outcome *and* independent `location_pair_gate`. Do not merge two access states or simplify the model around the current platform limitation. Single-head mini-split is the permanent worked example of why | §B.3, §F.8 |
+| 2 | ~~**Keep the G1 double refusal** — `REMOTE_QUOTE` plus independent `location_pair_gate`.~~ **SUPERSEDED 2 Sep 2026 by D13.** Sound when made: the platform held one scalar access state, and refusing twice was the honest way to avoid pricing against a location nobody had classified. Scoped access removed the limitation, so `locationScope: "BOTH"` is now descriptive and `location_pair_gate` is retired | §B.3 |
 | 3 | **`intents_do_not_resolve_to_component_repairs` approved.** Manufacturer / model / serial / manufacture date stay evidence-only and prohibited from gate and mapping use. The `serviceMatch` residual is recorded as a **future invariant-expansion trigger** | §G.1, §G.4, §G.7 |
 | 4 | **G2 remains a hard Plumbing-proof condition** | §D.4, §J.5 |
 | 5 | **Q7 conservative line-set rule stands.** Reopenable only on actual HVAC contractor review | §E.4, §F.10 |
 | 6 | **Do not overload `SUPPLY_ARRANGEMENT`.** NOT_OFFERED uses the existing eligibility mechanism where one exists; the missing part is flagged rather than absorbed | §C.5, and G9 |
 | 7 | **Oil and hydronic stay deferred, and are not folded in as fuel branches.** A service whose canonical vocabulary cannot describe its own scope drivers collects an incomplete scope **even when its commercial outcome is `REMOTE_QUOTE`** | §J.3, and the catalog review |
 | 8 | **The presence/absence merge rule**, approved as a general principle: where *"is there one there now?"* is already an observable configuration question, presence and absence are normally **branches of one physical service**, not separate canonical services | Catalog review, audit 6 |
-| 9 | **G1 is promoted to a pre-production blocker.** The catalog review's G1 re-audit found three routine tune-ups mis-declared as single-location while promising work at both. Per-location access becomes a gate condition alongside G2–G5; the tune-ups keep their honest scope | Catalog review, Part 6 |
+| 9 | **G1 promoted to a pre-production blocker — SATISFIED / CLOSED 2 Sep 2026.** A valid blocker when raised: it stopped HVAC shipping three tune-ups on a scope declaration that was false. Closed by the scoped-access platform implementation and its acceptance proof, not withdrawn | Catalog review Part 6; `g1-scoped-access.md` |
 | 10 | **`maintenanceScope` items carry `at: INDOOR / OUTDOOR`.** Decision 1's declaration becomes a structured list rather than prose, so `locationScope` can be checked against the work the service promises | Catalog review, §6.4 |
 | 11 | **G1's direction is approved and escalated to the platform owner** as `docs/design/g1-scoped-access.md`, carrying nine decisions: shared slot vocabulary (`PRIMARY` / `INDOOR_EQUIPMENT` / `OUTDOOR_EQUIPMENT`), `AccessClassification` unchanged, validated strings rather than a DB enum, one module owning slot validation, services declaring the slots they reference, expand→parallel→switch→contract with an `accessClass === accessBySlot.PRIMARY` equivalence invariant, ADR-021 as the zero-delta acceptance gate, two separately named invariants, and cross-trade evidence leading | `docs/design/g1-scoped-access.md` |
+| 13 | **G1 accepted as solved by the platform owner, 2 Sep 2026.** ADR-021 zero delta across 65 services, existing Electrical routes preserved, mismatched scoped coexistence proven, writer-baseline tripwire proven to fail on both a new pair and a changed writer set. `locationScope: "BOTH"` no longer refuses anything; a service that stays non-priceable needs an **independent, service-specific reason**. **HVAC is unparked with respect to G1** — which is not the same as production-ready; every other blocker still applies | §B.3, §J.5 |
 | 12 | **Three things stay distinct**, and the catalog may not collapse them: `identity / evidence` ≠ `promised physical work` ≠ `access classification`. Evidence rides on the job sheet and prices nothing; promised work drives `locationScope`; access classification gates | §6.2 of the G1 proposal |
 
 ---
@@ -224,7 +225,7 @@ the canonical fact each answer establishes, and the gate that consumes it. Not a
 | `existing_condition` | `equipment_condition` | `condition_gate` | **Effect-free**, copied wholesale from plumbing |
 | `finish_disruption_ack` | `finish_ack` | — | Conditional disclaimer, copied shape |
 
-## B.1 Gates — eight
+## B.1 Gates — seven
 
 | Gate | Reads | `UNKNOWN` | Out-of-coverage |
 | --- | --- | --- | --- |
@@ -235,7 +236,6 @@ the canonical fact each answer establishes, and the gate that consumes it. Not a
 | `access_gate` | `access_class` | `PHOTO_REVIEW` | — |
 | `control_gate` | `control_present`, `conductor_count` | `PHOTO_REVIEW` | `REMOTE_QUOTE` where the conductors present cannot carry the selected control |
 | `condition_gate` | `equipment_condition` | `PHOTO_REVIEW` | `ON_SITE_SERVICE` on active failure. **Effect-free** |
-| `location_pair_gate` | The service's own `locationScope` declaration | — | `REMOTE_QUOTE`, always, when `locationScope: "BOTH"`. See B.3 |
 
 Outcome vocabulary is **plumbing's four, unchanged**: `CONTINUE`, `PHOTO_REVIEW`,
 `REMOTE_QUOTE`, `ON_SITE_SERVICE`, translating to the untouched platform `RouteAction`
@@ -252,34 +252,62 @@ The `covers` values are **standard manufactured ratings** — 1.5 / 2 / 2.5 / 3 
 manufacturers did, so they are canonical labels exactly as plumbing's `TANK_GALLONS` are —
 **not** a policy with `{b1}` holes.
 
-## B.3 G1, expressed as a refusal rather than a merge
+## B.3 `locationScope` — what a service promises, verified
 
-The platform has **one** `JobConfiguration.accessClass` and `composeService` refuses two
-writers of one fact unconditionally, because no merge rule exists. A split system has two
-equipment locations that are both worked, in the same visit, at the same price.
+*Superseded 2 September 2026. This section previously described `BOTH` as a
+double refusal, which was correct while the platform held one scalar access
+state. G1 removed that limitation; the refusal is retired rather than kept as
+redundant defense, because a gate whose only meaning is "the platform cannot
+represent both facts" would encode a limitation that no longer exists.*
 
-HVAC does not fake this and does not build a local merge. Instead:
+**`locationScope: "BOTH"` means exactly one thing:**
 
-1. **Both dimensions stay in the canonical vocabulary.** `indoor_location` and
-   `outdoor_location` are separate facts with separate vocabularies, permanently. The
-   model records the distinction the platform cannot yet carry.
-2. **Every service declares `locationScope: "INDOOR" | "OUTDOOR" | "BOTH"`.**
-3. `INDOOR` and `OUTDOOR` compose exactly one access family and price normally.
-4. **`BOTH` is a declaration that this service cannot be fixed-priced today.** It is
-   enforced twice, the way plumbing enforces things that matter: the catalog entry's
-   `bookingType` is `REMOTE_QUOTE`, and `location_pair_gate` refuses independently with
-   `factKey: "equipment_location_pair"` so a later catalog edit cannot quietly re-enable
-   pricing without also removing the gate.
-5. A `BOTH` service still **asks both location questions** and still carries both answers
-   to review. The homeowner is not asked twice for nothing; they are asked once each, and
-   the person who prices it receives both.
+> The service promises physical work at **both** the indoor and the outdoor
+> equipment location.
 
-**What G1 costs, concretely:** eight services — every matched-system replacement, every
-mini-split installation, coil-and-condenser work and line-set replacement — cannot be
-fixed-priced in V1 for this reason alone. Mini-split single-head installation is the most
-painful: it is otherwise one of the better-bounded jobs in the trade. That is the honest
-price of not corrupting the model, and it is the concrete case a future platform review
-should weigh.
+It is a description of the work, verified against the promise. It is **not** a
+commercial disposition, and by itself it forces nothing — not `REMOTE_QUOTE`,
+not review, not appointment-only.
+
+1. **Both dimensions are in the canonical vocabulary.** `indoor_location` and
+   `outdoor_location` are separate facts with separate vocabularies.
+2. **Every service declares `locationScope: "INDOOR" | "OUTDOOR" | "BOTH"`**, and
+   `location_scope_matches_promised_work` verifies that the declaration covers
+   every location where the service promises work. A narrower declaration fails
+   the build.
+3. **Scoped access represents the two independently.** A `BOTH` service composes
+   both access families; `INDOOR_EQUIPMENT` and `OUTDOOR_EQUIPMENT` are
+   established separately and neither can overwrite the other.
+4. **Each access-dependent reader consumes its explicit slot.** A component or
+   disclaimer conditioned on the outdoor route reads `OUTDOOR_EQUIPMENT` and is
+   unaffected by anything the indoor route established.
+5. **Commercial disposition is a separate question**, decided by the service's
+   own observable and unobservable scope drivers — never by location cardinality.
+   A service may not remain review-only merely because it declares `BOTH`.
+
+### The permanent worked example — capability, not refusal
+
+**AC Tune-Up.** `locationScope: "BOTH"`, with indoor and outdoor
+`maintenanceScope` items — it cleans the condenser coil outside and clears the
+condensate drain inside.
+
+```
+  Q  Where is the indoor equipment?   →  INDOOR_EQUIPMENT   = ACCESSIBLE
+  Q  Where does the outdoor unit sit? →  OUTDOOR_EQUIPMENT  = ACCESSIBLE
+
+  →  both routes established independently, neither displacing the other
+  →  both satisfy the service's bounded conditions
+  →  FIXED
+```
+
+Two locations, one visit, one fixed price, and a declaration that is checkably
+true. That is the outcome G1 was raised to make possible.
+
+The service that *cannot* be fixed-priced — Mini-Split Installation — is no
+longer an example of this section at all. Its reason is
+`lineset_suitability_is_trade_judgment`: whether an existing refrigerant line
+set may be reused is a technician's determination, and it would exclude online
+pricing on a single-location job just as firmly. See §F.8.
 
 ## B.4 The composition rules HVAC inherits
 
@@ -321,7 +349,7 @@ states · the `TemplatePolicyDefinition` / `ContractorPolicyValue` pair.
 
 | Gap | What it is | Status |
 | --- | --- | --- |
-| **G1** | One access slot; HVAC jobs have two locations | **Blocks enrollment** (decision 9). Expressed as a refusal (B.3), never a merge. Platform review, not HVAC's to solve |
+| ~~**G1**~~ | One access slot; HVAC jobs have two locations | **CLOSED 2 Sep 2026.** Solved by scoped access — `accessBySlot` over `PRIMARY` / `INDOOR_EQUIPMENT` / `OUTDOOR_EQUIPMENT`, accepted on a zero-delta ADR-021 proof |
 | **G2** | `findTroubleshootingService` is contractor-scoped, not trade-scoped | **Blocker under Q3.** §D.4 |
 | **G3** | `AppointmentKind.SERVICE_CALL` | Plumbing's §2.1. HVAC inherits it and adds nothing |
 | **G4** | `ContractorCredential` | Plumbing's §2.2. HVAC adds EPA 608, which is *federal*, not jurisdictional |
@@ -789,9 +817,14 @@ physical scopes into one family because of shared language.
 | 5 | Is there an existing line set? | `lineset_status` |
 | 6 | Where would the condensate go? | `condensate_route` |
 
-**Resolution. `REMOTE_QUOTE` — and G1 is the only reason.** The service declares
-`locationScope: "BOTH"`, its catalog `bookingType` is `REMOTE_QUOTE`, and
-`location_pair_gate` refuses independently.
+**Resolution. `REMOTE_QUOTE` — on `lineset_suitability_is_trade_judgment`.**
+
+*Revised 2 September 2026. This example previously read "G1 is the only reason",
+and that reason is gone: the service declares `locationScope: "BOTH"`, the two
+locations are now classified independently, and `BOTH` refuses nothing. What
+remains is a genuine scope driver — whether an existing refrigerant line set may
+be reused is a technician's determination, and it would exclude online pricing on
+a single-location job just as firmly.*
 
 **This is the case that makes G1 concrete.** Every question above is answerable by a
 homeowner, every fact is observable, and the scope is genuinely bounded — a single-head
@@ -1073,7 +1106,6 @@ emergency screen.
 | **Two capacity axes** | Plumbing has gallons. HVAC has tons *and* BTU, on different equipment |
 | **`control_gate` and conductor counting** | Nothing in plumbing turns on a low-voltage conductor count |
 | **`lineset_status`** | No plumbing analogue, and a large replacement-scope driver |
-| **`location_pair_gate`** | The structural expression of G1 — a refusal, and only a refusal |
 | **`reported_symptom` as inert context** | Plumbing's service call carries no structured symptom |
 | **`maintenanceScope`** | §21 has no plumbing equivalent; plumbing's flush services are single-procedure |
 | **Eight gates and fourteen families** | Five of the extra families are identity dimensions; that is the whole difference |
@@ -1183,12 +1215,10 @@ work · load calculation and sizing · maintenance agreements (Q4).
 
 ## J.5 What must be true before HVAC provisions to anyone
 
-0. **Access can be represented per location** — **G1**, decisions 9 and 11. Three routine
-   tune-ups promise work at both indoor and outdoor equipment and cannot be honestly
-   fixed-priced against a single access slot. The proposal is
-   `docs/design/g1-scoped-access.md`, with product's nine decisions attached and awaiting
-   the platform owner. **The HVAC catalog stays unfrozen and unpublished until G1 has an
-   accepted production path.**
+0. ~~**Access can be represented per location**~~ — **G1, SATISFIED 2 Sep 2026.**
+   Scoped access shipped and was accepted: two equipment locations are classified
+   independently, the three tune-ups' `FIXED` disposition is unblocked, and
+   `docs/design/g1-scoped-access.md` carries the proof. No longer a gate.
 1. **The Plumbing two-contractor proof passes with at least one multi-trade contractor**,
    and `REROUTE_TROUBLESHOOTING` resolves to that trade's own service call — **G2**,
    §D.4.
