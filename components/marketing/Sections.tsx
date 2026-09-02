@@ -129,10 +129,11 @@ export function ProductTour() {
       <p className="mt-2 max-w-[54ch] text-[16px] leading-[1.55] text-p2b-ink-warm">{side.body}</p>
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
         {side.shots.map((key) => {
-          const shot = (SHOTS as Record<string, { src: string; alt: string; w: number; h: number } | null>)[key];
+          const shot = (SHOTS as Record<string, import("./shots").Shot | null>)[key];
           if (!shot) return null;
           return (
             <ShotFigure key={key} src={shot.src} alt={shot.alt} width={shot.w} height={shot.h}
+                        full={shot.full} fullWidth={shot.fullW} fullHeight={shot.fullH}
                         sizes="(min-width: 640px) 30vw, 100vw" />
           );
         })}

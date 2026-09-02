@@ -106,6 +106,8 @@ export default function Hero() {
             {SHOTS.homePrice ? (
               <ShotFigure src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
                           width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
+                          full={SHOTS.homePrice.full} fullWidth={SHOTS.homePrice.fullW}
+                          fullHeight={SHOTS.homePrice.fullH}
                           priority sizes="(min-width: 1024px) 560px, 100vw" />
             ) : null}
           </div>

@@ -47,7 +47,25 @@
  * One brand across every shot — Voltmark Electric — so the homeowner captures
  * and the admin captures show the same company rather than two.
  */
-export type Shot = { src: string; alt: string; w: number; h: number };
+export type Shot = {
+  /** The thumbnail: a tight window on the subject, legible at three-across. */
+  src: string;
+  alt: string;
+  w: number;
+  h: number;
+  /**
+   * The whole page, uncropped, shown when the thumbnail is opened.
+   *
+   * Two images because they answer different questions. A full page is
+   * unreadable at 420px; a crop is the wrong thing to show someone who
+   * clicked to see MORE. Where `full` is absent the thumbnail opens itself,
+   * which is the case for the admin captures — re-framing those needs an
+   * authenticated session against a tenant that no longer exists.
+   */
+  full?: string;
+  fullW?: number;
+  fullH?: number;
+};
 
 export const SHOTS: Record<string, Shot | null> = {
   // Captured at 1440 CSS px with deviceScaleFactor 2 by
@@ -86,22 +104,31 @@ export const SHOTS: Record<string, Shot | null> = {
   },
   // ── The homeowner's side, captured from the running storefront ────────
   homeServices: {
-    src: "/marketing/home-services.png",
+    src: "/marketing/home-services.jpg",
     alt: "A contractor's storefront, showing service categories with photographs and the number of services in each",
-    w: 2560,
-    h: 1400,
+    w: 1400,
+    h: 880,
+    full: "/marketing/home-services-full.jpg",
+    fullW: 2560,
+    fullH: 3590,
   },
   homeQuestion: {
-    src: "/marketing/home-question.png",
+    src: "/marketing/home-question.jpg",
     alt: "A Guided Pricing question asking why a homeowner is replacing an outlet, with plain-language answers",
-    w: 2560,
-    h: 1120,
+    w: 1560,
+    h: 840,
+    full: "/marketing/home-question-full.jpg",
+    fullW: 2560,
+    fullH: 3010,
   },
   homePrice: {
-    src: "/marketing/home-price.png",
+    src: "/marketing/home-price.jpg",
     alt: "A contractor-approved price shown to a homeowner, with an option to add it to their visit",
-    w: 2560,
-    h: 940,
+    w: 1040,
+    h: 800,
+    full: "/marketing/home-price-full.jpg",
+    fullW: 2560,
+    fullH: 1904,
   },
 
   serviceArea: {

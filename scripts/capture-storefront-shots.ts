@@ -142,13 +142,22 @@ type Shot = {
   /** Drive the page into the state worth photographing. */
   reach: (page: Page) => Promise<boolean>;
   /**
-   * The vertical window to keep. A full-page capture shown at 560px wide
-   * renders the subject too small to read and spends a third of the frame on
-   * chrome and footer — the first version of these shots was a picture of a
-   * page rather than a picture of the product.
+   * TWO IMAGES PER SCREEN, and they do different jobs.
+   *
+   * The THUMBNAIL is a tight window on the subject — at three-across a full
+   * page is unreadable, so the crop is what makes it legible small. `y` and
+   * `height` frame it.
+   *
+   * The FULL image is the whole page, uncropped, and is what opens when the
+   * thumbnail is clicked. Cropping the thing someone clicked *to see more of*
+   * is the wrong way round, which is what the single-image version did.
    */
+  x?: number;
+  width?: number;
   y?: number;
   height?: number;
+  /** Admin screens need a session; skipped unless --sign-in is given. */
+  needsAuth?: boolean;
 };
 
 /** Click a button or link whose visible text contains `text`. */
@@ -168,8 +177,10 @@ const SHOTS: Shot[] = [
   {
     // What a homeowner lands on: the contractor's own catalog, browsable.
     name: "home-services",
-    y: 0,
-    height: 700,
+    x: 200,
+    width: 700,
+    y: 175,
+    height: 440,
     reach: async (page) => {
       await page.goto(`${BASE}/${SITE}/services`, { waitUntil: "networkidle" });
       return true;
@@ -178,8 +189,10 @@ const SHOTS: Shot[] = [
   {
     // The questions that decide the job — the heart of Guided Pricing.
     name: "home-question",
-    y: 150,
-    height: 560,
+    x: 250,
+    width: 780,
+    y: 195,
+    height: 420,
     reach: async (page) => {
       await page.goto(`${BASE}/${SITE}/services/outlets-switches/replace-standard-outlet`, {
         waitUntil: "networkidle",
@@ -191,8 +204,10 @@ const SHOTS: Shot[] = [
   {
     // A contractor-approved price, released because the answers qualified it.
     name: "home-price",
-    y: 150,
-    height: 470,
+    x: 380,
+    width: 520,
+    y: 195,
+    height: 400,
     reach: async (page) => {
       await page.goto(`${BASE}/${SITE}/services/outlets-switches/replace-standard-outlet`, {
         waitUntil: "networkidle",
@@ -201,6 +216,39 @@ const SHOTS: Shot[] = [
       if (!(await click(page, "I just want it replaced or upgraded"))) return false;
       if (!(await click(page, "It just needs to be swapped for a new one"))) return false;
       return page.locator("text=/\\$[0-9]/").first().isVisible();
+    },
+  },
+  // ── The contractor's side. Same product, same rename, but the dashboard
+  //    needs a session, so these run only with --sign-in. The owner approved
+  //    the admin surface as a capture source alongside the storefront.
+  {
+    name: "admin-services",
+    needsAuth: true,
+    y: 0,
+    height: 700,
+    reach: async (page) => {
+      await page.goto(`${BASE}/dashboard/services`, { waitUntil: "networkidle" });
+      return page.locator("text=/Services & Pricing/i").first().isVisible();
+    },
+  },
+  {
+    name: "admin-quotes",
+    needsAuth: true,
+    y: 0,
+    height: 700,
+    reach: async (page) => {
+      await page.goto(`${BASE}/dashboard/quotes`, { waitUntil: "networkidle" });
+      return page.locator("body").first().isVisible();
+    },
+  },
+  {
+    name: "admin-hours",
+    needsAuth: true,
+    y: 0,
+    height: 700,
+    reach: async (page) => {
+      await page.goto(`${BASE}/dashboard/business-hours`, { waitUntil: "networkidle" });
+      return page.locator("body").first().isVisible();
     },
   },
 ];
@@ -214,8 +262,18 @@ async function main() {
   const page = await ctx.newPage();
   let written = 0;
 
+  const signIn = arg("sign-in");
+  if (signIn) {
+    await page.goto(signIn, { waitUntil: "networkidle" });
+    console.log(`  signed in -> ${page.url()}\n`);
+  }
+
   try {
     for (const shot of SHOTS) {
+      if (shot.needsAuth && !signIn) {
+        console.log(`  - ${shot.name}: needs --sign-in "<magic link>" — skipped`);
+        continue;
+      }
       let reached = false;
       try {
         reached = await shot.reach(page);
@@ -231,16 +289,36 @@ async function main() {
       await rename(page, BRAND, SOURCE_NAMES);
       await page.waitForTimeout(250);
       await assertRenamed(page, shot.name, SOURCE_NAMES);
+      /**
+       * JPEG, NOT PNG. These pages are mostly photography, and a lossless
+       * encoding of a photograph is enormous: the first full-page capture of
+       * the services grid was a 2.5MB PNG that took the image optimizer 12.7
+       * seconds cold, so the first person to open it watched a blank dialog.
+       * The admin captures stay PNG — they are flat UI where text edges
+       * matter and the files are already small.
+       */
+      // the readable thumbnail
       await page.screenshot({
-        path: `${OUT}/${shot.name}.png`,
+        path: `${OUT}/${shot.name}.jpg`,
+        type: "jpeg",
+        quality: 88,
         clip: {
-          x: 0,
+          x: shot.x ?? 0,
           y: shot.y ?? 0,
-          width: VIEWPORT.width,
+          width: shot.width ?? VIEWPORT.width - (shot.x ?? 0),
           height: shot.height ?? VIEWPORT.height - (shot.y ?? 0),
         },
       });
-      console.log(`  wrote ${OUT}/${shot.name}.png`);
+      // the whole page, for the reader who clicked to see more
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(200);
+      await page.screenshot({
+        path: `${OUT}/${shot.name}-full.jpg`,
+        type: "jpeg",
+        quality: 84,
+        fullPage: true,
+      });
+      console.log(`  wrote ${shot.name}.jpg + ${shot.name}-full.jpg`);
       written++;
     }
   } finally {

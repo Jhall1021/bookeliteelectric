@@ -31,6 +31,9 @@ export default function ShotFigure({
   className = "",
   sizes,
   priority,
+  full,
+  fullWidth,
+  fullHeight,
 }: {
   src: string;
   alt: string;
@@ -39,6 +42,10 @@ export default function ShotFigure({
   className?: string;
   sizes?: string;
   priority?: boolean;
+  /** The uncropped page. Falls back to the thumbnail when absent. */
+  full?: string;
+  fullWidth?: number;
+  fullHeight?: number;
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -114,11 +121,15 @@ export default function ShotFigure({
                 reader sees is a screenshot cropped at the right edge. */}
             <div className="min-h-0 w-full overflow-auto rounded-[4px] bg-white"
                  onClick={(e) => e.stopPropagation()}>
+              {/* The WHOLE page, not the crop. Opening a thumbnail to be shown
+                  the same crop larger is the wrong way round — the click means
+                  "show me more of this", and a tall page scrolls inside the
+                  dialog rather than being trimmed to fit it. */}
               <Image
-                src={src}
+                src={full ?? src}
                 alt=""
-                width={width}
-                height={height}
+                width={fullWidth ?? width}
+                height={fullHeight ?? height}
                 sizes="100vw"
                 className="h-auto w-full max-w-full cursor-default"
               />
