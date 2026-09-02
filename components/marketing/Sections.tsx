@@ -1,8 +1,11 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   BOUNDARY_LINE, CUSTOMER_URL, EMBED_STATUS, ESTIMATE_TRIPS, EVERYWHERE, JOURNEY, JOURNEY_NOTE,
-  PRICING_MODES, SETUP_PROGRESSION, START_SMALL, TRADES, TRADE_SIGNAL,
+  JOURNEY_STRIP, PRICING_MODES, PRODUCT_TOUR, SETUP_PROGRESSION, START_SMALL, TRADES,
+  TRADE_SIGNAL, WHAT_IT_DOES,
 } from "./content";
+import { SHOTS } from "./shots";
 import { ELECTRICAL_TEMPLATE } from "./trades/electricalTemplate";
 
 /**
@@ -95,6 +98,121 @@ export function TradeSignal() {
  * all live on the product page. What is left here is the promise and one
  * captured example — enough that the claim is not merely asserted.
  */
+
+/**
+ * Both sides of the product, in real screenshots.
+ *
+ * THE PAGE USED TO PROVE THIS WITH AN ANIMATION. The hero walkthrough is
+ * honest and drift-checked, but it asked a visitor to watch a thing happen
+ * before they knew what they were looking at, and it only ever showed the
+ * customer's half. A contractor's actual question — "am I buying somebody
+ * else's flat-rate book?" — is answered by the configuration screens, not by
+ * prose about control.
+ *
+ * REAL PRODUCT, RENAMED. Both rows are captures of the running product with
+ * the contractor's identity substituted; see scripts/capture-storefront-shots.ts
+ * for what the substitution covers and what it refuses to publish. No screen
+ * here was drawn.
+ */
+export function ProductTour() {
+  const row = (
+    side: typeof PRODUCT_TOUR.homeowner | typeof PRODUCT_TOUR.contractor,
+    accent: boolean,
+  ) => (
+    <div>
+      <div className="flex items-baseline gap-3">
+        <span className={`text-[11px] font-bold uppercase tracking-[0.06em] ${
+          accent ? "text-p2b-accent" : "text-p2b-muted-soft"}`}>
+          {side.label}
+        </span>
+      </div>
+      <p className="mt-2 max-w-[54ch] text-[16px] leading-[1.55] text-p2b-ink-warm">{side.body}</p>
+      <div className="mt-5 grid gap-4 sm:grid-cols-3">
+        {side.shots.map((key) => {
+          const shot = (SHOTS as Record<string, { src: string; alt: string; w: number; h: number } | null>)[key];
+          if (!shot) return null;
+          return (
+            <figure key={key}
+                    className="overflow-hidden rounded-[4px] border border-p2b-line bg-white shadow-[0_1px_2px_rgba(16,24,40,.04),0_10px_24px_-12px_rgba(16,24,40,.14)]">
+              <Image src={shot.src} alt={shot.alt} width={shot.w} height={shot.h}
+                     sizes="(min-width: 640px) 30vw, 100vw" className="h-auto w-full" />
+            </figure>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <section className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">
+      <div className={SHELL}>
+        <h2 className="max-w-[24ch] text-[28px] font-bold leading-[1.14] tracking-[-0.022em] lg:text-[40px]">
+          The customer does the intake. You keep the decisions.
+        </h2>
+        <div className="mt-10 flex flex-col gap-12">
+          {row(PRODUCT_TOUR.homeowner, true)}
+          {row(PRODUCT_TOUR.contractor, false)}
+        </div>
+        <p className="mt-8 text-[14px] leading-[1.5] text-p2b-muted-soft">
+          Real screens from the running product. The contractor’s name has been changed.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Six tiles, early, so the product is understood before it is explained.
+ *
+ * Every one of these ideas already had a home on this page or a page beyond
+ * it. What was missing was a place to see all six at once — so a contractor
+ * who skims still leaves knowing what the system is.
+ */
+export function WhatItDoes() {
+  return (
+    <section className={`${SHELL} py-14 lg:py-[72px]`}>
+      <h2 className="max-w-[26ch] text-[28px] font-bold leading-[1.14] tracking-[-0.022em] lg:text-[40px]">
+        What Price2Book does for your business.
+      </h2>
+      <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {WHAT_IT_DOES.map((c) => (
+          <div key={c.title} className="flex flex-col rounded-[3px] border border-p2b-line bg-white px-6 py-6">
+            <div className="text-[17px] font-semibold leading-[1.3] text-p2b-ink">{c.title}</div>
+            <p className="mt-3 flex-1 text-[15px] leading-[1.55] text-p2b-ink-warm">{c.body}</p>
+            {c.href ? (
+              <Link href={c.href} className="mt-4 inline-flex text-[15px] font-semibold text-p2b-accent">
+                How it works →
+              </Link>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** The system as a customer walks it, in one line. */
+export function JourneyStrip() {
+  return (
+    <section className="border-t border-p2b-line bg-p2b-canvas-alt py-12 lg:py-[56px]">
+      <div className={SHELL}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
+          {JOURNEY_STRIP.steps.map((step, i) => (
+            <div key={step} className="flex items-center gap-3">
+              <span className="rounded-sm border border-p2b-line bg-white px-4 py-2.5 text-[15px] font-medium text-p2b-ink lg:text-base">
+                {step}
+              </span>
+              {i < JOURNEY_STRIP.steps.length - 1 && <Arrow />}
+            </div>
+          ))}
+        </div>
+        <p className="mt-6 text-[20px] font-bold tracking-[-0.015em] text-p2b-ink lg:text-[24px]">
+          {JOURNEY_STRIP.close}
+        </p>
+      </div>
+    </section>
+  );
+}
 
 /**
  * Show prices. Send estimates. Or do both.
@@ -511,6 +629,31 @@ export function Everywhere() {
             </div>
 
             <div className="mx-auto mt-1 h-6 w-px bg-p2b-line-dash" />
+
+            {/* THE PHYSICAL HALF, MADE TANGIBLE. The channel chips below make
+                the digital surfaces obvious and left the printed ones as words
+                in a list — "QR codes" and "Truck & yard signs" read as
+                afterthoughts rather than as the reason a link beats a phone
+                number on a van.
+
+                NO QR CODE IS DRAWN HERE. A rendered code that does not scan
+                would be a picture of a working thing that does not work, on a
+                site whose whole discipline is that a screenshot is evidence.
+                Generating a real one needs an encoder dependency, which is a
+                decision about the production bundle rather than a layout
+                choice, so the panel names the surface instead. */}
+            <div className="mx-auto mb-6 mt-5 max-w-[420px] rounded-[4px] bg-p2b-navy-deep px-6 py-5 text-center">
+              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-p2b-navy-muted">
+                On the truck
+              </div>
+              <div className="mt-2 text-[17px] font-bold tracking-[-0.01em] text-[#F4F6F9]">
+                Scan for pricing
+              </div>
+              <div className="mt-1.5 text-[14px] text-p2b-navy-text">{CUSTOMER_URL}</div>
+              <div className="mt-3 border-t border-p2b-navy-hairline pt-3 text-[12px] leading-[1.45] text-p2b-navy-muted">
+                A code on the van, a link in a text — the same page either way.
+              </div>
+            </div>
 
             <div className="flex flex-wrap justify-center gap-2.5">
               {EVERYWHERE.channels.map((c) => (

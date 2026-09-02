@@ -1,5 +1,6 @@
 import { EMBED_STATUS, HERO } from "./content";
-import HeroWalkthrough from "./HeroWalkthrough";
+import Image from "next/image";
+import { SHOTS } from "./shots";
 
 /**
  * The hero — the contractor's own website, with their price inside it.
@@ -40,8 +41,14 @@ export default function Hero() {
             {HERO.headline[1]}
           </h1>
 
-          <p className="mt-6 max-w-[38ch] text-[17px] leading-[1.5] text-p2b-ink-warm lg:mt-[30px] lg:text-xl">
+          <p className="mt-6 max-w-[44ch] text-[17px] leading-[1.5] text-p2b-ink-warm lg:mt-[30px] lg:text-xl">
             {HERO.body}
+          </p>
+
+          {/* The three outcomes, in the contractor's terms. The body says what
+              the product does; this says what it is worth. */}
+          <p className="mt-5 text-[18px] font-semibold leading-[1.35] tracking-[-0.01em] text-p2b-ink lg:text-[21px]">
+            {HERO.payoff}
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5 lg:mt-9">
@@ -49,9 +56,15 @@ export default function Hero() {
                className="rounded-sm bg-p2b-accent px-[30px] py-4 text-center text-base font-semibold text-p2b-canvas hover:bg-p2b-accent-hover">
               {HERO.primaryCta}
             </a>
-            <a href="#demo"
+            <a href="/how-it-fits"
                className="rounded-sm border border-p2b-ink px-[30px] py-4 text-center text-[15px] font-medium text-p2b-ink hover:border-p2b-accent hover:text-p2b-accent sm:border-0 sm:px-0 sm:py-0 sm:text-base">
               {HERO.secondaryCta} <span aria-hidden="true">→</span>
+            </a>
+            {/* The demo is still here and still real — it just stopped being
+                the way a visitor works out what the company is. */}
+            <a href="/demo"
+               className="text-center text-[15px] font-medium text-p2b-muted hover:text-p2b-accent sm:text-base">
+              {HERO.tertiaryCta} <span aria-hidden="true">→</span>
             </a>
           </div>
 
@@ -75,14 +88,28 @@ export default function Hero() {
               the only model on offer. So the label sits outside the island and
               names the configuration, leaving the capture untouched. That the
               two can disagree is the point — the contractor picks per service. */}
-          <div className="min-w-0 lg:mx-auto lg:w-[500px]">
+          {/* WAS THE ANIMATED WALKTHROUGH — 2 September 2026.
+              It is honest, captured from live data, and drift-checked, and it
+              is still the centerpiece of /demo. But it asked a visitor to
+              WATCH something for thirty seconds before they knew what they
+              were looking at, and the first screen is not where a company
+              should be inferred. A still of the same product says it at a
+              glance: a real storefront, a real question, a real approved
+              price. The moving version is one click away. */}
+          <div className="min-w-0 lg:mx-auto lg:w-[560px]">
             <div className="mb-2.5 flex items-center gap-2">
               <span className="h-1 w-1 shrink-0 rounded-full bg-p2b-faint" aria-hidden="true" />
               <span className="text-[12px] leading-[1.4] text-p2b-muted-soft lg:text-[13px]">
-                Example shown: a service this contractor set to <strong className="font-semibold text-p2b-muted">Instant Price</strong>
+                A real storefront. The contractor’s name has been changed.
               </span>
             </div>
-            <HeroWalkthrough />
+            {SHOTS.homePrice ? (
+              <figure className="overflow-hidden rounded-[5px] border border-p2b-line bg-white shadow-[0_2px_4px_rgba(16,24,40,.05),0_16px_40px_-14px_rgba(16,24,40,.22)]">
+                <Image src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
+                       width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
+                       priority sizes="(min-width: 1024px) 560px, 100vw" className="h-auto w-full" />
+              </figure>
+            ) : null}
           </div>
 
           <div className="mt-5 flex flex-col gap-2.5 lg:mx-auto lg:w-[500px]">

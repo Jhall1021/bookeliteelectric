@@ -31,7 +31,11 @@ import { HERO_FLOW } from "./heroFlow";
 export const SIGN_IN_PATH = "/sign-in";
 
 export const HERO = {
-  eyebrow: "For residential service contractors",
+  // THE CATEGORY LINE, ADDED 2 September 2026. The eyebrow said who the
+  // product is for and never what it is, so the first screen asked a visitor
+  // to assemble the company out of a slogan and an animation. A contractor
+  // should not have to scroll to learn what they are looking at.
+  eyebrow: "Customer-guided pricing, estimates & booking for home-service contractors",
   headline: ["Your pricing.", "Your schedule."],
   // Was "Turn homeowner requests into safely priced, bookable work." That
   // described the product without saying where it lives, which is the first
@@ -43,9 +47,12 @@ export const HERO = {
   // walkthrough beside it is untouched, because it captures a real Instant
   // Price flow and demonstrating the other one would need its own capture.
   body:
-    "Add Price2Book to the website you already have. Homeowners answer the questions that decide the job — then either see a price you approved, or send you the details and photographs so you can price it yourself.",
+    "Price2Book lets homeowners answer the questions your office normally asks. Qualified work can get your approved price and book on the spot. Other jobs come to you as a Guided Estimate with the details and photos you need to quote the work remotely.",
+  /** The three outcomes, in the contractor's terms rather than the product's. */
+  payoff: "Fewer calls. Fewer estimate trips. More work booked.",
   primaryCta: "Request Early Access",
-  secondaryCta: "Try the Homeowner Demo",
+  secondaryCta: "See How It Works",
+  tertiaryCta: "Try the Homeowner Demo",
   support: "Works alongside your existing business software.",
   supportEmphasis: "No new CRM required.",
   footnote: "Built for residential service contractors. Built first with a working residential electrical contractor.",
@@ -626,6 +633,98 @@ export const ESTIMATE_TRIPS = {
   },
   caveat:
     "And when the work does have to be seen \u2014 a diagnosis, a condition nobody can photograph, a measurement that has to be right \u2014 that is what the visit is for.",
+} as const;
+
+
+/**
+ * What Price2Book does, in six tiles a contractor can skim.
+ *
+ * THE PAGE USED TO MAKE THEM ASSEMBLE THIS THEMSELVES. Every one of these
+ * ideas was on the homepage somewhere, spread across sections that each
+ * explained one mechanism well. A visitor who read all of it understood the
+ * product; a visitor who skimmed got a slogan and an animation.
+ *
+ * Each tile is a benefit, not a feature name, and each hands off to the page
+ * that owns the mechanism. Nothing here explains — that is the point.
+ */
+export const WHAT_IT_DOES: ReadonlyArray<{
+  title: string;
+  body: string;
+  href: string | null;
+}> = [
+  {
+    title: "Book jobs without the phone call",
+    body: "Homeowners answer the questions that decide the work and book a time — the call your office repeats every day, handled by the customer.",
+    href: "/product/guided-pricing",
+  },
+  {
+    title: "Quote jobs without driving there",
+    body: "For work you want to price yourself, the customer sends the details and photographs you asked for. You review the scope and set the estimate.",
+    href: "/product/guided-estimates",
+  },
+  {
+    title: "Make every visit worth more",
+    body: "Once a visit is already happening, eligible extra work can be added at your same-visit price.",
+    href: "/product/while-were-there",
+  },
+  {
+    title: "Put your booking link everywhere",
+    body: "One pricing page you can point at from your website, a text message, an invoice, or a QR code on the truck.",
+    href: null,
+  },
+  {
+    title: "Control the services and pricing logic",
+    body: "Your services, your questions, your rates, your minimums — and which work is priced instantly rather than reviewed by you.",
+    href: "/product/what-you-control",
+  },
+  {
+    title: "Only offer times that fit the work",
+    body: "Availability reflects how long the job actually takes and the hours you set, so a booked slot is one you can keep.",
+    href: "/product/online-booking",
+  },
+];
+
+/**
+ * The system in one line, as a customer walks it.
+ *
+ * Deliberately the CUSTOMER's sequence rather than the product's modules: a
+ * contractor understands "answers the questions, gets a price, books a time"
+ * immediately, and has to be taught "Guided Pricing, RouteAction, visit
+ * composition". The nouns come later, on the pages that own them.
+ */
+export const JOURNEY_STRIP = {
+  steps: [
+    "Customer finds you",
+    "Answers your questions",
+    "Gets a price — or sends a Guided Estimate",
+    "Adds more work",
+    "Books a time that fits",
+  ],
+  close: "That is Price2Book.",
+} as const;
+
+/**
+ * The product tour — both sides of it.
+ *
+ * A contractor's real fear is that they are buying somebody else's flat-rate
+ * book. Prose does not settle that; the configuration screens do. So the tour
+ * shows the customer experience AND the screens where the contractor decides
+ * what that experience contains.
+ *
+ * SCREENSHOTS ARE REAL PRODUCT, RENAMED. See scripts/capture-storefront-shots.ts
+ * for the identity substitution and what it refuses to publish.
+ */
+export const PRODUCT_TOUR = {
+  homeowner: {
+    label: "What homeowners see",
+    body: "Your catalog, your questions, your approved price — on a page that looks like your business.",
+    shots: ["homeServices", "homeQuestion", "homePrice"] as const,
+  },
+  contractor: {
+    label: "What you control",
+    body: "The services, the questions behind each one, what every answer does, your rates and your hours.",
+    shots: ["servicesPricing", "guidedPricing", "hoursAvailability"] as const,
+  },
 } as const;
 
 /** Setup, as a progression rather than a four-screen essay. */

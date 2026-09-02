@@ -212,7 +212,7 @@ async function statics() {
   // the rule into one that rejected the correct spelling instead — the check
   // went on passing its own file and failing the copy it was protecting.
   // scripts/verify-us-spelling.ts skips this file for that reason.
-  const BRITISH = /\b(labour|itemis(e|ed|ing)|customis|organis|recognis|colour|licence|catalogue|analyse|optimis|summaris|behaviour|honour|neighbour|labelled|modelling|defence)\b/i;
+  const BRITISH = /\b(labour|itemis(e|ed|ing)|customis|organis|recognis|color|license|catalogue|analyse|optimis|summaris|behaviour|honour|neighbour|labelled|modelling|defence)\b/i;
   for (const f of marketingFiles()) {
     const src = read(f);
     // Only the copy, not the comments — prose about the code is not the site.
@@ -345,6 +345,28 @@ async function statics() {
     "capture refuses any tenant but the demonstration contractor");
   ok(capture.includes("Elite Electric"),
     "…and names Elite explicitly as forbidden in a shot");
+  /**
+   * The storefront captures are the REAL product with the contractor renamed
+   * — the owner narrowed the demo-tenant-only rule on 2 September 2026. The
+   * privacy half did not go away, and the first run proved why: renaming the
+   * company left the source tenant's address, telephone and license number in
+   * the footer, attributed to a company that does not exist.
+   */
+  const storefrontCapture = read("scripts/capture-storefront-shots.ts");
+  ok(storefrontCapture.includes("assertRenamed"),
+    "the storefront capture refuses to write a shot that kept the source name");
+  for (const [what, needle] of [
+    ["telephone numbers", "555-0100"],
+    ["street addresses", "120 Example Ave."],
+    ["license numbers", "Licen[cs]e"],
+  ] as const) {
+    ok(storefrontCapture.includes(needle), `…and scrubs ${what}`,
+      "a renamed company carrying a real business's contact details is worse than the real name");
+  }
+  ok(/const BRAND = "Voltmark Electric"/.test(storefrontCapture),
+    "one brand across every screenshot",
+    "two names across the homeowner and admin shots reads as two companies");
+
   const files: string[] = Object.values(shots.SHOTS)
     .filter(Boolean)
     .map((s: any) => s.src);
@@ -703,7 +725,7 @@ async function statics() {
   console.log("\n  PLATFORM / TENANT SEAM");
   // The marketing site is Price2Book's. Storefront tokens resolve whichever
   // contractor's theme happens to be in :root, so a single bg-canvas here
-  // would repaint the homepage with a contractor's colours.
+  // would repaint the homepage with a contractor's colors.
   //
   // THE ISLAND IS THE ONE EXEMPTION, and it is an exemption from the token
   // rule, not from the seam. The hero renders the real storefront components
