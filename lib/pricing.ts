@@ -28,6 +28,13 @@
  *   rounded    up to the global increment
  */
 
+import {
+  PRIMARY_SLOT,
+  writeSlot,
+  type AccessBySlot,
+  type AccessSlot,
+} from "./accessSlots";
+
 export type PricingSettings = {
   crewHourRateCents: number;
   primaryMinimumCents: number;
@@ -314,6 +321,31 @@ export type JobConfiguration = {
    * again (§29).
    */
   accessClass: AccessClass | null;
+  /**
+   * What has been established PER SLOT — G1 scoped access.
+   *
+   * PARTIAL, and that is the point. A slot absent from this map has not been
+   * established; a slot holding UNKNOWN was asked and the homeowner could not
+   * tell. Those are different facts and nothing may collapse them.
+   *
+   * During the parallel phase `accessClass` is retained and dual-written for
+   * PRIMARY only, and the two must agree — see assertAccessEquivalence. A
+   * non-PRIMARY slot never touches the scalar.
+   */
+  accessBySlot: AccessBySlot;
+  /**
+   * Set when a second answer tried to establish a slot another answer already
+   * established with a DIFFERENT value.
+   *
+   * The first value is preserved and this is raised; resolveRoute turns it into
+   * a REVIEW before any price resolves. Not INVALID — the customer's answers
+   * may be perfectly valid, and the defect is that our authored route let two
+   * of them claim authority over one scoped fact.
+   *
+   * Same fail-closed accumulator shape as awaitingComponentApproval below.
+   * Valid composition should make this unreachable; it is defense in depth.
+   */
+  accessSlotConflict: AccessSlot | null;
   fieldLaborHours: number | null;
   materialCostCents: number;
   estimatedMinutes: number | null;
@@ -356,6 +388,8 @@ export function startConfiguration(svc: {
 }): JobConfiguration {
   return {
     accessClass: null,
+    accessBySlot: {},
+    accessSlotConflict: null,
     fieldLaborHours: svc.fieldLaborHours,
     materialCostCents: svc.materialCostCents ?? 0,
     estimatedMinutes: svc.estimatedMinutes,
@@ -392,6 +426,8 @@ export function startConfiguration(svc: {
 export function startDisplayConfiguration(svc: { estimatedMinutes: number | null }): JobConfiguration {
   return {
     accessClass: null,
+    accessBySlot: {},
+    accessSlotConflict: null,
     // Null, because the client genuinely doesn't know the labor — that's the
     // point. materialCostCents is 0 rather than null because it's an
     // accumulator: components add to it, and nothing the client receives
@@ -412,9 +448,43 @@ export function startDisplayConfiguration(svc: { estimatedMinutes: number | null
 
 export type AccessClass = "ACCESSIBLE" | "FINISHED" | "UNKNOWN";
 
+/**
+ * PARALLEL-PHASE GUARD — G1, removed at contract.
+ *
+ * While both representations exist the legacy scalar tracks PRIMARY and only
+ * PRIMARY, so the two must agree everywhere. A disagreement is an INVARIANT
+ * FAILURE, not a precedence question: there is deliberately no rule saying
+ * which of the two wins, because a rule like that is how the scalar came to
+ * quietly outrank the answers in the first place.
+ *
+ * Throws rather than reviews. This one is OUR bug, not an uncertain scope —
+ * the two fields are written three lines apart by the same function, and if
+ * they can disagree the migration is wrong rather than the customer's house
+ * being unusual.
+ */
+export function assertAccessEquivalence(
+  accessClass: AccessClass | null,
+  accessBySlot: AccessBySlot
+): void {
+  const primary = accessBySlot[PRIMARY_SLOT] ?? null;
+  if (accessClass !== primary) {
+    throw new Error(
+      `Access representation diverged: accessClass=${accessClass} but ` +
+        `accessBySlot.PRIMARY=${primary}. These must agree during the parallel phase.`
+    );
+  }
+}
+
 export type BranchContribution = {
   /** Set when this answer answers a route-access question. */
   accessClassification?: AccessClass | null;
+  /**
+   * WHICH access slot this answer establishes — G1.
+   *
+   * Absent means PRIMARY, which is what every answer authored before scoped
+   * access already meant. Read only when `accessClassification` is set.
+   */
+  accessSlot?: AccessSlot | null;
   overrideEstimatedMinutes?: number | null;
   overrideTechCount?: number | null;
   overrideFieldLaborHours?: number | null;
@@ -431,6 +501,14 @@ export type BranchContribution = {
      * — it survives rewording and doesn't care which question asked.
      */
     conditionAccessClass?: AccessClass | null;
+    /**
+     * WHICH slot the condition reads — G1. Absent means PRIMARY.
+     *
+     * Meaningless when `conditionAccessClass` is null, and the verifier refuses
+     * a non-PRIMARY slot in that state rather than storing a value that reads
+     * as significant and is not.
+     */
+    conditionAccessSlot?: AccessSlot | null;
     /** §29 — apply only when a previously collected answer matches. */
     conditionAnswerKey?: string | null;
     conditionAnswerValue?: string | null;
@@ -502,15 +580,50 @@ export function applyBranch(
   if (branch.addMaterialCostCents) material += branch.addMaterialCostCents;
   if (branch.addScheduleMinutes && minutes !== null) minutes += branch.addScheduleMinutes;
 
-  // An access answer sets the classification for the rest of the flow. Once
-  // established it isn't overwritten by a later non-access answer.
-  const accessClass = branch.accessClassification ?? config.accessClass;
+  // ── ACCESS, SCOPED BY SLOT — G1 ──────────────────────────────────────────
+  //
+  // This used to read `branch.accessClassification ?? config.accessClass`,
+  // which meant a later access answer REPLACED an earlier one, silently and
+  // with no record that a different answer had been given first. That is the
+  // electrical synonym bug's direct descendant, and it is the behavior being
+  // removed rather than relocated.
+  //
+  // Now: FIRST WRITER WINS PER SLOT, and a second writer with a different value
+  // raises a conflict the route fails closed on. There is no merge rule and no
+  // precedence rule, because the platform has nowhere to express how two
+  // answers about one location would combine.
+  let accessBySlot = config.accessBySlot;
+  let accessSlotConflict = config.accessSlotConflict;
+  if (branch.accessClassification) {
+    const slot = branch.accessSlot ?? PRIMARY_SLOT;
+    const write = writeSlot(accessBySlot, slot, branch.accessClassification);
+    accessBySlot = write.map;
+    // The first conflict is kept. A later one does not overwrite the report of
+    // the earlier, for the same reason the values themselves don't.
+    if (write.kind === "CONFLICT" && accessSlotConflict === null) {
+      accessSlotConflict = write.slot;
+    }
+  }
+
+  // PARALLEL PHASE ONLY. The legacy scalar tracks PRIMARY and nothing else, so
+  // every existing reader keeps its exact meaning while the map is proved
+  // equivalent. A non-PRIMARY slot never touches it. Removed at contract.
+  const accessClass = accessBySlot[PRIMARY_SLOT] ?? null;
 
   const declared = branch.components ?? [];
   // Keep only the variants whose conditions match. A component may condition
-  // on the access classification, on a raw answer, on both, or on nothing.
+  // on an access classification IN A NAMED SLOT, on a raw answer, on both, or
+  // on nothing.
   const selected = declared.filter((sel) => {
-    if (sel.conditionAccessClass && sel.conditionAccessClass !== accessClass) return false;
+    // An unestablished slot reads as `undefined` and matches no condition —
+    // exactly as `FINISHED !== null` excluded the component before. Preserved
+    // deliberately: the acceptance criterion for this migration is that no
+    // existing price moves.
+    if (
+      sel.conditionAccessClass &&
+      sel.conditionAccessClass !== accessBySlot[sel.conditionAccessSlot ?? PRIMARY_SLOT]
+    )
+      return false;
     if (sel.conditionAnswerKey && answers[sel.conditionAnswerKey] !== sel.conditionAnswerValue) {
       return false;
     }
@@ -561,8 +674,12 @@ export function applyBranch(
           : componentPriceCents
         : 0;
 
+  assertAccessEquivalence(accessClass, accessBySlot);
+
   return {
     accessClass,
+    accessBySlot,
+    accessSlotConflict,
       // A recipe naming a role this contractor has never costed fails closed,
       // exactly as an unapproved component price does. Never zero.
       awaitingComponentMaterialCost:
@@ -667,8 +784,13 @@ export function suggestConfigurationPrice(
 export function answerPriceDelta(
   branch: BranchContribution,
   answers: Record<string, string> = {},
-  /** Classification established earlier in the flow, for access-conditioned parts. */
-  accessClass: AccessClass | null = null
+  /**
+   * What the flow has established PER SLOT, for access-conditioned parts — G1.
+   *
+   * Empty by default, which reads as "nothing established" and matches no
+   * access condition — the same behavior a null classification had.
+   */
+  accessBySlot: AccessBySlot = {}
 ): {
   cents: number | null;
   needsReview: boolean;
@@ -679,7 +801,11 @@ export function answerPriceDelta(
 } {
   const declared = branch.components ?? [];
   const selected = declared.filter((sel) => {
-    if (sel.conditionAccessClass && sel.conditionAccessClass !== accessClass) return false;
+    if (
+      sel.conditionAccessClass &&
+      sel.conditionAccessClass !== accessBySlot[sel.conditionAccessSlot ?? PRIMARY_SLOT]
+    )
+      return false;
     if (sel.conditionAnswerKey && answers[sel.conditionAnswerKey] !== sel.conditionAnswerValue) {
       return false;
     }

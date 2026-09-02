@@ -1249,6 +1249,28 @@ model CanonicalDisclaimer {
   /// The CONDITION is part of the concept; the statement is not.
   accessClass AccessClassification?
 
+  /// WHERE this access classification applies — G1 scoped access.
+  ///
+  /// A validated slot key owned by lib/accessSlots.ts, never a database enum:
+  /// an enum is the one representation that would need a migration merely to
+  /// make a finer slot key discussable later. V1 accepts PRIMARY,
+  /// INDOOR_EQUIPMENT and OUTDOOR_EQUIPMENT and nothing else.
+  ///
+  /// Defaults to PRIMARY, which is what every row authored before scoped access
+  /// already meant — the route to the work. That default is why no backfill
+  /// script exists: existing rows acquire their correct meaning untouched.
+  ///
+  /// READ ONLY WHEN THE ACCESS CLASSIFICATION IS NON-NULL. A null classification
+  /// means "not access-conditioned", so a slot on such a row carries no meaning;
+  /// the verifier refuses a non-PRIMARY slot without one rather than storing
+  /// metadata that reads as significant and is not.
+  ///
+  /// THIS is the ACTIVE disclaimer condition. Both QuestionDTO.conditionalHelp
+  /// and AnswerOptionDTO.conditionalDisclaimers resolve through
+  /// ContractorDisclaimer -> CanonicalDisclaimer, so one slot serves both. The
+  /// deprecated, unattached ConditionalDisclaimer model is NOT extended.
+  accessSlot String @default("PRIMARY")
+
   /// Platform template lifecycle. Retiring a concept from the library does not
   /// retire it from contractors already using it.
   active Boolean @default(true)
@@ -1580,6 +1602,23 @@ model AnswerOptionComponent {
   /// its raw value. Preferred for anything access-dependent: it survives
   /// rewording, and a new access question needs no component changes.
   conditionAccessClass AccessClassification?
+
+  /// WHERE this access classification applies — G1 scoped access.
+  ///
+  /// A validated slot key owned by lib/accessSlots.ts, never a database enum:
+  /// an enum is the one representation that would need a migration merely to
+  /// make a finer slot key discussable later. V1 accepts PRIMARY,
+  /// INDOOR_EQUIPMENT and OUTDOOR_EQUIPMENT and nothing else.
+  ///
+  /// Defaults to PRIMARY, which is what every row authored before scoped access
+  /// already meant — the route to the work. That default is why no backfill
+  /// script exists: existing rows acquire their correct meaning untouched.
+  ///
+  /// READ ONLY WHEN THE ACCESS CLASSIFICATION IS NON-NULL. A null classification
+  /// means "not access-conditioned", so a slot on such a row carries no meaning;
+  /// the verifier refuses a non-PRIMARY slot without one rather than storing
+  /// metadata that reads as significant and is not.
+  conditionAccessSlot String @default("PRIMARY")
 
   /// Optional condition on a PREVIOUSLY COLLECTED answer (handoff §29).
   ///
@@ -2062,6 +2101,23 @@ model AnswerOption {
   /// ACCESSIBLE, but the job sheet still says which. Reclassifying later is
   /// one field on one option, with no migration of past bookings.
   accessClassification AccessClassification?
+
+  /// WHERE this access classification applies — G1 scoped access.
+  ///
+  /// A validated slot key owned by lib/accessSlots.ts, never a database enum:
+  /// an enum is the one representation that would need a migration merely to
+  /// make a finer slot key discussable later. V1 accepts PRIMARY,
+  /// INDOOR_EQUIPMENT and OUTDOOR_EQUIPMENT and nothing else.
+  ///
+  /// Defaults to PRIMARY, which is what every row authored before scoped access
+  /// already meant — the route to the work. That default is why no backfill
+  /// script exists: existing rows acquire their correct meaning untouched.
+  ///
+  /// READ ONLY WHEN THE ACCESS CLASSIFICATION IS NON-NULL. A null classification
+  /// means "not access-conditioned", so a slot on such a row carries no meaning;
+  /// the verifier refuses a non-PRIMARY slot without one rather than storing
+  /// metadata that reads as significant and is not.
+  accessSlot String @default("PRIMARY")
 
   /// Customer-facing incremental price for this answer's components, in
   /// cents, once an admin has approved it.

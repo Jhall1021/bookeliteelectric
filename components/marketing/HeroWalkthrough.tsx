@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { writeSlot, PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
 import QuestionStep from "@/components/guided-flow/QuestionStep";
@@ -279,18 +280,29 @@ export default function HeroWalkthrough() {
     return acc;
   }, [scene]);
 
-  /** The access class established by earlier answers, as the storefront does it. */
-  const accessClass = useMemo(() => {
-    if (scene.kind !== "question") return null;
-    let cls: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null = null;
+  /**
+   * What earlier answers established, per slot, exactly as the storefront does.
+   *
+   * Uses the platform's own `writeSlot` rather than a local accumulator, so the
+   * demo cannot drift from the engine it is demonstrating — first writer wins,
+   * and a conflicting second writer changes nothing. This loop used to assign
+   * `cls = o.accessClassification` on every access answer, which was the
+   * last-answer-wins behavior G1 removed from the real engine; leaving it here
+   * would have made the marketing page the last thing still doing it.
+   */
+  const accessBySlot = useMemo(() => {
+    if (scene.kind !== "question") return {} as AccessBySlot;
+    let map: AccessBySlot = {};
     const qs = questionsFor(scene.flow);
     for (let i = 0; i < scene.index; i++) {
       const s = pathFor(scene.flow)[i];
       const q = qs.find((x) => x.key === s.questionKey);
       const o = q?.options.find((x) => x.value === s.optionValue) as AnswerOptionDTO | undefined;
-      if (o?.accessClassification) cls = o.accessClassification;
+      if (o?.accessClassification) {
+        map = writeSlot(map, o.accessSlot ?? PRIMARY_SLOT, o.accessClassification).map;
+      }
     }
-    return cls;
+    return map;
   }, [scene]);
 
   const currentQuestion = useMemo(() => {
@@ -410,7 +422,7 @@ export default function HeroWalkthrough() {
                 key={`${scene.flow}-${currentQuestion.key}`}
                 question={currentQuestion}
                 answers={answersSoFar}
-                accessClass={accessClass}
+                accessBySlot={accessBySlot}
                 onAnswer={() => advance()}
               />
             )}

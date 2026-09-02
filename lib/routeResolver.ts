@@ -44,8 +44,10 @@ import { findTroubleshootingService } from "./troubleshooting";
 import {
   disclaimerIsActive,
   disclaimerAccessClass,
+  disclaimerAccessSlot,
   requireContractorDisclaimer,
 } from "./categories";
+import { accessConflictReason, parseAccessSlot } from "./accessSlots";
 import {
   startConfiguration,
   applyBranch,
@@ -423,6 +425,9 @@ export function resolveRoute(
         priceModifierCents: option.priceModifierCents,
         approvedComponentPriceCents: option.approvedComponentPriceCents,
         accessClassification: option.accessClassification,
+        // G1. Absent on every row authored before scoped access, which the
+        // column default resolves to PRIMARY — their existing meaning.
+        accessSlot: parseAccessSlot(option.accessSlot),
         overrideEstimatedMinutes: option.overrideEstimatedMinutes,
         overrideTechCount: option.overrideTechCount,
         overrideFieldLaborHours: option.overrideFieldLaborHours,
@@ -472,6 +477,7 @@ export function resolveRoute(
             conditionAnswerKey: c.conditionAnswerKey,
             conditionAnswerValue: c.conditionAnswerValue,
             conditionAccessClass: c.conditionAccessClass,
+            conditionAccessSlot: parseAccessSlot(c.conditionAccessSlot),
             component: {
               key: canonical.key,
               // The contractor's wording if they set one, else the shared
@@ -499,6 +505,31 @@ export function resolveRoute(
       answers
     );
 
+    // ── G1: TWO ANSWERS CLAIMED ONE SCOPED FACT ─────────────────────────────
+    //
+    // REVIEW rather than INVALID. The customer's answers may be perfectly
+    // valid; what failed is that our authored route let two of them establish
+    // the same access slot with different values. INVALID is for route state
+    // that cannot be replayed at all — a cycle, a missing question, an answer
+    // matching no option — and this replays fine, it just cannot be trusted to
+    // price. Nor is it a throw: a data defect must not become a 500.
+    //
+    // Valid composition makes this unreachable. It is the runtime half of
+    // defense in depth, and it fires the moment the conflict appears rather
+    // than after accumulating a route nobody may use.
+    if (config.accessSlotConflict !== null) {
+      const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
+      return {
+        status: "REVIEW",
+        reason: accessConflictReason(config.accessSlotConflict),
+        photoLabels: [...new Set(photoLabels)],
+        photoSafetyNotes: [...new Set(photoSafetyNotes)],
+        floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
+        isPrimary,
+        config,
+      };
+    }
+
     for (const g of option.photoGroups) {
       photoLabels.push(...g.photoGroup.labels);
       if (g.photoGroup.safetyNote) photoSafetyNotes.push(g.photoGroup.safetyNote);
@@ -509,7 +540,9 @@ export function resolveRoute(
       const policy = requireContractorDisclaimer(service.slug, d.contractorDisclaimer);
       if (!disclaimerIsActive(policy)) continue;
       const ac = disclaimerAccessClass(policy);
-      if (ac === null || ac === config.accessClass) {
+      // G1: the condition reads a NAMED slot. An unestablished slot reads as
+      // undefined and matches nothing, exactly as a null accessClass did.
+      if (ac === null || ac === config.accessBySlot[disclaimerAccessSlot(policy)]) {
         disclaimers.push(policy.text);
       }
     }

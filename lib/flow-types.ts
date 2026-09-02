@@ -1,3 +1,5 @@
+import type { AccessSlot } from "./accessSlots";
+
 // Shared shape between the API and the GuidedFlowEngine component.
 // Mirrors the Prisma models but only exposes what the client needs.
 
@@ -47,6 +49,8 @@ export type AnswerOptionDTO = {
   approvedComponentPriceCents: number | null;
   /** Set when this answer answers a route-access question. */
   accessClassification: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
+  /** WHICH access slot this answer establishes — G1. */
+  accessSlot: AccessSlot;
   /** Shown only when the established route is FINISHED. Superseded by
    *  conditionalDisclaimers; kept while older trees still use it. */
   accessFinishedDisclaimer: string | null;
@@ -59,10 +63,14 @@ export type AnswerOptionDTO = {
   conditionalDisclaimers: {
     text: string;
     accessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
+    /** WHICH slot the condition reads — G1. */
+    accessSlot: AccessSlot;
   }[];
   components: {
     quantity: number;
     conditionAccessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
+    /** WHICH slot the condition reads — G1. */
+    conditionAccessSlot: AccessSlot;
     conditionAnswerKey: string | null;
     conditionAnswerValue: string | null;
     component: {
@@ -100,6 +108,8 @@ export type QuestionDTO = {
   conditionalHelp: {
     text: string;
     accessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
+    /** WHICH slot the condition reads — G1. */
+    accessSlot: AccessSlot;
     replaces: boolean;
   }[];
   order: number;
@@ -134,6 +144,32 @@ export type ServiceFlowDTO = {
   estimatedMinutes: number | null;
   disclaimer: string | null; // for flat-price services with no question tree
   questions: QuestionDTO[]; // full tree, first question = questions[0]
+
+  /**
+   * The access slots this service's flow can ESTABLISH — G1.
+   *
+   * DERIVED FROM THE WRITERS, never authored. A slot is here because some
+   * answer in this tree can establish it; a slot merely READ by a component,
+   * disclaimer or help condition does not qualify, because a condition waiting
+   * on a fact the flow can never establish is a defect rather than state the
+   * client should expect. `verify-access-slots.ts` refuses that case
+   * (`access_slot_reader_has_writer`) instead of letting it silently never
+   * match — which is the electrical synonym bug in slot form.
+   *
+   * A second authored list would drift from the writers it claims to describe,
+   * so there isn't one.
+   *
+   * Ordered by the platform's declared slot order rather than by tree
+   * traversal, so a service publishes the same list every time.
+   *
+   * DISPLAY AND VALIDATION ONLY. The browser keeps its own access map to render
+   * conditional help and disclaimers, and NEVER submits it: resolveRoute is
+   * stateless and reconstructs access by replaying the answer snapshot against
+   * the server-owned tree. A client-supplied access map would make the browser
+   * an authority on what its answers mean, which is the class of defect that
+   * moved pricing to the server in the first place.
+   */
+  referencedAccessSlots: AccessSlot[];
 
   /**
    * Present ONLY for a TIME_AND_MATERIALS contractor — ADR-018.

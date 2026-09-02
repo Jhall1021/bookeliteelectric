@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
 import { answerPriceDelta } from "@/lib/pricing";
+import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
 type Props = {
@@ -20,11 +21,11 @@ type Props = {
    * through an attic and $435 through finished walls — the label has to know
    * which before the customer picks it.
    */
-  accessClass: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
+  accessBySlot: AccessBySlot;
   onAnswer: (option: AnswerOptionDTO) => void;
 };
 
-export default function QuestionStep({ question, answers, accessClass, onAnswer }: Props) {
+export default function QuestionStep({ question, answers, accessBySlot, onAnswer }: Props) {
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
 
@@ -32,7 +33,7 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
   // default out — the distance question's default mentions the basement or
   // attic, which is nonsense once the customer has told us there isn't one.
   const applicableHelp = (question.conditionalHelp ?? []).filter(
-    (h) => h.accessClass === null || h.accessClass === accessClass
+    (h) => h.accessClass === null || h.accessClass === accessBySlot[h.accessSlot]
   );
   const replacement = applicableHelp.find((h) => h.replaces);
   const helpText = replacement ? replacement.text : question.helpText;
@@ -94,7 +95,7 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {question.options.map((option) => {
-          const delta = answerPriceDelta(option, answers, accessClass);
+          const delta = answerPriceDelta(option, answers, accessBySlot);
           // Only an answer that SETTLES something can promise a price. A
           // CONTINUE answer carrying no charge of its own says nothing —
           // what the customer pays still depends on later questions, so
@@ -151,10 +152,19 @@ export default function QuestionStep({ question, answers, accessClass, onAnswer 
                   told we'll cut their ceiling. */}
               {(() => {
                 const conditional = (option.conditionalDisclaimers ?? []).filter(
-                  (d) => d.accessClass === null || d.accessClass === accessClass
+                  (d) => d.accessClass === null || d.accessClass === accessBySlot[d.accessSlot]
                 );
+                // LEGACY, and PRIMARY-ONLY by definition — G1.
+                //
+                // accessFinishedDisclaimer predates scoped access, so the only
+                // route it can have meant is the one PRIMARY names. Read
+                // explicitly rather than against "whichever slot was answered
+                // last", which would be the overwrite bug reintroduced in the
+                // one place still using the old shape. Its retirement is
+                // separate cleanup with its own proof.
                 const legacyFinished =
-                  option.accessFinishedDisclaimer && accessClass === "FINISHED"
+                  option.accessFinishedDisclaimer &&
+                  accessBySlot[PRIMARY_SLOT] === "FINISHED"
                     ? option.accessFinishedDisclaimer
                     : null;
                 if (!option.disclaimer && !legacyFinished && conditional.length === 0) {
