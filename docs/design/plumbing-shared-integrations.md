@@ -20,6 +20,29 @@
 > - **Every material role on a reachable priceable path must be discoverable by
 >   shared readiness before activation** — zero orphans, no allowlist.
 >
+> **THE CANONICAL CHECKPOINT, VERBATIM:**
+>
+> > Plumbing Template V1 is frozen. Its production-shaped two-contractor proof
+> > passed. Further changes require a demonstrated defect, a validated trade
+> > correction, or an explicit shared-platform compatibility change.
+>
+> Reopening the architecture during pilot-hardening requires ONE of three
+> things, and nothing else counts:
+>
+> 1. a real pilot flow exposes an implementation defect;
+> 2. a service's actual trade semantics are proven wrong;
+> 3. a shared platform change requires a compatibility amendment.
+>
+> Everything else — wording, prices, equipment, ordering, presentation, which
+> services a contractor offers — is polish and configuration. It is not an
+> excuse to reopen the model, and the model has now been proven expensive to
+> reopen casually: each amendment cost a full re-proof.
+>
+> The next phase is pilot-hardening, not architecture: real contractor
+> onboarding and configuration, homeowner-facing flow review, realistic price
+> and equipment setup, storefront behavior, activation UX, and whether 63
+> services are actually pleasant to configure.
+>
 > One shared-platform gap remains open and is NOT blocking:
 > [provisioning discards component relationships](provisioning-component-resolution-gap.md).
 
