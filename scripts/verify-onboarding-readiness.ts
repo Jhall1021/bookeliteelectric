@@ -26,6 +26,7 @@ import { provision, destroyContractor } from "./_throwaway";
 import {
   availableTrades, provisionedFromTrade, templateVersionSource, preflight,
 } from "../lib/templateProvisioning";
+import { setTradeEnrolment } from "../lib/tradeEnrolment";
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
@@ -386,8 +387,11 @@ async function main() {
     deltaOnly.every((d) => snapshotTrades.has(d.trade) ||
       !deltaOnly.some((x) => x.trade === d.trade && !snapshotTrades.has(x.trade))));
 
-  // Enrolment before provisioning is free; after it, refused.
-  await raw.contractorTrade.create({ data: { contractorId: fresh.id, tradeKey: "electrical" } });
+  // Enrolment goes through the shared writer — the one the route calls —
+  // rather than a direct row write, so the suite exercises the path the
+  // trade picker actually takes. (verify-trade-enrolment holds the rest.)
+  const enrolled = await setTradeEnrolment(raw, fresh.id, "electrical");
+  if (!enrolled.ok) throw new Error(`enrolment refused: ${enrolled.code}`);
   const provisioned = await provisionedFromTrade(raw, fresh.id, "electrical");
   ok(`34. a provisioned trade cannot be casually swapped`, provisioned > 0,
     `${provisioned} service(s) carry electrical provenance`);

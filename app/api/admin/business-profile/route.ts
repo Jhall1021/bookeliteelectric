@@ -20,20 +20,17 @@
  * finishes. `Contractor.trade` — the descriptive prose the service finder
  * reads — is a different fact and is edited separately here; enrolment never
  * touches it.
+ *
+ * The route decides nothing itself. What the body means is
+ * `readBusinessProfileRequest` (lib/businessProfileRequest); the enrolment
+ * write is `setTradeEnrolment` (lib/tradeEnrolment). Both are shared so the
+ * next writer — Settings, Platform Admin — reuses the same decisions.
  */
 
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
-import { checkCountry } from "@/lib/contractorIdentity";
-import { availableTrades, provisionedFromTrade } from "@/lib/templateProvisioning";
-
-/** Trimmed; empty becomes null, which is distinct from "not sent". */
-function optionalText(v: unknown): string | null | undefined {
-  if (v === undefined) return undefined;
-  if (typeof v !== "string") return undefined;
-  const t = v.trim();
-  return t === "" ? null : t;
-}
+import { readBusinessProfileRequest } from "@/lib/businessProfileRequest";
+import { setTradeEnrolment } from "@/lib/tradeEnrolment";
 
 export async function PATCH(req: Request) {
   let body: Record<string, unknown>;
@@ -41,39 +38,15 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
 
-  const name = optionalText(body.name);
-  if (name === null) {
-    return NextResponse.json(
-      { error: "NAME_REQUIRED", message: "Your business name is what a homeowner sees. It cannot be empty." },
-      { status: 400 }
-    );
-  }
-
-  // The country decides whether payments can be set up at all, so a value that
-  // would fail later is refused here with the reason the payment system gives.
-  const countryRaw = optionalText(body.countryCode);
-  let countryCode: string | null | undefined = countryRaw;
-  if (typeof countryRaw === "string") {
-    const check = checkCountry(countryRaw);
-    if (!check.ok) {
-      return NextResponse.json({ error: "COUNTRY_UNSUPPORTED", message: check.reason }, { status: 400 });
+  const request = readBusinessProfileRequest(body);
+  if (!request.ok) {
+    // Kept as the caller-facing text it always was; the code travels beside it.
+    if (request.error === "NOTHING_TO_CHANGE") {
+      return NextResponse.json({ error: request.message, code: request.error }, { status: 400 });
     }
-    countryCode = countryRaw.trim().toUpperCase();
+    return NextResponse.json({ error: request.error, message: request.message }, { status: 400 });
   }
-
-  const data: Record<string, unknown> = {};
-  if (name !== undefined) data.name = name;
-  if (countryCode !== undefined) data.countryCode = countryCode;
-  for (const field of ["legalName", "phone", "supportEmail", "licenseNumber", "licenseLabel"] as const) {
-    const v = optionalText(body[field]);
-    if (v !== undefined) data[field] = v;
-  }
-
-  if (Object.keys(data).length === 0) {
-    return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
-  }
-
-  const tradeKey = optionalText(body.tradeKey);
+  const { data, tradeKey } = request;
 
   return withAdminRoute(async (db, ctx) => {
     if (tradeKey !== undefined) {
@@ -90,61 +63,4 @@ export async function PATCH(req: Request) {
       changed: [...Object.keys(data), ...(tradeKey !== undefined ? ["tradeKey"] : [])],
     });
   });
-}
-
-/**
- * Enrol this contractor in a canonical trade, or refuse.
- *
- * V1 allows ONE enrolment, which is a UX decision rather than a model one —
- * ContractorTrade is a relation precisely so a second trade is a feature
- * rather than a migration.
- */
-async function setTradeEnrolment(
-  db: Parameters<Parameters<typeof withAdminRoute>[0]>[0],
-  contractorId: string,
-  tradeKey: string | null
-): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
-  const existing = await db.contractorTrade.findMany({ where: { contractorId } });
-
-  for (const e of existing) {
-    if (e.tradeKey === tradeKey) return { ok: true };
-    // A catalog that has been installed is priced, possibly live and possibly
-    // booked against. Withdrawing the enrolment underneath it would leave a
-    // storefront advertising work the contractor no longer says they do —
-    // a migration, not a setting, and out of scope by design.
-    const provisioned = await provisionedFromTrade(db, contractorId, e.tradeKey);
-    if (provisioned > 0) {
-      return {
-        ok: false,
-        code: "TRADE_HAS_PROVISIONED_SERVICES",
-        message:
-          `You have ${provisioned} service(s) installed from the ${e.tradeKey} catalog. ` +
-          `Changing trade would leave them behind, so it isn't something we can do here.`,
-      };
-    }
-  }
-
-  if (tradeKey === null) {
-    await db.contractorTrade.deleteMany({ where: { contractorId } });
-    return { ok: true };
-  }
-
-  // Validated against published catalogs, so an unknown key cannot be
-  // enrolled and the list that populates the UI is the list that refuses a
-  // typo.
-  const trades = await availableTrades(db);
-  if (!trades.includes(tradeKey)) {
-    return {
-      ok: false, code: "TRADE_NOT_AVAILABLE",
-      message: `"${tradeKey}" is not a trade Price2Book publishes a catalog for yet.`,
-    };
-  }
-
-  await db.contractorTrade.deleteMany({ where: { contractorId, tradeKey: { not: tradeKey } } });
-  await db.contractorTrade.upsert({
-    where: { contractorId_tradeKey: { contractorId, tradeKey } },
-    update: {},
-    create: { contractorId, tradeKey },
-  });
-  return { ok: true };
 }
