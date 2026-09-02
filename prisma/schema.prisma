@@ -1911,6 +1911,31 @@ model Service {
   templateVersionId String?
   templateKey       String?
 
+  /// WHICH TRADE'S CATALOG THIS SERVICE BELONGS TO — G2.
+  ///
+  /// The durable trade identity of a LIVE service, and the only thing a
+  /// diagnostic lookup may scope by. Before this existed there was nothing to
+  /// ask: templateVersionId is provenance and is null on 79 of 154 live
+  /// services, CanonicalCategory has no trade field, and category slugs are
+  /// globally unique — Plumbing and HVAC both declare `service-calls`, so the
+  /// one category where trade matters most is the one two trades would share.
+  ///
+  /// NOT ContractorTrade. That answers "which trades is this contractor
+  /// enrolled in", a different fact: deriving service identity from it becomes
+  /// ambiguous the moment a contractor sells two trades, which is the exact
+  /// failure G2 exists to fix.
+  ///
+  /// A validated String rather than a foreign key, matching TemplateVersion.trade
+  /// and ContractorTrade.tradeKey. If a CanonicalTrade entity ever arrives this
+  /// becomes a key and nothing already written is undone.
+  ///
+  /// NULL MEANS TRADE NOT ESTABLISHED, AND FAILS CLOSED. It does not mean
+  /// electrical. There is deliberately NO schema default: a default would make
+  /// one trade the meaning of "we never asked" and would silently classify every
+  /// future unknown service. Legacy rows are stamped by an explicit dated
+  /// backfill over a reviewed set, never by `WHERE tradeKey IS NULL`.
+  tradeKey String?
+
   @@unique([contractorId, slug])
   @@index([contractorId])
   @@map("services")

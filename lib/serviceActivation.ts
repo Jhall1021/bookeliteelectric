@@ -14,6 +14,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { promiseFor } from "./onboardingReadiness";
+import { findTroubleshootingService, tradeOfService } from "./troubleshooting";
 import { loadPricingSettings } from "./routeResolver";
 import { assessActivationMaterialReadiness } from "./materialResolution";
 
@@ -211,15 +212,24 @@ async function unavailableDependencies(
   }
 
   if (promise.deadReasons.some((r) => /routes to troubleshooting/.test(r))) {
-    const diagnostic = await db.service.findFirst({
-      where: { contractorId, bookingType: "TROUBLESHOOT_ONLY" },
-      select: { slug: true, name: true, active: true },
-    });
-    out.push(
-      diagnostic
-        ? { slug: diagnostic.slug, label: `your diagnostic visit ("${diagnostic.name}")` }
-        : { slug: null, label: "a diagnostic visit, which you don't offer yet" }
-    );
+    // G2. This used to be a local `findFirst` with no `orderBy` — it silently
+    // picked a row, and on a multi-trade contractor that row could belong to
+    // another trade, so the contractor was told to launch the wrong service
+    // first. It now asks the one authority, scoped to THIS service's trade.
+    //
+    // The destination reported here is the same one routeResolver would send a
+    // homeowner to, which is the property this whole module exists to keep.
+    const trade = await tradeOfService(db, contractorId, serviceId);
+    if (!trade.ok) {
+      out.push({ slug: null, label: "a diagnostic visit, which this service cannot resolve" });
+    } else {
+      const found = await findTroubleshootingService(db, contractorId, trade.tradeKey);
+      out.push(
+        found.ok
+          ? { slug: found.service.slug, label: `your diagnostic visit ("${found.service.name}")` }
+          : { slug: null, label: "a diagnostic visit, which you don't offer yet" }
+      );
+    }
   }
 
   return out;

@@ -129,7 +129,7 @@ export type ResolvedRoute =
 export async function loadServiceForResolution(db: PrismaClient, serviceId: string) {
   const owner = await db.service.findUnique({
     where: { id: serviceId },
-    select: { slug: true, contractorId: true },
+    select: { slug: true, contractorId: true, tradeKey: true },
   });
   if (!owner) return null;
   if (!owner.contractorId) {
@@ -237,9 +237,18 @@ export async function loadServiceForResolution(db: PrismaClient, serviceId: stri
   let troubleshootingServiceId: string | null = null;
   let troubleshootingProblem: string | null = null;
   if (routesToTroubleshooting) {
-    const found = await findTroubleshootingService(db, owner.contractorId);
-    if (found.ok) troubleshootingServiceId = found.service.id;
-    else troubleshootingProblem = found.problem;
+    // G2: scoped to THIS service's own trade. The originating service is the
+    // authoritative source — nothing here infers a trade, and a service whose
+    // trade was never established fails closed rather than resolving against
+    // whatever diagnostic the contractor happens to have.
+    if (!owner.tradeKey) {
+      troubleshootingProblem =
+        `${owner.slug} has no tradeKey, so its diagnostic destination is not resolvable`;
+    } else {
+      const found = await findTroubleshootingService(db, owner.contractorId, owner.tradeKey);
+      if (found.ok) troubleshootingServiceId = found.service.id;
+      else troubleshootingProblem = found.problem;
+    }
   }
 
   return {

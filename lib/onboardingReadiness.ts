@@ -275,10 +275,57 @@ export async function assessOnboarding(
   // The diagnostic, because a great many trees hand off to it. Whether a dead
   // route is a defect or merely a sequencing fact depends entirely on whether
   // this service exists and is on its way live.
-  const diagnostic = await db.service.findFirst({
-    where: { contractorId, bookingType: "TROUBLESHOOT_ONLY" },
-    select: { name: true, offered: true, active: true },
-  });
+  // G2. This was a local `findFirst` with no `orderBy`, which silently picked
+  // a row — non-deterministically in Postgres — and on a multi-trade contractor
+  // could report readiness about ANOTHER trade's diagnostic. It is now resolved
+  // per service, from that service's own trade, through the one authority.
+  //
+  // Cached per trade because the loop below asks once per service and most
+  // catalogs are single-trade; the lookup is the same question every time.
+  //
+  // A SECOND QUERY BY NECESSITY, NOT BY DRIFT.
+  //
+  // `findTroubleshootingService` answers a deliberately narrow runtime question:
+  // "what ACTIVE diagnostic can this customer be routed to in this trade?"
+  // Readiness asks a different one: "is there a diagnostic prerequisite in this
+  // trade, and what STATE is it in?" — and it needs the row precisely when it is
+  // NOT yet active, because "offered but not live" is the sequencing note it
+  // reports rather than a blocker. Teaching the runtime authority to optionally
+  // return inactive rows would blur a safety boundary that is currently useful.
+  //
+  // Availability semantics differ. IDENTITY SEMANTICS ARE IDENTICAL:
+  //   contractor + EXACT tradeKey, so other trades are invisible;
+  //   zero same-trade candidates is a distinct, deliberate outcome;
+  //   multiple same-trade candidates REFUSE rather than picking a row.
+  type DiagnosticState =
+    | { kind: "ONE"; name: string; offered: boolean; active: boolean }
+    | { kind: "NONE" }
+    | { kind: "AMBIGUOUS" };
+  const diagnosticByTrade = new Map<string, DiagnosticState>();
+  const diagnosticFor = async (tradeKey: string | null): Promise<DiagnosticState> => {
+    // No trade established: not "no diagnostic", but "this service cannot say
+    // what its prerequisite would be". Fails closed the same way, and does not
+    // pretend the contractor is missing something they may well have.
+    if (!tradeKey) return { kind: "NONE" };
+    const cached = diagnosticByTrade.get(tradeKey);
+    if (cached) return cached;
+    const rows = await db.service.findMany({
+      where: { contractorId, tradeKey, bookingType: "TROUBLESHOOT_ONLY" },
+      select: { name: true, offered: true, active: true },
+      orderBy: { slug: "asc" },
+    });
+    const state: DiagnosticState =
+      rows.length === 1
+        ? { kind: "ONE", ...rows[0] }
+        : rows.length === 0
+          ? { kind: "NONE" }
+          // Two diagnostics in one trade is a catalog defect the runtime
+          // authority refuses. Readiness must not resolve it by choosing one —
+          // that is the silent `findFirst` this replaced.
+          : { kind: "AMBIGUOUS" };
+    diagnosticByTrade.set(tradeKey, state);
+    return state;
+  };
 
   for (const { svc } of intended) {
     const slug = svc.slug as string;
@@ -304,13 +351,17 @@ export async function assessOnboarding(
       // Still a blocker when the destination does not exist or is not being
       // offered at all: no launch will fix that one.
       const onlyDiagnostic = promise.deadReasons.every((r) => /routes to troubleshooting/.test(r));
+      const diagnostic = await diagnosticFor((svc.tradeKey as string | null) ?? null);
+      // Only a single, offered, not-yet-live diagnostic in this service's own
+      // trade turns a dead route into a sequencing note. NONE and AMBIGUOUS
+      // both stay blockers — no launch order fixes either.
       const resolvesOnLaunch =
-        onlyDiagnostic && diagnostic !== null && diagnostic.offered && !diagnostic.active;
+        onlyDiagnostic && diagnostic.kind === "ONE" && diagnostic.offered && !diagnostic.active;
 
       findings.services.push(
         resolvesOnLaunch
           ? w("HANDOFF_NOT_LIVE_YET",
-              `${slug} sends "it stopped working" to ${diagnostic!.name}, which isn't live yet. ` +
+              `${slug} sends "it stopped working" to ${diagnostic.kind === "ONE" ? diagnostic.name : "your diagnostic"}, which isn't live yet. ` +
               `Put that live and this resolves itself — we launch it first for you.`,
               { serviceSlug: slug, href: IN_SETUP })
           : b("TREE_HAS_DEAD_ROUTE",
