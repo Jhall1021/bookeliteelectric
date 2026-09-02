@@ -2,8 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { formatCents } from "@/lib/flow-types";
 import {
-  BOUNDARY_LINE, CATALOG, CATEGORY_IMAGES, CUSTOMER_URL, EMBED_STATUS, EVERYWHERE, JOURNEY,
-  JOURNEY_NOTE, NO_JARGON, PILLARS, SETUP_PROGRESSION, START_SMALL, TRADES, TRADE_SIGNAL,
+  BOUNDARY_LINE, CATALOG, CATEGORY_IMAGES, CUSTOMER_URL, EMBED_STATUS, ESTIMATE_TRIPS, EVERYWHERE,
+  JOURNEY, JOURNEY_NOTE, NO_JARGON, PILLARS, PRICING_MODES, SETUP_PROGRESSION, START_SMALL,
+  TRADES, TRADE_SIGNAL,
 } from "./content";
 import { DEMO_FLOW } from "./demoFlow";
 import { HERO_FLOW } from "./heroFlow";
@@ -130,6 +131,121 @@ export function Pillars() {
  * all live on the product page. What is left here is the promise and one
  * captured example — enough that the claim is not merely asserted.
  */
+
+/**
+ * Show prices. Send estimates. Or do both.
+ *
+ * THE SECOND ADOPTION AXIS, ON THE HOMEPAGE. StartSmall answers "how much of
+ * my catalog?"; this answers "and how do those services hand someone a
+ * number?" — a question the page used to answer by assumption, always with
+ * "instantly, in public".
+ *
+ * DELIBERATELY NOT A PROGRESSION. No numbering, no basic/advanced framing, no
+ * visual weight separating the three. A contractor who publishes nothing and
+ * reviews every job is a full customer, and the layout has to say that before
+ * the words get a chance to.
+ *
+ * Onsite Visit has no link because it is not a Price2Book feature — it is the
+ * outcome where the product gets out of the way, and inventing a page for it
+ * would be a capability claim about routing that nothing here needs.
+ */
+export function PricingModes() {
+  return (
+    <section id="pricing-modes" className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">
+      <div className={SHELL}>
+        <h2 className="max-w-[22ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[44px]">
+          Show prices. Send estimates. Or do both.
+        </h2>
+        <p className="mt-5 max-w-[74ch] text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+          {START_SMALL.publishing}
+        </p>
+
+        <div className="mt-9 grid gap-5 lg:grid-cols-3">
+          {PRICING_MODES.map((m) => (
+            <div key={m.name} className="flex flex-col rounded-[3px] border border-p2b-line bg-white px-6 py-6">
+              <div className="text-[17px] font-semibold text-p2b-ink lg:text-[18px]">{m.name}</div>
+              <div className="mt-2 text-[15px] leading-[1.45] text-p2b-muted-soft">{m.forWhat}</div>
+              <p className="mt-4 flex-1 text-[15px] leading-[1.55] text-p2b-ink-warm lg:text-base">{m.body}</p>
+              {m.note ? (
+                <p className="mt-4 border-l-2 border-p2b-accent pl-4 text-[15px] font-semibold leading-[1.5] text-p2b-ink">
+                  {m.note}
+                </p>
+              ) : null}
+              {m.href ? (
+                <Link href={m.href} className="mt-5 inline-flex text-[15px] font-semibold text-p2b-accent">
+                  How it works →
+                </Link>
+              ) : null}
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-8 text-[18px] font-semibold leading-[1.4] tracking-[-0.01em] text-p2b-ink lg:text-[20px]">
+          You decide which services work which way.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Fewer estimate trips — a top-level reason to care, not a feature note.
+ *
+ * THE TARGET IS NARROW AND THE PAGE HAS TO SAY SO. This is not an argument
+ * against site visits; a contractor who reads it that way stops believing the
+ * rest of the page, and they would be right to. It is an argument against the
+ * drive whose only purpose was collecting what the homeowner could have sent.
+ *
+ * NO PERCENTAGE, EVER. Nobody has measured how many trips this removes, so
+ * there is no number here and verify-marketing-homepage fails the build on
+ * one. The two sequences are the argument, and they are qualitative on
+ * purpose.
+ */
+export function EstimateTrips() {
+  return (
+    <section id="estimate-trips" className={`${SHELL} py-14 lg:py-[72px]`}>
+      <h2 className="max-w-[24ch] text-[30px] font-bold leading-[1.1] tracking-[-0.022em] lg:text-[46px]">
+        {ESTIMATE_TRIPS.headline}
+      </h2>
+      <p className="mt-6 max-w-[74ch] text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+        {ESTIMATE_TRIPS.lead}
+      </p>
+
+      <div className="mt-10 grid gap-8 lg:grid-cols-2 lg:gap-14">
+        {[ESTIMATE_TRIPS.before, ESTIMATE_TRIPS.after].map((seq, i) => (
+          <div key={seq.label}>
+            <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-p2b-muted-soft">
+              {seq.label}
+            </div>
+            <ol className="mt-4 flex flex-col gap-0">
+              {seq.steps.map((step, n) => (
+                <li key={step} className="flex gap-4">
+                  <div className="flex flex-col items-center">
+                    <span className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${
+                      i === 1 ? "bg-p2b-accent" : "bg-p2b-faint"}`} />
+                    {n < seq.steps.length - 1 ? <span className="w-px flex-1 bg-p2b-line-dash" /> : null}
+                  </div>
+                  <span className={`pb-3 text-[16px] leading-[1.45] ${
+                    i === 1 ? "text-p2b-ink" : "text-p2b-muted"}`}>
+                    {step}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-8 max-w-[74ch] border-l-2 border-p2b-line-dash pl-5 text-[16px] leading-[1.6] text-p2b-muted">
+        {ESTIMATE_TRIPS.caveat}
+      </p>
+      <Link href="/product/guided-estimates" className="mt-7 inline-flex text-[16px] font-semibold text-p2b-accent">
+        How Guided Estimates works →
+      </Link>
+    </section>
+  );
+}
+
 export function GuidedPricingTeaser() {
   return (
     <section className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">

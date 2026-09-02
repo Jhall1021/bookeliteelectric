@@ -36,8 +36,14 @@ export const HERO = {
   // Was "Turn homeowner requests into safely priced, bookable work." That
   // described the product without saying where it lives, which is the first
   // question a contractor with a website actually has.
+  // BROADENED 2 September 2026. It read "...see your approved price when the
+  // work qualifies, and book from your availability", which left a visitor on
+  // the first screen believing Price2Book means publishing flat-rate prices.
+  // Guided Estimates ships, so the hero now names both endings — and the
+  // walkthrough beside it is untouched, because it captures a real Instant
+  // Price flow and demonstrating the other one would need its own capture.
   body:
-    "Add Price2Book to the website you already have. Homeowners answer a few questions, see your approved price when the work qualifies, and book from your availability — without replacing the software you already use.",
+    "Add Price2Book to the website you already have. Homeowners answer the questions that decide the job — then either see a price you approved, or send you the details and photographs so you can price it yourself.",
   primaryCta: "Request Early Access",
   secondaryCta: "Try the Homeowner Demo",
   support: "Works alongside your existing business software.",
@@ -202,7 +208,7 @@ export const PILLARS = [
     tone: "accent",
     href: "/product/guided-pricing",
     lead: "Homeowners answer the questions that actually affect the job.",
-    body: "They see a price you approved when the work qualifies for one.",
+    body: "Qualifying work gets a price you approved. The rest comes to you, scoped, with the photographs you asked for.",
   },
   {
     title: "Book Online",
@@ -470,6 +476,19 @@ export const START_SMALL = {
     },
   ],
   scale: "Ten services or a hundred. You decide which services go online, and whether each one shows a price or comes to you for an estimate.",
+  /**
+   * THE LINE THAT SEPARATES THE TWO IDEAS PEOPLE CONFLATE.
+   *
+   * "Putting pricing online" has been heard as "advertising flat-rate prices"
+   * for as long as this site has existed, and that reading loses every
+   * contractor who will not publish a number — which is a lot of them. It is
+   * also wrong: the intake, the questions, the photographs and the handoff are
+   * the product, and the published price is one optional ending.
+   *
+   * Deliberately says "publish", not "have". A Guided Estimate still ends in a
+   * price; the contractor sets it and sends it.
+   */
+  publishing: "You don\u2019t have to publish your prices to put your pricing process online.",
   close: "Price2Book fits your business — your business doesn’t have to fit Price2Book.",
 } as const;
 
