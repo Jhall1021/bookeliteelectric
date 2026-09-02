@@ -63,7 +63,7 @@ async function main() {
     select: { id: true },
   });
   const settings = await loadPricingSettings(prisma as any, elite.id);
-  const diagnostic = await findTroubleshootingService(prisma as any, elite.id);
+  const diagnostic = await findTroubleshootingService(prisma as any, elite.id, "electrical");
   if (!diagnostic.ok) {
     console.error(`  Elite has no resolvable diagnostic service: ${diagnostic.problem}\n`);
     process.exit(1);
@@ -170,7 +170,7 @@ async function main() {
     select: { id: true, slug: true },
   });
   try {
-    const none = await findTroubleshootingService(prisma as any, throwaway.id);
+    const none = await findTroubleshootingService(prisma as any, throwaway.id, "electrical");
     ok(`a real contractor with no diagnostic resolves to a refusal`, none.ok === false, JSON.stringify(none));
 
     // ── 5. cross-tenant ──────────────────────────────────────────────────
@@ -180,7 +180,7 @@ async function main() {
       none.ok === false || (none as any).service?.id !== diagnostic.service.id,
       `probe resolved to ${JSON.stringify(none)}`
     );
-    const eliteAgain = await findTroubleshootingService(prisma as any, elite.id);
+    const eliteAgain = await findTroubleshootingService(prisma as any, elite.id, "electrical");
     ok(
       `Elite still resolves to its own`,
       eliteAgain.ok === true && eliteAgain.service.id === diagnostic.service.id
@@ -199,7 +199,7 @@ async function main() {
   // call findTroubleshootingService, and this asserts they return the same id
   // rather than trusting that they share a function.
   console.log(`\n  6. storefront and /api/visit produce the same destination`);
-  const storefrontAnswer = await findTroubleshootingService(prisma as any, elite.id);
+  const storefrontAnswer = await findTroubleshootingService(prisma as any, elite.id, "electrical");
   const oneService = await loadServiceForResolution(prisma as any, serviceIds[0]);
   const serverPaths = answersReaching(oneService as any, (o) => o.routeAction === "REROUTE_TROUBLESHOOTING");
   const serverAnswer: any = resolveRoute(oneService as any, serverPaths[0], true, settings!);

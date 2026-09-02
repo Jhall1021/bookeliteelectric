@@ -364,6 +364,18 @@ export async function installCatalog(
             isPrimaryEligible: (s as unknown as { isPrimaryEligible: boolean }).isPrimaryEligible,
             requiresTechCount: (s as unknown as { requiresTechCount: number }).requiresTechCount,
             templateVersionId: fromVersionId, templateKey: s.key,
+            // THE DURABLE TRADE IDENTITY — G2.
+            //
+            // Stamped at creation from the catalog being installed, so every
+            // provisioned service knows its own trade without anything reading
+            // through provenance at request time. `templateVersionId` above
+            // stays what it is: a record, not a link.
+            //
+            // This is the whole reason a diagnostic lookup can be scoped. A
+            // contractor selling two trades has a service call in each, and
+            // which one a route resolves to is decided by the ORIGINATING
+            // service's trade — read from here.
+            tradeKey: catalog.trade,
             // NOTHING economic, and nothing offered or live. `offered` keeps
             // its default of false: a provisioned catalog is a set of
             // possibilities, not a set of commitments.

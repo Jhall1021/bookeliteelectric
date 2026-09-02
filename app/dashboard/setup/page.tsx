@@ -133,10 +133,32 @@ export default async function SetupPage({
       // Ordering ONLY. Every service still goes through the same per-service
       // route and the same activationRefusal; nothing here decides that any
       // service may go live.
-      const diagnosticId = offeredRows.find((s) => s.bookingType === "TROUBLESHOOT_ONLY")?.id ?? null;
+      // PER TRADE — G2.
+      //
+      // This was a single `.find()` over every offered row, which picked the
+      // first TROUBLESHOOT_ONLY service in the catalog. On a contractor selling
+      // two trades that is a coin toss, and the loser is a service ordered
+      // behind another trade's diagnostic — which activation then refuses,
+      // producing exactly the ordering deadlock this block exists to prevent.
+      //
+      // Indexed by trade, and a service's prerequisite is the diagnostic of ITS
+      // OWN trade. A service with no trade established gets none: it cannot
+      // resolve a destination anyway, and inventing one here would order it
+      // behind a service that will not help it.
+      const diagnosticIdByTrade = new Map<string, string>();
+      for (const s of offeredRows) {
+        if (s.bookingType !== "TROUBLESHOOT_ONLY" || !s.tradeKey) continue;
+        // First by name order, and only when unambiguous. Two diagnostics in one
+        // trade is a catalog defect the shared authority refuses; ordering must
+        // not paper over it by picking one.
+        if (diagnosticIdByTrade.has(s.tradeKey)) diagnosticIdByTrade.set(s.tradeKey, "");
+        else diagnosticIdByTrade.set(s.tradeKey, s.id);
+      }
       const prerequisiteOf = (id: string) => {
         const p = promises.get(id);
         const deps = new Set(p?.handoffTargets ?? []);
+        const svc = offeredRows.find((r) => r.id === id);
+        const diagnosticId = svc?.tradeKey ? diagnosticIdByTrade.get(svc.tradeKey) : null;
         if (p?.needsDiagnostic && diagnosticId) deps.add(diagnosticId);
         return deps;
       };

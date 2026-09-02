@@ -438,10 +438,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       return;
     }
 
-    if (result.state.kind === "troubleshooting") {
+    if (result.state.kind === "troubleshooting" && flow) {
       // Fetched on demand rather than up front — most flows never reach it.
-      // By role: this storefront's diagnostic, whatever it is called.
-      siteFetch("/api/troubleshooting")
+      //
+      // Sends WHICH SERVICE is asking, not which trade it is — G2. The server
+      // reads that service's own tradeKey and scopes the lookup with it. The
+      // page identifies itself; it does not get to say what it means.
+      siteFetch(`/api/troubleshooting?serviceId=${encodeURIComponent(flow.id)}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((t) =>
           setTroubleshooting(
