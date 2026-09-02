@@ -24,20 +24,64 @@ import { destroyContractor } from "./_throwaway";
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
-const SLUG = "test-template-install";
+/**
+ * RUN-UNIQUE, because the worktree and the database are shared.
+ *
+ * The fixed slug this replaced broke a production deployment on 1 September
+ * 2026. `npm run verify` runs inside `next build`, so a Vercel build and a
+ * local run are two processes racing on one throwaway contractor: teardown
+ * runs first, so the second starter deletes the first's fixture and then
+ * `contractor.create` fails P2002 on the slug the other run still holds. The
+ * build failed on a unique-constraint error unrelated to the commit deployed.
+ *
+ * Same shape as verify-activation-dependencies, deliberately — that verifier
+ * hit this first, and the fix is copied rather than reinvented.
+ *
+ * The prefix stays fixed so a fixture from a crashed run is still sweepable.
+ */
+const PREFIX = "test-template-install";
+const SLUG = `${PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
 
 let fail = 0;
 const ok = (l: string, c: boolean, d?: string) => { if (!c) fail++; console.log(`  ${c ? "✓" : "✗"} ${l}${c || !d ? "" : `  (${d})`}`); };
 
+/**
+ * Only what is genuinely abandoned.
+ *
+ * Sweeping every sibling would delete a CONCURRENT run's live fixture
+ * mid-assertion — the exact collision the unique slug exists to prevent,
+ * reintroduced by the cleanup. Age is what separates "crashed" from
+ * "running": this verifier takes seconds, so an hour is far past any live run.
+ */
+const STALE_AFTER_MS = 60 * 60 * 1000;
+
+async function removeContractor(slug: string) {
+  await raw.contractorPolicyValue.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorCategory.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await destroyContractor(raw, slug).catch(() => {});
+}
+
+async function sweepStale() {
+  const stale = await raw.contractor.findMany({
+    where: {
+      slug: { startsWith: PREFIX },
+      NOT: { slug: SLUG },
+      createdAt: { lt: new Date(Date.now() - STALE_AFTER_MS) },
+    },
+    select: { slug: true },
+  });
+  for (const c of stale) await removeContractor(c.slug);
+  if (stale.length) console.log(`  (swept ${stale.length} abandoned fixture(s))`);
+}
+
 async function teardown() {
-  await raw.contractorPolicyValue.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorCategory.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await destroyContractor(raw, SLUG).catch(() => {});
+  await removeContractor(SLUG);
 }
 
 async function main() {
   console.log(`\nTEMPLATE INSTALLATION — all of it, or none of it\n`);
   await teardown();
+  await sweepStale();
   const c = await raw.contractor.create({
     data: { slug: SLUG, name: "Template install probe", active: false },
     select: { id: true },

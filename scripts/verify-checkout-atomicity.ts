@@ -22,7 +22,24 @@ import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 
 const prisma = new PrismaClient();
-const SLUG = "__checkout_atomicity_probe__";
+/**
+ * RUN-UNIQUE, because the worktree and the database are shared.
+ *
+ * The fixed slug was worse here than a create collision. `upsert` meant two
+ * concurrent runs SHARED one contractor, and the "starting clean" assertion
+ * counts customers, windows and bookings scoped to it — so one run's fixture
+ * rows failed the other run's assertion, and either run's teardown deleted
+ * the contractor the other was still using. A product-shaped failure with no
+ * product defect behind it.
+ *
+ * Same shape as verify-activation-dependencies, deliberately. The prefix
+ * stays fixed so a probe from a crashed run is still sweepable.
+ */
+const PREFIX = "__checkout_atomicity_probe__";
+const SLUG = `${PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
+
+/** Old enough that no run could still be using it. */
+const STALE_AFTER_MS = 60 * 60 * 1000;
 
 let pass = 0, fail = 0;
 function ok(cond: boolean, label: string, detail = "") {
@@ -43,10 +60,22 @@ async function purge(contractorId: string) {
 async function main() {
   console.log("\nCHECKOUT ATOMICITY\n");
 
-  const c = await prisma.contractor.upsert({
-    where: { slug: SLUG },
-    update: {},
-    create: { slug: SLUG, name: "Checkout atomicity probe" },
+  // Only genuinely abandoned siblings. Purging every one of them would
+  // destroy a CONCURRENT run's live probe — the collision the run-unique slug
+  // exists to prevent, reintroduced by the cleanup.
+  const stale = await prisma.contractor.findMany({
+    where: {
+      slug: { startsWith: PREFIX },
+      NOT: { slug: SLUG },
+      createdAt: { lt: new Date(Date.now() - STALE_AFTER_MS) },
+    },
+    select: { id: true },
+  });
+  for (const old of stale) await purge(old.id);
+  if (stale.length) console.log(`  (swept ${stale.length} abandoned probe(s))`);
+
+  const c = await prisma.contractor.create({
+    data: { slug: SLUG, name: "Checkout atomicity probe" },
   });
   try {
     const area = await prisma.serviceArea.create({

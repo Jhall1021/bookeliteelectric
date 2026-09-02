@@ -45,7 +45,20 @@ import { findOpenVisit } from "../lib/openVisit";
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
 
-const DUMMY_SLUG = "test-cross-tenant-probe";
+/**
+ * RUN-UNIQUE, because the worktree and the database are shared. A fixed slug
+ * races whenever two runs overlap — a Vercel build (npm run verify runs
+ * inside next build) and a local run, or two workstreams — because the
+ * cleanup below deletes by slug and would take out the other run's live
+ * probe. Same shape as verify-activation-dependencies, deliberately.
+ *
+ * The prefix stays fixed so a probe from a crashed run is still sweepable.
+ */
+const DUMMY_PREFIX = "test-cross-tenant-probe";
+const DUMMY_SLUG = `${DUMMY_PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
+
+/** Old enough that no run could still be using it. */
+const STALE_AFTER_MS = 60 * 60 * 1000;
 const arg = (k: string) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split("=")[1];
 const VICTIM = arg("victim") ?? "elite-electric";
 const ATTACKER = arg("attacker") ?? null; // null => throwaway
@@ -109,7 +122,17 @@ async function main() {
   const attacker = ATTACKER
     ? await raw.contractor.findFirstOrThrow({ where: { slug: ATTACKER }, select: { id: true } })
     : await (async () => {
-        await raw.contractor.deleteMany({ where: { slug: DUMMY_SLUG } });
+        // Only genuinely abandoned siblings. Deleting every one of them
+        // would take out a CONCURRENT run's live probe — the collision the
+        // run-unique slug exists to prevent, reintroduced by the cleanup.
+        const stale = await raw.contractor.deleteMany({
+          where: {
+            slug: { startsWith: DUMMY_PREFIX },
+            NOT: { slug: DUMMY_SLUG },
+            createdAt: { lt: new Date(Date.now() - STALE_AFTER_MS) },
+          },
+        });
+        if (stale.count) console.log(`  (swept ${stale.count} abandoned probe(s))`);
         return raw.contractor.create({
           data: { slug: DUMMY_SLUG, name: "Cross-tenant probe", active: false },
           select: { id: true },

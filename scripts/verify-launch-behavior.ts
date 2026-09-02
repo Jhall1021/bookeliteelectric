@@ -23,25 +23,64 @@ import { destroyContractor } from "./_throwaway";
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
-const SLUG = "test-launch-behavior";
+/**
+ * RUN-UNIQUE, because the worktree and the database are shared.
+ *
+ * A fixed slug races whenever two runs overlap — a Vercel build (npm run
+ * verify runs inside next build) and a local run, or two workstreams. The
+ * second starter's teardown deletes the first's fixture mid-assertion.
+ *
+ * Same shape as verify-activation-dependencies and
+ * verify-template-installation, deliberately — copied, not reinvented.
+ * The prefix stays fixed so a fixture from a crashed run is still sweepable.
+ */
+const PREFIX = "test-launch-behavior";
+const SLUG = `${PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
 
 let fail = 0;
 const ok = (l: string, c: boolean, d?: string) => { if (!c) fail++; console.log(`  ${c ? "✓" : "✗"} ${l}${c || !d ? "" : `  (${d})`}`); };
 const inTenant = <T>(id: string, fn: () => Promise<T>) =>
   withTenant({ contractorId: id, source: "test" }, fn);
 
+/**
+ * Only what is genuinely abandoned.
+ *
+ * Sweeping every sibling would delete a CONCURRENT run's live fixture
+ * mid-assertion — the exact collision the unique slug exists to prevent,
+ * reintroduced by the cleanup. Age separates "crashed" from "running".
+ */
+const STALE_AFTER_MS = 60 * 60 * 1000;
+
+async function removeContractor(slug: string) {
+  await raw.contractorPolicyValue.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorCategory.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorSite.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorOnboarding.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await raw.contractorTrade.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
+  await destroyContractor(raw, slug).catch(() => {});
+}
+
+async function sweepStale() {
+  const stale = await raw.contractor.findMany({
+    where: {
+      slug: { startsWith: PREFIX },
+      NOT: { slug: SLUG },
+      createdAt: { lt: new Date(Date.now() - STALE_AFTER_MS) },
+    },
+    select: { slug: true },
+  });
+  for (const c of stale) await removeContractor(c.slug);
+  if (stale.length) console.log(`  (swept ${stale.length} abandoned fixture(s))`);
+}
+
 async function teardown() {
-  await raw.contractorPolicyValue.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorCategory.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorSite.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorOnboarding.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await raw.contractorTrade.deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
-  await destroyContractor(raw, SLUG).catch(() => {});
+  await removeContractor(SLUG);
 }
 
 async function main() {
   console.log(`\nLAUNCH — the three things a new contractor actually does\n`);
   await teardown();
+  await sweepStale();
 
   // ── a contractor built the way Contractor #2 will be ──────────────────
   const c = await raw.contractor.create({

@@ -29,8 +29,23 @@ import {
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
-const FRESH = "test-onboarding-fresh";
-const PROBE = "test-onboarding-probe";
+/**
+ * RUN-UNIQUE, because the worktree and the database are shared.
+ *
+ * Both fixtures take the SAME run token, so one run's pair is trivially
+ * distinguishable from another's. A fixed slug races whenever two runs
+ * overlap — a Vercel build (npm run verify runs inside next build) and a
+ * local run, or two workstreams — and the second starter's teardown deletes
+ * the first's fixture mid-assertion.
+ *
+ * Same shape as verify-activation-dependencies, deliberately. The prefixes
+ * stay fixed so fixtures from a crashed run are still sweepable.
+ */
+const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
+const FRESH_PREFIX = "test-onboarding-fresh";
+const PROBE_PREFIX = "test-onboarding-probe";
+const FRESH = `${FRESH_PREFIX}-${RUN}`;
+const PROBE = `${PROBE_PREFIX}-${RUN}`;
 
 let fail = 0;
 const ok = (l: string, c: boolean, d?: string) => { if (!c) fail++; console.log(`  ${c ? "✓" : "✗"} ${l}${c || !d ? "" : `  (${d})`}`); };
@@ -48,6 +63,26 @@ const assess = (id: string) =>
  * asserted against the wrong tenant's price — a failure in a different file,
  * caused by debris from this one. Teardown has to cover what the test wrote.
  */
+/**
+ * Only what is genuinely abandoned — sweeping every sibling would delete a
+ * CONCURRENT run's live fixture, reintroducing the collision by way of the
+ * cleanup. Age separates "crashed" from "running".
+ */
+const STALE_AFTER_MS = 60 * 60 * 1000;
+
+async function sweepStale() {
+  const stale = await raw.contractor.findMany({
+    where: {
+      OR: [{ slug: { startsWith: FRESH_PREFIX } }, { slug: { startsWith: PROBE_PREFIX } }],
+      NOT: { slug: { in: [FRESH, PROBE] } },
+      createdAt: { lt: new Date(Date.now() - STALE_AFTER_MS) },
+    },
+    select: { slug: true },
+  });
+  for (const c of stale) await teardown(c.slug);
+  if (stale.length) console.log(`  (swept ${stale.length} abandoned fixture(s))`);
+}
+
 async function teardown(slug: string) {
   await raw.contractorSite.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
   await raw.contractorOnboarding.deleteMany({ where: { contractor: { slug } } }).catch(() => {});
@@ -57,6 +92,7 @@ async function teardown(slug: string) {
 
 async function main() {
   console.log(`\nGUIDED SETUP — READINESS ENGINE\n`);
+  await sweepStale();
 
   // ── fixture 1: Elite, live ─────────────────────────────────────────────
   const elite = await raw.contractor.findFirstOrThrow({ where: { slug: "elite-electric" }, select: { id: true } });
