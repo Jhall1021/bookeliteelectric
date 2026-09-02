@@ -68,7 +68,20 @@ two neighboring concepts:
 **Components have no equivalent.** They are the odd one out, and the asymmetry
 looks unintended rather than decided.
 
-## UPDATE, 2 September 2026 — the same root cause, worse, for MATERIALS
+## RESOLVED for MATERIALS, 2 September 2026 — still open for COMPONENTS
+
+The materials half described below is **fixed**. `installCatalog` now installs
+the `ServiceMaterial` link whether or not the role is costed, and derives the
+blocker from `assessMaterialReadiness` instead of capturing it; the admin
+materials route recomputes the services waiting on a role when its cost arrives.
+Proved by `scripts/verify-material-readiness-lifecycle.ts` — blocked, cleared on
+cost entry, blocked again on removal, isolated per contractor.
+
+**The component half is unchanged and still open.** An answer's component is
+still skipped when the contractor has no `ContractorComponent`, and nothing
+records that it was skipped. The section below is kept as the original finding.
+
+## The original finding — the same root cause, worse, for MATERIALS
 
 The Plumbing pilot walk found the identical ordering rule applied to materials,
 where it does not merely lose information: **it permanently blocks the service.**
