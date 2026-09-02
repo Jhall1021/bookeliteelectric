@@ -2,7 +2,7 @@
 
 **Status:** proposed, and deliberately not scheduled. Nothing here is built in
 this pass. The purpose of writing it now is that **HVAC V1 is modeling its
-catalog around this outcome right now**, and one decision below (§4) is
+catalog around this outcome right now**, and one decision below (§5) is
 destructive to defer.
 
 ---
@@ -31,7 +31,7 @@ to protect.** An estimate is a path *into* the booking engine, never a second
 one beside it.
 
 So Guided Estimates is not an architecture project. It is a **product model,
-a name, a contractor-facing control, and one honest gap** (§5).
+a name, a contractor-facing control, and one honest gap** (§6).
 
 ---
 
@@ -68,7 +68,90 @@ price is real.* It never meant every job has one.
 
 ---
 
-## 2. Naming — and a collision to hold deliberately
+## 2. Positioning — the three paths are the product, not a disclosure
+
+The three-way model is not a limitation being disclosed politely. It is the
+clearest available statement of what the product actually does:
+
+> **Not every job should be priced the same way. Price2Book knows the difference.**
+
+The same fact, delivered two ways:
+
+| Without the model | With it |
+| --- | --- |
+| "Price2Book couldn't price this job." | "This job is better suited for a Guided Estimate." |
+
+The first sounds like software falling short. The second sounds like software
+exercising judgment — and the second is the accurate description.
+
+**Guided Pricing** for work that can be responsibly priced online. **Guided
+Estimates** for work that can often be priced remotely once the right
+information is collected. **Service Visit** for work that genuinely requires
+onsite diagnosis or inspection.
+
+### The sales story this unlocks
+
+For a contractor who does not want to publish prices, the pitch stops being an
+argument and becomes a configuration:
+
+> You don't have to put everything online. Choose what customers price
+> instantly, what they submit for a Guided Estimate, and what they book as a
+> service visit.
+
+That removes the fear that adopting Price2Book means surrendering control. A
+skeptical contractor can start deliberately conservative — a handful of simple
+services priced online, the bigger work on Guided Estimates, troubleshooting as
+a service visit — and widen online pricing later on their own evidence. It also
+means the product no longer has to win the fixed-price argument on day one to
+be adopted at all.
+
+### Why this is earned rather than spin — and the one way it stops being
+
+The claim rests on the product genuinely knowing *why* a job cannot be
+responsibly auto-priced, and the canonical model does: HVAC's `identity_gate`,
+`venting_gate`, `capacity_gate` and `location_pair_gate` each refuse for a
+**named, specific reason**. A product that can say which fact it could not
+establish has earned "we know the difference." A product that merely fails has
+not.
+
+But three different situations produce a service on the estimate path, and they
+are not equally defensible:
+
+| Why it is on the estimate path | Does it support the claim? |
+| --- | --- |
+| **Canonical incapability** — the trade model says this cannot be responsibly auto-priced | Fully. This *is* the product knowing the difference. |
+| **Contractor preference** — it could be priced; they choose not to publish it | Legitimate, but the judgment is **theirs**, not the product's. |
+| **Not configured** — setup unfinished, no approved price, unresolved inputs | Not at all. |
+
+**The third must never silently render as a Guided Estimate.** An unconfigured
+service is a readiness blocker and stays one. The moment incompleteness can
+present itself to a homeowner as deliberate product judgment, "we know the
+difference" becomes a cover story — and it is a cover story contractors will
+see through the first time they notice a job they price every day sitting in
+the estimate queue because nobody finished a form.
+
+### What this means for copy
+
+The positioning claim is **contractor-facing and marketing-facing**. The
+homeowner-facing copy stays neutral about *why*: "Get an estimate," and what
+happens next.
+
+A storefront telling a homeowner *"this job is better suited for a Guided
+Estimate"* when the real reason is that this contractor prefers not to publish
+that price would be the product claiming trade judgment it is not exercising in
+that instance. The homeowner does not need the reason. They need to know they
+will get a real number and roughly when.
+
+> **Note for the marketing workstream, not acted on here.** The current
+> headline is *"Skip the Estimate. Know Your Price."* If Guided Estimates
+> becomes a first-class mode and a named selling point, that headline and this
+> positioning need to be reconciled by whoever owns the homepage. Flagged only
+> — nothing in `components/marketing/*` or `app/(marketing)/*` is touched by
+> this document.
+
+---
+
+## 3. Naming — and a collision to hold deliberately
 
 **Customer-facing: "estimate."** It carries the right expectation, and in most
 jurisdictions it is also the safer word — "quote" reads as a guaranteed final
@@ -90,7 +173,7 @@ Feature name: **Guided Estimates**, beside Guided Pricing and Guided Setup.
 
 ---
 
-## 3. Contractor control
+## 4. Contractor control
 
 Per service, a `customerPricingPath` with four values:
 
@@ -115,7 +198,7 @@ equipment replacement, `locationScope: "BOTH"`) may not be set to
 
 ---
 
-## 4. Decision facts vs estimate-intake facts — **decide this now**
+## 5. Decision facts vs estimate-intake facts — **decide this now**
 
 This is the one item that cannot wait, because HVAC is modeling its catalog
 this week and Plumbing has already shipped its model.
@@ -146,7 +229,7 @@ remember why they were asked.
 
 ---
 
-## 5. The gap that is actually missing
+## 6. The gap that is actually missing
 
 Everything else in §0 exists. This does not:
 
@@ -172,7 +255,7 @@ three-week-old number on a contractor-branded page is a commitment nobody made.
 
 ---
 
-## 6. The scope summary — where the diagnosis boundary can leak
+## 7. The scope summary — where the diagnosis boundary can leak
 
 The obvious next step is to hand the contractor a summary rather than raw
 answers, including *"items requiring contractor review — fan-support condition
@@ -195,7 +278,7 @@ summary should read as a completed checklist, not as an opinion.
 
 ---
 
-## 7. Visual Assist is the mechanism, not a competing feature
+## 8. Visual Assist is the mechanism, not a competing feature
 
 Photo capture must not be built a third time.
 
@@ -212,7 +295,7 @@ not be designed as though it were not.
 
 ---
 
-## 8. The contractor who publishes no prices at all
+## 9. The contractor who publishes no prices at all
 
 The strongest commercial argument here is the contractor who says *"there's no
 chance I'm putting my prices online"* — today a lost sale, and under this model
@@ -231,12 +314,19 @@ and its own answer to *"why not a contact form?"* — which is: because
 Price2Book knows which questions this specific job needs, and a contact form
 does not.
 
+§2 makes this a much easier sale than it was: the contractor is not being
+asked to abandon a position, only to choose a path per service, with the door
+left open to widen online pricing later on their own evidence. The likeliest
+real outcome is not an all-estimate contractor at all — it is a conservative
+one who starts there and moves, which is a better first year for both sides
+than losing them at the pitch.
+
 Explicitly a commercial question, not a technical one: whether that tier is
 priced the same is not settled here.
 
 ---
 
-## 9. Out of scope, permanently
+## 10. Out of scope, permanently
 
 Not to be built under this name:
 
@@ -245,26 +335,26 @@ electronic contracts · change orders · invoicing · CRM pipelines · lead
 management
 
 The contractor needs exactly one action: *here is the amount I estimate for
-this work* — or, per §5, *I need to see it.* Everything past that hands the
+this work* — or, per §6, *I need to see it.* Everything past that hands the
 homeowner back to the booking path that already exists.
 
 ---
 
-## 10. Sequencing
+## 11. Sequencing
 
-1. **Now, and only this:** the fact classification in §4, recorded as HVAC and
+1. **Now, and only this:** the fact classification in §5, recorded as HVAC and
    Plumbing model their trades. No implementation, no milestone change.
-2. **Now, separately:** the deposit defect in §11 — a live pilot bug, unrelated
+2. **Now, separately:** the deposit defect in §12 — a live pilot bug, unrelated
    to whether this feature is ever built.
 3. **After the pilot:** everything else. The pilot answers the question that
    determines the design — *which services do real contractors refuse to price
    online, and why?* If the answer is "I need to see the panel," this is
-   photo-driven estimating. If it is "I don't trust fixed prices," it is §8, and
+   photo-driven estimating. If it is "I don't trust fixed prices," it is §9, and
    that is worth knowing before writing code.
 
 ---
 
-## 11. Live defect found while surveying this
+## 12. Live defect found while surveying this
 
 **Not part of the feature. Present in the shipped product today, and every
 HVAC `REMOTE_QUOTE` booking will pass through it.**
