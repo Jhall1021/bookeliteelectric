@@ -540,6 +540,66 @@ async function statics() {
     "PriceSight is not in the product menu",
     "it has not shipped — SITEMAP.md holds it out of navigation");
 
+  console.log("\n  GUIDED ESTIMATES IS A SIBLING, NOT A FALLBACK");
+  const gePath = "app/(marketing)/product/guided-estimates/page.tsx";
+  const ge = read(gePath);
+  ok(existsSync(gePath), "the page exists",
+    "PRODUCT_PAGES links to it, so it has to be a real file");
+
+  const geFixture = await import(pathToFileURL(`${process.cwd()}/components/marketing/guidedEstimates.ts`).href)
+    .then((m) => m.GUIDED_ESTIMATES).catch(() => null);
+  ok(!!geFixture, "the capture fixture exists and parses",
+    "run: npx tsx scripts/capture-guided-estimates.ts");
+
+  if (geFixture) {
+    ok(geFixture.generatedBy === "scripts/capture-guided-estimates.ts",
+      "the fixture is generated, not hand-written",
+      "a hand-edited fixture is an invented workflow wearing a number");
+    // The page's whole claim. If the product stops having quote-only services
+    // that publish no price, the claim stops being true and this fails.
+    ok(geFixture.remoteQuote.services > 0 && geFixture.remoteQuote.withoutPublishedPrice > 0,
+      `${geFixture.remoteQuote.withoutPublishedPrice} quote-only service(s) publish no price`,
+      "the page says a contractor need not display prices — that has to be true in the product");
+    // A gating answer is what separates an estimate from a price with photos.
+    ok(geFixture.example?.blocksBooking === true,
+      "the worked example is an answer that HOLDS the price back",
+      "a photosBlockBooking:false answer is instant pricing with a camera, not an estimate");
+    ok(geFixture.photos.blocking > 0, `${geFixture.photos.blocking} answers gate on photographs`);
+    // No customer data may reach a marketing fixture.
+    const raw = JSON.stringify(geFixture);
+    ok(!/@|\bphone\b|quotedPriceCents|"url"/i.test(raw),
+      "the fixture carries no customer identity, contact or amount",
+      "a quote is a real homeowner's job — the capture must not publish it");
+  }
+
+  // GUIDED ESTIMATE IS NOT A LESSER MODE. A contractor running entirely on
+  // estimates is using the product as designed, and copy implying otherwise
+  // is the failure this page exists to prevent.
+  const GE_DEMOTION = [
+    "fall back to", "falls back to", "fallback", "lesser", "downgrade",
+    "if instant pricing isn't", "when instant pricing fails", "second best",
+    "consolation", "at least you can still",
+  ];
+  const geCopy = ge.replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n").filter((l) => !l.trim().startsWith("//")).join("\n").toLowerCase();
+  for (const phrase of GE_DEMOTION) {
+    ok(!geCopy.includes(phrase), `Guided Estimates never calls itself "${phrase}"`,
+      "it is a sibling of Guided Pricing — SITEMAP.md");
+  }
+
+  // The page must not promise remote quoting for everything.
+  ok(/not every job/i.test(ge) || /has to be seen/i.test(ge),
+    "…and it says out loud that some jobs must be seen in person",
+    "without the limit the page overpromises remote quoting");
+
+  // The estimate-trip pillar must stay qualitative. A percentage here would
+  // be a fabricated measurement.
+  const allMarketing = [...marketingFiles(), ...marketingRoutes()].map(read).join("\n");
+  const TRIP_NUMBERS = /(\d{1,3})\s*%\s*(of\s+)?(estimates|trips|truck rolls|visits)/i;
+  ok(!TRIP_NUMBERS.test(allMarketing),
+    "no percentage claim about estimates eliminated",
+    "there is no measurement behind such a number");
+
   console.log("\n  GUIDED PRICING ARGUES FROM COUNTED EVIDENCE");
   const gp = read("app/(marketing)/product/guided-pricing/page.tsx");
   ok(existsSync("app/(marketing)/product/guided-pricing/page.tsx"), "the page exists");
