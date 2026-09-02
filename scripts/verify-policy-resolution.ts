@@ -108,18 +108,65 @@ async function live(prisma: PrismaClient) {
 async function behavior(prisma: PrismaClient) {
   console.log(`\n  REFUSALS\n`);
   const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
-  const SLUG = "test-policy-refusal";
+  /**
+   * RUN-UNIQUE, because the worktree and the database are shared.
+   *
+   * This was the SIXTH verifier carrying a fixed throwaway slug, and it
+   * survived the sweep that fixed the other five because the constant is
+   * declared HERE, inside a function, where a `^const .*SLUG` grep never
+   * looked. If another one is ever hunted, search for the slug handed to
+   * `contractor.create`, not for a top-level declaration.
+   *
+   * `npm run verify` runs inside `next build`, so a Vercel build and any
+   * local run are two processes against one production database. Teardown
+   * runs before create, so the second run to start deletes the first run's
+   * live fixture. Proven by running this file as a concurrent pair before the
+   * fix: one process failed with P2003 while its sibling passed 22/0, and an
+   * earlier pair failed with P2002 on the slug — same cause, different
+   * casualty depending on which query lost the race.
+   *
+   * Same shape as verify-activation-dependencies, deliberately copied. The
+   * prefix stays fixed so a fixture from a crashed run is still sweepable.
+   */
+  const PREFIX = "test-policy-refusal";
+  const SLUG = `${PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
+
+  /**
+   * Only what is genuinely abandoned. Sweeping every sibling would delete a
+   * CONCURRENT run's live fixture — the exact collision the unique slug
+   * exists to prevent, arriving through the cleanup instead. Age separates
+   * "crashed" from "running".
+   */
+  const STALE_AFTER_MS = 60 * 60 * 1000;
+
   const inTenant = <T>(id: string, fn: () => Promise<T>) =>
     withTenant({ contractorId: id, source: "test" }, fn);
 
-  const teardown = async () => {
+  const removeContractor = async (slug: string) => {
     for (const m of ["contractorPolicyValue", "contractorCategory", "contractorSite", "contractorOnboarding", "contractorTrade"] as const) {
       await (prisma as unknown as Record<string, { deleteMany(a: unknown): Promise<unknown> }>)[m]
-        .deleteMany({ where: { contractor: { slug: SLUG } } }).catch(() => {});
+        .deleteMany({ where: { contractor: { slug } } }).catch(() => {});
     }
-    await destroyContractor(prisma, SLUG).catch(() => {});
+    await destroyContractor(prisma, slug).catch(() => {});
   };
+
+  const teardown = async () => { await removeContractor(SLUG); };
+
+  const sweepStale = async () => {
+    const stale = await prisma.contractor.findMany({
+      where: {
+        slug: { startsWith: PREFIX },
+        NOT: { slug: SLUG },
+        createdAt: { lt: new Date(Date.now() - STALE_AFTER_MS) },
+      },
+      select: { slug: true },
+    });
+    for (const c of stale) await removeContractor(c.slug);
+    if (stale.length) console.log(`  (swept ${stale.length} abandoned fixture(s))`);
+  };
+
   await teardown();
+  await sweepStale();
 
   try {
     const c = await prisma.contractor.create({
