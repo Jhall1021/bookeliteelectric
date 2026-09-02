@@ -24,6 +24,7 @@ import { PrismaClient } from "@prisma/client";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { activationRefusal, activateService } from "../lib/serviceActivation";
+import { activationMaterialRoles } from "../lib/materialResolution";
 import { catalogPromises, promiseFor } from "../lib/onboardingReadiness";
 import { loadPricingSettings } from "../lib/routeResolver";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
@@ -104,6 +105,19 @@ async function clearUnrelatedBlockers(contractorId: string, serviceId: string, h
       materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [],
     },
   });
+  // Material readiness is DERIVED as of the B1 fix — from the roles a
+  // reachable priceable path consumes, not the cached fields above. Clearing
+  // the cache no longer clears it, so every reachable role is costed here.
+  // Without this the dependency check never runs: the service refuses with
+  // MATERIALS_UNRESOLVED first, truthfully, and this file is about a different
+  // rule.
+  for (const role of await activationMaterialRoles(raw as never, serviceId)) {
+    await raw.contractorMaterial.upsert({
+      where: { contractorId_canonicalMaterialId: { contractorId, canonicalMaterialId: role.canonicalMaterialId } },
+      update: { unitCostCents: 1000 },
+      create: { contractorId, canonicalMaterialId: role.canonicalMaterialId, unitCostCents: 1000 },
+    });
+  }
   const svc = await raw.service.findUniqueOrThrow({
     where: { id: serviceId }, select: { id: true, bookingType: true },
   });
