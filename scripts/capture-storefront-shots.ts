@@ -242,12 +242,31 @@ const SHOTS: Shot[] = [
   {
     name: "admin-services",
     needsAuth: true,
-    y: 0,
-    height: 700,
+    x: 105,
+    width: 830,
+    y: 150,
+    height: 430,
     reach: async (page) => {
       await page.goto(`${ADMIN_BASE}/dashboard/services`, { waitUntil: "networkidle" });
       if (page.url().includes("/choose") || page.url().includes("/sign-in")) return false;
       return page.locator("h1, h2").filter({ hasText: /services/i }).first().isVisible();
+    },
+  },
+  {
+    // "Your Rates" — the screen that answers "am I buying someone else's
+    // flat-rate book?". The quote queue was captured and NOT published: it is
+    // legitimately empty on this tenant, and an empty queue with two test
+    // entries in it advertises nothing.
+    name: "admin-rates",
+    needsAuth: true,
+    x: 105,
+    width: 700,
+    y: 150,
+    height: 440,
+    reach: async (page) => {
+      await page.goto(`${ADMIN_BASE}/dashboard/pricing-settings`, { waitUntil: "networkidle" });
+      if (page.url().includes("/choose") || page.url().includes("/sign-in")) return false;
+      return page.locator("h1, h2").first().isVisible();
     },
   },
   {
@@ -264,8 +283,10 @@ const SHOTS: Shot[] = [
   {
     name: "admin-hours",
     needsAuth: true,
-    y: 0,
-    height: 700,
+    x: 105,
+    width: 830,
+    y: 150,
+    height: 430,
     reach: async (page) => {
       await page.goto(`${ADMIN_BASE}/dashboard/business-hours`, { waitUntil: "networkidle" });
       if (page.url().includes("/choose") || page.url().includes("/sign-in")) return false;
@@ -292,20 +313,35 @@ async function main() {
 
   const signIn = arg("sign-in");
   const sessionFile = arg("session") ?? ".auth/portal.json";
-  if (signIn) {
-    await page.goto(signIn, { waitUntil: "networkidle" });
-    // An account with more than one membership lands on /choose. Selecting is
-    // part of signing in, not part of the shot.
-    if (page.url().includes("/choose")) {
-      const pick = page.locator(`a[href*="${SITE}"], button:has-text("Voltmark"), a:has-text("Voltmark")`).first();
-      if (await pick.count()) {
-        await pick.click();
-        await page.waitForLoadState("networkidle");
-      }
+
+  /**
+   * An account with more than one membership lands on /choose, and the choice
+   * is part of BEING signed in rather than part of any shot. It has to run on
+   * every path — a reused session that was saved before the choice comes back
+   * to this page, which is how the first three attempts each produced nothing.
+   *
+   * The chooser renders BUTTONS labeled with the tenant's real name and slug:
+   * no anchors, no form. Matching the substituted brand cannot work, because
+   * the rename runs per shot and this page is crossed before any shot.
+   */
+  async function chooseTenant() {
+    if (!page.url().includes("/choose")) return;
+    const pick = page.locator("button", { hasText: SITE }).first();
+    if (!(await pick.count())) {
+      console.log(`  ! /choose has no button matching "${SITE}"`);
+      return;
     }
-    console.log(`  signed in -> ${page.url().replace(/token=[^&]+/, "token=REDACTED")}`);
-    // A magic link is single use. Persist the session so re-running the
-    // capture does not need a second one.
+    await pick.click();
+    await page.waitForLoadState("networkidle");
+  }
+
+  if (signIn || haveSession) {
+    if (signIn) await page.goto(signIn, { waitUntil: "networkidle" });
+    else await page.goto(`${ADMIN_BASE}/dashboard`, { waitUntil: "networkidle" });
+    await chooseTenant();
+    console.log(`  portal -> ${page.url().replace(/token=[^&]+/, "token=REDACTED")}`);
+    // A magic link is single use, so the session is persisted — and persisted
+    // AFTER the choice, so reusing it lands on a dashboard.
     mkdirSync(dirname(sessionFile), { recursive: true });
     await ctx.storageState({ path: sessionFile });
     console.log(`  session saved -> ${sessionFile}\n`);
@@ -358,7 +394,10 @@ async function main() {
       await page.screenshot({
         path: `${OUT}/${shot.name}-full.jpg`,
         type: "jpeg",
-        quality: 84,
+        // A full catalog page is 12,000px tall. At 84 that is a 2.5MB file
+        // handed to someone for clicking a thumbnail; flat UI survives 72
+        // without a visible difference at the width the dialog shows.
+        quality: 72,
         fullPage: true,
       });
       console.log(`  wrote ${shot.name}.jpg + ${shot.name}-full.jpg`);

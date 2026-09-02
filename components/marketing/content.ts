@@ -723,7 +723,7 @@ export const PRODUCT_TOUR = {
   contractor: {
     label: "What you control",
     body: "The services, the questions behind each one, what every answer does, your rates and your hours.",
-    shots: ["servicesPricing", "guidedPricing", "hoursAvailability"] as const,
+    shots: ["adminServices", "adminRates", "adminHours"] as const,
   },
 } as const;
 

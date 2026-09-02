@@ -131,6 +131,37 @@ export const SHOTS: Record<string, Shot | null> = {
     fullH: 1904,
   },
 
+  // ── The contractor's side, captured from the running dashboard ────────
+  // Full width, unlike the older admin captures, which were framed at their
+  // left 1040px and lost a column when opened.
+  adminServices: {
+    src: "/marketing/admin-services.jpg",
+    alt: "The Services & Pricing screen, listing each service with its price, same-visit price, labor hours and materials",
+    w: 1660,
+    h: 860,
+    full: "/marketing/admin-services-full.jpg",
+    fullW: 2560,
+    fullH: 12378,
+  },
+  adminRates: {
+    src: "/marketing/admin-rates.jpg",
+    alt: "Pricing Settings, where the crew-hour rate, service-call minimum and rounding are set",
+    w: 1400,
+    h: 880,
+    full: "/marketing/admin-rates-full.jpg",
+    fullW: 2560,
+    fullH: 1978,
+  },
+  adminHours: {
+    src: "/marketing/admin-hours.jpg",
+    alt: "Working Hours, where the days, crew start and finish times and arrival window length are set",
+    w: 1660,
+    h: 860,
+    full: "/marketing/admin-hours-full.jpg",
+    fullW: 2560,
+    fullH: 1762,
+  },
+
   serviceArea: {
     src: "/marketing/service-area.png",
     alt: "The Service Area screen, where the postcodes a contractor will travel to are set",
