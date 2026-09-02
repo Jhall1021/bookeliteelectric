@@ -25,9 +25,20 @@ function slugify(name: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-export default function NewServiceForm({ categories }: { categories: { id: string; name: string }[] }) {
+export default function NewServiceForm({
+  categories,
+  trades,
+}: {
+  categories: { id: string; name: string }[];
+  /** Server-authoritative: the trades Price2Book publishes a catalog for. */
+  trades: string[];
+}) {
   const router = useRouter();
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
+  // A single available trade is PRESELECTED, not assumed — what gets stored is
+  // still an explicit choice, and the select is still shown. G2's rule is that
+  // trade is never inferred, including from "there is only one".
+  const [tradeKey, setTradeKey] = useState(trades.length === 1 ? trades[0] : "");
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -57,6 +68,7 @@ export default function NewServiceForm({ categories }: { categories: { id: strin
         slug,
         shortDescription: description || null,
         bookingType,
+        tradeKey,
         startingPriceLabel: startingLabel || null,
         icon: icon || null,
       }),
@@ -74,6 +86,25 @@ export default function NewServiceForm({ categories }: { categories: { id: strin
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 max-w-xl space-y-5 rounded-card border border-cardline bg-white p-6 shadow-card">
+      <div>
+        <label className="text-sm font-medium text-navy">Trade</label>
+        <select
+          required
+          value={tradeKey}
+          onChange={(e) => setTradeKey(e.target.value)}
+          className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
+        >
+          <option value="" disabled>Choose a trade</option>
+          {trades.map((t) => (
+            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-slate">
+          Which catalog this service belongs to. It decides where &ldquo;it stopped
+          working&rdquo; sends a homeowner, so it cannot be changed by guesswork later.
+        </p>
+      </div>
+
       <div>
         <label className="text-sm font-medium text-navy">Category</label>
         <select

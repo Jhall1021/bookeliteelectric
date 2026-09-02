@@ -5,6 +5,7 @@ import {
   categoryName
 } from "@/lib/categories";
 import { withAdminContractor } from "@/lib/adminContext";
+import { availableTrades } from "@/lib/templateProvisioning";
 
 export default async function NewServicePage() {
   // ADR-007: rooted at ContractorCategory. The ids handed to the form are
@@ -21,6 +22,12 @@ export default async function NewServicePage() {
   );
   const categories = rows.map((c) => ({ id: c.id, name: categoryName(c) }));
 
+  // SERVER-AUTHORITATIVE — G2. The trades Price2Book publishes a catalog for,
+  // read from TemplateVersion. The list that offers the choice is the same list
+  // the API validates against, so the form cannot present an option the server
+  // would refuse, and a hand-posted trade cannot get past it.
+  const trades = await withAdminContractor((db) => availableTrades(db));
+
   return (
     <div>
       <h1 className="font-display text-2xl font-bold text-navy">New Service</h1>
@@ -30,7 +37,7 @@ export default async function NewServicePage() {
         still need one code update from Claude to build the tree after you create it here.
       </p>
 
-      <NewServiceForm categories={categories} />
+      <NewServiceForm categories={categories} trades={trades} />
     </div>
   );
 }

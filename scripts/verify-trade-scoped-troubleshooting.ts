@@ -218,23 +218,44 @@ async function main() {
     await prisma.contractor.delete({ where: { id: c.id } });
   }
 
-  // ── THE MODEL INVARIANT, over the LIVE catalog ─────────────────────────
-  group("MODEL INVARIANT — a route to troubleshooting needs a resolvable trade");
-  // A service whose tree can reach REROUTE_TROUBLESHOOTING but which has no
-  // tradeKey is structurally incapable of resolving its own destination. That
-  // must be caught here, not discovered by a homeowner at runtime.
-  const reachable = await prisma.service.findMany({
+  const routing = await prisma.service.findMany({
     where: {
       active: true,
       questions: { some: { options: { some: { routeAction: "REROUTE_TROUBLESHOOTING" } } } },
     },
+    select: { slug: true },
+  });
+  const routesToTroubleshooting = new Set(routing.map((r) => r.slug));
+
+  // ── THE MODEL INVARIANT, over the LIVE catalog ─────────────────────────
+  group("active_service_has_trade — every live service knows its trade");
+
+  // BROADER THAN "can reach REROUTE_TROUBLESHOOTING", deliberately.
+  //
+  // The narrow version would pass while an ordinary active service sat there
+  // with a null trade — invisible to every scoped lookup, and one authoring
+  // edit away from becoming a service that routes. After the backfill every
+  // live service has a trade, so there is no reason to permit a new one that
+  // does not, and the tighter rule catches the hole at creation rather than at
+  // the moment somebody adds a troubleshooting answer to it.
+  const activeServices = await prisma.service.findMany({
+    where: { active: true },
     select: { slug: true, tradeKey: true, contractor: { select: { slug: true } } },
     orderBy: { slug: "asc" },
   });
-  const untraded = reachable.filter((s) => !s.tradeKey);
-  console.log(`  ${reachable.length} active service(s) can reach REROUTE_TROUBLESHOOTING`);
-  ok("every one of them has a tradeKey", untraded.length === 0,
+  const untraded = activeServices.filter((s) => !s.tradeKey);
+  console.log(`  ${activeServices.length} active service(s) live`);
+  ok("every active service has a tradeKey", untraded.length === 0,
     untraded.map((s) => `${s.contractor?.slug}/${s.slug}`).join(", "));
+
+  // The narrower rule still stated separately: it is the one whose failure is a
+  // customer-time surprise rather than a latent gap, so it is worth naming.
+  const reachable = activeServices.filter((s) => routesToTroubleshooting.has(s.slug));
+  const reachableUntraded = reachable.filter((s) => !s.tradeKey);
+  console.log(`  ${routesToTroubleshooting.size} of them can reach REROUTE_TROUBLESHOOTING`);
+  ok("and every one that routes to troubleshooting can resolve a destination",
+    reachableUntraded.length === 0,
+    reachableUntraded.map((s) => `${s.contractor?.slug}/${s.slug}`).join(", "));
 
   console.log(
     `\n${failures === 0 ? "\x1b[32m" : "\x1b[31m"}${checks - failures}/${checks} checks passed\x1b[0m\n`
