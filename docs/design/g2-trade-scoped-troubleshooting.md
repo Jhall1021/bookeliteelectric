@@ -1,17 +1,31 @@
 # G2 — trade-scoped troubleshooting
 
-> ## IMPLEMENTED — pending G1 integration, 2 September 2026
+> ## IMPLEMENTED + G1 INTEGRATED — PLATFORM ACCEPTED, 2 September 2026
 >
-> Architecture, runtime implementation and the database application are
-> **approved and accepted**. Merge is **held** until G1 lands, because both
-> change `prisma/schema.prisma`, `lib/routeResolver.ts` and `GuidedFlowEngine.tsx`.
+> Architecture, runtime implementation, database application, and combined
+> G1+G2 integration are **accepted**. **G2 is closed as a shared-platform
+> blocker.**
 >
-> | | |
+> The remaining Plumbing §6 rehearsal is an **integration proof that consumes
+> the shipped behavior**. It does not reopen G2 semantics.
+>
+> | Proof | Result |
 > | --- | --- |
-> | Acceptance | **28/28** — all eight cases, against a multi-trade contractor the verifier builds and removes |
+> | G2 acceptance | **28/28** — all eight cases, against a multi-trade contractor the verifier builds and removes |
+> | `active_service_has_trade` | 69 active services, all traded; 18 reach `REROUTE_TROUBLESHOOTING`, all resolvable |
 > | `Service.tradeKey` | Applied to `price2book-production`: `text`, nullable, **no default** |
-> | Backfill | 154 stamped `electrical`; 0 unclassified, 0 classified as anything else |
-> | Regressions | `tsc` clean · troubleshooting route contract passes · ADR-021 **2 passed, 0 failed** |
+> | Backfill | 154 stamped `electrical`; 0 unclassified, 0 classified as anything else. Artifact is exact-set, fingerprinted, transactional |
+> | G1 `verify-access-slots` | **67/67** |
+> | G1 writer baseline | Green — 8 reviewed, 8 live |
+> | Troubleshooting route contract | Green |
+> | ADR-021 | **2 passed, 0 failed** — 65 services, zero pricing delta |
+> | `tsc` | Clean |
+>
+> Integrated on `feat/g2-integration`, cut from `main` at `f595620` (the G1
+> merge). The three overlaps — `prisma/schema.prisma`, `lib/routeResolver.ts`,
+> `components/guided-flow/GuidedFlowEngine.tsx` — were composed rather than
+> chosen between, and verified per model and per symbol to carry **both** G1
+> scoped-access and G2 trade-scoped semantics.
 >
 > **Locked decisions — D1–D4.**
 >
