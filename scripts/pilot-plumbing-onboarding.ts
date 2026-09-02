@@ -1,228 +1,204 @@
 /**
- * A plumber's first day, simulated end to end.
+ * Track B — one plumbing contractor, through the shipped path, start to finish.
  *
  *   npx tsx scripts/pilot-plumbing-onboarding.ts          # Shape 1 then Shape 2
- *   npx tsx scripts/pilot-plumbing-onboarding.ts --keep   # skip teardown
+ *   npx tsx scripts/pilot-plumbing-onboarding.ts --keep   # leave the contractor
  *
- * NOT a pass/fail suite. The rehearsal harness already proves Plumbing V1
- * works; this asks the different question that pilot-hardening is for:
+ * NOT a pass/fail suite. It is a WALK: every step a real contractor would take,
+ * in the order Guided Setup presents them, using only the shipped authorities —
+ * preflight/installCatalog, resolvePolicy, activationRefusal/activateService,
+ * assessOnboarding, resolveRoute.
  *
- *   can a real plumbing contractor configure a useful subset, activate it
- *   safely, and give a homeowner a clear price — WITHOUT understanding
- *   Price2Book internals?
+ * What it is actually measuring is FRICTION: each point where the contractor
+ * needs a fact the interface never gave them. Those are recorded even when the
+ * step succeeds, because knowing the workaround is not the same as the product
+ * telling you.
  *
- * So its output is a FRICTION LOG. Every time this script has to supply
- * knowledge the product does not, that is recorded as friction whether or not
- * the underlying behavior is correct. `DEPENDENCY_UNAVAILABLE` is the case to
- * watch: enforcing it is right, and a contractor meeting it without being told
- * which prerequisite is missing is still a pilot defect.
- *
- * Runs only against a proved production-descended branch, and only from the
- * frozen baseline worktree. See scripts/_lineage.ts.
+ * Refuses to run anywhere that is not a proven branch of production.
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
 import { classifyRehearsalTarget } from "./_lineage";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
-import { assessOnboarding } from "../lib/onboardingReadiness";
-import { activationRefusal, activateService } from "../lib/serviceActivation";
 import { resolvePolicy } from "../lib/policyResolution";
+import { activationRefusal, activateService } from "../lib/serviceActivation";
+import { assessOnboarding } from "../lib/onboardingReadiness";
 import { loadServiceForResolution, resolveRoute, loadPricingSettings } from "../lib/routeResolver";
-import { recomputeServiceMaterialCost } from "../lib/materialCost";
 import { buildPlumbingPayload } from "../lib/plumbing/publish";
 
 loadEnv();
 const KEEP = process.argv.includes("--keep");
-const SLUG = "zz-pilot-plumber";
+const SLUG = "zz-pilot-plumbing";
 
-/** Shape 2 — a realistic starter catalog. PL-SVC-001 included deliberately. */
-const STARTER = [
-  "water-heater-flush",              // Shape 1 seed: cheapest possible launch
-  "plumbing-service-call",           // PL-SVC-001
-  "toilet-internals-repair",
-  "toilet-replacement",
-  "kitchen-faucet-replacement",
-  "drain-clearing-single-fixture",
-];
-
-const friction: { where: string; what: string; classification: string }[] = [];
-const F = (where: string, what: string, classification = "setup UX") => {
-  friction.push({ where, what, classification });
-  console.log(`       ! FRICTION  ${what}`);
+const friction: { step: string; needed: string; classify: string }[] = [];
+const rub = (step: string, needed: string, classify: string) => {
+  friction.push({ step, needed, classify });
+  console.log(`    ~~ FRICTION [${classify}] ${needed}`);
 };
-const step = (n: string) => console.log(`\n  ${n}\n`);
-const say = (s: string) => console.log(`    ${s}`);
+const step = (n: string) => console.log(`\n  ${n}`);
+const note = (s: string) => console.log(`     ${s}`);
+
+/** What Guided Setup would show the contractor right now. */
+async function whatTheyAreTold(db: PrismaClient, contractorId: string, label: string) {
+  const r = await assessOnboarding(db, contractorId);
+  const blockers = r.stages.flatMap((s) => s.findings.filter((f) => f.severity === "blocker").map((f) => `${s.key}: ${f.message}`));
+  console.log(`     [${label}] ${blockers.length} blocker(s)`);
+  for (const b of blockers.slice(0, 6)) console.log(`        - ${b}`);
+  if (blockers.length > 6) console.log(`        ... and ${blockers.length - 6} more`);
+  return blockers;
+}
 
 async function main() {
   const url = process.env.REHEARSAL_DATABASE_URL;
-  console.log(`\nPLUMBING PILOT — a plumber's first day\n`);
-  if (!url) { console.error("  REHEARSAL_DATABASE_URL is not set.\n"); process.exit(1); }
-  const verdict = await classifyRehearsalTarget(url, process.env.DATABASE_URL);
-  if (!verdict.ok) { console.error(`\n  REFUSING: ${(verdict as any).reason}\n`); process.exit(1); }
-  say(`target ${verdict.probe.endpoint}, production lineage — accepted`);
+  if (!url) { console.error("\n  REHEARSAL_DATABASE_URL is not set.\n"); process.exit(1); }
+  const v = await classifyRehearsalTarget(url, process.env.DATABASE_URL);
+  console.log(`\nPLUMBING PILOT — ONBOARDING WALK\n`);
+  if (!v.ok) { console.error(`  REFUSING (${(v as any).code}): ${(v as any).reason}\n`); process.exit(1); }
+  console.log(`  target ${v.probe.endpoint}  lineage ${v.probe.lineage}\n`);
 
   const db = new PrismaClient({ datasources: { db: { url } } });
-
   try {
-    // ── SHAPE 1 ────────────────────────────────────────────────────────────
-    step("SHAPE 1 — the minimum that gets one service bookable");
-
+    // ── BUSINESS ─────────────────────────────────────────────────────────
+    step("STAGE 1 — Business");
     const c = await db.contractor.upsert({
       where: { slug: SLUG },
       update: { name: "Pilot Plumbing Co" },
-      create: { slug: SLUG, name: "Pilot Plumbing Co", countryCode: "US" },
+      create: { slug: SLUG, name: "Pilot Plumbing Co", countryCode: "US", phone: "555-0100" },
     });
-    say(`created contractor "${c.name}"`);
+    // contractorId is not unique on ContractorSite — a contractor may have more
+    // than one storefront — so this is find-then-create, not upsert.
+    const existingSite = await db.contractorSite.findFirst({ where: { contractorId: c.id }, select: { id: true } });
+    if (!existingSite)
+      await db.contractorSite.create({
+        data: { contractorId: c.id, publicId: `pilot-${Date.now()}`, hostedSlug: SLUG },
+      });
+    note("name, country, phone, storefront created");
+    await whatTheyAreTold(db, c.id, "after business");
 
+    // ── TRADE ────────────────────────────────────────────────────────────
+    step("STAGE 2 — Trade: enrol in Plumbing and install the catalog");
     await db.contractorTrade.upsert({
       where: { contractorId_tradeKey: { contractorId: c.id, tradeKey: "plumbing" } },
       update: {}, create: { contractorId: c.id, tradeKey: "plumbing" },
     });
-    say("enrolled in the plumbing trade");
-
     const pre = await preflight(db, c.id, templateVersionSource(db, "plumbing", undefined, 1));
-    if (!pre.ok) { say(`preflight refused: ${pre.code}`); process.exit(1); }
-    say(`preflight offers ${pre.preview.services} services, ${pre.preview.unresolvedMaterialRoles.length} roles uncosted`);
-    const res = await installCatalog(db, c.id, pre.catalog);
-    say(`installed ${res.services} services — nothing priced, nothing offered, nothing live`);
+    if (!pre.ok) { console.error(`  preflight refused: ${pre.code}`); process.exit(1); }
+    const inst = await installCatalog(db, c.id, pre.catalog);
+    note(`installed ${inst.services} services, ${inst.unresolvedMaterialRoles} material role(s) unresolved`);
+    rub("trade", "63 services arrive at once with no suggestion of where to start, and no statement that leaving most inactive is a complete setup.", "setup UX");
+    await whatTheyAreTold(db, c.id, "after install");
 
-    // Track A said five services cost one decision. Does the product say so?
-    F("after install", "63 services arrive with no indication which is cheapest to launch first; " +
-      "the contractor must know that water-heater-flush needs no policy, role or component");
-
-    const flush = await db.service.findFirstOrThrow({
-      where: { contractorId: c.id, slug: "water-heater-flush" }, select: { id: true, slug: true } });
-
-    // Global prerequisites — the seven Guided Setup stages, minimum viable.
+    // ── PRICING FOUNDATION ───────────────────────────────────────────────
+    step("STAGE 3 — Pricing foundation");
     await db.pricingSettings.upsert({
       where: { contractorId: c.id },
-      update: {}, create: { contractorId: c.id, crewHourRateCents: 14_500,
-        primaryMinimumCents: 19_500, roundingIncrementCents: 500, defaultPermitAdminCents: 0 },
+      update: {}, create: { contractorId: c.id, crewHourRateCents: 14_500, primaryMinimumCents: 19_500,
+        roundingIncrementCents: 500, defaultPermitAdminCents: 0 },
     });
-    say("set crew-hour rate and service-call minimum");
+    note("crew-hour rate 145.00, service-call minimum 195.00");
 
-    // Offer it. This is the selective-adoption switch.
+    // ── SHAPE 1 ──────────────────────────────────────────────────────────
+    step("SHAPE 1 — one bookable service: water-heater-flush");
+    const flush = await db.service.findFirstOrThrow({
+      where: { contractorId: c.id, slug: "water-heater-flush" }, select: { id: true, slug: true } });
     await db.service.update({ where: { id: flush.id }, data: { offered: true } });
-    say("marked water-heater-flush as offered (the other 62 left alone)");
+    note("offered");
+    const r1 = await activationRefusal(db, c.id, flush.id);
+    note(`activation before price: ${r1 ? r1.code : "ALLOWED"}`);
+    if (r1) note(`   "${r1.message}"`);
+    await db.service.update({ where: { id: flush.id }, data: { basePrice: 24_900, publishedPriceApprovedAt: new Date() } });
+    const go1 = await activateService(db, c.id, flush.id);
+    note(`activation after price approval: ${go1.ok ? "LIVE" : go1.refusal.code}`);
+    if (!go1.ok) rub("shape 1", `blocked: ${go1.refusal.message}`, "setup UX");
 
-    let r = await activationRefusal(db, c.id, flush.id);
-    say(`activation says: ${r ? `${r.code} — ${r.message}` : "ready"}`);
-    if (r?.code === "PRICE_NOT_APPROVED") {
-      await db.service.update({ where: { id: flush.id },
-        data: { basePrice: 18_900, publishedPriceApprovedAt: new Date() } });
-      say("approved a published price of $189.00");
-    }
-    r = await activationRefusal(db, c.id, flush.id);
-    if (r) { say(`still blocked: ${r.code} — ${r.message}`);
-      F("Shape 1 activation", `unexpected blocker ${r.code} on the cheapest service`, "shared platform"); }
-
-    const launched = await activateService(db, c.id, flush.id);
-    say(launched.ok ? "water-heater-flush is LIVE" : `refused: ${launched.refusal.code}`);
-
-    // Does a homeowner actually get a price?
-    const settings = await loadPricingSettings(db, c.id);
+    // ── HOMEOWNER ────────────────────────────────────────────────────────
+    step("HOMEOWNER — can a customer actually get a price?");
     const loaded = await loadServiceForResolution(db, flush.id);
-    if (loaded) {
+    const settings = await loadPricingSettings(db, c.id);
+    if (loaded && settings) {
       const q = loaded.questions[0];
-      const answers: Record<string, string> = q ? { [q.key]: q.options[0].value } : {};
-      const route = resolveRoute(loaded, answers, true, settings);
-      say(`homeowner answering "${q ? q.options[0].label : "(no questions)"}" gets: ${route.status}` +
-        (route.status === "PRICED" ? ` at $${(route.priceCents / 100).toFixed(2)}` : ""));
-      if (route.status !== "PRICED")
-        F("homeowner flow", `the cheapest service does not price for a homeowner: ${route.status}`, "shared platform");
+      const answers: Record<string, string> = q ? { [q.key]: q.options.find((o) => o.routeAction !== "PHOTO_REVIEW")!.value } : {};
+      const route = resolveRoute(loaded as never, answers, true, settings as never);
+      note(`answered ${JSON.stringify(answers)}`);
+      note(`route: ${route.status}${route.status === "PRICED" ? ` — $${(route.priceCents / 100).toFixed(2)}` : ""}`);
+      if (route.status !== "PRICED") rub("homeowner", `Shape 1 service did not price: ${(route as any).reason ?? route.status}`, "shared platform");
     }
 
-    const decisions1 = 1;
-    say(`\n    SHAPE 1 COMPLETE — ${decisions1} contractor decision (one price approval)`);
-
-    // ── SHAPE 2 ────────────────────────────────────────────────────────────
-    step("SHAPE 2 — expanding the same contractor to a starter catalog");
-
-    const rows = await db.service.findMany({
-      where: { contractorId: c.id, slug: { in: STARTER } },
+    // ── SHAPE 2 ──────────────────────────────────────────────────────────
+    step("SHAPE 2 — starter catalog");
+    const STARTER = ["plumbing-service-call", "toilet-internals-repair", "toilet-replacement",
+      "kitchen-faucet-replacement", "drain-clearing-single-fixture", "water-heater-flush"];
+    const rows = await db.service.findMany({ where: { contractorId: c.id, slug: { in: STARTER } },
       select: { id: true, slug: true } });
-    for (const s of rows) await db.service.update({ where: { id: s.id }, data: { offered: true } });
-    say(`offered ${rows.length} services: ${STARTER.join(", ")}`);
+    await db.service.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { offered: true } });
+    note(`offered ${rows.length} services`);
+    const told = await whatTheyAreTold(db, c.id, "starter catalog offered");
 
-    // What does Guided Setup now say is missing?
-    const readiness = await assessOnboarding(db, c.id);
-    const blockers = readiness.stages.flatMap((st) =>
-      st.findings.filter((f) => f.severity === "blocker").map((f) => ({ stage: st.key, ...f })));
-    say(`\n    Guided Setup reports ${blockers.length} blocker(s) across ${readiness.stages.length} stages:`);
-    for (const b of blockers) say(`      [${b.stage}] ${b.code}: ${b.message}`);
-
-    const scoped = await db.service.count({ where: { contractorId: c.id, offered: true } });
-    say(`\n    readiness scoped to ${scoped} offered services (57 others raise nothing)`);
-
-    // Resolve the shared decisions through the shipped path.
-    const pols = await db.contractorPolicyValue.findMany({
-      where: { contractorId: c.id }, select: { key: true, boundaryCount: true } });
-    let resolved = 0;
+    // Resolve exactly what the readiness engine asked for.
+    const pols = await db.contractorPolicyValue.findMany({ where: { contractorId: c.id }, select: { key: true, boundaryCount: true } });
     for (const p of pols) {
-      const needed = blockers.some((b) => b.code === "POLICY_UNRESOLVED" && b.message.includes(p.key));
-      const ans = p.boundaryCount === 0 ? { choice: "contractor-supplied" }
-        : { boundaries: [15, 40].slice(0, p.boundaryCount) };
-      const out = await resolvePolicy(db, c.id, p.key, ans);
-      if (out.ok) resolved++;
+      const res = await resolvePolicy(db, c.id, p.key,
+        p.boundaryCount === 0 ? { choice: "contractor-supplied" } : { boundaries: [25, 75].slice(0, p.boundaryCount) });
+      if (!res.ok) note(`   resolvePolicy(${p.key}) refused: ${JSON.stringify(res.refusal)}`);
     }
-    say(`answered ${resolved} policy question(s) via resolvePolicy`);
+    note(`answered ${pols.length} policy question(s)`);
 
-    // Costs for the roles the starter catalog actually needs.
     const payload = buildPlumbingPayload();
-    const mats = await db.canonicalMaterial.findMany({
-      where: { key: { in: payload.materials.map((m) => m.key) } }, select: { id: true, key: true } });
+    const mats = await db.canonicalMaterial.findMany({ where: { key: { in: payload.materials.map((m) => m.key) } }, select: { id: true } });
     for (const m of mats)
       await db.contractorMaterial.upsert({
         where: { contractorId_canonicalMaterialId: { contractorId: c.id, canonicalMaterialId: m.id } },
-        update: { unitCostCents: 2_500 }, create: { contractorId: c.id, canonicalMaterialId: m.id, unitCostCents: 2_500 } });
-    for (const s of rows) await recomputeServiceMaterialCost(db as never, s.id);
-    say(`entered ${mats.length} material role cost(s)`);
+        update: { unitCostCents: 1_800 }, create: { contractorId: c.id, canonicalMaterialId: m.id, unitCostCents: 1_800 } });
+    const comps = await db.canonicalComponent.findMany({ where: { key: { in: payload.components.map((x) => x.key) } }, select: { id: true } });
+    for (const cc of comps)
+      await db.contractorComponent.upsert({
+        where: { contractorId_canonicalComponentId: { contractorId: c.id, canonicalComponentId: cc.id } },
+        update: { approvedPriceCents: 8_900 }, create: { contractorId: c.id, canonicalComponentId: cc.id, approvedPriceCents: 8_900 } });
+    note(`costed ${mats.length} material role(s), priced ${comps.length} component(s)`);
+    rub("shape 2", "Material and component costs were entered globally here. In the product there is no role-level surface — the contractor must open a service's Materials panel to cost a role shared by many services.", "shared platform");
 
-    F("material costs", "there is no role-level cost surface — the contractor edits costs " +
-      "per service even though one role is shared by many", "shared platform");
+    for (const r of rows)
+      await db.service.update({ where: { id: r.id }, data: { basePrice: 21_900, publishedPriceApprovedAt: new Date() } });
+    note(`approved ${rows.length} prices`);
 
-    // Approve prices and launch, deliberately in the WRONG order to see the
-    // refusal a cautious contractor would meet.
-    say("");
-    const byOrder = [...rows].sort((a, b) => (a.slug === "plumbing-service-call" ? 1 : -1));
-    for (const s of byOrder) {
-      await db.service.update({ where: { id: s.id },
-        data: { basePrice: 24_900, publishedPriceApprovedAt: new Date() } });
-      const out = await activateService(db, c.id, s.id);
-      if (out.ok) { say(`      LIVE   ${s.slug}`); continue; }
-      say(`      BLOCK  ${s.slug} — ${out.refusal.code}`);
-      say(`             "${out.refusal.message}"`);
-      if (out.refusal.code === "DEPENDENCY_UNAVAILABLE") {
-        const named = out.refusal.missingPrerequisites ?? [];
-        F("launching one service at a time",
-          `DEPENDENCY_UNAVAILABLE names ${named.length ? named.join(", ") : "no slug"} in the API payload, ` +
-          `but no UI file reads missingPrerequisites — the contractor is told a service must be live ` +
-          `without a link to launch it`);
+    // LAUNCH — one at a time, the cautious path, NOT the ordered bulk launch.
+    step("LAUNCH — one at a time (the cautious contractor's path)");
+    const cautious = rows.filter((r) => r.slug !== "plumbing-service-call");
+    let hitDependency = false;
+    for (const r of cautious) {
+      const res = await activateService(db, c.id, r.id);
+      console.log(`     ${res.ok ? "LIVE  " : "BLOCK "} ${r.slug}${res.ok ? "" : `  ${res.refusal.code}`}`);
+      if (!res.ok && res.refusal.code === "DEPENDENCY_UNAVAILABLE") {
+        hitDependency = true;
+        note(`        "${res.refusal.message}"`);
+        note(`        missingPrerequisites: ${JSON.stringify(res.refusal.missingPrerequisites ?? [])}`);
       }
     }
-    // Now in the right order, the way LaunchPanel would.
-    say("");
-    const svcCall = rows.find((s) => s.slug === "plumbing-service-call")!;
-    const sc = await activateService(db, c.id, svcCall.id);
-    say(sc.ok ? "      LIVE   plumbing-service-call (launched first, as LaunchPanel would order it)"
-              : `      BLOCK  plumbing-service-call — ${sc.refusal.code}`);
-    for (const s of rows) {
-      if (s.slug === "plumbing-service-call") continue;
-      const out = await activateService(db, c.id, s.id);
-      if (out.ok) say(`      LIVE   ${s.slug}`);
-      else say(`      BLOCK  ${s.slug} — ${out.refusal.code}: ${out.refusal.message}`);
+    if (hitDependency)
+      rub("launch", "DEPENDENCY_UNAVAILABLE names the prerequisite in prose and in missingPrerequisites, but no UI renders that field and nothing offers to launch it. The contractor must know PL-SVC-001 goes first.", "setup UX");
+
+    step("LAUNCH — then the prerequisite, then retry");
+    const sc = rows.find((r) => r.slug === "plumbing-service-call")!;
+    const scGo = await activateService(db, c.id, sc.id);
+    console.log(`     ${scGo.ok ? "LIVE  " : "BLOCK "} ${sc.slug}`);
+    for (const r of cautious) {
+      const svc = await db.service.findUniqueOrThrow({ where: { id: r.id }, select: { active: true } });
+      if (svc.active) continue;
+      const res = await activateService(db, c.id, r.id);
+      console.log(`     ${res.ok ? "LIVE  " : "BLOCK "} ${r.slug}${res.ok ? " (retry)" : `  ${res.refusal.code}`}`);
     }
 
-    const live = await db.service.count({ where: { contractorId: c.id, active: true } });
-    const total = await db.service.count({ where: { contractorId: c.id } });
-    say(`\n    SHAPE 2 COMPLETE — ${live} of ${total} services live, ${total - live} left inactive by choice`);
+    const liveCount = await db.service.count({ where: { contractorId: c.id, active: true } });
+    const offeredCount = await db.service.count({ where: { contractorId: c.id, offered: true } });
+    const totalCount = await db.service.count({ where: { contractorId: c.id } });
+    step("RESULT");
+    note(`${liveCount} live of ${offeredCount} offered of ${totalCount} provisioned`);
+    await whatTheyAreTold(db, c.id, "final");
 
-    const finalReadiness = await assessOnboarding(db, c.id);
-    const left = finalReadiness.stages.flatMap((st) => st.findings.filter((f) => f.severity === "blocker"));
-    say(`    Guided Setup blockers remaining: ${left.length}`);
-    for (const b of left.slice(0, 6)) say(`      ${b.code}: ${b.message}`);
-
+    step("FRICTION LOG");
+    if (friction.length === 0) note("none recorded");
+    friction.forEach((f, i) => console.log(`     ${i + 1}. [${f.classify}] ${f.step} — ${f.needed}`));
   } finally {
     if (!KEEP) {
       step("TEARDOWN");
@@ -236,15 +212,12 @@ async function main() {
         await db.serviceMaterial.deleteMany({ where: { serviceId: { in: ids } } });
         await db.service.deleteMany({ where: { contractorId: c.id } });
         await db.contractor.delete({ where: { id: c.id } });
-        say(`removed ${SLUG}`);
+        note("pilot contractor removed");
       }
-    }
+    } else note("kept (--keep)");
     await db.$disconnect();
   }
-
-  console.log(`\n  FRICTION LOG — ${friction.length} point(s)\n`);
-  for (const [i, f] of friction.entries())
-    console.log(`   ${i + 1}. [${f.classification}] ${f.where}\n      ${f.what}\n`);
+  console.log();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)

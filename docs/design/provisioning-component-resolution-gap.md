@@ -1,4 +1,4 @@
-# Shared provisioning gap: component relationships are silently discarded
+# Shared provisioning gap: relationships are discarded when economics arrive later
 
 *Found 1 September 2026 during the Plumbing Template V1 two-contractor proof.
 For the provisioning/platform owner. **Not a Plumbing problem, and Plumbing must
@@ -67,6 +67,53 @@ two neighboring concepts:
 
 **Components have no equivalent.** They are the odd one out, and the asymmetry
 looks unintended rather than decided.
+
+## UPDATE, 2 September 2026 — the same root cause, worse, for MATERIALS
+
+The Plumbing pilot walk found the identical ordering rule applied to materials,
+where it does not merely lose information: **it permanently blocks the service.**
+
+`installCatalog` links a `ServiceMaterial` only when the contractor has already
+costed the role — the same `if (!priced)` shape — but unlike components it ALSO
+records the key in `Service.unresolvedMaterialKeys` and sets
+`materialCostResolved = false`. That looks like the responsible behavior. It is
+a trap:
+
+```
+provision (no cost yet)  -> no ServiceMaterial link
+                         -> unresolvedMaterialKeys = ["supply_line_flex"]
+                         -> materialCostResolved   = false
+
+contractor enters the cost
+
+recomputeServiceMaterialCost
+  -> assessMaterialReadiness
+     -> requiredRolesFor reads ServiceMaterial rows -> 0 rows
+     -> "ready, 0 roles"
+  -> recompute returns early: "not itemized, the flat allowance stands"
+  -> unresolvedMaterialKeys is NEVER cleared
+```
+
+Measured on the pilot contractor, after entering a cost of 1800c for
+`supply_line_flex`:
+
+| | |
+| --- | --- |
+| contractor has a cost for the role | **yes** |
+| `ServiceMaterial` links on the service | **0** |
+| `requiredRolesFor()` | **0 roles** |
+| `unresolvedMaterialKeys` after recompute | **still `["supply_line_flex"]`** |
+| `activationRefusal` | **`MATERIALS_UNRESOLVED`, permanently** |
+
+Three of six starter-catalog services were unlaunchable this way, and Guided
+Setup kept telling the contractor *"You haven't told us what supply_line_flex
+costs you"* — after they had told us. **There is no in-product action that
+clears it.** Re-provisioning is refused (`CATALOG_ALREADY_INSTALLED`), so the
+contractor cannot recover by repeating the step either.
+
+This is the normal ordering, not an exotic one: a contractor provisions a
+catalog and *then* enters their economics. That is what the template library is
+for.
 
 ## The invariant worth restoring
 

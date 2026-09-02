@@ -11,6 +11,61 @@ Architecture stays frozen. Findings are classified, not fixed.
 
 ---
 
+## Track B result: the walk
+
+One contractor (`zz-pilot-plumbing`), shipped path only, on the guarded rehearsal
+branch. Left in place as evidence.
+
+**Shape 1 passed cleanly and is the story to lead with.** Offer
+`water-heater-flush`, meet `PRICE_NOT_APPROVED` with a sentence that explains
+itself, approve one price, activate, and a homeowner answering one question is
+quoted **$249.00**. The whole chain — enrollment, provisioning, price approval,
+activation, homeowner pricing — for one decision.
+
+**Shape 2 did not.** Three of six starter services were permanently unlaunchable
+and `DEPENDENCY_UNAVAILABLE` never even surfaced, because a worse blocker masked
+it. See B1.
+
+| | offered | live |
+| --- | --- | --- |
+| after Shape 1 | 1 | 1 |
+| after Shape 2 | 6 | **3** |
+
+### B1 — entering a cost does not clear the blocker *(shared platform, pilot-blocking)*
+
+Provisioning skips the `ServiceMaterial` link when the contractor has not yet
+costed the role, *and* records the key in `unresolvedMaterialKeys`. With no link,
+`requiredRolesFor` sees nothing, `recomputeServiceMaterialCost` returns early,
+and the key can never be cleared. Guided Setup goes on saying *"You haven't told
+us what supply_line_flex costs you"* after the contractor has. Re-provisioning is
+refused, so there is no in-product recovery.
+
+Full mechanism and measurements in
+[provisioning-component-resolution-gap.md](provisioning-component-resolution-gap.md).
+**This blocks a real pilot** — it is the normal provision-then-configure order.
+
+### B2 — the masking is back *(shared platform)*
+
+`DEPENDENCY_UNAVAILABLE` never appeared in the walk. The three services that
+would have hit it failed `MATERIALS_UNRESOLVED` first. Activation reports one
+blocker at a time, so a contractor fixes one and discovers another; the same
+masking Amendment C removed from the rehearsal exists in the product.
+
+### B3 — labor hours are requested but never prompted for *(setup UX)*
+
+Live services still warn *"actual field labor hours not established"*. The
+template ships no `fieldLaborHours` — correctly, it is contractor economics — but
+nothing in Guided Setup asks for them, so the warning has no destination.
+
+### B4 — scheduling and payments are never forced *(setup UX)*
+
+Services went live with `SERVICE_AREA_EMPTY` and
+`SCHEDULING_AUTHORITY_UNDECLARED` outstanding. `activationRefusal` does not
+consider them, so a service can be *live* while no homeowner could book it.
+Correct separation, confusing story.
+
+---
+
 ## Decision cost of the three onboarding shapes
 
 Measured from the published payload, counting what a contractor must actually
