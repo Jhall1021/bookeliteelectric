@@ -456,7 +456,7 @@ export const START_SMALL = {
     "When can you come? Does Tuesday work? What about Thursday?",
   ],
   after:
-    "Put those services online and customers get the price, answer the qualifying questions and choose an appointment themselves.",
+    "Put those services online and customers answer the qualifying questions themselves \u2014 then either see your approved price and book a time, or send you the details and photographs so you can price it.",
   split: [
     {
       tag: "Put these online first",
@@ -466,10 +466,10 @@ export const START_SMALL = {
     {
       tag: "Leave these exactly as they are",
       tone: "neutral",
-      body: "Bigger jobs, troubleshooting calls, estimates and custom work. They keep running the way they run today.",
+      body: "Renovations, custom work, anything you\u2019d rather handle yourself. They keep running the way they run today.",
     },
   ],
-  scale: "Ten services or a hundred. You decide what customers can price and book online, and you can add more whenever it makes sense.",
+  scale: "Ten services or a hundred. You decide which services go online, and whether each one shows a price or comes to you for an estimate.",
   close: "Price2Book fits your business — your business doesn’t have to fit Price2Book.",
 } as const;
 
@@ -502,6 +502,7 @@ export const BOUNDARY_ROLES = {
     "Homeowner qualification",
     "Approved pricing",
     "Guided Pricing outcomes",
+    "Guided Estimate intake and review",
     "Building the visit",
     "Presenting appropriate booking options",
     "Customer self-booking",
@@ -515,6 +516,97 @@ export const BOUNDARY_ROLES = {
     "Job costing",
     "The rest of how you run the business",
   ],
+} as const;
+
+
+/**
+ * The second adoption axis — SITEMAP.md.
+ *
+ * A contractor makes TWO independent decisions, and the site used to teach
+ * only the first: how much of the catalog goes into Price2Book. The second is
+ * how those services hand a customer a number, and it is not a progression.
+ * Instant Price is not the finished version of Guided Estimate, and Guided
+ * Estimate is not what happens when Instant Price fails.
+ *
+ * A contractor who publishes no prices at all and reviews every job is using
+ * the product as designed, not half of it. `withoutPublishedPrice` in
+ * `guidedEstimates.ts` is the measurement that keeps that honest: every one
+ * of the quote-only services in production carries no published price.
+ *
+ * NOT A CLAIM ABOUT AI. A human contractor sets every estimate. Nothing here
+ * may imply the software decides the number — see POSITIONING.md.
+ */
+export const PRICING_MODES: ReadonlyArray<{
+  name: string;
+  href: string | null;
+  forWhat: string;
+  body: string;
+  note?: string;
+}> = [
+  {
+    name: "Instant Price",
+    href: "/product/guided-pricing",
+    forWhat: "For predictable work that can be scoped from the customer\u2019s answers.",
+    body:
+      "You approve the pricing. When the answers establish enough of the job, the customer gets that answer immediately and can carry on to booking.",
+  },
+  {
+    name: "Guided Estimate",
+    href: "/product/guided-estimates",
+    forWhat: "For work you want to look at before you give anyone a number.",
+    body:
+      "The customer answers the same guided questions and supplies the details and photographs you asked for. You review the scope and set the estimate.",
+    note: "You can use Price2Book this way without displaying instant prices at all.",
+  },
+  {
+    name: "Onsite Visit",
+    href: null,
+    forWhat: "For work that genuinely has to be seen, diagnosed or measured in person.",
+    body:
+      "Some jobs need somebody there, and pretending otherwise is how a customer ends up with a number nobody can stand behind. Price2Book routes those to a visit instead.",
+  },
+];
+
+/**
+ * The estimate trip that only existed because information was missing.
+ *
+ * THE TARGET IS NARROW, ON PURPOSE. This is not an argument against site
+ * visits — a contractor who reads it that way stops trusting the rest of the
+ * page, and rightly. It is an argument against driving somewhere to collect
+ * what the homeowner could have handed over beforehand.
+ *
+ * NO PERCENTAGES. There is no measured claim about how many trips this
+ * removes, so the page makes none. What it can show is the real thing the
+ * product asks a homeowner for, which is why the sequences below stay
+ * qualitative and the evidence comes from the capture.
+ */
+export const ESTIMATE_TRIPS = {
+  headline: "Go on estimates because the job needs you there \u2014 not because you needed more information.",
+  lead:
+    "If the customer can give you what you need to quote the work, Price2Book collects it. Review the answers and the photographs, set the estimate, and keep the truck parked. When a job genuinely needs to be seen, send someone.",
+  before: {
+    label: "The trip that was really a fact-finding mission",
+    steps: [
+      "Customer calls",
+      "You ask what you can over the phone",
+      "You schedule an estimate",
+      "You drive there",
+      "You gather the information",
+      "You drive back",
+      "You work out the price",
+    ],
+  },
+  after: {
+    label: "The same job, quoted from what they sent",
+    steps: [
+      "Customer answers the guided questions",
+      "They supply the details and photographs you asked for",
+      "You review the scope",
+      "You set the estimate",
+    ],
+  },
+  caveat:
+    "And when the work does have to be seen \u2014 a diagnosis, a condition nobody can photograph, a measurement that has to be right \u2014 that is what the visit is for.",
 } as const;
 
 /** Setup, as a progression rather than a four-screen essay. */
@@ -549,6 +641,13 @@ export type TradeStatus = "Available now" | "In build" | "Next";
  */
 export const PRODUCT_PAGES: ReadonlyArray<{ name: string; href: string | null; status?: string }> = [
   { name: "Guided Pricing", href: "/product/guided-pricing" },
+  // A SIBLING, NOT A FALLBACK. Guided Estimates crossed the same threshold
+  // every other row here is held to: REMOTE_QUOTE routes, gating photo
+  // requests, a contractor review queue and a customer approval, all shipped
+  // and all in production use. It gets a link for the same reason Guided
+  // Pricing does — the capability is real — and captured evidence backs the
+  // page rather than a description of an intended workflow.
+  { name: "Guided Estimates", href: "/product/guided-estimates" },
   { name: "While We\u2019re There\u2122", href: "/product/while-were-there" },
   { name: "Online Booking", href: "/product/online-booking" },
   { name: "What You Control", href: "/product/what-you-control" },
