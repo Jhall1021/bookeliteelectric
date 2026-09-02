@@ -12,11 +12,31 @@
  * already answers during route resolution. This route and `routeResolver` now
  * call the same `findTroubleshootingService`, so the destination the customer
  * is shown and the destination `/api/visit` would send them to cannot disagree.
+ *
+ * TAKES THE ORIGINATING SERVICE, NOT A TRADE — G2
+ *
+ * This endpoint used to ask a context-free question: "what is this contractor's
+ * diagnostic?" That has no answer for a contractor selling two trades, and the
+ * fix is NOT to let the browser say which trade it means.
+ *
+ * The client is only ever here because a particular guided flow reached
+ * REROUTE_TROUBLESHOOTING, so it already knows which service it is rendering.
+ * It sends that identity. The server resolves the Service inside the current
+ * tenant, reads the durable `Service.tradeKey`, and scopes the lookup with it.
+ *
+ *   client submits identity / choice  ->  server derives meaning
+ *
+ * A `tradeKey` accepted from the browser would make the page an authority on
+ * what its own service means, which is the class of defect that moved pricing
+ * server-side in the first place.
+ *
+ * One trade, one answer. The customer is in one service flow, so there is
+ * exactly one relevant trade and no per-trade list to return.
  */
 
 import { NextResponse } from "next/server";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
-import { findTroubleshootingService } from "@/lib/troubleshooting";
+import { findTroubleshootingService, tradeOfService } from "@/lib/troubleshooting";
 
 export async function GET(req: Request) {
   // ADR §2.2. The site identifier the caller carries decides the tenant —
@@ -28,9 +48,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
   }
 
-  const found = await withSite(site, (db) =>
-    findTroubleshootingService(db, site.contractorId)
-  );
+  // The originating service. Identity only — the server decides what it means.
+  const serviceId = new URL(req.url).searchParams.get("serviceId");
+  if (!serviceId) {
+    return NextResponse.json(
+      { error: "Which service is asking?" },
+      { status: 400 }
+    );
+  }
+
+  const found = await withSite(site, async (db) => {
+    // Resolved inside the tenant, so a service id from another storefront is
+    // not merely wrong — it is not found.
+    const trade = await tradeOfService(db, site.contractorId, serviceId);
+    if (!trade.ok) return { ok: false as const, problem: trade.problem };
+    return findTroubleshootingService(db, site.contractorId, trade.tradeKey);
+  });
 
   if (!found.ok) {
     // The customer is not told which of the two it was, and neither is the
