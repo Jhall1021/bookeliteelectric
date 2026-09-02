@@ -218,14 +218,25 @@ async function main() {
     await prisma.contractor.delete({ where: { id: c.id } });
   }
 
+  // CORRELATED BY ID, NOT SLUG.
+  //
+  // `Service.slug` is unique PER CONTRACTOR — `@@unique([contractorId, slug])` —
+  // so two contractors legitimately share one. Elite and BrightPath both have
+  // `electrical-troubleshooting`. Matching the route-capable set by slug would
+  // attribute one contractor's routing to another's service, which is a wrong
+  // report even when the count happens to come out right.
+  //
+  // `active_service_has_trade` below covers the whole active set independently,
+  // so a slug collision could not have hidden a missing trade. This is about the
+  // narrower report naming the right services.
   const routing = await prisma.service.findMany({
     where: {
       active: true,
       questions: { some: { options: { some: { routeAction: "REROUTE_TROUBLESHOOTING" } } } },
     },
-    select: { slug: true },
+    select: { id: true },
   });
-  const routesToTroubleshooting = new Set(routing.map((r) => r.slug));
+  const routesToTroubleshooting = new Set(routing.map((r) => r.id));
 
   // ── THE MODEL INVARIANT, over the LIVE catalog ─────────────────────────
   group("active_service_has_trade — every live service knows its trade");
@@ -240,7 +251,7 @@ async function main() {
   // the moment somebody adds a troubleshooting answer to it.
   const activeServices = await prisma.service.findMany({
     where: { active: true },
-    select: { slug: true, tradeKey: true, contractor: { select: { slug: true } } },
+    select: { id: true, slug: true, tradeKey: true, contractor: { select: { slug: true } } },
     orderBy: { slug: "asc" },
   });
   const untraded = activeServices.filter((s) => !s.tradeKey);
@@ -250,7 +261,7 @@ async function main() {
 
   // The narrower rule still stated separately: it is the one whose failure is a
   // customer-time surprise rather than a latent gap, so it is worth naming.
-  const reachable = activeServices.filter((s) => routesToTroubleshooting.has(s.slug));
+  const reachable = activeServices.filter((s) => routesToTroubleshooting.has(s.id));
   const reachableUntraded = reachable.filter((s) => !s.tradeKey);
   console.log(`  ${routesToTroubleshooting.size} of them can reach REROUTE_TROUBLESHOOTING`);
   ok("and every one that routes to troubleshooting can resolve a destination",
