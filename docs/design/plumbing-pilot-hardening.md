@@ -229,3 +229,60 @@ but whose `PL-SVC-001` is not yet live.
 **B1 must be fixed before a real plumber sees this.** Shape 1 is genuinely
 one decision and works end to end; Shape 2 strands half the catalog with an
 instruction that cannot succeed.
+
+---
+
+## Deployment prerequisite — production schema
+
+**Production does not yet contain the shared schema additions from `d7d7573`**
+(`TemplateAnswerOptionMaterial`, `AnswerOptionMaterial`). Consequences:
+
+- `verify-template-provisioning` fails against production with
+  `NO_PUBLISHED_TEMPLATE`. Confirmed pre-existing and not caused by the B1 fix:
+  the verifier fails identically with and without it.
+- Production still has no Plumbing template, **which is desirable at this stage.**
+
+**Do not `prisma db push` to production to make a verifier green.** That schema
+deployment is a deliberate release step, taken with whatever migration procedure
+Price2Book uses, not an incidental fix for a red check.
+
+## Prisma client parity — now enforced, not remembered
+
+The generated client is a single copy in `node_modules`, and whoever ran
+`prisma generate` last owns it. With parallel worktrees and several active
+branches it drifts constantly, and it fails as a confusing missing-column error
+that looks like a database problem:
+
+> `The column 'accessSlot' does not exist in the current database`
+
+`scripts/_clientParity.ts` compares the generated DMMF against the worktree's
+`schema.prisma` and refuses before anything connects.
+`requireClientParity(Prisma.dmmf.datamodel)` now runs at the top of every
+DB-backed rehearsal script. It caught real drift twice while this section was
+being written — `Service.tradeKey` from the G2 workstream, both times.
+
+## Shape 2 result — complete, without manual intervention
+
+All six starter services reached live through the shipped path. The B1 fix holds
+in the full walk: material blockers cleared when costs were entered.
+
+| Measurement | Result |
+| --- | --- |
+| `PL-SVC-001` dependency understandable? | **No** — see F3 |
+| Track A's 12-decision estimate accurate? | **Yes** — 2 policies, 2 roles, 2 components, 6 approvals |
+| Shared setup avoids repeated work? | **Yes** — 7 policies and 19 roles answered once for all six |
+| Does activating one make the next easier? | **Yes** — once `PL-SVC-001` was live, three blocked services launched unchanged |
+| Internal knowledge needed to recover? | **Yes, once** — see F3 |
+| All six homeowner-bookable without DB work? | **Yes** |
+
+### Open finding — `TREE_HAS_DEAD_ROUTE`
+
+Guided Setup reported *"kitchen-faucet-replacement has 24 answer path(s) that
+reach nothing"* on a live service. Not investigated to root cause here: a probe
+of `pricePromiseOf` needs a fully loaded service and the shortcut used did not
+supply one.
+
+**Recorded rather than dismissed.** It may be benign — review and safety paths
+counted as unpriced — or it may be a real routing gap in a composed tree. It
+should be run down before the first real plumber, and it is the one Shape 2
+result not yet explained.

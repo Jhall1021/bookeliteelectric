@@ -18,10 +18,11 @@
  *
  * Runs against a proven branch of production, and tears down after itself.
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
 import { classifyRehearsalTarget } from "./_lineage";
+import { requireClientParity } from "./_clientParity";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import { activationRefusal } from "../lib/serviceActivation";
 import { recomputeServicesUsingRole } from "../lib/materialCost";
@@ -71,6 +72,9 @@ async function main() {
   const url = process.env.REHEARSAL_DATABASE_URL;
   console.log(`\nMATERIAL READINESS LIFECYCLE — B1\n`);
   if (!url) { console.error("  REHEARSAL_DATABASE_URL is not set.\n"); process.exit(1); }
+  // The client is a single shared copy; a mismatched one fails later as a
+  // confusing missing-column error. Checked before anything connects.
+  requireClientParity(Prisma.dmmf.datamodel);
   const v = await classifyRehearsalTarget(url, process.env.DATABASE_URL);
   if (!v.ok) { console.error(`  REFUSING (${(v as any).code})\n`); process.exit(1); }
   const db = new PrismaClient({ datasources: { db: { url } } });

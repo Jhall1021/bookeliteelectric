@@ -20,10 +20,11 @@
  * Runs only against a proved production-descended branch, and only from the
  * frozen baseline worktree. See scripts/_lineage.ts.
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
 import { classifyRehearsalTarget } from "./_lineage";
+import { requireClientParity } from "./_clientParity";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import { assessOnboarding } from "../lib/onboardingReadiness";
 import { activationRefusal, activateService } from "../lib/serviceActivation";
@@ -58,6 +59,9 @@ async function main() {
   const url = process.env.REHEARSAL_DATABASE_URL;
   console.log(`\nPLUMBING PILOT — a plumber's first day\n`);
   if (!url) { console.error("  REHEARSAL_DATABASE_URL is not set.\n"); process.exit(1); }
+  // The client is a single shared copy; a mismatched one fails later as a
+  // confusing missing-column error. Checked before anything connects.
+  requireClientParity(Prisma.dmmf.datamodel);
   const verdict = await classifyRehearsalTarget(url, process.env.DATABASE_URL);
   if (!verdict.ok) { console.error(`\n  REFUSING: ${(verdict as any).reason}\n`); process.exit(1); }
   say(`target ${verdict.probe.endpoint}, production lineage — accepted`);
