@@ -1,11 +1,11 @@
 import Link from "next/link";
-import Image from "next/image";
 import {
   BOUNDARY_LINE, CUSTOMER_URL, EMBED_STATUS, ESTIMATE_TRIPS, EVERYWHERE, JOURNEY, JOURNEY_NOTE,
   JOURNEY_STRIP, PRICING_MODES, PRODUCT_TOUR, SETUP_PROGRESSION, START_SMALL, TRADES,
   TRADE_SIGNAL, WHAT_IT_DOES,
 } from "./content";
 import { SHOTS } from "./shots";
+import ShotFigure from "./ShotFigure";
 import { ELECTRICAL_TEMPLATE } from "./trades/electricalTemplate";
 
 /**
@@ -132,11 +132,8 @@ export function ProductTour() {
           const shot = (SHOTS as Record<string, { src: string; alt: string; w: number; h: number } | null>)[key];
           if (!shot) return null;
           return (
-            <figure key={key}
-                    className="overflow-hidden rounded-[4px] border border-p2b-line bg-white shadow-[0_1px_2px_rgba(16,24,40,.04),0_10px_24px_-12px_rgba(16,24,40,.14)]">
-              <Image src={shot.src} alt={shot.alt} width={shot.w} height={shot.h}
-                     sizes="(min-width: 640px) 30vw, 100vw" className="h-auto w-full" />
-            </figure>
+            <ShotFigure key={key} src={shot.src} alt={shot.alt} width={shot.w} height={shot.h}
+                        sizes="(min-width: 640px) 30vw, 100vw" />
           );
         })}
       </div>

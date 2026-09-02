@@ -1,6 +1,6 @@
 import { EMBED_STATUS, HERO } from "./content";
-import Image from "next/image";
 import { SHOTS } from "./shots";
+import ShotFigure from "./ShotFigure";
 
 /**
  * The hero — the contractor's own website, with their price inside it.
@@ -104,11 +104,9 @@ export default function Hero() {
               </span>
             </div>
             {SHOTS.homePrice ? (
-              <figure className="overflow-hidden rounded-[5px] border border-p2b-line bg-white shadow-[0_2px_4px_rgba(16,24,40,.05),0_16px_40px_-14px_rgba(16,24,40,.22)]">
-                <Image src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
-                       width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
-                       priority sizes="(min-width: 1024px) 560px, 100vw" className="h-auto w-full" />
-              </figure>
+              <ShotFigure src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
+                          width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
+                          priority sizes="(min-width: 1024px) 560px, 100vw" />
             ) : null}
           </div>
 
