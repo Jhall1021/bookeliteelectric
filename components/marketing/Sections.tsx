@@ -120,7 +120,13 @@ export function PricingModes() {
         <h2 className="max-w-[22ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[44px]">
           Show prices. Send estimates. Or do both.
         </h2>
-        <p className="mt-5 max-w-[74ch] text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+        {/* SECTION THESIS, NOT SUPPORTING COPY. This sentence separates the
+            two ideas contractors conflate — digitising the quoting process
+            versus advertising flat rates — and it was rendering at the same
+            17/18px, weight 400 as every other lead paragraph on the page. A
+            visitor slid past the line that decides whether they think this
+            product is for them. Styling only; the wording is unchanged. */}
+        <p className="mt-5 max-w-[62ch] text-[19px] font-semibold leading-[1.4] tracking-[-0.01em] text-p2b-ink lg:text-[23px]">
           {START_SMALL.publishing}
         </p>
 
