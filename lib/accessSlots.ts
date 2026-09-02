@@ -180,43 +180,66 @@ export function slotValue(map: AccessBySlot, slot: AccessSlot): AccessClass | un
 }
 
 /**
- * The result of trying to establish a slot.
+ * Establish or REFINE a slot. The last applicable writer wins.
  *
- * `CONFLICT` is returned rather than resolved. There is no merge rule and no
- * precedence rule, because the platform has nowhere to express how two answers
- * about one location would combine — which is exactly the state the old
- * `branch.accessClassification ?? config.accessClass` hid by letting the later
- * answer win silently.
- */
-export type SlotWrite =
-  | { kind: "WRITTEN"; map: AccessBySlot }
-  | { kind: "UNCHANGED"; map: AccessBySlot }
-  | { kind: "CONFLICT"; slot: AccessSlot; existing: AccessClass; attempted: AccessClass; map: AccessBySlot };
-
-/**
- * Establish a slot, or report that something already did.
+ * SUCCESSIVE REFINEMENT IS THE DESIGN, NOT A DEFECT.
  *
- * FIRST WRITER WINS, AND THE SECOND IS REPORTED. The first established value is
- * preserved so the route stays reconstructible; the conflict is carried up so the
- * caller can fail closed. Composition should make this unreachable — the runtime
- * check is defense in depth, not the primary guard.
+ * An earlier draft of scoped access made a second write to one slot a conflict
+ * that failed closed. That was wrong, and the Electrical catalog proved it:
+ * eight active services deliberately write access more than once along a
+ * route, and the later answer is the more specific one.
  *
- * Re-establishing the SAME value is not a conflict. A tree that legitimately
- * routes through one classification twice has not contradicted itself, and
- * refusing it would turn a harmless authoring shape into a review.
+ *   below_above_access         -> ACCESSIBLE   "there is a basement below"
+ *   finished_space_both_sides  -> FINISHED     "...but both sides are finished"
+ *
+ * Each question narrows the classification, and the last one that applies is
+ * the true one. Refusing that would have sent eight live services to review and
+ * repriced five routes downward by dropping the refinement — which is exactly
+ * what the ADR-021 baseline caught.
+ *
+ * So the rule is:
+ *
+ *   ACCESS FACTS ARE ISOLATED BY SLOT. WITHIN ONE SLOT, ORDERED SUCCESSIVE
+ *   WRITES ARE VALID REFINEMENT AND THE LAST APPLICABLE WRITER WINS.
+ *
+ * There is no grandfathering here and no special case for PRIMARY: refinement
+ * is legitimate in every slot, and a rule that applied to one slot and not
+ * another would be a second semantics to keep in step.
+ *
+ * WHAT SLOTS ACTUALLY BUY, THEN
+ *
+ * Isolation, which is the whole point and is enough. INDOOR_EQUIPMENT and
+ * OUTDOOR_EQUIPMENT are different keys, so no amount of refinement in one can
+ * ever overwrite the other. The bug scoped access removes is a cross-location
+ * collision, and that bug is removed structurally rather than by a refusal.
+ *
+ * VISIBILITY, NOT PROHIBITION
+ *
+ * Multi-writer refinement stays deliberate rather than accidental through
+ * scripts/verify-access-writers.ts, which holds the reviewed baseline of
+ * (service, slot) pairs that legitimately refine. A NEW one fails until somebody
+ * looks at it. That is the honest control: the pattern is legitimate, so it is
+ * reviewed rather than banned.
  */
 export function writeSlot(
   map: AccessBySlot,
   slot: AccessSlot,
   value: AccessClass
-): SlotWrite {
-  const existing = map[slot];
-  if (existing === undefined) return { kind: "WRITTEN", map: { ...map, [slot]: value } };
-  if (existing === value) return { kind: "UNCHANGED", map };
-  return { kind: "CONFLICT", slot, existing, attempted: value, map };
+): AccessBySlot {
+  return { ...map, [slot]: value };
 }
 
-/** Operator-facing. Never rendered to a customer as-is. */
-export function accessConflictReason(slot: AccessSlot): string {
-  return `Conflicting access classifications for access slot ${slot}`;
+/**
+ * Would this write CHANGE the slot rather than establish it?
+ *
+ * For reporting and for the writer baseline. Never used to refuse: a true here
+ * means refinement happened, which is legitimate.
+ */
+export function isRefinement(
+  map: AccessBySlot,
+  slot: AccessSlot,
+  value: AccessClass
+): boolean {
+  const existing = map[slot];
+  return existing !== undefined && existing !== value;
 }

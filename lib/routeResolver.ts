@@ -47,7 +47,7 @@ import {
   disclaimerAccessSlot,
   requireContractorDisclaimer,
 } from "./categories";
-import { accessConflictReason, parseAccessSlot } from "./accessSlots";
+import { parseAccessSlot } from "./accessSlots";
 import {
   startConfiguration,
   applyBranch,
@@ -504,31 +504,6 @@ export function resolveRoute(
       },
       answers
     );
-
-    // ── G1: TWO ANSWERS CLAIMED ONE SCOPED FACT ─────────────────────────────
-    //
-    // REVIEW rather than INVALID. The customer's answers may be perfectly
-    // valid; what failed is that our authored route let two of them establish
-    // the same access slot with different values. INVALID is for route state
-    // that cannot be replayed at all — a cycle, a missing question, an answer
-    // matching no option — and this replays fine, it just cannot be trusted to
-    // price. Nor is it a throw: a data defect must not become a 500.
-    //
-    // Valid composition makes this unreachable. It is the runtime half of
-    // defense in depth, and it fires the moment the conflict appears rather
-    // than after accumulating a route nobody may use.
-    if (config.accessSlotConflict !== null) {
-      const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
-      return {
-        status: "REVIEW",
-        reason: accessConflictReason(config.accessSlotConflict),
-        photoLabels: [...new Set(photoLabels)],
-        photoSafetyNotes: [...new Set(photoSafetyNotes)],
-        floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
-        isPrimary,
-        config,
-      };
-    }
 
     for (const g of option.photoGroups) {
       photoLabels.push(...g.photoGroup.labels);

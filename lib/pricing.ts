@@ -333,19 +333,6 @@ export type JobConfiguration = {
    * non-PRIMARY slot never touches the scalar.
    */
   accessBySlot: AccessBySlot;
-  /**
-   * Set when a second answer tried to establish a slot another answer already
-   * established with a DIFFERENT value.
-   *
-   * The first value is preserved and this is raised; resolveRoute turns it into
-   * a REVIEW before any price resolves. Not INVALID — the customer's answers
-   * may be perfectly valid, and the defect is that our authored route let two
-   * of them claim authority over one scoped fact.
-   *
-   * Same fail-closed accumulator shape as awaitingComponentApproval below.
-   * Valid composition should make this unreachable; it is defense in depth.
-   */
-  accessSlotConflict: AccessSlot | null;
   fieldLaborHours: number | null;
   materialCostCents: number;
   estimatedMinutes: number | null;
@@ -389,7 +376,6 @@ export function startConfiguration(svc: {
   return {
     accessClass: null,
     accessBySlot: {},
-    accessSlotConflict: null,
     fieldLaborHours: svc.fieldLaborHours,
     materialCostCents: svc.materialCostCents ?? 0,
     estimatedMinutes: svc.estimatedMinutes,
@@ -427,7 +413,6 @@ export function startDisplayConfiguration(svc: { estimatedMinutes: number | null
   return {
     accessClass: null,
     accessBySlot: {},
-    accessSlotConflict: null,
     // Null, because the client genuinely doesn't know the labor — that's the
     // point. materialCostCents is 0 rather than null because it's an
     // accumulator: components add to it, and nothing the client receives
@@ -582,27 +567,35 @@ export function applyBranch(
 
   // ── ACCESS, SCOPED BY SLOT — G1 ──────────────────────────────────────────
   //
-  // This used to read `branch.accessClassification ?? config.accessClass`,
-  // which meant a later access answer REPLACED an earlier one, silently and
-  // with no record that a different answer had been given first. That is the
-  // electrical synonym bug's direct descendant, and it is the behavior being
-  // removed rather than relocated.
+  // Access facts are ISOLATED BY SLOT. Within one slot, ordered successive
+  // writes are valid REFINEMENT and the last applicable writer wins.
   //
-  // Now: FIRST WRITER WINS PER SLOT, and a second writer with a different value
-  // raises a conflict the route fails closed on. There is no merge rule and no
-  // precedence rule, because the platform has nowhere to express how two
-  // answers about one location would combine.
+  // The refinement half is deliberate and load-bearing. Eight active Electrical
+  // services write access more than once along a route, each question narrowing
+  // the last: "there is a basement below" (ACCESSIBLE), then "but both sides
+  // are finished" (FINISHED). The later answer is the more specific one, and
+  // treating it as a conflict repriced five routes downward by dropping the
+  // refinement — which is what the ADR-021 baseline caught.
+  //
+  // The isolation half is what scoped access actually buys, and it is enough:
+  // INDOOR_EQUIPMENT and OUTDOOR_EQUIPMENT are different keys, so no amount of
+  // refinement in one can overwrite the other. The cross-location collision is
+  // removed STRUCTURALLY rather than by a refusal.
+  //
+  // No special case for PRIMARY. Refinement is legitimate in every slot, and a
+  // rule that held in one slot and not another would be two semantics to keep
+  // in step.
+  //
+  // Multi-writer refinement stays deliberate rather than accidental through
+  // scripts/verify-access-writers.ts, which fails on a NEW (service, slot) pair
+  // until somebody reviews it.
   let accessBySlot = config.accessBySlot;
-  let accessSlotConflict = config.accessSlotConflict;
   if (branch.accessClassification) {
-    const slot = branch.accessSlot ?? PRIMARY_SLOT;
-    const write = writeSlot(accessBySlot, slot, branch.accessClassification);
-    accessBySlot = write.map;
-    // The first conflict is kept. A later one does not overwrite the report of
-    // the earlier, for the same reason the values themselves don't.
-    if (write.kind === "CONFLICT" && accessSlotConflict === null) {
-      accessSlotConflict = write.slot;
-    }
+    accessBySlot = writeSlot(
+      accessBySlot,
+      branch.accessSlot ?? PRIMARY_SLOT,
+      branch.accessClassification
+    );
   }
 
   // PARALLEL PHASE ONLY. The legacy scalar tracks PRIMARY and nothing else, so
@@ -679,7 +672,6 @@ export function applyBranch(
   return {
     accessClass,
     accessBySlot,
-    accessSlotConflict,
       // A recipe naming a role this contractor has never costed fails closed,
       // exactly as an unapproved component price does. Never zero.
       awaitingComponentMaterialCost:

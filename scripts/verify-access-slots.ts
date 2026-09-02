@@ -36,11 +36,11 @@
 import {
   ACCESS_SLOTS,
   PRIMARY_SLOT,
-  accessConflictReason,
   isAccessSlot,
   orderAccessSlots,
   parseAccessSlot,
   writeSlot,
+  isRefinement,
   type AccessBySlot,
   type AccessSlot,
 } from "../lib/accessSlots";
@@ -193,14 +193,14 @@ function missingIsNotUnknown() {
 // 3. one_access_writer_per_slot — the runtime half
 // ---------------------------------------------------------------------------
 
-function oneWriterPerSlot() {
-  group("one_access_writer_per_slot — different slots coexist, same slot refuses");
+function slotIsolationAndRefinement() {
+  group("SLOT ISOLATION + REFINEMENT — different slots never collide, same slot refines");
 
   // ── THE COEXISTENCE PROOF, WITH DELIBERATELY MISMATCHED VALUES ───────────
   //
   // FINISHED indoors and ACCESSIBLE outdoors. Two MATCHING values could hide an
-  // overwrite — if the second write clobbered the first, a test using
-  // ACCESSIBLE twice would still pass and report a false green.
+  // overwrite — if one write clobbered the other, a test using ACCESSIBLE twice
+  // would still pass and report a false green.
   let config = fresh();
   config = applyBranch(config, accessAnswer("INDOOR_EQUIPMENT", "FINISHED"), {});
   config = applyBranch(config, accessAnswer("OUTDOOR_EQUIPMENT", "ACCESSIBLE"), {});
@@ -211,7 +211,6 @@ function oneWriterPerSlot() {
     config.accessBySlot.INDOOR_EQUIPMENT !== config.accessBySlot.OUTDOOR_EQUIPMENT,
     "the two slots hold different classifications simultaneously"
   );
-  ok(config.accessSlotConflict === null, "two different slots are not a conflict");
   ok(config.accessClass === null, "a non-PRIMARY slot never touches the legacy scalar");
 
   // Order must not matter.
@@ -224,41 +223,79 @@ function oneWriterPerSlot() {
     "answering in the opposite order produces the same state"
   );
 
-  // ── NO LAST-ANSWER-WINS ──────────────────────────────────────────────────
-  let conflict = fresh();
-  conflict = applyBranch(conflict, accessAnswer("INDOOR_EQUIPMENT", "ACCESSIBLE"), {});
-  conflict = applyBranch(conflict, accessAnswer("INDOOR_EQUIPMENT", "FINISHED"), {});
-
+  // ── SCOPED VALUES CANNOT OVERWRITE ONE ANOTHER ──────────────────────────
+  //
+  // The bug scoped access removes. Refining one slot repeatedly must leave
+  // every other slot untouched.
+  let isolated = fresh();
+  isolated = applyBranch(isolated, accessAnswer("OUTDOOR_EQUIPMENT", "ACCESSIBLE"), {});
+  isolated = applyBranch(isolated, accessAnswer("INDOOR_EQUIPMENT", "ACCESSIBLE"), {});
+  isolated = applyBranch(isolated, accessAnswer("INDOOR_EQUIPMENT", "FINISHED"), {});
+  isolated = applyBranch(isolated, accessAnswer("INDOOR_EQUIPMENT", "UNKNOWN"), {});
   ok(
-    conflict.accessBySlot.INDOOR_EQUIPMENT === "ACCESSIBLE",
-    "the FIRST established value is preserved — the later answer does not win"
+    isolated.accessBySlot.OUTDOOR_EQUIPMENT === "ACCESSIBLE",
+    "three refinements of INDOOR leave OUTDOOR exactly as it was"
   );
-  ok(conflict.accessSlotConflict === "INDOOR_EQUIPMENT", "and the conflict is raised, naming the slot");
+  ok(isolated.accessBySlot.INDOOR_EQUIPMENT === "UNKNOWN", "and INDOOR holds the last one");
   ok(
-    accessConflictReason("INDOOR_EQUIPMENT") ===
-      "Conflicting access classifications for access slot INDOOR_EQUIPMENT",
-    "the refusal carries an operator-facing reason naming the slot"
+    isolated.accessClass === null,
+    "PRIMARY is untouched by either — no slot can reach into another"
   );
 
-  // Re-establishing the SAME value is not a contradiction and must not review.
-  let repeat = fresh();
-  repeat = applyBranch(repeat, accessAnswer("PRIMARY", "ACCESSIBLE"), {});
-  repeat = applyBranch(repeat, accessAnswer("PRIMARY", "ACCESSIBLE"), {});
-  ok(repeat.accessSlotConflict === null, "re-establishing the same value is not a conflict");
+  // ── SUCCESSIVE REFINEMENT, LAST APPLICABLE WRITER WINS ──────────────────
+  //
+  // The live Electrical shape: below_above_access says ACCESSIBLE, then
+  // finished_space_both_sides narrows it to FINISHED. The second is the more
+  // specific answer and it must win.
+  let refined = fresh();
+  refined = applyBranch(refined, accessAnswer(PRIMARY_SLOT, "ACCESSIBLE"), {});
+  refined = applyBranch(refined, accessAnswer(PRIMARY_SLOT, "FINISHED"), {});
+  ok(
+    refined.accessBySlot[PRIMARY_SLOT] === "FINISHED",
+    "successive writes to one slot REFINE it — the last applicable writer wins"
+  );
+  ok(refined.accessClass === "FINISHED", "and the legacy scalar follows the refinement");
 
-  // The first conflict is the one reported.
-  let two = fresh();
-  two = applyBranch(two, accessAnswer("PRIMARY", "ACCESSIBLE"), {});
-  two = applyBranch(two, accessAnswer("PRIMARY", "FINISHED"), {});
-  two = applyBranch(two, accessAnswer("INDOOR_EQUIPMENT", "ACCESSIBLE"), {});
-  two = applyBranch(two, accessAnswer("INDOOR_EQUIPMENT", "FINISHED"), {});
-  ok(two.accessSlotConflict === "PRIMARY", "the first conflict is kept, not overwritten by a later one");
+  // Three-deep, the shape new-ceiling-fan actually has.
+  let deep = fresh();
+  deep = applyBranch(deep, accessAnswer(PRIMARY_SLOT, "ACCESSIBLE"), {});
+  deep = applyBranch(deep, accessAnswer(PRIMARY_SLOT, "ACCESSIBLE"), {});
+  deep = applyBranch(deep, accessAnswer(PRIMARY_SLOT, "FINISHED"), {});
+  ok(deep.accessBySlot[PRIMARY_SLOT] === "FINISHED", "three writers, the last still wins");
 
-  // The primitive itself, independent of the engine.
-  const w = writeSlot({ PRIMARY: "ACCESSIBLE" }, "PRIMARY", "FINISHED");
-  ok(w.kind === "CONFLICT", "writeSlot reports a conflict rather than resolving one");
-  ok(w.kind === "CONFLICT" && w.existing === "ACCESSIBLE" && w.attempted === "FINISHED",
-    "and carries both values, so review sees what disagreed");
+  // No special case for PRIMARY: refinement behaves identically in every slot.
+  let equally = fresh();
+  equally = applyBranch(equally, accessAnswer("INDOOR_EQUIPMENT", "ACCESSIBLE"), {});
+  equally = applyBranch(equally, accessAnswer("INDOOR_EQUIPMENT", "FINISHED"), {});
+  ok(
+    equally.accessBySlot.INDOOR_EQUIPMENT === "FINISHED",
+    "a non-PRIMARY slot refines the same way — PRIMARY is not grandfathered"
+  );
+
+  // A branch with no access answer changes nothing.
+  let untouched = fresh();
+  untouched = applyBranch(untouched, accessAnswer(PRIMARY_SLOT, "FINISHED"), {});
+  untouched = applyBranch(untouched, { priceModifierCents: 0 }, {});
+  ok(
+    untouched.accessBySlot[PRIMARY_SLOT] === "FINISHED",
+    "a non-access answer does not disturb an established slot"
+  );
+
+  // The primitive, independent of the engine.
+  ok(
+    writeSlot({ PRIMARY: "ACCESSIBLE" }, "PRIMARY", "FINISHED").PRIMARY === "FINISHED",
+    "writeSlot refines rather than refusing"
+  );
+  ok(
+    writeSlot({ PRIMARY: "ACCESSIBLE" }, "INDOOR_EQUIPMENT", "FINISHED").PRIMARY === "ACCESSIBLE",
+    "and writing one slot leaves the others alone"
+  );
+  ok(
+    isRefinement({ PRIMARY: "ACCESSIBLE" }, "PRIMARY", "FINISHED") &&
+      !isRefinement({}, "PRIMARY", "FINISHED") &&
+      !isRefinement({ PRIMARY: "FINISHED" }, "PRIMARY", "FINISHED"),
+    "isRefinement reports a narrowing, and reports it for the baseline only"
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -526,7 +563,10 @@ function locationScopeInvariant() {
       config.accessBySlot.OUTDOOR_EQUIPMENT === "ACCESSIBLE",
     "CASE B — indoor FINISHED and outdoor ACCESSIBLE coexist in one job"
   );
-  ok(config.accessSlotConflict === null, "with no conflict, so the route may still resolve");
+  ok(
+    config.accessBySlot.INDOOR_EQUIPMENT !== config.accessBySlot.OUTDOOR_EQUIPMENT,
+    "held independently, so neither location's answer displaced the other"
+  );
 
   // ── THE PRICING CLAIM, PROVED SEPARATELY ─────────────────────────────────
   //
@@ -536,7 +576,10 @@ function locationScopeInvariant() {
   let permitted = fresh();
   permitted = applyBranch(permitted, accessAnswer("INDOOR_EQUIPMENT", "ACCESSIBLE"), {});
   permitted = applyBranch(permitted, accessAnswer("OUTDOOR_EQUIPMENT", "ACCESSIBLE"), {});
-  ok(permitted.accessSlotConflict === null, "a permitted pair leaves no conflict");
+  ok(
+    Object.keys(permitted.accessBySlot).length === 2,
+    "a permitted pair establishes both slots and nothing else"
+  );
   ok(
     permitted.accessBySlot.INDOOR_EQUIPMENT === "ACCESSIBLE" &&
       permitted.accessBySlot.OUTDOOR_EQUIPMENT === "ACCESSIBLE",
@@ -614,7 +657,7 @@ function main() {
 
   vocabulary();
   missingIsNotUnknown();
-  oneWriterPerSlot();
+  slotIsolationAndRefinement();
   parallelEquivalence();
   authoringInvariants();
   locationScopeInvariant();

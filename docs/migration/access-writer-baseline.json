@@ -1,0 +1,70 @@
+[
+  {
+    "slug": "exterior-gfci-other-routing",
+    "slot": "PRIMARY",
+    "questions": [
+      "below_above_access",
+      "finished_space_both_sides"
+    ]
+  },
+  {
+    "slug": "fan-replacing-light",
+    "slot": "PRIMARY",
+    "questions": [
+      "below_above_access",
+      "ceiling_access",
+      "finished_space_both_sides"
+    ]
+  },
+  {
+    "slug": "garage-door-opener-outlet-ev",
+    "slot": "PRIMARY",
+    "questions": [
+      "attic_basement_access",
+      "finished_space_both_sides"
+    ]
+  },
+  {
+    "slug": "new-120v-outlet",
+    "slot": "PRIMARY",
+    "questions": [
+      "below_above_access",
+      "finished_space_both_sides"
+    ]
+  },
+  {
+    "slug": "new-ceiling-fan",
+    "slot": "PRIMARY",
+    "questions": [
+      "attic_access",
+      "below_above_access",
+      "finished_space_both_sides"
+    ]
+  },
+  {
+    "slug": "new-ceiling-light",
+    "slot": "PRIMARY",
+    "questions": [
+      "attic_access",
+      "below_above_access",
+      "finished_space_both_sides"
+    ]
+  },
+  {
+    "slug": "recessed-lighting",
+    "slot": "PRIMARY",
+    "questions": [
+      "below_above_access",
+      "ceiling_access",
+      "finished_space_both_sides"
+    ]
+  },
+  {
+    "slug": "tv-installation",
+    "slot": "PRIMARY",
+    "questions": [
+      "outlet_access",
+      "outlet_finished_space"
+    ]
+  }
+]

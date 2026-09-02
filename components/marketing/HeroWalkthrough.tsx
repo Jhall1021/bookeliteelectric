@@ -299,7 +299,7 @@ export default function HeroWalkthrough() {
       const q = qs.find((x) => x.key === s.questionKey);
       const o = q?.options.find((x) => x.value === s.optionValue) as AnswerOptionDTO | undefined;
       if (o?.accessClassification) {
-        map = writeSlot(map, o.accessSlot ?? PRIMARY_SLOT, o.accessClassification).map;
+        map = writeSlot(map, o.accessSlot ?? PRIMARY_SLOT, o.accessClassification);
       }
     }
     return map;
