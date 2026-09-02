@@ -30,7 +30,7 @@ import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { suggestPrimaryPrice } from "../lib/pricing";
 import { unapprovedPriceSources } from "../lib/activationOutcome";
-import { withThrowaway } from "./_throwaway";
+import { withThrowaway, destroyContractor } from "./_throwaway";
 
 const prisma = new PrismaClient();
 let fail = 0;
@@ -178,8 +178,53 @@ async function main() {
   // the guard that would catch this if the constraint were ever dropped, as it
   // was during remediation.
   const category = await prisma.service.findFirstOrThrow({ select: { categoryId: true } });
+
+  /**
+   * RUN-UNIQUE, because the worktree and the database are shared.
+   *
+   * This fixture was fixed until 2 September 2026, and a concurrent pair of
+   * full gate runs is what found it: one process died in `destroyContractor`
+   * with P2025 — it had looked the contractor up, then the sibling run
+   * deleted it before the delete landed. Running this verifier alone as a
+   * concurrent pair produced P2002 instead, the create losing the race rather
+   * than the delete. One shared fixture, three error codes across the two
+   * defects found this week, none of them a product fault.
+   *
+   * `withThrowaway` takes its slug from the CALLER, so the fix belongs here
+   * rather than in _throwaway.ts — the other four callers are manual-only and
+   * deliberately untouched.
+   *
+   * NOT SOLVED BY CATCHING P2025. Swallowing it would hide the delete failing
+   * for any other reason and would leave the create still racing. Identity is
+   * the fix; the error stays fatal.
+   *
+   * Same shape as verify-activation-dependencies and
+   * verify-policy-resolution, copied rather than reinvented. The prefix stays
+   * fixed so a fixture from a crashed run is still sweepable.
+   */
+  const PROBE_PREFIX = "zz-addon-approval-probe";
+  const PROBE_SLUG = `${PROBE_PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
+
+  /**
+   * Only what is genuinely abandoned. Sweeping every sibling would destroy a
+   * CONCURRENT run's live fixture — the collision the unique slug exists to
+   * prevent, arriving through the cleanup instead. Age separates "crashed"
+   * from "running".
+   */
+  const STALE_AFTER_MS = 60 * 60 * 1000;
+  const stale = await prisma.contractor.findMany({
+    where: {
+      slug: { startsWith: PROBE_PREFIX },
+      NOT: { slug: PROBE_SLUG },
+      createdAt: { lt: new Date(Date.now() - STALE_AFTER_MS) },
+    },
+    select: { slug: true },
+  });
+  for (const c of stale) await destroyContractor(prisma, c.slug);
+  if (stale.length) console.log(`  (swept ${stale.length} abandoned fixture(s))`);
+
   const addOnRefused = await withThrowaway(
-    prisma, "zz-addon-approval-probe", "Add-on approval probe",
+    prisma, PROBE_SLUG, "Add-on approval probe",
     async (contractorId) => {
       const host = await prisma.service.create({
         data: {
