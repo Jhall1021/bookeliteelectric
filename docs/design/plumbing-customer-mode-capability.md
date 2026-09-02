@@ -15,14 +15,11 @@ contractor control. The Plumbing catalog and code are unchanged; this reads them
 | --- | --- | --- |
 | `PRICE_ONLINE` | **49 / 63** | 14 |
 | `GUIDED_ESTIMATE` | **56 / 63** | 7 |
-| `ONSITE_VISIT` | **57 / 63** as frozen · **63 / 63** as capability | 6 · 0 |
+| `ONSITE_VISIT` | **63 / 63** | 0 |
 
-**39 services support all three** as frozen. No service supports zero. Every
-exclusion below names a capability fact, never an outcome.
-
-The `ONSITE_VISIT` row carries two numbers because the audit in §"`ONSITE_VISIT`"
-found that all six exclusions rest on economics rather than structure. The frozen
-model says 57; the governing rule says 63. That gap is recorded, not resolved.
+**45 services support all three.** No service supports zero, and no service
+excludes `ONSITE_VISIT`. Every exclusion below names a capability fact, never an
+outcome.
 
 ---
 
@@ -98,40 +95,30 @@ these carry `requires: ["excavation"]` and the reason recorded is
 that excavation implies exclusion; a service that broke ground where the scope
 *was* remotely establishable would be judged on its own facts.
 
-## `ONSITE_VISIT` — 6 exclusions as frozen, 0 that survive the rule
+## `ONSITE_VISIT` — no exclusions
 
-The frozen model excludes six services via `isPrimaryEligible = false`. Audited
-against the governing rule above, **none of the six survives it.**
+**Corrected 2 September 2026** under the reopening condition *"a service's actual
+trade semantics are proven wrong"*.
 
-| Service | Would a homeowner call about this alone? | Inherently an add-on? |
-| --- | --- | --- |
-| `water-heater-expansion-tank` | yes — an inspection flags it, or pressure symptoms appear | **no** |
-| `water-heater-tpr-valve-replacement` | yes — "water is coming out of a pipe on my heater" | **no** |
-| `toilet-supply-line-replacement` | yes — a burst or weeping supply line | **no** |
-| `sink-drain-assembly-replacement` | yes — a leaking basket strainer | **no** |
-| `p-trap-replacement` | yes — the classic leak under the sink | **no** |
-| `water-hammer-arrestor-installation` | yes — "my pipes bang" | **no** |
+Six services were `WHILE_WE_ARE_THERE_ONLY`. None survived the governing rule:
+each is a distinct complaint a homeowner would call about on its own — an
+inspection flagging a missing expansion tank, a discharging T&P valve, a weeping
+supply line, a leaking basket strainer, the classic leak under the sink, banging
+pipes. None is work that only makes sense while somebody is already there, which
+is the shape an inherent add-on actually takes.
 
-Every one corresponds to a distinct homeowner complaint that would prompt a
-dedicated call. None is work that only makes sense while already doing something
-else — the shape an inherent add-on takes, as in "haul away the old unit" or "add
-a shutoff while the wall is open".
+The justification recorded in `metadata.ts` named the service-call minimum —
+economics, in a canonical field. All six are now `PRIMARY_ELIGIBLE`, and the
+`VisitPosture` documentation carries the structural test instead so the same
+confusion cannot be re-introduced by argument.
 
-**So the exclusion is economics wearing structure's clothes.** Plumbing's own
-comment gives the game away: *"a terrible reason to send a van; offering it as a
-primary service sells a visit that cannot pay for itself, and the service-call
-minimum then makes the customer's price look absurd."* Every clause there is
-about cost, not about the work.
+**Primary-capable is not add-on-incapable.** The flag gates only whether the
+minimum applies when a service originates a visit; the While We're There path
+reads `whileWeThereBasePrice` regardless. All six keep their add-on behavior.
 
-**Recorded as a capability tension, not corrected.** Changing it means editing
-`metadata.visit` on six frozen services, which needs a reopening condition — most
-plausibly *"a service's actual trade semantics are proven wrong"*. This report
-does not take that decision.
-
-Consequences if it is later corrected: `ONSITE_VISIT` becomes 63/63, all-three
-rises from 39 to 45, and the six keep `PRICE_ONLINE` either way — they already
-price correctly as additions, and would simply also be sellable alone, with each
-contractor's minimum deciding whether they bother.
+`WHILE_WE_ARE_THERE_ONLY` remains a valid posture and is currently unused. A
+genuine add-on — hauling away an old unit, adding a shutoff while the wall is
+open — would still belong to it.
 
 ## Fact classification — §5
 

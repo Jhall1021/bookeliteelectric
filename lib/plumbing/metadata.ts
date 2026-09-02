@@ -55,11 +55,32 @@ export type PreWorkPosture = "REQUIRED" | "OPTIONAL" | "NOT_APPLICABLE";
 /**
  * Whether this service can be sold as the reason for a visit.
  *
- * Maps to TemplateService.isPrimaryEligible and to the While We're There
- * pricing path. Replacing a supply line is real work and a terrible reason to
- * send a van; offering it as a primary service sells a visit that cannot pay
- * for itself, and the service-call minimum then makes the customer's price
- * look absurd for what they get.
+ * Maps to TemplateService.isPrimaryEligible, which the schema calls
+ * "structural, not economic". That is the governing reading.
+ *
+ * STRUCTURAL MEANS STRUCTURAL. The test is:
+ *
+ *   If travel and minimum-charge economics disappeared entirely, would this
+ *   still inherently be an add-on rather than a valid standalone service?
+ *
+ * WHILE_WE_ARE_THERE_ONLY belongs to work that only makes sense while somebody
+ * is already there for another reason — hauling away the old unit, adding a
+ * shutoff while the wall is open. It does not belong to small work, cheap work,
+ * or work a contractor would rather not drive out for. Those are that
+ * contractor's minimum to enforce, and the minimum already does it:
+ * lib/pricing.ts floors a visit-originating service at primaryMinimumCents.
+ *
+ * SIX SERVICES WERE CLASSIFIED WRONG BY EXACTLY THAT CONFUSION. An expansion
+ * tank, a T&P valve, a toilet supply line, a sink drain assembly, a p-trap and
+ * a water hammer arrestor were all marked add-on-only, and the justification
+ * written here named the service-call minimum — economics, in a canonical
+ * field. Every one of them is a distinct complaint a homeowner would call about
+ * on its own. Corrected 2 September 2026 under the "trade semantics proven
+ * wrong" condition.
+ *
+ * PRIMARY-CAPABLE IS NOT ADD-ON-INCAPABLE. Both remain available: the flag
+ * gates only whether the minimum applies when this service originates a visit,
+ * and the While We're There path reads whileWeThereBasePrice regardless.
  */
 export type VisitPosture = "PRIMARY_ELIGIBLE" | "WHILE_WE_ARE_THERE_ONLY";
 

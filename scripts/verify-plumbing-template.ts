@@ -378,6 +378,37 @@ function failsClosed() {
     metadataProblems(s.metadata).map((p) => `${s.key}: ${p}`));
   ok(contradictory.length === 0, "no service declares contradictory metadata", contradictory.join(" | "));
 
+  /**
+   * THE SIX THAT WERE ECONOMICS WEARING STRUCTURE'S CLOTHES.
+   *
+   * All six were WHILE_WE_ARE_THERE_ONLY, justified by the service-call
+   * minimum — a contractor's number, in a canonical field. Each is a distinct
+   * complaint a homeowner would call about on its own, so each is
+   * primary-capable. Corrected 2 September 2026.
+   *
+   * Locked by name rather than by banning the posture: a genuine add-on —
+   * hauling away an old unit, adding a shutoff while the wall is open — would
+   * still be legitimately WHILE_WE_ARE_THERE_ONLY, and a rule forbidding the
+   * value outright would be the opposite mistake.
+   */
+  const CORRECTED_TO_PRIMARY = [
+    "water-heater-expansion-tank", "water-heater-tpr-valve-replacement",
+    "toilet-supply-line-replacement", "sink-drain-assembly-replacement",
+    "p-trap-replacement", "water-hammer-arrestor-installation",
+  ];
+  const reverted = CORRECTED_TO_PRIMARY.filter(
+    (k) => service(k).metadata.visit !== "PRIMARY_ELIGIBLE");
+  ok(reverted.length === 0,
+    "the six services corrected off add-on-only stay primary-capable",
+    `reverted: ${reverted.join(", ")} — see lib/plumbing/metadata.ts VisitPosture`);
+
+  // Primary-capable does not mean add-on-incapable. The flag gates only whether
+  // the minimum applies when the service originates a visit; the While We're
+  // There path reads whileWeThereBasePrice regardless, so nothing lost its
+  // add-on behavior by gaining primary eligibility.
+  ok(PLUMBING_SERVICES.every((s) => VISIT_POSTURES.includes(s.metadata.visit)),
+    "every service still declares a valid visit posture");
+
   const declared = PLUMBING_SERVICES.filter((s) =>
     PERMIT_POSTURES.includes(s.metadata.permit) && PHOTO_POSTURES.includes(s.metadata.photo) &&
     PRE_WORK_POSTURES.includes(s.metadata.preWork) && VISIT_POSTURES.includes(s.metadata.visit));

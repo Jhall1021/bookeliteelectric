@@ -228,7 +228,7 @@ export const PLUMBING_SERVICES: readonly PlumbingService[] = [
     families: ["fixture_access", "pipe_material"],
     gates: ["access_gate"],
     requires: ["licensed_plumber"],
-    metadata: M("EXCLUDED", "PREPARATION", "NOT_APPLICABLE", "WHILE_WE_ARE_THERE_ONLY"),
+    metadata: M("EXCLUDED", "PREPARATION", "NOT_APPLICABLE", "PRIMARY_ELIGIBLE"),
   },
   {
     key: "water-heater-tpr-valve-replacement",
@@ -239,7 +239,7 @@ export const PLUMBING_SERVICES: readonly PlumbingService[] = [
     families: ["fixture_access", "pipe_material"],
     gates: ["access_gate"],
     requires: ["licensed_plumber"],
-    metadata: M("EXCLUDED", "PREPARATION", "NOT_APPLICABLE", "WHILE_WE_ARE_THERE_ONLY"),
+    metadata: M("EXCLUDED", "PREPARATION", "NOT_APPLICABLE", "PRIMARY_ELIGIBLE"),
   },
   {
     key: "water-heater-flush",
@@ -357,10 +357,10 @@ export const PLUMBING_SERVICES: readonly PlumbingService[] = [
     families: ["shutoff_condition"],
     gates: ["shutoff_gate"],
     requires: ["licensed_plumber"],
-    // Real work, and a terrible reason to send a van. Offering it as a primary
-    // service sells a visit that cannot pay for itself, and the service-call
-    // minimum then makes the customer's price look absurd for what they get.
-    metadata: M("EXCLUDED", "NONE", "NOT_APPLICABLE", "WHILE_WE_ARE_THERE_ONLY"),
+    // A weeping or burst supply line is its own reason to call a plumber, so
+    // this is primary-capable. Whether a contractor thinks a dedicated trip is
+    // worth making is their minimum's business, not the template's.
+    metadata: M("EXCLUDED", "NONE", "NOT_APPLICABLE", "PRIMARY_ELIGIBLE"),
   },
 
   // ── Faucets & fixtures ───────────────────────────────────────────────────
@@ -537,7 +537,7 @@ export const PLUMBING_SERVICES: readonly PlumbingService[] = [
     families: ["fixture_access"],
     gates: ["access_gate"],
     requires: ["licensed_plumber"],
-    metadata: M("EXCLUDED", "NONE", "NOT_APPLICABLE", "WHILE_WE_ARE_THERE_ONLY"),
+    metadata: M("EXCLUDED", "NONE", "NOT_APPLICABLE", "PRIMARY_ELIGIBLE"),
   },
   {
     key: "p-trap-replacement",
@@ -548,7 +548,7 @@ export const PLUMBING_SERVICES: readonly PlumbingService[] = [
     families: ["fixture_access", "pipe_material"],
     gates: ["access_gate"],
     requires: ["licensed_plumber"],
-    metadata: M("EXCLUDED", "NONE", "NOT_APPLICABLE", "WHILE_WE_ARE_THERE_ONLY"),
+    metadata: M("EXCLUDED", "NONE", "NOT_APPLICABLE", "PRIMARY_ELIGIBLE"),
   },
 
   // ── Drains & sewer ───────────────────────────────────────────────────────
@@ -924,7 +924,7 @@ export const PLUMBING_SERVICES: readonly PlumbingService[] = [
     families: ["fixture_access", "pipe_material"],
     gates: ["access_gate"],
     requires: ["licensed_plumber"],
-    metadata: M("EXCLUDED", "NONE", "NOT_APPLICABLE", "WHILE_WE_ARE_THERE_ONLY"),
+    metadata: M("EXCLUDED", "NONE", "NOT_APPLICABLE", "PRIMARY_ELIGIBLE"),
   },
 
   // ── Service calls ────────────────────────────────────────────────────────
