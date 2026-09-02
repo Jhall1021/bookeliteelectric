@@ -32,7 +32,8 @@
  *   npx tsx scripts/capture-storefront-shots.ts --base http://localhost:3000
  */
 import { chromium, type Page } from "playwright";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, existsSync } from "node:fs";
+import { dirname } from "node:path";
 
 const arg = (n: string) => {
   const i = process.argv.indexOf(`--${n}`);
@@ -41,6 +42,8 @@ const arg = (n: string) => {
 
 const BASE = arg("base") ?? "https://price2book.com";
 const SITE = arg("site") ?? "elite-electric";
+/** The portal is a different origin from the storefront — ADR-019. */
+const ADMIN_BASE = arg("admin-base") ?? "https://app.price2book.com";
 const OUT = "public/marketing";
 const VIEWPORT = { width: 1280, height: 860 };
 
@@ -95,6 +98,14 @@ async function rename(page: Page, brand: string, sources: string[]) {
         [/\b\d{2,6}\s+[A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*)*\s+(?:Ave|Avenue|St|Street|Rd|Road|Dr|Drive|Ln|Lane|Blvd|Way|Ct|Court)\.?\b/g, "120 Example Ave."],
         [/\b[A-Z][a-z]+,\s*[A-Z]{2}\s+\d{5}\b/g, "Springfield, NJ 07000"],
         [/(Licen[cs]e\s*#?\s*)\d+/gi, "$1000000"],
+        // THE ADMIN SURFACE CARRIES OTHER PEOPLE'S DATA. The storefront is
+        // public and has none, but a review queue lists the homeowners who
+        // asked for a price — their names, e-mail addresses and telephone
+        // numbers. Those belong to neither Price2Book nor the contractor.
+        [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "customer@example.com"],
+        // The storefront slug is the tenant's identity in URL form, and the
+        // membership chooser prints it under the name.
+        [/elite-electric/g, "voltmark-electric"],
       ];
       const walk2 = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       const more: Text[] = [];
@@ -127,6 +138,13 @@ async function rename(page: Page, brand: string, sources: string[]) {
 /** Refuse to write the file if the identity swap missed anything. */
 async function assertRenamed(page: Page, where: string, sources: string[]) {
   const text = await page.evaluate(() => document.body.innerText);
+  // A leaked e-mail address is the failure mode the scrubber exists for, so
+  // it is asserted rather than assumed.
+  const stray = text.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)
+    ?.filter((e) => !e.includes("example.com") && !e.includes("price2book.com"));
+  if (stray?.length) {
+    throw new Error(`REFUSING to write ${where}: it still shows ${stray[0]}.`);
+  }
   for (const s of sources) {
     if (text.includes(s)) {
       throw new Error(
@@ -227,8 +245,9 @@ const SHOTS: Shot[] = [
     y: 0,
     height: 700,
     reach: async (page) => {
-      await page.goto(`${BASE}/dashboard/services`, { waitUntil: "networkidle" });
-      return page.locator("text=/Services & Pricing/i").first().isVisible();
+      await page.goto(`${ADMIN_BASE}/dashboard/services`, { waitUntil: "networkidle" });
+      if (page.url().includes("/choose") || page.url().includes("/sign-in")) return false;
+      return page.locator("h1, h2").filter({ hasText: /services/i }).first().isVisible();
     },
   },
   {
@@ -237,8 +256,9 @@ const SHOTS: Shot[] = [
     y: 0,
     height: 700,
     reach: async (page) => {
-      await page.goto(`${BASE}/dashboard/quotes`, { waitUntil: "networkidle" });
-      return page.locator("body").first().isVisible();
+      await page.goto(`${ADMIN_BASE}/dashboard/quotes`, { waitUntil: "networkidle" });
+      if (page.url().includes("/choose") || page.url().includes("/sign-in")) return false;
+      return page.locator("h1, h2").filter({ hasText: /quote/i }).first().isVisible();
     },
   },
   {
@@ -247,8 +267,9 @@ const SHOTS: Shot[] = [
     y: 0,
     height: 700,
     reach: async (page) => {
-      await page.goto(`${BASE}/dashboard/business-hours`, { waitUntil: "networkidle" });
-      return page.locator("body").first().isVisible();
+      await page.goto(`${ADMIN_BASE}/dashboard/business-hours`, { waitUntil: "networkidle" });
+      if (page.url().includes("/choose") || page.url().includes("/sign-in")) return false;
+      return page.locator("h1, h2").filter({ hasText: /hours/i }).first().isVisible();
     },
   },
 ];
@@ -258,19 +279,41 @@ async function main() {
   console.log(`\nSTOREFRONT SHOTS — ${BASE}/${SITE} as "${BRAND}"\n`);
 
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2 });
+  const reuse = arg("session") ?? ".auth/portal.json";
+  const haveSession = !arg("sign-in") && existsSync(reuse);
+  const ctx = await browser.newContext({
+    viewport: VIEWPORT,
+    deviceScaleFactor: 2,
+    ...(haveSession ? { storageState: reuse } : {}),
+  });
+  if (haveSession) console.log(`  reusing session from ${reuse}\n`);
   const page = await ctx.newPage();
   let written = 0;
 
   const signIn = arg("sign-in");
+  const sessionFile = arg("session") ?? ".auth/portal.json";
   if (signIn) {
     await page.goto(signIn, { waitUntil: "networkidle" });
-    console.log(`  signed in -> ${page.url()}\n`);
+    // An account with more than one membership lands on /choose. Selecting is
+    // part of signing in, not part of the shot.
+    if (page.url().includes("/choose")) {
+      const pick = page.locator(`a[href*="${SITE}"], button:has-text("Voltmark"), a:has-text("Voltmark")`).first();
+      if (await pick.count()) {
+        await pick.click();
+        await page.waitForLoadState("networkidle");
+      }
+    }
+    console.log(`  signed in -> ${page.url().replace(/token=[^&]+/, "token=REDACTED")}`);
+    // A magic link is single use. Persist the session so re-running the
+    // capture does not need a second one.
+    mkdirSync(dirname(sessionFile), { recursive: true });
+    await ctx.storageState({ path: sessionFile });
+    console.log(`  session saved -> ${sessionFile}\n`);
   }
 
   try {
     for (const shot of SHOTS) {
-      if (shot.needsAuth && !signIn) {
+      if (shot.needsAuth && !signIn && !haveSession) {
         console.log(`  - ${shot.name}: needs --sign-in "<magic link>" — skipped`);
         continue;
       }
