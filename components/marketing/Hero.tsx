@@ -66,7 +66,22 @@ export default function Hero() {
               it. The static price card that used to sit here showed the END of
               the story; this shows the story. Everything in it is captured
               from a live catalog — see HeroWalkthrough. */}
+          {/* FRAMING, OUTSIDE THE ISLAND — 2 September 2026.
+              The captured storefront carries that contractor's own no-estimates
+              line, which is TRUE of the Elite service being demonstrated and
+              must not be overridden: it is that contractor's product state,
+              not Price2Book's positioning. But
+              beside corporate copy offering Guided Estimates it could read as
+              the only model on offer. So the label sits outside the island and
+              names the configuration, leaving the capture untouched. That the
+              two can disagree is the point — the contractor picks per service. */}
           <div className="min-w-0 lg:mx-auto lg:w-[500px]">
+            <div className="mb-2.5 flex items-center gap-2">
+              <span className="h-1 w-1 shrink-0 rounded-full bg-p2b-faint" aria-hidden="true" />
+              <span className="text-[12px] leading-[1.4] text-p2b-muted-soft lg:text-[13px]">
+                Example shown: a service this contractor set to <strong className="font-semibold text-p2b-muted">Instant Price</strong>
+              </span>
+            </div>
             <HeroWalkthrough />
           </div>
 

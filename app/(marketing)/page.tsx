@@ -1,71 +1,67 @@
 import Hero from "@/components/marketing/Hero";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
 import {
-  CatalogGrid, DemoCta, EstimateTrips, Everywhere, GuidedPricingTeaser, NotYourCRM, Pillars,
-  PricingModes, StartSmall, TradeSignal, WhileWereThereTeaser,
+  Adoption, DemoCta, EstimateTrips, Everywhere, NotYourCRM, PricingModes, ProductProof,
+  TradeSignal,
 } from "@/components/marketing/Sections";
 
 /**
- * The Price2Book homepage — restructured 1 September 2026 once there were
- * destinations to restructure around, and again on 2 September once Guided
- * Estimates turned out to be a shipped capability rather than a future one.
+ * The Price2Book homepage.
  *
  * ITS JOB IS ONE SENTENCE: make a contractor understand why Price2Book
- * matters, trust that it is real, and know where to click next. Every "how
- * does it work" answer has a canonical home, so the homepage stopped being the
- * only place anything could be said — which is what let it stop saying
- * everything.
+ * matters, trust that it is real, and know where to click next. It sells the
+ * ideas and hands off the explanation — every "how does it work" answer has a
+ * canonical page now.
  *
- * WHAT THE SECOND PASS CHANGED, AND WHY IT WAS NOT COSMETIC.
+ * THREE PASSES, AND THE THIRD FIXED WHAT THE SECOND BROKE.
  *
- * The page taught ONE adoption axis — how much of the catalog goes online —
- * and silently answered the second one for the reader. "Online" meant "priced
- * instantly, in public", because when the page was written those were the only
- * two endings a job could have: an automatic price, or out of the system. That
- * lost every contractor unwilling to publish a number, which is a great many
- * of them, and it was not even true.
+ * 1 Sept — built the destination pages and moved the explanations off here.
+ * 2 Sept — added Guided Estimates, because it turned out to be shipped rather
+ *          than future. Both new sections earned their place. But nothing was
+ *          REMOVED to pay for them, so the page grew from ~7,145px to 8,826px
+ *          — longer, not more focused, which was the opposite of the point.
+ * 2 Sept — this pass. Removal only, no new ideas. The space the destination
+ *          pages created finally got spent.
  *
- * So two sections are new and they sit HIGH, above the mechanism teasers:
+ * WHAT WAS DELETED OUTRIGHT, not shrunk:
  *
- *   PricingModes    Instant Price · Guided Estimate · Onsite Visit, as three
- *                   legitimate choices rather than a maturity ladder
- *   EstimateTrips   the drive that only happened because information was
- *                   missing — a top-level reason to care, not a footnote
+ *   CatalogGrid            a 13-tile photograph grid proving breadth that one
+ *                          counted sentence proves → merged into Adoption
+ *   StartSmall             the other half of the same adoption story → Adoption
+ *   Pillars                a summary of three mechanisms → ProductProof
+ *   GuidedPricingTeaser    the summary again, with evidence that now lives on
+ *                          /product/guided-pricing → ProductProof
+ *   WhileWereThereTeaser   likewise, for /product/while-were-there
  *
- * THE WALKTHROUGH DID NOT CHANGE, DELIBERATELY. The hero animates a captured
- * Instant Price flow from real live data. Bending it to also demonstrate
- * Guided Estimates would mean drawing a flow nobody captured, which is the
- * exact failure the capture architecture exists to prevent. Only the prose
- * beside it broadened, so the first screen stops implying that using
- * Price2Book means publishing prices.
+ * The rule applied throughout: if a Product page owns the mechanism, the
+ * homepage may name it and link to it, and may not explain it. Deep proof —
+ * the 97 unsure answers, the real price pair, duration arithmetic — belongs
+ * to the pages built to carry it.
  *
- * The order is the argument: what it is (hero), who it is for (trades), how
- * much of my work it covers (catalog), how much of my business it touches
- * (start small), how my customers get a number (modes) — those two are the
- * adoption objection and come before any mechanism — then the reason to care,
- * the three ideas worth a teaser, the boundary, the invitation, and the ask.
+ * THE HERO WALKTHROUGH IS UNTOUCHED. It animates a captured Instant Price
+ * flow from live data, including the contractor's own "No estimates" line,
+ * which is true of that service. A framing label sits OUTSIDE the island
+ * naming the configuration, so one contractor's choice is not read as
+ * Price2Book's only model.
  */
 export const dynamic = "force-dynamic";
 
 export default function HomePage() {
   return (
     <main>
-      {/* 1–3. What it is, who it is for, how much work it covers. */}
+      {/* 1–2. What it is, and who it is for. */}
       <Hero />
       <TradeSignal />
-      <CatalogGrid />
 
-      {/* 4–6. The two freedoms, then the reason they matter. */}
-      <StartSmall />
+      {/* 3–5. The two freedoms, and why the second one pays. */}
+      <Adoption />
       <PricingModes />
       <EstimateTrips />
 
-      {/* 7–9. What it does, and the two mechanisms worth showing. */}
-      <Pillars />
-      <GuidedPricingTeaser />
-      <WhileWereThereTeaser />
+      {/* 6. Name the mechanisms; the Product pages explain them. */}
+      <ProductProof />
 
-      {/* 10–13. Where it lives, what it is not, a try, and the ask. */}
+      {/* 7–10. Where it lives, what it is not, a try, and the ask. */}
       <Everywhere />
       <NotYourCRM />
       <DemoCta />
