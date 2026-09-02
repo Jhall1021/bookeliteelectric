@@ -28,9 +28,10 @@ import { classifyRehearsalTarget } from "./_lineage";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
-import { activationRefusal } from "../lib/serviceActivation";
+import { activationRefusal, activateService } from "../lib/serviceActivation";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
 import { activationMaterialRoles } from "../lib/materialResolution";
+import { resolvePolicy } from "../lib/policyResolution";
 import { buildPlumbingPayload } from "../lib/plumbing/publish";
 import { PLUMBING_SERVICES, service as canonicalService } from "../lib/plumbing/catalog";
 import { composeService } from "../lib/plumbing/composition";
@@ -145,6 +146,21 @@ async function main() {
             create: { contractorId: c.id, canonicalMaterialId: r.id, unitCostCents: e.materialCost },
           });
       }
+      // COMPONENTS MUST EXIST BEFORE PROVISIONING, FOR BOTH CONTRACTORS.
+      //
+      // installCatalog links an answer's component only when the contractor
+      // already owns a ContractorComponent for it — `if (!priced) continue;`
+      // — and records nothing when it skips. The first run of this harness
+      // created them afterwards and got zero AnswerOptionComponent rows, which
+      // read like a publication defect and was actually this ordering rule.
+      const comps = await db.canonicalComponent.findMany({
+        where: { key: { in: buildPlumbingPayload().components.map((x) => x.key) } }, select: { id: true } });
+      for (const cc of comps)
+        await db.contractorComponent.upsert({
+          where: { contractorId_canonicalComponentId: { contractorId: c.id, canonicalComponentId: cc.id } },
+          update: { approvedPriceCents: e.componentPrice, labelOverride: e.equipment.label },
+          create: { contractorId: c.id, canonicalComponentId: cc.id, approvedPriceCents: e.componentPrice, labelOverride: e.equipment.label },
+        });
       await db.contractorTrade.upsert({
         where: { contractorId_tradeKey: { contractorId: c.id, tradeKey: "plumbing" } },
         update: {}, create: { contractorId: c.id, tradeKey: "plumbing" },
@@ -231,14 +247,21 @@ async function main() {
           create: { contractorId: cid, canonicalComponentId: c.id, approvedPriceCents: e.componentPrice, labelOverride: e.equipment.label },
         });
       // Policy boundaries: the numbers the template refused to ship.
-      await db.contractorPolicyValue.updateMany({
-        where: { contractorId: cid, key: "plumbing_run.breakpoints" },
-        data: { boundaries: [...e.runBoundaries], resolvedAt: new Date() },
-      });
-      await db.contractorPolicyValue.updateMany({
-        where: { contractorId: cid, key: "fixture.supply_arrangement" },
-        data: { choice: e.supply, resolvedAt: new Date() },
-      });
+      //
+      // Through resolvePolicy, not a raw update. Writing ContractorPolicyValue
+      // directly leaves every dependent service still carrying the key in
+      // unresolvedPolicyKeys, so the contractor answers the question and stays
+      // blocked — which is exactly what the first run of this harness did to
+      // itself, masking the price and material guards behind POLICY_UNRESOLVED.
+      const allPolicies = await db.contractorPolicyValue.findMany({
+        where: { contractorId: cid }, select: { key: true, boundaryCount: true } });
+      for (const pol of allPolicies) {
+        const answer = pol.boundaryCount === 0
+          ? { choice: e.supply }
+          : { boundaries: [...e.runBoundaries].slice(0, pol.boundaryCount) };
+        const res = await resolvePolicy(db, cid, pol.key, answer);
+        if (!res.ok) ok(false, `${slug}: resolvePolicy(${pol.key})`, JSON.stringify(res.refusal));
+      }
       ok(true, `${slug}: economics, policies and equipment configured`);
     }
 
@@ -416,6 +439,36 @@ async function main() {
       "PL-SVC-001 attaches no component — no repair is selected");
     ok(plSvc001.materials.length === 0,
       "PL-SVC-001 infers no material role from the symptom", `${plSvc001.materials.length} role(s)`);
+
+    /**
+     * PL-SVC-001 GOES LIVE FIRST, and the platform insists on it.
+     *
+     * Twenty-seven services compose existing_condition, whose "water is
+     * visibly leaking" answer routes REROUTE_TROUBLESHOOTING. activationRefusal
+     * resolves that against the contractor's own ACTIVE service-call service
+     * and returns DEPENDENCY_UNAVAILABLE while there is none — so every one of
+     * those services is blocked until the visit itself is launched.
+     *
+     * That is the right ordering and worth stating: a catalog may not offer a
+     * route to a destination the homeowner cannot actually reach. It also means
+     * the isolated guard tests below must satisfy it, or they measure this
+     * blocker instead of the one they are aiming at.
+     */
+    for (const slug of [A_SLUG, B_SLUG]) {
+      const sc = await db.service.findFirstOrThrow({
+        where: { contractorId: ids[slug], slug: "plumbing-service-call" }, select: { id: true } });
+      await db.service.update({ where: { id: sc.id },
+        data: { basePrice: slug === A_SLUG ? ECONOMICS[A_SLUG].serviceCallCents : ECONOMICS[B_SLUG].serviceCallCents,
+                publishedPriceApprovedAt: new Date() } });
+      const launched = await activateService(db, ids[slug], sc.id);
+      ok(launched.ok, `${slug}: PL-SVC-001 launches on its approved visit fee`,
+        launched.ok ? "" : `${launched.refusal.code}: ${launched.refusal.message}`);
+    }
+    const stillBlocked = await activationRefusal(db, ids[A_SLUG],
+      (await db.service.findFirstOrThrow({ where: { contractorId: ids[A_SLUG], slug: "toilet-replacement" }, select: { id: true } })).id);
+    ok(stillBlocked?.code !== "DEPENDENCY_UNAVAILABLE",
+      "with PL-SVC-001 live, dependent services no longer report a missing destination",
+      `still ${stillBlocked?.code}`);
 
     // ── BRANCH BASE MATERIAL: copper vs PEX ──────────────────────────────
     //
@@ -596,8 +649,15 @@ async function main() {
     // ── Still fails closed on everything else ────────────────────────────
     const zeroPriced = await db.service.count({ where: { contractorId: ids[B_SLUG], basePrice: 0 } });
     ok(zeroPriced === 0, "no service was given a $0 price to fill a gap", `${zeroPriced} at zero`);
-    const anyActive = await db.service.count({ where: { contractorId: ids[B_SLUG], active: true } });
-    ok(anyActive === 0, "nothing became publicly reachable by provisioning alone", `${anyActive} active`);
+    // Phase 1 already proved provisioning activates nothing. By here PL-SVC-001
+    // has been launched deliberately, so the question worth asking is whether
+    // anything ELSE crept live — a service going active as a side effect of
+    // another one launching would be the failure this catches.
+    const live = await db.service.findMany({
+      where: { contractorId: ids[B_SLUG], active: true }, select: { slug: true } });
+    ok(live.length === 1 && live[0].slug === "plumbing-service-call",
+      "the only live service is the one deliberately launched",
+      live.map((x) => x.slug).join(", ") || "none");
     const offeredNotActive = await db.service.count({ where: { contractorId: ids[A_SLUG], offered: true, active: false } });
     ok(offeredNotActive === 1, "'offered' does not imply 'active' — the storefront gate is separate", `${offeredNotActive}`);
 
