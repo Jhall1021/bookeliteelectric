@@ -767,3 +767,282 @@ changes is how many homes receive an automated price.
 **Two open items carried from the earlier pass, both now resolved by the trade decisions:**
 the weak Vent Covers entry is deferred, and the awkward consumable name is replaced by one
 that names its three contents.
+
+---
+
+# Part 8 — Customer modes and fact classification
+
+*2 September 2026. The §4.6 and §5 ask from `docs/design/guided-estimates.md`
+(branch `guided-estimates/v1-architecture`, `509eb0c`), answered for HVAC.*
+
+**Documentation only. Guided Estimates is NOT implemented here** — no milestone
+moves, no surfaces, no contractor controls, no code. This records what the HVAC
+trade model can defend, so the reasons do not have to be reconstructed later
+from services that no longer remember why a mode was excluded.
+
+Cited decisions are `D1`–`D7` from that document's LOCKED DECISIONS block.
+
+## 8.1 What is being recorded, and what it is not
+
+Three modes, declared per service as a **set** (D2):
+
+| Mode | Meaning |
+| --- | --- |
+| `PRICE_ONLINE` | Price2Book knows enough to produce the contractor-approved price |
+| `GUIDED_ESTIMATE` | Price2Book collects what the contractor needs to price remotely; a human sets the number |
+| `ONSITE_VISIT` | The scope genuinely requires someone onsite |
+
+**This is canonical CAPABILITY, not commercial outcome and not readiness.** It
+does not know which contractor is asking, what they configured, or whether
+anything is ready. A contractor selects from this set and may not widen it (D3).
+
+**Readiness never re-selects a mode (D4).** An HVAC service with unresolved
+labor inputs, no approved price or an outstanding policy key is **blocked and
+stays blocked**. It does not become a Guided Estimate and it does not reach a
+homeowner. Every readiness rule already in `serviceActivation.ts` and
+`onboardingReadiness.ts` applies unchanged; none of them may touch the mode.
+
+**Note the difference from `bookingType`.** HVAC's `REMOTE_QUOTE` services are
+canonically modeled in full and ship as quotes for a *commercial* reason (Q1).
+That is not the same statement as "this cannot be priced online", which is what
+a mode exclusion asserts. Four replacement services carry both, for different
+reasons, and the two must not be collapsed.
+
+## 8.2 The named-reason vocabulary
+
+D2 requires the specific fact that cannot be established, never a general
+judgment. **Six reasons cover the catalog**, down from seven: G1 removed the
+seventh by removing the limitation it named — see 8.5.
+
+| Reason | What cannot be established |
+| --- | --- |
+| `lineset_suitability_is_trade_judgment` | Whether an existing refrigerant line set may be reused. Observable presence and path only; reusability is a technician's determination (decision 5) |
+| `equipment_match_not_observable` | Whether the indoor coil or air handler matches the proposed outdoor unit |
+| `vent_termination_unmodeled` | The vent termination path and combustion-air provision at replacement. `venting_class` establishes how the existing appliance vents, not what the new one will require |
+| `duct_scope_unbounded` | Duct sizing, condition and adequacy. V1 models no distribution facts (Q6) |
+| `scope_produced_by_the_visit` | The work itself. The visit does not describe a scope, it establishes one — so there is nothing to price remotely either |
+| `same_visit_only_service` | Not a fact about the job — a fact about the *purchase*. The service is not primary-eligible, so it is never bought on its own and no customer mode applies to it standalone. See 8.7 |
+
+**`location_pair_unrepresentable` has been removed.** It named a limitation of
+the platform rather than a fact about HVAC, and G1 removed the limitation — the
+engine now holds `INDOOR_EQUIPMENT` and `OUTDOOR_EQUIPMENT` independently and
+neither can overwrite the other. An exclusion whose only ground was "Price2Book
+cannot represent this" is exactly the kind that must disappear when the platform
+learns to represent it; keeping it would make Guided Estimate a place to put
+limitations we can legitimately remove.
+
+## 8.3 Supported modes, per service
+
+`P` = `PRICE_ONLINE` · `G` = `GUIDED_ESTIMATE` · `V` = `ONSITE_VISIT`
+
+### Thermostats
+
+| Service | Modes | Excluded, and why |
+| --- | --- | --- |
+| Install or Replace a Thermostat | P · G · V | — |
+
+### Heating & Cooling Systems
+
+| Service | Modes | Excluded, and why |
+| --- | --- | --- |
+| Furnace Replacement | G · V | **P** — `vent_termination_unmodeled` |
+| Central Air Conditioner Replacement | G · V | **P** — `lineset_suitability_is_trade_judgment`, `equipment_match_not_observable` |
+| Heat Pump Replacement | G · V | **P** — `lineset_suitability_is_trade_judgment`, `equipment_match_not_observable` |
+| Replace My Heating and Cooling System | G · V | **P** — `equipment_match_not_observable`, `vent_termination_unmodeled` |
+| Condensate Pump | P · G · V | — |
+| Condensate Overflow Safety Switch | P · G · V | — *(see 8.7)* |
+| Outdoor Unit Pad Replacement | P · G · V | — *(see 8.7)* |
+
+### Ductless & Mini-Splits
+
+| Service | Modes | Excluded, and why |
+| --- | --- | --- |
+| Mini-Split Installation | G · V | **P** — `lineset_suitability_is_trade_judgment` |
+| Mini-Split Deep Cleaning | P · G · V | — |
+
+### Indoor Air Quality
+
+| Service | Modes | Excluded, and why |
+| --- | --- | --- |
+| Whole-House Humidifier | P · G · V | — |
+| Whole-Home Filter Cabinet | P · G · V | — |
+| UV Light / In-Duct Air Treatment | P · G · V | — |
+| Humidifier Pad, Media Filter or UV Bulb Replacement | P · G · V | — |
+| Standard Air Filter Replacement | P · G | **V** — `same_visit_only_service` |
+
+### Ducts & Vents
+
+| Service | Modes | Excluded, and why |
+| --- | --- | --- |
+| Replace Vent Covers and Grilles *(deferred)* | P · G · V | — |
+| Ductwork Inspection & Assessment | V | **P** and **G** — `duct_scope_unbounded`, `scope_produced_by_the_visit` |
+
+### Maintenance & Tune-Ups
+
+| Service | Modes | Excluded, and why |
+| --- | --- | --- |
+| Air Conditioner Tune-Up | P · G · V | — *(exclusion removed by G1; see 8.5)* |
+| Furnace Tune-Up | P · G · V | — |
+| Heat Pump Tune-Up | P · G · V | — *(exclusion removed by G1)* |
+| Mini-Split Tune-Up | P · G · V | — *(exclusion removed by G1)* |
+
+### Service Visit
+
+| Service | Modes | Excluded, and why |
+| --- | --- | --- |
+| HVAC Service Visit | V | **P** and **G** — `scope_produced_by_the_visit`. A reported symptom is context, not a scope; there is nothing for a human to price remotely either |
+
+## 8.4 Decision facts vs estimate-intake facts — §5
+
+**Decision facts** are consumed deterministically to choose scope, price,
+routing or refusal. **Estimate-intake facts** are collected because a human
+needs them to price remotely, and the engine prices nothing from them. Some
+facts are both; the classification is per use, not per name.
+
+The failure the split prevents: without it, every fact a contractor wants ends
+up in the deterministic tree as a routing-neutral `CONTINUE`, and the pricing
+engine ends up carrying questions that price nothing.
+
+### Decision facts — every one already gated
+
+| Fact | Consumed by |
+| --- | --- |
+| `system_type` | `identity_gate` |
+| `fuel_type` | `fuel_gate` |
+| `venting_class` | `venting_gate` |
+| `cooling_tons`, `heating_input_btu` | `capacity_gate` |
+| `indoor_location`, `outdoor_location` | `access_gate` |
+| `control_present`, `conductor_count`, `common_wire` | `control_gate` |
+| `equipment_condition` | `condition_gate` — effect-free, routing only |
+| `accessory_present`, `replacement_vs_new` | Service and branch selection |
+| `condensate_route`, `filter_slot_size` | Scope and material roles |
+| `supply_arrangement` | Policy-keyed pricing |
+| `head_count`, `zone_count`, `system_count` | Quantity |
+| `run_band` | Band policy |
+| `lineset_status` | Refusal only — presence and path, never reusability |
+
+### Estimate-intake facts — proposed, and priced by nobody
+
+Collected only on `GUIDED_ESTIMATE` routes. **None of these may enter the
+deterministic pricing tree**, and none is a gate input.
+
+| Fact | Why a human needs it | On |
+| --- | --- | --- |
+| Proposed indoor head positions | Mounting feasibility and line routing | Mini-Split Installation |
+| Proposed outdoor unit position | Pad, mounting, clearances, noise to neighbours | Mini-Split Installation, replacements |
+| Line-set path photograph | Whether the existing run is usable and how far it goes | Any service touching a line set |
+| Wall and ceiling construction | What the penetration involves | Mini-Split Installation |
+| Vent termination photograph | Where the new vent can terminate | Furnace Replacement |
+| Clearances around existing equipment | Whether the replacement fits where the old one stood | All equipment replacement |
+| Electrical supply and disconnect photograph | Whether the circuit and disconnect serve the new unit | Replacements, mini-splits |
+| Existing equipment photographs, wide and nameplate | Everything the questions did not think to ask | All `GUIDED_ESTIMATE` routes |
+| Delivery and access notes | Getting equipment to where it is installed | All equipment replacement |
+
+### Evidence-only facts — read by nothing, decision 3
+
+`manufacturer` · `model` · `serial` · **`manufacture_date`**
+
+Carried to the job sheet. No gate reads them, no mapping consumes them, no mode
+declaration depends on them. `manufacture_date` in particular must never
+trigger or recommend replacement — diagnosis by arithmetic.
+
+**These are a third category, not a subset of estimate-intake.** An
+estimate-intake fact is *given to a human to price with*; an evidence-only fact
+is recorded and used by no one to decide anything.
+
+## 8.5 Resolved by G1 — what the provisional marks became
+
+G1 was approved under option (a) and its proof is green: ADR-021 reports zero
+price delta across all 65 existing services, and the engine holds
+`INDOOR_EQUIPMENT = FINISHED` alongside `OUTDOOR_EQUIPMENT = ACCESSIBLE` with
+neither able to overwrite the other. **HVAC can represent the two-location fact
+that motivated G1.**
+
+Every provisional mark is therefore resolved, and they did not all resolve the
+same way — which is the point:
+
+| Service | Was | Now |
+| --- | --- | --- |
+| Air Conditioner Tune-Up | `PRICE_ONLINE` provisionally excluded | **Supported.** The only obstacle was representational |
+| Heat Pump Tune-Up | same | **Supported** |
+| Mini-Split Tune-Up | same | **Supported** |
+| Mini-Split Installation | two reasons, one provisional | **Still excluded** — `lineset_suitability_is_trade_judgment` |
+| Replace My Heating and Cooling System | three reasons, one provisional | **Still excluded** — `equipment_match_not_observable`, `vent_termination_unmodeled` |
+
+This is what makes the Guided Estimate positioning credible rather than
+convenient. The three routine tune-ups lost their exclusion because the platform
+learned to represent their scope; the two genuinely hard jobs kept theirs
+because a human still adds something. An estimate path that had absorbed all
+five would have been hiding a data-model limitation behind a product mode.
+
+### Consequences for HVAC's own architecture — not applied here
+
+Two recorded HVAC decisions were written when `location_pair_gate` was the
+answer, and both now need revisiting. **Neither is changed by this document.**
+
+- **Decision 2** — the `locationScope: "BOTH"` double refusal (`REMOTE_QUOTE`
+  booking outcome plus an independent `location_pair_gate`). Its premise was
+  that the platform could not carry two locations. It now can.
+- **Decision 9** — G1 as a pre-production blocker. It is delivered.
+
+The three tune-ups' `FIXED` product decision, held pending G1, is unblocked on
+the representational question. What has *not* been re-verified is whether each
+still prices correctly end to end once `location_pair_gate` stops refusing —
+that is HVAC implementation work, and HVAC is still parked.
+
+## 8.6 What HVAC is NOT doing
+
+No `supportedCustomerModes` field is added to the HVAC service type. No
+contractor-facing control, no company default, no selection UI, no readiness
+rule, no `QuotePricingForm` change. The §12 deposit-authority defect and D6/D7
+are not HVAC's and are untouched.
+
+This part is a record, and it stays a record until Guided Estimates is
+scheduled as its own piece of work.
+
+## 8.7 Audit — `visit_cannot_pay_for_itself`, and where it landed
+
+**Canonical capability must not depend on contractor economics.** The original
+reason failed that test on its own wording: *"cannot be sold at a defensible
+price"* is a claim about a price list, and a different contractor could
+reasonably disagree. Three services carried it, and they did not all resolve the
+same way.
+
+**Two exclusions withdrawn.** *Condensate Overflow Safety Switch* and *Outdoor
+Unit Pad Replacement* are both things a homeowner can and does ring up about —
+*"put a float switch on my AC"*, *"my outdoor unit is sinking"*. Each has a
+fully known scope and a contractor may legitimately sell a visit for it. The
+only ground for excluding `ONSITE_VISIT` was that the trip is unattractive,
+which is **contractor policy, not canonical capability**. Both now support all
+three modes; a contractor who does not want the call declines it through
+selection (D3) or offering (`Service.offered`).
+
+**One exclusion kept, renamed.** *Standard Air Filter Replacement* is
+`WHILE_WE_ARE_THERE_ONLY`, which maps to the canonical
+`TemplateService.isPrimaryEligible = false`. That is a platform-level statement
+that the service is **never bought on its own**, so no customer mode applies to
+it as a standalone purchase — a fact about the *purchase*, not about the price.
+The reason is now `same_visit_only_service` and it is grounded in
+`isPrimaryEligible`, not in a rate.
+
+### The one exclusion whose ownership remains ambiguous
+
+`same_visit_only_service` is honestly borderline, and it should be recorded as
+such rather than tidied away.
+
+The platform models it canonically — `VisitPosture` is trade metadata, not
+contractor configuration — but `lib/plumbing/metadata.ts` justifies it in
+economic terms: *"sells a visit that cannot pay for itself, and the service-call
+minimum then makes the customer's price look absurd."* The **mechanism** is
+canonical; the **argument for it** is economic.
+
+That is tolerable while one service depends on it, and it would not be if the
+reason spread. Two guards:
+
+1. `same_visit_only_service` may be used **only** where the canonical service is
+   already `isPrimaryEligible = false`. It may never be asserted directly as a
+   judgment about a service's worth.
+2. If a contractor ever needs a different answer — a maintenance-plan business
+   that genuinely does sell filter visits — that is the signal the concept is
+   contractor policy after all, and it moves. **It is not a reason to widen the
+   canonical exclusion to fit them.**
