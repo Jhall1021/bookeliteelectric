@@ -1,5 +1,29 @@
 # Plumbing ↔ Visual Assist — the integration contract
 
+> **STATUS — 1 September 2026: Plumbing Template V1 architecture FROZEN, ready for
+> pilot-hardening.**
+>
+> Two-contractor proof passed on a fresh production-descended Neon branch:
+> **106/106 database-backed checks**, **155/155 offline**, production untouched.
+> Proven end to end — atomic 63-service provisioning, tenant isolation in both
+> directions, divergent contractor economics, canonical byte-immutability,
+> isolated `PRICE_NOT_APPROVED`, isolated material-cost refusal,
+> branch-specific materials (copper/PEX) via the shared `AnswerOptionMaterial`
+> primitive, component-recipe materials reaching activation readiness, no-zero
+> on every path, and contractor teardown.
+>
+> Two rules the proof established and that should hold permanently:
+>
+> - **PL-SVC-001 is a real dependency.** Any service that can
+>   `REROUTE_TROUBLESHOOTING` must not activate unless its destination is live.
+>   The existing `DEPENDENCY_UNAVAILABLE` authority already enforces this.
+> - **Every material role on a reachable priceable path must be discoverable by
+>   shared readiness before activation** — zero orphans, no allowlist.
+>
+> One shared-platform gap remains open and is NOT blocking:
+> [provisioning discards component relationships](provisioning-component-resolution-gap.md).
+
+
 *31 August 2026. The agreed boundary between two workstreams built in parallel:
 Visual Assist in `lib/visual-assist/**`, Plumbing Template V1 in `lib/plumbing/**`.*
 
