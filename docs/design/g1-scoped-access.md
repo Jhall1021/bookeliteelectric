@@ -14,17 +14,36 @@
 > | Writer baseline | 8 reviewed pairs; tripwire proven to fail on a new pair **and** on a changed writer set |
 > | Plumbing | Untouched |
 >
-> **One correction to the design as approved.** The `one_access_writer_per_slot`
-> premise in §2 and §6.1 was **rejected on evidence** and replaced by:
+> ### The permanent platform invariant
 >
-> > Access facts are isolated by slot. Within one slot, ordered successive writes
-> > are valid **refinement** and the last applicable writer wins.
+> **Rejected:** ~~one writer per slot~~.
 >
-> Eight active Electrical services refine access deliberately, and refusing it
-> repriced five routes downward. The isolation half — different slots never
-> colliding — is what scoped access actually buys, and it is enough. §6.1 below
-> is preserved as the rejected premise; §9's acceptance checks 2 and 3 are read
-> against the corrected rule.
+> **Permanent — cross-slot isolation plus reviewed same-slot refinement:**
+>
+> > **Access facts are isolated by slot. Within one slot, ordered successive
+> > writes are valid refinement and the last applicable writer wins.**
+>
+> Stated as the five things it guarantees:
+>
+> - refinement inside `INDOOR_EQUIPMENT` may change `INDOOR_EQUIPMENT`;
+> - it can **never** modify `OUTDOOR_EQUIPMENT`;
+> - it can **never** modify `PRIMARY`;
+> - multiple writers within one slot are permitted **only** as deliberate ordered
+>   refinement;
+> - a new or changed multi-writer `(service, slot)` pair trips the baseline until
+>   reviewed.
+>
+> `writeSlot()` applies this to **every** slot. `PRIMARY` is not grandfathered
+> and holds no special rule, which is what stops the platform carrying two
+> semantics.
+>
+> **Why the earlier rule was wrong.** It was an abstraction invented after the
+> product, and the live Electrical catalog refused it: eight services legitimately
+> refine one access fact as the customer supplies more specific information, and
+> banning the second writer would have changed five existing routes. The corrected
+> invariant describes what the product actually does. §6.1 is preserved below as
+> the rejected premise rather than deleted, and §9's acceptance checks 2 and 3 are
+> read against this rule.
 
 **Origin: a shared-platform proposal, direction approved by product 2 September 2026
 with the nine decisions in §2 attached.**
@@ -103,7 +122,7 @@ Nine, resolved by product on 2 September 2026.
 | **5** | **Services and clients operate only on referenced slots.** The runtime may hold a full map; published flow data declares which slots that service references |
 | **6** | **Migration shape: expand → parallel → switch → contract**, with the parallel-stage equivalence invariant in §7.2 |
 | **7** | **ADR-021 is the behavioral acceptance gate.** Expected price delta is **zero** |
-| **8** | **Two separately named invariants** — `one_access_writer_per_slot` and `location_scope_matches_promised_work`. See §6 |
+| **8** | **Two separately named invariants.** The first was `one_access_writer_per_slot`; it was **rejected on evidence** and replaced by cross-slot isolation plus reviewed same-slot refinement, enforced by `writeSlot()` and `scripts/verify-access-writers.ts`. The second, `location_scope_matches_promised_work`, stands unchanged. See §6 |
 | **9** | **Lead the platform rationale with the cross-trade evidence** — §1.1 |
 
 ---
@@ -256,12 +275,30 @@ ships.**
 
 They solve different failures and must not be collapsed into one.
 
-### 6.1 ~~`one_access_writer_per_slot`~~ — REJECTED ON EVIDENCE
+### 6.1 Slot isolation and reviewed refinement — platform, structural
 
-*Preserved as the premise that was tested and failed. Eight active Electrical
-services write one slot more than once, deliberately, each question narrowing
-the last. This rule would have refused all eight and repriced five routes.
-Replaced by refinement — see the acceptance box at the top.*
+**The invariant in force.** Access facts are isolated by slot; within one slot,
+ordered successive writes are valid refinement and the last applicable writer
+wins. Enforced in two places that cannot disagree, because one is the mechanism
+and the other is the review:
+
+| Enforced by | What it guarantees |
+| --- | --- |
+| `writeSlot()` in `lib/accessSlots.ts` | A write reaches exactly one slot. No refinement in one slot can alter another — cross-slot isolation is structural, not checked |
+| `scripts/verify-access-writers.ts` | Same-slot refinement is *reviewed*. Eight baseline `(service, slot)` pairs today; a new or changed one fails until somebody looks |
+
+**Prevents runtime ambiguity** — the cross-location collision — while leaving the
+deliberate narrowing the product depends on.
+
+---
+
+#### ~~`one_access_writer_per_slot`~~ — the rejected premise
+
+*Preserved rather than deleted. It was tested against the live catalog and
+failed: eight active Electrical services write one slot more than once,
+deliberately, each question narrowing the last. This rule would have refused all
+eight and repriced five routes. It was an abstraction invented after the product
+rather than a description of it.*
 
 The rejected rule read:
 

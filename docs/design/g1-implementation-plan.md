@@ -51,7 +51,13 @@ rule is that our own bugs are uncertain scope.
 conflict is a `REVIEW` rather than an `INVALID`. Recommendation: `REVIEW`, because
 `INVALID` is reserved for routes that cannot be replayed at all.
 
-### 1.2 Where the `one_access_writer_per_slot` rule lives
+### 1.2 Where the slot-writer rule lives
+
+> **Outcome:** `one_access_writer_per_slot` was rejected on evidence — see
+> `g1-scoped-access.md`. The rule that shipped is cross-slot isolation plus
+> reviewed same-slot refinement, and the recommendation below held: nothing was
+> extracted, `lib/plumbing` was not touched, and the verifier is the shared
+> enforcement point.
 
 There is **no shared composition module.** `composeService` lives in `lib/plumbing/composition.ts`
 and is trade-local; HVAC would have its own. Implementing per-slot composition means either
