@@ -30,6 +30,7 @@
  */
 
 import type { PrismaClient, Prisma, AccessClassification } from "@prisma/client";
+import { parseAccessSlot, PRIMARY_SLOT, type AccessSlot } from "./accessSlots";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -154,6 +155,13 @@ export type PresentableDisclaimer = {
     // The real enum, not `string`. Widening it here would quietly widen every
     // DTO that carries an access classification downstream.
     accessClass: AccessClassification | null;
+    /**
+     * WHICH slot the condition reads — G1. A stored string, validated by
+     * lib/accessSlots.ts rather than widened into this type: the slot key is
+     * deliberately not a database enum, and the one module that knows the
+     * grammar is the one that should parse it.
+     */
+    accessSlot: string;
     active: boolean;
   };
 };
@@ -168,6 +176,23 @@ export function disclaimerAccessClass(
   d: PresentableDisclaimer
 ): AccessClassification | null {
   return d.canonicalDisclaimer.accessClass;
+}
+
+/**
+ * WHICH access slot the condition reads — G1.
+ *
+ * Meaningful only when `disclaimerAccessClass` is non-null; a concept that
+ * always applies has no slot to read, and the verifier refuses a non-PRIMARY
+ * slot in that state rather than storing a value that reads as significant.
+ *
+ * Falls back to PRIMARY on an unparseable stored value rather than throwing.
+ * A disclaimer is customer-facing text, and the fail-closed direction for text
+ * whose condition cannot be read is to evaluate it against the route every
+ * existing disclaimer was authored against — not to crash a booking flow.
+ * `verify-access-slots.ts` is what stops such a value existing.
+ */
+export function disclaimerAccessSlot(d: PresentableDisclaimer): AccessSlot {
+  return parseAccessSlot(d.canonicalDisclaimer.accessSlot) ?? PRIMARY_SLOT;
 }
 
 /**

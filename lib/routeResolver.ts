@@ -44,8 +44,10 @@ import { findTroubleshootingService } from "./troubleshooting";
 import {
   disclaimerIsActive,
   disclaimerAccessClass,
+  disclaimerAccessSlot,
   requireContractorDisclaimer,
 } from "./categories";
+import { parseAccessSlot } from "./accessSlots";
 import {
   startConfiguration,
   applyBranch,
@@ -423,6 +425,9 @@ export function resolveRoute(
         priceModifierCents: option.priceModifierCents,
         approvedComponentPriceCents: option.approvedComponentPriceCents,
         accessClassification: option.accessClassification,
+        // G1. Absent on every row authored before scoped access, which the
+        // column default resolves to PRIMARY — their existing meaning.
+        accessSlot: parseAccessSlot(option.accessSlot),
         overrideEstimatedMinutes: option.overrideEstimatedMinutes,
         overrideTechCount: option.overrideTechCount,
         overrideFieldLaborHours: option.overrideFieldLaborHours,
@@ -472,6 +477,7 @@ export function resolveRoute(
             conditionAnswerKey: c.conditionAnswerKey,
             conditionAnswerValue: c.conditionAnswerValue,
             conditionAccessClass: c.conditionAccessClass,
+            conditionAccessSlot: parseAccessSlot(c.conditionAccessSlot),
             component: {
               key: canonical.key,
               // The contractor's wording if they set one, else the shared
@@ -509,7 +515,9 @@ export function resolveRoute(
       const policy = requireContractorDisclaimer(service.slug, d.contractorDisclaimer);
       if (!disclaimerIsActive(policy)) continue;
       const ac = disclaimerAccessClass(policy);
-      if (ac === null || ac === config.accessClass) {
+      // G1: the condition reads a NAMED slot. An unestablished slot reads as
+      // undefined and matches nothing, exactly as a null accessClass did.
+      if (ac === null || ac === config.accessBySlot[disclaimerAccessSlot(policy)]) {
         disclaimers.push(policy.text);
       }
     }

@@ -583,7 +583,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       <QuestionStep
         question={state.question}
         answers={answers}
-        accessClass={config?.accessClass ?? null}
+        accessBySlot={config?.accessBySlot ?? {}}
         onAnswer={(option) => handleAnswer(state.question, option)}
       />
     );

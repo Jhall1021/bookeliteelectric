@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { parseAccessSlot, PRIMARY_SLOT, orderAccessSlots } from "@/lib/accessSlots";
 import { prisma } from "@/lib/prisma";
 import type { ServiceFlowDTO } from "@/lib/flow-types";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
@@ -7,6 +8,7 @@ import {
   requireContractorCategory,
   disclaimerIsActive,
   disclaimerAccessClass,
+  disclaimerAccessSlot,
   requireContractorDisclaimer,
 } from "@/lib/categories";
 import {
@@ -127,8 +129,32 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
       ))?.crewHourRateCents ?? null
     : null;
 
+  /**
+   * The access slots this flow can ESTABLISH — G1, derived from the WRITERS.
+   *
+   * An answer qualifies only when it actually declares a classification: a slot
+   * column defaulted to PRIMARY on an answer that establishes nothing is not a
+   * writer, and publishing it would tell the client to expect state no question
+   * produces.
+   *
+   * Readers — component, disclaimer and help conditions — are deliberately NOT
+   * unioned in. A condition on a slot nothing writes is a defect, caught by
+   * `access_slot_reader_has_writer` in verify-access-slots.ts, not a slot to
+   * advertise. `orderAccessSlots` sorts to the platform's declared order so the
+   * published list does not depend on which question happened to be authored
+   * first.
+   */
+  const referencedAccessSlots = orderAccessSlots(
+    service.questions.flatMap((q) =>
+      q.options
+        .filter((o) => o.accessClassification !== null)
+        .map((o) => o.accessSlot)
+    )
+  );
+
   const dto: ServiceFlowDTO = {
     id: service.id,
+    referencedAccessSlots,
     slug: service.slug,
     name: service.name,
     bookingType: service.bookingType,
@@ -174,6 +200,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         .map(({ h, policy }) => ({
           text: policy.text,
           accessClass: disclaimerAccessClass(policy),
+          accessSlot: disclaimerAccessSlot(policy),
           replaces: h.replacesHelpText,
         })),
       order: q.order,
@@ -213,6 +240,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         overrideFieldLaborHours: o.overrideFieldLaborHours,
         approvedComponentPriceCents: o.approvedComponentPriceCents,
         accessClassification: o.accessClassification,
+        accessSlot: parseAccessSlot(o.accessSlot) ?? PRIMARY_SLOT,
         accessFinishedDisclaimer: o.accessFinishedDisclaimer,
         conditionalDisclaimers: o.conditionalDisclaimers
           .map((d) => ({
@@ -222,6 +250,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
           .map(({ policy }) => ({
             text: policy.text,
             accessClass: disclaimerAccessClass(policy),
+            accessSlot: disclaimerAccessSlot(policy),
           })),
         components: o.components.flatMap((sel) => {
           const canonical = sel.canonicalComponent;
@@ -240,6 +269,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
               // §29 — null on both means the component always applies; when
               // set, it applies only if the customer's earlier answer matches.
               conditionAccessClass: sel.conditionAccessClass,
+              conditionAccessSlot: parseAccessSlot(sel.conditionAccessSlot) ?? PRIMARY_SLOT,
               conditionAnswerKey: sel.conditionAnswerKey,
               conditionAnswerValue: sel.conditionAnswerValue,
               component: {
