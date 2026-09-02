@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { HERO, NAV, PRODUCT_PAGES, TRADES } from "./content";
+import MobileNav from "./MobileNav";
 
 /**
  * The Price2Book logo, as delivered by the designer.
@@ -103,13 +104,13 @@ function Menu(
  */
 export function MarketingHeader({ signInHref }: { signInHref: string }) {
   return (
-    <header className="border-b border-p2b-line">
+    <header className="relative border-b border-p2b-line">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-6 px-5 py-3.5 lg:px-[88px] lg:py-5">
         <a href="/" aria-label="Price2Book — home">
           <Logo />
         </a>
 
-        <nav className="hidden items-center gap-[30px] text-[15px] text-p2b-muted xl:flex">
+        <nav className="hidden items-center gap-[30px] text-[15px] text-p2b-muted lg:flex">
           {NAV.map((item) =>
             /* Trades opens; everything else is still a link, because the
                pages the other menus will hold do not exist yet and a menu
@@ -138,14 +139,10 @@ export function MarketingHeader({ signInHref }: { signInHref: string }) {
           </a>
         </nav>
 
-        {/* Below xl the nav collapses to the same two actions, same hierarchy. */}
-        <div className="flex items-center gap-4 text-[14px] xl:hidden">
-          <a href={signInHref} className="font-medium text-p2b-ink">Sign In</a>
-          <a href="/#access"
-             className="rounded-sm bg-p2b-accent px-3.5 py-2 font-semibold text-p2b-canvas">
-            Early Access
-          </a>
-        </div>
+        {/* Below lg, the two actions PLUS a real menu. This used to be the two
+            actions alone, which meant every route except the homepage was
+            unreachable on a laptop window, a tablet or a phone. */}
+        <MobileNav signInHref={signInHref} />
       </div>
     </header>
   );

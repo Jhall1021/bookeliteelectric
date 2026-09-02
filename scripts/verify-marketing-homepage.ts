@@ -540,6 +540,47 @@ async function statics() {
     "PriceSight is not in the product menu",
     "it has not shipped — SITEMAP.md holds it out of navigation");
 
+  console.log("\n  THE SITE IS NAVIGABLE AT EVERY WIDTH");
+  /**
+   * 217 checks asserted what the site CLAIMED and not one asked whether a
+   * visitor could reach it. The desktop nav was `hidden … xl:flex` with no
+   * menu behind it, so below 1280px — most laptop windows, every tablet, every
+   * phone — the entire multi-page site was unreachable from the homepage, and
+   * Guided Estimates shipped invisible. It reached production that way.
+   */
+  const headerSrc = read("components/marketing/Chrome.tsx");
+  const mobile = read("components/marketing/MobileNav.tsx");
+
+  // Desktop: the primary nav appears at the laptop breakpoint, not above it.
+  ok(/<nav className="[^"]*\blg:flex\b/.test(headerSrc),
+    "the primary nav is visible from the lg breakpoint up",
+    "an xl-only nav hides every destination on a sub-1280px laptop");
+  ok(!/\bxl:(flex|hidden)\b/.test(headerSrc),
+    "…and no xl-only visibility rule survives in the header");
+
+  // Mobile: a trigger exists, and it is a real disclosure.
+  ok(existsSync("components/marketing/MobileNav.tsx"), "a mobile menu component exists",
+    "below lg the header would collapse to Sign In and the CTA alone");
+  ok(/\bMobileNav\b/.test(headerSrc), "…and the header renders it");
+  ok(/aria-expanded=/.test(mobile) && /aria-controls=/.test(mobile),
+    "the trigger reports aria-expanded and aria-controls");
+  ok(/id="marketing-mobile-nav"/.test(mobile), "…and the panel carries that id");
+  ok(/key === "Escape"/.test(mobile), "Escape closes the menu");
+  ok(/onClick=\{\(\) => setOpen\(false\)\}/.test(mobile),
+    "following a link closes the menu",
+    "a panel that survives navigation covers the page it just opened");
+
+  // The panel must reach the destinations, and must not invent claims: it
+  // reads the SAME constants the desktop menu does, so a status row stays a
+  // status row rather than becoming a link on a small screen.
+  for (const src of ["NAV", "PRODUCT_PAGES", "TRADES"]) {
+    ok(new RegExp(`\\b${src}\\b`).test(mobile), `the panel is built from ${src}`,
+      "hand-listing destinations here would let the two navs disagree");
+  }
+  ok(/i\.href \?/.test(mobile),
+    "a row without an href renders as a status, not a link",
+    "Website Embed must stay unclickable at every width");
+
   console.log("\n  GUIDED ESTIMATES IS A SIBLING, NOT A FALLBACK");
   const gePath = "app/(marketing)/product/guided-estimates/page.tsx";
   const ge = read(gePath);
