@@ -97,7 +97,10 @@ whose every other model delegates to the real client, so the contractor lookup
 and the tenant guard underneath are the real ones. Its only rows are ordinary
 throwaway fixtures — a contractor, an owner with a membership on it, users
 with no grant — and it removes them. The bootstrap is run from it only in the
-modes that write nothing: refused arguments and a dry run. It checks its own
+modes that write nothing: refused arguments and a dry run. It never passes the
+apply flag — its bootstrap helper refuses the flag at runtime, and the file
+asserts that its own source does not spell it — so a future reordering of the
+bootstrap's refusals could not turn a production test into a grant. It checks its own
 source for a `PlatformAccess` write and checks that the live verifier is not
 in the default chain.
 
@@ -107,7 +110,16 @@ else it asks `scripts/_lineage.ts` the same question the contract rehearsal
 asks — is this a branch of the current production lineage whose marker was
 stamped for a different endpoint? — and refuses production, the archive, an
 unrelated database and an unmarked one by that positive test; then it also
-refuses a target on `DATABASE_URL`'s endpoint. There it runs the bootstrap in
+refuses a target on `DATABASE_URL`'s endpoint. Then, and only then, it performs one
+destructive preparation: it deletes every `PlatformAccess` row the branch
+inherited, with a count and the affected identities printed. A branch of
+production carries production's grants, so once the first real administrator
+exists every new branch would otherwise report "an administrator already
+exists" and the apply and concurrency proofs would be unreachable. On a copy
+that row is data, not a decision. The deletion runs through a function that
+re-derives its permission from the same verdict and the same endpoint
+comparison and throws before touching anything if either is not what the
+proof required, so production cannot reach it. There it runs the bootstrap in
 every mode: dry run, apply, repeat for the same user, repeat for another user,
 revoke-then-not-reinstated, and a first grant to someone else after a
 revocation. It also starts two bootstraps at the same instant from two

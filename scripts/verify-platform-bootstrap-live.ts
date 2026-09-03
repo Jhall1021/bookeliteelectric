@@ -26,6 +26,19 @@
  * which asks the same lineage question again from inside the script, so the
  * script itself refuses the original even if this wrapper were bypassed.
  *
+ * DESTRUCTIVE PREPARATION, AFTER THE PROOF AND ONLY THERE
+ *
+ * A branch of production inherits production's rows — including, once the
+ * first real administrator exists, that administrator's PlatformAccess. Left
+ * in place it would make the apply and concurrency proofs permanently
+ * unreachable ("an administrator already exists"). So, after and only after
+ * the target has been accepted as a rehearsal branch, this DELETES EVERY
+ * PlatformAccess row on the branch as fixture setup, and says so with a
+ * count. On a branch that is a copy, not a decision. Production cannot reach
+ * this step: the deletion is performed by a function that re-derives its
+ * permission from the same verdict and the same endpoint comparison, and
+ * throws before touching anything if either is not what the proof required.
+ *
  * CONCURRENCY
  *
  * Two bootstraps are started at the same instant against a database with no
@@ -38,7 +51,7 @@
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 import { loadEnv } from "./_env";
-import { classifyRehearsalTarget, endpointOf } from "./_lineage";
+import { classifyRehearsalTarget, endpointOf, type Verdict } from "./_lineage";
 import { bootstrapPlatformAdmin } from "./bootstrap-platform-admin";
 import { platformActorFor } from "../lib/platformContext";
 
@@ -49,6 +62,30 @@ const target = process.env[TARGET_VAR];
 const production = process.env.DATABASE_URL;
 
 const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
+
+/**
+ * Remove the grants a branch inherited, so the bootstrap has a database with
+ * no administrator to run against. Permission is re-derived here rather than
+ * trusted from the caller: the verdict must be an acceptance, the target's
+ * endpoint must differ from production's, and the client must be bound to
+ * that same target endpoint. Any other state throws before a row is touched.
+ */
+async function clearInheritedGrants(
+  db: PrismaClient, verdict: Verdict, targetUrl: string, productionUrl: string | undefined
+): Promise<number> {
+  if (!verdict.ok) throw new Error("refusing to clear grants: the target was not accepted as a rehearsal branch");
+  if (!productionUrl) throw new Error("refusing to clear grants: production's endpoint is unknown");
+  if (endpointOf(targetUrl) === endpointOf(productionUrl)) throw new Error("refusing to clear grants: the target is production's endpoint");
+  if (verdict.probe.endpoint !== endpointOf(targetUrl)) throw new Error("refusing to clear grants: the verdict is for a different endpoint");
+  if (verdict.probe.markerEndpoint === verdict.probe.endpoint) throw new Error("refusing to clear grants: the marker names this endpoint, so this is an original");
+  const inherited = await db.platformAccess.findMany({ select: { userId: true, role: true, revokedAt: true, user: { select: { email: true } } } });
+  if (inherited.length) {
+    console.log(`  PREPARING  deleting ${inherited.length} PlatformAccess row(s) the branch inherited — rehearsal fixture setup, on a copy:`);
+    for (const g of inherited) console.log(`             ${g.role}${g.revokedAt ? " (revoked)" : ""}  ${g.user.email}`);
+  }
+  const { count } = await db.platformAccess.deleteMany({});
+  return count;
+}
 const USER_PREFIX = "test-platform-bootstrap-live";
 const EMAIL_PREFIX = "p2b-verify-platform-live-";
 const STALE_AFTER_MS = 60 * 60 * 1000;
@@ -104,15 +141,12 @@ async function main() {
 
   try {
     await sweep();
-    // This suite needs a database with no administrator. On a rehearsal
-    // branch a leftover grant is debris, not a decision — but it is removed
-    // only when it belongs to a probe user, never silently otherwise.
-    const foreign = await db.platformAccess.count({ where: { revokedAt: null, NOT: { user: { email: { startsWith: EMAIL_PREFIX } } } } });
-    if (foreign > 0) {
-      console.error(`  REFUSING: the branch already has ${foreign} active administrator(s) that this suite did not create. Re-branch, or clear it deliberately.\n`);
-      process.exit(1);
-    }
-    await db.platformAccess.deleteMany({ where: { user: { email: { startsWith: EMAIL_PREFIX } } } });
+    // This suite needs a database with no administrator. A branch inherits
+    // production's grants, so they are cleared here — after the proof above,
+    // through a function that re-checks it. See the header.
+    const cleared = await clearInheritedGrants(db, verdict, target, production);
+    ok(`0. the branch starts with no administrator (${cleared} inherited row(s) cleared as fixture setup)`,
+      (await db.platformAccess.count()) === 0);
 
     const a = await makeUser("a");
     const b = await makeUser("b");

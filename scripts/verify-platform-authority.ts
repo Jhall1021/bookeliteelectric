@@ -106,8 +106,20 @@ async function sweepStale() {
   if (users || stale.length) console.log(`  (swept ${users} abandoned user(s), ${stale.length} abandoned contractor(s))`);
 }
 
-/** Run the real bootstrap script the way an operator would. */
+/**
+ * The apply flag, assembled rather than written, so this file can assert it
+ * never contains the spelled-out flag. This verifier runs against production
+ * and exercises the bootstrap ONLY in modes that cannot write: a refusal
+ * before the write, or a dry run. Today the refusals come first in the
+ * script; a future reordering must not be able to turn one of these calls
+ * into a grant, so the flag is refused here at runtime as well as absent from
+ * the source.
+ */
+const APPLY_FLAG = ["--", "apply"].join("");
+
+/** Run the real bootstrap script the way an operator would — never applying. */
 function bootstrap(args: string[]): { status: number; out: string } {
+  if (args.includes(APPLY_FLAG)) throw new Error(`the default verifier never runs the bootstrap with ${APPLY_FLAG}`);
   try {
     const out = execFileSync("npx", ["tsx", "scripts/bootstrap-platform-admin.ts", ...args], { encoding: "utf8", stdio: "pipe" });
     return { status: 0, out };
@@ -173,10 +185,10 @@ async function main() {
   ok(`   and refuses to run without being told which database`, r.status === 1 && /--expect/.test(r.out));
   r = bootstrap(["--user", boot.id, "--expect", "some-other-database"]);
   ok(`   and refuses a database that is not the one named`, r.status === 1 && /not "some-other-database"/.test(r.out));
-  r = bootstrap(["--user", `${USER_PREFIX}-${RUN}-nobody`, ...KEY, "--apply"]);
+  r = bootstrap(["--user", `${USER_PREFIX}-${RUN}-nobody`, ...KEY]);
   ok(`   a user that does not exist is refused, not created`,
     r.status === 1 && /no user with id/.test(r.out) && (await raw.user.findUnique({ where: { id: `${USER_PREFIX}-${RUN}-nobody` } })) === null);
-  r = bootstrap(["--user", unverified.id, ...KEY, "--apply"]);
+  r = bootstrap(["--user", unverified.id, ...KEY]);
   ok(`   an unverified user is refused`, r.status === 1 && /not verified/.test(r.out) && (await grantsFor(unverified.id)) === null);
 
   r = bootstrap(["--user", boot.id, "--rehearsal-branch-of", identity.key]);
@@ -306,8 +318,8 @@ async function main() {
   const readers = appAndLib.filter((f) => /platformAccess\./.test(strip(f)));
   ok(`   and exactly one module reads it`, readers.length === 1 && readers[0] === "lib/platformContext.ts", readers.join(", "));
   const bootSrc = strip("scripts/bootstrap-platform-admin.ts");
-  ok(`   the bootstrap takes a user id, checks the database stamp, and needs --apply`,
-    /flag\("user"\)/.test(bootSrc) && !/flag\("email"\)/.test(bootSrc) && /databaseIdentity/.test(bootSrc) && /--apply/.test(bootSrc) && /grantedByUserId: null/.test(bootSrc));
+  ok(`   the bootstrap takes a user id, checks the database stamp, and needs the apply flag`,
+    /flag\("user"\)/.test(bootSrc) && !/flag\("email"\)/.test(bootSrc) && /databaseIdentity/.test(bootSrc) && bootSrc.includes(APPLY_FLAG) && /grantedByUserId: null/.test(bootSrc));
   ok(`   and grants nothing but PLATFORM_ADMIN`, !/PLATFORM_SUPPORT|PLATFORM_OWNER|PLATFORM_BILLING/.test(bootSrc));
 
   const layout = strip("app/platform/layout.tsx");
@@ -329,6 +341,8 @@ async function main() {
   const self = strip("scripts/verify-platform-authority.ts");
   ok(`11. this verifier writes no PlatformAccess row, in any form`,
     !/platformAccess\.(create|update|upsert|delete|createMany|updateMany|deleteMany)/.test(self));
+  ok(`    and never spells the bootstrap's apply flag, let alone passes it`,
+    !readFileSync("scripts/verify-platform-authority.ts", "utf8").includes(APPLY_FLAG) && /args\.includes\(APPLY_FLAG\)\) throw/.test(self));
   const chain = (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts;
   ok(`    and the live bootstrap verifier is not in the default gate`,
     !/verify-platform-bootstrap-live/.test(chain.verify) && /verify-platform-bootstrap-live/.test(chain["verify:platform-live"] ?? ""));
