@@ -23,6 +23,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { assessMaterialReadiness } from "./materialResolution";
 
 /** One service as the platform defines it, before any contractor economics. */
 export type CanonicalService = Record<string, unknown>;
@@ -386,20 +387,33 @@ export async function installCatalog(
           select: { id: true },
         });
 
-        // A material is linked only if the contractor has already priced it.
-        // ContractorMaterial.unitCostCents is required and provisioning may
-        // not invent a cost, so an uncosted role joins unresolvedMaterialKeys.
-        const stillUnresolved = [...unresolved];
+        /**
+         * STRUCTURE IS INSTALLED WHETHER OR NOT IT IS COSTED YET.
+         *
+         * This used to skip the link when the contractor had no cost — and
+         * record the key in unresolvedMaterialKeys anyway. That is backwards,
+         * and it was a trap rather than a conservatism: with no link,
+         * requiredRolesFor() sees nothing, assessMaterialReadiness reports
+         * "ready, 0 roles", recomputeServiceMaterialCost exits early as "not
+         * itemized", and the key can NEVER be cleared. Entering the cost
+         * afterwards changed nothing. Three of six Plumbing starter services
+         * were permanently unlaunchable this way, while Guided Setup went on
+         * telling the contractor to enter a cost they had already entered.
+         *
+         * The rule the fix restores:
+         *
+         *   PROVISIONING owns structure and provenance — this service consumes
+         *   this role, in this quantity. A fact about the canonical catalog,
+         *   and it persists.
+         *
+         *   READINESS owns whether the current combination can make a pricing
+         *   promise. A question about contractor state RIGHT NOW, derived on
+         *   every read, never captured at install time.
+         *
+         * A ServiceMaterial row carries no money, so linking an uncosted role
+         * is safe: assessMaterialReadiness refuses before anything is totalled.
+         */
         for (const m of structural) {
-          const priced = await t.contractorMaterial.findUnique({
-            where: {
-              contractorId_canonicalMaterialId: {
-                contractorId, canonicalMaterialId: m.canonicalMaterialId,
-              },
-            },
-            select: { id: true },
-          });
-          if (!priced) { stillUnresolved.push(m.canonicalMaterial.key); continue; }
           await t.serviceMaterial.create({
             data: {
               serviceId: svc.id, canonicalMaterialId: m.canonicalMaterialId,
@@ -407,8 +421,19 @@ export async function installCatalog(
             },
           });
         }
+
+        // DERIVED, not captured. The authority readiness uses later is asked
+        // now, so the first state and every later state are computed the same
+        // way. `unresolved` is the policy-quantity case and is a different
+        // blocker: the contractor owes a QUANTITY, not a cost, and there is no
+        // link to derive it from.
+        const readiness = await assessMaterialReadiness(t, svc.id, contractorId);
+        const stillUnresolved = [
+          ...unresolved,
+          ...(readiness.ready ? [] : readiness.missing.map((r) => r.key)),
+        ];
         stillUnresolved.forEach((k) => unresolvedRoles.add(k));
-        if (stillUnresolved.length !== unresolved.length) {
+        if (stillUnresolved.length > 0) {
           await t.service.update({
             where: { id: svc.id },
             data: { unresolvedMaterialKeys: stillUnresolved, materialCostResolved: false },

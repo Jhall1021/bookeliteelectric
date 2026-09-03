@@ -6,6 +6,7 @@ import { isAdminAuthenticated } from "@/lib/adminAuth";
 import {
   setContractorMaterialCost,
   recomputeServiceMaterialCost,
+  recomputeServicesUsingRole,
   clearLegacyMultiplierOnItemize,
   deriveUnitCost,
   impliedPackagePriceCents,
@@ -470,7 +471,25 @@ export async function POST(req: Request) {
           costUpdatedAt: new Date(),
         },
       });
-      return NextResponse.json({ ok: true, material, canonicalMaterial: canonical });
+      /**
+       * A COST ARRIVING MUST REACH THE SERVICES WAITING ON IT.
+       *
+       * Writing ContractorMaterial and returning left every service that needed
+       * this role still marked unresolved: the blocker is cached on Service and
+       * nothing recomputed it. The contractor entered the cost they were asked
+       * for, the blocker stayed, and there was no in-product way to clear it.
+       *
+       * lib/materialCost.ts already pairs the write with the recompute in
+       * setContractorMaterialCost. This route predates that and upserts
+       * directly, so it calls the same shared recompute rather than growing its
+       * own idea of what a cost change means.
+       */
+      const affected = await recomputeServicesUsingRole({
+        db, canonicalMaterialId: canonical.id, contractorId,
+      });
+      return NextResponse.json({
+        ok: true, material, canonicalMaterial: canonical, recomputed: affected.length,
+      });
     }
 
     return NextResponse.json({ error: `Unknown action: ${String(action)}` }, { status: 400 });

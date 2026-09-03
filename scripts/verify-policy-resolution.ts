@@ -17,6 +17,7 @@ import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { publishSuggestedPrice } from "../lib/pricePublication";
 import { activationRefusal } from "../lib/serviceActivation";
+import { activationMaterialRoles } from "../lib/materialResolution";
 import { resolvePolicy } from "../lib/policyResolution";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import { destroyContractor } from "./_throwaway";
@@ -148,6 +149,20 @@ async function behavior(prisma: PrismaClient) {
       where: { id: svc.id },
       data: { offered: true, fieldLaborHours: 1, materialCostResolved: true, unresolvedMaterialKeys: [] },
     });
+    // "Everything else cleared" needs one more thing now. Material readiness
+    // used to be the two cached fields above; it is DERIVED as of the B1 fix,
+    // from the roles a reachable priceable path consumes — ServiceMaterial,
+    // AnswerOptionMaterial and component recipes. Clearing the cache no longer
+    // clears the blocker, so the roles are costed here. Without this the
+    // service refuses with MATERIALS_UNRESOLVED, which is truthful and is not
+    // what this test is about.
+    for (const role of await activationMaterialRoles(prisma, svc.id)) {
+      await prisma.contractorMaterial.upsert({
+        where: { contractorId_canonicalMaterialId: { contractorId: c.id, canonicalMaterialId: role.canonicalMaterialId } },
+        update: { unitCostCents: 1000 },
+        create: { contractorId: c.id, canonicalMaterialId: role.canonicalMaterialId, unitCostCents: 1000 },
+      });
+    }
 
     const refusedPublish = await inTenant(c.id, () => publishSuggestedPrice(guarded, c.id, svc.id));
     ok(!refusedPublish.ok && refusedPublish.refusal.code === "POLICY_UNRESOLVED",
