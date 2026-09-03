@@ -28,7 +28,7 @@ import { classifyRehearsalTarget } from "./_lineage";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
-import { activationRefusal } from "../lib/serviceActivation";
+import { activationRefusal, activateService } from "../lib/serviceActivation";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
 import { activationMaterialRoles } from "../lib/materialResolution";
 import { resolvePolicy } from "../lib/policyResolution";
@@ -464,6 +464,40 @@ async function main() {
     ok(plSvc001.materials.length === 0,
       "PL-SVC-001 infers no material role from the symptom", `${plSvc001.materials.length} role(s)`);
 
+    /**
+     * PL-SVC-001 GOES LIVE FIRST, and the platform insists on it.
+     *
+     * Twenty-seven services compose existing_condition, whose "water is
+     * visibly leaking" answer routes REROUTE_TROUBLESHOOTING. activationRefusal
+     * resolves that against the contractor's own ACTIVE service-call service
+     * and returns DEPENDENCY_UNAVAILABLE while there is none — so every one of
+     * those services is blocked until the visit itself is launched.
+     *
+     * That is the right ordering and worth stating: a catalog may not offer a
+     * route to a destination the homeowner cannot actually reach. It also means
+     * the isolated guard tests below must satisfy it, or they measure this
+     * blocker instead of the one they are aiming at.
+     *
+     * Launched through activateService, so every activation guard still runs.
+     * Nothing writes `active` directly, and a refusal fails the rehearsal.
+     */
+    for (const slug of [A_SLUG, B_SLUG]) {
+      const sc = await db.service.findFirstOrThrow({
+        where: { contractorId: ids[slug], slug: "plumbing-service-call" }, select: { id: true } });
+      await db.service.update({ where: { id: sc.id },
+        data: { basePrice: ECONOMICS[slug as keyof typeof ECONOMICS].serviceCallCents,
+                publishedPriceApprovedAt: new Date() } });
+      const launched = await activateService(db, ids[slug], sc.id);
+      ok(launched.ok, `${slug}: PL-SVC-001 launches on its approved visit fee`,
+        launched.ok ? "" : `${launched.refusal.code}: ${launched.refusal.message}`);
+    }
+    const stillBlocked = await activationRefusal(db, ids[A_SLUG],
+      (await db.service.findFirstOrThrow({
+        where: { contractorId: ids[A_SLUG], slug: "toilet-replacement" }, select: { id: true } })).id);
+    ok(stillBlocked?.code !== "DEPENDENCY_UNAVAILABLE",
+      "with PL-SVC-001 live, dependent services no longer report a missing destination",
+      `still ${stillBlocked?.code}`);
+
     // ── BRANCH BASE MATERIAL: copper vs PEX ──────────────────────────────
     //
     // The shape the shared primitive was added for. Neither branch may acquire
@@ -643,8 +677,16 @@ async function main() {
     // ── Still fails closed on everything else ────────────────────────────
     const zeroPriced = await db.service.count({ where: { contractorId: ids[B_SLUG], basePrice: 0 } });
     ok(zeroPriced === 0, "no service was given a $0 price to fill a gap", `${zeroPriced} at zero`);
-    const anyActive = await db.service.count({ where: { contractorId: ids[B_SLUG], active: true } });
-    ok(anyActive === 0, "nothing became publicly reachable by provisioning alone", `${anyActive} active`);
+    // Phase 1 already proved provisioning activates nothing. By here PL-SVC-001
+    // has been launched deliberately, so the question worth asking is whether
+    // anything ELSE crept live — a service going active as a side effect of
+    // another one launching is the failure this catches, and a bare count of
+    // zero could no longer catch it.
+    const live = await db.service.findMany({
+      where: { contractorId: ids[B_SLUG], active: true }, select: { slug: true } });
+    ok(live.length === 1 && live[0].slug === "plumbing-service-call",
+      "the only live service is the one deliberately launched",
+      live.map((x) => x.slug).join(", ") || "none");
     const offeredNotActive = await db.service.count({ where: { contractorId: ids[A_SLUG], offered: true, active: false } });
     ok(offeredNotActive === 1, "'offered' does not imply 'active' — the storefront gate is separate", `${offeredNotActive}`);
 
