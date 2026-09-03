@@ -353,10 +353,39 @@ async function main() {
     const linkedMaterials = await db.serviceMaterial.count({ where: { service: { contractorId: ids[A_SLUG] } } });
     ok(linkedMaterials > 0, `required material roles installed as ServiceMaterial links (${linkedMaterials})`,
       "DEFECT: the shared readiness authority would see no materials to demand costs for");
-    const optComponents = await db.answerOptionComponent.count({
-      where: { answerOption: { question: { service: { contractorId: ids[A_SLUG] } } } } });
-    ok(optComponents > 0, `answer-selected components installed as AnswerOptionComponent links (${optComponents})`,
-      "DEFECT: components declared by mappings did not survive publication");
+    /**
+     * The EXACT set, not "more than zero".
+     *
+     * `> 0` was too weak to be worth asserting: a partial install — 27 of 135,
+     * the number you get when only two of the seven components happen to be
+     * priced — passed it just as happily as a complete one. The identity of
+     * every link is checked against what the publisher declares, so a
+     * structural hole has to show up as a missing identity rather than a
+     * smaller number nobody reads.
+     */
+    const expectedComponentLinks = new Set<string>();
+    for (const svc of buildPlumbingPayload().services)
+      for (const q of svc.questions)
+        for (const o of q.options)
+          for (const ck of o.componentKeys)
+            expectedComponentLinks.add(`${svc.key}/${q.key}/${o.value}/${ck}`);
+    const installedComponentRows = await db.answerOptionComponent.findMany({
+      where: { answerOption: { question: { service: { contractorId: ids[A_SLUG] } } } },
+      select: {
+        canonicalComponent: { select: { key: true } },
+        answerOption: { select: { value: true, question: { select: { key: true, service: { select: { templateKey: true } } } } } },
+      },
+    });
+    const installedComponentLinks = new Set(installedComponentRows.map((r) =>
+      `${r.answerOption.question.service.templateKey}/${r.answerOption.question.key}/${r.answerOption.value}/${r.canonicalComponent?.key ?? "<null>"}`));
+    const missingLinks = [...expectedComponentLinks].filter((k) => !installedComponentLinks.has(k));
+    const excessLinks = [...installedComponentLinks].filter((k) => !expectedComponentLinks.has(k));
+    ok(installedComponentRows.length === expectedComponentLinks.size
+       && missingLinks.length === 0 && excessLinks.length === 0,
+      `answer-selected components installed as AnswerOptionComponent links (${installedComponentRows.length}/${expectedComponentLinks.size} exact)`,
+      `DEFECT: components declared by mappings did not survive publication. ` +
+      `missing ${missingLinks.length}${missingLinks.length ? ` e.g. ${missingLinks.slice(0, 3).join(", ")}` : ""}` +
+      `; excess ${excessLinks.length}${excessLinks.length ? ` e.g. ${excessLinks.slice(0, 3).join(", ")}` : ""}`);
 
     const resolveCount = await db.answerOption.count({
       where: { routeAction: { in: ["RESOLVE_INSTANT", "RESOLVE_ADJUSTED"] },

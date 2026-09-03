@@ -25,6 +25,7 @@ import { classifyRehearsalTarget } from "./_lineage";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import { activationRefusal } from "../lib/serviceActivation";
 import { recomputeServicesUsingRole } from "../lib/materialCost";
+import { activationMaterialRoles } from "../lib/materialResolution";
 import { resolvePolicy } from "../lib/policyResolution";
 
 loadEnv();
@@ -51,6 +52,31 @@ async function setup(db: PrismaClient, slug: string) {
   // Policies answered so the material blocker is the only one left.
   for (const p of await db.contractorPolicyValue.findMany({ where: { contractorId: c.id }, select: { key: true, boundaryCount: true } }))
     await resolvePolicy(db, c.id, p.key, p.boundaryCount === 0 ? { choice: "contractor-supplied" } : { boundaries: [25, 75].slice(0, p.boundaryCount) });
+
+  /**
+   * Every OTHER reachable role costed, so ROLE is the only blocker left.
+   *
+   * Same isolation as the policies above, and newly needed for the same kind
+   * of reason. Provisioning now preserves the component structure a branch
+   * selects, so these services carry their stop-valve components and the
+   * recipe material behind them is reachable through a priceable path.
+   * Activation asks for it — a requirement that was always logically there and
+   * was invisible only because the structural link had been dropped.
+   *
+   * Cleared here, never excluded there: activationMaterialRoles decides what a
+   * service needs, and a test that disagreed with it would be testing itself.
+   */
+  for (const slug of AFFECTED) {
+    const svc = await db.service.findFirstOrThrow({ where: { contractorId: c.id, slug }, select: { id: true } });
+    for (const role of await activationMaterialRoles(db as never, svc.id)) {
+      if (role.key === ROLE) continue;
+      await db.contractorMaterial.upsert({
+        where: { contractorId_canonicalMaterialId: { contractorId: c.id, canonicalMaterialId: role.canonicalMaterialId } },
+        update: { unitCostCents: 1_000 },
+        create: { contractorId: c.id, canonicalMaterialId: role.canonicalMaterialId, unitCostCents: 1_000 },
+      });
+    }
+  }
   return c.id;
 }
 
