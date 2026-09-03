@@ -112,14 +112,21 @@ stamped for a different endpoint? — and refuses production, the archive, an
 unrelated database and an unmarked one by that positive test; then it also
 refuses a target on `DATABASE_URL`'s endpoint. Then, and only then, it performs one
 destructive preparation: it deletes every `PlatformAccess` row the branch
-inherited, with a count and the affected identities printed. A branch of
+inherited, reporting a count and, per row, the role, active or revoked, and
+the first eight characters of the user id — never an email address or a name,
+because the branch is a copy of production and those belong to real people. A branch of
 production carries production's grants, so once the first real administrator
 exists every new branch would otherwise report "an administrator already
 exists" and the apply and concurrency proofs would be unreachable. On a copy
 that row is data, not a decision. The deletion runs through a function that
-re-derives its permission from the same verdict and the same endpoint
-comparison and throws before touching anything if either is not what the
-proof required, so production cannot reach it. There it runs the bootstrap in
+takes no client: it re-derives its permission from the verdict and from
+production's endpoint, re-probes the URL's lineage and marker fresh, and only
+then builds its own client from that same URL, deletes, and disconnects. A
+client bound elsewhere cannot be handed to it, so the pairing cannot be got
+wrong by a caller. The live verifier proves production and the original
+stamped endpoint are refused before any client exists, counts production's
+grants before and after, seeds an inherited grant and shows it cleared, and
+asserts the captured log contains no email address. There it runs the bootstrap in
 every mode: dry run, apply, repeat for the same user, repeat for another user,
 revoke-then-not-reinstated, and a first grant to someone else after a
 revocation. It also starts two bootstraps at the same instant from two

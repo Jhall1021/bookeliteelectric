@@ -51,7 +51,8 @@
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 import { loadEnv } from "./_env";
-import { classifyRehearsalTarget, endpointOf, type Verdict } from "./_lineage";
+import { classifyRehearsalTarget, endpointOf, probe, type Verdict } from "./_lineage";
+import { readFileSync } from "node:fs";
 import { bootstrapPlatformAdmin } from "./bootstrap-platform-admin";
 import { platformActorFor } from "../lib/platformContext";
 
@@ -65,27 +66,52 @@ const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
 
 /**
  * Remove the grants a branch inherited, so the bootstrap has a database with
- * no administrator to run against. Permission is re-derived here rather than
- * trusted from the caller: the verdict must be an acceptance, the target's
- * endpoint must differ from production's, and the client must be bound to
- * that same target endpoint. Any other state throws before a row is touched.
+ * no administrator to run against.
+ *
+ * SAFETY IS BOUND INSIDE, NOT PASSED IN. This takes no client. It takes the
+ * URL the verdict was formed about, re-derives permission from that verdict
+ * and from production's endpoint, then re-probes the URL itself — lineage and
+ * marker, fresh — and only then builds its own client from that same URL,
+ * deletes, and disconnects. There is no way to hand it a client bound
+ * elsewhere, so a caller cannot get the pairing wrong. Any check that is not
+ * what the proof required throws before a client exists.
+ *
+ * Reported: a count, and per row the role, active/revoked, and the first
+ * eight characters of the user id. Never an email address or a name — the
+ * branch is a copy of production, and those belong to real people.
  */
-async function clearInheritedGrants(
-  db: PrismaClient, verdict: Verdict, targetUrl: string, productionUrl: string | undefined
+export async function clearInheritedGrants(
+  verdict: Verdict, targetUrl: string, productionUrl: string | undefined,
+  log: (line: string) => void = console.log,
 ): Promise<number> {
   if (!verdict.ok) throw new Error("refusing to clear grants: the target was not accepted as a rehearsal branch");
   if (!productionUrl) throw new Error("refusing to clear grants: production's endpoint is unknown");
-  if (endpointOf(targetUrl) === endpointOf(productionUrl)) throw new Error("refusing to clear grants: the target is production's endpoint");
-  if (verdict.probe.endpoint !== endpointOf(targetUrl)) throw new Error("refusing to clear grants: the verdict is for a different endpoint");
+  const endpoint = endpointOf(targetUrl);
+  if (endpoint === endpointOf(productionUrl)) throw new Error("refusing to clear grants: the target is production's endpoint");
+  if (verdict.probe.endpoint !== endpoint) throw new Error("refusing to clear grants: the verdict is about a different endpoint than the URL given");
   if (verdict.probe.markerEndpoint === verdict.probe.endpoint) throw new Error("refusing to clear grants: the marker names this endpoint, so this is an original");
-  const inherited = await db.platformAccess.findMany({ select: { userId: true, role: true, revokedAt: true, user: { select: { email: true } } } });
-  if (inherited.length) {
-    console.log(`  PREPARING  deleting ${inherited.length} PlatformAccess row(s) the branch inherited — rehearsal fixture setup, on a copy:`);
-    for (const g of inherited) console.log(`             ${g.role}${g.revokedAt ? " (revoked)" : ""}  ${g.user.email}`);
+
+  // Fresh, from the URL this function will connect to — not from the caller's
+  // memory of an earlier answer.
+  const fresh = await probe(targetUrl);
+  if (fresh.lineage !== verdict.probe.lineage) throw new Error("refusing to clear grants: the target's lineage changed since it was accepted");
+  if (!fresh.markerKey || fresh.markerEndpoint === fresh.endpoint) throw new Error("refusing to clear grants: on re-probe the target reads as an original, not a branch");
+  if (fresh.markerEndpoint !== verdict.probe.markerEndpoint) throw new Error("refusing to clear grants: the target's marker changed since it was accepted");
+
+  const own = new PrismaClient({ datasources: { db: { url: targetUrl } } });
+  try {
+    const inherited = await own.platformAccess.findMany({ select: { userId: true, role: true, revokedAt: true } });
+    if (inherited.length) {
+      log(`  PREPARING  deleting ${inherited.length} PlatformAccess row(s) the branch inherited — rehearsal fixture setup, on a copy:`);
+      for (const g of inherited) log(`             ${g.role}  ${g.revokedAt ? "revoked" : "active"}  user ${g.userId.slice(0, 8)}…`);
+    }
+    const { count } = await own.platformAccess.deleteMany({});
+    return count;
+  } finally {
+    await own.$disconnect();
   }
-  const { count } = await db.platformAccess.deleteMany({});
-  return count;
 }
+
 const USER_PREFIX = "test-platform-bootstrap-live";
 const EMAIL_PREFIX = "p2b-verify-platform-live-";
 const STALE_AFTER_MS = 60 * 60 * 1000;
@@ -141,12 +167,46 @@ async function main() {
 
   try {
     await sweep();
-    // This suite needs a database with no administrator. A branch inherits
-    // production's grants, so they are cleared here — after the proof above,
-    // through a function that re-checks it. See the header.
-    const cleared = await clearInheritedGrants(db, verdict, target, production);
-    ok(`0. the branch starts with no administrator (${cleared} inherited row(s) cleared as fixture setup)`,
-      (await db.platformAccess.count()) === 0);
+
+    // ── 0. the destructive preparation, and what it refuses ───────────────
+    //
+    // Production and the original stamped endpoint must be unreachable from
+    // it, whatever verdict it is handed. Counted on production before and
+    // after, read-only, so "refused" is a fact and not a message.
+    const prod = new PrismaClient();
+    const prodGrantsBefore = await prod.platformAccess.count();
+    const prodVerdict = await classifyRehearsalTarget(production!, production);
+    const refusedOriginal = await clearInheritedGrants(prodVerdict, production!, production).then(() => null, (e: Error) => e.message);
+    ok(`0. production, judged on its own terms, is refused before any client is built`,
+      prodVerdict.ok === false && prodVerdict.code === "IS_THE_ORIGINAL" && /not accepted as a rehearsal branch/.test(refusedOriginal ?? ""), refusedOriginal ?? "did not throw");
+    const refusedMismatch = await clearInheritedGrants(verdict, production!, production).then(() => null, (e: Error) => e.message);
+    ok(`   an accepted verdict paired with production's URL is refused`, /production's endpoint/.test(refusedMismatch ?? ""), refusedMismatch ?? "did not throw");
+    const forged = { ...verdict, probe: { ...verdict.probe, endpoint: "ep-somewhere-else" } } as Verdict;
+    const refusedForged = await clearInheritedGrants(forged, target, production).then(() => null, (e: Error) => e.message);
+    ok(`   a verdict about a different endpoint than the URL is refused`, /different endpoint/.test(refusedForged ?? ""), refusedForged ?? "did not throw");
+    ok(`   and production still holds exactly what it held`, (await prod.platformAccess.count()) === prodGrantsBefore);
+    await prod.$disconnect();
+    const selfSrc = readFileSync("scripts/verify-platform-bootstrap-live.ts", "utf8");
+    const fnSrc = selfSrc.slice(selfSrc.indexOf("export async function clearInheritedGrants("), selfSrc.indexOf("function bootstrap(args"));
+    ok(`   the function takes no client: it builds its own from the validated URL and closes it`,
+      !/PrismaClient\b[^\n]*\)\s*:\s*Promise/.test(fnSrc.split("\n")[0] + fnSrc.split("\n")[1] + fnSrc.split("\n")[2])
+        && /new PrismaClient\(\{ datasources: \{ db: \{ url: targetUrl \} \} \}\)/.test(fnSrc) && /await own\.\$disconnect\(\)/.test(fnSrc)
+        && /await probe\(targetUrl\)/.test(fnSrc) && fnSrc.indexOf("await probe(targetUrl)") < fnSrc.indexOf("new PrismaClient"));
+    ok(`   and it selects no email or name from the rows it reports`, !/email|name: true/.test(fnSrc.slice(fnSrc.indexOf("const own ="))));
+
+    // A grant the branch "inherited": seeded for a probe user, then cleared by
+    // the same function a real inherited administrator would meet. The log is
+    // captured so the proof can say what it did NOT print.
+    const inheritedUser = await makeUser("inherited");
+    await db.platformAccess.create({ data: { userId: inheritedUser.id, role: "PLATFORM_ADMIN", grantedByUserId: null } });
+    const captured: string[] = [];
+    const cleared = await clearInheritedGrants(verdict, target, production, (l) => { captured.push(l); console.log(l); });
+    ok(`   a seeded inherited grant is cleared on the accepted branch (${cleared} row(s))`,
+      cleared >= 1 && (await grantsFor(inheritedUser.id)) === null && (await db.platformAccess.count()) === 0);
+    ok(`   the report names the count, role and status`,
+      captured.some((l) => /deleting \d+ PlatformAccess row/.test(l)) && captured.some((l) => /PLATFORM_ADMIN\s+active\s+user [0-9a-z-]{8}…/i.test(l)));
+    ok(`   and never the person`,
+      captured.every((l) => !l.includes(inheritedUser.email) && !l.includes("@") && !/Bootstrap probe/.test(l)), captured.join(" | "));
 
     const a = await makeUser("a");
     const b = await makeUser("b");
