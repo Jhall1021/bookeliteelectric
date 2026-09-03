@@ -79,10 +79,12 @@ export default function MobileNav({ signInHref }: { signInHref: string }) {
 
   return (
     <div className="lg:hidden">
+      {/* SIGN IN LEFT THE BAR — 2 September. Logo, Sign In, Early Access and a
+          menu toggle is one control too many at 390px: "Sign In" wrapped onto
+          two lines beside the enlarged logo and made the header look broken.
+          It is not gone from the phone, only from the bar — it is in the panel
+          below, where a returning user looks anyway. */}
       <div className="flex items-center gap-4 text-[14px]">
-        <a href={signInHref} className="font-medium text-p2b-ink">
-          Sign In
-        </a>
         <a
           href="/#access"
           className="rounded-sm bg-p2b-accent px-3.5 py-2 font-semibold text-p2b-canvas"
@@ -167,7 +169,11 @@ export default function MobileNav({ signInHref }: { signInHref: string }) {
               onClick={() => setOpen(false)}
               className="rounded-sm bg-p2b-accent px-[18px] py-3 text-center text-[16px] font-semibold text-p2b-canvas"
             >
-              {HERO.primaryCta}
+              {/* The CTA that goes to the access form must be LABELED the
+                  access form. It read HERO.primaryCta, which became "See How
+                  It Works" when the hero's CTAs were reordered — a button
+                  promising one destination and delivering another. */}
+              {HERO.secondaryCta}
             </a>
           </div>
         </div>

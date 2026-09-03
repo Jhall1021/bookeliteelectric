@@ -118,70 +118,34 @@ export default function Hero() {
                 A real storefront. The contractor’s name has been changed.
               </span>
             </div>
-            {/* THE SYSTEM, NOT A PRICE.
-                A single price card said "here is a page that shows a price",
-                which makes Price2Book look narrower than it is and answers
-                none of the questions a contractor actually has. Two panels
-                say the real thing: the customer does this BECAUSE you control
-                that. The homeowner panel leads because it is what a
-                contractor's customer meets; the control panel sits under it
-                because "am I buying someone else's price book?" is the very
-                next question.
+            {/* OVERLAPPED, NOT STACKED.
+                Two panels in a column cost ~950px and the laptop fold is 800:
+                the customer screen landed above it, the control screen did
+                not. Only its navy bar peeked in, so the first screen said
+                "customers can get a price" and never showed the half that
+                says "you set the rules".
 
-                Real screens, contractor renamed — scripts/capture-storefront-shots.ts. */}
-            <div className="flex flex-col gap-3">
-              {SHOTS.homePrice ? (
-                <div className="overflow-hidden rounded-[8px] border border-p2b-line bg-white shadow-[0_2px_6px_rgba(16,24,40,.06),0_22px_50px_-20px_rgba(16,24,40,.26)]">
-                  <div className="flex items-center gap-2.5 border-b border-p2b-line bg-p2b-canvas-alt px-3.5 py-2.5">
-                    <span className="flex gap-1.5" aria-hidden="true">
-                      <span className="h-2.5 w-2.5 rounded-full bg-p2b-line-dash" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-p2b-line-dash" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-p2b-line-dash" />
-                    </span>
-                    <span className="ml-1 flex-1 truncate rounded-sm bg-white px-3 py-1.5 text-[12px] text-p2b-muted lg:text-[13px]">
-                      {CUSTOMER_URL}
-                    </span>
-                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-p2b-accent">
-                      Your customer
-                    </span>
-                  </div>
-                  <ShotFigure src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
-                              width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
-                              full={SHOTS.homePrice.full} fullWidth={SHOTS.homePrice.fullW}
-                              fullHeight={SHOTS.homePrice.fullH}
-                              className="rounded-none border-0 shadow-none hover:shadow-none"
-                              priority sizes="(min-width: 1024px) 560px, 100vw" />
-                </div>
-              ) : null}
+                So the catalog becomes the BACKDROP and the price card floats
+                over it. Same two screenshots, same lightbox, a third of the
+                height — and the arrangement carries the argument the stack
+                could only imply: the customer's experience sits inside the
+                system the contractor controls.
 
-              {/* The four ways a service can be handled, named once. Enough to
-                  recognize the system at a glance; not a diagram. */}
-              <div className="flex flex-wrap gap-x-2 gap-y-2">
-                {["Instant Price", "Guided Estimate", "While We\u2019re There\u2122", "Smart Booking"].map((t) => (
-                  <span key={t}
-                        className="rounded-full border border-p2b-line bg-white px-3 py-1.5 text-[12px] font-semibold text-p2b-ink-warm lg:text-[13px]">
-                    {t}
-                  </span>
-                ))}
-              </div>
-
+                Overlap only from lg. Below that they stack, because a card on
+                top of another card at 390px hides more than it says. */}
+            <div className="relative lg:pb-8">
               {SHOTS.adminServices ? (
-                <div className="overflow-hidden rounded-[8px] border border-p2b-line bg-white shadow-[0_2px_6px_rgba(16,24,40,.06),0_22px_50px_-20px_rgba(16,24,40,.26)]">
+                <div className="overflow-hidden rounded-[8px] border border-p2b-line bg-white shadow-[0_2px_6px_rgba(16,24,40,.06),0_22px_50px_-20px_rgba(16,24,40,.24)]">
                   <div className="flex items-center gap-2.5 border-b border-p2b-line bg-p2b-navy-deep px-3.5 py-2.5">
                     <span className="text-[12px] font-bold text-[#F4F6F9] lg:text-[13px]">Price2Book</span>
                     <span className="rounded-full bg-[rgba(255,255,255,.14)] px-2.5 py-0.5 text-[11px] font-semibold text-[#F4F6F9]">
                       Voltmark Electric
                     </span>
                     <span className="ml-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-p2b-navy-muted">
-                      You
+                      What you control
                     </span>
                   </div>
-                  {/* The FULL-WIDTH page, windowed by CSS rather than the
-                      thumbnail crop. That crop is framed for a three-across
-                      tile and starts 105px in, which clips the left column of
-                      every row when it is shown this wide. Cropping here costs
-                      nothing and needs no second capture. */}
-                  <div className="h-[218px] overflow-hidden lg:h-[248px]">
+                  <div className="h-[290px] overflow-hidden lg:h-[320px]">
                     <ShotFigure src={SHOTS.adminServices.full ?? SHOTS.adminServices.src}
                                 alt={SHOTS.adminServices.alt}
                                 width={SHOTS.adminServices.fullW ?? SHOTS.adminServices.w}
@@ -193,6 +157,41 @@ export default function Hero() {
                   </div>
                 </div>
               ) : null}
+
+              {SHOTS.homePrice ? (
+                <div className="mt-4 overflow-hidden rounded-[8px] border border-p2b-line bg-white shadow-[0_3px_10px_rgba(16,24,40,.10),0_26px_54px_-18px_rgba(16,24,40,.34)] lg:absolute lg:-bottom-1 lg:left-0 lg:mt-0 lg:w-8/12">
+                  <div className="flex items-center gap-2.5 border-b border-p2b-line bg-p2b-canvas-alt px-3 py-2">
+                    <span className="flex gap-1.5" aria-hidden="true">
+                      <span className="h-2 w-2 rounded-full bg-p2b-line-dash" />
+                      <span className="h-2 w-2 rounded-full bg-p2b-line-dash" />
+                      <span className="h-2 w-2 rounded-full bg-p2b-line-dash" />
+                    </span>
+                    <span className="ml-0.5 flex-1 truncate rounded-sm bg-white px-2.5 py-1 text-[11px] text-p2b-muted lg:text-[12px]">
+                      {CUSTOMER_URL}
+                    </span>
+                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-p2b-accent">
+                      Your customer
+                    </span>
+                  </div>
+                  <ShotFigure src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
+                              width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
+                              full={SHOTS.homePrice.full} fullWidth={SHOTS.homePrice.fullW}
+                              fullHeight={SHOTS.homePrice.fullH}
+                              className="rounded-none border-0 shadow-none hover:shadow-none"
+                              priority sizes="(min-width: 1024px) 350px, 100vw" />
+                </div>
+              ) : null}
+            </div>
+
+            {/* The four handling modes, under the composition where they read
+                as a caption to both panels rather than a divider between. */}
+            <div className="mt-5 flex flex-wrap gap-x-2 gap-y-2 lg:mt-4">
+              {["Instant Price", "Guided Estimate", "While We\u2019re There\u2122", "Smart Booking"].map((t) => (
+                <span key={t}
+                      className="rounded-full border border-p2b-line bg-white px-3 py-1.5 text-[12px] font-semibold text-p2b-ink-warm lg:text-[13px]">
+                  {t}
+                </span>
+              ))}
             </div>
           </div>
 
