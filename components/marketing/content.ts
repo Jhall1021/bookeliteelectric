@@ -46,8 +46,13 @@ export const HERO = {
   // Guided Estimates ships, so the hero now names both endings — and the
   // walkthrough beside it is untouched, because it captures a real Instant
   // Price flow and demonstrating the other one would need its own capture.
+  // OWNER'S COPY, 2 September 2026. The previous version described the
+  // mechanism accurately and opened on the product; this opens on the day the
+  // contractor is actually having. "Without anyone in your office touching the
+  // request" is the claim that lands, and it is true — a qualifying flow
+  // reaches a booking with no staff involvement at all.
   body:
-    "Price2Book lets homeowners answer the questions your office normally asks. Qualified work can get your approved price and book on the spot. Other jobs come to you as a Guided Estimate with the details and photos you need to quote the work remotely.",
+    "Stop spending your day answering calls for routine work. Price2Book lets customers choose a service, answer the questions you normally ask, get your approved price, and book themselves\u2014without anyone in your office touching the request. For work that needs your review, Guided Estimates collects the details and photos you need to quote it remotely\u2014without driving out just to gather information.",
   /** The three outcomes, in the contractor's terms rather than the product's. */
   payoff: "Fewer calls. Fewer estimate trips. More work booked.",
   primaryCta: "Request Early Access",

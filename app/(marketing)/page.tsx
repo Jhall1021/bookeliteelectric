@@ -18,8 +18,13 @@ import {
  * SO THE FIRST THIRD NOW ANSWERS THREE QUESTIONS IN ORDER:
  *
  *   what is this?     the hero says the category before the slogan
+ *   what do I get?    six benefit tiles, skimmable in one pass
  *   is it real?       both sides of the product, in real screenshots
- *   what do I get?    six benefit tiles, then the system in one line
+ *   how does it flow? the system as a customer walks it, in one line
+ *
+ * The tiles moved ABOVE the screenshots on 2 September. Proof is worth
+ * nothing to someone who does not yet know what is being proved — the screens
+ * answer "is this real", and that is the second question, not the first.
  *
  * Everything after that is the argument a contractor reads once they care:
  * how services can be handled, why estimate trips shrink, the mechanisms,
@@ -43,8 +48,8 @@ export default function HomePage() {
     <main>
       {/* 1–4. What it is, that it is real, what it does, how it flows. */}
       <Hero />
-      <ProductTour />
       <WhatItDoes />
+      <ProductTour />
       <JourneyStrip />
 
       {/* 5–6. How each service can be handled, and why that pays. */}
