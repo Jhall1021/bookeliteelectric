@@ -16,7 +16,8 @@ unchanged and is now enforced.
 | `/platform` layout and proof page | `app/platform/` |
 | `GET /api/platform/whoami` | `app/api/platform/whoami/route.ts` |
 | first-administrator bootstrap | `scripts/bootstrap-platform-admin.ts` |
-| the gate | `scripts/verify-platform-authority.ts`, in `npm run verify` |
+| the gate, production-safe | `scripts/verify-platform-authority.ts`, in `npm run verify` |
+| the live bootstrap proof, on a rehearsal branch | `scripts/verify-platform-bootstrap-live.ts`, `npm run verify:platform-live` |
 
 No schema change. `PlatformAccess` and `PlatformRole` are used as they were
 modelled in August; `SupportAccessEvent` stays unwritten until there is a
@@ -75,8 +76,9 @@ id and refuses anything containing `@`; requires `--expect` and checks it
 against the stamped `DatabaseIdentity` of the live endpoint before reading
 anything else; requires an existing, verified user; refuses if any active
 administrator exists; refuses to reinstate a revoked grant, even as a dry run;
-is report-only without `--apply`; writes one row inside a transaction that
-re-checks the two racing refusals; and reads the row back before reporting.
+is report-only without `--apply`; writes one row under `Serializable`
+isolation behind a transaction-scoped advisory lock, re-checking the two
+racing refusals inside; and reads the row back before reporting.
 The grant carries `grantedByUserId: null` — the only grant that legitimately
 has no granter.
 
@@ -84,22 +86,57 @@ There is no route, page or server action that writes `PlatformAccess`. The
 verifier scans `app/`, `lib/` and `components/` for one and fails if it
 appears.
 
-## The verifier, and one thing to know about it
+## Two verifiers, split by where they may write
 
-`verify-platform-authority` runs the bootstrap as a child process in every
-mode, which creates a **real, transient** `PLATFORM_ADMIN` grant for a
-throwaway user and removes it in teardown. The throwaway has no credential and
-an undeliverable address, so it cannot sign in; a crashed run's leftovers are
-swept by the next run; and a real bootstrap attempted against such a leftover
-refuses loudly rather than proceeding. Once a real administrator exists the
-apply path is unreachable by design, and the verifier proves the refusal
-instead of the grant. `npm run verify` runs inside the Vercel build, so this
-happens against production on every deploy — the same discipline as the other
-throwaway-fixture verifiers, stated here because the row in question is an
-administrator grant.
+**`verify-platform-authority`** is in `npm run verify`, which runs inside every
+deploy against production. So it never creates, revokes or deletes a
+`PlatformAccess` row — not a transient one, not for a throwaway. The
+active / revoked / absent decisions are exercised through a recording double:
+a client whose `platformAccess.findUnique` answers from an in-memory table and
+whose every other model delegates to the real client, so the contractor lookup
+and the tenant guard underneath are the real ones. Its only rows are ordinary
+throwaway fixtures — a contractor, an owner with a membership on it, users
+with no grant — and it removes them. The bootstrap is run from it only in the
+modes that write nothing: refused arguments and a dry run. It checks its own
+source for a `PlatformAccess` write and checks that the live verifier is not
+in the default chain.
+
+**`verify-platform-bootstrap-live`** (`npm run verify:platform-live`) is
+invoked explicitly and runs against `REHEARSAL_DATABASE_URL`. Before anything
+else it asks `scripts/_lineage.ts` the same question the contract rehearsal
+asks — is this a branch of the current production lineage whose marker was
+stamped for a different endpoint? — and refuses production, the archive, an
+unrelated database and an unmarked one by that positive test; then it also
+refuses a target on `DATABASE_URL`'s endpoint. There it runs the bootstrap in
+every mode: dry run, apply, repeat for the same user, repeat for another user,
+revoke-then-not-reinstated, and a first grant to someone else after a
+revocation. It also starts two bootstraps at the same instant from two
+connections, three times over, and requires exactly one grant each time.
+
+### The bootstrap's rehearsal mode
+
+`--rehearsal-branch-of <key>` is how the live verifier runs the real script on
+a branch. It is not a relaxation of `--expect`; it is a second, equally strict
+question: the target must be a proven branch of the named database, by lineage
+and by a marker stamped for a different endpoint. Production fails that by
+construction — its marker names the endpoint it is on — which the default
+verifier proves by invoking the flag against production and reading the
+refusal. The two flags are exclusive. Both modes accept a `--url-var`.
+
+### Why the transaction is serialized
+
+A count followed by an insert under default isolation is not enough: two
+operators at the same moment both read zero administrators, and the unique
+constraint is on `userId`, so two different users would both succeed. The
+grant now runs under `Serializable` isolation and takes a transaction-scoped
+advisory lock on one well-known key first. The lock makes the second bootstrap
+wait and then see the first's commit; if its snapshot nonetheless predates
+that commit, Serializable detects the dependent read at commit (SQLSTATE
+40001, Prisma P2034) and rolls the insert back. Either way the loser is
+refused with the reason and never retried.
 
 Negative-tested: with the lookup moved ahead of authorization and revocation
-ignored, seven checks go red.
+ignored, seven checks in the default verifier go red.
 
 ## Not in Phase 1, on purpose
 
@@ -108,10 +145,10 @@ Support entry and `SupportAccessEvent` writes; a lifecycle beyond
 mutation endpoints; `PLATFORM_SUPPORT` or any second role; changes to the
 contractor dashboard. Each waits for the step that needs it.
 
-## Known red on the shared main, not touched here
+## Two gate failures repaired beside this, not in it
 
-Two gate checks were already failing on `origin/main` before this branch and
-are unrelated to it: `audit-guard-adoption` (the admin services route passes
-the unguarded client to `availableTrades`) and `verify-us-spelling` (one
-canonical field in the database spells "neighbour"). Both belong to their own
-workstreams.
+Two checks were red on the shared main before this branch and unrelated to
+it. Both are fixed on `fix/shared-gate-repairs`: `audit-guard-adoption` (the
+admin services route handed the unguarded client to `availableTrades`; it now
+passes `db`) and `verify-us-spelling` (one British spelling in a design-document
+table, not in any database field).

@@ -4,6 +4,20 @@
  *   npx tsx scripts/bootstrap-platform-admin.ts --user <userId> --expect <database key>
  *   npx tsx scripts/bootstrap-platform-admin.ts --user <userId> --expect <database key> --apply
  *
+ * Rehearsal only — never for a real grant:
+ *
+ *   npx tsx scripts/bootstrap-platform-admin.ts --user <userId> \
+ *     --url-var REHEARSAL_DATABASE_URL --rehearsal-branch-of <database key> [--apply]
+ *
+ * `--expect` names the ORIGINAL database and is checked against its stamp.
+ * `--rehearsal-branch-of` names a database this target must be a proven
+ * BRANCH of — same lineage, marker stamped for a different endpoint — judged
+ * by scripts/_lineage.ts, the same authority the contract rehearsal uses. The
+ * two are exclusive, and the second can never accept the original: on
+ * production the marker names the connected endpoint, which is exactly what
+ * the lineage check refuses. So there is no flag that relaxes the production
+ * check; there is a second, equally strict question for a second situation.
+ *
  * WHY THIS EXISTS
  *
  * PlatformAccess is the only thing that makes someone Price2Book staff, and
@@ -51,8 +65,9 @@
  */
 
 import { pathToFileURL } from "node:url";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { loadEnv } from "./_env";
+import { classifyRehearsalTarget } from "./_lineage";
 
 loadEnv();
 
@@ -77,10 +92,20 @@ function refuse(reason: string): BootstrapOutcome {
   return { kind: "REFUSED", reason };
 }
 
-export async function bootstrapPlatformAdmin(
-  prisma: PrismaClient,
-  opts: { userId: string | undefined; expect: string | undefined; apply: boolean; databaseUrl: string | undefined }
-): Promise<BootstrapOutcome> {
+export type BootstrapOptions = {
+  userId: string | undefined;
+  apply: boolean;
+  /** The connection string `prisma` was built from. */
+  databaseUrl: string | undefined;
+  /** Normal use: the original database this must be, by stamped key. */
+  expect?: string;
+  /** Rehearsal use: a database this must be a proven branch of. */
+  rehearsalBranchOf?: string;
+  /** Production's URL, needed to measure lineage in rehearsal mode. */
+  productionUrl?: string;
+};
+
+export async function bootstrapPlatformAdmin(prisma: PrismaClient, opts: BootstrapOptions): Promise<BootstrapOutcome> {
   console.log(`\nBOOTSTRAP — first platform administrator`);
   console.log(opts.apply ? `  APPLYING\n` : `  Report only. Re-run with --apply.\n`);
 
@@ -92,21 +117,36 @@ export async function bootstrapPlatformAdmin(
   if (opts.userId.includes("@")) {
     return refuse(`"${opts.userId}" looks like an email address. This takes a user id, never an email.`);
   }
-  if (!opts.expect) {
+  if (opts.expect && opts.rehearsalBranchOf) {
+    return refuse(`--expect and --rehearsal-branch-of are exclusive: a database is the original or a branch, not both.`);
+  }
+  if (!opts.expect && !opts.rehearsalBranchOf) {
     return refuse(`--expect <database key> is required: say which database you mean, e.g. price2book-production.`);
   }
-  if (!opts.databaseUrl) return refuse(`DATABASE_URL is not set.`);
+  if (!opts.databaseUrl) return refuse(`the database connection string is not set.`);
 
   // ── the database, before the user is looked up ────────────────────────
   const endpoint = liveEndpoint(opts.databaseUrl);
-  const identity = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" } });
-  console.log(`  database          endpoint=${endpoint}  stamped=${identity ? `${identity.key} @ ${identity.neonEndpoint}` : "UNSTAMPED"}`);
-  if (!identity) return refuse(`this database carries no identity marker. Stamp it first (verify-database-identity --stamp).`);
-  if (identity.neonEndpoint !== endpoint) {
-    return refuse(`the marker was stamped for ${identity.neonEndpoint} but we are connected to ${endpoint} — an un-restamped copy.`);
-  }
-  if (identity.key !== opts.expect) {
-    return refuse(`this database is "${identity.key}", not "${opts.expect}".`);
+  if (opts.rehearsalBranchOf) {
+    // A proven branch of the named database, by lineage and marker — never
+    // the database itself. classifyRehearsalTarget refuses the original.
+    const v = await classifyRehearsalTarget(opts.databaseUrl, opts.productionUrl);
+    console.log(`  database          endpoint=${endpoint}  lineage=${v.probe.lineage ?? "unreadable"}  marker=${v.probe.markerKey ?? "none"}${v.probe.markerEndpoint ? ` @ ${v.probe.markerEndpoint}` : ""}`);
+    console.log(`  REHEARSAL MODE    this must be a branch of "${opts.rehearsalBranchOf}", never the original`);
+    if (!v.ok) return refuse(`not a rehearsal branch (${v.code}): ${v.reason}`);
+    if (v.probe.markerKey !== opts.rehearsalBranchOf) {
+      return refuse(`this is a branch of "${v.probe.markerKey}", not of "${opts.rehearsalBranchOf}".`);
+    }
+  } else {
+    const identity = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" } });
+    console.log(`  database          endpoint=${endpoint}  stamped=${identity ? `${identity.key} @ ${identity.neonEndpoint}` : "UNSTAMPED"}`);
+    if (!identity) return refuse(`this database carries no identity marker. Stamp it first (verify-database-identity --stamp).`);
+    if (identity.neonEndpoint !== endpoint) {
+      return refuse(`the marker was stamped for ${identity.neonEndpoint} but we are connected to ${endpoint} — an un-restamped copy.`);
+    }
+    if (identity.key !== opts.expect) {
+      return refuse(`this database is "${identity.key}", not "${opts.expect}".`);
+    }
   }
 
   // ── the target ────────────────────────────────────────────────────────
@@ -139,21 +179,45 @@ export async function bootstrapPlatformAdmin(
     return { kind: "DRY_RUN", userId: user.id };
   }
 
-  // ── the grant, re-checked inside the transaction ──────────────────────
+  // ── the grant, serialized against every other bootstrap ──────────────
+  //
+  // A count followed by an insert is not enough on its own: two operators
+  // running this at the same moment would both read zero administrators and
+  // both insert, and the unique constraint is on userId, so two DIFFERENT
+  // users would both succeed. Two things close that:
+  //
+  //   1. A transaction-scoped advisory lock on one well-known key. Only one
+  //      bootstrap holds it at a time, database-wide; the second waits, and
+  //      when it proceeds it is looking at a database the first has already
+  //      committed to.
+  //   2. SERIALIZABLE isolation. If the second transaction's snapshot predates
+  //      the first's commit — which the lock alone does not prevent — the
+  //      read of platform_access it depends on is detected as a conflict at
+  //      commit (SQLSTATE 40001, Prisma P2034) and the insert is rolled back.
+  //
+  // Either way at most one grant exists afterwards. The loser is REFUSED with
+  // the reason, never retried: a retry would find an administrator and refuse
+  // anyway, and a bootstrap that retries itself is one that could be argued
+  // into running twice.
   let created: { id: string };
   try {
     created = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('platform_access.bootstrap'))`;
       const nowActive = await tx.platformAccess.count({ where: { revokedAt: null } });
-      if (nowActive > 0) throw new Error("RACE: an active platform administrator appeared");
+      if (nowActive > 0) throw new Error("another bootstrap committed first — an active platform administrator now exists");
       const nowExisting = await tx.platformAccess.findUnique({ where: { userId: user.id } });
-      if (nowExisting) throw new Error("RACE: the target user gained a grant");
+      if (nowExisting) throw new Error("the target user gained a grant while this ran");
       return tx.platformAccess.create({
         data: { userId: user.id, role: "PLATFORM_ADMIN", grantedByUserId: null },
         select: { id: true },
       });
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (e) {
-    return refuse(`nothing was written — ${(e as Error).message}`);
+    const code = (e as { code?: string }).code;
+    const why = code === "P2034"
+      ? "a concurrent bootstrap committed first (serialization conflict, SQLSTATE 40001)"
+      : (e as Error).message;
+    return refuse(`nothing was written — ${why}`);
   }
 
   // Read back rather than reprinting what was sent.
@@ -173,12 +237,18 @@ const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
-  const prisma = new PrismaClient();
+  const urlVar = flag("url-var") ?? "DATABASE_URL";
+  const databaseUrl = process.env[urlVar];
+  const prisma = databaseUrl
+    ? new PrismaClient({ datasources: { db: { url: databaseUrl } } })
+    : new PrismaClient();
   bootstrapPlatformAdmin(prisma, {
     userId: flag("user"),
     expect: flag("expect"),
+    rehearsalBranchOf: flag("rehearsal-branch-of"),
+    productionUrl: process.env.DATABASE_URL,
     apply: process.argv.includes("--apply"),
-    databaseUrl: process.env.DATABASE_URL,
+    databaseUrl,
   })
     .then((out) => { process.exitCode = out.kind === "REFUSED" ? 1 : 0; })
     .catch((e) => { console.error(e); process.exitCode = 1; })

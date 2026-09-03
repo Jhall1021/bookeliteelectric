@@ -20,18 +20,24 @@
  * throwaway contractor, the same discipline as verify-cross-tenant-resource-
  * access: an invented id proves only that no such row exists.
  *
- * THE BOOTSTRAP IS RUN, NOT READ. scripts/bootstrap-platform-admin.ts is
- * executed as a child process in every mode: refused arguments, dry run,
- * apply, repeat, revoked-not-reinstated. That creates a REAL, TRANSIENT
- * PLATFORM_ADMIN grant for a throwaway user and removes it in teardown. The
- * throwaway has no credential and an undeliverable address, so it cannot sign
- * in; and if a crashed run ever left it behind, the next run's sweep removes
- * it and the real bootstrap would refuse loudly rather than proceed. Once a
- * real administrator exists the apply path is unreachable by design, and this
- * proves the refusal instead.
+ * PRODUCTION-SAFE, BY CONSTRUCTION. This runs inside `npm run verify`, which
+ * runs inside every deploy, against production. So it never creates, revokes
+ * or deletes a PlatformAccess row — not a transient one, not for a throwaway.
+ * The active/revoked/absent decisions are exercised through a RECORDING
+ * DOUBLE: a client whose `platformAccess.findUnique` answers from an in-memory
+ * table and whose every other model delegates to the real client, so the
+ * tenant guard underneath is still the real guard. The only rows this writes
+ * are ordinary throwaway fixtures — a contractor, users with no grant — and it
+ * removes them.
+ *
+ * The bootstrap is exercised here only in the modes that write nothing:
+ * refused arguments and a dry run. Its apply / repeat / revoke / concurrency
+ * behavior is proven by scripts/verify-platform-bootstrap-live.ts, which is
+ * invoked explicitly, runs against REHEARSAL_DATABASE_URL, and refuses to run
+ * against anything it cannot prove is a rehearsal branch.
  */
 
-import { PrismaClient, type Prisma } from "@prisma/client";
+import { PrismaClient, type Prisma, type PlatformRole } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { sourceFiles } from "./_sourceFiles";
@@ -111,6 +117,30 @@ function bootstrap(args: string[]): { status: number; out: string } {
   }
 }
 
+/**
+ * The recording double.
+ *
+ * `platformAccess.findUnique` answers from `grants`; every other property is
+ * the real client's, so a contractor lookup and the tenant guard behave
+ * exactly as in production. Every model touched is recorded, in order, which
+ * is how "authorize before lookup" is proven rather than asserted.
+ */
+type Grant = { role: PlatformRole; grantedAt: Date; revokedAt: Date | null };
+function doubleWith(grants: Record<string, Grant>, touched: string[] = []): { db: PrismaClient; touched: string[] } {
+  const platformAccess = {
+    findUnique: async (args: { where: { userId?: string } }) => grants[args.where.userId ?? ""] ?? null,
+    count: async () => { throw new Error("the double answers findUnique only"); },
+  };
+  const db = new Proxy(raw, {
+    get(target, prop) {
+      if (typeof prop === "string" && !prop.startsWith("$") && !prop.startsWith("_")) touched.push(prop);
+      if (prop === "platformAccess") return platformAccess;
+      return Reflect.get(target, prop);
+    },
+  }) as unknown as PrismaClient;
+  return { db, touched };
+}
+
 async function main() {
   console.log(`\nPLATFORM AUTHORITY — staff is a grant, not a membership and not an address\n`);
   await teardown();
@@ -127,16 +157,13 @@ async function main() {
   ok(`   a revoked row is no access`, decidePlatformAccess({ role: "PLATFORM_ADMIN", grantedAt: t0, revokedAt: t0 }).status === "revoked");
   ok(`   only a live row is access`, decidePlatformAccess({ role: "PLATFORM_ADMIN", grantedAt: t0, revokedAt: null }).status === "active");
 
-  // ── 1. the bootstrap, run before any staff exists ─────────────────────
-  //
-  // Measured BEFORE this suite creates its own staff fixture, so the answer
-  // describes the database, not the test.
+  // ── 1. the bootstrap, in the modes that write nothing ─────────────────
   const activeBefore = await raw.platformAccess.count({ where: { revokedAt: null } });
   const boot = await makeUser("boot");
-  const boot2 = await makeUser("boot2");
   const unverified = await makeUser("unverified", false);
   const KEY = ["--expect", identity.key];
   const grantsFor = (id: string) => raw.platformAccess.findUnique({ where: { userId: id } });
+  const totalBefore = await raw.platformAccess.count();
 
   let r = bootstrap(["--user", boot.email, ...KEY]);
   ok(`1. the bootstrap refuses an email where it wants a user id`, r.status === 1 && /looks like an email/.test(r.out));
@@ -152,80 +179,66 @@ async function main() {
   r = bootstrap(["--user", unverified.id, ...KEY, "--apply"]);
   ok(`   an unverified user is refused`, r.status === 1 && /not verified/.test(r.out) && (await grantsFor(unverified.id)) === null);
 
+  r = bootstrap(["--user", boot.id, "--rehearsal-branch-of", identity.key]);
+  ok(`   the rehearsal flag refuses the original database itself`, r.status === 1 && /IS_THE_ORIGINAL|not a rehearsal branch/.test(r.out));
+  r = bootstrap(["--user", boot.id, ...KEY, "--rehearsal-branch-of", identity.key]);
+  ok(`   and cannot be combined with --expect`, r.status === 1 && /exclusive/.test(r.out));
+
+  r = bootstrap(["--user", boot.id, ...KEY]);
   if (activeBefore === 0) {
-    r = bootstrap(["--user", boot.id, ...KEY]);
-    ok(`2. a dry run reports the grant and writes nothing`,
+    ok(`2. a dry run reports what it would grant and writes nothing`,
       r.status === 0 && /Nothing was changed/.test(r.out) && /Would grant PLATFORM_ADMIN/.test(r.out) && (await grantsFor(boot.id)) === null);
-    r = bootstrap(["--user", boot.id, ...KEY, "--apply"]);
-    const granted = await grantsFor(boot.id);
-    ok(`   --apply grants exactly one PLATFORM_ADMIN, by nobody`,
-      r.status === 0 && /GRANTED/.test(r.out) && granted?.role === "PLATFORM_ADMIN" && granted.grantedByUserId === null && granted.revokedAt === null);
-    ok(`   and reports the target it read back`, new RegExp(`user\\s+${boot.id} <${boot.email}>`).test(r.out));
-    const actor = await platformActorFor(raw, boot);
-    ok(`   the grant the bootstrap wrote is the grant the boundary reads`, actor.userId === boot.id && actor.role === "PLATFORM_ADMIN");
-
-    r = bootstrap(["--user", boot.id, ...KEY, "--apply"]);
-    ok(`   running it again for the same user is refused`, r.status === 1 && /already holds active/.test(r.out));
-    r = bootstrap(["--user", boot2.id, ...KEY, "--apply"]);
-    ok(`   and for anyone else, because an administrator now exists`,
-      r.status === 1 && /active platform administrator already exists/.test(r.out) && (await grantsFor(boot2.id)) === null);
-    ok(`   with still exactly one grant in the database`, (await raw.platformAccess.count()) === 1);
-
-    await raw.platformAccess.update({ where: { userId: boot.id }, data: { revokedAt: new Date() } });
-    r = bootstrap(["--user", boot.id, ...KEY, "--apply"]);
-    const stillRevoked = await grantsFor(boot.id);
-    ok(`3. a revoked grant is not reinstated by the bootstrap`,
-      r.status === 1 && /revoked/.test(r.out) && stillRevoked?.revokedAt !== null);
-    r = bootstrap(["--user", boot.id, ...KEY]);
-    ok(`   not even as a dry run`, r.status === 1 && /revoked/.test(r.out));
-    r = bootstrap(["--user", boot2.id, ...KEY, "--apply"]);
-    ok(`   while a first grant to someone else is still a bootstrap`,
-      r.status === 0 && (await grantsFor(boot2.id))?.revokedAt === null);
-    await raw.platformAccess.deleteMany({ where: { userId: { in: [boot.id, boot2.id] } } });
   } else {
-    console.log(`  (an administrator already exists — the apply path is unreachable by design; proving the refusal)`);
-    r = bootstrap(["--user", boot.id, ...KEY]);
-    ok(`2. a dry run is refused because an administrator exists`, r.status === 1 && /active platform administrator already exists/.test(r.out));
-    r = bootstrap(["--user", boot.id, ...KEY, "--apply"]);
-    ok(`   and so is --apply, writing nothing`,
+    ok(`2. a dry run is refused because an administrator already exists, writing nothing`,
       r.status === 1 && /active platform administrator already exists/.test(r.out) && (await grantsFor(boot.id)) === null);
-    ok(`3. (revocation path not exercised: it needs the apply path)`, true);
   }
+  ok(`   this suite has not changed the number of grants in the database`, (await raw.platformAccess.count()) === totalBefore);
+  ok(`   (apply, repeat, revoke and concurrency are proven by the live verifier, on a rehearsal branch)`, existsSync("scripts/verify-platform-bootstrap-live.ts"));
 
-  // ── 2. fixtures: an owner, a staff member, a revoked one, a nobody ────
+  // ── 2. fixtures: a real owner; staff, revoked and nobody as identities ─
+  //
+  // The owner is a real user with a real OWNER membership on a real (throwaway,
+  // active) contractor, because "owning an active business does not make you
+  // staff" deserves a real membership row behind it. Staff and revoked are
+  // identities the double answers for; no grant is written anywhere.
   const contractor = await raw.contractor.create({ data: { slug: SLUG, name: "Platform authority probe", active: true }, select: { id: true } });
   const owner = await makeUser("owner");
   await raw.contractorMembership.create({ data: { userId: owner.id, contractorId: contractor.id, role: "OWNER" } });
-  const staff = await makeUser("staff");
-  await raw.platformAccess.create({ data: { userId: staff.id, role: "PLATFORM_ADMIN", grantedByUserId: null } });
-  const revoked = await makeUser("revoked");
-  await raw.platformAccess.create({ data: { userId: revoked.id, role: "PLATFORM_ADMIN", grantedByUserId: null, revokedAt: new Date() } });
-  const nobody = await makeUser("nobody");
+  const staff = { id: userId("staff"), email: `${EMAIL_PREFIX}${RUN}-staff@invalid.test` };
+  const revoked = { id: userId("revoked"), email: `${EMAIL_PREFIX}${RUN}-revoked@invalid.test` };
+  const nobody = { id: userId("nobody"), email: `${EMAIL_PREFIX}${RUN}-nobody@invalid.test` };
+  const grants: Record<string, Grant> = {
+    [staff.id]: { role: "PLATFORM_ADMIN", grantedAt: t0, revokedAt: null },
+    [revoked.id]: { role: "PLATFORM_ADMIN", grantedAt: t0, revokedAt: new Date() },
+  };
+  const { db } = doubleWith(grants);
 
   // ── 3. who is staff ───────────────────────────────────────────────────
-  const out = await throwsWith(() => platformActorFor(raw, null));
+  const out = await throwsWith(() => platformActorFor(db, null));
   ok(`4. signed out is refused as not signed in`, out?.name === "NotAuthenticatedError");
-  const asOwner = await throwsWith(() => platformActorFor(raw, owner));
+  const asOwner = await throwsWith(() => platformActorFor(db, owner));
   ok(`   a contractor OWNER of an ACTIVE contractor is refused`, asOwner?.name === "NotPlatformStaffError");
-  const asRevoked = await throwsWith(() => platformActorFor(raw, revoked));
+  const asRevoked = await throwsWith(() => platformActorFor(db, revoked));
   ok(`   a revoked grant is refused`, asRevoked?.name === "NotPlatformStaffError");
-  const asNobody = await throwsWith(() => platformActorFor(raw, nobody));
+  const asNobody = await throwsWith(() => platformActorFor(db, nobody));
   ok(`   with the same words as never having been granted`, asRevoked?.message === asNobody?.message && asOwner?.message === asNobody?.message);
-  const actor = await platformActorFor(raw, staff);
+  const actor = await platformActorFor(db, staff);
   ok(`   an active PLATFORM_ADMIN is allowed`, actor.userId === staff.id && actor.role === "PLATFORM_ADMIN");
   ok(`   and the error classes are the ones the wrappers translate`,
     new NotAuthenticatedError().name === "NotAuthenticatedError" && new NotPlatformStaffError().name === "NotPlatformStaffError");
 
   let ran = false;
-  const refusedRun = await throwsWith(() => withPlatformFor(raw, owner, async () => { ran = true; return 1; }));
+  const refusedRun = await throwsWith(() => withPlatformFor(db, owner, async () => { ran = true; return 1; }));
   ok(`5. withPlatform refuses an owner before running anything`, refusedRun?.name === "NotPlatformStaffError" && !ran);
   let tenantInside: unknown = "unset";
-  await withPlatformFor(raw, staff, async () => { tenantInside = currentTenantOrNull(); });
+  await withPlatformFor(db, staff, async () => { tenantInside = currentTenantOrNull(); });
   ok(`   and runs staff outside any tenant scope`, tenantInside === null);
 
   // ── 4. platform access is not contractor membership ───────────────────
   ok(`6. the staff member holds no contractor membership`,
     (await raw.contractorMembership.count({ where: { userId: staff.id, active: true } })) === 0);
+  ok(`   and the owner holds one, on an active contractor, and is still not staff`,
+    (await raw.contractorMembership.count({ where: { userId: owner.id, active: true, contractor: { active: true } } })) === 1 && asOwner?.name === "NotPlatformStaffError");
   const adminCtx = strip("lib/adminContext.ts");
   ok(`   and the contractor boundary never consults PlatformAccess`,
     !/platformAccess|PlatformAccess/.test(adminCtx) && /prisma\.contractorMembership\.findMany/.test(adminCtx));
@@ -234,8 +247,7 @@ async function main() {
   ok(`   the portal layout still gates on membership`, /resolveAdminContractor\(\)/.test(strip("app/dashboard/layout.tsx")));
 
   // ── 5. authorize before lookup, proven by watching the client ─────────
-  const touched: string[] = [];
-  const spy = new Proxy(raw, { get(t, p) { if (typeof p === "string" && !p.startsWith("$") && !p.startsWith("_")) touched.push(p); return Reflect.get(t, p); } }) as PrismaClient;
+  const { db: spy, touched } = doubleWith(grants);
 
   touched.length = 0;
   const ownerForeign = await throwsWith(() => withPlatformContractorFor(spy, owner, elite.id, async () => 1));
@@ -252,22 +264,22 @@ async function main() {
   await withPlatformContractorFor(spy, staff, contractor.id, async () => 1);
   ok(`   staff: platform access is read before the contractor is looked up`,
     touched.indexOf("platformAccess") >= 0 && touched.indexOf("platformAccess") < touched.indexOf("contractor"), touched.join(","));
-  const staffGarbage = await throwsWith(() => withPlatformContractorFor(raw, staff, "no-such-contractor", async () => 1));
-  const staffMalformed = await throwsWith(() => withPlatformContractorFor(raw, staff, { id: contractor.id }, async () => 1));
+  const staffGarbage = await throwsWith(() => withPlatformContractorFor(db, staff, "no-such-contractor", async () => 1));
+  const staffMalformed = await throwsWith(() => withPlatformContractorFor(db, staff, { id: contractor.id }, async () => 1));
   ok(`   staff naming a contractor that does not resolve get one answer, malformed or absent`,
     staffGarbage?.name === "PlatformContractorNotFoundError" && staffMalformed?.name === staffGarbage.name && staffMalformed?.message === staffGarbage.message);
-  const entered = await withPlatformContractorFor(raw, staff, elite.id, async (_db, _a, c) => c.slug);
+  const entered = await withPlatformContractorFor(db, staff, elite.id, async (_db, _a, c) => c.slug);
   ok(`   staff may enter any contractor, Elite included`, entered === "elite-electric");
   ok(`   PlatformContractorNotFoundError is only reachable after authorization`, new PlatformContractorNotFoundError().message === "No such contractor.");
 
   // ── 6. inside a contractor, the tenant guard is the same guard ────────
-  const inside = await withPlatformContractorFor(raw, staff, contractor.id, async (db) => ({
+  const inside = await withPlatformContractorFor(db, staff, contractor.id, async (guarded) => ({
     tenant: currentTenantOrNull(),
-    own: await db.service.count(),
-    foreignService: await refuses(() => db.service.findUnique({ where: { id: eliteService.id } })),
-    foreignServiceWrite: await refuses(() => db.service.updateMany({ where: { id: eliteService.id }, data: { offered: eliteService.offered } })),
-    foreignBooking: eliteBooking ? await refuses(() => db.booking.findUnique({ where: { id: eliteBooking.id } })) : null,
-    foreignById: await refuses(() => db.service.findFirst({ where: { contractorId: elite.id } })),
+    own: await guarded.service.count(),
+    foreignService: await refuses(() => guarded.service.findUnique({ where: { id: eliteService.id } })),
+    foreignServiceWrite: await refuses(() => guarded.service.updateMany({ where: { id: eliteService.id }, data: { offered: eliteService.offered } })),
+    foreignBooking: eliteBooking ? await refuses(() => guarded.booking.findUnique({ where: { id: eliteBooking.id } })) : null,
+    foreignById: await refuses(() => guarded.service.findFirst({ where: { contractorId: elite.id } })),
   }));
   ok(`8. entry opens the tenant context for that contractor, marked as staff`,
     inside.tenant?.contractorId === contractor.id && inside.tenant?.source === "platform-session");
@@ -313,6 +325,13 @@ async function main() {
   ok(`    nothing in Phase 1 writes SupportAccessEvent or any tenant row`,
     platformFiles.every((f) => !/supportAccessEvent|\.(create|update|upsert|delete)(Many)?\(/.test(strip(f).replace(/platformAccess\.create|platformAccess\.count|platformAccess\.findUnique/g, ""))
       || f === "scripts/bootstrap-platform-admin.ts"));
+
+  const self = strip("scripts/verify-platform-authority.ts");
+  ok(`11. this verifier writes no PlatformAccess row, in any form`,
+    !/platformAccess\.(create|update|upsert|delete|createMany|updateMany|deleteMany)/.test(self));
+  const chain = (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts;
+  ok(`    and the live bootstrap verifier is not in the default gate`,
+    !/verify-platform-bootstrap-live/.test(chain.verify) && /verify-platform-bootstrap-live/.test(chain["verify:platform-live"] ?? ""));
 
   await teardown();
   console.log();
