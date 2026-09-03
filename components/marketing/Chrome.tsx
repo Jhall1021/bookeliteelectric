@@ -33,7 +33,7 @@ export function Logo({ reverse = false, className = "" }: { reverse?: boolean; c
         src={`/marketing/price2book-mark${suffix}.png`}
         alt="" aria-hidden="true"
         width={MARK.w} height={MARK.h} priority
-        className="h-[26px] w-auto lg:h-[30px]"
+        className="h-[32px] w-auto lg:h-[38px]"
       />
       <Image
         src={`/marketing/price2book-wordmark${suffix}.png`}

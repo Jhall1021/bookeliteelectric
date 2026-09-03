@@ -1,4 +1,4 @@
-import { EMBED_STATUS, HERO } from "./content";
+import { CUSTOMER_URL, EMBED_STATUS, HERO } from "./content";
 import { SHOTS } from "./shots";
 import ShotFigure from "./ShotFigure";
 
@@ -30,12 +30,12 @@ export default function Hero() {
         <div className="lg:col-span-6">
           <div className="mb-6 flex items-center gap-2.5 lg:mb-[26px]">
             <div className="h-0.5 w-[26px] bg-p2b-accent" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent lg:text-xs">
+            <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-accent lg:text-[15px]">
               {HERO.eyebrow}
             </span>
           </div>
 
-          <h1 className="text-[42px] font-bold leading-[1.02] tracking-[-0.022em] sm:text-6xl lg:text-[78px] lg:leading-[0.99]">
+          <h1 className="text-[38px] font-bold leading-[1.04] tracking-[-0.022em] sm:text-5xl lg:text-[60px] lg:leading-[1.0]">
             {HERO.headline[0]}
             <br />
             {HERO.headline[1]}
@@ -103,12 +103,31 @@ export default function Hero() {
                 A real storefront. The contractor’s name has been changed.
               </span>
             </div>
+            {/* A BROWSER FRAME, NOT A BARE SCREENSHOT.
+                On its own the shot floated in whitespace and read as a picture
+                of some software. In a window carrying the contractor's own
+                address it reads as THEIR website, which is the hero's actual
+                claim — and it restores what the address chip did for the
+                previous design before the walkthrough replaced it. */}
             {SHOTS.homePrice ? (
-              <ShotFigure src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
-                          width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
-                          full={SHOTS.homePrice.full} fullWidth={SHOTS.homePrice.fullW}
-                          fullHeight={SHOTS.homePrice.fullH}
-                          priority sizes="(min-width: 1024px) 560px, 100vw" />
+              <div className="overflow-hidden rounded-[8px] border border-p2b-line bg-white shadow-[0_2px_6px_rgba(16,24,40,.06),0_24px_56px_-20px_rgba(16,24,40,.28)]">
+                <div className="flex items-center gap-2.5 border-b border-p2b-line bg-p2b-canvas-alt px-3.5 py-2.5">
+                  <span className="flex gap-1.5" aria-hidden="true">
+                    <span className="h-2.5 w-2.5 rounded-full bg-p2b-line-dash" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-p2b-line-dash" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-p2b-line-dash" />
+                  </span>
+                  <span className="ml-1 flex-1 truncate rounded-sm bg-white px-3 py-1.5 text-[12px] text-p2b-muted lg:text-[13px]">
+                    {CUSTOMER_URL}
+                  </span>
+                </div>
+                <ShotFigure src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
+                            width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
+                            full={SHOTS.homePrice.full} fullWidth={SHOTS.homePrice.fullW}
+                            fullHeight={SHOTS.homePrice.fullH}
+                            className="rounded-none border-0 shadow-none hover:shadow-none"
+                            priority sizes="(min-width: 1024px) 560px, 100vw" />
+              </div>
             ) : null}
           </div>
 
