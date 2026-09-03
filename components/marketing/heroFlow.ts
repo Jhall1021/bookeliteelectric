@@ -29,6 +29,9 @@ export const HERO_FLOW = {
     "description": "A new outlet where you need one, powered from the nearest circuit. Right for everyday things — lamps, a TV, chargers, a computer. If it's for a fridge, freezer, air conditioner or anything that heats, that needs its own circuit: see Dedicated Circuit & Outlet.",
     "dto": {
       "id": "cmswc2cp9000nriwrzm7iod9z",
+      "referencedAccessSlots": [
+        "PRIMARY"
+      ],
       "slug": "new-120v-outlet",
       "name": "New 120V Outlet",
       "bookingType": "ADJUSTED",
@@ -69,6 +72,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -91,6 +95,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -113,6 +118,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -135,6 +141,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -157,6 +164,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -181,6 +189,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -214,6 +223,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -236,6 +246,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -269,6 +280,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": "ACCESSIBLE",
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -291,6 +303,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": "FINISHED",
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -324,6 +337,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": "FINISHED",
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -349,6 +363,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": "UNKNOWN",
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -374,6 +389,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": "UNKNOWN",
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -407,11 +423,13 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [
                 {
                   "text": "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $125 for a run under 10 feet or $190 for a longer one, and patching and painting aren't included. We'll show you what we're looking at and confirm before doing anything.",
-                  "accessClass": "ACCESSIBLE"
+                  "accessClass": "ACCESSIBLE",
+                  "accessSlot": "PRIMARY"
                 }
               ],
               "components": []
@@ -434,6 +452,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -456,11 +475,13 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [
                 {
                   "text": "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $125 for a run under 10 feet or $190 for a longer one, and patching and painting aren't included. We'll show you what we're looking at and confirm before doing anything.",
-                  "accessClass": "ACCESSIBLE"
+                  "accessClass": "ACCESSIBLE",
+                  "accessSlot": "PRIMARY"
                 }
               ],
               "components": []
@@ -494,6 +515,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -520,6 +542,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -553,12 +576,14 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": [
                 {
                   "quantity": 1,
                   "conditionAccessClass": "ACCESSIBLE",
+                  "conditionAccessSlot": "PRIMARY",
                   "conditionAnswerKey": null,
                   "conditionAnswerValue": null,
                   "component": {
@@ -570,6 +595,7 @@ export const HERO_FLOW = {
                 {
                   "quantity": 1,
                   "conditionAccessClass": "FINISHED",
+                  "conditionAccessSlot": "PRIMARY",
                   "conditionAnswerKey": null,
                   "conditionAnswerValue": null,
                   "component": {
@@ -598,12 +624,14 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": [
                 {
                   "quantity": 1,
                   "conditionAccessClass": "ACCESSIBLE",
+                  "conditionAccessSlot": "PRIMARY",
                   "conditionAnswerKey": null,
                   "conditionAnswerValue": null,
                   "component": {
@@ -615,6 +643,7 @@ export const HERO_FLOW = {
                 {
                   "quantity": 1,
                   "conditionAccessClass": "FINISHED",
+                  "conditionAccessSlot": "PRIMARY",
                   "conditionAnswerKey": null,
                   "conditionAnswerValue": null,
                   "component": {
@@ -647,6 +676,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -673,6 +703,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -728,6 +759,7 @@ export const HERO_FLOW = {
     "description": "Swapping out an existing outlet that's already there — cracked, discolored, loose, or just old — for a brand-new one in the same spot. This does NOT add a new outlet anywhere new; see \"New 120V Outlet\" for that.",
     "dto": {
       "id": "cmsw89ypa0002bjfcy2pl0l6k",
+      "referencedAccessSlots": [],
       "slug": "replace-standard-outlet",
       "name": "Replace Standard Outlet",
       "bookingType": "INSTANT",
@@ -768,6 +800,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -790,6 +823,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -812,6 +846,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -834,6 +869,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": 0,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -856,6 +892,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -878,6 +915,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -911,6 +949,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -933,6 +972,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []
@@ -955,6 +995,7 @@ export const HERO_FLOW = {
               "overrideFieldLaborHours": null,
               "approvedComponentPriceCents": null,
               "accessClassification": null,
+              "accessSlot": "PRIMARY",
               "accessFinishedDisclaimer": null,
               "conditionalDisclaimers": [],
               "components": []

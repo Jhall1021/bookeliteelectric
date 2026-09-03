@@ -47,6 +47,12 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "and its service are created and destroyed by the test, no real " +
     "contractor's price is read or written, and the readiness engine itself " +
     "writes nothing at all.",
+  "scripts/rehearse-plumbing-two-contractor.ts":
+    "The two-contractor Plumbing rehearsal. It approves prices on throwaway " +
+    "contractors it creates and destroys within the run, because activation " +
+    "cannot be reached without an approved price and the whole point is to " +
+    "prove the guards fire in isolation. It refuses to run anywhere but a " +
+    "proven branch of production, and touches no real contractor's price.",
   "scripts/verify-material-readiness-lifecycle.ts":
     "Proves a missing material cost blocks activation, stops blocking when the " +
     "contractor enters the cost, and blocks again when it is removed — the B1 " +

@@ -269,15 +269,24 @@ async function main() {
 
   // Proven by re-reading, not by inspecting this file for update calls: what
   // matters is that no published price moved, whatever the code looks like.
+  //
+  // Matched BY ID, not by position. The two reads are seconds apart on a
+  // database that other verifiers share, and any of them creating or removing
+  // a priced throwaway service in between shifts every later row by one —
+  // which this check once reported as "54 changed" with not one price moved.
+  // A row present in only one read is a different service, not a moved price.
   const after = await prisma.service.findMany({
     where: { active: true, basePrice: { not: null } },
-    select: { slug: true, basePrice: true, publishedPriceApprovedAt: true },
-    orderBy: { slug: "asc" },
+    select: { id: true, basePrice: true, publishedPriceApprovedAt: true },
   });
-  const moved = after.filter((a, i) =>
-    a.basePrice !== priced[i]?.basePrice ||
-    a.publishedPriceApprovedAt?.getTime() !== priced[i]?.publishedPriceApprovedAt?.getTime()
-  );
+  const before = new Map(priced.map((s) => [s.id, s]));
+  const moved = after.filter((a) => {
+    const b = before.get(a.id);
+    return b !== undefined && (
+      a.basePrice !== b.basePrice ||
+      a.publishedPriceApprovedAt?.getTime() !== b.publishedPriceApprovedAt?.getTime()
+    );
+  });
   ok(`9. drift is surfaced for review, and no published price moved`,
     moved.length === 0,
     `${drifted.length} drifted, ${moved.length} changed`);
