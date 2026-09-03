@@ -64,8 +64,10 @@ export async function POST(req: Request) {
   // Validated against published catalogs, the same server-authoritative set the
   // form is populated from — so the list that offers a choice is the list that
   // refuses a typo, and a client cannot post a trade Price2Book has no catalog
-  // for.
-  const trades = await availableTrades(prisma);
+  // for. Read through the guarded client: TemplateVersion is a platform model
+  // the guard passes through, and an adopted route hands the unguarded client
+  // to nothing — the audit that caught this exists so that stays true.
+  const trades = await availableTrades(db);
   if (!trades.includes(tradeKey)) {
     return NextResponse.json(
       { error: `"${tradeKey}" is not a trade Price2Book publishes a catalog for yet.` },
