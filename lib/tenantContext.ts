@@ -29,7 +29,13 @@ import { AsyncLocalStorage } from "node:async_hooks";
 export type TenantContext = {
   contractorId: string;
   /** How the contractor was identified. For logging and tests. */
-  source: "site-identifier" | "admin-session" | "system" | "test";
+  /**
+   * `platform-session` is Price2Book staff entering a contractor through
+   * withPlatformContractor — an authorized platform actor holding a key to
+   * the tenant boundary, distinguishable in logs from the contractor's own
+   * admin session.
+   */
+  source: "site-identifier" | "admin-session" | "platform-session" | "system" | "test";
 };
 
 const storage = new AsyncLocalStorage<TenantContext>();
