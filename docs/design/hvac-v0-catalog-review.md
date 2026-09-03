@@ -943,7 +943,7 @@ deterministic pricing tree**, and none is a gate input.
 | Fact | Why a human needs it | On |
 | --- | --- | --- |
 | Proposed indoor head positions | Mounting feasibility and line routing | Mini-Split Installation |
-| Proposed outdoor unit position | Pad, mounting, clearances, noise to neighbours | Mini-Split Installation, replacements |
+| Proposed outdoor unit position | Pad, mounting, clearances, noise to neighbors | Mini-Split Installation, replacements |
 | Line-set path photograph | Whether the existing run is usable and how far it goes | Any service touching a line set |
 | Wall and ceiling construction | What the penetration involves | Mini-Split Installation |
 | Vent termination photograph | Where the new vent can terminate | Furnace Replacement |
