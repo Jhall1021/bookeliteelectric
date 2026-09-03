@@ -14,7 +14,7 @@
  */
 
 /** The values prisma/schema.prisma actually has today. */
-export type PlatformAppointmentKind = "PRE_WORK" | "INSTALLATION";
+export type PlatformAppointmentKind = "PRE_WORK" | "INSTALLATION" | "SERVICE_CALL";
 
 export type PlumbingAppointmentShell = {
   key: "verification" | "installation" | "on_site_service";
@@ -55,9 +55,12 @@ export const PLUMBING_APPOINTMENT_SHELLS: readonly PlumbingAppointmentShell[] = 
     // is exactly what nobody has established yet.
     purpose:
       "Where an observed active failure is routed. Plumbing needs this as its own kind because a service call is a paid visit that PRODUCES a scope, not a verification of one that already exists — and a booking may legitimately have a service call AND, later, a pre-work verification of whatever the visit established.",
-    platformKind: null,
-    requiresSchemaChange:
-      "prisma/schema.prisma: add SERVICE_CALL to enum AppointmentKind. Additive; the existing @@index([bookingId, kind]) already covers it. Electrical models this as a TroubleshootingSession with no Appointment row, so this is new behavior rather than a rename. Named SERVICE_CALL rather than DIAGNOSTIC: the enum value would outlive every rewording above it, and the platform should not learn plumbing's forbidden conclusion as a schema constant.",
+    // G3, 3 September 2026: the platform gained SERVICE_CALL, so this shell
+    // can name a kind. NAMING ONE IS NOT SCHEDULING ONE — nothing in
+    // production creates a SERVICE_CALL row yet, and `blocks: "PRICING"`
+    // below is unchanged.
+    platformKind: "SERVICE_CALL",
+    requiresSchemaChange: null,
     blocks: "PRICING",
   },
 ] as const;
