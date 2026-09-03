@@ -135,7 +135,7 @@ export function MarketingHeader({ signInHref }: { signInHref: string }) {
           </a>
           <a href="/#access"
              className="rounded-sm bg-p2b-accent px-[18px] py-2.5 font-semibold text-p2b-canvas hover:bg-p2b-accent-hover">
-            {HERO.primaryCta}
+            {HERO.secondaryCta}
           </a>
         </nav>
 

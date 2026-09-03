@@ -31,32 +31,38 @@ import { HERO_FLOW } from "./heroFlow";
 export const SIGN_IN_PATH = "/sign-in";
 
 export const HERO = {
-  // THE CATEGORY LINE, ADDED 2 September 2026. The eyebrow said who the
-  // product is for and never what it is, so the first screen asked a visitor
-  // to assemble the company out of a slogan and an animation. A contractor
-  // should not have to scroll to learn what they are looking at.
-  eyebrow: "Customer-guided pricing, estimates & booking for home-service contractors",
-  headline: ["Your pricing.", "Your schedule."],
-  // Was "Turn homeowner requests into safely priced, bookable work." That
-  // described the product without saying where it lives, which is the first
-  // question a contractor with a website actually has.
-  // BROADENED 2 September 2026. It read "...see your approved price when the
-  // work qualifies, and book from your availability", which left a visitor on
-  // the first screen believing Price2Book means publishing flat-rate prices.
-  // Guided Estimates ships, so the hero now names both endings — and the
-  // walkthrough beside it is untouched, because it captures a real Instant
-  // Price flow and demonstrating the other one would need its own capture.
-  // OWNER'S COPY, 2 September 2026. The previous version described the
-  // mechanism accurately and opened on the product; this opens on the day the
-  // contractor is actually having. "Without anyone in your office touching the
-  // request" is the claim that lands, and it is true — a qualifying flow
-  // reaches a booking with no staff involvement at all.
+  /**
+   * THE FIRST SCREEN SELLS THE PROBLEM, NOT THE PRODUCT — owner, 2 September.
+   *
+   * "Your pricing. Your schedule." is a fine brand line and a poor opening
+   * argument: it names what a contractor already owns rather than what is
+   * costing them. It survives as the payoff and as the page title, which is
+   * where a tagline belongs, and the headline now leads with the day the
+   * contractor is actually having.
+   */
+  eyebrow: "Customer-guided pricing, estimates & booking",
+  headline: "Stop spending your day answering routine service calls.",
   body:
-    "Stop spending your day answering calls for routine work. Price2Book lets customers choose a service, answer the questions you normally ask, get your approved price, and book themselves\u2014without anyone in your office touching the request. For work that needs your review, Guided Estimates collects the details and photos you need to quote it remotely\u2014without driving out just to gather information.",
-  /** The three outcomes, in the contractor's terms rather than the product's. */
-  payoff: "Fewer calls. Fewer estimate trips. More work booked.",
-  primaryCta: "Request Early Access",
-  secondaryCta: "See How It Works",
+    "Price2Book lets customers choose a service, answer the questions you normally ask, and either get your approved price and book on the spot\u2014or send you a Guided Estimate with the details and photos you need to quote it remotely.",
+  /**
+   * Four outcomes, scannable in one pass. Each is a benefit a contractor
+   * feels, not a feature name — the feature names live two sections down,
+   * where a reader who wants them has already decided to care.
+   */
+  proof: [
+    "Book routine work without the phone call",
+    "Quote more jobs without an estimate trip",
+    "Add more work with While We\u2019re There\u2122 pricing",
+    "Only offer appointment times that fit the job",
+  ],
+  payoff: "Your services. Your pricing rules. Your schedule.",
+  /**
+   * CTA ORDER CHANGED. "Request Early Access" led, which asks a stranger to
+   * commit before they understand what they would be committing to. Someone
+   * who just landed wants to understand the product first.
+   */
+  primaryCta: "See How It Works",
+  secondaryCta: "Request Early Access",
   tertiaryCta: "Try the Homeowner Demo",
   support: "Works alongside your existing business software.",
   supportEmphasis: "No new CRM required.",

@@ -89,7 +89,14 @@ const TRUTH: Record<string, string> = {
  * shortening a page and losing its copy.
  */
 const REQUIRED_COPY = [
-  "Your pricing.", "Your schedule.",
+  // "Your pricing." / "Your schedule." was the headline and is now the PAYOFF,
+  // reworded by the owner on 2 September: "Your services. Your pricing rules.
+  // Your schedule." The brand line still opens the page title, which is where
+  // a tagline belongs. Asserted in its new form rather than dropped, and the
+  // decision recorded here rather than the entry quietly deleted when it went
+  // red — same treatment the removed demo headline got above.
+  "Your services. Your pricing rules. Your schedule.",
+  "Stop spending your day answering routine service calls.",
   "Request Early Access",
   "Give customers a price. Give them a time. Make the visit worth more.",
   // "Four steps, and none of them is a phone call." was asserted here until
@@ -562,6 +569,21 @@ async function statics() {
     "PriceSight is not in the product menu",
     "it has not shipped — SITEMAP.md holds it out of navigation");
 
+  console.log("\n  THE HERO SELLS THE PROBLEM, AND SHOWS BOTH SIDES");
+  const heroSrc = read("components/marketing/Hero.tsx");
+  for (const line of content.HERO.proof as readonly string[]) {
+    ok(line.length > 0, `proof point: ${line}`);
+  }
+  ok((content.HERO.proof as readonly string[]).length === 4,
+    "four proof points, not a list that grew");
+  // The composition has to show the CONTRACTOR too. A hero that shows only
+  // the customer's screen is the narrow story this pass replaced.
+  ok(/SHOTS\.homePrice/.test(heroSrc) && /SHOTS\.adminServices/.test(heroSrc),
+    "the hero shows a customer screen AND a control screen",
+    "one price card makes Price2Book look like a page that shows a price");
+  ok(/See How It Works/.test(content.HERO.primaryCta),
+    "the primary CTA is understanding, not commitment");
+
   console.log("\n  THE SITE IS NAVIGABLE AT EVERY WIDTH");
   /**
    * 217 checks asserted what the site CLAIMED and not one asked whether a
@@ -774,8 +796,10 @@ async function live(host: string) {
   ok(home.status === 200, `/ answers 200`, `status ${home.status}`);
   if (home.status !== 200) return;
 
-  ok(home.text.includes("Your pricing.") && home.text.includes("Your schedule."),
+  ok(home.text.includes("Stop spending your day answering routine service calls."),
     "the approved headline is served");
+  ok(home.text.includes("Your services. Your pricing rules. Your schedule."),
+    "…and the brand line survives as the payoff");
   ok(home.text.includes("Request Early Access"), "the primary CTA is served");
   ok(/\/sign-in/.test(home.html), "a sign-in link is served");
 
