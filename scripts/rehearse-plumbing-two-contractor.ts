@@ -32,6 +32,8 @@ import { activationRefusal, activateService } from "../lib/serviceActivation";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
 import { activationMaterialRoles } from "../lib/materialResolution";
 import { resolvePolicy } from "../lib/policyResolution";
+import { findTroubleshootingService } from "../lib/troubleshooting";
+import { loadServiceForResolution } from "../lib/routeResolver";
 import { buildPlumbingPayload } from "../lib/plumbing/publish";
 import { PLUMBING_SERVICES, service as canonicalService } from "../lib/plumbing/catalog";
 import { composeService } from "../lib/plumbing/composition";
@@ -735,6 +737,187 @@ async function main() {
       select: { bookingType: true, active: true } });
     ok(serviceCallRow?.bookingType === "TROUBLESHOOT_ONLY",
       "the service-call destination provisioned as a non-fixed-price outcome", String(serviceCallRow?.bookingType));
+
+    // ── PHASE 6B: G2 §6 multi-trade troubleshooting integration ──────────
+    //
+    // Proof-only. No local destination lookup is allowed here: the point is to
+    // consume the SHIPPED G2 authority exactly as runtime does. One proof
+    // contractor temporarily sells Plumbing + Electrical, with one active
+    // diagnostic per trade. A Plumbing tree that reaches
+    // REROUTE_TROUBLESHOOTING must still resolve to PL-SVC-001. The electrical
+    // diagnostic is not a weaker candidate or a tie-breaker; for a Plumbing
+    // lookup it is invisible.
+    group("PHASE 6B — G2 MULTI-TRADE TROUBLESHOOTING");
+
+    const plumbingDiagnosticA = await db.service.findFirstOrThrow({
+      where: { contractorId: ids[A_SLUG], slug: "plumbing-service-call", tradeKey: "plumbing" },
+      select: { id: true, slug: true, categoryId: true, contractorCategoryId: true },
+    });
+    const plumbingDiagnosticB = await db.service.findFirstOrThrow({
+      where: { contractorId: ids[B_SLUG], slug: "plumbing-service-call", tradeKey: "plumbing" },
+      select: { id: true, slug: true },
+    });
+
+    // Routing only considers active diagnostics. Activating these proof rows is
+    // rehearsal state, not a Plumbing catalog change; both proof contractors
+    // are torn down below.
+    await db.service.update({ where: { id: plumbingDiagnosticA.id }, data: { active: true, offered: true } });
+    await db.service.update({ where: { id: plumbingDiagnosticB.id }, data: { active: true, offered: true } });
+
+    const rerouteOriginA = await db.service.findFirst({
+      where: {
+        contractorId: ids[A_SLUG],
+        tradeKey: "plumbing",
+        questions: { some: { options: { some: { routeAction: "REROUTE_TROUBLESHOOTING" } } } },
+      },
+      select: { id: true, slug: true, tradeKey: true },
+    });
+    ok(rerouteOriginA !== null,
+      "A has a Plumbing service whose installed tree reaches REROUTE_TROUBLESHOOTING",
+      "no Plumbing reroute-capable service was provisioned");
+
+    const rerouteOriginB = rerouteOriginA
+      ? await db.service.findFirst({
+          where: { contractorId: ids[B_SLUG], slug: rerouteOriginA.slug, tradeKey: "plumbing" },
+          select: { id: true, slug: true },
+        })
+      : null;
+    ok(rerouteOriginB !== null,
+      "B has the same Plumbing reroute-capable service before A becomes multi-trade",
+      rerouteOriginA?.slug ?? "A origin missing");
+
+    const bLoadedBefore = rerouteOriginB
+      ? await loadServiceForResolution(db, rerouteOriginB.id)
+      : null;
+    ok(bLoadedBefore?.troubleshootingServiceId === plumbingDiagnosticB.id,
+      "B's Plumbing reroute resolves to B's Plumbing service call before A changes",
+      bLoadedBefore?.troubleshootingProblem ?? String(bLoadedBefore?.troubleshootingServiceId));
+
+    await db.contractorTrade.upsert({
+      where: { contractorId_tradeKey: { contractorId: ids[A_SLUG], tradeKey: "electrical" } },
+      update: {}, create: { contractorId: ids[A_SLUG], tradeKey: "electrical" },
+    });
+
+    // Intentionally reuses a valid legacy category attachment. G2 does not
+    // infer trade from category; Service.tradeKey is the durable identity.
+    const electricalDiagnostic = await db.service.create({
+      data: {
+        slug: "zz-electrical-proof-service-call",
+        name: "Electrical Proof Service Call",
+        categoryId: plumbingDiagnosticA.categoryId,
+        contractorCategoryId: plumbingDiagnosticA.contractorCategoryId,
+        bookingType: "TROUBLESHOOT_ONLY",
+        basePrice: 7_900,
+        publishedPriceApprovedAt: new Date(),
+        contractorId: ids[A_SLUG],
+        tradeKey: "electrical",
+        materialCostResolved: true,
+        unresolvedMaterialKeys: [],
+        unresolvedPolicyKeys: [],
+        offered: true,
+        active: true,
+      },
+      select: { id: true, slug: true, tradeKey: true },
+    });
+
+    const aTrades = await db.contractorTrade.findMany({
+      where: { contractorId: ids[A_SLUG] }, select: { tradeKey: true }, orderBy: { tradeKey: "asc" },
+    });
+    ok(aTrades.some((t) => t.tradeKey === "plumbing") && aTrades.some((t) => t.tradeKey === "electrical"),
+      "A is genuinely multi-trade for the rehearsal (electrical + plumbing)",
+      aTrades.map((t) => t.tradeKey).join(", "));
+
+    const electricalLookup = await findTroubleshootingService(db, ids[A_SLUG], "electrical");
+    ok(electricalLookup.ok && electricalLookup.service.id === electricalDiagnostic.id,
+      "the other-trade diagnostic is real, active, and resolvable in its own trade",
+      electricalLookup.ok ? electricalLookup.service.slug : electricalLookup.problem);
+
+    const plumbingLookup = await findTroubleshootingService(db, ids[A_SLUG], "plumbing");
+    ok(plumbingLookup.ok && plumbingLookup.service.id === plumbingDiagnosticA.id,
+      "with both diagnostics active, Plumbing sees exactly its Plumbing service call",
+      plumbingLookup.ok ? plumbingLookup.service.slug : plumbingLookup.problem);
+    ok(plumbingLookup.ok && plumbingLookup.service.id !== electricalDiagnostic.id,
+      "the Electrical diagnostic is invisible to the Plumbing lookup — never a candidate or tie-breaker");
+
+    if (rerouteOriginA) {
+      // This is the actual shipped route-loader path: it reads the originating
+      // Service.tradeKey and internally delegates to findTroubleshootingService.
+      const loadedA = await loadServiceForResolution(db, rerouteOriginA.id);
+      ok(loadedA?.troubleshootingServiceId === plumbingDiagnosticA.id,
+        `${rerouteOriginA.slug}: shipped G2 path resolves the Plumbing reroute to PL-SVC-001`,
+        loadedA?.troubleshootingProblem ?? String(loadedA?.troubleshootingServiceId));
+
+      const guardedA = await asA(() => findTroubleshootingService(guarded, ids[A_SLUG], "plumbing"));
+      ok(guardedA.ok && guardedA.service.id === plumbingDiagnosticA.id,
+        "the shared lookup resolves correctly through A's tenant guard",
+        guardedA.ok ? guardedA.service.slug : guardedA.problem);
+      ok(await asA(() => refused(() => findTroubleshootingService(guarded, ids[B_SLUG], "plumbing"))),
+        "the shared troubleshooting lookup remains tenant-isolated — A cannot ask for B's destination");
+
+      const bLoadedAfter = rerouteOriginB
+        ? await loadServiceForResolution(db, rerouteOriginB.id)
+        : null;
+      ok(bLoadedAfter?.troubleshootingServiceId === plumbingDiagnosticB.id &&
+          bLoadedAfter?.troubleshootingServiceId === bLoadedBefore?.troubleshootingServiceId,
+        "making A multi-trade does not alter B's Plumbing reroute behavior",
+        bLoadedAfter?.troubleshootingProblem ?? String(bLoadedAfter?.troubleshootingServiceId));
+
+      // Zero same-trade diagnostics: Electrical remains active, but Plumbing
+      // must fail closed rather than fall across the trade boundary.
+      await db.service.update({ where: { id: plumbingDiagnosticA.id }, data: { active: false } });
+      const zeroPlumbing = await findTroubleshootingService(db, ids[A_SLUG], "plumbing");
+      const electricalStillThere = await findTroubleshootingService(db, ids[A_SLUG], "electrical");
+      ok(!zeroPlumbing.ok && zeroPlumbing.problem.includes("no active TROUBLESHOOT_ONLY") && zeroPlumbing.problem.includes("plumbing"),
+        "zero Plumbing diagnostics fails closed even while another trade has one",
+        zeroPlumbing.ok ? zeroPlumbing.service.slug : zeroPlumbing.problem);
+      ok(electricalStillThere.ok && electricalStillThere.service.id === electricalDiagnostic.id,
+        "the Electrical diagnostic stays active during the zero-Plumbing proof");
+      const loadedZero = await loadServiceForResolution(db, rerouteOriginA.id);
+      ok(loadedZero?.troubleshootingServiceId === null &&
+          Boolean(loadedZero?.troubleshootingProblem?.includes("plumbing")),
+        "the shipped originating-service path also fails closed with zero Plumbing diagnostics",
+        loadedZero?.troubleshootingProblem ?? String(loadedZero?.troubleshootingServiceId));
+
+      await db.service.update({ where: { id: plumbingDiagnosticA.id }, data: { active: true } });
+
+      // Two same-trade diagnostics: still ambiguous, and the electrical row is
+      // absent from the ambiguity report because it is not a Plumbing candidate.
+      const secondPlumbingDiagnostic = await db.service.create({
+        data: {
+          slug: "zz-second-plumbing-proof-service-call",
+          name: "Second Plumbing Proof Service Call",
+          categoryId: plumbingDiagnosticA.categoryId,
+          contractorCategoryId: plumbingDiagnosticA.contractorCategoryId,
+          bookingType: "TROUBLESHOOT_ONLY",
+          basePrice: 8_900,
+          publishedPriceApprovedAt: new Date(),
+          contractorId: ids[A_SLUG],
+          tradeKey: "plumbing",
+          materialCostResolved: true,
+          unresolvedMaterialKeys: [],
+          unresolvedPolicyKeys: [],
+          offered: true,
+          active: true,
+        },
+        select: { id: true, slug: true },
+      });
+      const twoPlumbing = await findTroubleshootingService(db, ids[A_SLUG], "plumbing");
+      ok(!twoPlumbing.ok && twoPlumbing.problem.includes("2 active TROUBLESHOOT_ONLY") &&
+          twoPlumbing.problem.includes("plumbing") && !twoPlumbing.problem.includes(electricalDiagnostic.slug),
+        "two Plumbing diagnostics fail closed as same-trade ambiguity; Electrical is absent from the candidate set",
+        twoPlumbing.ok ? twoPlumbing.service.slug : twoPlumbing.problem);
+      const loadedAmbiguous = await loadServiceForResolution(db, rerouteOriginA.id);
+      ok(loadedAmbiguous?.troubleshootingServiceId === null &&
+          Boolean(loadedAmbiguous?.troubleshootingProblem?.includes("2 active TROUBLESHOOT_ONLY")),
+        "the shipped originating-service path refuses the same-trade ambiguity",
+        loadedAmbiguous?.troubleshootingProblem ?? String(loadedAmbiguous?.troubleshootingServiceId));
+
+      await db.service.delete({ where: { id: secondPlumbingDiagnostic.id } });
+      const restoredA = await loadServiceForResolution(db, rerouteOriginA.id);
+      ok(restoredA?.troubleshootingServiceId === plumbingDiagnosticA.id,
+        "after the ambiguity fixture is removed, A's Plumbing reroute returns to PL-SVC-001",
+        restoredA?.troubleshootingProblem ?? String(restoredA?.troubleshootingServiceId));
+    }
 
   } finally {
     if (!KEEP) {
