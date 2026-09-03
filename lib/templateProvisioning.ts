@@ -514,17 +514,29 @@ export async function installCatalog(
             });
 
             for (const c of o.components) {
-              // Same rule as materials: the STRUCTURE says this answer adds a
-              // component; what it costs is the contractor's to decide.
-              const priced = await t.contractorComponent.findUnique({
-                where: {
-                  contractorId_canonicalComponentId: {
-                    contractorId, canonicalComponentId: c.canonicalComponentId,
-                  },
-                },
-                select: { id: true },
-              });
-              if (!priced) continue;
+              /**
+               * ALWAYS linked, priced or not — the same rule as branch
+               * material below, and now the same rule as ServiceMaterial
+               * above, which B1 corrected for exactly this reason.
+               *
+               * This used to look up the contractor's ContractorComponent
+               * first and `continue` when it was missing, which silently threw
+               * the structural link away. The template's claim is about WORK:
+               * this answer selects this component. Whether the contractor has
+               * priced it yet is a fact about the contractor, and provisioning
+               * is not entitled to edit the job because of it.
+               *
+               * The cost of the old shape was permanent. Nothing outside
+               * installCatalog creates an AnswerOptionComponent, so a
+               * contractor who priced a component the day after onboarding
+               * never got the link at all, and no amount of later
+               * configuration could produce it — only a reinstall.
+               *
+               * Unpriced is still refused, just by the authority that owns
+               * that question: the route fails closed to REVIEW while the
+               * component has no approved price. Structure here, economics
+               * there.
+               */
               await t.answerOptionComponent.create({
                 data: {
                   answerOptionId: ao.id, canonicalComponentId: c.canonicalComponentId,
