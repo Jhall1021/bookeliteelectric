@@ -145,7 +145,24 @@ export default function Hero() {
                       What you control
                     </span>
                   </div>
-                  <div className="h-[290px] overflow-hidden lg:h-[320px]">
+                  {/* THE CROP HEIGHT IS THE OVERLAP GEOMETRY, not a taste
+                      choice. The card is pinned to this container's bottom, so
+                      growing the crop moves the card DOWN across the catalog
+                      while the catalog stays anchored at the top. At 320px the
+                      card's top edge landed on the admin sub-navigation and cut
+                      a row of link text through its middle, and clipped two
+                      labels mid-word — "nissing", "utomatically when a
+                      service's materials are itemized" — which reads as a
+                      rendering fault rather than a layer. It also buried every
+                      service NAME, leaving the control side showing a column of
+                      prices attached to nothing.
+
+                      At 503px the card clears the whole head of the page: the
+                      nav, the sub-nav, the "Services & Pricing" title, all five
+                      readiness counters and the banner under them are intact,
+                      and the card's edge falls in the table body where a layer
+                      over rows reads as a layer. */}
+                  <div className="h-[290px] overflow-hidden lg:h-[503px]">
                     <ShotFigure src={SHOTS.adminServices.full ?? SHOTS.adminServices.src}
                                 alt={SHOTS.adminServices.alt}
                                 width={SHOTS.adminServices.fullW ?? SHOTS.adminServices.w}
