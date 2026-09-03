@@ -224,11 +224,30 @@ async function unavailableDependencies(
       out.push({ slug: null, label: "a diagnostic visit, which this service cannot resolve" });
     } else {
       const found = await findTroubleshootingService(db, contractorId, trade.tradeKey);
-      out.push(
-        found.ok
-          ? { slug: found.service.slug, label: `your diagnostic visit ("${found.service.name}")` }
-          : { slug: null, label: "a diagnostic visit, which you don't offer yet" }
-      );
+      if (found.ok) {
+        out.push({ slug: found.service.slug, label: `your diagnostic visit ("${found.service.name}")` });
+      } else {
+        // The lookup above answers the routing question — which LIVE diagnostic
+        // a homeowner would be sent to — so inside a dependency refusal it can
+        // never find one: the diagnostic being unlaunched is the whole reason
+        // we are here. Before G2 this branch still named the service, and the
+        // contractor was told which one to launch first; G2's trade scoping
+        // dropped that. So the same trade's diagnostic is looked up again
+        // WITHOUT the live filter, and named with its slug, so Review & Launch
+        // can order it first and the message says what to do rather than
+        // restating the rule. Only when the catalog holds none at all is the
+        // answer "you don't offer one".
+        const installed = await db.service.findFirst({
+          where: { contractorId, tradeKey: trade.tradeKey, bookingType: "TROUBLESHOOT_ONLY" },
+          select: { slug: true, name: true },
+          orderBy: { slug: "asc" },
+        });
+        out.push(
+          installed
+            ? { slug: installed.slug, label: `your diagnostic visit ("${installed.name}")` }
+            : { slug: null, label: "a diagnostic visit, which you don't offer yet" }
+        );
+      }
     }
   }
 

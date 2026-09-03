@@ -24,6 +24,7 @@ import { PrismaClient } from "@prisma/client";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { activationRefusal, activateService } from "../lib/serviceActivation";
+import { activationMaterialRoles } from "../lib/materialResolution";
 import { catalogPromises, promiseFor } from "../lib/onboardingReadiness";
 import { loadPricingSettings } from "../lib/routeResolver";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
@@ -104,6 +105,19 @@ async function clearUnrelatedBlockers(contractorId: string, serviceId: string, h
       materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [],
     },
   });
+  // Material readiness is DERIVED as of the B1 fix — from the roles a
+  // reachable priceable path consumes, not the cached fields above. Clearing
+  // the cache no longer clears it, so every reachable role is costed here.
+  // Without this the dependency check never runs: the service refuses with
+  // MATERIALS_UNRESOLVED first, truthfully, and this file is about a different
+  // rule.
+  for (const role of await activationMaterialRoles(raw as never, serviceId)) {
+    await raw.contractorMaterial.upsert({
+      where: { contractorId_canonicalMaterialId: { contractorId, canonicalMaterialId: role.canonicalMaterialId } },
+      update: { unitCostCents: 1000 },
+      create: { contractorId, canonicalMaterialId: role.canonicalMaterialId, unitCostCents: 1000 },
+    });
+  }
   const svc = await raw.service.findUniqueOrThrow({
     where: { id: serviceId }, select: { id: true, bookingType: true },
   });
@@ -163,12 +177,23 @@ async function main() {
 
   // A service whose tree actually hands off to the diagnostic. Found by
   // walking, not by naming a slug: the point is the rule, not this service.
+  //
+  // DETERMINISTIC, and with the diagnostic as its ONLY dependency. The catalog
+  // map comes back in storage order, which is not stable between runs, and
+  // some services hand off to another service AS WELL as to the diagnostic —
+  // launching the diagnostic alone can never clear those, so picking one of
+  // them fails check 2 for a reason this file is not about. The lowest slug
+  // among services whose sole unmet destination is the diagnostic is chosen,
+  // so two runs pick the same service and the rule under test is the only
+  // rule in play.
   const promises = await catalogPromises(raw as never, c.id);
-  const dependentId = [...promises.entries()].find(([, p]) => p.needsDiagnostic)?.[0];
-  if (!dependentId) throw new Error("no service in the catalog hands off to the diagnostic");
-  const dependent = await raw.service.findUniqueOrThrow({
-    where: { id: dependentId }, select: { id: true, slug: true, name: true },
+  const candidates = await raw.service.findMany({
+    where: { id: { in: [...promises.entries()].filter(([, p]) => p.needsDiagnostic && p.handoffTargets.length === 0).map(([id]) => id) } },
+    select: { id: true, slug: true, name: true },
+    orderBy: { slug: "asc" },
   });
+  const dependent = candidates[0];
+  if (!dependent) throw new Error("no service in the catalog hands off only to the diagnostic");
   console.log(`  "${dependent.slug}" hands off to "${diagnostic.slug}"\n`);
 
   // ── 1. the dependent cannot go live while its destination is not ──────
