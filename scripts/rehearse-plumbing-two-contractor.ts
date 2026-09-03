@@ -31,6 +31,7 @@ import { withTenant } from "../lib/tenantContext";
 import { activationRefusal } from "../lib/serviceActivation";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
 import { activationMaterialRoles } from "../lib/materialResolution";
+import { resolvePolicy } from "../lib/policyResolution";
 import { buildPlumbingPayload } from "../lib/plumbing/publish";
 import { PLUMBING_SERVICES, service as canonicalService } from "../lib/plumbing/catalog";
 import { composeService } from "../lib/plumbing/composition";
@@ -230,15 +231,32 @@ async function main() {
           update: { approvedPriceCents: e.componentPrice, labelOverride: e.equipment.label },
           create: { contractorId: cid, canonicalComponentId: c.id, approvedPriceCents: e.componentPrice, labelOverride: e.equipment.label },
         });
-      // Policy boundaries: the numbers the template refused to ship.
-      await db.contractorPolicyValue.updateMany({
-        where: { contractorId: cid, key: "plumbing_run.breakpoints" },
-        data: { boundaries: [...e.runBoundaries], resolvedAt: new Date() },
-      });
-      await db.contractorPolicyValue.updateMany({
-        where: { contractorId: cid, key: "fixture.supply_arrangement" },
-        data: { choice: e.supply, resolvedAt: new Date() },
-      });
+      /**
+       * Policy boundaries: the numbers the template refused to ship.
+       *
+       * THROUGH resolvePolicy, not a raw update, and over the rows the
+       * contractor actually installed rather than two keys named here.
+       *
+       * Writing ContractorPolicyValue directly sets resolvedAt and stops
+       * there: every dependent service still carries the key in
+       * unresolvedPolicyKeys, so the contractor answers the question and stays
+       * blocked. That is what this harness had been doing to itself —
+       * POLICY_UNRESOLVED sat in front of the price and material guards the
+       * isolated tests below are aiming at, and two of them look for a service
+       * with `unresolvedPolicyKeys` empty and found none.
+       *
+       * Enumerated rather than hard-coded so a policy added to the template
+       * later is answered here too instead of silently going unresolved.
+       */
+      const installedPolicies = await db.contractorPolicyValue.findMany({
+        where: { contractorId: cid }, select: { key: true, boundaryCount: true } });
+      for (const pol of installedPolicies) {
+        const answer = pol.boundaryCount === 0
+          ? { choice: e.supply }
+          : { boundaries: [...e.runBoundaries].slice(0, pol.boundaryCount) };
+        const res = await resolvePolicy(db, cid, pol.key, answer);
+        if (!res.ok) ok(false, `${slug}: resolvePolicy(${pol.key})`, JSON.stringify(res.refusal));
+      }
       ok(true, `${slug}: economics, policies and equipment configured`);
     }
 
