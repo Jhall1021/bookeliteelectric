@@ -47,7 +47,7 @@ recovery() {
 tok=$(cat "$DIR/vercel-token" 2>/dev/null) || fail "no Vercel token"
 credential_shape_check vercel "$tok" || exit 1
 
-API_STATUS=""; API_BODY=""; CURL_RC=0
+API_STATUS=""; API_BODY=""; API_HDRS=""; CURL_RC=0
 req() {   # req METHOD URL [authed=yes]
   local method="$1" url="$2" authed="${3:-yes}" out
   canonical_guard "$url" || exit 1
@@ -57,11 +57,16 @@ req() {   # req METHOD URL [authed=yes]
     [ "$authed" = "yes" ] && printf 'header = "Authorization: Bearer %s"\n' "$tok"
     printf 'request = "%s"\n' "$method"
     printf 'silent\nshow-error\nconnect-timeout = 15\nmax-time = 45\n'
+    # NO `location` directive: the SSO redirect is never followed. Its existence
+    # is the evidence; where it leads is Vercel's business and not ours.
+    printf 'dump-header = "%s.hdr"\n' "$out"
     printf 'write-out = "\\nHTTP_STATUS:%%{http_code}"\n'
   } | curl --config - > "$out" 2>&1
   CURL_RC=$?
   API_STATUS=$(sed -n 's/.*HTTP_STATUS:\([0-9]*\)$/\1/p' "$out" | tail -1)
-  API_BODY="$out.body"; sed 's/HTTP_STATUS:[0-9]*$//' "$out" > "$API_BODY"; rm -f "$out"
+  API_BODY="$out.body"; sed 's/HTTP_STATUS:[0-9]*$//' "$out" > "$API_BODY"
+  API_HDRS="$out.hdr"; [ -f "$API_HDRS" ] || : > "$API_HDRS"
+  rm -f "$out"
 }
 
 classify() {  # 408/429 before the generic 4xx rule
@@ -83,7 +88,9 @@ observe_once() {   # observe_once <destfile>
   if [ "$CURL_RC" = "0" ] && [ "$API_STATUS" = "200" ]; then cp "$API_BODY" "$tmpdir/aliases.json"; fi
   for h in $HOSTS; do
     req GET "https://$h/build-info.json" no
-    if [ "$CURL_RC" = "0" ] && [ "$API_STATUS" = "200" ]; then cp "$API_BODY" "$tmpdir/served-$h.json"; fi
+    printf '%s' "${API_STATUS:-000}" > "$tmpdir/status-$h"
+    grep -i '^location:' "$API_HDRS" 2>/dev/null | head -1 | sed 's/^[Ll]ocation:[[:space:]]*//; s/[[:space:]]*$//' > "$tmpdir/location-$h"
+    cp "$API_BODY" "$tmpdir/served-$h.json" 2>/dev/null || :
   done
   python3 - "$tmpdir" "$dest" "$HOSTS" <<'PY'
 import json, os, sys
@@ -98,13 +105,43 @@ target = None if proj is None else ((proj.get("targets") or {}).get("production"
 target_state = None if proj is None else ((proj.get("targets") or {}).get("production") or {}).get("readyState")
 al = load("aliases.json")
 aliases = None if al is None else {a["alias"]: a.get("deploymentId") for a in al.get("aliases", []) if a.get("alias") in hosts}
-served = {}
+# THREE ACCESS STATES, and PROTECTED is not a kind of served identity.
+#
+#   readable    HTTP 200 with a parseable build-info carrying a commitSha
+#   protected   the OBSERVED Vercel Deployment Protection redirect, and only
+#               that: a 3xx whose Location is https://vercel.com/sso-api?…
+#   unreadable  anything else, INCLUDING a redirect somewhere unexpected
+#
+# The nonce in the Location changes on every request, so it is stripped for the
+# stability comparison while the raw value is kept as evidence. A protected host
+# yields NO commitSha and NO deploymentId: nothing is inferred from a redirect.
+def readtxt(n):
+    p = os.path.join(d, n)
+    return open(p).read().strip() if os.path.exists(p) else ""
+
+SSO = "https://vercel.com/sso-api"
+def denonce(loc):
+    if not loc: return ""
+    parts = [seg for seg in loc.split("&") if not seg.startswith("nonce=")]
+    return "&".join(parts)
+
+served, raw = {}, {}
 for h in hosts:
-    s = load("served-%s.json" % h)
-    served[h] = {"readable": False} if s is None else {
-        "readable": True, "commitSha": s.get("commitSha"), "deploymentId": s.get("deploymentId")}
+    st  = readtxt("status-%s" % h)
+    loc = readtxt("location-%s" % h)
+    raw[h] = {"status": st, "location": loc}
+    body = load("served-%s.json" % h)
+    if st == "200" and isinstance(body, dict) and body.get("commitSha"):
+        served[h] = {"access": "readable", "status": st,
+                     "commitSha": body.get("commitSha"), "deploymentId": body.get("deploymentId")}
+    elif st.startswith("3") and loc.startswith(SSO):
+        served[h] = {"access": "protected", "status": st, "locationNormalized": denonce(loc)}
+    else:
+        served[h] = {"access": "unreadable", "status": st,
+                     "locationNormalized": denonce(loc) if loc else ""}
 json.dump({"target": target, "targetState": target_state, "aliases": aliases, "served": served},
           open(dest, "w"), indent=2, sort_keys=True)
+json.dump(raw, open(dest + ".raw", "w"), indent=2, sort_keys=True)
 PY
   rm -rf "$tmpdir"
 }
@@ -213,13 +250,22 @@ chk("production target is the outgoing deployment", o.get("target")==sys.argv[2]
 chk("target is READY", o.get("targetState")=="READY")
 chk("every alias mapping readable", isinstance(o.get("aliases"),dict) and len(o["aliases"])==3
     and all(v for v in o["aliases"].values()))
-chk("every host's build-info readable", all(v.get("readable") for v in o["served"].values()))
+# The gate is NOT relaxed to "some host is readable". Every host's access state
+# must be ESTABLISHED — readable or protected. Unreadable is an unknown, and the
+# run still refuses on it.
+chk("every host's access state established (readable or protected)",
+    all(v.get("access") in ("readable","protected") for v in o["served"].values()))
 print()
 print("    baseline routing")
 for h,d in sorted((o.get("aliases") or {}).items()): print("      %-52s -> %s" % (h,d))
-print("    served identities (fields as ACTUALLY exposed)")
+print("    access and served identity, host by host")
 for h,v in sorted(o["served"].items()):
-    print("      %-52s %s" % (h, v))
+    if v.get("access")=="readable":
+        print("      %-52s READABLE   sha %s  dpl %s" % (h, (v.get("commitSha") or "")[:12], v.get("deploymentId")))
+    elif v.get("access")=="protected":
+        print("      %-52s PROTECTED  HTTP %s — no served identity is inferred" % (h, v.get("status")))
+    else:
+        print("      %-52s UNREADABLE HTTP %s" % (h, v.get("status")))
 raise SystemExit(0 if ok else 1)
 PY
 [ $? -eq 0 ] || fail "the baseline is incomplete; stopping before promotion"
@@ -248,15 +294,25 @@ case "$k" in
 import json,sys
 b=json.load(open(sys.argv[1])); a=json.load(open(sys.argv[2])); cand=sys.argv[3]
 unreadable = (a.get("target") is None or a.get("aliases") is None
-              or not all(v.get("readable") for v in a["served"].values()))
+              or any(v.get("access") == "unreadable" for v in a["served"].values()))
 same_target = a.get("target")==b.get("target")
 same_alias  = a.get("aliases")==b.get("aliases")
 same_served = a.get("served")==b.get("served")
-print("    target same: %s   aliases same: %s   served same: %s   unreadable: %s"
-      % (same_target, same_alias, same_served, unreadable))
+# A host flipping between readable and protected is a CHANGE. It is exactly what
+# a promotion does to routing here, and collapsing it into "nothing happened"
+# would hide the mutation.
+acc_b = {h: v.get("access") for h, v in b["served"].items()}
+acc_a = {h: v.get("access") for h, v in a["served"].items()}
+same_access = acc_b == acc_a
+print("    target same: %s   aliases same: %s   served same: %s   access same: %s   unreadable: %s"
+      % (same_target, same_alias, same_served, same_access, unreadable))
+if not same_access:
+    for h in sorted(acc_b):
+        if acc_b[h] != acc_a.get(h):
+            print("      access changed: %s  %s -> %s" % (h, acc_b[h], acc_a.get(h)))
 if a.get("target")==cand: raise SystemExit(10)          # promoted
 if unreadable:            raise SystemExit(12)          # cannot establish
-if same_target and same_alias and same_served: raise SystemExit(11)   # nothing happened
+if same_target and same_alias and same_served and same_access: raise SystemExit(11)  # nothing happened
 raise SystemExit(13)                                    # partial mutation
 PY
     case $? in
@@ -290,13 +346,22 @@ for h in sorted(b.get("aliases") or {}):
     was=(b.get("aliases") or {}).get(h); now=(p.get("aliases") or {}).get(h)
     verdict = "UNREADABLE" if now is None else ("moved to the candidate" if now==cand else "unchanged" if now==was else "moved to %s" % now)
     print("    %-52s %s" % (h, verdict))
-print("  SERVED IDENTITY, host by host")
+print("  ACCESS STATE, host by host — a separate fact from alias movement")
+for h in sorted(b.get("served") or {}):
+    was=(b.get("served") or {}).get(h,{}).get("access")
+    now=(p.get("served") or {}).get(h,{}).get("access")
+    print("    %-52s %s" % (h, "%s (unchanged)" % was if was==now else "%s -> %s" % (was, now)))
+print("  SERVED IDENTITY, host by host — established ONLY where readable")
 for h in sorted(b.get("served") or {}):
     v=(p.get("served") or {}).get(h) or {}
-    if not v.get("readable"): print("    %-52s UNREADABLE" % h); continue
+    acc=v.get("access")
+    if acc=="protected":
+        print("    %-52s PROTECTED — what it served is UNESTABLISHED" % h); continue
+    if acc!="readable":
+        print("    %-52s UNREADABLE" % h); continue
     sha=v.get("commitSha")
-    print("    %-52s sha %s  %s" % (h, (sha or "none")[:12],
-          "the candidate's" if sha==csha else "not the candidate's"))
+    print("    %-52s sha %s  %s   dpl %s" % (h, (sha or "none")[:12],
+          "the candidate's" if sha==csha else "not the candidate's", v.get("deploymentId")))
 PY
 
 say ""

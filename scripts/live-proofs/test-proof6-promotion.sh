@@ -27,6 +27,8 @@ cfg=$(cat)
 url=$(printf '%s' "$cfg" | sed -n 's/^url = "\(.*\)"$/\1/p' | head -1)
 method=$(printf '%s' "$cfg" | sed -n 's/^request = "\(.*\)"$/\1/p' | head -1)
 S="$STUB_DIR"
+hdrfile=$(printf '%s' "$cfg" | sed -n 's/^dump-header = "\(.*\)"$/\1/p' | head -1)
+[ -n "$hdrfile" ] && printf 'HTTP/2 200\r\n\r\n' > "$hdrfile"
 case "$url" in
   */promote/*)
     dep=${url##*/promote/}
@@ -42,6 +44,7 @@ case "$url" in
 a=json.load(open(sys.argv[1])); k=sorted(a)[0]; a[k]=sys.argv[2]; json.dump(a,open(sys.argv[1],"w"))' "$S/aliases" "$dep" ;;
       alias-not-served) printf '%s' "$dep" > "$S/target"
                    python3 -c 'import json,sys;json.dump({k:sys.argv[2] for k in json.load(open(sys.argv[1]))},open(sys.argv[1],"w"))' "$S/aliases" "$dep" ;;
+      protect-only) printf 'flip' > "$S/protectflip" ;;
       none)        : ;;
     esac
     printf '%s' "${STUB_PROMOTE_BODY:-}"; printf '\nHTTP_STATUS:%s' "$st"; exit 0 ;;
@@ -64,11 +67,40 @@ print(json.dumps({"aliases":[{"alias":k,"deploymentId":v} for k,v in a.items()]}
     printf '\nHTTP_STATUS:200' ;;
   */build-info.json)
     host=$(printf '%s' "$url" | sed 's|https://||; s|/build-info.json||')
-    if [ "$host" = "${STUB_HOST_FAIL:-}" ]; then printf ''; printf '\nHTTP_STATUS:503'; exit 0; fi
+    hdr=$(printf '%s' "$cfg" | sed -n 's/^dump-header = "\(.*\)"$/\1/p' | head -1)
+    # A fresh nonce on every request, exactly like the real thing.
+    nonce=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    protected=no; odd=no
+    for ph in ${STUB_HOST_PROTECTED:-}; do [ "$ph" = "$host" ] && protected=yes; done
+    if [ -n "${STUB_PROTECT_FOLLOWS:-}" ]; then
+      t=$(cat "$S/target")
+      mapped=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get(sys.argv[2],""))' "$S/aliases" "$host")
+      if [ "$mapped" = "$t" ]; then protected=no; else protected=yes; fi
+    fi
+    [ "$host" = "${STUB_HOST_ODD_REDIRECT:-}" ] && odd=yes
+    # Protection that appears only AFTER the promote call: routing untouched,
+    # access state changed. The runner must call that a mutation.
+    if [ -n "${STUB_PROTECT_ONCE:-}" ] && [ "$host" = "${STUB_PROTECT_ONCE}" ]; then
+      pn=$(cat "$S/promoten" 2>/dev/null || echo 0)
+      [ "$pn" != "0" ] && protected=yes
+    fi
+    if [ "$host" = "${STUB_HOST_FAIL:-}" ]; then
+      [ -n "$hdr" ] && printf 'HTTP/2 503\r\n\r\n' > "$hdr"
+      printf ''; printf '\nHTTP_STATUS:503'; exit 0
+    fi
+    if [ "$odd" = yes ]; then
+      [ -n "$hdr" ] && printf 'HTTP/2 302\r\nlocation: https://example.invalid/somewhere\r\n\r\n' > "$hdr"
+      printf 'Redirecting...'; printf '\nHTTP_STATUS:302'; exit 0
+    fi
+    if [ "$protected" = yes ]; then
+      [ -n "$hdr" ] && printf 'HTTP/2 302\r\nlocation: https://vercel.com/sso-api?url=https%%3A%%2F%%2F%s%%2Fbuild-info.json&nonce=%s\r\n\r\n' "$host" "$nonce" > "$hdr"
+      printf 'Redirecting...'; printf '\nHTTP_STATUS:302'; exit 0
+    fi
+    [ -n "$hdr" ] && printf 'HTTP/2 200\r\n\r\n' > "$hdr"
     python3 -c '
 import json,sys
 s=json.load(open(sys.argv[1]))
-print(json.dumps({"commitSha":s.get(sys.argv[2]),"deploymentId":None}), end="")' "$S/served" "$host"
+print(json.dumps({"commitSha":s.get(sys.argv[2]),"deploymentId":sys.argv[3]}), end="")' "$S/served" "$host" "$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get(sys.argv[2],""))' "$S/aliases" "$host")"
     printf '\nHTTP_STATUS:200' ;;
   *) printf '{}'; printf '\nHTTP_STATUS:200' ;;
 esac
@@ -113,8 +145,13 @@ run "6  target changed, one alias unchanged"         0 "unchanged"             S
 run "7  alias moved but served sha still old"        0 "not the candidate"     STUB_PROMOTE_EFFECT=alias-not-served
 run "8  ambiguous restoration, resolved by reading"  0 "restored"              STUB_RESTORE_STATUS=500 STUB_RESTORE_EFFECT=full
 run "9  restoration returns target, aliases differ"  0 "MANDATORY"             STUB_RESTORE_EFFECT=target-only
-run "10 observation failure: a host unreadable"      1 "build-info readable"   STUB_HOST_FAIL="$H2"
+run "10 observation failure: a host unreadable"      1 "UNREADABLE HTTP 503"   STUB_HOST_FAIL="$H2"
 run "11 restoration failure: target not restored"    2 "RECOVERY_REQUIRED"     STUB_RESTORE_EFFECT=none
+run "12 an SSO redirect becomes PROTECTED"           0 "PROTECTED"             STUB_HOST_PROTECTED="$H2"
+run "13 an UNEXPECTED redirect stays UNREADABLE"     1 "access state established" STUB_HOST_ODD_REDIRECT="$H2"
+run "14 rotating nonces do not block stability"      0 "COMPLETE"              STUB_HOST_PROTECTED="$H2 $H3"
+run "15 protection flips, target and aliases do not" 1 "partial mutation"      STUB_PROMOTE_STATUS=500 STUB_PROMOTE_EFFECT=none STUB_PROTECT_ONCE="$H2"
+run "16 alias movement and protection inversion"     0 "access changed\|-> protected\|-> readable" STUB_PROTECT_FOLLOWS=1
 
 echo
 echo "  $pass passed, $fail failed."
