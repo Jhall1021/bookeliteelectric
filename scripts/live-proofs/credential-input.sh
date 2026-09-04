@@ -78,7 +78,13 @@ trap 'restore; discard; printf "\n"; exit 130' INT TERM HUP
 # ECHO OFF BEFORE THE PROMPT, not after it. Printing "value: " first leaves a
 # window in which the terminal is still echoing, and a value pasted the instant
 # the prompt appears is displayed — which a pty test caught doing exactly that.
-stty -echo
+#
+# AND ITS STATUS IS CHECKED. Unchecked, a failing `stty -echo` was silent: the
+# prompt still appeared, the value was echoed to the terminal, and it was stored
+# and reported as success. The one operation this helper exists to perform is
+# the one it must not assume worked. Refusing here runs the EXIT trap, which
+# restores the terminal and removes the empty prepared file.
+stty -echo || { refuse "could not disable terminal echo; nothing was prompted for or written"; }
 
 printf '%s\n' "$WHAT"
 printf 'prepared %s (mode %s) in %s (mode %s)\n' "$FILE" "$fm" "$DIR" "$dm"
