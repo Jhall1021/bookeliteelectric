@@ -124,6 +124,16 @@ function basisMustBeComplete() {
   const partial: OriginTrustBasis = { state: "OBSERVED", observedOn: "2026-09-04", trustedFields: ["gitSource.sha"], note: "" };
   ok(!basisCovers(partial), "a basis covering only some decision fields is not enough");
   ok(basisCovers(OBSERVED), "a dated basis covering every decision field is");
+  // The adapter used to fall back to provider/owner/branch/commitSha, none of
+  // which the basis names — so a record supplying ONLY those verified against a
+  // basis that had never observed them.
+  const fallbackOnly = {
+    uid: CAND, projectId: CANONICAL.vercelProjectId, target: "production", readyState: "READY",
+    source: "git",
+    gitSource: { provider: "github", owner: CANONICAL.owner, repo: CANONICAL.repo, branch: "main", commitSha: MAIN },
+  };
+  ok(!verifiedOrigin(fallbackOnly, OBSERVED).ok,
+    "a record using only unobserved field names verifies nothing");
   ok(ORIGIN_TRUST_BASIS.state === "UNVERIFIED" && !basisCovers(ORIGIN_TRUST_BASIS),
     "and the shipped default still refuses everything");
 }
@@ -206,17 +216,37 @@ async function realAdapters() {
     "and refuses an object that is not a commit");
   ok(await freshMainSha(async () => res(500, {}), "t") === null, "and refuses a non-2xx");
 
-  // vercelJsonBuildCommand — 404 is a READ; a failure is not.
-  const v404 = await vercelJsonBuildCommand(MAIN, async () => res(404, {}), "t");
-  ok(v404.read === true && v404.value === null, "a 404 vercel.json is READ as 'no override'");
-  const v500 = await vercelJsonBuildCommand(MAIN, async () => res(500, {}), "t");
-  ok(v500.read === false, "but a failed read is NOT 'no override'");
-  const vBad = await vercelJsonBuildCommand(MAIN, async () => res(200, {}, "{not json"), "t");
-  ok(vBad.read === false, "and unparseable vercel.json is not 'no override' either");
-  const vSet = await vercelJsonBuildCommand(MAIN, async () => res(200, {}, '{"buildCommand":"next build"}'), "t");
-  ok(vSet.read === true && vSet.value === "next build", "and a real override is read as one");
-  ok((await vercelJsonBuildCommand(MAIN, async () => res(200, {}), undefined)).read === false,
-    "and with no credential it is unread, never assumed absent");
+  // vercelJsonBuildCommand — ABSENCE MUST BE PROVED, not inferred from a 404.
+  //
+  // GitHub answers 404 for a private resource the credential cannot see, so a
+  // bare 404 was indistinguishable from a revoked token. The root tree at the
+  // exact commit is read first; only a successful tree read makes absence mean
+  // anything.
+  const tree = (paths: string[]) => ({ tree: paths.map((p) => ({ path: p, type: "blob" })) });
+  const route = (h: { tree?: () => Response; file?: () => Response }) =>
+    (async (u: string | URL | Request) =>
+      String(u).includes("/git/trees/") ? (h.tree ?? (() => res(200, tree([]))))()
+                                        : (h.file ?? (() => res(404, {})))()) as typeof fetch;
+
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(404, {}) }), "t")).read === false,
+    "a 404 on the commit tree is UNREAD — access to the exact commit was never established");
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, {}) }), "t")).read === false,
+    "a tree response with no tree array is unread");
+  const absent = await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["package.json"])) }), "t");
+  ok(absent.read === true && absent.value === null,
+    "absence is READ only when the commit's own tree was listed and does not contain it");
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, "") }), "t")).read === false,
+    "a file listed in the tree that comes back EMPTY is unread, not an empty config");
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, "[]") }), "t")).read === false,
+    "vercel.json containing [] is not a configuration object");
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, '"next build"') }), "t")).read === false,
+    "and a bare JSON string is not one either");
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, "{not json") }), "t")).read === false,
+    "and unparseable content is unread");
+  const vSet = await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, '{"buildCommand":"next build"}') }), "t");
+  ok(vSet.read === true && vSet.value === "next build", "while a real override is read as one");
+  ok((await vercelJsonBuildCommand(MAIN, route({}), undefined)).read === false,
+    "and with no credential nothing is read, never assumed absent");
 
   // buildEvidence — the adapter that used to manufacture "no override".
   const api = (async (path: string) => {
@@ -224,7 +254,9 @@ async function realAdapters() {
       return { status: 200, body: { buildCommand: "npm run build", projectSettings: { buildCommand: PROVENANCE_BUILD_COMMAND } } };
     return { status: 200, body: { buildCommand: PROVENANCE_BUILD_COMMAND } };
   }) as never;
-  const ev = await buildEvidence(api, CAND, MAIN, async () => res(404, {}), "t");
+  // The tree is readable and lists no vercel.json, so absence is genuinely
+  // established — isolating the contradiction in the build-command fields.
+  const ev = await buildEvidence(api, CAND, MAIN, route({ tree: () => res(200, tree([])) }), "t");
   ok(ev !== null && ev.effectiveBuildCommand.read === false,
     "the contradictory-command fixture is now UNREAD rather than resolved by preference");
   ok(ev !== null && ev.commitVercelJsonBuildCommand.read === true,

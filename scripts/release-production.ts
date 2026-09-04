@@ -186,19 +186,53 @@ export async function vercelJsonBuildCommand(
   sha: string, fetchImpl: FetchLike = fetch, token = process.env.P2B_GH_READ_TOKEN
 ): Promise<Read<string | null>> {
   if (!token) return { read: false, why: "no GitHub read credential" };
+
+  // ABSENCE IS PROVED BY A SUCCESSFUL READ, NOT BY A 404.
+  //
+  // GitHub answers 404 for a private resource the credential cannot see, so a
+  // 404 on the file alone is indistinguishable from a revoked token, a wrong
+  // repository, or a commit that does not exist. Reading it as "no override"
+  // meant a broken credential silently granted the permissive answer.
+  //
+  // So the ROOT TREE at the exact commit is read first. That one call proves
+  // access works, proves the commit exists, and says whether vercel.json is
+  // there — and only then does absence mean anything.
+  let tree: { tree?: unknown } | null = null;
+  try {
+    const r = await fetchImpl(
+      `https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/git/trees/${sha}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } }
+    );
+    if (!r.ok) return { read: false, why: `commit tree ${r.status} — access to the exact commit not established` };
+    tree = (await r.json()) as { tree?: unknown };
+  } catch (e) { return { read: false, why: `commit tree unreadable: ${String(e).slice(0, 80)}` }; }
+
+  const entries = tree?.tree;
+  if (!Array.isArray(entries)) return { read: false, why: "commit tree response has no tree array" };
+  const found = entries.some(
+    (e) => typeof e === "object" && e !== null && (e as { path?: unknown }).path === "vercel.json"
+  );
+  // Proved present-or-absent by a successful read of the commit's own tree.
+  if (!found) return { read: true, value: null };
+
   try {
     const r = await fetchImpl(
       `https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/contents/vercel.json?ref=${sha}`,
       { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.raw" } }
     );
-    if (r.status === 404) return { read: true, value: null };
-    if (!r.ok) return { read: false, why: `vercel.json read ${r.status}` };
+    if (!r.ok) return { read: false, why: `vercel.json listed in the tree but read ${r.status}` };
     const text = await r.text();
-    if (text.trim() === "") return { read: true, value: null };
-    let j: { buildCommand?: unknown };
-    try { j = JSON.parse(text) as { buildCommand?: unknown }; }
+    // The tree says the file exists, so an empty body is a failed read, not an
+    // empty configuration.
+    if (text.trim() === "") return { read: false, why: "vercel.json is listed in the tree but came back empty" };
+    let parsed: unknown;
+    try { parsed = JSON.parse(text); }
     catch { return { read: false, why: "vercel.json at the built commit is not valid JSON" }; }
-    const v = j.buildCommand;
+    // `[]` and `"next build"` are valid JSON and are not configurations. Reading
+    // buildCommand off them yields undefined, which used to mean "no override".
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return { read: false, why: "vercel.json is not a JSON object" };
+    const v = (parsed as { buildCommand?: unknown }).buildCommand;
     if (v === undefined || v === null) return { read: true, value: null };
     return typeof v === "string"
       ? { read: true, value: v }

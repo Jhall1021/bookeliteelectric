@@ -151,11 +151,18 @@ export function verifiedOrigin(
   if (typeof gs !== "object" || gs === null) return { ok: false, reason: "absent" };
   const g = gs as Record<string, unknown>;
 
-  const provider = str(g.type) ?? str(g.provider);
-  const owner = str(g.org) ?? str(g.owner);
+  // EXACTLY THE FIELDS THE BASIS NAMES — no alternatives.
+  //
+  // These used to fall back to provider/owner/branch/commitSha, none of which
+  // the basis covers. A record supplying only the fallbacks verified against a
+  // basis that had never observed them, so the coverage check was decorative:
+  // it vouched for one schema while the adapter read another. The observation
+  // must establish THE schema; until it does there is nothing to fall back to.
+  const provider = str(g.type);
+  const owner = str(g.org);
   const repo = str(g.repo);
-  const ref = str(g.ref) ?? str(g.branch);
-  const sha = str(g.sha) ?? str(g.commitSha);
+  const ref = str(g.ref);
+  const sha = str(g.sha);
 
   if (!provider || !owner || !repo || !ref || !sha) return { ok: false, reason: "malformed" };
   if (!SHA.test(sha)) return { ok: false, reason: "malformed" };
