@@ -1,0 +1,119 @@
+STATE SNAPSHOT — AFTER proof 4 case 2
+  captured 2026-09-04T20:32:01Z
+
+GITHUB Price2Book/p2b-release-proofs
+  main sha        24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+  message         Proof 1: post-link commit
+  committed       2026-09-04T19:01:31Z
+  verification    valid
+  parents         ['afa291520b5b8173c3d933d732f2bd67dbd7d0ac']
+  guard blob      9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  guard pinned    yes, matches 9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+
+VERCEL prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  effective build configuration
+    rootDirectory    None
+    installCommand   None
+    buildCommand     g=$(printf 'url="%s"\n%s' "https://api.github.com/repos/Price2Book/p2b-release-proofs/contents/scripts/provenance-guard.sh?ref=main" "$P2B_GH_HDR"|curl -fsSK- --max-time 30)&&[ -n "$g" ]&&echo "$g"|sh&&npm run build
+    outputDirectory  'public'
+    framework        None
+
+  production target
+    deployment id   dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    readyState      READY
+
+  deployments (most recent first)
+    dpl_GUWnLPTehqNmiBNQP6JvoNdEp1xj
+      state ERROR     target production  2026-09-04T20:31:18.714000Z
+      source None     importSource None
+      commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+    dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+      state READY     target production  2026-09-04T19:22:35.692000Z
+      source None     importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_2zZVozq8asr1ZuGuXMTiFU3a3vWC
+      state ERROR     target staging     2026-09-04T19:10:55.305000Z
+      source None     importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+      state READY     target production  2026-09-04T19:01:34.532000Z
+      source git      importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+      state READY     target production  2026-09-04T18:00:46.964000Z
+      source import   importSource 'import-suggestions'
+      commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+
+  aliases
+    p2b-release-proofs-git-main-price2-book.vercel.app   -> dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+    p2b-release-proofs-price2-book.vercel.app            -> dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+    p2b-release-proofs.vercel.app                        -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    pagination next: None
+
+PROOF 4 CASE 2 — PASSED. PROOF 4 IS COMPLETE.
+
+  deployment    dpl_GUWnLPTehqNmiBNQP6JvoNdEp1xj
+                (id from the creation response; no listing searched)
+  HTTP          200
+  target        production
+  gitSource     github, repoId 1357368650, ref main,
+                sha afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+  final state   ERROR — the intended outcome
+
+  BUILD OUTPUT, complete
+
+    [ 2] Cloning github.com/Price2Book/p2b-release-proofs (Branch: main, Commit: afa2915)
+    [ 8] up to date in 415ms
+    [ 9] PROVENANCE REFUSED (SHA_NOT_MAIN): commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+         is not GitHub main 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    [10] Error: Command "g=$(printf 'url="%s"\n%s' "https://api.github.com/...
+
+  EVERY PASS CRITERION
+
+    one unambiguous deployment id                        yes
+    effective build command is the provenance command    yes
+    the identified guard was downloaded and executed     yes
+    prints PROVENANCE REFUSED (SHA_NOT_MAIN)             yes
+    does not print PROVENANCE OK                         yes
+    P2B-APP-BUILD-RAN absent                             yes
+    did not reach READY                                  yes (ERROR)
+    production target unchanged                          dpl_8uZb… before and after
+    all three aliases unchanged                          yes
+
+  No other refusal code appears, and no curl download failure — this is the
+  guard deciding, not the chain failing before it, which is what separates this
+  from proof 5's staging build.
+
+  WHAT THE REFUSAL LINE PROVES BEYOND ITSELF
+
+    SHA_NOT_MAIN is the guard's LAST check. Reaching it required these to pass
+    first, on a deployment nobody pushed:
+
+      VERCEL_ENV = production          VERCEL_GIT_PROVIDER = github
+      VERCEL_GIT_REPO_OWNER = Price2Book
+      VERCEL_GIT_REPO_SLUG = p2b-release-proofs
+      VERCEL_GIT_COMMIT_REF = main
+      a full 40-character VERCEL_GIT_COMMIT_SHA
+      P2B_GH_READ_TOKEN present, and the GitHub read succeeding
+
+    The message names both shas, so the comparison it made is visible rather
+    than asserted: it read afa2915… from the build environment and 24a5583…
+    from GitHub, and refused because they differ.
+
+  PROOF 4, BOTH HALVES, ON THE PATH PHASE B ACTUALLY USES
+
+    positive  dpl_8XKM…  PROVENANCE OK 24a5583…, then P2B-APP-BUILD-RAN, READY
+    negative  dpl_GUWn…  PROVENANCE REFUSED (SHA_NOT_MAIN), no marker, ERROR
+
+    The guard runs on API-created deployments, admits a legitimate build, and
+    refuses an illegitimate one. A guard that never executed could not have
+    produced the second line, and a guard that always refused could not have
+    produced the first.
+
+  AND THE ALIAS BEHAVIOUR IS NOW EXPLAINED RATHER THAN JUST OBSERVED
+
+    Case 1 (READY) moved two generated aliases. Case 2 (ERROR) moved none, and
+    the production target held through both. Generated aliases follow the newest
+    READY production deployment; a refused build never becomes one. This also
+    means the guard refusing is what kept those aliases still — the refusal did
+    not merely fail a build, it prevented a host from moving.
