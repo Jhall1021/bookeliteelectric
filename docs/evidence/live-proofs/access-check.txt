@@ -1,0 +1,55 @@
+READ-ONLY ACCESS CHECK — 2026-09-04T17:11:13Z
+
+1 GET /repos/Price2Book/p2b-release-proofs
+    HTTP 200
+    id:              1357368650
+    full_name:       'Price2Book/p2b-release-proofs'
+    private:         True
+    default_branch:  'main'
+    size:            0
+    pushed_at:       '2026-09-04T16:32:05Z'
+    archived:        False
+    fork:            False
+    permissions:     {'admin': True, 'maintain': True, 'push': True, 'triage': True, 'pull': True}
+
+2 GET /repos/Price2Book/p2b-release-proofs/git/ref/heads/main   (the guard's fresh-main read)
+    HTTP 409   Git Repository is empty.
+
+3 GET contents/scripts/provenance-guard.sh      (the guard download)
+    HTTP 404   This repository is empty.
+
+4 reads requiring scopes that were NOT granted (each should refuse)
+    Secrets (actions/secrets) HTTP 403  Resource not accessible by personal access token
+    Webhooks (hooks)         HTTP 403  Resource not accessible by personal access token
+    Variables (actions/variables) HTTP 403  Resource not accessible by personal access token
+
+READING OF THESE RESULTS
+
+  Repository        Price2Book/p2b-release-proofs
+  Numeric id        1357368650
+  Private           yes
+  Default branch    main (configured; NO commits yet, so the ref does not exist)
+
+  The numeric id is what gitSource identifies a repository by, so 1357368650 is
+  the value the disposable Vercel project's creation calls will carry. It is
+  unrelated to CANONICAL.repoId, which remains 0 and is a separate task.
+
+  409, NOT 404, ON THE REF. I predicted a 404 for git/ref/heads/main; GitHub
+  answers 409 "Git Repository is empty" for the ref and 404 for the contents
+  path. Both are the repository's state rather than a token problem, but the
+  guard's fresh-main read uses `curl -f`, which treats any non-2xx as failure —
+  so against the repository as it stands the guard would refuse MAIN_UNREADABLE
+  and fail closed. That is correct behaviour, and it resolves once main exists.
+
+  THE `permissions` FIELD IS NOT EVIDENCE OF TOKEN SCOPE. It reports the
+  ACCOUNT's permissions on the repository — admin/push/pull are all true because
+  the account owns it — and says nothing about what this token may do. The 403s
+  in check 4 are the actual evidence: three endpoints whose scopes were left at
+  No access all refuse with "Resource not accessible by personal access token",
+  while Contents-backed reads succeed. The token is narrower than the account.
+
+  An earlier probe of /collaborators returned 200 and was DISCARDED rather than
+  reported: that endpoint can answer 200 on a repository the account owns, so it
+  measured ownership, not the grant.
+
+  Read-only throughout. Nothing was created, updated, deleted or pushed.
