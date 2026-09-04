@@ -102,6 +102,11 @@ printf '\n'
 [ "$read_ok" = "1" ] || { discard; refuse "input ended without a value; nothing was written"; }
 [ -n "$value" ] || { discard; refuse "empty value; nothing was written"; }
 
+# Is this even the right KIND of credential? Checked before it is written, so a
+# value entered into the wrong slot is never stored and never sent anywhere.
+. "$(dirname "$0")/credential-shape.sh"
+credential_shape_check "$1" "$value" || { value=''; discard; exit 1; }
+
 # Written by redirection into the already-secured file — never through argv.
 printf '%s' "$value" > "$FILE" || { discard; refuse "could not write $FILE"; }
 

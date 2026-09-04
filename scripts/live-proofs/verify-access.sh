@@ -24,6 +24,10 @@ refuse() { echo "REFUSING: $*" >&2; exit 1; }
 tok=$(cat "$FILE") || refuse "could not read $FILE"
 [ -n "$tok" ] || refuse "$FILE holds no value"
 
+# Nothing is sent until the value is the right KIND of credential.
+. "$(dirname "$0")/credential-shape.sh"
+credential_shape_check github "$tok" || exit 1
+
 # status + body, with the body on stdout and the status on the last line
 get() {
   printf 'url = "%s"\nheader = "Authorization: Bearer %s"\nheader = "Accept: application/vnd.github+json"\nheader = "X-GitHub-Api-Version: 2022-11-28"\nsilent\nshow-error\nconnect-timeout = 10\nmax-time = 30\nwrite-out = "\\nHTTP_STATUS:%%{http_code}"\n' \

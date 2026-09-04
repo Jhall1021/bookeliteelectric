@@ -162,6 +162,22 @@ def main():
         out, code = drive(f"{root}/happy", send=b"SECOND-FAKE-VALUE\n")
         check("a second run will not overwrite the first",
               code != 0 and open(f"{root}/happy/vercel-token").read() == FAKE)
+
+        # A GitHub token entered into the Vercel slot was not hypothetical: it
+        # happened, every Vercel endpoint answered 403 "Not authorized" (which
+        # reads like a scope problem), and the credential reached a service it
+        # was not issued for before anyone noticed.
+        d = f"{root}/wrongkind"
+        out, code = drive(d, send=b"github_pat_11FAKEFAKEFAKEFAKEFAKEFAKEfake\n")
+        check("a GitHub token in the Vercel slot is refused",
+              code != 0 and "not a Vercel one" in out, f"exit {code}")
+        check("and the wrong-kind value is never stored",
+              not os.path.exists(f"{d}/vercel-token"))
+
+        d = f"{root}/unfamiliar"
+        out, code = drive(d, send=b"some-unfamiliar-but-plausible-value\n")
+        check("an unfamiliar shape warns but still stores",
+              code == 0 and os.path.exists(f"{d}/vercel-token"), f"exit {code}")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

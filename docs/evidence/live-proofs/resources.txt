@@ -41,3 +41,36 @@ Guard artifact under test
   substitutions     OWNER=Price2Book REPO=p2b-release-proofs REF=main
   confirmed in the private repository by fetching the content and hashing it
   locally: 5205 bytes, identical.
+
+INCIDENT — the GitHub token was entered into the Vercel slot
+
+  ~/.p2b-live-proofs/vercel-token held the GitHub fine-grained PAT: both files
+  hashed to the same fingerprint. Before the mistake was identified, EIGHT read
+  requests carried that token to api.vercel.com in an Authorization header:
+
+    4 from verify-vercel.sh   /v2/user, /v2/teams, /v9/projects/<id>, and a
+                              project read; all refused
+    4 from a diagnostic       /v9/projects/<id>, /v9/projects, /v2/user,
+                              /v6/deployments; all refused
+
+  Every one answered 403 "Not authorized" and no Vercel data was returned. The
+  requests were reads; nothing was created or changed anywhere.
+
+  WHY IT WAS NOT OBVIOUS. A uniformly 403 API reads exactly like a scoping
+  problem, which is what I first went looking for — the project is expected to
+  live under a team, and a team-scoped token failing on /v2/user is ordinary.
+  The shape of the value settled it in one check, and that check was available
+  before the first request.
+
+  DISPOSITION. The GitHub token was disclosed to a service it was not issued
+  for. It is read-only, scoped to this one disposable private repository, and
+  short-lived, so the exposure is small — but a credential sent somewhere it was
+  not scoped for is rotated, not reasoned about. Revoke and reissue; the fixture
+  is already uploaded, so the replacement needs the same Contents:Read scope and
+  nothing more.
+
+  PREVENTION. credential-shape.sh now refuses a value that is definitely the
+  other kind, in the helper before it is written and in every API script before
+  its first request. Values that are merely unfamiliar warn and proceed, so a
+  changed token format does not block the work. Covered by two new tests, and
+  the suite stands at 20.
