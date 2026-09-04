@@ -596,10 +596,33 @@ async function aliasCompletenessTests() {
     followed.read ? JSON.stringify(followed.value) : followed.why);
   ok(two.calls() >= 2, `B4  and a second request was actually made (${two.calls()})`);
 
-  const endless = paged([{ aliases: [entry("other.vercel.app", "dpl_x")], next: "cursorN" }]);
-  const gaveUp = await collectAliasMappings(endless.api, HOSTS, 3);
-  ok(!gaveUp.read, "B4  exhausting the page budget with hosts unresolved is unread, not absent",
-    gaveUp.read ? "claimed absence" : "");
+  // A budget guard cannot be tested by waiting. The walk awaits promises that
+  // resolve immediately, so an unbounded one starves the timer queue and NO
+  // wall-clock timeout will ever fire — the suite simply never prints its
+  // summary, which tells the mutation runner nothing it can score. The bound
+  // therefore lives in the DOUBLE: the fake stops serving past a hard cap, so
+  // removing the guard produces a recorded failure instead of a hang.
+  const CAP = 50;
+  const capped = () => {
+    let calls = 0;
+    const api = (async () => {
+      if (++calls > CAP) throw new Error("PAGE-CAP: the walk ran past the double's cap");
+      return { status: 200, body: { aliases: [entry("other.vercel.app", "dpl_x")], pagination: { next: "cursorN" } } };
+    }) as never;
+    return { api, calls: () => calls };
+  };
+  const endless = capped();
+  let gaveUp: Awaited<ReturnType<typeof collectAliasMappings>> | undefined;
+  let ranAway = "";
+  try {
+    gaveUp = await collectAliasMappings(endless.api, HOSTS, 3);
+  } catch (e) {
+    ranAway = e instanceof Error ? e.message : String(e);
+  }
+  ok(ranAway === "", `B4  the page budget ends the walk (${endless.calls()} request(s), cap ${CAP})`, ranAway);
+  ok(gaveUp !== undefined && !gaveUp.read,
+    "B4  exhausting the page budget with hosts unresolved is unread, not absent",
+    gaveUp === undefined ? "the walk never returned" : gaveUp.read ? "claimed absence" : "");
 
   const ended = paged([{ aliases: [entry("other.vercel.app", "dpl_x")] }]);
   const absent = await collectAliasMappings(ended.api, HOSTS);

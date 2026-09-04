@@ -77,7 +77,10 @@ run_suite() {
       sleep 2
       kill -KILL "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
       wait "$pid" 2>/dev/null            # reap, and do not return before it is gone
-      echo "TIMEOUT(${TIMEOUT}s)"
+      # Lowercase token, not a display string: every caller cases on it, and a
+      # timeout that fell through to the catch-all was reported as a missing
+      # summary — the right refusal for the wrong reason.
+      echo "timeout"
       return
     fi
     sleep 1; waited=$((waited + 1))
