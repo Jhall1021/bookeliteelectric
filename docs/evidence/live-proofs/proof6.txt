@@ -1,0 +1,92 @@
+PROOF 6 — COMPLETE. PROMOTION MOVES THE TARGET AND ALL GENERATED ALIASES TOGETHER.
+
+  offline harness   16 of 16 acceptance cases, including the five added for the
+                    PROTECTED state. The ambiguity rule was checked by breaking
+                    it: resolving on the target alone made case 5 print "all
+                    three classes match the baseline: nothing happened" directly
+                    beneath its own "aliases same: False".
+
+  candidate         dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS, revalidated by exact id —
+                    project, READY, production, sha 24a5583…, rootDirectory
+                    ABSENT as proof 3 preserved, outputDirectory public, the
+                    provenance build command, and PROVENANCE OK at a lower log
+                    index than P2B-APP-BUILD-RAN with no refusal.
+  outgoing          dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf, READY.
+
+  BASELINE (stable)
+    target   dpl_8uZb…
+    …-git-main-price2-book.vercel.app  -> dpl_8XKM…   PROTECTED (HTTP 302 → sso-api)
+    …-price2-book.vercel.app           -> dpl_8XKM…   PROTECTED (HTTP 302 → sso-api)
+    p2b-release-proofs.vercel.app      -> dpl_8uZb…   READABLE  sha afa2915…, dpl_8uZb…
+
+  PROMOTION — POST /v10/projects/{id}/promote/{candidate}
+    HTTP 201. RESPONSE BODY 1 BYTE — effectively empty, so the promoted
+    deployment's identity could not have come from it. The candidate id came
+    from the preserved proof 4 case 1 creation record, which is why that
+    mattered.
+
+  RESULT, three classes kept apart
+    TARGET          dpl_8uZb… -> dpl_8XKM…   CHANGED to the candidate
+    ALIASES         all three moved to the candidate — including the shortest
+                    project alias, which had not moved for any creation
+    ACCESS STATE    unchanged on every host
+    SERVED IDENTITY p2b-release-proofs.vercel.app served sha 24a5583… and
+                    deployment dpl_8XKM… — the candidate's, matching its alias
+                    record. The other two are PROTECTED, so what they served is
+                    UNESTABLISHED.
+
+  RESTORATION — the same endpoint, other direction
+    HTTP 201. Target restored to dpl_8uZb… (MANDATORY, verified).
+    All three aliases gathered onto dpl_8uZb…. The pre-existing split was NOT
+    reproduced, exactly as accepted in advance. No alias was touched by hand.
+
+  WHAT THIS ESTABLISHES
+    Promotion moves the production target AND every generated alias mapping
+    together. Creation, by contrast, moved two of three and left the target
+    alone (proof 4 case 1). So promotion and creation affect routing
+    DIFFERENTLY, and the release's separation of phase B from phase C matches
+    that difference rather than merely assuming it.
+
+    On these hosts, promotion did NOT leave a partial routing state. But
+    verifyHosts checking each host separately is still what would DETECT one,
+    and proof 4 case 1 showed a partial state is reachable by other means.
+
+  A PREDICTION OF MINE, REFUTED
+    In proof6-blocked.txt I wrote that access state looked like "the host
+    serving the current production target is public, the others are protected",
+    and predicted it would INVERT after promotion.
+
+    IT DID NOT INVERT. Every host's access state was unchanged, while the
+    deployment it pointed at changed. So protection is not a function of whether
+    a host serves the current target: the branch alias and the project+scope
+    alias stayed protected after they began serving the production target, and
+    the shortest project alias stayed public throughout. Protection tracks the
+    KIND of generated host, not what it points at.
+
+    I inferred a rule from one correlated observation and stated a prediction
+    from it. The experiment refuted it, which is the only reason it is known.
+
+  LIMITATION — KEPT EXPLICIT
+    A PROTECTED HOST CANNOT SUPPORT A CLAIM ABOUT WHAT IT SERVED. For
+    …-git-main-price2-book.vercel.app and …-price2-book.vercel.app, this proof
+    establishes their ALIAS MAPPINGS and their ACCESS STATE, and nothing about
+    the content or deployment they actually served. Served identity is
+    established only for p2b-release-proofs.vercel.app, which returned
+    build-info.json. Nothing was inferred from a redirect.
+
+  BOUNDARY
+    Generated *.vercel.app aliases on the disposable project only. This is NOT
+    evidence about custom-domain behaviour and must not be generalized to
+    price2book.com, www.price2book.com or app.price2book.com — different hosts,
+    a different project, and autoAssignCustomDomains disabled there.
+
+  FINAL STATE
+    production target  dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf (READY) — restored
+    all three generated aliases -> dpl_8uZb…
+    the with-override preview alias -> dpl_D4zq… (untouched)
+    no project setting, environment variable, repository or custom domain was
+    changed; no alias was manually assigned.
+
+  CREDENTIAL SCAN
+    8 preserved records: 0 credential-shaped matches. The raw evidence retains
+    HTTP statuses; no SSO nonce survived into it.
