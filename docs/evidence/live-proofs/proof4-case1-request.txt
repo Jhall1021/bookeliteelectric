@@ -1,0 +1,36 @@
+PROOF 4 CASE 1 — THE REQUEST, PRESERVED BEFORE SENDING
+
+  POST https://api.vercel.com/v13/deployments
+  Authorization: Bearer <REDACTED — vcp_ project-scoped, fingerprint babd0443>
+  Content-Type: application/json
+
+  BODY, verbatim:
+
+    {
+      "name": "p2b-release-proofs",
+      "project": "prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q",
+      "target": "production",
+      "gitSource": {
+        "type": "github",
+        "repoId": 1357368650,
+        "ref": "main",
+        "sha": "24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d"
+      }
+    }
+
+  Absent by design: projectSettings, files, teamId, slug.
+
+  PRECONDITIONS AT SEND TIME
+    isolation                 passed — disposable reachable, canonical denied
+    GitHub main head          24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+                              (equal to the sha being pinned, which is what
+                              makes the guard's SHA check passable)
+    guard blob at main        9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+    newest production         dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+    aliases
+      ...-git-main-price2-book.vercel.app -> dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+      ...-price2-book.vercel.app          -> dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+      p2b-release-proofs.vercel.app       -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+
+  ONE REQUEST. An ambiguous or absent deployment id is UNCERTAIN: no retry, and
+  no searching listings to choose one.
