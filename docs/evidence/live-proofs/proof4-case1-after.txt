@@ -1,0 +1,118 @@
+STATE SNAPSHOT — AFTER proof 4 case 1
+  captured 2026-09-04T19:23:20Z
+
+GITHUB Price2Book/p2b-release-proofs
+  main sha        24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+  message         Proof 1: post-link commit
+  committed       2026-09-04T19:01:31Z
+  verification    valid
+  parents         ['afa291520b5b8173c3d933d732f2bd67dbd7d0ac']
+  guard blob      9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  guard pinned    yes, matches 9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+
+VERCEL prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  effective build configuration
+    rootDirectory    None
+    installCommand   None
+    buildCommand     g=$(printf 'url="%s"\n%s' "https://api.github.com/repos/Price2Book/p2b-release-proofs/contents/scripts/provenance-guard.sh?ref=main" "$P2B_GH_HDR"|curl -fsSK- --max-time 30)&&[ -n "$g" ]&&echo "$g"|sh&&npm run build
+    outputDirectory  'public'
+    framework        None
+
+  deployments (most recent first)
+    dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+      state READY     target production  2026-09-04T19:22:35.692000Z
+      source None     importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_2zZVozq8asr1ZuGuXMTiFU3a3vWC
+      state ERROR     target staging     2026-09-04T19:10:55.305000Z
+      source None     importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+      state READY     target production  2026-09-04T19:01:34.532000Z
+      source git      importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+      state READY     target production  2026-09-04T18:00:46.964000Z
+      source import   importSource 'import-suggestions'
+      commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+
+  aliases
+    p2b-release-proofs-git-main-price2-book.vercel.app   -> dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+    p2b-release-proofs-price2-book.vercel.app            -> dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+    p2b-release-proofs.vercel.app                        -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    pagination next: None
+
+PROOF 4 CASE 1 — SATISFIED
+
+  deployment    dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+                (id taken from the creation response; no listing searched)
+  HTTP          200
+  target        production
+  gitSource     github, repoId 1357368650, ref main, sha 24a55837d2…
+  final state   READY
+  source        null — neither 'git' nor 'import'; an API-created deployment
+                carries no source value at all
+
+  EFFECTIVE BUILD COMMAND, from the creation response to a request that sent no
+  projectSettings: the provenance one-liner; pins Price2Book/p2b-release-proofs;
+  reads the guard at ?ref=main; ends with npm run build. outputDirectory
+  "public", installCommand and framework null, rootDirectory absent.
+
+  GUARD ARTIFACT   9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a at main, checked
+                   before AND after the deployment; unchanged.
+
+  ORDERED BUILD OUTPUT
+    [ 2] Cloning github.com/Price2Book/p2b-release-proofs (Branch: main, Commit: 24a5583)
+    [ 9] PROVENANCE OK 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    [12] P2B-APP-BUILD-RAN at 2026-09-04T19:22:40.786Z
+    [13]   VERCEL_ENV=production
+    [14]   VERCEL_GIT_PROVIDER=github
+    [15]   VERCEL_GIT_REPO_OWNER=Price2Book
+    [16]   VERCEL_GIT_REPO_SLUG=p2b-release-proofs
+    [17]   VERCEL_GIT_COMMIT_REF=main
+    [18]   VERCEL_GIT_COMMIT_SHA=24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    [20] Build Completed in /vercel/output [1s]
+
+    guard at index 9, application marker at index 12 — strictly after.
+    PROVENANCE OK carries the FULL pinned sha. No refusal anywhere.
+
+  THE GUARD RUNS ON AN API-CREATED DEPLOYMENT, and admits a legitimate build.
+  All six VERCEL_GIT_* inputs the guard tests were populated correctly on a
+  deployment nobody pushed — the concern that they might be empty, as they are
+  for CLI deployments, does not apply to API creation with gitSource.
+
+*** STOPPING CONDITION TRIGGERED — ALIAS MOVEMENT ***
+
+  before                                              after
+    ...-git-main-price2-book.vercel.app  dpl_DNdg  ->  dpl_8XKM   MOVED
+    ...-price2-book.vercel.app           dpl_DNdg  ->  dpl_8XKM   MOVED
+    p2b-release-proofs.vercel.app        dpl_8uZb  ->  dpl_8uZb   unchanged
+
+  Two of the three aliases moved onto the newly created deployment. NO PROMOTION
+  CALL WAS MADE. The sequence is stopped before case 2 and nothing has been
+  remediated: the aliases are left where Vercel put them.
+
+  WHAT THIS MEANS, AND WHAT IT DOES NOT
+
+    CREATION AT target "production" IS NOT INERT. It took the production
+    aliases by itself. The release's Phase B creates exactly this way, and the
+    design treats creation as staging a candidate that Phase C later promotes
+    after verification. On this evidence, creation ALREADY moves hosts — so the
+    window in which a candidate is built but not yet serving does not exist for
+    these aliases, and "verify, then promote" would be verifying something that
+    is already live.
+
+    THE SHORTEST ALIAS AGAIN DID NOT MOVE. p2b-release-proofs.vercel.app has now
+    stayed put across a git-push production deployment (proof 1) and an
+    API-created one. Two of three moving and one not is a stable pattern, not a
+    one-off.
+
+    NOT ESTABLISHED: what happens to CUSTOM domains. These are all
+    Vercel-generated hosts. The canonical project has autoAssignCustomDomains
+    disabled and its hosts are custom, so this says nothing about whether
+    price2book.com would move on creation. That distinction is the whole of
+    proof 6, and it is now more important than it was, not less.
+
+    ALSO NOT ESTABLISHED: whether the movement is attributable to creation
+    itself or to this deployment becoming the newest READY production one.
+    Nothing here separates those.
