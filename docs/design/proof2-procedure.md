@@ -61,8 +61,14 @@ to the project so that exactly one variable changes. The command is harmless: it
 prints a marker no other step prints, then runs the existing application build,
 and it never invokes the provenance guard.
 
-`P2B-PROOF2-OVERRIDE-RAN` appears nowhere in the repository, the dashboard
-command, or the guard — so its presence has exactly one explanation.
+`P2B-PROOF2-OVERRIDE-RAN` exists in `vercel.json` BY DESIGN — that is where it
+is being put — and nowhere else: not in the dashboard build command, not in the
+guard, not in the application build, not anywhere else in the repository.
+
+So its appearance in a build log demonstrates one specific thing: **the
+`vercel.json` command executed**. It is not evidence that the string is absent
+from the tree, which would be false; it is evidence that the only place the
+string lives is the command that ran.
 
 ## The GitHub web steps (the token is read-only; these are yours)
 
