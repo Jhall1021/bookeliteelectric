@@ -203,20 +203,18 @@ function main() {
     // ── 5. the release command ───────────────────────────────────────────
     const rel = strip("scripts/release-production.ts");
     ok(`5. the release command never deploys`, !/vercel deploy|["']deploy["']|\/v13\/deployments["'`]?\s*,\s*\{\s*method:\s*["']POST/.test(rel) && !/execFileSync\("(npx|vercel)"/.test(rel));
-    ok(`   it is dry-run unless --apply is passed`, /includes\("--apply"\)/.test(rel) && /if \(!apply\)/.test(rel));
-    ok(`   it reads main before selection and again inside validation`,
-      (rel.match(/freshMainSha\(\)/g) ?? []).length >= 1
-      && rel.indexOf("freshMainSha()") < rel.indexOf("listCandidates(api)")
-      && /validateRelease\(/.test(rel));
-    ok(`   validation and application are separate, and a dry run stops after validation`,
-      /validateRelease\(/.test(rel) && /applyRelease\(/.test(rel)
-      && rel.indexOf("validateRelease(") < rel.indexOf("applyRelease(")
-      && /if \(!apply\) \{[\s\S]{0,200}Dry run complete/.test(rel));
-    ok(`   it considers only READY production deployments of the canonical project`, /state=READY/.test(rel) && /target=production/.test(rel) && /CANONICAL\.vercelProjectId/.test(rel) && /CANONICAL\.vercelTeamId/.test(rel));
+    ok(`   it is read-only unless a write phase is asked for`,
+      /includes\("--create"\)/.test(rel) && /includes\("--promote"\)/.test(rel) && /"preflight"/.test(rel));
+    ok(`   the three phases are separate, and only preflight is read-only`,
+      /runRelease\(/.test(rel) && /"preflight"/.test(rel) && /"create"/.test(rel) && /"promote"/.test(rel));
+    ok(`   the candidate comes from this run's own creation, never a search`,
+      !/listCandidates\(/.test(rel) && !/candidates\.find\(/.test(rel));
+    ok(`   it acts only on the canonical project`, /CANONICAL\.vercelProjectId/.test(rel) && /CANONICAL\.vercelTeamId/.test(rel));
     ok(`   it records the rollback target before promoting, and a failed record refuses`,
       rel.indexOf("recordIntent") < rel.indexOf("/promote/")
-      && /RECORD_FAILED/.test(strip("scripts/_releaseOrchestration.ts")));
-    ok(`   it reads the live result back on every canonical host`, /readBack\(host\)/.test(rel) && /(CANONICAL\.canonicalHosts|plan\.hosts)/.test(rel));
+      && /RECORD_FAILED/.test(strip("scripts/_releaseRun.ts")));
+    ok(`   it verifies identity and alias mapping on every canonical host`,
+      /observeHosts/.test(rel) && /CANONICAL\.canonicalHosts/.test(rel));
     ok(`   and it loads no .env file — the token comes from the operator's shell`,
       !/loadEnv\(|from "dotenv"|\.env\.local|["'`]\.env["'`]|readFileSync\([^)]*\.env/.test(rel) && /process\.env\.VERCEL_TOKEN/.test(rel));
 

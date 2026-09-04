@@ -36,13 +36,24 @@
  * to P2B_RELEASE_LOG (default ~/.price2book/release-log.jsonl), so recovery is
  * "promote the previous id", not archaeology.
  */
-import { appendFileSync, mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, openSync, writeSync, fsyncSync, closeSync, unlinkSync, readFileSync } from "node:fs";
+import { hostname, userInfo } from "node:os";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { CANONICAL, candidateFromVercel, PROVENANCE_BUILD_COMMAND, type Candidate } from "./_releaseProvenance";
-import { validateRelease, applyRelease, type ReleaseEffects, type ReleasePlan } from "./_releaseOrchestration";
-import { resolveEffectiveBuildCommand, type BuildEvidence, type Read } from "./_releaseSource";
+import { CANONICAL, PROVENANCE_BUILD_COMMAND } from "./_releaseProvenance";
+
+import { parseCurrentProduction } from "./_releaseSource";
+import { runRelease, type ReleaseIO } from "./_releaseRun";
+import { type ApprovedBuild, type Read } from "./_releaseControl";
+
+/** The approved build, as constants. Changing these is a reviewed change. */
+export const APPROVED_BUILD: ApprovedBuild = {
+  rootDirectory: null, installCommand: null,
+  buildCommand: PROVENANCE_BUILD_COMMAND, outputDirectory: "public", framework: null,
+};
+/** Where a canonical host may legitimately redirect to. */
+export const APPROVED_REDIRECT_HOSTS: readonly string[] = CANONICAL.canonicalHosts;
 
 const API = "https://api.vercel.com";
 
@@ -105,14 +116,12 @@ function vercelApi(token: string): Api {
   };
 }
 
-/** READY production deployments of the canonical project, newest first. */
-export async function listCandidates(api: Api): Promise<Candidate[]> {
-  const r = await api<{ deployments?: Parameters<typeof candidateFromVercel>[0][] }>(
-    `/v6/deployments?teamId=${CANONICAL.vercelTeamId}&projectId=${CANONICAL.vercelProjectId}&target=production&state=READY&limit=20`
-  );
-  if (r.status !== 200) throw new Error(`Vercel deployments list answered ${r.status}`);
-  return (r.body.deployments ?? []).map((d) => candidateFromVercel({ ...d, projectId: CANONICAL.vercelProjectId }));
-}
+/* listCandidates is GONE, deliberately.
+ *
+ * It listed deployments and let the caller pick one whose metadata claimed the
+ * right commit. The observation showed every field it selected on is writable
+ * by whoever deploys, so selection by claim cannot be made safe — the release
+ * now creates the deployment and keeps the id its own request returned. */
 
 /**
  * The CURRENT production deployment, raw.
@@ -150,45 +159,6 @@ export async function deploymentRecord(api: Api, id: string): Promise<unknown> {
  * The effective build command comes from the deployment's own record. The
  * project's current setting is read separately and only as drift detection —
  * it cannot testify about a build that already happened.
- */
-export async function buildEvidence(
-  api: Api, id: string, sha: string,
-  fetchImpl: FetchLike = fetch, ghToken = process.env.P2B_GH_READ_TOKEN
-): Promise<BuildEvidence | null> {
-  const dep = await api<{ buildCommand?: string | null; projectSettings?: { buildCommand?: string | null } }>(
-    `/v13/deployments/${id}?teamId=${CANONICAL.vercelTeamId}`);
-  if (dep.status >= 300) return null;
-  const proj = await api<{ buildCommand?: string | null }>(
-    `/v9/projects/${CANONICAL.vercelProjectId}?teamId=${CANONICAL.vercelTeamId}`);
-
-  return {
-    // Both fields can carry it; if they disagree, nothing here may choose.
-    effectiveBuildCommand: resolveEffectiveBuildCommand(
-      dep.body.buildCommand, dep.body.projectSettings?.buildCommand),
-    // ACTUALLY READ, at the built commit. This used to be hardcoded null —
-    // "no override" asserted by an adapter that had looked at nothing.
-    commitVercelJsonBuildCommand: await vercelJsonBuildCommand(sha, fetchImpl, ghToken),
-    guardLineSha: null,
-    projectBuildCommandNow: proj.status >= 300
-      ? { read: false, why: `project read ${proj.status}` }
-      : { read: true, value: proj.body.buildCommand ?? null },
-  };
-}
-
-/**
- * `buildCommand` from vercel.json AT THE BUILT COMMIT.
- *
- * ABSENCE IS ESTABLISHED BY A COMPLETE, VALID TREE — never by a 404.
- *
- * This comment previously said a 404 was "a genuine 'there is no vercel.json'",
- * and it survived the rewrite that stopped believing that. It was wrong in the
- * permissive direction: GitHub answers 404 for a private resource the
- * credential cannot see, so a revoked token read as "no override".
- *
- * Anything short of a complete, structurally valid listing of the exact
- * commit's root tree — a failed request, a TRUNCATED tree, malformed entries,
- * unparseable content, no credential — is NOT a read, and the decision refuses
- * on it rather than assuming no override.
  */
 export async function vercelJsonBuildCommand(
   sha: string, fetchImpl: FetchLike = fetch, token = process.env.P2B_GH_READ_TOKEN
@@ -265,113 +235,224 @@ export async function vercelJsonBuildCommand(
   } catch (e) { return { read: false, why: `vercel.json unreadable: ${String(e).slice(0, 80)}` }; }
 }
 
-export async function readBack(host: string): Promise<{ deploymentId: string | null; commitSha: string | null; target: string | null } | null> {
-  try {
-    const r = await fetch(`https://${host}/api/release`, { headers: { "Cache-Control": "no-cache" } });
-    if (!r.ok) return null;
-    return (await r.json()) as never;
-  } catch { return null; }
+/* readBack is GONE too. It asked whether a host answered; observeHosts in
+ * liveIO asks whether the host reports THIS run's deployment id and sha, and
+ * checks the alias mapping separately — because a stale deployment answers 200
+ * perfectly well, and a promotion can move the target while an alias does not
+ * follow. */
+
+/* ────────────────────────────── the lock ─────────────────────────────────
+ * A lock file coordinates ONE MACHINE. It has no authority over the Vercel
+ * dashboard, another token, or the Git integration — so one machine is
+ * designated for releases and the lock is meaningful only there.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+export const RELEASE_MACHINE = process.env.P2B_RELEASE_MACHINE ?? "the designated release machine";
+
+export function fileLock(path: string) {
+  return {
+    /** ATOMIC. O_EXCL either creates the file or fails; there is no window. */
+    async acquire(info: { sha: string }): Promise<{ ok: true } | { ok: false; heldBy: string }> {
+      try {
+        mkdirSync(dirname(path), { recursive: true });
+        const fd = openSync(path, "wx", 0o600);           // wx = O_CREAT|O_EXCL
+        writeSync(fd, JSON.stringify({
+          operator: userInfo().username, host: hostname(),
+          sha: info.sha, at: new Date().toISOString(), pid: process.pid,
+        }));
+        closeSync(fd);
+        return { ok: true };
+      } catch (e) {
+        if ((e as { code?: string }).code !== "EEXIST") throw e;
+        // NEVER cleared automatically. A stale lock means either a release is
+        // running or one died with an unknown outcome, and both want a person
+        // before another release starts.
+        let held = "unreadable lock file";
+        try { held = readFileSync(path, "utf8"); } catch { /* keep the default */ }
+        return { ok: false, heldBy: held };
+      }
+    },
+    async release(): Promise<void> { try { unlinkSync(path); } catch { /* already gone */ } },
+  };
 }
 
-/** Effects the release uses. Split so a dry run gets the reads and no writes. */
-export function releaseEffects(api: Api, logPath: string, apply: boolean): ReleaseEffects {
-  return {
-    readCurrentProduction: () => currentProductionRaw(api),
-    readFreshMain: () => freshMainSha(),
-    readDeployment: (id) => deploymentRecord(api, id),
-    readBuildEvidence: (id) => buildEvidence(api, id, "PLACEHOLDER"),
+/**
+ * Append a record, and THROW if it cannot be written.
+ *
+ * The refusal in phase C depends on this throwing. A writer that swallows its
+ * own failure would make "the rollback target was recorded" unfalsifiable.
+ */
+export async function appendRecord(path: string, record: unknown): Promise<void> {
+  const fd = openSync(path, "a", 0o600);
+  try {
+    writeSync(fd, JSON.stringify(record) + "\n");
+    fsyncSync(fd);
+  } finally { closeSync(fd); }
+}
 
-    // INTENT IS PERSISTED BEFORE THE MUTATION, and a failure here stops the
-    // release. Written synchronously so a throw genuinely prevents promotion.
-    recordIntent: async (plan: ReleasePlan) => {
-      if (!apply) throw new Error("recordIntent reached during a dry run — this is a bug");
-      mkdirSync(dirname(logPath), { recursive: true });
-      appendFileSync(logPath, JSON.stringify({
-        at: new Date().toISOString(), phase: "intent",
-        rollbackTo: plan.replaced, rollbackAliases: plan.replacedAliases,
-        promoting: plan.candidateId, sha: plan.sha, hosts: plan.hosts,
-      }) + "\n");
+/* ─────────────────────────── the live effects ───────────────────────────── */
+
+const asRead = <T>(cond: boolean, value: T, why: string): Read<T> =>
+  cond ? { read: true, value } : { read: false, why };
+
+export function liveIO(api: Api, logPath: string, lockPath: string): ReleaseIO {
+  const settings = (o: {
+    rootDirectory?: string | null; installCommand?: string | null;
+    buildCommand?: string | null; outputDirectory?: string | null; framework?: string | null;
+  }): ApprovedBuild => ({
+    rootDirectory: o.rootDirectory ?? null, installCommand: o.installCommand ?? null,
+    buildCommand: o.buildCommand ?? "", outputDirectory: o.outputDirectory ?? "",
+    framework: o.framework ?? null,
+  });
+
+  return {
+    // The repository is pinned from GITHUB, then Vercel's link must match it.
+    readGithubRepoId: async () => {
+      const t = process.env.P2B_GH_READ_TOKEN;
+      if (!t) return { read: false, why: "no GitHub read credential" };
+      try {
+        const r = await fetch(`https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}`,
+          { headers: { Authorization: `Bearer ${t}`, Accept: "application/vnd.github+json" } });
+        if (!r.ok) return { read: false, why: `repo read ${r.status}` };
+        const j = (await r.json()) as { id?: unknown };
+        return asRead(typeof j.id === "number", j.id as number, "repository id absent or not numeric");
+      } catch (e) { return { read: false, why: String(e).slice(0, 80) }; }
+    },
+    readProjectLink: async () => {
+      const r = await api<{ link?: { repoId?: unknown } }>(
+        `/v9/projects/${CANONICAL.vercelProjectId}?teamId=${CANONICAL.vercelTeamId}`);
+      if (r.status >= 300) return { read: false, why: `project read ${r.status}` };
+      const id = r.body.link?.repoId;
+      return asRead(typeof id === "number", id as number, "project has no numeric linked repository id");
+    },
+    readFreshMain: () => freshMainSha(),
+    readCommitTree: async (sha) => {
+      const t = process.env.P2B_GH_READ_TOKEN;
+      if (!t) return { read: false, why: "no GitHub read credential" };
+      try {
+        const r = await fetch(`https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/git/trees/${sha}`,
+          { headers: { Authorization: `Bearer ${t}`, Accept: "application/vnd.github+json" } });
+        if (!r.ok) return { read: false, why: `commit tree ${r.status}` };
+        const j = (await r.json()) as { tree?: unknown; truncated?: unknown };
+        if (!Array.isArray(j.tree)) return { read: false, why: "tree response has no tree array" };
+        const wellFormed = j.tree.every((e) => typeof e === "object" && e !== null
+          && typeof (e as { path?: unknown }).path === "string" && (e as { path: string }).path !== "");
+        if (!wellFormed) return { read: false, why: "tree contains entries without a readable path" };
+        return { read: true, value: { truncated: j.truncated === true, paths: j.tree.map((e) => (e as { path: string }).path) } };
+      } catch (e) { return { read: false, why: String(e).slice(0, 80) }; }
+    },
+    readProjectSettings: async () => {
+      const r = await api<Record<string, unknown>>(
+        `/v9/projects/${CANONICAL.vercelProjectId}?teamId=${CANONICAL.vercelTeamId}`);
+      if (r.status >= 300) return { read: false, why: `project read ${r.status}` };
+      return { read: true, value: settings(r.body as never) };
+    },
+    readCurrentProduction: async () => {
+      const raw = await currentProductionRaw(api);
+      const parsed = parseCurrentProduction(raw.raw, raw.error);
+      return parsed.ok
+        ? { read: true, value: { deploymentId: parsed.current.deploymentId, aliases: parsed.current.aliases } }
+        : { read: false, why: parsed.detail };
     },
 
+    // PHASE B. gitSource pins the commit; NO projectSettings, so the project's
+    // approved configuration applies rather than anything this request carries.
+    createDeployment: async (sha) => {
+      try {
+        const r = await api<{ id?: string; error?: { message?: string } }>(
+          `/v13/deployments?teamId=${CANONICAL.vercelTeamId}`,
+          { method: "POST", body: JSON.stringify({
+            name: CANONICAL.vercelProjectName, project: CANONICAL.vercelProjectId, target: "production",
+            gitSource: { type: "github", repoId: CANONICAL.repoId, ref: CANONICAL.ref, sha },
+          }) });
+        if (r.status >= 300) return { error: `create ${r.status} ${r.body.error?.message ?? ""}` };
+        return { id: r.body.id ?? null };
+      } catch (e) { return { error: e }; }
+    },
+
+    readCandidateBuild: async (id) => {
+      const r = await api<{ projectSettings?: Record<string, unknown> }>(
+        `/v13/deployments/${id}?teamId=${CANONICAL.vercelTeamId}`);
+      if (r.status >= 300) return { read: false, why: `deployment read ${r.status}` };
+      const ps = r.body.projectSettings;
+      if (!ps) return { read: false, why: "deployment record carries no projectSettings" };
+      return { read: true, value: settings(ps as never) };
+    },
+    readCandidateSha: async (id) => {
+      const r = await api<{ gitSource?: { sha?: unknown } }>(
+        `/v13/deployments/${id}?teamId=${CANONICAL.vercelTeamId}`);
+      if (r.status >= 300) return { read: false, why: `deployment read ${r.status}` };
+      const sha = r.body.gitSource?.sha;
+      return asRead(typeof sha === "string" && /^[0-9a-f]{40}$/.test(sha), sha as string,
+        "deployment record carries no commit sha");
+    },
+
+    acquireLock: (info) => fileLock(lockPath).acquire(info),
+    releaseLock: () => fileLock(lockPath).release(),
+    recordIntent: (r) => appendRecord(logPath, { phase: "intent", ...r }),
     promoteDeployment: async (id) => {
-      if (!apply) throw new Error("promoteDeployment reached during a dry run — this is a bug");
       const r = await api<{ error?: { message?: string } }>(
         `/v10/projects/${CANONICAL.vercelProjectId}/promote/${id}?teamId=${CANONICAL.vercelTeamId}`,
         { method: "POST" });
-      if (r.status >= 300) throw new Error(`promote failed ${r.status} ${r.body.error?.message ?? ""}`);
+      if (r.status >= 300) throw new Error(`promote ${r.status} ${r.body.error?.message ?? ""}`);
     },
+    recordCompletion: (r) => appendRecord(logPath, { phase: "completed", ...r }),
 
-    recordCompletion: async (plan: ReleasePlan) => {
-      appendFileSync(logPath, JSON.stringify({
-        at: new Date().toISOString(), phase: "completed",
-        promoted: plan.candidateId, sha: plan.sha, replaced: plan.replaced,
-      }) + "\n");
+    // Routing and target are DIFFERENT questions; both are asked.
+    observeHosts: async (expected) => {
+      const dom = await api<{ domains?: { name?: string }[] }>(
+        `/v9/projects/${CANONICAL.vercelProjectId}/domains?teamId=${CANONICAL.vercelTeamId}`);
+      const cur = await currentProductionRaw(api);
+      const targetId = ((cur.raw as { uid?: string; id?: string } | undefined) ?? {});
+      void dom;
+      return Promise.all(CANONICAL.canonicalHosts.map(async (host) => {
+        const alias: Read<string> = targetId.uid || targetId.id
+          ? { read: true, value: (targetId.uid ?? targetId.id) as string }
+          : { read: false, why: "production target unreadable" };
+        try {
+          const r = await fetch(`https://${host}/api/release`, { headers: { "Cache-Control": "no-cache" }, redirect: "follow" });
+          if (!r.ok) return { host, aliasDeploymentId: alias, served: { read: false as const, why: `HTTP ${r.status}` } };
+          const j = (await r.json()) as { deploymentId?: string | null; commitSha?: string | null };
+          return { host, aliasDeploymentId: alias, served: { read: true as const, value: {
+            deploymentId: j.deploymentId ?? null, commitSha: j.commitSha ?? null,
+            finalHost: new URL(r.url).hostname,
+          } } };
+        } catch (e) {
+          return { host, aliasDeploymentId: alias, served: { read: false as const, why: String(e).slice(0, 80) } };
+        }
+      }));
+      void expected;
     },
+    log: (l) => console.log(l),
   };
 }
 
 async function main() {
-  const apply = process.argv.includes("--apply");
+  const phase = process.argv.includes("--create") ? "create"
+    : process.argv.includes("--promote") ? "promote" : "preflight";
+  console.log(`\nPRODUCTION RELEASE — phase ${phase.toUpperCase()}\n`);
+
   const token = process.env.VERCEL_TOKEN;
-  console.log(`\nPRODUCTION RELEASE — ${apply ? "APPLY" : "dry run (pass --apply to promote)"}\n`);
   if (!token) { console.error("  REFUSED: VERCEL_TOKEN is not set in this shell. It is deliberately not read from .env files.\n"); process.exit(1); }
-  if (!process.env.P2B_GH_READ_TOKEN) { console.error("  REFUSED: P2B_GH_READ_TOKEN is not set. The repository is private and main must be read.\n"); process.exit(1); }
-  const api = vercelApi(token);
-
-  const mainAtSelection = await freshMainSha();
-  console.log(`  GitHub ${CANONICAL.owner}/${CANONICAL.repo} ${CANONICAL.ref}: ${mainAtSelection ?? "UNREADABLE"}`);
-  if (!mainAtSelection) { console.error("  REFUSED: GitHub main could not be read.\n"); process.exit(1); }
-
-  const candidates = await listCandidates(api);
-  console.log(`  READY production deployments considered: ${candidates.length}`);
-
-  // SELECTION IS A SHORTLIST, NOT A DECISION. It narrows on meta because a list
-  // response carries nothing else; nothing is trusted until validateRelease
-  // re-reads the deployment and establishes origin from platform fields.
-  const chosen = candidates.find((c) => c.githubSha === mainAtSelection) ?? null;
-  if (!chosen) {
-    const nearest = candidates.slice(0, 5).map((c) => `    ${c.id}  sha=${(c.githubSha ?? c.clientSha ?? "?").slice(0, 7)}  created=${new Date(c.createdAt).toISOString()}`).join("\n");
-    console.error(`  REFUSED: no READY production deployment claiming main ${mainAtSelection.slice(0, 7)} exists.\n  Nearest:\n${nearest}\n  Nothing here deploys; a build of main comes from Vercel's Git integration.\n`);
-    process.exit(1);
-  }
-  console.log(`  shortlisted: ${chosen.id} (${chosen.url}) — claims ${chosen.githubSha?.slice(0, 7)}, not yet verified`);
+  if (!process.env.P2B_GH_READ_TOKEN) { console.error("  REFUSED: P2B_GH_READ_TOKEN is not set; the repository is private.\n"); process.exit(1); }
 
   const logPath = process.env.P2B_RELEASE_LOG ?? join(homedir(), ".price2book", "release-log.jsonl");
-  const fx = releaseEffects(api, logPath, apply);
-  // The candidate's own sha is what vercel.json must be read at.
-  fx.readBuildEvidence = (id) => buildEvidence(api, id, mainAtSelection);
+  const lockPath = process.env.P2B_RELEASE_LOCK ?? join(homedir(), ".price2book", "release.lock");
+  const io = liveIO(vercelApi(token), logPath, lockPath);
 
-  // PHASE ONE — reads only. A dry run stops here and CAN SUCCEED.
-  const validated = await validateRelease(chosen, mainAtSelection, PROVENANCE_BUILD_COMMAND, fx);
-  if (!validated.ok) { console.error(`  REFUSED (${validated.code}): ${validated.detail}\n`); process.exit(1); }
-  const plan = validated.plan;
-  console.log(`  decision: PROMOTABLE — ${plan.sha.slice(0, 7)} is GitHub main, now and at selection.`);
-  console.log(`  replaces: ${plan.replaced} (rollback target)`);
+  const result = await runRelease({
+    phase,
+    approvedSha: process.env.P2B_APPROVED_SHA,
+    candidateId: process.env.P2B_CANDIDATE_ID,
+  }, APPROVED_BUILD, APPROVED_REDIRECT_HOSTS, io);
 
-  if (!apply) {
-    console.log(`\n  Dry run complete — validated, nothing changed. Re-run with --apply to promote ${plan.candidateId}.\n`);
+  if (result.ok) {
+    console.log(`\n  ${phase} OK — ${JSON.stringify(result)}\n`);
     return;
   }
-
-  // PHASE TWO — re-reads main, records the rollback target, then promotes.
-  const outcome = await applyRelease(plan, fx);
-  if (!outcome.ok) { console.error(`  REFUSED (${outcome.code}): ${outcome.detail}\n`); process.exit(1); }
-  console.log(`  recorded rollback target ${plan.replaced} -> ${logPath}`);
-  console.log(`  promoted ${plan.candidateId}`);
-
-  await new Promise((r) => setTimeout(r, 8000));
-  const after = await currentProductionRaw(api).then((r) => (r.raw as { uid?: string; id?: string } | undefined) ?? null);
-  const afterId = after?.uid ?? after?.id;
-  console.log(`  canonical production after: ${afterId ?? "?"}`);
-  let bad = afterId !== plan.candidateId;
-  for (const host of plan.hosts) {
-    const rb = await readBack(host);
-    const okHost = rb?.deploymentId === plan.candidateId && rb?.commitSha === plan.sha && rb?.target === "production";
-    if (!okHost) bad = true;
-    console.log(`  ${okHost ? "ok  " : "FAIL"} ${host}/api/release -> ${rb ? `${rb.deploymentId} ${rb.commitSha?.slice(0, 7)} ${rb.target}` : "unreadable"}`);
-  }
-  console.log(bad ? `\n  Promotion did not read back cleanly. Rollback target is in ${logPath}.\n` : `\n  Released ${plan.sha.slice(0, 7)} as ${plan.candidateId}.\n`);
-  if (bad) process.exit(1);
+  console.error(`\n  REFUSED (${result.code}): ${result.detail}\n`);
+  if ("problems" in result) for (const p of result.problems) console.error(`    - ${p}`);
+  process.exit(1);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

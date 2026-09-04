@@ -36,6 +36,18 @@
 export const CANONICAL = {
   owner: "Jhall1021",
   repo: "bookeliteelectric",
+  /**
+   * The repository's NUMERIC id, as GitHub reports it.
+   *
+   * gitSource identifies a repository by this, not by owner/name — and the
+   * release verifies GitHub's value against Vercel's project link rather than
+   * adopting whatever the project happens to be linked to. A project re-pointed
+   * at another repository must refuse, not pass quietly.
+   *
+   * PENDING: the canonical value is unset until read from GitHub. The probe
+   * repository's was 1357038688; the canonical one has not been read.
+   */
+  repoId: 0,
   ref: "main",
   provider: "github",
   target: "production",

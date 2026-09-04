@@ -21,7 +21,7 @@ import {
   type BuildEvidence, type OriginTrustBasis,
 } from "./_releaseSource";
 import { validateRelease, applyRelease, type ReleaseEffects, type ReleasePlan } from "./_releaseOrchestration";
-import { freshMainSha, buildEvidence, vercelJsonBuildCommand } from "./release-production";
+import { freshMainSha, vercelJsonBuildCommand } from "./release-production";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string, detail = "") => {
@@ -285,21 +285,11 @@ async function realAdapters() {
   ok((await vercelJsonBuildCommand(MAIN, route({}), undefined)).read === false,
     "and with no credential nothing is read, never assumed absent");
 
-  // buildEvidence — the adapter that used to manufacture "no override".
-  const api = (async (path: string) => {
-    if (path.startsWith("/v13/deployments"))
-      return { status: 200, body: { buildCommand: "npm run build", projectSettings: { buildCommand: PROVENANCE_BUILD_COMMAND } } };
-    return { status: 200, body: { buildCommand: PROVENANCE_BUILD_COMMAND } };
-  }) as never;
-  // The tree is readable and lists no vercel.json, so absence is genuinely
-  // established — isolating the contradiction in the build-command fields.
-  const ev = await buildEvidence(api, CAND, MAIN, route({ tree: () => res(200, tree([])) }), "t");
-  ok(ev !== null && ev.effectiveBuildCommand.read === false,
-    "the contradictory-command fixture is now UNREAD rather than resolved by preference");
-  ok(ev !== null && ev.commitVercelJsonBuildCommand.read === true,
-    "and vercel.json is genuinely read rather than hardcoded null");
-  ok(evidenceRefusal(ev, PROVENANCE_BUILD_COMMAND, MAIN)?.code === "BUILD_CONFIG_UNKNOWN",
-    "so the decision refuses it");
+  // The buildEvidence adapter is gone. Its job — establishing what a deployment
+  // was actually built with — is now promotionDecision's candidate check, which
+  // compares FIVE settings against approved constants rather than one, and is
+  // exercised in verify-release-control (A7, A8). The vercel.json logic below
+  // moved into the preflight tree read and is covered there.
 }
 
 /* ── 7. parseCurrentProduction ────────────────────────────────────────── */
@@ -373,8 +363,9 @@ function entryPointWiring() {
   console.log("\n  THE REAL RELEASE COMMAND\n");
   const code = readFileSync(new URL("./release-production.ts", import.meta.url), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-  ok(/validateRelease\(/.test(code) && /applyRelease\(/.test(code), "runs both phases from the orchestrator");
-  ok(/if \(!apply\) \{[\s\S]{0,200}Dry run complete/.test(code), "and a dry run returns after validation");
+  ok(/runRelease\(/.test(code) && /liveIO\(/.test(code), "runs the shared release function with live effects");
+  ok(/phase === "preflight"/.test(code) || /"preflight"/.test(code),
+    "and defaults to the read-only preflight phase");
   ok(!/execFileSync/.test(code), "and no longer shells out to git for the authenticated read");
   ok((code.match(/\/promote\//g) ?? []).length === 1, "and the promote endpoint appears exactly once");
 }
