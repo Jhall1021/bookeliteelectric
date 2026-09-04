@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { runRelease, type ReleaseIO, type IntentRecord } from "./_releaseRun";
 import { verifyHosts, type ApprovedBuild, type HostObservation,
   type CandidateRecord, type CreationReceipt, type AliasMapping } from "./_releaseControl";
-import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings } from "./release-production";
+import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings, readAliasPage } from "./release-production";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string, detail = "") => {
@@ -538,12 +538,12 @@ async function liveAdapterTests() {
   ok(!b.read && /threw/i.test(b.why), "B3  and an api that THROWS is unread, not empty",
     b.read ? "read" : b.why);
 
-  const noArray = mk(async () => ({ status: 200, body: {} }));
+  const noArray = mk(async () => ({ status: 200, body: { pagination: { next: null } } }));
   ok(!(await noArray.readAliasMappings()).read, "B3  a 200 with no aliases array is unread too");
 
   const ok200 = mk(async () => ({ status: 200, body: { aliases: [
     { alias: "app.price2book.com", deploymentId: "dpl_live" },
-  ] } }));
+  ], pagination: { next: null } } }));
   const m = await ok200.readAliasMappings();
   ok(m.read, "B3  a readable list is read");
   if (m.read) {
@@ -559,7 +559,7 @@ async function liveAdapterTests() {
   const realFetch = globalThis.fetch;
   try {
     globalThis.fetch = (async () => { throw new Error("ECONNRESET"); }) as typeof fetch;
-    const obs = await mk(async () => ({ status: 200, body: { aliases: [] } }))
+    const obs = await mk(async () => ({ status: 200, body: { aliases: [], pagination: { next: null } } }))
       .observeHosts({ deploymentId: CAND, sha: MAIN });
     ok(obs.every((o) => !o.served.read),
       "B3  observeHosts reports a thrown fetch as an unread host rather than throwing");
@@ -651,6 +651,73 @@ async function aliasCompletenessTests() {
     outgoingAliases: HOSTS.map((h) => ({ host: h, destination: { read: true as const, value: "" } })) } }) });
   ok(!empty.r.ok && empty.r.code === "RECEIPT_INCOMPLETE",
     "B4  and an empty-string destination is not a deployment id either");
+}
+
+/* ── B5: an unreadable shape is not a fact ────────────────────────────── */
+async function responseValidationTests() {
+  console.log("\n  B5  AN UNREADABLE SHAPE IS NOT A FACT\n");
+
+  const good = HOSTS.map((h) => ({ alias: h, deploymentId: OUTGOING }));
+
+  // The end of the list must be STATED.
+  const cases: [string, unknown][] = [
+    ["pagination.next is an object", { aliases: [], pagination: { next: { cursor: 1 } } }],
+    ["pagination.next is a boolean", { aliases: [], pagination: { next: true } }],
+    ["pagination metadata is missing", { aliases: [] }],
+    ["pagination has no next field", { aliases: [], pagination: { count: 0 } }],
+    ["pagination is an array", { aliases: [], pagination: [] }],
+    ["the response is not an object", 42],
+    ["entries are [null, 42, {}]", { aliases: [null, 42, {}], pagination: { next: null } }],
+    ["an entry has a non-string host", { aliases: [{ alias: 7, deploymentId: "d" }], pagination: { next: null } }],
+    ["an entry has an empty host", { aliases: [{ alias: "", deploymentId: "d" }], pagination: { next: null } }],
+    ["an entry is an array", { aliases: [["app.price2book.com", "d"]], pagination: { next: null } }],
+  ];
+  for (const [label, body] of cases) {
+    const r = readAliasPage(body, HOSTS);
+    ok(!r.read, `B5  ${label} is UNREAD`, r.read ? "claimed a fact" : "");
+  }
+
+  // What IS readable stays readable.
+  const endNull = readAliasPage({ aliases: good, pagination: { next: null } }, HOSTS);
+  ok(endNull.read && endNull.value.endOfList && endNull.value.resolved.size === HOSTS.length,
+    "B5  a stated end-of-list with readable entries is read");
+  const pagNull = readAliasPage({ aliases: good, pagination: null }, HOSTS);
+  ok(pagNull.read && pagNull.value.endOfList, "B5  and `pagination: null` states the end too");
+  const more = readAliasPage({ aliases: [], pagination: { next: "cursor1" } }, HOSTS);
+  ok(more.read && !more.value.endOfList && more.value.next === "cursor1",
+    "B5  while a cursor says there are more pages");
+  const notOurs = readAliasPage(
+    { aliases: [{ alias: "someone-else.vercel.app", deploymentId: "dpl_x" }], pagination: { next: null } }, HOSTS);
+  ok(notOurs.read && notOurs.value.resolved.size === 0,
+    "B5  an entry whose host READS as someone else's is genuinely irrelevant");
+
+  // And the run creates NOTHING for any of them.
+  const create = (body: unknown) => {
+    let creates = 0;
+    const { io: x } = io({});
+    const live = liveIO((async () => ({ status: 200, body })) as never, "/dev/null", "/dev/null", "/dev/null");
+    x.readAliasMappings = live.readAliasMappings;
+    x.createDeployment = async () => { creates++; return { id: CAND }; };
+    x.acquireLock = async () => ({ ok: true });
+    x.releaseLock = async () => {};
+    return runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON)
+      .then((r) => ({ r, creates: () => creates }));
+  };
+
+  for (const [label, body] of [
+    ["pagination.next is an object", { aliases: [], pagination: { next: {} } }],
+    ["pagination metadata is missing", { aliases: [] }],
+    ["entries are [null, 42, {}]", { aliases: [null, 42, {}], pagination: { next: null } }],
+  ] as [string, unknown][]) {
+    const c = await create(body);
+    ok(!c.r.ok && c.r.code === "BASELINE_INCOMPLETE" && c.creates() === 0,
+      `B5  ${label} creates NOTHING`,
+      c.r.ok ? "created" : `${c.r.code}, creates=${c.creates()}`);
+  }
+
+  const okRun = await create({ aliases: good, pagination: { next: null } });
+  ok(okRun.r.ok && okRun.creates() === 1, "B5  and a fully readable response creates, once",
+    okRun.r.ok ? "" : (okRun.r as { code: string }).code);
 }
 
 /* ── L2: the baseline belongs to the run ──────────────────────────────── */
@@ -878,6 +945,7 @@ async function main() {
   await recoveryOutcomeTests();
   await liveAdapterTests();
   await aliasCompletenessTests();
+  await responseValidationTests();
   await lifecycleLockTests();
   await baselineTests();
   await classificationTests();

@@ -433,33 +433,23 @@ export async function collectAliasMappings(
   const outstanding = () => requiredHosts.filter((h) => !resolved.has(h) && !malformed.has(h));
 
   for (;;) {
-    let r: { status: number; body: { aliases?: unknown; pagination?: { next?: unknown } } };
+    let r: { status: number; body: unknown };
     const q = `/v4/aliases?projectId=${CANONICAL.vercelProjectId}&teamId=${CANONICAL.vercelTeamId}` +
       `&limit=100${next === undefined ? "" : `&until=${encodeURIComponent(String(next))}`}`;
     try { r = await api(q); }
     catch (e) { return { read: false, why: `alias list threw: ${String(e).slice(0, 80)}` }; }
     if (r.status >= 300) return { read: false, why: `alias list ${r.status}` };
-    if (!Array.isArray(r.body.aliases)) return { read: false, why: "alias list carries no aliases array" };
 
-    for (const raw of r.body.aliases) {
-      if (typeof raw !== "object" || raw === null) continue;
-      const a = raw as { alias?: unknown; deploymentId?: unknown };
-      if (typeof a.alias !== "string" || !requiredHosts.includes(a.alias)) continue;
-      // A record ABOUT a host we care about, that we cannot read, is not a
-      // record we may skip: skipping it is how it became "unmapped".
-      if (typeof a.deploymentId !== "string" || a.deploymentId === "") {
-        malformed.set(a.alias, `alias record carries a malformed deploymentId (${JSON.stringify(a.deploymentId)})`);
-        continue;
-      }
-      resolved.set(a.alias, a.deploymentId);
-    }
+    const page = readAliasPage(r.body, requiredHosts);
+    if (!page.read) return { read: false, why: page.why };
+
+    for (const [host, id] of page.value.resolved) resolved.set(host, id);
+    for (const [host, why] of page.value.malformed) malformed.set(host, why);
 
     pages++;
-    const nx = r.body.pagination?.next;
-    next = typeof nx === "string" || typeof nx === "number" ? nx : undefined;
-
-    if (outstanding().length === 0) break;   // everything required is settled
-    if (next === undefined) break;           // the listing genuinely ended
+    if (outstanding().length === 0) break;      // everything required is settled
+    if (page.value.endOfList) break;            // the listing VERIFIABLY ended
+    next = page.value.next;
     if (pages >= maxPages)
       return { read: false, why:
         `alias list still has pages after ${pages} and ${outstanding().join(", ")} remain unresolved` };
@@ -469,11 +459,87 @@ export async function collectAliasMappings(
     const bad = malformed.get(host);
     if (bad) return { host, destination: { read: false as const, why: bad } };
     const d = resolved.get(host);
-    // Absent from a listing that RAN OUT OF PAGES is verified absence.
+    // Absent from a listing that VERIFIABLY ended is verified absence.
     return { host, destination: d !== undefined
       ? { read: true as const, value: d }
       : { read: true as const, value: null } };
   }) };
+}
+
+/**
+ * One page of the alias listing, validated as a UNIT before anything in it is
+ * believed.
+ *
+ * THE REMAINING WAY THIS CLAIMED ABSENCE IT HAD NOT PROVED. Unknown shapes were
+ * quietly turned into facts:
+ *
+ *  - `pagination.next` of an unexpected type became `undefined`, which the loop
+ *    read as "the listing ended" — so an object where a cursor belonged ended
+ *    the walk and every unseen host was reported unmapped;
+ *  - a response with NO pagination metadata at all did the same, though nothing
+ *    in it says the listing finished;
+ *  - and entries like `[null, 42, {}]` were skipped one at a time. An entry
+ *    whose host cannot be read might BE one of ours; skipping it is how it
+ *    became "not in the listing".
+ *
+ * So: the end of the list must be stated, not inferred from a missing field;
+ * a cursor must be a cursor; and an entry may only be dismissed as irrelevant
+ * once its host has actually been read.
+ */
+export function readAliasPage(
+  body: unknown, requiredHosts: readonly string[]
+): Read<{
+  resolved: ReadonlyMap<string, string>;
+  malformed: ReadonlyMap<string, string>;
+  endOfList: boolean;
+  next: string | number | undefined;
+}> {
+  if (typeof body !== "object" || body === null)
+    return { read: false, why: "alias list response is not an object" };
+  const b = body as { aliases?: unknown; pagination?: unknown };
+
+  if (!Array.isArray(b.aliases))
+    return { read: false, why: "alias list carries no aliases array" };
+
+  // THE END OF THE LIST IS STATED, NOT INFERRED. Vercel returns a pagination
+  // object whose `next` is a cursor or null; absent metadata, or a `next` that
+  // is neither, leaves us unable to say whether more pages exist — and "unable
+  // to say" is not "there are none".
+  if (!("pagination" in b))
+    return { read: false, why: "alias list carries no pagination metadata, so the end of the list is not established" };
+  const pag = b.pagination;
+  let endOfList: boolean;
+  let next: string | number | undefined;
+  if (pag === null) { endOfList = true; next = undefined; }
+  else if (typeof pag === "object" && !Array.isArray(pag)) {
+    const px = pag as { next?: unknown };
+    if (!("next" in px))
+      return { read: false, why: "alias pagination carries no next field, so the end of the list is not established" };
+    const nx = px.next;
+    if (nx === null) { endOfList = true; next = undefined; }
+    else if (typeof nx === "string" || typeof nx === "number") { endOfList = false; next = nx; }
+    else return { read: false, why: `alias pagination.next is ${JSON.stringify(nx)}, which is not a cursor` };
+  } else return { read: false, why: "alias pagination is not an object" };
+
+  const resolved = new Map<string, string>();
+  const malformed = new Map<string, string>();
+  for (const raw of b.aliases) {
+    // AN ENTRY WE CANNOT READ MIGHT BE ONE OF OURS. It is only irrelevant once
+    // its host has been read and found to be someone else's.
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+      return { read: false, why: `alias list contains an entry that is not an object (${JSON.stringify(raw)})` };
+    const a = raw as { alias?: unknown; deploymentId?: unknown };
+    if (typeof a.alias !== "string" || a.alias === "")
+      return { read: false, why: `alias list contains an entry with no readable host (${JSON.stringify(a.alias)})` };
+    if (!requiredHosts.includes(a.alias)) continue;   // read, and genuinely not ours
+    if (typeof a.deploymentId !== "string" || a.deploymentId === "") {
+      malformed.set(a.alias, `alias record carries a malformed deploymentId (${JSON.stringify(a.deploymentId)})`);
+      continue;
+    }
+    resolved.set(a.alias, a.deploymentId);
+  }
+
+  return { read: true, value: { resolved, malformed, endOfList, next } };
 }
 
 /* ─────────────────────────── the live effects ───────────────────────────── */
