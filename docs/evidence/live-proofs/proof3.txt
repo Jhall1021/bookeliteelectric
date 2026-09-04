@@ -1,0 +1,70 @@
+PROOF 3 — PASSED. A COMPLETED DEPLOYMENT'S SETTINGS ARE HISTORICAL.
+
+  project     prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  deployment  dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS   (READY, API-created with no
+              projectSettings — the path phase B uses)
+
+  THE EXPERIMENT
+    build a deployment, save its deployment-scoped effective settings, change
+    the PROJECT's settings, and read the same deployment back by its exact id.
+
+    Not the API-write experiment: nothing was PATCHed against a deployment. Two
+    writes, both to the project's buildCommand, the second returning it exactly.
+
+  PRESERVATION BEFORE ANY WRITE
+    original buildCommand   215 characters, saved JSON-encoded straight from the
+                            API and round-trip verified as identical before the
+                            first write. Restoration read from that file; the
+                            value was never retyped.
+    temporary value         239 characters against the 256 ceiling — the
+                            original PREFIXED, so the guard would still run if
+                            anything unexpectedly built.
+
+  WHAT HAPPENED
+    write 1                 HTTP 200
+    project changed         buildCommand now begins "echo P2B-PROOF3-TEMP &&";
+                            the other four settings untouched
+    new deployments         NONE — 6 before, 6 after. A project-settings change
+                            did not trigger a deployment. Measured, not assumed.
+    routing during          no alias moved, none added, production target
+                            unchanged at dpl_8uZb…
+
+  *** THE MEASUREMENT ***
+    the historical deployment, read by its exact id while the project held a
+    DIFFERENT buildCommand:
+
+      raw identical        True
+      normalized identical True
+
+    HISTORICAL. The deployment's five effective fields did not follow the
+    project. rootDirectory is absent from the record in both reads — absent, not
+    null — and that absence is itself stable.
+
+  RESTORATION AND FINAL STATE
+    write 2                 HTTP 200; buildCommand byte-for-byte identical to
+                            the preserved original
+    other four settings     unchanged
+    historical record       unchanged
+    aliases                 unchanged
+    production target       unchanged
+    deployment list         unchanged
+
+  WHAT THIS MEANS FOR THE RELEASE
+    Reading a candidate back describes what it was BUILT WITH, not what the
+    project currently says. So compareBuild comparing a candidate's settings
+    against the approved ones is sound: the value it reads cannot be moved out
+    from under it by a later settings change. The receipt binding does not need
+    to bind anything further on this account.
+
+  SCOPE
+    One deployment, one project, one field changed and changed back. It
+    establishes that this deployment's settings did not follow this project's
+    buildCommand. It does not establish immutability of the whole record against
+    every kind of project change, and it is not a claim about Vercel in general.
+
+  CREDENTIAL SCAN
+    All 19 preserved records scanned for GitHub PATs, Vercel tokens, literal
+    Bearer values, private keys and Authorization header values: 0 matches. The
+    only hits under a looser pattern are variable NAMES — "$P2B_GH_HDR" as a
+    reference inside the build command, and the env-var key list on the
+    deployment records. Names, never values; env values were never requested.
