@@ -165,7 +165,7 @@ elif [ "$survivors" -eq 0 ]; then
 else
   echo "  $survivors mutation(s) NOT DETECTED — those guards are not load-bearing."
 fi
-[ "$harness_failures" -gt 0 ] && echo "  $harness_failures run(s) produced no test summary — the harness failed, not the code."
+[ "$harness_failures" -gt 0 ] && echo "  $harness_failures run(s) produced no usable result (timeout, no summary, or a patch that no longer applies) — the harness failed, not the code."
 
 # THE FINAL BASELINE. The tree is restored between mutations, so this proves the
 # restores worked and the suite still passes — a sweep that corrupted its own

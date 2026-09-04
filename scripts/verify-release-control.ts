@@ -573,14 +573,22 @@ async function aliasCompletenessTests() {
   console.log("\n  B4  ABSENCE IS ESTABLISHED, NOT INFERRED\n");
 
   const entry = (h: string, d: unknown) => ({ alias: h, deploymentId: d });
+  // A walk that never terminates cannot be caught by a timeout INSIDE the suite:
+  // every await here resolves immediately, so an unbounded loop starves the
+  // timer queue and no setTimeout will ever fire. Racing one would look like a
+  // fix and change nothing. The bound therefore lives in the double — past this
+  // cap it refuses to serve, which turns a hang into a recorded failure and a
+  // printed summary the mutation runner can actually score.
+  const PAGE_CAP = 50;
+
   /** A fake api that serves pages, and counts how many were asked for. */
   const paged = (pages: { aliases: unknown[]; next?: string }[]) => {
     let calls = 0;
     const api = (async (path: string) => {
+      if (++calls > PAGE_CAP) throw new Error(`PAGE-CAP: walked past ${PAGE_CAP} pages`);
       const m = /until=([^&]*)/.exec(path);
       const idx = m ? pages.findIndex((pg) => pg.next === decodeURIComponent(m[1])) + 1 : 0;
       const page = pages[Math.min(idx, pages.length - 1)];
-      calls++;
       return { status: 200, body: { aliases: page.aliases, pagination: { next: page.next ?? null } } };
     }) as never;
     return { api, calls: () => calls };
@@ -596,33 +604,15 @@ async function aliasCompletenessTests() {
     followed.read ? JSON.stringify(followed.value) : followed.why);
   ok(two.calls() >= 2, `B4  and a second request was actually made (${two.calls()})`);
 
-  // A budget guard cannot be tested by waiting. The walk awaits promises that
-  // resolve immediately, so an unbounded one starves the timer queue and NO
-  // wall-clock timeout will ever fire — the suite simply never prints its
-  // summary, which tells the mutation runner nothing it can score. The bound
-  // therefore lives in the DOUBLE: the fake stops serving past a hard cap, so
-  // removing the guard produces a recorded failure instead of a hang.
-  const CAP = 50;
-  const capped = () => {
-    let calls = 0;
-    const api = (async () => {
-      if (++calls > CAP) throw new Error("PAGE-CAP: the walk ran past the double's cap");
-      return { status: 200, body: { aliases: [entry("other.vercel.app", "dpl_x")], pagination: { next: "cursorN" } } };
-    }) as never;
-    return { api, calls: () => calls };
-  };
-  const endless = capped();
-  let gaveUp: Awaited<ReturnType<typeof collectAliasMappings>> | undefined;
-  let ranAway = "";
-  try {
-    gaveUp = await collectAliasMappings(endless.api, HOSTS, 3);
-  } catch (e) {
-    ranAway = e instanceof Error ? e.message : String(e);
-  }
-  ok(ranAway === "", `B4  the page budget ends the walk (${endless.calls()} request(s), cap ${CAP})`, ranAway);
-  ok(gaveUp !== undefined && !gaveUp.read,
-    "B4  exhausting the page budget with hosts unresolved is unread, not absent",
-    gaveUp === undefined ? "the walk never returned" : gaveUp.read ? "claimed absence" : "");
+  const endless = paged([{ aliases: [entry("other.vercel.app", "dpl_x")], next: "cursorN" }]);
+  const gaveUp = await collectAliasMappings(endless.api, HOSTS, 3);
+  ok(!gaveUp.read, "B4  exhausting the page budget with hosts unresolved is unread, not absent",
+    gaveUp.read ? "claimed absence" : "");
+  // Asserted by COUNTING, not by catching: the walk turns a throwing api into
+  // an unread result, so "it came back unread" stays true with the budget
+  // deleted. Whether it stopped WHERE IT WAS TOLD TO is the actual guard.
+  ok(endless.calls() <= 3,
+    `B4  and it stopped AT the budget, not at the double's cap (${endless.calls()} request(s))`);
 
   const ended = paged([{ aliases: [entry("other.vercel.app", "dpl_x")] }]);
   const absent = await collectAliasMappings(ended.api, HOSTS);
