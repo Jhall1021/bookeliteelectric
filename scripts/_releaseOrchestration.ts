@@ -28,8 +28,13 @@ export type ReleaseEffects = {
   readDeployment: (id: string) => Promise<unknown>;
   /** This deployment's own build evidence. */
   readBuildEvidence: (id: string) => Promise<BuildEvidence | null>;
-  /** THE ONLY MUTATION. Must not be reached on any refusal. */
-  assignAlias: (deploymentId: string, alias: string) => Promise<void>;
+  /**
+   * THE ONLY MUTATION, and it is the one the real release performs:
+   * POST /v10/projects/{id}/promote/{deployment}. Modelled as it actually is,
+   * because an orchestrator that mutates differently from the entry point is a
+   * second implementation wearing the first one's tests.
+   */
+  promoteDeployment: (deploymentId: string) => Promise<void>;
 };
 
 export type ReleaseOutcome =
@@ -103,9 +108,7 @@ export async function promote(
   if (bad) return { ok: false, code: bad.code, detail: bad.detail };
 
   // 6. Only now does anything change.
-  for (const host of CANONICAL.canonicalHosts) {
-    await fx.assignAlias(candidate.id, host);
-  }
+  await fx.promoteDeployment(candidate.id);
 
   return {
     ok: true,

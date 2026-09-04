@@ -14,7 +14,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, chmodSync } from "node:fs";
+import { mkdtempSync, writeFileSync, chmodSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CANONICAL, PROVENANCE_BUILD_COMMAND, VERCEL_BUILD_COMMAND_MAX, type Candidate } from "./_releaseProvenance";
@@ -67,7 +67,7 @@ function effects(over: Partial<ReleaseEffects> = {}) {
     readFreshMain: async () => MAIN,
     readDeployment: async () => GOOD_DEPLOYMENT,
     readBuildEvidence: async () => GOOD_EVIDENCE,
-    assignAlias: async (_d, a) => { assigned.push(a); },
+    promoteDeployment: async (d) => { assigned.push(d); },
     ...over,
   };
   return { fx, assigned };
@@ -77,7 +77,7 @@ async function refusesWithNoRequests(over: Partial<ReleaseEffects>, code: string
   const { fx, assigned } = effects(over);
   const r = await promote(candidate, MAIN, PROVENANCE_BUILD_COMMAND, fx, OBSERVED);
   ok(!r.ok && r.code === code && assigned.length === 0, label,
-    `got ${r.ok ? "OK" : r.code}, ${assigned.length} alias request(s)`);
+    `got ${r.ok ? "OK" : r.code}, ${assigned.length} promote request(s)`);
 }
 
 /* ── 1. A refusal must send nothing ──────────────────────────────────── */
@@ -134,8 +134,8 @@ async function theHappyPathWorks() {
   const { fx, assigned } = effects();
   const r = await promote(candidate, MAIN, PROVENANCE_BUILD_COMMAND, fx, OBSERVED);
   ok(r.ok === true, "a fully verified candidate promotes", r.ok ? "" : `${r.code}: ${r.detail}`);
-  ok(assigned.length === CANONICAL.canonicalHosts.length,
-    `and every canonical host is assigned (${assigned.length})`);
+  ok(assigned.length === 1 && assigned[0] === candidate.id,
+    "and exactly one promote request is sent, for the candidate");
   ok(r.ok === true && r.replaced === "dpl_live",
     "and the replaced deployment is recorded as the rollback target");
 }
@@ -260,8 +260,45 @@ async function main() {
   trustBasisFailsClosed();
   buildCommand();
   shellGuard();
+  await theRealEntryPointUsesThis();
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);
   process.exit(fail === 0 ? 0 : 1);
 }
 
 main();
+
+/* ── 7. The REAL entry point, not a parallel one ──────────────────────── */
+/**
+ * The gap this closes: an orchestrator can pass every test while the actual
+ * release command still runs its own logic. These assertions read
+ * release-production.ts itself.
+ */
+async function theRealEntryPointUsesThis() {
+  console.log("\n  THE REAL RELEASE COMMAND USES THIS CODE\n");
+
+  const src = readFileSync(new URL("./release-production.ts", import.meta.url), "utf8");
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+  ok(/from "\.\/_releaseOrchestration"/.test(code),
+    "release-production imports the orchestrator");
+  ok(/decideAndPromote\(/.test(code),
+    "and routes its decision through promote(), not a local copy");
+  ok(!/\bdecidePromotion\(/.test(code),
+    "and no longer calls decidePromotion directly, which bypassed origin and evidence");
+  ok(/currentProductionRaw/.test(code) && !/targets\?\.production \?\? null/.test(code),
+    "and reads current production raw, so a failed read cannot look like 'none'");
+  ok(/readBuildEvidence:\s*\(id\)\s*=>\s*buildEvidence/.test(code),
+    "and supplies real build evidence from the deployment's own record");
+  ok(/readDeployment:\s*\(id\)\s*=>\s*deploymentRecord/.test(code),
+    "and supplies the deployment record so origin comes from platform fields");
+  ok(!/c\.githubDeployment\s*&&/.test(code),
+    "and no longer SELECTS on meta-derived githubDeployment");
+  ok(/P2B_GH_READ_TOKEN/.test(code),
+    "and reads fresh main with its own read credential, separate from VERCEL_TOKEN");
+  ok(/dry run reached the mutation/.test(code),
+    "and a dry run that reaches the mutation is a bug, not a release");
+
+  // The mutation exists in exactly one place.
+  const promoteCalls = (code.match(/\/promote\//g) ?? []).length;
+  ok(promoteCalls === 1, `the promote endpoint is called from exactly one place (${promoteCalls})`);
+}
