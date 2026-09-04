@@ -174,3 +174,37 @@ OPERATOR DECISION — the disclosed GitHub token is NOT rotated (2026-09-04)
 
   Recorded so that a later reader does not mistake "no rotation happened" for
   "no disclosure happened".
+
+PROJECT-SCOPE ISOLATION CHECK — 2026-09-04T18:34Z   PASSED
+
+  Token: vcp_ project-scoped, fingerprint babd0443. No teamId or slug sent.
+
+    disposable project by id      HTTP 200   reachable
+    canonical project by id       HTTP 404   denied
+    canonical project by name     HTTP 404   denied
+    /v2/user                      HTTP 404   denied
+    /v2/teams                     HTTP 403   denied
+
+  Vercel answers out-of-scope resources with 404 rather than 403 — it declines
+  to acknowledge they exist. That is a stronger signal than 403, not a weaker
+  one, and the classification now records it as denial. A status that is neither
+  a recognised denial nor 200 leaves isolation unestablished instead of passing.
+
+CORRECTION — the blast-radius claim was an inference, not an observation
+
+  I reported that "the credential's reach is the whole team" and that "only the
+  project id in each URL keeps these proofs off production", and recommended
+  considering a separate team or re-import.
+
+  THAT WAS INFERRED FROM accountId, WHICH ONLY SAYS WHO OWNS THE PROJECT. It
+  says nothing about what a token may reach. The same token was already in place
+  when I wrote it, and the evidence was one request away: production is denied
+  by id and by name.
+
+  The project sharing a team with production remains TRUE and worth knowing. The
+  consequence I drew from it was wrong, and the recommendation that followed
+  would have cost a re-import for nothing.
+
+  canonical-guard.sh is kept regardless. Isolation is now demonstrated for THIS
+  token; the guard is what holds if a broader credential is ever used by
+  mistake, and it costs nothing.

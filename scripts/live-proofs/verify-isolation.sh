@@ -67,10 +67,15 @@ done
 for ep in "v2/user" "v2/teams"; do
   s=$(status "$API/$ep")
   printf "4 %-28s HTTP %-4s " "$ep" "$s"
+  # 404 counts as denial. Vercel answers out-of-scope resources with 404 rather
+  # than 403 — it declines to acknowledge they exist — which is the same shape
+  # the canonical project probes return, and a stronger signal than 403, not a
+  # weaker one. Anything that is not a recognised denial leaves isolation
+  # unestablished rather than quietly passing.
   case "$s" in
-    401|403) echo "denied — expected for a project-scoped token" ;;
-    200)     echo "READABLE — this token reaches user/team resources"; fail=2 ;;
-    *)       echo "unexpected" ;;
+    401|403|404) echo "denied — expected for a project-scoped token" ;;
+    200)         echo "READABLE — this token reaches user/team resources"; fail=2 ;;
+    *)           echo "unrecognised — isolation unestablished"; fail=1 ;;
   esac
 done
 
