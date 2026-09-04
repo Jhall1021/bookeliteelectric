@@ -240,6 +240,25 @@ export function baselineRefusal(
       detail: `alias destinations not established for ${unread.join(", ")}; a rollback target that ` +
         `cannot be read is not one` };
 
+  // AND `read: true` MUST CARRY A USABLE VALUE.
+  //
+  // The flag was taken as proof on its own, so a persisted receipt carrying
+  // `destination: { read: true, value: 42 }` validated — a recovery baseline
+  // that cannot be promoted back to. A destination is either a real deployment
+  // id or an explicitly established null; nothing else is a destination.
+  const invalid = requiredHosts
+    .map((h) => byHost.get(h)!)
+    .filter((m) => {
+      if (!m.destination.read) return false;
+      const v = m.destination.value;
+      return !(v === null || (typeof v === "string" && v !== ""));
+    })
+    .map((m) => `${m.host} (${JSON.stringify((m.destination as { value: unknown }).value)})`);
+  if (invalid.length)
+    return { code: "BASELINE_INCOMPLETE",
+      detail: `alias destinations are not deployment ids for ${invalid.join(", ")}; ` +
+        `a read flag is not a value` };
+
   return null;
 }
 

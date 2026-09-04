@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { runRelease, type ReleaseIO, type IntentRecord } from "./_releaseRun";
 import { verifyHosts, type ApprovedBuild, type HostObservation,
   type CandidateRecord, type CreationReceipt, type AliasMapping } from "./_releaseControl";
-import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO } from "./release-production";
+import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings } from "./release-production";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string, detail = "") => {
@@ -568,6 +568,91 @@ async function liveAdapterTests() {
   rmSync(dir, { recursive: true, force: true });
 }
 
+/* ── B4: absence is established, not inferred ─────────────────────────── */
+async function aliasCompletenessTests() {
+  console.log("\n  B4  ABSENCE IS ESTABLISHED, NOT INFERRED\n");
+
+  const entry = (h: string, d: unknown) => ({ alias: h, deploymentId: d });
+  /** A fake api that serves pages, and counts how many were asked for. */
+  const paged = (pages: { aliases: unknown[]; next?: string }[]) => {
+    let calls = 0;
+    const api = (async (path: string) => {
+      const m = /until=([^&]*)/.exec(path);
+      const idx = m ? pages.findIndex((pg) => pg.next === decodeURIComponent(m[1])) + 1 : 0;
+      const page = pages[Math.min(idx, pages.length - 1)];
+      calls++;
+      return { status: 200, body: { aliases: page.aliases, pagination: { next: page.next ?? null } } };
+    }) as never;
+    return { api, calls: () => calls };
+  };
+
+  const two = paged([
+    { aliases: [entry("unrelated-one.vercel.app", "dpl_x")], next: "cursor1" },
+    { aliases: HOSTS.map((h) => entry(h, OUTGOING)) },
+  ]);
+  const followed = await collectAliasMappings(two.api, HOSTS);
+  ok(followed.read && followed.value.every((m) => m.destination.read && m.destination.value === OUTGOING),
+    "B4  pagination is followed — hosts on page two are found, not reported unmapped",
+    followed.read ? JSON.stringify(followed.value) : followed.why);
+  ok(two.calls() >= 2, `B4  and a second request was actually made (${two.calls()})`);
+
+  const endless = paged([{ aliases: [entry("other.vercel.app", "dpl_x")], next: "cursorN" }]);
+  const gaveUp = await collectAliasMappings(endless.api, HOSTS, 3);
+  ok(!gaveUp.read, "B4  exhausting the page budget with hosts unresolved is unread, not absent",
+    gaveUp.read ? "claimed absence" : "");
+
+  const ended = paged([{ aliases: [entry("other.vercel.app", "dpl_x")] }]);
+  const absent = await collectAliasMappings(ended.api, HOSTS);
+  ok(absent.read && absent.value.every((m) => m.destination.read && m.destination.value === null),
+    "B4  but a listing with no further pages does establish absence");
+
+  const bad = paged([{ aliases: [entry(HOSTS[0], 42), ...HOSTS.slice(1).map((h) => entry(h, OUTGOING))] }]);
+  const mm = await collectAliasMappings(bad.api, HOSTS);
+  ok(mm.read, "B4  a malformed record does not fail the whole listing");
+  const first = mm.read ? mm.value.find((x) => x.host === HOSTS[0]) : undefined;
+  ok(!!first && !first.destination.read,
+    "B4  the host with a malformed deploymentId is UNREAD, not unmapped",
+    first ? JSON.stringify(first.destination) : "missing");
+
+  // The run refuses on each, with ZERO creation calls.
+  const create = (api: unknown) => {
+    let creates = 0;
+    const { io: x } = io({});
+    const live = liveIO(api as never, "/dev/null", "/dev/null", "/dev/null");
+    x.readAliasMappings = live.readAliasMappings;
+    x.createDeployment = async () => { creates++; return { id: CAND }; };
+    x.acquireLock = async () => ({ ok: true });
+    x.releaseLock = async () => {};
+    return runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON)
+      .then((r) => ({ r, creates: () => creates }));
+  };
+
+  const p1 = await create(paged([{ aliases: [entry("other.vercel.app", "dpl_x")], next: "cursorN" }]).api);
+  ok(!p1.r.ok && p1.r.code === "BASELINE_INCOMPLETE" && p1.creates() === 0,
+    "B4  a listing with more pages and unresolved hosts creates NOTHING",
+    p1.r.ok ? "created" : `${p1.r.code}, creates=${p1.creates()}`);
+
+  const p2 = await create(paged([{ aliases: HOSTS.map((h) => entry(h, 42)) }]).api);
+  ok(!p2.r.ok && p2.r.code === "BASELINE_INCOMPLETE" && p2.creates() === 0,
+    "B4  malformed destinations for every host create NOTHING",
+    p2.r.ok ? "created" : `${p2.r.code}, creates=${p2.creates()}`);
+
+  const p3 = await create(paged([{ aliases: HOSTS.map((h) => entry(h, OUTGOING)) }]).api);
+  ok(p3.r.ok && p3.creates() === 1, "B4  and a complete listing does create, once",
+    p3.r.ok ? "" : (p3.r as { code: string }).code);
+
+  const junk = await promote({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT,
+    outgoingAliases: HOSTS.map((h) => ({ host: h, destination: { read: true as const, value: 42 as never } })) } }) });
+  ok(!junk.r.ok && junk.r.code === "RECEIPT_INCOMPLETE" && junk.rec.promotes.length === 0,
+    "B4  a receipt whose destination is `42` is refused — a read flag is not a value",
+    junk.r.ok ? "promoted" : junk.r.code);
+
+  const empty = await promote({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT,
+    outgoingAliases: HOSTS.map((h) => ({ host: h, destination: { read: true as const, value: "" } })) } }) });
+  ok(!empty.r.ok && empty.r.code === "RECEIPT_INCOMPLETE",
+    "B4  and an empty-string destination is not a deployment id either");
+}
+
 /* ── L2: the baseline belongs to the run ──────────────────────────────── */
 async function baselineTests() {
   console.log("\n  L2  THE OUTGOING BASELINE IS PHASE B'S, NOT PHASE C'S\n");
@@ -792,6 +877,7 @@ async function main() {
   await baselineIntegrityTests();
   await recoveryOutcomeTests();
   await liveAdapterTests();
+  await aliasCompletenessTests();
   await lifecycleLockTests();
   await baselineTests();
   await classificationTests();

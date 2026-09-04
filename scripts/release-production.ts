@@ -45,7 +45,7 @@ import { CANONICAL, PROVENANCE_BUILD_COMMAND } from "./_releaseProvenance";
 
 import { parseCurrentProduction } from "./_releaseSource";
 import { runRelease, type ReleaseIO } from "./_releaseRun";
-import { type ApprovedBuild, type Read, type CreationReceipt } from "./_releaseControl";
+import { type ApprovedBuild, type Read, type CreationReceipt, type AliasMapping } from "./_releaseControl";
 
 /** The approved build, as constants. Changing these is a reviewed change. */
 export const APPROVED_BUILD: ApprovedBuild = {
@@ -404,6 +404,78 @@ export async function readReceipt(path: string, candidateId: string): Promise<Re
     : { read: false, why: `no creation receipt for ${candidateId}` };
 }
 
+/**
+ * Every canonical host's alias destination, established rather than assumed.
+ *
+ * THREE WAYS THIS PREVIOUSLY CLAIMED ABSENCE IT HAD NOT PROVED:
+ *
+ *  - it read ONE page at `limit=100` and ignored `pagination.next`, so a host
+ *    listed on page two was reported as verifiably unmapped;
+ *  - a record for a canonical host whose `deploymentId` was malformed — `42` —
+ *    failed the `typeof` guard and was silently skipped, which again presented
+ *    as unmapped;
+ *  - and both routes produced `{ read: true, value: null }`, the shape that
+ *    means "we looked and there is nothing", when nothing had been established.
+ *
+ * So: pages are followed until every required host is resolved or the listing
+ * genuinely ends; a malformed record for a required host makes THAT host
+ * unread rather than absent; and running out of page budget while hosts are
+ * still unresolved is a failed read, not an answer.
+ */
+export async function collectAliasMappings(
+  api: Api, requiredHosts: readonly string[], maxPages = 20
+): Promise<Read<readonly AliasMapping[]>> {
+  const resolved = new Map<string, string>();
+  const malformed = new Map<string, string>();
+  let next: string | number | undefined;
+  let pages = 0;
+
+  const outstanding = () => requiredHosts.filter((h) => !resolved.has(h) && !malformed.has(h));
+
+  for (;;) {
+    let r: { status: number; body: { aliases?: unknown; pagination?: { next?: unknown } } };
+    const q = `/v4/aliases?projectId=${CANONICAL.vercelProjectId}&teamId=${CANONICAL.vercelTeamId}` +
+      `&limit=100${next === undefined ? "" : `&until=${encodeURIComponent(String(next))}`}`;
+    try { r = await api(q); }
+    catch (e) { return { read: false, why: `alias list threw: ${String(e).slice(0, 80)}` }; }
+    if (r.status >= 300) return { read: false, why: `alias list ${r.status}` };
+    if (!Array.isArray(r.body.aliases)) return { read: false, why: "alias list carries no aliases array" };
+
+    for (const raw of r.body.aliases) {
+      if (typeof raw !== "object" || raw === null) continue;
+      const a = raw as { alias?: unknown; deploymentId?: unknown };
+      if (typeof a.alias !== "string" || !requiredHosts.includes(a.alias)) continue;
+      // A record ABOUT a host we care about, that we cannot read, is not a
+      // record we may skip: skipping it is how it became "unmapped".
+      if (typeof a.deploymentId !== "string" || a.deploymentId === "") {
+        malformed.set(a.alias, `alias record carries a malformed deploymentId (${JSON.stringify(a.deploymentId)})`);
+        continue;
+      }
+      resolved.set(a.alias, a.deploymentId);
+    }
+
+    pages++;
+    const nx = r.body.pagination?.next;
+    next = typeof nx === "string" || typeof nx === "number" ? nx : undefined;
+
+    if (outstanding().length === 0) break;   // everything required is settled
+    if (next === undefined) break;           // the listing genuinely ended
+    if (pages >= maxPages)
+      return { read: false, why:
+        `alias list still has pages after ${pages} and ${outstanding().join(", ")} remain unresolved` };
+  }
+
+  return { read: true, value: requiredHosts.map((host) => {
+    const bad = malformed.get(host);
+    if (bad) return { host, destination: { read: false as const, why: bad } };
+    const d = resolved.get(host);
+    // Absent from a listing that RAN OUT OF PAGES is verified absence.
+    return { host, destination: d !== undefined
+      ? { read: true as const, value: d }
+      : { read: true as const, value: null } };
+  }) };
+}
+
 /* ─────────────────────────── the live effects ───────────────────────────── */
 
 const asRead = <T>(cond: boolean, value: T, why: string): Read<T> =>
@@ -461,33 +533,7 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
       if (r.status >= 300) return { read: false, why: `project read ${r.status}` };
       return { read: true, value: settings(r.body as never) };
     },
-    // A FAILED READ IS NOT AN EMPTY MAP.
-    //
-    // This used to build `byHost` only when the call succeeded and then return
-    // one entry per host with `deploymentId: null` regardless — so a 503 and a
-    // genuinely unmapped host produced the same baseline, and a run could be
-    // "recovered" to nothing. The failure now propagates as a failed Read.
-    readAliasMappings: async () => {
-      let r: { status: number; body: { aliases?: { alias?: string; deploymentId?: string }[] } };
-      try {
-        r = await api<{ aliases?: { alias?: string; deploymentId?: string }[] }>(
-          `/v4/aliases?projectId=${CANONICAL.vercelProjectId}&teamId=${CANONICAL.vercelTeamId}&limit=100`);
-      } catch (e) { return { read: false, why: `alias list threw: ${String(e).slice(0, 80)}` }; }
-      if (r.status >= 300) return { read: false, why: `alias list ${r.status}` };
-      if (!Array.isArray(r.body.aliases)) return { read: false, why: "alias list carries no aliases array" };
-
-      const byHost = new Map<string, string>();
-      for (const a of r.body.aliases) {
-        if (typeof a.alias === "string" && typeof a.deploymentId === "string") byHost.set(a.alias, a.deploymentId);
-      }
-      // The call succeeded, so a host absent from the list is VERIFIABLY
-      // unmapped — read: true, value: null — which is a different fact from
-      // "we could not find out".
-      return { read: true, value: CANONICAL.canonicalHosts.map((host) => {
-        const d = byHost.get(host);
-        return { host, destination: d ? { read: true as const, value: d } : { read: true as const, value: null } };
-      }) };
-    },
+    readAliasMappings: () => collectAliasMappings(api, CANONICAL.canonicalHosts),
     // Re-read after promoting. Aliases and served identity both reported the
     // candidate while the TARGET was still the incumbent, and that returned
     // success; the target is its own question.
@@ -581,23 +627,19 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
     // mapping — so "the alias points where we expect" was just "the target
     // moved", restated. That is the exact confusion the observation corrected.
     observeHosts: async (_expected) => {
-      const aliasRes = await api<{ aliases?: { alias?: string; deploymentId?: string }[] }>(
-        `/v4/aliases?projectId=${CANONICAL.vercelProjectId}&teamId=${CANONICAL.vercelTeamId}&limit=100`);
-      const byHost = new Map<string, string>();
-      if (aliasRes.status < 300) {
-        for (const a of aliasRes.body.aliases ?? []) {
-          if (typeof a.alias === "string" && typeof a.deploymentId === "string") byHost.set(a.alias, a.deploymentId);
-        }
-      }
+      // The SAME reader the baseline uses: paginated, and malformed records for
+      // a canonical host are unread rather than absent.
+      const mappings = await collectAliasMappings(api, CANONICAL.canonicalHosts);
+      const byHost = new Map(mappings.read ? mappings.value.map((m) => [m.host, m.destination]) : []);
       return Promise.all(CANONICAL.canonicalHosts.map(async (host) => {
-        const mapped = byHost.get(host);
-        // Unmapped is a verified fact when the list was readable; it still fails
-        // verification, but for a reason that says so rather than "unreadable".
-        const alias: Read<string> = aliasRes.status >= 300
-          ? { read: false, why: `alias list ${aliasRes.status}` }
-          : mapped
-            ? { read: true, value: mapped }
-            : { read: false, why: `${host} is verifiably not mapped to any deployment` };
+        const d = byHost.get(host);
+        const alias: Read<string> = !mappings.read
+          ? { read: false, why: mappings.why }
+          : !d || !d.read
+            ? { read: false, why: d && !d.read ? d.why : `${host} was not in the alias listing` }
+            : d.value === null
+              ? { read: false, why: `${host} is verifiably not mapped to any deployment` }
+              : { read: true, value: d.value };
         try {
           const r = await fetch(`https://${host}/api/release`, { headers: { "Cache-Control": "no-cache" }, redirect: "follow" });
           if (!r.ok) return { host, aliasDeploymentId: alias, served: { read: false as const, why: `HTTP ${r.status}` } };
