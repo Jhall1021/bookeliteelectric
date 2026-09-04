@@ -154,3 +154,23 @@ GITHUB TOKEN NOT ROTATED
   was sent to api.vercel.com. The Vercel slot now holds a different value
   (babd0443), so the mix-up is resolved, but the disclosed GitHub token is still
   in use and still valid.
+
+OPERATOR DECISION — the disclosed GitHub token is NOT rotated (2026-09-04)
+
+  Joshua accepted the residual risk and chose not to rotate, for these stated
+  reasons:
+
+    - he is the only operator
+    - the product is not released
+    - the token is read-only
+    - it is restricted to the disposable p2b-release-proofs repository
+    - it expires in seven days
+
+  This is an ACCEPTED RISK, not a resolved finding. The token that was sent to
+  api.vercel.com in eight refused requests remains in use, and its fingerprint
+  is unchanged at ed108c10. Nothing about the disclosure is undone by the
+  decision; what changed is that the exposure was weighed and accepted by the
+  person entitled to weigh it.
+
+  Recorded so that a later reader does not mistake "no rotation happened" for
+  "no disclosure happened".
