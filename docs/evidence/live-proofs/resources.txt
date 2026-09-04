@@ -208,3 +208,40 @@ CORRECTION — the blast-radius claim was an inference, not an observation
   canonical-guard.sh is kept regardless. Isolation is now demonstrated for THIS
   token; the guard is what holds if a broader credential is ever used by
   mistake, and it costs nothing.
+
+CORRECTION — dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf IS IMPORT-CREATED, NOT PUSH-TRIGGERED
+
+  The deployment record settles it:
+
+    source        'import'
+    meta.importSource  'import-suggestions'
+    creator       admin-20298236 (the operator, not a git integration)
+
+  Correct classification: a SUCCESSFUL, IMPORT-CREATED, GIT-SOURCED PRODUCTION
+  DEPLOYMENT. What its logs establish stands — the identified guard ran, printed
+  PROVENANCE OK afa2915…, the application build followed, and it reached READY
+  on target production. What they do not establish is the TRIGGER.
+
+  Proof 1 is therefore PARTIALLY satisfied: guard execution, application build
+  and READY state are evidenced; the git-push trigger is not. No later push
+  exists in the record — gitSource.sha is still afa2915…, the same commit the
+  import built.
+
+  I READ importSource IN THE DEPLOYMENT LIST AND DID NOT WEIGH IT. It was in the
+  meta I printed, one field from the end of the line I quoted. I had already
+  decided the build log answered the question and stopped reading for evidence
+  that it did not.
+
+  AND A FINDING WORTH MORE THAN THE CORRECTION. This import-created deployment
+  carries the COMPLETE githubCommit* set — sha, ref, org, repo, repoId, author
+  name, author login, author email, commit message, githubCommitVerification
+  'verified', githubRepoVisibility 'private' — plus githubDeployment '1'. Every
+  one of those fields is present on a deployment nobody pushed.
+
+  So the github* metadata does not establish a push trigger, and a reader who
+  treats githubDeployment='1' or a verified commit as proof of one is reading
+  attestation as causation. Here `source` is the discriminator: 'import' rather
+  than 'git'. In the origin-trust investigation `source` was accepted from the
+  request body, so it is not trustworthy against a hostile caller either — it
+  happens to be accurate in this legitimate case. Nothing in this record is
+  evidence a determined caller could not produce.
