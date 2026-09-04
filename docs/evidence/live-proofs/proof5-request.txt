@@ -1,0 +1,57 @@
+PROOF 5 — THE REQUEST, PRESERVED BEFORE SENDING
+
+  POST https://api.vercel.com/v13/deployments
+  Authorization: Bearer <REDACTED — vcp_ project-scoped, fingerprint babd0443>
+  Content-Type: application/json
+
+  No teamId and no slug: the token carries its own scope.
+
+  BODY, verbatim:
+
+    {
+      "name": "p2b-release-proofs",
+      "project": "prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q",
+      "target": "staging",
+      "gitSource": {
+        "type": "github",
+        "repoId": 1357368650,
+        "ref": "main",
+        "sha": "24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d"
+      }
+    }
+
+  WHAT IS DELIBERATELY ABSENT
+    projectSettings   — the entire question of proof 5. If the request carries
+                        no build configuration, does the project's apply?
+    files             — no inline files; the source is the git commit
+    teamId / slug     — the project-scoped token supplies its own scope
+
+  WHY target IS "staging" AND NOT "production"
+
+    Proof 1 established that a production deployment moves two of the three
+    disposable *.vercel.app aliases, despite auto-assign of CUSTOM production
+    domains being disabled — those are Vercel-generated domains, and the setting
+    does not cover them. Creating with target "production" would therefore very
+    likely move aliases again, and this authorization excludes alias operations.
+
+    The operator authorized "a production-targeted but staged deployment ... if
+    required to use the project's Production-only test environment variables".
+    "staging" is that: it builds with Production environment variables — which
+    the guard needs, since P2B_GH_HDR and P2B_GH_READ_TOKEN are Production-only
+    — without taking the production domains.
+
+    THIS DOES NOT WEAKEN THE PROOF. The question is whether a request carrying
+    no projectSettings inherits the project's build configuration, and the
+    effective configuration is recorded on the deployment either way, including
+    if the build fails. The five fields are readable regardless of outcome.
+
+    RECORDED AS A DIFFERENCE FROM PHASE B: the release's createDeployment sends
+    target "production". This proof exercises the same absent-projectSettings
+    question at target "staging". If Vercel resolved build configuration
+    differently per target — no reason to think it does, and nothing observed
+    suggests it — that would be a gap in this evidence rather than a hidden pass.
+
+  ONE REQUEST. If the response carries no unambiguous deployment id, the outcome
+  is UNCERTAIN: no retry, and no searching deployment listings to pick one. A
+  deployment chosen from a listing is a deployment whose identity was inferred,
+  which is exactly the failure the release exists to prevent.
