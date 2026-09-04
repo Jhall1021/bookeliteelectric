@@ -1,0 +1,22 @@
+{
+  "aliases": {
+    "p2b-release-proofs-git-main-price2-book.vercel.app": "dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS",
+    "p2b-release-proofs-price2-book.vercel.app": "dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS",
+    "p2b-release-proofs.vercel.app": "dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf"
+  },
+  "served": {
+    "p2b-release-proofs-git-main-price2-book.vercel.app": {
+      "readable": false
+    },
+    "p2b-release-proofs-price2-book.vercel.app": {
+      "readable": false
+    },
+    "p2b-release-proofs.vercel.app": {
+      "commitSha": "afa291520b5b8173c3d933d732f2bd67dbd7d0ac",
+      "deploymentId": "dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf",
+      "readable": true
+    }
+  },
+  "target": "dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf",
+  "targetState": "READY"
+}
