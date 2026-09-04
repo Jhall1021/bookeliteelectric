@@ -83,26 +83,41 @@ run_suite() {
     sleep 1; waited=$((waited + 1))
   done
   wait "$pid" 2>/dev/null
+  # The suite prints "  N passed, M failed." as its LAST act. No summary means it
+  # never got there — a crash, a missing launcher, an import error. That is a
+  # broken harness, and the old code returned it as "CRASH" into a comparison
+  # against 0, which made an empty run look like a run.
   local n
-  n=$(grep -oE '[0-9]+ failed' "$work/out" | grep -oE '^[0-9]+' | head -1)
-  [ -z "$n" ] && { echo "CRASH"; return; }
-  echo "$n"
+  n=$(grep -oE '[0-9]+ failed\.' "$work/out" | grep -oE '^[0-9]+' | tail -1)
+  [ -z "$n" ] && { echo "nosummary"; return; }
+  echo "ok:$n"
 }
 
 survivors=0
+harness_failures=0
 mutate() {
   local label="$1" name="$2"
   if ! python3 scripts/_mutations.py --apply "$name" >/dev/null 2>&1; then
+    # Drift, not evidence. The guard was never tested, so it is neither load-
+    # bearing nor proven dead — it counts against the sweep either way.
     printf "  %-46s SKIP (patch did not apply)\n" "$label"
-    survivors=$((survivors + 1)); git checkout -q -- scripts; return
+    harness_failures=$((harness_failures + 1)); git checkout -q -- scripts; return
   fi
   local r; r=$(run_suite)
-  if [ "$r" = "0" ]; then
-    printf "  %-46s NOT DETECTED\n" "$label"
-    survivors=$((survivors + 1))
-  else
-    printf "  %-46s detected (%s)\n" "$label" "$r"
-  fi
+  case "$r" in
+    ok:0)
+      printf "  %-46s NOT DETECTED\n" "$label"
+      survivors=$((survivors + 1)) ;;
+    ok:*)
+      printf "  %-46s detected (%s failing)\n" "$label" "${r#ok:}" ;;
+    timeout)
+      # A mutation that hangs the suite is not a mutation the suite caught.
+      printf "  %-46s HARNESS FAILURE (timeout)\n" "$label"
+      harness_failures=$((harness_failures + 1)) ;;
+    *)
+      printf "  %-46s HARNESS FAILURE (no test summary)\n" "$label"
+      harness_failures=$((harness_failures + 1)) ;;
+  esac
   git checkout -q -- scripts
   # Nothing of ours may outlive its own run.
   local stray; stray=$(pgrep -f "verify-release-control" 2>/dev/null | wc -l | tr -d ' ')
@@ -118,6 +133,21 @@ echo "  worktree $tree (disposable, removed on exit)"
 echo "  timeout  ${TIMEOUT}s per mutation, process group signalled and reaped"
 echo
 
+# THE ENTRY BASELINE. Every result below is a comparison against this run; if it
+# does not pass, the sweep has nothing to compare to and reports nothing.
+printf "  %-46s " "baseline (before sweep)"
+first=$(run_suite)
+case "$first" in
+  ok:0) grep -E "passed," "$work/out" | tail -1 | sed 's/^ *//' ;;
+  ok:*) echo "FAILED (${first#ok:} failing)"
+        echo >&2; echo "REFUSING: the unmutated suite does not pass — a sweep from here proves nothing" >&2; exit 1 ;;
+  timeout) echo "TIMEOUT(${TIMEOUT}s)"
+        echo >&2; echo "REFUSING: the unmutated suite did not finish" >&2; exit 1 ;;
+  *) echo "NO TEST SUMMARY"
+        echo >&2; echo "REFUSING: the unmutated suite produced no test summary — the harness is broken, not the code" >&2; exit 1 ;;
+esac
+echo
+
 while IFS= read -r name; do
   [ -z "$name" ] && continue
   label=$(python3 scripts/_mutations.py --label "$name")
@@ -125,13 +155,28 @@ while IFS= read -r name; do
 done <<< "$MUTATIONS"
 
 echo
-if [ "$survivors" -eq 0 ]; then
+if [ "$survivors" -eq 0 ] && [ "$harness_failures" -eq 0 ]; then
   echo "  every mutation was detected."
+elif [ "$survivors" -eq 0 ]; then
+  echo "  no mutation survived, but the sweep is incomplete — see below."
 else
   echo "  $survivors mutation(s) NOT DETECTED — those guards are not load-bearing."
 fi
+[ "$harness_failures" -gt 0 ] && echo "  $harness_failures run(s) produced no test summary — the harness failed, not the code."
+
+# THE FINAL BASELINE. The tree is restored between mutations, so this proves the
+# restores worked and the suite still passes — a sweep that corrupted its own
+# worktree would otherwise finish looking clean.
 echo
-echo "Baseline (unmutated):"
-run_suite >/dev/null; grep -E "passed," "$work/out" | tail -1
+printf "  %-46s " "baseline (after restores)"
+last=$(run_suite)
+final_bad=0
+case "$last" in
+  ok:0) grep -E "passed," "$work/out" | tail -1 | sed 's/^ *//' ;;
+  ok:*) echo "FAILED (${last#ok:} failing)"; final_bad=1 ;;
+  timeout) echo "TIMEOUT(${TIMEOUT}s)"; final_bad=1 ;;
+  *) echo "NO TEST SUMMARY"; final_bad=1 ;;
+esac
 echo
-exit "$survivors"
+
+exit $((survivors + harness_failures + final_bad))
