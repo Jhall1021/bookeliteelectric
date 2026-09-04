@@ -160,8 +160,10 @@ export type PromotionFacts = {
   freshMainSha: string | null;
   /** Re-read immediately before promoting. */
   currentProductionId: Read<string>;
-  /** What preflight recorded, to detect a promotion by someone else. */
-  outgoingAtPreflight: string;
+  /** From the RECEIPT — what this run saw in phase B, not what C sees now. */
+  outgoingAtCreation: string;
+  /** Proof this process owns the lock the run took in phase B. */
+  lockOwner: Read<string>;
   /**
    * The candidate's whole record, read back from Vercel.
    *
@@ -193,6 +195,8 @@ export type CandidateRecord = {
  * variable, which is the metadata search returning under another name. A
  * caller-supplied variable is not a receipt.
  */
+export type AliasMapping = { host: string; deploymentId: string | null };
+
 export type CreationReceipt = {
   runId: string;
   candidateId: string;
@@ -200,6 +204,17 @@ export type CreationReceipt = {
   createdAt: string;
   operator: string;
   host: string;
+  /**
+   * THE BASELINE THIS RUN IS REPLACING, captured in phase B.
+   *
+   * Phase C used to re-run preflight and adopt whatever production was THEN,
+   * comparing current against current — which is always equal, so a deployment
+   * that appeared between the phases became the recorded rollback target. The
+   * baseline belongs to the run, so it travels with the receipt.
+   */
+  outgoingDeploymentId: string;
+  /** Per-host mappings, not alias names. A name is not a destination. */
+  outgoingAliases: readonly AliasMapping[];
 };
 
 export function promotionDecision(
@@ -208,6 +223,13 @@ export function promotionDecision(
 ): { ok: true } | ({ ok: false } & Refusal) {
   // THE RECEIPT FIRST. Everything after it is about a deployment this tool
   // created; without one there is nothing to reason about.
+  // THE LOCK MUST BE THIS RUN'S. A process that does not hold it may not
+  // promote, and — just as important — may not release it. A phase C with no
+  // receipt used to refuse and then delete the legitimate run's lock on its way
+  // out, which is worse than doing nothing.
+  if (!f.lockOwner.read)
+    return { ok: false, code: "LOCK_UNREADABLE", detail: f.lockOwner.why };
+
   if (!f.receipt.read)
     return { ok: false, code: "NO_CREATION_RECEIPT",
       detail: `${f.receipt.why}. Only a deployment this tool created in phase B may be promoted.` };
@@ -217,6 +239,10 @@ export function promotionDecision(
   if (f.receipt.value.sha !== f.approvedSha)
     return { ok: false, code: "RECEIPT_MISMATCH",
       detail: `the receipt records sha ${f.receipt.value.sha.slice(0, 7)}, approval names ${f.approvedSha.slice(0, 7)}` };
+  if (f.lockOwner.value !== f.receipt.value.runId)
+    return { ok: false, code: "NOT_LOCK_OWNER",
+      detail: `the release lock is held by run ${f.lockOwner.value}, this candidate belongs to run ` +
+        `${f.receipt.value.runId}. Only the run that took the lock may promote or release it.` };
 
   if (!f.freshMainSha || !SHA.test(f.freshMainSha))
     return { ok: false, code: "MAIN_UNREADABLE", detail: "GitHub main unreadable at promotion time" };
@@ -226,9 +252,10 @@ export function promotionDecision(
 
   if (!f.currentProductionId.read)
     return { ok: false, code: "CURRENT_PRODUCTION_UNREADABLE", detail: f.currentProductionId.why };
-  if (f.currentProductionId.value !== f.outgoingAtPreflight)
+  if (f.currentProductionId.value !== f.outgoingAtCreation)
     return { ok: false, code: "PRODUCTION_MOVED",
-      detail: `production was ${f.outgoingAtPreflight} at preflight and is ${f.currentProductionId.value} now` };
+      detail: `production was ${f.outgoingAtCreation} when this run created its candidate ` +
+        `and is ${f.currentProductionId.value} now — something else promoted in between` };
 
   if (!f.candidate.read)
     return { ok: false, code: "CANDIDATE_UNREADABLE", detail: f.candidate.why };
@@ -287,9 +314,21 @@ export type VerificationResult = {
 export function verifyHosts(
   obs: readonly HostObservation[],
   expected: { deploymentId: string; sha: string },
-  approvedRedirectHosts: readonly string[]
+  approvedRedirectHosts: readonly string[],
+  /**
+   * The production target, RE-READ after promoting.
+   *
+   * Three questions, not two: aliases and served identity both reported the
+   * candidate while the target was still the incumbent, and the run returned
+   * success. Success requires all three to agree.
+   */
+  productionTarget?: Read<string>
 ): VerificationResult {
   const problems: string[] = [];
+  if (!productionTarget) problems.push("the production target was not re-read after promoting");
+  else if (!productionTarget.read) problems.push(`production target unreadable after promoting (${productionTarget.why})`);
+  else if (productionTarget.value !== expected.deploymentId)
+    problems.push(`production target is ${productionTarget.value}, expected ${expected.deploymentId}`);
   for (const o of obs) {
     if (!o.aliasDeploymentId.read) problems.push(`${o.host}: alias mapping unreadable (${o.aliasDeploymentId.why})`);
     else if (o.aliasDeploymentId.value !== expected.deploymentId)

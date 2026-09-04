@@ -250,14 +250,17 @@ export async function vercelJsonBuildCommand(
 export const RELEASE_MACHINE = process.env.P2B_RELEASE_MACHINE ?? "the designated release machine";
 
 export function fileLock(path: string) {
+  const read = (): { runId?: string } | null => {
+    try { return JSON.parse(readFileSync(path, "utf8")) as { runId?: string }; } catch { return null; }
+  };
   return {
     /** ATOMIC. O_EXCL either creates the file or fails; there is no window. */
-    async acquire(info: { sha: string }): Promise<{ ok: true } | { ok: false; heldBy: string }> {
+    async acquire(info: { sha: string; runId: string }): Promise<{ ok: true } | { ok: false; heldBy: string }> {
       try {
         mkdirSync(dirname(path), { recursive: true });
         const fd = openSync(path, "wx", 0o600);           // wx = O_CREAT|O_EXCL
         writeSync(fd, JSON.stringify({
-          operator: userInfo().username, host: hostname(),
+          runId: info.runId, operator: userInfo().username, host: hostname(),
           sha: info.sha, at: new Date().toISOString(), pid: process.pid,
         }));
         closeSync(fd);
@@ -272,8 +275,68 @@ export function fileLock(path: string) {
         return { ok: false, heldBy: held };
       }
     },
-    async release(): Promise<void> { try { unlinkSync(path); } catch { /* already gone */ } },
+    /** Which run holds it. Phase C acts only if the answer is its own. */
+    async owner(): Promise<Read<string>> {
+      const j = read();
+      if (!j) return { read: false, why: "no release lock is held; phase B must run first" };
+      return typeof j.runId === "string" && j.runId !== ""
+        ? { read: true, value: j.runId }
+        : { read: false, why: "the lock file carries no run id" };
+    },
+    /**
+     * RELEASE ONLY WHAT WE OWN.
+     *
+     * A phase C with no receipt used to refuse and then delete the legitimate
+     * run's lock in its finally block — worse than doing nothing, because the
+     * refusal looked safe.
+     */
+    async release(runId: string): Promise<void> {
+      const j = read();
+      if (!j || j.runId !== runId) return;   // not ours; leave it alone
+      try { unlinkSync(path); } catch { /* already gone */ }
+    },
   };
+}
+
+/**
+ * A one-shot claim on promoting a candidate.
+ *
+ * Two concurrent phase-C processes both promoted, and the same receipt promoted
+ * again once the lock was gone. An O_EXCL file per candidate makes both
+ * impossible: the first claim wins and the file stays as the record that this
+ * candidate has had its turn.
+ */
+export function promotionClaim(dir: string) {
+  return {
+    async claim(runId: string, candidateId: string): Promise<{ ok: true } | { ok: false; why: string }> {
+      const file = join(dir, `promote-${candidateId.replace(/[^A-Za-z0-9_-]/g, "_")}.claim`);
+      try {
+        mkdirSync(dir, { recursive: true });
+        const fd = openSync(file, "wx", 0o600);
+        writeSync(fd, JSON.stringify({ runId, candidateId, at: new Date().toISOString(), pid: process.pid }));
+        closeSync(fd);
+        return { ok: true };
+      } catch (e) {
+        if ((e as { code?: string }).code !== "EEXIST") throw e;
+        let by = "an earlier run";
+        try { by = readFileSync(file, "utf8"); } catch { /* keep the default */ }
+        return { ok: false, why: `promotion of ${candidateId} was already claimed by ${by}` };
+      }
+    },
+  };
+}
+
+/**
+ * Does an HTTP status establish that the promotion did NOT happen?
+ *
+ * Every status >= 300 was treated as definite, so a 503 released the lock as
+ * though the request had certainly been refused. A gateway or proxy error says
+ * nothing about whether the request reached Vercel or what it did there.
+ */
+export function isDefiniteFailure(status: number): boolean {
+  if (status === 408 || status === 425 || status === 429) return false; // timeout / retry-ish
+  if (status >= 500) return false;                                      // server or proxy: unknown
+  return status >= 400;                                                 // a genuine refusal
 }
 
 /**
@@ -389,6 +452,25 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
       if (r.status >= 300) return { read: false, why: `project read ${r.status}` };
       return { read: true, value: settings(r.body as never) };
     },
+    readAliasMappings: async () => {
+      const r = await api<{ aliases?: { alias?: string; deploymentId?: string }[] }>(
+        `/v4/aliases?projectId=${CANONICAL.vercelProjectId}&teamId=${CANONICAL.vercelTeamId}&limit=100`);
+      const byHost = new Map<string, string>();
+      if (r.status < 300) for (const a of r.body.aliases ?? []) {
+        if (typeof a.alias === "string" && typeof a.deploymentId === "string") byHost.set(a.alias, a.deploymentId);
+      }
+      return CANONICAL.canonicalHosts.map((host) => ({ host, deploymentId: byHost.get(host) ?? null }));
+    },
+    // Re-read after promoting. Aliases and served identity both reported the
+    // candidate while the TARGET was still the incumbent, and that returned
+    // success; the target is its own question.
+    readProductionTarget: async () => {
+      const raw = await currentProductionRaw(api);
+      const parsed = parseCurrentProduction(raw.raw, raw.error);
+      return parsed.ok
+        ? { read: true as const, value: parsed.current.deploymentId }
+        : { read: false as const, why: parsed.detail };
+    },
     readCurrentProduction: async () => {
       const raw = await currentProductionRaw(api);
       const parsed = parseCurrentProduction(raw.raw, raw.error);
@@ -436,7 +518,9 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
     loadCreationReceipt: (id) => readReceipt(receiptPath, id),
 
     acquireLock: (info) => fileLock(lockPath).acquire(info),
-    releaseLock: () => fileLock(lockPath).release(),
+    readLockOwner: () => fileLock(lockPath).owner(),
+    claimPromotion: (runId, candidateId) => promotionClaim(dirname(lockPath)).claim(runId, candidateId),
+    releaseLock: (runId) => fileLock(lockPath).release(runId),
     recordIntent: (r) => appendRecord(logPath, { phase: "intent", ...r }),
     promoteDeployment: async (id) => {
       let r: { status: number; body: { error?: { message?: string } } };
@@ -448,9 +532,11 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
         // No response at all: the promotion may or may not have happened.
         throw Object.assign(new Error(String(e).slice(0, 160)), { definite: false });
       }
-      // A 4xx/5xx IS an answer — the promotion definitely did not happen.
+      // A 4xx is a refusal; a 5xx is a shrug. Only the first establishes that
+      // nothing happened, and only that one may release the lock.
       if (r.status >= 300)
-        throw Object.assign(new Error(`promote ${r.status} ${r.body.error?.message ?? ""}`), { definite: true });
+        throw Object.assign(new Error(`promote ${r.status} ${r.body.error?.message ?? ""}`),
+          { definite: isDefiniteFailure(r.status) });
     },
     recordCompletion: (r) => appendRecord(logPath, { phase: "completed", ...r }),
 

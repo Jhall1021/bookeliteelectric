@@ -15,6 +15,7 @@ import {
   preflightDecision, createOutcome, promotionDecision, verifyHosts,
   type ApprovedBuild, type PreflightFacts, type PromotionFacts,
   type HostObservation, type Read, type CandidateRecord, type CreationReceipt,
+  type AliasMapping,
 } from "./_releaseControl";
 
 export type IntentRecord = {
@@ -22,7 +23,8 @@ export type IntentRecord = {
   candidateId: string;
   sha: string;
   outgoingDeploymentId: string;
-  outgoingAliases: readonly string[];
+  outgoingAliases: readonly AliasMapping[];
+  runId: string;
 };
 
 export type ReleaseIO = {
@@ -34,6 +36,11 @@ export type ReleaseIO = {
   readProjectSettings: () => Promise<Read<ApprovedBuild>>;
   readCurrentProduction: () => Promise<Read<{ deploymentId: string; aliases: readonly string[] }>>;
 
+  /** Per-host alias mappings — captured as the run's baseline in phase B. */
+  readAliasMappings: () => Promise<readonly AliasMapping[]>;
+  /** The production target, re-read after promoting. */
+  readProductionTarget: () => Promise<Read<string>>;
+
   /* phase B — writes */
   createDeployment: (sha: string) => Promise<{ id?: string | null; error?: unknown }>;
   /** MUST throw on any failure to persist. Phase C refuses without it. */
@@ -42,8 +49,19 @@ export type ReleaseIO = {
   /* phase C — reads then the one mutation */
   readCandidate: (id: string) => Promise<Read<CandidateRecord>>;
   loadCreationReceipt: (candidateId: string) => Promise<Read<CreationReceipt>>;
-  acquireLock: (info: { sha: string }) => Promise<{ ok: true } | { ok: false; heldBy: string }>;
-  releaseLock: () => Promise<void>;
+  acquireLock: (info: { sha: string; runId: string }) => Promise<{ ok: true } | { ok: false; heldBy: string }>;
+  /** Which run holds the lock. Phase C may act only if it is this one. */
+  readLockOwner: () => Promise<Read<string>>;
+  /**
+   * ATOMICALLY claim the promotion of this candidate, once.
+   *
+   * Two concurrent phase-C processes both promoted, and a receipt could be
+   * promoted a second time after the lock was gone. This is the one-shot claim
+   * that makes both impossible.
+   */
+  claimPromotion: (runId: string, candidateId: string) => Promise<{ ok: true } | { ok: false; why: string }>;
+  /** Releases ONLY if this run owns it. Never another run's lock. */
+  releaseLock: (runId: string) => Promise<void>;
   /** MUST throw on any failure to persist. A refusal depends on it. */
   recordIntent: (r: IntentRecord) => Promise<void>;
   promoteDeployment: (id: string) => Promise<void>;
@@ -90,9 +108,15 @@ export async function runRelease(
 
   /* ── B ─────────────────────────────────────────────────────────────── */
   if (opts.phase === "create") {
-    // THE APPROVAL NAMES A COMMIT. Creating a build of a different one is not
-    // the release that was approved, however current that other commit is.
-    if (opts.approvedSha && opts.approvedSha !== pre.sha)
+    // THE APPROVAL NAMES A COMMIT, AND IT IS NOT OPTIONAL.
+    //
+    // This was `if (opts.approvedSha && ...)`, so omitting it skipped the check
+    // entirely and phase B built whatever main happened to be. An absent
+    // approval is not an approval of anything.
+    if (!opts.approvedSha || !/^[0-9a-f]{40}$/.test(opts.approvedSha))
+      return { ok: false, phase: "create", code: "NO_APPROVED_SHA",
+        detail: "phase B requires an explicit approved commit sha; it does not build whatever main is now" };
+    if (opts.approvedSha !== pre.sha)
       return { ok: false, phase: "create", code: "MAIN_MOVED",
         detail: `approved ${opts.approvedSha.slice(0, 7)}, main is now ${pre.sha.slice(0, 7)} — approve again` };
 
@@ -100,7 +124,8 @@ export async function runRelease(
     // two concurrent creates are two builds nobody asked for. It is NOT
     // released by this phase: it is held across processes until phase C reaches
     // a definite outcome.
-    const lock = await io.acquireLock({ sha: pre.sha });
+    const runId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const lock = await io.acquireLock({ sha: pre.sha, runId });
     if (!lock.ok) return { ok: false, phase: "create", code: "LOCKED", detail: lockedDetail(lock.heldBy) };
 
     const r = await io.createDeployment(pre.sha).catch((e) => ({ error: e }));
@@ -114,10 +139,13 @@ export async function runRelease(
 
     // THE RECEIPT. Phase C promotes only what phase B created, and a
     // caller-supplied environment variable is not evidence of that.
+    // The baseline belongs to THIS run and travels with the receipt, so phase C
+    // compares against what phase B saw rather than against itself.
     const receipt: CreationReceipt = {
-      runId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      candidateId: out.candidateId, sha: pre.sha, createdAt: new Date().toISOString(),
+      runId, candidateId: out.candidateId, sha: pre.sha, createdAt: new Date().toISOString(),
       operator: io.operator(), host: io.host(),
+      outgoingDeploymentId: pre.outgoing.deploymentId,
+      outgoingAliases: await io.readAliasMappings().catch(() => []),
     };
     try { await io.recordCreation(receipt); }
     catch (e) {
@@ -136,28 +164,45 @@ export async function runRelease(
     return { ok: false, phase: "promote", code: "NO_APPROVED_CANDIDATE",
       detail: "promotion requires the candidate id and sha that phase B returned" };
 
-  // The lock was taken by phase B and is still held. It is not re-acquired.
+  // The lock was taken by phase B. This process must prove it owns that run
+  // before it may promote — and must NOT release a lock it does not own.
+  const receipt = await io.loadCreationReceipt(candidateId);
+  const lockOwner = await io.readLockOwner();
+
+  const pf: PromotionFacts = {
+    candidateId, approvedSha,
+    receipt, lockOwner,
+    candidate: await io.readCandidate(candidateId),
+    freshMainSha: await io.readFreshMain(),
+    currentProductionId: await io.readCurrentProduction().then(
+      (r) => (r.read ? { read: true as const, value: r.value.deploymentId } : r)
+    ),
+    outgoingAtCreation: receipt.read ? receipt.value.outgoingDeploymentId : "",
+  };
+  const decision = promotionDecision(pf, approved, canonical);
+  // Deliberately OUTSIDE the try/finally: a run that is not the owner leaves
+  // without touching the lock at all.
+  if (!decision.ok) return { ok: false, phase: "promote", code: decision.code, detail: decision.detail };
+
+  const runId = receipt.read ? receipt.value.runId : "";
+
+  // ONE SHOT. Atomic, so two concurrent phase-C processes cannot both proceed,
+  // and a receipt cannot be promoted twice.
+  const claim = await io.claimPromotion(runId, candidateId);
+  if (!claim.ok)
+    return { ok: false, phase: "promote", code: "ALREADY_CLAIMED",
+      detail: `${claim.why}. A candidate is promoted once; re-promoting is a new run.` };
+
   let released = false;
   try {
-    // Re-read AFTER approval and evidence, not once at the start.
-    const pf: PromotionFacts = {
-      candidateId, approvedSha,
-      receipt: await io.loadCreationReceipt(candidateId),
-      candidate: await io.readCandidate(candidateId),
-      freshMainSha: await io.readFreshMain(),
-      currentProductionId: await io.readCurrentProduction().then(
-        (r) => (r.read ? { read: true as const, value: r.value.deploymentId } : r)
-      ),
-      outgoingAtPreflight: pre.outgoing.deploymentId,
-    };
-    const decision = promotionDecision(pf, approved, canonical);
-    if (!decision.ok) return { ok: false, phase: "promote", code: decision.code, detail: decision.detail };
 
     // DURABLE INTENT BEFORE ANY MUTATION. A failed write refuses: a promotion
     // whose rollback target was never recorded is the failure this exists for.
     const record: IntentRecord = {
       at: new Date().toISOString(), candidateId, sha: approvedSha,
-      outgoingDeploymentId: pre.outgoing.deploymentId, outgoingAliases: pre.outgoing.aliases,
+      outgoingDeploymentId: receipt.read ? receipt.value.outgoingDeploymentId : "",
+      outgoingAliases: receipt.read ? receipt.value.outgoingAliases : [],
+      runId,
     };
     try { await io.recordIntent(record); }
     catch (e) {
@@ -183,8 +228,10 @@ export async function runRelease(
     }
     await io.recordCompletion(record).catch(() => undefined);
 
-    const v = verifyHosts(await io.observeHosts({ deploymentId: candidateId, sha: approvedSha }),
-      { deploymentId: candidateId, sha: approvedSha }, approvedRedirectHosts);
+    const v = verifyHosts(
+      await io.observeHosts({ deploymentId: candidateId, sha: approvedSha }),
+      { deploymentId: candidateId, sha: approvedSha }, approvedRedirectHosts,
+      await io.readProductionTarget());
     if (!v.complete) {
       // The target moved and routing did not follow. NOT a failure: the
       // rollback record stands and the operator decides. Nothing is remediated
@@ -193,9 +240,10 @@ export async function runRelease(
         detail: "promoted, but routing did not verify. The rollback target is recorded; no automatic remediation.",
         problems: v.problems };
     }
-    return { ok: true, phase: "promote", candidateId, sha: approvedSha, replaced: pre.outgoing.deploymentId };
+    return { ok: true, phase: "promote", candidateId, sha: approvedSha,
+      replaced: receipt.read ? receipt.value.outgoingDeploymentId : "" };
   } finally {
-    if (!released) await io.releaseLock().catch(() => undefined);
+    if (!released) await io.releaseLock(runId).catch(() => undefined);
   }
 }
 
