@@ -26,7 +26,10 @@ tok=$(cat "$FILE") || refuse "could not read $FILE"
 . "$(dirname "$0")/credential-shape.sh"
 credential_shape_check vercel "$tok" || exit 1
 
+. "$(dirname "$0")/canonical-guard.sh"
+
 get() {
+  canonical_guard "$1" || exit 1
   printf 'url = "%s"\nheader = "Authorization: Bearer %s"\nsilent\nshow-error\nconnect-timeout = 10\nmax-time = 30\nwrite-out = "\\nHTTP_STATUS:%%{http_code}"\n' \
     "$1" "$tok" | curl --config - 2>/dev/null
 }
