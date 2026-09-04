@@ -147,3 +147,22 @@ PROOF 2 — PASSED. A REPOSITORY FILE OVERRIDES THE DASHBOARD BUILD COMMAND.
     build with no provenance check. Its neighbour matters as much: TREE_TRUNCATED
     refuses when the tree listing cannot establish absence, so "we could not see
     a config file" is never read as "there is no config file".
+
+RECORDED CONCLUSION
+
+  Vercel's REPOSITORY CONFIGURATION CAN OVERRIDE THE DASHBOARD BUILD COMMAND,
+  and with it the provenance guard that lives there. Observed: a commit adding
+  only vercel.json produced a READY build whose effective command was the file's,
+  with the guard never fetched and never executed, while the project's own
+  buildCommand remained the provenance one-liner.
+
+  CONFIG_FILE_PRESENT AND TREE_TRUNCATED ARE THEREFORE LOAD-BEARING RELEASE
+  REFUSALS, not defence-in-depth. CONFIG_FILE_PRESENT is what keeps a commit
+  carrying vercel.json / vercel.toml / vercel.ts out of Phase B; TREE_TRUNCATED
+  is what keeps an unreadable tree from being treated as a tree with no config
+  file. Weakening either restores the bypass.
+
+  LIMITATION, NOT TO BE GENERALIZED: this was observed on a PREVIEW deployment.
+  It is not established for a production-target deployment. The effective
+  command is recorded on the deployment record the same way for both, which is
+  suggestive, but suggestive is not observed and the claim stops at preview.
