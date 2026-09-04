@@ -195,7 +195,68 @@ export type CandidateRecord = {
  * variable, which is the metadata search returning under another name. A
  * caller-supplied variable is not a receipt.
  */
-export type AliasMapping = { host: string; deploymentId: string | null };
+/**
+ * Where one canonical host currently points.
+ *
+ * THREE STATES, NOT TWO. `deploymentId: string | null` collapsed "this host is
+ * verifiably unmapped" into "the alias API answered 503", and both became a
+ * usable-looking baseline of nulls. A recovery target you cannot read is not a
+ * recovery target.
+ *
+ *   { read: true,  value: "dpl_x" }  mapped, and to what
+ *   { read: true,  value: null    }  verifiably unmapped
+ *   { read: false, why }             not established — refuses
+ */
+export type AliasMapping = { host: string; destination: Read<string | null> };
+
+/**
+ * Is this baseline good enough to recover from?
+ *
+ * Every canonical host must have been READ. An unread host means the rollback
+ * cannot be described, and a release whose rollback cannot be described must not
+ * start — which is why this runs BEFORE the deployment is created, not after.
+ */
+export function baselineRefusal(
+  outgoingDeploymentId: string,
+  mappings: Read<readonly AliasMapping[]>,
+  requiredHosts: readonly string[]
+): Refusal | null {
+  if (!outgoingDeploymentId)
+    return { code: "BASELINE_INCOMPLETE", detail: "the outgoing production deployment is not established" };
+  if (!mappings.read)
+    return { code: "BASELINE_INCOMPLETE", detail: `alias mappings could not be read: ${mappings.why}` };
+
+  const byHost = new Map(mappings.value.map((m) => [m.host, m]));
+  const missing = requiredHosts.filter((h) => !byHost.has(h));
+  if (missing.length)
+    return { code: "BASELINE_INCOMPLETE", detail: `no alias reading for ${missing.join(", ")}` };
+
+  const unread = requiredHosts
+    .map((h) => byHost.get(h)!)
+    .filter((m) => !m.destination.read)
+    .map((m) => `${m.host} (${(m.destination as { why: string }).why})`);
+  if (unread.length)
+    return { code: "BASELINE_INCOMPLETE",
+      detail: `alias destinations not established for ${unread.join(", ")}; a rollback target that ` +
+        `cannot be read is not one` };
+
+  return null;
+}
+
+/** A receipt is only a receipt if its recovery baseline is intact. */
+export function receiptRefusal(r: CreationReceipt, requiredHosts: readonly string[]): Refusal | null {
+  if (typeof r.runId !== "string" || r.runId === "")
+    return { code: "RECEIPT_INCOMPLETE", detail: "receipt carries no run id" };
+  if (typeof r.candidateId !== "string" || r.candidateId === "")
+    return { code: "RECEIPT_INCOMPLETE", detail: "receipt carries no candidate id" };
+  if (typeof r.sha !== "string" || !SHA.test(r.sha))
+    return { code: "RECEIPT_INCOMPLETE", detail: "receipt carries no valid sha" };
+  return baselineRefusal(r.outgoingDeploymentId, { read: true, value: r.outgoingAliases ?? [] }, requiredHosts)
+    ? { code: "RECEIPT_INCOMPLETE",
+        detail: `the receipt's recovery baseline is incomplete: ` +
+          `${baselineRefusal(r.outgoingDeploymentId, { read: true, value: r.outgoingAliases ?? [] }, requiredHosts)!.detail}` }
+    : null;
+}
 
 export type CreationReceipt = {
   runId: string;
@@ -213,7 +274,11 @@ export type CreationReceipt = {
    * baseline belongs to the run, so it travels with the receipt.
    */
   outgoingDeploymentId: string;
-  /** Per-host mappings, not alias names. A name is not a destination. */
+  /**
+   * Per-host mappings, not alias names, and captured BEFORE the deployment is
+   * created — reading them afterwards recorded whatever the aliases had become
+   * during the build as the thing this run was replacing.
+   */
   outgoingAliases: readonly AliasMapping[];
 };
 

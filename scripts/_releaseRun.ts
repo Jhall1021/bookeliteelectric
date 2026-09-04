@@ -13,6 +13,7 @@
 
 import {
   preflightDecision, createOutcome, promotionDecision, verifyHosts,
+  baselineRefusal, receiptRefusal,
   type ApprovedBuild, type PreflightFacts, type PromotionFacts,
   type HostObservation, type Read, type CandidateRecord, type CreationReceipt,
   type AliasMapping,
@@ -36,8 +37,13 @@ export type ReleaseIO = {
   readProjectSettings: () => Promise<Read<ApprovedBuild>>;
   readCurrentProduction: () => Promise<Read<{ deploymentId: string; aliases: readonly string[] }>>;
 
-  /** Per-host alias mappings — captured as the run's baseline in phase B. */
-  readAliasMappings: () => Promise<readonly AliasMapping[]>;
+  /**
+   * Per-host alias mappings — the run's recovery baseline.
+   *
+   * Returns a Read: a failed alias API call must NOT arrive as a list of nulls
+   * that looks like "nothing is mapped".
+   */
+  readAliasMappings: () => Promise<Read<readonly AliasMapping[]>>;
   /** The production target, re-read after promoting. */
   readProductionTarget: () => Promise<Read<string>>;
 
@@ -65,7 +71,12 @@ export type ReleaseIO = {
   /** MUST throw on any failure to persist. A refusal depends on it. */
   recordIntent: (r: IntentRecord) => Promise<void>;
   promoteDeployment: (id: string) => Promise<void>;
-  recordCompletion: (r: IntentRecord) => Promise<void>;
+  /** The promotion was ACCEPTED. Not the same as the release being verified. */
+  recordPromotionAccepted: (r: IntentRecord) => Promise<void>;
+  /** The release was VERIFIED. Only written when all three checks agree. */
+  recordReleaseVerified: (r: IntentRecord) => Promise<void>;
+  /** Verification could not complete. The run stays blocked for a person. */
+  recordRecoveryRequired: (r: IntentRecord, why: string) => Promise<void>;
   observeHosts: (expected: { deploymentId: string; sha: string }) => Promise<readonly HostObservation[]>;
 
   operator: () => string;
@@ -78,14 +89,18 @@ export type RunResult =
   | { ok: true; phase: "create"; candidateId: string; sha: string }
   | { ok: true; phase: "promote"; candidateId: string; sha: string; replaced: string }
   | { ok: false; phase: string; code: string; detail: string }
-  | { ok: false; phase: "promote"; code: "INCOMPLETE"; detail: string; problems: readonly string[] };
+  | { ok: false; phase: "promote"; code: "INCOMPLETE"; detail: string; problems: readonly string[] }
+  | { ok: false; phase: "promote"; code: "RECOVERY_REQUIRED"; detail: string;
+      candidateId: string; outgoing: string; outgoingAliases: readonly AliasMapping[] };
 
 export async function runRelease(
   opts: { phase: "preflight" | "create" | "promote"; approvedSha?: string; candidateId?: string },
   approved: ApprovedBuild,
   approvedRedirectHosts: readonly string[],
   io: ReleaseIO,
-  canonical: { projectId: string; target: string; repoId: number }
+  canonical: { projectId: string; target: string; repoId: number },
+  /** The hosts a recovery baseline must cover. Defaults to the redirect set. */
+  requiredHosts: readonly string[] = approvedRedirectHosts
 ): Promise<RunResult> {
   /* ── A ─────────────────────────────────────────────────────────────── */
   const facts: PreflightFacts = {
@@ -128,6 +143,23 @@ export async function runRelease(
     const lock = await io.acquireLock({ sha: pre.sha, runId });
     if (!lock.ok) return { ok: false, phase: "create", code: "LOCKED", detail: lockedDetail(lock.heldBy) };
 
+    // THE RECOVERY BASELINE IS CAPTURED BEFORE ANYTHING IS CREATED.
+    //
+    // It used to be read after the deployment existed and defaulted to [] on
+    // failure, so a run could create a build and only then discover it had no
+    // way back — or record whatever the aliases had drifted to during the build
+    // as the thing it was replacing. A release that cannot describe its rollback
+    // does not start.
+    const baseline = await io.readAliasMappings().catch(
+      (e): Read<readonly AliasMapping[]> => ({ read: false, why: `alias read threw: ${String(e).slice(0, 80)}` }));
+    const bad = baselineRefusal(pre.outgoing.deploymentId, baseline, requiredHosts);
+    if (bad) {
+      // The lock is released: nothing was created, so nothing is in doubt.
+      await io.releaseLock(runId).catch(() => undefined);
+      return { ok: false, phase: "create", code: bad.code,
+        detail: `${bad.detail}. Nothing was created and the lock was released.` };
+    }
+
     const r = await io.createDeployment(pre.sha).catch((e) => ({ error: e }));
     const out = createOutcome((r as { id?: string | null }).id, (r as { error?: unknown }).error);
     if (!out.ok) {
@@ -145,7 +177,7 @@ export async function runRelease(
       runId, candidateId: out.candidateId, sha: pre.sha, createdAt: new Date().toISOString(),
       operator: io.operator(), host: io.host(),
       outgoingDeploymentId: pre.outgoing.deploymentId,
-      outgoingAliases: await io.readAliasMappings().catch(() => []),
+      outgoingAliases: baseline.read ? baseline.value : [],
     };
     try { await io.recordCreation(receipt); }
     catch (e) {
@@ -179,6 +211,14 @@ export async function runRelease(
     ),
     outgoingAtCreation: receipt.read ? receipt.value.outgoingDeploymentId : "",
   };
+  // A receipt whose recovery baseline is incomplete is not a receipt. Checked
+  // here rather than trusted from the file, because readReceipt cannot know
+  // which hosts this release requires.
+  if (receipt.read) {
+    const rb = receiptRefusal(receipt.value, requiredHosts);
+    if (rb) return { ok: false, phase: "promote", code: rb.code, detail: rb.detail };
+  }
+
   const decision = promotionDecision(pf, approved, canonical);
   // Deliberately OUTSIDE the try/finally: a run that is not the owner leaves
   // without touching the lock at all.
@@ -226,20 +266,42 @@ export async function runRelease(
       }
       return { ok: false, phase: "promote", code: "PROMOTE_FAILED", detail: String(e).slice(0, 200) };
     }
-    await io.recordCompletion(record).catch(() => undefined);
+    // PROMOTION ACCEPTED — distinct from the release being verified. The
+    // journal must be able to say which of the two happened.
+    await io.recordPromotionAccepted(record).catch(() => undefined);
 
-    const v = verifyHosts(
-      await io.observeHosts({ deploymentId: candidateId, sha: approvedSha }),
-      { deploymentId: candidateId, sha: approvedSha }, approvedRedirectHosts,
-      await io.readProductionTarget());
+    // VERIFICATION MAY FAIL BY THROWING, and that used to escape runRelease
+    // entirely: the lock was released on the way out, a "completed" record had
+    // already been written, and the caller saw an exception rather than a
+    // recovery outcome. A promotion that happened and cannot be verified is the
+    // state that most needs to be reported precisely.
+    let v: { complete: boolean; problems: readonly string[] };
+    try {
+      v = verifyHosts(
+        await io.observeHosts({ deploymentId: candidateId, sha: approvedSha }),
+        { deploymentId: candidateId, sha: approvedSha }, approvedRedirectHosts,
+        await io.readProductionTarget());
+    } catch (e) {
+      released = true; // the lock stays: the release is unresolved.
+      await io.recordRecoveryRequired(record, String(e).slice(0, 160)).catch(() => undefined);
+      return { ok: false, phase: "promote", code: "RECOVERY_REQUIRED",
+        detail: `the promotion was accepted but verification could not complete ` +
+          `(${String(e).slice(0, 120)}). The lock is deliberately still held and nothing was ` +
+          `remediated. Reconcile by hand: the candidate and the outgoing baseline are below.`,
+        candidateId, outgoing: record.outgoingDeploymentId, outgoingAliases: record.outgoingAliases };
+    }
     if (!v.complete) {
       // The target moved and routing did not follow. NOT a failure: the
       // rollback record stands and the operator decides. Nothing is remediated
       // automatically.
+      released = true; // unresolved: the lock stays until a person decides.
+      await io.recordRecoveryRequired(record, v.problems.join("; ")).catch(() => undefined);
       return { ok: false, phase: "promote", code: "INCOMPLETE",
-        detail: "promoted, but routing did not verify. The rollback target is recorded; no automatic remediation.",
+        detail: "promoted, but routing did not verify. The rollback target is recorded, the lock is " +
+          "still held, and nothing was remediated automatically.",
         problems: v.problems };
     }
+    await io.recordReleaseVerified(record).catch(() => undefined);
     return { ok: true, phase: "promote", candidateId, sha: approvedSha,
       replaced: receipt.read ? receipt.value.outgoingDeploymentId : "" };
   } finally {

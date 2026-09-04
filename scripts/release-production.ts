@@ -386,8 +386,17 @@ export async function readReceipt(path: string, candidateId: string): Promise<Re
     if (!line.trim()) continue;
     try {
       const r = JSON.parse(line) as Partial<CreationReceipt>;
-      if (r && r.candidateId === candidateId && typeof r.sha === "string" && typeof r.runId === "string")
-        found = r as CreationReceipt;
+      // Structural minimum only. Whether the RECOVERY BASELINE is intact is
+      // decided by receiptRefusal() against the hosts this release requires,
+      // which this function has no way to know.
+      if (r && r.candidateId === candidateId && typeof r.sha === "string" && typeof r.runId === "string") {
+        found = {
+          runId: r.runId, candidateId: r.candidateId, sha: r.sha,
+          createdAt: r.createdAt ?? "", operator: r.operator ?? "", host: r.host ?? "",
+          outgoingDeploymentId: r.outgoingDeploymentId ?? "",
+          outgoingAliases: Array.isArray(r.outgoingAliases) ? r.outgoingAliases : [],
+        };
+      }
     } catch { /* a damaged line proves nothing either way */ }
   }
   return found
@@ -452,14 +461,32 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
       if (r.status >= 300) return { read: false, why: `project read ${r.status}` };
       return { read: true, value: settings(r.body as never) };
     },
+    // A FAILED READ IS NOT AN EMPTY MAP.
+    //
+    // This used to build `byHost` only when the call succeeded and then return
+    // one entry per host with `deploymentId: null` regardless — so a 503 and a
+    // genuinely unmapped host produced the same baseline, and a run could be
+    // "recovered" to nothing. The failure now propagates as a failed Read.
     readAliasMappings: async () => {
-      const r = await api<{ aliases?: { alias?: string; deploymentId?: string }[] }>(
-        `/v4/aliases?projectId=${CANONICAL.vercelProjectId}&teamId=${CANONICAL.vercelTeamId}&limit=100`);
+      let r: { status: number; body: { aliases?: { alias?: string; deploymentId?: string }[] } };
+      try {
+        r = await api<{ aliases?: { alias?: string; deploymentId?: string }[] }>(
+          `/v4/aliases?projectId=${CANONICAL.vercelProjectId}&teamId=${CANONICAL.vercelTeamId}&limit=100`);
+      } catch (e) { return { read: false, why: `alias list threw: ${String(e).slice(0, 80)}` }; }
+      if (r.status >= 300) return { read: false, why: `alias list ${r.status}` };
+      if (!Array.isArray(r.body.aliases)) return { read: false, why: "alias list carries no aliases array" };
+
       const byHost = new Map<string, string>();
-      if (r.status < 300) for (const a of r.body.aliases ?? []) {
+      for (const a of r.body.aliases) {
         if (typeof a.alias === "string" && typeof a.deploymentId === "string") byHost.set(a.alias, a.deploymentId);
       }
-      return CANONICAL.canonicalHosts.map((host) => ({ host, deploymentId: byHost.get(host) ?? null }));
+      // The call succeeded, so a host absent from the list is VERIFIABLY
+      // unmapped — read: true, value: null — which is a different fact from
+      // "we could not find out".
+      return { read: true, value: CANONICAL.canonicalHosts.map((host) => {
+        const d = byHost.get(host);
+        return { host, destination: d ? { read: true as const, value: d } : { read: true as const, value: null } };
+      }) };
     },
     // Re-read after promoting. Aliases and served identity both reported the
     // candidate while the TARGET was still the incumbent, and that returned
@@ -521,7 +548,7 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
     readLockOwner: () => fileLock(lockPath).owner(),
     claimPromotion: (runId, candidateId) => promotionClaim(dirname(lockPath)).claim(runId, candidateId),
     releaseLock: (runId) => fileLock(lockPath).release(runId),
-    recordIntent: (r) => appendRecord(logPath, { phase: "intent", ...r }),
+    recordIntent: (r) => appendRecord(logPath, { event: "intent", ...r }),
     promoteDeployment: async (id) => {
       let r: { status: number; body: { error?: { message?: string } } };
       try {
@@ -538,7 +565,14 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
         throw Object.assign(new Error(`promote ${r.status} ${r.body.error?.message ?? ""}`),
           { definite: isDefiniteFailure(r.status) });
     },
-    recordCompletion: (r) => appendRecord(logPath, { phase: "completed", ...r }),
+    // THREE DISTINCT JOURNAL EVENTS. "completed" conflated a promotion the API
+    // accepted with a release whose routing was verified, so the log could not
+    // say which had happened — and after a verification failure it said the
+    // wrong one.
+    recordPromotionAccepted: (r) => appendRecord(logPath, { event: "promotion-accepted", ...r }),
+    recordReleaseVerified: (r) => appendRecord(logPath, { event: "release-verified", ...r }),
+    recordRecoveryRequired: (r, why) =>
+      appendRecord(logPath, { event: "recovery-required", why, ...r }),
 
     // Routing and target are DIFFERENT questions; both are asked.
     //
@@ -557,11 +591,13 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
       }
       return Promise.all(CANONICAL.canonicalHosts.map(async (host) => {
         const mapped = byHost.get(host);
+        // Unmapped is a verified fact when the list was readable; it still fails
+        // verification, but for a reason that says so rather than "unreadable".
         const alias: Read<string> = aliasRes.status >= 300
           ? { read: false, why: `alias list ${aliasRes.status}` }
           : mapped
             ? { read: true, value: mapped }
-            : { read: false, why: `no alias record maps ${host} to a deployment` };
+            : { read: false, why: `${host} is verifiably not mapped to any deployment` };
         try {
           const r = await fetch(`https://${host}/api/release`, { headers: { "Cache-Control": "no-cache" }, redirect: "follow" });
           if (!r.ok) return { host, aliasDeploymentId: alias, served: { read: false as const, why: `HTTP ${r.status}` } };

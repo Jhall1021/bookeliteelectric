@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { runRelease, type ReleaseIO, type IntentRecord } from "./_releaseRun";
 import { verifyHosts, type ApprovedBuild, type HostObservation,
   type CandidateRecord, type CreationReceipt, type AliasMapping } from "./_releaseControl";
-import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure } from "./release-production";
+import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO } from "./release-production";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string, detail = "") => {
@@ -40,7 +40,7 @@ const RECORD: CandidateRecord = {
   id: CAND, projectId: CANON.projectId, readyState: "READY",
   target: "production", sha: MAIN, build: { ...APPROVED },
 };
-const MAPPINGS: AliasMapping[] = HOSTS.map((h) => ({ host: h, deploymentId: OUTGOING }));
+const MAPPINGS: AliasMapping[] = HOSTS.map((h) => ({ host: h, destination: { read: true, value: OUTGOING } }));
 const RECEIPT: CreationReceipt = {
   runId: "run1", candidateId: CAND, sha: MAIN,
   createdAt: "2026-09-04T00:00:00Z", operator: "op", host: "release-host",
@@ -48,11 +48,12 @@ const RECEIPT: CreationReceipt = {
 };
 
 type Rec = { promotes: string[]; intents: IntentRecord[]; completions: IntentRecord[];
-  order: string[]; creates: string[]; receipts: CreationReceipt[]; locks: number; unlocks: number };
+  order: string[]; creates: string[]; receipts: CreationReceipt[]; locks: number; unlocks: number;
+  verified: IntentRecord[]; recoveries: { r: IntentRecord; why: string }[] };
 
 function io(over: Partial<ReleaseIO> = {}): { io: ReleaseIO; rec: Rec } {
   const rec: Rec = { promotes: [], intents: [], completions: [], order: [],
-    creates: [], receipts: [], locks: 0, unlocks: 0 };
+    creates: [], receipts: [], locks: 0, unlocks: 0, verified: [], recoveries: [] };
   const base: ReleaseIO = {
     readGithubRepoId: async () => ({ read: true, value: REPO_ID }),
     readProjectLink: async () => ({ read: true, value: REPO_ID }),
@@ -64,7 +65,7 @@ function io(over: Partial<ReleaseIO> = {}): { io: ReleaseIO; rec: Rec } {
     recordCreation: async (r) => { rec.order.push("receipt"); rec.receipts.push(r); },
     readCandidate: async () => ({ read: true, value: { ...RECORD } }),
     loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT } }),
-    readAliasMappings: async () => MAPPINGS,
+    readAliasMappings: async () => ({ read: true, value: MAPPINGS }),
     readProductionTarget: async () => ({ read: true, value: CAND }),
     acquireLock: async () => { rec.locks++; rec.order.push("lock"); return { ok: true }; },
     readLockOwner: async () => ({ read: true, value: "run1" }),
@@ -72,7 +73,9 @@ function io(over: Partial<ReleaseIO> = {}): { io: ReleaseIO; rec: Rec } {
     releaseLock: async () => { rec.unlocks++; rec.order.push("unlock"); },
     recordIntent: async (r) => { rec.order.push("record"); rec.intents.push(r); },
     promoteDeployment: async (d) => { rec.order.push("promote"); rec.promotes.push(d); },
-    recordCompletion: async (r) => { rec.completions.push(r); },
+    recordPromotionAccepted: async (r) => { rec.order.push("accepted"); rec.completions.push(r); },
+    recordReleaseVerified: async (r) => { rec.order.push("verified"); rec.verified.push(r); },
+    recordRecoveryRequired: async (r, why) => { rec.order.push("recovery"); rec.recoveries.push({ r, why }); },
     operator: () => "op",
     host: () => "release-host",
     observeHosts: async (e) => HOSTS.map((h) => ({
@@ -409,6 +412,162 @@ async function lifecycleLockTests() {
   rmSync(dir, { recursive: true, force: true });
 }
 
+/* ── B1: an unreadable rollback baseline stops the release ────────────── */
+async function baselineIntegrityTests() {
+  console.log("\n  B1  A ROLLBACK BASELINE YOU CANNOT READ IS NOT ONE\n");
+
+  const create = (over: Partial<ReleaseIO>) => {
+    const { io: x, rec } = io(over);
+    return runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON).then((r) => ({ r, rec }));
+  };
+
+  // 1. The alias read THROWS.
+  const threw = await create({ readAliasMappings: async () => { throw new Error("ECONNRESET"); } });
+  ok(!threw.r.ok && threw.r.code === "BASELINE_INCOMPLETE" && threw.rec.creates.length === 0,
+    "B1  an alias read that throws creates nothing", threw.r.ok ? "created" : threw.r.code);
+  ok(threw.rec.unlocks === 1, "B1  and the lock is released — nothing was created, so nothing is in doubt");
+
+  // 2. The alias API answers 503.
+  const down = await create({ readAliasMappings: async () => ({ read: false, why: "alias list 503" }) });
+  ok(!down.r.ok && down.r.code === "BASELINE_INCOMPLETE" && down.rec.creates.length === 0,
+    "B1  a 503 from the alias API creates nothing — it is not a map of nulls");
+
+  // 3. One host readable, one not.
+  const partial = await create({ readAliasMappings: async () => ({ read: true, value: [
+    { host: HOSTS[0], destination: { read: true, value: OUTGOING } },
+    { host: HOSTS[1], destination: { read: false, why: "alias list 503" } },
+    { host: HOSTS[2], destination: { read: true, value: OUTGOING } },
+  ] }) });
+  ok(!partial.r.ok && partial.r.code === "BASELINE_INCOMPLETE" && partial.rec.creates.length === 0,
+    "B1  one unreadable host is enough to stop it");
+
+  // 4. A host missing from the reading entirely.
+  const missing = await create({ readAliasMappings: async () => ({ read: true, value: [
+    { host: HOSTS[0], destination: { read: true, value: OUTGOING } },
+  ] }) });
+  ok(!missing.r.ok && missing.r.code === "BASELINE_INCOMPLETE",
+    "B1  and a host absent from the reading is not 'unmapped'");
+
+  // A VERIFIED unmapped host is fine — the read succeeded.
+  const unmapped = await create({ readAliasMappings: async () => ({ read: true,
+    value: HOSTS.map((h) => ({ host: h, destination: { read: true as const, value: null } })) }) });
+  ok(unmapped.r.ok, "B1  but a verifiably unmapped host is a fact, and does not block creation",
+    unmapped.r.ok ? "" : (unmapped.r as { code: string }).code);
+
+  // THE BASELINE IS READ BEFORE THE DEPLOYMENT EXISTS.
+  const order: string[] = [];
+  const seq = io({
+    readAliasMappings: async () => { order.push("baseline"); return { read: true, value: MAPPINGS }; },
+    createDeployment: async () => { order.push("create"); return { id: CAND }; },
+  });
+  await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, seq.io, CANON);
+  ok(order.join(",") === "baseline,create",
+    `B1  and it is captured BEFORE creation, not after (${order.join(" -> ")})`);
+
+  // A receipt whose baseline is incomplete cannot be promoted.
+  for (const [label, patch] of [
+    ["no alias mappings at all", { outgoingAliases: [] }],
+    ["a missing host", { outgoingAliases: [MAPPINGS[0]] }],
+    ["an unread destination", { outgoingAliases: HOSTS.map((h) => ({ host: h, destination: { read: false as const, why: "503" } })) }],
+    ["no outgoing deployment", { outgoingDeploymentId: "" }],
+  ] as [string, Partial<CreationReceipt>][]) {
+    const { r, rec } = await promote({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT, ...patch } }) });
+    ok(!r.ok && r.code === "RECEIPT_INCOMPLETE" && rec.promotes.length === 0,
+      `B1  a receipt with ${label} promotes nothing`, r.ok ? "promoted" : r.code);
+  }
+}
+
+/* ── B2: verification that throws is a recovery outcome ───────────────── */
+async function recoveryOutcomeTests() {
+  console.log("\n  B2  A PROMOTION THAT CANNOT BE VERIFIED IS REPORTED, NOT THROWN\n");
+
+  // The live adapter's own failure mode: the alias API connection resets AFTER
+  // the promotion succeeded.
+  const { r, rec } = await promote({ observeHosts: async () => { throw new Error("ECONNRESET"); } });
+  ok(!r.ok && r.code === "RECOVERY_REQUIRED",
+    "B2  a post-promotion exception returns RECOVERY_REQUIRED rather than throwing",
+    r.ok ? "OK" : r.code);
+  ok(rec.promotes.length === 1, "B2  the promotion did happen and is not disowned");
+  ok(rec.unlocks === 0, "B2  the lock is deliberately still held");
+  ok(rec.verified.length === 0, "B2  and NO release-verified event is written");
+  ok(rec.recoveries.length === 1, "B2  a recovery-required event is, with the reason");
+  const rr = !r.ok && "outgoingAliases" in r ? r : null;
+  ok(!!rr && rr.candidateId === CAND && rr.outgoing === OUTGOING && rr.outgoingAliases.length === HOSTS.length,
+    "B2  and it carries the candidate and the intact outgoing baseline");
+
+  // The target re-read throwing is the same class of failure.
+  const t = await promote({ readProductionTarget: async () => { throw new Error("socket hang up"); } });
+  ok(!t.r.ok && t.r.code === "RECOVERY_REQUIRED" && t.rec.unlocks === 0,
+    "B2  a target re-read that throws is also a recovery outcome");
+
+  // A clean run distinguishes accepted from verified.
+  const good = await promote();
+  ok(good.r.ok && good.rec.completions.length === 1 && good.rec.verified.length === 1,
+    "B2  a verified release journals BOTH promotion-accepted and release-verified");
+  const ai = good.rec.order.indexOf("accepted"), vi = good.rec.order.indexOf("verified");
+  ok(ai >= 0 && vi > ai, `B2  in that order (${good.rec.order.join(" -> ")})`);
+  ok(good.rec.recoveries.length === 0, "B2  and no recovery event");
+}
+
+/* ── B3: the LIVE adapters, not fakes that already agree ──────────────── */
+/**
+ * The mutation that collapsed a 503 into a map of nulls failed ZERO assertions,
+ * because every test above handed runRelease an already-interpreted Read. These
+ * drive the real liveIO adapters with a fake api and a stubbed fetch.
+ */
+async function liveAdapterTests() {
+  console.log("\n  B3  THE LIVE ADAPTERS\n");
+  const dir = mkdtempSync(join(tmpdir(), "rel-live-"));
+  const mk = (api: unknown) => liveIO(api as never, join(dir, "log.jsonl"), join(dir, "r.lock"), join(dir, "rcpt.jsonl"));
+
+  // A 503 CARRYING A PLAUSIBLE BODY. An empty body would be caught by the
+  // array check instead, so the status guard would never be isolated — which is
+  // how the first version of this test let the mutation survive.
+  const down = mk(async () => ({ status: 503, body: { aliases: [
+    { alias: "app.price2book.com", deploymentId: "dpl_stale" },
+  ] } }));
+  const d = await down.readAliasMappings();
+  ok(!d.read, "B3  a 503 is UNREAD even when it carries a usable-looking body",
+    d.read ? JSON.stringify(d.value) : "");
+
+  const downEmpty = mk(async () => ({ status: 503, body: {} }));
+  ok(!(await downEmpty.readAliasMappings()).read, "B3  and a 503 with no body is unread too");
+
+  const boom = mk(async () => { throw new Error("ECONNRESET"); });
+  const b = await boom.readAliasMappings();
+  ok(!b.read && /threw/i.test(b.why), "B3  and an api that THROWS is unread, not empty",
+    b.read ? "read" : b.why);
+
+  const noArray = mk(async () => ({ status: 200, body: {} }));
+  ok(!(await noArray.readAliasMappings()).read, "B3  a 200 with no aliases array is unread too");
+
+  const ok200 = mk(async () => ({ status: 200, body: { aliases: [
+    { alias: "app.price2book.com", deploymentId: "dpl_live" },
+  ] } }));
+  const m = await ok200.readAliasMappings();
+  ok(m.read, "B3  a readable list is read");
+  if (m.read) {
+    const mapped = m.value.find((x) => x.host === "app.price2book.com");
+    const other = m.value.find((x) => x.host !== "app.price2book.com");
+    ok(!!mapped && mapped.destination.read && mapped.destination.value === "dpl_live",
+      "B3  a listed host carries its destination");
+    ok(!!other && other.destination.read && other.destination.value === null,
+      "B3  and a host absent from a READABLE list is verifiably unmapped — read, value null");
+  }
+
+  // observeHosts, with fetch stubbed so the network failure is real to it.
+  const realFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => { throw new Error("ECONNRESET"); }) as typeof fetch;
+    const obs = await mk(async () => ({ status: 200, body: { aliases: [] } }))
+      .observeHosts({ deploymentId: CAND, sha: MAIN });
+    ok(obs.every((o) => !o.served.read),
+      "B3  observeHosts reports a thrown fetch as an unread host rather than throwing");
+  } finally { globalThis.fetch = realFetch; }
+
+  rmSync(dir, { recursive: true, force: true });
+}
+
 /* ── L2: the baseline belongs to the run ──────────────────────────────── */
 async function baselineTests() {
   console.log("\n  L2  THE OUTGOING BASELINE IS PHASE B'S, NOT PHASE C'S\n");
@@ -429,7 +588,7 @@ async function baselineTests() {
   const rec0 = good.rec.intents[0];
   ok(!!rec0 && Array.isArray(rec0.outgoingAliases) && rec0.outgoingAliases.length === HOSTS.length
      && typeof rec0.outgoingAliases[0].host === "string"
-     && "deploymentId" in rec0.outgoingAliases[0],
+     && "destination" in rec0.outgoingAliases[0],
     "L2  and the intent stores per-host MAPPINGS, not alias names",
     JSON.stringify(rec0?.outgoingAliases));
 }
@@ -588,8 +747,10 @@ async function incompleteTests() {
   ok(!r.ok && r.code === "INCOMPLETE", "A12 reported INCOMPLETE, not failed and not success", r.ok ? "" : r.code);
   ok(rec.intents.length === 1, "A12 the rollback record stands");
   ok(rec.promotes.length === 1, "A12 the promotion did happen — this is a routing result, not a refusal");
-  ok(!r.ok && r.code === "INCOMPLETE" && /no automatic remediation/i.test(r.detail),
-    "A12 and nothing is remediated automatically");
+  ok(!r.ok && r.code === "INCOMPLETE" && /nothing was remediated automatically/i.test(r.detail),
+    "A12 and nothing is remediated automatically", r.ok ? "" : r.detail);
+  ok(rec.unlocks === 0, "A12 and the lock stays held — the release is unresolved");
+  ok(rec.recoveries.length === 1, "A12 and a recovery-required event is journalled");
 }
 
 /* ── phase A is read-only; phase separation ───────────────────────────── */
@@ -628,6 +789,9 @@ async function main() {
   await lockTests();
   await concurrentPhaseBTests();
   await intentTests();
+  await baselineIntegrityTests();
+  await recoveryOutcomeTests();
+  await liveAdapterTests();
   await lifecycleLockTests();
   await baselineTests();
   await classificationTests();
