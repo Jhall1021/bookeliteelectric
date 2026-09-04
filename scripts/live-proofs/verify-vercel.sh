@@ -40,41 +40,26 @@ echo "VERCEL READ-ONLY INSPECTION — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo
 
 # 1. Who the token is, and what scope it can see.
-echo "1 token scope"
-r=$(get "https://api.vercel.com/v2/user"); s=$(status_of "$r")
-echo "  GET /v2/user   HTTP $s"
-[ "$s" = "200" ] && body_of "$r" | python3 -c 'import json,sys
-d=json.load(sys.stdin).get("user",{})
-print("    username        %s" % d.get("username"))
-print("    id              %s" % d.get("id"))'
-
-r=$(get "https://api.vercel.com/v2/teams"); s=$(status_of "$r")
-echo "  GET /v2/teams  HTTP $s"
-teams=$(body_of "$r" | python3 -c 'import json,sys
-try: d=json.load(sys.stdin)
-except Exception: raise SystemExit
-for t in d.get("teams",[]): print(t.get("id"), t.get("slug"))' 2>/dev/null)
-[ -n "$teams" ] && printf '%s\n' "$teams" | sed 's/^/    team /' || echo "    (no teams visible)"
+echo "1 token scope (403 here is EXPECTED for a project-scoped token)"
+for ep in "v2/user" "v2/teams"; do
+  r=$(get "https://api.vercel.com/$ep"); s=$(status_of "$r")
+  case "$s" in
+    401|403) note="denied — expected; a project-scoped token reaches neither" ;;
+    200)     note="READABLE — this token is broader than one project" ;;
+    *)       note="unexpected" ;;
+  esac
+  printf "  GET /%-10s HTTP %-4s %s\n" "$ep" "$s" "$note"
+done
 echo
 
-# 2. The project — tried without a scope first, then against each visible team.
-#    The canonical team is skipped explicitly; it is not this experiment's home.
-echo "2 project $PROJECT"
-found=""; scope=""
+# 2. The project. NO teamId and NO slug: the token carries its own scope, and
+#    supplying a team hint would exercise a different credential shape than the
+#    one these proofs run under.
+echo "2 project $PROJECT   (no teamId or slug sent)"
 r=$(get "https://api.vercel.com/v9/projects/$PROJECT"); s=$(status_of "$r")
-if [ "$s" = "200" ]; then found="$r"; scope="(personal scope, no teamId)"; fi
-if [ -z "$found" ] && [ -n "$teams" ]; then
-  printf '%s\n' "$teams" | while read -r tid tslug; do :; done
-  for tid in $(printf '%s\n' "$teams" | awk '{print $1}'); do
-    [ "$tid" = "$CANONICAL_TEAM" ] && { echo "    skipping canonical team $tid"; continue; }
-    r2=$(get "https://api.vercel.com/v9/projects/$PROJECT?teamId=$tid"); s2=$(status_of "$r2")
-    echo "    teamId=$tid  HTTP $s2"
-    if [ "$s2" = "200" ]; then found="$r2"; scope="teamId=$tid"; break; fi
-  done
-fi
-[ -n "$found" ] || refuse "the project could not be read in any visible scope"
-echo "  readable in: $scope"
-body_of "$found" | python3 -c '
+echo "  HTTP $s"
+[ "$s" = "200" ] || refuse "the project could not be read"
+body_of "$r" | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
 print("    name              %s" % d.get("name"))
@@ -85,8 +70,7 @@ print("    autoAssignCustomDomains %s" % d.get("autoAssignCustomDomains"))
 print()
 print("    THE FIVE FIELDS compareBuild COMPARES")
 for k in ("rootDirectory","installCommand","buildCommand","outputDirectory","framework"):
-    v = d.get(k)
-    print("      %-16s %r" % (k, v))
+    print("      %-16s %r" % (k, d.get(k)))
 link = d.get("link") or {}
 if link:
     print()
@@ -97,10 +81,8 @@ if link:
 echo
 
 # 3. Environment variable NAMES. Values are not requested.
-scope_q=""
-case "$scope" in teamId=*) scope_q="?${scope}" ;; esac
 echo "3 environment variables (names, targets and types only — no values requested)"
-r=$(get "https://api.vercel.com/v9/projects/$PROJECT/env$scope_q"); s=$(status_of "$r")
+r=$(get "https://api.vercel.com/v9/projects/$PROJECT/env"); s=$(status_of "$r")
 echo "  HTTP $s"
 [ "$s" = "200" ] && body_of "$r" | python3 -c '
 import json,sys
@@ -113,9 +95,8 @@ for e in envs:
 echo
 
 # 4. Deployments so far.
-sep="?"; case "$scope" in teamId=*) sep="&" ;; esac
 echo "4 deployments"
-r=$(get "https://api.vercel.com/v6/deployments?projectId=$PROJECT&limit=10${scope:+$( [ "${scope#teamId=}" != "$scope" ] && echo "&$scope" )}")
+r=$(get "https://api.vercel.com/v6/deployments?projectId=$PROJECT&limit=10")
 s=$(status_of "$r"); echo "  HTTP $s"
 [ "$s" = "200" ] && body_of "$r" | python3 -c '
 import json,sys,datetime
@@ -134,7 +115,7 @@ echo
 
 # 5. Aliases currently pointing anywhere in this project.
 echo "5 aliases"
-r=$(get "https://api.vercel.com/v4/aliases?projectId=$PROJECT&limit=20${scope:+$( [ "${scope#teamId=}" != "$scope" ] && echo "&$scope" )}")
+r=$(get "https://api.vercel.com/v4/aliases?projectId=$PROJECT&limit=20")
 s=$(status_of "$r"); echo "  HTTP $s"
 [ "$s" = "200" ] && body_of "$r" | python3 -c '
 import json,sys

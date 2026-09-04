@@ -24,11 +24,22 @@ credential_shape_check() {
           echo "  would disclose a credential to a service it was not issued for." >&2
           return 1 ;;
       esac
-      if ! printf '%s' "$_val" | grep -qE '^[A-Za-z0-9]{24}$'; then
-        echo "note: this does not look like the usual 24-character Vercel token; continuing." >&2
-      fi
+      # vcp_ is the current project-scoped format; a bare 24-character value is
+      # the legacy one. Both are Vercel tokens. Anything else warns rather than
+      # refuses, because a format that changes must not stop the work — which is
+      # how the 24-character assumption became wrong in the first place.
+      case "$_val" in
+        vcp_*) ;;
+        *) printf '%s' "$_val" | grep -qE '^[A-Za-z0-9]{24}$' \
+             || echo "note: not a vcp_ or legacy 24-character Vercel token; continuing." >&2 ;;
+      esac
       ;;
     github)
+      case "$_val" in
+        vcp_*)
+          echo "REFUSING: this is a Vercel project-scoped token, not a GitHub one." >&2
+          return 1 ;;
+      esac
       if printf '%s' "$_val" | grep -qE '^[A-Za-z0-9]{24}$'; then
         echo "REFUSING: this looks like a Vercel token, not a GitHub one." >&2
         echo "  Sending it to api.github.com would disclose a credential to a" >&2
