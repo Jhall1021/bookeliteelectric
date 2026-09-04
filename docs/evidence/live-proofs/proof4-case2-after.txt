@@ -117,3 +117,26 @@ PROOF 4 CASE 2 — PASSED. PROOF 4 IS COMPLETE.
     READY production deployment; a refused build never becomes one. This also
     means the guard refusing is what kept those aliases still — the refusal did
     not merely fail a build, it prevented a host from moving.
+
+SCOPE OF THE ALIAS STATEMENT — narrowed
+
+  The sentence above, "generated aliases follow the newest READY production
+  deployment", is written as a rule and is not one. It is not a documented
+  Vercel behaviour and nothing here establishes it as universal.
+
+  WHAT WAS ACTUALLY OBSERVED, in this disposable project, across these cases:
+
+    case 1  dpl_8XKM…  READY, target production  ->  the two generated aliases
+                                                     (branch, project+scope)
+                                                     moved to it
+    case 2  dpl_GUWn…  ERROR, target production  ->  no alias moved
+    proof 5 dpl_2zZV…  ERROR, target staging     ->  no alias moved
+
+  So: in the observed cases the two generated aliases moved only after a READY
+  production deployment, and an ERROR deployment moved none. Three observations
+  in one project. That is a pattern in this evidence, not a rule about Vercel,
+  and it must not be cited as one — including in the claim that "the refusal
+  kept a host from moving", which holds for these cases and is not a general
+  guarantee.
+
+  The shortest project alias and the production target did not move in any case.
