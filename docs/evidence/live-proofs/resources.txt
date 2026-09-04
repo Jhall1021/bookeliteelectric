@@ -1,0 +1,43 @@
+DISPOSABLE RESOURCES — identified before testing
+
+GitHub
+  repository        Price2Book/p2b-release-proofs
+  numeric id        1357368650            (what gitSource identifies it by)
+  private           yes
+  default branch    main
+  main commit       afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+  uploaded          2026-09-04T17:38:00Z, "Add files via upload", verified
+
+  tree at that commit
+    README.md                     81536c79506416ce8a20929d03f4458d3ad0a965
+    package.json                  48942662bdff6ecbd0359bbb3cb5d64730a5167f
+    scripts/provenance-guard.sh   9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+    src/build.mjs                 b51eac62df8d65009004e07d94ab3d9242cd7c9a
+
+  .gitignore did not upload — the browser skipped the dotfile in drag-and-drop.
+  It only kept public/ and node_modules out of future commits, neither of which
+  anything here commits. Recorded rather than silently ignored.
+
+Vercel
+  project name      p2b-release-proofs
+  project id        prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  team / scope      NOT YET ESTABLISHED — to be read, never assumed. The
+                    canonical team_dAw8VA0u1R3VuwiPMP97otvK is not used here.
+  auto-assign custom production domains: DISABLED
+                    Matches the boundary (no production domains) and is a
+                    precondition for proof 6, which must observe alias movement
+                    on disposable *.vercel.app hosts only.
+
+  initial deployment: reported Ready, built before the provenance build command
+  or its environment inputs existed. IT IS NOT PROOF 1 AND MUST NOT BE REPORTED
+  AS ONE — it is a build of the fixture under DEFAULT project settings, so it
+  establishes that the repository builds, and nothing about the configuration
+  under test. Whether proof 1 re-uses it or takes a fresh push after
+  configuration is a decision to make deliberately, with the difference stated.
+
+Guard artifact under test
+  reviewed blob     2e6e4b289b57a49579cef88ee1f7bfffc5786bf8
+  test blob         9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  substitutions     OWNER=Price2Book REPO=p2b-release-proofs REF=main
+  confirmed in the private repository by fetching the content and hashing it
+  locally: 5205 bytes, identical.
