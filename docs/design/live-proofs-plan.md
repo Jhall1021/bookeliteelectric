@@ -81,9 +81,39 @@ the end.
 ## Resources
 
 All disposable, all created fresh rather than reused from the origin-trust probe:
-one private GitHub repo (synthetic app plus the test guard at a known ref), one
-Vercel project (build command set to the provenance one-liner), and the scoped
-GitHub token above. Deleted and revoked when the proofs are done.
+
+| Resource | Purpose | Disposal |
+|---|---|---|
+| One private GitHub repo | synthetic app plus the test guard at a known ref | deleted |
+| One Vercel project | build command set to the provenance one-liner | deleted |
+| **Vercel token, project-scoped to that project** | create, read back, promote | revoked |
+| GitHub token, scoped as above | `P2B_GH_HDR` and `P2B_GH_READ_TOKEN` | revoked |
+
+Both credentials are listed deliberately: the Vercel one is what performs every
+creation, read-back and promotion in these proofs, and an earlier draft named
+only GitHub's.
+
+### Hostnames are disposable-only
+
+**No Price2Book domain is used, aliased, pointed at, or configured at any point.**
+Specifically not `price2book.com`, `www.price2book.com` or `app.price2book.com` —
+the values in `CANONICAL.canonicalHosts` are what the proofs must *not* touch.
+
+Every host in these proofs is a Vercel-generated `*.vercel.app` name belonging to
+the disposable project. Where a proof needs a multi-host shape, it uses several
+disposable `*.vercel.app` aliases on that project to reproduce the *shape* — a
+primary and secondaries — never the identities.
+
+**Custom domains and DNS are out of scope and need separate authorization.** If a
+proof turns out to require a real custom domain to be meaningful, it is scoped
+down or deferred and the limitation is recorded; it is never resolved by reaching
+for a production domain.
+
+### Evidence before cleanup
+
+Evidence is exported and preserved **before** any teardown, and cleanup is itself
+separately approved. A deleted project with unpreserved evidence makes the run
+unrepeatable and the findings unciteable.
 
 ## How results are treated
 
@@ -91,14 +121,19 @@ GitHub token above. Deleted and revoked when the proofs are done.
 finding. Changing the release mechanism is a separate decision, taken
 afterwards, with the evidence in hand. In particular:
 
-- **A guard refusal is not proof the guard is wrong.** The guard prints
-  `PROVENANCE REFUSED (<CODE>)` and exits non-zero, so a refusal *line in the
-  build log is itself proof the guard executed* — which is what proof 4 asks.
-  `NOT_PRODUCTION`, `NOT_GITHUB`, `WRONG_OWNER`, `WRONG_REPO`, `WRONG_REF`,
-  `NO_SHA` and `NO_READ_CREDENTIAL` all indicate **missing or mismatched
-  configuration**, and API-created deployments are already known to carry empty
-  `VERCEL_GIT_*` in the CLI case — which would produce exactly these codes. That
-  is a configuration finding to diagnose, not a verdict on the design.
+- **A guard refusal is not proof the guard is wrong — and a refusal message is
+  not proof the guard ran.** Provenance-shaped output can be printed by something
+  that never executed the guard, so a refusal is read only alongside the
+  effective build command and the identified guard artifact (proof 4).
+- **Refusal codes are not uniformly "configuration".** `NOT_PRODUCTION`,
+  `NOT_GITHUB`, `WRONG_OWNER`, `WRONG_REPO`, `WRONG_REF`, `NO_SHA` and
+  `NO_READ_CREDENTIAL` describe missing or mismatched **configuration**, and
+  API-created deployments are already known to carry empty `VERCEL_GIT_*` in the
+  CLI case, which would produce exactly those. But `SHA_NOT_MAIN` and
+  `MAIN_UNREADABLE` are different in kind: `SHA_NOT_MAIN` is the guard doing its
+  job — a **legitimate safety rejection** of a commit that is not the ref's head
+  — and `MAIN_UNREADABLE` is a deliberate fail-closed on an unreliable read.
+  Each code is diagnosed on its own terms; none is a verdict on the design.
 - **Aliases that do not move are an already-handled outcome.** `verifyHosts`
   records `alias points at X, expected Y`, `complete` is false, and the run
   returns `INCOMPLETE` holding its lock. That is the designed behaviour. It does
@@ -111,9 +146,10 @@ afterwards, with the evidence in hand. In particular:
 
 ### 1 — A successful git-triggered build
 
-*Depends on it:* everything downstream. The forgery evidence was gathered on
-records that never completed a successful production build, so there is no
-reference for what a genuine one looks like.
+*Depends on it:* everything downstream. The forged deployments DID reach
+`READY`; what was blocked was the genuine git-push baseline. So the gap is not
+"a successful build" — it is a successful build *whose origin is not in doubt*,
+which is the only thing a forged record can be compared against.
 
 Push a commit to the disposable repo, let Vercel build it from the git
 integration, capture the whole deployment record. This is the control against
@@ -121,7 +157,8 @@ which 3 and 6 are read, and it must come first.
 
 *Finding if it differs from the probe's records:* the field-level conclusions in
 the origin-trust observation are narrower than stated and get re-scoped. The
-forgery itself stands either way.
+forgery itself stands either way — proof 1 supplies the missing comparand, it
+does not re-open the question.
 
 ### 2 — The config-file override
 
@@ -146,12 +183,23 @@ code assumes the dangerous answer, which is the right way round to be wrong.
 reading the candidate back later. If a record can be mutated after a successful
 build, "read it back" stops being a check.
 
-Take the proof-1 deployment and attempt to change its record — re-POST the same
-id, patch the fields the probe showed were accepted at creation.
+The experiment is about whether a **completed deployment's settings are
+historical**, not about whether the API accepts a write:
 
-*Finding if it is mutable:* the receipt binding (runId ↔ candidate ↔ sha ↔
-outgoing baseline) binds something the platform can rewrite, and what it should
-bind instead becomes a design question to answer separately.
+1. Complete a successful build (proof 1's deployment).
+2. Save its **deployment-scoped effective settings** — the five compared fields.
+3. Change the **project's** settings to different values.
+4. Re-read the historical deployment and confirm its settings are unchanged.
+
+Attempting to `PATCH` or re-`POST` a deployment is a *different* experiment,
+about API write surface, and does not replace this one. If it is run at all it is
+recorded separately and does not stand in for step 4.
+
+*Finding if the historical settings follow the project's:* a candidate read back
+after a project change would describe settings it was not built with, so
+read-back would no longer establish what was built, and the receipt binding
+(runId ↔ candidate ↔ sha ↔ outgoing baseline) would need to bind something the
+platform cannot restate. What it should bind instead is a separate decision.
 
 ### 4 — The guard runs on an API-created deployment
 
@@ -160,14 +208,35 @@ mirrored into the build command *because* the dashboard Build Command is what an
 old checkout cannot bypass — but every observation so far is of git-triggered
 builds, and Phase B creates through the API.
 
-Create a deployment through the API and read the build log. Run it twice: once
-configured so the guard should accept, once so it should refuse — a guard that
-never executes must not be mistaken for one that passed. The printed
-`PROVENANCE REFUSED (<CODE>)` line, or its absence, is the observation.
+**A log line is not evidence.** The origin-trust work already demonstrated that
+provenance-shaped messages can be printed by something that never ran the guard,
+so `PROVENANCE REFUSED (<CODE>)` in a build log is no stronger on its own than
+any other string. Three things are recorded *together*, or the run establishes
+nothing:
+
+| Recorded | Answers |
+|---|---|
+| The **effective build command** on that deployment | what actually ran |
+| The **identified guard artifact** (blob hash) it fetched | *which* guard ran |
+| The **observed outcome** | what that guard decided |
+
+Two cases, and both are required:
+
+- **Positive** — configured so the guard should accept: the guard passes, the
+  application build runs, and the deployment reaches `READY`. Only this case can
+  establish that the guard runs on an API-created deployment *and lets a
+  legitimate build through*.
+- **Negative** — configured so the guard should refuse: the chain stops **before
+  the application build**, evidenced by the absence of build output that only
+  `npm run build` produces.
+
+A refusal is good negative-case evidence and **cannot satisfy the positive
+case**. A run that only ever refuses has not shown the guard is reachable on a
+passing path.
 
 *Finding if it does not run:* the guard would not protect the path the release
 uses. Whether that is a configuration gap or a design gap is decided from the
-refusal code, afterwards.
+recorded triple, afterwards.
 
 ### 5 — Creation without `projectSettings` uses the approved command
 
@@ -176,9 +245,19 @@ refusal code, afterwards.
 configuration applies rather than anything this request carries."* That is an
 assumption stated as a fact.
 
-Create without `projectSettings` and read the build log for which command ran.
+**Settled by recorded configuration, not by logs.** Create without
+`projectSettings`, then read the candidate's **effective configuration** back and
+compare all five fields `compareBuild` compares against the test's approved
+values:
+
+    rootDirectory   installCommand   buildCommand   outputDirectory   framework
+
+The build log corroborates that evidence — it shows the command running — but the
+recorded configuration is what settles the question, because a log can show a
+command without establishing which configuration supplied it.
+
 Then create *with* a `projectSettings.buildCommand` and confirm the request can
-override — establishing that omitting it is a real choice and not a no-op.
+override, establishing that omitting it is a real choice and not a no-op.
 
 *Finding if omission does not mean "use the project's":* the release would need
 to send approved settings explicitly and verify them on read-back.
@@ -189,8 +268,10 @@ to send approved settings explicitly and verify them on read-back.
 test showed the primary alias did **not** follow a promotion — one observation,
 on a project whose alias configuration did not resemble canonical.
 
-Configure aliases like canonical (apex, www, app), promote, read the alias
-listing back.
+Configure the disposable project with several `*.vercel.app` aliases so it has
+the same *shape* as canonical — one primary, two secondaries — then promote and
+read the alias listing back. The shape is what the proof needs; the canonical
+hostnames are explicitly not used (see "Hostnames are disposable-only").
 
 *Finding if the primary alias does not move:* promotion alone does not complete a
 release. The run already reports this correctly as `INCOMPLETE`; what, if
@@ -241,5 +322,6 @@ are out of scope here.
 ## Out of scope
 
 Production, the canonical project, pushes, merges, repository transfer, the
-release pause and cutover. No canonical credential is used at any point; nothing
-here touches `prj_zB0QVq80340s2dVt7X3c1ewKgHtT`.
+release pause and cutover. Custom domains and DNS. No canonical credential is
+used at any point; nothing here touches `prj_zB0QVq80340s2dVt7X3c1ewKgHtT` or any
+`price2book.com` hostname.
