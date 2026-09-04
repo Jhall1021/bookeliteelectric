@@ -45,7 +45,7 @@ import { CANONICAL, PROVENANCE_BUILD_COMMAND } from "./_releaseProvenance";
 
 import { parseCurrentProduction } from "./_releaseSource";
 import { runRelease, type ReleaseIO } from "./_releaseRun";
-import { type ApprovedBuild, type Read } from "./_releaseControl";
+import { type ApprovedBuild, type Read, type CreationReceipt } from "./_releaseControl";
 
 /** The approved build, as constants. Changing these is a reviewed change. */
 export const APPROVED_BUILD: ApprovedBuild = {
@@ -282,12 +282,54 @@ export function fileLock(path: string) {
  * The refusal in phase C depends on this throwing. A writer that swallows its
  * own failure would make "the rollback target was recorded" unfalsifiable.
  */
-export async function appendRecord(path: string, record: unknown): Promise<void> {
+export async function appendRecord(
+  path: string, record: unknown,
+  write: (fd: number, buf: Buffer, off: number, len: number) => number = (fd, b, o, l) => writeSync(fd, b, o, l),
+  sync: (fd: number) => void = fsyncSync
+): Promise<void> {
+  const buf = Buffer.from(JSON.stringify(record) + "\n", "utf8");
+  mkdirSync(dirname(path), { recursive: true });
   const fd = openSync(path, "a", 0o600);
   try {
-    writeSync(fd, JSON.stringify(record) + "\n");
-    fsyncSync(fd);
+    // THE WHOLE RECORD, OR NOTHING. writeSync returns the byte count it
+    // actually wrote and may write fewer than asked; the previous version
+    // ignored that, so a short write persisted `{`, was fsynced, and returned
+    // successfully — a rollback target that is not one, reported as recorded.
+    let written = 0;
+    while (written < buf.length) {
+      const n = write(fd, buf, written, buf.length - written);
+      if (!Number.isInteger(n) || n <= 0)
+        throw new Error(`short write: ${written} of ${buf.length} bytes, then ${n}`);
+      written += n;
+    }
+    if (written !== buf.length)
+      throw new Error(`incomplete record: ${written} of ${buf.length} bytes`);
+    sync(fd);
   } finally { closeSync(fd); }
+}
+
+/**
+ * Creation receipts — what phase B wrote, and what phase C requires.
+ *
+ * Kept beside the release log, one JSON object per line. Phase C reads the LAST
+ * receipt for a candidate id; anything else means the id was not created here.
+ */
+export async function readReceipt(path: string, candidateId: string): Promise<Read<CreationReceipt>> {
+  let text: string;
+  try { text = readFileSync(path, "utf8"); }
+  catch (e) { return { read: false, why: `no creation receipts could be read (${String(e).slice(0, 60)})` }; }
+  let found: CreationReceipt | null = null;
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const r = JSON.parse(line) as Partial<CreationReceipt>;
+      if (r && r.candidateId === candidateId && typeof r.sha === "string" && typeof r.runId === "string")
+        found = r as CreationReceipt;
+    } catch { /* a damaged line proves nothing either way */ }
+  }
+  return found
+    ? { read: true, value: found }
+    : { read: false, why: `no creation receipt for ${candidateId}` };
 }
 
 /* ─────────────────────────── the live effects ───────────────────────────── */
@@ -295,7 +337,7 @@ export async function appendRecord(path: string, record: unknown): Promise<void>
 const asRead = <T>(cond: boolean, value: T, why: string): Read<T> =>
   cond ? { read: true, value } : { read: false, why };
 
-export function liveIO(api: Api, logPath: string, lockPath: string): ReleaseIO {
+export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath: string): ReleaseIO {
   const settings = (o: {
     rootDirectory?: string | null; installCommand?: string | null;
     buildCommand?: string | null; outputDirectory?: string | null; framework?: string | null;
@@ -370,45 +412,70 @@ export function liveIO(api: Api, logPath: string, lockPath: string): ReleaseIO {
       } catch (e) { return { error: e }; }
     },
 
-    readCandidateBuild: async (id) => {
-      const r = await api<{ projectSettings?: Record<string, unknown> }>(
-        `/v13/deployments/${id}?teamId=${CANONICAL.vercelTeamId}`);
+    // The WHOLE record — identity, ownership, readiness and target included.
+    // Reading only the build settings and the sha let a response describing
+    // another deployment, in another project, at target "preview" and still
+    // building, satisfy every check and reach the promote effect.
+    readCandidate: async (id) => {
+      const r = await api<{
+        uid?: string; id?: string; projectId?: string; readyState?: string; state?: string;
+        target?: string | null; gitSource?: { sha?: unknown }; projectSettings?: Record<string, unknown>;
+      }>(`/v13/deployments/${id}?teamId=${CANONICAL.vercelTeamId}`);
       if (r.status >= 300) return { read: false, why: `deployment read ${r.status}` };
-      const ps = r.body.projectSettings;
-      if (!ps) return { read: false, why: "deployment record carries no projectSettings" };
-      return { read: true, value: settings(ps as never) };
+      const b = r.body;
+      const recId = b.uid ?? b.id;
+      if (!recId) return { read: false, why: "deployment record carries no id" };
+      const sha = typeof b.gitSource?.sha === "string" ? (b.gitSource.sha as string) : null;
+      return { read: true, value: {
+        id: recId, projectId: b.projectId ?? "", readyState: b.readyState ?? b.state ?? "UNKNOWN",
+        target: b.target ?? null, sha,
+        build: b.projectSettings ? settings(b.projectSettings as never) : null,
+      } };
     },
-    readCandidateSha: async (id) => {
-      const r = await api<{ gitSource?: { sha?: unknown } }>(
-        `/v13/deployments/${id}?teamId=${CANONICAL.vercelTeamId}`);
-      if (r.status >= 300) return { read: false, why: `deployment read ${r.status}` };
-      const sha = r.body.gitSource?.sha;
-      return asRead(typeof sha === "string" && /^[0-9a-f]{40}$/.test(sha), sha as string,
-        "deployment record carries no commit sha");
-    },
+    recordCreation: (r) => appendRecord(receiptPath, r),
+    loadCreationReceipt: (id) => readReceipt(receiptPath, id),
 
     acquireLock: (info) => fileLock(lockPath).acquire(info),
     releaseLock: () => fileLock(lockPath).release(),
     recordIntent: (r) => appendRecord(logPath, { phase: "intent", ...r }),
     promoteDeployment: async (id) => {
-      const r = await api<{ error?: { message?: string } }>(
-        `/v10/projects/${CANONICAL.vercelProjectId}/promote/${id}?teamId=${CANONICAL.vercelTeamId}`,
-        { method: "POST" });
-      if (r.status >= 300) throw new Error(`promote ${r.status} ${r.body.error?.message ?? ""}`);
+      let r: { status: number; body: { error?: { message?: string } } };
+      try {
+        r = await api<{ error?: { message?: string } }>(
+          `/v10/projects/${CANONICAL.vercelProjectId}/promote/${id}?teamId=${CANONICAL.vercelTeamId}`,
+          { method: "POST" });
+      } catch (e) {
+        // No response at all: the promotion may or may not have happened.
+        throw Object.assign(new Error(String(e).slice(0, 160)), { definite: false });
+      }
+      // A 4xx/5xx IS an answer — the promotion definitely did not happen.
+      if (r.status >= 300)
+        throw Object.assign(new Error(`promote ${r.status} ${r.body.error?.message ?? ""}`), { definite: true });
     },
     recordCompletion: (r) => appendRecord(logPath, { phase: "completed", ...r }),
 
     // Routing and target are DIFFERENT questions; both are asked.
-    observeHosts: async (expected) => {
-      const dom = await api<{ domains?: { name?: string }[] }>(
-        `/v9/projects/${CANONICAL.vercelProjectId}/domains?teamId=${CANONICAL.vercelTeamId}`);
-      const cur = await currentProductionRaw(api);
-      const targetId = ((cur.raw as { uid?: string; id?: string } | undefined) ?? {});
-      void dom;
+    //
+    // The previous version fetched the domains, threw the result away with
+    // `void dom`, and gave every host the PRODUCTION TARGET id as its alias
+    // mapping — so "the alias points where we expect" was just "the target
+    // moved", restated. That is the exact confusion the observation corrected.
+    observeHosts: async (_expected) => {
+      const aliasRes = await api<{ aliases?: { alias?: string; deploymentId?: string }[] }>(
+        `/v4/aliases?projectId=${CANONICAL.vercelProjectId}&teamId=${CANONICAL.vercelTeamId}&limit=100`);
+      const byHost = new Map<string, string>();
+      if (aliasRes.status < 300) {
+        for (const a of aliasRes.body.aliases ?? []) {
+          if (typeof a.alias === "string" && typeof a.deploymentId === "string") byHost.set(a.alias, a.deploymentId);
+        }
+      }
       return Promise.all(CANONICAL.canonicalHosts.map(async (host) => {
-        const alias: Read<string> = targetId.uid || targetId.id
-          ? { read: true, value: (targetId.uid ?? targetId.id) as string }
-          : { read: false, why: "production target unreadable" };
+        const mapped = byHost.get(host);
+        const alias: Read<string> = aliasRes.status >= 300
+          ? { read: false, why: `alias list ${aliasRes.status}` }
+          : mapped
+            ? { read: true, value: mapped }
+            : { read: false, why: `no alias record maps ${host} to a deployment` };
         try {
           const r = await fetch(`https://${host}/api/release`, { headers: { "Cache-Control": "no-cache" }, redirect: "follow" });
           if (!r.ok) return { host, aliasDeploymentId: alias, served: { read: false as const, why: `HTTP ${r.status}` } };
@@ -421,8 +488,9 @@ export function liveIO(api: Api, logPath: string, lockPath: string): ReleaseIO {
           return { host, aliasDeploymentId: alias, served: { read: false as const, why: String(e).slice(0, 80) } };
         }
       }));
-      void expected;
     },
+    operator: () => userInfo().username,
+    host: () => hostname(),
     log: (l) => console.log(l),
   };
 }
@@ -438,13 +506,15 @@ async function main() {
 
   const logPath = process.env.P2B_RELEASE_LOG ?? join(homedir(), ".price2book", "release-log.jsonl");
   const lockPath = process.env.P2B_RELEASE_LOCK ?? join(homedir(), ".price2book", "release.lock");
-  const io = liveIO(vercelApi(token), logPath, lockPath);
+  const receiptPath = process.env.P2B_RELEASE_RECEIPTS ?? join(homedir(), ".price2book", "creation-receipts.jsonl");
+  const io = liveIO(vercelApi(token), logPath, lockPath, receiptPath);
 
   const result = await runRelease({
     phase,
     approvedSha: process.env.P2B_APPROVED_SHA,
     candidateId: process.env.P2B_CANDIDATE_ID,
-  }, APPROVED_BUILD, APPROVED_REDIRECT_HOSTS, io);
+  }, APPROVED_BUILD, APPROVED_REDIRECT_HOSTS, io,
+     { projectId: CANONICAL.vercelProjectId, target: CANONICAL.target, repoId: CANONICAL.repoId });
 
   if (result.ok) {
     console.log(`\n  ${phase} OK — ${JSON.stringify(result)}\n`);

@@ -14,7 +14,7 @@
 import {
   preflightDecision, createOutcome, promotionDecision, verifyHosts,
   type ApprovedBuild, type PreflightFacts, type PromotionFacts,
-  type HostObservation, type Read,
+  type HostObservation, type Read, type CandidateRecord, type CreationReceipt,
 } from "./_releaseControl";
 
 export type IntentRecord = {
@@ -34,12 +34,14 @@ export type ReleaseIO = {
   readProjectSettings: () => Promise<Read<ApprovedBuild>>;
   readCurrentProduction: () => Promise<Read<{ deploymentId: string; aliases: readonly string[] }>>;
 
-  /* phase B — a write */
+  /* phase B — writes */
   createDeployment: (sha: string) => Promise<{ id?: string | null; error?: unknown }>;
+  /** MUST throw on any failure to persist. Phase C refuses without it. */
+  recordCreation: (r: CreationReceipt) => Promise<void>;
 
   /* phase C — reads then the one mutation */
-  readCandidateBuild: (id: string) => Promise<Read<ApprovedBuild>>;
-  readCandidateSha: (id: string) => Promise<Read<string>>;
+  readCandidate: (id: string) => Promise<Read<CandidateRecord>>;
+  loadCreationReceipt: (candidateId: string) => Promise<Read<CreationReceipt>>;
   acquireLock: (info: { sha: string }) => Promise<{ ok: true } | { ok: false; heldBy: string }>;
   releaseLock: () => Promise<void>;
   /** MUST throw on any failure to persist. A refusal depends on it. */
@@ -48,6 +50,8 @@ export type ReleaseIO = {
   recordCompletion: (r: IntentRecord) => Promise<void>;
   observeHosts: (expected: { deploymentId: string; sha: string }) => Promise<readonly HostObservation[]>;
 
+  operator: () => string;
+  host: () => string;
   log: (line: string) => void;
 };
 
@@ -62,10 +66,12 @@ export async function runRelease(
   opts: { phase: "preflight" | "create" | "promote"; approvedSha?: string; candidateId?: string },
   approved: ApprovedBuild,
   approvedRedirectHosts: readonly string[],
-  io: ReleaseIO
+  io: ReleaseIO,
+  canonical: { projectId: string; target: string; repoId: number }
 ): Promise<RunResult> {
   /* ── A ─────────────────────────────────────────────────────────────── */
   const facts: PreflightFacts = {
+    canonicalRepoId: canonical.repoId,
     githubRepoId: await io.readGithubRepoId(),
     vercelLinkRepoId: await io.readProjectLink(),
     freshMainSha: await io.readFreshMain(),
@@ -84,9 +90,41 @@ export async function runRelease(
 
   /* ── B ─────────────────────────────────────────────────────────────── */
   if (opts.phase === "create") {
+    // THE APPROVAL NAMES A COMMIT. Creating a build of a different one is not
+    // the release that was approved, however current that other commit is.
+    if (opts.approvedSha && opts.approvedSha !== pre.sha)
+      return { ok: false, phase: "create", code: "MAIN_MOVED",
+        detail: `approved ${opts.approvedSha.slice(0, 7)}, main is now ${pre.sha.slice(0, 7)} — approve again` };
+
+    // THE LOCK STARTS HERE, not at promotion. A build is already a write, and
+    // two concurrent creates are two builds nobody asked for. It is NOT
+    // released by this phase: it is held across processes until phase C reaches
+    // a definite outcome.
+    const lock = await io.acquireLock({ sha: pre.sha });
+    if (!lock.ok) return { ok: false, phase: "create", code: "LOCKED", detail: lockedDetail(lock.heldBy) };
+
     const r = await io.createDeployment(pre.sha).catch((e) => ({ error: e }));
     const out = createOutcome((r as { id?: string | null }).id, (r as { error?: unknown }).error);
-    if (!out.ok) return { ok: false, phase: "create", code: out.code, detail: out.detail };
+    if (!out.ok) {
+      // The lock is deliberately NOT released: a build may be running and its
+      // outcome is unknown, which is exactly when another release must not start.
+      return { ok: false, phase: "create", code: out.code,
+        detail: `${out.detail} The release lock is deliberately still held.` };
+    }
+
+    // THE RECEIPT. Phase C promotes only what phase B created, and a
+    // caller-supplied environment variable is not evidence of that.
+    const receipt: CreationReceipt = {
+      runId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      candidateId: out.candidateId, sha: pre.sha, createdAt: new Date().toISOString(),
+      operator: io.operator(), host: io.host(),
+    };
+    try { await io.recordCreation(receipt); }
+    catch (e) {
+      return { ok: false, phase: "create", code: "RECEIPT_NOT_RECORDED",
+        detail: `deployment ${out.candidateId} was created but its receipt could not be written ` +
+          `(${String(e).slice(0, 120)}). It cannot be promoted without one. The lock is still held.` };
+    }
     io.log(`  created ${out.candidateId} from ${pre.sha.slice(0, 7)}`);
     return { ok: true, phase: "create", candidateId: out.candidateId, sha: pre.sha };
   }
@@ -98,25 +136,21 @@ export async function runRelease(
     return { ok: false, phase: "promote", code: "NO_APPROVED_CANDIDATE",
       detail: "promotion requires the candidate id and sha that phase B returned" };
 
-  const lock = await io.acquireLock({ sha: approvedSha });
-  if (!lock.ok)
-    return { ok: false, phase: "promote", code: "LOCKED",
-      detail: `a release is already in progress on the designated release machine: ${lock.heldBy}. ` +
-        `Stale locks are never cleared automatically — establish what happened to that run first.` };
-
+  // The lock was taken by phase B and is still held. It is not re-acquired.
+  let released = false;
   try {
     // Re-read AFTER approval and evidence, not once at the start.
     const pf: PromotionFacts = {
       candidateId, approvedSha,
-      candidateBuild: await io.readCandidateBuild(candidateId),
-      candidateSha: await io.readCandidateSha(candidateId),
+      receipt: await io.loadCreationReceipt(candidateId),
+      candidate: await io.readCandidate(candidateId),
       freshMainSha: await io.readFreshMain(),
       currentProductionId: await io.readCurrentProduction().then(
         (r) => (r.read ? { read: true as const, value: r.value.deploymentId } : r)
       ),
       outgoingAtPreflight: pre.outgoing.deploymentId,
     };
-    const decision = promotionDecision(pf, approved);
+    const decision = promotionDecision(pf, approved, canonical);
     if (!decision.ok) return { ok: false, phase: "promote", code: decision.code, detail: decision.detail };
 
     // DURABLE INTENT BEFORE ANY MUTATION. A failed write refuses: a promotion
@@ -133,6 +167,18 @@ export async function runRelease(
 
     try { await io.promoteDeployment(candidateId); }
     catch (e) {
+      // A DEFINITE refusal releases the lock; an AMBIGUOUS one does not.
+      //
+      // A 4xx means the promotion did not happen. A dropped connection or a
+      // timeout means nobody knows, and releasing the lock then invites a second
+      // release into an unknown state.
+      const definite = (e as { definite?: boolean }).definite === true;
+      if (!definite) {
+        released = true; // suppress the finally; the lock stays.
+        return { ok: false, phase: "promote", code: "PROMOTE_UNCERTAIN",
+          detail: `the promote request did not complete: ${String(e).slice(0, 160)}. ` +
+            `The outcome is unknown and the lock is deliberately still held — establish what happened before retrying.` };
+      }
       return { ok: false, phase: "promote", code: "PROMOTE_FAILED", detail: String(e).slice(0, 200) };
     }
     await io.recordCompletion(record).catch(() => undefined);
@@ -149,6 +195,13 @@ export async function runRelease(
     }
     return { ok: true, phase: "promote", candidateId, sha: approvedSha, replaced: pre.outgoing.deploymentId };
   } finally {
-    await io.releaseLock().catch(() => undefined);
+    if (!released) await io.releaseLock().catch(() => undefined);
   }
+}
+
+function lockedDetail(heldBy: string): string {
+  return `a release is already in progress on the designated release machine: ${heldBy}. ` +
+    `A lock file coordinates ONE machine and has no authority over the dashboard, another token, ` +
+    `or the Git integration. Stale locks are never cleared automatically — establish what happened ` +
+    `to that run first.`;
 }

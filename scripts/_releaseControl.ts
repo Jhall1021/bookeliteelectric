@@ -46,6 +46,8 @@ export type Read<T> = { read: true; value: T } | { read: false; why: string };
 /* ───────────────────────────── phase A: preflight ───────────────────────── */
 
 export type PreflightFacts = {
+  /** The PINNED constant. Must be a real id, agreed by both services. */
+  canonicalRepoId: number;
   /** Numeric repository id resolved from GitHub — the independent pin. */
   githubRepoId: Read<number>;
   /** What Vercel says the project is linked to. Must MATCH, never be adopted. */
@@ -71,13 +73,23 @@ export function preflightDecision(f: PreflightFacts, approved: ApprovedBuild): P
   // THE REPOSITORY IS PINNED BY US. Adopting whatever Vercel currently links
   // would let a project re-pointed at another repository pass silently — which
   // is exactly the condition this is meant to catch.
+  // THE PIN MUST EXIST. Comparing GitHub against Vercel and calling it pinned
+  // was the defect: both could agree on a repository that is not ours, and the
+  // creation request then sent CANONICAL.repoId anyway — which was 0. All THREE
+  // must agree, and the constant must be a real id.
+  if (!Number.isInteger(f.canonicalRepoId) || f.canonicalRepoId <= 0)
+    return { ok: false, code: "REPO_ID_UNPINNED",
+      detail: `CANONICAL.repoId is ${f.canonicalRepoId}; the canonical repository id has not been established` };
   if (!f.githubRepoId.read)
     return { ok: false, code: "REPO_ID_UNREADABLE", detail: f.githubRepoId.why };
   if (!f.vercelLinkRepoId.read)
     return { ok: false, code: "PROJECT_LINK_UNREADABLE", detail: f.vercelLinkRepoId.why };
-  if (f.githubRepoId.value !== f.vercelLinkRepoId.value)
+  if (f.githubRepoId.value !== f.canonicalRepoId)
     return { ok: false, code: "REPO_MISMATCH",
-      detail: `project is linked to repo id ${f.vercelLinkRepoId.value}, canonical is ${f.githubRepoId.value}` };
+      detail: `GitHub reports repo id ${f.githubRepoId.value}, pinned is ${f.canonicalRepoId}` };
+  if (f.vercelLinkRepoId.value !== f.canonicalRepoId)
+    return { ok: false, code: "REPO_MISMATCH",
+      detail: `project is linked to repo id ${f.vercelLinkRepoId.value}, pinned is ${f.canonicalRepoId}` };
 
   if (!f.freshMainSha || !SHA.test(f.freshMainSha))
     return { ok: false, code: "MAIN_UNREADABLE", detail: "GitHub main could not be read" };
@@ -151,18 +163,61 @@ export type PromotionFacts = {
   /** What preflight recorded, to detect a promotion by someone else. */
   outgoingAtPreflight: string;
   /**
-   * The CANDIDATE'S OWN recorded configuration. Not the project's.
+   * The candidate's whole record, read back from Vercel.
    *
-   * Preflight can pass and the deployment still be built differently — a
-   * settings change between phases, or a value the creation request carried. The
-   * project's settings are a precondition; this is the evidence.
+   * Reading only its build settings and sha was insufficient: a response
+   * describing a DIFFERENT deployment, in another project, at `target:
+   * "preview"` and still building, satisfied both and reached the promote
+   * effect. Identity, ownership, readiness and target are checked here because
+   * nothing downstream checks them.
    */
-  candidateBuild: Read<ApprovedBuild>;
-  /** The candidate's own recorded commit. */
-  candidateSha: Read<string>;
+  candidate: Read<CandidateRecord>;
+  /** A receipt proving THIS tool created it — see requireReceipt. */
+  receipt: Read<CreationReceipt>;
 };
 
-export function promotionDecision(f: PromotionFacts, approved: ApprovedBuild): { ok: true } | ({ ok: false } & Refusal) {
+export type CandidateRecord = {
+  id: string;
+  projectId: string;
+  readyState: string;
+  target: string | null;
+  sha: string | null;
+  build: ApprovedBuild | null;
+};
+
+/**
+ * Written by phase B, read by phase C.
+ *
+ * Without it, phase C accepted any id the operator supplied — so a deployment
+ * this tool never created could be promoted by passing its id in an environment
+ * variable, which is the metadata search returning under another name. A
+ * caller-supplied variable is not a receipt.
+ */
+export type CreationReceipt = {
+  runId: string;
+  candidateId: string;
+  sha: string;
+  createdAt: string;
+  operator: string;
+  host: string;
+};
+
+export function promotionDecision(
+  f: PromotionFacts, approved: ApprovedBuild,
+  canonical: { projectId: string; target: string }
+): { ok: true } | ({ ok: false } & Refusal) {
+  // THE RECEIPT FIRST. Everything after it is about a deployment this tool
+  // created; without one there is nothing to reason about.
+  if (!f.receipt.read)
+    return { ok: false, code: "NO_CREATION_RECEIPT",
+      detail: `${f.receipt.why}. Only a deployment this tool created in phase B may be promoted.` };
+  if (f.receipt.value.candidateId !== f.candidateId)
+    return { ok: false, code: "RECEIPT_MISMATCH",
+      detail: `the receipt is for ${f.receipt.value.candidateId}, not ${f.candidateId}` };
+  if (f.receipt.value.sha !== f.approvedSha)
+    return { ok: false, code: "RECEIPT_MISMATCH",
+      detail: `the receipt records sha ${f.receipt.value.sha.slice(0, 7)}, approval names ${f.approvedSha.slice(0, 7)}` };
+
   if (!f.freshMainSha || !SHA.test(f.freshMainSha))
     return { ok: false, code: "MAIN_UNREADABLE", detail: "GitHub main unreadable at promotion time" };
   if (f.freshMainSha !== f.approvedSha)
@@ -175,15 +230,31 @@ export function promotionDecision(f: PromotionFacts, approved: ApprovedBuild): {
     return { ok: false, code: "PRODUCTION_MOVED",
       detail: `production was ${f.outgoingAtPreflight} at preflight and is ${f.currentProductionId.value} now` };
 
-  if (!f.candidateSha.read)
-    return { ok: false, code: "CANDIDATE_SHA_UNREADABLE", detail: f.candidateSha.why };
-  if (f.candidateSha.value !== f.approvedSha)
-    return { ok: false, code: "CANDIDATE_SHA_MISMATCH",
-      detail: `candidate was built from ${f.candidateSha.value.slice(0, 7)}, approved ${f.approvedSha.slice(0, 7)}` };
+  if (!f.candidate.read)
+    return { ok: false, code: "CANDIDATE_UNREADABLE", detail: f.candidate.why };
+  const c = f.candidate.value;
 
-  if (!f.candidateBuild.read)
-    return { ok: false, code: "CANDIDATE_BUILD_UNKNOWN", detail: f.candidateBuild.why };
-  const drift = compareBuild(f.candidateBuild.value, approved);
+  // The response must describe the deployment we asked about, in our project,
+  // ready, and targeting production. None of this was checked before.
+  if (c.id !== f.candidateId)
+    return { ok: false, code: "CANDIDATE_IDENTITY_MISMATCH",
+      detail: `asked for ${f.candidateId}, the record describes ${c.id}` };
+  if (c.projectId !== canonical.projectId)
+    return { ok: false, code: "WRONG_PROJECT", detail: `candidate belongs to project ${c.projectId}` };
+  if (c.readyState !== "READY")
+    return { ok: false, code: "NOT_READY", detail: `candidate is ${c.readyState}` };
+  if (c.target !== canonical.target)
+    return { ok: false, code: "NOT_PRODUCTION_TARGET", detail: `candidate target is ${c.target ?? "none"}` };
+
+  if (!c.sha || !SHA.test(c.sha))
+    return { ok: false, code: "CANDIDATE_SHA_UNREADABLE", detail: "candidate record carries no commit sha" };
+  if (c.sha !== f.approvedSha)
+    return { ok: false, code: "CANDIDATE_SHA_MISMATCH",
+      detail: `candidate was built from ${c.sha.slice(0, 7)}, approved ${f.approvedSha.slice(0, 7)}` };
+
+  if (!c.build)
+    return { ok: false, code: "CANDIDATE_BUILD_UNKNOWN", detail: "candidate record carries no build settings" };
+  const drift = compareBuild(c.build, approved);
   if (drift) return { ok: false, code: "CANDIDATE_BUILD_NOT_APPROVED", detail: drift };
 
   return { ok: true };
