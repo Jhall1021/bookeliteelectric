@@ -121,10 +121,26 @@ export function decideBuildProvenance(f: BuildFacts): ProvenanceDecision {
  */
 export const PROVENANCE_GUARD_PATH = "scripts/provenance-guard.sh";
 export function provenanceBuildCommand(
-  guardUrl = `https://raw.githubusercontent.com/${CANONICAL.owner}/${CANONICAL.repo}/${CANONICAL.ref}/${PROVENANCE_GUARD_PATH}`
+  guardUrl = `https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/contents/${PROVENANCE_GUARD_PATH}?ref=${CANONICAL.ref}`
 ): string {
-  return `g=$(curl -fsS "${guardUrl}")&&[ -n "$g" ]&&echo "$g"|sh&&npm run build`;
+  // AUTHENTICATED, WITH THE TOKEN NEVER IN ARGV.
+  //
+  // curl reads its config from stdin (-K-), so no Authorization header appears
+  // in ps output, process accounting or a trace. The header lines themselves
+  // live in P2B_GH_HDR, a Production environment variable, for two reasons:
+  // they carry the credential, and inlining them put this command at 295
+  // characters against Vercel's 256 ceiling.
+  //
+  // THE URL STAYS IN THE COMMAND DELIBERATELY. It is what names the canonical
+  // repository, and the approved-command comparison at promotion time is only
+  // meaningful while the command still pins the repo it fetches from. Moving the
+  // URL into an environment variable would make the approved string say nothing
+  // about where the guard came from.
+  //
+  // -f turns a non-2xx into a non-zero exit, and && stops the build on it.
+  return `g=$(printf 'url="%s"\n%s' "${guardUrl}" "$P2B_GH_HDR"|curl -fsSK- --max-time 30)&&[ -n "$g" ]&&echo "$g"|sh&&npm run build`;
 }
+
 export const PROVENANCE_BUILD_COMMAND = provenanceBuildCommand();
 /** Vercel's documented ceiling. The verifier holds the command under it. */
 export const VERCEL_BUILD_COMMAND_MAX = 256;

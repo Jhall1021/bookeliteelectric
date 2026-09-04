@@ -17,7 +17,13 @@
 OWNER=Jhall1021
 REPO=bookeliteelectric
 REF=main
-REMOTE="${P2B_MAIN_REMOTE:-https://github.com/$OWNER/$REPO.git}"
+# PRIVATE REPOSITORY: the fresh-main read is authenticated.
+#
+# The token is NEVER an argument. A header on the command line is visible through
+# ps, process accounting, and tracing, so it reaches curl through a --config file
+# on stdin instead. P2B_MAIN_API exists only so the verifier can point the read at
+# an unreachable host; production never sets it.
+API="${P2B_MAIN_API:-https://api.github.com/repos/$OWNER/$REPO/git/ref/heads/$REF}"
 refuse() { echo "PROVENANCE REFUSED ($1): $2"; exit 1; }
 [ "${VERCEL_ENV:-}" = "production" ] || refuse NOT_PRODUCTION "target is \"${VERCEL_ENV:-}\", not production"
 [ "${VERCEL_GIT_PROVIDER:-}" = "github" ] || refuse NOT_GITHUB "git provider is \"${VERCEL_GIT_PROVIDER:-}\" - not a GitHub-triggered build"
@@ -29,7 +35,27 @@ case "$SHA" in
   ????????????????????????????????????????) ;;
   *) refuse NO_SHA "no full commit SHA on this deployment" ;;
 esac
-MAIN=$(git ls-remote "$REMOTE" "refs/heads/$REF" 2>/dev/null | cut -f1)
-[ -n "$MAIN" ] || refuse MAIN_UNREADABLE "GitHub refs/heads/$REF could not be read; refusing rather than guessing"
+[ -n "${P2B_GH_READ_TOKEN:-}" ] || refuse NO_READ_CREDENTIAL "no repository read credential in the build environment"
+
+# THE FETCH'S EXIT STATUS IS CHECKED ON ITS OWN.
+#
+# Written as one pipeline this was silently broken: a pipeline reports the LAST
+# command's status, so curl exiting 28 on a timeout still produced status 0 and
+# whatever the parser scraped out of partial output was accepted as main. So the
+# fetch is its own statement, its status is tested before anything is parsed, and
+# the timeouts are bounded so a hanging GitHub refuses rather than stalls a build.
+BODY=$(printf 'url = "%s"\nheader = "Authorization: Bearer %s"\nheader = "Accept: application/vnd.github+json"\nsilent\nshow-error\nfail\nconnect-timeout = 10\nmax-time = 30\n' "$API" "$P2B_GH_READ_TOKEN" | curl --config - 2>/dev/null)
+RC=$?
+[ "$RC" -eq 0 ] || refuse MAIN_UNREADABLE "GitHub read failed (curl exit $RC); refusing rather than guessing"
+[ -n "$BODY" ] || refuse MAIN_UNREADABLE "GitHub returned an empty body"
+
+# STRUCTURE BEFORE VALUE. A 40-hex string appearing anywhere in an error page is
+# not a SHA; it has to be the object sha of the ref that was asked for.
+case "$BODY" in
+  *'"ref"'*"refs/heads/$REF"*) ;;
+  *) refuse MAIN_UNREADABLE "response is not the refs/heads/$REF object" ;;
+esac
+MAIN=$(printf '%s' "$BODY" | tr ',' '\n' | sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{40\}\)".*/\1/p' | head -1)
+[ -n "$MAIN" ] || refuse MAIN_UNREADABLE "no commit sha in the ref object"
 [ "$MAIN" = "$SHA" ] || refuse SHA_NOT_MAIN "commit $SHA is not GitHub $REF $MAIN"
 echo "PROVENANCE OK $SHA"
