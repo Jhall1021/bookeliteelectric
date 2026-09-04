@@ -384,14 +384,24 @@ function failsClosed() {
   ok(declared.length === PLUMBING_SERVICES.length, "every service declares all four metadata behaviors",
     `${PLUMBING_SERVICES.length - declared.length} incomplete`);
 
-  // The third appointment shell has no platform kind, and nothing may pretend
-  // otherwise by folding it into PRE_WORK.
+  // The third shell used to have no platform kind, and nothing was allowed to
+  // pretend otherwise by folding it into PRE_WORK. G3 closed that gap: the
+  // platform gained SERVICE_CALL, so the shell now names its own kind rather
+  // than borrowing one.
+  //
+  // NAMING A KIND IS NOT SCHEDULING ONE. `blocks: "PRICING"` is unchanged, and
+  // nothing in production creates a SERVICE_CALL row — asserted in
+  // scripts/verify-appointment-kinds.ts, which owns that boundary.
   const serviceCall = PLUMBING_APPOINTMENT_SHELLS.find((s) => s.key === "on_site_service")!;
-  ok(!shellIsSchedulable(serviceCall), "the service-call shell is not schedulable against today's schema");
-  ok((serviceCall.requiresSchemaChange ?? "").length > 0,
-    "the service-call shell records the schema change it needs");
+  ok(shellIsSchedulable(serviceCall), "the service-call shell names a platform kind");
+  ok(serviceCall.platformKind === "SERVICE_CALL",
+    "and it is SERVICE_CALL, not a borrowed PRE_WORK", String(serviceCall.platformKind));
+  ok(serviceCall.requiresSchemaChange === null,
+    "so it no longer records an outstanding schema change");
+  ok(serviceCall.blocks === "PRICING",
+    "and what it blocks is unchanged — it produces a scope, it does not verify one");
   const schedulable = PLUMBING_APPOINTMENT_SHELLS.filter(shellIsSchedulable);
-  ok(schedulable.length === 2, "the other two shells map onto existing AppointmentKind values");
+  ok(schedulable.length === 3, "all three shells now map onto AppointmentKind values");
 }
 
 
