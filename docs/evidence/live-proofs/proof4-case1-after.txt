@@ -116,3 +116,24 @@ PROOF 4 CASE 1 — SATISFIED
     ALSO NOT ESTABLISHED: whether the movement is attributable to creation
     itself or to this deployment becoming the newest READY production one.
     Nothing here separates those.
+
+CORRECTED CONCLUSION (supersedes the framing above)
+
+  Generated Vercel aliases moved; the governed canonical customer-facing hosts
+  are a SEPARATE CLASS and none moved — none exists on this project, and the
+  release enumerates only app.price2book.com, price2book.com and
+  www.price2book.com, skipping every other alias as "genuinely not ours".
+
+  The project's production target did NOT change: targets.production is still
+  dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf.
+
+  CASE 1 THEREFORE DOES NOT REFUTE THE PHASE B SAFETY PROPERTY AND REQUIRES NO
+  RELEASE-CODE REDESIGN. The property, stated at the width the code actually
+  claims: no canonical customer-facing host moves before Phase C. Creating a
+  production-target deployment moves generated branch and project+scope aliases
+  and does not move the production target.
+
+  My earlier text above — "creation at target production is not inert", the
+  window "does not exist", "verifying something that is already live" — read the
+  generated aliases as though they were the governed hosts. See
+  proof4-case1-reconciliation.txt.

@@ -64,7 +64,8 @@ fi
 echo
 
 echo "VERCEL $PROJECT"
-req "https://api.vercel.com/v9/projects/$PROJECT" "$vc" | python3 -c '
+proj=$(req "https://api.vercel.com/v9/projects/$PROJECT" "$vc")
+printf '%s' "$proj" | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
 print("  effective build configuration")
@@ -72,6 +73,68 @@ for k in ("rootDirectory","installCommand","buildCommand","outputDirectory","fra
     v=d.get(k)
     if k=="buildCommand" and v: print("    %-16s %s" % (k, v))
     else: print("    %-16s %r" % (k, v))'
+echo
+
+# THE PRODUCTION TARGET, READ AND VALIDATED — never inferred.
+#
+# Reconciling proof 4 case 1 needed this field and the snapshot did not carry
+# it, so the conclusion had to be reasoned out of the target's creation
+# timestamp instead. That worked and should not have been necessary.
+#
+# It is recorded SEPARATELY from the alias mappings because they are separate
+# facts: two generated aliases moved on that deployment while the production
+# target did not, and a snapshot that blurred them would have hidden exactly the
+# distinction the reconciliation turned on.
+#
+# An unreadable, missing, malformed or ambiguous target REFUSES. A recorded
+# value that was really a guess is worse than no value at all.
+echo "  production target"
+target=$(printf '%s' "$proj" | python3 -c '
+import json, re, sys
+try:
+    d = json.load(sys.stdin)
+except Exception as e:
+    print("UNREADABLE the project response is not JSON (%s)" % e); raise SystemExit
+if isinstance(d, dict) and "error" in d:
+    print("UNREADABLE the project response is an error: %s"
+          % str((d.get("error") or {}).get("message"))[:120]); raise SystemExit
+if not isinstance(d, dict):
+    print("UNREADABLE the project response is not an object"); raise SystemExit
+if "targets" not in d:
+    print("MISSING the project response carries no targets field"); raise SystemExit
+t = d.get("targets")
+if not isinstance(t, dict):
+    print("MALFORMED targets is not an object (%r)" % (t,)); raise SystemExit
+if "production" not in t:
+    print("MISSING targets carries no production entry"); raise SystemExit
+p = t.get("production")
+if p is None:
+    print("MISSING targets.production is null"); raise SystemExit
+if not isinstance(p, dict):
+    print("MALFORMED targets.production is not an object (%r)" % (p,)); raise SystemExit
+# Every id-bearing field must agree. Two different ids is not a target.
+ids = {p[k] for k in ("id", "deploymentId", "uid") if k in p and p[k] is not None}
+if not ids:
+    print("MISSING targets.production carries no deployment id"); raise SystemExit
+if len(ids) > 1:
+    print("AMBIGUOUS targets.production names more than one deployment: %s"
+          % ", ".join(sorted(map(repr, ids)))); raise SystemExit
+dep = ids.pop()
+if not isinstance(dep, str) or not re.fullmatch(r"dpl_[A-Za-z0-9]+", dep):
+    print("MALFORMED the production deployment id is not a deployment id (%r)" % (dep,)); raise SystemExit
+print("OK %s %s" % (dep, p.get("readyState")))
+')
+case "$target" in
+  "OK "*)
+    set -- $target
+    echo "    deployment id   $2"
+    echo "    readyState      $3" ;;
+  "")
+    refuse "the production target could not be read at all (no output)" ;;
+  *)
+    echo "    UNREAD: $target"
+    refuse "the production target is $target" ;;
+esac
 echo
 echo "  deployments (most recent first)"
 req "https://api.vercel.com/v6/deployments?projectId=$PROJECT&limit=10" "$vc" | python3 -c '
