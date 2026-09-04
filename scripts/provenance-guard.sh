@@ -49,13 +49,44 @@ RC=$?
 [ "$RC" -eq 0 ] || refuse MAIN_UNREADABLE "GitHub read failed (curl exit $RC); refusing rather than guessing"
 [ -n "$BODY" ] || refuse MAIN_UNREADABLE "GitHub returned an empty body"
 
-# STRUCTURE BEFORE VALUE. A 40-hex string appearing anywhere in an error page is
-# not a SHA; it has to be the object sha of the ref that was asked for.
-case "$BODY" in
-  *'"ref"'*"refs/heads/$REF"*) ;;
-  *) refuse MAIN_UNREADABLE "response is not the refs/heads/$REF object" ;;
+# PARSED, NOT SCRAPED.
+#
+# Matching '"ref"' and a 40-hex string anywhere in the body accepted three things
+# it should not have: invalid JSON, a response whose real ref differed while
+# "refs/heads/main" appeared elsewhere in it, and an object of type "blob" whose
+# sha is a file's, not a commit's. So the body is parsed, and the ref, the object
+# type and the sha are each required to be what they claim.
+#
+# node is present: this runs inside the Vercel build, immediately before
+# `npm run build`. If it is somehow absent, that is a refusal like any other
+# missing fact.
+command -v node >/dev/null 2>&1 || refuse NO_PARSER "node is not available to parse the GitHub response"
+
+MAIN=$(printf '%s' "$BODY" | node -e '
+  let s = "";
+  process.stdin.on("data", (d) => (s += d));
+  process.stdin.on("end", () => {
+    let j;
+    try { j = JSON.parse(s); } catch { process.exit(3); }
+    if (!j || typeof j !== "object") process.exit(3);
+    if (j.ref !== "refs/heads/" + process.argv[1]) process.exit(4);
+    const o = j.object;
+    if (!o || typeof o !== "object") process.exit(5);
+    if (o.type !== "commit") process.exit(6);
+    if (typeof o.sha !== "string" || !/^[0-9a-f]{40}$/.test(o.sha)) process.exit(7);
+    process.stdout.write(o.sha);
+  });
+' "$REF" 2>/dev/null)
+PRC=$?
+case "$PRC" in
+  0) ;;
+  3) refuse MAIN_UNREADABLE "GitHub response is not valid JSON" ;;
+  4) refuse MAIN_UNREADABLE "response is not the refs/heads/$REF object" ;;
+  5) refuse MAIN_UNREADABLE "ref object has no object field" ;;
+  6) refuse MAIN_UNREADABLE "refs/heads/$REF does not point at a commit" ;;
+  7) refuse MAIN_UNREADABLE "ref object carries no valid commit sha" ;;
+  *) refuse MAIN_UNREADABLE "GitHub response could not be parsed (exit $PRC)" ;;
 esac
-MAIN=$(printf '%s' "$BODY" | tr ',' '\n' | sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{40\}\)".*/\1/p' | head -1)
 [ -n "$MAIN" ] || refuse MAIN_UNREADABLE "no commit sha in the ref object"
 [ "$MAIN" = "$SHA" ] || refuse SHA_NOT_MAIN "commit $SHA is not GitHub $REF $MAIN"
 echo "PROVENANCE OK $SHA"

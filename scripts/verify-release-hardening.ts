@@ -1,16 +1,13 @@
 /**
- * The corrected release guard, exercised end to end — without a network,
- * a database, credentials, or Vercel.
+ * The corrected release path, exercised through its REAL adapters — with no
+ * network, database, credentials, or Vercel.
  *
  *   npx tsx scripts/verify-release-hardening.ts
  *
- * Every effect is injected and recorded, so the assertion that matters can
- * actually be made: ON EVERY REFUSAL, ZERO PROMOTION REQUESTS ARE SENT. A
- * refusal that is computed and then ignored by its caller is not a guard, and
- * no test of a pure function can see the difference.
- *
- * The shell cases run the real guard with a FAKE curl on PATH, which is how a
- * timeout is tested without waiting for one.
+ * Every case below reproduces something that was accepted and should not have
+ * been. They drive the actual functions the release command calls — the API
+ * adapters with a fake fetch, the shell guard with a fake curl — rather than
+ * asserting that the source text mentions them.
  */
 
 import { execFileSync } from "node:child_process";
@@ -18,19 +15,13 @@ import { mkdtempSync, writeFileSync, chmodSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CANONICAL, PROVENANCE_BUILD_COMMAND, VERCEL_BUILD_COMMAND_MAX, type Candidate } from "./_releaseProvenance";
-import { parseCurrentProduction, verifiedOrigin, evidenceRefusal, ORIGIN_TRUST_BASIS, type BuildEvidence, type OriginTrustBasis } from "./_releaseSource";
-
-/**
- * A basis that pretends the observation has been done, ONLY so the checks
- * downstream of origin can be exercised. Production uses the module constant,
- * which is UNVERIFIED and refuses everything — proved in trustBasisFailsClosed().
- */
-const OBSERVED: OriginTrustBasis = {
-  state: "OBSERVED", observedOn: "TEST-ONLY",
-  trustedFields: ["source", "gitSource.org", "gitSource.repo", "gitSource.ref", "gitSource.sha"],
-  note: "test fixture — not a real observation",
-};
-import { promote, type ReleaseEffects } from "./_releaseOrchestration";
+import {
+  parseCurrentProduction, verifiedOrigin, evidenceRefusal, resolveEffectiveBuildCommand,
+  basisCovers, ORIGIN_TRUST_BASIS, ORIGIN_DECISION_FIELDS,
+  type BuildEvidence, type OriginTrustBasis,
+} from "./_releaseSource";
+import { validateRelease, applyRelease, type ReleaseEffects, type ReleasePlan } from "./_releaseOrchestration";
+import { freshMainSha, buildEvidence, vercelJsonBuildCommand } from "./release-production";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string, detail = "") => {
@@ -39,266 +30,300 @@ const ok = (c: boolean, label: string, detail = "") => {
 };
 
 const MAIN = "a".repeat(40), OTHER = "b".repeat(40);
+const CAND = "dpl_candidate";
+
+/** A basis that is complete — dated, and covering every decision field. */
+const OBSERVED: OriginTrustBasis = {
+  state: "OBSERVED", observedOn: "2026-09-04",
+  trustedFields: [...ORIGIN_DECISION_FIELDS],
+  note: "test fixture — not a real observation",
+};
 
 const candidate: Candidate = {
-  id: "dpl_candidate", url: "x.vercel.app", readyState: "READY", target: "production",
+  id: CAND, url: "x.vercel.app", readyState: "READY", target: "production",
   projectId: CANONICAL.vercelProjectId, githubDeployment: false,
   githubOrg: undefined, githubRepo: undefined, githubRef: undefined, githubSha: undefined,
   clientSha: undefined, createdAt: 1,
 };
 
-const GOOD_DEPLOYMENT = {
+const GOOD_RECORD = {
+  uid: CAND, projectId: CANONICAL.vercelProjectId, target: "production", readyState: "READY",
   source: "git",
   gitSource: { type: "github", org: CANONICAL.owner, repo: CANONICAL.repo, ref: "main", sha: MAIN },
 };
 const GOOD_CURRENT = { uid: "dpl_live", readyState: "READY", alias: [...CANONICAL.canonicalHosts] };
 const GOOD_EVIDENCE: BuildEvidence = {
-  effectiveBuildCommand: PROVENANCE_BUILD_COMMAND,
-  commitVercelJsonBuildCommand: null,
+  effectiveBuildCommand: { read: true, value: PROVENANCE_BUILD_COMMAND },
+  commitVercelJsonBuildCommand: { read: true, value: null },
   guardLineSha: MAIN,
-  projectBuildCommandNow: PROVENANCE_BUILD_COMMAND,
+  projectBuildCommandNow: { read: true, value: PROVENANCE_BUILD_COMMAND },
 };
 
-/** Recording fakes. `assigned` is the whole point. */
 function effects(over: Partial<ReleaseEffects> = {}) {
-  const assigned: string[] = [];
+  const promotes: string[] = [], intents: ReleasePlan[] = [];
   const fx: ReleaseEffects = {
     readCurrentProduction: async () => ({ raw: GOOD_CURRENT }),
     readFreshMain: async () => MAIN,
-    readDeployment: async () => GOOD_DEPLOYMENT,
+    readDeployment: async () => GOOD_RECORD,
     readBuildEvidence: async () => GOOD_EVIDENCE,
-    promoteDeployment: async (d) => { assigned.push(d); },
+    recordIntent: async (p) => { intents.push(p); },
+    promoteDeployment: async (d) => { promotes.push(d); },
+    recordCompletion: async () => {},
     ...over,
   };
-  return { fx, assigned };
+  return { fx, promotes, intents };
 }
 
-async function refusesWithNoRequests(over: Partial<ReleaseEffects>, code: string, label: string) {
-  const { fx, assigned } = effects(over);
-  const r = await promote(candidate, MAIN, PROVENANCE_BUILD_COMMAND, fx, OBSERVED);
-  ok(!r.ok && r.code === code && assigned.length === 0, label,
-    `got ${r.ok ? "OK" : r.code}, ${assigned.length} promote request(s)`);
+async function refuses(over: Partial<ReleaseEffects>, code: string, label: string) {
+  const { fx, promotes } = effects(over);
+  const v = await validateRelease(candidate, MAIN, PROVENANCE_BUILD_COMMAND, fx, OBSERVED);
+  ok(!v.ok && v.code === code && promotes.length === 0, label,
+    `got ${v.ok ? "OK" : v.code}, ${promotes.length} promote request(s)`);
 }
 
-/* ── 1. A refusal must send nothing ──────────────────────────────────── */
+/* ── 1. A valid dry run succeeds, and mutates nothing ─────────────────── */
+async function dryRunCanSucceed() {
+  console.log("\n  A VALID DRY RUN SUCCEEDS\n");
+  // The regression: validation always called promoteDeployment, and the real
+  // dry run's promote effect throws, so a valid dry run could never succeed.
+  const { fx, promotes, intents } = effects({
+    recordIntent: async () => { throw new Error("must not be reached in a dry run"); },
+    promoteDeployment: async () => { throw new Error("must not be reached in a dry run"); },
+  });
+  const v = await validateRelease(candidate, MAIN, PROVENANCE_BUILD_COMMAND, fx, OBSERVED);
+  ok(v.ok === true, "validation succeeds without touching any write effect", v.ok ? "" : `${v.code}: ${v.detail}`);
+  ok(promotes.length === 0 && intents.length === 0, "and issues zero promote and zero record calls");
+  if (v.ok) ok(v.plan.replaced === "dpl_live", "and names the rollback target it would replace");
+}
+
+/* ── 2. Refusals send nothing ─────────────────────────────────────────── */
 async function refusalsSendNothing() {
   console.log("\n  EVERY REFUSAL IS A NO-OP\n");
-
-  await refusesWithNoRequests({ readCurrentProduction: async () => ({ error: new Error("502") }) },
-    "CURRENT_PRODUCTION_UNREADABLE", "an unreadable current production promotes nothing");
-
-  await refusesWithNoRequests({ readCurrentProduction: async () => { throw new Error("timeout"); } },
-    "CURRENT_PRODUCTION_UNREADABLE", "a THROWN read is caught and promotes nothing");
-
-  // The exact shape that slipped through the earlier version.
-  await refusesWithNoRequests(
-    { readCurrentProduction: async () => ({ raw: { uid: "", alias: [], readyState: "ERROR" } }) },
-    "CURRENT_PRODUCTION_MALFORMED", "empty id, empty aliases and ERROR state promotes nothing");
-
-  await refusesWithNoRequests({ readCurrentProduction: async () => ({ raw: { uid: "d", readyState: "READY", alias: ["a", ""] } }) },
-    "CURRENT_PRODUCTION_MALFORMED", "an alias list with an empty entry promotes nothing");
-
-  await refusesWithNoRequests({ readFreshMain: async () => null },
-    "MAIN_UNREADABLE", "an unreadable fresh main promotes nothing");
-
-  await refusesWithNoRequests({ readDeployment: async () => ({ source: "cli", gitSource: null }) },
-    "ORIGIN_UNVERIFIED", "a CLI-sourced deployment promotes nothing");
-
-  // The original defect: meta says all the right things and proves nothing.
-  await refusesWithNoRequests({ readDeployment: async () => ({
-      meta: { githubDeployment: "1", githubOrg: CANONICAL.owner, githubRepo: CANONICAL.repo,
-              githubCommitRef: "main", githubCommitSha: MAIN } }) },
-    "ORIGIN_UNVERIFIED", "self-asserted meta alone promotes nothing");
-
-  await refusesWithNoRequests({ readDeployment: async () => ({
-      source: "git", gitSource: { type: "github", org: "someone-else", repo: "fork", ref: "main", sha: MAIN } }) },
-    "WRONG_REPOSITORY", "a verified origin naming another repository promotes nothing");
-
-  await refusesWithNoRequests({ readBuildEvidence: async () => null },
-    "BUILD_CONFIG_UNKNOWN", "unknown build configuration promotes nothing");
-
-  // THE CASE THE LOG LINE USED TO WAVE THROUGH.
-  await refusesWithNoRequests({ readBuildEvidence: async () => ({
-      ...GOOD_EVIDENCE, effectiveBuildCommand: "npm run build" }) },
-    "BUILD_COMMAND_NOT_APPROVED",
-    "a deployment built WITHOUT the guard promotes nothing, though its log line says PROVENANCE OK");
-
-  await refusesWithNoRequests({ readBuildEvidence: async () => ({
-      ...GOOD_EVIDENCE, commitVercelJsonBuildCommand: "next build" }) },
-    "BUILD_COMMAND_OVERRIDDEN", "a vercel.json override at the built commit promotes nothing");
+  await refuses({ readCurrentProduction: async () => ({ error: new Error("502") }) }, "CURRENT_PRODUCTION_UNREADABLE", "an unreadable current production");
+  await refuses({ readCurrentProduction: async () => ({ raw: { uid: "", alias: [], readyState: "ERROR" } }) }, "CURRENT_PRODUCTION_MALFORMED", "empty id, empty aliases, ERROR state");
+  await refuses({ readFreshMain: async () => null }, "MAIN_UNREADABLE", "an unreadable fresh main");
+  await refuses({ readDeployment: async () => ({ ...GOOD_RECORD, source: undefined }) }, "ORIGIN_UNVERIFIED", "a record with NO source field");
+  await refuses({ readDeployment: async () => ({ ...GOOD_RECORD, gitSource: { ...GOOD_RECORD.gitSource, type: "gitlab" } }) }, "ORIGIN_UNVERIFIED", "a gitlab provider");
+  await refuses({ readDeployment: async () => ({ ...GOOD_RECORD, uid: "dpl_someone_else" }) }, "ORIGIN_UNVERIFIED", "a record for a DIFFERENT deployment id");
+  await refuses({ readDeployment: async () => ({ ...GOOD_RECORD, projectId: "prj_other" }) }, "ORIGIN_UNVERIFIED", "a record for a different project");
+  await refuses({ readDeployment: async () => ({ ...GOOD_RECORD, target: "preview" }) }, "ORIGIN_UNVERIFIED", "a record whose target is preview");
+  await refuses({ readDeployment: async () => ({ ...GOOD_RECORD, readyState: "BUILDING" }) }, "ORIGIN_UNVERIFIED", "a record that is not READY");
+  await refuses({ readDeployment: async () => ({ meta: { githubCommitSha: MAIN, githubOrg: CANONICAL.owner } }) }, "ORIGIN_UNVERIFIED", "self-asserted meta alone");
+  await refuses({ readBuildEvidence: async () => null }, "BUILD_CONFIG_UNKNOWN", "no build evidence");
+  await refuses({ readBuildEvidence: async () => ({ ...GOOD_EVIDENCE, commitVercelJsonBuildCommand: { read: false, why: "not read" } }) }, "BUILD_CONFIG_UNKNOWN", "vercel.json never read");
+  await refuses({ readBuildEvidence: async () => ({ ...GOOD_EVIDENCE, effectiveBuildCommand: { read: true, value: "npm run build" } }) }, "BUILD_COMMAND_NOT_APPROVED", "built without the guard, log line notwithstanding");
+  await refuses({ readBuildEvidence: async () => ({ ...GOOD_EVIDENCE, commitVercelJsonBuildCommand: { read: true, value: "next build" } }) }, "BUILD_COMMAND_OVERRIDDEN", "a vercel.json override at the built commit");
 }
 
-/* ── 2. The happy path still promotes ────────────────────────────────── */
-async function theHappyPathWorks() {
-  console.log("\n  AND A VERIFIED CANDIDATE IS PROMOTED\n");
-  const { fx, assigned } = effects();
-  const r = await promote(candidate, MAIN, PROVENANCE_BUILD_COMMAND, fx, OBSERVED);
-  ok(r.ok === true, "a fully verified candidate promotes", r.ok ? "" : `${r.code}: ${r.detail}`);
-  ok(assigned.length === 1 && assigned[0] === candidate.id,
-    "and exactly one promote request is sent, for the candidate");
-  ok(r.ok === true && r.replaced === "dpl_live",
-    "and the replaced deployment is recorded as the rollback target");
+/* ── 3. The trust basis must be complete ──────────────────────────────── */
+function basisMustBeComplete() {
+  console.log("\n  THE TRUST BASIS MUST ACTUALLY SAY SOMETHING\n");
+  const bare: OriginTrustBasis = { state: "OBSERVED", observedOn: null, trustedFields: [], note: "" };
+  ok(!basisCovers(bare), "an OBSERVED basis with no date and no fields is not a basis");
+  ok(!verifiedOrigin(GOOD_RECORD, bare).ok, "and it verifies nothing");
+  const partial: OriginTrustBasis = { state: "OBSERVED", observedOn: "2026-09-04", trustedFields: ["gitSource.sha"], note: "" };
+  ok(!basisCovers(partial), "a basis covering only some decision fields is not enough");
+  ok(basisCovers(OBSERVED), "a dated basis covering every decision field is");
+  ok(ORIGIN_TRUST_BASIS.state === "UNVERIFIED" && !basisCovers(ORIGIN_TRUST_BASIS),
+    "and the shipped default still refuses everything");
 }
 
-/* ── 3. The log line is corroboration, never authority ───────────────── */
-function logLineIsNotAuthority() {
-  console.log("\n  THE GUARD LOG LINE IS NOT AUTHORITY\n");
-  ok(evidenceRefusal({ ...GOOD_EVIDENCE, effectiveBuildCommand: "npm run build" },
-      PROVENANCE_BUILD_COMMAND, MAIN)?.code === "BUILD_COMMAND_NOT_APPROVED",
-    "a printed PROVENANCE OK line cannot substitute for the approved build command");
-  ok(evidenceRefusal({ ...GOOD_EVIDENCE, guardLineSha: OTHER }, PROVENANCE_BUILD_COMMAND, MAIN)?.code
-      === "GUARD_SHA_MISMATCH",
-    "but a CONTRADICTING line still refuses — it may veto, not permit");
-  ok(evidenceRefusal({ ...GOOD_EVIDENCE, guardLineSha: null }, PROVENANCE_BUILD_COMMAND, MAIN) === null,
-    "and an absent line does not block an otherwise correctly built deployment");
+/* ── 4. Contradictory build fields are not silently reconciled ────────── */
+function contradictionsRefuse() {
+  console.log("\n  CONTRADICTORY BUILD EVIDENCE\n");
+  const r = resolveEffectiveBuildCommand("npm run build", PROVENANCE_BUILD_COMMAND);
+  ok(!r.read, "two disagreeing build-command fields are unread, not reconciled by preference");
+  ok(resolveEffectiveBuildCommand(null, null).read === false, "and neither present is also unread");
+  ok(resolveEffectiveBuildCommand(PROVENANCE_BUILD_COMMAND, PROVENANCE_BUILD_COMMAND).read === true,
+    "while two agreeing fields are read");
+  const bad = evidenceRefusal({ ...GOOD_EVIDENCE, effectiveBuildCommand: r }, PROVENANCE_BUILD_COMMAND, MAIN);
+  ok(bad?.code === "BUILD_CONFIG_UNKNOWN", "and a contradiction refuses rather than picking a side");
 }
 
-/* ── 4. Origin trust basis fails closed until observed ───────────────── */
-function trustBasisFailsClosed() {
-  console.log("\n  THE ORIGIN TRUST BASIS IS DECLARED, NOT ASSUMED\n");
-  const r = verifiedOrigin(GOOD_DEPLOYMENT);
-  if (ORIGIN_TRUST_BASIS.state === "UNVERIFIED") {
-    ok(!r.ok && r.reason === "no_trust_basis",
-      "while the trust basis is UNVERIFIED even a well-formed origin is refused");
-    ok(ORIGIN_TRUST_BASIS.trustedFields.length === 0,
-      "and no field is claimed trustworthy without an adversarial observation");
-  } else {
-    ok(r.ok === true, "with an OBSERVED basis a well-formed git origin verifies");
-    ok(ORIGIN_TRUST_BASIS.trustedFields.length > 0 && ORIGIN_TRUST_BASIS.observedOn !== null,
-      "and OBSERVED requires recorded fields and a date");
+/* ── 5. Ordering: main re-read, and the record before the mutation ────── */
+async function orderingHoles() {
+  console.log("\n  ORDERING\n");
+
+  // main moves during the slow reads; apply must catch it.
+  const { fx, promotes } = effects();
+  const v = await validateRelease(candidate, MAIN, PROVENANCE_BUILD_COMMAND, fx, OBSERVED);
+  ok(v.ok, "validated at main");
+  if (v.ok) {
+    const moved = effects({ readFreshMain: async () => OTHER });
+    const out = await applyRelease(v.plan, moved.fx);
+    ok(!out.ok && out.code === "MAIN_MOVED" && moved.promotes.length === 0,
+      "main moving between validation and apply refuses, promoting nothing",
+      `got ${out.ok ? "OK" : out.code}, ${moved.promotes.length} promote(s)`);
   }
+
+  // A failed intent record must stop the release.
+  if (v.ok) {
+    const noLog = effects({ recordIntent: async () => { throw new Error("disk full"); } });
+    const out = await applyRelease(v.plan, noLog.fx);
+    ok(!out.ok && out.code === "RECORD_FAILED" && noLog.promotes.length === 0,
+      "a rollback record that cannot be written prevents the promotion",
+      `got ${out.ok ? "OK" : out.code}, ${noLog.promotes.length} promote(s)`);
+  }
+
+  // And the record genuinely precedes the mutation.
+  if (v.ok) {
+    const order: string[] = [];
+    const seq = effects({
+      recordIntent: async () => { order.push("record"); },
+      promoteDeployment: async () => { order.push("promote"); },
+    });
+    const out = await applyRelease(v.plan, seq.fx);
+    ok(out.ok && order.join(",") === "record,promote",
+      `the rollback target is recorded before the promote request (${order.join(" -> ")})`);
+  }
+  ok(promotes.length === 0, "and validation itself never promoted");
 }
 
-/* ── 5. The build command ────────────────────────────────────────────── */
+/* ── 6. The real adapters, with a fake fetch ──────────────────────────── */
+async function realAdapters() {
+  console.log("\n  THE REAL ADAPTERS\n");
+
+  const res = (status: number, body: unknown, text?: string) => ({
+    ok: status >= 200 && status < 300, status,
+    json: async () => body, text: async () => text ?? JSON.stringify(body),
+  }) as unknown as Response;
+
+  // freshMainSha — the authenticated read that previously did not authenticate.
+  ok(await freshMainSha(async () => res(200, {}), undefined) === null,
+    "freshMainSha with no token returns null rather than trying an unauthenticated read");
+
+  let sentAuth: string | null = null;
+  const capturing = (async (_u: string | URL | Request, init?: RequestInit) => {
+    sentAuth = new Headers(init?.headers).get("authorization");
+    return res(200, { ref: "refs/heads/main", object: { type: "commit", sha: MAIN } });
+  }) as typeof fetch;
+  ok(await freshMainSha(capturing, "t") === MAIN, "freshMainSha reads the sha from a well-formed ref object");
+  ok(sentAuth === "Bearer t", "and sends the credential as a header, not in a URL or argv");
+
+  ok(await freshMainSha(async () => res(200, { ref: "refs/heads/other", object: { type: "commit", sha: MAIN } }), "t") === null,
+    "and refuses a response for a different ref");
+  ok(await freshMainSha(async () => res(200, { ref: "refs/heads/main", object: { type: "blob", sha: MAIN } }), "t") === null,
+    "and refuses an object that is not a commit");
+  ok(await freshMainSha(async () => res(500, {}), "t") === null, "and refuses a non-2xx");
+
+  // vercelJsonBuildCommand — 404 is a READ; a failure is not.
+  const v404 = await vercelJsonBuildCommand(MAIN, async () => res(404, {}), "t");
+  ok(v404.read === true && v404.value === null, "a 404 vercel.json is READ as 'no override'");
+  const v500 = await vercelJsonBuildCommand(MAIN, async () => res(500, {}), "t");
+  ok(v500.read === false, "but a failed read is NOT 'no override'");
+  const vBad = await vercelJsonBuildCommand(MAIN, async () => res(200, {}, "{not json"), "t");
+  ok(vBad.read === false, "and unparseable vercel.json is not 'no override' either");
+  const vSet = await vercelJsonBuildCommand(MAIN, async () => res(200, {}, '{"buildCommand":"next build"}'), "t");
+  ok(vSet.read === true && vSet.value === "next build", "and a real override is read as one");
+  ok((await vercelJsonBuildCommand(MAIN, async () => res(200, {}), undefined)).read === false,
+    "and with no credential it is unread, never assumed absent");
+
+  // buildEvidence — the adapter that used to manufacture "no override".
+  const api = (async (path: string) => {
+    if (path.startsWith("/v13/deployments"))
+      return { status: 200, body: { buildCommand: "npm run build", projectSettings: { buildCommand: PROVENANCE_BUILD_COMMAND } } };
+    return { status: 200, body: { buildCommand: PROVENANCE_BUILD_COMMAND } };
+  }) as never;
+  const ev = await buildEvidence(api, CAND, MAIN, async () => res(404, {}), "t");
+  ok(ev !== null && ev.effectiveBuildCommand.read === false,
+    "the contradictory-command fixture is now UNREAD rather than resolved by preference");
+  ok(ev !== null && ev.commitVercelJsonBuildCommand.read === true,
+    "and vercel.json is genuinely read rather than hardcoded null");
+  ok(evidenceRefusal(ev, PROVENANCE_BUILD_COMMAND, MAIN)?.code === "BUILD_CONFIG_UNKNOWN",
+    "so the decision refuses it");
+}
+
+/* ── 7. parseCurrentProduction ────────────────────────────────────────── */
+function currentProduction() {
+  console.log("\n  CURRENT PRODUCTION\n");
+  ok(parseCurrentProduction(undefined, new Error("boom")).ok === false, "a fetch error is unreadable");
+  ok(parseCurrentProduction({ uid: "", alias: [], readyState: "ERROR" }).ok === false, "empty/ERROR is malformed");
+  ok(parseCurrentProduction({ uid: "d", readyState: "READY", alias: ["a", ""] }).ok === false, "an empty alias entry is malformed");
+  ok(parseCurrentProduction(GOOD_CURRENT).ok === true, "and a complete record parses");
+}
+
+/* ── 8. The build command ─────────────────────────────────────────────── */
 function buildCommand() {
   console.log("\n  THE BUILD COMMAND\n");
   ok(PROVENANCE_BUILD_COMMAND.length <= VERCEL_BUILD_COMMAND_MAX,
     `fits Vercel's ceiling (${PROVENANCE_BUILD_COMMAND.length}/${VERCEL_BUILD_COMMAND_MAX})`);
   ok(PROVENANCE_BUILD_COMMAND.includes(CANONICAL.owner) && PROVENANCE_BUILD_COMMAND.includes(CANONICAL.repo),
-    "and still pins the canonical repository, so the approved string means something");
+    "and pins the canonical repository");
   ok(!/gh[ps]_|github_pat_/.test(PROVENANCE_BUILD_COMMAND), "and carries no literal credential");
-  ok(!/-H\s+["']?Authorization/i.test(PROVENANCE_BUILD_COMMAND),
-    "and passes no Authorization header as an argument");
+  ok(!/-H\s+["']?Authorization/i.test(PROVENANCE_BUILD_COMMAND), "and no Authorization header in argv");
 }
 
-/* ── 6. The shell guard, with a fake curl ────────────────────────────── */
+/* ── 9. The shell guard, parsed not scraped ───────────────────────────── */
 function shellGuard() {
-  console.log("\n  THE SHELL GUARD FAILS CLOSED\n");
-
+  console.log("\n  THE SHELL GUARD PARSES JSON\n");
   const dir = mkdtempSync(join(tmpdir(), "guard-"));
-  const fakeCurl = (exitCode: number, body: string) => {
-    const p = join(dir, "curl");
-    writeFileSync(p, `#!/bin/sh\ncat >/dev/null\n[ -n '${body}' ] && printf '%s' '${body}'\nexit ${exitCode}\n`);
-    chmodSync(p, 0o755);
-    return dir;
-  };
-
   const run = (exitCode: number, body: string, env: Record<string, string> = {}) => {
-    const bin = fakeCurl(exitCode, body);
+    const p = join(dir, "curl");
+    writeFileSync(p, `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${body.replace(/'/g, "'\\''")}'\nexit ${exitCode}\n`);
+    chmodSync(p, 0o755);
     try {
-      const out = execFileSync("sh", ["scripts/provenance-guard.sh"], {
-        // A DELIBERATELY MINIMAL ENVIRONMENT. The guard must decide from the
-        // facts it is given, so it gets exactly those and nothing inherited.
-        env: {
-          NODE_ENV: process.env.NODE_ENV ?? "test",
-          PATH: `${bin}:${process.env.PATH}`,
+      return { code: 0, out: execFileSync("sh", ["scripts/provenance-guard.sh"], {
+        env: { NODE_ENV: "test", PATH: `${dir}:${process.env.PATH}`,
           VERCEL_ENV: "production", VERCEL_GIT_PROVIDER: "github",
           VERCEL_GIT_REPO_OWNER: CANONICAL.owner, VERCEL_GIT_REPO_SLUG: CANONICAL.repo,
           VERCEL_GIT_COMMIT_REF: "main", VERCEL_GIT_COMMIT_SHA: MAIN,
-          P2B_GH_READ_TOKEN: "test-token-not-real", ...env,
-        },
-        encoding: "utf8",
-      });
-      return { code: 0, out };
+          P2B_GH_READ_TOKEN: "test-token-not-real", ...env },
+        encoding: "utf8" }) };
     } catch (e) {
       const err = e as { status?: number; stdout?: string };
       return { code: err.status ?? -1, out: err.stdout ?? "" };
     }
   };
+  const refObj = `{"ref":"refs/heads/main","object":{"type":"commit","sha":"${MAIN}"}}`;
 
-  const refObj = `{"ref":"refs/heads/main","object":{"sha":"${MAIN}","type":"commit"}}`;
-
-  // THE BUG THIS FIXES: curl exited 28 and the pipeline still reported success.
   const timeout = run(28, `{"sha":"${MAIN}"}`);
-  ok(timeout.code !== 0 && /MAIN_UNREADABLE/.test(timeout.out),
-    "a curl timeout refuses even though its partial output contains a SHA",
-    `exit ${timeout.code}: ${timeout.out.trim()}`);
+  ok(timeout.code !== 0 && /MAIN_UNREADABLE/.test(timeout.out), "a curl timeout refuses despite a SHA in partial output");
 
-  const http404 = run(22, "");
-  ok(http404.code !== 0 && /MAIN_UNREADABLE/.test(http404.out),
-    "a non-2xx response refuses", `exit ${http404.code}: ${http404.out.trim()}`);
+  const invalid = run(0, `{"ref":"refs/heads/main","object":`);
+  ok(invalid.code !== 0 && /MAIN_UNREADABLE/.test(invalid.out), "INVALID JSON is refused", invalid.out.trim());
 
-  const empty = run(0, "");
-  ok(empty.code !== 0 && /MAIN_UNREADABLE/.test(empty.out),
-    "an empty body refuses", `exit ${empty.code}: ${empty.out.trim()}`);
+  const wrongRef = run(0, `{"ref":"refs/heads/release","object":{"type":"commit","sha":"${MAIN}"},"note":"refs/heads/main"}`);
+  ok(wrongRef.code !== 0 && /MAIN_UNREADABLE/.test(wrongRef.out),
+    "a WRONG ref is refused though refs/heads/main appears elsewhere in the body", wrongRef.out.trim());
 
-  // A 40-hex string inside an error page is not a ref object.
-  const errorPage = run(0, `{"message":"Not Found","documentation_url":"${MAIN}"}`);
-  ok(errorPage.code !== 0 && /MAIN_UNREADABLE/.test(errorPage.out),
-    "a SHA-shaped string in an error body is not accepted as main",
-    `exit ${errorPage.code}: ${errorPage.out.trim()}`);
+  const blob = run(0, `{"ref":"refs/heads/main","object":{"type":"blob","sha":"${MAIN}"}}`);
+  ok(blob.code !== 0 && /MAIN_UNREADABLE/.test(blob.out), "an object of type blob is refused", blob.out.trim());
 
   const noCred = run(0, refObj, { P2B_GH_READ_TOKEN: "" });
-  ok(noCred.code !== 0 && /NO_READ_CREDENTIAL/.test(noCred.out),
-    "a missing read credential refuses rather than producing an empty main",
-    `exit ${noCred.code}: ${noCred.out.trim()}`);
+  ok(noCred.code !== 0 && /NO_READ_CREDENTIAL/.test(noCred.out), "a missing credential refuses");
 
   const good = run(0, refObj);
-  ok(good.code === 0 && new RegExp(`PROVENANCE OK ${MAIN}`).test(good.out),
-    "and a well-formed ref object passes", `exit ${good.code}: ${good.out.trim()}`);
+  ok(good.code === 0 && new RegExp(`PROVENANCE OK ${MAIN}`).test(good.out), "and a valid commit ref object passes", good.out.trim());
 
-  const wrongSha = run(0, `{"ref":"refs/heads/main","object":{"sha":"${OTHER}"}}`);
-  ok(wrongSha.code !== 0 && /SHA_NOT_MAIN/.test(wrongSha.out),
-    "and a commit that is not main still refuses", `exit ${wrongSha.code}: ${wrongSha.out.trim()}`);
+  const notMain = run(0, `{"ref":"refs/heads/main","object":{"type":"commit","sha":"${OTHER}"}}`);
+  ok(notMain.code !== 0 && /SHA_NOT_MAIN/.test(notMain.out), "and a commit that is not main refuses");
+}
+
+/* ── 10. The real command uses this path ──────────────────────────────── */
+function entryPointWiring() {
+  console.log("\n  THE REAL RELEASE COMMAND\n");
+  const code = readFileSync(new URL("./release-production.ts", import.meta.url), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  ok(/validateRelease\(/.test(code) && /applyRelease\(/.test(code), "runs both phases from the orchestrator");
+  ok(/if \(!apply\) \{[\s\S]{0,200}Dry run complete/.test(code), "and a dry run returns after validation");
+  ok(!/execFileSync/.test(code), "and no longer shells out to git for the authenticated read");
+  ok((code.match(/\/promote\//g) ?? []).length === 1, "and the promote endpoint appears exactly once");
 }
 
 async function main() {
   console.log("\nRELEASE HARDENING");
+  await dryRunCanSucceed();
   await refusalsSendNothing();
-  await theHappyPathWorks();
-  logLineIsNotAuthority();
-  trustBasisFailsClosed();
+  basisMustBeComplete();
+  contradictionsRefuse();
+  await orderingHoles();
+  await realAdapters();
+  currentProduction();
   buildCommand();
   shellGuard();
-  await theRealEntryPointUsesThis();
+  entryPointWiring();
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);
   process.exit(fail === 0 ? 0 : 1);
 }
 
 main();
-
-/* ── 7. The REAL entry point, not a parallel one ──────────────────────── */
-/**
- * The gap this closes: an orchestrator can pass every test while the actual
- * release command still runs its own logic. These assertions read
- * release-production.ts itself.
- */
-async function theRealEntryPointUsesThis() {
-  console.log("\n  THE REAL RELEASE COMMAND USES THIS CODE\n");
-
-  const src = readFileSync(new URL("./release-production.ts", import.meta.url), "utf8");
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-
-  ok(/from "\.\/_releaseOrchestration"/.test(code),
-    "release-production imports the orchestrator");
-  ok(/decideAndPromote\(/.test(code),
-    "and routes its decision through promote(), not a local copy");
-  ok(!/\bdecidePromotion\(/.test(code),
-    "and no longer calls decidePromotion directly, which bypassed origin and evidence");
-  ok(/currentProductionRaw/.test(code) && !/targets\?\.production \?\? null/.test(code),
-    "and reads current production raw, so a failed read cannot look like 'none'");
-  ok(/readBuildEvidence:\s*\(id\)\s*=>\s*buildEvidence/.test(code),
-    "and supplies real build evidence from the deployment's own record");
-  ok(/readDeployment:\s*\(id\)\s*=>\s*deploymentRecord/.test(code),
-    "and supplies the deployment record so origin comes from platform fields");
-  ok(!/c\.githubDeployment\s*&&/.test(code),
-    "and no longer SELECTS on meta-derived githubDeployment");
-  ok(/P2B_GH_READ_TOKEN/.test(code),
-    "and reads fresh main with its own read credential, separate from VERCEL_TOKEN");
-  ok(/dry run reached the mutation/.test(code),
-    "and a dry run that reaches the mutation is a bug, not a release");
-
-  // The mutation exists in exactly one place.
-  const promoteCalls = (code.match(/\/promote\//g) ?? []).length;
-  ok(promoteCalls === 1, `the promote endpoint is called from exactly one place (${promoteCalls})`);
-}

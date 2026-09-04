@@ -59,7 +59,36 @@ export type VerifiedOrigin = {
 
 export type OriginResult =
   | { ok: true; origin: VerifiedOrigin }
-  | { ok: false; reason: "no_trust_basis" | "absent" | "malformed" | "not_git_source" };
+  | { ok: false; reason: OriginRefusal };
+
+export type OriginRefusal =
+  | "no_trust_basis"      // basis UNVERIFIED, undated, or missing a field this decision uses
+  | "absent"              // no record, or no gitSource on it
+  | "malformed"           // a required field missing or wrongly shaped
+  | "not_git_source"      // source is absent or is not "git"
+  | "wrong_provider"      // gitSource names something other than GitHub
+  | "record_mismatch";    // the record is not the candidate we asked about
+
+/** Every field verifiedOrigin() decides on. The basis must cover all of them. */
+export const ORIGIN_DECISION_FIELDS = [
+  "source", "gitSource.type", "gitSource.org", "gitSource.repo", "gitSource.ref", "gitSource.sha",
+] as const;
+
+/**
+ * Is this basis usable AT ALL?
+ *
+ * An OBSERVED state on its own means nothing: `{state:"OBSERVED"}` with no date
+ * and no fields asserts that someone looked, without saying when or at what. So
+ * the basis must be dated, must list fields, and must cover EVERY field the
+ * decision reads — a basis that vouches for `gitSource.sha` while the decision
+ * also reads `source` is not a basis for this decision.
+ */
+export function basisCovers(basis: OriginTrustBasis, fields: readonly string[] = ORIGIN_DECISION_FIELDS): boolean {
+  if (basis.state !== "OBSERVED") return false;
+  if (!basis.observedOn || basis.observedOn.trim() === "") return false;
+  if (basis.trustedFields.length === 0) return false;
+  return fields.every((f) => basis.trustedFields.includes(f));
+}
 
 const SHA = /^[0-9a-f]{40}$/;
 const str = (v: unknown): string | null =>
@@ -73,22 +102,50 @@ const str = (v: unknown): string | null =>
  * deliberately no fallback to `meta`: a fallback would restore the defect on
  * exactly the deployments that most need refusing.
  */
+/** What the record must prove it IS, before anything it says is read. */
+export type ExpectedRecord = {
+  deploymentId: string;
+  projectId: string;
+  target: string;
+  provider: string;
+};
+
 export function verifiedOrigin(
   raw: unknown,
   /**
    * Injectable ONLY so the downstream checks can be exercised before an
-   * observation exists. It defaults to the module constant, so production and
-   * any caller that forgets the argument get the fail-closed behavior.
+   * observation exists. Defaults to the module constant, so production and any
+   * caller that forgets the argument get the fail-closed behavior.
    */
-  basis: OriginTrustBasis = ORIGIN_TRUST_BASIS
+  basis: OriginTrustBasis = ORIGIN_TRUST_BASIS,
+  /**
+   * The candidate this record is supposed to describe. Without it, a record for
+   * SOME OTHER deployment satisfies every field check — which is how a valid
+   * record for a different, canonical deployment could vouch for the one being
+   * promoted.
+   */
+  expected?: ExpectedRecord
 ): OriginResult {
-  if (basis.state !== "OBSERVED") return { ok: false, reason: "no_trust_basis" };
+  if (!basisCovers(basis)) return { ok: false, reason: "no_trust_basis" };
   if (typeof raw !== "object" || raw === null) return { ok: false, reason: "absent" };
 
   const d = raw as Record<string, unknown>;
+
+  // IS THIS EVEN THE RIGHT RECORD? Checked before anything it asserts is read.
+  if (expected) {
+    const id = str(d.uid) ?? str(d.id);
+    if (id !== expected.deploymentId) return { ok: false, reason: "record_mismatch" };
+    if (str(d.projectId) !== expected.projectId) return { ok: false, reason: "record_mismatch" };
+    if (str(d.target) !== expected.target) return { ok: false, reason: "record_mismatch" };
+    const rs = str(d.readyState) ?? str(d.state);
+    if (rs !== "READY") return { ok: false, reason: "record_mismatch" };
+  }
+
+  // A CLI upload is never canonical, and NEITHER IS A RECORD THAT DECLINES TO
+  // SAY. The earlier version let a missing `source` through, so the field that
+  // exists to identify a Git-integration build could simply be omitted.
   const source = str(d.source);
-  // A CLI upload is never canonical, whatever it says about itself.
-  if (source !== null && source !== "git") return { ok: false, reason: "not_git_source" };
+  if (source !== "git") return { ok: false, reason: "not_git_source" };
 
   const gs = d.gitSource;
   if (typeof gs !== "object" || gs === null) return { ok: false, reason: "absent" };
@@ -102,6 +159,9 @@ export function verifiedOrigin(
 
   if (!provider || !owner || !repo || !ref || !sha) return { ok: false, reason: "malformed" };
   if (!SHA.test(sha)) return { ok: false, reason: "malformed" };
+  // The provider is DECIDED, not merely recorded. "gitlab" is a Git source and
+  // is not this repository's host.
+  if (expected && provider !== expected.provider) return { ok: false, reason: "wrong_provider" };
 
   return { ok: true, origin: { provider, owner, repo, ref, sha } };
 }
@@ -120,30 +180,47 @@ export function verifiedOrigin(
  * the command the deployment was actually built with, and whether the built
  * commit overrode it.
  */
+/**
+ * A value that was READ, versus one that was never looked up.
+ *
+ * The adapter used to hardcode `commitVercelJsonBuildCommand: null` — meaning
+ * "no override" — without reading anything. Null cannot carry both "we looked
+ * and there is none" and "we never looked", because the first permits and the
+ * second must refuse. So the distinction is in the type and the adapter cannot
+ * express the absence by accident.
+ */
+export type Read<T> = { read: true; value: T } | { read: false; why: string };
+
 export type BuildEvidence = {
-  /** Effective build command for THIS deployment, from its own record. Null = unknown. */
-  effectiveBuildCommand: string | null;
-  /** `buildCommand` in vercel.json AT THE BUILT COMMIT, if any. */
-  commitVercelJsonBuildCommand: string | null;
-  /** SHA on the guard's line in THIS deployment's build log. Corroboration only. */
+  /**
+   * The command Vercel ACTUALLY built this deployment with.
+   *
+   * `read:false` when the record did not carry it, or when two fields disagreed
+   * about it — a contradiction is not something to pick a winner from.
+   */
+  effectiveBuildCommand: Read<string | null>;
+  /** `buildCommand` in vercel.json AT THE BUILT COMMIT. Must be genuinely read. */
+  commitVercelJsonBuildCommand: Read<string | null>;
+  /** SHA on the guard's line in this deployment's build log. Corroboration only. */
   guardLineSha: string | null;
-  /** The project's command NOW. Drift detection only — says nothing about a past build. */
-  projectBuildCommandNow: string | null;
+  /** The project's command NOW. Drift detection only. */
+  projectBuildCommandNow: Read<string | null>;
 };
 
 export type EvidenceRefusal =
   | "BUILD_CONFIG_UNKNOWN"
   | "BUILD_COMMAND_NOT_APPROVED"
   | "BUILD_COMMAND_OVERRIDDEN"
+  | "BUILD_COMMAND_CONTRADICTORY"
   | "GUARD_SHA_MISMATCH"
   | "BUILD_COMMAND_CHANGED";
 
 /**
  * Refuse unless this deployment was built by the approved command.
  *
- * Order matters: configuration first, because that is the authority. The log
- * line is checked afterwards and only ever to CONTRADICT — a matching line adds
- * nothing that the configuration did not already establish.
+ * Configuration is the authority; the log line may only CONTRADICT. Anything
+ * unread is a refusal rather than a default, because every default here is a
+ * permission granted by an adapter that did no work.
  */
 export function evidenceRefusal(
   e: BuildEvidence | null | undefined,
@@ -152,39 +229,57 @@ export function evidenceRefusal(
 ): { code: EvidenceRefusal; detail: string } | null {
   if (!e) return { code: "BUILD_CONFIG_UNKNOWN", detail: "no build evidence collected" };
 
-  if (e.commitVercelJsonBuildCommand !== null)
-    return {
-      code: "BUILD_COMMAND_OVERRIDDEN",
-      detail: "vercel.json at the built commit overrides the project Build Command",
-    };
+  if (!e.commitVercelJsonBuildCommand.read)
+    return { code: "BUILD_CONFIG_UNKNOWN",
+      detail: `vercel.json at the built commit was not read: ${e.commitVercelJsonBuildCommand.why}` };
+  if (e.commitVercelJsonBuildCommand.value !== null)
+    return { code: "BUILD_COMMAND_OVERRIDDEN",
+      detail: "vercel.json at the built commit overrides the project Build Command" };
 
-  if (e.effectiveBuildCommand === null)
-    return {
-      code: "BUILD_CONFIG_UNKNOWN",
-      detail: "this deployment's effective build command could not be established",
-    };
+  if (!e.effectiveBuildCommand.read)
+    return { code: "BUILD_CONFIG_UNKNOWN",
+      detail: `effective build command not established: ${e.effectiveBuildCommand.why}` };
+  if (e.effectiveBuildCommand.value === null)
+    return { code: "BUILD_CONFIG_UNKNOWN", detail: "deployment record carries no build command" };
+  if (e.effectiveBuildCommand.value !== approvedCommand)
+    return { code: "BUILD_COMMAND_NOT_APPROVED",
+      detail: "this deployment was not built by the approved provenance command" };
 
-  if (e.effectiveBuildCommand !== approvedCommand)
-    return {
-      code: "BUILD_COMMAND_NOT_APPROVED",
-      detail: "this deployment was not built by the approved provenance command",
-    };
-
-  // Corroboration. A mismatched or absent line refuses; a matching one permits
-  // nothing on its own.
   if (e.guardLineSha !== null && e.guardLineSha !== deploymentSha)
-    return {
-      code: "GUARD_SHA_MISMATCH",
-      detail: `guard line names ${e.guardLineSha.slice(0, 7)}, deployment is ${deploymentSha.slice(0, 7)}`,
-    };
+    return { code: "GUARD_SHA_MISMATCH",
+      detail: `guard line names ${e.guardLineSha.slice(0, 7)}, deployment is ${deploymentSha.slice(0, 7)}` };
 
-  if (e.projectBuildCommandNow !== null && e.projectBuildCommandNow !== approvedCommand)
-    return {
-      code: "BUILD_COMMAND_CHANGED",
-      detail: "project Build Command has since changed — investigate before releasing again",
-    };
+  if (!e.projectBuildCommandNow.read)
+    return { code: "BUILD_CONFIG_UNKNOWN",
+      detail: `project Build Command could not be read for drift: ${e.projectBuildCommandNow.why}` };
+  if (e.projectBuildCommandNow.value !== approvedCommand)
+    return { code: "BUILD_COMMAND_CHANGED",
+      detail: "project Build Command has since changed — investigate before releasing again" };
 
   return null;
+}
+
+/**
+ * Resolve the effective build command from a deployment record.
+ *
+ * Two fields can carry it. Preferring one silently is how a contradictory
+ * fixture passed: the record said `buildCommand: "npm run build"` and
+ * `projectSettings.buildCommand: <approved>`, and the adapter took the one that
+ * agreed with it. If both are present and differ, nothing here is entitled to
+ * choose — that is a refusal.
+ */
+export function resolveEffectiveBuildCommand(
+  deploymentBuildCommand: string | null | undefined,
+  projectSettingsBuildCommand: string | null | undefined
+): Read<string | null> {
+  const a = deploymentBuildCommand ?? null;
+  const b = projectSettingsBuildCommand ?? null;
+  if (a !== null && b !== null && a !== b)
+    return { read: false, why: "deployment.buildCommand and projectSettings.buildCommand disagree" };
+  const v = a ?? b;
+  return v === null
+    ? { read: false, why: "neither deployment.buildCommand nor projectSettings.buildCommand is present" }
+    : { read: true, value: v };
 }
 
 /* ────────────────────────────────────────────────────────────────────────

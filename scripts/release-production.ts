@@ -36,14 +36,13 @@
  * to P2B_RELEASE_LOG (default ~/.price2book/release-log.jsonl), so recovery is
  * "promote the previous id", not archaeology.
  */
-import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CANONICAL, candidateFromVercel, PROVENANCE_BUILD_COMMAND, type Candidate } from "./_releaseProvenance";
-import { promote as decideAndPromote, type ReleaseEffects } from "./_releaseOrchestration";
-import type { BuildEvidence } from "./_releaseSource";
+import { validateRelease, applyRelease, type ReleaseEffects, type ReleasePlan } from "./_releaseOrchestration";
+import { resolveEffectiveBuildCommand, type BuildEvidence, type Read } from "./_releaseSource";
 
 const API = "https://api.vercel.com";
 
@@ -58,18 +57,43 @@ const API = "https://api.vercel.com";
  * Null means UNREADABLE, and every caller treats that as a refusal. It never
  * means "main is missing".
  */
-export function freshMainSha(remote: string = CANONICAL.gitRemote): string | null {
-  const token = process.env.P2B_GH_READ_TOKEN;
+export type FetchLike = typeof fetch;
+
+/**
+ * A fresh read of GitHub refs/heads/main, authenticated.
+ *
+ * THE PREVIOUS VERSION DID NOT AUTHENTICATE. It set GIT_PASSWORD — not a
+ * variable git reads — and blanked GIT_ASKPASS, so git was handed no credential
+ * at all and simply failed, or worse, quietly succeeded using whatever the
+ * machine already had in its credential helper. Either way the check was not
+ * testing what it claimed.
+ *
+ * So it uses the GitHub API, which was the design all along: the token travels
+ * in a header on a request object, never in argv, never in a URL, and never
+ * through git's credential machinery. `fetchImpl` is injectable so this is
+ * testable without a network or a real token.
+ *
+ * Null means UNREADABLE and every caller treats it as a refusal. It never means
+ * "main is missing".
+ */
+export async function freshMainSha(
+  fetchImpl: FetchLike = fetch,
+  token = process.env.P2B_GH_READ_TOKEN
+): Promise<string | null> {
   if (!token) return null;
   try {
-    const url = remote.replace("https://", `https://x-access-token@`);
-    const out = execFileSync("git", ["ls-remote", url, `refs/heads/${CANONICAL.ref}`], {
-      encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 20_000,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", GIT_CONFIG_COUNT: "0",
-             GIT_PASSWORD: token },
-    });
-    const sha = out.split("\t")[0]?.trim();
-    return /^[0-9a-f]{40}$/.test(sha ?? "") ? sha : null;
+    const r = await fetchImpl(
+      `https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/git/ref/heads/${CANONICAL.ref}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } }
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as { ref?: unknown; object?: { type?: unknown; sha?: unknown } };
+    // Same structural requirements the shell guard enforces: the exact ref, an
+    // object of type commit, and a sha that is one.
+    if (j.ref !== `refs/heads/${CANONICAL.ref}`) return null;
+    if (!j.object || j.object.type !== "commit") return null;
+    const sha = j.object.sha;
+    return typeof sha === "string" && /^[0-9a-f]{40}$/.test(sha) ? sha : null;
   } catch { return null; }
 }
 
@@ -127,18 +151,59 @@ export async function deploymentRecord(api: Api, id: string): Promise<unknown> {
  * project's current setting is read separately and only as drift detection —
  * it cannot testify about a build that already happened.
  */
-export async function buildEvidence(api: Api, id: string): Promise<BuildEvidence | null> {
+export async function buildEvidence(
+  api: Api, id: string, sha: string,
+  fetchImpl: FetchLike = fetch, ghToken = process.env.P2B_GH_READ_TOKEN
+): Promise<BuildEvidence | null> {
   const dep = await api<{ buildCommand?: string | null; projectSettings?: { buildCommand?: string | null } }>(
     `/v13/deployments/${id}?teamId=${CANONICAL.vercelTeamId}`);
   if (dep.status >= 300) return null;
   const proj = await api<{ buildCommand?: string | null }>(
     `/v9/projects/${CANONICAL.vercelProjectId}?teamId=${CANONICAL.vercelTeamId}`);
+
   return {
-    effectiveBuildCommand: dep.body.projectSettings?.buildCommand ?? dep.body.buildCommand ?? null,
-    commitVercelJsonBuildCommand: null,
+    // Both fields can carry it; if they disagree, nothing here may choose.
+    effectiveBuildCommand: resolveEffectiveBuildCommand(
+      dep.body.buildCommand, dep.body.projectSettings?.buildCommand),
+    // ACTUALLY READ, at the built commit. This used to be hardcoded null —
+    // "no override" asserted by an adapter that had looked at nothing.
+    commitVercelJsonBuildCommand: await vercelJsonBuildCommand(sha, fetchImpl, ghToken),
     guardLineSha: null,
-    projectBuildCommandNow: proj.status >= 300 ? null : proj.body.buildCommand ?? null,
+    projectBuildCommandNow: proj.status >= 300
+      ? { read: false, why: `project read ${proj.status}` }
+      : { read: true, value: proj.body.buildCommand ?? null },
   };
+}
+
+/**
+ * `buildCommand` from vercel.json AT THE BUILT COMMIT.
+ *
+ * A 404 is a genuine "there is no vercel.json", which is a read. Anything else
+ * — a failed request, unparseable content, no credential — is NOT a read, and
+ * the decision refuses on it rather than assuming no override.
+ */
+export async function vercelJsonBuildCommand(
+  sha: string, fetchImpl: FetchLike = fetch, token = process.env.P2B_GH_READ_TOKEN
+): Promise<Read<string | null>> {
+  if (!token) return { read: false, why: "no GitHub read credential" };
+  try {
+    const r = await fetchImpl(
+      `https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/contents/vercel.json?ref=${sha}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.raw" } }
+    );
+    if (r.status === 404) return { read: true, value: null };
+    if (!r.ok) return { read: false, why: `vercel.json read ${r.status}` };
+    const text = await r.text();
+    if (text.trim() === "") return { read: true, value: null };
+    let j: { buildCommand?: unknown };
+    try { j = JSON.parse(text) as { buildCommand?: unknown }; }
+    catch { return { read: false, why: "vercel.json at the built commit is not valid JSON" }; }
+    const v = j.buildCommand;
+    if (v === undefined || v === null) return { read: true, value: null };
+    return typeof v === "string"
+      ? { read: true, value: v }
+      : { read: false, why: "vercel.json buildCommand is not a string" };
+  } catch (e) { return { read: false, why: `vercel.json unreadable: ${String(e).slice(0, 80)}` }; }
 }
 
 export async function readBack(host: string): Promise<{ deploymentId: string | null; commitSha: string | null; target: string | null } | null> {
@@ -149,27 +214,61 @@ export async function readBack(host: string): Promise<{ deploymentId: string | n
   } catch { return null; }
 }
 
+/** Effects the release uses. Split so a dry run gets the reads and no writes. */
+export function releaseEffects(api: Api, logPath: string, apply: boolean): ReleaseEffects {
+  return {
+    readCurrentProduction: () => currentProductionRaw(api),
+    readFreshMain: () => freshMainSha(),
+    readDeployment: (id) => deploymentRecord(api, id),
+    readBuildEvidence: (id) => buildEvidence(api, id, "PLACEHOLDER"),
+
+    // INTENT IS PERSISTED BEFORE THE MUTATION, and a failure here stops the
+    // release. Written synchronously so a throw genuinely prevents promotion.
+    recordIntent: async (plan: ReleasePlan) => {
+      if (!apply) throw new Error("recordIntent reached during a dry run — this is a bug");
+      mkdirSync(dirname(logPath), { recursive: true });
+      appendFileSync(logPath, JSON.stringify({
+        at: new Date().toISOString(), phase: "intent",
+        rollbackTo: plan.replaced, rollbackAliases: plan.replacedAliases,
+        promoting: plan.candidateId, sha: plan.sha, hosts: plan.hosts,
+      }) + "\n");
+    },
+
+    promoteDeployment: async (id) => {
+      if (!apply) throw new Error("promoteDeployment reached during a dry run — this is a bug");
+      const r = await api<{ error?: { message?: string } }>(
+        `/v10/projects/${CANONICAL.vercelProjectId}/promote/${id}?teamId=${CANONICAL.vercelTeamId}`,
+        { method: "POST" });
+      if (r.status >= 300) throw new Error(`promote failed ${r.status} ${r.body.error?.message ?? ""}`);
+    },
+
+    recordCompletion: async (plan: ReleasePlan) => {
+      appendFileSync(logPath, JSON.stringify({
+        at: new Date().toISOString(), phase: "completed",
+        promoted: plan.candidateId, sha: plan.sha, replaced: plan.replaced,
+      }) + "\n");
+    },
+  };
+}
+
 async function main() {
   const apply = process.argv.includes("--apply");
   const token = process.env.VERCEL_TOKEN;
   console.log(`\nPRODUCTION RELEASE — ${apply ? "APPLY" : "dry run (pass --apply to promote)"}\n`);
   if (!token) { console.error("  REFUSED: VERCEL_TOKEN is not set in this shell. It is deliberately not read from .env files.\n"); process.exit(1); }
+  if (!process.env.P2B_GH_READ_TOKEN) { console.error("  REFUSED: P2B_GH_READ_TOKEN is not set. The repository is private and main must be read.\n"); process.exit(1); }
   const api = vercelApi(token);
 
-  const mainAtSelection = freshMainSha();
+  const mainAtSelection = await freshMainSha();
   console.log(`  GitHub ${CANONICAL.owner}/${CANONICAL.repo} ${CANONICAL.ref}: ${mainAtSelection ?? "UNREADABLE"}`);
   if (!mainAtSelection) { console.error("  REFUSED: GitHub main could not be read.\n"); process.exit(1); }
 
   const candidates = await listCandidates(api);
   console.log(`  READY production deployments considered: ${candidates.length}`);
 
-  // SELECTION IS A SHORTLIST, NOT A DECISION.
-  //
-  // This used to pick on `c.githubDeployment && c.githubSha`, both derived from
-  // Vercel's `meta` — which the deploying client supplies. So the selector could
-  // be told what to pick. It still narrows on meta because that is all a list
-  // response carries, but nothing is trusted until the orchestrator re-reads the
-  // chosen deployment and establishes origin from the platform's own fields.
+  // SELECTION IS A SHORTLIST, NOT A DECISION. It narrows on meta because a list
+  // response carries nothing else; nothing is trusted until validateRelease
+  // re-reads the deployment and establishes origin from platform fields.
   const chosen = candidates.find((c) => c.githubSha === mainAtSelection) ?? null;
   if (!chosen) {
     const nearest = candidates.slice(0, 5).map((c) => `    ${c.id}  sha=${(c.githubSha ?? c.clientSha ?? "?").slice(0, 7)}  created=${new Date(c.createdAt).toISOString()}`).join("\n");
@@ -179,55 +278,40 @@ async function main() {
   console.log(`  shortlisted: ${chosen.id} (${chosen.url}) — claims ${chosen.githubSha?.slice(0, 7)}, not yet verified`);
 
   const logPath = process.env.P2B_RELEASE_LOG ?? join(homedir(), ".price2book", "release-log.jsonl");
+  const fx = releaseEffects(api, logPath, apply);
+  // The candidate's own sha is what vercel.json must be read at.
+  fx.readBuildEvidence = (id) => buildEvidence(api, id, mainAtSelection);
 
-  // EVERY DECISION AND THE ONLY MUTATION, IN ONE PLACE.
-  //
-  // The same promote() the isolated tests exercise. A dry run supplies an
-  // effect that refuses to mutate, so the dry run proves the real path rather
-  // than a parallel one that merely resembles it.
-  let promoted: string | null = null;
-  const fx: ReleaseEffects = {
-    readCurrentProduction: () => currentProductionRaw(api),
-    readFreshMain: async () => freshMainSha(),
-    readDeployment: (id) => deploymentRecord(api, id),
-    readBuildEvidence: (id) => buildEvidence(api, id),
-    promoteDeployment: async (id) => {
-      if (!apply) throw new Error("dry run reached the mutation — this is a bug, not a release");
-      if (!existsSync(dirname(logPath))) mkdirSync(dirname(logPath), { recursive: true });
-      const r = await api<{ error?: { message?: string } }>(
-        `/v10/projects/${CANONICAL.vercelProjectId}/promote/${id}?teamId=${CANONICAL.vercelTeamId}`,
-        { method: "POST" });
-      if (r.status >= 300) throw new Error(`promote failed ${r.status} ${r.body.error?.message ?? ""}`);
-      promoted = id;
-    },
-  };
+  // PHASE ONE — reads only. A dry run stops here and CAN SUCCEED.
+  const validated = await validateRelease(chosen, mainAtSelection, PROVENANCE_BUILD_COMMAND, fx);
+  if (!validated.ok) { console.error(`  REFUSED (${validated.code}): ${validated.detail}\n`); process.exit(1); }
+  const plan = validated.plan;
+  console.log(`  decision: PROMOTABLE — ${plan.sha.slice(0, 7)} is GitHub main, now and at selection.`);
+  console.log(`  replaces: ${plan.replaced} (rollback target)`);
 
-  const outcome = await decideAndPromote(chosen, mainAtSelection, PROVENANCE_BUILD_COMMAND, fx);
+  if (!apply) {
+    console.log(`\n  Dry run complete — validated, nothing changed. Re-run with --apply to promote ${plan.candidateId}.\n`);
+    return;
+  }
+
+  // PHASE TWO — re-reads main, records the rollback target, then promotes.
+  const outcome = await applyRelease(plan, fx);
   if (!outcome.ok) { console.error(`  REFUSED (${outcome.code}): ${outcome.detail}\n`); process.exit(1); }
-
-  console.log(`  decision: PROMOTABLE — ${outcome.sha.slice(0, 7)} is GitHub main, now and at selection.`);
-  console.log(`  replaces: ${outcome.replaced} (rollback target)`);
-
-  if (!apply) { console.log(`\n  Dry run. Nothing was changed. Re-run with --apply to promote ${chosen.id}.\n`); return; }
-  if (!promoted) { console.error("  REFUSED: promotion did not run.\n"); process.exit(1); }
-
-  if (!existsSync(dirname(logPath))) mkdirSync(dirname(logPath), { recursive: true });
-  appendFileSync(logPath, JSON.stringify({ at: new Date().toISOString(), previous: outcome.replaced, promoted: { id: chosen.id, url: chosen.url, sha: outcome.sha }, hosts: CANONICAL.canonicalHosts }) + "\n");
-  console.log(`  recorded previous=${outcome.replaced} -> ${logPath}`);
-
-  console.log(`  promoted ${chosen.id}`);
+  console.log(`  recorded rollback target ${plan.replaced} -> ${logPath}`);
+  console.log(`  promoted ${plan.candidateId}`);
 
   await new Promise((r) => setTimeout(r, 8000));
-  const after = await currentProductionRaw(api).then((r) => (r.raw as { id?: string } | undefined) ?? null);
-  console.log(`  canonical production after: ${after?.id ?? "?"}`);
-  let bad = after?.id !== chosen.id;
-  for (const host of CANONICAL.canonicalHosts) {
+  const after = await currentProductionRaw(api).then((r) => (r.raw as { uid?: string; id?: string } | undefined) ?? null);
+  const afterId = after?.uid ?? after?.id;
+  console.log(`  canonical production after: ${afterId ?? "?"}`);
+  let bad = afterId !== plan.candidateId;
+  for (const host of plan.hosts) {
     const rb = await readBack(host);
-    const okHost = rb?.deploymentId === chosen.id && rb?.commitSha === outcome.sha && rb?.target === "production";
+    const okHost = rb?.deploymentId === plan.candidateId && rb?.commitSha === plan.sha && rb?.target === "production";
     if (!okHost) bad = true;
     console.log(`  ${okHost ? "ok  " : "FAIL"} ${host}/api/release -> ${rb ? `${rb.deploymentId} ${rb.commitSha?.slice(0, 7)} ${rb.target}` : "unreadable"}`);
   }
-  console.log(bad ? `\n  Promotion did not read back cleanly. Previous production id is in ${logPath}.\n` : `\n  Released ${outcome.sha.slice(0, 7)} as ${chosen.id}.\n`);
+  console.log(bad ? `\n  Promotion did not read back cleanly. Rollback target is in ${logPath}.\n` : `\n  Released ${plan.sha.slice(0, 7)} as ${plan.candidateId}.\n`);
   if (bad) process.exit(1);
 }
 
