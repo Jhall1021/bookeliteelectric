@@ -115,6 +115,29 @@ async function refusalsSendNothing() {
   await refuses({ readBuildEvidence: async () => ({ ...GOOD_EVIDENCE, commitVercelJsonBuildCommand: { read: true, value: "next build" } }) }, "BUILD_COMMAND_OVERRIDDEN", "a vercel.json override at the built commit");
 }
 
+/* ── 2b. Unreadable tree evidence reaches no promotion ────────────────── */
+/**
+ * The finding was found at the adapter. This asserts the consequence at the
+ * only level that matters: an unreadable tree must send zero promote requests.
+ */
+async function unreadableTreePromotesNothing() {
+  console.log("\n  UNREADABLE TREE EVIDENCE PROMOTES NOTHING\n");
+  const cases: [string, BuildEvidence["commitVercelJsonBuildCommand"]][] = [
+    ["a truncated tree", { read: false, why: "commit tree is truncated" }],
+    ["malformed tree entries", { read: false, why: "commit tree contains entries without a readable path" }],
+    ["an unreachable tree", { read: false, why: "commit tree 404" }],
+  ];
+  for (const [label, vj] of cases) {
+    const { fx, promotes, intents } = effects({
+      readBuildEvidence: async () => ({ ...GOOD_EVIDENCE, commitVercelJsonBuildCommand: vj }),
+    });
+    const v = await validateRelease(candidate, MAIN, PROVENANCE_BUILD_COMMAND, fx, OBSERVED);
+    ok(!v.ok && v.code === "BUILD_CONFIG_UNKNOWN" && promotes.length === 0 && intents.length === 0,
+      `${label}: refused, with zero promote and zero record calls`,
+      `got ${v.ok ? "OK" : v.code}, ${promotes.length} promote(s)`);
+  }
+}
+
 /* ── 3. The trust basis must be complete ──────────────────────────────── */
 function basisMustBeComplete() {
   console.log("\n  THE TRUST BASIS MUST ACTUALLY SAY SOMETHING\n");
@@ -232,6 +255,20 @@ async function realAdapters() {
     "a 404 on the commit tree is UNREAD — access to the exact commit was never established");
   ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, {}) }), "t")).read === false,
     "a tree response with no tree array is unread");
+  // A TRUNCATED TREE IS NOT A LISTING — GitHub says so explicitly, and
+  // "not in this array" then stops meaning "not in the commit".
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [], truncated: true }) }), "t")).read === false,
+    "a TRUNCATED tree cannot establish absence, even with an empty entry list");
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [{ path: "package.json" }], truncated: true }) }), "t")).read === false,
+    "and a truncated tree with entries is still not a complete listing");
+  // Entries that were never understood cannot support a conclusion about them.
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [null, 42, {}], truncated: false }) }), "t")).read === false,
+    "malformed tree entries are unread, not absence");
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [{ path: "a" }, { path: 7 }] }) }), "t")).read === false,
+    "one entry without a string path spoils the listing");
+  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [{ path: "" }] }) }), "t")).read === false,
+    "and an empty path is not a readable entry");
+
   const absent = await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["package.json"])) }), "t");
   ok(absent.read === true && absent.value === null,
     "absence is READ only when the commit's own tree was listed and does not contain it");
@@ -346,6 +383,7 @@ async function main() {
   console.log("\nRELEASE HARDENING");
   await dryRunCanSucceed();
   await refusalsSendNothing();
+  await unreadableTreePromotesNothing();
   basisMustBeComplete();
   contradictionsRefuse();
   await orderingHoles();

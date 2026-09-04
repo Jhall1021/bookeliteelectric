@@ -178,9 +178,17 @@ export async function buildEvidence(
 /**
  * `buildCommand` from vercel.json AT THE BUILT COMMIT.
  *
- * A 404 is a genuine "there is no vercel.json", which is a read. Anything else
- * — a failed request, unparseable content, no credential — is NOT a read, and
- * the decision refuses on it rather than assuming no override.
+ * ABSENCE IS ESTABLISHED BY A COMPLETE, VALID TREE — never by a 404.
+ *
+ * This comment previously said a 404 was "a genuine 'there is no vercel.json'",
+ * and it survived the rewrite that stopped believing that. It was wrong in the
+ * permissive direction: GitHub answers 404 for a private resource the
+ * credential cannot see, so a revoked token read as "no override".
+ *
+ * Anything short of a complete, structurally valid listing of the exact
+ * commit's root tree — a failed request, a TRUNCATED tree, malformed entries,
+ * unparseable content, no credential — is NOT a read, and the decision refuses
+ * on it rather than assuming no override.
  */
 export async function vercelJsonBuildCommand(
   sha: string, fetchImpl: FetchLike = fetch, token = process.env.P2B_GH_READ_TOKEN
@@ -207,11 +215,28 @@ export async function vercelJsonBuildCommand(
     tree = (await r.json()) as { tree?: unknown };
   } catch (e) { return { read: false, why: `commit tree unreadable: ${String(e).slice(0, 80)}` }; }
 
+  // A TRUNCATED TREE IS NOT A LISTING. GitHub sets `truncated: true` when the
+  // response could not carry every entry, so "vercel.json is not in this array"
+  // stops meaning "vercel.json is not in the commit" — the file could be in the
+  // part that was cut. Absence needs a listing that claims to be complete.
+  if ((tree as { truncated?: unknown }).truncated === true)
+    return { read: false, why: "commit tree is truncated — absence cannot be established from a partial listing" };
+
   const entries = tree?.tree;
   if (!Array.isArray(entries)) return { read: false, why: "commit tree response has no tree array" };
-  const found = entries.some(
-    (e) => typeof e === "object" && e !== null && (e as { path?: unknown }).path === "vercel.json"
+
+  // And every entry must be a shape this can actually read. `[null, 42, {}]` is
+  // an array, and `.some(path === "vercel.json")` is false over it — which is
+  // absence concluded from entries that were never understood.
+  const wellFormed = entries.every(
+    (e) => typeof e === "object" && e !== null && !Array.isArray(e)
+      && typeof (e as { path?: unknown }).path === "string"
+      && (e as { path: string }).path !== ""
   );
+  if (!wellFormed)
+    return { read: false, why: "commit tree contains entries without a readable path" };
+
+  const found = entries.some((e) => (e as { path: string }).path === "vercel.json");
   // Proved present-or-absent by a successful read of the commit's own tree.
   if (!found) return { read: true, value: null };
 
