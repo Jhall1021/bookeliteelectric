@@ -1,0 +1,114 @@
+STATE SNAPSHOT — AFTER proof 5
+  captured 2026-09-04T19:12:09Z
+
+GITHUB Price2Book/p2b-release-proofs
+  main sha        24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+  message         Proof 1: post-link commit
+  committed       2026-09-04T19:01:31Z
+  verification    valid
+  parents         ['afa291520b5b8173c3d933d732f2bd67dbd7d0ac']
+  guard blob      9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  guard pinned    yes, matches 9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+
+VERCEL prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  effective build configuration
+    rootDirectory    None
+    installCommand   None
+    buildCommand     g=$(printf 'url="%s"\n%s' "https://api.github.com/repos/Price2Book/p2b-release-proofs/contents/scripts/provenance-guard.sh?ref=main" "$P2B_GH_HDR"|curl -fsSK- --max-time 30)&&[ -n "$g" ]&&echo "$g"|sh&&npm run build
+    outputDirectory  'public'
+    framework        None
+
+  deployments (most recent first)
+    dpl_2zZVozq8asr1ZuGuXMTiFU3a3vWC
+      state ERROR     target staging     2026-09-04T19:10:55.305000Z
+      source None     importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+      state READY     target production  2026-09-04T19:01:34.532000Z
+      source git      importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+      state READY     target production  2026-09-04T18:00:46.964000Z
+      source import   importSource 'import-suggestions'
+      commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+
+  aliases
+    p2b-release-proofs-git-main-price2-book.vercel.app   -> dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+    p2b-release-proofs-price2-book.vercel.app            -> dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+    p2b-release-proofs.vercel.app                        -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    pagination next: None
+
+PROOF 5 — ANSWERED. A request carrying no projectSettings inherits the project's.
+
+  deployment      dpl_2zZVozq8asr1ZuGuXMTiFU3a3vWC   (id taken from the creation
+                  response itself; no listing was searched)
+  HTTP            200
+  target          staging, as requested
+  gitSource       github, repoId 1357368650, ref main,
+                  sha 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+  final state     ERROR — see below; the cause is environment scoping, not
+                  configuration inheritance
+
+  THE FIVE FIELDS, from the creation response to a request that sent none
+
+    rootDirectory    <field absent>   approved null
+    installCommand   null             approved null      match
+    buildCommand     the provenance one-liner              present
+    outputDirectory  "public"         approved "public"   match
+    framework        null             approved null       match
+
+    buildCommand checks: it is the provenance one-liner; it pins
+    Price2Book/p2b-release-proofs; it reads the guard at ?ref=main; it ends with
+    npm run build; it does not name the canonical repository.
+
+  CORROBORATION STRONGER THAN THE FIELD ITSELF. The build log's error quotes the
+  command it actually ran, and it is that same one-liner. The project's
+  configuration did not merely appear in a response — it was executed.
+
+  SO THE COMMENT IN release-production.ts IS CORRECT: "NO projectSettings, so
+  the project's approved configuration applies rather than anything this request
+  carries." Observed, not assumed.
+
+  rootDirectory IS ABSENT, NOT NULL — and it does not matter here
+
+    The response omits the field rather than returning null. A comparison that
+    distinguished absent from null would report drift on a correct deployment.
+    liveIO's settings() maps `o.rootDirectory ?? null`, so absence becomes null
+    and compareBuild sees a match. The normalisation is load-bearing, and it is
+    working. Worth knowing that it is the only thing standing between an absent
+    field and a false drift refusal.
+
+  WHY THE BUILD FAILED, AND WHAT IT DOES AND DOES NOT SHOW
+
+    [ 9] curl: (22) The requested URL returned error: 404
+    [10] Error: Command "g=$(printf 'url="%s"\n%s' "https://api.github.com/...
+
+    The guard DOWNLOAD 404'd, so the guard never ran: no PROVENANCE OK, no
+    PROVENANCE REFUSED, and no P2B-APP-BUILD-RAN. The && chain stopped at the
+    first stage and the application build was never reached.
+
+    MY STATED REASON FOR CHOOSING target "staging" WAS WRONG. I recorded that
+    "staging builds with Production environment variables — which the guard
+    needs". This build disproves it: P2B_GH_HDR is Production-only, a staging
+    build did not receive it, the header was therefore empty, and an
+    unauthenticated read of a PRIVATE repository's contents is a 404. The
+    operator and I both assumed staging would inherit Production variables. It
+    did not.
+
+    WHAT THIS DOES NOT ESTABLISH. It is not proof 4's negative case. Proof 4
+    requires the GUARD to run and refuse; here the guard was never fetched, so
+    nothing was decided by it. A build that fails before the guard is not a
+    guard refusal, and recording it as one would be exactly the confusion these
+    proofs exist to avoid.
+
+    WHAT IT DOES INCIDENTALLY CORROBORATE. The chain fails CLOSED. An
+    unreachable guard stopped the build rather than falling through to
+    npm run build — which is what `curl -f`, the non-empty test and `&&` are
+    there for. Recorded as corroboration of a design property, not as a proof.
+
+  NOTHING CHANGED THAT SHOULD NOT HAVE
+
+    target      staging, as requested; the production deployment is untouched
+    aliases     all three identical to the before-snapshot; the staging
+                deployment took none
+    the READY production deployment dpl_DNdg… remains the newest production one
