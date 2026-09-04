@@ -325,3 +325,29 @@ Production, the canonical project, pushes, merges, repository transfer, the
 release pause and cutover. Custom domains and DNS. No canonical credential is
 used at any point; nothing here touches `prj_zB0QVq80340s2dVt7X3c1ewKgHtT` or any
 `price2book.com` hostname.
+
+---
+
+## Authorization record
+
+Authorized 4 September 2026, within this boundary, recorded verbatim:
+
+- Only the new disposable repository and Vercel project, **identified before
+  testing**.
+- Test commits/pushes, builds and promotions permitted **only there**.
+- Fresh scoped credentials; **no production domains, DNS, database or
+  canonical-project changes**.
+- Preserve evidence, revoke credentials afterward, and **retain resources until
+  cleanup is separately approved**.
+- **Stop and report unexpected results** — do not change the release mechanism
+  mid-test.
+
+**Push exception.** The standing "pushes on hold" is lifted for the disposable
+repository only. Pushes to production and to release branches remain prohibited.
+
+**Accepted limitation.** Disposable `*.vercel.app` results will not establish
+production custom-domain behaviour. This lands almost entirely on proof 6: it can
+show promotion's alias behaviour is wrong, but a clean result leaves "does
+promotion complete a release on the canonical domains" open. Proofs 2–5 are
+unaffected, turning on build commands, configuration and guard execution rather
+than hostnames.
