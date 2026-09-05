@@ -43,18 +43,46 @@ Keep this directory out of backups.
 2. **Vercel project-scoped token** (`vcp_`, fingerprint `babd0443`) — verified
    confined to the disposable project: production denied by id and by name.
 
-## A safe order for cleanup, when authorized
+## A safe order for cleanup — and it depends on WHO deletes
 
-1. **Export and verify the evidence bundle first.** Deleting the project
-   destroys build logs that are not reproducible.
-2. **Revoke both tokens** — after which no further reads are possible, so nothing
-   should be needed from the platforms.
-3. **Delete the Vercel project**, then **the GitHub repository**. Vercel first:
-   the project is linked to the repository, and removing the repository first
-   leaves a project pointing at nothing.
-4. **Remove `~/.p2b-live-proofs/`** last.
+The order I gave first was wrong for one of the two paths. **Revoking a token
+before deleting a resource is only safe if the resource is deleted by hand.**
 
-Each step is separately authorizable and none has been taken.
+### Path A — deletion through the dashboards (recommended)
+
+Joshua deletes both resources while signed in; the test tokens are never used
+for it.
+
+1. Export and verify the evidence bundle. Deleting the project destroys build
+   logs that cannot be reproduced.
+2. **Revoke both tokens.** Nothing further needs them.
+3. Delete the **Vercel project**, then the **GitHub repository** — Vercel first,
+   because the project is linked to the repository and removing the repository
+   first leaves a project pointing at nothing.
+4. Remove `~/.p2b-live-proofs/`.
+
+### Path B — deletion via the API using the test credentials
+
+**The order inverts: each resource must be deleted BEFORE the token that
+deletes it is revoked.** Revoking first strands the resource with no credential
+able to remove it.
+
+1. Export and verify the evidence bundle.
+2. Delete the **Vercel project** with the `vcp_` token — then **revoke that
+   token**.
+3. Delete the **GitHub repository** with the GitHub token — **but note the token
+   cannot do it as scoped**: it is Contents:Read only, and repository deletion
+   needs `delete_repo`, which fine-grained tokens grant through
+   *Administration: write*. Widening it to delete is a larger permission than
+   the proofs ever needed, so **Path A is preferable for GitHub even if Path B
+   is used for Vercel.** Whichever is chosen, revoke the token afterwards.
+4. Remove `~/.p2b-live-proofs/`.
+
+Mixing is fine and is probably the sensible choice: Vercel by API, GitHub by
+dashboard. What must not happen is revoking a credential that a later step still
+needs.
+
+Nothing above has been done, and neither path is authorized.
 
 ## Not touched at any point
 
