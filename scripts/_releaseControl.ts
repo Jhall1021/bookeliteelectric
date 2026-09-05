@@ -58,6 +58,22 @@ export type PreflightFacts = {
   commitTree: Read<{ truncated: boolean; paths: readonly string[] }>;
   /** The PROJECT's current settings — a precondition, not evidence. */
   projectSettings: Read<ApprovedBuild>;
+  /**
+   * Is Vercel's automatic custom-domain assignment OFF right now?
+   *
+   * SEPARATE FROM ApprovedBuild ON PURPOSE. A deployment record does not carry
+   * this setting, so it is not part of a candidate's historical build
+   * configuration and cannot be compared against one. It is a fact about the
+   * PROJECT at this moment, and only a current fact.
+   *
+   * The whole Phase B / Phase C separation rests on it: creating a READY
+   * production deployment must not move customer traffic, and it is auto-assign
+   * being off that makes that true. Proof 4 case 1 observed a creation move two
+   * generated aliases while the production target held — so creation is not
+   * inert, and nothing but this setting stands between that and the canonical
+   * domains. It was never read, so drift would have been invisible.
+   */
+  autoAssignCustomDomains: Read<boolean>;
   /** Current production target, already validated. */
   currentProduction: Read<{ deploymentId: string; aliases: readonly string[] }>;
 };
@@ -123,6 +139,18 @@ export function preflightDecision(f: PreflightFacts, approved: ApprovedBuild): P
     return { ok: false, code: "PROJECT_SETTINGS_UNREADABLE", detail: f.projectSettings.why };
   const drift = compareBuild(f.projectSettings.value, approved);
   if (drift) return { ok: false, code: "PROJECT_SETTINGS_NOT_APPROVED", detail: drift };
+
+  // FAILS CLOSED FOUR WAYS. Unreadable is not "off"; a missing field is not
+  // "off"; a non-boolean is not "off"; and true is emphatically not "off".
+  if (!f.autoAssignCustomDomains.read)
+    return { ok: false, code: "AUTO_ASSIGN_UNREADABLE",
+      detail: `whether auto-assignment of custom domains is disabled could not be established: ${f.autoAssignCustomDomains.why}` };
+  if (typeof f.autoAssignCustomDomains.value !== "boolean")
+    return { ok: false, code: "AUTO_ASSIGN_UNREADABLE",
+      detail: `autoAssignCustomDomains is ${JSON.stringify(f.autoAssignCustomDomains.value)}, not a boolean` };
+  if (f.autoAssignCustomDomains.value !== false)
+    return { ok: false, code: "AUTO_ASSIGN_ENABLED",
+      detail: "automatic custom-domain assignment is ENABLED on the project; a created deployment could take the canonical domains before phase C decides anything" };
 
   if (!f.currentProduction.read)
     return { ok: false, code: "CURRENT_PRODUCTION_UNREADABLE", detail: f.currentProduction.why };

@@ -11,13 +11,13 @@
  * as such at the end; nothing here substitutes for them.
  */
 
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeSync, fsyncSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeSync, fsyncSync, statSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runRelease, type ReleaseIO, type IntentRecord } from "./_releaseRun";
 import { verifyHosts, compareBuild, type ApprovedBuild, type HostObservation,
   type CandidateRecord, type CreationReceipt, type AliasMapping } from "./_releaseControl";
-import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings, readAliasPage, APPROVED_REDIRECT_HOSTS, parsePhase } from "./release-production";
+import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings, readAliasPage, APPROVED_REDIRECT_HOSTS, parsePhase, APPROVED_BUILD as APPROVED_BUILD_LIVE } from "./release-production";
 import { CANONICAL } from "./_releaseProvenance";
 
 let pass = 0, fail = 0;
@@ -63,6 +63,7 @@ function io(over: Partial<ReleaseIO> = {}): { io: ReleaseIO; rec: Rec } {
     readFreshMain: async () => MAIN,
     readCommitTree: async () => ({ read: true, value: { truncated: false, paths: ["package.json", "index.html"] } }),
     readProjectSettings: async () => ({ read: true, value: { ...APPROVED } }),
+    readAutoAssignCustomDomains: async () => ({ read: true, value: false }),
     readCurrentProduction: async () => ({ read: true, value: { deploymentId: OUTGOING, aliases: HOSTS } }),
     createDeployment: async (sha) => { rec.order.push("create"); rec.creates.push(sha); return { id: CAND }; },
     recordCreation: async (r) => { rec.order.push("receipt"); rec.receipts.push(r); },
@@ -314,6 +315,32 @@ async function promoteUncertaintyTests() {
 /* ── R4: the pin must exist and all three must agree ──────────────────── */
 async function repoPinTests() {
   console.log("\n  R4  THE REPOSITORY PIN\n");
+
+  // AUTO-ASSIGN OF CUSTOM DOMAINS MUST BE OFF, AND FAIL CLOSED FOUR WAYS.
+  //
+  // Phase B creating a READY production deployment is only safe because that
+  // setting is off; proof 4 case 1 observed a creation move two generated
+  // aliases while the target held, so creation is NOT inert. Nothing read this,
+  // so drift would have been invisible until it moved a canonical domain.
+  const withAuto = async (v: Awaited<ReturnType<ReleaseIO["readAutoAssignCustomDomains"]>>) => {
+    const x = io().io;
+    x.readAutoAssignCustomDomains = async () => v;
+    return runRelease({ phase: "preflight" }, APPROVED, HOSTS, x, CANON);
+  };
+  const aOff = await withAuto({ read: true, value: false });
+  ok(aOff.ok, "A1  auto-assignment OFF is the only state preflight accepts", aOff.ok ? "" : aOff.code);
+  const aOn = await withAuto({ read: true, value: true });
+  ok(!aOn.ok && aOn.code === "AUTO_ASSIGN_ENABLED",
+    "A1  ENABLED is refused — a creation could take the canonical domains", aOn.ok ? "" : aOn.code);
+  const aUnread = await withAuto({ read: false, why: "project read 503" });
+  ok(!aUnread.ok && aUnread.code === "AUTO_ASSIGN_UNREADABLE",
+    "A1  UNREADABLE is refused — not knowing is not the same as off", aUnread.ok ? "" : aUnread.code);
+  const aAbsent = await withAuto({ read: false, why: "the project response carries no autoAssignCustomDomains field" });
+  ok(!aAbsent.ok && aAbsent.code === "AUTO_ASSIGN_UNREADABLE",
+    "A1  an ABSENT field is refused — absence is not off", aAbsent.ok ? "" : aAbsent.code);
+  const aBad = await withAuto({ read: true, value: "false" as unknown as boolean });
+  ok(!aBad.ok && aBad.code === "AUTO_ASSIGN_UNREADABLE",
+    "A1  and the string \"false\" is not the boolean false", aBad.ok ? "" : aBad.code);
 
   const unpinned = await runRelease({ phase: "preflight" }, APPROVED, HOSTS, io().io,
     { ...CANON, repoId: 0 });
@@ -588,6 +615,66 @@ async function liveAdapterTests() {
     "B3  which is the canonical repository, by number",
     body ? String(body.gitSource?.repoId) : "no body");
 
+  // WHAT A NO-OVERRIDE NEXT.JS PROJECT NORMALIZES TO.
+  //
+  // Dashboard inspection established the canonical project as Framework Preset
+  // Next.js with Output Directory, Install Command and Build Command all left at
+  // their defaults. Vercel reports an unset override as null, and settings()
+  // coalesces: null commands to "", null framework to null. This pins what the
+  // release will actually SEE, so the constant can be corrected against a
+  // measured shape rather than a guessed one.
+  const nextish = mk(async () => ({ status: 200, body: {
+    framework: "nextjs", buildCommand: null, outputDirectory: null,
+    installCommand: null, rootDirectory: null,
+  } }));
+  const ns = await nextish.readProjectSettings();
+  ok(ns.read && ns.value.framework === "nextjs",
+    "B3  a Next.js project reports framework \"nextjs\", not null",
+    ns.read ? String(ns.value.framework) : "unread");
+  ok(ns.read && ns.value.outputDirectory === "" && ns.value.buildCommand === "",
+    "B3  and unset command/output overrides normalize to empty string, not null",
+    ns.read ? JSON.stringify([ns.value.outputDirectory, ns.value.buildCommand]) : "unread");
+  ok(ns.read && ns.value.installCommand === null,
+    "B3  while an unset install command stays null",
+    ns.read ? JSON.stringify(ns.value.installCommand) : "unread");
+
+  // THE APPROVED CONSTANT MATCHES THE REAL PROJECT, FIELD BY FIELD.
+  //
+  // Four of the five are what the canonical project reports; buildCommand is
+  // deliberately the not-yet-installed provenance command. Pinning them here
+  // means a future edit that quietly reverts to the disposable fixture's
+  // static-site values — outputDirectory "public", framework null — fails.
+  ok(APPROVED_BUILD_LIVE.framework === "nextjs",
+    "B3  APPROVED_BUILD.framework is nextjs, as the project reports",
+    String(APPROVED_BUILD_LIVE.framework));
+  ok(APPROVED_BUILD_LIVE.outputDirectory === "",
+    "B3  outputDirectory is the Next.js default, not the fixture's \"public\"",
+    JSON.stringify(APPROVED_BUILD_LIVE.outputDirectory));
+  ok(APPROVED_BUILD_LIVE.rootDirectory === null,
+    "B3  rootDirectory is null — the repository root",
+    JSON.stringify(APPROVED_BUILD_LIVE.rootDirectory));
+  ok(APPROVED_BUILD_LIVE.installCommand === null,
+    "B3  and installCommand is unset",
+    JSON.stringify(APPROVED_BUILD_LIVE.installCommand));
+  ok(/provenance-guard\.sh/.test(APPROVED_BUILD_LIVE.buildCommand),
+    "B3  while buildCommand is the provenance command, not the project's default");
+
+  // The four established fields must now AGREE with a real project response;
+  // only buildCommand may differ.
+  const drift4 = ns.read ? compareBuild({ ...ns.value, buildCommand: APPROVED_BUILD_LIVE.buildCommand }, APPROVED_BUILD_LIVE) : "unread";
+  ok(drift4 === null,
+    "B3  so a real no-override Next.js project differs ONLY in buildCommand",
+    String(drift4));
+
+  // AND THE EXPECTED DRIFT IS NAMED. The provenance command is not installed on
+  // the canonical project, so preflight must refuse on buildCommand until a
+  // separately authorized Stage 2 installs it. This holds before and after the
+  // constant is corrected, so it does not have to be rewritten then.
+  const driftNow = ns.read ? compareBuild(ns.value, APPROVED_BUILD_LIVE) : null;
+  ok(driftNow !== null && /buildCommand/.test(driftNow),
+    "B3  and preflight drifts on buildCommand while the command is not installed",
+    String(driftNow));
+
   // R2 — AN ABSENT rootDirectory IS NORMALIZED TO null BEFORE COMPARISON.
   //
   // Vercel returns projectSettings WITHOUT a rootDirectory key rather than with
@@ -660,6 +747,34 @@ async function liveAdapterTests() {
       "B3  a redirect to an UNAPPROVED host is refused even when its body parses",
       vs.problems.join("; "));
   } finally { globalThis.fetch = realFetch2; }
+
+  // THE REAL LOCK ADAPTER, NOT A THROWING FAKE.
+  //
+  // _releaseRun's failure handling is only worth having if the live adapter can
+  // actually fail. fileLock.release() caught every unlink error and resolved,
+  // so in production the new handling could never fire — the fake that throws
+  // tested the caller, never the adapter.
+  const lockDir = mkdtempSync(join(tmpdir(), "rel-lockrel-"));
+  const lp = join(lockDir, "r.lock");
+  const lk = fileLock(lp);
+  await lk.acquire({ sha: MAIN, runId: "runX" });
+  await lk.release("runX");
+  ok(!existsSync(lp), "B3  releasing a lock this run owns removes the file");
+
+  // Already gone is not a failure.
+  let secondThrew = false;
+  try { await lk.release("runX"); } catch { secondThrew = true; }
+  ok(!secondThrew, "B3  and releasing an already-absent lock is not an error (ENOENT)");
+
+  // A real failure must PROPAGATE rather than resolve quietly.
+  await lk.acquire({ sha: MAIN, runId: "runY" });
+  chmodSync(lockDir, 0o500);            // directory not writable: unlink fails EACCES/EPERM
+  let realThrew = false;
+  try { await lk.release("runY"); } catch { realThrew = true; }
+  chmodSync(lockDir, 0o700);
+  ok(realThrew, "B3  but an unlink that FAILS for any other reason propagates, never resolves");
+  ok(existsSync(lp), "B3  and the lock file is still there, as the refusal must be able to say");
+  rmSync(lockDir, { recursive: true, force: true });
 
   const boom = mk(async () => { throw new Error("ECONNRESET"); });
   const b = await boom.readAliasMappings();
@@ -862,6 +977,103 @@ async function responseValidationTests() {
 }
 
 /* ── L2: the baseline belongs to the run ──────────────────────────────── */
+async function postMutationRecordTests() {
+  console.log("\n  L9  AFTER THE MUTATION, A FAILED RECORD IS NOT A DETAIL\n");
+
+  const create = (over: Partial<ReleaseIO>) => {
+    const { io: x, rec } = io(over);
+    return runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON).then((r) => ({ r, rec }));
+  };
+
+  // Intent-before-mutation was mandatory; everything after it was best-effort,
+  // so a promotion could succeed while the journal never said so — and recovery
+  // is read FROM the journal.
+  const a = await promote({ recordPromotionAccepted: async () => { throw new Error("EIO writing journal"); } });
+  ok(!a.r.ok && a.r.code === "RECOVERY_REQUIRED",
+    "L9  a promotion that cannot be recorded is RECOVERY_REQUIRED, never success",
+    a.r.ok ? "returned success" : a.r.code);
+  ok(!a.r.ok && "outgoing" in a.r && a.r.outgoing !== "" && "candidateId" in a.r,
+    "L9  and it prints the candidate and the outgoing baseline to reconcile from");
+
+  const v = await promote({ recordReleaseVerified: async () => { throw new Error("ENOSPC"); } });
+  ok(!v.r.ok && v.r.code === "RECOVERY_REQUIRED",
+    "L9  a VERIFIED release whose completion record fails is not ordinary success",
+    v.r.ok ? "returned success" : v.r.code);
+  ok(!v.r.ok && /journal is incomplete/.test(v.r.detail),
+    "L9  and the refusal says routing is correct while the journal is not");
+
+  // THE PREVIOUS VERSION OF THIS TEST WAS VACUOUS. It read
+  //   ok(l.r.ok || !/lock released/.test(detail))
+  // and the promotion it drove SUCCEEDS, so `l.r.ok` was true and the assertion
+  // passed without ever examining a message. It proved nothing on the path it
+  // claimed to cover.
+  //
+  // The claim belongs where the message is actually emitted: a phase-B baseline
+  // refusal, which releases the lock and then TELLS the operator so.
+  const lockFail = await create({
+    readAliasMappings: async () => ({ read: false, why: "alias listing unreadable" }),
+    releaseLock: async () => { throw new Error("EPERM"); },
+  });
+  ok(!lockFail.r.ok, "L9  a baseline it cannot read refuses, and creates nothing",
+    lockFail.r.ok ? "created" : lockFail.r.code);
+  ok(!lockFail.r.ok && !/lock was released/.test(lockFail.r.detail ?? ""),
+    "L9  and when the unlock FAILS it does not claim the lock was released",
+    lockFail.r.ok ? "" : (lockFail.r.detail ?? "").slice(0, 90));
+  ok(!lockFail.r.ok && /COULD NOT BE RELEASED/.test(lockFail.r.detail ?? ""),
+    "L9  it says the lock is still held, and names the run holding it",
+    lockFail.r.ok ? "" : (lockFail.r.detail ?? "").slice(0, 90));
+
+  // The same refusal with a WORKING unlock must still say so — otherwise the
+  // assertion above would pass on a message that never mentions the lock.
+  const lockOk = await create({
+    readAliasMappings: async () => ({ read: false, why: "alias listing unreadable" }),
+  });
+  ok(!lockOk.r.ok && /the lock was released/.test(lockOk.r.detail ?? ""),
+    "L9  while a successful unlock is reported as released",
+    lockOk.r.ok ? "" : (lockOk.r.detail ?? "").slice(0, 90));
+
+  // Recovery records that fail to write must be surfaced, not swallowed.
+  const recFail = await promote({
+    observeHosts: async () => { throw new Error("ECONNRESET"); },
+    recordRecoveryRequired: async () => { throw new Error("EIO"); },
+  });
+  ok(!recFail.r.ok && recFail.r.code === "RECOVERY_REQUIRED" && /ALSO failed to write/.test(recFail.r.detail ?? ""),
+    "L9  a recovery record that cannot be written is said out loud",
+    recFail.r.ok ? "" : (recFail.r.detail ?? "").slice(0, 100));
+
+  // And the INCOMPLETE message must not say the target both is and is not recorded.
+  const incFail = await promote({
+    observeHosts: async () => HOSTS.map((h) => ({
+      host: h, aliasDeploymentId: { read: true as const, value: "dpl_other" },
+      served: { read: true as const, value: { deploymentId: "dpl_other", commitSha: MAIN, finalHost: h } },
+    })),
+    recordRecoveryRequired: async () => { throw new Error("EIO"); },
+  });
+  ok(!incFail.r.ok && incFail.r.code === "INCOMPLETE",
+    "L9  routing that does not verify is INCOMPLETE", incFail.r.ok ? "" : incFail.r.code);
+  const incDetail = incFail.r.ok ? "" : (incFail.r.detail ?? "");
+  ok(!incFail.r.ok && !/rollback target is recorded/.test(incDetail),
+    "L9  and when the record FAILED it does not also claim the target is recorded",
+    incDetail.slice(0, 110));
+
+  // AND IT SAYS THE TRUE THING, NOT MERELY NOT THE FALSE ONE. The intent record
+  // is written before the promotion and a failed write returns RECORD_FAILED, so
+  // any run that reaches INCOMPLETE has one. Saying the rollback target is "NOT
+  // in the journal" sent an operator looking for something already on disk.
+  ok(!incFail.r.ok && /remains in the earlier intent record/.test(incDetail),
+    "L9  and it points at the intent record, which DOES hold the rollback target",
+    incDetail.slice(0, 140));
+  ok(!incFail.r.ok && !/(target|rollback)[^.]{0,40}(is NOT|not) in the journal/i.test(incDetail),
+    "L9  and never claims the rollback target is missing from the journal",
+    incDetail.slice(0, 140));
+
+  // The same mistake lived in the RECOVERY_REQUIRED note.
+  const recFailDetail = recFail.r.ok ? "" : (recFail.r.detail ?? "");
+  ok(!recFail.r.ok && /still holds the rollback target/.test(recFailDetail),
+    "L9  the RECOVERY_REQUIRED note also credits the intent record it has",
+    recFailDetail.slice(0, 140));
+}
+
 async function baselineTests() {
   console.log("\n  L2  THE OUTGOING BASELINE IS PHASE B'S, NOT PHASE C'S\n");
 
@@ -946,6 +1158,7 @@ async function candidateConfigTests() {
   // A8 — project settings change between A and B; only the candidate check sees it.
   const drifted = await promote({
     readProjectSettings: async () => ({ read: true, value: { ...APPROVED } }),
+    readAutoAssignCustomDomains: async () => ({ read: true, value: false }),
     readCandidate: async () => ({ read: true, value: { ...RECORD, build: { ...APPROVED, installCommand: "npm ci --force" } } }),
   });
   ok(!drifted.r.ok && drifted.r.code === "CANDIDATE_BUILD_NOT_APPROVED" && drifted.rec.promotes.length === 0,
@@ -1088,6 +1301,7 @@ async function main() {
   await aliasCompletenessTests();
   await responseValidationTests();
   await lifecycleLockTests();
+  await postMutationRecordTests();
   await baselineTests();
   await classificationTests();
   await targetVerificationTests();
@@ -1104,11 +1318,16 @@ async function main() {
   await phaseTests();
   console.log(`\n  ${pass} passed, ${fail} failed.`);
   console.log(`
-  PENDING — six live proofs on the disposable project, not covered here:
+  HISTORICAL NOTE — the six live proofs ran on 4-5 September 2026 against a
+  disposable project, and all six passed. That project and its repository have
+  since been deleted, so they cannot be re-run as they were. Their results and
+  limits are recorded in docs/evidence/live-proofs/. They were:
     1 a SUCCESSFUL git-triggered build      2 the config-file override case
     3 immutability on a successful build    4 the guard runs on an API-created deployment
     5 creation without projectSettings      6 whether promotion moves the primary alias
-  Nothing above substitutes for them.
+  Nothing in THIS suite substitutes for them, and nothing here re-establishes
+  them. Note that the provenance guard has since been changed (finding 4), so
+  proofs 4 and 6 describe the PRIOR guard artifact, not the current one.
 `);
   process.exit(fail === 0 ? 0 : 1);
 }

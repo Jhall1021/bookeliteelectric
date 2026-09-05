@@ -3,7 +3,7 @@
 #
 # Refuses the build unless every fact holds:
 #   VERCEL_ENV=production, provider github, owner Jhall1021, repo bookeliteelectric,
-#   ref main, a full commit SHA, and a FRESH `git ls-remote` of GitHub refs/heads/main
+#   ref main, a full commit SHA, and a FRESH authenticated read of GitHub refs/heads/main
 #   equal to that SHA. Any missing fact, and an unreadable GitHub, is a refusal.
 #
 # It is NOT run from the deployed tree. The canonical project's Build Command fetches
@@ -12,19 +12,34 @@
 # decideBuildProvenance() in that module; scripts/verify-release-provenance.ts runs both
 # against one fact table and fails if they disagree.
 #
-# POSIX sh. No secrets, no tokens, no repository files. P2B_MAIN_REMOTE exists only so
-# the verifier can point the network read at an unreachable host; production never sets it.
+# POSIX sh. No repository files are read: this guard is fetched from GitHub at
+# build time, so an old checkout cannot carry an old guard.
 OWNER=Jhall1021
 REPO=bookeliteelectric
 REF=main
-# PRIVATE REPOSITORY: the fresh-main read is authenticated.
+# THE FRESH-MAIN READ IS AUTHENTICATED BY CHOICE. The canonical repository is
+# PUBLIC, so this read would usually succeed anonymously — but an authenticated
+# read fails closed on a bad or missing credential instead of degrading to an
+# anonymous, rate-limited one, and NO_READ_CREDENTIAL below depends on the
+# credential being required.
 #
 # The token is NEVER an argument. A header on the command line is visible through
 # ps, process accounting, and tracing, so it reaches curl through a --config file
-# on stdin instead. P2B_MAIN_API exists only so the verifier can point the read at
-# an unreachable host; production never sets it.
-API="${P2B_MAIN_API:-https://api.github.com/repos/$OWNER/$REPO/git/ref/heads/$REF}"
+# on stdin instead.
+#
+# P2B_MAIN_API IS PINNED IN PRODUCTION. It exists so the verifier can point the
+# read at an unreachable host, but an environment variable that can replace the
+# endpoint this guard validates against is an environment variable that can
+# decide the answer. In a production build the canonical URL is used and the
+# override is ignored outright — not merely unset by convention.
 refuse() { echo "PROVENANCE REFUSED ($1): $2"; exit 1; }
+CANONICAL_API="https://api.github.com/repos/$OWNER/$REPO/git/ref/heads/$REF"
+if [ "${VERCEL_ENV:-}" = "production" ]; then
+  API="$CANONICAL_API"
+  [ -n "${P2B_MAIN_API:-}" ] && refuse OVERRIDE_IN_PRODUCTION "P2B_MAIN_API is set in a production build"
+else
+  API="${P2B_MAIN_API:-$CANONICAL_API}"
+fi
 [ "${VERCEL_ENV:-}" = "production" ] || refuse NOT_PRODUCTION "target is \"${VERCEL_ENV:-}\", not production"
 [ "${VERCEL_GIT_PROVIDER:-}" = "github" ] || refuse NOT_GITHUB "git provider is \"${VERCEL_GIT_PROVIDER:-}\" - not a GitHub-triggered build"
 [ "${VERCEL_GIT_REPO_OWNER:-}" = "$OWNER" ] || refuse WRONG_OWNER "repository owner is \"${VERCEL_GIT_REPO_OWNER:-}\""
@@ -36,6 +51,19 @@ case "$SHA" in
   *) refuse NO_SHA "no full commit SHA on this deployment" ;;
 esac
 [ -n "${P2B_GH_READ_TOKEN:-}" ] || refuse NO_READ_CREDENTIAL "no repository read credential in the build environment"
+
+# THE CREDENTIAL IS INTERPOLATED INTO A CURL CONFIG, so a value carrying a
+# newline could add directives of its own — another url, an output file.
+#
+# This refuses the characters that can BREAK OUT of a quoted config line rather
+# than allow-listing the ones a token may contain. An allowlist was tried first
+# and it rejected perfectly good test credentials, which is the failure mode an
+# allowlist has in production too: a future token format nobody anticipated
+# would stop a release for no security reason.
+case "$P2B_GH_READ_TOKEN" in
+  *[[:space:]]*|*'"'*|*'\'*)
+    refuse MALFORMED_CREDENTIAL "the read credential contains whitespace or quoting characters" ;;
+esac
 
 # THE FETCH'S EXIT STATUS IS CHECKED ON ITS OWN.
 #

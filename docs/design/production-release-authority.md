@@ -67,7 +67,7 @@ positional argument.
 
 **It does not list deployments and pick one, and it does not decide origin from
 a deployment's metadata.** An origin-trust observation established that every
-origin-looking field on a deployment record — `source`, `githubDeployment`,
+origin-looking field on a deployment record — `source`, `githubDeployment` *(retired — see below)*,
 `githubCommitSha`, `githubCommitVerification` and the rest — is writable by the
 caller that creates it. A record saying "GitHub built this" is a claim, not
 evidence. The release therefore *creates* the deployment and keeps the id
@@ -87,7 +87,19 @@ command once the correct `main` is restored. A `/platform` 404 with
 Recorded in the Stage 1 report and held by the verifier:
 
 - A project's Build Command is limited to 256 characters. The guard therefore
-  cannot be inline; it is fetched from `main`.
+  cannot be inline; it is fetched from `main` — and, because a fetched file is
+  only as trustworthy as its bytes, the command pins the guard's SHA-256 digest
+  and refuses to execute anything else. The bootstrap fetch sends no credential:
+  the repository is public, and a credential in that command is an injection
+  surface rather than a boundary.
+
+  **THE OPERATIONAL COST: editing the guard changes its digest, so the canonical
+  project's Build Command must be re-installed every time the guard changes.**
+  Skipping that does not run the old guard — it fails the build. The digest is
+  DERIVED from the guard file at run time rather than typed in, so the command
+  and the file in a given checkout cannot drift apart. What can drift is the
+  value installed on the Vercel project, and preflight refuses when the project's
+  Build Command is not the one this checkout computes.
 - `vercel link` rewrites `.env.local` in the linked directory with pulled
   Development values. Never link a directory whose `.env.local` matters.
 - `vercel deploy --yes` in an unlinked directory creates a new project named
@@ -98,7 +110,7 @@ Recorded in the Stage 1 report and held by the verifier:
   deployments, including one from a clean checkout of shared `main`. A
   Git-triggered build populates them, plus `githubDeployment=1` in `meta`. So
   the provider check alone refuses every CLI upload, and the release command's
-  `githubDeployment` requirement refuses the same artifacts at promotion.
+  `githubDeployment` *(retired — see below)* requirement refuses the same artifacts at promotion.
 - With auto-assign off, three READY production builds left the project's
   production domain unassigned (404) until one was promoted explicitly; the
   oldest was promoted and newer READY builds did not displace it. The
@@ -110,3 +122,16 @@ Recorded in the Stage 1 report and held by the verifier:
 Connecting the canonical project to GitHub, changing its Build Command,
 branch protection, the legacy project's disposition, a Preview database, and
 any promotion. Each waits for review of this stage.
+
+
+## Retired: the metadata-origin requirement
+
+Earlier revisions required a candidate to carry `githubDeployment` and matching
+`githubOrg`/`githubRepo`/`githubRef` metadata. **That requirement is gone**, and
+so is the code behind it. The origin-trust observation established that a caller
+creating a deployment writes every one of those fields, and that Vercel enriches
+the forgery further — so the requirement tested a claim, not a fact.
+
+The release now creates the deployment and keeps the id its own request
+returned. References to the old requirement above are retained for history and
+are **not** current operating instructions.

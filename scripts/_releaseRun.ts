@@ -35,6 +35,8 @@ export type ReleaseIO = {
   readFreshMain: () => Promise<string | null>;
   readCommitTree: (sha: string) => Promise<Read<{ truncated: boolean; paths: readonly string[] }>>;
   readProjectSettings: () => Promise<Read<ApprovedBuild>>;
+  /** Current-project fact, not candidate evidence. See PreflightFacts. */
+  readAutoAssignCustomDomains: () => Promise<Read<boolean>>;
   readCurrentProduction: () => Promise<Read<{ deploymentId: string; aliases: readonly string[] }>>;
 
   /**
@@ -110,6 +112,7 @@ export async function runRelease(
     freshMainSha: await io.readFreshMain(),
     commitTree: { read: false, why: "not read" },
     projectSettings: await io.readProjectSettings(),
+    autoAssignCustomDomains: await io.readAutoAssignCustomDomains(),
     currentProduction: await io.readCurrentProduction(),
   };
   if (facts.freshMainSha) facts.commitTree = await io.readCommitTree(facts.freshMainSha);
@@ -155,9 +158,18 @@ export async function runRelease(
     const bad = baselineRefusal(pre.outgoing.deploymentId, baseline, requiredHosts);
     if (bad) {
       // The lock is released: nothing was created, so nothing is in doubt.
-      await io.releaseLock(runId).catch(() => undefined);
-      return { ok: false, phase: "create", code: bad.code,
-        detail: `${bad.detail}. Nothing was created and the lock was released.` };
+        // Nothing was created, so nothing is in doubt — but whether the LOCK came
+        // off is its own fact. This swallowed the failure and then told the
+        // operator the lock was released, which is the sentence they act on. A
+        // held lock nobody knows about blocks the next release and reads as a
+        // stuck run.
+        let lockOff = true;
+        await io.releaseLock(runId).catch(() => { lockOff = false; });
+        return { ok: false, phase: "create", code: bad.code,
+          detail: lockOff
+            ? `${bad.detail}. Nothing was created and the lock was released.`
+            : `${bad.detail}. Nothing was created, but THE LOCK COULD NOT BE RELEASED and is still ` +
+              `held by run ${runId}. Clear it deliberately; it will not clear itself.` };
     }
 
     const r = await io.createDeployment(pre.sha).catch((e) => ({ error: e }));
@@ -268,7 +280,23 @@ export async function runRelease(
     }
     // PROMOTION ACCEPTED — distinct from the release being verified. The
     // journal must be able to say which of the two happened.
-    await io.recordPromotionAccepted(record).catch(() => undefined);
+    // AFTER THE MUTATION, A FAILED RECORD IS NOT A DETAIL.
+    //
+    // Intent-before-mutation was already mandatory; everything after it was
+    // best-effort. So a promotion could succeed while the journal never said so
+    // — and recovery is read FROM the journal. A run that promoted and cannot
+    // record it needs a person, not a success code.
+    let acceptedUnrecorded = "";
+    await io.recordPromotionAccepted(record)
+      .catch((e) => { acceptedUnrecorded = String(e).slice(0, 120); });
+    if (acceptedUnrecorded) {
+      released = true; // the promotion happened; the lock stays for reconciliation
+      return { ok: false, phase: "promote", code: "RECOVERY_REQUIRED",
+        detail: `the promotion was accepted by Vercel but could not be recorded ` +
+          `(${acceptedUnrecorded}). The lock is deliberately still held and nothing was remediated. ` +
+          `Reconcile by hand: the candidate and the outgoing baseline are below.`,
+        candidateId, outgoing: record.outgoingDeploymentId, outgoingAliases: record.outgoingAliases };
+    }
 
     // VERIFICATION MAY FAIL BY THROWING, and that used to escape runRelease
     // entirely: the lock was released on the way out, a "completed" record had
@@ -283,10 +311,14 @@ export async function runRelease(
         await io.readProductionTarget());
     } catch (e) {
       released = true; // the lock stays: the release is unresolved.
-      await io.recordRecoveryRequired(record, String(e).slice(0, 160)).catch(() => undefined);
+      let recNote = "";
+      await io.recordRecoveryRequired(record, String(e).slice(0, 160))
+        .catch((re) => { recNote = ` The recovery-required record ALSO failed to write (${String(re).slice(0, 80)}). ` +
+          `The intent record written before the promotion is unaffected and still holds the rollback target; ` +
+          `what the journal lacks is any description of THIS outcome, and this message is the only record of it.`; });
       return { ok: false, phase: "promote", code: "RECOVERY_REQUIRED",
         detail: `the promotion was accepted but verification could not complete ` +
-          `(${String(e).slice(0, 120)}). The lock is deliberately still held and nothing was ` +
+          `(${String(e).slice(0, 120)}).${recNote} The lock is deliberately still held and nothing was ` +
           `remediated. Reconcile by hand: the candidate and the outgoing baseline are below.`,
         candidateId, outgoing: record.outgoingDeploymentId, outgoingAliases: record.outgoingAliases };
     }
@@ -295,17 +327,52 @@ export async function runRelease(
       // rollback record stands and the operator decides. Nothing is remediated
       // automatically.
       released = true; // unresolved: the lock stays until a person decides.
-      await io.recordRecoveryRequired(record, v.problems.join("; ")).catch(() => undefined);
+      let incNote = "";
+      await io.recordRecoveryRequired(record, v.problems.join("; "))
+        // WHAT FAILED IS THE OUTCOME RECORD, NOT THE ROLLBACK TARGET.
+        //
+        // This said the rollback target was NOT in the journal. It is: the intent
+        // record is written before the promotion and a failure to write it
+        // returns RECORD_FAILED, so reaching here means it succeeded. Telling an
+        // operator mid-incident that their rollback target is missing sends them
+        // looking for something that is already on disk.
+        .catch((re) => { incNote = ` The recovery-required outcome could not be written (${String(re).slice(0, 80)}). ` +
+          `The rollback target remains in the earlier intent record; this message is the only record of ` +
+          `the failed verification and the failed recovery write.`; });
       return { ok: false, phase: "promote", code: "INCOMPLETE",
-        detail: "promoted, but routing did not verify. The rollback target is recorded, the lock is " +
-          "still held, and nothing was remediated automatically.",
+        // The sentence must not say the target both is and is not recorded.
+        detail: (incNote
+          ? "promoted, but routing did not verify. The lock is still held and nothing was " +
+            "remediated automatically." + incNote
+          : "promoted, but routing did not verify. The rollback target is in the intent record and the " +
+            "recovery-required outcome is recorded, the lock is still held, and nothing was remediated " +
+            "automatically."),
         problems: v.problems };
     }
-    await io.recordReleaseVerified(record).catch(() => undefined);
+    let verifiedUnrecorded = "";
+    await io.recordReleaseVerified(record).catch((e) => { verifiedUnrecorded = String(e).slice(0, 120); });
+    if (verifiedUnrecorded) {
+      // Routing verified, but the journal cannot say the release completed.
+      // Ordinary success here would promise a record that is not there.
+      released = true;
+      return { ok: false, phase: "promote", code: "RECOVERY_REQUIRED",
+        detail: `the release promoted and VERIFIED, but the completion record could not be written ` +
+          `(${verifiedUnrecorded}). Routing is correct; the journal is incomplete. The lock is still ` +
+          `held so the discrepancy is reconciled deliberately rather than discovered later.`,
+        candidateId, outgoing: record.outgoingDeploymentId, outgoingAliases: record.outgoingAliases };
+    }
     return { ok: true, phase: "promote", candidateId, sha: approvedSha,
       replaced: receipt.read ? receipt.value.outgoingDeploymentId : "" };
   } finally {
-    if (!released) await io.releaseLock(runId).catch(() => undefined);
+    // A REFUSAL USED TO SAY THE LOCK WAS RELEASED WHEN THAT WRITE FAILED. The
+    // message is what an operator acts on, so it is emitted only when the
+    // release actually happened.
+    if (!released) {
+      await io.releaseLock(runId).catch((e) => {
+        io.log(`WARNING: the run lock could not be released (${String(e).slice(0, 100)}). ` +
+          `It must be cleared deliberately; it will not clear itself.`);
+      });
+    }
   }
 }
 

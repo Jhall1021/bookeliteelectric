@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
 /**
  * Production release authority — the decisions, pure.
  *
@@ -156,25 +159,54 @@ export function decideBuildProvenance(f: BuildFacts): ProvenanceDecision {
  * project can point it at a branch; the canonical value is main's.
  */
 export const PROVENANCE_GUARD_PATH = "scripts/provenance-guard.sh";
+
+/**
+ * The digest of the guard this command will accept, computed from the file in
+ * this checkout so the two cannot drift apart silently.
+ *
+ * 32 hex characters — 128 bits of SHA-256. An attacker needs a SECOND PREIMAGE
+ * for a chosen file, not a collision, so 128 bits is ample; the full digest does
+ * not fit under Vercel's 256-character build-command ceiling.
+ */
+export const GUARD_DIGEST = createHash("sha256")
+  .update(readFileSync(new URL(`../${PROVENANCE_GUARD_PATH}`, import.meta.url)))
+  .digest("hex").slice(0, 32);
+
 export function provenanceBuildCommand(
-  guardUrl = `https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/contents/${PROVENANCE_GUARD_PATH}?ref=${CANONICAL.ref}`
+  guardUrl = `https://raw.githubusercontent.com/${CANONICAL.owner}/${CANONICAL.repo}/${CANONICAL.ref}/${PROVENANCE_GUARD_PATH}`,
+  digest = GUARD_DIGEST
 ): string {
-  // AUTHENTICATED, WITH THE TOKEN NEVER IN ARGV.
+  // NO CREDENTIAL IS SENT DURING BOOTSTRAP, AND THE BYTES ARE PINNED.
   //
-  // curl reads its config from stdin (-K-), so no Authorization header appears
-  // in ps output, process accounting or a trace. The header lines themselves
-  // live in P2B_GH_HDR, a Production environment variable, for two reasons:
-  // they carry the credential, and inlining them put this command at 295
-  // characters against Vercel's 256 ceiling.
+  // Putting the token in a header file stopped injected curl DIRECTIVES but not
+  // injected HTTP HEADERS. A token carrying a newline could add
+  //   Range: bytes=<chosen suffix>
+  // and a range request succeeds with 206 and the requested bytes only — so the
+  // command would have piped a FRAGMENT of the guard into `sh`, and a fragment
+  // can omit the checks. That is worse than no guard, because it looks like one.
   //
-  // THE URL STAYS IN THE COMMAND DELIBERATELY. It is what names the canonical
-  // repository, and the approved-command comparison at promotion time is only
-  // meaningful while the command still pins the repo it fetches from. Moving the
-  // URL into an environment variable would make the approved string say nothing
-  // about where the guard came from.
+  // The canonical repository is public and the guard performs its own
+  // authenticated read, so the bootstrap fetch never needed a credential. It
+  // sends none. There is nothing left to inject into.
   //
-  // -f turns a non-2xx into a non-zero exit, and && stops the build on it.
-  return `g=$(printf 'url="%s"\n%s' "${guardUrl}" "$P2B_GH_HDR"|curl -fsSK- --max-time 30)&&[ -n "$g" ]&&echo "$g"|sh&&npm run build`;
+  // AND THE FETCH IS VERIFIED, NOT TRUSTED. A branch-named raw URL can serve a
+  // cached older guard, and an older guard can approve a correct SHA under its
+  // older rules — the deployment's SHA comparison says nothing about which guard
+  // BYTES ran. So the digest is pinned here and checked before anything is
+  // executed. A stale, truncated or substituted body fails the comparison and
+  // the build stops; it cannot run under the wrong rules.
+  //
+  // THE COST, STATED: changing the guard changes this command, so the project's
+  // Build Command must be re-installed whenever the guard is edited. That is
+  // deliberate — the guard's identity is part of what the release approves.
+  //
+  // THE BYTES ARE HASHED ON DISK, NOT THROUGH A SHELL VARIABLE. `$(curl …)`
+  // strips trailing newlines, so hashing the variable hashes something that is
+  // NOT the file: the pinned digest would never match the genuine guard, and
+  // every build would refuse it. Writing the response out and hashing the file
+  // also makes the pin hand-verifiable — `shasum -a 256 scripts/provenance-guard.sh`
+  // is the number below.
+  return `curl -fsS -m 30 -o .p2bguard "${guardUrl}"&&[ "$(shasum -a 256 .p2bguard|cut -c1-32)" = "${digest}" ]&&sh .p2bguard&&npm run build`;
 }
 
 export const PROVENANCE_BUILD_COMMAND = provenanceBuildCommand();

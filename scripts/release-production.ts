@@ -67,9 +67,47 @@ import { runRelease, type ReleaseIO } from "./_releaseRun";
 import { type ApprovedBuild, type Read, type CreationReceipt, type AliasMapping } from "./_releaseControl";
 
 /** The approved build, as constants. Changing these is a reviewed change. */
+/**
+ * The build configuration a canonical production deployment must have been
+ * built with, established from the project itself rather than assumed.
+ *
+ * CORRECTED 5 September 2026. `outputDirectory: "public"` and `framework: null`
+ * were carried over from the disposable proof fixture, which was a static site.
+ * This repository is a Next.js application with 55 API route files; `public/`
+ * holds images. With those values a preflight against the real project could
+ * only ever have refused.
+ *
+ * Read-only dashboard inspection of the canonical project established:
+ *
+ *   Framework Preset   Next.js                 -> framework: "nextjs"
+ *   Root Directory     repository root ("./")  -> rootDirectory: null
+ *   Output Directory   Next.js default         -> outputDirectory: ""
+ *   Install Command    no override             -> installCommand: null
+ *   Build Command      no override             -> the project reports ""
+ *
+ * The first four are what the project reports today. `buildCommand` is
+ * DELIBERATELY DIFFERENT.
+ *
+ * THE APPROVED BUILD COMMAND IS NOT INSTALLED, AND PREFLIGHT MUST REFUSE.
+ *
+ * The canonical project still runs Vercel's automatic command. The provenance
+ * one-liner — the thing that makes the guard run at all — is not on the project,
+ * so `compareBuild` will report drift on `buildCommand` and preflight will
+ * refuse PROJECT_SETTINGS_NOT_APPROVED. That is correct: a release must not
+ * proceed while the guard would not run.
+ *
+ * It resolves when a separately reviewed and authorized Stage 2 installs the
+ * command on the project. It must NOT be resolved by relaxing this constant to
+ * whatever the project currently says — that inverts the check into adopting
+ * the project's configuration as approved, which is the failure this whole
+ * mechanism exists to prevent.
+ */
 export const APPROVED_BUILD: ApprovedBuild = {
-  rootDirectory: null, installCommand: null,
-  buildCommand: PROVENANCE_BUILD_COMMAND, outputDirectory: "public", framework: null,
+  rootDirectory: null,
+  installCommand: null,
+  buildCommand: PROVENANCE_BUILD_COMMAND,   // NOT yet installed on the project
+  outputDirectory: "",
+  framework: "nextjs",
 };
 /** Where a canonical host may legitimately redirect to. */
 export const APPROVED_REDIRECT_HOSTS: readonly string[] = CANONICAL.canonicalHosts;
@@ -235,7 +273,19 @@ export function fileLock(path: string) {
     async release(runId: string): Promise<void> {
       const j = read();
       if (!j || j.runId !== runId) return;   // not ours; leave it alone
-      try { unlinkSync(path); } catch { /* already gone */ }
+      // ONLY ENOENT IS "ALREADY GONE".
+      //
+      // This caught EVERY unlink error and resolved successfully, so the
+      // caller's failure handling could never fire in production: an EPERM or
+      // EIO left the lock in place while the refusal told the operator it had
+      // been released. A lock that is held but reported as released blocks the
+      // next release and reads as a stuck run.
+      try {
+        unlinkSync(path);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return;  // genuinely gone
+        throw e;
+      }
     },
   };
 }
@@ -535,6 +585,24 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
         return { read: true, value: { truncated: j.truncated === true, paths: j.tree.map((e) => (e as { path: string }).path) } };
       } catch (e) { return { read: false, why: String(e).slice(0, 80) }; }
     },
+    // A CURRENT-PROJECT FACT, read from the project itself. Absent is not
+    // false: a response that does not carry the field cannot establish that
+    // auto-assignment is off, and preflight refuses on anything but an explicit
+    // boolean false.
+    readAutoAssignCustomDomains: async () => {
+      try {
+        const r = await api<{ autoAssignCustomDomains?: unknown }>(
+          `/v9/projects/${CANONICAL.vercelProjectId}?teamId=${CANONICAL.vercelTeamId}`);
+        if (r.status >= 300) return { read: false, why: `project read ${r.status}` };
+        if (!("autoAssignCustomDomains" in (r.body as object)))
+          return { read: false, why: "the project response carries no autoAssignCustomDomains field" };
+        const v = (r.body as { autoAssignCustomDomains?: unknown }).autoAssignCustomDomains;
+        if (typeof v !== "boolean")
+          return { read: false, why: `autoAssignCustomDomains is ${JSON.stringify(v)}, not a boolean` };
+        return { read: true, value: v };
+      } catch (e) { return { read: false, why: `project read threw: ${String(e).slice(0, 80)}` }; }
+    },
+
     readProjectSettings: async () => {
       const r = await api<Record<string, unknown>>(
         `/v9/projects/${CANONICAL.vercelProjectId}?teamId=${CANONICAL.vercelTeamId}`);

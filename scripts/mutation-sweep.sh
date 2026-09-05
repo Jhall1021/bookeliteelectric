@@ -27,7 +27,9 @@ set -uo pipefail
 
 TARGET="${1:-HEAD}"
 TIMEOUT="${TIMEOUT:-90}"
-SUITE="scripts/verify-release-control.ts"
+# The suite a mutation is checked against comes from the mutation set: a
+# mutation checked against a suite that never reads the changed code reports
+# NOT DETECTED and means nothing. `run_suite` takes it as an argument.
 
 repo_root=$(git rev-parse --show-toplevel) || { echo "not a git repository" >&2; exit 1; }
 sha=$(git rev-parse --verify "$TARGET") || exit 1
@@ -67,8 +69,9 @@ fi
 
 # --- bounded run, whole process tree ---------------------------------------
 run_suite() {
+  local suite="$1"
   set -m                                  # job control: the child leads its own group
-  npx tsx "$SUITE" > "$work/out" 2>&1 &
+  npx tsx "$suite" > "$work/out" 2>&1 &
   local pid=$! waited=0
   set +m
   while kill -0 "$pid" 2>/dev/null; do
@@ -104,9 +107,13 @@ mutate() {
     # Drift, not evidence. The guard was never tested, so it is neither load-
     # bearing nor proven dead — it counts against the sweep either way.
     printf "  %-46s SKIP (patch did not apply)\n" "$label"
-    harness_failures=$((harness_failures + 1)); git checkout -q -- scripts; return
+    harness_failures=$((harness_failures + 1)); git checkout -q -- .; return
   fi
-  local r; r=$(run_suite)
+  local suite; suite=$(python3 scripts/_mutations.py --suite "$name") || {
+    printf "  %-46s SKIP (no suite recorded)\n" "$label"
+    harness_failures=$((harness_failures + 1)); git checkout -q -- .; return
+  }
+  local r; r=$(run_suite "$suite")
   case "$r" in
     ok:0)
       printf "  %-46s NOT DETECTED\n" "$label"
@@ -121,9 +128,9 @@ mutate() {
       printf "  %-46s HARNESS FAILURE (no test summary)\n" "$label"
       harness_failures=$((harness_failures + 1)) ;;
   esac
-  git checkout -q -- scripts
+  git checkout -q -- .
   # Nothing of ours may outlive its own run.
-  local stray; stray=$(pgrep -f "verify-release-control" 2>/dev/null | wc -l | tr -d ' ')
+  local stray; stray=$(pgrep -f "verify-release-" 2>/dev/null | wc -l | tr -d ' ')
   [ "$stray" != "0" ] && printf "  %-46s WARNING: %s stray process(es)\n" "" "$stray"
 }
 
@@ -138,17 +145,21 @@ echo
 
 # THE ENTRY BASELINE. Every result below is a comparison against this run; if it
 # does not pass, the sweep has nothing to compare to and reports nothing.
-printf "  %-46s " "baseline (before sweep)"
-first=$(run_suite)
-case "$first" in
-  ok:0) grep -E "passed," "$work/out" | tail -1 | sed 's/^ *//' ;;
-  ok:*) echo "FAILED (${first#ok:} failing)"
-        echo >&2; echo "REFUSING: the unmutated suite does not pass — a sweep from here proves nothing" >&2; exit 1 ;;
-  timeout) echo "TIMEOUT(${TIMEOUT}s)"
-        echo >&2; echo "REFUSING: the unmutated suite did not finish" >&2; exit 1 ;;
-  *) echo "NO TEST SUMMARY"
-        echo >&2; echo "REFUSING: the unmutated suite produced no test summary — the harness is broken, not the code" >&2; exit 1 ;;
-esac
+SUITES=$(python3 scripts/_mutations.py --suites) || { echo "cannot list suites" >&2; exit 1; }
+while IFS= read -r suite; do
+  [ -z "$suite" ] && continue
+  printf "  %-46s " "baseline: ${suite##*/}"
+  first=$(run_suite "$suite")
+  case "$first" in
+    ok:0) grep -E "passed," "$work/out" | tail -1 | sed 's/^ *//' ;;
+    ok:*) echo "FAILED (${first#ok:} failing)"
+          echo >&2; echo "REFUSING: unmutated $suite does not pass — a sweep from here proves nothing" >&2; exit 1 ;;
+    timeout) echo "TIMEOUT(${TIMEOUT}s)"
+          echo >&2; echo "REFUSING: unmutated $suite did not finish" >&2; exit 1 ;;
+    *) echo "NO TEST SUMMARY"
+          echo >&2; echo "REFUSING: unmutated $suite produced no test summary — the harness is broken, not the code" >&2; exit 1 ;;
+  esac
+done <<< "$SUITES"
 echo
 
 while IFS= read -r name; do
@@ -171,15 +182,18 @@ fi
 # restores worked and the suite still passes — a sweep that corrupted its own
 # worktree would otherwise finish looking clean.
 echo
-printf "  %-46s " "baseline (after restores)"
-last=$(run_suite)
 final_bad=0
-case "$last" in
-  ok:0) grep -E "passed," "$work/out" | tail -1 | sed 's/^ *//' ;;
-  ok:*) echo "FAILED (${last#ok:} failing)"; final_bad=1 ;;
-  timeout) echo "TIMEOUT(${TIMEOUT}s)"; final_bad=1 ;;
-  *) echo "NO TEST SUMMARY"; final_bad=1 ;;
-esac
+while IFS= read -r suite; do
+  [ -z "$suite" ] && continue
+  printf "  %-46s " "baseline after restores: ${suite##*/}"
+  last=$(run_suite "$suite")
+  case "$last" in
+    ok:0) grep -E "passed," "$work/out" | tail -1 | sed 's/^ *//' ;;
+    ok:*) echo "FAILED (${last#ok:} failing)"; final_bad=$((final_bad + 1)) ;;
+    timeout) echo "TIMEOUT(${TIMEOUT}s)"; final_bad=$((final_bad + 1)) ;;
+    *) echo "NO TEST SUMMARY"; final_bad=$((final_bad + 1)) ;;
+  esac
+done <<< "$SUITES"
 echo
 
 exit $((survivors + harness_failures + final_bad))
