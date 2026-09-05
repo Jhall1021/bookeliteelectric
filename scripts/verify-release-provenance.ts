@@ -30,7 +30,7 @@
  *      /api/deployment-identity and middleware are byte-for-byte unchanged.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { writeFileSync, chmodSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { writeFileSync, chmodSync, mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -203,6 +203,37 @@ function main() {
       /createDeployment/.test(relSrc) && /body\.id/.test(relSrc));
     ok(`   and phase C takes it from the durable receipt, never from a search`,
       /loadCreationReceipt/.test(runSrc) && !/listCandidates/.test(relSrc));
+
+    // ── 4b. the retired subsystem stays retired ──────────────────────────
+    //
+    // Deleting a design is not the same as keeping it deleted. These read every
+    // ACTIVE release source and fail if any of the retired surface returns —
+    // the orchestration module, the metadata-origin decision, the origin-trust
+    // apparatus, or selecting a candidate from a deployment listing.
+    //
+    // Historical EVIDENCE files keep the old wording deliberately: they record
+    // what was observed, and rewriting them would be falsifying the record.
+    // Only active code and governing documentation are searched.
+    const ACTIVE_SOURCES = [
+      "scripts/release-production.ts", "scripts/_releaseRun.ts",
+      "scripts/_releaseControl.ts", "scripts/_releaseProvenance.ts",
+      "scripts/_releaseSource.ts",
+    ];
+    const active = ACTIVE_SOURCES.map((f) => strip(f)).join("\n");
+    for (const gone of ["_releaseOrchestration", "decidePromotion", "candidateFromVercel",
+                        "verifiedOrigin", "ORIGIN_TRUST_BASIS", "basisCovers",
+                        "ORIGIN_UNVERIFIED", "ORIGIN_DECISION_FIELDS", "evidenceRefusal",
+                        "resolveEffectiveBuildCommand", "listCandidates"]) {
+      ok(`4b. ${gone} is absent from every active release source`, !active.includes(gone));
+    }
+    ok(`   the orchestration module itself is gone from the tree`,
+      !existsSync(new URL("./_releaseOrchestration.ts", import.meta.url)));
+    ok(`   no candidate is selected from a deployment listing`,
+      !/\/v6\/deployments\?/.test(active) && !/deployments\.find\(/.test(active)
+      // [^)]* stopped at the ")" in "(x) =>", so filter((x) => x.readyState ===
+      // "READY") slipped straight through. A negative test caught it.
+      && !/\.filter\([\s\S]{0,120}READY/.test(active)
+      && !/\.find\([\s\S]{0,120}READY/.test(active));
 
     // ── 5. the release command ───────────────────────────────────────────
     const rel = strip("scripts/release-production.ts");

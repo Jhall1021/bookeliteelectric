@@ -18,16 +18,17 @@
  * `refs/heads/main` from GitHub, taken at the moment the decision is made.
  * Not a branch name, not a commit message, not creation order.
  *
- * TWO DECISIONS, ONE MODULE
+ * ONE DECISION, MADE INSIDE THE BUILD
  *
  *   decideBuildProvenance   at build time, inside Vercel, from the system
  *                           environment: may this source build as production?
- *   decidePromotion         at release time, from the operator's machine:
- *                           may this READY deployment be promoted?
+ * decideBuildProvenance is a pure function of the facts handed in, so the
+ * verifier runs the real thing rather than a mirror of it, and it FAILS CLOSED:
+ * a missing fact is a refusal, never a pass.
  *
- * Both are pure functions of facts handed in, so the verifier runs the real
- * thing rather than a mirror of it, and both FAIL CLOSED: a missing fact is a
- * refusal, never a pass. The build-time decision is also mirrored as a shell
+ * There is no promotion decision here any more. Whether a deployment may be
+ * promoted is not a question about its record: the release promotes only the
+ * candidate it created and bound in a receipt. The build-time decision is also mirrored as a shell
  * one-liner (PROVENANCE_BUILD_COMMAND) because the project-level Build
  * Command in Vercel is what an old checkout cannot bypass — a check that
  * lives only in this file protects only trees that contain this file.
@@ -180,75 +181,19 @@ export const PROVENANCE_BUILD_COMMAND = provenanceBuildCommand();
 /** Vercel's documented ceiling. The verifier holds the command under it. */
 export const VERCEL_BUILD_COMMAND_MAX = 256;
 
-/** What the operator's release command must know about a candidate. */
-export type Candidate = {
-  id: string;
-  url: string;
-  readyState: string;
-  target: string | null;
-  projectId: string;
-  /** Vercel's own Git metadata — present only on Git-triggered deployments. */
-  githubDeployment: boolean;
-  githubOrg: string | undefined;
-  githubRepo: string | undefined;
-  githubRef: string | undefined;
-  githubSha: string | undefined;
-  /** Client-supplied metadata (`vercel deploy` from a checkout). Never trusted for identity. */
-  clientSha: string | undefined;
-  createdAt: number;
-};
-
-export type PromotionDecision =
-  | { ok: true; candidate: Candidate; sha: string }
-  | { ok: false; code: PromotionRefusal; detail: string };
-
-export type PromotionRefusal =
-  | "MAIN_UNREADABLE" | "WRONG_PROJECT" | "NOT_READY" | "NOT_PRODUCTION_TARGET"
-  | "NOT_GITHUB_DEPLOYMENT" | "WRONG_REPOSITORY" | "WRONG_REF" | "SHA_NOT_MAIN" | "MAIN_MOVED";
-
-/**
- * May this deployment be promoted to the canonical domains?
+/*
+ * THE DEPLOYMENT-SELECTION SURFACE IS GONE.
  *
- * `freshMainSha` is read immediately before this call; `mainAtSelection` is
- * the SHA read when the candidate was chosen. They must agree: if `main`
- * moved between choosing and promoting, the operator is looking at a stale
- * decision and the answer is to start over, not to promote what they picked.
+ * Candidate, PromotionDecision, PromotionRefusal, decidePromotion and
+ * candidateFromVercel decided whether a deployment could be promoted by reading
+ * its own record — githubDeployment, githubOrg, githubRepo, githubRef,
+ * githubSha. The origin-trust observation established that a caller creating a
+ * deployment can write every one of those fields, and that Vercel then enriches
+ * the forgery further: a record claiming GitHub built it is a claim, not
+ * evidence.
+ *
+ * The release does not select a deployment and interrogate it. It CREATES one
+ * from a pinned sha and keeps the id its own request returned, binding it in a
+ * durable receipt that phase C requires before it will promote anything.
+ * See runRelease in _releaseRun.ts.
  */
-export function decidePromotion(
-  c: Candidate,
-  mainAtSelection: string | null,
-  freshMainSha: string | null,
-): PromotionDecision {
-  if (!freshMainSha || !SHA.test(freshMainSha)) return { ok: false, code: "MAIN_UNREADABLE", detail: "GitHub main could not be read at promotion time" };
-  if (mainAtSelection !== freshMainSha) return { ok: false, code: "MAIN_MOVED", detail: `main was ${mainAtSelection?.slice(0, 7) ?? "unread"} at selection and is ${freshMainSha.slice(0, 7)} now — choose again` };
-  if (c.projectId !== CANONICAL.vercelProjectId) return { ok: false, code: "WRONG_PROJECT", detail: `deployment belongs to project ${c.projectId}` };
-  if (c.readyState !== "READY") return { ok: false, code: "NOT_READY", detail: `deployment is ${c.readyState}` };
-  if (c.target !== CANONICAL.target) return { ok: false, code: "NOT_PRODUCTION_TARGET", detail: `deployment target is ${c.target ?? "none"}` };
-  if (!c.githubDeployment) return { ok: false, code: "NOT_GITHUB_DEPLOYMENT", detail: "not a GitHub-triggered deployment (CLI-uploaded source is never canonical)" };
-  if (c.githubOrg !== CANONICAL.owner || c.githubRepo !== CANONICAL.repo) return { ok: false, code: "WRONG_REPOSITORY", detail: `built from ${c.githubOrg ?? "?"}/${c.githubRepo ?? "?"}` };
-  if (c.githubRef !== CANONICAL.ref) return { ok: false, code: "WRONG_REF", detail: `built from ref ${c.githubRef ?? "?"}` };
-  if (!c.githubSha || c.githubSha !== freshMainSha) return { ok: false, code: "SHA_NOT_MAIN", detail: `built from ${c.githubSha?.slice(0, 7) ?? "?"}, GitHub main is ${freshMainSha.slice(0, 7)}` };
-  return { ok: true, candidate: c, sha: freshMainSha };
-}
-
-/** Shape a Vercel API deployment into a Candidate. Unknown fields become undefined, which refuses. */
-export function candidateFromVercel(d: {
-  uid?: string; id?: string; url: string; state?: string; readyState?: string; target?: string | null;
-  projectId?: string; created?: number; createdAt?: number; meta?: Record<string, string | undefined>;
-}): Candidate {
-  const m = d.meta ?? {};
-  return {
-    id: d.uid ?? d.id ?? "",
-    url: d.url,
-    readyState: d.readyState ?? d.state ?? "UNKNOWN",
-    target: d.target ?? null,
-    projectId: d.projectId ?? "",
-    githubDeployment: m.githubDeployment === "1",
-    githubOrg: m.githubOrg ?? m.githubCommitOrg,
-    githubRepo: m.githubRepo ?? m.githubCommitRepo,
-    githubRef: m.githubCommitRef,
-    githubSha: m.githubCommitSha,
-    clientSha: m.gitCommitSha,
-    createdAt: d.created ?? d.createdAt ?? 0,
-  };
-}
