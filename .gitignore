@@ -14,4 +14,4 @@ tsconfig.tsbuildinfo
 .claude/
 
 # The build command fetches the provenance guard here before executing it.
-.p2bguard
+.p2bg

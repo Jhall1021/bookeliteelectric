@@ -193,19 +193,19 @@ MUTATIONS = {
     # ── round 3: the bootstrap, the lock, and the identity payload ───────
     "bootstrap-sends-a-credential": (
         "a header is put back on the guard fetch",
-        _sub(P, 'curl -fsS -m 30 -o .p2bguard "${guardUrl}"',
-                'curl -fsS -m 30 -H "A: $T" -o .p2bguard "${guardUrl}"'),
+        _sub(P, 'curl -fsS -m 30 -o .p2bg "${guardUrl}"',
+                'curl -fsS -m 30 -H "A: $T" -o .p2bg "${guardUrl}"'),
         PROVENANCE,
     ),
     "bootstrap-digest-unpinned": (
         "guard bytes executed without being verified",
-        _sub(P, '&&[ "$(shasum -a 256 .p2bguard|cut -c1-32)" = "${digest}" ]', '&&[ -s .p2bguard ]'),
+        _sub(P, '&&[ "$(shasum -a 256 .p2bg|cut -c1-32)" = "${digest}" ]', '&&[ -s .p2bg ]'),
         PROVENANCE,
     ),
     "bootstrap-hashes-the-variable": (
         "digest taken through $(...) , which strips trailing newlines",
         _sub(P,
-             'return `curl -fsS -m 30 -o .p2bguard "${guardUrl}"&&[ "$(shasum -a 256 .p2bguard|cut -c1-32)" = "${digest}" ]&&sh .p2bguard&&npm run build`;',
+             'return `curl -fsS -m 30 -o .p2bg "${guardUrl}"&&[ "$(shasum -a 256 .p2bg|cut -c1-32)" = "${digest}" ]&&sh .p2bg&&npm run build`;',
              'return `g=$(curl -fsS -m 30 "${guardUrl}");[ "$(printf %s "$g"|shasum -a 256|cut -c1-32)" = "${digest}" ]&&echo "$g"|sh&&npm run build`;'),
         PROVENANCE,
     ),

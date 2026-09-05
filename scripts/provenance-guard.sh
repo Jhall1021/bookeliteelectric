@@ -1,16 +1,33 @@
 #!/bin/sh
 # Production provenance guard — runs INSIDE the Vercel build, before anything else.
 #
-# Refuses the build unless every fact holds:
-#   VERCEL_ENV=production, provider github, owner Jhall1021, repo bookeliteelectric,
-#   ref main, a full commit SHA, and a FRESH authenticated read of GitHub refs/heads/main
-#   equal to that SHA. Any missing fact, and an unreadable GitHub, is a refusal.
+# WHAT IT DOES DEPENDS ON THE TARGET, and there are exactly three answers:
+#
+#   VERCEL_ENV=production      FULL ENFORCEMENT. The build is refused unless every
+#                              fact holds: provider github, owner Jhall1021, repo
+#                              bookeliteelectric, ref main, a full commit SHA, and a
+#                              FRESH authenticated read of GitHub refs/heads/main
+#                              equal to that SHA. Any missing fact, and an unreadable
+#                              GitHub, is a refusal.
+#   VERCEL_ENV=preview         PASS THROUGH. Says so explicitly and exits 0, so the
+#   VERCEL_ENV=development     ordinary application build runs. A preview cannot
+#                              become production by building, and refusing every one
+#                              of them bought a permanently red check rather than any
+#                              guarantee.
+#   anything else, or unset    REFUSED as NOT_PRODUCTION. "Not production" is a claim,
+#                              and a build that cannot say what it is has not made it.
+#
+# THE TYPESCRIPT DECISION IS DELIBERATELY STRICTER AND DOES NOT MIRROR THIS.
+# decideBuildProvenance() in scripts/_releaseProvenance.ts answers a different
+# question — whether a DEPLOYMENT may be promoted — and it never approves a preview.
+# The two agree on every case but that one, and scripts/verify-release-provenance.ts
+# runs both against one fact table, with the single divergence recorded there
+# explicitly (`expectGuard`) rather than dropped from either side.
 #
 # It is NOT run from the deployed tree. The canonical project's Build Command fetches
-# this file from GitHub `main` (see PROVENANCE_BUILD_COMMAND in scripts/_releaseProvenance.ts),
-# so a checkout that predates it, or that removed it, meets it anyway. Mirrors
-# decideBuildProvenance() in that module; scripts/verify-release-provenance.ts runs both
-# against one fact table and fails if they disagree.
+# this file from GitHub `main` (see PROVENANCE_BUILD_COMMAND in scripts/_releaseProvenance.ts)
+# and verifies its SHA-256 digest before executing it, so a checkout that predates it,
+# or that removed it, meets it anyway.
 #
 # POSIX sh. No repository files are read: this guard is fetched from GitHub at
 # build time, so an old checkout cannot carry an old guard.
@@ -40,7 +57,34 @@ if [ "${VERCEL_ENV:-}" = "production" ]; then
 else
   API="${P2B_MAIN_API:-$CANONICAL_API}"
 fi
-[ "${VERCEL_ENV:-}" = "production" ] || refuse NOT_PRODUCTION "target is \"${VERCEL_ENV:-}\", not production"
+# NON-PRODUCTION BUILDS PASS THROUGH. THEY ARE NOT THE BOUNDARY.
+#
+# This used to refuse every build that was not production, which meant every
+# Preview on a project carrying this Build Command failed forever. That is not a
+# security guarantee: a Preview cannot become production by building, and the
+# production branch of this same guard is the actual boundary. What it did buy
+# was a permanently red check, which hides real regressions behind a failure
+# everyone learns to ignore.
+#
+# So a recognized non-production target says so out loud and exits 0, letting the
+# ordinary application build run. Getting this far is itself evidence: the
+# bootstrap found shasum, fetched these bytes and matched their pinned digest
+# before any of this executed.
+#
+# AN UNRECOGNIZED OR ABSENT TARGET IS STILL REFUSED. "Not production" is a claim,
+# and a build that cannot say what it is has not made it. Only the two values
+# Vercel actually sets are allowed through; empty, misspelled or anything else
+# fails closed exactly as before.
+case "${VERCEL_ENV:-}" in
+  production) ;;
+  preview|development)
+    echo "PROVENANCE PASS-THROUGH (${VERCEL_ENV}): not a production build."
+    echo "  The guard was fetched and its digest verified before it ran; enforcement"
+    echo "  applies to production builds, which is where the boundary is."
+    exit 0 ;;
+  *)
+    refuse NOT_PRODUCTION "target is \"${VERCEL_ENV:-}\" - neither production nor a recognized non-production target" ;;
+esac
 [ "${VERCEL_GIT_PROVIDER:-}" = "github" ] || refuse NOT_GITHUB "git provider is \"${VERCEL_GIT_PROVIDER:-}\" - not a GitHub-triggered build"
 [ "${VERCEL_GIT_REPO_OWNER:-}" = "$OWNER" ] || refuse WRONG_OWNER "repository owner is \"${VERCEL_GIT_REPO_OWNER:-}\""
 [ "${VERCEL_GIT_REPO_SLUG:-}" = "$REPO" ] || refuse WRONG_REPO "repository is \"${VERCEL_GIT_REPO_SLUG:-}\""

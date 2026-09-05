@@ -200,13 +200,23 @@ export function provenanceBuildCommand(
   // Build Command must be re-installed whenever the guard is edited. That is
   // deliberate — the guard's identity is part of what the release approves.
   //
+  // THE FETCH TARGET IS `.p2bg`, AND THE NAME IS LOAD-BEARING FOR LENGTH.
+  //
+  // It appears three times in a command with a 256-character ceiling, so every
+  // character in it costs three. `.p2bguard` fit the `main` URL with 20 to spare
+  // but overran by 2 on `release/controlled-release`, which is the URL
+  // the pre-merge live test has to use — the guard is fetched from a ref, and
+  // before the merge `main` does not carry it yet.
+  //
+  // Measured: 224/256 with the final `main` URL, 246/256 with the branch URL.
+  //
   // THE BYTES ARE HASHED ON DISK, NOT THROUGH A SHELL VARIABLE. `$(curl …)`
   // strips trailing newlines, so hashing the variable hashes something that is
   // NOT the file: the pinned digest would never match the genuine guard, and
   // every build would refuse it. Writing the response out and hashing the file
   // also makes the pin hand-verifiable — `shasum -a 256 scripts/provenance-guard.sh`
   // is the number below.
-  return `curl -fsS -m 30 -o .p2bguard "${guardUrl}"&&[ "$(shasum -a 256 .p2bguard|cut -c1-32)" = "${digest}" ]&&sh .p2bguard&&npm run build`;
+  return `curl -fsS -m 30 -o .p2bg "${guardUrl}"&&[ "$(shasum -a 256 .p2bg|cut -c1-32)" = "${digest}" ]&&sh .p2bg&&npm run build`;
 }
 
 export const PROVENANCE_BUILD_COMMAND = provenanceBuildCommand();

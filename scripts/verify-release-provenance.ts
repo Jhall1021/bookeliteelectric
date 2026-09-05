@@ -53,9 +53,19 @@ const STALE = "c33427106701851865013e419361a43da518a3f1";
 const GOOD: BuildFacts = { vercelEnv: "production", gitProvider: "github", repoOwner: CANONICAL.owner, repoSlug: CANONICAL.repo, commitRef: CANONICAL.ref, commitSha: MAIN, freshMainSha: MAIN };
 
 /** One fact table drives both the TypeScript decision and the shell guard. */
-const TABLE: { name: string; facts: Partial<BuildFacts>; expect: string }[] = [
+const TABLE: { name: string; facts: Partial<BuildFacts>; expect: string; expectGuard?: string }[] = [
   { name: "the one admissible shape", facts: {}, expect: "OK" },
-  { name: "a preview build", facts: { vercelEnv: "preview" }, expect: "NOT_PRODUCTION" },
+  // THE TWO CONSUMERS NOW ASK DIFFERENT QUESTIONS, and `expectGuard` records
+  // exactly where the answers part company.
+  //
+  // decideBuildProvenance asks "is this DEPLOYMENT admissible for promotion",
+  // and a preview never is — that stays NOT_PRODUCTION and is the boundary.
+  // The guard asks "should this BUILD proceed", and refusing every preview
+  // there bought a permanently red check rather than any guarantee.
+  //
+  // The divergence is stated once, here, rather than by dropping the case from
+  // either side: a preview that became promotable still fails line 1.
+  { name: "a preview build", facts: { vercelEnv: "preview" }, expect: "NOT_PRODUCTION", expectGuard: "OK" },
   { name: "no environment at all", facts: { vercelEnv: undefined }, expect: "NOT_PRODUCTION" },
   { name: "a CLI upload: every git field empty (observed 3 Sep)", facts: { gitProvider: undefined, repoOwner: undefined, repoSlug: undefined, commitRef: undefined, commitSha: undefined }, expect: "NOT_GITHUB" },
   { name: "another provider", facts: { gitProvider: "gitlab" }, expect: "NOT_GITHUB" },
@@ -133,7 +143,8 @@ function main() {
       const facts = { ...GOOD, ...t.facts };
       const r = runGuard(guard, facts, facts.freshMainSha, tmp);
       const got = r.code === 0 ? "OK" : (r.out.match(/PROVENANCE REFUSED \(([A-Z_]+)\)/)?.[1] ?? `exit ${r.code} without a reason`);
-      ok(`2. guard.sh: ${t.name} -> ${t.expect}`, got === t.expect && (t.expect === "OK") === (r.code === 0), `got ${got}: ${r.out.trim().split("\n").pop()}`);
+      const want = t.expectGuard ?? t.expect;
+      ok(`2. guard.sh: ${t.name} -> ${want}`, got === want && (want === "OK") === (r.code === 0), `got ${got}: ${r.out.trim().split("\n").pop()}`);
     }
     // mutants: remove one check each; the table must catch every one
     const mutants: [string, RegExp][] = [
@@ -146,7 +157,10 @@ function main() {
       // which is the smallest change that can still reach a wrong answer.
       ["no unreadable-main refusal at all", /^.*refuse MAIN_UNREADABLE.*$/gm],
       ["no provider check", /^\[ "\$\{VERCEL_GIT_PROVIDER:-\}".*$/m],
-      ["no production check", /^\[ "\$\{VERCEL_ENV:-\}".*$/m],
+      // The environment gate is a `case` now, not a one-line test. Stripping it
+    // removes enforcement AND pass-through together, which is the smallest edit
+    // that still lets a non-production build reach the SHA comparison.
+    ["no production check", /^case "\$\{VERCEL_ENV:-\}" in[\s\S]*?^esac$/m],
       ["no SHA-shape check", /^case "\$SHA" in[\s\S]*?esac$/m],
     ];
     for (const [name, re] of mutants) {
@@ -156,7 +170,7 @@ function main() {
         const facts = { ...GOOD, ...t.facts };
         const r = runGuard(mutant, facts, facts.freshMainSha, tmp);
         const got = r.code === 0 ? "OK" : (r.out.match(/PROVENANCE REFUSED \(([A-Z_]+)\)/)?.[1] ?? "?");
-        return got !== t.expect;
+        return got !== (t.expectGuard ?? t.expect);
       });
       ok(`   a guard with ${name} fails the table`, caught);
     }
@@ -221,7 +235,27 @@ function main() {
     }
     ok(`   it fails closed and only then builds`,
       /curl -fsS/.test(PROVENANCE_BUILD_COMMAND)
-      && PROVENANCE_BUILD_COMMAND.endsWith("]&&sh .p2bguard&&npm run build"));
+      && PROVENANCE_BUILD_COMMAND.endsWith("]&&sh .p2bg&&npm run build"));
+
+    // BOTH REFS MUST FIT, NOT JUST main.
+    //
+    // The pre-merge live test installs this command pointed at the BRANCH,
+    // because the guard is fetched from a ref and main does not carry it until
+    // the merge. `release/controlled-release` is 22 characters longer than
+    // `main`, and the fetch target appears three times, so the branch form is
+    // where the ceiling actually binds — `.p2bguard` overran it by 2.
+    {
+      const branchUrl = `https://raw.githubusercontent.com/${CANONICAL.owner}/${CANONICAL.repo}/release/controlled-release/${PROVENANCE_GUARD_PATH}`;
+      const branchCmd = provenanceBuildCommand(branchUrl);
+      ok(`   and the pre-merge BRANCH form also fits (${branchCmd.length} of ${VERCEL_BUILD_COMMAND_MAX})`,
+        branchCmd.length <= VERCEL_BUILD_COMMAND_MAX);
+      ok(`   both measured lengths are the reviewed ones: main ${PROVENANCE_BUILD_COMMAND.length}, branch ${branchCmd.length}`,
+        PROVENANCE_BUILD_COMMAND.length === 224 && branchCmd.length === 246,
+        `main ${PROVENANCE_BUILD_COMMAND.length}, branch ${branchCmd.length}`);
+      ok(`   the fetch target is .p2bg in all three places it appears`,
+        (PROVENANCE_BUILD_COMMAND.match(/\.p2bg\b/g) ?? []).length === 3
+        && !/\.p2bguard/.test(PROVENANCE_BUILD_COMMAND));
+    }
 
     // ── 3. the Build Command ─────────────────────────────────────────────
     ok(`3. the Build Command fits Vercel's ${VERCEL_BUILD_COMMAND_MAX}-character ceiling (${PROVENANCE_BUILD_COMMAND.length})`,
@@ -237,7 +271,7 @@ function main() {
     const dead = spawnSync("sh", ["-c", provenanceBuildCommand("https://127.0.0.1:9/never.sh").replace("npm run build", "echo BUILD_RAN")], { encoding: "utf8", timeout: 20_000, cwd: probeDir });
     ok(`   an unreachable guard URL stops before the build`, dead.status !== 0 && !/BUILD_RAN/.test(dead.stdout ?? ""));
     ok(`   and it leaves no guard file behind to be executed later`,
-      !existsSync(join(probeDir, ".p2bguard")));
+      !existsSync(join(probeDir, ".p2bg")));
     const emptyPath = join(probeDir, "empty.sh");
     writeFileSync(emptyPath, "");
     const empty = spawnSync("sh", ["-c", provenanceBuildCommand(`file://${emptyPath}`).replace("npm run build", "echo BUILD_RAN")], { encoding: "utf8", timeout: 20_000, cwd: probeDir });
@@ -247,6 +281,37 @@ function main() {
     // pinned digest MATCHES the guard in the tree: a mismatch stops before `sh`
     // and no refusal would be printed at all.
     const refusing = spawnSync("sh", ["-c", provenanceBuildCommand(`file://${resolve(PROVENANCE_GUARD_PATH)}`).replace("npm run build", "echo BUILD_RAN")], { encoding: "utf8", timeout: 20_000, cwd: probeDir, env: { PATH: process.env.PATH ?? "", VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv });
+    // THE ENVIRONMENT GATE: enforce, pass through, or refuse — never guess.
+    //
+    // Refusing every non-production build made every Preview on a project
+    // carrying this Build Command fail forever, which is a red check rather than
+    // a guarantee. Production still enforces; a RECOGNIZED non-production target
+    // passes through and says so; anything unrecognized or absent still fails
+    // closed, because "not production" is a claim a build has to be able to make.
+    {
+      const guardIn = (env: Record<string, string>) => spawnSync("sh", [resolve(PROVENANCE_GUARD_PATH)],
+        { encoding: "utf8", timeout: 20_000, env: { PATH: process.env.PATH ?? "", ...env } as unknown as NodeJS.ProcessEnv });
+      const prod = guardIn({ VERCEL_ENV: "production" });
+      ok(`   production still runs the full fail-closed enforcement`,
+        prod.status !== 0 && /PROVENANCE REFUSED/.test(prod.stdout ?? "")
+        && !/PASS-THROUGH/.test(prod.stdout ?? ""),
+        (prod.stdout ?? "").slice(0, 90));
+      for (const env of ["preview", "development"]) {
+        const r = guardIn({ VERCEL_ENV: env });
+        ok(`   a ${env} build passes through, explicitly, and lets the build run`,
+          r.status === 0 && /PROVENANCE PASS-THROUGH/.test(r.stdout ?? "")
+          && new RegExp(`\\(${env}\\)`).test(r.stdout ?? ""),
+          `exit ${r.status}: ${(r.stdout ?? "").slice(0, 70)}`);
+      }
+      for (const [label, env] of [["absent", {}], ["empty", { VERCEL_ENV: "" }], ["unrecognized", { VERCEL_ENV: "staging" }]] as const) {
+        const r = guardIn(env as Record<string, string>);
+        ok(`   an ${label} VERCEL_ENV is still REFUSED, not passed through`,
+          r.status !== 0 && /PROVENANCE REFUSED \(NOT_PRODUCTION\)/.test(r.stdout ?? "")
+          && !/PASS-THROUGH/.test(r.stdout ?? ""),
+          `exit ${r.status}: ${(r.stdout ?? "").slice(0, 70)}`);
+      }
+    }
+
     ok(`   the pinned digest ACCEPTS the guard in the tree, which then refuses on its own terms`,
       refusing.status !== 0 && /PROVENANCE REFUSED/.test(refusing.stdout ?? "") && !/BUILD_RAN/.test(refusing.stdout ?? ""));
 
