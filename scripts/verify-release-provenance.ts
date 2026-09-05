@@ -19,12 +19,12 @@
  *   3. The Build Command that fetches it fits Vercel's 256-character ceiling,
  *      fails closed on an empty fetch, and runs `npm run build` only after
  *      the guard.
- *   4. decidePromotion refuses a stale SHA, a moved main, a CLI-uploaded
+ *   4. the superseded metadata-origin pathway is ABSENT from the release
  *      deployment, a non-READY or non-production one, and admits the one
  *      GitHub-built deployment of current main. Fixtures are the real
  *      metadata shapes recorded during the 3 September incident.
- *   5. scripts/release-production.ts never deploys, is dry-run by default,
- *      needs --apply, reads main twice with the decision in between, records
+ *   5. scripts/release-production.ts never uploads a tree, parses its phase
+ *      strictly, refuses --apply, creates in phase B by design, records
  *      the previous deployment, reads back, and loads no .env file.
  *   6. /api/release is public, no-store, three fields, touches nothing else;
  *      /api/deployment-identity and middleware are byte-for-byte unchanged.
@@ -34,9 +34,9 @@ import { writeFileSync, chmodSync, mkdtempSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CANONICAL, decideBuildProvenance, decidePromotion, candidateFromVercel,
+  CANONICAL, decideBuildProvenance,
   provenanceBuildCommand, PROVENANCE_BUILD_COMMAND, PROVENANCE_GUARD_PATH, VERCEL_BUILD_COMMAND_MAX,
-  type BuildFacts, type Candidate,
+  type BuildFacts,
 } from "./_releaseProvenance";
 
 let fail = 0;
@@ -179,32 +179,46 @@ function main() {
     const refusing = spawnSync("sh", ["-c", `g=$(cat ${PROVENANCE_GUARD_PATH})&&[ -n "$g" ]&&echo "$g"|sh&&echo BUILD_RAN`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv });
     ok(`   a refusing guard stops before the build`, refusing.status !== 0 && /PROVENANCE REFUSED/.test(refusing.stdout ?? "") && !/BUILD_RAN/.test(refusing.stdout ?? ""));
 
-    // ── 4. promotion ─────────────────────────────────────────────────────
-    // Real shapes: a Git-triggered deployment (legacy project, PR #8) and the two CLI artifacts of the incident.
-    const gitBuilt = candidateFromVercel({ uid: "dpl_git", url: "x.vercel.app", state: "READY", target: "production", projectId: CANONICAL.vercelProjectId, created: 3,
-      meta: { githubCommitSha: MAIN, githubCommitRef: "main", githubDeployment: "1", githubOrg: CANONICAL.owner, githubRepo: CANONICAL.repo, githubCommitOrg: CANONICAL.owner, githubCommitRepo: CANONICAL.repo } });
-    const approvedCli = candidateFromVercel({ uid: "dpl_89DX", url: "y.vercel.app", state: "READY", target: "production", projectId: CANONICAL.vercelProjectId, created: 1,
-      meta: { gitCommitSha: MAIN, gitCommitRef: "HEAD", gitCommitMessage: "Merge pull request #7", actor: "claude-code_2-1-258_agent" } });
-    const overriding = candidateFromVercel({ uid: "dpl_Atvm", url: "z.vercel.app", state: "READY", target: "production", projectId: CANONICAL.vercelProjectId, created: 2,
-      meta: { gitCommitSha: STALE, gitCommitRef: "main", gitCommitMessage: "The overlap stops cutting the panel it was meant to reveal" } });
-    const code = (d: ReturnType<typeof decidePromotion>) => d.ok ? "OK" : d.code;
-    ok(`4. a READY GitHub-built deployment of current main is promotable`, code(decidePromotion(gitBuilt, MAIN, MAIN)) === "OK");
-    ok(`   the incident's overriding CLI artifact is refused even though its ref says main`, code(decidePromotion(overriding, MAIN, MAIN)) === "NOT_GITHUB_DEPLOYMENT");
-    ok(`   a CLI upload of the RIGHT sha is refused too: CLI source is never canonical`, code(decidePromotion(approvedCli, MAIN, MAIN)) === "NOT_GITHUB_DEPLOYMENT");
-    ok(`   a stale SHA is refused`, code(decidePromotion({ ...gitBuilt, githubSha: STALE }, MAIN, MAIN)) === "SHA_NOT_MAIN");
-    ok(`   main moving between selection and promotion is refused`, code(decidePromotion(gitBuilt, MAIN, "2222222222222222222222222222222222222222")) === "MAIN_MOVED");
-    ok(`   an unreadable main at promotion time is refused`, code(decidePromotion(gitBuilt, MAIN, null)) === "MAIN_UNREADABLE");
-    ok(`   a building deployment is refused`, code(decidePromotion({ ...gitBuilt, readyState: "BUILDING" }, MAIN, MAIN)) === "NOT_READY");
-    ok(`   a preview-target deployment is refused`, code(decidePromotion({ ...gitBuilt, target: null }, MAIN, MAIN)) === "NOT_PRODUCTION_TARGET");
-    ok(`   another project's deployment is refused`, code(decidePromotion({ ...gitBuilt, projectId: "prj_other" }, MAIN, MAIN)) === "WRONG_PROJECT");
-    ok(`   a fork or feature ref is refused`, code(decidePromotion({ ...gitBuilt, githubOrg: "fork" }, MAIN, MAIN)) === "WRONG_REPOSITORY" && code(decidePromotion({ ...gitBuilt, githubRef: "feat/x" }, MAIN, MAIN)) === "WRONG_REF");
-    ok(`   missing metadata refuses rather than passes`, code(decidePromotion(candidateFromVercel({ uid: "d", url: "u", state: "READY", target: "production", projectId: CANONICAL.vercelProjectId }), MAIN, MAIN)) === "NOT_GITHUB_DEPLOYMENT");
+    // ── 4. the superseded metadata pathway is ABSENT from the release ────
+    //
+    // decidePromotion decided a deployment's origin from githubDeployment,
+    // githubOrg, githubRepo, githubRef and githubSha. The origin-trust
+    // observation established that every one of those is writable by the caller
+    // that creates the deployment: a forged record carried the complete
+    // githubCommit* set including githubCommitVerification "verified", and
+    // Vercel enriched it further. The old tests here asserted such a record was
+    // PROMOTABLE, which is the opposite of what is now known.
+    //
+    // So these assert ABSENCE from the operative path rather than re-testing a
+    // refuted decision.
+    const relSrc = strip("scripts/release-production.ts");
+    const runSrc = strip("scripts/_releaseRun.ts");
+    const ctlSrc = strip("scripts/_releaseControl.ts");
+    ok(`4. the release imports no metadata-origin decision`,
+      !/decidePromotion/.test(relSrc) && !/candidateFromVercel/.test(relSrc)
+      && !/decidePromotion/.test(runSrc) && !/candidateFromVercel/.test(runSrc));
+    ok(`   no origin is decided from githubDeployment or github org/repo/ref metadata`,
+      !/githubDeployment/.test(relSrc + runSrc + ctlSrc));
+    ok(`   the candidate is CAUSED: phase B keeps the id its own request returned`,
+      /createDeployment/.test(relSrc) && /body\.id/.test(relSrc));
+    ok(`   and phase C takes it from the durable receipt, never from a search`,
+      /loadCreationReceipt/.test(runSrc) && !/listCandidates/.test(relSrc));
 
     // ── 5. the release command ───────────────────────────────────────────
     const rel = strip("scripts/release-production.ts");
-    ok(`5. the release command never deploys`, !/vercel deploy|["']deploy["']|\/v13\/deployments["'`]?\s*,\s*\{\s*method:\s*["']POST/.test(rel) && !/execFileSync\("(npx|vercel)"/.test(rel));
-    ok(`   it is read-only unless a write phase is asked for`,
-      /includes\("--create"\)/.test(rel) && /includes\("--promote"\)/.test(rel) && /"preflight"/.test(rel));
+      // "never deploys" WAS A FALSE POSITIVE. Phase B deliberately POSTs
+      // /v13/deployments — creating the deployment is the whole point of
+      // causation over attestation — and the regex passed only because it never
+      // matched the actual call. What IS true is that the command never runs
+      // `vercel deploy` and never uploads a working tree.
+      ok(`5. the release never uploads a tree or shells out to a builder`,
+        !/vercel deploy/.test(rel) && !/execFileSync\("(npx|vercel)"/.test(rel) && !/--prebuilt/.test(rel));
+      ok(`   and phase B DOES create a deployment — by design, not by leak`,
+        /\/v13\/deployments/.test(rel) && /method: "POST"/.test(rel));
+      ok(`   the phase is parsed strictly and --apply is refused`,
+        /export function parsePhase/.test(rel) && /--apply no longer exists/.test(rel));
+      ok(`   no phase is chosen by argv.includes any more`,
+        !/process\.argv\.includes\("--create"\)/.test(rel));
     ok(`   the three phases are separate, and only preflight is read-only`,
       /runRelease\(/.test(rel) && /"preflight"/.test(rel) && /"create"/.test(rel) && /"promote"/.test(rel));
     ok(`   the candidate comes from this run's own creation, never a search`,

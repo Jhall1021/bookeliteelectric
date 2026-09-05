@@ -30,7 +30,7 @@ not a commit message, not who started first, not who finished last.
 | Auto-assign custom production domains **off** on the canonical project (done, Stage 1A) | Vercel project setting | a READY build taking the domains by finishing |
 | Build Command fetches `scripts/provenance-guard.sh` from GitHub `main` and runs it before `npm run build` (Stage 2) | Vercel project setting | an old or foreign checkout: the guard that runs is main's, not the tree's |
 | `provenance-guard.sh` / `decideBuildProvenance` | this repository, but executed from main | wrong target, provider, owner, repo, ref, missing SHA, unreadable GitHub, SHA ≠ main |
-| `scripts/release-production.ts` | operator's machine | promotion of anything but a READY GitHub-built deployment of the SHA that main has right now, re-read at the last moment |
+| `scripts/release-production.ts` | operator's machine | promotion of anything but the candidate THIS run created and bound in a durable receipt |
 | `/api/release` | the deployment | not knowing what is serving |
 | no deploy credential in repository files or shared session environments | operator discipline, enforced by the release command refusing `.env` | every session on the machine being a production operator |
 
@@ -41,17 +41,38 @@ the canonical project). A build reaching READY does nothing to the domains.
 A person then runs:
 
 ```
-VERCEL_TOKEN=… npx tsx scripts/release-production.ts            # dry run
-VERCEL_TOKEN=… npx tsx scripts/release-production.ts --apply    # promote
+npx tsx scripts/release-production.ts             # PREFLIGHT — read-only
+npx tsx scripts/release-production.ts --create    # create the pinned deployment + receipt
+npx tsx scripts/release-production.ts --promote   # promote the receipt-bound candidate
 ```
 
-The command reads GitHub `main`, lists READY production deployments of the
-canonical project, chooses the GitHub-built one at exactly that SHA, reads
-`main` again, and refuses if anything moved. On `--apply` it records the
-previous production deployment to `~/.price2book/release-log.jsonl`, promotes
-through Vercel's promote API, and reads `/api/release` back on every canonical
-host. It never runs `vercel deploy`. There is no local `vercel --prod`
-workflow, and a token in `.env.local` is not read.
+**Three phases, and the candidate is caused rather than chosen.**
+
+`--apply` no longer exists, and the command refuses it rather than treating it
+as a preflight. So does any unknown flag, both phase flags together, and a stray
+positional argument.
+
+- **preflight** (no flag) reads GitHub `main`, the commit tree, the project's
+  settings and the current production baseline, decides whether a release could
+  proceed, and **mutates nothing**. It refuses `CONFIG_FILE_PRESENT` if the
+  commit carries `vercel.json`, `vercel.toml` or `vercel.ts`, and
+  `TREE_TRUNCATED` if absence cannot be established at all.
+- **`--create`** creates a deployment from a pinned, explicitly approved sha —
+  no `projectSettings`, so the project's approved build configuration applies
+  and the provenance guard in it runs — and writes a durable receipt binding
+  runId, candidate id, sha and the outgoing baseline.
+- **`--promote`** promotes **only** the candidate the receipt names, then
+  re-reads the production target, every canonical alias and every canonical
+  host's served identity before calling it a release.
+
+**It does not list deployments and pick one, and it does not decide origin from
+a deployment's metadata.** An origin-trust observation established that every
+origin-looking field on a deployment record — `source`, `githubDeployment`,
+`githubCommitSha`, `githubCommitVerification` and the rest — is writable by the
+caller that creates it. A record saying "GitHub built this" is a claim, not
+evidence. The release therefore *creates* the deployment and keeps the id
+returned by its own request; the promote response body is never read for
+identity, having been measured at one byte.
 
 ## Rollback
 

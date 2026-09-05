@@ -21,7 +21,7 @@ import {
   type BuildEvidence, type OriginTrustBasis,
 } from "./_releaseSource";
 import { validateRelease, applyRelease, type ReleaseEffects, type ReleasePlan } from "./_releaseOrchestration";
-import { freshMainSha, vercelJsonBuildCommand } from "./release-production";
+import { freshMainSha } from "./release-production";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string, detail = "") => {
@@ -239,51 +239,13 @@ async function realAdapters() {
     "and refuses an object that is not a commit");
   ok(await freshMainSha(async () => res(500, {}), "t") === null, "and refuses a non-2xx");
 
-  // vercelJsonBuildCommand — ABSENCE MUST BE PROVED, not inferred from a 404.
-  //
-  // GitHub answers 404 for a private resource the credential cannot see, so a
-  // bare 404 was indistinguishable from a revoked token. The root tree at the
-  // exact commit is read first; only a successful tree read makes absence mean
-  // anything.
-  const tree = (paths: string[]) => ({ tree: paths.map((p) => ({ path: p, type: "blob" })) });
-  const route = (h: { tree?: () => Response; file?: () => Response }) =>
-    (async (u: string | URL | Request) =>
-      String(u).includes("/git/trees/") ? (h.tree ?? (() => res(200, tree([]))))()
-                                        : (h.file ?? (() => res(404, {})))()) as typeof fetch;
-
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(404, {}) }), "t")).read === false,
-    "a 404 on the commit tree is UNREAD — access to the exact commit was never established");
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, {}) }), "t")).read === false,
-    "a tree response with no tree array is unread");
-  // A TRUNCATED TREE IS NOT A LISTING — GitHub says so explicitly, and
-  // "not in this array" then stops meaning "not in the commit".
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [], truncated: true }) }), "t")).read === false,
-    "a TRUNCATED tree cannot establish absence, even with an empty entry list");
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [{ path: "package.json" }], truncated: true }) }), "t")).read === false,
-    "and a truncated tree with entries is still not a complete listing");
-  // Entries that were never understood cannot support a conclusion about them.
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [null, 42, {}], truncated: false }) }), "t")).read === false,
-    "malformed tree entries are unread, not absence");
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [{ path: "a" }, { path: 7 }] }) }), "t")).read === false,
-    "one entry without a string path spoils the listing");
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, { tree: [{ path: "" }] }) }), "t")).read === false,
-    "and an empty path is not a readable entry");
-
-  const absent = await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["package.json"])) }), "t");
-  ok(absent.read === true && absent.value === null,
-    "absence is READ only when the commit's own tree was listed and does not contain it");
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, "") }), "t")).read === false,
-    "a file listed in the tree that comes back EMPTY is unread, not an empty config");
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, "[]") }), "t")).read === false,
-    "vercel.json containing [] is not a configuration object");
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, '"next build"') }), "t")).read === false,
-    "and a bare JSON string is not one either");
-  ok((await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, "{not json") }), "t")).read === false,
-    "and unparseable content is unread");
-  const vSet = await vercelJsonBuildCommand(MAIN, route({ tree: () => res(200, tree(["vercel.json"])), file: () => res(200, {}, '{"buildCommand":"next build"}') }), "t");
-  ok(vSet.read === true && vSet.value === "next build", "while a real override is read as one");
-  ok((await vercelJsonBuildCommand(MAIN, route({}), undefined)).read === false,
-    "and with no credential nothing is read, never assumed absent");
+  // The vercelJsonBuildCommand tests went with the function. That helper read
+  // vercel.json from OUTSIDE the release decision; the authoritative check is
+  // preflightDecision's commit-tree test, which refuses CONFIG_FILE_PRESENT for
+  // vercel.json, vercel.toml AND vercel.ts, and refuses TREE_TRUNCATED when
+  // absence cannot be established at all. Proof 2 is why that matters: a commit
+  // adding only a root vercel.json produced a READY build whose effective
+  // command was the file's, with the provenance guard never fetched.
 
   // The buildEvidence adapter is gone. Its job — establishing what a deployment
   // was actually built with — is now promotionDecision's candidate check, which

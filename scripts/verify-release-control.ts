@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { runRelease, type ReleaseIO, type IntentRecord } from "./_releaseRun";
 import { verifyHosts, compareBuild, type ApprovedBuild, type HostObservation,
   type CandidateRecord, type CreationReceipt, type AliasMapping } from "./_releaseControl";
-import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings, readAliasPage, APPROVED_REDIRECT_HOSTS } from "./release-production";
+import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings, readAliasPage, APPROVED_REDIRECT_HOSTS, parsePhase } from "./release-production";
 import { CANONICAL } from "./_releaseProvenance";
 
 let pass = 0, fail = 0;
@@ -535,6 +535,27 @@ async function liveAdapterTests() {
 
   const downEmpty = mk(async () => ({ status: 503, body: {} }));
   ok(!(await downEmpty.readAliasMappings()).read, "B3  and a 503 with no body is unread too");
+
+  // THE PHASE FLAGS ARE PARSED STRICTLY.
+  //
+  // `argv.includes("--create")` accepted --apply by ignoring it and running a
+  // read-only preflight that looked like it had done something; accepted both
+  // phase flags and picked whichever it tested first; and accepted any unknown
+  // flag in silence. An operator typing the retired --apply must be told, not
+  // handed a dry run.
+  const phaseOf = (a: string[]) => { const r = parsePhase(a); return r.ok ? r.phase : `REFUSED: ${r.detail.slice(0, 40)}`; };
+  ok(phaseOf([]) === "preflight", "B3  no flag is a read-only preflight", phaseOf([]));
+  ok(phaseOf(["--create"]) === "create", "B3  --create is phase B", phaseOf(["--create"]));
+  ok(phaseOf(["--promote"]) === "promote", "B3  --promote is phase C", phaseOf(["--promote"]));
+  ok(!parsePhase(["--apply"]).ok, "B3  --apply is REFUSED, not silently treated as preflight");
+  ok(/no longer exists/.test((parsePhase(["--apply"]) as { detail: string }).detail),
+    "B3  and the refusal says the flag is gone and names the three phases");
+  ok(!parsePhase(["--create", "--promote"]).ok, "B3  two phase flags are refused, not resolved by order");
+  ok(!parsePhase(["--promote", "--create"]).ok, "B3  in either order");
+  ok(!parsePhase(["--dry-run"]).ok, "B3  an unknown flag is refused");
+  ok(!parsePhase(["--create", "extra"]).ok, "B3  a stray positional argument is refused");
+  ok(!parsePhase(["--create", "--create"]).ok, "B3  a repeated phase flag is refused");
+  ok(!parsePhase(["--Create"]).ok, "B3  and the match is exact, not case-insensitive");
 
   // THE CANONICAL REPOSITORY ID IS PINNED, AND IS WHAT PHASE B SENDS.
   //

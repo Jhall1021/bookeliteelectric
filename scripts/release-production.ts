@@ -1,40 +1,59 @@
 /**
  * The one sanctioned way a deployment becomes Price2Book production.
  *
- *   npx tsx scripts/release-production.ts            # dry run: what WOULD be promoted, and why or why not
- *   npx tsx scripts/release-production.ts --apply    # promote, record, read back
+ *   npx tsx scripts/release-production.ts             # PREFLIGHT: read-only
+ *   npx tsx scripts/release-production.ts --create    # create the pinned deployment + receipt
+ *   npx tsx scripts/release-production.ts --promote   # promote the receipt-bound candidate
+ *
+ * THREE PHASES, AND ONLY ONE OF THEM READS ANYTHING WITHOUT WRITING.
+ *
+ *   (no flag)   PREFLIGHT. Reads GitHub main, the commit tree, the project's
+ *               settings and the current production baseline, and decides
+ *               whether a release COULD proceed. Mutates nothing.
+ *   --create    PHASE B. Creates a deployment from a pinned, explicitly
+ *               approved sha and writes a durable creation receipt binding
+ *               runId, candidate id, sha and the outgoing baseline.
+ *   --promote   PHASE C. Promotes ONLY the candidate the receipt names, then
+ *               re-reads the target, every canonical alias and every canonical
+ *               host's served identity before calling it a release.
+ *
+ * THE CANDIDATE IS CAUSED, NOT CHOSEN.
+ *
+ * This command does not list deployments and pick one, and it does not decide
+ * a deployment's origin from its metadata. It CREATES the deployment and keeps
+ * the id returned by its own creation request, because an origin-trust
+ * observation established that every origin-looking field on a deployment
+ * record — source, githubDeployment, githubCommitSha, githubCommitVerification
+ * and the rest — is writable by the caller that creates it. A record that says
+ * "GitHub built this" is a claim, not evidence.
+ *
+ * That is why phase C takes its candidate from the receipt phase B wrote and
+ * refuses without one, and why the promote response body is never read for
+ * identity: it was measured at one byte.
  *
  * WHAT IT NEVER DOES
  *
- * It never runs `vercel deploy`. It never uploads a working tree. It never
- * builds anything. Production artifacts are built by Vercel from GitHub
- * `main`; this command only decides whether an existing, READY, GitHub-built
- * deployment of the CURRENT `main` may take the canonical domains — and then
- * says so explicitly with `vercel promote`, because auto-assignment is off on
- * the canonical project and nothing else moves those domains.
- *
- * THE ORDER, AND WHY IT IS RE-CHECKED
- *
- *   1. read GitHub main (fresh)             -> mainAtSelection
- *   2. list READY production deployments of the canonical project
- *   3. choose the one Vercel built from GitHub main at exactly that SHA
- *   4. read GitHub main AGAIN                -> freshMainSha
- *   5. decidePromotion(candidate, mainAtSelection, freshMainSha)
- *   6. --apply: record the previous approved deployment, promote, read back
- *
- * Step 4 exists because a release is decided by a person over minutes, and
- * `main` can move under them. A promotion whose `main` changed between 1 and
- * 4 is refused as MAIN_MOVED; the answer is to run again, not to promote the
- * thing that was true a minute ago.
+ * It never runs `vercel deploy` and never uploads a working tree. Phase B DOES
+ * create a deployment — through the API, from a pinned sha, with no
+ * projectSettings, so the project's approved build configuration applies and
+ * the provenance guard in it runs. Vercel builds it from GitHub; this command
+ * never builds anything itself.
  *
  * CREDENTIALS. The Vercel token comes from VERCEL_TOKEN in the OPERATOR'S
  * environment, never from a repository file: `.env` and `.env.local` are
  * deliberately NOT loaded here. A token that sits in the checkout is a token
  * every session on the machine holds, which is how the incident happened.
  *
- * RECORD. Every apply appends the previous and new production deployment ids
- * to P2B_RELEASE_LOG (default ~/.price2book/release-log.jsonl), so recovery is
- * "promote the previous id", not archaeology.
+ * P2B_GH_READ_TOKEN is required too, and its requirement is DELIBERATE rather
+ * than incidental. The canonical repository is public, so the read would often
+ * succeed without it — but an authenticated read fails closed on a bad or
+ * missing credential instead of silently degrading to an anonymous, rate-
+ * limited one, and the guard's NO_READ_CREDENTIAL refusal depends on it.
+ *
+ * RECORD. Every phase appends to P2B_RELEASE_LOG (default
+ * ~/.price2book/release-log.jsonl): the intent, the promotion once accepted,
+ * and the outcome. Recovery is "promote the id the receipt names", not
+ * archaeology.
  */
 import { mkdirSync, openSync, writeSync, fsyncSync, closeSync, unlinkSync, readFileSync } from "node:fs";
 import { hostname, userInfo } from "node:os";
@@ -60,7 +79,11 @@ const API = "https://api.vercel.com";
 /**
  * A fresh read of GitHub refs/heads/main.
  *
- * AUTHENTICATED, because the repository is private. The operator's read token is
+ * AUTHENTICATED BY CHOICE, not by necessity. The canonical repository is PUBLIC,
+ * so this read would usually succeed anonymously — but an authenticated read
+ * fails closed on a bad or missing credential instead of degrading silently to
+ * an anonymous, rate-limited one, and the guard's NO_READ_CREDENTIAL refusal
+ * depends on the credential being required. The operator's read token is
  * its OWN credential — separate from VERCEL_TOKEN, which promotes — and it is
  * read from the shell, never from a .env file. `git` gets it through an askpass
  * environment variable rather than an argument, so it never appears in argv.
@@ -148,93 +171,12 @@ export async function currentProductionRaw(api: Api): Promise<{ raw?: unknown; e
 }
 
 /** The candidate's own deployment record — for platform-verified origin. */
-export async function deploymentRecord(api: Api, id: string): Promise<unknown> {
-  const r = await api<unknown>(`/v13/deployments/${id}?teamId=${CANONICAL.vercelTeamId}`);
-  return r.status >= 300 ? null : r.body;
-}
-
-/**
- * How this deployment was ACTUALLY built.
- *
- * The effective build command comes from the deployment's own record. The
- * project's current setting is read separately and only as drift detection —
- * it cannot testify about a build that already happened.
- */
-export async function vercelJsonBuildCommand(
-  sha: string, fetchImpl: FetchLike = fetch, token = process.env.P2B_GH_READ_TOKEN
-): Promise<Read<string | null>> {
-  if (!token) return { read: false, why: "no GitHub read credential" };
-
-  // ABSENCE IS PROVED BY A SUCCESSFUL READ, NOT BY A 404.
-  //
-  // GitHub answers 404 for a private resource the credential cannot see, so a
-  // 404 on the file alone is indistinguishable from a revoked token, a wrong
-  // repository, or a commit that does not exist. Reading it as "no override"
-  // meant a broken credential silently granted the permissive answer.
-  //
-  // So the ROOT TREE at the exact commit is read first. That one call proves
-  // access works, proves the commit exists, and says whether vercel.json is
-  // there — and only then does absence mean anything.
-  let tree: { tree?: unknown } | null = null;
-  try {
-    const r = await fetchImpl(
-      `https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/git/trees/${sha}`,
-      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" } }
-    );
-    if (!r.ok) return { read: false, why: `commit tree ${r.status} — access to the exact commit not established` };
-    tree = (await r.json()) as { tree?: unknown };
-  } catch (e) { return { read: false, why: `commit tree unreadable: ${String(e).slice(0, 80)}` }; }
-
-  // A TRUNCATED TREE IS NOT A LISTING. GitHub sets `truncated: true` when the
-  // response could not carry every entry, so "vercel.json is not in this array"
-  // stops meaning "vercel.json is not in the commit" — the file could be in the
-  // part that was cut. Absence needs a listing that claims to be complete.
-  if ((tree as { truncated?: unknown }).truncated === true)
-    return { read: false, why: "commit tree is truncated — absence cannot be established from a partial listing" };
-
-  const entries = tree?.tree;
-  if (!Array.isArray(entries)) return { read: false, why: "commit tree response has no tree array" };
-
-  // And every entry must be a shape this can actually read. `[null, 42, {}]` is
-  // an array, and `.some(path === "vercel.json")` is false over it — which is
-  // absence concluded from entries that were never understood.
-  const wellFormed = entries.every(
-    (e) => typeof e === "object" && e !== null && !Array.isArray(e)
-      && typeof (e as { path?: unknown }).path === "string"
-      && (e as { path: string }).path !== ""
-  );
-  if (!wellFormed)
-    return { read: false, why: "commit tree contains entries without a readable path" };
-
-  const found = entries.some((e) => (e as { path: string }).path === "vercel.json");
-  // Proved present-or-absent by a successful read of the commit's own tree.
-  if (!found) return { read: true, value: null };
-
-  try {
-    const r = await fetchImpl(
-      `https://api.github.com/repos/${CANONICAL.owner}/${CANONICAL.repo}/contents/vercel.json?ref=${sha}`,
-      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.raw" } }
-    );
-    if (!r.ok) return { read: false, why: `vercel.json listed in the tree but read ${r.status}` };
-    const text = await r.text();
-    // The tree says the file exists, so an empty body is a failed read, not an
-    // empty configuration.
-    if (text.trim() === "") return { read: false, why: "vercel.json is listed in the tree but came back empty" };
-    let parsed: unknown;
-    try { parsed = JSON.parse(text); }
-    catch { return { read: false, why: "vercel.json at the built commit is not valid JSON" }; }
-    // `[]` and `"next build"` are valid JSON and are not configurations. Reading
-    // buildCommand off them yields undefined, which used to mean "no override".
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-      return { read: false, why: "vercel.json is not a JSON object" };
-    const v = (parsed as { buildCommand?: unknown }).buildCommand;
-    if (v === undefined || v === null) return { read: true, value: null };
-    return typeof v === "string"
-      ? { read: true, value: v }
-      : { read: false, why: "vercel.json buildCommand is not a string" };
-  } catch (e) { return { read: false, why: `vercel.json unreadable: ${String(e).slice(0, 80)}` }; }
-}
-
+// deploymentRecord and vercelJsonBuildCommand were removed. Both belonged to
+// the superseded design that read a deployment's own record to decide its
+// origin, and to a config-file check made from outside the release decision.
+// The authoritative path is preflightDecision's commit-tree check, which
+// refuses CONFIG_FILE_PRESENT for vercel.json, vercel.toml AND vercel.ts and
+// refuses TREE_TRUNCATED when absence cannot be established at all.
 /* readBack is GONE too. It asked whether a host answered; observeHosts in
  * liveIO asks whether the host reports THIS run's deployment id and sha, and
  * checks the alias mapping separately — because a stale deployment answers 200
@@ -725,14 +667,52 @@ export function liveIO(api: Api, logPath: string, lockPath: string, receiptPath:
   };
 }
 
+/**
+ * The phase, parsed strictly.
+ *
+ * `argv.includes("--create")` was too generous in three ways at once: it
+ * accepted `--apply` by ignoring it and silently running a PREFLIGHT, it
+ * accepted both phase flags together and picked whichever it tested first, and
+ * it accepted any unknown flag or stray positional without comment. An operator
+ * who types the old `--apply` out of muscle memory should be told the flag is
+ * gone, not handed a dry run that looks like it did something.
+ */
+export function parsePhase(argv: readonly string[]):
+  { ok: true; phase: "preflight" | "create" | "promote" } | { ok: false; detail: string } {
+  const args = [...argv];
+  if (args.length === 0) return { ok: true, phase: "preflight" };
+
+  if (args.includes("--apply"))
+    return { ok: false, detail:
+      "--apply no longer exists. The release is three phases: no flag (preflight, read-only), " +
+      "--create (create the pinned deployment and its receipt), --promote (promote the receipt-bound candidate)." };
+
+  const phases = args.filter((a) => a === "--create" || a === "--promote");
+  const others = args.filter((a) => a !== "--create" && a !== "--promote");
+  if (others.length > 0)
+    return { ok: false, detail: `unrecognised argument(s): ${others.join(" ")}. Expected no flag, --create, or --promote.` };
+  if (phases.length > 1)
+    return { ok: false, detail: `exactly one phase may be named; got ${phases.join(" ")}.` };
+
+  return { ok: true, phase: phases[0] === "--create" ? "create" : "promote" };
+}
+
 async function main() {
-  const phase = process.argv.includes("--create") ? "create"
-    : process.argv.includes("--promote") ? "promote" : "preflight";
+  const parsed = parsePhase(process.argv.slice(2));
+  if (!parsed.ok) { console.error(`\n  REFUSED: ${parsed.detail}\n`); process.exit(1); }
+  const phase = parsed.phase;
   console.log(`\nPRODUCTION RELEASE — phase ${phase.toUpperCase()}\n`);
 
   const token = process.env.VERCEL_TOKEN;
   if (!token) { console.error("  REFUSED: VERCEL_TOKEN is not set in this shell. It is deliberately not read from .env files.\n"); process.exit(1); }
-  if (!process.env.P2B_GH_READ_TOKEN) { console.error("  REFUSED: P2B_GH_READ_TOKEN is not set; the repository is private.\n"); process.exit(1); }
+  if (!process.env.P2B_GH_READ_TOKEN) {
+    // NOT because the repository is private — it is public. An authenticated
+    // read fails closed on a bad credential rather than degrading to an
+    // anonymous, rate-limited one, and the guard refuses NO_READ_CREDENTIAL
+    // without it. The requirement is a choice, not a consequence.
+    console.error("  REFUSED: P2B_GH_READ_TOKEN is not set. Reads of GitHub are authenticated deliberately, so they fail closed.\n");
+    process.exit(1);
+  }
 
   const logPath = process.env.P2B_RELEASE_LOG ?? join(homedir(), ".price2book", "release-log.jsonl");
   const lockPath = process.env.P2B_RELEASE_LOCK ?? join(homedir(), ".price2book", "release.lock");
