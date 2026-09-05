@@ -2679,6 +2679,29 @@ enum AppointmentKind {
   /// their normal Jobber workflow, and building a dispatch module to avoid
   /// that would be inventing a product nobody asked for.
   INSTALLATION
+  /// An attended visit whose purpose is to ESTABLISH the scope of work.
+  ///
+  /// Distinct from PRE_WORK, which VERIFIES an already-defined scope. A
+  /// service call never satisfies a pre-work requirement, and a booking may
+  /// legitimately contain both — a visit that established what the work is,
+  /// and later a verification of whatever that visit established.
+  ///
+  /// The distinction is not a nuance. Recording a service call as PRE_WORK
+  /// would make every "was the sold scope verified" question answer yes for a
+  /// visit that verified nothing, because nobody had sold a scope yet.
+  ///
+  /// NAMED FOR WHAT HAPPENS, NOT FOR A CONCLUSION. Not DIAGNOSTIC: that word
+  /// asserts there is a fault to be found, which is precisely what nobody has
+  /// established when the visit is booked. An enum value outlives every
+  /// rewording above it, and the platform should not learn a forbidden
+  /// conclusion as a schema constant.
+  ///
+  /// CAPABILITY ONLY, AS OF G3. Nothing in production creates a SERVICE_CALL
+  /// row: `Booking.arrivalWindowId` remains the scheduling mechanism, and the
+  /// sole appointment writer (checkout, deposit bookings) still writes
+  /// PRE_WORK. When such rows begin to be persisted is a later decision with
+  /// its own scope.
+  SERVICE_CALL
 }
 
 enum AppointmentStatus {
