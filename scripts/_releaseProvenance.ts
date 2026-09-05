@@ -44,10 +44,18 @@ export const CANONICAL = {
    * adopting whatever the project happens to be linked to. A project re-pointed
    * at another repository must refuse, not pass quietly.
    *
-   * PENDING: the canonical value is unset until read from GitHub. The probe
-   * repository's was 1357038688; the canonical one has not been read.
+   * ESTABLISHED 4 September 2026 by an UNAUTHENTICATED read of
+   * https://api.github.com/repos/Jhall1021/bookeliteelectric, which returned
+   * id 1336270570 for owner "Jhall1021", name "bookeliteelectric". No
+   * credential was involved, so the value does not depend on any token that
+   * has since been used or disclosed.
+   *
+   * PINNING IT DOES NOT MAKE IT TRUSTED. preflightDecision still requires all
+   * THREE to agree — this constant, GitHub's reported id, and the id Vercel's
+   * project link carries — and refuses REPO_MISMATCH if any disagrees. The
+   * constant is the claim under test, not the authority.
    */
-  repoId: 0,
+  repoId: 1336270570,
   ref: "main",
   provider: "github",
   target: "production",

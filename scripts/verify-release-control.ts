@@ -35,6 +35,8 @@ const APPROVED: ApprovedBuild = {
   rootDirectory: null, installCommand: null,
   buildCommand: "npm run build", outputDirectory: ".", framework: null,
 };
+// A SYNTHETIC fixture id, deliberately NOT the canonical one, so these tests
+// cannot pass by accidentally agreeing with the real constant.
 const REPO_ID = 1357038688;
 const CANON = { projectId: "prj_canonical", target: "production", repoId: REPO_ID };
 const RECORD: CandidateRecord = {
@@ -533,6 +535,37 @@ async function liveAdapterTests() {
 
   const downEmpty = mk(async () => ({ status: 503, body: {} }));
   ok(!(await downEmpty.readAliasMappings()).read, "B3  and a 503 with no body is unread too");
+
+  // THE CANONICAL REPOSITORY ID IS PINNED, AND IS WHAT PHASE B SENDS.
+  //
+  // gitSource identifies a repository by number, so a wrong or absent id points
+  // creation at the wrong repository — or, while it was 0, at nothing. It was
+  // established by an unauthenticated read of the public canonical repository,
+  // and pinning it does NOT make it trusted: preflightDecision still requires
+  // this constant, GitHub's id and Vercel's project link to agree.
+  //
+  // The second assertion is the one that matters. A constant nothing reads is
+  // decoration, so this drives the REAL createDeployment and inspects the body
+  // it actually sends.
+  ok(CANONICAL.repoId === 1336270570,
+    "B3  CANONICAL.repoId is pinned to the canonical repository", String(CANONICAL.repoId));
+  ok(Number.isInteger(CANONICAL.repoId) && CANONICAL.repoId > 0,
+    "B3  and it is a real id, not zero or a placeholder", String(CANONICAL.repoId));
+
+  type SentBody = { gitSource?: { repoId?: unknown; ref?: unknown; type?: unknown } };
+  const sent: SentBody[] = [];
+  const capture = mk(async (_path: string, init?: { body?: string }) => {
+    if (init?.body) sent.push(JSON.parse(init.body) as SentBody);
+    return { status: 200, body: { id: CAND } };
+  });
+  await capture.createDeployment(MAIN);
+  const body = sent[0];
+  ok(body !== undefined && body.gitSource?.repoId === CANONICAL.repoId,
+    "B3  and phase B puts exactly that id into gitSource.repoId",
+    body ? JSON.stringify(body.gitSource) : "no body was sent");
+  ok(body !== undefined && body.gitSource?.repoId === 1336270570,
+    "B3  which is the canonical repository, by number",
+    body ? String(body.gitSource?.repoId) : "no body");
 
   // R2 — AN ABSENT rootDirectory IS NORMALIZED TO null BEFORE COMPARISON.
   //
