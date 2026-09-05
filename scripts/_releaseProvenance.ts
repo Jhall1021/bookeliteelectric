@@ -55,6 +55,21 @@ export const CANONICAL = {
   vercelTeamId: "team_dAw8VA0u1R3VuwiPMP97otvK",
   vercelProjectId: "prj_zB0QVq80340s2dVt7X3c1ewKgHtT",
   vercelProjectName: "price2book",
+  /**
+   * THE GOVERNED HOSTS — and the only ones.
+   *
+   * Vercel also serves generated *.vercel.app aliases for this project. They are
+   * DELIBERATELY OUTSIDE this set, and readAliasPage skips them as "genuinely
+   * not ours". That is a decision, not an oversight: proof 6 observed a
+   * promotion move the generated aliases and the production target together,
+   * and proof 4 case 1 observed a CREATION move two generated aliases while the
+   * production target stayed put. Neither is a customer-facing fact, and
+   * enforcing them would make the release refuse on routing nobody is served by.
+   *
+   * The proofs establish this for GENERATED hosts on a disposable project. They
+   * establish NOTHING about the three custom domains below, which are a
+   * different host class on a project with auto-assignment disabled.
+   */
   canonicalHosts: ["app.price2book.com", "price2book.com", "www.price2book.com"],
   /** Public repository, so the fresh main SHA can be read without credentials. */
   gitRemote: "https://github.com/Jhall1021/bookeliteelectric.git",

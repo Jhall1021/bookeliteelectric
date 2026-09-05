@@ -97,9 +97,23 @@ export function preflightDecision(f: PreflightFacts, approved: ApprovedBuild): P
   if (!f.commitTree.read)
     return { ok: false, code: "TREE_UNREADABLE", detail: f.commitTree.why };
   const tree = f.commitTree.value;
+  // The same evidence makes THIS refusal load-bearing too. Proof 2 showed what a
+  // config file does; a truncated listing is a tree in which one could be
+  // present and unseen. Absence has to be established, not inferred from a
+  // listing that stopped early — otherwise the CONFIG_FILE_PRESENT check below
+  // is bypassed by a large enough repository rather than by a clean one.
   if (tree.truncated)
     return { ok: false, code: "TREE_TRUNCATED",
       detail: "the commit tree is truncated; absence of configuration cannot be established from it" };
+  // LOAD-BEARING, AND MEASURED. On 4 September 2026 a commit adding only a
+  // root vercel.json produced a READY build whose effective command was the
+  // FILE's — the provenance guard was never fetched and never ran, while the
+  // project's own buildCommand still contained it. So this refusal is not
+  // belt-and-braces: it is the only thing between such a commit and a
+  // guard-free production build.
+  //   docs/evidence/live-proofs/proof2-after.txt   (deployment dpl_D4zqe5wVSEJjPMscXCJHs7E7camz)
+  // Observed on a PREVIEW target; not established for a production target,
+  // which is a reason to keep the refusal rather than to relax it.
   const present = CONFIG_FILENAMES.filter((n) => tree.paths.includes(n));
   if (present.length > 0)
     return { ok: false, code: "CONFIG_FILE_PRESENT",

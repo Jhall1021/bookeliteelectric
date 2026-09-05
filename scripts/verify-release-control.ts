@@ -15,9 +15,10 @@ import { mkdtempSync, rmSync, existsSync, readFileSync, writeSync, fsyncSync, st
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runRelease, type ReleaseIO, type IntentRecord } from "./_releaseRun";
-import { verifyHosts, type ApprovedBuild, type HostObservation,
+import { verifyHosts, compareBuild, type ApprovedBuild, type HostObservation,
   type CandidateRecord, type CreationReceipt, type AliasMapping } from "./_releaseControl";
-import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings, readAliasPage } from "./release-production";
+import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings, readAliasPage, APPROVED_REDIRECT_HOSTS } from "./release-production";
+import { CANONICAL } from "./_releaseProvenance";
 
 let pass = 0, fail = 0;
 const ok = (c: boolean, label: string, detail = "") => {
@@ -532,6 +533,79 @@ async function liveAdapterTests() {
 
   const downEmpty = mk(async () => ({ status: 503, body: {} }));
   ok(!(await downEmpty.readAliasMappings()).read, "B3  and a 503 with no body is unread too");
+
+  // R2 — AN ABSENT rootDirectory IS NORMALIZED TO null BEFORE COMPARISON.
+  //
+  // Vercel returns projectSettings WITHOUT a rootDirectory key rather than with
+  // a null one: observed on every deployment read in proofs 4, 5 and 6. The
+  // approved build carries null. `undefined !== null`, so without the `?? null`
+  // in liveIO's settings() a correct deployment would be refused
+  // PROJECT_SETTINGS_NOT_APPROVED for drift that does not exist. Nothing
+  // asserted that normalization, so a refactor could have dropped it silently.
+  const absentRoot = mk(async () => ({ status: 200, body: {
+    uid: CAND, projectId: CANONICAL.vercelProjectId, readyState: "READY", target: "production",
+    gitSource: { sha: MAIN },
+    // Every field mirrors the APPROVED fixture EXCEPT that rootDirectory is
+    // absent entirely — so the only thing this can be measuring is the
+    // normalization, not an unrelated difference.
+    projectSettings: {                       // NO rootDirectory key at all
+      installCommand: APPROVED.installCommand, buildCommand: APPROVED.buildCommand,
+      outputDirectory: APPROVED.outputDirectory, framework: APPROVED.framework,
+    },
+  } }));
+  const ar = await absentRoot.readCandidate(CAND);
+  ok(ar.read && ar.value.build !== null && ar.value.build.rootDirectory === null,
+    "B3  an ABSENT rootDirectory is read as null, not undefined",
+    ar.read && ar.value.build ? JSON.stringify(ar.value.build.rootDirectory) : "unread");
+  ok(ar.read && ar.value.build !== null && compareBuild(ar.value.build, APPROVED) === null,
+    "B3  and it therefore compares EQUAL to the approved build, not as drift",
+    ar.read && ar.value.build ? String(compareBuild(ar.value.build, APPROVED)) : "unread");
+
+  // R3 — A DEPLOYMENT PROTECTION REDIRECT MUST FAIL CLOSED.
+  //
+  // Proof 6 met this for real: a protected host answers 302 to
+  // vercel.com/sso-api. observeHosts follows redirects, so it lands on an HTML
+  // login page. What must NOT happen is that page being read as a served
+  // identity, or its host being accepted as the one we asked for.
+  //
+  // PROTECTED IS NOT A SUCCESS STATE HERE. The disposable proof-6 observer
+  // classified it as its own outcome because the question there was routing.
+  // For a GOVERNED host it is simply unreadable, and the release stays
+  // INCOMPLETE.
+  const realFetch2 = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => ({
+      ok: true, status: 200,
+      url: "https://vercel.com/sso-api?url=https%3A%2F%2Fapp.price2book.com%2Fapi%2Frelease&nonce=deadbeef",
+      json: async () => { throw new SyntaxError("Unexpected token '<'"); },
+    })) as unknown as typeof fetch;
+    const protectedHosts = await mk(async () => ({ status: 200, body: { aliases: CANONICAL.canonicalHosts.map(
+      (h) => ({ alias: h, deploymentId: CAND })), pagination: { next: null } } }))
+      .observeHosts({ deploymentId: CAND, sha: MAIN });
+    ok(protectedHosts.every((h) => !h.served.read),
+      "B3  an SSO redirect is an UNREAD host, never a served identity",
+      JSON.stringify(protectedHosts.map((h) => h.served.read)));
+    const vp = verifyHosts(protectedHosts, { deploymentId: CAND, sha: MAIN }, APPROVED_REDIRECT_HOSTS,
+      { read: true, value: CAND });
+    ok(!vp.complete, "B3  and verification is INCOMPLETE, not a pass", vp.problems.join("; "));
+
+    // The other shape: the login page answers with JSON. The served identity
+    // then parses, and the ONLY thing standing between that and a false pass is
+    // the finalHost check.
+    globalThis.fetch = (async () => ({
+      ok: true, status: 200,
+      url: "https://vercel.com/sso-api?url=x",
+      json: async () => ({ deploymentId: CAND, commitSha: MAIN }),
+    })) as unknown as typeof fetch;
+    const sneaky = await mk(async () => ({ status: 200, body: { aliases: CANONICAL.canonicalHosts.map(
+      (h) => ({ alias: h, deploymentId: CAND })), pagination: { next: null } } }))
+      .observeHosts({ deploymentId: CAND, sha: MAIN });
+    const vs = verifyHosts(sneaky, { deploymentId: CAND, sha: MAIN }, APPROVED_REDIRECT_HOSTS,
+      { read: true, value: CAND });
+    ok(!vs.complete && vs.problems.some((x) => /redirected to vercel\.com/.test(x)),
+      "B3  a redirect to an UNAPPROVED host is refused even when its body parses",
+      vs.problems.join("; "));
+  } finally { globalThis.fetch = realFetch2; }
 
   const boom = mk(async () => { throw new Error("ECONNRESET"); });
   const b = await boom.readAliasMappings();
