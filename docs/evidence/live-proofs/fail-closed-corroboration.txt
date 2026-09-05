@@ -1,0 +1,33 @@
+FAIL-CLOSED CORROBORATION — NOT PROOF 4
+
+  Recorded separately on the operator's instruction, so it cannot be mistaken
+  for the guard refusing.
+
+  Deployment   dpl_2zZVozq8asr1ZuGuXMTiFU3a3vWC   (proof 5's staging build)
+  Outcome      ERROR
+
+    [ 8] Installing dependencies...
+    [ 9] curl: (22) The requested URL returned error: 404
+    [10] Error: Command "g=$(printf 'url="%s"\n%s' "https://api.github.com/...
+
+  Cause: P2B_GH_HDR is a Production-only variable and this was a staging build,
+  so the Authorization header was empty and an unauthenticated read of a PRIVATE
+  repository's contents returned 404.
+
+  WHAT IT CORROBORATES
+    The build command's chain fails closed. `curl -f` turned the 404 into a
+    non-zero exit, `&&` stopped there, and `npm run build` was never reached.
+    The design comment claims exactly this; here it is observed.
+
+  WHAT IT IS NOT
+    It is NOT proof 4's negative case, and must never be cited as one. Proof 4
+    requires the identified guard to be DOWNLOADED, to RUN, and to REFUSE. Here
+    the download itself failed, so:
+
+      PROVENANCE OK        absent
+      PROVENANCE REFUSED   absent
+      P2B-APP-BUILD-RAN    absent
+
+    Nothing was decided by the guard because the guard never existed in that
+    build. A build that fails BEFORE the guard proves the chain stops on an
+    unreachable guard; it proves nothing about what the guard decides.

@@ -1,0 +1,29 @@
+GUARD IDENTITY — recorded before any build
+  recorded at        2026-09-04T16:36:07Z
+  reviewed artifact  scripts/provenance-guard.sh
+  reviewed blob      2e6e4b289b57a49579cef88ee1f7bfffc5786bf8
+  test blob          9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  substitutions      OWNER=Price2Book REPO=p2b-release-proofs REF=main
+  lines differing    4 (a no-op substitution legitimately differs by none)
+
+DIFF (reviewed -> test)
+  17,18c17,18
+  < OWNER=Jhall1021
+  < REPO=bookeliteelectric
+  ---
+  > OWNER=Price2Book
+  > REPO=p2b-release-proofs
+
+OWNER CASING — settled, not assumed
+  The guard compares VERCEL_GIT_REPO_OWNER to OWNER with `=`, an exact string
+  compare, so casing decides every proof. Resolved by an unauthenticated read of
+  the public user endpoint (no credential, nothing sent):
+
+    canonical login  Price2Book   (type User, id 320725143)
+
+  "price2book" as written in chat would have refused WRONG_OWNER on every build,
+  including proof 4's positive case, and the failure would have looked like a
+  finding about the guard rather than a typo.
+
+  NOTE: 320725143 is the USER id. The numeric REPOSITORY id that gitSource needs
+  is a different value and is read at setup, once a credential exists.

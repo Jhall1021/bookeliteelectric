@@ -1,0 +1,98 @@
+STATE SNAPSHOT — AFTER proof 1
+  captured 2026-09-04T19:03:09Z
+
+GITHUB Price2Book/p2b-release-proofs
+  main sha        24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+  message         Proof 1: post-link commit
+  committed       2026-09-04T19:01:31Z
+  verification    valid
+  parents         ['afa291520b5b8173c3d933d732f2bd67dbd7d0ac']
+  guard blob      9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  guard pinned    yes, matches 9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+
+VERCEL prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  effective build configuration
+    rootDirectory    None
+    installCommand   None
+    buildCommand     g=$(printf 'url="%s"\n%s' "https://api.github.com/repos/Price2Book/p2b-release-proofs/contents/scripts/provenance-guard.sh?ref=main" "$P2B_GH_HDR"|curl -fsSK- --max-time 30)&&[ -n "$g" ]&&echo "$g"|sh&&npm run build
+    outputDirectory  'public'
+    framework        None
+
+  deployments (most recent first)
+    dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+      state READY     target production  2026-09-04T19:01:34.532000Z
+      source git      importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+      state READY     target production  2026-09-04T18:00:46.964000Z
+      source import   importSource 'import-suggestions'
+      commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+
+  aliases
+    p2b-release-proofs-git-main-price2-book.vercel.app   -> dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+    p2b-release-proofs-price2-book.vercel.app            -> dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+    p2b-release-proofs.vercel.app                        -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    pagination next: None
+
+PROOF 1 — SATISFIED
+
+  commit          24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+  parent          afa291520b5b8173c3d933d732f2bd67dbd7d0ac  (the before-state head)
+  message         "Proof 1: post-link commit"
+  verification    valid
+  guard at main   9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a  (re-read, unchanged)
+
+  deployment      dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+  source          'git'                    <- import was 'import'
+  importSource    absent                   <- import carried 'import-suggestions'
+  gitSource       type github, ref main, repoId 1357368650,
+                  sha 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+  target          production
+  readyState      READY
+  created         2026-09-04T19:01:34.532Z, 3s after the commit at 19:01:31Z
+
+  effective build command ON THE DEPLOYMENT: the provenance one-liner, fetching
+  scripts/provenance-guard.sh from this repository at ref=main. outputDirectory
+  "public"; installCommand, rootDirectory and framework unset.
+
+  ORDERED BUILD OUTPUT — the guard ran, and ran FIRST
+    [ 2] Cloning github.com/Price2Book/p2b-release-proofs (Branch: main, Commit: 24a5583)
+    [ 9] PROVENANCE OK 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    [12] P2B-APP-BUILD-RAN at 2026-09-04T19:01:37.912Z
+    [18]   VERCEL_GIT_COMMIT_SHA=24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    [20] Build Completed in /vercel/output [1s]
+
+  Guard at index 9, application build at index 12: the guard preceded the
+  application build, which is the ordering the && chain promises. No
+  PROVENANCE REFUSED anywhere in the log. The sha the guard approved, the sha
+  the application build reported, gitSource.sha and GitHub's head are the same
+  value.
+
+HOW THE TRIGGER CLASSIFICATION IS TO BE READ
+
+  source == 'git' and the absence of importSource classify THIS controlled test
+  event. They are NOT promoted back into security authority. Origin-trust
+  established that source is caller-writable, so it separates an import from a
+  push only when nobody is trying to deceive us. The classification rests on the
+  operator's account of what he did, the fields agreeing with it, and the commit
+  lineage — afa2915 as sole parent — together. No single field carries it.
+
+ALIAS BEHAVIOUR — TWO MOVED, ONE DID NOT
+
+  before, all three                       -> dpl_8uZb (import)
+  after
+    ...-git-main-price2-book.vercel.app   -> dpl_DNdg  MOVED
+    ...-price2-book.vercel.app            -> dpl_DNdg  MOVED
+    p2b-release-proofs.vercel.app         -> dpl_8uZb  DID NOT MOVE
+
+  Checked three times, 19:03:56 / 19:04:42 / 19:05:28, the last four minutes
+  after READY. Stable at every read, so this is not propagation lag being
+  mistaken for a result — though three reads over ninety seconds establish
+  stability, not permanence.
+
+  SCOPE. This is a GIT-PUSH auto-deployment, not an API promotion, and proof 6
+  asks about promotion. So this does not answer proof 6. It does corroborate the
+  earlier isolated-test observation that the shortest project alias did not
+  follow, and it means the release cannot assume "the new production deployment
+  owns every alias" — verifyHosts checks each host separately, which this
+  supports.

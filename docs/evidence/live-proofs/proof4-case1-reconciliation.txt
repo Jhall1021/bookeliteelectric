@@ -1,0 +1,157 @@
+PROOF 4 CASE 1 — READ-ONLY RECONCILIATION OF THE ALIAS FINDING
+
+Nothing was changed, probed or promoted to produce this. No canonical domain or
+project was addressed beyond the already-authorized isolation denials.
+
+1. THE PROJECT'S PRODUCTION TARGET
+
+   targets.production.id          dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+   targets.production.readyState  READY
+   targets.production.createdAt   1788544846964 = 2026-09-04T18:00:46.964Z
+
+   THE PRODUCTION TARGET DID NOT CHANGE. It is still the original import
+   deployment — not proof 1's git deployment, and not case 1's API deployment.
+
+   HOW STRONG THIS IS. I did not record targets.production in the before
+   snapshot; capture-state.sh captures deployments and aliases, not this field.
+   So it is not a recorded before/after pair. What makes the conclusion sound
+   anyway is the VALUE: the current target is a deployment created at 18:00:46,
+   which predates proof 1 (19:01) and case 1 (19:22). Neither event can have set
+   the target to a deployment that already held it. That is inference from
+   identity and timestamps, and it is stated as such.
+
+   THE GAP IS MINE. targets.production is the field that actually corresponds to
+   "what is production", and my capture script does not record it. The alias
+   list does not substitute for it. Noted, not fixed — this is read-only.
+
+2. CLASSIFICATION OF THE THREE GENERATED HOSTS
+
+   p2b-release-proofs.vercel.app
+     The SHORTEST PROJECT ALIAS. Points at dpl_8uZb — the same deployment as
+     targets.production. Has not moved across a git-push production deployment
+     (proof 1) or an API-created one (case 1).
+
+   p2b-release-proofs-price2-book.vercel.app
+     PROJECT + SCOPE alias (project name plus the team slug price2-book).
+     Moved to case 1's deployment.
+
+   p2b-release-proofs-git-main-price2-book.vercel.app
+     BRANCH alias. dpl_8uZb's record named it explicitly:
+     meta.branchAlias = "p2b-release-proofs-git-main-price2-book.vercel.app".
+     Moved to case 1's deployment.
+
+   So the two that moved are the branch and project+scope generated aliases, and
+   the one that held is the shortest project alias, which tracks the production
+   target. Consistent across both observations — correlation over two events, not
+   a demonstrated mechanism.
+
+3. THE HOSTS THE IMPLEMENTATION ACTUALLY ENFORCES
+
+   CANONICAL.canonicalHosts  (scripts/_releaseProvenance.ts:58)
+     app.price2book.com
+     price2book.com
+     www.price2book.com
+
+   APPROVED_REDIRECT_HOSTS = CANONICAL.canonicalHosts  (release-production.ts:56)
+
+   Both alias reads pass exactly that list:
+     readAliasMappings: collectAliasMappings(api, CANONICAL.canonicalHosts)
+     verification:      collectAliasMappings(api, CANONICAL.canonicalHosts)
+
+   NO GENERATED *.vercel.app HOST APPEARS ANYWHERE IN THE RELEASE CONSTANTS. A
+   grep for "vercel.app" across _releaseProvenance.ts, _releaseControl.ts,
+   _releaseRun.ts and release-production.ts returns nothing.
+
+   And readAliasPage skips them by construction:
+     if (!requiredHosts.includes(a.alias)) continue;   // read, and genuinely not ours
+
+   A generated alias is not merely unchecked — it is explicitly classified as
+   not ours and passed over.
+
+4. WHAT PHASE B ACTUALLY CLAIMS
+
+   From the implementation's own header:
+
+     "...only decides whether an existing, READY, GitHub-built deployment of the
+      CURRENT main may take THE CANONICAL DOMAINS — and then says so explicitly
+      with `vercel promote`, because auto-assignment is off on the canonical
+      project and NOTHING ELSE MOVES THOSE DOMAINS."
+
+   The claim is about the canonical domains, and only those. It does not claim
+   that every generated URL stays on the incumbent, and no code enforces such a
+   claim.
+
+   THEREFORE CASE 1 DOES NOT CONTRADICT THE PHASE B SAFETY PROPERTY. Two
+   generated aliases moved; no canonical customer-facing host moved, because
+   none exists on this project; and the production target did not move.
+
+   MY EARLIER FRAMING WAS WRONG. I wrote that "creation at target production is
+   not inert", that "the window in which a candidate is built but not yet
+   serving does not exist for these aliases", and that verify-then-promote
+   "would be verifying something that is already live". The first is true only
+   of generated aliases. The second and third silently substituted generated
+   aliases for the hosts the release governs, and on the hosts it governs the
+   window is intact. I generalised from the hosts I could see to the hosts the
+   design is about.
+
+5. autoAssignCustomDomains: false — THREE KINDS OF STATEMENT, KEPT APART
+
+   DOCUMENTATION (reported by the operator; I have NOT independently verified it
+   against Vercel's documentation in this session): Vercel distinguishes
+   generated *.vercel.app URLs from custom production domains, and a staged
+   deployment may hold generated URLs while custom-domain assignment is withheld
+   until promotion.
+
+   CODE ASSUMPTION (verifiable, and verified above): the release assumes
+   auto-assignment is off on the canonical project so that nothing but an
+   explicit promote moves the canonical domains. It never reasons about
+   generated aliases at all.
+
+   LIVE OBSERVATION (this project, this session): autoAssignCustomDomains is
+   false; the project has NO custom domains; two generated aliases moved on
+   creation; the shortest project alias and the production target did not.
+
+   WHAT IS NOT ESTABLISHED: how a CUSTOM domain behaves on creation under
+   autoAssignCustomDomains: false. This project has none, so nothing here tests
+   it. The documentation and the code assumption agree that it should not move;
+   both are claims, and neither has been observed. That is proof 6's question.
+
+6. WHAT CASE 1 REQUIRES
+
+   NOT a code or design correction. The implementation already restricts itself
+   to the three canonical hosts, and the behaviour observed falls entirely
+   outside them.
+
+   A NARROWER STATEMENT OF THE GUARANTEE, plus an evidence note:
+
+     Phase B's property is "no CANONICAL CUSTOMER-FACING HOST moves before
+     Phase C", not "no Vercel-generated alias moves". Creating a
+     production-target deployment DOES move generated branch and project+scope
+     aliases, and does NOT move the production target.
+
+   The evidence note belongs with case 1's record so the raw finding is never
+   read on its own. The correction in section 4 is the substance of it.
+
+7. CAN CASE 2 PROCEED SAFELY UNDER THE EXISTING BOUNDARY
+
+   On this evidence, yes, with the same bracketing.
+
+   Expected path: the guard refuses SHA_NOT_MAIN, the && chain stops, the build
+   ERRORs, and the deployment never reaches READY. Generated aliases attach to
+   READY deployments — dpl_2zZV, proof 5's ERROR build, took none — so a
+   refusing build should move nothing at all. Case 2 is expected to be quieter
+   than case 1, not louder.
+
+   THE FAILURE MODE WORTH NAMING. If the guard does NOT refuse — the very thing
+   case 2 tests — the deployment would reach READY and would then take the two
+   generated aliases, as case 1's did. Those would point at a build of
+   afa2915…, which is this same fixture minus one README line. The production
+   target would remain dpl_8uZb, which is itself afa2915…. So the worst case is
+   two generated aliases on a disposable project serving near-identical content,
+   and a significant finding recorded.
+
+   ONE IMPROVEMENT WORTH MAKING FIRST, and it is the operator's call: capture
+   targets.production in the before/after snapshots. Case 1 needed that field to
+   be reconciled and I had to reason around its absence. Case 2 should not need
+   the same reasoning. That is a change to capture-state.sh, which this
+   authorization does not cover.

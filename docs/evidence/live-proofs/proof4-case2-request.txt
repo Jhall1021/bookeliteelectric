@@ -1,0 +1,47 @@
+PROOF 4 CASE 2 — THE REQUEST, PRESERVED BEFORE SENDING
+
+  POST https://api.vercel.com/v13/deployments
+  Authorization: Bearer <REDACTED — vcp_ project-scoped, fingerprint babd0443>
+  Content-Type: application/json
+
+  BODY, verbatim:
+
+    {
+      "name": "p2b-release-proofs",
+      "project": "prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q",
+      "target": "production",
+      "gitSource": {
+        "type": "github",
+        "repoId": 1357368650,
+        "ref": "main",
+        "sha": "afa291520b5b8173c3d933d732f2bd67dbd7d0ac"
+      }
+    }
+
+  Absent by design: projectSettings, files, teamId, slug.
+
+  WHY THIS SHOULD REFUSE. The build command fetches the guard at ?ref=main, so
+  the guard reads GitHub's CURRENT head — 24a5583… — while the deployment is
+  pinned to afa2915…. VERCEL_GIT_COMMIT_SHA will therefore be the historical
+  commit and MAIN will be the head, they differ, and the guard's last check
+  fails: SHA_NOT_MAIN.
+
+  It is the LAST check, which is what makes the refusal informative. Reaching it
+  requires production target, github provider, owner Price2Book, repo
+  p2b-release-proofs, ref main, a full 40-character sha and a read credential to
+  have all passed first. A SHA_NOT_MAIN refusal therefore evidences those seven
+  inputs were correct on an API-created deployment, as well as evidencing the
+  check itself.
+
+  PRECONDITIONS AT SEND TIME
+    GitHub main head        24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    historical sha exists   afa291520b5b8173c3d933d732f2bd67dbd7d0ac (root commit)
+    lineage                 main's sole parent IS the historical sha
+    guard blob at main      9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+    production target       dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf (READY)
+    aliases
+      ...-git-main-price2-book.vercel.app -> dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+      ...-price2-book.vercel.app          -> dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+      p2b-release-proofs.vercel.app       -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+
+  ONE REQUEST. Ambiguous or absent id is UNCERTAIN: no retry, no listing search.
