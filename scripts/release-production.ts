@@ -758,7 +758,7 @@ export function parsePhase(argv: readonly string[]):
   const phases = args.filter((a) => a === "--create" || a === "--promote");
   const others = args.filter((a) => a !== "--create" && a !== "--promote");
   if (others.length > 0)
-    return { ok: false, detail: `unrecognised argument(s): ${others.join(" ")}. Expected no flag, --create, or --promote.` };
+    return { ok: false, detail: `unrecognized argument(s): ${others.join(" ")}. Expected no flag, --create, or --promote.` };
   if (phases.length > 1)
     return { ok: false, detail: `exactly one phase may be named; got ${phases.join(" ")}.` };
 

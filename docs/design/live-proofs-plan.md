@@ -17,7 +17,7 @@ Vercel *enriched* the forgery with `githubCommitAuthorLogin` and
 `githubRepoVisibility`. The release therefore trusts only causation — it creates
 the deployment and keeps the id from its own request.
 
-That pivot leaves exactly six load-bearing assumptions about platform behaviour
+That pivot leaves exactly six load-bearing assumptions about platform behavior
 that no fake can settle. They are not a survey of Vercel; they are the residue.
 
 ## Which guard is under test
@@ -51,7 +51,7 @@ Recorded before the first proof runs, and carried on every result:
 | `P2B_MAIN_API`, if set | which repository the fresh-main read actually hit |
 
 A diff that touches anything beyond those constants invalidates the run: the
-proofs are about the reviewed guard's behaviour, not a variant's.
+proofs are about the reviewed guard's behavior, not a variant's.
 
 ## Credentials
 
@@ -136,7 +136,7 @@ afterwards, with the evidence in hand. In particular:
   Each code is diagnosed on its own terms; none is a verdict on the design.
 - **Aliases that do not move are an already-handled outcome.** `verifyHosts`
   records `alias points at X, expected Y`, `complete` is false, and the run
-  returns `INCOMPLETE` holding its lock. That is the designed behaviour. It does
+  returns `INCOMPLETE` holding its lock. That is the designed behavior. It does
   **not** authorize adding alias mutation to Phase C.
 - **A successful git baseline does not undo the forgery evidence.** Proof 1
   establishes a reference record. It cannot un-demonstrate that metadata was
@@ -346,8 +346,8 @@ Authorized 4 September 2026, within this boundary, recorded verbatim:
 repository only. Pushes to production and to release branches remain prohibited.
 
 **Accepted limitation.** Disposable `*.vercel.app` results will not establish
-production custom-domain behaviour. This lands almost entirely on proof 6: it can
-show promotion's alias behaviour is wrong, but a clean result leaves "does
+production custom-domain behavior. This lands almost entirely on proof 6: it can
+show promotion's alias behavior is wrong, but a clean result leaves "does
 promotion complete a release on the canonical domains" open. Proofs 2–5 are
 unaffected, turning on build commands, configuration and guard execution rather
 than hostnames.

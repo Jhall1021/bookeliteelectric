@@ -237,8 +237,8 @@ Any failing offline case stops before the live write.
 
 ## Evidence boundary
 
-**This proves behaviour only for the disposable project's generated
-`*.vercel.app` aliases.** It does **not** establish custom-domain behaviour and
+**This proves behavior only for the disposable project's generated
+`*.vercel.app` aliases.** It does **not** establish custom-domain behavior and
 must not be generalized to `price2book.com`, `www.price2book.com` or
 `app.price2book.com`. Those are custom domains on a project with
 `autoAssignCustomDomains` disabled — a different class, on a different project,

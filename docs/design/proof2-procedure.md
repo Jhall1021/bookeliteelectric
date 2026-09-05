@@ -151,7 +151,7 @@ Three properties matter:
 If Proof 2 shows the file overrides, that refusal is the only thing standing
 between an override commit and a guard-free production build, and it should be
 recorded as load-bearing. If it shows no override, the refusal stays as
-defence-in-depth.
+defense-in-depth.
 
 ## Stopping conditions
 
