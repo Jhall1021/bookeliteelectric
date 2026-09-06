@@ -41,7 +41,7 @@ import { PrismaClient, type Prisma, type PlatformRole } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { sourceFiles } from "./_sourceFiles";
-import { requestAccess, callsTo } from "./_platformSurfaceAudit";
+import { requestAccess, paramsUses } from "./_platformSurfaceAudit";
 import { destroyContractor } from "./_throwaway";
 import { currentTenantOrNull } from "../lib/tenantContext";
 import {
@@ -342,9 +342,9 @@ async function main() {
   const strays = others.flatMap((f) => requestAccess(readFileSync(f, "utf8"), f).map((a) => `${f}:${a.line} ${a.kind}`));
   ok(`    no platform surface but the Control Center reads anything from a request`, strays.length === 0, strays.join("; "));
   const ccAccess = existsSync(CONTROL_CENTER) ? requestAccess(readFileSync(CONTROL_CENTER, "utf8"), CONTROL_CENTER) : [];
-  const ccCalls = existsSync(CONTROL_CENTER) ? callsTo(readFileSync(CONTROL_CENTER, "utf8"), "platformContractor", CONTROL_CENTER) : [];
-  ok(`    and the Control Center reads only params, handing params.contractorId straight to the platform boundary`,
-    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccCalls.length === 1 && ccCalls[0].args.join() === "params.contractorId");
+  const ccUse = existsSync(CONTROL_CENTER) ? paramsUses(readFileSync(CONTROL_CENTER, "utf8"), "platformContractor", CONTROL_CENTER) : { local: null, uses: [], boundaryCalls: 0 };
+  ok(`    and the Control Center's sole use of params is params.contractorId as the direct argument of the one platform boundary call`,
+    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccUse.local === "params" && ccUse.boundaryCalls === 1 && ccUse.uses.length === 1 && ccUse.uses[0].kind === "boundary-arg");
   ok(`    no platform surface touches the contractor boundary or the raw client`,
     surfaces.every((f) => !/adminContext|from "@\/lib\/prisma"|platformDb|new PrismaClient/.test(strip(f))));
   ok(`    the tenant context can say a staff member opened it`, /"platform-session"/.test(readFileSync("lib/tenantContext.ts", "utf8")));

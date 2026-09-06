@@ -132,24 +132,110 @@ export function requestAccess(source: string, fileName = "file.tsx"): RequestAcc
 
 const MUTATORS = new Set(["create", "update", "upsert", "delete", "createMany", "updateMany", "deleteMany", "$executeRaw", "$executeRawUnsafe", "$queryRaw", "$queryRawUnsafe", "$transaction"]);
 
-/** Every call whose callee is a mutating Prisma method, on any receiver, however the receiver is named. */
+/**
+ * The member a property or element access names: `x.delete` -> "delete",
+ * `x["delete"]` -> "delete", `x[method]` -> "<computed>" (unknowable, and on a
+ * read-only surface unknowable is refused).
+ */
+function memberName(e: ts.Expression): string | null {
+  if (ts.isPropertyAccessExpression(e)) return e.name.text;
+  if (ts.isElementAccessExpression(e)) {
+    const a = e.argumentExpression;
+    if (ts.isStringLiteral(a) || ts.isNoSubstitutionTemplateLiteral(a)) return a.text;
+    return "<computed>";
+  }
+  return null;
+}
+
+/**
+ * Every mutating Prisma operation, however it is reached: a call whose callee
+ * names a mutator by dot or by bracket (`guarded.service["delete"](…)`,
+ * `prisma["contractor"]["update"](…)`), a computed member call whose name
+ * cannot be known, and a tagged raw statement (`db.$executeRaw\`DELETE …\``).
+ */
 export function mutatingCalls(source: string, fileName = "file.tsx"): { callee: string; line: number }[] {
   const sf = parse(source, fileName); const out: { callee: string; line: number }[] = [];
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && MUTATORS.has(n.expression.name.text)) out.push({ callee: n.expression.getText(sf), line: line(sf, n) });
+    if (ts.isCallExpression(n)) {
+      const m = memberName(n.expression);
+      if (m !== null && (MUTATORS.has(m) || m === "<computed>")) out.push({ callee: n.expression.getText(sf), line: line(sf, n) });
+    }
+    if (ts.isTaggedTemplateExpression(n)) {
+      const m = memberName(n.tag);
+      if (m !== null && (MUTATORS.has(m) || m === "<computed>")) out.push({ callee: n.tag.getText(sf) + "`…`", line: line(sf, n) });
+    }
     ts.forEachChild(n, visit);
   };
   visit(sf); return out;
 }
 
-/** Property accesses on a given identifier: `prisma.service`, `prisma.$transaction`… */
+/** Member accesses on a given identifier by dot or bracket: `prisma.service`, `prisma["service"]`, `prisma[x]` (reported as <computed>). */
 export function memberAccessesOn(source: string, identifier: string, fileName = "file.ts"): { member: string; line: number }[] {
   const sf = parse(source, fileName); const out: { member: string; line: number }[] = [];
   const visit = (n: ts.Node) => {
-    if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === identifier) out.push({ member: n.name.text, line: line(sf, n) });
+    if ((ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) && ts.isIdentifier(n.expression) && n.expression.text === identifier) {
+      out.push({ member: memberName(n) ?? "<unknown>", line: line(sf, n) });
+    }
     ts.forEachChild(n, visit);
   };
   visit(sf); return out;
+}
+
+export type ParamsUse = { kind: "boundary-arg" | "other"; text: string; line: number };
+
+/**
+ * Every value-use of the page's `params` binding, and what each one is.
+ *
+ * The Control Center may take the contractor id from the request in exactly
+ * one way: the expression `params.contractorId`, written by dot, as the
+ * direct first argument of `platformContractor(...)`. Anything else that
+ * touches `params` — a copy before or after, a bracket access, a
+ * destructure, a spread, passing `params` itself, a second read — is a use
+ * the rule does not permit, and is reported here so the verifier can refuse
+ * it. The binding is found from the default export's parameter list under
+ * whatever local name it was given.
+ */
+export function paramsUses(source: string, boundary = "platformContractor", fileName = "file.tsx"): { local: string | null; uses: ParamsUse[]; boundaryCalls: number } {
+  const sf = parse(source, fileName);
+  let local: string | null = null; let fn: ts.FunctionLikeDeclaration | null = null;
+  const findFn = (n: ts.Node) => {
+    if (fn) return;
+    if ((ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n)) && n.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) && n.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)) fn = n;
+    ts.forEachChild(n, findFn);
+  };
+  findFn(sf);
+  const f = fn as ts.FunctionLikeDeclaration | null;
+  if (f && f.parameters[0]) {
+    const p0 = f.parameters[0];
+    if (ts.isObjectBindingPattern(p0.name)) {
+      for (const el of p0.name.elements) {
+        const key = el.propertyName ?? el.name;
+        if (ts.isIdentifier(key) && key.text === "params") local = ts.isIdentifier(el.name) ? el.name.text : "<destructured>";
+      }
+    } else if (ts.isIdentifier(p0.name)) {
+      local = `${p0.name.text}.params`;
+    }
+  }
+  const uses: ParamsUse[] = []; let boundaryCalls = 0;
+  if (!f || !f.body) return { local, uses, boundaryCalls };
+  const isBoundaryCall = (n: ts.Node) => ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === boundary;
+  const visit = (n: ts.Node) => {
+    if (isBoundaryCall(n)) boundaryCalls++;
+    // a reference to the local binding (not its declaration)
+    if (local && !local.includes(".") && local !== "<destructured>" && ts.isIdentifier(n) && n.text === local && !ts.isBindingElement(n.parent) && !(ts.isPropertyAccessExpression(n.parent) && n.parent.name === n)) {
+      const parent = n.parent;
+      const isDotContractorId = ts.isPropertyAccessExpression(parent) && parent.expression === n && parent.name.text === "contractorId";
+      const call = parent.parent;
+      if (isDotContractorId && call && isBoundaryCall(call) && (call as ts.CallExpression).arguments[0] === parent) uses.push({ kind: "boundary-arg", text: parent.getText(sf), line: line(sf, n) });
+      else uses.push({ kind: "other", text: (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent) ? parent : n).getText(sf), line: line(sf, n) });
+    }
+    if (local === "<destructured>") uses.push({ kind: "other", text: "params is destructured in the parameter list", line: line(sf, f.parameters[0]) });
+    if (local && local.includes(".") && ts.isPropertyAccessExpression(n) && n.getText(sf) === local) uses.push({ kind: "other", text: n.parent.getText(sf), line: line(sf, n) });
+    ts.forEachChild(n, visit);
+  };
+  visit(f.body);
+  if (local === "<destructured>") uses.splice(1);
+  return { local, uses, boundaryCalls };
 }
 
 /** Calls to `callee` with the text of each argument. */

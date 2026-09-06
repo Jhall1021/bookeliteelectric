@@ -30,7 +30,7 @@ import {
   listContractors, contractorFactsFor, platformOverviewFor, attentionFor, STUCK_AFTER_DAYS, type ContractorFacts,
 } from "../lib/platformReadModel";
 import { withPlatformFor } from "../lib/platformContext";
-import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, type Policy } from "./_platformSurfaceAudit";
+import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, type Policy } from "./_platformSurfaceAudit";
 import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
 
 /**
@@ -234,9 +234,11 @@ async function main() {
   const strays = access.filter(({ f, a }) => f !== CC && a.length > 0).map(({ f, a }) => `${f}: ${a.map((x) => `${x.kind}@${x.line}`).join(",")}`);
   ok(`   no platform surface but the Control Center reads anything from the request`, strays.length === 0, strays.join("; "));
   const ccAccess = access.find(({ f }) => f === CC)?.a ?? [];
-  const ccCalls = callsTo(readFileSync(CC, "utf8"), "platformContractor", CC);
-  ok(`   the Control Center reads only \`params\` and hands params.contractorId straight to platformContractor()`,
-    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccCalls.length === 1 && ccCalls[0].args.join() === "params.contractorId");
+  const ccUse = paramsUses(readFileSync(CC, "utf8"), "platformContractor", CC);
+  ok(`   the Control Center reads only \`params\`, and its SOLE use of params is the direct argument of the one platformContractor() call`,
+    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccUse.local === "params" && ccUse.boundaryCalls === 1
+      && ccUse.uses.length === 1 && ccUse.uses[0].kind === "boundary-arg" && ccUse.uses[0].text === "params.contractorId",
+    `local=${ccUse.local} boundaryCalls=${ccUse.boundaryCalls} uses=${ccUse.uses.map((u) => `${u.kind}:${u.text}@${u.line}`).join(" | ")}`);
   ok(`   it 404s an unknown contractor and shows a "read-only" mark`, /PlatformContractorNotFoundError/.test(cc) && /notFound\(\)/.test(cc) && /read-only/.test(cc));
   const layout = strip("app/platform/layout.tsx");
   ok(`   the shell links the three views and still gates on the actor`, /\/platform\/contractors/.test(layout) && /\/platform\/attention/.test(layout) && /resolvePlatformActor\(\)/.test(layout));
@@ -282,9 +284,29 @@ async function main() {
   ok(`   mutant: an aliased headers() call is seen as a headers call`, req(attention + '\nimport { headers as h } from "next/headers";\nconst v = h();\n').includes("headers-call"));
   ok(`   mutant: an aliased cookies() call is seen`, req(attention + '\nimport { cookies as c } from "next/headers";\nconst v = c();\n').includes("cookies-call"));
   ok(`   mutant: a route handler that reads its request argument is seen`, req('export async function GET(req: Request) { const u = new URL(req.url); return Response.json({ u }); }').includes("request-arg"));
-  ok(`   mutant: the Control Center passing anything but params.contractorId is refused`, (() => { const src = ccSrc.replace("platformContractor(params.contractorId)", "platformContractor(params.contractorId ?? searchParams.id)"); const calls = callsTo(src, "platformContractor", CC); return calls.length === 1 && calls[0].args.join() !== "params.contractorId"; })());
+  // The request-supplied id may be used exactly once, as the boundary's argument.
+  const sole = (src: string) => { const u = paramsUses(src, "platformContractor", CC); return u.boundaryCalls === 1 && u.uses.length === 1 && u.uses[0].kind === "boundary-arg"; };
+  const CALL = "platformContractor(params.contractorId)";
+  ok(`   the unmodified Control Center passes the sole-use rule`, sole(ccSrc));
+  ok(`   mutant: passing anything but params.contractorId is refused`, !sole(ccSrc.replace(CALL, "platformContractor(params.contractorId ?? searchParams.id)")));
+  ok(`   mutant: copying the id BEFORE the boundary call is refused`, !sole(ccSrc.replace("  let f;", "  const copiedId = params.contractorId;\n  let f;")));
+  ok(`   mutant: copying the id AFTER the boundary call is refused`, !sole(ccSrc.replace("  const attention = attentionFor(f);", "  const attention = attentionFor(f);\n  const later = params.contractorId;")));
+  ok(`   mutant: bracket access is refused`, !sole(ccSrc.replace(CALL, 'platformContractor(params["contractorId"])')));
+  ok(`   mutant: a second read of the id is refused`, !sole(ccSrc.replace("  const attention = attentionFor(f);", "  const attention = attentionFor(f);\n  console.log(params.contractorId);")));
+  ok(`   mutant: destructuring the id out of params is refused`, !sole(ccSrc.replace("  let f;", "  const { contractorId } = params;\n  let f;")));
+  ok(`   mutant: passing params itself anywhere is refused`, !sole(ccSrc.replace("  let f;", "  void JSON.stringify(params);\n  let f;")));
+  ok(`   mutant: spreading params is refused`, !sole(ccSrc.replace("  let f;", "  const p = { ...params };\n  let f;")));
+  ok(`   mutant: destructuring contractorId in the parameter list is refused`, !sole(ccSrc.replace("{ params }: { params: { contractorId: string } }", "{ params: { contractorId } }: { params: { contractorId: string } }").replace(CALL, "platformContractor(contractorId)")));
+  ok(`   mutant: a second boundary call is refused`, !sole(ccSrc.replace("  const attention = attentionFor(f);", "  const attention = attentionFor(f);\n  await platformContractor(params.contractorId);")));
+  // Mutations by any spelling.
   ok(`   mutant: a write through a renamed client is seen`, mutatingCalls('const k = prisma; await k.service.updateMany({ where: {}, data: {} });').length === 1);
   ok(`   mutant: a raw statement is seen`, mutatingCalls("await db.$executeRawUnsafe(\"delete from x\")").length === 1);
+  ok(`   mutant: a bracket-named mutator is seen`, mutatingCalls('await guarded.service["delete"]({ where: { id } });').length === 1);
+  ok(`   mutant: a nested bracket mutator is seen`, mutatingCalls('await prisma["contractor"]["update"]({ where: { id }, data: {} });').length === 1);
+  ok(`   mutant: a tagged raw statement is seen`, mutatingCalls("await db.$executeRaw`DELETE FROM contractors`;").length === 1);
+  ok(`   mutant: a bracket-named tagged raw statement is seen`, mutatingCalls('await db["$queryRaw"]`select 1`;').length === 1);
+  ok(`   mutant: a computed member call is refused as unknowable`, mutatingCalls("const m = pick(); await db.service[m]({});").length === 1);
+  ok(`   mutant: a bracket dereference of prisma is seen`, memberAccessesOn('const s = prisma["service"];', "prisma").length === 1 && memberAccessesOn("const s = prisma[k];", "prisma")[0]?.member === "<computed>");
   ok(`   while a column named createdAt is not a write`, mutatingCalls("const t = row.createdAt; const u = svc.updatedAt;").length === 0);
   ok(`   mutant: the read model dereferencing prisma is seen`, memberAccessesOn(rmSrc + "\nconst stray = prisma.service;", "prisma").length === 1);
 
