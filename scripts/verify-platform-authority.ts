@@ -305,7 +305,8 @@ async function main() {
 
   // ── 7. no other door ──────────────────────────────────────────────────
   const platformFiles = [
-    "lib/platformContext.ts", "scripts/bootstrap-platform-admin.ts",
+    "lib/platformContext.ts", "lib/platformReadModel.ts", "scripts/bootstrap-platform-admin.ts",
+    ...sourceFiles(["components/platform"]),
     ...sourceFiles(["app/platform", "app/api/platform"]),
   ];
   const EMAIL_AUTH = /\.email\s*[!=]==?|[A-Z_]*(ADMIN|OWNER|STAFF|PLATFORM)_EMAILS?\b|endsWith\(\s*["']@|process\.env\.[A-Z_]*EMAIL|includes\(\s*(user|session)\.email/;
@@ -328,13 +329,26 @@ async function main() {
     /NotPlatformStaffError/.test(layout) && !/redirect\("\/dashboard"\)/.test(layout) && /Refused/.test(layout));
   ok(`    and sends signed-out to sign-in`, /NotAuthenticatedError/.test(layout) && /redirect\("\/sign-in"\)/.test(layout));
   const surfaces = sourceFiles(["app/platform", "app/api/platform"]);
-  ok(`    no Phase 1 surface reads a contractor id from a request`, surfaces.every((f) => !/contractorId|searchParams|params\./.test(strip(f))), surfaces.join(", "));
-  ok(`    no Phase 1 surface touches the contractor boundary or the raw client`,
+  // Phase 2 opened exactly one door for a request-supplied contractor id: the
+  // Control Center route, whose `params.contractorId` may go to
+  // platformContractor() and nowhere else. Every other surface still reads
+  // no contractor id from any request.
+  const CONTROL_CENTER = "app/platform/contractors/[contractorId]/page.tsx";
+  const others = surfaces.filter((f) => f !== CONTROL_CENTER);
+  // Request SOURCES, not the word: `a.contractorId` on a fact read through the
+  // boundary is data; `params.`, `searchParams`, headers and cookies are the
+  // request, and only the Control Center may take a contractor from them.
+  const REQUEST = /params\.|searchParams|headers\(|cookies\(|req\.|request\./;
+  ok(`    no platform surface but the Control Center reads a contractor id from a request`, others.every((f) => !REQUEST.test(strip(f))), others.filter((f) => REQUEST.test(strip(f))).join(", "));
+  const cc = existsSync(CONTROL_CENTER) ? strip(CONTROL_CENTER) : "";
+  ok(`    and the Control Center hands params.contractorId straight to the platform boundary`,
+    /platformContractor\(params\.contractorId\)/.test(cc) && (cc.match(/params\.contractorId/g) ?? []).length === 1 && !/searchParams/.test(cc));
+  ok(`    no platform surface touches the contractor boundary or the raw client`,
     surfaces.every((f) => !/adminContext|from "@\/lib\/prisma"|platformDb|new PrismaClient/.test(strip(f))));
   ok(`    the tenant context can say a staff member opened it`, /"platform-session"/.test(readFileSync("lib/tenantContext.ts", "utf8")));
   ok(`    withPlatformContractor is the only wrapper that takes a contractor id`,
     /withContractor\(contractor\.id, "platform-session"/.test(platformCtx) && !existsSync("lib/platformAdmin.ts"));
-  ok(`    nothing in Phase 1 writes SupportAccessEvent or any tenant row`,
+  ok(`    nothing on the platform side writes SupportAccessEvent or any tenant row`,
     platformFiles.every((f) => !/supportAccessEvent|\.(create|update|upsert|delete)(Many)?\(/.test(strip(f).replace(/platformAccess\.create|platformAccess\.count|platformAccess\.findUnique/g, ""))
       || f === "scripts/bootstrap-platform-admin.ts"));
 
