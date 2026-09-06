@@ -24,7 +24,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 const prisma = new PrismaClient();
@@ -123,6 +123,45 @@ function sourceScan() {
   // uses, like `pricesight_analyses`, where the preceding underscore is a word
   // character and a \b would not match. "analyses" is correct wherever it
   // appears, so it is masked wherever it appears.
+  /**
+   * FROZEN PROOF RECORDS. Not an exclusion — a pin.
+   *
+   * These three files record live proofs as they were run. Earlier review
+   * required them to stay byte-identical, so their British spellings cannot be
+   * corrected without destroying the guarantee that makes them evidence.
+   *
+   * The excuse is therefore as narrow as it can be made: THIS file, THIS term,
+   * THIS many occurrences, and THIS blob. The blob hash is checked first — edit
+   * a frozen record at all, for any reason, and the gate fails and says so. A
+   * new violation in one of them cannot hide either, because the count is
+   * pinned too. Nothing about `docs/evidence/` as a directory is excused: a new
+   * file there is scanned like any other.
+   */
+  const FROZEN_RECORDS: Record<string, { blob: string; allow: Record<string, number> }> = {
+    "docs/evidence/live-proofs/PROOF-MATRIX.md": {
+      blob: "de493ff1ab792f1ca8c8a4b3a2066eb0f108a239", allow: { defence: 1 },
+    },
+    "docs/evidence/live-proofs/DEFERRED-DEBT.md": {
+      blob: "f3e3cddfb49bc4df70cbe21dd1d658393caff7af", allow: { behaviour: 2 },
+    },
+    "docs/evidence/live-proofs/IMPLEMENTATION-DELTA.md": {
+      blob: "6d4c753441ba2cf8678f68de486b97f00cdc5848", allow: { behaviour: 2 },
+    },
+  };
+  for (const [file, pin] of Object.entries(FROZEN_RECORDS)) {
+    if (!existsSync(file)) {
+      fail++; console.log(`  \u2717 frozen record ${file} is missing — the pin cannot be checked`); continue;
+    }
+    const actual = execSync(`git hash-object ${JSON.stringify(file)}`, { encoding: "utf8" }).trim();
+    if (actual !== pin.blob) {
+      fail++;
+      console.log(`  \u2717 frozen record CHANGED: ${file}`);
+      console.log(`        pinned ${pin.blob}`);
+      console.log(`        actual ${actual}`);
+      console.log(`        These files are evidence. If the change is intended, re-pin it deliberately.`);
+    }
+  }
+
   const AMERICAN_CONTAINING_BRITISH = [/analyses/gi];
   const mask = (line: string) =>
     AMERICAN_CONTAINING_BRITISH.reduce((l, re) => l.replace(re, (m) => "·".repeat(m.length)), line);
@@ -132,10 +171,27 @@ function sourceScan() {
     const hits: string[] = [];
     for (const f of files) {
       const text = readFileSync(f, "utf8");
+      const fileHits: string[] = [];
       text.split("\n").forEach((line, i) => {
-        if (re.test(mask(line))) hits.push(`${f}:${i + 1}  ${line.trim().slice(0, 70)}`);
+        if (re.test(mask(line))) fileHits.push(`${f}:${i + 1}  ${line.trim().slice(0, 70)}`);
         re.lastIndex = 0;
       });
+      // A frozen record forgives EXACTLY the occurrences pinned for it —
+      // not at most that many. `<=` accepted fewer, so removing a violation and
+      // deliberately re-pinning the blob would have passed silently: the pin is
+      // a statement about what the record contains, and a record that lost a
+      // word is as changed as one that gained it.
+      const allowed = FROZEN_RECORDS[f]?.allow[bad] ?? 0;
+      if (allowed > 0) {
+        if (fileHits.length !== allowed) {
+          fail++;
+          console.log(
+            `  \u2717 frozen record ${f} has "${bad}": ${fileHits.length} occurrence(s), exactly ${allowed} pinned`
+          );
+        }
+        continue;
+      }
+      hits.push(...fileHits);
     }
     if (hits.length) {
       fail++;

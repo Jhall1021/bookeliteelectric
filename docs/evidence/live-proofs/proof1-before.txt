@@ -1,0 +1,53 @@
+STATE SNAPSHOT — BEFORE proof 1
+  captured 2026-09-04T18:54:06Z
+
+GITHUB Price2Book/p2b-release-proofs
+  main sha        afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+  message         Add files via upload
+  committed       2026-09-04T17:38:00Z
+  verification    valid
+  parents         ['(root commit)']
+  guard blob      9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  guard pinned    yes, matches 9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+
+VERCEL prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  effective build configuration
+    rootDirectory    None
+    installCommand   None
+    buildCommand     g=$(printf 'url="%s"\n%s' "https://api.github.com/repos/Price2Book/p2b-release-proofs/contents/scripts/provenance-guard.sh?ref=main" "$P2B_GH_HDR"|curl -fsSK- --max-time 30)&&[ -n "$g" ]&&echo "$g"|sh&&npm run build
+    outputDirectory  'public'
+    framework        None
+
+  deployments (most recent first)
+    dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+      state READY     target production  2026-09-04T18:00:46.964000Z
+      source import   importSource 'import-suggestions'
+      commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+
+  aliases
+    p2b-release-proofs-git-main-price2-book.vercel.app   -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    p2b-release-proofs-price2-book.vercel.app            -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    p2b-release-proofs.vercel.app                        -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    pagination next: None
+
+WHAT THIS SNAPSHOT ESTABLISHES
+
+  Exactly one deployment exists, and it is import-created: source 'import',
+  importSource 'import-suggestions'. All three disposable *.vercel.app aliases
+  point at it. main is a ROOT COMMIT with no parents, so the commit that follows
+  will have afa2915… as its sole parent — which is itself evidence the new
+  commit descends from the state captured here rather than replacing it.
+
+  The guard at main is the pinned artifact. The effective build command fetches
+  it from this repository at ref=main, so the guard that runs after the push is
+  whatever main carries THEN; the after-snapshot re-checks the blob for that
+  reason rather than assuming it is unchanged.
+
+HOW THE TRIGGER EVIDENCE IS TO BE READ
+
+  source == 'git' with importSource absent classifies THIS controlled test
+  event, and nothing more. It is not promoted back into security authority:
+  origin-trust established that source is caller-writable, so it distinguishes
+  an import from a push only when nobody is trying to deceive us. Here the
+  operator states what he did, the fields agree with it, and the two together
+  make the classification — the field alone never would.

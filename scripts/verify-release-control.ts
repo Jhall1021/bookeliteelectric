@@ -1,0 +1,1335 @@
+/**
+ * Acceptance tests A1-A12 for the controlled release.
+ *
+ *   npx tsx scripts/verify-release-control.ts
+ *
+ * No network, no database, no credentials, no Vercel. Every effect is a
+ * recording fake handed to runRelease() — the SAME function release-production
+ * calls. The lock tests use the REAL filesystem lock, in a temporary directory.
+ *
+ * The six live proofs on the disposable project remain PENDING and are reported
+ * as such at the end; nothing here substitutes for them.
+ */
+
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeSync, fsyncSync, statSync, chmodSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { runRelease, type ReleaseIO, type IntentRecord } from "./_releaseRun";
+import { verifyHosts, compareBuild, type ApprovedBuild, type HostObservation,
+  type CandidateRecord, type CreationReceipt, type AliasMapping } from "./_releaseControl";
+import { fileLock, appendRecord, readReceipt, promotionClaim, isDefiniteFailure, liveIO, collectAliasMappings, readAliasPage, APPROVED_REDIRECT_HOSTS, parsePhase, APPROVED_BUILD as APPROVED_BUILD_LIVE } from "./release-production";
+import { CANONICAL } from "./_releaseProvenance";
+
+let pass = 0, fail = 0;
+const ok = (c: boolean, label: string, detail = "") => {
+  c ? pass++ : fail++;
+  console.log(`  ${c ? "ok  " : "FAIL"} ${label}${c ? "" : `\n         ${detail}`}`);
+};
+
+const MAIN = "a".repeat(40), OTHER = "b".repeat(40);
+const CAND = "dpl_created_by_this_run";
+const OUTGOING = "dpl_incumbent";
+const HOSTS = ["app.price2book.com", "price2book.com", "www.price2book.com"];
+
+const APPROVED: ApprovedBuild = {
+  rootDirectory: null, installCommand: null,
+  buildCommand: "npm run build", outputDirectory: ".", framework: null,
+};
+// A SYNTHETIC fixture id, deliberately NOT the canonical one, so these tests
+// cannot pass by accidentally agreeing with the real constant.
+const REPO_ID = 1357038688;
+const CANON = { projectId: "prj_canonical", target: "production", repoId: REPO_ID };
+const RECORD: CandidateRecord = {
+  id: CAND, projectId: CANON.projectId, readyState: "READY",
+  target: "production", sha: MAIN, build: { ...APPROVED },
+};
+const MAPPINGS: AliasMapping[] = HOSTS.map((h) => ({ host: h, destination: { read: true, value: OUTGOING } }));
+const RECEIPT: CreationReceipt = {
+  runId: "run1", candidateId: CAND, sha: MAIN,
+  createdAt: "2026-09-04T00:00:00Z", operator: "op", host: "release-host",
+  outgoingDeploymentId: OUTGOING, outgoingAliases: MAPPINGS,
+};
+
+type Rec = { promotes: string[]; intents: IntentRecord[]; completions: IntentRecord[];
+  order: string[]; creates: string[]; receipts: CreationReceipt[]; locks: number; unlocks: number;
+  verified: IntentRecord[]; recoveries: { r: IntentRecord; why: string }[] };
+
+function io(over: Partial<ReleaseIO> = {}): { io: ReleaseIO; rec: Rec } {
+  const rec: Rec = { promotes: [], intents: [], completions: [], order: [],
+    creates: [], receipts: [], locks: 0, unlocks: 0, verified: [], recoveries: [] };
+  const base: ReleaseIO = {
+    readGithubRepoId: async () => ({ read: true, value: REPO_ID }),
+    readProjectLink: async () => ({ read: true, value: REPO_ID }),
+    readFreshMain: async () => MAIN,
+    readCommitTree: async () => ({ read: true, value: { truncated: false, paths: ["package.json", "index.html"] } }),
+    readProjectSettings: async () => ({ read: true, value: { ...APPROVED } }),
+    readAutoAssignCustomDomains: async () => ({ read: true, value: false }),
+    readCurrentProduction: async () => ({ read: true, value: { deploymentId: OUTGOING, aliases: HOSTS } }),
+    createDeployment: async (sha) => { rec.order.push("create"); rec.creates.push(sha); return { id: CAND }; },
+    recordCreation: async (r) => { rec.order.push("receipt"); rec.receipts.push(r); },
+    readCandidate: async () => ({ read: true, value: { ...RECORD } }),
+    loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT } }),
+    readAliasMappings: async () => ({ read: true, value: MAPPINGS }),
+    readProductionTarget: async () => ({ read: true, value: CAND }),
+    acquireLock: async () => { rec.locks++; rec.order.push("lock"); return { ok: true }; },
+    readLockOwner: async () => ({ read: true, value: "run1" }),
+    claimPromotion: async () => { rec.order.push("claim"); return { ok: true }; },
+    releaseLock: async () => { rec.unlocks++; rec.order.push("unlock"); },
+    recordIntent: async (r) => { rec.order.push("record"); rec.intents.push(r); },
+    promoteDeployment: async (d) => { rec.order.push("promote"); rec.promotes.push(d); },
+    recordPromotionAccepted: async (r) => { rec.order.push("accepted"); rec.completions.push(r); },
+    recordReleaseVerified: async (r) => { rec.order.push("verified"); rec.verified.push(r); },
+    recordRecoveryRequired: async (r, why) => { rec.order.push("recovery"); rec.recoveries.push({ r, why }); },
+    operator: () => "op",
+    host: () => "release-host",
+    observeHosts: async (e) => HOSTS.map((h) => ({
+      host: h,
+      aliasDeploymentId: { read: true as const, value: e.deploymentId },
+      served: { read: true as const, value: { deploymentId: e.deploymentId, commitSha: e.sha, finalHost: h } },
+    })),
+    log: () => {},
+  };
+  return { io: { ...base, ...over }, rec };
+}
+
+const promote = (over: Partial<ReleaseIO> = {}) => {
+  const { io: x, rec } = io(over);
+  return runRelease({ phase: "promote", approvedSha: MAIN, candidateId: CAND }, APPROVED, HOSTS, x, CANON)
+    .then((r) => ({ r, rec }));
+};
+
+/* ── A1-A3: the lock ──────────────────────────────────────────────────── */
+async function lockTests() {
+  console.log("\n  A1-A3  THE LOCK\n");
+  const dir = mkdtempSync(join(tmpdir(), "rel-lock-"));
+  const path = join(dir, "release.lock");
+
+  // A1 — atomic: two concurrent acquisitions, exactly one wins.
+  const a = await fileLock(path).acquire({ sha: MAIN, runId: "runA" });
+  const b = await fileLock(path).acquire({ sha: MAIN, runId: "runB" });
+  ok(a.ok && !b.ok, "A1  two concurrent acquisitions: exactly one wins",
+    `first=${a.ok} second=${b.ok}`);
+  ok(!b.ok && typeof b.heldBy === "string" && b.heldBy.includes("sha"),
+    "A1  and the loser is told who holds it", b.ok ? "" : "no heldBy detail");
+
+  // A2 — a stale lock is never cleared automatically.
+  const again = await fileLock(path).acquire({ sha: MAIN, runId: "runC" });
+  ok(!again.ok, "A2  a lock left behind still blocks the next release");
+  ok(!again.ok && /sha|host|at/.test(again.heldBy), "A2  and the refusal names who holds it", again.ok ? "" : again.heldBy);
+  ok(existsSync(path), "A2  the lock file was not removed by the failed attempt");
+
+  // A3 — machine-scoped, and the refusal says so.
+  const held = io({ acquireLock: async () => ({ ok: false, heldBy: "operator@release-host sha=aaaaaaa" }) });
+  const r = await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, held.io, CANON);
+  ok(!r.ok && r.code === "LOCKED" && /ONE machine/i.test(r.detail),
+    "A3  the refusal states the lock coordinates one designated machine", r.ok ? "" : r.detail);
+  ok(!r.ok && held.rec.creates.length === 0,
+    "A3  and a held lock stops phase B before it creates anything");
+
+  await fileLock(path).release("runA");
+  rmSync(dir, { recursive: true, force: true });
+}
+
+/* ── A1b: two REAL concurrent phase-B runs ────────────────────────────── */
+/**
+ * A1 exercised the lock helper. This exercises the thing the lock exists for:
+ * two phase-B runs, started together, against one real lock file.
+ */
+async function concurrentPhaseBTests() {
+  console.log("\n  A1b TWO CONCURRENT PHASE-B RUNS\n");
+  const dir = mkdtempSync(join(tmpdir(), "rel-conc-"));
+  const lockPath = join(dir, "release.lock");
+
+  const mk = () => {
+    const rec = { creates: [] as string[] };
+    const x = io().io;
+    x.acquireLock = (info) => fileLock(lockPath).acquire(info);
+    x.readLockOwner = () => fileLock(lockPath).owner();
+    x.releaseLock = (runId) => fileLock(lockPath).release(runId);
+    x.createDeployment = async (sha) => { rec.creates.push(sha); return { id: `dpl_${rec.creates.length}` }; };
+    return { x, rec };
+  };
+  const one = mk(), two = mk();
+  const [r1, r2] = await Promise.all([
+    runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, one.x, CANON),
+    runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, two.x, CANON),
+  ]);
+
+  const winners = [r1, r2].filter((r) => r.ok).length;
+  const losers = [r1, r2].filter((r) => !r.ok && r.code === "LOCKED").length;
+  ok(winners === 1 && losers === 1,
+    "A1b exactly one concurrent phase-B run proceeds; the other is LOCKED",
+    `winners=${winners} losers=${losers}`);
+  ok(one.rec.creates.length + two.rec.creates.length === 1,
+    "A1b and only ONE deployment is created — two builds of one commit is the thing this prevents",
+    `creates=${one.rec.creates.length + two.rec.creates.length}`);
+  ok(existsSync(lockPath), "A1b and the lock is still held afterwards, for phase C");
+
+  rmSync(dir, { recursive: true, force: true });
+}
+
+/* ── A4-A6: durable intent ────────────────────────────────────────────── */
+async function intentTests() {
+  console.log("\n  A4-A6  DURABLE INTENT\n");
+
+  const { r, rec } = await promote({ recordIntent: async () => { throw new Error("read-only filesystem"); } });
+  ok(!r.ok && r.code === "RECORD_FAILED" && rec.promotes.length === 0,
+    "A4  an intent write failure refuses, with ZERO promote requests",
+    r.ok ? "" : `${r.code}, ${rec.promotes.length} promote(s)`);
+
+  const good = await promote();
+  const oi = good.rec.order.indexOf("record"), op = good.rec.order.indexOf("promote");
+  ok(oi >= 0 && op >= 0 && oi < op,
+    `A5  the record is written before the promote request (${good.rec.order.join(" -> ")})`);
+
+  const rr = good.rec.intents[0];
+  ok(!!rr && rr.candidateId === CAND && rr.sha === MAIN
+    && rr.outgoingDeploymentId === OUTGOING && rr.outgoingAliases.length === HOSTS.length,
+    "A6  the record carries candidate id, sha, outgoing deployment and its alias mappings",
+    JSON.stringify(rr));
+
+  // The real writer must throw rather than swallow, or A4 is untestable in life.
+  const dir = mkdtempSync(join(tmpdir(), "rel-rec-"));
+  let threw = false;
+  try { await appendRecord("/dev/full/impossible/log.jsonl", { a: 1 }); } catch { threw = true; }
+  ok(threw, "A4  the real record writer throws on an unwritable path rather than swallowing");
+
+  // A SHORT WRITE MUST NOT PERSIST A PARTIAL RECORD.
+  //
+  // The defect was one writeSync whose return value was ignored, so `{` was
+  // persisted, fsynced, and reported as recorded. The fix is not to throw on
+  // any short write — a write that makes progress is retried — but to guarantee
+  // the record is COMPLETE or the call fails. Both halves are asserted.
+  const dribble = join(dir, "dribble.jsonl");
+  let syncedAt = -1;
+  await appendRecord(dribble, { candidateId: CAND, sha: MAIN },
+    (fd, b, o, l) => writeSync(fd, b, o, Math.min(1, l)),   // one byte at a time
+    (fd) => { syncedAt = statSync(dribble).size; fsyncSync(fd); });
+  const written = readFileSync(dribble, "utf8");
+  ok(written.trim().endsWith("}") && JSON.parse(written.trim()).candidateId === CAND,
+    "A4  a dribbling writer still persists the WHOLE record, not a fragment", written.slice(0, 40));
+  ok(syncedAt === Buffer.byteLength(written), "A4  and it is fsynced only once complete");
+
+  // A writer making NO progress must fail rather than loop or truncate.
+  let stalled = false, stalledSync = false;
+  try {
+    await appendRecord(join(dir, "stalled.jsonl"), { candidateId: CAND },
+      () => 0, () => { stalledSync = true; });
+  } catch { stalled = true; }
+  ok(stalled, "A4  a writer that makes no progress throws rather than persisting a fragment");
+  ok(!stalledSync, "A4  and nothing is fsynced when the record is incomplete");
+
+  const whole = join(dir, "whole.jsonl");
+  await appendRecord(whole, { candidateId: CAND, sha: MAIN });
+  ok(readFileSync(whole, "utf8").trim().endsWith("}"), "A4  a complete record is written whole");
+  rmSync(dir, { recursive: true, force: true });
+}
+
+/* ── R1: promotion requires a receipt from phase B ────────────────────── */
+async function receiptTests() {
+  console.log("\n  R1  ONLY WHAT PHASE B CREATED\n");
+
+  const none = await promote({ loadCreationReceipt: async () => ({ read: false, why: "no creation receipt for dpl_x" }) });
+  ok(!none.r.ok && none.r.code === "NO_CREATION_RECEIPT" && none.rec.promotes.length === 0,
+    "R1  a candidate with no creation receipt promotes nothing — an env var is not a receipt",
+    none.r.ok ? "" : none.r.code);
+
+  const other = await promote({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT, candidateId: "dpl_someone_else" } }) });
+  ok(!other.r.ok && other.r.code === "RECEIPT_MISMATCH" && other.rec.promotes.length === 0,
+    "R1  a receipt for a different deployment promotes nothing");
+
+  const wrongSha = await promote({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT, sha: OTHER } }) });
+  ok(!wrongSha.r.ok && wrongSha.r.code === "RECEIPT_MISMATCH",
+    "R1  and a receipt recording a different sha promotes nothing");
+
+  // The receipt store, for real.
+  const dir = mkdtempSync(join(tmpdir(), "rel-rcpt-"));
+  const path = join(dir, "receipts.jsonl");
+  await appendRecord(path, RECEIPT);
+  const back = await readReceipt(path, CAND);
+  ok(back.read && back.value.sha === MAIN, "R1  a written receipt reads back for its candidate");
+  const missing = await readReceipt(path, "dpl_never_created");
+  ok(!missing.read, "R1  and an id that was never created has none");
+  rmSync(dir, { recursive: true, force: true });
+}
+
+/* ── R2: phase B locks, checks the sha, and records ───────────────────── */
+async function phaseBTests() {
+  console.log("\n  R2  PHASE B IS A WRITE, AND BEHAVES LIKE ONE\n");
+
+  const good = io();
+  const r = await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, good.io, CANON);
+  ok(r.ok && good.rec.locks === 1, "R2  phase B acquires the lock before creating", `locks=${good.rec.locks}`);
+  const li = good.rec.order.indexOf("lock"), ci = good.rec.order.indexOf("create");
+  ok(li >= 0 && ci >= 0 && li < ci, `R2  and it locks BEFORE the create call (${good.rec.order.join(" -> ")})`);
+  ok(good.rec.receipts.length === 1 && good.rec.receipts[0].candidateId === CAND,
+    "R2  and records a receipt for what it created");
+  ok(good.rec.unlocks === 0, "R2  and does NOT release the lock — phase C holds it across processes");
+
+  // AN ABSENT APPROVAL IS NOT AN APPROVAL. The check used to be conditional on
+  // the value being present, so omitting it skipped the check entirely.
+  const noSha = io();
+  const ns = await runRelease({ phase: "create" }, APPROVED, HOSTS, noSha.io, CANON);
+  ok(!ns.ok && ns.code === "NO_APPROVED_SHA" && noSha.rec.creates.length === 0 && noSha.rec.locks === 0,
+    "R2  phase B without an approved sha creates nothing and takes no lock",
+    ns.ok ? "it created one" : ns.code);
+
+  const badSha = io();
+  const bs = await runRelease({ phase: "create", approvedSha: "not-a-sha" }, APPROVED, HOSTS, badSha.io, CANON);
+  ok(!bs.ok && bs.code === "NO_APPROVED_SHA" && badSha.rec.creates.length === 0,
+    "R2  and a malformed approved sha is refused rather than compared");
+
+  const moved = io();
+  const mr = await runRelease({ phase: "create", approvedSha: OTHER }, APPROVED, HOSTS, moved.io, CANON);
+  ok(!mr.ok && mr.code === "MAIN_MOVED" && moved.rec.creates.length === 0,
+    "R2  a create for a sha that is no longer main is refused, and creates nothing",
+    mr.ok ? "" : mr.code);
+
+  const noReceipt = io({ recordCreation: async () => { throw new Error("disk full"); } });
+  const nr = await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, noReceipt.io, CANON);
+  ok(!nr.ok && nr.code === "RECEIPT_NOT_RECORDED" && noReceipt.rec.unlocks === 0,
+    "R2  a deployment created without a recordable receipt refuses, and keeps the lock");
+
+  const uncertain = io({ createDeployment: async () => ({ id: null }) });
+  const ur = await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, uncertain.io, CANON);
+  ok(!ur.ok && ur.code === "CREATE_UNCERTAIN" && uncertain.rec.unlocks === 0,
+    "R2  an uncertain create keeps the lock — a build may be running");
+}
+
+/* ── R3: an ambiguous promote must not release the lock ───────────────── */
+async function promoteUncertaintyTests() {
+  console.log("\n  R3  AMBIGUOUS PROMOTION KEEPS THE LOCK\n");
+
+  const net = await promote({ promoteDeployment: async () => { throw new Error("socket hang up"); } });
+  ok(!net.r.ok && net.r.code === "PROMOTE_UNCERTAIN" && net.rec.unlocks === 0,
+    "R3  a dropped connection is UNCERTAIN and the lock is kept",
+    net.r.ok ? "" : `${net.r.code}, unlocks=${net.rec.unlocks}`);
+
+  const definite = await promote({
+    promoteDeployment: async () => { throw Object.assign(new Error("promote 403"), { definite: true }); },
+  });
+  ok(!definite.r.ok && definite.r.code === "PROMOTE_FAILED" && definite.rec.unlocks === 1,
+    "R3  a definite refusal releases it — the promotion certainly did not happen");
+}
+
+/* ── R4: the pin must exist and all three must agree ──────────────────── */
+async function repoPinTests() {
+  console.log("\n  R4  THE REPOSITORY PIN\n");
+
+  // AUTO-ASSIGN OF CUSTOM DOMAINS MUST BE OFF, AND FAIL CLOSED FOUR WAYS.
+  //
+  // Phase B creating a READY production deployment is only safe because that
+  // setting is off; proof 4 case 1 observed a creation move two generated
+  // aliases while the target held, so creation is NOT inert. Nothing read this,
+  // so drift would have been invisible until it moved a canonical domain.
+  const withAuto = async (v: Awaited<ReturnType<ReleaseIO["readAutoAssignCustomDomains"]>>) => {
+    const x = io().io;
+    x.readAutoAssignCustomDomains = async () => v;
+    return runRelease({ phase: "preflight" }, APPROVED, HOSTS, x, CANON);
+  };
+  const aOff = await withAuto({ read: true, value: false });
+  ok(aOff.ok, "A1  auto-assignment OFF is the only state preflight accepts", aOff.ok ? "" : aOff.code);
+  const aOn = await withAuto({ read: true, value: true });
+  ok(!aOn.ok && aOn.code === "AUTO_ASSIGN_ENABLED",
+    "A1  ENABLED is refused — a creation could take the canonical domains", aOn.ok ? "" : aOn.code);
+  const aUnread = await withAuto({ read: false, why: "project read 503" });
+  ok(!aUnread.ok && aUnread.code === "AUTO_ASSIGN_UNREADABLE",
+    "A1  UNREADABLE is refused — not knowing is not the same as off", aUnread.ok ? "" : aUnread.code);
+  const aAbsent = await withAuto({ read: false, why: "the project response carries no autoAssignCustomDomains field" });
+  ok(!aAbsent.ok && aAbsent.code === "AUTO_ASSIGN_UNREADABLE",
+    "A1  an ABSENT field is refused — absence is not off", aAbsent.ok ? "" : aAbsent.code);
+  const aBad = await withAuto({ read: true, value: "false" as unknown as boolean });
+  ok(!aBad.ok && aBad.code === "AUTO_ASSIGN_UNREADABLE",
+    "A1  and the string \"false\" is not the boolean false", aBad.ok ? "" : aBad.code);
+
+  const unpinned = await runRelease({ phase: "preflight" }, APPROVED, HOSTS, io().io,
+    { ...CANON, repoId: 0 });
+  ok(!unpinned.ok && unpinned.code === "REPO_ID_UNPINNED",
+    "R4  an unset CANONICAL.repoId refuses — it cannot be a pin",
+    unpinned.ok ? "" : unpinned.code);
+
+  // The defect: GitHub and Vercel agreed with each other and not with us.
+  const agreedElsewhere = await runRelease({ phase: "preflight" }, APPROVED, HOSTS,
+    io({ readGithubRepoId: async () => ({ read: true, value: 77 }),
+         readProjectLink: async () => ({ read: true, value: 77 }) }).io, CANON);
+  ok(!agreedElsewhere.ok && agreedElsewhere.code === "REPO_MISMATCH",
+    "R4  GitHub and Vercel agreeing on a repository that is not the pinned one is refused");
+
+  const created = io();
+  await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, created.io, CANON);
+  ok(created.rec.creates.length === 1, "R4  and a pinned run reaches creation");
+}
+
+/* ── R5: the candidate record must be the candidate ───────────────────── */
+async function candidateIdentityTests() {
+  console.log("\n  R5  THE CANDIDATE RECORD IS CHECKED\n");
+  const cases: [string, Partial<CandidateRecord>, string][] = [
+    ["a record describing another deployment", { id: "dpl_other" }, "CANDIDATE_IDENTITY_MISMATCH"],
+    ["a record in another project", { projectId: "prj_other" }, "WRONG_PROJECT"],
+    ["a deployment still building", { readyState: "BUILDING" }, "NOT_READY"],
+    ["a preview-target deployment", { target: "preview" }, "NOT_PRODUCTION_TARGET"],
+    ["a record with no sha", { sha: null }, "CANDIDATE_SHA_UNREADABLE"],
+    ["a record with no build settings", { build: null }, "CANDIDATE_BUILD_UNKNOWN"],
+  ];
+  for (const [label, patch, code] of cases) {
+    const { r, rec } = await promote({ readCandidate: async () => ({ read: true, value: { ...RECORD, ...patch } }) });
+    ok(!r.ok && r.code === code && rec.promotes.length === 0,
+      `R5  ${label} promotes nothing (${code})`, r.ok ? "OK" : r.code);
+  }
+}
+
+/* ── L1: phase C owns the lock, claims once, and releases only its own ── */
+async function lifecycleLockTests() {
+  console.log("\n  L1  PHASE C OWNS WHAT IT RELEASES\n");
+
+  const dir = mkdtempSync(join(tmpdir(), "rel-life-"));
+  const lockPath = join(dir, "release.lock");
+  const claimDir = join(dir, "claims");
+
+  // Phase B took the lock as run1.
+  await fileLock(lockPath).acquire({ sha: MAIN, runId: "run1" });
+
+  const withReal = (over: Partial<ReleaseIO> = {}) => {
+    const { io: x, rec } = io(over);
+    x.readLockOwner = () => fileLock(lockPath).owner();
+    x.releaseLock = (runId) => fileLock(lockPath).release(runId);
+    x.claimPromotion = (runId, cand) => promotionClaim(claimDir).claim(runId, cand);
+    return { x, rec };
+  };
+
+  // A run that is NOT the owner must refuse — and must not touch the lock.
+  const foreign = withReal({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT, runId: "run999" } }) });
+  const fr = await runRelease({ phase: "promote", approvedSha: MAIN, candidateId: CAND }, APPROVED, HOSTS, foreign.x, CANON);
+  ok(!fr.ok && fr.code === "NOT_LOCK_OWNER", "L1  a run that does not hold the lock refuses", fr.ok ? "" : fr.code);
+  ok(existsSync(lockPath), "L1  and it does NOT delete the legitimate run's lock");
+
+  // No receipt at all: refuse, and still leave the lock alone.
+  const orphan = withReal({ loadCreationReceipt: async () => ({ read: false, why: "no creation receipt" }) });
+  const orr = await runRelease({ phase: "promote", approvedSha: MAIN, candidateId: CAND }, APPROVED, HOSTS, orphan.x, CANON);
+  ok(!orr.ok && orr.code === "NO_CREATION_RECEIPT", "L1  a promote with no receipt refuses");
+  ok(existsSync(lockPath), "L1  and the lock survives that refusal too");
+
+  // TWO CONCURRENT PHASE-C RUNS, both legitimate owners of run1.
+  const c1 = withReal(), c2 = withReal();
+  const [p1, p2] = await Promise.all([
+    runRelease({ phase: "promote", approvedSha: MAIN, candidateId: CAND }, APPROVED, HOSTS, c1.x, CANON),
+    runRelease({ phase: "promote", approvedSha: MAIN, candidateId: CAND }, APPROVED, HOSTS, c2.x, CANON),
+  ]);
+  const promoted = c1.rec.promotes.length + c2.rec.promotes.length;
+  ok(promoted === 1, "L1  two concurrent phase-C runs promote exactly ONCE", `promotes=${promoted}`);
+  const claimed = [p1, p2].filter((r) => !r.ok && r.code === "ALREADY_CLAIMED").length;
+  ok(claimed === 1, "L1  and the loser is refused as ALREADY_CLAIMED", `claimed=${claimed}`);
+
+  // The same receipt again, after the lock is gone: still refused.
+  await fileLock(lockPath).release("run1");
+  await fileLock(lockPath).acquire({ sha: MAIN, runId: "run1" });
+  const again = withReal();
+  const ar = await runRelease({ phase: "promote", approvedSha: MAIN, candidateId: CAND }, APPROVED, HOSTS, again.x, CANON);
+  ok(!ar.ok && ar.code === "ALREADY_CLAIMED" && again.rec.promotes.length === 0,
+    "L1  and the same receipt cannot be promoted a second time", ar.ok ? "" : ar.code);
+
+  // THE RELEASE PRIMITIVE ITSELF must refuse a foreign run id. The checks above
+  // pass without this because a non-owner now refuses before the finally block
+  // ever runs — so the primitive needs its own test, or the guard inside it is
+  // uncovered and a later refactor could drop it silently.
+  const lp2 = join(dir, "owned.lock");
+  await fileLock(lp2).acquire({ sha: MAIN, runId: "ownerA" });
+  await fileLock(lp2).release("someoneElse");
+  ok(existsSync(lp2), "L1  release() with a foreign run id leaves the lock alone");
+  await fileLock(lp2).release("ownerA");
+  ok(!existsSync(lp2), "L1  and the owner can release it");
+
+  rmSync(dir, { recursive: true, force: true });
+}
+
+/* ── B1: an unreadable rollback baseline stops the release ────────────── */
+async function baselineIntegrityTests() {
+  console.log("\n  B1  A ROLLBACK BASELINE YOU CANNOT READ IS NOT ONE\n");
+
+  const create = (over: Partial<ReleaseIO>) => {
+    const { io: x, rec } = io(over);
+    return runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON).then((r) => ({ r, rec }));
+  };
+
+  // 1. The alias read THROWS.
+  const threw = await create({ readAliasMappings: async () => { throw new Error("ECONNRESET"); } });
+  ok(!threw.r.ok && threw.r.code === "BASELINE_INCOMPLETE" && threw.rec.creates.length === 0,
+    "B1  an alias read that throws creates nothing", threw.r.ok ? "created" : threw.r.code);
+  ok(threw.rec.unlocks === 1, "B1  and the lock is released — nothing was created, so nothing is in doubt");
+
+  // 2. The alias API answers 503.
+  const down = await create({ readAliasMappings: async () => ({ read: false, why: "alias list 503" }) });
+  ok(!down.r.ok && down.r.code === "BASELINE_INCOMPLETE" && down.rec.creates.length === 0,
+    "B1  a 503 from the alias API creates nothing — it is not a map of nulls");
+
+  // 3. One host readable, one not.
+  const partial = await create({ readAliasMappings: async () => ({ read: true, value: [
+    { host: HOSTS[0], destination: { read: true, value: OUTGOING } },
+    { host: HOSTS[1], destination: { read: false, why: "alias list 503" } },
+    { host: HOSTS[2], destination: { read: true, value: OUTGOING } },
+  ] }) });
+  ok(!partial.r.ok && partial.r.code === "BASELINE_INCOMPLETE" && partial.rec.creates.length === 0,
+    "B1  one unreadable host is enough to stop it");
+
+  // 4. A host missing from the reading entirely.
+  const missing = await create({ readAliasMappings: async () => ({ read: true, value: [
+    { host: HOSTS[0], destination: { read: true, value: OUTGOING } },
+  ] }) });
+  ok(!missing.r.ok && missing.r.code === "BASELINE_INCOMPLETE",
+    "B1  and a host absent from the reading is not 'unmapped'");
+
+  // A VERIFIED unmapped host is fine — the read succeeded.
+  const unmapped = await create({ readAliasMappings: async () => ({ read: true,
+    value: HOSTS.map((h) => ({ host: h, destination: { read: true as const, value: null } })) }) });
+  ok(unmapped.r.ok, "B1  but a verifiably unmapped host is a fact, and does not block creation",
+    unmapped.r.ok ? "" : (unmapped.r as { code: string }).code);
+
+  // THE BASELINE IS READ BEFORE THE DEPLOYMENT EXISTS.
+  const order: string[] = [];
+  const seq = io({
+    readAliasMappings: async () => { order.push("baseline"); return { read: true, value: MAPPINGS }; },
+    createDeployment: async () => { order.push("create"); return { id: CAND }; },
+  });
+  await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, seq.io, CANON);
+  ok(order.join(",") === "baseline,create",
+    `B1  and it is captured BEFORE creation, not after (${order.join(" -> ")})`);
+
+  // A receipt whose baseline is incomplete cannot be promoted.
+  for (const [label, patch] of [
+    ["no alias mappings at all", { outgoingAliases: [] }],
+    ["a missing host", { outgoingAliases: [MAPPINGS[0]] }],
+    ["an unread destination", { outgoingAliases: HOSTS.map((h) => ({ host: h, destination: { read: false as const, why: "503" } })) }],
+    ["no outgoing deployment", { outgoingDeploymentId: "" }],
+  ] as [string, Partial<CreationReceipt>][]) {
+    const { r, rec } = await promote({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT, ...patch } }) });
+    ok(!r.ok && r.code === "RECEIPT_INCOMPLETE" && rec.promotes.length === 0,
+      `B1  a receipt with ${label} promotes nothing`, r.ok ? "promoted" : r.code);
+  }
+}
+
+/* ── B2: verification that throws is a recovery outcome ───────────────── */
+async function recoveryOutcomeTests() {
+  console.log("\n  B2  A PROMOTION THAT CANNOT BE VERIFIED IS REPORTED, NOT THROWN\n");
+
+  // The live adapter's own failure mode: the alias API connection resets AFTER
+  // the promotion succeeded.
+  const { r, rec } = await promote({ observeHosts: async () => { throw new Error("ECONNRESET"); } });
+  ok(!r.ok && r.code === "RECOVERY_REQUIRED",
+    "B2  a post-promotion exception returns RECOVERY_REQUIRED rather than throwing",
+    r.ok ? "OK" : r.code);
+  ok(rec.promotes.length === 1, "B2  the promotion did happen and is not disowned");
+  ok(rec.unlocks === 0, "B2  the lock is deliberately still held");
+  ok(rec.verified.length === 0, "B2  and NO release-verified event is written");
+  ok(rec.recoveries.length === 1, "B2  a recovery-required event is, with the reason");
+  const rr = !r.ok && "outgoingAliases" in r ? r : null;
+  ok(!!rr && rr.candidateId === CAND && rr.outgoing === OUTGOING && rr.outgoingAliases.length === HOSTS.length,
+    "B2  and it carries the candidate and the intact outgoing baseline");
+
+  // The target re-read throwing is the same class of failure.
+  const t = await promote({ readProductionTarget: async () => { throw new Error("socket hang up"); } });
+  ok(!t.r.ok && t.r.code === "RECOVERY_REQUIRED" && t.rec.unlocks === 0,
+    "B2  a target re-read that throws is also a recovery outcome");
+
+  // A clean run distinguishes accepted from verified.
+  const good = await promote();
+  ok(good.r.ok && good.rec.completions.length === 1 && good.rec.verified.length === 1,
+    "B2  a verified release journals BOTH promotion-accepted and release-verified");
+  const ai = good.rec.order.indexOf("accepted"), vi = good.rec.order.indexOf("verified");
+  ok(ai >= 0 && vi > ai, `B2  in that order (${good.rec.order.join(" -> ")})`);
+  ok(good.rec.recoveries.length === 0, "B2  and no recovery event");
+}
+
+/* ── B3: the LIVE adapters, not fakes that already agree ──────────────── */
+/**
+ * The mutation that collapsed a 503 into a map of nulls failed ZERO assertions,
+ * because every test above handed runRelease an already-interpreted Read. These
+ * drive the real liveIO adapters with a fake api and a stubbed fetch.
+ */
+async function liveAdapterTests() {
+  console.log("\n  B3  THE LIVE ADAPTERS\n");
+  const dir = mkdtempSync(join(tmpdir(), "rel-live-"));
+  const mk = (api: unknown) => liveIO(api as never, join(dir, "log.jsonl"), join(dir, "r.lock"), join(dir, "rcpt.jsonl"));
+
+  // A 503 CARRYING A PLAUSIBLE BODY. An empty body would be caught by the
+  // array check instead, so the status guard would never be isolated — which is
+  // how the first version of this test let the mutation survive.
+  const down = mk(async () => ({ status: 503, body: { aliases: [
+    { alias: "app.price2book.com", deploymentId: "dpl_stale" },
+  ] } }));
+  const d = await down.readAliasMappings();
+  ok(!d.read, "B3  a 503 is UNREAD even when it carries a usable-looking body",
+    d.read ? JSON.stringify(d.value) : "");
+
+  const downEmpty = mk(async () => ({ status: 503, body: {} }));
+  ok(!(await downEmpty.readAliasMappings()).read, "B3  and a 503 with no body is unread too");
+
+  // THE PHASE FLAGS ARE PARSED STRICTLY.
+  //
+  // `argv.includes("--create")` accepted --apply by ignoring it and running a
+  // read-only preflight that looked like it had done something; accepted both
+  // phase flags and picked whichever it tested first; and accepted any unknown
+  // flag in silence. An operator typing the retired --apply must be told, not
+  // handed a dry run.
+  const phaseOf = (a: string[]) => { const r = parsePhase(a); return r.ok ? r.phase : `REFUSED: ${r.detail.slice(0, 40)}`; };
+  ok(phaseOf([]) === "preflight", "B3  no flag is a read-only preflight", phaseOf([]));
+  ok(phaseOf(["--create"]) === "create", "B3  --create is phase B", phaseOf(["--create"]));
+  ok(phaseOf(["--promote"]) === "promote", "B3  --promote is phase C", phaseOf(["--promote"]));
+  ok(!parsePhase(["--apply"]).ok, "B3  --apply is REFUSED, not silently treated as preflight");
+  ok(/no longer exists/.test((parsePhase(["--apply"]) as { detail: string }).detail),
+    "B3  and the refusal says the flag is gone and names the three phases");
+  ok(!parsePhase(["--create", "--promote"]).ok, "B3  two phase flags are refused, not resolved by order");
+  ok(!parsePhase(["--promote", "--create"]).ok, "B3  in either order");
+  ok(!parsePhase(["--dry-run"]).ok, "B3  an unknown flag is refused");
+  ok(!parsePhase(["--create", "extra"]).ok, "B3  a stray positional argument is refused");
+  ok(!parsePhase(["--create", "--create"]).ok, "B3  a repeated phase flag is refused");
+  ok(!parsePhase(["--Create"]).ok, "B3  and the match is exact, not case-insensitive");
+
+  // THE CANONICAL REPOSITORY ID IS PINNED, AND IS WHAT PHASE B SENDS.
+  //
+  // gitSource identifies a repository by number, so a wrong or absent id points
+  // creation at the wrong repository — or, while it was 0, at nothing. It was
+  // established by an unauthenticated read of the public canonical repository,
+  // and pinning it does NOT make it trusted: preflightDecision still requires
+  // this constant, GitHub's id and Vercel's project link to agree.
+  //
+  // The second assertion is the one that matters. A constant nothing reads is
+  // decoration, so this drives the REAL createDeployment and inspects the body
+  // it actually sends.
+  ok(CANONICAL.repoId === 1336270570,
+    "B3  CANONICAL.repoId is pinned to the canonical repository", String(CANONICAL.repoId));
+  ok(Number.isInteger(CANONICAL.repoId) && CANONICAL.repoId > 0,
+    "B3  and it is a real id, not zero or a placeholder", String(CANONICAL.repoId));
+
+  type SentBody = { gitSource?: { repoId?: unknown; ref?: unknown; type?: unknown } };
+  const sent: SentBody[] = [];
+  const capture = mk(async (_path: string, init?: { body?: string }) => {
+    if (init?.body) sent.push(JSON.parse(init.body) as SentBody);
+    return { status: 200, body: { id: CAND } };
+  });
+  await capture.createDeployment(MAIN);
+  const body = sent[0];
+  ok(body !== undefined && body.gitSource?.repoId === CANONICAL.repoId,
+    "B3  and phase B puts exactly that id into gitSource.repoId",
+    body ? JSON.stringify(body.gitSource) : "no body was sent");
+  ok(body !== undefined && body.gitSource?.repoId === 1336270570,
+    "B3  which is the canonical repository, by number",
+    body ? String(body.gitSource?.repoId) : "no body");
+
+  // WHAT A NO-OVERRIDE NEXT.JS PROJECT NORMALIZES TO.
+  //
+  // Dashboard inspection established the canonical project as Framework Preset
+  // Next.js with Output Directory, Install Command and Build Command all left at
+  // their defaults. Vercel reports an unset override as null, and settings()
+  // coalesces: null commands to "", null framework to null. This pins what the
+  // release will actually SEE, so the constant can be corrected against a
+  // measured shape rather than a guessed one.
+  const nextish = mk(async () => ({ status: 200, body: {
+    framework: "nextjs", buildCommand: null, outputDirectory: null,
+    installCommand: null, rootDirectory: null,
+  } }));
+  const ns = await nextish.readProjectSettings();
+  ok(ns.read && ns.value.framework === "nextjs",
+    "B3  a Next.js project reports framework \"nextjs\", not null",
+    ns.read ? String(ns.value.framework) : "unread");
+  ok(ns.read && ns.value.outputDirectory === "" && ns.value.buildCommand === "",
+    "B3  and unset command/output overrides normalize to empty string, not null",
+    ns.read ? JSON.stringify([ns.value.outputDirectory, ns.value.buildCommand]) : "unread");
+  ok(ns.read && ns.value.installCommand === null,
+    "B3  while an unset install command stays null",
+    ns.read ? JSON.stringify(ns.value.installCommand) : "unread");
+
+  // THE APPROVED CONSTANT MATCHES THE REAL PROJECT, FIELD BY FIELD.
+  //
+  // Four of the five are what the canonical project reports; buildCommand is
+  // deliberately the not-yet-installed provenance command. Pinning them here
+  // means a future edit that quietly reverts to the disposable fixture's
+  // static-site values — outputDirectory "public", framework null — fails.
+  ok(APPROVED_BUILD_LIVE.framework === "nextjs",
+    "B3  APPROVED_BUILD.framework is nextjs, as the project reports",
+    String(APPROVED_BUILD_LIVE.framework));
+  ok(APPROVED_BUILD_LIVE.outputDirectory === "",
+    "B3  outputDirectory is the Next.js default, not the fixture's \"public\"",
+    JSON.stringify(APPROVED_BUILD_LIVE.outputDirectory));
+  ok(APPROVED_BUILD_LIVE.rootDirectory === null,
+    "B3  rootDirectory is null — the repository root",
+    JSON.stringify(APPROVED_BUILD_LIVE.rootDirectory));
+  ok(APPROVED_BUILD_LIVE.installCommand === null,
+    "B3  and installCommand is unset",
+    JSON.stringify(APPROVED_BUILD_LIVE.installCommand));
+  ok(/provenance-guard\.sh/.test(APPROVED_BUILD_LIVE.buildCommand),
+    "B3  while buildCommand is the provenance command, not the project's default");
+
+  // The four established fields must now AGREE with a real project response;
+  // only buildCommand may differ.
+  const drift4 = ns.read ? compareBuild({ ...ns.value, buildCommand: APPROVED_BUILD_LIVE.buildCommand }, APPROVED_BUILD_LIVE) : "unread";
+  ok(drift4 === null,
+    "B3  so a real no-override Next.js project differs ONLY in buildCommand",
+    String(drift4));
+
+  // AND THE EXPECTED DRIFT IS NAMED. The provenance command is not installed on
+  // the canonical project, so preflight must refuse on buildCommand until a
+  // separately authorized Stage 2 installs it. This holds before and after the
+  // constant is corrected, so it does not have to be rewritten then.
+  const driftNow = ns.read ? compareBuild(ns.value, APPROVED_BUILD_LIVE) : null;
+  ok(driftNow !== null && /buildCommand/.test(driftNow),
+    "B3  and preflight drifts on buildCommand while the command is not installed",
+    String(driftNow));
+
+  // R2 — AN ABSENT rootDirectory IS NORMALIZED TO null BEFORE COMPARISON.
+  //
+  // Vercel returns projectSettings WITHOUT a rootDirectory key rather than with
+  // a null one: observed on every deployment read in proofs 4, 5 and 6. The
+  // approved build carries null. `undefined !== null`, so without the `?? null`
+  // in liveIO's settings() a correct deployment would be refused
+  // PROJECT_SETTINGS_NOT_APPROVED for drift that does not exist. Nothing
+  // asserted that normalization, so a refactor could have dropped it silently.
+  const absentRoot = mk(async () => ({ status: 200, body: {
+    uid: CAND, projectId: CANONICAL.vercelProjectId, readyState: "READY", target: "production",
+    gitSource: { sha: MAIN },
+    // Every field mirrors the APPROVED fixture EXCEPT that rootDirectory is
+    // absent entirely — so the only thing this can be measuring is the
+    // normalization, not an unrelated difference.
+    projectSettings: {                       // NO rootDirectory key at all
+      installCommand: APPROVED.installCommand, buildCommand: APPROVED.buildCommand,
+      outputDirectory: APPROVED.outputDirectory, framework: APPROVED.framework,
+    },
+  } }));
+  const ar = await absentRoot.readCandidate(CAND);
+  ok(ar.read && ar.value.build !== null && ar.value.build.rootDirectory === null,
+    "B3  an ABSENT rootDirectory is read as null, not undefined",
+    ar.read && ar.value.build ? JSON.stringify(ar.value.build.rootDirectory) : "unread");
+  ok(ar.read && ar.value.build !== null && compareBuild(ar.value.build, APPROVED) === null,
+    "B3  and it therefore compares EQUAL to the approved build, not as drift",
+    ar.read && ar.value.build ? String(compareBuild(ar.value.build, APPROVED)) : "unread");
+
+  // R3 — A DEPLOYMENT PROTECTION REDIRECT MUST FAIL CLOSED.
+  //
+  // Proof 6 met this for real: a protected host answers 302 to
+  // vercel.com/sso-api. observeHosts follows redirects, so it lands on an HTML
+  // login page. What must NOT happen is that page being read as a served
+  // identity, or its host being accepted as the one we asked for.
+  //
+  // PROTECTED IS NOT A SUCCESS STATE HERE. The disposable proof-6 observer
+  // classified it as its own outcome because the question there was routing.
+  // For a GOVERNED host it is simply unreadable, and the release stays
+  // INCOMPLETE.
+  const realFetch2 = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => ({
+      ok: true, status: 200,
+      url: "https://vercel.com/sso-api?url=https%3A%2F%2Fapp.price2book.com%2Fapi%2Frelease&nonce=deadbeef",
+      json: async () => { throw new SyntaxError("Unexpected token '<'"); },
+    })) as unknown as typeof fetch;
+    const protectedHosts = await mk(async () => ({ status: 200, body: { aliases: CANONICAL.canonicalHosts.map(
+      (h) => ({ alias: h, deploymentId: CAND })), pagination: { next: null } } }))
+      .observeHosts({ deploymentId: CAND, sha: MAIN });
+    ok(protectedHosts.every((h) => !h.served.read),
+      "B3  an SSO redirect is an UNREAD host, never a served identity",
+      JSON.stringify(protectedHosts.map((h) => h.served.read)));
+    const vp = verifyHosts(protectedHosts, { deploymentId: CAND, sha: MAIN }, APPROVED_REDIRECT_HOSTS,
+      { read: true, value: CAND });
+    ok(!vp.complete, "B3  and verification is INCOMPLETE, not a pass", vp.problems.join("; "));
+
+    // The other shape: the login page answers with JSON. The served identity
+    // then parses, and the ONLY thing standing between that and a false pass is
+    // the finalHost check.
+    globalThis.fetch = (async () => ({
+      ok: true, status: 200,
+      url: "https://vercel.com/sso-api?url=x",
+      json: async () => ({ deploymentId: CAND, commitSha: MAIN }),
+    })) as unknown as typeof fetch;
+    const sneaky = await mk(async () => ({ status: 200, body: { aliases: CANONICAL.canonicalHosts.map(
+      (h) => ({ alias: h, deploymentId: CAND })), pagination: { next: null } } }))
+      .observeHosts({ deploymentId: CAND, sha: MAIN });
+    const vs = verifyHosts(sneaky, { deploymentId: CAND, sha: MAIN }, APPROVED_REDIRECT_HOSTS,
+      { read: true, value: CAND });
+    ok(!vs.complete && vs.problems.some((x) => /redirected to vercel\.com/.test(x)),
+      "B3  a redirect to an UNAPPROVED host is refused even when its body parses",
+      vs.problems.join("; "));
+  } finally { globalThis.fetch = realFetch2; }
+
+  // THE REAL LOCK ADAPTER, NOT A THROWING FAKE.
+  //
+  // _releaseRun's failure handling is only worth having if the live adapter can
+  // actually fail. fileLock.release() caught every unlink error and resolved,
+  // so in production the new handling could never fire — the fake that throws
+  // tested the caller, never the adapter.
+  const lockDir = mkdtempSync(join(tmpdir(), "rel-lockrel-"));
+  const lp = join(lockDir, "r.lock");
+  const lk = fileLock(lp);
+  await lk.acquire({ sha: MAIN, runId: "runX" });
+  await lk.release("runX");
+  ok(!existsSync(lp), "B3  releasing a lock this run owns removes the file");
+
+  // Already gone is not a failure.
+  let secondThrew = false;
+  try { await lk.release("runX"); } catch { secondThrew = true; }
+  ok(!secondThrew, "B3  and releasing an already-absent lock is not an error (ENOENT)");
+
+  // A real failure must PROPAGATE rather than resolve quietly.
+  await lk.acquire({ sha: MAIN, runId: "runY" });
+  chmodSync(lockDir, 0o500);            // directory not writable: unlink fails EACCES/EPERM
+  let realThrew = false;
+  try { await lk.release("runY"); } catch { realThrew = true; }
+  chmodSync(lockDir, 0o700);
+  ok(realThrew, "B3  but an unlink that FAILS for any other reason propagates, never resolves");
+  ok(existsSync(lp), "B3  and the lock file is still there, as the refusal must be able to say");
+  rmSync(lockDir, { recursive: true, force: true });
+
+  const boom = mk(async () => { throw new Error("ECONNRESET"); });
+  const b = await boom.readAliasMappings();
+  ok(!b.read && /threw/i.test(b.why), "B3  and an api that THROWS is unread, not empty",
+    b.read ? "read" : b.why);
+
+  const noArray = mk(async () => ({ status: 200, body: { pagination: { next: null } } }));
+  ok(!(await noArray.readAliasMappings()).read, "B3  a 200 with no aliases array is unread too");
+
+  const ok200 = mk(async () => ({ status: 200, body: { aliases: [
+    { alias: "app.price2book.com", deploymentId: "dpl_live" },
+  ], pagination: { next: null } } }));
+  const m = await ok200.readAliasMappings();
+  ok(m.read, "B3  a readable list is read");
+  if (m.read) {
+    const mapped = m.value.find((x) => x.host === "app.price2book.com");
+    const other = m.value.find((x) => x.host !== "app.price2book.com");
+    ok(!!mapped && mapped.destination.read && mapped.destination.value === "dpl_live",
+      "B3  a listed host carries its destination");
+    ok(!!other && other.destination.read && other.destination.value === null,
+      "B3  and a host absent from a READABLE list is verifiably unmapped — read, value null");
+  }
+
+  // observeHosts, with fetch stubbed so the network failure is real to it.
+  const realFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => { throw new Error("ECONNRESET"); }) as typeof fetch;
+    const obs = await mk(async () => ({ status: 200, body: { aliases: [], pagination: { next: null } } }))
+      .observeHosts({ deploymentId: CAND, sha: MAIN });
+    ok(obs.every((o) => !o.served.read),
+      "B3  observeHosts reports a thrown fetch as an unread host rather than throwing");
+  } finally { globalThis.fetch = realFetch; }
+
+  rmSync(dir, { recursive: true, force: true });
+}
+
+/* ── B4: absence is established, not inferred ─────────────────────────── */
+async function aliasCompletenessTests() {
+  console.log("\n  B4  ABSENCE IS ESTABLISHED, NOT INFERRED\n");
+
+  const entry = (h: string, d: unknown) => ({ alias: h, deploymentId: d });
+  // A walk that never terminates cannot be caught by a timeout INSIDE the suite:
+  // every await here resolves immediately, so an unbounded loop starves the
+  // timer queue and no setTimeout will ever fire. Racing one would look like a
+  // fix and change nothing. The bound therefore lives in the double — past this
+  // cap it refuses to serve, which turns a hang into a recorded failure and a
+  // printed summary the mutation runner can actually score.
+  const PAGE_CAP = 50;
+
+  /** A fake api that serves pages, and counts how many were asked for. */
+  const paged = (pages: { aliases: unknown[]; next?: string }[]) => {
+    let calls = 0;
+    const api = (async (path: string) => {
+      if (++calls > PAGE_CAP) throw new Error(`PAGE-CAP: walked past ${PAGE_CAP} pages`);
+      const m = /until=([^&]*)/.exec(path);
+      const idx = m ? pages.findIndex((pg) => pg.next === decodeURIComponent(m[1])) + 1 : 0;
+      const page = pages[Math.min(idx, pages.length - 1)];
+      return { status: 200, body: { aliases: page.aliases, pagination: { next: page.next ?? null } } };
+    }) as never;
+    return { api, calls: () => calls };
+  };
+
+  const two = paged([
+    { aliases: [entry("unrelated-one.vercel.app", "dpl_x")], next: "cursor1" },
+    { aliases: HOSTS.map((h) => entry(h, OUTGOING)) },
+  ]);
+  const followed = await collectAliasMappings(two.api, HOSTS);
+  ok(followed.read && followed.value.every((m) => m.destination.read && m.destination.value === OUTGOING),
+    "B4  pagination is followed — hosts on page two are found, not reported unmapped",
+    followed.read ? JSON.stringify(followed.value) : followed.why);
+  ok(two.calls() >= 2, `B4  and a second request was actually made (${two.calls()})`);
+
+  const endless = paged([{ aliases: [entry("other.vercel.app", "dpl_x")], next: "cursorN" }]);
+  const gaveUp = await collectAliasMappings(endless.api, HOSTS, 3);
+  ok(!gaveUp.read, "B4  exhausting the page budget with hosts unresolved is unread, not absent",
+    gaveUp.read ? "claimed absence" : "");
+  // Asserted by COUNTING, not by catching: the walk turns a throwing api into
+  // an unread result, so "it came back unread" stays true with the budget
+  // deleted. Whether it stopped WHERE IT WAS TOLD TO is the actual guard.
+  ok(endless.calls() <= 3,
+    `B4  and it stopped AT the budget, not at the double's cap (${endless.calls()} request(s))`);
+
+  const ended = paged([{ aliases: [entry("other.vercel.app", "dpl_x")] }]);
+  const absent = await collectAliasMappings(ended.api, HOSTS);
+  ok(absent.read && absent.value.every((m) => m.destination.read && m.destination.value === null),
+    "B4  but a listing with no further pages does establish absence");
+
+  const bad = paged([{ aliases: [entry(HOSTS[0], 42), ...HOSTS.slice(1).map((h) => entry(h, OUTGOING))] }]);
+  const mm = await collectAliasMappings(bad.api, HOSTS);
+  ok(mm.read, "B4  a malformed record does not fail the whole listing");
+  const first = mm.read ? mm.value.find((x) => x.host === HOSTS[0]) : undefined;
+  ok(!!first && !first.destination.read,
+    "B4  the host with a malformed deploymentId is UNREAD, not unmapped",
+    first ? JSON.stringify(first.destination) : "missing");
+
+  // The run refuses on each, with ZERO creation calls.
+  const create = (api: unknown) => {
+    let creates = 0;
+    const { io: x } = io({});
+    const live = liveIO(api as never, "/dev/null", "/dev/null", "/dev/null");
+    x.readAliasMappings = live.readAliasMappings;
+    x.createDeployment = async () => { creates++; return { id: CAND }; };
+    x.acquireLock = async () => ({ ok: true });
+    x.releaseLock = async () => {};
+    return runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON)
+      .then((r) => ({ r, creates: () => creates }));
+  };
+
+  const p1 = await create(paged([{ aliases: [entry("other.vercel.app", "dpl_x")], next: "cursorN" }]).api);
+  ok(!p1.r.ok && p1.r.code === "BASELINE_INCOMPLETE" && p1.creates() === 0,
+    "B4  a listing with more pages and unresolved hosts creates NOTHING",
+    p1.r.ok ? "created" : `${p1.r.code}, creates=${p1.creates()}`);
+
+  const p2 = await create(paged([{ aliases: HOSTS.map((h) => entry(h, 42)) }]).api);
+  ok(!p2.r.ok && p2.r.code === "BASELINE_INCOMPLETE" && p2.creates() === 0,
+    "B4  malformed destinations for every host create NOTHING",
+    p2.r.ok ? "created" : `${p2.r.code}, creates=${p2.creates()}`);
+
+  const p3 = await create(paged([{ aliases: HOSTS.map((h) => entry(h, OUTGOING)) }]).api);
+  ok(p3.r.ok && p3.creates() === 1, "B4  and a complete listing does create, once",
+    p3.r.ok ? "" : (p3.r as { code: string }).code);
+
+  const junk = await promote({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT,
+    outgoingAliases: HOSTS.map((h) => ({ host: h, destination: { read: true as const, value: 42 as never } })) } }) });
+  ok(!junk.r.ok && junk.r.code === "RECEIPT_INCOMPLETE" && junk.rec.promotes.length === 0,
+    "B4  a receipt whose destination is `42` is refused — a read flag is not a value",
+    junk.r.ok ? "promoted" : junk.r.code);
+
+  const empty = await promote({ loadCreationReceipt: async () => ({ read: true, value: { ...RECEIPT,
+    outgoingAliases: HOSTS.map((h) => ({ host: h, destination: { read: true as const, value: "" } })) } }) });
+  ok(!empty.r.ok && empty.r.code === "RECEIPT_INCOMPLETE",
+    "B4  and an empty-string destination is not a deployment id either");
+}
+
+/* ── B5: an unreadable shape is not a fact ────────────────────────────── */
+async function responseValidationTests() {
+  console.log("\n  B5  AN UNREADABLE SHAPE IS NOT A FACT\n");
+
+  const good = HOSTS.map((h) => ({ alias: h, deploymentId: OUTGOING }));
+
+  // The end of the list must be STATED.
+  const cases: [string, unknown][] = [
+    ["pagination.next is an object", { aliases: [], pagination: { next: { cursor: 1 } } }],
+    ["pagination.next is a boolean", { aliases: [], pagination: { next: true } }],
+    ["pagination metadata is missing", { aliases: [] }],
+    ["pagination has no next field", { aliases: [], pagination: { count: 0 } }],
+    ["pagination is an array", { aliases: [], pagination: [] }],
+    ["the response is not an object", 42],
+    ["entries are [null, 42, {}]", { aliases: [null, 42, {}], pagination: { next: null } }],
+    ["an entry has a non-string host", { aliases: [{ alias: 7, deploymentId: "d" }], pagination: { next: null } }],
+    ["an entry has an empty host", { aliases: [{ alias: "", deploymentId: "d" }], pagination: { next: null } }],
+    ["an entry is an array", { aliases: [["app.price2book.com", "d"]], pagination: { next: null } }],
+  ];
+  for (const [label, body] of cases) {
+    const r = readAliasPage(body, HOSTS);
+    ok(!r.read, `B5  ${label} is UNREAD`, r.read ? "claimed a fact" : "");
+  }
+
+  // What IS readable stays readable.
+  const endNull = readAliasPage({ aliases: good, pagination: { next: null } }, HOSTS);
+  ok(endNull.read && endNull.value.endOfList && endNull.value.resolved.size === HOSTS.length,
+    "B5  a stated end-of-list with readable entries is read");
+  const pagNull = readAliasPage({ aliases: good, pagination: null }, HOSTS);
+  ok(pagNull.read && pagNull.value.endOfList, "B5  and `pagination: null` states the end too");
+  const more = readAliasPage({ aliases: [], pagination: { next: "cursor1" } }, HOSTS);
+  ok(more.read && !more.value.endOfList && more.value.next === "cursor1",
+    "B5  while a cursor says there are more pages");
+  const notOurs = readAliasPage(
+    { aliases: [{ alias: "someone-else.vercel.app", deploymentId: "dpl_x" }], pagination: { next: null } }, HOSTS);
+  ok(notOurs.read && notOurs.value.resolved.size === 0,
+    "B5  an entry whose host READS as someone else's is genuinely irrelevant");
+
+  // And the run creates NOTHING for any of them.
+  const create = (body: unknown) => {
+    let creates = 0;
+    const { io: x } = io({});
+    const live = liveIO((async () => ({ status: 200, body })) as never, "/dev/null", "/dev/null", "/dev/null");
+    x.readAliasMappings = live.readAliasMappings;
+    x.createDeployment = async () => { creates++; return { id: CAND }; };
+    x.acquireLock = async () => ({ ok: true });
+    x.releaseLock = async () => {};
+    return runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON)
+      .then((r) => ({ r, creates: () => creates }));
+  };
+
+  for (const [label, body] of [
+    ["pagination.next is an object", { aliases: [], pagination: { next: {} } }],
+    ["pagination metadata is missing", { aliases: [] }],
+    ["entries are [null, 42, {}]", { aliases: [null, 42, {}], pagination: { next: null } }],
+  ] as [string, unknown][]) {
+    const c = await create(body);
+    ok(!c.r.ok && c.r.code === "BASELINE_INCOMPLETE" && c.creates() === 0,
+      `B5  ${label} creates NOTHING`,
+      c.r.ok ? "created" : `${c.r.code}, creates=${c.creates()}`);
+  }
+
+  const okRun = await create({ aliases: good, pagination: { next: null } });
+  ok(okRun.r.ok && okRun.creates() === 1, "B5  and a fully readable response creates, once",
+    okRun.r.ok ? "" : (okRun.r as { code: string }).code);
+}
+
+/* ── L2: the baseline belongs to the run ──────────────────────────────── */
+async function postMutationRecordTests() {
+  console.log("\n  L9  AFTER THE MUTATION, A FAILED RECORD IS NOT A DETAIL\n");
+
+  const create = (over: Partial<ReleaseIO>) => {
+    const { io: x, rec } = io(over);
+    return runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON).then((r) => ({ r, rec }));
+  };
+
+  // Intent-before-mutation was mandatory; everything after it was best-effort,
+  // so a promotion could succeed while the journal never said so — and recovery
+  // is read FROM the journal.
+  const a = await promote({ recordPromotionAccepted: async () => { throw new Error("EIO writing journal"); } });
+  ok(!a.r.ok && a.r.code === "RECOVERY_REQUIRED",
+    "L9  a promotion that cannot be recorded is RECOVERY_REQUIRED, never success",
+    a.r.ok ? "returned success" : a.r.code);
+  ok(!a.r.ok && "outgoing" in a.r && a.r.outgoing !== "" && "candidateId" in a.r,
+    "L9  and it prints the candidate and the outgoing baseline to reconcile from");
+
+  const v = await promote({ recordReleaseVerified: async () => { throw new Error("ENOSPC"); } });
+  ok(!v.r.ok && v.r.code === "RECOVERY_REQUIRED",
+    "L9  a VERIFIED release whose completion record fails is not ordinary success",
+    v.r.ok ? "returned success" : v.r.code);
+  ok(!v.r.ok && /journal is incomplete/.test(v.r.detail),
+    "L9  and the refusal says routing is correct while the journal is not");
+
+  // THE PREVIOUS VERSION OF THIS TEST WAS VACUOUS. It read
+  //   ok(l.r.ok || !/lock released/.test(detail))
+  // and the promotion it drove SUCCEEDS, so `l.r.ok` was true and the assertion
+  // passed without ever examining a message. It proved nothing on the path it
+  // claimed to cover.
+  //
+  // The claim belongs where the message is actually emitted: a phase-B baseline
+  // refusal, which releases the lock and then TELLS the operator so.
+  const lockFail = await create({
+    readAliasMappings: async () => ({ read: false, why: "alias listing unreadable" }),
+    releaseLock: async () => { throw new Error("EPERM"); },
+  });
+  ok(!lockFail.r.ok, "L9  a baseline it cannot read refuses, and creates nothing",
+    lockFail.r.ok ? "created" : lockFail.r.code);
+  ok(!lockFail.r.ok && !/lock was released/.test(lockFail.r.detail ?? ""),
+    "L9  and when the unlock FAILS it does not claim the lock was released",
+    lockFail.r.ok ? "" : (lockFail.r.detail ?? "").slice(0, 90));
+  ok(!lockFail.r.ok && /COULD NOT BE RELEASED/.test(lockFail.r.detail ?? ""),
+    "L9  it says the lock is still held, and names the run holding it",
+    lockFail.r.ok ? "" : (lockFail.r.detail ?? "").slice(0, 90));
+
+  // The same refusal with a WORKING unlock must still say so — otherwise the
+  // assertion above would pass on a message that never mentions the lock.
+  const lockOk = await create({
+    readAliasMappings: async () => ({ read: false, why: "alias listing unreadable" }),
+  });
+  ok(!lockOk.r.ok && /the lock was released/.test(lockOk.r.detail ?? ""),
+    "L9  while a successful unlock is reported as released",
+    lockOk.r.ok ? "" : (lockOk.r.detail ?? "").slice(0, 90));
+
+  // Recovery records that fail to write must be surfaced, not swallowed.
+  const recFail = await promote({
+    observeHosts: async () => { throw new Error("ECONNRESET"); },
+    recordRecoveryRequired: async () => { throw new Error("EIO"); },
+  });
+  ok(!recFail.r.ok && recFail.r.code === "RECOVERY_REQUIRED" && /ALSO failed to write/.test(recFail.r.detail ?? ""),
+    "L9  a recovery record that cannot be written is said out loud",
+    recFail.r.ok ? "" : (recFail.r.detail ?? "").slice(0, 100));
+
+  // And the INCOMPLETE message must not say the target both is and is not recorded.
+  const incFail = await promote({
+    observeHosts: async () => HOSTS.map((h) => ({
+      host: h, aliasDeploymentId: { read: true as const, value: "dpl_other" },
+      served: { read: true as const, value: { deploymentId: "dpl_other", commitSha: MAIN, finalHost: h } },
+    })),
+    recordRecoveryRequired: async () => { throw new Error("EIO"); },
+  });
+  ok(!incFail.r.ok && incFail.r.code === "INCOMPLETE",
+    "L9  routing that does not verify is INCOMPLETE", incFail.r.ok ? "" : incFail.r.code);
+  const incDetail = incFail.r.ok ? "" : (incFail.r.detail ?? "");
+  ok(!incFail.r.ok && !/rollback target is recorded/.test(incDetail),
+    "L9  and when the record FAILED it does not also claim the target is recorded",
+    incDetail.slice(0, 110));
+
+  // AND IT SAYS THE TRUE THING, NOT MERELY NOT THE FALSE ONE. The intent record
+  // is written before the promotion and a failed write returns RECORD_FAILED, so
+  // any run that reaches INCOMPLETE has one. Saying the rollback target is "NOT
+  // in the journal" sent an operator looking for something already on disk.
+  ok(!incFail.r.ok && /remains in the earlier intent record/.test(incDetail),
+    "L9  and it points at the intent record, which DOES hold the rollback target",
+    incDetail.slice(0, 140));
+  ok(!incFail.r.ok && !/(target|rollback)[^.]{0,40}(is NOT|not) in the journal/i.test(incDetail),
+    "L9  and never claims the rollback target is missing from the journal",
+    incDetail.slice(0, 140));
+
+  // The same mistake lived in the RECOVERY_REQUIRED note.
+  const recFailDetail = recFail.r.ok ? "" : (recFail.r.detail ?? "");
+  ok(!recFail.r.ok && /still holds the rollback target/.test(recFailDetail),
+    "L9  the RECOVERY_REQUIRED note also credits the intent record it has",
+    recFailDetail.slice(0, 140));
+}
+
+async function baselineTests() {
+  console.log("\n  L2  THE OUTGOING BASELINE IS PHASE B'S, NOT PHASE C'S\n");
+
+  // Production moved between B and C. C used to adopt what it saw and record
+  // the intervening deployment as the thing it replaced.
+  const intervening = "dpl_someone_else_promoted";
+  const { r, rec } = await promote({
+    readCurrentProduction: async () => ({ read: true, value: { deploymentId: intervening, aliases: HOSTS } }),
+  });
+  ok(!r.ok && r.code === "PRODUCTION_MOVED" && rec.promotes.length === 0,
+    "L2  production moving between B and C is refused against the RECEIPT's baseline",
+    r.ok ? "" : r.code);
+
+  const good = await promote();
+  ok(good.r.ok && good.r.phase === "promote" && good.r.replaced === OUTGOING,
+    "L2  and a clean run records the baseline phase B captured");
+  const rec0 = good.rec.intents[0];
+  ok(!!rec0 && Array.isArray(rec0.outgoingAliases) && rec0.outgoingAliases.length === HOSTS.length
+     && typeof rec0.outgoingAliases[0].host === "string"
+     && "destination" in rec0.outgoingAliases[0],
+    "L2  and the intent stores per-host MAPPINGS, not alias names",
+    JSON.stringify(rec0?.outgoingAliases));
+}
+
+/* ── L3: the adapter's own failure classification ─────────────────────── */
+async function classificationTests() {
+  console.log("\n  L3  WHICH HTTP ANSWERS ESTABLISH THAT NOTHING HAPPENED\n");
+  const cases: [number, boolean, string][] = [
+    [403, true,  "a 403 is a refusal — the promotion definitely did not happen"],
+    [404, true,  "a 404 likewise"],
+    [409, true,  "and a 409"],
+    [500, false, "a 500 says nothing about what the server did"],
+    [502, false, "nor a 502"],
+    [503, false, "nor a 503 — this released the lock before"],
+    [504, false, "nor a 504"],
+    [408, false, "a request timeout is not a refusal"],
+    [429, false, "and neither is a rate limit"],
+  ];
+  for (const [status, definite, label] of cases)
+    ok(isDefiniteFailure(status) === definite, `L3  ${label}`, `isDefiniteFailure(${status})=${isDefiniteFailure(status)}`);
+
+  // Through the run, not just the classifier.
+  const five = await promote({
+    promoteDeployment: async () => { throw Object.assign(new Error("promote 503"), { definite: isDefiniteFailure(503) }); },
+  });
+  ok(!five.r.ok && five.r.code === "PROMOTE_UNCERTAIN" && five.rec.unlocks === 0,
+    "L3  a 503 through the run is UNCERTAIN and keeps the lock");
+}
+
+/* ── L4: success needs the production target too ──────────────────────── */
+async function targetVerificationTests() {
+  console.log("\n  L4  SUCCESS REQUIRES ALL THREE\n");
+
+  // Aliases and HTTP both report the candidate; the TARGET is still the incumbent.
+  const { r, rec } = await promote({ readProductionTarget: async () => ({ read: true, value: OUTGOING }) });
+  ok(!r.ok && r.code === "INCOMPLETE", "L4  aliases and HTTP agreeing is not enough if the target did not move",
+    r.ok ? "OK — the target was never checked" : r.code);
+  const probs = !r.ok && "problems" in r ? r.problems : [];
+  ok(probs.some((x: string) => /production target/.test(x)),
+    "L4  and the problem names the production target", JSON.stringify(probs));
+  ok(rec.promotes.length === 1, "L4  the promotion still happened — this is a verification result");
+
+  const unread = await promote({ readProductionTarget: async () => ({ read: false, why: "project read 500" }) });
+  ok(!unread.r.ok && unread.r.code === "INCOMPLETE",
+    "L4  an unreadable target after promoting does not verify either");
+}
+
+/* ── A7-A8: the candidate's own configuration ─────────────────────────── */
+async function candidateConfigTests() {
+  console.log("\n  A7-A8  CANDIDATE CONFIGURATION, NOT THE PROJECT'S\n");
+
+  const { r, rec } = await promote({
+    readCandidate: async () => ({ read: true, value: { ...RECORD, build: { ...APPROVED, buildCommand: "next build" } } }),
+  });
+  ok(!r.ok && r.code === "CANDIDATE_BUILD_NOT_APPROVED" && rec.promotes.length === 0,
+    "A7  a candidate built differently is refused though preflight passed", r.ok ? "" : r.detail);
+
+  const out = await promote({ readCandidate: async () => ({ read: true, value: { ...RECORD, build: { ...APPROVED, outputDirectory: "public" } } }) });
+  ok(!out.r.ok && out.r.code === "CANDIDATE_BUILD_NOT_APPROVED",
+    "A7  and a different output directory is a different build");
+
+  // A8 — project settings change between A and B; only the candidate check sees it.
+  const drifted = await promote({
+    readProjectSettings: async () => ({ read: true, value: { ...APPROVED } }),
+    readAutoAssignCustomDomains: async () => ({ read: true, value: false }),
+    readCandidate: async () => ({ read: true, value: { ...RECORD, build: { ...APPROVED, installCommand: "npm ci --force" } } }),
+  });
+  ok(!drifted.r.ok && drifted.r.code === "CANDIDATE_BUILD_NOT_APPROVED" && drifted.rec.promotes.length === 0,
+    "A8  a settings change after preflight is caught at the candidate check");
+
+  const unknown = await promote({ readCandidate: async () => ({ read: false, why: "deployment read 500" }) });
+  ok(!unknown.r.ok && unknown.r.code === "CANDIDATE_UNREADABLE",
+    "A8  and an unreadable candidate configuration refuses rather than defaults");
+}
+
+/* ── A9-A10: identity, not liveness ───────────────────────────────────── */
+function verificationTests() {
+  console.log("\n  A9-A10  IDENTITY AND REDIRECTS\n");
+  const exp = { deploymentId: CAND, sha: MAIN };
+  const obs = (o: Partial<HostObservation>): HostObservation[] => [{
+    host: "app.price2book.com",
+    aliasDeploymentId: { read: true, value: CAND },
+    served: { read: true, value: { deploymentId: CAND, commitSha: MAIN, finalHost: "app.price2book.com" } },
+    ...o,
+  }];
+
+  ok(verifyHosts(obs({}), exp, HOSTS, { read: true, value: CAND }).complete, "A9  a host reporting the expected id and sha verifies");
+  ok(!verifyHosts(obs({ served: { read: true, value: { deploymentId: "dpl_stale", commitSha: MAIN, finalHost: "app.price2book.com" } } }), exp, HOSTS, { read: true, value: CAND }).complete,
+    "A9  a host answering with the WRONG deployment id fails, though it responded");
+  ok(!verifyHosts(obs({ served: { read: true, value: { deploymentId: CAND, commitSha: OTHER, finalHost: "app.price2book.com" } } }), exp, HOSTS, { read: true, value: CAND }).complete,
+    "A9  and the wrong sha fails too");
+  ok(!verifyHosts(obs({ aliasDeploymentId: { read: true, value: "dpl_other" } }), exp, HOSTS, { read: true, value: CAND }).complete,
+    "A9  an alias pointing elsewhere fails even when the host serves correctly");
+
+  ok(verifyHosts(obs({ served: { read: true, value: { deploymentId: CAND, commitSha: MAIN, finalHost: "app.price2book.com" } } }), exp, HOSTS, { read: true, value: CAND }).complete,
+    "A10 an approved redirect destination passes");
+  ok(!verifyHosts(obs({ served: { read: true, value: { deploymentId: CAND, commitSha: MAIN, finalHost: "evil.example.com" } } }), exp, HOSTS, { read: true, value: CAND }).complete,
+    "A10 an UNAPPROVED redirect destination fails despite a correct id and a 200");
+}
+
+/* ── R6: alias mapping is not the production target ───────────────────── */
+function aliasMappingTests() {
+  console.log("\n  R6  ALIAS MAPPING IS ITS OWN QUESTION\n");
+  const exp = { deploymentId: CAND, sha: MAIN };
+
+  // The defect: observeHosts assigned the PRODUCTION TARGET id as every host's
+  // alias mapping, so "the alias points where we expect" only restated "the
+  // target moved" — which is the confusion the observation corrected.
+  const unmapped: HostObservation[] = HOSTS.map((h) => ({
+    host: h,
+    aliasDeploymentId: { read: false, why: `no alias record maps ${h} to a deployment` },
+    served: { read: true, value: { deploymentId: CAND, commitSha: MAIN, finalHost: h } },
+  }));
+  const v = verifyHosts(unmapped, exp, HOSTS, { read: true, value: CAND });
+  ok(!v.complete && v.problems.every((p) => /alias mapping unreadable/.test(p)),
+    "R6  hosts serving correctly but with NO alias mapping do not verify",
+    v.problems.join(" | ").slice(0, 100));
+
+  const stale: HostObservation[] = [{
+    host: "price2book.com",
+    aliasDeploymentId: { read: true, value: "dpl_incumbent" },
+    served: { read: true, value: { deploymentId: CAND, commitSha: MAIN, finalHost: "price2book.com" } },
+  }];
+  ok(!verifyHosts(stale, exp, HOSTS, { read: true, value: CAND }).complete,
+    "R6  an alias still mapped to the outgoing deployment fails, even while the host serves the new one");
+}
+
+/* ── A11: uncertain creation ──────────────────────────────────────────── */
+async function uncertainCreateTests() {
+  console.log("\n  A11  UNCERTAIN CREATION\n");
+  let calls = 0;
+  const { io: x, rec } = io({ createDeployment: async () => { calls++; return { id: null }; } });
+  const r = await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, x, CANON);
+  ok(!r.ok && r.code === "CREATE_UNCERTAIN", "A11 a create returning no id yields UNCERTAIN", r.ok ? "" : r.code);
+  ok(calls === 1, `A11 and it is NOT retried (${calls} call)`);
+  ok(rec.promotes.length === 0, "A11 and nothing is promoted");
+  ok(!r.ok && /reconcile by hand/i.test(r.detail), "A11 and the operator is told to reconcile by hand");
+
+  const thrown = io({ createDeployment: async () => { throw new Error("socket hang up"); } });
+  const r2 = await runRelease({ phase: "create", approvedSha: MAIN }, APPROVED, HOSTS, thrown.io, CANON);
+  ok(!r2.ok && r2.code === "CREATE_UNCERTAIN" && /build may be running/i.test(r2.detail),
+    "A11 a dropped connection is uncertain, not failed — a build may be running");
+}
+
+/* ── A12: target moved, routing did not ───────────────────────────────── */
+async function incompleteTests() {
+  console.log("\n  A12  TARGET CHANGED, ROUTING DID NOT\n");
+  const { r, rec } = await promote({
+    operator: () => "op",
+    host: () => "release-host",
+    observeHosts: async (e) => HOSTS.map((h) => ({
+      host: h,
+      aliasDeploymentId: { read: true as const, value: h === "price2book.com" ? OUTGOING : e.deploymentId },
+      served: { read: true as const, value: { deploymentId: e.deploymentId, commitSha: e.sha, finalHost: h } },
+    })),
+  });
+  ok(!r.ok && r.code === "INCOMPLETE", "A12 reported INCOMPLETE, not failed and not success", r.ok ? "" : r.code);
+  ok(rec.intents.length === 1, "A12 the rollback record stands");
+  ok(rec.promotes.length === 1, "A12 the promotion did happen — this is a routing result, not a refusal");
+  ok(!r.ok && r.code === "INCOMPLETE" && /nothing was remediated automatically/i.test(r.detail),
+    "A12 and nothing is remediated automatically", r.ok ? "" : r.detail);
+  ok(rec.unlocks === 0, "A12 and the lock stays held — the release is unresolved");
+  ok(rec.recoveries.length === 1, "A12 and a recovery-required event is journalled");
+}
+
+/* ── phase A is read-only; phase separation ───────────────────────────── */
+async function phaseTests() {
+  console.log("\n  PHASE SEPARATION\n");
+  const { io: x, rec } = io({
+    createDeployment: async () => { throw new Error("phase A must not create"); },
+    promoteDeployment: async () => { throw new Error("phase A must not promote"); },
+    recordIntent: async () => { throw new Error("phase A must not record"); },
+  });
+  const r = await runRelease({ phase: "preflight" }, APPROVED, HOSTS, x, CANON);
+  ok(r.ok && r.phase === "preflight", "phase A completes without touching any write effect", r.ok ? "" : (r as {detail:string}).detail);
+  ok(rec.promotes.length === 0 && rec.intents.length === 0, "and issues zero writes");
+
+  const noCand = await runRelease({ phase: "promote" }, APPROVED, HOSTS, io().io, CANON);
+  ok(!noCand.ok && noCand.code === "NO_APPROVED_CANDIDATE",
+    "phase C without a candidate id from phase B refuses");
+
+  // Preflight refusals — the independent pin, and config files.
+  const mism = await runRelease({ phase: "preflight" }, APPROVED, HOSTS,
+    io({ readProjectLink: async () => ({ read: true, value: 999 }) }).io, CANON);
+  ok(!mism.ok && mism.code === "REPO_MISMATCH",
+    "a project linked to another repository is refused, not adopted");
+  for (const f of ["vercel.json", "vercel.toml", "vercel.ts"]) {
+    const c = await runRelease({ phase: "preflight" }, APPROVED, HOSTS,
+      io({ readCommitTree: async () => ({ read: true, value: { truncated: false, paths: [f] } }) }).io, CANON);
+    ok(!c.ok && c.code === "CONFIG_FILE_PRESENT", `${f} at the built commit is refused`);
+  }
+  const trunc = await runRelease({ phase: "preflight" }, APPROVED, HOSTS,
+    io({ readCommitTree: async () => ({ read: true, value: { truncated: true, paths: [] } }) }).io, CANON);
+  ok(!trunc.ok && trunc.code === "TREE_TRUNCATED", "a truncated tree cannot establish config absence");
+}
+
+async function main() {
+  console.log("\nCONTROLLED RELEASE — ACCEPTANCE TESTS");
+  await lockTests();
+  await concurrentPhaseBTests();
+  await intentTests();
+  await baselineIntegrityTests();
+  await recoveryOutcomeTests();
+  await liveAdapterTests();
+  await aliasCompletenessTests();
+  await responseValidationTests();
+  await lifecycleLockTests();
+  await postMutationRecordTests();
+  await baselineTests();
+  await classificationTests();
+  await targetVerificationTests();
+  await receiptTests();
+  await phaseBTests();
+  await promoteUncertaintyTests();
+  await repoPinTests();
+  await candidateIdentityTests();
+  await candidateConfigTests();
+  verificationTests();
+  aliasMappingTests();
+  await uncertainCreateTests();
+  await incompleteTests();
+  await phaseTests();
+  console.log(`\n  ${pass} passed, ${fail} failed.`);
+  console.log(`
+  HISTORICAL NOTE — the six live proofs ran on 4-5 September 2026 against a
+  disposable project, and all six passed. That project and its repository have
+  since been deleted, so they cannot be re-run as they were. Their results and
+  limits are recorded in docs/evidence/live-proofs/. They were:
+    1 a SUCCESSFUL git-triggered build      2 the config-file override case
+    3 immutability on a successful build    4 the guard runs on an API-created deployment
+    5 creation without projectSettings      6 whether promotion moves the primary alias
+  Nothing in THIS suite substitutes for them, and nothing here re-establishes
+  them. Note that the provenance guard has since been changed (finding 4), so
+  proofs 4 and 6 describe the PRIOR guard artifact, not the current one.
+`);
+  process.exit(fail === 0 ? 0 : 1);
+}
+
+main();

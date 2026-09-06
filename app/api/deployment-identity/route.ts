@@ -67,7 +67,10 @@ export async function GET(req: Request) {
     },
     database: {
       host: dbHost,
-      identity,
+      // WRITTEN OUT, NOT SHORTHAND. The release verifier refuses any property
+      // form it cannot evaluate, and `identity,` hides which value it carries:
+      // a secret aliased to an allow-listed name would read identically.
+      identity: identity,
       expectedIdentity: process.env.EXPECTED_DATABASE_IDENTITY ?? null,
       matches: identity && process.env.EXPECTED_DATABASE_IDENTITY
         ? identity.key === process.env.EXPECTED_DATABASE_IDENTITY

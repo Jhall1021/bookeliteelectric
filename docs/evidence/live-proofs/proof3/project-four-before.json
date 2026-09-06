@@ -1,0 +1,9 @@
+{
+  "four": {
+    "rootDirectory": null,
+    "installCommand": null,
+    "outputDirectory": "public",
+    "framework": null
+  },
+  "productionTarget": "dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf"
+}

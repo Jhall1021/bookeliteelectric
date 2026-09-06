@@ -1,0 +1,84 @@
+PROOF 6 — STOPPED AT THE BASELINE GATE. NO PROMOTION WAS ISSUED.
+
+  The gate did exactly what it was written to do: the baseline requires every
+  host's served identity to be readable, two were not, and the run stopped
+  before the first write. Nothing was promoted, nothing restored, nothing
+  changed.
+
+  offline harness   11 of 11 acceptance cases passed, and the critical rule was
+                    checked by breaking it: weakened to resolve ambiguity on the
+                    target alone, case 5 printed "all three classes match the
+                    baseline: nothing happened" directly beneath its own
+                    "aliases same: False". Restored, 11 pass.
+
+  candidate         revalidated in full by exact id — project, READY, production
+                    target, sha 24a5583…, rootDirectory ABSENT as proof 3
+                    preserved, outputDirectory public, the provenance build
+                    command, and PROVENANCE OK at a lower log index than
+                    P2B-APP-BUILD-RAN with no refusal.
+
+  production target dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf, READY — as required.
+  alias mappings    all three readable.
+
+  *** WHY IT STOPPED ***
+
+    p2b-release-proofs.vercel.app                       HTTP 200
+      {"marker":"P2B-APP-BUILD-RAN",
+       "commitSha":"afa291520b5b8173c3d933d732f2bd67dbd7d0ac",
+       "deploymentId":"dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf"}
+
+    p2b-release-proofs-price2-book.vercel.app           HTTP 302
+    p2b-release-proofs-git-main-price2-book.vercel.app  HTTP 302
+      location: https://vercel.com/sso-api?url=…&nonce=…
+      set-cookie: _vercel_sso_nonce=…
+
+    Both redirect to Vercel's SSO endpoint: DEPLOYMENT PROTECTION. Not a
+    transient failure, not a missing file.
+
+  THE PATTERN, AND WHY IT MATTERS TO THIS PROOF
+
+    The host serving the CURRENT PRODUCTION TARGET answers publicly. The two
+    hosts pointing at a deployment that is NOT the current production target are
+    behind SSO.
+
+    So the baseline precondition "every host's served identity is readable"
+    cannot be met while routing is split — and it would likely INVERT after a
+    promotion, with the candidate's hosts becoming public and the outgoing one's
+    becoming protected. Promoting would not have produced a comparable
+    observation on both sides; it would have swapped which hosts could be read.
+
+    That is a finding about the EXPERIMENT's design, not about the release.
+
+  A CAUTION OF MINE, RESOLVED
+
+    I recorded that build-info.json's deploymentId comes from
+    VERCEL_DEPLOYMENT_ID, which had never appeared in a build log, and might be
+    null. It is NOT null: the readable host exposes a real deployment id that
+    matches the alias record. Served evidence can carry both fields where a host
+    is readable. The caution was right to hold; the answer is now observed.
+
+  WHAT THIS DOES NOT MEAN FOR THE CANONICAL HOSTS
+
+    Deployment protection here is a setting on the disposable project. The
+    canonical hosts are custom domains on production traffic and are not behind
+    SSO. Nothing about this blockage transfers to them, and nothing here is
+    evidence about price2book.com, www.price2book.com or app.price2book.com.
+
+  OPTIONS, NONE OF THEM TAKEN — each needs authorization
+
+    A. Classify an SSO redirect as its own class — PROTECTED — distinct from
+       UNREADABLE, and record protection state as part of routing rather than as
+       a failure to observe. It needs no setting change, and it is more
+       informative: which hosts are protected is itself a routing fact that
+       moved with the target. It does change the agreed procedure.
+
+    B. Disable Deployment Protection on the disposable project. A
+       PROJECT-SETTING CHANGE, which is not authorized, and which would also
+       destroy the observation in option A.
+
+    C. Narrow the served-identity requirement to hosts that are readable,
+       recording protection separately. Weakest: it makes the precondition
+       satisfiable by not asking the question.
+
+    Recommended: A. It answers more than the original design would have, and it
+    requires no write beyond the two already authorized.

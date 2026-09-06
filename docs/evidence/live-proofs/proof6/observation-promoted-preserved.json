@@ -1,0 +1,27 @@
+{
+  "aliases": {
+    "p2b-release-proofs-git-main-price2-book.vercel.app": "dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS",
+    "p2b-release-proofs-price2-book.vercel.app": "dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS",
+    "p2b-release-proofs.vercel.app": "dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS"
+  },
+  "served": {
+    "p2b-release-proofs-git-main-price2-book.vercel.app": {
+      "access": "protected",
+      "locationNormalized": "https://vercel.com/sso-api?url=https%3A%2F%2Fp2b-release-proofs-git-main-price2-book.vercel.app%2Fbuild-info.json",
+      "status": "302"
+    },
+    "p2b-release-proofs-price2-book.vercel.app": {
+      "access": "protected",
+      "locationNormalized": "https://vercel.com/sso-api?url=https%3A%2F%2Fp2b-release-proofs-price2-book.vercel.app%2Fbuild-info.json",
+      "status": "302"
+    },
+    "p2b-release-proofs.vercel.app": {
+      "access": "readable",
+      "commitSha": "24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d",
+      "deploymentId": "dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS",
+      "status": "200"
+    }
+  },
+  "target": "dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS",
+  "targetState": "READY"
+}

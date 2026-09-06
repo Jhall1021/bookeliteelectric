@@ -1,0 +1,247 @@
+DISPOSABLE RESOURCES — identified before testing
+
+GitHub
+  repository        Price2Book/p2b-release-proofs
+  numeric id        1357368650            (what gitSource identifies it by)
+  private           yes
+  default branch    main
+  main commit       afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+  uploaded          2026-09-04T17:38:00Z, "Add files via upload", verified
+
+  tree at that commit
+    README.md                     81536c79506416ce8a20929d03f4458d3ad0a965
+    package.json                  48942662bdff6ecbd0359bbb3cb5d64730a5167f
+    scripts/provenance-guard.sh   9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+    src/build.mjs                 b51eac62df8d65009004e07d94ab3d9242cd7c9a
+
+  .gitignore did not upload — the browser skipped the dotfile in drag-and-drop.
+  It only kept public/ and node_modules out of future commits, neither of which
+  anything here commits. Recorded rather than silently ignored.
+
+Vercel
+  project name      p2b-release-proofs
+  project id        prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  team / scope      NOT YET ESTABLISHED — to be read, never assumed. The
+                    canonical team_dAw8VA0u1R3VuwiPMP97otvK is not used here.
+  auto-assign custom production domains: DISABLED
+                    Matches the boundary (no production domains) and is a
+                    precondition for proof 6, which must observe alias movement
+                    on disposable *.vercel.app hosts only.
+
+  initial deployment: reported Ready, built before the provenance build command
+  or its environment inputs existed. IT IS NOT PROOF 1 AND MUST NOT BE REPORTED
+  AS ONE — it is a build of the fixture under DEFAULT project settings, so it
+  establishes that the repository builds, and nothing about the configuration
+  under test. Whether proof 1 re-uses it or takes a fresh push after
+  configuration is a decision to make deliberately, with the difference stated.
+
+Guard artifact under test
+  reviewed blob     2e6e4b289b57a49579cef88ee1f7bfffc5786bf8
+  test blob         9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  substitutions     OWNER=Price2Book REPO=p2b-release-proofs REF=main
+  confirmed in the private repository by fetching the content and hashing it
+  locally: 5205 bytes, identical.
+
+INCIDENT — the GitHub token was entered into the Vercel slot
+
+  ~/.p2b-live-proofs/vercel-token held the GitHub fine-grained PAT: both files
+  hashed to the same fingerprint. Before the mistake was identified, EIGHT read
+  requests carried that token to api.vercel.com in an Authorization header:
+
+    4 from verify-vercel.sh   /v2/user, /v2/teams, /v9/projects/<id>, and a
+                              project read; all refused
+    4 from a diagnostic       /v9/projects/<id>, /v9/projects, /v2/user,
+                              /v6/deployments; all refused
+
+  Every one answered 403 "Not authorized" and no Vercel data was returned. The
+  requests were reads; nothing was created or changed anywhere.
+
+  WHY IT WAS NOT OBVIOUS. A uniformly 403 API reads exactly like a scoping
+  problem, which is what I first went looking for — the project is expected to
+  live under a team, and a team-scoped token failing on /v2/user is ordinary.
+  The shape of the value settled it in one check, and that check was available
+  before the first request.
+
+  DISPOSITION. The GitHub token was disclosed to a service it was not issued
+  for. It is read-only, scoped to this one disposable private repository, and
+  short-lived, so the exposure is small — but a credential sent somewhere it was
+  not scoped for is rotated, not reasoned about. Revoke and reissue; the fixture
+  is already uploaded, so the replacement needs the same Contents:Read scope and
+  nothing more.
+
+  PREVENTION. credential-shape.sh now refuses a value that is definitely the
+  other kind, in the helper before it is written and in every API script before
+  its first request. Values that are merely unfamiliar warn and proceed, so a
+  changed token format does not block the work. Covered by two new tests, and
+  the suite stands at 20.
+
+VERCEL READ-ONLY INSPECTION — 2026-09-04T18:21Z
+
+  project           p2b-release-proofs / prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  accountId         team_dAw8VA0u1R3VuwiPMP97otvK
+  nodeVersion       24.x
+  autoAssignCustomDomains  false
+  git link          github Price2Book/p2b-release-proofs, repoId 1357368650,
+                    productionBranch main
+
+  the five fields compareBuild compares
+    rootDirectory    null
+    installCommand   null
+    buildCommand     the provenance one-liner, fetching
+                     Price2Book/p2b-release-proofs contents/scripts/
+                     provenance-guard.sh?ref=main
+    outputDirectory  "public"
+    framework        null
+
+  environment (names only, values never requested)
+    P2B_GH_READ_TOKEN   production   sensitive
+    P2B_GH_HDR          production   sensitive
+
+  aliases — three disposable *.vercel.app hosts, no custom domain
+    p2b-release-proofs-price2-book.vercel.app
+    p2b-release-proofs.vercel.app
+    p2b-release-proofs-git-main-price2-book.vercel.app
+    all -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf, pagination next: null
+
+*** THE DISPOSABLE PROJECT IS IN THE CANONICAL VERCEL TEAM ***
+
+  accountId team_dAw8VA0u1R3VuwiPMP97otvK IS CANONICAL.vercelTeamId — the same
+  team that holds production prj_zB0QVq80340s2dVt7X3c1ewKgHtT. Vercel does not
+  issue per-project tokens, so this credential's reach is the whole team, and
+  the only thing keeping these proofs off production is the project id written
+  into each URL.
+
+  That is a procedural boundary, not a technical one. A mistyped or
+  copy-pasted project id would reach the real thing with a live token.
+
+  canonical-guard.sh now refuses any URL naming prj_zB0QVq80340s2dVt7X3c1ewKgHtT
+  or a price2book.com hostname, before the request is made. It is a backstop, not
+  a substitute for deciding whether these proofs should share a team with
+  production at all.
+
+CORRECTION — the initial deployment was NOT built under default settings
+
+  I recorded earlier that the initial Ready deployment "was built before the
+  provenance build command or its environment inputs existed" and "must not be
+  reported as proof 1". THAT WAS WRONG, and the build log settles it:
+
+    Cloning github.com/Price2Book/p2b-release-proofs (Branch: main, Commit: afa2915)
+    Installing dependencies...
+    up to date in 481ms
+    PROVENANCE OK afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+    > node src/build.mjs
+    P2B-APP-BUILD-RAN at 2026-09-04T18:00:51.212Z
+      VERCEL_ENV=production
+      VERCEL_GIT_PROVIDER=github
+      VERCEL_GIT_REPO_OWNER=Price2Book
+      VERCEL_GIT_REPO_SLUG=p2b-release-proofs
+      VERCEL_GIT_COMMIT_REF=main
+      VERCEL_GIT_COMMIT_SHA=afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+    Build Completed in /vercel/output [1s]
+
+  The build command and both environment inputs were already configured. The
+  guard RAN and PASSED — `PROVENANCE OK` with the sha, followed by the
+  application build marker, in that order, which is the ordering the guard's
+  `&&` chain promises. dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf reached READY on target
+  production from a genuine git push.
+
+  I inferred the configuration from a timestamp instead of reading the log, and
+  wrote the inference into the evidence file as fact. The log was available.
+
+GITHUB TOKEN NOT ROTATED
+
+  ~/.p2b-live-proofs/github-token still hashes to ed108c10 — the same value that
+  was sent to api.vercel.com. The Vercel slot now holds a different value
+  (babd0443), so the mix-up is resolved, but the disclosed GitHub token is still
+  in use and still valid.
+
+OPERATOR DECISION — the disclosed GitHub token is NOT rotated (2026-09-04)
+
+  Joshua accepted the residual risk and chose not to rotate, for these stated
+  reasons:
+
+    - he is the only operator
+    - the product is not released
+    - the token is read-only
+    - it is restricted to the disposable p2b-release-proofs repository
+    - it expires in seven days
+
+  This is an ACCEPTED RISK, not a resolved finding. The token that was sent to
+  api.vercel.com in eight refused requests remains in use, and its fingerprint
+  is unchanged at ed108c10. Nothing about the disclosure is undone by the
+  decision; what changed is that the exposure was weighed and accepted by the
+  person entitled to weigh it.
+
+  Recorded so that a later reader does not mistake "no rotation happened" for
+  "no disclosure happened".
+
+PROJECT-SCOPE ISOLATION CHECK — 2026-09-04T18:34Z   PASSED
+
+  Token: vcp_ project-scoped, fingerprint babd0443. No teamId or slug sent.
+
+    disposable project by id      HTTP 200   reachable
+    canonical project by id       HTTP 404   denied
+    canonical project by name     HTTP 404   denied
+    /v2/user                      HTTP 404   denied
+    /v2/teams                     HTTP 403   denied
+
+  Vercel answers out-of-scope resources with 404 rather than 403 — it declines
+  to acknowledge they exist. That is a stronger signal than 403, not a weaker
+  one, and the classification now records it as denial. A status that is neither
+  a recognised denial nor 200 leaves isolation unestablished instead of passing.
+
+CORRECTION — the blast-radius claim was an inference, not an observation
+
+  I reported that "the credential's reach is the whole team" and that "only the
+  project id in each URL keeps these proofs off production", and recommended
+  considering a separate team or re-import.
+
+  THAT WAS INFERRED FROM accountId, WHICH ONLY SAYS WHO OWNS THE PROJECT. It
+  says nothing about what a token may reach. The same token was already in place
+  when I wrote it, and the evidence was one request away: production is denied
+  by id and by name.
+
+  The project sharing a team with production remains TRUE and worth knowing. The
+  consequence I drew from it was wrong, and the recommendation that followed
+  would have cost a re-import for nothing.
+
+  canonical-guard.sh is kept regardless. Isolation is now demonstrated for THIS
+  token; the guard is what holds if a broader credential is ever used by
+  mistake, and it costs nothing.
+
+CORRECTION — dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf IS IMPORT-CREATED, NOT PUSH-TRIGGERED
+
+  The deployment record settles it:
+
+    source        'import'
+    meta.importSource  'import-suggestions'
+    creator       admin-20298236 (the operator, not a git integration)
+
+  Correct classification: a SUCCESSFUL, IMPORT-CREATED, GIT-SOURCED PRODUCTION
+  DEPLOYMENT. What its logs establish stands — the identified guard ran, printed
+  PROVENANCE OK afa2915…, the application build followed, and it reached READY
+  on target production. What they do not establish is the TRIGGER.
+
+  Proof 1 is therefore PARTIALLY satisfied: guard execution, application build
+  and READY state are evidenced; the git-push trigger is not. No later push
+  exists in the record — gitSource.sha is still afa2915…, the same commit the
+  import built.
+
+  I READ importSource IN THE DEPLOYMENT LIST AND DID NOT WEIGH IT. It was in the
+  meta I printed, one field from the end of the line I quoted. I had already
+  decided the build log answered the question and stopped reading for evidence
+  that it did not.
+
+  AND A FINDING WORTH MORE THAN THE CORRECTION. This import-created deployment
+  carries the COMPLETE githubCommit* set — sha, ref, org, repo, repoId, author
+  name, author login, author email, commit message, githubCommitVerification
+  'verified', githubRepoVisibility 'private' — plus githubDeployment '1'. Every
+  one of those fields is present on a deployment nobody pushed.
+
+  So the github* metadata does not establish a push trigger, and a reader who
+  treats githubDeployment='1' or a verified commit as proof of one is reading
+  attestation as causation. Here `source` is the discriminator: 'import' rather
+  than 'git'. In the origin-trust investigation `source` was accepted from the
+  request body, so it is not trustworthy against a hostile caller either — it
+  happens to be accurate in this legitimate case. Nothing in this record is
+  evidence a determined caller could not produce.

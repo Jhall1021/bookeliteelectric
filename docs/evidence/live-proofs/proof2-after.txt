@@ -1,0 +1,168 @@
+STATE SNAPSHOT — AFTER proof 2
+  captured 2026-09-04T22:31:35Z
+
+GITHUB Price2Book/p2b-release-proofs
+  main sha        24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+  message         Proof 1: post-link commit
+  committed       2026-09-04T19:01:31Z
+  verification    valid
+  parents         ['afa291520b5b8173c3d933d732f2bd67dbd7d0ac']
+  guard blob      9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  guard pinned    yes, matches 9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+
+VERCEL prj_al7JBBjhyxPMBGRzS9v94YEUkj4Q
+  effective build configuration
+    rootDirectory    None
+    installCommand   None
+    buildCommand     g=$(printf 'url="%s"\n%s' "https://api.github.com/repos/Price2Book/p2b-release-proofs/contents/scripts/provenance-guard.sh?ref=main" "$P2B_GH_HDR"|curl -fsSK- --max-time 30)&&[ -n "$g" ]&&echo "$g"|sh&&npm run build
+    outputDirectory  'public'
+    framework        None
+
+  production target
+    deployment id   dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    readyState      READY
+
+  deployments (most recent first)
+    dpl_D4zqe5wVSEJjPMscXCJHs7E7camz
+      state READY     target None        2026-09-04T22:29:23.491000Z
+      source git      importSource None
+      commit 8dc925771993e977d4d680918bd6ab80184c5fd5
+    dpl_GUWnLPTehqNmiBNQP6JvoNdEp1xj
+      state ERROR     target production  2026-09-04T20:31:18.714000Z
+      source None     importSource None
+      commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+    dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+      state READY     target production  2026-09-04T19:22:35.692000Z
+      source None     importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_2zZVozq8asr1ZuGuXMTiFU3a3vWC
+      state ERROR     target staging     2026-09-04T19:10:55.305000Z
+      source None     importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_DNdgxhTUa7zGBUTFFbEEPvNSFVSx
+      state READY     target production  2026-09-04T19:01:34.532000Z
+      source git      importSource None
+      commit 24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d
+    dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+      state READY     target production  2026-09-04T18:00:46.964000Z
+      source import   importSource 'import-suggestions'
+      commit afa291520b5b8173c3d933d732f2bd67dbd7d0ac
+
+  aliases
+    p2b-release-proofs-git-main-price2-book.vercel.app   -> dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+    p2b-release-proofs-git-with-override-price2-book.vercel.app -> dpl_D4zqe5wVSEJjPMscXCJHs7E7camz
+    p2b-release-proofs-price2-book.vercel.app            -> dpl_8XKMGsEvw33CtJbAWqL1a2Df3LwS
+    p2b-release-proofs.vercel.app                        -> dpl_8uZbmqqKMdEZy4T26Tsw5be7Pxpf
+    pagination next: None
+
+PROOF 2 — PASSED. A REPOSITORY FILE OVERRIDES THE DASHBOARD BUILD COMMAND.
+
+  branch        with-override
+  commit        8dc925771993e977d4d680918bd6ab80184c5fd5
+  parent        24a55837d2e54f7bfee12b72d7eb0c2bc7a10d2d (main, unchanged)
+  change        vercel.json ADDED; package.json, src/build.mjs and
+                scripts/provenance-guard.sh byte-identical to main; the guard
+                blob on the branch is still 9d9139d2913aa2deb22db5bb86b56a96bc5f9f1a
+  no incidental branch-creation deployment occurred — exactly one new
+  deployment exists, and it carries the override commit's sha
+
+  vercel.json as committed
+    { "buildCommand": "echo P2B-PROOF2-OVERRIDE-RAN && npm run build" }
+
+  deployment    dpl_D4zqe5wVSEJjPMscXCJHs7E7camz
+  target        preview   (the record reports target null; VERCEL_ENV=preview)
+  readyState    READY
+  gitSource     ref with-override, sha 8dc9257…
+
+  *** THE EFFECTIVE BUILD COMMAND ON THE DEPLOYMENT RECORD ***
+
+    'echo P2B-PROOF2-OVERRIDE-RAN && npm run build'
+
+    NOT the dashboard command. The project's own buildCommand is unchanged and
+    still the provenance one-liner — verified in the after-snapshot — so the
+    file did not modify the project; it SUPERSEDED it for this build.
+
+  ORDERED BUILD OUTPUT
+    [ 2] Cloning … (Branch: with-override, Commit: 8dc9257)
+    [ 9] P2B-PROOF2-OVERRIDE-RAN
+    [10] > p2b-release-proofs@0.0.0 build
+    [11] > node src/build.mjs
+    [12] P2B-APP-BUILD-RAN at 2026-09-04T22:29:27.389Z
+    [13]   VERCEL_ENV=preview
+    [20] Build Completed in /vercel/output [1s]
+
+    override marker at 9, application build at 12 — strictly after.
+    NO "PROVENANCE OK". NO "PROVENANCE REFUSED". NO guard download at all.
+
+  WHAT THIS PROVES
+
+    The marker exists in vercel.json by design and nowhere else — not in the
+    dashboard command, the guard, the application build, or the rest of the
+    repository. Its appearance in the log demonstrates that the vercel.json
+    command executed.
+
+    And the guard's ABSENCE is the other half. The build did not merely run a
+    different command: it ran to READY with the provenance guard never fetched
+    and never executed, while the project's dashboard command still contained
+    it. A commit that adds one file therefore produces a successful build with
+    no provenance check at all.
+
+    THE GUARD IS BYPASSABLE BY A REPOSITORY FILE. The dashboard Build Command
+    is not a floor.
+
+  NOTHING ELSE MOVED
+    production target   dpl_8uZb… unchanged
+    three pre-existing aliases unchanged
+    one ADDED preview alias, as expected:
+      p2b-release-proofs-git-with-override-price2-book.vercel.app
+        -> dpl_D4zqe5wVSEJjPMscXCJHs7E7camz
+    an addition is not a movement.
+
+  SCOPE — WHAT WAS AND WAS NOT OBSERVED
+
+    Observed on a PREVIEW deployment. The concern is a production deployment
+    carrying the file. Nothing in the mechanism looks target-dependent — the
+    effective command is recorded on the deployment the same way for both — but
+    this is a preview observation and the step to production is an inference,
+    not a measurement.
+
+    The preview target is also what made the test decisive without a production
+    credential: the guard's inputs are Production-only, so had the dashboard
+    command run instead, it would have failed at the download exactly as proof
+    5's staging build did. Marker-and-READY versus 404-and-ERROR are outcomes
+    that cannot be confused.
+
+  WHY THE RELEASE ALREADY REFUSES THIS
+
+    preflightDecision, phase A, before anything is created:
+
+      const present = CONFIG_FILENAMES.filter((n) => tree.paths.includes(n));
+      if (present.length > 0)
+        return { ok: false, code: "CONFIG_FILE_PRESENT", … };
+
+    CONFIG_FILENAMES = ["vercel.json", "vercel.toml", "vercel.ts"].
+
+    That refusal is now demonstrated to be LOAD-BEARING, not cautious. It is the
+    only thing between a commit carrying one of those files and a production
+    build with no provenance check. Its neighbour matters as much: TREE_TRUNCATED
+    refuses when the tree listing cannot establish absence, so "we could not see
+    a config file" is never read as "there is no config file".
+
+RECORDED CONCLUSION
+
+  Vercel's REPOSITORY CONFIGURATION CAN OVERRIDE THE DASHBOARD BUILD COMMAND,
+  and with it the provenance guard that lives there. Observed: a commit adding
+  only vercel.json produced a READY build whose effective command was the file's,
+  with the guard never fetched and never executed, while the project's own
+  buildCommand remained the provenance one-liner.
+
+  CONFIG_FILE_PRESENT AND TREE_TRUNCATED ARE THEREFORE LOAD-BEARING RELEASE
+  REFUSALS, not defence-in-depth. CONFIG_FILE_PRESENT is what keeps a commit
+  carrying vercel.json / vercel.toml / vercel.ts out of Phase B; TREE_TRUNCATED
+  is what keeps an unreadable tree from being treated as a tree with no config
+  file. Weakening either restores the bypass.
+
+  LIMITATION, NOT TO BE GENERALIZED: this was observed on a PREVIEW deployment.
+  It is not established for a production-target deployment. The effective
+  command is recorded on the deployment record the same way for both, which is
+  suggestive, but suggestive is not observed and the claim stops at preview.

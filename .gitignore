@@ -12,3 +12,6 @@ license.pdf
 next-env.d.ts
 tsconfig.tsbuildinfo
 .claude/
+
+# The build command fetches the provenance guard here before executing it.
+.p2bg

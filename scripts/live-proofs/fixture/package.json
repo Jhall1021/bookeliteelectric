@@ -1,0 +1,9 @@
+{
+  "name": "p2b-release-proofs",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Synthetic fixture for the six live release proofs. Disposable.",
+  "scripts": {
+    "build": "node src/build.mjs"
+  }
+}
