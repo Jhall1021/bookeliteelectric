@@ -111,7 +111,17 @@ export default function Hero() {
               should be inferred. A still of the same product says it at a
               glance: a real storefront, a real question, a real approved
               price. The moving version is one click away. */}
-          <div className="min-w-0 lg:mx-auto lg:w-[560px]">
+          {/* FLUID WITH A CEILING, not a fixed width. `lg:w-[560px]` was
+              safe only while the two-column layout began at `xl`: 1280 minus
+              176px of padding leaves 552px per column, so 560 just fit. Moving
+              the nav breakpoint to `lg` to make the site reachable on tablets
+              started the same two-column layout at 1024, where the column is
+              about 404px — and a 560px panel inside it pushed the whole page
+              sideways, +102px at 1024, easing to +14px at 1200 and clear by
+              1240. The homepage scrolled horizontally on exactly the devices
+              the nav fix was for. max-w keeps the intended size everywhere it
+              fits and lets the panel shrink where it does not. */}
+          <div className="min-w-0 lg:mx-auto lg:w-full lg:max-w-[560px]">
             <div className="mb-2.5 flex items-center gap-2">
               <span className="h-1 w-1 shrink-0 rounded-full bg-p2b-faint" aria-hidden="true" />
               <span className="text-[12px] leading-[1.4] text-p2b-muted-soft lg:text-[13px]">
@@ -212,7 +222,7 @@ export default function Hero() {
             </div>
           </div>
 
-          <div className="mt-5 flex flex-col gap-2.5 lg:mx-auto lg:w-[500px]">
+          <div className="mt-5 flex w-full flex-col gap-2.5 lg:mx-auto lg:max-w-[500px]">
             <div className="flex items-center gap-2.5">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1B4B8F" strokeWidth="2"
                    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
