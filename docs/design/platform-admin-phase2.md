@@ -107,6 +107,17 @@ only that way", and the new verifier holds that there is exactly one such file.
   assignment, or loop head — and no platform file reaches for `eval` or
   `Function`.
 
+- **Audit strength (round ten):** which bindings are privileged clients is
+  derived from the source, never spelled. The unguarded class is the `prisma`
+  import plus the first parameter of each `…For` entry point; the directory
+  class is `listContractors`' first parameter plus the client each genuine,
+  imported `withPlatformFor` door hands its inline callback. A door whose
+  callback is not written in place, or whose client is destructured or
+  unnamed, is refused as unauditable; a name in both classes is refused as
+  ambiguous. Renaming any of these parameters changes nothing: the real read
+  model with every directory binding renamed is still clean, and the same
+  file with the parameter renamed and pointed at a tenant model is refused.
+
 ## Not in Phase 2
 
 Support entry and `SupportAccessEvent`; any mutation, including "resend" or

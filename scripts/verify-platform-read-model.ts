@@ -30,7 +30,7 @@ import {
   listContractors, contractorFactsFor, platformOverviewFor, attentionFor, STUCK_AFTER_DAYS, type ContractorFacts,
 } from "../lib/platformReadModel";
 import { withPlatformFor } from "../lib/platformContext";
-import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, prismaRelations, relationTraversals, callsResolved, assignmentsTo, type Policy } from "./_platformSurfaceAudit";
+import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, prismaRelations, relationTraversals, callsResolved, assignmentsTo, parameterOf, callbackParams, type Policy } from "./_platformSurfaceAudit";
 import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
 
 /**
@@ -227,6 +227,28 @@ async function main() {
   const prismaUses = usesOf(rmSrc, "prisma", "lib/platformReadModel.ts");
   const prismaStray = prismaUses.filter((u) => !(u.kind === "arg-of" && CLIENT_SINKS.has(u.callee) && u.index === 0));
   ok(`   every use of the unguarded client is an argument to a platform door (${prismaUses.length} uses, aliases followed)`, prismaUses.length > 0 && prismaStray.length === 0, prismaStray.map((u) => `${u.kind}:${u.text}@${u.line}`).join("; "));
+  // WHICH bindings are privileged clients is derived from the source, never
+  // spelled: the unguarded class is `prisma` plus the first parameter of each
+  // `…For` entry point; the directory class is listContractors' first
+  // parameter plus the client each genuine withPlatformFor door hands its
+  // inline callback. A door whose callback is not written in place, or whose
+  // client is destructured or unnamed, cannot be audited and is refused; a
+  // name that falls in both classes is ambiguous and refused.
+  const privilegedRoots = (src: string, file = "mutant.ts") => {
+    const unguarded = new Set(["prisma", parameterOf(src, "platformOverviewFor", 0, file), parameterOf(src, "contractorFactsFor", 0, file)]);
+    const doors = callbackParams(src, "withPlatformFor", 2, 0, file);
+    const directory = new Set([parameterOf(src, "listContractors", 0, file), ...doors.map((d) => d.name)]);
+    const problems = [...[...unguarded, ...directory].filter((n) => n.startsWith("<")).map((n) => `unauditable binding ${n}`), ...doors.filter((d) => d.resolution !== "import").map((d) => `withPlatformFor@${d.line} is not the imported door`), ...[...directory].filter((n) => unguarded.has(n)).map((n) => `\`${n}\` is both unguarded and directory`)];
+    return { unguarded: [...unguarded], directory: [...directory], problems };
+  };
+  const roots = privilegedRoots(rmSrc, "lib/platformReadModel.ts");
+  ok(`   the privileged client bindings are derived from the source (unguarded: ${roots.unguarded.join(", ")}; directory: ${roots.directory.join(", ")})`, roots.problems.length === 0 && roots.directory.length > 0 && roots.unguarded.length > 1, roots.problems.join("; "));
+  // The unguarded parameters are held to the same rule as `prisma`: handed to
+  // a door or to the facts reader as argument zero, never dereferenced.
+  const UNGUARDED_SINKS = new Set([...CLIENT_SINKS, "readFacts"]);
+  const unguardedStrays = (src: string, file = "mutant.ts", r = privilegedRoots(src, file)) => r.unguarded.filter((n) => n !== "prisma").flatMap((root) => usesOf(src, root, file).filter((u) => !(u.kind === "arg-of" && UNGUARDED_SINKS.has(u.callee) && u.index === 0)).map((u) => `${root}:${u.kind}:${u.text.slice(0, 40)}@${u.line}`));
+  const ungStray = unguardedStrays(rmSrc, "lib/platformReadModel.ts", roots);
+  ok(`   every use of an unguarded entry-point parameter is argument zero to a door or the facts reader`, ungStray.length === 0, ungStray.join("; "));
   // The directory clients (`platformDb`, and `db` where it is the unguarded
   // parameter) may reach platform models only — through any alias or destructure.
   // The directory clients are constrained POSITIVELY: a use is either a member
@@ -240,10 +262,10 @@ async function main() {
   const DIRECTORY_MODELS = new Set(["contractor", "contractorMembership"]);
   const DIRECTORY_READS = new Set(["findMany", "findFirst", "findUnique", "findFirstOrThrow", "findUniqueOrThrow", "count", "aggregate", "groupBy"]);
   const DIRECTORY_SINKS = new Set(["listContractors", "readFacts", ...CLIENT_SINKS]);
-  const directoryStrays = (src: string, file = "mutant.ts") => ["platformDb", "db"].flatMap((root) => usesOf(src, root, file)
+  const directoryStrays = (src: string, file = "mutant.ts", r = privilegedRoots(src, file)) => r.directory.filter((n) => !n.startsWith("<")).flatMap((root) => usesOf(src, root, file)
     .filter((u) => !((u.kind === "member" && DIRECTORY_MODELS.has(u.member) && u.called !== null && DIRECTORY_READS.has(u.called)) || (u.kind === "arg-of" && DIRECTORY_SINKS.has(u.callee) && u.index === 0)))
     .map((u) => `${root}:${u.kind}:${"member" in u ? u.member : ""}${u.kind === "member" ? `(${u.called ?? "not called"})` : ""}${u.text.slice(0, 40)}@${u.line}`));
-  const dirStray = directoryStrays(rmSrc, "lib/platformReadModel.ts");
+  const dirStray = directoryStrays(rmSrc, "lib/platformReadModel.ts", roots);
   ok(`   every use of a directory client is an approved platform-model read CALLED in place, or an argument to an approved sink — no alias, cast, extracted delegate or escape`, dirStray.length === 0, dirStray.join("; "));
   // A directory read may name a platform model and still reach tenant rows
   // through a relation — include: { services: true }, a _count, a `where`
@@ -252,7 +274,7 @@ async function main() {
   const relations = prismaRelations(readFileSync("prisma/schema.prisma", "utf8"));
   const tenantTargets = new Set([...TENANT_SCOPED_MODELS, ...DERIVED_TENANT_MODELS.keys()]);
   const badTraversal = (src: string, root: string) => relationTraversals(src, root, relations).filter((tr) => tenantTargets.has(tr.target) || tr.target === "<unknown>");
-  const traversals = ["platformDb", "db"].flatMap((r) => badTraversal(rmSrc, r).map((tr) => `${tr.path} -> ${tr.target}@${tr.line}`));
+  const traversals = roots.directory.flatMap((r) => badTraversal(rmSrc, r).map((tr) => `${tr.path} -> ${tr.target}@${tr.line}`));
   ok(`   no directory query reaches a tenant-owned relation at any depth (include / select / _count / where)`, traversals.length === 0, traversals.join("; "));
   ok(`   and the schema parser sees the relation that would leak`, relations.Contractor?.services === "Service" && relations.Contractor?.sites === "ContractorSite" && relations.ContractorMembership?.user === "User");
   // An approved sink name must be the GENUINE function: an import from
@@ -405,13 +427,23 @@ async function main() {
   ok(`   mutant: a computed model or method on the directory client is unknowable`, badTraversal("async function f(platformDb: PrismaClient, m: string) { await platformDb[m as never].findMany({}); }", "platformDb").some((tr) => tr.target === "<unknown>") && badTraversal("async function f(platformDb: PrismaClient, k: string) { await platformDb.contractor[k as never]({}); }", "platformDb").some((tr) => tr.target === "<unknown>"));
   ok(`   mutant: a cast between the hops hides nothing`, badTraversal("async function f(platformDb: PrismaClient) { await ((platformDb as any).contractor as any).findMany({ include: { services: true } }); }", "platformDb").some((tr) => tr.target === "Service"));
   ok(`   mutant: a spread argument is refused as unknowable`, badTraversal("async function f(platformDb: PrismaClient, args: [object]) { await platformDb.contractor.findMany(...args); }", "platformDb").some((tr) => tr.target === "<unknown>"));
-  ok(`   mutant: an extracted delegate (const contractor = platformDb.contractor) is a stray, so its later query cannot escape the walker`, directoryStrays("async function probe(platformDb: PrismaClient) { const contractor = platformDb.contractor; return contractor.findMany({ include: { services: true } }); }").length > 0);
-  ok(`   mutant: a bound query method is a stray`, directoryStrays("async function f(platformDb: PrismaClient) { const fm = platformDb.contractor.findMany.bind(platformDb.contractor); return fm({ include: { services: true } }); }").length > 0 && directoryStrays("async function f(platformDb: PrismaClient) { const fm = platformDb.contractor.findMany; return fm({}); }").length > 0);
-  ok(`   mutant: a destructured query method is a stray`, directoryStrays("async function f(platformDb: PrismaClient) { const { findMany } = platformDb.contractor; return findMany({}); }").length > 0);
-  ok(`   mutant: a delegate passed or returned is a stray`, directoryStrays("async function f(platformDb: PrismaClient) { return helper(platformDb.contractor); }").length > 0 && directoryStrays("function f(platformDb: PrismaClient) { return platformDb.contractor; }").length > 0);
-  ok(`   mutant: a computed or non-read method on the delegate is a stray`, directoryStrays("async function f(platformDb: PrismaClient, k: string) { return platformDb.contractor[k as never]({}); }").length > 0 && directoryStrays("async function f(platformDb: PrismaClient) { return platformDb.contractor.fields; }").length > 0);
-  ok(`   while the read model's inline reads are not strays`, directoryStrays("async function f(platformDb: PrismaClient) { return (platformDb.contractor as any).findMany({ where: { id: '1' } }); }").length === 0);
-  ok(`   while the read model's own site and owner selects are not`, badTraversal(rmSrc, "platformDb").length === 0 && badTraversal(rmSrc, "db").length === 0);
+  ok(`   mutant: an extracted delegate (const contractor = platformDb.contractor) is a stray, so its later query cannot escape the walker`, privilegedRoots("async function listContractors(platformDb: PrismaClient) { return 0; }").directory.includes("platformDb") && directoryStrays("async function listContractors(platformDb: PrismaClient) { const contractor = platformDb.contractor; return contractor.findMany({ include: { services: true } }); }").length > 0);
+  ok(`   mutant: a bound query method is a stray`, directoryStrays("async function listContractors(platformDb: PrismaClient) { const fm = platformDb.contractor.findMany.bind(platformDb.contractor); return fm({ include: { services: true } }); }").length > 0 && directoryStrays("async function listContractors(platformDb: PrismaClient) { const fm = platformDb.contractor.findMany; return fm({}); }").length > 0);
+  ok(`   mutant: a destructured query method is a stray`, directoryStrays("async function listContractors(platformDb: PrismaClient) { const { findMany } = platformDb.contractor; return findMany({}); }").length > 0);
+  ok(`   mutant: a delegate passed or returned is a stray`, directoryStrays("async function listContractors(platformDb: PrismaClient) { return helper(platformDb.contractor); }").length > 0 && directoryStrays("function listContractors(platformDb: PrismaClient) { return platformDb.contractor; }").length > 0);
+  ok(`   mutant: a computed or non-read method on the delegate is a stray`, directoryStrays("async function listContractors(platformDb: PrismaClient, k: string) { return platformDb.contractor[k as never]({}); }").length > 0 && directoryStrays("async function listContractors(platformDb: PrismaClient) { return platformDb.contractor.fields; }").length > 0);
+  ok(`   while the read model's inline reads are not strays`, directoryStrays("async function listContractors(platformDb: PrismaClient) { return (platformDb.contractor as any).findMany({ where: { id: '1' } }); }").length === 0);
+  const DOOR = 'import { withPlatformFor } from "./platformContext";\n';
+  ok(`   mutant: listContractors with its parameter renamed still cannot read a tenant model (the binding, not the name)`, directoryStrays("export async function listContractors(client: PrismaClient) { return client.service.findMany({}); }").length > 0);
+  ok(`   mutant: the door's callback client renamed still cannot read a tenant model`, directoryStrays(DOOR + "export async function platformOverviewFor(x: PrismaClient, user: unknown) { return withPlatformFor(x, user, async (whatever) => whatever.service.findMany({})); }").length > 0);
+  ok(`   mutant: an entry-point parameter renamed still cannot be dereferenced`, unguardedStrays(DOOR + "export async function platformOverviewFor(client: PrismaClient, user: unknown) { return client.contractor.findMany({}); }").length > 0 && unguardedStrays("export async function contractorFactsFor(handle: PrismaClient, user: unknown, id: unknown) { return handle.service.findMany({}); }").length > 0);
+  ok(`   mutant: the real read model with its directory parameter renamed and pointed at a tenant model is refused`, directoryStrays(rmSrc.replace("listContractors(platformDb: PrismaClient)", "listContractors(client: PrismaClient)").replace("await platformDb.contractor.findMany(", "await client.service.findMany("), "lib/platformReadModel.ts").length > 0);
+  ok(`   while the real read model with every directory binding renamed, reads unchanged, is still clean`, (() => { const renamed = rmSrc.replace(/\bplatformDb\b/g, "dir"); const r = privilegedRoots(renamed, "lib/platformReadModel.ts"); return r.problems.length === 0 && r.directory.includes("dir") && !r.directory.includes("platformDb") && directoryStrays(renamed, "lib/platformReadModel.ts", r).length === 0 && r.directory.every((x) => badTraversal(renamed, x).length === 0); })());
+  ok(`   mutant: a door callback not written in place cannot be audited and is refused`, privilegedRoots(DOOR + "export async function platformOverviewFor(db: PrismaClient, user: unknown) { return withPlatformFor(db, user, handler); }").problems.some((p) => /not-inline/.test(p)));
+  ok(`   mutant: a door callback that destructures or drops its client is refused`, privilegedRoots(DOOR + "export async function platformOverviewFor(db: PrismaClient, user: unknown) { return withPlatformFor(db, user, async ({ contractor }) => contractor.findMany({})); }").problems.some((p) => /pattern/.test(p)) && privilegedRoots(DOOR + "export async function platformOverviewFor(db: PrismaClient, user: unknown) { return withPlatformFor(db, user, async () => 0); }").problems.some((p) => /missing/.test(p)));
+  ok(`   mutant: a withPlatformFor that is not the imported door is refused`, privilegedRoots("function withPlatformFor(a: unknown, b: unknown, cb: (c: unknown) => unknown) { return cb(a); } export async function platformOverviewFor(db: PrismaClient, user: unknown) { return withPlatformFor(db, user, async (platformDb) => 0); }").problems.some((p) => /not the imported door/.test(p)));
+  ok(`   mutant: one name in both classes is ambiguous and refused`, privilegedRoots(DOOR + "export async function listContractors(db: PrismaClient) { return db.contractor.findMany({}); } export async function platformOverviewFor(db: PrismaClient, user: unknown) { return withPlatformFor(db, user, async (platformDb) => listContractors(platformDb)); }").problems.some((p) => /both unguarded and directory/.test(p)));
+  ok(`   while the read model's own site and owner selects are not`, roots.directory.every((r) => badTraversal(rmSrc, r).length === 0));
   ok(`   mutant: a shadowing local named like an approved sink is not the sink`, callsResolved("async function f(platformDb: PrismaClient) { const listContractors = (db: PrismaClient) => db.service.findMany(); return listContractors(platformDb); }", "listContractors").every((r) => r.kind === "shadowed"));
   ok(`   mutant: a shadowing parameter is not the sink either`, callsResolved("function g(listContractors: (x: unknown) => unknown, platformDb: PrismaClient) { return listContractors(platformDb); }", "listContractors").every((r) => r.kind === "shadowed"));
   ok(`   mutant: a destructured local ({ listContractors } = evil) beside the genuine function is a shadow`, callsResolved("function listContractors(db: PrismaClient) { return db.contractor.findMany(); } async function f(platformDb: PrismaClient) { const { listContractors } = evil; return listContractors(platformDb); }", "listContractors").every((c) => c.kind === "shadowed"));

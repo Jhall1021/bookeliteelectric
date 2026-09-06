@@ -559,3 +559,44 @@ export function assignmentsTo(source: string, name: string, fileName = "file.ts"
   };
   visit(sf); return out;
 }
+
+const paramName = (p: ts.ParameterDeclaration | undefined): string => !p ? "<missing>" : ts.isIdentifier(p.name) ? p.name.text : "<pattern>";
+
+/**
+ * The name bound by parameter `index` of the module-scope function `fnName`
+ * (a function declaration, or a const initialised with an inline function).
+ * "<missing>" when there is no such function or parameter, "<pattern>" when
+ * the parameter destructures. A rule that needs "the client this function was
+ * handed" asks here, never by spelling.
+ */
+export function parameterOf(source: string, fnName: string, index: number, fileName = "file.ts"): string {
+  const sf = parse(source, fileName);
+  for (const st of sf.statements) {
+    let fn: ts.SignatureDeclaration | undefined;
+    if (ts.isFunctionDeclaration(st) && st.name?.text === fnName) fn = st;
+    else if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.name.text === fnName && d.initializer) { const init = unwrapExpr(d.initializer); if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) fn = init; }
+    if (fn) return paramName(fn.parameters[index]);
+  }
+  return "<missing>";
+}
+
+/**
+ * For every call to `calleeName`, the name its callback (argument `cbArg`)
+ * binds at parameter `paramIndex` — the client a platform door hands its
+ * callback. "<not-inline>" when the callback is not written in place (a
+ * reference cannot be audited here), "<pattern>"/"<missing>" as above. Each
+ * entry carries how the callee resolved, so a caller can insist on the
+ * genuine door.
+ */
+export function callbackParams(source: string, calleeName: string, cbArg: number, paramIndex: number, fileName = "file.ts"): { name: string; line: number; resolution: ReturnType<typeof calleeResolution>["kind"] }[] {
+  const sf = parse(source, fileName); const out: { name: string; line: number; resolution: ReturnType<typeof calleeResolution>["kind"] }[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === calleeName) {
+      const cb = n.arguments[cbArg] ? unwrapExpr(n.arguments[cbArg]) : undefined;
+      const name = !cb ? "<missing>" : (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb)) ? paramName(cb.parameters[paramIndex]) : "<not-inline>";
+      out.push({ name, line: line(sf, n), resolution: calleeResolution(sf, n).kind });
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf); return out;
+}

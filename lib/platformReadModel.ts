@@ -90,9 +90,9 @@ const STRIPE_SELECT = {
   stripeOnboardingBlocked: true, stripeReadinessCheckedAt: true,
 } as const;
 
-/** Directory rows. `db` is the unguarded client handed out by withPlatform. */
-export async function listContractors(db: PrismaClient): Promise<ContractorRow[]> {
-  const rows = await db.contractor.findMany({
+/** Directory rows. `platformDb` is the platform-scoped client handed out by withPlatform. */
+export async function listContractors(platformDb: PrismaClient): Promise<ContractorRow[]> {
+  const rows = await platformDb.contractor.findMany({
     orderBy: { createdAt: "asc" },
     select: {
       id: true, slug: true, name: true, trade: true, active: true, createdAt: true,
@@ -102,7 +102,7 @@ export async function listContractors(db: PrismaClient): Promise<ContractorRow[]
   });
   // Membership is the access table, not tenant data; the contractor boundary
   // reads it the same way. Owners only, active only.
-  const owners = await db.contractorMembership.findMany({
+  const owners = await platformDb.contractorMembership.findMany({
     where: { contractorId: { in: rows.map((r) => r.id) }, role: "OWNER", active: true },
     select: { contractorId: true, user: { select: { email: true } } },
   });
