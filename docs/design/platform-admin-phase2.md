@@ -118,6 +118,15 @@ only that way", and the new verifier holds that there is exactly one such file.
   model with every directory binding renamed is still clean, and the same
   file with the parameter renamed and pointed at a tenant model is refused.
 
+- **Audit strength (round eleven):** the unguarded client is whatever local
+  name the one runtime import of `prisma` from `./prisma` binds — an aliased
+  import is followed by its alias, and a second import, a namespace or
+  default import, a `require`, a dynamic import or a re-export of that
+  module is refused. Platform-door callbacks must be arrow functions, whose
+  parameter list is the whole story of what they were handed; a `function`
+  expression has its own `arguments`, so it is refused, and the read model
+  may never touch `arguments` at all.
+
 ## Not in Phase 2
 
 Support entry and `SupportAccessEvent`; any mutation, including "resend" or

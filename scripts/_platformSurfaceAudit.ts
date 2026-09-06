@@ -588,15 +588,40 @@ export function parameterOf(source: string, fnName: string, index: number, fileN
  * entry carries how the callee resolved, so a caller can insist on the
  * genuine door.
  */
-export function callbackParams(source: string, calleeName: string, cbArg: number, paramIndex: number, fileName = "file.ts"): { name: string; line: number; resolution: ReturnType<typeof calleeResolution>["kind"] }[] {
-  const sf = parse(source, fileName); const out: { name: string; line: number; resolution: ReturnType<typeof calleeResolution>["kind"] }[] = [];
+export function callbackParams(source: string, calleeName: string, cbArg: number, paramIndex: number, fileName = "file.ts"): { name: string; form: "arrow" | "function" | "reference" | "missing"; line: number; resolution: ReturnType<typeof calleeResolution>["kind"] }[] {
+  const sf = parse(source, fileName); const out: ReturnType<typeof callbackParams> = [];
   const visit = (n: ts.Node) => {
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === calleeName) {
       const cb = n.arguments[cbArg] ? unwrapExpr(n.arguments[cbArg]) : undefined;
+      // A `function` expression has its own `arguments`, through which the
+      // client is reachable under no name at all; only an arrow function's
+      // parameter list is the whole story of what it was handed.
+      const form = !cb ? "missing" : ts.isArrowFunction(cb) ? "arrow" : ts.isFunctionExpression(cb) ? "function" : "reference";
       const name = !cb ? "<missing>" : (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb)) ? paramName(cb.parameters[paramIndex]) : "<not-inline>";
-      out.push({ name, line: line(sf, n), resolution: calleeResolution(sf, n).kind });
+      out.push({ name, form, line: line(sf, n), resolution: calleeResolution(sf, n).kind });
     }
     ts.forEachChild(n, visit);
   };
   visit(sf); return out;
+}
+
+/**
+ * The local binding of a runtime import of `exported` from `module` — and
+ * whether that is the ONLY way the module is reached. `import { prisma as
+ * actualPrisma } from "./prisma"` binds `actualPrisma`; a rule about "the
+ * unguarded client" must start from that name, never from the spelling
+ * `prisma`. Refused (local "<none>"/"<ambiguous>") when there is no such
+ * runtime import, more than one, a namespace/default/require/dynamic/
+ * re-export edge to the module, or a second binding of the same export.
+ */
+export function importedBinding(source: string, module: string, exported: string, fileName = "file.ts"): { local: string; problems: string[] } {
+  const edges = moduleEdges(parse(source, fileName)).filter((e) => e.module === module);
+  const problems: string[] = [];
+  for (const e of edges) if (e.kind !== "import") problems.push(`${e.kind} of ${module}@${e.line}`);
+  const runtime = edges.filter((e) => e.kind === "import").flatMap((e) => e.names.filter((n) => !n.typeOnly).map((n) => ({ ...n, line: e.line })));
+  for (const n of runtime) if (n.exported !== exported) problems.push(`${module} binds ${n.exported === "*namespace*" ? "a namespace" : n.exported} as ${n.local}@${n.line}`);
+  const hits = runtime.filter((n) => n.exported === exported);
+  if (hits.length === 0) return { local: "<none>", problems: [...problems, `no runtime import of ${exported} from ${module}`] };
+  if (hits.length > 1) return { local: "<ambiguous>", problems: [...problems, `${hits.length} runtime imports of ${exported} from ${module}`] };
+  return { local: hits[0].local, problems };
 }

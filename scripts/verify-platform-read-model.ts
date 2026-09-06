@@ -30,7 +30,7 @@ import {
   listContractors, contractorFactsFor, platformOverviewFor, attentionFor, STUCK_AFTER_DAYS, type ContractorFacts,
 } from "../lib/platformReadModel";
 import { withPlatformFor } from "../lib/platformContext";
-import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, prismaRelations, relationTraversals, callsResolved, assignmentsTo, parameterOf, callbackParams, type Policy } from "./_platformSurfaceAudit";
+import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, prismaRelations, relationTraversals, callsResolved, assignmentsTo, parameterOf, callbackParams, importedBinding, type Policy } from "./_platformSurfaceAudit";
 import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
 
 /**
@@ -224,9 +224,18 @@ async function main() {
   // Every value-use of the unguarded client, aliases followed: it may only be
   // handed to the two platform doors and the two request-bound entry points.
   const CLIENT_SINKS = new Set(["withPlatformFor", "withPlatformContractorFor", "platformOverviewFor", "contractorFactsFor"]);
-  const prismaUses = usesOf(rmSrc, "prisma", "lib/platformReadModel.ts");
+  // The unguarded client is whatever local name the ONE runtime import of
+  // `prisma` from ./prisma binds — `import { prisma as x }` binds x — not the
+  // spelling "prisma". Any other way of reaching ./prisma is refused.
+  const clientImport = importedBinding(rmSrc, "./prisma", "prisma", "lib/platformReadModel.ts");
+  ok(`   the unguarded client binding is derived from the one runtime import of prisma from ./prisma (local: ${clientImport.local})`, clientImport.problems.length === 0 && !clientImport.local.startsWith("<"), clientImport.problems.join("; "));
+  const prismaUses = usesOf(rmSrc, clientImport.local, "lib/platformReadModel.ts");
   const prismaStray = prismaUses.filter((u) => !(u.kind === "arg-of" && CLIENT_SINKS.has(u.callee) && u.index === 0));
   ok(`   every use of the unguarded client is an argument to a platform door (${prismaUses.length} uses, aliases followed)`, prismaUses.length > 0 && prismaStray.length === 0, prismaStray.map((u) => `${u.kind}:${u.text}@${u.line}`).join("; "));
+  // Nothing in the read model reaches for `arguments`: a function's own view
+  // of what it was handed, under no name the audit could derive.
+  const argsUses = usesOf(rmSrc, "arguments", "lib/platformReadModel.ts");
+  ok(`   the read model never touches \`arguments\``, argsUses.length === 0, argsUses.map((u) => `${u.kind}:${u.text}@${u.line}`).join("; "));
   // WHICH bindings are privileged clients is derived from the source, never
   // spelled: the unguarded class is `prisma` plus the first parameter of each
   // `…For` entry point; the directory class is listContractors' first
@@ -235,10 +244,11 @@ async function main() {
   // client is destructured or unnamed, cannot be audited and is refused; a
   // name that falls in both classes is ambiguous and refused.
   const privilegedRoots = (src: string, file = "mutant.ts") => {
-    const unguarded = new Set(["prisma", parameterOf(src, "platformOverviewFor", 0, file), parameterOf(src, "contractorFactsFor", 0, file)]);
+    const imported = importedBinding(src, "./prisma", "prisma", file);
+    const unguarded = new Set([imported.local, parameterOf(src, "platformOverviewFor", 0, file), parameterOf(src, "contractorFactsFor", 0, file)]);
     const doors = callbackParams(src, "withPlatformFor", 2, 0, file);
     const directory = new Set([parameterOf(src, "listContractors", 0, file), ...doors.map((d) => d.name)]);
-    const problems = [...[...unguarded, ...directory].filter((n) => n.startsWith("<")).map((n) => `unauditable binding ${n}`), ...doors.filter((d) => d.resolution !== "import").map((d) => `withPlatformFor@${d.line} is not the imported door`), ...[...directory].filter((n) => unguarded.has(n)).map((n) => `\`${n}\` is both unguarded and directory`)];
+    const problems = [...imported.problems, ...[...unguarded, ...directory].filter((n) => n.startsWith("<")).map((n) => `unauditable binding ${n}`), ...doors.filter((d) => d.resolution !== "import").map((d) => `withPlatformFor@${d.line} is not the imported door`), ...doors.filter((d) => d.form !== "arrow").map((d) => `withPlatformFor@${d.line} callback is a ${d.form}, not an arrow function`), ...[...directory].filter((n) => unguarded.has(n)).map((n) => `\`${n}\` is both unguarded and directory`)];
     return { unguarded: [...unguarded], directory: [...directory], problems };
   };
   const roots = privilegedRoots(rmSrc, "lib/platformReadModel.ts");
@@ -246,7 +256,7 @@ async function main() {
   // The unguarded parameters are held to the same rule as `prisma`: handed to
   // a door or to the facts reader as argument zero, never dereferenced.
   const UNGUARDED_SINKS = new Set([...CLIENT_SINKS, "readFacts"]);
-  const unguardedStrays = (src: string, file = "mutant.ts", r = privilegedRoots(src, file)) => r.unguarded.filter((n) => n !== "prisma").flatMap((root) => usesOf(src, root, file).filter((u) => !(u.kind === "arg-of" && UNGUARDED_SINKS.has(u.callee) && u.index === 0)).map((u) => `${root}:${u.kind}:${u.text.slice(0, 40)}@${u.line}`));
+  const unguardedStrays = (src: string, file = "mutant.ts", r = privilegedRoots(src, file)) => r.unguarded.filter((n) => !n.startsWith("<")).flatMap((root) => usesOf(src, root, file).filter((u) => !(u.kind === "arg-of" && UNGUARDED_SINKS.has(u.callee) && u.index === 0)).map((u) => `${root}:${u.kind}:${u.text.slice(0, 40)}@${u.line}`));
   const ungStray = unguardedStrays(rmSrc, "lib/platformReadModel.ts", roots);
   ok(`   every use of an unguarded entry-point parameter is argument zero to a door or the facts reader`, ungStray.length === 0, ungStray.join("; "));
   // The directory clients (`platformDb`, and `db` where it is the unguarded
@@ -434,6 +444,13 @@ async function main() {
   ok(`   mutant: a computed or non-read method on the delegate is a stray`, directoryStrays("async function listContractors(platformDb: PrismaClient, k: string) { return platformDb.contractor[k as never]({}); }").length > 0 && directoryStrays("async function listContractors(platformDb: PrismaClient) { return platformDb.contractor.fields; }").length > 0);
   ok(`   while the read model's inline reads are not strays`, directoryStrays("async function listContractors(platformDb: PrismaClient) { return (platformDb.contractor as any).findMany({ where: { id: '1' } }); }").length === 0);
   const DOOR = 'import { withPlatformFor } from "./platformContext";\n';
+  const PRISMA = 'import { prisma } from "./prisma";\n';
+  const importAliased = PRISMA.replace("{ prisma }", "{ prisma as actualPrisma }") + "const prisma = actualPrisma;\nexport const platformOverview = async () => { await actualPrisma.service.findMany({}); return platformOverviewFor(prisma, await currentUser()); };";
+  ok(`   mutant: the client imported under another name (import { prisma as actualPrisma }) is still the unguarded client — its tenant read is a stray`, (() => { const b = importedBinding(importAliased, "./prisma", "prisma"); return b.local === "actualPrisma" && usesOf(importAliased, "actualPrisma").some((u) => u.kind === "member" && u.member === "service"); })());
+  ok(`   mutant: a second import of prisma, a namespace import, a default import, a require and a re-export of ./prisma are each refused`, [PRISMA + 'import { prisma as p2 } from "./prisma";', 'import * as P from "./prisma";', 'import prisma from "./prisma";', 'const { prisma } = require("./prisma");', 'export { prisma } from "./prisma";', 'import type { prisma } from "./prisma";', ''].every((src) => importedBinding(src, "./prisma", "prisma").problems.length > 0));
+  ok(`   while the read model's own import derives cleanly`, importedBinding(rmSrc, "./prisma", "prisma", "lib/platformReadModel.ts").local === "prisma" && importedBinding(rmSrc, "./prisma", "prisma", "lib/platformReadModel.ts").problems.length === 0);
+  ok(`   mutant: a function-expression door callback that reads arguments[0] is refused twice over`, (() => { const src = DOOR + PRISMA + "export async function platformOverviewFor(raw: PrismaClient, user: unknown) { return withPlatformFor(raw, user, async function (directory) { return arguments[0].service.findMany({}); }); }"; return privilegedRoots(src).problems.some((p) => /callback is a function, not an arrow function/.test(p)) && usesOf(src, "arguments").length > 0; })());
+  ok(`   mutant: arguments reached through an alias or a spread is still seen`, usesOf("function f() { const a = arguments; return a[0]; }", "arguments").length > 0 && usesOf("function f() { return g(...arguments); }", "arguments").length > 0);
   ok(`   mutant: listContractors with its parameter renamed still cannot read a tenant model (the binding, not the name)`, directoryStrays("export async function listContractors(client: PrismaClient) { return client.service.findMany({}); }").length > 0);
   ok(`   mutant: the door's callback client renamed still cannot read a tenant model`, directoryStrays(DOOR + "export async function platformOverviewFor(x: PrismaClient, user: unknown) { return withPlatformFor(x, user, async (whatever) => whatever.service.findMany({})); }").length > 0);
   ok(`   mutant: an entry-point parameter renamed still cannot be dereferenced`, unguardedStrays(DOOR + "export async function platformOverviewFor(client: PrismaClient, user: unknown) { return client.contractor.findMany({}); }").length > 0 && unguardedStrays("export async function contractorFactsFor(handle: PrismaClient, user: unknown, id: unknown) { return handle.service.findMany({}); }").length > 0);
