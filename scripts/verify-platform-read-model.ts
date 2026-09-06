@@ -30,7 +30,7 @@ import {
   listContractors, contractorFactsFor, platformOverviewFor, attentionFor, STUCK_AFTER_DAYS, type ContractorFacts,
 } from "../lib/platformReadModel";
 import { withPlatformFor } from "../lib/platformContext";
-import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, type Policy } from "./_platformSurfaceAudit";
+import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, type Policy } from "./_platformSurfaceAudit";
 import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
 
 /**
@@ -221,10 +221,16 @@ async function main() {
   // the read model — the only permitted member accesses on it are none: it is
   // passed as an argument to the two wrappers and never dereferenced.
   const tenantModels = new Set([...TENANT_SCOPED_MODELS, ...DERIVED_TENANT_MODELS.keys()].map((m) => m[0].toLowerCase() + m.slice(1)));
-  const prismaTouches = memberAccessesOn(rmSrc, "prisma", "lib/platformReadModel.ts");
-  ok(`   the read model never dereferences the unguarded client itself (${prismaTouches.length} member accesses)`, prismaTouches.length === 0, prismaTouches.map((t) => `.${t.member}@${t.line}`).join(", "));
-  const platformDbTouches = memberAccessesOn(rmSrc, "platformDb", "lib/platformReadModel.ts").filter((t) => tenantModels.has(t.member));
-  ok(`   and the directory client touches no tenant model`, platformDbTouches.length === 0, platformDbTouches.map((t) => `.${t.member}@${t.line}`).join(", "));
+  // Every value-use of the unguarded client, aliases followed: it may only be
+  // handed to the two platform doors and the two request-bound entry points.
+  const CLIENT_SINKS = new Set(["withPlatformFor", "withPlatformContractorFor", "platformOverviewFor", "contractorFactsFor"]);
+  const prismaUses = usesOf(rmSrc, "prisma", "lib/platformReadModel.ts");
+  const prismaStray = prismaUses.filter((u) => !(u.kind === "arg-of" && CLIENT_SINKS.has(u.callee) && u.index === 0));
+  ok(`   every use of the unguarded client is an argument to a platform door (${prismaUses.length} uses, aliases followed)`, prismaUses.length > 0 && prismaStray.length === 0, prismaStray.map((u) => `${u.kind}:${u.text}@${u.line}`).join("; "));
+  // The directory clients (`platformDb`, and `db` where it is the unguarded
+  // parameter) may reach platform models only — through any alias or destructure.
+  const dirTouches = [...memberAccessesOn(rmSrc, "platformDb", "lib/platformReadModel.ts"), ...memberAccessesOn(rmSrc, "db", "lib/platformReadModel.ts")].filter((t) => tenantModels.has(t.member) || t.member === "<computed>" || t.member === "<rest>");
+  ok(`   and the directory clients touch no tenant model, through any alias`, dirTouches.length === 0, dirTouches.map((t) => `.${t.member}@${t.line}`).join(", "));
   ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm));
   ok(`   readiness is assessOnboarding's, payments connectReadiness's — no second engine`, /assessOnboarding\(guarded/.test(rm) && /connectReadiness\(/.test(rm) && !/canLaunch:\s*(true|false|!?[\w.]*blockers)/.test(rm) && !/stripeCardPaymentsStatus\s*[!=]==/.test(rm));
   ok(`   the read model never reads PlatformAccess or a membership to decide anything`, !/platformAccess/.test(rm) && !/\.email\s*[!=]==?/.test(rm));
@@ -307,6 +313,26 @@ async function main() {
   ok(`   mutant: a bracket-named tagged raw statement is seen`, mutatingCalls('await db["$queryRaw"]`select 1`;').length === 1);
   ok(`   mutant: a computed member call is refused as unknowable`, mutatingCalls("const m = pick(); await db.service[m]({});").length === 1);
   ok(`   mutant: a bracket dereference of prisma is seen`, memberAccessesOn('const s = prisma["service"];', "prisma").length === 1 && memberAccessesOn("const s = prisma[k];", "prisma")[0]?.member === "<computed>");
+  // Review round 5: aliases, extractions, bracket props, and the Overview's claim.
+  const strayOf = (src: string, root: string) => usesOf(src, root).filter((u) => !(u.kind === "arg-of" && CLIENT_SINKS.has(u.callee) && u.index === 0));
+  ok(`   mutant: an aliased unguarded client reading a tenant model is seen`, strayOf(rmSrc + "\nasync function z() { const p = prisma; await p.service.findMany(); }", "prisma").length >= 1 && memberAccessesOn(rmSrc + "\nasync function z() { const p = prisma; await p.service.findMany(); }", "prisma").some((m) => m.member === "service"));
+  ok(`   mutant: an alias of an alias is still seen`, memberAccessesOn("const p = prisma; const q = p; q.booking.count();", "prisma").some((m) => m.member === "booking"));
+  ok(`   mutant: an aliased directory client reading a tenant model is seen`, memberAccessesOn("async function f(platformDb: PrismaClient) { const p = platformDb; await p.service.findMany(); }", "platformDb").some((m) => m.member === "service"));
+  ok(`   mutant: destructuring a model out of the unguarded client is seen`, memberAccessesOn("const { service } = prisma;", "prisma").some((m) => m.member === "service"));
+  ok(`   mutant: reassigning the client into another name is seen`, memberAccessesOn("let p; p = prisma; p.quote.count();", "prisma").some((m) => m.member === "quote"));
+  ok(`   mutant: passing the client to an unlisted function is a stray use`, strayOf("export const x = (u: null) => helper(prisma);", "prisma").length === 1);
+  ok(`   mutant: an extracted mutator is seen at extraction`, mutatingCalls("const write = db.service.delete; await write({ where: { id } });").some((m) => /extracted/.test(m.callee)));
+  ok(`   mutant: a destructured mutator is seen`, mutatingCalls("const { update } = db.service; await update({ where: { id }, data });").some((m) => /destructured/.test(m.callee)));
+  ok(`   mutant: a rest-destructure of a model is seen (it carries every mutator)`, mutatingCalls("const { findMany, ...rest } = db.service;").some((m) => /rest/.test(m.callee)));
+  ok(`   while reading a model's findMany by extraction is not a mutation`, mutatingCalls("const read = db.service.findMany; await read();").length === 0);
+  const bracketProps = 'export default function Page(props) { return props["params"].contractorId; }';
+  ok(`   mutant: bracket access to params on a props argument is seen`, requestAccess(bracketProps).some((a) => a.kind === "params-prop"));
+  ok(`   mutant: computed access on a props argument is seen`, requestAccess("export default function Page(props) { const k = pick(); return props[k].x; }").some((a) => a.kind === "params-prop"));
+  ok(`   mutant: destructuring params out of props is seen`, requestAccess("export default function Page(props) { const { params } = props; return params.x; }").some((a) => a.kind === "params-prop"));
+  ok(`   mutant: an aliased props argument is seen`, requestAccess("export default function Page(props) { const q = props; return q.params.x; }").some((a) => a.kind === "params-prop"));
+  ok(`   mutant: a rest-destructured props parameter is seen`, requestAccess("export default function Page({ ...rest }) { return rest.params.x; }").some((a) => a.kind === "params-prop"));
+  ok(`   mutant: props escaping into a helper is seen`, requestAccess("export default function Page(props) { return helper(props); }").some((a) => /escape/.test(a.detail)));
+  ok(`   while a page that never reads props is clean`, requestAccess("export default async function Page() { const o = await platformOverview(); return o.total; }").length === 0);
   ok(`   while a column named createdAt is not a write`, mutatingCalls("const t = row.createdAt; const u = svc.updatedAt;").length === 0);
   ok(`   mutant: the read model dereferencing prisma is seen`, memberAccessesOn(rmSrc + "\nconst stray = prisma.service;", "prisma").length === 1);
 
@@ -318,6 +344,9 @@ async function main() {
   ok(`6. with nothing to list and every contractor read, the page may say all is well`, clear.tone === "clear" && /Every contractor past setup/.test(clear.message));
   ok(`   with nothing to list but an unreadable contractor, it may NOT`, partialSummary.tone === "partial" && /among readable contractors/.test(partialSummary.message) && /Probe/.test(partialSummary.message) && !/Every contractor/.test(partialSummary.message));
   ok(`   with items, it counts them`, attentionSummary([{ code: "STUCK_IN_ONBOARDING", contractorId: "x", slug: "x", name: "X", message: "m", href: "/platform/contractors/x" }], [{ name: "Probe" }]).tone === "items");
+  const overviewSrc = strip("app/platform/page.tsx");
+  ok(`   the Overview takes its empty state from attentionSummary too, and marks the tile partial when anything was unreadable`,
+    /attentionSummary\(o\.attention, o\.unreadable\)/.test(overviewSrc) && /summary\.message/.test(overviewSrc) && /summary\.tone === "partial"/.test(overviewSrc) && !/Nothing needs a person at Price2Book today/.test(overviewSrc));
   const attentionSrc = strip("app/platform/attention/page.tsx");
   ok(`   and the page renders the unreadable list and takes its empty state from attentionSummary`,
     /o\.unreadable\.length > 0/.test(attentionSrc) && /attentionSummary\(o\.attention, o\.unreadable\)/.test(attentionSrc) && /summary\.message/.test(attentionSrc) && !/Nothing\. Every contractor/.test(attentionSrc));

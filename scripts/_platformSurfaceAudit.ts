@@ -97,32 +97,39 @@ export function requestAccess(source: string, fileName = "file.tsx"): RequestAcc
     if (e.module === "next/server" && !e.typeOnly) out.push({ kind: "next-server-import", detail: e.names.map((n) => n.exported).join(","), line: e.line });
   }
   const headerLocals = localsFrom(sf, "next/headers", "headers"), cookieLocals = localsFrom(sf, "next/headers", "cookies");
+  const REQ_PROPS = new Set(["params", "searchParams"]);
+  const propKind = (m: string): RequestAccess["kind"] => m === "searchParams" ? "searchParams-prop" : "params-prop";
   const visit = (n: ts.Node) => {
-    // { params } / { searchParams } / { params: p } / { params: { contractorId } } in any parameter list
-    if (ts.isParameter(n) && ts.isObjectBindingPattern(n.name)) {
-      for (const el of n.name.elements) {
-        const key = (el.propertyName ?? el.name); const keyText = ts.isIdentifier(key) ? key.text : key.getText(sf);
-        if (keyText === "params") out.push({ kind: "params-prop", detail: el.getText(sf), line: line(sf, el) });
-        if (keyText === "searchParams") out.push({ kind: "searchParams-prop", detail: el.getText(sf), line: line(sf, el) });
+    if (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n)) {
+      const first = n.parameters[0];
+      if (first) {
+        // { params } / { searchParams } / { params: p } / { params: { id } } / { ...rest }
+        if (ts.isObjectBindingPattern(first.name)) {
+          for (const el of first.name.elements) {
+            const key = el.propertyName ?? el.name; const keyText = ts.isIdentifier(key) ? key.text : "<computed>";
+            if (el.dotDotDotToken) out.push({ kind: "params-prop", detail: `rest of props: ${el.getText(sf)}`, line: line(sf, el) });
+            else if (REQ_PROPS.has(keyText) || keyText === "<computed>") out.push({ kind: propKind(keyText), detail: el.getText(sf), line: line(sf, el) });
+          }
+        }
+        // a plain props parameter: every use of it (aliases followed) that reaches params/searchParams by dot, bracket, computed key, destructure or spread
+        if (ts.isIdentifier(first.name) && n.body) {
+          const name = first.name.text;
+          const t = first.type?.getText(sf) ?? "";
+          if (/\b(Request|NextRequest)\b/.test(t)) {
+            const uses = (m: ts.Node): boolean => (ts.isIdentifier(m) && m.text === name && m !== first.name) || ts.forEachChild(m, uses) === true;
+            if (uses(n.body)) out.push({ kind: "request-arg", detail: `${name} is read`, line: line(sf, first) });
+          } else {
+            for (const u of bindingUses(sf, name)) {
+              if ((u.kind === "member" || u.kind === "destructure") && (REQ_PROPS.has(u.member) || u.member === "<computed>" || u.member === "<rest>")) out.push({ kind: propKind(u.member), detail: u.text, line: u.line });
+              else if (u.kind === "spread" || u.kind === "return" || u.kind === "arg-of") out.push({ kind: "params-prop", detail: `props escape: ${u.text}`, line: u.line });
+            }
+          }
+        }
       }
-    }
-    // props.params / props.searchParams on a plain parameter
-    if (ts.isPropertyAccessExpression(n) && (n.name.text === "params" || n.name.text === "searchParams") && ts.isIdentifier(n.expression)) {
-      out.push({ kind: n.name.text === "params" ? "params-prop" : "searchParams-prop", detail: n.getText(sf), line: line(sf, n) });
     }
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
       if (headerLocals.has(n.expression.text)) out.push({ kind: "headers-call", detail: n.getText(sf), line: line(sf, n) });
       if (cookieLocals.has(n.expression.text)) out.push({ kind: "cookies-call", detail: n.getText(sf), line: line(sf, n) });
-    }
-    // a route handler's request parameter used anywhere: (req: Request) => ... req.x
-    if ((ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n)) && n.parameters.length > 0) {
-      const first = n.parameters[0];
-      const t = first.type?.getText(sf) ?? "";
-      if (ts.isIdentifier(first.name) && /\b(Request|NextRequest)\b/.test(t)) {
-        const name = first.name.text;
-        const uses = (m: ts.Node): boolean => (ts.isIdentifier(m) && m.text === name && m !== first.name) || ts.forEachChild(m, uses) === true;
-        if (n.body && uses(n.body)) out.push({ kind: "request-arg", detail: `${name} is read`, line: line(sf, first) });
-      }
     }
     ts.forEachChild(n, visit);
   };
@@ -147,38 +154,101 @@ function memberName(e: ts.Expression): string | null {
   return null;
 }
 
+export type BindingUse =
+  | { kind: "member"; member: string; text: string; line: number }        // p.x, p["x"], p[k] (member "<computed>")
+  | { kind: "destructure"; member: string; text: string; line: number }   // const { x } = p   (one per key; rest -> "<rest>")
+  | { kind: "arg-of"; callee: string; index: number; text: string; line: number }
+  | { kind: "alias"; alias: string; text: string; line: number }          // const q = p; q = p
+  | { kind: "spread" | "return" | "other"; text: string; line: number };
+
+/**
+ * Every value-use of a binding, following its aliases.
+ *
+ * `const p = prisma; p.service.findMany()` is a use of `prisma`, and so is
+ * `const { service } = prisma`, `fn(prisma)`, `{ ...prisma }`, and
+ * `return prisma`. The alias set is closed flow-insensitively over the whole
+ * file (an alias of an alias is an alias), which over-approximates — on a
+ * read-only surface an over-approximation refuses, never admits.
+ */
+export function bindingUses(sf: ts.SourceFile, root: string): BindingUse[] {
+  const aliases = new Set([root]);
+  // close the alias set: any `const q = <alias>` or `q = <alias>` adds q
+  let grew = true;
+  while (grew) {
+    grew = false;
+    const scan = (n: ts.Node) => {
+      if (ts.isVariableDeclaration(n) && n.initializer && ts.isIdentifier(n.initializer) && aliases.has(n.initializer.text) && ts.isIdentifier(n.name) && !aliases.has(n.name.text)) { aliases.add(n.name.text); grew = true; }
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.right) && aliases.has(n.right.text) && ts.isIdentifier(n.left) && !aliases.has(n.left.text)) { aliases.add(n.left.text); grew = true; }
+      ts.forEachChild(n, scan);
+    };
+    scan(sf);
+  }
+  const out: BindingUse[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isIdentifier(n) && aliases.has(n.text)) {
+      const parent = n.parent;
+      const isDecl = (ts.isVariableDeclaration(parent) && parent.name === n) || (ts.isParameter(parent) && parent.name === n) || ts.isBindingElement(parent) || (ts.isPropertyAccessExpression(parent) && parent.name === n) || ts.isImportSpecifier(parent) || ts.isImportClause(parent) || (ts.isPropertyAssignment(parent) && parent.name === n) || (ts.isShorthandPropertyAssignment(parent) && false);
+      if (!isDecl) {
+        if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === n) out.push({ kind: "member", member: memberName(parent) ?? "<unknown>", text: parent.getText(sf), line: line(sf, n) });
+        else if (ts.isVariableDeclaration(parent) && parent.initializer === n) {
+          if (ts.isObjectBindingPattern(parent.name)) for (const el of parent.name.elements) out.push({ kind: "destructure", member: el.dotDotDotToken ? "<rest>" : ((el.propertyName ?? el.name) as ts.Identifier).text ?? "<computed>", text: parent.getText(sf), line: line(sf, n) });
+          else out.push({ kind: "alias", alias: parent.name.getText(sf), text: parent.getText(sf), line: line(sf, n) });
+        }
+        else if (ts.isBinaryExpression(parent) && parent.right === n && parent.operatorToken.kind === ts.SyntaxKind.EqualsToken) out.push({ kind: "alias", alias: parent.left.getText(sf), text: parent.getText(sf), line: line(sf, n) });
+        else if (ts.isCallExpression(parent) && parent.arguments.includes(n as ts.Expression)) out.push({ kind: "arg-of", callee: parent.expression.getText(sf), index: parent.arguments.indexOf(n as ts.Expression), text: parent.getText(sf).slice(0, 80), line: line(sf, n) });
+        else if (ts.isSpreadElement(parent) || ts.isSpreadAssignment(parent)) out.push({ kind: "spread", text: parent.parent.getText(sf).slice(0, 80), line: line(sf, n) });
+        else if (ts.isReturnStatement(parent) || ts.isArrowFunction(parent)) out.push({ kind: "return", text: parent.getText(sf).slice(0, 80), line: line(sf, n) });
+        else if (ts.isShorthandPropertyAssignment(parent)) out.push({ kind: "other", text: `shorthand property ${n.text}`, line: line(sf, n) });
+        else out.push({ kind: "other", text: parent.getText(sf).slice(0, 80), line: line(sf, n) });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 /**
  * Every mutating Prisma operation, however it is reached: a call whose callee
  * names a mutator by dot or by bracket (`guarded.service["delete"](…)`,
- * `prisma["contractor"]["update"](…)`), a computed member call whose name
- * cannot be known, and a tagged raw statement (`db.$executeRaw\`DELETE …\``).
+ * `prisma["contractor"]["update"](…)`); a computed member call whose name
+ * cannot be known; a tagged raw statement (`db.$executeRaw\`DELETE …\``); a
+ * mutator EXTRACTED as a value (`const write = db.service.delete`) or
+ * destructured out (`const { update } = db.service`) — reported at the
+ * extraction, since what happens to it afterwards cannot be bounded.
  */
 export function mutatingCalls(source: string, fileName = "file.tsx"): { callee: string; line: number }[] {
   const sf = parse(source, fileName); const out: { callee: string; line: number }[] = [];
+  const isMut = (m: string | null) => m !== null && (MUTATORS.has(m) || m === "<computed>");
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n)) {
-      const m = memberName(n.expression);
-      if (m !== null && (MUTATORS.has(m) || m === "<computed>")) out.push({ callee: n.expression.getText(sf), line: line(sf, n) });
-    }
-    if (ts.isTaggedTemplateExpression(n)) {
-      const m = memberName(n.tag);
-      if (m !== null && (MUTATORS.has(m) || m === "<computed>")) out.push({ callee: n.tag.getText(sf) + "`…`", line: line(sf, n) });
+    if (ts.isCallExpression(n) && isMut(memberName(n.expression))) out.push({ callee: n.expression.getText(sf), line: line(sf, n) });
+    else if (ts.isTaggedTemplateExpression(n) && isMut(memberName(n.tag))) out.push({ callee: n.tag.getText(sf) + "`…`", line: line(sf, n) });
+    // In VALUE position only a literally named mutator counts: `results[i]` is
+    // array indexing, not a Prisma member, and cannot be told apart from one
+    // without types. A computed member is still refused wherever it is CALLED.
+    else if ((ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) && MUTATORS.has(memberName(n) ?? "")
+      && !(ts.isCallExpression(n.parent) && n.parent.expression === n) && !(ts.isTaggedTemplateExpression(n.parent) && n.parent.tag === n)) out.push({ callee: `${n.getText(sf)} (extracted)`, line: line(sf, n) });
+    if (ts.isVariableDeclaration(n) && ts.isObjectBindingPattern(n.name)) {
+      for (const el of n.name.elements) { const k = (el.propertyName ?? el.name); if (ts.isIdentifier(k) && MUTATORS.has(k.text)) out.push({ callee: `{ ${k.text} } destructured from ${n.initializer?.getText(sf) ?? "?"}`, line: line(sf, el) }); if (el.dotDotDotToken) out.push({ callee: `{ ...rest } destructured from ${n.initializer?.getText(sf) ?? "?"}`, line: line(sf, el) }); }
     }
     ts.forEachChild(n, visit);
   };
   visit(sf); return out;
 }
 
-/** Member accesses on a given identifier by dot or bracket: `prisma.service`, `prisma["service"]`, `prisma[x]` (reported as <computed>). */
+/**
+ * Member accesses reached from a binding, FOLLOWING ALIASES and destructures:
+ * `prisma.service`, `prisma["service"]`, `prisma[x]` ("<computed>"),
+ * `const p = prisma; p.service`, `const { service } = prisma`.
+ */
 export function memberAccessesOn(source: string, identifier: string, fileName = "file.ts"): { member: string; line: number }[] {
-  const sf = parse(source, fileName); const out: { member: string; line: number }[] = [];
-  const visit = (n: ts.Node) => {
-    if ((ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) && ts.isIdentifier(n.expression) && n.expression.text === identifier) {
-      out.push({ member: memberName(n) ?? "<unknown>", line: line(sf, n) });
-    }
-    ts.forEachChild(n, visit);
-  };
-  visit(sf); return out;
+  const sf = parse(source, fileName);
+  return bindingUses(sf, identifier).flatMap((u) => u.kind === "member" || u.kind === "destructure" ? [{ member: u.member, line: u.line }] : []);
+}
+
+/** Every value-use of a binding in a file, aliases followed. For rules of the form "this client may only be passed to X". */
+export function usesOf(source: string, identifier: string, fileName = "file.ts"): BindingUse[] {
+  return bindingUses(parse(source, fileName), identifier);
 }
 
 export type ParamsUse = { kind: "boundary-arg" | "other"; text: string; line: number };

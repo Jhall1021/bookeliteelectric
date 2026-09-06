@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { platformOverview } from "@/lib/platformReadModel";
+import { platformOverview, attentionSummary } from "@/lib/platformReadModel";
 import { ContractorTable } from "@/components/platform/ContractorTable";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function PlatformOverviewPage() {
   const o = await platformOverview();
+  const summary = attentionSummary(o.attention, o.unreadable);
   return (
     <div>
       <header>
@@ -29,7 +30,7 @@ export default async function PlatformOverviewPage() {
         <Tile label="Contractors with live services" value={o.contractors.live} note={`${o.contractors.inSetup} still in setup · ${o.contractors.enabled} enabled`} href="/platform/contractors" />
         <Tile label="Live services, all contractors" value={o.services.live} note="priced and bookable, or quote-only" />
         <Tile label="Storefronts live" value={o.storefronts.hosted} note={`${o.storefronts.embedConfigured} with embed origins configured`} />
-        <Tile label="Needs somebody today" value={o.attention.length} note={o.attention.length ? "see the list below" : "nothing actionable"} href="/platform/attention" tone={o.attention.length ? "attention" : "calm"} />
+        <Tile label="Needs somebody today" value={o.attention.length} note={o.attention.length ? "see the list below" : summary.tone === "partial" ? "nothing identified among readable contractors" : "nothing actionable"} href="/platform/attention" tone={o.attention.length || summary.tone === "partial" ? "attention" : "calm"} />
       </dl>
 
       {o.unreadable.length > 0 && (
@@ -44,7 +45,7 @@ export default async function PlatformOverviewPage() {
       <section className="mt-10">
         <h2 className="font-display text-lg font-bold text-navy">Attention needed</h2>
         {o.attention.length === 0 ? (
-          <p className="mt-2 text-sm text-slate">Nothing needs a person at Price2Book today.</p>
+          <p className={`mt-2 text-sm ${summary.tone === "partial" ? "text-p2b-amber-ink" : "text-slate"}`}>{summary.message}</p>
         ) : (
           <ul className="mt-3 divide-y divide-cardline rounded-card border border-cardline bg-white">
             {o.attention.map((a) => (
