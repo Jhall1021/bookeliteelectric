@@ -80,7 +80,7 @@ function localsFrom(sf: ts.SourceFile, module: string, exported?: string): Set<s
   return s;
 }
 
-export type RequestAccess = { kind: "params-prop" | "searchParams-prop" | "next-headers-import" | "next-server-import" | "headers-call" | "cookies-call" | "request-arg"; detail: string; line: number };
+export type RequestAccess = { kind: "params-prop" | "searchParams-prop" | "next-headers-import" | "next-server-import" | "headers-call" | "cookies-call" | "request-arg" | "arguments-object"; detail: string; line: number };
 
 /**
  * Every way a file can read something from the incoming request: a page or
@@ -131,6 +131,9 @@ export function requestAccess(source: string, fileName = "file.tsx"): RequestAcc
         }
       });
     }
+    // The implicit `arguments` object reaches every argument a framework passed,
+    // declared or not. On a platform surface it is refused outright.
+    if (ts.isIdentifier(n) && n.text === "arguments" && !(ts.isPropertyAccessExpression(n.parent) && n.parent.name === n)) out.push({ kind: "arguments-object", detail: n.parent.getText(sf).slice(0, 60), line: line(sf, n) });
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
       if (headerLocals.has(n.expression.text)) out.push({ kind: "headers-call", detail: n.getText(sf), line: line(sf, n) });
       if (cookieLocals.has(n.expression.text)) out.push({ kind: "cookies-call", detail: n.getText(sf), line: line(sf, n) });
@@ -179,6 +182,20 @@ export function bindingKey(el: ts.BindingElement): string {
   return "<computed>";
 }
 
+/** Keys of an object-pattern ASSIGNMENT target: `({ delete: write } = x)` -> ["delete"]; `({ [k]: w } = x)` -> ["<computed>"]; `({ ...r } = x)` -> ["<rest>"]. */
+function assignmentPatternKeys(obj: ts.ObjectLiteralExpression): string[] {
+  return obj.properties.map((pr) => {
+    if (ts.isSpreadAssignment(pr)) return "<rest>";
+    if (ts.isShorthandPropertyAssignment(pr)) return pr.name.text;
+    if (ts.isPropertyAssignment(pr)) {
+      const k = pr.name;
+      if (ts.isIdentifier(k) || ts.isStringLiteral(k) || ts.isNumericLiteral(k)) return k.text;
+      if (ts.isComputedPropertyName(k)) { const e = unwrapExpr(k.expression); return ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) ? e.text : "<computed>"; }
+    }
+    return "<computed>";
+  });
+}
+
 export type BindingUse =
   | { kind: "member"; member: string; text: string; line: number }        // p.x, p["x"], p[k] (member "<computed>")
   | { kind: "destructure"; member: string; text: string; line: number }   // const { x } = p   (one per key; rest -> "<rest>")
@@ -221,7 +238,10 @@ export function bindingUses(sf: ts.SourceFile, root: string): BindingUse[] {
           if (ts.isObjectBindingPattern(parent2.name)) for (const el of parent2.name.elements) out.push({ kind: "destructure", member: bindingKey(el), text: parent2.getText(sf), line: line(sf, n) });
           else out.push({ kind: "alias", alias: parent2.name.getText(sf), text: parent2.getText(sf), line: line(sf, n) });
         }
-        else if (ts.isBinaryExpression(parent2) && parent2.right === self && parent2.operatorToken.kind === ts.SyntaxKind.EqualsToken) out.push({ kind: "alias", alias: parent2.left.getText(sf), text: parent2.getText(sf), line: line(sf, n) });
+        else if (ts.isBinaryExpression(parent2) && parent2.right === self && parent2.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+          if (ts.isObjectLiteralExpression(parent2.left)) for (const k of assignmentPatternKeys(parent2.left)) out.push({ kind: "destructure", member: k, text: parent2.getText(sf), line: line(sf, n) });
+          else out.push({ kind: "alias", alias: parent2.left.getText(sf), text: parent2.getText(sf), line: line(sf, n) });
+        }
         else if (ts.isCallExpression(parent2) && parent2.arguments.includes(self)) out.push({ kind: "arg-of", callee: parent2.expression.getText(sf), index: parent2.arguments.indexOf(self), text: parent2.getText(sf).slice(0, 80), line: line(sf, n) });
         else if (ts.isSpreadElement(parent2) || ts.isSpreadAssignment(parent2)) out.push({ kind: "spread", text: parent2.parent.getText(sf).slice(0, 80), line: line(sf, n) });
         else if (ts.isReturnStatement(parent2) || ts.isArrowFunction(parent2)) out.push({ kind: "return", text: parent2.getText(sf).slice(0, 80), line: line(sf, n) });
@@ -260,6 +280,10 @@ export function mutatingCalls(source: string, fileName = "file.tsx"): { callee: 
         const k = bindingKey(el); // `{ ["delete"]: write }` normalizes to "delete"; `{ [k]: w }` is unknowable
         if (MUTATORS.has(k) || k === "<computed>" || k === "<rest>") out.push({ callee: `{ ${k} } destructured from ${n.initializer?.getText(sf) ?? "?"}`, line: line(sf, el) });
       }
+    }
+    // `({ delete: write } = db.service)` — the same destructure, written as an assignment.
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isObjectLiteralExpression(n.left)) {
+      for (const k of assignmentPatternKeys(n.left)) if (MUTATORS.has(k) || k === "<computed>" || k === "<rest>") out.push({ callee: `{ ${k} } assigned from ${n.right.getText(sf)}`, line: line(sf, n) });
     }
     ts.forEachChild(n, visit);
   };
@@ -345,5 +369,118 @@ export function callsTo(source: string, callee: string, fileName = "file.tsx"): 
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === callee) out.push({ args: n.arguments.map((a) => a.getText(sf)), line: line(sf, n) });
     ts.forEachChild(n, visit);
   };
+  visit(sf); return out;
+}
+
+/** Relation fields per model, from prisma/schema.prisma text: model -> { field -> targetModel }. Pure over text. */
+export function prismaRelations(schema: string): Record<string, Record<string, string>> {
+  const models = new Set([...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]));
+  const out: Record<string, Record<string, string>> = {};
+  for (const m of schema.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm)) {
+    const fields: Record<string, string> = {};
+    for (const ln of m[2].split("\n")) {
+      const f = ln.match(/^\s+(\w+)\s+(\w+)(\[\]|\?)?(\s|$)/);
+      if (f && models.has(f[2])) fields[f[1]] = f[2];
+    }
+    out[m[1]] = fields;
+  }
+  return out;
+}
+
+const lc = (m: string) => m[0].toLowerCase() + m.slice(1);
+const uc = (m: string) => m[0].toUpperCase() + m.slice(1);
+
+/**
+ * Every relation a query on `root.<model>.<op>({…})` reaches, at any depth
+ * and under any wrapper (include, select, where, orderBy, _count, some /
+ * every / none …), as "Model.field -> Target". A directory read on a platform
+ * model that includes, selects, counts or filters by a tenant-owned relation
+ * is a cross-tenant read without the guard, and this is how it is found.
+ */
+export function relationTraversals(source: string, root: string, relations: Record<string, Record<string, string>>, fileName = "file.ts"): { path: string; target: string; line: number }[] {
+  const sf = parse(source, fileName); const out: { path: string; target: string; line: number }[] = [];
+  // Module-scope `const X = { … }` object literals are resolved, so a shared
+  // select such as SITES_SELECT is walked rather than treated as opaque.
+  const consts = new Map<string, ts.Expression>();
+  for (const st of sf.statements) if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer) consts.set(d.name.text, unwrapExpr(d.initializer));
+  const resolve = (e: ts.Expression): ts.Expression => { let cur = unwrapExpr(e); for (let i = 0; i < 8 && ts.isIdentifier(cur) && consts.has(cur.text); i++) cur = unwrapExpr(consts.get(cur.text)!); return cur; };
+  // Query keys under which an opaque value would hide a relation walk.
+  const WRAPPERS = new Set(["include", "select", "where", "orderBy", "_count", "some", "every", "none", "is", "isNot", "data", "AND", "OR", "NOT"]);
+  const walk = (raw: ts.Node, model: string, path: string, keyIsShape: boolean) => {
+    const node = ts.isExpression(raw) ? resolve(raw) : raw;
+    if (ts.isObjectLiteralExpression(node)) {
+      for (const pr of node.properties) {
+        if (ts.isSpreadAssignment(pr)) { const sp = resolve(pr.expression); if (ts.isObjectLiteralExpression(sp)) walk(sp, model, `${path}.<spread>`, keyIsShape); else out.push({ path: `${path}.<spread ${pr.expression.getText(sf).slice(0, 20)}>`, target: "<unknown>", line: line(sf, pr) }); continue; }
+        const name = ts.isPropertyAssignment(pr) || ts.isShorthandPropertyAssignment(pr) ? (ts.isComputedPropertyName(pr.name) ? "<computed>" : (pr.name as ts.Identifier | ts.StringLiteral).text) : "<other>";
+        const target = relations[model]?.[name];
+        if (target) { out.push({ path: `${path}.${name}`, target, line: line(sf, pr) }); if (ts.isPropertyAssignment(pr)) walk(pr.initializer, target, `${path}.${name}`, true); }
+        else if (name === "<computed>") out.push({ path: `${path}.<computed>`, target: "<unknown>", line: line(sf, pr) });
+        else if (ts.isPropertyAssignment(pr)) walk(pr.initializer, model, `${path}.${name}`, WRAPPERS.has(name));
+      }
+    } else if (ts.isArrayLiteralExpression(node)) node.elements.forEach((e) => walk(e, model, path, keyIsShape));
+    // An opaque value matters only where a shape could hide a relation: under a
+    // wrapper key or as a relation's own argument. `contractorId: { in: rows.map(…) }`
+    // is a scalar filter and cannot reach another model.
+    else if (keyIsShape && (ts.isIdentifier(node) || ts.isCallExpression(node) || ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node) || ts.isConditionalExpression(node))) out.push({ path: `${path}=<opaque ${node.getText(sf).slice(0, 30)}>`, target: "<unknown>", line: line(sf, node) });
+  };
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isPropertyAccessExpression(n.expression.expression)) {
+      const recv = n.expression.expression; // root.model
+      if (ts.isIdentifier(recv.expression) && recv.expression.text === root) {
+        const model = uc(recv.name.text);
+        if (n.arguments[0]) walk(n.arguments[0], model, `${root}.${lc(model)}`, true);
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf); return out;
+}
+
+/**
+ * Whether a call's callee is the GENUINE binding the caller thinks it is: an
+ * import of the named export from the named module, or a module-scope
+ * declaration of that name — and NOT shadowed by any declaration in a scope
+ * between the call and the module. A local `const listContractors = …` inside
+ * a function makes `listContractors(x)` a different function.
+ */
+export function calleeResolution(sf: ts.SourceFile, call: ts.CallExpression): { name: string; kind: "import" | "module-decl" | "shadowed" | "local" | "unknown"; module?: string; exported?: string; shadowedBy?: string } {
+  if (!ts.isIdentifier(call.expression)) return { name: call.expression.getText(sf), kind: "unknown" };
+  const name = call.expression.text;
+  // Does any scope between the call and the module declare `name`? Each
+  // enclosing function-like or block is searched for its OWN declarations,
+  // never descending into nested functions, which are their own scopes.
+  const declaredIn = (container: ts.Node): string | null => {
+    let found: string | null = null;
+    const look = (m: ts.Node) => {
+      if (found) return;
+      if (m !== container && ts.isFunctionLike(m)) return;
+      if ((ts.isVariableDeclaration(m) && ts.isIdentifier(m.name) && m.name.text === name) || (ts.isFunctionDeclaration(m) && m.name?.text === name)) { found = m.getText(sf).slice(0, 70); return; }
+      ts.forEachChild(m, look);
+    };
+    if (ts.isFunctionLike(container)) {
+      for (const prm of container.parameters) if (ts.isIdentifier(prm.name) && prm.name.text === name) return `parameter ${prm.getText(sf)}`;
+      const body = (container as ts.FunctionLikeDeclaration).body;
+      if (body) look(body);
+    } else look(container);
+    return found;
+  };
+  let scope: ts.Node | undefined = call.parent;
+  while (scope && scope !== sf) {
+    if (ts.isBlock(scope) || ts.isFunctionLike(scope)) { const hit = declaredIn(scope); if (hit) return { name, kind: "shadowed", shadowedBy: hit }; }
+    scope = scope.parent;
+  }
+  // module scope: an import, or a top-level declaration
+  for (const e of moduleEdges(sf)) if (e.kind === "import") for (const b of e.names) if (b.local === name) return { name, kind: "import", module: e.module, exported: b.exported };
+  for (const st of sf.statements) {
+    if (ts.isFunctionDeclaration(st) && st.name?.text === name) return { name, kind: "module-decl" };
+    if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.name.text === name) return { name, kind: "module-decl" };
+  }
+  return { name, kind: "unknown" };
+}
+
+/** Every call in the file whose callee identifier is `name`, with how it resolves. */
+export function callsResolved(source: string, name: string, fileName = "file.ts"): ReturnType<typeof calleeResolution>[] {
+  const sf = parse(source, fileName); const out: ReturnType<typeof calleeResolution>[] = [];
+  const visit = (n: ts.Node) => { if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === name) out.push(calleeResolution(sf, n)); ts.forEachChild(n, visit); };
   visit(sf); return out;
 }

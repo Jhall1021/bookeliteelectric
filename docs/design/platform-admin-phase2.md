@@ -82,6 +82,14 @@ only that way", and the new verifier holds that there is exactly one such file.
   handler's second-argument context; destructure keys are normalized, so
   `{ ["delete"]: write }` is the mutator it names.
 
+- **Audit strength (round seven):** every relation a directory query touches
+  — under include, select, `_count`, where, at any depth, through module-scope
+  select constants — is resolved against `prisma/schema.prisma` and must land
+  on a non-tenant model; an approved sink name must resolve to the genuine
+  import or module-scope declaration, never a shadowing local or parameter;
+  destructuring assignments are read like declarations; and the implicit
+  `arguments` object is refused on any platform surface.
+
 ## Not in Phase 2
 
 Support entry and `SupportAccessEvent`; any mutation, including "resend" or

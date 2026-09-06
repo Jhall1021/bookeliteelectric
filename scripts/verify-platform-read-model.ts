@@ -30,7 +30,7 @@ import {
   listContractors, contractorFactsFor, platformOverviewFor, attentionFor, STUCK_AFTER_DAYS, type ContractorFacts,
 } from "../lib/platformReadModel";
 import { withPlatformFor } from "../lib/platformContext";
-import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, type Policy } from "./_platformSurfaceAudit";
+import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, prismaRelations, relationTraversals, callsResolved, type Policy } from "./_platformSurfaceAudit";
 import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
 
 /**
@@ -239,6 +239,26 @@ async function main() {
     .filter((u) => !((u.kind === "member" && DIRECTORY_MODELS.has(u.member)) || (u.kind === "arg-of" && DIRECTORY_SINKS.has(u.callee) && u.index === 0)))
     .map((u) => `${root}:${u.kind}:${"member" in u ? u.member : ""}${u.text.slice(0, 40)}@${u.line}`));
   ok(`   every use of a directory client is an approved platform-model read or an argument to an approved sink — no alias, cast or escape`, dirStray.length === 0, dirStray.join("; "));
+  // A directory read may name a platform model and still reach tenant rows
+  // through a relation — include: { services: true }, a _count, a `where`
+  // filter through a relation. Every relation the query touches, at any
+  // depth, is resolved against the schema and must land on a non-tenant model.
+  const relations = prismaRelations(readFileSync("prisma/schema.prisma", "utf8"));
+  const tenantTargets = new Set([...TENANT_SCOPED_MODELS, ...DERIVED_TENANT_MODELS.keys()]);
+  const badTraversal = (src: string, root: string) => relationTraversals(src, root, relations).filter((tr) => tenantTargets.has(tr.target) || tr.target === "<unknown>");
+  const traversals = ["platformDb", "db"].flatMap((r) => badTraversal(rmSrc, r).map((tr) => `${tr.path} -> ${tr.target}@${tr.line}`));
+  ok(`   no directory query reaches a tenant-owned relation at any depth (include / select / _count / where)`, traversals.length === 0, traversals.join("; "));
+  ok(`   and the schema parser sees the relation that would leak`, relations.Contractor?.services === "Service" && relations.Contractor?.sites === "ContractorSite" && relations.ContractorMembership?.user === "User");
+  // An approved sink name must be the GENUINE function: an import from
+  // lib/platformContext or a module-scope declaration of this file, not a
+  // local that happens to share the name.
+  const sinkOk = (r: ReturnType<typeof callsResolved>[number]) =>
+    (r.kind === "import" && r.module === "./platformContext" && (r.exported === "withPlatformFor" || r.exported === "withPlatformContractorFor"))
+    || (r.kind === "module-decl" && ["listContractors", "platformOverviewFor", "contractorFactsFor"].includes(r.name))
+    || (r.name === "readFacts" && r.kind === "shadowed" && /readFacts = opts\.readFacts \?\? contractorFactsFor/.test(r.shadowedBy ?? ""));
+  const sinkCalls = [...DIRECTORY_SINKS].flatMap((n) => callsResolved(rmSrc, n, "lib/platformReadModel.ts"));
+  const spoofed = sinkCalls.filter((r) => !sinkOk(r));
+  ok(`   every approved-sink call resolves to the genuine function (${sinkCalls.length} calls), none to a shadowing local`, sinkCalls.length > 0 && spoofed.length === 0, spoofed.map((r) => `${r.name}:${r.kind}:${r.shadowedBy ?? r.module ?? ""}`).join("; "));
   ok(`   the catalog split is disjoint: quote-only decided first, priced and needs-a-price split the rest`,
     /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: \{ not: null \} \}/.test(rmSrc) && /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: null \}/.test(rmSrc) && /where: \{ active: true, \.\.\.QUOTE_ONLY \}/.test(rmSrc));
   ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm));
@@ -357,6 +377,24 @@ async function main() {
   ok(`   mutant: a computed non-literal destructure is refused as unknowable`, mutatingCalls("const { [k]: w } = db.service;").some((m) => /computed/.test(m.callee)));
   ok(`   mutant: a string-literal-keyed destructure of a mutator is seen`, mutatingCalls('const { "update": u } = db.service;').some((m) => /update/.test(m.callee)));
   ok(`   mutant: a cast alias of the unguarded client is seen`, memberAccessesOn("const p = prisma as PrismaClient; p.booking.count();", "prisma").some((m) => m.member === "booking"));
+  // Review round 7: relation traversal, sink spoofing, destructuring assignment, `arguments`.
+  ok(`   mutant: include: { services: true } on a contractor read is a tenant traversal`, badTraversal("async function f(platformDb: PrismaClient) { await platformDb.contractor.findMany({ include: { services: true } }); }", "platformDb").some((tr) => tr.target === "Service"));
+  ok(`   mutant: a _count of services is a tenant traversal`, badTraversal("async function f(platformDb: PrismaClient) { await platformDb.contractor.findMany({ select: { id: true, _count: { select: { services: true } } } }); }", "platformDb").some((tr) => tr.target === "Service"));
+  ok(`   mutant: filtering contractors by a service relation is a tenant traversal`, badTraversal("async function f(platformDb: PrismaClient) { await platformDb.contractor.findMany({ where: { services: { some: { active: true } } } }); }", "platformDb").some((tr) => tr.target === "Service"));
+  const deep = "async function f(platformDb: PrismaClient) { await platformDb.contractor.findMany({ include: { sites: { include: { contractor: { include: { services: true } } } } } }); }";
+  ok(`   mutant: a tenant relation three levels down is seen`, badTraversal(deep, "platformDb").some((tr) => tr.target === "Service" && /sites\.include\.contractor\.include\.services/.test(tr.path)));
+  ok(`   and every hop on the way is resolved against the schema`, relationTraversals(deep, "platformDb", relations).map((tr) => tr.target).join(">") === "ContractorSite>Contractor>Service");
+  ok(`   mutant: an opaque (non-literal) query argument is refused as unknowable`, badTraversal("async function f(platformDb: PrismaClient, q: object) { await platformDb.contractor.findMany(q); }", "platformDb").length === 1);
+  ok(`   while the read model's own site and owner selects are not`, badTraversal(rmSrc, "platformDb").length === 0 && badTraversal(rmSrc, "db").length === 0);
+  ok(`   mutant: a shadowing local named like an approved sink is not the sink`, callsResolved("async function f(platformDb: PrismaClient) { const listContractors = (db: PrismaClient) => db.service.findMany(); return listContractors(platformDb); }", "listContractors").every((r) => r.kind === "shadowed"));
+  ok(`   mutant: a shadowing parameter is not the sink either`, callsResolved("function g(listContractors: (x: unknown) => unknown, platformDb: PrismaClient) { return listContractors(platformDb); }", "listContractors").every((r) => r.kind === "shadowed"));
+  ok(`   while the real module-scope sink resolves as such`, callsResolved(rmSrc, "listContractors", "lib/platformReadModel.ts").every((r) => r.kind === "module-decl") && callsResolved(rmSrc, "withPlatformFor", "lib/platformReadModel.ts").every((r) => r.kind === "import" && r.module === "./platformContext"));
+  ok(`   mutant: a destructuring ASSIGNMENT of a mutator is seen`, mutatingCalls("let write; ({ delete: write } = db.service); await write({ where: { id } });").some((m) => /assigned/.test(m.callee)));
+  ok(`   mutant: a computed-key destructuring assignment is seen`, mutatingCalls('let w; ({ ["update"]: w } = db.service);').some((m) => /update/.test(m.callee)));
+  ok(`   mutant: destructuring the unguarded client by assignment is seen`, memberAccessesOn("let service; ({ service } = prisma);", "prisma").some((m) => m.member === "service"));
+  ok(`   mutant: implicit \`arguments\` on a page is refused`, requestAccess("export default function Page() { return arguments[0].params.contractorId; }").some((a) => a.kind === "arguments-object"));
+  ok(`   mutant: \`arguments\` passed onward is refused too`, requestAccess("export default function Page() { return helper(arguments); }").some((a) => a.kind === "arguments-object"));
+  ok(`   and no platform surface touches \`arguments\``, surfaces.every((f) => !requestAccess(readFileSync(f, "utf8"), f).some((a) => a.kind === "arguments-object")));
   ok(`   while a column named createdAt is not a write`, mutatingCalls("const t = row.createdAt; const u = svc.updatedAt;").length === 0);
   ok(`   mutant: the read model dereferencing prisma is seen`, memberAccessesOn(rmSrc + "\nconst stray = prisma.service;", "prisma").length === 1);
 
