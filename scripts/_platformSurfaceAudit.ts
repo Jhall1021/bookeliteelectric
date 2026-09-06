@@ -229,7 +229,10 @@ export function bindingUses(sf: ts.SourceFile, root: string): BindingUse[] {
   const visit = (n: ts.Node) => {
     if (ts.isIdentifier(n) && aliases.has(n.text)) {
       const parent = n.parent;
-      const isDecl = (ts.isVariableDeclaration(parent) && parent.name === n) || (ts.isParameter(parent) && parent.name === n) || ts.isBindingElement(parent) || (ts.isPropertyAccessExpression(parent) && parent.name === n) || ts.isImportSpecifier(parent) || ts.isImportClause(parent) || (ts.isPropertyAssignment(parent) && parent.name === n) || (ts.isShorthandPropertyAssignment(parent) && false);
+      // Name positions are not value uses: a declaration's name, a property
+      // key, a member access's property, a type member's name.
+      const isDecl = (ts.isVariableDeclaration(parent) && parent.name === n) || (ts.isParameter(parent) && parent.name === n) || ts.isBindingElement(parent) || (ts.isPropertyAccessExpression(parent) && parent.name === n) || ts.isImportSpecifier(parent) || ts.isImportClause(parent) || (ts.isPropertyAssignment(parent) && parent.name === n) || (ts.isShorthandPropertyAssignment(parent) && false)
+        || ((ts.isPropertySignature(parent) || ts.isMethodSignature(parent) || ts.isPropertyDeclaration(parent) || ts.isMethodDeclaration(parent) || ts.isEnumMember(parent) || ts.isTypeAliasDeclaration(parent) || ts.isInterfaceDeclaration(parent)) && parent.name === n);
       if (!isDecl) {
         // Look through `(x)`, `x as T`, `x!`, `<T>x`: they change nothing at runtime.
         const eff = transparentParent(n); const parent2 = eff.parent; const self = eff as ts.Expression;

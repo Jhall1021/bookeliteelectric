@@ -304,8 +304,17 @@ async function main() {
   const SINK_NAMES = [...DIRECTORY_SINKS];
   const rebound = SINK_NAMES.flatMap((n) => assignmentsTo(rmSrc, n, "lib/platformReadModel.ts").map((a) => `${n}:${a.form}@${a.line}`));
   ok(`   no approved sink binding is ever reassigned, in any form`, rebound.length === 0, rebound.join("; "));
-  const dynamicCode = [["lib/platformReadModel.ts", rmSrc] as const, ...surfaces.map((f) => [f, readFileSync(f, "utf8")] as const)].flatMap(([f, src]) => ["eval", "Function"].flatMap((g) => usesOf(src, g, f).map((u) => `${f}:${u.line} ${g}`)));
-  ok(`   no platform file reaches for eval or Function`, dynamicCode.length === 0, dynamicCode.join("; "));
+  // …and nothing on a platform surface can LOAD a module at runtime past the
+  // import policy: no value-use of require (under any alias — `const load =
+  // require` is a use), the CommonJS module object, the global objects that
+  // carry require, or the process object, anywhere in the read model or a
+  // surface. The import policy already refuses every non-import edge, dynamic
+  // or computed; this closes the loader reached without naming it.
+  const RUNTIME_LOADERS = ["eval", "Function", "require", "module", "globalThis", "global", "window", "self", "process", "__non_webpack_require__", "__webpack_require__"];
+  const platformFiles = [["lib/platformReadModel.ts", rmSrc] as const, ...surfaces.map((f) => [f, readFileSync(f, "utf8")] as const)];
+  const loaderUses = (src: string, file = "mutant.ts") => RUNTIME_LOADERS.flatMap((g) => usesOf(src, g, file).map((u) => `${g}:${u.kind}:${u.text.slice(0, 40)}@${u.line}`));
+  const dynamicCode = platformFiles.flatMap(([f, src]) => loaderUses(src, f).map((d) => `${f} ${d}`));
+  ok(`   no platform file reaches for eval, Function, require, module, a global object or process — by any alias`, dynamicCode.length === 0, dynamicCode.join("; "));
   ok(`   the catalog split is disjoint: quote-only decided first, priced and needs-a-price split the rest`,
     /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: \{ not: null \} \}/.test(rmSrc) && /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: null \}/.test(rmSrc) && /where: \{ active: true, \.\.\.QUOTE_ONLY \}/.test(rmSrc));
   ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm));
@@ -473,6 +482,10 @@ async function main() {
   ok(`   mutant: a genuine sink reassigned before the call is seen`, assignmentsTo("function listContractors(db: PrismaClient) { return db.contractor.findMany(); } async function probe(platformDb: PrismaClient) { listContractors = ((client: PrismaClient) => client.service.findMany()) as any; return listContractors(platformDb); }", "listContractors").some((a) => a.form === "assignment"));
   ok(`   mutant: a compound assignment, an update, a destructuring assignment and a loop head are all writes`, assignmentsTo("listContractors ??= evil;", "listContractors").length === 1 && assignmentsTo("listContractors++;", "listContractors").length === 1 && assignmentsTo("({ a: { b: [listContractors = x] } } = evil);", "listContractors").some((a) => a.form === "destructuring-assignment") && assignmentsTo("[, ...listContractors] = evil;", "listContractors").length === 1 && assignmentsTo("for (listContractors of xs) {}", "listContractors").some((a) => a.form === "for-head"));
   ok(`   mutant: a module-scope let or var is not a genuine sink even unassigned`, callsResolved("let listContractors = (db: PrismaClient) => db.contractor.findMany(); async function f(platformDb: PrismaClient) { return listContractors(platformDb); }", "listContractors").every((c) => c.kind === "module-decl" && c.form === "let") && !sinkOk(callsResolved("let listContractors = () => 0; listContractors(1);", "listContractors")[0]));
+  ok(`   mutant: require under an alias (const loadPrisma = require) reaching ./prisma is seen`, (() => { const src = PRISMA + 'import { currentUser } from "./adminContext";\nconst loadPrisma = require;\nexport const platformOverview = async () => { const { prisma: other } = loadPrisma("./prisma"); await other.service.findMany({}); return platformOverviewFor(prisma, await currentUser()); };'; return loaderUses(src).some((d) => /^require:alias/.test(d)) && importedBinding(src, "./prisma", "prisma").problems.length === 0; })());
+  ok(`   mutant: require reached through globalThis, module, process or a stored global is seen`, ['globalThis.require("./prisma")', '(module as any).require("./prisma")', 'process.mainModule?.require("./prisma")', 'const g = globalThis; g["require"]("./prisma")', 'const r = (0, require); r("./prisma")', 'const { require: rq } = module; rq("./prisma")'].every((src) => loaderUses(src).length > 0));
+  ok(`   mutant: a dynamic import with a computed specifier is refused by the import policy`, importViolations('const s = "./pri" + "sma"; export const f = async () => import(s);', READ_MODEL_POLICY, "mutant.ts").some((v) => /dynamic-import/.test(v)) && importViolations('export const f = () => require("./prisma");', READ_MODEL_POLICY, "mutant.ts").some((v) => /require/.test(v)));
+  ok(`   while a property or key merely named require is not a loader`, loaderUses("const o = { require: 1 }; o.require; type T = { module: string };").length === 0);
   ok(`   mutant: eval on a platform surface is seen`, usesOf("export default function Page() { return eval('x'); }", "eval").length === 1 && usesOf("const f = new Function('return 1'); f();", "Function").length === 1);
   ok(`   while a property write on some other object is not a binding write`, assignmentsTo("row.listContractors = 1; o['listContractors'] = 2;", "listContractors").length === 0);
   ok(`   while the real module-scope sink resolves as such`, callsResolved(rmSrc, "listContractors", "lib/platformReadModel.ts").every((r) => r.kind === "module-decl") && callsResolved(rmSrc, "withPlatformFor", "lib/platformReadModel.ts").every((r) => r.kind === "import" && r.module === "./platformContext"));

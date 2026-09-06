@@ -127,6 +127,14 @@ only that way", and the new verifier holds that there is exactly one such file.
   expression has its own `arguments`, so it is refused, and the read model
   may never touch `arguments` at all.
 
+- **Audit strength (round twelve):** no platform file may make a value use
+  of any runtime loader — `require` under any alias, the CommonJS `module`
+  object, `globalThis`/`global`/`window`/`self`, `process`, the bundler's
+  require, `eval` or `Function` — so a module cannot be loaded past the
+  import policy without naming the loader. The import policy itself already
+  refuses every non-import edge, including a dynamic import with a computed
+  specifier.
+
 ## Not in Phase 2
 
 Support entry and `SupportAccessEvent`; any mutation, including "resend" or
