@@ -11,7 +11,7 @@
  * as such at the end; nothing here substitutes for them.
  */
 
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeSync, fsyncSync, statSync, chmodSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeSync, fsyncSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runRelease, type ReleaseIO, type IntentRecord } from "./_releaseRun";
@@ -767,12 +767,25 @@ async function liveAdapterTests() {
   ok(!secondThrew, "B3  and releasing an already-absent lock is not an error (ENOENT)");
 
   // A real failure must PROPAGATE rather than resolve quietly.
-  await lk.acquire({ sha: MAIN, runId: "runY" });
-  chmodSync(lockDir, 0o500);            // directory not writable: unlink fails EACCES/EPERM
-  let realThrew = false;
-  try { await lk.release("runY"); } catch { realThrew = true; }
-  chmodSync(lockDir, 0o700);
-  ok(realThrew, "B3  but an unlink that FAILS for any other reason propagates, never resolves");
+  //
+  // THE FAILURE IS INJECTED, NOT SIMULATED WITH PERMISSIONS. This forced it with
+  // `chmod 0o500` on the containing directory, which stops an ordinary user and
+  // NOT root — root ignores directory permissions. So the unlink succeeded, the
+  // assertion failed, and it failed for the first time in the Vercel production
+  // build, which runs as root: it had passed locally, in the mutation sweep and
+  // in the isolated database run, none of which run as root.
+  //
+  // A test whose outcome depends on the uid is testing the environment. The
+  // adapter is still the REAL one, on a REAL file — only the unlink call is
+  // substituted, and it throws the same shape the kernel would.
+  const eacces = Object.assign(new Error("EACCES: permission denied, unlink"), { code: "EACCES" });
+  const lkFail = fileLock(lp, () => { throw eacces; });
+  await lkFail.acquire({ sha: MAIN, runId: "runY" });
+  let caught: unknown;
+  try { await lkFail.release("runY"); } catch (e) { caught = e; }
+  ok(caught === eacces,
+    "B3  but an unlink that FAILS for any other reason propagates, never resolves",
+    caught === undefined ? "resolved instead of throwing" : `threw ${String(caught).slice(0, 60)}`);
   ok(existsSync(lp), "B3  and the lock file is still there, as the refusal must be able to say");
   rmSync(lockDir, { recursive: true, force: true });
 

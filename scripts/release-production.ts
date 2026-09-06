@@ -229,7 +229,19 @@ export async function currentProductionRaw(api: Api): Promise<{ raw?: unknown; e
 
 export const RELEASE_MACHINE = process.env.P2B_RELEASE_MACHINE ?? "the designated release machine";
 
-export function fileLock(path: string) {
+/**
+ * @param unlink Injected only so a test can force a NON-ENOENT failure. It
+ * defaults to `unlinkSync`, so production behavior is unchanged.
+ *
+ * The test used to force that failure with `chmod 0o500` on the containing
+ * directory. That works as an ordinary user and NOT as root, which ignores
+ * directory permissions — so the assertion passed locally, in the mutation sweep
+ * and in the isolated database run, then failed in the Vercel production build,
+ * which runs as root. A test whose outcome depends on the uid is not testing the
+ * code; the dependency is injected instead so the failure is deterministic
+ * everywhere.
+ */
+export function fileLock(path: string, unlink: (p: string) => void = unlinkSync) {
   const read = (): { runId?: string } | null => {
     try { return JSON.parse(readFileSync(path, "utf8")) as { runId?: string }; } catch { return null; }
   };
@@ -281,7 +293,7 @@ export function fileLock(path: string) {
       // been released. A lock that is held but reported as released blocks the
       // next release and reads as a stuck run.
       try {
-        unlinkSync(path);
+        unlink(path);
       } catch (e) {
         if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return;  // genuinely gone
         throw e;

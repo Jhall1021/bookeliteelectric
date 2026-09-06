@@ -213,12 +213,12 @@ MUTATIONS = {
         "an unlink failure reported as a release",
         _sub(R,
              '      try {\n'
-             '        unlinkSync(path);\n'
+             '        unlink(path);\n'
              '      } catch (e) {\n'
              '        if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return;  // genuinely gone\n'
              '        throw e;\n'
              '      }',
-             '      try { unlinkSync(path); } catch { /* already gone */ }'),
+             '      try { unlink(path); } catch { /* already gone */ }'),
         CONTROL,
     ),
     "identity-leak-by-shorthand": (
