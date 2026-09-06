@@ -33,7 +33,7 @@ import { ELECTRICAL_TEMPLATE } from "@/components/marketing/trades/electricalTem
 export const metadata: Metadata = {
   title: "Guided Pricing — price the jobs that are clear, route the ones that aren’t",
   description:
-    "Price2Book asks homeowners observable questions about the work, not technical questions they shouldn’t be expected to answer. Their answers decide whether a job can receive an approved price, needs more information, belongs to a different service, or should be handled another way.",
+    "Price2Book asks homeowners observable questions about the work, not technical questions they shouldn’t be expected to answer. Their answers decide whether a job can receive an approved price, belongs to a different service, needs troubleshooting, or should come to the contractor to price.",
   alternates: { canonical: "/product/guided-pricing" },
 };
 
@@ -65,8 +65,17 @@ export default function GuidedPricingPage() {
         <p className="mt-6 max-w-[70ch] text-[17px] leading-[1.55] text-p2b-ink-warm lg:text-xl">
           Price2Book asks homeowners observable questions about the work — not technical questions
           they shouldn’t be expected to answer. Their answers decide whether the job can receive an
-          approved price, needs more information, belongs to a different service, or should be
-          handled another way.
+          approved price, belongs to a different service, needs troubleshooting, or should come to
+          you to price.
+        </p>
+        <p className="mt-5 max-w-[70ch] text-[16px] leading-[1.6] text-p2b-muted">
+          This page is about the first of those. When you would rather review the work yourself
+          before anyone sees a number,{" "}
+          <Link href="/product/guided-estimates" className="font-semibold text-p2b-accent">
+            Guided Estimates
+          </Link>{" "}
+          is the same guided flow ending in your review instead of a published price — a sibling of
+          this, not a fallback from it.
         </p>
       </section>
 

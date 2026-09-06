@@ -31,15 +31,39 @@ import { HERO_FLOW } from "./heroFlow";
 export const SIGN_IN_PATH = "/sign-in";
 
 export const HERO = {
-  eyebrow: "For residential service contractors",
-  headline: ["Your pricing.", "Your schedule."],
-  // Was "Turn homeowner requests into safely priced, bookable work." That
-  // described the product without saying where it lives, which is the first
-  // question a contractor with a website actually has.
+  /**
+   * THE FIRST SCREEN SELLS THE PROBLEM, NOT THE PRODUCT — owner, 2 September.
+   *
+   * "Your pricing. Your schedule." is a fine brand line and a poor opening
+   * argument: it names what a contractor already owns rather than what is
+   * costing them. It survives as the payoff and as the page title, which is
+   * where a tagline belongs, and the headline now leads with the day the
+   * contractor is actually having.
+   */
+  eyebrow: "Customer-guided pricing, estimates & booking",
+  headline: "Stop spending your day answering routine service calls.",
   body:
-    "Add Price2Book to the website you already have. Homeowners answer a few questions, see your approved price when the work qualifies, and book from your availability — without replacing the software you already use.",
-  primaryCta: "Request Early Access",
-  secondaryCta: "Try the Homeowner Demo",
+    "Price2Book lets customers choose a service, answer the questions you normally ask, and either get your approved price and book on the spot\u2014or send you a Guided Estimate with the details and photos you need to quote it remotely.",
+  /**
+   * Four outcomes, scannable in one pass. Each is a benefit a contractor
+   * feels, not a feature name — the feature names live two sections down,
+   * where a reader who wants them has already decided to care.
+   */
+  proof: [
+    "Book routine work without the phone call",
+    "Quote more jobs without an estimate trip",
+    "Add more work with While We\u2019re There\u2122 pricing",
+    "Only offer appointment times that fit the job",
+  ],
+  payoff: "Your services. Your pricing rules. Your schedule.",
+  /**
+   * CTA ORDER CHANGED. "Request Early Access" led, which asks a stranger to
+   * commit before they understand what they would be committing to. Someone
+   * who just landed wants to understand the product first.
+   */
+  primaryCta: "See How It Works",
+  secondaryCta: "Request Early Access",
+  tertiaryCta: "Try the Homeowner Demo",
   support: "Works alongside your existing business software.",
   supportEmphasis: "No new CRM required.",
   footnote: "Built for residential service contractors. Built first with a working residential electrical contractor.",
@@ -202,7 +226,7 @@ export const PILLARS = [
     tone: "accent",
     href: "/product/guided-pricing",
     lead: "Homeowners answer the questions that actually affect the job.",
-    body: "They see a price you approved when the work qualifies for one.",
+    body: "Qualifying work gets a price you approved. The rest comes to you, scoped, with the photographs you asked for.",
   },
   {
     title: "Book Online",
@@ -456,7 +480,7 @@ export const START_SMALL = {
     "When can you come? Does Tuesday work? What about Thursday?",
   ],
   after:
-    "Put those services online and customers get the price, answer the qualifying questions and choose an appointment themselves.",
+    "Put those services online and customers answer the qualifying questions themselves \u2014 then either see your approved price and book a time, or send you the details and photographs so you can price it.",
   split: [
     {
       tag: "Put these online first",
@@ -466,10 +490,23 @@ export const START_SMALL = {
     {
       tag: "Leave these exactly as they are",
       tone: "neutral",
-      body: "Bigger jobs, troubleshooting calls, estimates and custom work. They keep running the way they run today.",
+      body: "Renovations, custom work, anything you\u2019d rather handle yourself. They keep running the way they run today.",
     },
   ],
-  scale: "Ten services or a hundred. You decide what customers can price and book online, and you can add more whenever it makes sense.",
+  scale: "Ten services or a hundred. You decide which services go online, and whether each one shows a price or comes to you for an estimate.",
+  /**
+   * THE LINE THAT SEPARATES THE TWO IDEAS PEOPLE CONFLATE.
+   *
+   * "Putting pricing online" has been heard as "advertising flat-rate prices"
+   * for as long as this site has existed, and that reading loses every
+   * contractor who will not publish a number — which is a lot of them. It is
+   * also wrong: the intake, the questions, the photographs and the handoff are
+   * the product, and the published price is one optional ending.
+   *
+   * Deliberately says "publish", not "have". A Guided Estimate still ends in a
+   * price; the contractor sets it and sends it.
+   */
+  publishing: "You don\u2019t have to publish your prices to put your pricing process online.",
   close: "Price2Book fits your business — your business doesn’t have to fit Price2Book.",
 } as const;
 
@@ -502,6 +539,7 @@ export const BOUNDARY_ROLES = {
     "Homeowner qualification",
     "Approved pricing",
     "Guided Pricing outcomes",
+    "Guided Estimate intake and review",
     "Building the visit",
     "Presenting appropriate booking options",
     "Customer self-booking",
@@ -515,6 +553,189 @@ export const BOUNDARY_ROLES = {
     "Job costing",
     "The rest of how you run the business",
   ],
+} as const;
+
+
+/**
+ * The second adoption axis — SITEMAP.md.
+ *
+ * A contractor makes TWO independent decisions, and the site used to teach
+ * only the first: how much of the catalog goes into Price2Book. The second is
+ * how those services hand a customer a number, and it is not a progression.
+ * Instant Price is not the finished version of Guided Estimate, and Guided
+ * Estimate is not what happens when Instant Price fails.
+ *
+ * A contractor who publishes no prices at all and reviews every job is using
+ * the product as designed, not half of it. `withoutPublishedPrice` in
+ * `guidedEstimates.ts` is the measurement that keeps that honest: every one
+ * of the quote-only services in production carries no published price.
+ *
+ * NOT A CLAIM ABOUT AI. A human contractor sets every estimate. Nothing here
+ * may imply the software decides the number — see POSITIONING.md.
+ */
+export const PRICING_MODES: ReadonlyArray<{
+  name: string;
+  href: string | null;
+  forWhat: string;
+  body: string;
+  note?: string;
+}> = [
+  {
+    name: "Instant Price",
+    href: "/product/guided-pricing",
+    forWhat: "For predictable work that can be scoped from the customer\u2019s answers.",
+    body:
+      "You approve the pricing. When the answers establish enough of the job, the customer gets that answer immediately and can carry on to booking.",
+  },
+  {
+    name: "Guided Estimate",
+    href: "/product/guided-estimates",
+    forWhat: "For work you want to look at before you give anyone a number.",
+    body:
+      "The customer answers the same guided questions and supplies the details and photographs you asked for. You review the scope and set the estimate.",
+    note: "You can use Price2Book this way without displaying instant prices at all.",
+  },
+  {
+    name: "Onsite Visit",
+    href: null,
+    forWhat: "For work that genuinely has to be seen, diagnosed or measured in person.",
+    body:
+      "Some jobs need somebody there, and pretending otherwise is how a customer ends up with a number nobody can stand behind. Price2Book routes those to a visit instead.",
+  },
+];
+
+/**
+ * The estimate trip that only existed because information was missing.
+ *
+ * THE TARGET IS NARROW, ON PURPOSE. This is not an argument against site
+ * visits — a contractor who reads it that way stops trusting the rest of the
+ * page, and rightly. It is an argument against driving somewhere to collect
+ * what the homeowner could have handed over beforehand.
+ *
+ * NO PERCENTAGES. There is no measured claim about how many trips this
+ * removes, so the page makes none. What it can show is the real thing the
+ * product asks a homeowner for, which is why the sequences below stay
+ * qualitative and the evidence comes from the capture.
+ */
+export const ESTIMATE_TRIPS = {
+  headline: "Go on estimates because the job needs you there \u2014 not because you needed more information.",
+  lead:
+    "If the customer can give you what you need to quote the work, Price2Book collects it. Review the answers and the photographs, set the estimate, and keep the truck parked. When a job genuinely needs to be seen, send someone.",
+  before: {
+    label: "The trip that was really a fact-finding mission",
+    steps: [
+      "Customer calls",
+      "You ask what you can over the phone",
+      "You schedule an estimate",
+      "You drive there",
+      "You gather the information",
+      "You drive back",
+      "You work out the price",
+    ],
+  },
+  after: {
+    label: "The same job, quoted from what they sent",
+    steps: [
+      "Customer answers the guided questions",
+      "They supply the details and photographs you asked for",
+      "You review the scope",
+      "You set the estimate",
+    ],
+  },
+  caveat:
+    "And when the work does have to be seen \u2014 a diagnosis, a condition nobody can photograph, a measurement that has to be right \u2014 that is what the visit is for.",
+} as const;
+
+
+/**
+ * What Price2Book does, in six tiles a contractor can skim.
+ *
+ * THE PAGE USED TO MAKE THEM ASSEMBLE THIS THEMSELVES. Every one of these
+ * ideas was on the homepage somewhere, spread across sections that each
+ * explained one mechanism well. A visitor who read all of it understood the
+ * product; a visitor who skimmed got a slogan and an animation.
+ *
+ * Each tile is a benefit, not a feature name, and each hands off to the page
+ * that owns the mechanism. Nothing here explains — that is the point.
+ */
+export const WHAT_IT_DOES: ReadonlyArray<{
+  title: string;
+  body: string;
+  href: string | null;
+}> = [
+  {
+    title: "Book jobs without the phone call",
+    body: "Homeowners answer the questions that decide the work and book a time — the call your office repeats every day, handled by the customer.",
+    href: "/product/guided-pricing",
+  },
+  {
+    title: "Quote jobs without driving there",
+    body: "For work you want to price yourself, the customer sends the details and photographs you asked for. You review the scope and set the estimate.",
+    href: "/product/guided-estimates",
+  },
+  {
+    title: "Make every visit worth more",
+    body: "Once a visit is already happening, eligible extra work can be added at your same-visit price.",
+    href: "/product/while-were-there",
+  },
+  {
+    title: "Put your booking link everywhere",
+    body: "One pricing page you can point at from your website, a text message, an invoice, or a QR code on the truck.",
+    href: null,
+  },
+  {
+    title: "Control the services and pricing logic",
+    body: "Your services, your questions, your rates, your minimums — and which work is priced instantly rather than reviewed by you.",
+    href: "/product/what-you-control",
+  },
+  {
+    title: "Only offer times that fit the work",
+    body: "Availability reflects how long the job actually takes and the hours you set, so a booked slot is one you can keep.",
+    href: "/product/online-booking",
+  },
+];
+
+/**
+ * The system in one line, as a customer walks it.
+ *
+ * Deliberately the CUSTOMER's sequence rather than the product's modules: a
+ * contractor understands "answers the questions, gets a price, books a time"
+ * immediately, and has to be taught "Guided Pricing, RouteAction, visit
+ * composition". The nouns come later, on the pages that own them.
+ */
+export const JOURNEY_STRIP = {
+  steps: [
+    "Customer finds you",
+    "Answers your questions",
+    "Gets a price — or sends a Guided Estimate",
+    "Adds more work",
+    "Books a time that fits",
+  ],
+  close: "That is Price2Book.",
+} as const;
+
+/**
+ * The product tour — both sides of it.
+ *
+ * A contractor's real fear is that they are buying somebody else's flat-rate
+ * book. Prose does not settle that; the configuration screens do. So the tour
+ * shows the customer experience AND the screens where the contractor decides
+ * what that experience contains.
+ *
+ * SCREENSHOTS ARE REAL PRODUCT, RENAMED. See scripts/capture-storefront-shots.ts
+ * for the identity substitution and what it refuses to publish.
+ */
+export const PRODUCT_TOUR = {
+  homeowner: {
+    label: "What homeowners see",
+    body: "Your catalog, your questions, your approved price — on a page that looks like your business.",
+    shots: ["homeServices", "homeQuestion", "homePrice"] as const,
+  },
+  contractor: {
+    label: "What you control",
+    body: "The services, the questions behind each one, what every answer does, your rates and your hours.",
+    shots: ["adminServices", "adminRates", "adminHours"] as const,
+  },
 } as const;
 
 /** Setup, as a progression rather than a four-screen essay. */
@@ -549,6 +770,13 @@ export type TradeStatus = "Available now" | "In build" | "Next";
  */
 export const PRODUCT_PAGES: ReadonlyArray<{ name: string; href: string | null; status?: string }> = [
   { name: "Guided Pricing", href: "/product/guided-pricing" },
+  // A SIBLING, NOT A FALLBACK. Guided Estimates crossed the same threshold
+  // every other row here is held to: REMOTE_QUOTE routes, gating photo
+  // requests, a contractor review queue and a customer approval, all shipped
+  // and all in production use. It gets a link for the same reason Guided
+  // Pricing does — the capability is real — and captured evidence backs the
+  // page rather than a description of an intended workflow.
+  { name: "Guided Estimates", href: "/product/guided-estimates" },
   { name: "While We\u2019re There\u2122", href: "/product/while-were-there" },
   { name: "Online Booking", href: "/product/online-booking" },
   { name: "What You Control", href: "/product/what-you-control" },

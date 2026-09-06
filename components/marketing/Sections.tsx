@@ -1,14 +1,12 @@
-import Image from "next/image";
 import Link from "next/link";
-import { formatCents } from "@/lib/flow-types";
 import {
-  BOUNDARY_LINE, CATALOG, CATEGORY_IMAGES, CUSTOMER_URL, EMBED_STATUS, EVERYWHERE, JOURNEY,
-  JOURNEY_NOTE, NO_JARGON, PILLARS, SETUP_PROGRESSION, START_SMALL, TRADES, TRADE_SIGNAL,
+  BOUNDARY_LINE, CUSTOMER_URL, EMBED_STATUS, ESTIMATE_TRIPS, EVERYWHERE, JOURNEY, JOURNEY_NOTE,
+  JOURNEY_STRIP, PRICING_MODES, PRODUCT_TOUR, SETUP_PROGRESSION, START_SMALL, TRADES,
+  TRADE_SIGNAL, WHAT_IT_DOES,
 } from "./content";
-import { DEMO_FLOW } from "./demoFlow";
-import { HERO_FLOW } from "./heroFlow";
+import { SHOTS } from "./shots";
+import ShotFigure from "./ShotFigure";
 import { ELECTRICAL_TEMPLATE } from "./trades/electricalTemplate";
-import GuidedQuestionCard from "./GuidedQuestionCard";
 
 /**
  * The homepage's sections, after the restructure of 1 September 2026.
@@ -94,144 +92,255 @@ export function TradeSignal() {
 }
 
 /**
- * The three outcomes, as a strip that points at its own destinations.
- *
- * Each pillar used to expand into a section. Now each is three lines and a
- * link, because the page that owns it can say it properly and this one only
- * has to make a contractor want to know.
- */
-export function Pillars() {
-  return (
-    <section className={`${SHELL} py-12 lg:py-14`}>
-      <h2 className="max-w-[34ch] text-[24px] font-bold leading-[1.2] tracking-[-0.022em] lg:text-[30px]">
-        Give customers a price. Give them a time. Make the visit worth more.
-      </h2>
-      <div className="mt-7 grid gap-5 md:grid-cols-3">
-        {PILLARS.map((p) => (
-          <Link key={p.title} href={p.href}
-                className={`group rounded-[3px] border border-p2b-line border-t-[3px] bg-white px-[22px] pb-6 pt-5 hover:border-p2b-accent ${
-                  p.tone === "green" ? "border-t-p2b-green" : "border-t-p2b-accent"}`}>
-            <div className={`text-[18px] font-bold ${p.tone === "green" ? "text-p2b-green" : "text-p2b-accent"}`}>
-              {p.title} <span aria-hidden="true" className="opacity-0 transition group-hover:opacity-100">→</span>
-            </div>
-            <p className="mt-2.5 text-[15px] font-medium leading-[1.5] text-p2b-ink-warm">{p.lead}</p>
-            <p className="mt-2 text-[14px] leading-[1.5] text-p2b-muted">{p.body}</p>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/**
  * Guided Pricing, as a teaser with one real question on it.
  *
  * The 97/0 proof, the route-action counts and the contractor-control argument
  * all live on the product page. What is left here is the promise and one
  * captured example — enough that the claim is not merely asserted.
  */
-export function GuidedPricingTeaser() {
+
+/**
+ * Both sides of the product, in real screenshots.
+ *
+ * THE PAGE USED TO PROVE THIS WITH AN ANIMATION. The hero walkthrough is
+ * honest and drift-checked, but it asked a visitor to watch a thing happen
+ * before they knew what they were looking at, and it only ever showed the
+ * customer's half. A contractor's actual question — "am I buying somebody
+ * else's flat-rate book?" — is answered by the configuration screens, not by
+ * prose about control.
+ *
+ * REAL PRODUCT, RENAMED. Both rows are captures of the running product with
+ * the contractor's identity substituted; see scripts/capture-storefront-shots.ts
+ * for what the substitution covers and what it refuses to publish. No screen
+ * here was drawn.
+ */
+export function ProductTour() {
+  const row = (
+    side: typeof PRODUCT_TOUR.homeowner | typeof PRODUCT_TOUR.contractor,
+    accent: boolean,
+  ) => (
+    <div>
+      <div className="flex items-baseline gap-3">
+        <span className={`text-[11px] font-bold uppercase tracking-[0.06em] ${
+          accent ? "text-p2b-accent" : "text-p2b-muted-soft"}`}>
+          {side.label}
+        </span>
+      </div>
+      <p className="mt-2 max-w-[54ch] text-[16px] leading-[1.55] text-p2b-ink-warm">{side.body}</p>
+      <div className="mt-5 grid gap-4 sm:grid-cols-3">
+        {side.shots.map((key) => {
+          const shot = (SHOTS as Record<string, import("./shots").Shot | null>)[key];
+          if (!shot) return null;
+          return (
+            <ShotFigure key={key} src={shot.src} alt={shot.alt} width={shot.w} height={shot.h}
+                        full={shot.full} fullWidth={shot.fullW} fullHeight={shot.fullH}
+                        sizes="(min-width: 640px) 30vw, 100vw" />
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <section className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">
-      <div className={`${SHELL} grid gap-10 lg:grid-cols-12 lg:items-center lg:gap-12`}>
-        <div className="lg:col-span-5">
+      <div className={SHELL}>
+        <h2 className="max-w-[24ch] text-[28px] font-bold leading-[1.14] tracking-[-0.022em] lg:text-[40px]">
+          The customer does the intake. You keep the decisions.
+        </h2>
+        <div className="mt-10 flex flex-col gap-12">
+          {row(PRODUCT_TOUR.homeowner, true)}
+          {row(PRODUCT_TOUR.contractor, false)}
+        </div>
+        <p className="mt-8 text-[14px] leading-[1.5] text-p2b-muted-soft">
+          Real screens from the running product. The contractor’s name has been changed.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Six tiles, early, so the product is understood before it is explained.
+ *
+ * Every one of these ideas already had a home on this page or a page beyond
+ * it. What was missing was a place to see all six at once — so a contractor
+ * who skims still leaves knowing what the system is.
+ */
+export function WhatItDoes() {
+  return (
+    <section className={`${SHELL} py-14 lg:py-[72px]`}>
+      <h2 className="max-w-[26ch] text-[28px] font-bold leading-[1.14] tracking-[-0.022em] lg:text-[40px]">
+        What Price2Book does for your business.
+      </h2>
+      <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {WHAT_IT_DOES.map((c) => (
+          <div key={c.title} className="flex flex-col rounded-[3px] border border-p2b-line bg-white px-6 py-6">
+            <div className="text-[17px] font-semibold leading-[1.3] text-p2b-ink">{c.title}</div>
+            <p className="mt-3 flex-1 text-[15px] leading-[1.55] text-p2b-ink-warm">{c.body}</p>
+            {c.href ? (
+              <Link href={c.href} className="mt-4 inline-flex text-[15px] font-semibold text-p2b-accent">
+                How it works →
+              </Link>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** The system as a customer walks it, in one line. */
+export function JourneyStrip() {
+  return (
+    <section className="border-t border-p2b-line bg-p2b-canvas-alt py-12 lg:py-[56px]">
+      <div className={SHELL}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
+          {JOURNEY_STRIP.steps.map((step, i) => (
+            <div key={step} className="flex items-center gap-3">
+              <span className="rounded-sm border border-p2b-line bg-white px-4 py-2.5 text-[15px] font-medium text-p2b-ink lg:text-base">
+                {step}
+              </span>
+              {i < JOURNEY_STRIP.steps.length - 1 && <Arrow />}
+            </div>
+          ))}
+        </div>
+        <p className="mt-6 text-[20px] font-bold tracking-[-0.015em] text-p2b-ink lg:text-[24px]">
+          {JOURNEY_STRIP.close}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Show prices. Send estimates. Or do both.
+ *
+ * THE SECOND ADOPTION AXIS, ON THE HOMEPAGE. StartSmall answers "how much of
+ * my catalog?"; this answers "and how do those services hand someone a
+ * number?" — a question the page used to answer by assumption, always with
+ * "instantly, in public".
+ *
+ * DELIBERATELY NOT A PROGRESSION. No numbering, no basic/advanced framing, no
+ * visual weight separating the three. A contractor who publishes nothing and
+ * reviews every job is a full customer, and the layout has to say that before
+ * the words get a chance to.
+ *
+ * Onsite Visit has no link because it is not a Price2Book feature — it is the
+ * outcome where the product gets out of the way, and inventing a page for it
+ * would be a capability claim about routing that nothing here needs.
+ */
+export function PricingModes() {
+  return (
+    <section id="pricing-modes" className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">
+      <div className={SHELL}>
+        <h2 className="max-w-[22ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[44px]">
+          Show prices. Send estimates. Or do both.
+        </h2>
+        {/* SECTION THESIS, NOT SUPPORTING COPY. This sentence separates the
+            two ideas contractors conflate — digitising the quoting process
+            versus advertising flat rates — and it was rendering at the same
+            17/18px, weight 400 as every other lead paragraph on the page. A
+            visitor slid past the line that decides whether they think this
+            product is for them. Styling only; the wording is unchanged. */}
+        <p className="mt-5 max-w-[62ch] text-[19px] font-semibold leading-[1.4] tracking-[-0.01em] text-p2b-ink lg:text-[23px]">
+          {START_SMALL.publishing}
+        </p>
+
+        <div className="mt-9 grid gap-5 lg:grid-cols-3">
+          {PRICING_MODES.map((m) => (
+            <div key={m.name} className="flex flex-col rounded-[3px] border border-p2b-line bg-white px-6 py-6">
+              <div className="text-[17px] font-semibold text-p2b-ink lg:text-[18px]">{m.name}</div>
+              <div className="mt-2 text-[15px] leading-[1.45] text-p2b-muted-soft">{m.forWhat}</div>
+              <p className="mt-4 flex-1 text-[15px] leading-[1.55] text-p2b-ink-warm lg:text-base">{m.body}</p>
+              {m.note ? (
+                <p className="mt-4 border-l-2 border-p2b-accent pl-4 text-[15px] font-semibold leading-[1.5] text-p2b-ink">
+                  {m.note}
+                </p>
+              ) : null}
+              {m.href ? (
+                <Link href={m.href} className="mt-5 inline-flex text-[15px] font-semibold text-p2b-accent">
+                  How it works →
+                </Link>
+              ) : null}
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-8 text-[18px] font-semibold leading-[1.4] tracking-[-0.01em] text-p2b-ink lg:text-[20px]">
+          You decide which services work which way.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * How much of your business goes in — with just enough catalog to prove it.
+ *
+ * REPLACES TWO SECTIONS. StartSmall argued "you can start with ten services";
+ * CatalogGrid argued "we know real service work" with a thirteen-tile
+ * photograph grid. They were adjacent halves of one adoption story, and the
+ * grid alone was costing roughly a screen and a half of height to prove a
+ * point a single counted sentence proves.
+ *
+ * THE BREADTH IS STILL COUNTED, NOT CLAIMED. The numbers come from the
+ * captured template, so they move when the catalog moves. /trades/electrical
+ * owns the depth; this owns the fact that depth exists.
+ */
+export function Adoption() {
+  const T = ELECTRICAL_TEMPLATE;
+  return (
+    <section id="start-small" className={`${SHELL} py-14 lg:py-[72px]`}>
+      <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
+        <div className="lg:col-span-6">
           <div className="mb-5 flex items-center gap-2.5">
             <div className="h-0.5 w-[26px] bg-p2b-accent" />
             <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent lg:text-xs">
-              Guided Pricing
+              {START_SMALL.eyebrow}
             </span>
           </div>
-          <h2 className="max-w-[20ch] text-[28px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[38px]">
-            Price the jobs that are clear. Route the ones that aren’t.
+          <h2 className="max-w-[20ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[42px]">
+            Start with ten services — or take it as far as you want.
           </h2>
-          <p className="mt-4 text-[19px] font-semibold leading-[1.35] text-p2b-ink lg:text-[21px]">
-            No trade terminology required.
+          <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+            {START_SMALL.lead}
           </p>
-          <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm">
-            Homeowners answer what they can see. Their answers decide whether the job gets your
-            approved price, needs a photograph first, or belongs somewhere else entirely — and
-            nobody is asked to work out what is wrong with their own house.
-          </p>
-
-          {/* The customer does not need the words for any of it. The search
-              phrase is the one demoFlow captured, with the matcher's own
-              verdict on it — a claim about language, evidenced in language. */}
-          <div className="mt-7 rounded-[3px] border border-p2b-line bg-white px-5 py-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-muted-soft">
-              What a customer typed
-            </div>
-            <p className="mt-2 text-[16px] italic leading-[1.5] text-p2b-ink-warm">
-              “{DEMO_FLOW.search.query}”
-            </p>
-            <div className="mt-2.5 flex items-center gap-2.5">
-              <Arrow className="h-3.5 w-3.5 shrink-0 rotate-90" />
-              <span className="text-[15px] font-semibold text-p2b-accent">
-                {DEMO_FLOW.search.serviceName}
-              </span>
-            </div>
+          <div className="mt-6 flex flex-col gap-2 border-l-2 border-p2b-line-dash pl-5">
+            {START_SMALL.calls.slice(0, 3).map((c) => (
+              <p key={c} className="text-[16px] italic leading-[1.5] text-p2b-muted">“{c}”</p>
+            ))}
           </div>
+        </div>
 
-          <div className="mt-6 flex flex-col gap-3.5">
-            {NO_JARGON.map((n) => (
-              <div key={n.t}>
-                <div className="text-[15px] font-semibold text-p2b-ink">{n.t}</div>
-                <p className="mt-1 text-[15px] leading-[1.5] text-p2b-muted">{n.b}</p>
+        <div className="lg:col-span-6">
+          <div className="grid gap-4">
+            {START_SMALL.split.map((x) => (
+              <div key={x.tag}
+                   className={`rounded-[3px] border bg-white px-6 py-5 ${
+                     x.tone === "accent" ? "border-p2b-accent-line border-l-[3px] border-l-p2b-accent" : "border-p2b-line"}`}>
+                <div className={`text-[11px] font-bold uppercase tracking-[0.06em] ${
+                  x.tone === "accent" ? "text-p2b-accent" : "text-p2b-muted-soft"}`}>
+                  {x.tag}
+                </div>
+                <p className="mt-2.5 text-[15px] leading-[1.55] text-p2b-ink-warm lg:text-base">{x.body}</p>
               </div>
             ))}
           </div>
 
-          <More href="/product/guided-pricing">How Guided Pricing works</More>
-        </div>
-        <div className="lg:col-span-7">
-          <GuidedQuestionCard example={ELECTRICAL_TEMPLATE.example} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
- * While We're There™, as one idea and one price pair.
- *
- * The seven-service ladder is the product page's argument. Here it is enough
- * to show that a second price exists and is lower for a reason.
- */
-export function WhileWereThereTeaser() {
-  const a = HERO_FLOW.addOn;
-  return (
-    <section className="border-t border-p2b-green-line bg-p2b-green-tint py-14 lg:py-[72px]">
-      <div className={`${SHELL} grid gap-10 lg:grid-cols-12 lg:items-center lg:gap-12`}>
-        <div className="lg:col-span-6">
-          <div className="mb-5 flex items-center gap-2.5">
-            <div className="h-0.5 w-[26px] bg-p2b-green" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-green-deep lg:text-xs">
-              While We’re There™
-            </span>
-          </div>
-          <h2 className="max-w-[20ch] text-[28px] font-bold leading-[1.1] tracking-[-0.022em] text-p2b-green-ink lg:text-[40px]">
-            Already going there? Price the extra work like it.
-          </h2>
-          <p className="mt-5 text-[17px] leading-[1.6] text-[#2C3A32]">
-            A service can carry a second price — what it costs added to a visit that is already
-            happening. Not a discount: what the work costs once the trip and the setup are covered.
+          {/* The catalog, as one counted line instead of a photograph grid. */}
+          <p className="mt-6 text-[16px] leading-[1.6] text-p2b-ink-warm lg:text-[17px]">
+            Electrical contractors start from a canonical catalog of{" "}
+            <strong className="font-semibold text-p2b-ink">{T.categoryCount} categories</strong> and{" "}
+            <strong className="font-semibold text-p2b-ink">{T.serviceCount} services</strong>, already
+            carrying the questions that change each job. Rename it, reprice it, hide what you don’t do.
           </p>
-          <More href="/product/while-were-there">How the second price works</More>
-        </div>
-        <div className="lg:col-span-6">
-          <div className="overflow-hidden rounded-[3px] border border-p2b-line bg-white">
-            <div className="border-b border-[#EEEAE1] bg-p2b-surface-warm px-6 py-3.5 text-[14px] font-semibold">
-              {a.name}
-            </div>
-            <div className="flex items-center justify-between gap-4 border-b border-p2b-line-soft px-6 py-4">
-              <span className="text-[15px] text-p2b-ink-warm">As a visit of its own</span>
-              <span className="text-[20px] font-bold">{formatCents(a.standaloneCents ?? 0)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 bg-p2b-green-tint px-6 py-4">
-              <span className="text-[15px] font-semibold text-p2b-green-ink">While we’re there</span>
-              <span className="text-[20px] font-bold text-p2b-green-deep">
-                {formatCents(a.sameVisitCents ?? 0)}
-              </span>
-            </div>
+          <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+            <Link href="/trades/electrical" className="text-[15px] font-semibold text-p2b-accent">
+              See the Electrical catalog →
+            </Link>
+            <Link href="/how-it-fits" className="text-[15px] font-semibold text-p2b-accent">
+              See how Price2Book fits your business →
+            </Link>
           </div>
         </div>
       </div>
@@ -240,24 +349,130 @@ export function WhileWereThereTeaser() {
 }
 
 /**
- * The boundary, compressed to the sentence and a link.
+ * One product-proof band, where three sections used to be.
  *
- * The status matrix left the homepage entirely. A contractor deciding whether
- * to keep their CRM does not need six status pills to answer that; they need
- * to be told Price2Book does not want the job.
+ * Pillars summarized the mechanisms, then Guided Pricing and While We're
+ * There™ each got a full section repeating the summary with evidence. That
+ * made sense when the homepage was the only place the argument could be made.
+ * It stopped making sense the moment those pages shipped, and the homepage
+ * kept carrying them anyway.
+ *
+ * THE DEEP PROOF DELIBERATELY IS NOT HERE. The 97-answers-and-none-priced
+ * count belongs to /product/guided-pricing; the real price pair belongs to
+ * /product/while-were-there; duration and capacity belong to
+ * /product/online-booking. Those pages exist precisely so this band can sell
+ * the idea and hand off the explanation.
  */
+export function ProductProof() {
+  return (
+    <section className="border-t border-p2b-line py-14 lg:py-[72px]">
+      <div className={SHELL}>
+        <h2 className="max-w-[24ch] text-[28px] font-bold leading-[1.14] tracking-[-0.022em] lg:text-[38px]">
+          Built for the work between the phone call and the truck roll.
+        </h2>
+        {/* The approved Pillars line. The section it titled is gone; the
+            sentence is too good to lose, and it says what the three blocks
+            below do in one breath. */}
+        <p className="mt-4 max-w-[70ch] text-[17px] leading-[1.6] text-p2b-ink-warm">
+          Give customers a price. Give them a time. Make the visit worth more.
+        </p>
+        <div className="mt-9 grid gap-5 lg:grid-cols-3">
+          {[
+            { name: "Guided Pricing", href: "/product/guided-pricing", cta: "Learn about Guided Pricing",
+              line: "Price clear work. Route the rest correctly." },
+            { name: "While We’re There™", href: "/product/while-were-there", cta: "See While We’re There",
+              line: "Price additional work for the visit you’re already making." },
+            { name: "Online Booking", href: "/product/online-booking", cta: "See Online Booking",
+              line: "Show the appointment times that actually fit the work." },
+          ].map((f) => (
+            <div key={f.name} className="flex flex-col rounded-[3px] border border-p2b-line bg-white px-6 py-6">
+              <div className="text-[17px] font-semibold text-p2b-ink lg:text-[18px]">{f.name}</div>
+              <p className="mt-3 flex-1 text-[16px] leading-[1.5] text-p2b-ink-warm">{f.line}</p>
+              <Link href={f.href} className="mt-5 inline-flex text-[15px] font-semibold text-p2b-accent">
+                {f.cta} →
+              </Link>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Fewer estimate trips — the commercial payoff, not another mechanism page.
+ *
+ * WAS TWO TALL COLUMNS of seven and four bulleted steps, which read as a
+ * process diagram and cost about a screen. The argument never needed the
+ * ceremony: two lines, arrowed, make the same point faster.
+ *
+ * THE TARGET STAYS NARROW. Not site visits — the drive whose only purpose was
+ * collecting what the homeowner could have sent. And no percentage, because
+ * nobody has measured one; verify-marketing-homepage fails the build on it.
+ */
+export function EstimateTrips() {
+  return (
+    <section id="estimate-trips" className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">
+      <div className={SHELL}>
+        <h2 className="max-w-[26ch] text-[30px] font-bold leading-[1.1] tracking-[-0.022em] lg:text-[44px]">
+          {ESTIMATE_TRIPS.headline}
+        </h2>
+        <p className="mt-6 max-w-[74ch] text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+          {ESTIMATE_TRIPS.lead}
+        </p>
+
+        <div className="mt-9 flex flex-col gap-5">
+          {[ESTIMATE_TRIPS.before, ESTIMATE_TRIPS.after].map((seq, i) => (
+            <div key={seq.label}
+                 className={`rounded-[3px] border bg-white px-6 py-5 ${
+                   i === 1 ? "border-p2b-accent-line border-l-[3px] border-l-p2b-accent" : "border-p2b-line"}`}>
+              <div className={`text-[11px] font-bold uppercase tracking-[0.06em] ${
+                i === 1 ? "text-p2b-accent" : "text-p2b-muted-soft"}`}>
+                {seq.label}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-2">
+                {seq.steps.map((step, n) => (
+                  <div key={step} className="flex items-center gap-2.5">
+                    <span className={`text-[15px] ${i === 1 ? "text-p2b-ink" : "text-p2b-muted"}`}>{step}</span>
+                    {n < seq.steps.length - 1 && <Arrow className="h-3 w-3 shrink-0" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-7 max-w-[74ch] text-[16px] leading-[1.6] text-p2b-muted">
+          {ESTIMATE_TRIPS.caveat}
+        </p>
+        <Link href="/product/guided-estimates" className="mt-5 inline-flex text-[16px] font-semibold text-p2b-accent">
+          How Guided Estimates works →
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 export function NotYourCRM() {
   return (
     <section className={`${SHELL} py-14 lg:py-[72px]`}>
       <div className="grid gap-10 lg:grid-cols-12 lg:items-center lg:gap-12">
         <div className="lg:col-span-6">
           <h2 className="max-w-[22ch] text-[28px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[38px]">
-            Keep the software you already use.
+            Add Price2Book without rebuilding your business.
           </h2>
           <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm">
-            Price2Book handles the pricing-and-booking experience. {BOUNDARY_LINE.split(". ")[1]}
+            Keep the software you already use. Price2Book handles the pricing-and-booking
+            experience. {BOUNDARY_LINE.split(". ")[1]}
           </p>
-          <More href="/integrations">What connects, and what’s planned</More>
+          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
+            <Link href="/integrations" className="text-[15px] font-semibold text-p2b-accent">
+              Integrations →
+            </Link>
+            <Link href="/how-it-fits" className="text-[15px] font-semibold text-p2b-accent">
+              How It Fits →
+            </Link>
+          </div>
         </div>
         <div className="lg:col-span-6">
           <div className="rounded-[3px] border border-p2b-line bg-white px-7 py-6">
@@ -413,6 +628,31 @@ export function Everywhere() {
 
             <div className="mx-auto mt-1 h-6 w-px bg-p2b-line-dash" />
 
+            {/* THE PHYSICAL HALF, MADE TANGIBLE. The channel chips below make
+                the digital surfaces obvious and left the printed ones as words
+                in a list — "QR codes" and "Truck & yard signs" read as
+                afterthoughts rather than as the reason a link beats a phone
+                number on a van.
+
+                NO QR CODE IS DRAWN HERE. A rendered code that does not scan
+                would be a picture of a working thing that does not work, on a
+                site whose whole discipline is that a screenshot is evidence.
+                Generating a real one needs an encoder dependency, which is a
+                decision about the production bundle rather than a layout
+                choice, so the panel names the surface instead. */}
+            <div className="mx-auto mb-6 mt-5 max-w-[420px] rounded-[4px] bg-p2b-navy-deep px-6 py-5 text-center">
+              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-p2b-navy-muted">
+                On the truck
+              </div>
+              <div className="mt-2 text-[17px] font-bold tracking-[-0.01em] text-[#F4F6F9]">
+                Scan for pricing
+              </div>
+              <div className="mt-1.5 text-[14px] text-p2b-navy-text">{CUSTOMER_URL}</div>
+              <div className="mt-3 border-t border-p2b-navy-hairline pt-3 text-[12px] leading-[1.45] text-p2b-navy-muted">
+                A code on the van, a link in a text — the same page either way.
+              </div>
+            </div>
+
             <div className="flex flex-wrap justify-center gap-2.5">
               {EVERYWHERE.channels.map((c) => (
                 <span key={c}
@@ -433,153 +673,3 @@ export function Everywhere() {
   );
 }
 
-/**
- * "You don't have to flat-rate your whole business."
- *
- * The adoption objection, answered before the page asks for anything. Every
- * other section argues about what the product does; this one is the only place
- * that says how much of a business has to change to get value from it, which
- * is the thing a contractor is actually weighing.
- *
- * The three quoted calls do the work of a paragraph. They are the calls that
- * repeat — two about price and one about scheduling — and a contractor
- * recognizes their own week in them faster than they read a claim about it.
- */
-/**
- * The catalog a homeowner browses — the third thing on the page, on purpose.
- *
- * WHY A GRID AND NOT A SCREENSHOT. The obvious way to show this is to
- * photograph a storefront, and the site cannot: a real storefront is a real
- * contractor's, and shots.ts refuses that for good reasons. Rendering it from
- * the captured template is not a workaround, it is better evidence — the
- * categories and the counts ARE the template, so the section cannot drift
- * away from what a contractor is actually provisioned with. If the catalog
- * changes, this changes with it.
- *
- * NO PRICES. The capture carries trade structure and no economics, which is
- * exactly why it is publishable. A visitor sees the shape of the catalog and
- * has nothing to argue with one contractor's number about.
- */
-export function CatalogGrid() {
-  const T = ELECTRICAL_TEMPLATE;
-  return (
-    <section className="border-t border-p2b-line py-14 lg:py-[72px]">
-      <div className={SHELL}>
-        <div className="mb-5 flex items-center gap-2.5">
-          <div className="h-0.5 w-[26px] bg-p2b-accent" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent lg:text-xs">
-            {CATALOG.eyebrow}
-          </span>
-        </div>
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-12">
-          <h2 className="max-w-[22ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:col-span-5 lg:text-[42px]">
-            {T.categoryCount} categories. {T.serviceCount} services.
-            <br />
-            {CATALOG.headline}
-          </h2>
-          <p className="text-[17px] leading-[1.6] text-p2b-ink-warm lg:col-span-7">{CATALOG.lead}</p>
-        </div>
-
-        <ul className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
-          {T.categories.map((c) => {
-            const img = CATEGORY_IMAGES[c.slug];
-            return (
-              <li
-                key={c.slug}
-                className="overflow-hidden rounded-[4px] border border-p2b-line bg-white"
-              >
-                {img ? (
-                  <div className="relative aspect-[4/3] w-full bg-p2b-canvas-alt">
-                    <Image
-                      src={img}
-                      alt=""
-                      fill
-                      sizes="(min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
-                      className="object-cover"
-                    />
-                  </div>
-                ) : null}
-                <div className="px-4 py-3.5">
-                  <div className="text-[15px] font-semibold leading-[1.3] text-p2b-ink lg:text-[16px]">
-                    {c.name}
-                  </div>
-                  <div className="mt-1 text-[13px] text-p2b-muted">
-                    {c.services.length} {(c.services.length as number) === 1 ? "service" : "services"}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-
-        {/* The catalog is a starting point, not a ceiling — said once, here,
-            so the grid does not read as the limit of what can be offered. */}
-        <p className="mt-7 max-w-[70ch] text-[15px] leading-[1.6] text-p2b-muted">
-          This is the electrical template. Plumbing is in build, and a trade Price2Book has not
-          templated yet is built the same way — categories, services, and the questions that price
-          them.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-export function StartSmall() {
-  return (
-    <section id="start-small" className={`${SHELL} py-14 lg:py-[72px]`}>
-      <div className="grid gap-10 lg:grid-cols-12 lg:gap-12">
-        <div className="lg:col-span-6">
-          <div className="mb-5 flex items-center gap-2.5">
-            <div className="h-0.5 w-[26px] bg-p2b-accent" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-p2b-accent lg:text-xs">
-              {START_SMALL.eyebrow}
-            </span>
-          </div>
-          <h2 className="max-w-[20ch] text-[30px] font-bold leading-[1.12] tracking-[-0.022em] lg:text-[42px]">
-            {START_SMALL.headline}
-          </h2>
-          <p className="mt-5 text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
-            {START_SMALL.lead}
-          </p>
-
-          {/* The calls themselves. Quoted, because a contractor hears these in
-              their own voice and does not need to be told they are expensive. */}
-          <div className="mt-6 flex flex-col gap-2.5 border-l-2 border-p2b-line-dash pl-5">
-            {START_SMALL.calls.map((c) => (
-              <p key={c} className="text-[16px] italic leading-[1.5] text-p2b-muted lg:text-[17px]">
-                “{c}”
-              </p>
-            ))}
-          </div>
-
-          <p className="mt-6 text-[16px] leading-[1.6] text-p2b-ink-warm lg:text-[17px]">
-            {START_SMALL.after}
-          </p>
-        </div>
-
-        <div className="lg:col-span-6">
-          <div className="grid gap-4">
-            {START_SMALL.split.map((s) => (
-              <div key={s.tag}
-                   className={`rounded-[3px] border bg-white px-6 py-5 ${
-                     s.tone === "accent" ? "border-p2b-accent-line border-l-[3px] border-l-p2b-accent" : "border-p2b-line"}`}>
-                <div className={`text-[11px] font-bold uppercase tracking-[0.06em] ${
-                  s.tone === "accent" ? "text-p2b-accent" : "text-p2b-muted-soft"}`}>
-                  {s.tag}
-                </div>
-                <p className="mt-2.5 text-[15px] leading-[1.55] text-p2b-ink-warm lg:text-base">{s.body}</p>
-              </div>
-            ))}
-          </div>
-
-          <p className="mt-6 text-[16px] leading-[1.6] text-p2b-ink-warm lg:text-[17px]">
-            {START_SMALL.scale}
-          </p>
-          <p className="mt-4 text-[18px] font-semibold leading-[1.4] tracking-[-0.01em] lg:text-[20px]">
-            {START_SMALL.close}
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}

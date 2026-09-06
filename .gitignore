@@ -15,3 +15,4 @@ tsconfig.tsbuildinfo
 
 # The build command fetches the provenance guard here before executing it.
 .p2bg
+.auth/

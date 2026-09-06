@@ -89,7 +89,14 @@ const TRUTH: Record<string, string> = {
  * shortening a page and losing its copy.
  */
 const REQUIRED_COPY = [
-  "Your pricing.", "Your schedule.",
+  // "Your pricing." / "Your schedule." was the headline and is now the PAYOFF,
+  // reworded by the owner on 2 September: "Your services. Your pricing rules.
+  // Your schedule." The brand line still opens the page title, which is where
+  // a tagline belongs. Asserted in its new form rather than dropped, and the
+  // decision recorded here rather than the entry quietly deleted when it went
+  // red — same treatment the removed demo headline got above.
+  "Your services. Your pricing rules. Your schedule.",
+  "Stop spending your day answering routine service calls.",
   "Request Early Access",
   "Give customers a price. Give them a time. Make the visit worth more.",
   // "Four steps, and none of them is a phone call." was asserted here until
@@ -212,7 +219,7 @@ async function statics() {
   // the rule into one that rejected the correct spelling instead — the check
   // went on passing its own file and failing the copy it was protecting.
   // scripts/verify-us-spelling.ts skips this file for that reason.
-  const BRITISH = /\b(labour|itemis(e|ed|ing)|customis|organis|recognis|colour|licence|catalogue|analyse|optimis|summaris|behaviour|honour|neighbour|labelled|modelling|defence)\b/i;
+  const BRITISH = /\b(labour|itemis(e|ed|ing)|customis|organis|recognis|color|license|catalogue|analyse|optimis|summaris|behaviour|honour|neighbour|labelled|modelling|defence)\b/i;
   for (const f of marketingFiles()) {
     const src = read(f);
     // Only the copy, not the comments — prose about the code is not the site.
@@ -345,6 +352,28 @@ async function statics() {
     "capture refuses any tenant but the demonstration contractor");
   ok(capture.includes("Elite Electric"),
     "…and names Elite explicitly as forbidden in a shot");
+  /**
+   * The storefront captures are the REAL product with the contractor renamed
+   * — the owner narrowed the demo-tenant-only rule on 2 September 2026. The
+   * privacy half did not go away, and the first run proved why: renaming the
+   * company left the source tenant's address, telephone and license number in
+   * the footer, attributed to a company that does not exist.
+   */
+  const storefrontCapture = read("scripts/capture-storefront-shots.ts");
+  ok(storefrontCapture.includes("assertRenamed"),
+    "the storefront capture refuses to write a shot that kept the source name");
+  for (const [what, needle] of [
+    ["telephone numbers", "555-0100"],
+    ["street addresses", "120 Example Ave."],
+    ["license numbers", "Licen[cs]e"],
+  ] as const) {
+    ok(storefrontCapture.includes(needle), `…and scrubs ${what}`,
+      "a renamed company carrying a real business's contact details is worse than the real name");
+  }
+  ok(/const BRAND = "Voltmark Electric"/.test(storefrontCapture),
+    "one brand across every screenshot",
+    "two names across the homeowner and admin shots reads as two companies");
+
   const files: string[] = Object.values(shots.SHOTS)
     .filter(Boolean)
     .map((s: any) => s.src);
@@ -540,6 +569,122 @@ async function statics() {
     "PriceSight is not in the product menu",
     "it has not shipped — SITEMAP.md holds it out of navigation");
 
+  console.log("\n  THE HERO SELLS THE PROBLEM, AND SHOWS BOTH SIDES");
+  const heroSrc = read("components/marketing/Hero.tsx");
+  for (const line of content.HERO.proof as readonly string[]) {
+    ok(line.length > 0, `proof point: ${line}`);
+  }
+  ok((content.HERO.proof as readonly string[]).length === 4,
+    "four proof points, not a list that grew");
+  // The composition has to show the CONTRACTOR too. A hero that shows only
+  // the customer's screen is the narrow story this pass replaced.
+  ok(/SHOTS\.homePrice/.test(heroSrc) && /SHOTS\.adminServices/.test(heroSrc),
+    "the hero shows a customer screen AND a control screen",
+    "one price card makes Price2Book look like a page that shows a price");
+  ok(/See How It Works/.test(content.HERO.primaryCta),
+    "the primary CTA is understanding, not commitment");
+
+  console.log("\n  THE SITE IS NAVIGABLE AT EVERY WIDTH");
+  /**
+   * 217 checks asserted what the site CLAIMED and not one asked whether a
+   * visitor could reach it. The desktop nav was `hidden … xl:flex` with no
+   * menu behind it, so below 1280px — most laptop windows, every tablet, every
+   * phone — the entire multi-page site was unreachable from the homepage, and
+   * Guided Estimates shipped invisible. It reached production that way.
+   */
+  const headerSrc = read("components/marketing/Chrome.tsx");
+  const mobile = read("components/marketing/MobileNav.tsx");
+
+  // Desktop: the primary nav appears at the laptop breakpoint, not above it.
+  ok(/<nav className="[^"]*\blg:flex\b/.test(headerSrc),
+    "the primary nav is visible from the lg breakpoint up",
+    "an xl-only nav hides every destination on a sub-1280px laptop");
+  ok(!/\bxl:(flex|hidden)\b/.test(headerSrc),
+    "…and no xl-only visibility rule survives in the header");
+
+  // Mobile: a trigger exists, and it is a real disclosure.
+  ok(existsSync("components/marketing/MobileNav.tsx"), "a mobile menu component exists",
+    "below lg the header would collapse to Sign In and the CTA alone");
+  ok(/\bMobileNav\b/.test(headerSrc), "…and the header renders it");
+  ok(/aria-expanded=/.test(mobile) && /aria-controls=/.test(mobile),
+    "the trigger reports aria-expanded and aria-controls");
+  ok(/id="marketing-mobile-nav"/.test(mobile), "…and the panel carries that id");
+  ok(/key === "Escape"/.test(mobile), "Escape closes the menu");
+  ok(/onClick=\{\(\) => setOpen\(false\)\}/.test(mobile),
+    "following a link closes the menu",
+    "a panel that survives navigation covers the page it just opened");
+
+  // The panel must reach the destinations, and must not invent claims: it
+  // reads the SAME constants the desktop menu does, so a status row stays a
+  // status row rather than becoming a link on a small screen.
+  for (const src of ["NAV", "PRODUCT_PAGES", "TRADES"]) {
+    ok(new RegExp(`\\b${src}\\b`).test(mobile), `the panel is built from ${src}`,
+      "hand-listing destinations here would let the two navs disagree");
+  }
+  ok(/i\.href \?/.test(mobile),
+    "a row without an href renders as a status, not a link",
+    "Website Embed must stay unclickable at every width");
+
+  console.log("\n  GUIDED ESTIMATES IS A SIBLING, NOT A FALLBACK");
+  const gePath = "app/(marketing)/product/guided-estimates/page.tsx";
+  const ge = read(gePath);
+  ok(existsSync(gePath), "the page exists",
+    "PRODUCT_PAGES links to it, so it has to be a real file");
+
+  const geFixture = await import(pathToFileURL(`${process.cwd()}/components/marketing/guidedEstimates.ts`).href)
+    .then((m) => m.GUIDED_ESTIMATES).catch(() => null);
+  ok(!!geFixture, "the capture fixture exists and parses",
+    "run: npx tsx scripts/capture-guided-estimates.ts");
+
+  if (geFixture) {
+    ok(geFixture.generatedBy === "scripts/capture-guided-estimates.ts",
+      "the fixture is generated, not hand-written",
+      "a hand-edited fixture is an invented workflow wearing a number");
+    // The page's whole claim. If the product stops having quote-only services
+    // that publish no price, the claim stops being true and this fails.
+    ok(geFixture.remoteQuote.services > 0 && geFixture.remoteQuote.withoutPublishedPrice > 0,
+      `${geFixture.remoteQuote.withoutPublishedPrice} quote-only service(s) publish no price`,
+      "the page says a contractor need not display prices — that has to be true in the product");
+    // A gating answer is what separates an estimate from a price with photos.
+    ok(geFixture.example?.blocksBooking === true,
+      "the worked example is an answer that HOLDS the price back",
+      "a photosBlockBooking:false answer is instant pricing with a camera, not an estimate");
+    ok(geFixture.photos.blocking > 0, `${geFixture.photos.blocking} answers gate on photographs`);
+    // No customer data may reach a marketing fixture.
+    const raw = JSON.stringify(geFixture);
+    ok(!/@|\bphone\b|quotedPriceCents|"url"/i.test(raw),
+      "the fixture carries no customer identity, contact or amount",
+      "a quote is a real homeowner's job — the capture must not publish it");
+  }
+
+  // GUIDED ESTIMATE IS NOT A LESSER MODE. A contractor running entirely on
+  // estimates is using the product as designed, and copy implying otherwise
+  // is the failure this page exists to prevent.
+  const GE_DEMOTION = [
+    "fall back to", "falls back to", "fallback", "lesser", "downgrade",
+    "if instant pricing isn't", "when instant pricing fails", "second best",
+    "consolation", "at least you can still",
+  ];
+  const geCopy = ge.replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n").filter((l) => !l.trim().startsWith("//")).join("\n").toLowerCase();
+  for (const phrase of GE_DEMOTION) {
+    ok(!geCopy.includes(phrase), `Guided Estimates never calls itself "${phrase}"`,
+      "it is a sibling of Guided Pricing — SITEMAP.md");
+  }
+
+  // The page must not promise remote quoting for everything.
+  ok(/not every job/i.test(ge) || /has to be seen/i.test(ge),
+    "…and it says out loud that some jobs must be seen in person",
+    "without the limit the page overpromises remote quoting");
+
+  // The estimate-trip pillar must stay qualitative. A percentage here would
+  // be a fabricated measurement.
+  const allMarketing = [...marketingFiles(), ...marketingRoutes()].map(read).join("\n");
+  const TRIP_NUMBERS = /(\d{1,3})\s*%\s*(of\s+)?(estimates|trips|truck rolls|visits)/i;
+  ok(!TRIP_NUMBERS.test(allMarketing),
+    "no percentage claim about estimates eliminated",
+    "there is no measurement behind such a number");
+
   console.log("\n  GUIDED PRICING ARGUES FROM COUNTED EVIDENCE");
   const gp = read("app/(marketing)/product/guided-pricing/page.tsx");
   ok(existsSync("app/(marketing)/product/guided-pricing/page.tsx"), "the page exists");
@@ -602,7 +747,7 @@ async function statics() {
   console.log("\n  PLATFORM / TENANT SEAM");
   // The marketing site is Price2Book's. Storefront tokens resolve whichever
   // contractor's theme happens to be in :root, so a single bg-canvas here
-  // would repaint the homepage with a contractor's colours.
+  // would repaint the homepage with a contractor's colors.
   //
   // THE ISLAND IS THE ONE EXEMPTION, and it is an exemption from the token
   // rule, not from the seam. The hero renders the real storefront components
@@ -651,8 +796,10 @@ async function live(host: string) {
   ok(home.status === 200, `/ answers 200`, `status ${home.status}`);
   if (home.status !== 200) return;
 
-  ok(home.text.includes("Your pricing.") && home.text.includes("Your schedule."),
+  ok(home.text.includes("Stop spending your day answering routine service calls."),
     "the approved headline is served");
+  ok(home.text.includes("Your services. Your pricing rules. Your schedule."),
+    "…and the brand line survives as the payoff");
   ok(home.text.includes("Request Early Access"), "the primary CTA is served");
   ok(/\/sign-in/.test(home.html), "a sign-in link is served");
 
