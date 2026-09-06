@@ -397,6 +397,19 @@ const uc = (m: string) => m[0].toUpperCase() + m.slice(1);
  * model that includes, selects, counts or filters by a tenant-owned relation
  * is a cross-tenant read without the guard, and this is how it is found.
  */
+/** A value that cannot hide a query shape: string/number/boolean/null/undefined literals. */
+function isPlainLiteral(n: ts.Node): boolean {
+  return ts.isStringLiteralLike(n) || ts.isNumericLiteral(n) || n.kind === ts.SyntaxKind.TrueKeyword || n.kind === ts.SyntaxKind.FalseKeyword || n.kind === ts.SyntaxKind.NullKeyword
+    || (ts.isIdentifier(n) && n.text === "undefined") || (ts.isPrefixUnaryExpression(n) && ts.isNumericLiteral(n.operand));
+}
+
+/** Whether a binding name — identifier, object pattern or array pattern, at any depth — introduces `name`. */
+function bindsName(b: ts.BindingName, name: string): boolean {
+  if (ts.isIdentifier(b)) return b.text === name;
+  for (const el of b.elements) if (ts.isBindingElement(el) && bindsName(el.name, name)) return true;
+  return false;
+}
+
 export function relationTraversals(source: string, root: string, relations: Record<string, Record<string, string>>, fileName = "file.ts"): { path: string; target: string; line: number }[] {
   const sf = parse(source, fileName); const out: { path: string; target: string; line: number }[] = [];
   // Module-scope `const X = { … }` object literals are resolved, so a shared
@@ -421,14 +434,25 @@ export function relationTraversals(source: string, root: string, relations: Reco
     // An opaque value matters only where a shape could hide a relation: under a
     // wrapper key or as a relation's own argument. `contractorId: { in: rows.map(…) }`
     // is a scalar filter and cannot reach another model.
-    else if (keyIsShape && (ts.isIdentifier(node) || ts.isCallExpression(node) || ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node) || ts.isConditionalExpression(node))) out.push({ path: `${path}=<opaque ${node.getText(sf).slice(0, 30)}>`, target: "<unknown>", line: line(sf, node) });
+    else if (keyIsShape && !isPlainLiteral(node)) out.push({ path: `${path}=<opaque ${node.getText(sf).slice(0, 30)}>`, target: "<unknown>", line: line(sf, node) });
   };
+  // `root.model.method(arg)` in any spelling: dot or bracket for either hop,
+  // casts and parentheses between. A computed model or method is unknowable
+  // and reported as a traversal to nowhere, which the caller refuses.
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isPropertyAccessExpression(n.expression.expression)) {
-      const recv = n.expression.expression; // root.model
-      if (ts.isIdentifier(recv.expression) && recv.expression.text === root) {
-        const model = uc(recv.name.text);
-        if (n.arguments[0]) walk(n.arguments[0], model, `${root}.${lc(model)}`, true);
+    if (ts.isCallExpression(n)) {
+      const callee = unwrapExpr(n.expression);
+      const method = memberName(callee);
+      if (method !== null && (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee))) {
+        const recv = unwrapExpr(callee.expression);
+        const modelName = memberName(recv);
+        if (modelName !== null && (ts.isPropertyAccessExpression(recv) || ts.isElementAccessExpression(recv))) {
+          const base = unwrapExpr(recv.expression);
+          if (ts.isIdentifier(base) && base.text === root) {
+            if (modelName === "<computed>" || method === "<computed>") out.push({ path: `${root}.${modelName}.${method}`, target: "<unknown>", line: line(sf, n) });
+            else { const model = uc(modelName); for (const a of n.arguments) walk(a, model, `${root}.${lc(model)}`, true); }
+          }
+        }
       }
     }
     ts.forEachChild(n, visit);
@@ -454,11 +478,14 @@ export function calleeResolution(sf: ts.SourceFile, call: ts.CallExpression): { 
     const look = (m: ts.Node) => {
       if (found) return;
       if (m !== container && ts.isFunctionLike(m)) return;
-      if ((ts.isVariableDeclaration(m) && ts.isIdentifier(m.name) && m.name.text === name) || (ts.isFunctionDeclaration(m) && m.name?.text === name)) { found = m.getText(sf).slice(0, 70); return; }
+      // Any way a scope can introduce the name: a declaration by identifier or
+      // by object/array pattern, a function or class declaration, or a catch
+      // clause's binding.
+      if ((ts.isVariableDeclaration(m) && bindsName(m.name, name)) || (ts.isFunctionDeclaration(m) && m.name?.text === name) || (ts.isClassDeclaration(m) && m.name?.text === name) || (ts.isCatchClause(m) && m.variableDeclaration && bindsName(m.variableDeclaration.name, name))) { found = m.getText(sf).slice(0, 70); return; }
       ts.forEachChild(m, look);
     };
     if (ts.isFunctionLike(container)) {
-      for (const prm of container.parameters) if (ts.isIdentifier(prm.name) && prm.name.text === name) return `parameter ${prm.getText(sf)}`;
+      for (const prm of container.parameters) if (bindsName(prm.name, name)) return `parameter ${prm.getText(sf).slice(0, 70)}`;
       const body = (container as ts.FunctionLikeDeclaration).body;
       if (body) look(body);
     } else look(container);
@@ -471,10 +498,16 @@ export function calleeResolution(sf: ts.SourceFile, call: ts.CallExpression): { 
   }
   // module scope: an import, or a top-level declaration
   for (const e of moduleEdges(sf)) if (e.kind === "import") for (const b of e.names) if (b.local === name) return { name, kind: "import", module: e.module, exported: b.exported };
+  // A module-scope declaration counts only when it is the ONE declaration of
+  // the name (a function, class, or a plain `const name = …`); a pattern
+  // binding or a second declaration of the same name is not the genuine sink.
+  const decls: string[] = [];
   for (const st of sf.statements) {
-    if (ts.isFunctionDeclaration(st) && st.name?.text === name) return { name, kind: "module-decl" };
-    if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.name.text === name) return { name, kind: "module-decl" };
+    if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name?.text === name) decls.push("plain");
+    if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (bindsName(d.name, name)) decls.push(ts.isIdentifier(d.name) ? "plain" : "pattern");
   }
+  if (decls.length === 1 && decls[0] === "plain") return { name, kind: "module-decl" };
+  if (decls.length > 0) return { name, kind: "unknown", shadowedBy: decls.length > 1 ? `${decls.length} module-scope declarations` : "module-scope pattern binding" };
   return { name, kind: "unknown" };
 }
 

@@ -90,6 +90,14 @@ only that way", and the new verifier holds that there is exactly one such file.
   destructuring assignments are read like declarations; and the implicit
   `arguments` object is refused on any platform surface.
 
+- **Audit strength (round eight):** relation traversal reads the query
+  receiver in any spelling — dot or bracket for the model and the method,
+  casts between — and a computed model or method, or a spread argument, is
+  unknowable and refused; sink resolution treats object and array binding
+  patterns, destructured parameters and catch bindings as shadows, and a
+  module-scope name declared by pattern or declared twice is never the
+  genuine sink.
+
 ## Not in Phase 2
 
 Support entry and `SupportAccessEvent`; any mutation, including "resend" or
