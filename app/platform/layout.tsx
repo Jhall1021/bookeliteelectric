@@ -16,8 +16,8 @@ export const dynamic = "force-dynamic";
  * true answer and a redirect would hide it.
  *
  * Signed-out goes to sign-in, as the portal does. Everything under this shell
- * is READ-ONLY in Phase 2: three views over lib/platformReadModel and nothing
- * that writes.
+ * is READ-ONLY in Phase 2: four views over lib/platformReadModel — overview,
+ * directory, control center, attention — and nothing that writes.
  */
 const NAV = [
   { href: "/platform", label: "Overview" },

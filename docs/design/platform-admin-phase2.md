@@ -1,4 +1,4 @@
-# Platform Admin — Phase 2: the read model, and three views over it
+# Platform Admin — Phase 2: the read model, and four views over it
 
 **6 September 2026.** Read-only. Follows `platform-admin-phase1.md` (authority
 foundation, merged) and precedes support entry and any mutation.
@@ -7,7 +7,7 @@ foundation, merged) and precedes support entry and any mutation.
 
 | piece | where |
 |---|---|
-| directory + per-contractor facts + attention filter + overview | `lib/platformReadModel.ts` |
+| directory + per-contractor facts + attention filter + overview (per-contractor failure isolation, bounded concurrency) | `lib/platformReadModel.ts` |
 | Overview, Contractors, Attention needed | `app/platform/page.tsx`, `app/platform/contractors/page.tsx`, `app/platform/attention/page.tsx` |
 | Contractor Control Center | `app/platform/contractors/[contractorId]/page.tsx` |
 | the gate | `scripts/verify-platform-read-model.ts`, in `npm run verify` |
@@ -49,6 +49,21 @@ The Control Center route hands `params.contractorId` straight to
 authorizes before it looks. The Phase 1 verifier's rule "no platform surface
 reads a contractor id from a request" is narrowed to "none but that file, and
 only that way", and the new verifier holds that there is exactly one such file.
+
+## Review corrections (PR #17)
+
+- **Calendar:** connected means a `JobberConnection` row exists, the meaning
+  the readiness engine and the dashboard already use. Access tokens expire
+  hourly and are refreshed on use; expiry is shown as "due for its routine
+  refresh", never as disconnection, and never raises attention.
+- **Storefront:** the live storefront is the active site, newest first;
+  retired sites are counted separately and never reported as current.
+- **Overview resilience:** each contractor's facts are read in isolation, a
+  few at a time; a failure becomes an explicit unreadable row with its
+  reason, and the sums cover the rows that were read.
+- **Verifier strength:** platform files are held to an import allowlist
+  (module and symbol), so a mutating helper or an aliased request accessor
+  cannot be smuggled in under a name the old regexes did not spell.
 
 ## Not in Phase 2
 

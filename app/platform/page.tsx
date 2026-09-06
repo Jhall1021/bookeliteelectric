@@ -32,6 +32,15 @@ export default async function PlatformOverviewPage() {
         <Tile label="Needs somebody today" value={o.attention.length} note={o.attention.length ? "see the list below" : "nothing actionable"} href="/platform/attention" tone={o.attention.length ? "attention" : "calm"} />
       </dl>
 
+      {o.unreadable.length > 0 && (
+        <section className="mt-6 rounded-card border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p className="font-medium">{o.unreadable.length} contractor{o.unreadable.length === 1 ? "" : "s"} could not be read this time. The figures above cover the rest.</p>
+          <ul className="mt-2 space-y-1">
+            {o.unreadable.map((u) => <li key={u.contractorId}><Link href={`/platform/contractors/${u.contractorId}`} className="font-medium underline">{u.name}</Link> — {u.error}</li>)}
+          </ul>
+        </section>
+      )}
+
       <section className="mt-10">
         <h2 className="font-display text-lg font-bold text-navy">Attention needed</h2>
         {o.attention.length === 0 ? (

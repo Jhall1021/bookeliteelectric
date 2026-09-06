@@ -338,7 +338,11 @@ async function main() {
   // Request SOURCES, not the word: `a.contractorId` on a fact read through the
   // boundary is data; `params.`, `searchParams`, headers and cookies are the
   // request, and only the Control Center may take a contractor from them.
-  const REQUEST = /params\.|searchParams|headers\(|cookies\(|req\.|request\./;
+  // Spellings AND the modules they come from: `headers as h` is still
+  // next/headers. Only the Control Center may take anything from a request,
+  // and even it may not import next/headers.
+  const REQUEST = /params\.|searchParams|headers\(|cookies\(|req\.|request\.|from "next\/headers"|from "next\/server"/;
+  ok(`    no platform surface imports next/headers or next/server at all`, surfaces.every((f) => !/from "next\/(headers|server)"/.test(strip(f))));
   ok(`    no platform surface but the Control Center reads a contractor id from a request`, others.every((f) => !REQUEST.test(strip(f))), others.filter((f) => REQUEST.test(strip(f))).join(", "));
   const cc = existsSync(CONTROL_CENTER) ? strip(CONTROL_CENTER) : "";
   ok(`    and the Control Center hands params.contractorId straight to the platform boundary`,

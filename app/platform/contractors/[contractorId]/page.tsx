@@ -93,7 +93,7 @@ export default async function ContractorControlCenter({ params }: { params: { co
         <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
           <h2 className="font-display text-lg font-bold text-navy">Storefront &amp; embed</h2>
           <dl className="mt-3 grid grid-cols-[9rem_1fr] gap-y-1 text-sm">
-            <dt className="text-slate">Hosted page</dt><dd className="text-navy">{f.site ? `${f.site.active ? "live" : "inactive"} · price2book.com/${f.site.hostedSlug}` : "none"}</dd>
+            <dt className="text-slate">Hosted page</dt><dd className="text-navy">{f.site ? `live · price2book.com/${f.site.hostedSlug}` : "none live"}{f.retiredSites ? <span className="text-slate"> · {f.retiredSites} retired</span> : null}</dd>
             <dt className="text-slate">Embed origins</dt><dd className="text-navy">{f.site ? `${f.site.embedOriginsConfigured} configured` : "—"}</dd>
             <dt className="text-slate">Installed on their site</dt><dd className="text-slate">not knowable yet — there is no embed-detection authority</dd>
           </dl>
@@ -103,7 +103,7 @@ export default async function ContractorControlCenter({ params }: { params: { co
           <h2 className="font-display text-lg font-bold text-navy">Scheduling &amp; country</h2>
           <dl className="mt-3 grid grid-cols-[9rem_1fr] gap-y-1 text-sm">
             <dt className="text-slate">Authority</dt><dd className="text-navy">{c.schedulingAuthority ? c.schedulingAuthority.toLowerCase() : "undecided"}</dd>
-            <dt className="text-slate">External calendar</dt><dd className="text-navy">{f.calendar.connected ? `connected · token until ${f.calendar.expiresAt?.toISOString().slice(0, 10)}` : c.schedulingAuthority === "EXTERNAL" ? "not connected" : "not used"}</dd>
+            <dt className="text-slate">External calendar</dt><dd className="text-navy">{f.calendar.connected ? `connected${f.calendar.connectedAt ? ` since ${f.calendar.connectedAt.toISOString().slice(0, 10)}` : ""}${f.calendar.accessTokenExpired ? " · access token due for its routine refresh on next use" : ""}` : c.schedulingAuthority === "EXTERNAL" ? "not connected" : "not used"}</dd>
             <dt className="text-slate">Country</dt><dd className="text-navy">{c.countryCode ?? "not set"}</dd>
           </dl>
         </section>

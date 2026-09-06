@@ -57,11 +57,33 @@ export type ContractorRow = {
   createdAt: Date;
   countryCode: string | null;
   schedulingAuthority: SchedulingAuthority | null;
-  site: { hostedSlug: string; active: boolean; embedOriginsConfigured: number } | null;
+  /** The live storefront, if any — the one routing will serve. Retired sites are counted, not shown as current. */
+  site: { hostedSlug: string; embedOriginsConfigured: number } | null;
+  retiredSites: number;
   /** Active OWNER emails — who to contact. Display only, never authorization. */
   owners: string[];
   payments: Readiness;
 };
+
+/**
+ * Storefront routing serves ACTIVE sites only and refuses inactive ones, so a
+ * contractor's "storefront" is their active site — newest first if the schema
+ * ever holds two — and a retired site is history, not the current answer.
+ * Taking the oldest row regardless of `active` reported retired slugs as
+ * current and undercounted live storefronts.
+ */
+const SITES_SELECT = {
+  select: { hostedSlug: true, active: true, embedOrigins: true },
+  orderBy: { createdAt: "desc" as const },
+} as const;
+type SiteRow = { hostedSlug: string; active: boolean; embedOrigins: string[] };
+export function liveSite(sites: SiteRow[]): { site: { hostedSlug: string; embedOriginsConfigured: number } | null; retiredSites: number } {
+  const live = sites.find((x) => x.active) ?? null;
+  return {
+    site: live ? { hostedSlug: live.hostedSlug, embedOriginsConfigured: live.embedOrigins.length } : null,
+    retiredSites: sites.filter((x) => !x.active).length,
+  };
+}
 
 const STRIPE_SELECT = {
   stripeAccountId: true, stripeMerchantConfigured: true, stripeCardPaymentsStatus: true,
@@ -75,7 +97,7 @@ export async function listContractors(db: PrismaClient): Promise<ContractorRow[]
     select: {
       id: true, slug: true, name: true, trade: true, active: true, createdAt: true,
       countryCode: true, schedulingAuthority: true, ...STRIPE_SELECT,
-      sites: { select: { hostedSlug: true, active: true, embedOrigins: true }, orderBy: { createdAt: "asc" }, take: 1 },
+      sites: SITES_SELECT,
     },
   });
   // Membership is the access table, not tenant data; the contractor boundary
@@ -87,9 +109,7 @@ export async function listContractors(db: PrismaClient): Promise<ContractorRow[]
   return rows.map((r) => ({
     id: r.id, slug: r.slug, name: r.name, trade: r.trade, active: r.active, createdAt: r.createdAt,
     countryCode: r.countryCode, schedulingAuthority: r.schedulingAuthority,
-    site: r.sites[0]
-      ? { hostedSlug: r.sites[0].hostedSlug, active: r.sites[0].active, embedOriginsConfigured: r.sites[0].embedOrigins.length }
-      : null,
+    ...liveSite(r.sites),
     owners: owners.filter((o) => o.contractorId === r.id).map((o) => o.user.email),
     payments: connectReadiness(r),
   }));
@@ -108,9 +128,16 @@ export type ContractorFacts = {
   bookings: { total: number; last30Days: number };
   onboarding: { currentStage: string; completedAt: Date | null; updatedAt: Date } | null;
   trades: string[];
-  calendar: { connected: boolean; expiresAt: Date | null };
+  /**
+   * Connected means a JobberConnection row exists — the meaning the readiness
+   * engine and the contractor's dashboard already use. Access tokens expire
+   * hourly and are refreshed on use by getValidJobberAccessToken, so token
+   * expiry is NOT disconnection; it is reported only as what it is.
+   */
+  calendar: { connected: boolean; connectedAt: Date | null; accessTokenExpired: boolean };
   payments: Readiness;
-  site: { hostedSlug: string; active: boolean; embedOriginsConfigured: number } | null;
+  site: { hostedSlug: string; embedOriginsConfigured: number } | null;
+  retiredSites: number;
   /** Who looked, for the page header. Never used to decide anything here. */
   actor: PlatformActor;
 };
@@ -131,7 +158,7 @@ export async function contractorFactsFor(db: PrismaClient, user: SignedInUser | 
         where: { id: contractor.id },
         select: {
           trade: true, active: true, createdAt: true, countryCode: true, schedulingAuthority: true, ...STRIPE_SELECT,
-          sites: { select: { hostedSlug: true, active: true, embedOrigins: true }, orderBy: { createdAt: "asc" }, take: 1 },
+          sites: SITES_SELECT,
         },
       }),
       assessOnboarding(guarded, contractor.id),
@@ -144,7 +171,7 @@ export async function contractorFactsFor(db: PrismaClient, user: SignedInUser | 
       guarded.booking.count({ where: { createdAt: { gte: since } } }),
       guarded.contractorOnboarding.findUnique({ where: { contractorId: contractor.id }, select: { currentStage: true, completedAt: true, updatedAt: true } }),
       guarded.contractorTrade.findMany({ where: { contractorId: contractor.id }, select: { tradeKey: true }, orderBy: { enrolledAt: "asc" } }),
-      guarded.jobberConnection.findUnique({ where: { contractorId: contractor.id }, select: { expiresAt: true } }),
+      guarded.jobberConnection.findUnique({ where: { contractorId: contractor.id }, select: { connectedAt: true, expiresAt: true } }),
     ]);
     const live = priced + quoteOnly;
     return {
@@ -155,9 +182,9 @@ export async function contractorFactsFor(db: PrismaClient, user: SignedInUser | 
       bookings: { total: bookingsTotal, last30Days: bookingsRecent },
       onboarding,
       trades: trades.map((t) => t.tradeKey),
-      calendar: { connected: jobber !== null && jobber.expiresAt > new Date(), expiresAt: jobber?.expiresAt ?? null },
+      calendar: { connected: jobber !== null, connectedAt: jobber?.connectedAt ?? null, accessTokenExpired: jobber !== null && jobber.expiresAt <= new Date() },
       payments: connectReadiness(row),
-      site: row.sites[0] ? { hostedSlug: row.sites[0].hostedSlug, active: row.sites[0].active, embedOriginsConfigured: row.sites[0].embedOrigins.length } : null,
+      ...liveSite(row.sites),
       actor,
     };
   });
@@ -195,8 +222,11 @@ export function attentionFor(f: ContractorFacts, now: Date = new Date()): Attent
     if (material.length) out.push({ ...base, code: "MATERIALS_BLOCK_LAUNCH", message: `${material.length} material cost${material.length === 1 ? "" : "s"} unresolved on services meant to be live: ${material[0].message}` });
     if (other.length) out.push({ ...base, code: "LAUNCH_CHECK_FAILING", message: `${other.length} launch blocker${other.length === 1 ? "" : "s"}: ${other[0].message}` });
   }
+  // Presence of the connection, never token age: an hourly access-token
+  // expiry is routine and refreshed on use, and calling it a disconnection
+  // would page a person for nothing.
   if (f.contractor.schedulingAuthority === "EXTERNAL" && !f.calendar.connected) {
-    out.push({ ...base, code: "CALENDAR_DISCONNECTED", message: f.calendar.expiresAt ? `The external calendar connection expired ${f.calendar.expiresAt.toISOString().slice(0, 10)}; availability cannot be verified.` : "Scheduling is set to an external calendar and none is connected; availability cannot be shown." });
+    out.push({ ...base, code: "CALENDAR_DISCONNECTED", message: "Scheduling is set to an external calendar and none is connected; availability cannot be shown." });
   }
   if (f.onboarding && f.onboarding.completedAt === null && f.catalog.live === 0) {
     const idleDays = Math.floor((now.getTime() - f.onboarding.updatedAt.getTime()) / DAY);
@@ -205,15 +235,39 @@ export function attentionFor(f: ContractorFacts, now: Date = new Date()): Attent
   return out;
 }
 
+/** A directory row plus what its own boundary said — or why it could not be read. */
+export type OverviewRow = ContractorRow & (
+  | { readable: true; live: number; canLaunch: boolean; blockers: number }
+  | { readable: false; error: string }
+);
+
 export type PlatformOverview = {
-  contractors: { total: number; enabled: number; live: number; inSetup: number };
+  contractors: { total: number; enabled: number; live: number; inSetup: number; unreadable: number };
   services: { live: number };
   storefronts: { hosted: number; embedConfigured: number };
   quotesAwaiting: number;
   attention: AttentionItem[];
-  rows: (ContractorRow & { live: number; canLaunch: boolean; blockers: number })[];
+  rows: OverviewRow[];
+  /** Contractors whose facts could not be read this time, with the reason. Shown, never hidden. */
+  unreadable: { contractorId: string; slug: string; name: string; error: string }[];
   actor: PlatformActor;
 };
+
+export type ReadFacts = (db: PrismaClient, user: SignedInUser | null, contractorId: string) => Promise<ContractorFacts>;
+
+/** How many contractors are entered at once. Small on purpose: each entry is several queries. */
+export const OVERVIEW_CONCURRENCY = 3;
+
+/** Run `fn` over `items` with at most `limit` in flight; results in input order. */
+export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
+  });
+  await Promise.all(workers);
+  return out;
+}
 
 /**
  * The cross-tenant picture, built the only way it may be: authorize once,
@@ -221,23 +275,45 @@ export type PlatformOverview = {
  * its own guarded door for its own facts. Four contractors today; when that
  * is forty the answer is a cache, not a tenant-less query.
  */
-export async function platformOverviewFor(db: PrismaClient, user: SignedInUser | null): Promise<PlatformOverview> {
+/**
+ * One unreadable contractor must not take the overview down — that is the
+ * moment staff most need the other rows. Each entry is isolated: a throw
+ * becomes an explicit "unreadable" row with its reason, and the sums cover
+ * the rows that were read. Entries run a few at a time, not all at once.
+ * `readFacts` is injectable so the verifier can prove both properties.
+ */
+export async function platformOverviewFor(
+  db: PrismaClient, user: SignedInUser | null,
+  opts: { readFacts?: ReadFacts; concurrency?: number } = {},
+): Promise<PlatformOverview> {
+  const readFacts = opts.readFacts ?? contractorFactsFor;
   return withPlatformFor(db, user, async (platformDb, actor) => {
     const rows = await listContractors(platformDb);
-    const facts = await Promise.all(rows.map((r) => contractorFactsFor(db, user, r.id)));
-    const attention = facts.flatMap((f) => attentionFor(f));
+    const results = await mapWithConcurrency(rows, opts.concurrency ?? OVERVIEW_CONCURRENCY, async (r) => {
+      try { return { ok: true as const, facts: await readFacts(db, user, r.id) }; }
+      catch (e) { return { ok: false as const, error: (e as Error).message || String(e) }; }
+    });
+    const facts = results.flatMap((x) => (x.ok ? [x.facts] : []));
+    const unreadable = rows.flatMap((r, i) => (results[i].ok ? [] : [{ contractorId: r.id, slug: r.slug, name: r.name, error: (results[i] as { error: string }).error }]));
     return {
       contractors: {
         total: rows.length,
         enabled: rows.filter((r) => r.active).length,
         live: facts.filter((f) => f.catalog.live > 0).length,
         inSetup: facts.filter((f) => f.onboarding && f.onboarding.completedAt === null && f.catalog.live === 0).length,
+        unreadable: unreadable.length,
       },
       services: { live: facts.reduce((n, f) => n + f.catalog.live, 0) },
-      storefronts: { hosted: rows.filter((r) => r.site?.active).length, embedConfigured: rows.filter((r) => (r.site?.embedOriginsConfigured ?? 0) > 0).length },
+      storefronts: { hosted: rows.filter((r) => r.site !== null).length, embedConfigured: rows.filter((r) => (r.site?.embedOriginsConfigured ?? 0) > 0).length },
       quotesAwaiting: facts.reduce((n, f) => n + f.quotesAwaiting, 0),
-      attention,
-      rows: rows.map((r, i) => ({ ...r, live: facts[i].catalog.live, canLaunch: facts[i].readiness.canLaunch, blockers: facts[i].readiness.blockers.length })),
+      attention: facts.flatMap((f) => attentionFor(f)),
+      rows: rows.map((r, i) => {
+        const x = results[i];
+        return x.ok
+          ? { ...r, readable: true as const, live: x.facts.catalog.live, canLaunch: x.facts.readiness.canLaunch, blockers: x.facts.readiness.blockers.length }
+          : { ...r, readable: false as const, error: x.error };
+      }),
+      unreadable,
       actor,
     };
   });
