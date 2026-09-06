@@ -41,6 +41,7 @@ import { PrismaClient, type Prisma, type PlatformRole } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { sourceFiles } from "./_sourceFiles";
+import { requestAccess, paramsUses } from "./_platformSurfaceAudit";
 import { destroyContractor } from "./_throwaway";
 import { currentTenantOrNull } from "../lib/tenantContext";
 import {
@@ -305,7 +306,8 @@ async function main() {
 
   // ── 7. no other door ──────────────────────────────────────────────────
   const platformFiles = [
-    "lib/platformContext.ts", "scripts/bootstrap-platform-admin.ts",
+    "lib/platformContext.ts", "lib/platformReadModel.ts", "scripts/bootstrap-platform-admin.ts",
+    ...sourceFiles(["components/platform"]),
     ...sourceFiles(["app/platform", "app/api/platform"]),
   ];
   const EMAIL_AUTH = /\.email\s*[!=]==?|[A-Z_]*(ADMIN|OWNER|STAFF|PLATFORM)_EMAILS?\b|endsWith\(\s*["']@|process\.env\.[A-Z_]*EMAIL|includes\(\s*(user|session)\.email/;
@@ -328,13 +330,27 @@ async function main() {
     /NotPlatformStaffError/.test(layout) && !/redirect\("\/dashboard"\)/.test(layout) && /Refused/.test(layout));
   ok(`    and sends signed-out to sign-in`, /NotAuthenticatedError/.test(layout) && /redirect\("\/sign-in"\)/.test(layout));
   const surfaces = sourceFiles(["app/platform", "app/api/platform"]);
-  ok(`    no Phase 1 surface reads a contractor id from a request`, surfaces.every((f) => !/contractorId|searchParams|params\./.test(strip(f))), surfaces.join(", "));
-  ok(`    no Phase 1 surface touches the contractor boundary or the raw client`,
+  // Phase 2 opened exactly one door for a request-supplied contractor id: the
+  // Control Center route, whose `params.contractorId` may go to
+  // platformContractor() and nowhere else. Judged by syntax tree
+  // (scripts/_platformSurfaceAudit.ts): a `params`/`searchParams` prop under
+  // any local name, a next/headers binding called under any alias, an
+  // imported next/headers or next/server module, or a route handler reading
+  // its request argument all count as reading the request.
+  const CONTROL_CENTER = "app/platform/contractors/[contractorId]/page.tsx";
+  const others = surfaces.filter((f) => f !== CONTROL_CENTER);
+  const strays = others.flatMap((f) => requestAccess(readFileSync(f, "utf8"), f).map((a) => `${f}:${a.line} ${a.kind}`));
+  ok(`    no platform surface but the Control Center reads anything from a request`, strays.length === 0, strays.join("; "));
+  const ccAccess = existsSync(CONTROL_CENTER) ? requestAccess(readFileSync(CONTROL_CENTER, "utf8"), CONTROL_CENTER) : [];
+  const ccUse = existsSync(CONTROL_CENTER) ? paramsUses(readFileSync(CONTROL_CENTER, "utf8"), "platformContractor", CONTROL_CENTER) : { local: null, uses: [], boundaryCalls: 0 };
+  ok(`    and the Control Center's sole use of params is params.contractorId as the direct argument of the one platform boundary call`,
+    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccUse.local === "params" && ccUse.boundaryCalls === 1 && ccUse.uses.length === 1 && ccUse.uses[0].kind === "boundary-arg");
+  ok(`    no platform surface touches the contractor boundary or the raw client`,
     surfaces.every((f) => !/adminContext|from "@\/lib\/prisma"|platformDb|new PrismaClient/.test(strip(f))));
   ok(`    the tenant context can say a staff member opened it`, /"platform-session"/.test(readFileSync("lib/tenantContext.ts", "utf8")));
   ok(`    withPlatformContractor is the only wrapper that takes a contractor id`,
     /withContractor\(contractor\.id, "platform-session"/.test(platformCtx) && !existsSync("lib/platformAdmin.ts"));
-  ok(`    nothing in Phase 1 writes SupportAccessEvent or any tenant row`,
+  ok(`    nothing on the platform side writes SupportAccessEvent or any tenant row`,
     platformFiles.every((f) => !/supportAccessEvent|\.(create|update|upsert|delete)(Many)?\(/.test(strip(f).replace(/platformAccess\.create|platformAccess\.count|platformAccess\.findUnique/g, ""))
       || f === "scripts/bootstrap-platform-admin.ts"));
 

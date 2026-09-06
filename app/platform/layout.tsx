@@ -15,9 +15,16 @@ export const dynamic = "force-dynamic";
  * quietly redirected to their dashboard, because "this is not yours" is the
  * true answer and a redirect would hide it.
  *
- * Signed-out goes to sign-in, as the portal does. Nothing here reads
- * contractor data: Phase 1 is the boundary and a proof that it holds.
+ * Signed-out goes to sign-in, as the portal does. Everything under this shell
+ * is READ-ONLY in Phase 2: four views over lib/platformReadModel — overview,
+ * directory, control center, attention — and nothing that writes.
  */
+const NAV = [
+  { href: "/platform", label: "Overview" },
+  { href: "/platform/contractors", label: "Contractors" },
+  { href: "/platform/attention", label: "Attention needed" },
+] as const;
+
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   let actor;
   try {
@@ -31,10 +38,17 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   return (
     <div className="min-h-screen bg-warmwhite">
       <header className="border-b border-cardline bg-navy text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3 text-sm">
-          <span className="font-display font-bold">Price2Book · Platform</span>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-3 text-sm">
+          <div className="flex items-center gap-6">
+            <span className="font-display font-bold">Price2Book · Platform</span>
+            <nav className="flex items-center gap-4" aria-label="Platform">
+              {NAV.map((n) => (
+                <Link key={n.href} href={n.href} className="text-white/80 hover:text-white hover:underline">{n.label}</Link>
+              ))}
+            </nav>
+          </div>
           <span className="text-white/80">
-            {actor.email} · {actor.role}
+            {actor.email} · {actor.role} · read-only
           </span>
         </div>
       </header>
