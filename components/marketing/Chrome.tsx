@@ -110,7 +110,21 @@ export function MarketingHeader({ signInHref }: { signInHref: string }) {
           <Logo />
         </a>
 
-        <nav className="hidden items-center gap-[30px] text-[15px] text-p2b-muted lg:flex">
+        {/* TIGHTER BETWEEN lg AND xl, full spacing from xl. The nav needs
+            about 750px laid out at its natural size; at 1024 it has 680 after
+            the logo and the section padding, so it was 70px short. Flex does
+            not wrap items here — `flex-wrap` is nowrap — so the shortfall came
+            out as each LABEL breaking inside itself: "How It Fits" and "Sign
+            In" on two lines, the Trades caret dropped below its word, and a
+            65px-tall header instead of 43px.
+
+            `whitespace-nowrap` is the part that matters most: it makes a label
+            indivisible, so if the bar is ever short again the symptom is
+            overflow the width test catches rather than silent ugly wrapping
+            nobody measures. The gap and CTA padding buy the room — 16px gaps
+            and a 14px button inset reclaim ~78px, leaving ~36px of margin at
+            1024 — and `xl:` puts both back where there was never a problem. */}
+        <nav className="hidden items-center gap-4 whitespace-nowrap text-[15px] text-p2b-muted lg:flex xl:gap-[30px]">
           {NAV.map((item) =>
             /* Trades opens; everything else is still a link, because the
                pages the other menus will hold do not exist yet and a menu
@@ -134,7 +148,7 @@ export function MarketingHeader({ signInHref }: { signInHref: string }) {
             Sign In
           </a>
           <a href="/#access"
-             className="rounded-sm bg-p2b-accent px-[18px] py-2.5 font-semibold text-p2b-canvas hover:bg-p2b-accent-hover">
+             className="rounded-sm bg-p2b-accent px-3.5 py-2.5 font-semibold text-p2b-canvas hover:bg-p2b-accent-hover xl:px-[18px]">
             {HERO.secondaryCta}
           </a>
         </nav>
