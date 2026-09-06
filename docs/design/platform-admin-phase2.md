@@ -61,9 +61,14 @@ only that way", and the new verifier holds that there is exactly one such file.
 - **Overview resilience:** each contractor's facts are read in isolation, a
   few at a time; a failure becomes an explicit unreadable row with its
   reason, and the sums cover the rows that were read.
-- **Verifier strength:** platform files are held to an import allowlist
-  (module and symbol), so a mutating helper or an aliased request accessor
-  cannot be smuggled in under a name the old regexes did not spell.
+- **Verifier strength:** platform files are audited by syntax tree
+  (`scripts/_platformSurfaceAudit.ts`), not by regular expression: every
+  module edge — import, bare import, re-export, dynamic import, require — is
+  held to an allowlist by module and exported symbol under any local alias;
+  mutating Prisma calls are found on any receiver; request access is found by
+  binding (`params`/`searchParams` props under any name, next/headers calls
+  under any alias, request arguments used); and the Control Center's one
+  permitted call is checked argument-for-argument. Twenty-odd mutants prove it.
 
 ## Not in Phase 2
 

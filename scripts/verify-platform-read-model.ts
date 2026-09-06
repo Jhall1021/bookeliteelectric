@@ -30,18 +30,18 @@ import {
   listContractors, contractorFactsFor, platformOverviewFor, attentionFor, STUCK_AFTER_DAYS, type ContractorFacts,
 } from "../lib/platformReadModel";
 import { withPlatformFor } from "../lib/platformContext";
+import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, type Policy } from "./_platformSurfaceAudit";
+import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
 
 /**
- * IMPORT POLICY — the structural promise, enforced structurally.
+ * IMPORT POLICY — the structural promise, enforced by syntax tree.
  *
- * Regexes on call spellings (`.update(`, `headers(`) protect only against the
- * spelling they know: a page could import a helper that writes, or alias
- * `headers as h`. So every Platform Admin file is held to an allowlist of
- * modules AND symbols. A file that imports anything else fails, whatever it
- * calls. Type-only imports are exempt (they cannot run), dynamic import() and
- * require() are forbidden outright.
+ * Every Platform Admin file is held to an allowlist of modules AND symbols,
+ * judged from the AST by scripts/_platformSurfaceAudit.ts: a binding is
+ * followed to the export it came from whatever it is called locally, bare
+ * imports and runtime re-exports are refused, dynamic import() and require()
+ * are refused, and type-only edges are exempt because they cannot run.
  */
-type Policy = Record<string, readonly string[] | "*">;
 const SURFACE_POLICY: Policy = {
   "next/link": ["default"],
   "next/navigation": ["redirect", "notFound"],
@@ -56,42 +56,6 @@ const READ_MODEL_POLICY: Policy = {
   "./onboardingReadiness": ["assessOnboarding"],
   "./stripeConnect": ["connectReadiness"],
 };
-/** Every import in `src` that the policy does not permit, as "module:symbol". Pure, so mutants can be tested without touching files. */
-export function importViolations(src: string, policy: Policy): string[] {
-  const out: string[] = [];
-  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  if (/\bimport\s*\(/.test(code)) out.push("dynamic import()");
-  if (/\brequire\s*\(/.test(code)) out.push("require()");
-  // A bare import runs a module for its side effects and names nothing; there is
-  // no read-only reason for one on a platform surface.
-  for (const m of code.matchAll(/^import\s+["']([^"']+)["']/gm)) out.push(`${m[1]}:bare-import`);
-  // A runtime re-export (`export { x } from`, `export * from`, `export * as ns from`)
-  // pulls another module's code through without an import statement at all.
-  // Type-only re-exports cannot run and are allowed.
-  for (const m of code.matchAll(/^export\s+(type\s+)?(\*|\{[\s\S]*?\})(\s+as\s+\w+)?\s+from\s+["']([^"']+)["']/gm)) {
-    if (m[1]) continue;
-    out.push(`${m[4]}:re-export`);
-  }
-  const re = /^import\s+(type\s+)?([\s\S]*?)\s+from\s+["']([^"']+)["']/gm;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(code))) {
-    const [, typeOnly, clause, mod] = m;
-    if (typeOnly) continue;
-    const allowed = policy[mod];
-    if (allowed === undefined) { out.push(`${mod}:*`); continue; }
-    if (allowed === "*") continue;
-    const names: string[] = [];
-    const braces = clause.match(/\{([\s\S]*?)\}/);
-    const outside = clause.replace(/\{[\s\S]*?\}/, "").split(",").map((x) => x.trim()).filter(Boolean);
-    for (const o of outside) names.push(o.startsWith("* as") ? "*namespace*" : "default");
-    if (braces) for (const part of braces[1].split(",")) {
-      const t = part.trim(); if (!t || t.startsWith("type ")) continue;
-      names.push(t.split(/\s+as\s+/)[0].trim()); // the EXPORTED name, whatever it was aliased to
-    }
-    for (const n of names) if (!allowed.includes(n)) out.push(`${mod}:${n}`);
-  }
-  return out;
-}
 
 const raw = new PrismaClient();
 const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
@@ -244,21 +208,35 @@ async function main() {
   ok(`   a live contractor with no blockers is nothing to do`, codes(facts({ catalog: { total: 5, live: 5, priced: 5, quoteOnly: 0, needsPrice: 0, hidden: 0 }, onboarding: { currentStage: "launch", completedAt: now, updatedAt: now } })) === "none");
   ok(`   every item points at the contractor's control center`, attentionFor(facts({ blockers: [{ code: "X", message: "x" }], onboarding: { currentStage: "launch", completedAt: now, updatedAt: now } }), now).every((a) => a.href === "/platform/contractors/c1"));
 
-  // ── 4. structure ─────────────────────────────────────────────────────
+  // ── 4. structure, by syntax tree ─────────────────────────────────────
   const rm = strip("lib/platformReadModel.ts");
-  const surfaces = sourceFiles(["app/platform", "components/platform"]);
-  // Method CALLS only — `.createdAt` is a column, not a write.
-  const WRITES = /\.(create|update|upsert|delete|createMany|updateMany|deleteMany|\$executeRaw(Unsafe)?|\$queryRaw(Unsafe)?)\(/;
-  ok(`4. the read model writes nothing`, !WRITES.test(rm));
-  ok(`   nor does any platform surface`, surfaces.every((f) => !WRITES.test(strip(f))), surfaces.filter((f) => WRITES.test(strip(f))).join(", "));
-  ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm) && !/prisma\.(service|quote|booking|contractorOnboarding|contractorTrade|jobberConnection)/.test(rm));
-  ok(`   the directory reads platform models only, inside withPlatform`, /withPlatformFor\(db, user/.test(rm) && !/platformDb\.(service|quote|booking)|pdb\.(service|quote|booking)/.test(rm));
+  const cc = strip("app/platform/contractors/[contractorId]/page.tsx");
+  const rmSrc = readFileSync("lib/platformReadModel.ts", "utf8");
+  const surfaces = sourceFiles(["app/platform", "app/api/platform", "components/platform"]);
+  const rmWrites = mutatingCalls(rmSrc, "lib/platformReadModel.ts");
+  ok(`4. the read model makes no mutating call, on any receiver`, rmWrites.length === 0, rmWrites.map((w) => `${w.callee}@${w.line}`).join(", "));
+  const surfaceWrites = surfaces.flatMap((f) => mutatingCalls(readFileSync(f, "utf8"), f).map((w) => `${f}:${w.line} ${w.callee}`));
+  ok(`   nor does any platform surface`, surfaceWrites.length === 0, surfaceWrites.join(", "));
+  // Tenant models are never touched through the unguarded `prisma` handle in
+  // the read model — the only permitted member accesses on it are none: it is
+  // passed as an argument to the two wrappers and never dereferenced.
+  const tenantModels = new Set([...TENANT_SCOPED_MODELS, ...DERIVED_TENANT_MODELS.keys()].map((m) => m[0].toLowerCase() + m.slice(1)));
+  const prismaTouches = memberAccessesOn(rmSrc, "prisma", "lib/platformReadModel.ts");
+  ok(`   the read model never dereferences the unguarded client itself (${prismaTouches.length} member accesses)`, prismaTouches.length === 0, prismaTouches.map((t) => `.${t.member}@${t.line}`).join(", "));
+  const platformDbTouches = memberAccessesOn(rmSrc, "platformDb", "lib/platformReadModel.ts").filter((t) => tenantModels.has(t.member));
+  ok(`   and the directory client touches no tenant model`, platformDbTouches.length === 0, platformDbTouches.map((t) => `.${t.member}@${t.line}`).join(", "));
+  ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm));
   ok(`   readiness is assessOnboarding's, payments connectReadiness's — no second engine`, /assessOnboarding\(guarded/.test(rm) && /connectReadiness\(/.test(rm) && !/canLaunch:\s*(true|false|!?[\w.]*blockers)/.test(rm) && !/stripeCardPaymentsStatus\s*[!=]==/.test(rm));
   ok(`   the read model never reads PlatformAccess or a membership to decide anything`, !/platformAccess/.test(rm) && !/\.email\s*[!=]==?/.test(rm));
-  ok(`   platform surfaces import no raw client and no contractor boundary`, surfaces.every((f) => !/from "@\/lib\/prisma"|adminContext|new PrismaClient|platformDb/.test(strip(f))));
-  const cc = strip("app/platform/contractors/[contractorId]/page.tsx");
-  ok(`   the Control Center is the one file that takes a request-supplied id, and hands it straight to the boundary`,
-    /platformContractor\(params\.contractorId\)/.test(cc) && surfaces.filter((f) => /params\.contractorId|searchParams/.test(strip(f))).length === 1);
+  // Request access, by binding: only the Control Center may read anything from the request, and only `params`.
+  const CC = "app/platform/contractors/[contractorId]/page.tsx";
+  const access = surfaces.map((f) => ({ f, a: requestAccess(readFileSync(f, "utf8"), f) }));
+  const strays = access.filter(({ f, a }) => f !== CC && a.length > 0).map(({ f, a }) => `${f}: ${a.map((x) => `${x.kind}@${x.line}`).join(",")}`);
+  ok(`   no platform surface but the Control Center reads anything from the request`, strays.length === 0, strays.join("; "));
+  const ccAccess = access.find(({ f }) => f === CC)?.a ?? [];
+  const ccCalls = callsTo(readFileSync(CC, "utf8"), "platformContractor", CC);
+  ok(`   the Control Center reads only \`params\` and hands params.contractorId straight to platformContractor()`,
+    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccCalls.length === 1 && ccCalls[0].args.join() === "params.contractorId");
   ok(`   it 404s an unknown contractor and shows a "read-only" mark`, /PlatformContractorNotFoundError/.test(cc) && /notFound\(\)/.test(cc) && /read-only/.test(cc));
   const layout = strip("app/platform/layout.tsx");
   ok(`   the shell links the three views and still gates on the actor`, /\/platform\/contractors/.test(layout) && /\/platform\/attention/.test(layout) && /resolvePlatformActor\(\)/.test(layout));
@@ -268,30 +246,47 @@ async function main() {
   ok(`   sites are chosen by \`active\`, never by position`, /sites\.find\(\(x\) => x\.active\)/.test(rm) && !/sites\[0\]/.test(rm) && !/take: 1/.test(rm));
   ok(`   every contractor entry is isolated and bounded`, /mapWithConcurrency\(rows/.test(rm) && /catch \(e\)/.test(rm) && !/Promise\.all\(rows\.map/.test(rm));
 
-  // ── 5. import policy: the promise held structurally ───────────────────
+  // ── 5. import policy and request access, proven on mutants ────────────
   const policed = sourceFiles(["app/platform", "app/api/platform", "components/platform"]);
-  const violations = policed.flatMap((f) => importViolations(readFileSync(f, "utf8"), SURFACE_POLICY).map((v) => `${f} -> ${v}`));
+  const violations = policed.flatMap((f) => importViolations(readFileSync(f, "utf8"), SURFACE_POLICY, f).map((v) => `${f} -> ${v}`));
   ok(`5. every platform surface — pages, components AND api routes — imports only from the allowlist (module and symbol)`, violations.length === 0, violations.join("; "));
   ok(`   the policed set covers ${policed.length} files including the api routes`, policed.some((f) => f.startsWith("app/api/platform/")) && policed.length >= 6);
-  const rmViolations = importViolations(readFileSync("lib/platformReadModel.ts", "utf8"), READ_MODEL_POLICY);
+  const rmViolations = importViolations(readFileSync("lib/platformReadModel.ts", "utf8"), READ_MODEL_POLICY, "lib/platformReadModel.ts");
   ok(`   and so does the read model`, rmViolations.length === 0, rmViolations.join("; "));
   const attention = readFileSync("app/platform/attention/page.tsx", "utf8");
-  const mutants: [string, string, Policy][] = [
-    ["a page aliasing headers()", attention + '\nimport { headers as h } from "next/headers";\n', SURFACE_POLICY],
-    ["a page importing a helper that writes", attention + '\nimport { setTradeEnrolment } from "@/lib/tradeEnrolment";\n', SURFACE_POLICY],
-    ["a page reaching the unguarded client by another name", attention + '\nimport { platformDb as x } from "@/lib/tenantRoute";\n', SURFACE_POLICY],
-    ["a page importing an unlisted symbol from an allowed module", attention.replace('from "@/lib/platformReadModel"', ', contractorFactsFor } from "@/lib/platformReadModel"').replace("import { platformOverview, STUCK_AFTER_DAYS", "import { platformOverview, STUCK_AFTER_DAYS"), SURFACE_POLICY],
-    ["a page using dynamic import()", attention + '\nconst m = await import("@/lib/tradeEnrolment");\n', SURFACE_POLICY],
-    ["the read model importing a writer", readFileSync("lib/platformReadModel.ts", "utf8") + '\nimport { setTradeEnrolment as s } from "./tradeEnrolment";\n', READ_MODEL_POLICY],
-    ["a bare side-effect import", attention + '\nimport "@/lib/module-with-side-effects";\n', SURFACE_POLICY],
-    ["a re-exported default page from an unapproved module", attention + '\nexport { default } from "@/lib/unapproved-platform-page";\n', SURFACE_POLICY],
-    ["a wildcard re-export", attention + '\nexport * from "@/lib/unapproved-module";\n', SURFACE_POLICY],
-    ["a namespaced wildcard re-export", attention + '\nexport * as helpers from "@/lib/unapproved-module";\n', SURFACE_POLICY],
-    ["a named re-export even from an allowed module", attention + '\nexport { platformOverview } from "@/lib/platformReadModel";\n', SURFACE_POLICY],
+  const ccSrc = readFileSync(CC, "utf8");
+  const refused = (src: string, pol: Policy = SURFACE_POLICY) => importViolations(src, pol).length > 0;
+  const mutants: [string, boolean][] = [
+    ["a page aliasing headers()", refused(attention + '\nimport { headers as h } from "next/headers";\n')],
+    ["a page importing a helper that writes", refused(attention + '\nimport { setTradeEnrolment } from "@/lib/tradeEnrolment";\n')],
+    ["a page reaching the unguarded client by another name", refused(attention + '\nimport { platformDb as x } from "@/lib/tenantRoute";\n')],
+    ["a page importing an unlisted symbol from an allowed module", refused(attention.replace("import { platformOverview, attentionSummary, STUCK_AFTER_DAYS }", "import { platformOverview, attentionSummary, STUCK_AFTER_DAYS, contractorFactsFor }"))],
+    ["a namespace import of an allowed module", refused(attention + '\nimport * as rm2 from "@/lib/platformReadModel";\n')],
+    ["a page using dynamic import()", refused(attention + '\nconst m = await import("@/lib/tradeEnrolment");\n')],
+    ["a page using require()", refused(attention + '\nconst m = require("@/lib/tradeEnrolment");\n')],
+    ["a bare side-effect import", refused(attention + '\nimport "@/lib/module-with-side-effects";\n')],
+    ["a re-exported default page from an unapproved module", refused(attention + '\nexport { default } from "@/lib/unapproved-platform-page";\n')],
+    ["a wildcard re-export", refused(attention + '\nexport * from "@/lib/unapproved-module";\n')],
+    ["a namespaced wildcard re-export", refused(attention + '\nexport * as helpers from "@/lib/unapproved-module";\n')],
+    ["a named re-export even from an allowed module", refused(attention + '\nexport { platformOverview } from "@/lib/platformReadModel";\n')],
+    ["the read model importing a writer", refused(readFileSync("lib/platformReadModel.ts", "utf8") + '\nimport { setTradeEnrolment as s } from "./tradeEnrolment";\n', READ_MODEL_POLICY)],
   ];
-  for (const [name, src, pol] of mutants) ok(`   mutant: ${name} is refused`, importViolations(src, pol).length > 0);
-  ok(`   while a type-only import is allowed (it cannot run)`, importViolations(attention + '\nimport type { Foo } from "@/lib/anything";\n', SURFACE_POLICY).length === 0);
-  ok(`   and so is a type-only re-export`, importViolations(attention + '\nexport type { Foo } from "@/lib/anything";\n', SURFACE_POLICY).length === 0);
+  for (const [name, caught] of mutants) ok(`   mutant: ${name} is refused`, caught);
+  ok(`   while a type-only import is allowed (it cannot run)`, !refused(attention + '\nimport type { Foo } from "@/lib/anything";\n'));
+  ok(`   and so is a type-only re-export`, !refused(attention + '\nexport type { Foo } from "@/lib/anything";\n'));
+  // request-access mutants: detected by binding, not by spelling
+  const req = (src: string) => requestAccess(src).map((a) => a.kind);
+  ok(`   mutant: a page destructuring { searchParams } is seen`, req(attention.replace("export default async function PlatformAttentionPage()", "export default async function PlatformAttentionPage({ searchParams }: { searchParams: Record<string, string> })")).includes("searchParams-prop"));
+  ok(`   mutant: a page destructuring params under another name is seen`, req(attention.replace("export default async function PlatformAttentionPage()", "export default async function PlatformAttentionPage({ params: p }: { params: { x: string } })")).includes("params-prop"));
+  ok(`   mutant: a page reading props.params is seen`, req(attention.replace("export default async function PlatformAttentionPage()", "export default async function PlatformAttentionPage(props: { params: { x: string } })").replace("const o = await platformOverview();", "const o = await platformOverview(); void props.params;")).includes("params-prop"));
+  ok(`   mutant: an aliased headers() call is seen as a headers call`, req(attention + '\nimport { headers as h } from "next/headers";\nconst v = h();\n').includes("headers-call"));
+  ok(`   mutant: an aliased cookies() call is seen`, req(attention + '\nimport { cookies as c } from "next/headers";\nconst v = c();\n').includes("cookies-call"));
+  ok(`   mutant: a route handler that reads its request argument is seen`, req('export async function GET(req: Request) { const u = new URL(req.url); return Response.json({ u }); }').includes("request-arg"));
+  ok(`   mutant: the Control Center passing anything but params.contractorId is refused`, (() => { const src = ccSrc.replace("platformContractor(params.contractorId)", "platformContractor(params.contractorId ?? searchParams.id)"); const calls = callsTo(src, "platformContractor", CC); return calls.length === 1 && calls[0].args.join() !== "params.contractorId"; })());
+  ok(`   mutant: a write through a renamed client is seen`, mutatingCalls('const k = prisma; await k.service.updateMany({ where: {}, data: {} });').length === 1);
+  ok(`   mutant: a raw statement is seen`, mutatingCalls("await db.$executeRawUnsafe(\"delete from x\")").length === 1);
+  ok(`   while a column named createdAt is not a write`, mutatingCalls("const t = row.createdAt; const u = svc.updatedAt;").length === 0);
+  ok(`   mutant: the read model dereferencing prisma is seen`, memberAccessesOn(rmSrc + "\nconst stray = prisma.service;", "prisma").length === 1);
 
   // ── 6. the attention page cannot call an unread contractor healthy ─────
   const { attentionSummary } = await import("../lib/platformReadModel");

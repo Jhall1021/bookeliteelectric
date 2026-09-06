@@ -41,6 +41,7 @@ import { PrismaClient, type Prisma, type PlatformRole } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { sourceFiles } from "./_sourceFiles";
+import { requestAccess, callsTo } from "./_platformSurfaceAudit";
 import { destroyContractor } from "./_throwaway";
 import { currentTenantOrNull } from "../lib/tenantContext";
 import {
@@ -331,22 +332,19 @@ async function main() {
   const surfaces = sourceFiles(["app/platform", "app/api/platform"]);
   // Phase 2 opened exactly one door for a request-supplied contractor id: the
   // Control Center route, whose `params.contractorId` may go to
-  // platformContractor() and nowhere else. Every other surface still reads
-  // no contractor id from any request.
+  // platformContractor() and nowhere else. Judged by syntax tree
+  // (scripts/_platformSurfaceAudit.ts): a `params`/`searchParams` prop under
+  // any local name, a next/headers binding called under any alias, an
+  // imported next/headers or next/server module, or a route handler reading
+  // its request argument all count as reading the request.
   const CONTROL_CENTER = "app/platform/contractors/[contractorId]/page.tsx";
   const others = surfaces.filter((f) => f !== CONTROL_CENTER);
-  // Request SOURCES, not the word: `a.contractorId` on a fact read through the
-  // boundary is data; `params.`, `searchParams`, headers and cookies are the
-  // request, and only the Control Center may take a contractor from them.
-  // Spellings AND the modules they come from: `headers as h` is still
-  // next/headers. Only the Control Center may take anything from a request,
-  // and even it may not import next/headers.
-  const REQUEST = /params\.|searchParams|headers\(|cookies\(|req\.|request\.|from "next\/headers"|from "next\/server"/;
-  ok(`    no platform surface imports next/headers or next/server at all`, surfaces.every((f) => !/from "next\/(headers|server)"/.test(strip(f))));
-  ok(`    no platform surface but the Control Center reads a contractor id from a request`, others.every((f) => !REQUEST.test(strip(f))), others.filter((f) => REQUEST.test(strip(f))).join(", "));
-  const cc = existsSync(CONTROL_CENTER) ? strip(CONTROL_CENTER) : "";
-  ok(`    and the Control Center hands params.contractorId straight to the platform boundary`,
-    /platformContractor\(params\.contractorId\)/.test(cc) && (cc.match(/params\.contractorId/g) ?? []).length === 1 && !/searchParams/.test(cc));
+  const strays = others.flatMap((f) => requestAccess(readFileSync(f, "utf8"), f).map((a) => `${f}:${a.line} ${a.kind}`));
+  ok(`    no platform surface but the Control Center reads anything from a request`, strays.length === 0, strays.join("; "));
+  const ccAccess = existsSync(CONTROL_CENTER) ? requestAccess(readFileSync(CONTROL_CENTER, "utf8"), CONTROL_CENTER) : [];
+  const ccCalls = existsSync(CONTROL_CENTER) ? callsTo(readFileSync(CONTROL_CENTER, "utf8"), "platformContractor", CONTROL_CENTER) : [];
+  ok(`    and the Control Center reads only params, handing params.contractorId straight to the platform boundary`,
+    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccCalls.length === 1 && ccCalls[0].args.join() === "params.contractorId");
   ok(`    no platform surface touches the contractor boundary or the raw client`,
     surfaces.every((f) => !/adminContext|from "@\/lib\/prisma"|platformDb|new PrismaClient/.test(strip(f))));
   ok(`    the tenant context can say a staff member opened it`, /"platform-session"/.test(readFileSync("lib/tenantContext.ts", "utf8")));
