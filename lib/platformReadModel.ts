@@ -162,9 +162,14 @@ export async function contractorFactsFor(db: PrismaClient, user: SignedInUser | 
         },
       }),
       assessOnboarding(guarded, contractor.id),
-      guarded.service.count({ where: { active: true, publishedPriceApprovedAt: { not: null } } }),
+      // DISJOINT by construction: quote-only is decided first, then priced and
+      // needs-a-price split the rest. The schema permits a REMOTE_QUOTE service
+      // to carry an approved price, and counting it in both columns made
+      // "live" and "total" overstate by one per such service. (The contractor
+      // dashboard's own split has the same overlap and is not changed here.)
+      guarded.service.count({ where: { active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: { not: null } } }),
       guarded.service.count({ where: { active: true, ...QUOTE_ONLY } }),
-      guarded.service.count({ where: { active: true, publishedPriceApprovedAt: null, NOT: QUOTE_ONLY } }),
+      guarded.service.count({ where: { active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: null } }),
       guarded.service.count({ where: { active: false } }),
       guarded.quote.count({ where: { status: { in: ["SUBMITTED", "IN_REVIEW"] } } }),
       guarded.booking.count(),

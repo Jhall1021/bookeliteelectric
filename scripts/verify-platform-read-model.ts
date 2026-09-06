@@ -229,8 +229,18 @@ async function main() {
   ok(`   every use of the unguarded client is an argument to a platform door (${prismaUses.length} uses, aliases followed)`, prismaUses.length > 0 && prismaStray.length === 0, prismaStray.map((u) => `${u.kind}:${u.text}@${u.line}`).join("; "));
   // The directory clients (`platformDb`, and `db` where it is the unguarded
   // parameter) may reach platform models only — through any alias or destructure.
-  const dirTouches = [...memberAccessesOn(rmSrc, "platformDb", "lib/platformReadModel.ts"), ...memberAccessesOn(rmSrc, "db", "lib/platformReadModel.ts")].filter((t) => tenantModels.has(t.member) || t.member === "<computed>" || t.member === "<rest>");
-  ok(`   and the directory clients touch no tenant model, through any alias`, dirTouches.length === 0, dirTouches.map((t) => `.${t.member}@${t.line}`).join(", "));
+  // The directory clients are constrained POSITIVELY: a use is either a member
+  // access on an approved platform model, or argument zero to an approved
+  // sink. Anything else — an alias, a cast, a destructure, a spread, a return,
+  // an escape into any other function — is a stray, however it is written.
+  const DIRECTORY_MODELS = new Set(["contractor", "contractorMembership"]);
+  const DIRECTORY_SINKS = new Set(["listContractors", "readFacts", ...CLIENT_SINKS]);
+  const dirStray = ["platformDb", "db"].flatMap((root) => usesOf(rmSrc, root, "lib/platformReadModel.ts")
+    .filter((u) => !((u.kind === "member" && DIRECTORY_MODELS.has(u.member)) || (u.kind === "arg-of" && DIRECTORY_SINKS.has(u.callee) && u.index === 0)))
+    .map((u) => `${root}:${u.kind}:${"member" in u ? u.member : ""}${u.text.slice(0, 40)}@${u.line}`));
+  ok(`   every use of a directory client is an approved platform-model read or an argument to an approved sink — no alias, cast or escape`, dirStray.length === 0, dirStray.join("; "));
+  ok(`   the catalog split is disjoint: quote-only decided first, priced and needs-a-price split the rest`,
+    /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: \{ not: null \} \}/.test(rmSrc) && /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: null \}/.test(rmSrc) && /where: \{ active: true, \.\.\.QUOTE_ONLY \}/.test(rmSrc));
   ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm));
   ok(`   readiness is assessOnboarding's, payments connectReadiness's — no second engine`, /assessOnboarding\(guarded/.test(rm) && /connectReadiness\(/.test(rm) && !/canLaunch:\s*(true|false|!?[\w.]*blockers)/.test(rm) && !/stripeCardPaymentsStatus\s*[!=]==/.test(rm));
   ok(`   the read model never reads PlatformAccess or a membership to decide anything`, !/platformAccess/.test(rm) && !/\.email\s*[!=]==?/.test(rm));
@@ -333,6 +343,20 @@ async function main() {
   ok(`   mutant: a rest-destructured props parameter is seen`, requestAccess("export default function Page({ ...rest }) { return rest.params.x; }").some((a) => a.kind === "params-prop"));
   ok(`   mutant: props escaping into a helper is seen`, requestAccess("export default function Page(props) { return helper(props); }").some((a) => /escape/.test(a.detail)));
   ok(`   while a page that never reads props is clean`, requestAccess("export default async function Page() { const o = await platformOverview(); return o.total; }").length === 0);
+  // Review round 6: casts, escapes, second-argument route context, computed destructure keys.
+  const dirStrayOf = (src: string, root: string) => usesOf(src, root).filter((u) => !((u.kind === "member" && DIRECTORY_MODELS.has(u.member)) || (u.kind === "arg-of" && DIRECTORY_SINKS.has(u.callee) && u.index === 0)));
+  ok(`   mutant: a cast alias of a directory client is a stray`, dirStrayOf("async function f(platformDb: PrismaClient) { const p = platformDb as PrismaClient; await p.service.findMany(); }", "platformDb").length >= 1);
+  ok(`   mutant: a parenthesised, non-null, satisfies alias is a stray`, dirStrayOf("async function f(platformDb: PrismaClient) { const p = ((platformDb!) satisfies PrismaClient); await p.quote.count(); }", "platformDb").length >= 1);
+  ok(`   mutant: handing a directory client to a local function is a stray`, dirStrayOf("async function read(client: PrismaClient) { return client.service.findMany(); } async function f(platformDb: PrismaClient) { await read(platformDb); }", "platformDb").some((u) => u.kind === "arg-of"));
+  ok(`   mutant: returning or spreading a directory client is a stray`, dirStrayOf("function f(platformDb: PrismaClient) { return platformDb; }", "platformDb").length === 1 && dirStrayOf("function f(platformDb: PrismaClient) { return { ...platformDb }; }", "platformDb").length === 1);
+  ok(`   while the approved reads are not strays`, dirStrayOf("async function f(platformDb: PrismaClient) { await platformDb.contractor.findMany(); await platformDb.contractorMembership.findMany(); return listContractors(platformDb); }", "platformDb").length === 0);
+  ok(`   mutant: a cast alias of props is seen`, requestAccess("export default function Page(props) { const p = props as any; return p.params.contractorId; }").some((a) => a.kind === "params-prop"));
+  ok(`   mutant: route context in the SECOND argument is seen`, requestAccess("export async function GET(_req: Request, { params }: { params: { contractorId: string } }) { return Response.json({ id: params.contractorId }); }").some((a) => a.kind === "params-prop"));
+  ok(`   mutant: a second argument read by name is seen`, requestAccess("export async function GET(_req: Request, ctx: { params: { id: string } }) { return Response.json({ id: ctx.params.id }); }").some((a) => a.kind === "params-prop"));
+  ok(`   mutant: a computed literal destructure of a mutator is seen`, mutatingCalls('const { ["delete"]: write } = db.service; await write({ where: { id } });').some((m) => /delete/.test(m.callee)));
+  ok(`   mutant: a computed non-literal destructure is refused as unknowable`, mutatingCalls("const { [k]: w } = db.service;").some((m) => /computed/.test(m.callee)));
+  ok(`   mutant: a string-literal-keyed destructure of a mutator is seen`, mutatingCalls('const { "update": u } = db.service;').some((m) => /update/.test(m.callee)));
+  ok(`   mutant: a cast alias of the unguarded client is seen`, memberAccessesOn("const p = prisma as PrismaClient; p.booking.count();", "prisma").some((m) => m.member === "booking"));
   ok(`   while a column named createdAt is not a write`, mutatingCalls("const t = row.createdAt; const u = svc.updatedAt;").length === 0);
   ok(`   mutant: the read model dereferencing prisma is seen`, memberAccessesOn(rmSrc + "\nconst stray = prisma.service;", "prisma").length === 1);
 

@@ -101,31 +101,35 @@ export function requestAccess(source: string, fileName = "file.tsx"): RequestAcc
   const propKind = (m: string): RequestAccess["kind"] => m === "searchParams" ? "searchParams-prop" : "params-prop";
   const visit = (n: ts.Node) => {
     if (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n)) {
-      const first = n.parameters[0];
-      if (first) {
-        // { params } / { searchParams } / { params: p } / { params: { id } } / { ...rest }
-        if (ts.isObjectBindingPattern(first.name)) {
-          for (const el of first.name.elements) {
-            const key = el.propertyName ?? el.name; const keyText = ts.isIdentifier(key) ? key.text : "<computed>";
-            if (el.dotDotDotToken) out.push({ kind: "params-prop", detail: `rest of props: ${el.getText(sf)}`, line: line(sf, el) });
-            else if (REQ_PROPS.has(keyText) || keyText === "<computed>") out.push({ kind: propKind(keyText), detail: el.getText(sf), line: line(sf, el) });
+      // EVERY parameter, not only the first: a route handler receives its
+      // route context — `{ params }` — as the SECOND argument.
+      n.parameters.forEach((param, index) => {
+        if (ts.isObjectBindingPattern(param.name)) {
+          for (const el of param.name.elements) {
+            const key = bindingKey(el);
+            if (key === "<rest>") out.push({ kind: "params-prop", detail: `rest of argument ${index}: ${el.getText(sf)}`, line: line(sf, el) });
+            else if (REQ_PROPS.has(key) || key === "<computed>") out.push({ kind: propKind(key), detail: el.getText(sf), line: line(sf, el) });
           }
         }
-        // a plain props parameter: every use of it (aliases followed) that reaches params/searchParams by dot, bracket, computed key, destructure or spread
-        if (ts.isIdentifier(first.name) && n.body) {
-          const name = first.name.text;
-          const t = first.type?.getText(sf) ?? "";
+        if (ts.isIdentifier(param.name) && n.body) {
+          const name = param.name.text;
+          const t = param.type?.getText(sf) ?? "";
           if (/\b(Request|NextRequest)\b/.test(t)) {
-            const uses = (m: ts.Node): boolean => (ts.isIdentifier(m) && m.text === name && m !== first.name) || ts.forEachChild(m, uses) === true;
-            if (uses(n.body)) out.push({ kind: "request-arg", detail: `${name} is read`, line: line(sf, first) });
+            const uses = (m: ts.Node): boolean => (ts.isIdentifier(m) && m.text === name && m !== param.name) || ts.forEachChild(m, uses) === true;
+            if (uses(n.body)) out.push({ kind: "request-arg", detail: `${name} is read`, line: line(sf, param) });
           } else {
+            // Uses of this argument, aliases (including `as any`) followed. Member,
+            // destructure and computed reads of params/searchParams count for any
+            // argument; an argument escaping whole counts for the props argument
+            // (index 0) or any argument whose type names params/searchParams.
+            const isPropsLike = index === 0 || /\b(params|searchParams)\b/.test(t);
             for (const u of bindingUses(sf, name)) {
               if ((u.kind === "member" || u.kind === "destructure") && (REQ_PROPS.has(u.member) || u.member === "<computed>" || u.member === "<rest>")) out.push({ kind: propKind(u.member), detail: u.text, line: u.line });
-              else if (u.kind === "spread" || u.kind === "return" || u.kind === "arg-of") out.push({ kind: "params-prop", detail: `props escape: ${u.text}`, line: u.line });
+              else if (isPropsLike && (u.kind === "spread" || u.kind === "return" || u.kind === "arg-of")) out.push({ kind: "params-prop", detail: `argument escapes: ${u.text}`, line: u.line });
             }
           }
         }
-      }
+      });
     }
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
       if (headerLocals.has(n.expression.text)) out.push({ kind: "headers-call", detail: n.getText(sf), line: line(sf, n) });
@@ -154,6 +158,27 @@ function memberName(e: ts.Expression): string | null {
   return null;
 }
 
+/** Climb out of expressions that change nothing at runtime: `(x)`, `x as T`, `x satisfies T`, `x!`, `<T>x`. */
+function transparentParent(n: ts.Node): ts.Node {
+  let cur = n;
+  while (cur.parent && (ts.isParenthesizedExpression(cur.parent) || ts.isAsExpression(cur.parent) || ts.isSatisfiesExpression(cur.parent) || ts.isNonNullExpression(cur.parent) || ts.isTypeAssertionExpression(cur.parent))) cur = cur.parent;
+  return cur;
+}
+function unwrapExpr(e: ts.Expression): ts.Expression {
+  let cur = e;
+  while (ts.isParenthesizedExpression(cur) || ts.isAsExpression(cur) || ts.isSatisfiesExpression(cur) || ts.isNonNullExpression(cur) || ts.isTypeAssertionExpression(cur)) cur = cur.expression;
+  return cur;
+}
+/** The key a binding element reads: `{ x }`, `{ x: y }`, `{ "x": y }`, `{ ["x"]: y }` -> "x"; `{ [k]: y }` -> "<computed>"; `{ ...r }` -> "<rest>". */
+export function bindingKey(el: ts.BindingElement): string {
+  if (el.dotDotDotToken) return "<rest>";
+  const k = el.propertyName ?? el.name;
+  if (ts.isIdentifier(k)) return k.text;
+  if (ts.isStringLiteral(k) || ts.isNumericLiteral(k)) return k.text;
+  if (ts.isComputedPropertyName(k)) { const e = unwrapExpr(k.expression); return ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) ? e.text : "<computed>"; }
+  return "<computed>";
+}
+
 export type BindingUse =
   | { kind: "member"; member: string; text: string; line: number }        // p.x, p["x"], p[k] (member "<computed>")
   | { kind: "destructure"; member: string; text: string; line: number }   // const { x } = p   (one per key; rest -> "<rest>")
@@ -177,8 +202,8 @@ export function bindingUses(sf: ts.SourceFile, root: string): BindingUse[] {
   while (grew) {
     grew = false;
     const scan = (n: ts.Node) => {
-      if (ts.isVariableDeclaration(n) && n.initializer && ts.isIdentifier(n.initializer) && aliases.has(n.initializer.text) && ts.isIdentifier(n.name) && !aliases.has(n.name.text)) { aliases.add(n.name.text); grew = true; }
-      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.right) && aliases.has(n.right.text) && ts.isIdentifier(n.left) && !aliases.has(n.left.text)) { aliases.add(n.left.text); grew = true; }
+      if (ts.isVariableDeclaration(n) && n.initializer) { const init = unwrapExpr(n.initializer); if (ts.isIdentifier(init) && aliases.has(init.text) && ts.isIdentifier(n.name) && !aliases.has(n.name.text)) { aliases.add(n.name.text); grew = true; } }
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken) { const r = unwrapExpr(n.right); if (ts.isIdentifier(r) && aliases.has(r.text) && ts.isIdentifier(n.left) && !aliases.has(n.left.text)) { aliases.add(n.left.text); grew = true; } }
       ts.forEachChild(n, scan);
     };
     scan(sf);
@@ -189,17 +214,19 @@ export function bindingUses(sf: ts.SourceFile, root: string): BindingUse[] {
       const parent = n.parent;
       const isDecl = (ts.isVariableDeclaration(parent) && parent.name === n) || (ts.isParameter(parent) && parent.name === n) || ts.isBindingElement(parent) || (ts.isPropertyAccessExpression(parent) && parent.name === n) || ts.isImportSpecifier(parent) || ts.isImportClause(parent) || (ts.isPropertyAssignment(parent) && parent.name === n) || (ts.isShorthandPropertyAssignment(parent) && false);
       if (!isDecl) {
-        if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === n) out.push({ kind: "member", member: memberName(parent) ?? "<unknown>", text: parent.getText(sf), line: line(sf, n) });
-        else if (ts.isVariableDeclaration(parent) && parent.initializer === n) {
-          if (ts.isObjectBindingPattern(parent.name)) for (const el of parent.name.elements) out.push({ kind: "destructure", member: el.dotDotDotToken ? "<rest>" : ((el.propertyName ?? el.name) as ts.Identifier).text ?? "<computed>", text: parent.getText(sf), line: line(sf, n) });
-          else out.push({ kind: "alias", alias: parent.name.getText(sf), text: parent.getText(sf), line: line(sf, n) });
+        // Look through `(x)`, `x as T`, `x!`, `<T>x`: they change nothing at runtime.
+        const eff = transparentParent(n); const parent2 = eff.parent; const self = eff as ts.Expression;
+        if ((ts.isPropertyAccessExpression(parent2) || ts.isElementAccessExpression(parent2)) && parent2.expression === self) out.push({ kind: "member", member: memberName(parent2) ?? "<unknown>", text: parent2.getText(sf), line: line(sf, n) });
+        else if (ts.isVariableDeclaration(parent2) && parent2.initializer === self) {
+          if (ts.isObjectBindingPattern(parent2.name)) for (const el of parent2.name.elements) out.push({ kind: "destructure", member: bindingKey(el), text: parent2.getText(sf), line: line(sf, n) });
+          else out.push({ kind: "alias", alias: parent2.name.getText(sf), text: parent2.getText(sf), line: line(sf, n) });
         }
-        else if (ts.isBinaryExpression(parent) && parent.right === n && parent.operatorToken.kind === ts.SyntaxKind.EqualsToken) out.push({ kind: "alias", alias: parent.left.getText(sf), text: parent.getText(sf), line: line(sf, n) });
-        else if (ts.isCallExpression(parent) && parent.arguments.includes(n as ts.Expression)) out.push({ kind: "arg-of", callee: parent.expression.getText(sf), index: parent.arguments.indexOf(n as ts.Expression), text: parent.getText(sf).slice(0, 80), line: line(sf, n) });
-        else if (ts.isSpreadElement(parent) || ts.isSpreadAssignment(parent)) out.push({ kind: "spread", text: parent.parent.getText(sf).slice(0, 80), line: line(sf, n) });
-        else if (ts.isReturnStatement(parent) || ts.isArrowFunction(parent)) out.push({ kind: "return", text: parent.getText(sf).slice(0, 80), line: line(sf, n) });
-        else if (ts.isShorthandPropertyAssignment(parent)) out.push({ kind: "other", text: `shorthand property ${n.text}`, line: line(sf, n) });
-        else out.push({ kind: "other", text: parent.getText(sf).slice(0, 80), line: line(sf, n) });
+        else if (ts.isBinaryExpression(parent2) && parent2.right === self && parent2.operatorToken.kind === ts.SyntaxKind.EqualsToken) out.push({ kind: "alias", alias: parent2.left.getText(sf), text: parent2.getText(sf), line: line(sf, n) });
+        else if (ts.isCallExpression(parent2) && parent2.arguments.includes(self)) out.push({ kind: "arg-of", callee: parent2.expression.getText(sf), index: parent2.arguments.indexOf(self), text: parent2.getText(sf).slice(0, 80), line: line(sf, n) });
+        else if (ts.isSpreadElement(parent2) || ts.isSpreadAssignment(parent2)) out.push({ kind: "spread", text: parent2.parent.getText(sf).slice(0, 80), line: line(sf, n) });
+        else if (ts.isReturnStatement(parent2) || ts.isArrowFunction(parent2)) out.push({ kind: "return", text: parent2.getText(sf).slice(0, 80), line: line(sf, n) });
+        else if (ts.isShorthandPropertyAssignment(parent2)) out.push({ kind: "other", text: `shorthand property ${n.text}`, line: line(sf, n) });
+        else out.push({ kind: "other", text: parent2.getText(sf).slice(0, 80), line: line(sf, n) });
       }
     }
     ts.forEachChild(n, visit);
@@ -229,7 +256,10 @@ export function mutatingCalls(source: string, fileName = "file.tsx"): { callee: 
     else if ((ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) && MUTATORS.has(memberName(n) ?? "")
       && !(ts.isCallExpression(n.parent) && n.parent.expression === n) && !(ts.isTaggedTemplateExpression(n.parent) && n.parent.tag === n)) out.push({ callee: `${n.getText(sf)} (extracted)`, line: line(sf, n) });
     if (ts.isVariableDeclaration(n) && ts.isObjectBindingPattern(n.name)) {
-      for (const el of n.name.elements) { const k = (el.propertyName ?? el.name); if (ts.isIdentifier(k) && MUTATORS.has(k.text)) out.push({ callee: `{ ${k.text} } destructured from ${n.initializer?.getText(sf) ?? "?"}`, line: line(sf, el) }); if (el.dotDotDotToken) out.push({ callee: `{ ...rest } destructured from ${n.initializer?.getText(sf) ?? "?"}`, line: line(sf, el) }); }
+      for (const el of n.name.elements) {
+        const k = bindingKey(el); // `{ ["delete"]: write }` normalizes to "delete"; `{ [k]: w }` is unknowable
+        if (MUTATORS.has(k) || k === "<computed>" || k === "<rest>") out.push({ callee: `{ ${k} } destructured from ${n.initializer?.getText(sf) ?? "?"}`, line: line(sf, el) });
+      }
     }
     ts.forEachChild(n, visit);
   };

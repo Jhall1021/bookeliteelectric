@@ -70,6 +70,18 @@ only that way", and the new verifier holds that there is exactly one such file.
   under any alias, request arguments used); and the Control Center's one
   permitted call is checked argument-for-argument. Twenty-odd mutants prove it.
 
+- **Catalog split:** disjoint by construction — quote-only is decided first,
+  then priced and needs-a-price split the rest — so a quote-only service that
+  also carries an approved price is counted once. The contractor dashboard's
+  own split has the same overlap; it is noted, not changed here.
+- **Audit strength (final rounds):** alias tracking sees through casts,
+  parentheses, non-null and `satisfies`; the directory clients are constrained
+  positively (approved platform-model reads or approved sinks only — an alias,
+  cast, destructure, spread, return or escape into any other function is a
+  stray); request props are found on every argument, including a route
+  handler's second-argument context; destructure keys are normalized, so
+  `{ ["delete"]: write }` is the mutator it names.
+
 ## Not in Phase 2
 
 Support entry and `SupportAccessEvent`; any mutation, including "resend" or
