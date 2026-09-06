@@ -241,6 +241,18 @@ export type OverviewRow = ContractorRow & (
   | { readable: false; error: string }
 );
 
+/**
+ * What the Attention page may CLAIM when it has nothing to list. "Nothing"
+ * is only true for contractors that were actually read; an unreadable one
+ * has not been shown healthy, and the empty state must say so. Pure, so the
+ * verifier holds the wording to the facts.
+ */
+export function attentionSummary(attention: AttentionItem[], unreadable: { name: string }[]): { tone: "clear" | "partial" | "items"; message: string } {
+  if (attention.length > 0) return { tone: "items", message: `${attention.length} thing${attention.length === 1 ? "" : "s"} need${attention.length === 1 ? "s" : ""} a person today.` };
+  if (unreadable.length > 0) return { tone: "partial", message: `Nothing identified among readable contractors. ${unreadable.length} contractor${unreadable.length === 1 ? " was" : "s were"} not readable this time (${unreadable.map((u) => u.name).join(", ")}), so nothing is known about ${unreadable.length === 1 ? "it" : "them"}.` };
+  return { tone: "clear", message: "Nothing. Every contractor past setup passes its launch check, external calendars are connected, and nobody is stuck." };
+}
+
 export type PlatformOverview = {
   contractors: { total: number; enabled: number; live: number; inSetup: number; unreadable: number };
   services: { live: number };

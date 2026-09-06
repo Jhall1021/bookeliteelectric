@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { platformOverview, STUCK_AFTER_DAYS } from "@/lib/platformReadModel";
+import { platformOverview, attentionSummary, STUCK_AFTER_DAYS } from "@/lib/platformReadModel";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function PlatformAttentionPage() {
   const o = await platformOverview();
+  const summary = attentionSummary(o.attention, o.unreadable);
   return (
     <div>
       <header>
@@ -18,8 +19,16 @@ export default async function PlatformAttentionPage() {
           What needs somebody&rsquo;s attention today &mdash; not every condition the software can enumerate.
         </p>
       </header>
+      {o.unreadable.length > 0 && (
+        <section className="mt-6 rounded-card border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p className="font-medium">{o.unreadable.length} contractor{o.unreadable.length === 1 ? " was" : "s were"} not readable this time. Nothing below is established for {o.unreadable.length === 1 ? "it" : "them"}.</p>
+          <ul className="mt-2 space-y-1">
+            {o.unreadable.map((u) => <li key={u.contractorId}><Link href={`/platform/contractors/${u.contractorId}`} className="font-medium underline">{u.name}</Link> — {u.error}</li>)}
+          </ul>
+        </section>
+      )}
       {o.attention.length === 0 ? (
-        <p className="mt-6 rounded-card border border-cardline bg-white p-4 text-sm text-slate">Nothing. Every contractor past setup passes its launch check, external calendars are connected, and nobody is stuck.</p>
+        <p className={`mt-6 rounded-card border p-4 text-sm ${summary.tone === "partial" ? "border-p2b-amber-ink/40 bg-p2b-amber-tint text-p2b-amber-ink" : "border-cardline bg-white text-slate"}`}>{summary.message}</p>
       ) : (
         <ul className="mt-6 divide-y divide-cardline rounded-card border border-cardline bg-white">
           {o.attention.map((a) => (

@@ -45,8 +45,8 @@ type Policy = Record<string, readonly string[] | "*">;
 const SURFACE_POLICY: Policy = {
   "next/link": ["default"],
   "next/navigation": ["redirect", "notFound"],
-  "@/lib/platformContext": ["NotAuthenticatedError", "NotPlatformStaffError", "PlatformContractorNotFoundError", "resolvePlatformActor"],
-  "@/lib/platformReadModel": ["platformOverview", "platformContractor", "attentionFor", "STUCK_AFTER_DAYS"],
+  "@/lib/platformContext": ["NotAuthenticatedError", "NotPlatformStaffError", "PlatformContractorNotFoundError", "resolvePlatformActor", "withPlatformRoute"],
+  "@/lib/platformReadModel": ["platformOverview", "platformContractor", "attentionFor", "attentionSummary", "STUCK_AFTER_DAYS"],
   "@/components/platform/ContractorTable": ["ContractorTable"],
 };
 const READ_MODEL_POLICY: Policy = {
@@ -62,6 +62,16 @@ export function importViolations(src: string, policy: Policy): string[] {
   const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   if (/\bimport\s*\(/.test(code)) out.push("dynamic import()");
   if (/\brequire\s*\(/.test(code)) out.push("require()");
+  // A bare import runs a module for its side effects and names nothing; there is
+  // no read-only reason for one on a platform surface.
+  for (const m of code.matchAll(/^import\s+["']([^"']+)["']/gm)) out.push(`${m[1]}:bare-import`);
+  // A runtime re-export (`export { x } from`, `export * from`, `export * as ns from`)
+  // pulls another module's code through without an import statement at all.
+  // Type-only re-exports cannot run and are allowed.
+  for (const m of code.matchAll(/^export\s+(type\s+)?(\*|\{[\s\S]*?\})(\s+as\s+\w+)?\s+from\s+["']([^"']+)["']/gm)) {
+    if (m[1]) continue;
+    out.push(`${m[4]}:re-export`);
+  }
   const re = /^import\s+(type\s+)?([\s\S]*?)\s+from\s+["']([^"']+)["']/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(code))) {
@@ -259,8 +269,10 @@ async function main() {
   ok(`   every contractor entry is isolated and bounded`, /mapWithConcurrency\(rows/.test(rm) && /catch \(e\)/.test(rm) && !/Promise\.all\(rows\.map/.test(rm));
 
   // ── 5. import policy: the promise held structurally ───────────────────
-  const violations = surfaces.flatMap((f) => importViolations(readFileSync(f, "utf8"), SURFACE_POLICY).map((v) => `${f} -> ${v}`));
-  ok(`5. every platform surface imports only from the allowlist (module and symbol)`, violations.length === 0, violations.join("; "));
+  const policed = sourceFiles(["app/platform", "app/api/platform", "components/platform"]);
+  const violations = policed.flatMap((f) => importViolations(readFileSync(f, "utf8"), SURFACE_POLICY).map((v) => `${f} -> ${v}`));
+  ok(`5. every platform surface — pages, components AND api routes — imports only from the allowlist (module and symbol)`, violations.length === 0, violations.join("; "));
+  ok(`   the policed set covers ${policed.length} files including the api routes`, policed.some((f) => f.startsWith("app/api/platform/")) && policed.length >= 6);
   const rmViolations = importViolations(readFileSync("lib/platformReadModel.ts", "utf8"), READ_MODEL_POLICY);
   ok(`   and so does the read model`, rmViolations.length === 0, rmViolations.join("; "));
   const attention = readFileSync("app/platform/attention/page.tsx", "utf8");
@@ -271,9 +283,27 @@ async function main() {
     ["a page importing an unlisted symbol from an allowed module", attention.replace('from "@/lib/platformReadModel"', ', contractorFactsFor } from "@/lib/platformReadModel"').replace("import { platformOverview, STUCK_AFTER_DAYS", "import { platformOverview, STUCK_AFTER_DAYS"), SURFACE_POLICY],
     ["a page using dynamic import()", attention + '\nconst m = await import("@/lib/tradeEnrolment");\n', SURFACE_POLICY],
     ["the read model importing a writer", readFileSync("lib/platformReadModel.ts", "utf8") + '\nimport { setTradeEnrolment as s } from "./tradeEnrolment";\n', READ_MODEL_POLICY],
+    ["a bare side-effect import", attention + '\nimport "@/lib/module-with-side-effects";\n', SURFACE_POLICY],
+    ["a re-exported default page from an unapproved module", attention + '\nexport { default } from "@/lib/unapproved-platform-page";\n', SURFACE_POLICY],
+    ["a wildcard re-export", attention + '\nexport * from "@/lib/unapproved-module";\n', SURFACE_POLICY],
+    ["a namespaced wildcard re-export", attention + '\nexport * as helpers from "@/lib/unapproved-module";\n', SURFACE_POLICY],
+    ["a named re-export even from an allowed module", attention + '\nexport { platformOverview } from "@/lib/platformReadModel";\n', SURFACE_POLICY],
   ];
   for (const [name, src, pol] of mutants) ok(`   mutant: ${name} is refused`, importViolations(src, pol).length > 0);
   ok(`   while a type-only import is allowed (it cannot run)`, importViolations(attention + '\nimport type { Foo } from "@/lib/anything";\n', SURFACE_POLICY).length === 0);
+  ok(`   and so is a type-only re-export`, importViolations(attention + '\nexport type { Foo } from "@/lib/anything";\n', SURFACE_POLICY).length === 0);
+
+  // ── 6. the attention page cannot call an unread contractor healthy ─────
+  const { attentionSummary } = await import("../lib/platformReadModel");
+  const none: never[] = [];
+  const clear = attentionSummary(none, []);
+  const partialSummary = attentionSummary(none, [{ name: "Probe" }]);
+  ok(`6. with nothing to list and every contractor read, the page may say all is well`, clear.tone === "clear" && /Every contractor past setup/.test(clear.message));
+  ok(`   with nothing to list but an unreadable contractor, it may NOT`, partialSummary.tone === "partial" && /among readable contractors/.test(partialSummary.message) && /Probe/.test(partialSummary.message) && !/Every contractor/.test(partialSummary.message));
+  ok(`   with items, it counts them`, attentionSummary([{ code: "STUCK_IN_ONBOARDING", contractorId: "x", slug: "x", name: "X", message: "m", href: "/platform/contractors/x" }], [{ name: "Probe" }]).tone === "items");
+  const attentionSrc = strip("app/platform/attention/page.tsx");
+  ok(`   and the page renders the unreadable list and takes its empty state from attentionSummary`,
+    /o\.unreadable\.length > 0/.test(attentionSrc) && /attentionSummary\(o\.attention, o\.unreadable\)/.test(attentionSrc) && /summary\.message/.test(attentionSrc) && !/Nothing\. Every contractor/.test(attentionSrc));
 
   await teardown();
   console.log();
