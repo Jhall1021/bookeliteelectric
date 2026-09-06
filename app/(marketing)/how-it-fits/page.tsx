@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SETUP_PROGRESSION, START_SMALL } from "@/components/marketing/content";
+import {
+  ESTIMATE_TRIPS, PRICING_MODES, SETUP_PROGRESSION, START_SMALL,
+} from "@/components/marketing/content";
 
 /**
  * /how-it-fits — SITEMAP.md.
@@ -40,14 +42,25 @@ const SHELL = "mx-auto max-w-[1440px] px-5 lg:px-[88px]";
  * Named specifically rather than as "your bigger jobs", because a contractor
  * checks this list for the thing they are worried about — and not finding it
  * is what makes the reassurance land.
+ *
+ * "ESTIMATES AND SITE VISITS" USED TO BE ON THIS LIST, AND IT WAS WRONG.
+ * It was written when the only things Price2Book could do with a job were
+ * price it instantly or hand it back, so an estimate was outside by
+ * definition. Guided Estimates ships, so estimates are now something the
+ * product does. The honest line is no longer "estimates stay outside" but
+ * the distinction the page draws below: a visit the work genuinely needs is
+ * not the same thing as a drive that only happened because information was
+ * missing.
+ *
+ * What remains true is that a contractor keeps anything off the storefront
+ * by simply choosing to.
  */
 const STAYS = [
   "Troubleshooting and diagnostics",
-  "Estimates and site visits",
   "Renovations and remodels",
   "Custom and one-off work",
   "Larger projects",
-  "Anything you’d rather quote yourself",
+  "Anything you’d rather handle yourself",
 ];
 
 export default function HowItFitsPage() {
@@ -64,9 +77,9 @@ export default function HowItFitsPage() {
           {START_SMALL.headline}
         </h1>
         <p className="mt-6 max-w-[66ch] text-[17px] leading-[1.55] text-p2b-ink-warm lg:text-xl">
-          Price2Book can run as much — or as little — of your service work as you want. Start with
-          the jobs that generate the same phone call over and over, and leave everything else
-          exactly where it is.
+          Price2Book can run as much — or as little — of your service work as you want, and you
+          decide how each of those services hands a customer a number. You do not have to put your
+          whole catalog online, and you do not have to publish your prices online.
         </p>
       </section>
 
@@ -147,6 +160,99 @@ export default function HowItFitsPage() {
         </p>
       </section>
 
+      {/* 2b. The SECOND axis. The page taught only the first until now. */}
+      <section className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">
+        <div className={SHELL}>
+          <h2 className="max-w-[24ch] text-[28px] font-bold leading-[1.15] tracking-[-0.022em] lg:text-[38px]">
+            Show prices. Send estimates. Or do both.
+          </h2>
+          <p className="mt-4 max-w-[74ch] text-[16px] leading-[1.6] text-p2b-muted lg:text-[17px]">
+            How much of your catalog goes online is one decision. How those services hand a
+            customer a number is a separate one — and none of these three is the advanced version
+            of another.
+          </p>
+
+          <div className="mt-9 grid gap-5 lg:grid-cols-3">
+            {PRICING_MODES.map((m) => (
+              <div
+                key={m.name}
+                className="flex flex-col rounded-[3px] border border-p2b-line bg-white px-6 py-6"
+              >
+                <div className="text-[17px] font-semibold text-p2b-ink">{m.name}</div>
+                <div className="mt-2 text-[15px] leading-[1.45] text-p2b-muted-soft">{m.forWhat}</div>
+                <p className="mt-4 text-[15px] leading-[1.55] text-p2b-ink-warm lg:text-base">{m.body}</p>
+                {m.note ? (
+                  <p className="mt-4 border-l-2 border-p2b-accent pl-4 text-[15px] font-semibold leading-[1.5] text-p2b-ink">
+                    {m.note}
+                  </p>
+                ) : null}
+                {m.href ? (
+                  <Link
+                    href={m.href}
+                    className="mt-5 inline-flex text-[15px] font-semibold text-p2b-accent"
+                  >
+                    How it works →
+                  </Link>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-8 max-w-[74ch] text-[16px] leading-[1.6] text-p2b-ink-warm">
+            You choose service by service. Instant-price a handful and review everything else, run
+            the whole catalog on estimates and publish no prices at all, or mix the three however
+            the work divides.
+          </p>
+        </div>
+      </section>
+
+      {/* 2c. The estimate trip. A reason to care, not a feature note. */}
+      <section className={`${SHELL} py-14 lg:py-[72px]`}>
+        <h2 className="max-w-[26ch] text-[30px] font-bold leading-[1.1] tracking-[-0.022em] lg:text-[44px]">
+          {ESTIMATE_TRIPS.headline}
+        </h2>
+        <p className="mt-6 max-w-[74ch] text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
+          {ESTIMATE_TRIPS.lead}
+        </p>
+
+        <div className="mt-10 grid gap-8 lg:grid-cols-2 lg:gap-12">
+          {[ESTIMATE_TRIPS.before, ESTIMATE_TRIPS.after].map((seq, i) => (
+            <div key={seq.label}>
+              <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-p2b-muted-soft">
+                {seq.label}
+              </div>
+              <ol className="mt-4 flex flex-col gap-0">
+                {seq.steps.map((step, n) => (
+                  <li key={step} className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <span
+                        className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${
+                          i === 1 ? "bg-p2b-accent" : "bg-p2b-faint"
+                        }`}
+                      />
+                      {n < seq.steps.length - 1 ? (
+                        <span className="w-px flex-1 bg-p2b-line-dash" />
+                      ) : null}
+                    </div>
+                    <span
+                      className={`pb-3 text-[16px] leading-[1.45] ${
+                        i === 1 ? "text-p2b-ink" : "text-p2b-muted"
+                      }`}
+                    >
+                      {step}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-8 max-w-[74ch] border-l-2 border-p2b-line-dash pl-5 text-[16px] leading-[1.6] text-p2b-muted">
+          {ESTIMATE_TRIPS.caveat}
+        </p>
+      </section>
+
       {/* 3. The governing line, in its home. */}
       <section className="border-t border-p2b-line bg-p2b-canvas-alt py-14 lg:py-[72px]">
         <div className={`${SHELL} grid gap-10 lg:grid-cols-12 lg:items-center lg:gap-12`}>
@@ -158,8 +264,9 @@ export default function HowItFitsPage() {
           <div className="lg:col-span-6">
             <p className="text-[17px] leading-[1.6] text-p2b-ink-warm lg:text-lg">
               Price2Book is a pricing and booking engine, not an operating model you have to adopt.
-              It doesn’t require you to price your whole business one way, schedule it a particular
-              way, or change how you quote the work you would rather quote yourself.
+              You decide how much of your business goes into it, and you decide how customers get
+              pricing once it is there. Publishing prices online is one way to use it, not the
+              price of admission.
             </p>
             <p className="mt-4 text-[16px] leading-[1.6] text-p2b-muted">
               It sits in front of the business you already run and handles one part of it: the

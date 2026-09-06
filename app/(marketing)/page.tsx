@@ -1,56 +1,73 @@
 import Hero from "@/components/marketing/Hero";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
 import {
-  CatalogGrid, DemoCta, Everywhere, GuidedPricingTeaser, NotYourCRM, Pillars, StartSmall,
-  TradeSignal, WhileWereThereTeaser,
+  Adoption, DemoCta, EstimateTrips, Everywhere, JourneyStrip, NotYourCRM, PricingModes,
+  ProductProof, ProductTour, TradeSignal, WhatItDoes,
 } from "@/components/marketing/Sections";
 
 /**
- * The Price2Book homepage — restructured 1 September 2026, once there were
- * destinations to restructure around.
+ * The Price2Book homepage.
  *
- * ITS JOB IS ONE SENTENCE: make a contractor understand why Price2Book
- * matters, trust that it is real, and know where to click next. Every "how
- * does it work" answer now has a canonical home, so the homepage stopped being
- * the only place anything could be said — which is what let it stop saying
- * everything.
+ * THE PROBLEM THIS PASS FIXED. The page was accurate and short, and a
+ * contractor still had to assemble the company in their own head. It opened
+ * on a slogan and a thirty-second animation, and the six things Price2Book
+ * actually does were spread across sections that each explained one mechanism
+ * well. Someone who read all of it understood the product. Someone who
+ * skimmed — which is everyone — did not.
  *
- * WHAT LEFT, AND WHERE IT WENT. Not hidden behind accordions; removed:
+ * SO THE FIRST THIRD NOW ANSWERS THREE QUESTIONS IN ORDER:
  *
- *   the interactive demo    → /demo
- *   contractor control      → /product/guided-pricing
- *   the two-price argument  → /product/while-were-there
- *   scheduling detail       → /product/online-booking
- *   the integration matrix  → /integrations
- *   the electrical catalog  → /trades/electrical
- *   adoption in full        → /how-it-fits
+ *   what is this?     the hero says the category before the slogan
+ *   what do I get?    six benefit tiles, skimmable in one pass
+ *   is it real?       both sides of the product, in real screenshots
+ *   how does it flow? the system as a customer walks it, in one line
  *
- * WHAT DID NOT LEAVE IS THE PROOF. The hero still runs the real product
- * against captured live data, the Guided Pricing teaser still shows a real
- * question, and While We're There™ still shows a real price pair. Moving the
- * explanation off-page was the point; moving the credibility off-page would
- * have been a different and much worse change.
+ * The tiles moved ABOVE the screenshots on 2 September. Proof is worth
+ * nothing to someone who does not yet know what is being proved — the screens
+ * answer "is this real", and that is the second question, not the first.
  *
- * The order is the argument: what it is (hero), who it is for (trades), what
- * it does (pillars), how much of my business it touches (start small) — that
- * one moved high deliberately, because it is the objection that stops people
- * reading — then the three ideas worth a teaser, the boundary, the invitation,
- * and the ask.
+ * Everything after that is the argument a contractor reads once they care:
+ * how services can be handled, why estimate trips shrink, the mechanisms,
+ * distribution, the boundary, and the ask.
+ *
+ * THE ANIMATION DID NOT DIE, IT MOVED. The hero walkthrough is captured from
+ * live data and drift-checked, and it is still what /demo is built around. It
+ * stopped being the way a visitor works out what the company is, because
+ * inference from a moving picture is the slowest way to learn a category.
+ *
+ * SCREENSHOTS ARE THE REAL PRODUCT WITH THE CONTRACTOR RENAMED — the owner
+ * narrowed the old demo-tenant-only rule on 2 September 2026. The capture
+ * script scrubs the source tenant's address, telephone and license number as
+ * well as its name, and refuses to write a file if any of it survives.
+ * See scripts/capture-storefront-shots.ts and components/marketing/shots.ts.
  */
 export const dynamic = "force-dynamic";
 
 export default function HomePage() {
   return (
     <main>
+      {/* 1–4. What it is, that it is real, what it does, how it flows. */}
       <Hero />
-      <TradeSignal />
-      <Pillars />
-      <CatalogGrid />
-      <StartSmall />
-      <GuidedPricingTeaser />
-      <WhileWereThereTeaser />
+      <WhatItDoes />
+      <ProductTour />
+      <JourneyStrip />
+
+      {/* 5–6. How each service can be handled, and why that pays. */}
+      <PricingModes />
+      <EstimateTrips />
+
+      {/* 7. The mechanisms, named — the Product pages explain them. */}
+      <ProductProof />
+
+      {/* 8–9. Where the pricing page lives, and what Price2Book is not. */}
       <Everywhere />
       <NotYourCRM />
+
+      {/* 10–12. Breadth and adoption sit AFTER the product is understood —
+          "ten services or your whole catalog" is a second question, and the
+          page used to ask it before answering the first. */}
+      <TradeSignal />
+      <Adoption />
       <DemoCta />
       <EarlyAccess />
     </main>
