@@ -197,7 +197,7 @@ function assignmentPatternKeys(obj: ts.ObjectLiteralExpression): string[] {
 }
 
 export type BindingUse =
-  | { kind: "member"; member: string; text: string; line: number }        // p.x, p["x"], p[k] (member "<computed>")
+  | { kind: "member"; member: string; called: string | null; text: string; line: number } // p.x, p["x"], p[k] (member "<computed>"); `called` = the method name when the access is the direct receiver of `p.x.method(…)`, else null
   | { kind: "destructure"; member: string; text: string; line: number }   // const { x } = p   (one per key; rest -> "<rest>")
   | { kind: "arg-of"; callee: string; index: number; text: string; line: number }
   | { kind: "alias"; alias: string; text: string; line: number }          // const q = p; q = p
@@ -233,7 +233,15 @@ export function bindingUses(sf: ts.SourceFile, root: string): BindingUse[] {
       if (!isDecl) {
         // Look through `(x)`, `x as T`, `x!`, `<T>x`: they change nothing at runtime.
         const eff = transparentParent(n); const parent2 = eff.parent; const self = eff as ts.Expression;
-        if ((ts.isPropertyAccessExpression(parent2) || ts.isElementAccessExpression(parent2)) && parent2.expression === self) out.push({ kind: "member", member: memberName(parent2) ?? "<unknown>", text: parent2.getText(sf), line: line(sf, n) });
+        if ((ts.isPropertyAccessExpression(parent2) || ts.isElementAccessExpression(parent2)) && parent2.expression === self) {
+          // Is this access the DIRECT receiver of a method call — `p.x.method(…)`,
+          // casts between allowed? A delegate that is stored, bound, destructured,
+          // passed or returned instead is not called here, and `called` is null.
+          let called: string | null = null;
+          const accEff = transparentParent(parent2); const p3 = accEff.parent;
+          if ((ts.isPropertyAccessExpression(p3) || ts.isElementAccessExpression(p3)) && p3.expression === accEff) { const mEff = transparentParent(p3); const p4 = mEff.parent; if (ts.isCallExpression(p4) && p4.expression === mEff) called = memberName(p3); }
+          out.push({ kind: "member", member: memberName(parent2) ?? "<unknown>", called, text: parent2.getText(sf), line: line(sf, n) });
+        }
         else if (ts.isVariableDeclaration(parent2) && parent2.initializer === self) {
           if (ts.isObjectBindingPattern(parent2.name)) for (const el of parent2.name.elements) out.push({ kind: "destructure", member: bindingKey(el), text: parent2.getText(sf), line: line(sf, n) });
           else out.push({ kind: "alias", alias: parent2.name.getText(sf), text: parent2.getText(sf), line: line(sf, n) });
@@ -467,7 +475,7 @@ export function relationTraversals(source: string, root: string, relations: Reco
  * between the call and the module. A local `const listContractors = …` inside
  * a function makes `listContractors(x)` a different function.
  */
-export function calleeResolution(sf: ts.SourceFile, call: ts.CallExpression): { name: string; kind: "import" | "module-decl" | "shadowed" | "local" | "unknown"; module?: string; exported?: string; shadowedBy?: string } {
+export function calleeResolution(sf: ts.SourceFile, call: ts.CallExpression): { name: string; kind: "import" | "module-decl" | "shadowed" | "local" | "unknown"; form?: "function" | "class" | "const" | "let" | "var"; module?: string; exported?: string; shadowedBy?: string } {
   if (!ts.isIdentifier(call.expression)) return { name: call.expression.getText(sf), kind: "unknown" };
   const name = call.expression.text;
   // Does any scope between the call and the module declare `name`? Each
@@ -503,10 +511,11 @@ export function calleeResolution(sf: ts.SourceFile, call: ts.CallExpression): { 
   // binding or a second declaration of the same name is not the genuine sink.
   const decls: string[] = [];
   for (const st of sf.statements) {
-    if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name?.text === name) decls.push("plain");
-    if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (bindsName(d.name, name)) decls.push(ts.isIdentifier(d.name) ? "plain" : "pattern");
+    if (ts.isFunctionDeclaration(st) && st.name?.text === name) decls.push("function");
+    if (ts.isClassDeclaration(st) && st.name?.text === name) decls.push("class");
+    if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) if (bindsName(d.name, name)) decls.push(!ts.isIdentifier(d.name) ? "pattern" : (st.declarationList.flags & ts.NodeFlags.Const) ? "const" : (st.declarationList.flags & ts.NodeFlags.Let) ? "let" : "var");
   }
-  if (decls.length === 1 && decls[0] === "plain") return { name, kind: "module-decl" };
+  if (decls.length === 1 && decls[0] !== "pattern") return { name, kind: "module-decl", form: decls[0] as "function" | "class" | "const" | "let" | "var" };
   if (decls.length > 0) return { name, kind: "unknown", shadowedBy: decls.length > 1 ? `${decls.length} module-scope declarations` : "module-scope pattern binding" };
   return { name, kind: "unknown" };
 }
@@ -515,5 +524,38 @@ export function calleeResolution(sf: ts.SourceFile, call: ts.CallExpression): { 
 export function callsResolved(source: string, name: string, fileName = "file.ts"): ReturnType<typeof calleeResolution>[] {
   const sf = parse(source, fileName); const out: ReturnType<typeof calleeResolution>[] = [];
   const visit = (n: ts.Node) => { if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === name) out.push(calleeResolution(sf, n)); ts.forEachChild(n, visit); };
+  visit(sf); return out;
+}
+
+/** The identifiers an assignment TARGET binds: `x`, `[x, ...y]`, `({ a: x, ...r })`, defaults and nesting included. Property targets (`o.x = …`) are not bindings and are skipped. */
+function assignmentTargets(e: ts.Expression): ts.Identifier[] {
+  const t = unwrapExpr(e);
+  if (ts.isIdentifier(t)) return [t];
+  if (ts.isObjectLiteralExpression(t)) return t.properties.flatMap((pr) => ts.isPropertyAssignment(pr) ? assignmentTargets(pr.initializer) : ts.isShorthandPropertyAssignment(pr) ? [pr.name] : ts.isSpreadAssignment(pr) ? assignmentTargets(pr.expression) : []);
+  if (ts.isArrayLiteralExpression(t)) return t.elements.flatMap((el) => ts.isOmittedExpression(el) ? [] : ts.isSpreadElement(el) ? assignmentTargets(el.expression) : assignmentTargets(el));
+  if (ts.isBinaryExpression(t) && t.operatorToken.kind === ts.SyntaxKind.EqualsToken) return assignmentTargets(t.left); // a default inside a pattern
+  return [];
+}
+
+/**
+ * Every write to the binding `name` after its declaration: `name = …`, any
+ * compound assignment (`??=`, `+=`, …), `++`/`--`, a destructuring assignment
+ * that lands on it, or a `for (name of …)` / `for (name in …)` head. A binding
+ * that is written anywhere is not the binding its declaration says it is, so
+ * an audit that approved the declaration must refuse the file.
+ */
+export function assignmentsTo(source: string, name: string, fileName = "file.ts"): { form: string; text: string; line: number }[] {
+  const sf = parse(source, fileName); const out: { form: string; text: string; line: number }[] = [];
+  const hit = (form: string, n: ts.Node) => out.push({ form, text: n.getText(sf).slice(0, 80), line: line(sf, n) });
+  const visit = (n: ts.Node) => {
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && n.operatorToken.kind <= ts.SyntaxKind.LastAssignment) {
+      if (assignmentTargets(n.left).some((id) => id.text === name)) hit(n.operatorToken.kind === ts.SyntaxKind.EqualsToken && !ts.isIdentifier(unwrapExpr(n.left)) ? "destructuring-assignment" : "assignment", n);
+    } else if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken)) {
+      const o = unwrapExpr(n.operand); if (ts.isIdentifier(o) && o.text === name) hit("update", n);
+    } else if ((ts.isForOfStatement(n) || ts.isForInStatement(n)) && !ts.isVariableDeclarationList(n.initializer)) {
+      if (assignmentTargets(n.initializer).some((id) => id.text === name)) hit("for-head", n);
+    }
+    ts.forEachChild(n, visit);
+  };
   visit(sf); return out;
 }

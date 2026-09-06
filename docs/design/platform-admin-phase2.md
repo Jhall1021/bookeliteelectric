@@ -98,6 +98,15 @@ only that way", and the new verifier holds that there is exactly one such file.
   module-scope name declared by pattern or declared twice is never the
   genuine sink.
 
+- **Audit strength (round nine):** an approved model member on a directory
+  client must be called where it is read, with a read method named in the
+  source; a delegate that is stored, bound, destructured, passed or returned
+  is a stray, so no query can leave the relation walker's sight. An approved
+  sink must be a module-scope `function` or `const` that is never written
+  anywhere — assignment, compound assignment, update, destructuring
+  assignment, or loop head — and no platform file reaches for `eval` or
+  `Function`.
+
 ## Not in Phase 2
 
 Support entry and `SupportAccessEvent`; any mutation, including "resend" or

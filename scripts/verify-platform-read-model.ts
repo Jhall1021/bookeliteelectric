@@ -30,7 +30,7 @@ import {
   listContractors, contractorFactsFor, platformOverviewFor, attentionFor, STUCK_AFTER_DAYS, type ContractorFacts,
 } from "../lib/platformReadModel";
 import { withPlatformFor } from "../lib/platformContext";
-import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, prismaRelations, relationTraversals, callsResolved, type Policy } from "./_platformSurfaceAudit";
+import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, prismaRelations, relationTraversals, callsResolved, assignmentsTo, type Policy } from "./_platformSurfaceAudit";
 import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
 
 /**
@@ -233,12 +233,18 @@ async function main() {
   // access on an approved platform model, or argument zero to an approved
   // sink. Anything else — an alias, a cast, a destructure, a spread, a return,
   // an escape into any other function — is a stray, however it is written.
+  // An approved model member must be CALLED where it is read, with a read
+  // method named in the source: `platformDb.contractor.findMany(…)`. A
+  // delegate that is stored, bound, destructured, passed or returned would
+  // carry the query out of the relation walker's sight, so it is a stray.
   const DIRECTORY_MODELS = new Set(["contractor", "contractorMembership"]);
+  const DIRECTORY_READS = new Set(["findMany", "findFirst", "findUnique", "findFirstOrThrow", "findUniqueOrThrow", "count", "aggregate", "groupBy"]);
   const DIRECTORY_SINKS = new Set(["listContractors", "readFacts", ...CLIENT_SINKS]);
-  const dirStray = ["platformDb", "db"].flatMap((root) => usesOf(rmSrc, root, "lib/platformReadModel.ts")
-    .filter((u) => !((u.kind === "member" && DIRECTORY_MODELS.has(u.member)) || (u.kind === "arg-of" && DIRECTORY_SINKS.has(u.callee) && u.index === 0)))
-    .map((u) => `${root}:${u.kind}:${"member" in u ? u.member : ""}${u.text.slice(0, 40)}@${u.line}`));
-  ok(`   every use of a directory client is an approved platform-model read or an argument to an approved sink — no alias, cast or escape`, dirStray.length === 0, dirStray.join("; "));
+  const directoryStrays = (src: string, file = "mutant.ts") => ["platformDb", "db"].flatMap((root) => usesOf(src, root, file)
+    .filter((u) => !((u.kind === "member" && DIRECTORY_MODELS.has(u.member) && u.called !== null && DIRECTORY_READS.has(u.called)) || (u.kind === "arg-of" && DIRECTORY_SINKS.has(u.callee) && u.index === 0)))
+    .map((u) => `${root}:${u.kind}:${"member" in u ? u.member : ""}${u.kind === "member" ? `(${u.called ?? "not called"})` : ""}${u.text.slice(0, 40)}@${u.line}`));
+  const dirStray = directoryStrays(rmSrc, "lib/platformReadModel.ts");
+  ok(`   every use of a directory client is an approved platform-model read CALLED in place, or an argument to an approved sink — no alias, cast, extracted delegate or escape`, dirStray.length === 0, dirStray.join("; "));
   // A directory read may name a platform model and still reach tenant rows
   // through a relation — include: { services: true }, a _count, a `where`
   // filter through a relation. Every relation the query touches, at any
@@ -254,11 +260,20 @@ async function main() {
   // local that happens to share the name.
   const sinkOk = (r: ReturnType<typeof callsResolved>[number]) =>
     (r.kind === "import" && r.module === "./platformContext" && (r.exported === "withPlatformFor" || r.exported === "withPlatformContractorFor"))
-    || (r.kind === "module-decl" && ["listContractors", "platformOverviewFor", "contractorFactsFor"].includes(r.name))
+    || (r.kind === "module-decl" && (r.form === "function" || r.form === "const") && ["listContractors", "platformOverviewFor", "contractorFactsFor"].includes(r.name))
     || (r.name === "readFacts" && r.kind === "shadowed" && /readFacts = opts\.readFacts \?\? contractorFactsFor/.test(r.shadowedBy ?? ""));
   const sinkCalls = [...DIRECTORY_SINKS].flatMap((n) => callsResolved(rmSrc, n, "lib/platformReadModel.ts"));
   const spoofed = sinkCalls.filter((r) => !sinkOk(r));
   ok(`   every approved-sink call resolves to the genuine function (${sinkCalls.length} calls), none to a shadowing local`, sinkCalls.length > 0 && spoofed.length === 0, spoofed.map((r) => `${r.name}:${r.kind}:${r.shadowedBy ?? r.module ?? ""}`).join("; "));
+  // A genuine binding that is later WRITTEN is no longer the genuine function.
+  // No approved sink or door name is assigned, updated, destructured into, or
+  // used as a loop head anywhere in the read model; and nothing on a platform
+  // surface can rewrite a binding at runtime (no eval, no Function).
+  const SINK_NAMES = [...DIRECTORY_SINKS];
+  const rebound = SINK_NAMES.flatMap((n) => assignmentsTo(rmSrc, n, "lib/platformReadModel.ts").map((a) => `${n}:${a.form}@${a.line}`));
+  ok(`   no approved sink binding is ever reassigned, in any form`, rebound.length === 0, rebound.join("; "));
+  const dynamicCode = [["lib/platformReadModel.ts", rmSrc] as const, ...surfaces.map((f) => [f, readFileSync(f, "utf8")] as const)].flatMap(([f, src]) => ["eval", "Function"].flatMap((g) => usesOf(src, g, f).map((u) => `${f}:${u.line} ${g}`)));
+  ok(`   no platform file reaches for eval or Function`, dynamicCode.length === 0, dynamicCode.join("; "));
   ok(`   the catalog split is disjoint: quote-only decided first, priced and needs-a-price split the rest`,
     /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: \{ not: null \} \}/.test(rmSrc) && /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: null \}/.test(rmSrc) && /where: \{ active: true, \.\.\.QUOTE_ONLY \}/.test(rmSrc));
   ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm));
@@ -390,6 +405,12 @@ async function main() {
   ok(`   mutant: a computed model or method on the directory client is unknowable`, badTraversal("async function f(platformDb: PrismaClient, m: string) { await platformDb[m as never].findMany({}); }", "platformDb").some((tr) => tr.target === "<unknown>") && badTraversal("async function f(platformDb: PrismaClient, k: string) { await platformDb.contractor[k as never]({}); }", "platformDb").some((tr) => tr.target === "<unknown>"));
   ok(`   mutant: a cast between the hops hides nothing`, badTraversal("async function f(platformDb: PrismaClient) { await ((platformDb as any).contractor as any).findMany({ include: { services: true } }); }", "platformDb").some((tr) => tr.target === "Service"));
   ok(`   mutant: a spread argument is refused as unknowable`, badTraversal("async function f(platformDb: PrismaClient, args: [object]) { await platformDb.contractor.findMany(...args); }", "platformDb").some((tr) => tr.target === "<unknown>"));
+  ok(`   mutant: an extracted delegate (const contractor = platformDb.contractor) is a stray, so its later query cannot escape the walker`, directoryStrays("async function probe(platformDb: PrismaClient) { const contractor = platformDb.contractor; return contractor.findMany({ include: { services: true } }); }").length > 0);
+  ok(`   mutant: a bound query method is a stray`, directoryStrays("async function f(platformDb: PrismaClient) { const fm = platformDb.contractor.findMany.bind(platformDb.contractor); return fm({ include: { services: true } }); }").length > 0 && directoryStrays("async function f(platformDb: PrismaClient) { const fm = platformDb.contractor.findMany; return fm({}); }").length > 0);
+  ok(`   mutant: a destructured query method is a stray`, directoryStrays("async function f(platformDb: PrismaClient) { const { findMany } = platformDb.contractor; return findMany({}); }").length > 0);
+  ok(`   mutant: a delegate passed or returned is a stray`, directoryStrays("async function f(platformDb: PrismaClient) { return helper(platformDb.contractor); }").length > 0 && directoryStrays("function f(platformDb: PrismaClient) { return platformDb.contractor; }").length > 0);
+  ok(`   mutant: a computed or non-read method on the delegate is a stray`, directoryStrays("async function f(platformDb: PrismaClient, k: string) { return platformDb.contractor[k as never]({}); }").length > 0 && directoryStrays("async function f(platformDb: PrismaClient) { return platformDb.contractor.fields; }").length > 0);
+  ok(`   while the read model's inline reads are not strays`, directoryStrays("async function f(platformDb: PrismaClient) { return (platformDb.contractor as any).findMany({ where: { id: '1' } }); }").length === 0);
   ok(`   while the read model's own site and owner selects are not`, badTraversal(rmSrc, "platformDb").length === 0 && badTraversal(rmSrc, "db").length === 0);
   ok(`   mutant: a shadowing local named like an approved sink is not the sink`, callsResolved("async function f(platformDb: PrismaClient) { const listContractors = (db: PrismaClient) => db.service.findMany(); return listContractors(platformDb); }", "listContractors").every((r) => r.kind === "shadowed"));
   ok(`   mutant: a shadowing parameter is not the sink either`, callsResolved("function g(listContractors: (x: unknown) => unknown, platformDb: PrismaClient) { return listContractors(platformDb); }", "listContractors").every((r) => r.kind === "shadowed"));
@@ -400,6 +421,11 @@ async function main() {
   ok(`   mutant: a catch binding is a shadow`, callsResolved("function listContractors() {} async function f(platformDb: PrismaClient) { try { throw 0; } catch (listContractors) { return (listContractors as any)(platformDb); } }", "listContractors").every((c) => c.kind === "shadowed"));
   ok(`   mutant: a module-scope pattern binding is not the genuine sink`, callsResolved("const { listContractors } = evil; async function f(platformDb: PrismaClient) { return listContractors(platformDb); }", "listContractors").every((c) => c.kind !== "module-decl"));
   ok(`   mutant: two module-scope declarations of the name are not the genuine sink`, callsResolved("function listContractors() {} var listContractors = evil; async function f(platformDb: PrismaClient) { return listContractors(platformDb); }", "listContractors").every((c) => c.kind !== "module-decl"));
+  ok(`   mutant: a genuine sink reassigned before the call is seen`, assignmentsTo("function listContractors(db: PrismaClient) { return db.contractor.findMany(); } async function probe(platformDb: PrismaClient) { listContractors = ((client: PrismaClient) => client.service.findMany()) as any; return listContractors(platformDb); }", "listContractors").some((a) => a.form === "assignment"));
+  ok(`   mutant: a compound assignment, an update, a destructuring assignment and a loop head are all writes`, assignmentsTo("listContractors ??= evil;", "listContractors").length === 1 && assignmentsTo("listContractors++;", "listContractors").length === 1 && assignmentsTo("({ a: { b: [listContractors = x] } } = evil);", "listContractors").some((a) => a.form === "destructuring-assignment") && assignmentsTo("[, ...listContractors] = evil;", "listContractors").length === 1 && assignmentsTo("for (listContractors of xs) {}", "listContractors").some((a) => a.form === "for-head"));
+  ok(`   mutant: a module-scope let or var is not a genuine sink even unassigned`, callsResolved("let listContractors = (db: PrismaClient) => db.contractor.findMany(); async function f(platformDb: PrismaClient) { return listContractors(platformDb); }", "listContractors").every((c) => c.kind === "module-decl" && c.form === "let") && !sinkOk(callsResolved("let listContractors = () => 0; listContractors(1);", "listContractors")[0]));
+  ok(`   mutant: eval on a platform surface is seen`, usesOf("export default function Page() { return eval('x'); }", "eval").length === 1 && usesOf("const f = new Function('return 1'); f();", "Function").length === 1);
+  ok(`   while a property write on some other object is not a binding write`, assignmentsTo("row.listContractors = 1; o['listContractors'] = 2;", "listContractors").length === 0);
   ok(`   while the real module-scope sink resolves as such`, callsResolved(rmSrc, "listContractors", "lib/platformReadModel.ts").every((r) => r.kind === "module-decl") && callsResolved(rmSrc, "withPlatformFor", "lib/platformReadModel.ts").every((r) => r.kind === "import" && r.module === "./platformContext"));
   ok(`   mutant: a destructuring ASSIGNMENT of a mutator is seen`, mutatingCalls("let write; ({ delete: write } = db.service); await write({ where: { id } });").some((m) => /assigned/.test(m.callee)));
   ok(`   mutant: a computed-key destructuring assignment is seen`, mutatingCalls('let w; ({ ["update"]: w } = db.service);').some((m) => /update/.test(m.callee)));
