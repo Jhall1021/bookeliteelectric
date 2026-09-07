@@ -1,4 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
+import { PLUMBING_EMERGENCY_PATTERNS } from "./plumbing/intents";
+import { HVAC_EMERGENCY_PATTERNS } from "./hvac/intents";
 
 /**
  * "Tell us what you need" — turning a sentence into a service.
@@ -95,7 +97,7 @@ export type MatchItem =
 export const MAX_INTENTS = 3;
 
 /**
- * Phrases that mean "stop, phone us".
+ * Phrases that mean "stop, phone us" — Electrical's own contribution.
  *
  * Deliberately over-inclusive. A false positive costs one phone call that
  * might have been a booking. A false negative is someone booking a $250
@@ -105,8 +107,15 @@ export const MAX_INTENTS = 3;
  * Phrases rather than single words where the single word is ambiguous:
  * "flickering" alone is usually a loose bulb, but a whole house flickering
  * is often a failing neutral, which is genuinely dangerous.
+ *
+ * TRADE-AUTHORED, TRADE-NEUTRAL AT RUNTIME — G5.
+ *
+ * This is Electrical's list, kept exactly where it was. It is combined below
+ * with Plumbing's and HVAC's own lists into one registry that runs for every
+ * storefront regardless of which trade that contractor is enrolled in —
+ * see EMERGENCY_PATTERNS and screenForEmergency's own comment for why.
  */
-const EMERGENCY_PATTERNS: { pattern: RegExp; why: string }[] = [
+const ELECTRICAL_EMERGENCY_PATTERNS: { pattern: RegExp; why: string }[] = [
   { pattern: /\b(burn(ing|t|ed)?|smoke|smoking|smell.*(burn|smoke|electrical)|electrical smell)\b/i, why: "burning or smoke" },
   { pattern: /\b(spark(s|ing|ed)?|arc(ing|ed)?)\b/i, why: "sparking" },
   { pattern: /\b(shock(ed|ing|s)?|electrocut)/i, why: "electric shock" },
@@ -122,10 +131,47 @@ const EMERGENCY_PATTERNS: { pattern: RegExp; why: string }[] = [
   { pattern: /\bpanel\b.*\b(hot|burn|smell|spark|buzz|water)\b/i, why: "a problem at the panel" },
 ];
 
-const EMERGENCY_MESSAGE =
-  "What you're describing could be a safety issue, and it isn't something to book online for later. Please call us now and we'll talk it through. If there's smoke, a burning smell, or anything is hot to the touch, switch off the breaker if you can reach it safely — and call 911 if you think there's a fire.";
+/**
+ * The union — G5.
+ *
+ * ONE screen, run for every contractor regardless of enrolled trade. Not a
+ * dispatch: this file never asks which trade a contractor offers, and never
+ * will — see screenForEmergency below. A pattern list is authored by the
+ * trade that knows it (Electrical's above; Plumbing's in
+ * lib/plumbing/intents.ts; HVAC's in lib/hvac/intents.ts), but at runtime
+ * there is no distinction between them. Missing a genuine emergency because
+ * a contractor "doesn't do that trade" is not an available failure mode —
+ * the emergency screen never selects a service, a price, or a trade; it
+ * selects nothing but "call us", so widening its vocabulary costs the same
+ * one phone call regardless of whose pattern caught it.
+ */
+const EMERGENCY_PATTERNS: { pattern: RegExp; why: string }[] = [
+  ...ELECTRICAL_EMERGENCY_PATTERNS,
+  ...PLUMBING_EMERGENCY_PATTERNS,
+  ...HVAC_EMERGENCY_PATTERNS,
+];
 
-/** Runs before anything else. No network, no model, no dependencies. */
+/**
+ * The one message. Trade-neutral, and deliberately does not diagnose —
+ * it names categories of danger a homeowner can recognize (fire, CO, gas)
+ * without asserting which one is present, and it never names a component or
+ * a cause. Exported so app/api/service-match/route.ts has no second copy.
+ */
+export const EMERGENCY_MESSAGE =
+  "This may involve an immediate safety hazard, so online booking has been stopped. If there is fire or smoke, a sounding carbon monoxide alarm, a gas odor, or anyone is in immediate danger, leave the affected area and call 911 or the appropriate gas utility from outside. Otherwise, stay clear of the affected equipment and call us so we can help determine the safest next step.";
+
+/**
+ * Runs before anything else. No network, no model, no dependencies.
+ *
+ * TRADE-NEUTRAL BY SIGNATURE, NOT JUST BY BEHAVIOR — G5. This takes exactly
+ * one argument: the customer's own words. No contractor id, no trade, no
+ * ContractorTrade lookup. That is not an oversight to fill in later; it is
+ * the property that makes the union safe (see EMERGENCY_PATTERNS above).
+ * Narrowing this to accept a trade and dispatch on it would silently
+ * reopen the exact coverage gap G5 closed — a Plumbing or HVAC storefront
+ * running Electrical's list alone. scripts/verify-service-match.ts pins
+ * this signature.
+ */
 export function screenForEmergency(text: string): { isEmergency: boolean; matched: string[] } {
   const matched = EMERGENCY_PATTERNS.filter((p) => p.pattern.test(text)).map((p) => p.why);
   return { isEmergency: matched.length > 0, matched: [...new Set(matched)] };

@@ -4,6 +4,7 @@ import { categorySlug, requireContractorCategory } from "@/lib/categories";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import {
   screenForEmergency,
+  EMERGENCY_MESSAGE,
   normalize,
   keywordFallback,
   buildPrompt,
@@ -13,9 +14,6 @@ import {
 } from "@/lib/serviceMatch";
 
 export const dynamic = "force-dynamic";
-
-const EMERGENCY_MESSAGE =
-  "What you're describing could be a safety issue, and it isn't something to book online for later. Please call us now and we'll talk it through. If there's smoke, a burning smell, or anything is hot to the touch, switch off the breaker if you can reach it safely — and call 911 if you think there's a fire.";
 
 export async function POST(req: Request) {
   // ADR §2.2. The site identifier the caller carries decides the tenant.

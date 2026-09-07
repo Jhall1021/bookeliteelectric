@@ -11,7 +11,17 @@
  * looks like a confident answer.
  */
 
-import { parseResponse, screenForEmergency, MAX_INTENTS, type MatchResult } from "../lib/serviceMatch";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { parseResponse, screenForEmergency, EMERGENCY_MESSAGE, MAX_INTENTS, type MatchResult } from "../lib/serviceMatch";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+function strip(path: string): string {
+  return readFileSync(join(ROOT, path), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
 
 const CATALOG = [
   { slug: "standard-outlet", name: "Install a Standard Outlet", categorySlug: "outlets-switches" },
@@ -169,6 +179,126 @@ console.log("\nSAFETY — the screen runs on the whole raw string, before any of
   const anyPart = parts.some((p) => screenForEmergency(p).isEmergency);
   ok(!anyPart || screenForEmergency(whole).isEmergency,
      "anything that would fire on a fragment also fires on the whole string");
+}
+
+// ---------------------------------------------------------------------------
+console.log("\nG5 — THE UNION, THROUGH THE ONE SHARED SCREEN\n");
+
+{
+  // Electrical's own cases — unchanged by the union. These mirror the
+  // "SAFETY" section above and lock the same behavior explicitly, so a
+  // future change to the shared list cannot silently narrow Electrical's
+  // coverage.
+  const electricalMustCatch = [
+    "my panel is buzzing and sparking",
+    "the outlet is hot to the touch",
+    "I smell smoke near the breaker",
+    "I got a shock from the switch",
+    "the whole house is flickering",
+  ];
+  const missed = electricalMustCatch.filter((t) => !screenForEmergency(t).isEmergency);
+  ok(missed.length === 0, "every existing Electrical emergency case still fires", missed.join(" | "));
+
+  const electricalMustPass = [
+    "I need a new outlet installed",
+    "replace my ceiling fan",
+    "add recessed lighting in the kitchen",
+  ];
+  const overCaught = electricalMustPass.filter((t) => screenForEmergency(t).isEmergency);
+  ok(overCaught.length === 0, "ordinary Electrical requests are not screened out", overCaught.join(" | "));
+}
+
+{
+  // Plumbing's cases, through the SHARED live function — not a local wrapper.
+  // Same phrases scripts/verify-plumbing-template.ts proves against Plumbing's
+  // own file; proven again here against the function every storefront
+  // actually calls, so the two can't silently disagree.
+  const plumbingMustCatch = [
+    "I smell gas in the basement",
+    "sewage is backing up into my bathtub",
+    "a pipe burst and the basement is flooding",
+    "the relief valve on the heater is discharging",
+  ];
+  const missed = plumbingMustCatch.filter((t) => !screenForEmergency(t).isEmergency);
+  ok(missed.length === 0, "Plumbing emergencies are caught through the shared screen", missed.join(" | "));
+
+  const plumbingMustPass = [
+    "I want to replace my kitchen faucet",
+    "my toilet keeps running",
+    "quote for a new water heater",
+  ];
+  const overCaught = plumbingMustPass.filter((t) => screenForEmergency(t).isEmergency);
+  ok(overCaught.length === 0, "ordinary Plumbing requests are not screened out", overCaught.join(" | "));
+}
+
+{
+  // HVAC. Gas, CO and burning/smoke are proven here NOT because HVAC declares
+  // them — it declares nothing for any of these — but because Plumbing's and
+  // Electrical's existing vocabulary already covers them once unioned. That
+  // is the whole point of the union: HVAC needed to add exactly one thing.
+  const hvacMustCatch: [string, string][] = [
+    ["i smell gas near the furnace", "gas odor, via Plumbing's vocabulary"],
+    ["my carbon monoxide alarm is going off", "CO alarm, via Plumbing's vocabulary"],
+    ["there is smoke coming from the vents", "burning/smoke, via Electrical's vocabulary"],
+    ["my furnace exploded when it started up", "explosion at furnace ignition — HVAC's own contribution"],
+    ["there was a loud boom when the heat started up", "boom at startup — HVAC's own contribution"],
+  ];
+  const missed = hvacMustCatch.filter(([t]) => !screenForEmergency(t).isEmergency);
+  ok(missed.length === 0, "every HVAC emergency case fires, each for the reason named",
+    missed.map(([t, why]) => `${t} (${why})`).join(" | "));
+
+  // Deliberately NOT emergencies. Ordinary urgency and ordinary noise stay
+  // ordinary — see lib/hvac/intents.ts for why "bang"/"pop"/"strange noise"
+  // are not generalized, and why "no heat"/"not cooling" route to an
+  // appointment (hvac-service-call), not a phone-only refusal.
+  const hvacMustPass = [
+    "no heat in the house",
+    "the ac is not cooling",
+    "my furnace wont start",
+    "the furnace makes a banging noise sometimes",
+    "there is a strange popping sound from the vents",
+    "quote for a furnace tune-up",
+  ];
+  const overCaught = hvacMustPass.filter((t) => screenForEmergency(t).isEmergency);
+  ok(overCaught.length === 0, "ordinary HVAC requests, including ordinary noise, are not screened out",
+    overCaught.join(" | "));
+}
+
+{
+  // The API surface, pinned. A trade argument here would silently reopen the
+  // exact coverage gap the union closed — see lib/serviceMatch.ts's comment
+  // on screenForEmergency.
+  ok(screenForEmergency.length === 1, "screenForEmergency takes exactly one argument",
+    `arity is ${screenForEmergency.length}`);
+}
+
+{
+  // No second copy of the message. There used to be a byte-identical
+  // duplicate in the route; now there is exactly one, exported and imported.
+  const routeSrc = strip("app/api/service-match/route.ts");
+  ok(!/const\s+EMERGENCY_MESSAGE\s*=/.test(routeSrc),
+    "app/api/service-match/route.ts declares no local EMERGENCY_MESSAGE");
+  ok(/EMERGENCY_MESSAGE/.test(routeSrc),
+    "and it does reference the shared one (imported, not inlined)");
+  ok(EMERGENCY_MESSAGE.length > 0 && !/breaker|panel|water shutoff/i.test(EMERGENCY_MESSAGE),
+    "the one message is trade-neutral — it names no Electrical- or Plumbing-specific equipment");
+}
+
+{
+  // The emergency result can select nothing to book. Checked at the source
+  // that actually constructs the MatchResult (lib/serviceMatch.ts declares
+  // the type; app/api/service-match/route.ts is the only place that builds
+  // one), so this fails if a future change adds a service, price or booking
+  // field to what the emergency branch returns.
+  const routeSrc = strip("app/api/service-match/route.ts");
+  const emergencyBlock = routeSrc.match(/kind:\s*"emergency"[\s\S]{0,400}?\};/);
+  ok(emergencyBlock !== null, "the emergency result is still constructed as a literal in the route");
+  const block = emergencyBlock?.[0] ?? "";
+  ok(
+    !/serviceSlug|categorySlug|price|bookingId|technician|scheduledAt/i.test(block),
+    "and it carries no service, price, booking or technician field",
+    block
+  );
 }
 
 console.log(fail === 0 ? "\nAll checks passed.\n" : `\n${fail} check(s) FAILED.\n`);
