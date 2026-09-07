@@ -37,7 +37,10 @@ export default async function ContractorControlCenter({ params }: { params: { co
           <h1 className="font-display text-2xl font-bold text-navy">{c.name}</h1>
           <p className="mt-1 text-sm text-slate">{c.trade} · enrolled in {f.trades.join(", ") || "no catalog"} · since {c.createdAt.toISOString().slice(0, 10)} · {c.active ? "enabled" : "disabled"}</p>
         </div>
-        <span className="rounded-pill border border-cardline bg-white px-3 py-1 text-xs text-slate">read-only · viewed as {f.actor.role}</span>
+        <span className="flex items-center gap-3">
+          <Link href={`/platform/onboarding/${c.id}`} className="rounded-md border border-cardline bg-white px-3 py-1 text-xs font-medium text-electric hover:underline">Onboarding &amp; retire</Link>
+          <span className="rounded-pill border border-cardline bg-white px-3 py-1 text-xs text-slate">read-only · viewed as {f.actor.role}</span>
+        </span>
       </header>
 
       {attention.length > 0 && (

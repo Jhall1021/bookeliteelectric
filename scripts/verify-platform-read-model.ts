@@ -34,6 +34,7 @@ import {
   listContractors, contractorFactsFor, platformOverviewFor, attentionFor, STUCK_AFTER_DAYS, type ContractorFacts,
 } from "../lib/platformReadModel";
 import { withPlatformFor } from "../lib/platformContext";
+import { isFixtureContractorSlug } from "../lib/fixtureContractors";
 import { importViolations, requestAccess, mutatingCalls, memberAccessesOn, callsTo, paramsUses, usesOf, prismaRelations, relationTraversals, callsResolved, assignmentsTo, parameterOf, callbackParams, importedBinding, type Policy } from "./_platformSurfaceAudit";
 import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
 
@@ -46,7 +47,7 @@ import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard"
  * imports and runtime re-exports are refused, dynamic import() and require()
  * are refused, and type-only edges are exempt because they cannot run.
  */
-const ONBOARDING_ACTIONS = ["startContractorAction", "attachOwnerAction", "enrolTradeAction", "installTemplateAction", "launchAction"];
+const ONBOARDING_ACTIONS = ["startContractorAction", "attachOwnerAction", "enrolTradeAction", "installTemplateAction", "launchAction", "retireAction"];
 const SURFACE_POLICY: Policy = {
   "next/link": ["default"],
   "next/navigation": ["redirect", "notFound"],
@@ -56,7 +57,7 @@ const SURFACE_POLICY: Policy = {
   // The founder onboarding wizard: request-bound commands and reads from the
   // ONE platform module that may write, plus its notice formatter. The
   // commands are policed by scripts/verify-platform-onboarding.ts.
-  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "platformBeginContractor", "platformAttachOwner", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
+  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "platformBeginContractor", "platformAttachOwner", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "platformRetireContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
   "./actions": ONBOARDING_ACTIONS,
   "../actions": ONBOARDING_ACTIONS,
   "@/components/platform/ContractorTable": ["ContractorTable"],
@@ -67,6 +68,7 @@ const READ_MODEL_POLICY: Policy = {
   "./platformContext": ["withPlatformFor", "withPlatformContractorFor"],
   "./onboardingReadiness": ["assessOnboarding"],
   "./stripeConnect": ["connectReadiness"],
+  "./fixtureContractors": ["partitionFixtures"],
 };
 
 const raw = new PrismaClient();
@@ -172,8 +174,17 @@ async function main() {
   const { withPlatformContractorFor } = await import("../lib/platformContext");
   await withPlatformContractorFor(db, staff, probe.id, async () => { tenant = currentTenantOrNull(); });
   ok(`   and the entry is a platform-session tenant scope`, (tenant as { source?: string; contractorId?: string } | null)?.source === "platform-session" && (tenant as { contractorId?: string }).contractorId === probe.id);
-  const overview = await platformOverviewFor(db, staff);
-  ok(`   the overview is a sum over entered tenants and includes the probe`, overview.rows.some((r) => r.id === probe.id) && overview.contractors.total === rows.length && overview.services.live >= 0);
+  const overview = await platformOverviewFor(db, staff, { fixtures: "show" });
+  ok(`   the overview is a sum over entered tenants and includes the probe when asked to show fixtures`, overview.rows.some((r) => r.id === probe.id) && overview.contractors.total === rows.length && overview.services.live >= 0 && overview.fixtures.hidden === 0);
+  // The probe is a verifier fixture by the one rule in lib/fixtureContractors.
+  // Staff pages must never take it for a business, and must never be silently
+  // short a row either: hidden, and counted as hidden.
+  ok(`   the fixture rule is one closed list: the probe matches it, genuine slugs do not`, isFixtureContractorSlug(SLUG) && !isFixtureContractorSlug("elite-electric") && !isFixtureContractorSlug("northside-electric"));
+  const forStaff = await platformOverviewFor(db, staff);
+  ok(`   by default the overview leaves verifier fixtures out of every figure and says how many`,
+    !forStaff.rows.some((r) => r.id === probe.id) && !forStaff.attention.some((a) => a.contractorId === probe.id) && !forStaff.unreadable.some((u) => u.contractorId === probe.id)
+      && forStaff.fixtures.hidden >= 1 && forStaff.contractors.total === forStaff.rows.length && forStaff.contractors.total === overview.contractors.total - forStaff.fixtures.hidden);
+  ok(`   the request-bound form passes nothing, so a page can never see a fixture`, /export const platformOverview = async \(\) => platformOverviewFor\(prisma, await currentUser\(\)\);/.test(readFileSync("lib/platformReadModel.ts", "utf8")));
   // Finding 1 (review): the probe HAS a calendar connection; its access token merely expired.
   ok(`   a connection with an expired access token is CONNECTED, and says the token is due its routine refresh`, f.calendar.connected && f.calendar.accessTokenExpired && f.calendar.connectedAt !== null);
   ok(`   so an EXTERNAL scheduler with a connected calendar is NOT calendar-disconnected`, !overview.attention.some((a) => a.contractorId === probe.id && a.code === "CALENDAR_DISCONNECTED"));
@@ -183,7 +194,7 @@ async function main() {
   // Finding 3 (review): one unreadable contractor does not take the overview down.
   const { platformOverviewFor: overviewFor, OVERVIEW_CONCURRENCY } = await import("../lib/platformReadModel");
   const boom = async (d: PrismaClient, u: typeof staff | null, id: string) => { if (id === probe.id) throw new Error("injected: probe unreadable"); return contractorFactsFor(d, u, id); };
-  const partial = await overviewFor(db, staff, { readFacts: boom });
+  const partial = await overviewFor(db, staff, { readFacts: boom, fixtures: "show" });
   // Judged against the overview's OWN listing: the shared database gains and
   // loses other sessions' throwaway contractors between calls, so "exactly
   // one unreadable" would race. What must hold is that the probe is the
@@ -200,7 +211,7 @@ async function main() {
       && partial.contractors.live + partial.contractors.inSetup <= partial.rows.filter((r) => r.readable).length);
   let inFlight = 0, peak = 0;
   const counting = async (d: PrismaClient, u: typeof staff | null, id: string) => { inFlight++; peak = Math.max(peak, inFlight); await new Promise((r) => setTimeout(r, 40)); inFlight--; return contractorFactsFor(d, u, id); };
-  await overviewFor(db, staff, { readFacts: counting, concurrency: 2 });
+  await overviewFor(db, staff, { readFacts: counting, concurrency: 2, fixtures: "show" });
   ok(`   entries are bounded: ${rows.length} contractors, at most 2 in flight when asked for 2 (peak ${peak})`, peak <= 2 && rows.length >= 3);
   ok(`   and the default bound is small`, OVERVIEW_CONCURRENCY <= 3);
 
@@ -217,6 +228,7 @@ async function main() {
   const old = new Date(now.getTime() - (STUCK_AFTER_DAYS + 1) * 86400000);
   ok(`   ${STUCK_AFTER_DAYS + 1} idle days in setup is STUCK_IN_ONBOARDING`, codes(facts({ onboarding: { currentStage: "pricing-foundation", completedAt: null, updatedAt: old } })) === "STUCK_IN_ONBOARDING");
   ok(`   but not once services are live`, codes(facts({ onboarding: { currentStage: "launch", completedAt: null, updatedAt: old }, catalog: { total: 1, live: 1, priced: 1, quoteOnly: 0, needsPrice: 0, hidden: 0 } })) === "none");
+  ok(`   a RETIRED contractor (active false) is nobody's job, whatever its blockers or idle time`, codes(facts({ blockers: [{ code: "PRICE_NOT_APPROVED", message: "x" }], contractor: { id: "r", slug: "r", name: "R", trade: "electrical", active: false, createdAt: now, countryCode: "US", schedulingAuthority: "EXTERNAL" }, onboarding: { currentStage: "launch", completedAt: now, updatedAt: old } })) === "none");
   ok(`   a live contractor with no blockers is nothing to do`, codes(facts({ catalog: { total: 5, live: 5, priced: 5, quoteOnly: 0, needsPrice: 0, hidden: 0 }, onboarding: { currentStage: "launch", completedAt: now, updatedAt: now } })) === "none");
   ok(`   every item points at the contractor's control center`, attentionFor(facts({ blockers: [{ code: "X", message: "x" }], onboarding: { currentStage: "launch", completedAt: now, updatedAt: now } }), now).every((a) => a.href === "/platform/contractors/c1"));
 
