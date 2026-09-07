@@ -107,6 +107,23 @@ const REVIEWED_SAFE: Record<string, Exception> = {
       "removing it re-fires this gate rather than passing silently.",
     mustMatch: /contractorId:\s*site\.contractorId/,
   },
+  "lib/platformReadModel.ts:services": {
+    reason:
+      "A summary object key in platformOverviewFor's return value, not a Prisma " +
+      "traversal. `services: { live: … }` sums catalog counts from ContractorFacts " +
+      "that were each read inside withPlatformContractor, so every figure it " +
+      "aggregates was already tenant-guarded when it was read. Anchored to that " +
+      "exact line so that a real Contractor.services read in this file — include, " +
+      "select, _count or where — would still be flagged here; the same read is " +
+      "refused independently by scripts/verify-platform-read-model.ts, whose " +
+      "schema-resolved relation traversal rule names every hop a directory query " +
+      "crosses. That verifier also proves this entry exists in exactly this form. " +
+      "The pattern is anchored to the START of the flagged context (horizontal " +
+      "whitespace only, no multiline flag): the context is the flagged line plus " +
+      "the seven after it, so an unanchored pattern would also excuse a real " +
+      "`services: true` on the line immediately BEFORE the summary line.",
+    mustMatch: /^[ \t]*services: \{ live: facts\.reduce\(/,
+  },
   "lib/jobber.ts:visits": {
     reason:
       "Jobber's GraphQL response type, not Prisma. `visits` here is a field on " +

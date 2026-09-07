@@ -22,7 +22,11 @@
  *      request-supplied contractor id in exactly one file.
  */
 import { PrismaClient, type PlatformRole } from "@prisma/client";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, realpathSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import ts from "typescript";
 import { sourceFiles } from "./_sourceFiles";
 import { destroyContractor } from "./_throwaway";
 import { currentTenantOrNull } from "../lib/tenantContext";
@@ -315,6 +319,78 @@ async function main() {
   const loaderUses = (src: string, file = "mutant.ts") => RUNTIME_LOADERS.flatMap((g) => usesOf(src, g, file).map((u) => `${g}:${u.kind}:${u.text.slice(0, 40)}@${u.line}`));
   const dynamicCode = platformFiles.flatMap(([f, src]) => loaderUses(src, f).map((d) => `${f} ${d}`));
   ok(`   no platform file reaches for eval, Function, require, module, a global object or process — by any alias`, dynamicCode.length === 0, dynamicCode.join("; "));
+  // THE DEPLOY GATE'S OWN EXCEPTION FOR THIS FILE, PINNED.
+  //
+  // scripts/audit-platform-tenant-relations.ts flags relation NAMES reached
+  // from operational code. The overview's summary key `services: { live: … }`
+  // is such a name and not a traversal, so that audit carries a REVIEWED_SAFE
+  // entry for it — anchored with mustMatch to that exact line. A candidate
+  // release failed on 6 Sep 2026 because the entry was missing; this block
+  // proves the entry exists in exactly its narrow form and that the audit
+  // refuses without it, so neither a removal nor a broadening can pass quietly.
+  const AUDIT = "scripts/audit-platform-tenant-relations.ts";
+  const auditSrc = readFileSync(AUDIT, "utf8");
+  const ENTRY_KEY = "lib/platformReadModel.ts:services";
+  const ENTRY_ANCHOR = String.raw`^[ \t]*services: \{ live: facts\.reduce\(`;
+  const entry = (() => {
+    const sf = ts.createSourceFile(AUDIT, auditSrc, ts.ScriptTarget.Latest, true);
+    let found: { keys: string[]; hasMustMatch: boolean; anchor: string | null; reasonIsString: boolean } = { keys: [], hasMustMatch: false, anchor: null, reasonIsString: false };
+    const visit = (n: ts.Node) => {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === "REVIEWED_SAFE" && n.initializer && ts.isObjectLiteralExpression(n.initializer)) {
+        for (const p of n.initializer.properties) {
+          if (!ts.isPropertyAssignment(p) || !ts.isStringLiteral(p.name)) continue;
+          if (p.name.text.startsWith("lib/platformReadModel.ts:")) found.keys.push(p.name.text);
+          if (p.name.text === ENTRY_KEY && ts.isObjectLiteralExpression(p.initializer)) {
+            for (const q of p.initializer.properties) {
+              if (!ts.isPropertyAssignment(q) || !ts.isIdentifier(q.name)) continue;
+              if (q.name.text === "mustMatch" && ts.isRegularExpressionLiteral(q.initializer)) { found.hasMustMatch = true; found.anchor = q.initializer.text.slice(1, q.initializer.text.lastIndexOf("/")); }
+              if (q.name.text === "reason") found.reasonIsString = ts.isStringLiteral(q.initializer) || ts.isBinaryExpression(q.initializer) || ts.isNoSubstitutionTemplateLiteral(q.initializer);
+            }
+          }
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf); return found;
+  })();
+  ok(`   the tenant-relations audit carries exactly one exception for the read model, keyed ${ENTRY_KEY}`, entry.keys.length === 1 && entry.keys[0] === ENTRY_KEY, entry.keys.join(", "));
+  ok(`   and that exception is anchored by mustMatch to the summary line, not a bare file+field excuse`, entry.hasMustMatch && entry.anchor === ENTRY_ANCHOR && entry.reasonIsString, `anchor=${entry.anchor}`);
+  // The audit evaluates mustMatch against the flagged line plus the seven
+  // lines after it, joined. So the anchor must hold only when the FLAGGED line
+  // is the summary line: `^` with horizontal whitespace and no multiline flag.
+  // Rebuilt from the regex the audit actually carries, not retyped here.
+  const anchorRe = new RegExp(entry.anchor ?? "(?!)");
+  const rmLines = rmSrc.split("\n");
+  const summaryAt = rmLines.findIndex((l) => /services: \{ live: facts\.reduce\(/.test(l));
+  const contextOf = (lines: string[], i: number) => lines.slice(i, i + 8).join("\n");
+  const approvedContext = contextOf(rmLines, summaryAt);
+  ok(`   the anchor matches the read model's summary line exactly once, as the audit would see it (flagged line + 7)`, summaryAt >= 0 && anchorRe.test(approvedContext) && rmLines.filter((_, i) => anchorRe.test(contextOf(rmLines, i))).length === 1);
+  const unsafeBefore = ["      services: true },", ...rmLines.slice(summaryAt, summaryAt + 7)].join("\n");
+  ok(`   mutant: a real \`services: true\` flagged on the line BEFORE the summary line is NOT excused — its context contains the summary line, but not first`, !anchorRe.test(unsafeBefore));
+  ok(`   and an UNANCHORED pattern would have excused it, which is why the anchor is pinned to the start`, new RegExp((entry.anchor ?? "").replace(/^\^\[ \\t\]\*/, "")).test(unsafeBefore) && (entry.anchor ?? "").startsWith(String.raw`^[ \t]*`));
+  ok(`   nor is the summary line excused if something precedes it on its own line of context`, !anchorRe.test("  x,\n" + approvedContext));
+  const tsxBin = join(process.cwd(), "node_modules", ".bin", "tsx");
+  const runAudit = (source: string, label: string) => {
+    // The audit runs main() only when import.meta.url equals argv[1]'s file
+    // URL; on macOS the temp dir is a symlink, so the copy is addressed by its
+    // real path or that guard silently declines to run it.
+    const dir = mkdtempSync(join(realpathSync(tmpdir()), "p2b-audit-"));
+    try {
+      const file = join(dir, `${label}.ts`);
+      // The copy lives outside the tree, so its one relative import is rewritten to an absolute one.
+      writeFileSync(file, source.replace('from "../lib/tenantGuard"', `from ${JSON.stringify(join(process.cwd(), "lib", "tenantGuard.ts"))}`));
+      const r = spawnSync(tsxBin, [file], { cwd: process.cwd(), encoding: "utf8", env: process.env });
+      return { status: r.status, out: `${r.stdout}\n${r.stderr}` };
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  };
+  const asIs = runAudit(auditSrc, "as-is");
+  ok(`   the audit passes as committed and reports the summary line as reviewed`, asIs.status === 0 && /ok\s+lib\/platformReadModel\.ts:\d+\s+services/.test(asIs.out), asIs.out.slice(-400));
+  const entryStart = auditSrc.indexOf(`  "${ENTRY_KEY}": {`); const entryEnd = auditSrc.indexOf("\n  },\n", entryStart) + "\n  },\n".length;
+  const removed = auditSrc.slice(0, entryStart) + auditSrc.slice(entryEnd);
+  ok(`   mutant: with that entry REMOVED the audit refuses on the summary line — the failure of 6 Sep, pinned`, !removed.includes(ENTRY_KEY) && (() => { const r = runAudit(removed, "removed"); return r.status !== 0 && /!!\s+lib\/platformReadModel\.ts:\d+\s+services/.test(r.out) && /1 unreviewed/.test(r.out); })());
+  const loosened = auditSrc.replace(`mustMatch: /${ENTRY_ANCHOR}/`, "mustMatch: /never-on-this-line/");
+  ok(`   mutant: with the anchor pointed elsewhere the audit refuses the line, so the exception cannot drift off it`, loosened !== auditSrc && (() => { const r = runAudit(loosened, "loosened"); return r.status !== 0 && /an exception exists for lib\/platformReadModel\.ts:services but requires/.test(r.out); })());
+  ok(`   and a real Contractor.services traversal in the read model is refused here regardless of that entry`, badTraversal(rmSrc.replace("await platformDb.contractor.findMany({", "await platformDb.contractor.findMany({ include: { services: true },"), "platformDb").some((tr) => tr.target === "Service"));
   ok(`   the catalog split is disjoint: quote-only decided first, priced and needs-a-price split the rest`,
     /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: \{ not: null \} \}/.test(rmSrc) && /where: \{ active: true, NOT: QUOTE_ONLY, publishedPriceApprovedAt: null \}/.test(rmSrc) && /where: \{ active: true, \.\.\.QUOTE_ONLY \}/.test(rmSrc));
   ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm));
