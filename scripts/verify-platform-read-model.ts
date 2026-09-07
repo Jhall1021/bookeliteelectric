@@ -61,6 +61,10 @@ const SURFACE_POLICY: Policy = {
   "./actions": ONBOARDING_ACTIONS,
   "../actions": ONBOARDING_ACTIONS,
   "@/components/platform/ContractorTable": ["ContractorTable"],
+  // Presentational, like ContractorTable: renders from a plain count,
+  // queries nothing. Shown on Overview, Contractors and the onboarding
+  // index so a hidden verifier fixture is never mistaken for silence.
+  "@/components/platform/HiddenFixturesNote": ["HiddenFixturesNote"],
 };
 const READ_MODEL_POLICY: Policy = {
   "./prisma": ["prisma"],
