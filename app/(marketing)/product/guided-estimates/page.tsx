@@ -37,6 +37,9 @@ export const dynamic = "force-dynamic";
 
 const SHELL = "mx-auto max-w-[1440px] px-5 lg:px-[88px]";
 
+/** The capture is a literal; a count of one must read as one. */
+const word = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
 export default function GuidedEstimatesPage() {
   const ex = GE.example;
 
@@ -186,17 +189,17 @@ export default function GuidedEstimatesPage() {
             {[
               {
                 k: `${GE.remoteQuote.services}`,
-                v: "services already running this way",
-                d: `across ${GE.remoteQuote.categories.length} categories`,
+                v: word(GE.remoteQuote.services, "service already running this way", "services already running this way"),
+                d: `across ${GE.remoteQuote.categories.length} ${word(GE.remoteQuote.categories.length, "category", "categories")}`,
               },
               {
                 k: `${GE.remoteQuote.withoutPublishedPrice}`,
-                v: "of them publish no price at all",
+                v: word(GE.remoteQuote.withoutPublishedPrice, "of them publishes no price at all", "of them publish no price at all"),
                 d: "the storefront lists the work, not a number",
               },
               {
                 k: `${GE.photos.blocking}`,
-                v: "answers that hold the price back",
+                v: word(GE.photos.blocking, "answer that holds the price back", "answers that hold the price back"),
                 d: "until the photographs are in",
               },
             ].map((s) => (

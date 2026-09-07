@@ -45,6 +45,7 @@ import { availableTrades } from "../lib/templateProvisioning";
 import { activateService, activationRefusal } from "../lib/serviceActivation";
 import { validateIdentity, slugify, SLUG_INPUT_PATTERN, SLUG_MAX } from "../lib/contractorCreation";
 import { hostedSlugProblem } from "../lib/siteRouting";
+import { FIXTURE_SLUG_PREFIXES, isFixtureContractorSlug } from "../lib/fixtureContractors";
 
 const raw = new PrismaClient();
 const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
@@ -93,7 +94,7 @@ const ONBOARDING_POLICY: Policy = {
   "./adminContext": ["currentUser"],
   "./platformContext": ["withPlatformFor", "withPlatformContractorFor"],
   "./platformReadModel": ["contractorFactsFor", "listContractors", "mapWithConcurrency"],
-  "./contractorCreation": ["validateIdentity", "slugTaken", "createContractorRecord", "isUniqueViolation", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
+  "./contractorCreation": ["validateIdentity", "slugTaken", "createContractorRecord", "isUniqueViolation", "SLUG_INPUT_PATTERN", "SLUG_MAX", "IdentityOptions"],
   "./tradeEnrolment": ["setTradeEnrolment"],
   "./templateProvisioning": ["availableTrades", "templateVersionSource", "preflight", "installCatalog"],
   "./onboardingReadiness": ["assessOnboarding"],
@@ -198,16 +199,26 @@ async function main() {
     // ── 2. identity ─────────────────────────────────────────────────────
     ok(`2. a blank name is refused`, (await beginContractorFor(db, staff, { name: "   " })).ok === false);
     ok(`   a bad web address is refused`, ((await beginContractorFor(db, staff, { name: "Probe", slug: "A!" })) as { refusal?: { code: string } }).refusal?.code === "SLUG_INVALID");
-    const b1 = await beginContractorFor(db, staff, { name: `Onboarding probe ${RUN}`, slug: SLUG });
+    // The probe's own slug is reserved for fixtures. Through the wizard as a
+    // person would use it, it is refused; only a declared verifier fixture may
+    // carry it — and a declared fixture may carry nothing else.
+    ok(`   the probe's reserved slug is refused on the wizard path unless declared a verifier fixture`, ((await beginContractorFor(db, staff, { name: "Probe", slug: SLUG })) as { refusal?: { code: string } }).refusal?.code === "SLUG_INVALID"
+      && ((await beginContractorFor(db, staff, { name: "Probe", slug: `genuine-${RUN}` }, { verifierFixture: true })) as { refusal?: { code: string } }).refusal?.code === "SLUG_INVALID"
+      && (await raw.contractor.count({ where: { slug: { in: [SLUG, `genuine-${RUN}`] } } })) === 0);
+    ok(`   and nothing a person reaches passes the declaration: not the request-bound form, not the wizard's actions`,
+      /export const platformBeginContractor = async \(input: \{ name: string; slug\?: string \}\) => beginContractorFor\(prisma, await currentUser\(\), input\);/.test(readFileSync(MODULE, "utf8"))
+      && !/verifierFixture/.test(readFileSync("app/platform/onboarding/actions.ts", "utf8")) && !/verifierFixture/.test(strip("lib/contractorCreation.ts").split("export function validateIdentity")[0].split("export function slugProblem")[0])
+      && (strip(MODULE).match(/verifierFixture/g) ?? []).length === 0 && (strip(MODULE).match(/IdentityOptions/g) ?? []).length === 2);
+    const b1 = await beginContractorFor(db, staff, { name: `Onboarding probe ${RUN}`, slug: SLUG }, { verifierFixture: true });
     ok(`   staff create the contractor`, b1.ok && b1.created && b1.slug === SLUG, JSON.stringify(b1));
     if (!b1.ok) throw new Error("cannot continue without the probe");
     const probeId = b1.contractorId;
     const rows = await raw.contractor.findMany({ where: { slug: SLUG }, select: { id: true, active: true, _count: { select: { memberships: true, sites: true } } } });
     const onboardingRow = await raw.contractorOnboarding.findUnique({ where: { contractorId: probeId }, select: { currentStage: true } });
     ok(`   exactly one row: enabled, one storefront, a guided-setup record, and NO membership`, rows.length === 1 && rows[0].active && rows[0]._count.sites === 1 && rows[0]._count.memberships === 0 && onboardingRow?.currentStage === "business");
-    const b2 = await beginContractorFor(db, staff, { name: "Someone else", slug: SLUG });
+    const b2 = await beginContractorFor(db, staff, { name: "Someone else", slug: SLUG }, { verifierFixture: true });
     ok(`   the same address again is SLUG_TAKEN and points at the first, not a second row`, !b2.ok && b2.refusal.code === "SLUG_TAKEN" && b2.existingContractorId === probeId && (await raw.contractor.count({ where: { slug: SLUG } })) === 1);
-    const race = await Promise.all([beginContractorFor(db, staff, { name: "Race A", slug: SLUG2 }), beginContractorFor(db, staff, { name: "Race B", slug: SLUG2 })]);
+    const race = await Promise.all([beginContractorFor(db, staff, { name: "Race A", slug: SLUG2 }, { verifierFixture: true }), beginContractorFor(db, staff, { name: "Race B", slug: SLUG2 }, { verifierFixture: true })]);
     const winners = race.filter((r) => r.ok).length;
     ok(`   two concurrent creates of one address: exactly one wins, the other is SLUG_TAKEN naming the winner`, winners === 1 && race.every((r) => r.ok || (r.refusal.code === "SLUG_TAKEN" && r.existingContractorId === (race.find((x) => x.ok) as { contractorId: string }).contractorId)) && (await raw.contractor.count({ where: { slug: SLUG2 } })) === 1, JSON.stringify(race));
     const s0 = await onboardingStatusFor(db, staff, probeId);
@@ -397,6 +408,11 @@ async function main() {
   ok(`11. an ordinary address is accepted`, slugOf({ name: "Northside Electric", slug: "northside-electric" }) === "northside-electric");
   ok(`   the platform's reserved words are refused by creation exactly as routing refuses them`, ["api", "dashboard", "onboarding", "sign-in", "www"].every((w) => slugOf({ name: "X", slug: w }) === "refused:SLUG_INVALID" && hostedSlugProblem(w) !== null));
   ok(`   consecutive hyphens are refused`, slugOf({ name: "X", slug: "north--side" }) === "refused:SLUG_INVALID" && hostedSlugProblem("north--side") !== null);
+  // lib/fixtureContractors: a slug that marks a verifier fixture can never be
+  // a person's, on either creation path, so the fixture rule is exact.
+  ok(`   the prefixes reserved for verifier fixtures are refused, by the same authority, on both creation paths`,
+    FIXTURE_SLUG_PREFIXES.every((p) => isFixtureContractorSlug(`${p}electric`)) && FIXTURE_SLUG_PREFIXES.filter((p) => hostedSlugProblem(`${p}electric`) === null).every((p) => slugOf({ name: "X", slug: `${p}electric` }) === "refused:SLUG_INVALID")
+      && slugOf({ name: "Test Electric" }) === "refused:SLUG_INVALID" && slugOf({ name: "X", slug: "testing-electric" }) === "testing-electric" && !isFixtureContractorSlug("testing-electric") && /fixtureSlugProblem/.test(strip("lib/contractorCreation.ts")));
   ok(`   boundaries: leading or trailing hyphen, two characters, and 49 characters are refused; 3 and 48 are accepted`,
     slugOf({ name: "X", slug: "-abc" }) === "refused:SLUG_INVALID" && slugOf({ name: "X", slug: "abc-" }) === "refused:SLUG_INVALID" && slugOf({ name: "X", slug: "ab" }) === "refused:SLUG_INVALID"
     && slugOf({ name: "X", slug: "a".repeat(SLUG_MAX + 1) }) === "refused:SLUG_INVALID" && slugOf({ name: "X", slug: "abc" }) === "abc" && slugOf({ name: "X", slug: "a".repeat(SLUG_MAX) }) === "a".repeat(SLUG_MAX));

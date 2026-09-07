@@ -1,8 +1,9 @@
 /**
  * GENERATED — do not edit by hand.
  *
- * What Guided Estimates does, measured from the product. The page that
- * reads this may not claim anything the capture does not contain.
+ * What Guided Estimates does, measured from the product: live services of
+ * active contractors, verifier fixtures excluded. The page that reads this
+ * may not claim anything the capture does not contain.
  *
  * Re-capture:   npx tsx scripts/capture-guided-estimates.ts
  * Check drift:  npx tsx scripts/capture-guided-estimates.ts --check
@@ -10,29 +11,25 @@
 export const GUIDED_ESTIMATES = {
   "generatedBy": "scripts/capture-guided-estimates.ts",
   "identity": "Voltmark Electric",
+  "scope": "live services of active contractors; verifier fixtures excluded (lib/fixtureContractors.ts); quotes are history",
   "bookingTypes": {
-    "INSTANT": 48,
+    "INSTANT": 27,
     "TROUBLESHOOT_ONLY": 2,
-    "REMOTE_QUOTE": 26,
-    "ADJUSTED": 78
+    "REMOTE_QUOTE": 1,
+    "ADJUSTED": 39
   },
   "remoteQuote": {
-    "services": 26,
-    "withoutPublishedPrice": 26,
+    "services": 1,
+    "withoutPublishedPrice": 1,
     "categories": [
-      "Dedicated Circuits",
-      "EV & Garage",
-      "Generator / Backup Power",
-      "Lighting",
-      "Outlets & Switches",
-      "Pool / Spa"
+      "EV & Garage"
     ]
   },
   "routes": {
-    "PHOTO_REVIEW": 488
+    "PHOTO_REVIEW": 269
   },
   "photos": {
-    "distinctLabels": 81,
+    "distinctLabels": 72,
     "labels": [
       "A close photo of the breakers, so we can read the numbers on them",
       "A wider photo of that exterior wall",
@@ -47,17 +44,14 @@ export const GUIDED_ESTIMATES = {
       "Close up of exactly where you'd like the camera",
       "Close-up of the wall surface/texture",
       "Current thermostat with the cover removed, showing the wiring",
-      "Electric meter",
       "Electrical panel with the door open and breakers visible — leave the panel cover on",
       "Fireplace and surrounding wall, full width",
       "Full wall where the TV is going",
       "Inside that same wall, where the power would come from",
       "Nearest attic or basement access point, if any",
       "Nearest attic or basement access, if any",
-      "Nearest indoor outlet or electrical panel",
       "Panel with the door open",
       "Panel with the door open, showing the amp rating and breakers",
-      "Panel with the door open, showing the current amp rating",
       "Path between the panel and the charger location (for run distance)",
       "Room where the fan is going, full view",
       "Room where the light is going, full view",
@@ -66,14 +60,12 @@ export const GUIDED_ESTIMATES = {
       "The attic hatch, basement stairs or crawlspace opening, if you have one",
       "The attic or basement above or below, if you have one",
       "The attic, unfinished basement, or drop-ceiling route the wire will travel",
-      "The bathroom ceiling around it",
       "The cabinets that need light, and the wall underneath them",
       "The ceiling around it",
       "The ceiling location where the new light or fan will go",
       "The ceiling where the light or fan is going",
       "The doorway from outside, showing the door frame and the surrounding wall",
       "The equipment or appliance, including the model or label if it's safely visible",
-      "The existing fan with the cover on, from below",
       "The existing fan, cover on, from below",
       "The existing fixture, from below",
       "The fan you have now",
@@ -101,9 +93,7 @@ export const GUIDED_ESTIMATES = {
       "Wall where the TV and outlet are needed, full height",
       "Wall where the outlet is needed, full height",
       "Where the charger will be mounted",
-      "Where the doorbell will be mounted, from outside",
       "Where the line starts — the router, modem, or the existing cable box",
-      "Where the outlet is needed in the garage",
       "Where the tub sits, and the wall between it and the panel",
       "Where the wires from the street attach to the house",
       "Where you'd like the new jack to come out",
@@ -112,12 +102,10 @@ export const GUIDED_ESTIMATES = {
       "Where your electrical panel is, with the cover on",
       "Wide photo of the room or area",
       "Wide photo of the whole wall and area around the electrical panel",
-      "Wide shot of the area around the panel (for access/clearance)",
-      "Wide shot of the panel area and clearance around it",
       "Your panel with the OUTER DOOR open, showing the row of breakers"
     ],
-    "blocking": 425,
-    "preparation": 21
+    "blocking": 235,
+    "preparation": 13
   },
   "example": {
     "serviceName": "Level 2 EV Charger Installation",
