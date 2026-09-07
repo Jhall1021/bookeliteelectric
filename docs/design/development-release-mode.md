@@ -17,18 +17,20 @@ merges while this mode is in effect.
 
 ## What changes
 
-`npm run build` ran the entire 62-step `verify` chain on every build, Preview
+`npm run build` ran the entire 63-step `verify` chain on every build, Preview
 included. 37 of those steps open a live Prisma client (measured, not assumed —
 each was run standalone with `DATABASE_URL` absent; a step counts as fast only
 if it exits 0 under that condition). A Preview build cannot supply a
 production `DATABASE_URL`, so every Preview failed before `next build` ever
 ran.
 
+**Updated 7 September 2026 for G4** (`verify-contractor-credentials.ts`, PR #24): confirmed empirically with `DATABASE_URL` absent — exit 0, 37 checks, no `PrismaClient` in source, stable across three runs — and added to `verify:fast` immediately after `verify-appointment-kinds.ts`, its position in the full chain. `verify:full` was re-synced to `main`'s exact 63-step chain at the same time.
+
 | Script | Before | Now |
 |---|---|---|
-| `verify` | the 62-step chain | alias for `verify:full` — unchanged meaning |
-| `verify:full` | — | the 62-step chain, byte-for-byte the same command |
-| `verify:fast` | — | the 25 steps that pass with no database (see below) |
+| `verify` | the 63-step chain | alias for `verify:full` — unchanged meaning |
+| `verify:full` | — | the 63-step chain, byte-for-byte the same command |
+| `verify:fast` | — | the 26 steps that pass with no database (see below) |
 | `build` | `prisma generate && npm run verify && next build` | `prisma generate && npm run verify:fast && next build` |
 | `build:full` | — | `prisma generate && npm run verify:full && next build` |
 
