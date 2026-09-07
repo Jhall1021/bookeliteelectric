@@ -62,6 +62,12 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "before the material gate and would otherwise mask the thing under test. No " +
     "real contractor's price is read or written, and it refuses to run anywhere " +
     "but a proven branch of production.",
+  "scripts/verify-platform-onboarding.ts":
+    "READS basePrice and publishedPriceApprovedAt, and writes neither: after a " +
+    "mixed founder launch of two quote-only services on a THROWAWAY contractor " +
+    "it counts rows carrying either value and asserts the count is ZERO — the " +
+    "proof that launching invented no price. The contractor is created and " +
+    "destroyed inside the run; no real contractor's price is read or written.",
   "scripts/verify-pricing-boundary.ts":
     "ATTEMPTS to break the price/approval pair — clearing the approval from a " +
     "priced service, and clearing the price from an approved one — and proves " +

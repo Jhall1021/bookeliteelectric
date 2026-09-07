@@ -15,14 +15,16 @@ export const dynamic = "force-dynamic";
  * quietly redirected to their dashboard, because "this is not yours" is the
  * true answer and a redirect would hide it.
  *
- * Signed-out goes to sign-in, as the portal does. Everything under this shell
- * is READ-ONLY in Phase 2: four views over lib/platformReadModel — overview,
- * directory, control center, attention — and nothing that writes.
+ * Signed-out goes to sign-in, as the portal does. Four views under this shell
+ * read through lib/platformReadModel — overview, directory, control center,
+ * attention. Onboarding is the one surface that changes anything, and it does
+ * so only through lib/platformOnboarding's reviewed commands.
  */
 const NAV = [
   { href: "/platform", label: "Overview" },
   { href: "/platform/contractors", label: "Contractors" },
   { href: "/platform/attention", label: "Attention needed" },
+  { href: "/platform/onboarding", label: "Onboarding" },
 ] as const;
 
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
@@ -48,7 +50,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
             </nav>
           </div>
           <span className="text-white/80">
-            {actor.email} · {actor.role} · read-only
+            {actor.email} · {actor.role}
           </span>
         </div>
       </header>

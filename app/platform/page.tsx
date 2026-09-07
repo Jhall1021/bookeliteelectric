@@ -18,12 +18,15 @@ export default async function PlatformOverviewPage() {
   const summary = attentionSummary(o.attention, o.unreadable);
   return (
     <div>
-      <header>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
         <h1 className="font-display text-2xl font-bold text-navy">Platform overview</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate">
           {o.contractors.total} contractor{o.contractors.total === 1 ? "" : "s"} on the platform. Every figure below is read one
           contractor at a time, through the same boundary their own dashboards use.
         </p>
+        </div>
+        <Link href="/platform/onboarding" className="rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:bg-electric/90">Onboard a contractor</Link>
       </header>
 
       <dl className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -68,7 +71,7 @@ export default async function PlatformOverviewPage() {
       </section>
 
       <p className="mt-10 text-xs text-slate">
-        Signed in as {o.actor.email}, {o.actor.role}. This surface reads; it does not change anything.
+        Signed in as {o.actor.email}, {o.actor.role}. This page reads; changes happen only through Onboarding&rsquo;s reviewed commands.
       </p>
     </div>
   );

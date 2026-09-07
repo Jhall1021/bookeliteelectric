@@ -22,7 +22,7 @@
  *      request-supplied contractor id in exactly one file.
  */
 import { PrismaClient, type PlatformRole } from "@prisma/client";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, realpathSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, realpathSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,11 +46,19 @@ import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard"
  * imports and runtime re-exports are refused, dynamic import() and require()
  * are refused, and type-only edges are exempt because they cannot run.
  */
+const ONBOARDING_ACTIONS = ["startContractorAction", "attachOwnerAction", "enrolTradeAction", "installTemplateAction", "launchAction"];
 const SURFACE_POLICY: Policy = {
   "next/link": ["default"],
   "next/navigation": ["redirect", "notFound"],
+  "next/cache": ["revalidatePath"],
   "@/lib/platformContext": ["NotAuthenticatedError", "NotPlatformStaffError", "PlatformContractorNotFoundError", "resolvePlatformActor", "withPlatformRoute"],
   "@/lib/platformReadModel": ["platformOverview", "platformContractor", "attentionFor", "attentionSummary", "STUCK_AFTER_DAYS"],
+  // The founder onboarding wizard: request-bound commands and reads from the
+  // ONE platform module that may write, plus its notice formatter. The
+  // commands are policed by scripts/verify-platform-onboarding.ts.
+  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "platformBeginContractor", "platformAttachOwner", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
+  "./actions": ONBOARDING_ACTIONS,
+  "../actions": ONBOARDING_ACTIONS,
   "@/components/platform/ContractorTable": ["ContractorTable"],
 };
 const READ_MODEL_POLICY: Policy = {
@@ -396,20 +404,49 @@ async function main() {
   ok(`   tenant facts are read only inside withPlatformContractorFor`, /withPlatformContractorFor\(db, user, contractorId, async \(guarded/.test(rm));
   ok(`   readiness is assessOnboarding's, payments connectReadiness's — no second engine`, /assessOnboarding\(guarded/.test(rm) && /connectReadiness\(/.test(rm) && !/canLaunch:\s*(true|false|!?[\w.]*blockers)/.test(rm) && !/stripeCardPaymentsStatus\s*[!=]==/.test(rm));
   ok(`   the read model never reads PlatformAccess or a membership to decide anything`, !/platformAccess/.test(rm) && !/\.email\s*[!=]==?/.test(rm));
-  // Request access, by binding: only the Control Center may read anything from the request, and only `params`.
+  // Request access, by binding. Three pages may read from the request, each
+  // in an enumerated way: the Control Center and the onboarding page read
+  // `params` (sole use: params.contractorId as the direct argument of ONE
+  // boundary call); the two onboarding pages read `searchParams`, and only its
+  // `notice` member, only into noticeText. Server actions read their FormData
+  // argument's fields in place and are not request readers under this rule —
+  // passing the argument onward would be, and is refused.
   const CC = "app/platform/contractors/[contractorId]/page.tsx";
+  const WIZARD = "app/platform/onboarding/[contractorId]/page.tsx";
+  const WIZARD_INDEX = "app/platform/onboarding/page.tsx";
+  const REQUEST_DOORS: Record<string, { params?: string; searchParams?: true }> = {
+    [CC]: { params: "platformContractor" },
+    [WIZARD]: { params: "platformOnboardingContractor", searchParams: true },
+    [WIZARD_INDEX]: { searchParams: true },
+  };
   const access = surfaces.map((f) => ({ f, a: requestAccess(readFileSync(f, "utf8"), f) }));
-  const strays = access.filter(({ f, a }) => f !== CC && a.length > 0).map(({ f, a }) => `${f}: ${a.map((x) => `${x.kind}@${x.line}`).join(",")}`);
-  ok(`   no platform surface but the Control Center reads anything from the request`, strays.length === 0, strays.join("; "));
+  const strays = access.filter(({ f, a }) => !(f in REQUEST_DOORS) && a.length > 0).map(({ f, a }) => `${f}: ${a.map((x) => `${x.kind}@${x.line}`).join(",")}`);
+  ok(`   no platform surface but the three enumerated pages reads anything from the request`, strays.length === 0, strays.join("; "));
+  for (const [file, door] of Object.entries(REQUEST_DOORS)) {
+    if (!existsSync(file)) { ok(`   ${file} exists`, false); continue; }
+    const src = readFileSync(file, "utf8");
+    const a = requestAccess(src, file);
+    const kinds = new Set(a.map((x) => x.kind));
+    const allowed = new Set<string>([...(door.params ? ["params-prop"] : []), ...(door.searchParams ? ["searchParams-prop"] : [])]);
+    ok(`   ${file} reads only what it is allowed to (${[...allowed].join(", ")})`, [...kinds].every((k) => allowed.has(k)) && a.length >= 1, [...kinds].join(","));
+    if (door.params) {
+      const u = paramsUses(src, door.params, file);
+      ok(`   its SOLE use of params is params.contractorId as the direct argument of the one ${door.params}() call`,
+        u.local === "params" && u.boundaryCalls === 1 && u.uses.length === 1 && u.uses[0].kind === "boundary-arg" && u.uses[0].text === "params.contractorId",
+        `local=${u.local} boundaryCalls=${u.boundaryCalls} uses=${u.uses.map((x) => `${x.kind}:${x.text}@${x.line}`).join(" | ")}`);
+    }
+    if (door.searchParams) {
+      const uses = usesOf(src, "searchParams", file);
+      ok(`   its only use of searchParams is the \`notice\` member, handed to noticeText`, uses.length >= 1 && uses.every((x) => x.kind === "member" && x.member === "notice"), uses.map((x) => `${x.kind}:${"member" in x ? x.member : ""}@${x.line}`).join(" | "));
+      const noticeLines = src.split("\n").filter((l) => /searchParams\??\.notice/.test(l));
+      ok(`   and notice reaches only noticeText`, callsTo(src, "noticeText").length >= 1 && noticeLines.length >= 1 && noticeLines.every((l) => /noticeText\(\s*searchParams\??\.notice\s*\)/.test(l)), noticeLines.join(" | "));
+    }
+  }
   const ccAccess = access.find(({ f }) => f === CC)?.a ?? [];
-  const ccUse = paramsUses(readFileSync(CC, "utf8"), "platformContractor", CC);
-  ok(`   the Control Center reads only \`params\`, and its SOLE use of params is the direct argument of the one platformContractor() call`,
-    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccUse.local === "params" && ccUse.boundaryCalls === 1
-      && ccUse.uses.length === 1 && ccUse.uses[0].kind === "boundary-arg" && ccUse.uses[0].text === "params.contractorId",
-    `local=${ccUse.local} boundaryCalls=${ccUse.boundaryCalls} uses=${ccUse.uses.map((u) => `${u.kind}:${u.text}@${u.line}`).join(" | ")}`);
+  ok(`   the Control Center reads only \`params\``, ccAccess.length === 1 && ccAccess[0].kind === "params-prop");
   ok(`   it 404s an unknown contractor and shows a "read-only" mark`, /PlatformContractorNotFoundError/.test(cc) && /notFound\(\)/.test(cc) && /read-only/.test(cc));
   const layout = strip("app/platform/layout.tsx");
-  ok(`   the shell links the three views and still gates on the actor`, /\/platform\/contractors/.test(layout) && /\/platform\/attention/.test(layout) && /resolvePlatformActor\(\)/.test(layout));
+  ok(`   the shell links the views and still gates on the actor`, /\/platform\/contractors/.test(layout) && /\/platform\/attention/.test(layout) && /\/platform\/onboarding/.test(layout) && /resolvePlatformActor\(\)/.test(layout));
   ok(`   no lifecycle, status or billing is invented anywhere`, [rm, ...surfaces.map(strip)].every((s) => !/TRIAL|PAST_DUE|SUSPENDED|CANCELED|lifecycle:|stripeCustomerId|subscription/.test(s)));
   ok(`   "embed installed" is never claimed`, !/installed/.test(rm) && surfaces.every((f) => !/embed (is )?installed|installed the embed/i.test(strip(f))));
   ok(`   token age is never read as disconnection`, /connected: jobber !== null,/.test(rm) && !/connected:\s*[^,\n]*expiresAt/.test(rm) && !/CALENDAR_DISCONNECTED[^\n]*expires/.test(rm));
