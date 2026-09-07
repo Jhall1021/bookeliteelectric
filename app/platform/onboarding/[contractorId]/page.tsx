@@ -99,16 +99,16 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
                   </li>
                 ))}
               </ul>
-              <h3 className="mt-4 text-xs uppercase tracking-wide text-slate">Where the work happens</h3>
+              <h3 className="mt-4 text-xs uppercase tracking-wide text-slate">Owner-session work</h3>
               <ul className="mt-2 space-y-1 text-sm">
-                {s.links.map((l) => (
-                  <li key={l.href} className="flex items-center justify-between gap-3">
-                    <a href={l.href} className="text-electric hover:underline">{l.label}</a>
-                    <span className="text-xs text-slate">{l.done ? "ready" : "open"}</span>
+                {s.ownerWork.map((w) => (
+                  <li key={w.path} className="flex items-center justify-between gap-3">
+                    <span className="text-navy">{w.label} <span className="text-xs text-slate">· <code>{w.path}</code> in the owner&rsquo;s dashboard</span></span>
+                    <span className="text-xs text-slate">{w.done ? "ready" : "open"}</span>
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-xs text-slate">These open the contractor&rsquo;s own dashboard and need an owner&rsquo;s session there; staff entry into a contractor&rsquo;s dashboard is not built.</p>
+              <p className="mt-2 text-xs text-slate">Not linked on purpose: the dashboard resolves its contractor from the signed-in owner&rsquo;s own session, not from this page, so a link from here could open a different business. The owner does this work signed in as themselves; audited staff entry is not built.</p>
             </div>
             <div>
               <h3 className="text-xs uppercase tracking-wide text-slate">What still blocks launch, and why</h3>
@@ -120,7 +120,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
                     <li key={`${b.code}-${i}`} className="rounded-card border border-red-100 bg-red-50 p-2">
                       <span className="font-medium text-red-800">{b.code.replaceAll("_", " ").toLowerCase()}</span>
                       <span className="text-navy"> — {b.message}{b.serviceSlug ? <span className="text-slate"> ({b.serviceSlug})</span> : null}</span>
-                      {b.href ? <a href={b.href} className="ml-2 text-xs text-electric hover:underline">where</a> : null}
+                      {b.href ? <span className="ml-2 text-xs text-slate">owner&rsquo;s dashboard: <code>{b.href}</code></span> : null}
                     </li>
                   ))}
                 </ul>
@@ -133,11 +133,26 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
           {s.progress === "ready" && (
             <form action={launchAction} className="mt-3 flex flex-wrap items-center gap-3">
               <input type="hidden" name="contractorId" value={id} />
-              <label className="flex items-center gap-2 text-sm text-navy"><input type="checkbox" name="confirm" value="yes" required /> I confirm: put every offered service live that its own activation guard allows.</label>
-              <button type="submit" className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90">Launch</button>
+              <label className="flex items-center gap-2 text-sm text-navy"><input type="checkbox" name="confirm" value="yes" required /> I confirm: put every offered service live that its own activation guard allows{s.launch.live > 0 ? " (services already live are left as they are)" : ""}.</label>
+              <button type="submit" className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-white hover:bg-navy/90">{s.launch.live > 0 ? `Retry launch (${s.launch.pending} not yet live)` : "Launch"}</button>
             </form>
           )}
-          {s.progress === "launched" && <p className="mt-2 text-sm text-slate">Live. Anything still refused by its guard shows in the Control Center&rsquo;s findings.</p>}
+          {(s.launch.live > 0 || s.progress === "ready" || s.progress === "launched") && s.launch.offered.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-xs uppercase tracking-wide text-slate">Launch outcomes · {s.launch.live} live · {s.launch.pending} not live</h3>
+              <p className="mt-1 text-xs text-slate">Read fresh from each service&rsquo;s own activation guard, so this stays true after a reload.</p>
+              <ul className="mt-2 space-y-1 text-sm">
+                {s.launch.offered.map((o) => (
+                  <li key={o.serviceId} className="flex items-start justify-between gap-3">
+                    <span className="text-navy">{o.name} <span className="text-xs text-slate">({o.slug})</span></span>
+                    {o.live ? <span className="shrink-0 rounded-pill bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800">live</span>
+                      : <span className="shrink-0 text-right text-xs"><span className="rounded-pill bg-red-50 px-2 py-0.5 text-red-700">{o.refusal ? o.refusal.code.replaceAll("_", " ").toLowerCase() : "not live"}</span>{o.refusal ? <span className="mt-1 block max-w-md text-slate">{o.refusal.message}</span> : null}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {s.progress === "launched" && <p className="mt-2 text-sm text-slate">Live: every offered service passed its guard.</p>}
         </Step>
       </ol>
 

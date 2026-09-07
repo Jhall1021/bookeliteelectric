@@ -42,6 +42,9 @@ import {
   beginContractorFor, attachOwnerFor, enrolTradeFor, installTradeTemplateFor, launchContractorFor, noticeText,
 } from "../lib/platformOnboarding";
 import { availableTrades } from "../lib/templateProvisioning";
+import { activateService } from "../lib/serviceActivation";
+import { validateIdentity, slugify, SLUG_INPUT_PATTERN, SLUG_MAX } from "../lib/contractorCreation";
+import { hostedSlugProblem } from "../lib/siteRouting";
 
 const raw = new PrismaClient();
 const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
@@ -90,11 +93,11 @@ const ONBOARDING_POLICY: Policy = {
   "./adminContext": ["currentUser"],
   "./platformContext": ["withPlatformFor", "withPlatformContractorFor"],
   "./platformReadModel": ["contractorFactsFor", "listContractors", "mapWithConcurrency"],
-  "./contractorCreation": ["validateIdentity", "slugTaken", "createContractorRecord", "isUniqueViolation"],
+  "./contractorCreation": ["validateIdentity", "slugTaken", "createContractorRecord", "isUniqueViolation", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
   "./tradeEnrolment": ["setTradeEnrolment"],
   "./templateProvisioning": ["availableTrades", "templateVersionSource", "preflight", "installCatalog"],
   "./onboardingReadiness": ["assessOnboarding"],
-  "./serviceActivation": ["activateService"],
+  "./serviceActivation": ["activateService", "activationRefusal"],
 };
 const DOORS = new Set(["withPlatformFor", "withPlatformContractorFor"]);
 
@@ -121,6 +124,30 @@ function writesOutsideDoors(source: string): string[] {
   };
   visit(sf); return out;
 }
+
+/** Every `href` a TSX file renders, with what kind of expression it is: a literal/template's leading text, or "<dynamic>" for anything else. */
+function hrefsIn(file: string): { text: string; line: number }[] {
+  const src = readFileSync(file, "utf8");
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const out: { text: string; line: number }[] = [];
+  const at = (n: ts.Node) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+  const visit = (n: ts.Node) => {
+    if (ts.isJsxAttribute(n) && ts.isIdentifier(n.name) && n.name.text === "href" && n.initializer) {
+      const init = n.initializer;
+      if (ts.isStringLiteral(init)) out.push({ text: init.text, line: at(n) });
+      else if (ts.isJsxExpression(init) && init.expression) {
+        const e = init.expression;
+        if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) out.push({ text: e.text, line: at(n) });
+        else if (ts.isTemplateExpression(e)) out.push({ text: e.head.text, line: at(n) });
+        else out.push({ text: "<dynamic>", line: at(n) });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf); return out;
+}
+
+function outcomeOfRetry(r: Awaited<ReturnType<typeof launchContractorFor>>, id: string) { return "outcomes" in r ? r.outcomes.find((o) => o.serviceId === id)?.outcome : undefined; }
 
 /** The body text of one top-level exported function declaration. */
 function fnBody(source: string, name: string): string {
@@ -221,7 +248,7 @@ async function main() {
     const s3 = await onboardingStatusFor(db, staff, probeId);
     ok(`   the wizard sees the probe's catalog and nothing of the foreign tenant's ${foreignServicesBefore}`, s3.facts.catalog.total === installed && s3.facts.catalog.live === 0);
     ok(`   progress re-derives as blocked: the founder's steps are done, the owner's work remains, and the engine names it`, s3.progress === "blocked" && s3.steps[3].status === "done" && s3.steps[4].status === "blocked" && s3.remaining.length > 0 && s3.remaining.every((b) => b.severity === "blocker"));
-    ok(`   the checklist links are the existing screens, never editors of this wizard's own`, s3.links.every((l) => l.href.startsWith("/dashboard/")) && s3.links.length >= 5);
+    ok(`   the owner's work is described by dashboard PATH, and the status carries no href for a page to render`, s3.ownerWork.every((w) => w.path.startsWith("/dashboard/") && !("href" in w)) && s3.ownerWork.length >= 5);
 
     // ── 6. launch is governed by the guards ─────────────────────────────
     const l1 = await launchContractorFor(db, staff, probeId);
@@ -229,17 +256,61 @@ async function main() {
     ok(`   and activated nothing`, (await raw.service.count({ where: { contractorId: probeId, active: true } })) === 0);
     ok(`   the foreign tenant's services are untouched in count and activation`, (await raw.service.count({ where: { contractorId: foreign.id } })) === foreignServicesBefore && (await raw.service.count({ where: { contractorId: foreign.id, active: true } })) === foreignActiveBefore);
 
+    // ── 6b. a MIXED launch, through the real guards ─────────────────────
+    //
+    // The owner's work, done on the fixture the way an owner would do it in
+    // their dashboard: country, scheduling authority and capacity, a service
+    // area, pricing settings, Stripe readiness facts. Two quote-only services
+    // are offered — they owe no price — with their material and policy keys
+    // resolved, so the readiness engine passes. Then, between the readiness
+    // check and service B's activation, B's owner "un-decides" a policy: the
+    // seam runs that state change and calls the REAL activateService, which
+    // refuses B for real. A is live, B is not: one launch, two outcomes.
+    const quoteOnly = await raw.service.findMany({ where: { contractorId: probeId, bookingType: "REMOTE_QUOTE", requiresPreWorkVisit: false }, select: { id: true, slug: true }, orderBy: { name: "asc" }, take: 2 });
+    ok(`6b. the catalog has two quote-only services to launch (${quoteOnly.map((q) => q.slug).join(", ")})`, quoteOnly.length === 2);
+    const [A, B] = quoteOnly;
+    await raw.contractor.update({ where: { id: probeId }, data: { countryCode: "US", schedulingAuthority: "NATIVE", nativeConcurrentJobs: 2, stripeAccountId: `acct_probe_${RUN}`, stripeMerchantConfigured: true, stripeCardPaymentsStatus: "active", stripeOnboardingBlocked: false, stripeReadinessCheckedAt: new Date() } });
+    await raw.pricingSettings.create({ data: { contractorId: probeId, crewHourRateCents: 15000, primaryMinimumCents: 9900, roundingIncrementCents: 500, defaultPermitAdminCents: 0 } });
+    await raw.serviceArea.create({ data: { contractorId: probeId, name: "Probe county", zipCodes: ["30301"], active: true } });
+    await raw.service.updateMany({ where: { id: { in: [A.id, B.id] } }, data: { offered: true, materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [], depositCents: 0 } });
+    const sReady = await onboardingStatusFor(db, staff, probeId);
+    ok(`   with the owner's work done the readiness engine passes and progress derives as READY (not launched: nothing is live)`, sReady.facts.readiness.canLaunch && sReady.progress === "ready" && sReady.launch.live === 0 && sReady.launch.pending === 2, sReady.remaining.map((b) => b.code).join(",") || "no blockers");
+    ok(`   and each pending service's guard verdict is visible before launch: both allowed`, sReady.launch.offered.every((o) => !o.live && o.refusal === null));
+    const interposed: typeof activateService = async (g, cid, sid) => {
+      if (sid === B.id) await raw.service.update({ where: { id: B.id }, data: { unresolvedPolicyKeys: ["probe.undecided.policy"] } });
+      return activateService(g, cid, sid);
+    };
+    const mixed = await launchContractorFor(db, staff, probeId, { activate: interposed });
+    const outcomeOf = (id: string) => ("outcomes" in mixed ? mixed.outcomes.find((o) => o.serviceId === id) : undefined);
+    ok(`   the launch reports ONE activated and ONE refused — by the real guard, with its code`, "activated" in mixed && !mixed.ok && mixed.activated === 1 && mixed.refused === 1 && mixed.failed === 0 && outcomeOf(A.id)?.outcome === "activated" && outcomeOf(B.id)?.outcome === "refused" && outcomeOf(B.id)?.code === "POLICY_UNRESOLVED", JSON.stringify(mixed).slice(0, 300));
+    ok(`   and the rows agree: A live, B not`, (await raw.service.findUniqueOrThrow({ where: { id: A.id }, select: { active: true } })).active && !(await raw.service.findUniqueOrThrow({ where: { id: B.id }, select: { active: true } })).active);
+    const sMixed = await onboardingStatusFor(db, staff, probeId);
+    ok(`   after the redirect the outcomes are still visible, derived: A live, B not live with the guard's current refusal`, sMixed.launch.live === 1 && sMixed.launch.pending === 1 && sMixed.launch.offered.find((o) => o.serviceId === A.id)?.live === true && sMixed.launch.offered.find((o) => o.serviceId === B.id)?.refusal?.code === "POLICY_UNRESOLVED");
+    ok(`   progress is NOT "launched" while an offered service is pending — it is blocked, because the engine now names B's policy`, sMixed.progress === "blocked" && !sMixed.facts.readiness.canLaunch && sMixed.remaining.some((b) => b.code === "POLICY_UNRESOLVED"));
+    ok(`   a retry while blocked is refused by the readiness gate and changes nothing`, (() => true)() && (await launchContractorFor(db, staff, probeId)).ok === false && (await raw.service.count({ where: { contractorId: probeId, active: true } })) === 1);
+    // the owner decides the policy; the wizard re-derives; the founder retries through the same guard
+    await raw.service.update({ where: { id: B.id }, data: { unresolvedPolicyKeys: [] } });
+    const sRetry = await onboardingStatusFor(db, staff, probeId);
+    ok(`   once the blocker is cleared, progress derives as READY again with the retry path open (1 live, 1 pending)`, sRetry.progress === "ready" && sRetry.launch.live === 1 && sRetry.launch.pending === 1 && sRetry.steps[5].status === "todo");
+    const retry = await launchContractorFor(db, staff, probeId);
+    ok(`   the retry activates B through activateService and reports A as already live`, "activated" in retry && retry.ok && retry.activated === 1 && outcomeOfRetry(retry, A.id) === "already-live" && outcomeOfRetry(retry, B.id) === "activated");
+    const sDone = await onboardingStatusFor(db, staff, probeId);
+    ok(`   and only now is progress "launched": every offered service live, none pending`, sDone.progress === "launched" && sDone.launch.live === 2 && sDone.launch.pending === 0 && sDone.steps[5].status === "done");
+    ok(`   nothing beyond the two offered services went live, and no price was invented`, (await raw.service.count({ where: { contractorId: probeId, active: true } })) === 2 && (await raw.service.count({ where: { id: { in: [A.id, B.id] }, OR: [{ basePrice: { not: null } }, { publishedPriceApprovedAt: { not: null } }] } })) === 0);
+
     // ── 7. the index derives every row, isolating failures ──────────────
     const idx = await onboardingIndexFor(db, staff);
     const mine = idx.rows.find((r) => r.id === probeId);
-    ok(`7. the index lists the probe with its derived progress`, !!mine && mine.readable && mine.progress === "blocked" && mine.owners.includes(owner.email));
+    ok(`7. the index lists the probe with its derived progress (launched, after 6b) and its owner`, !!mine && mine.readable && mine.progress === "launched" && mine.live === 2 && mine.owners.includes(owner.email));
     ok(`   and the progress rule itself, on synthetic facts`,
       onboardingProgress({ catalog: { total: 0, live: 0 }, readiness: { canLaunch: false }, trades: [] }, 0) === "not-started"
       && onboardingProgress({ catalog: { total: 0, live: 0 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 0) === "in-progress"
       && onboardingProgress({ catalog: { total: 5, live: 0 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1) === "blocked"
       && onboardingProgress({ catalog: { total: 5, live: 0 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 1) === "ready"
-      && onboardingProgress({ catalog: { total: 5, live: 2 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1) === "launched"
-      && onboardingProgress({ catalog: { total: 5, live: 0 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 0) === "in-progress");
+      && onboardingProgress({ catalog: { total: 5, live: 2 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1, 0) === "launched"
+      && onboardingProgress({ catalog: { total: 5, live: 0 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 0) === "in-progress"
+      && onboardingProgress({ catalog: { total: 5, live: 1 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 1, 1) === "ready"
+      && onboardingProgress({ catalog: { total: 5, live: 1 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1, 1) === "blocked");
     ok(`   notices voice only known codes and refusal-shaped codes, never free text`, noticeText("CREATED")?.tone === "ok" && noticeText("SLUG_TAKEN")?.tone === "warn" && noticeText("<script>") === null && noticeText(42) === null && noticeText("a".repeat(60)) === null);
   } finally {
     await teardown();
@@ -264,8 +335,11 @@ async function main() {
   const install = fnBody(src, "installOnce") + fnBody(src, "installTradeTemplateFor");
   ok(`   installation runs preflight and installCatalog, and never touches activation`, /templateVersionSource\(/.test(install) && /preflight\(/.test(install) && /installCatalog\(db, contractor\.id, pre\.catalog\)/.test(install) && !/activateService|data:\s*\{[^}]*active|\.update\(/.test(install));
   const launch = fnBody(src, "launchContractorFor");
-  ok(`   launch asks assessOnboarding first and refuses on blockers before any activation`, /assessOnboarding\(guarded, contractor\.id\)/.test(launch) && launch.indexOf("canLaunch") < launch.indexOf("activateService") && /NOT_READY/.test(launch));
-  ok(`   and activates only through activateService, never by writing active`, callsTo(src, "activateService").length === 1 && !/\.update\(|data:\s*\{[^}]*active/.test(launch) && !/service\.update/.test(mod));
+  ok(`   launch asks assessOnboarding first and refuses on blockers before any activation`, /assessOnboarding\(guarded, contractor\.id\)/.test(launch) && launch.indexOf("canLaunch") < launch.indexOf("activate(") && /NOT_READY/.test(launch));
+  ok(`   and activates only through activateService, never by writing active`, callsTo(src, "activate").length === 1 && /const activate = opts\.activate \?\? activateService;/.test(src) && !/\.update\(|data:\s*\{[^}]*active/.test(launch) && !/service\.update/.test(mod));
+  ok(`   the activation seam defaults to the genuine import, the readiness gate is not injectable, and the request-bound form passes nothing`,
+    /opts: \{ activate\?: Activate \} = \{\}/.test(src) && !/opts\.(assess|readiness|canLaunch)/.test(src) && /launchContractorFor\(prisma, await currentUser\(\), contractorId\);/.test(src) && !/launchContractorFor/.test(readFileSync("app/platform/onboarding/actions.ts", "utf8")));
+  ok(`   launch state is read from activationRefusal — the guard's verdict, never a stored copy`, /activationRefusal\(guarded, contractorId, s\.id\)/.test(fnBody(src, "launchStateFor")) && !/launchedAt|launchOutcome|lastLaunch/.test(mod) && !/launchedAt|launchOutcome|lastLaunch/.test(strip("prisma/schema.prisma")));
   ok(`   there is one readiness engine: the module never computes canLaunch or a blocker of its own`, !/canLaunch:\s*(true|false|!?[\w.]*blockers)/.test(mod) && !/severity:\s*"blocker"/.test(mod) && /assessOnboarding\(/.test(mod) && /contractorFactsFor\(db, user, contractorId\)/.test(mod));
   ok(`   completedAt is never stamped — finishing is derived, not declared`, !/completedAt:/.test(mod));
   const surfaces = sourceFiles(["app/platform/onboarding"]);
@@ -277,6 +351,36 @@ async function main() {
   ok(`   the actions never pass their FormData onward — fields are read in place`, requestAccess(actions, "app/platform/onboarding/actions.ts").length === 0 && usesOf(actions, "formData", "app/platform/onboarding/actions.ts").every((u) => u.kind === "member" && u.member === "get"));
   ok(`   every redirect carries the id the COMMAND returned, or the form's id only back to the same page`, /backTo\(r\.contractorId/.test(actions) && !/redirect\(`\/platform\/onboarding\/\$\{field/.test(actions));
   ok(`   launch demands an explicit confirmation`, /confirm"\)+ !== "yes"/.test(actions) && /CONFIRMATION_REQUIRED/.test(actions));
+  // ── 10. the wizard never navigates the operator into an unscoped dashboard ──
+  //
+  // /dashboard/* resolves its contractor from the signed-in user's membership
+  // and cookie, not from the page that linked it. A founder who owns a
+  // business, clicking from another contractor's wizard, would land in their
+  // OWN business's editors. So every href the wizard renders must be a literal
+  // or template that starts under /platform; a dynamic href, or anything
+  // under /dashboard, is refused — by syntax tree, for every onboarding page.
+  const pages = sourceFiles(["app/platform/onboarding"]).filter((f) => f.endsWith(".tsx"));
+  const hrefs = pages.flatMap((f) => hrefsIn(f).map((h) => ({ f, ...h })));
+  const badHrefs = hrefs.filter((h) => !h.text.startsWith("/platform/"));
+  ok(`10. every href the wizard renders is a literal under /platform — none dynamic, none to /dashboard (${hrefs.length} hrefs checked)`, hrefs.length >= 4 && badHrefs.length === 0, badHrefs.map((h) => `${h.f}:${h.line} ${h.text}`).join("; "));
+  ok(`   the readiness findings' own dashboard hrefs are shown as text, never rendered as links`, /owner&rsquo;s dashboard: <code>\{b\.href\}<\/code>/.test(readFileSync("app/platform/onboarding/[contractorId]/page.tsx", "utf8")) && !/href=\{b\.href\}|href=\{w\.path\}|href=\{l\.href\}/.test(readFileSync("app/platform/onboarding/[contractorId]/page.tsx", "utf8")));
+  ok(`   mutant: a dynamic href would be caught`, (() => { const probe = "mutant.tsx"; const src = 'export default function P({ s }: { s: { href: string } }) { return <a href={s.href}>x</a>; }'; const sf = ts.createSourceFile(probe, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); let dyn = 0; const v = (n: ts.Node) => { if (ts.isJsxAttribute(n) && ts.isIdentifier(n.name) && n.name.text === "href" && n.initializer && ts.isJsxExpression(n.initializer) && n.initializer.expression && !ts.isStringLiteral(n.initializer.expression)) dyn++; ts.forEachChild(n, v); }; v(sf); return dyn === 1; })());
+
+  // ── 11. one slug authority ─────────────────────────────────────────────
+  const slugOf = (input: { name: string; slug?: string }) => { const r = validateIdentity(input); return r.ok ? r.slug : `refused:${r.refusal.code}`; };
+  ok(`11. an ordinary address is accepted`, slugOf({ name: "Northside Electric", slug: "northside-electric" }) === "northside-electric");
+  ok(`   the platform's reserved words are refused by creation exactly as routing refuses them`, ["api", "dashboard", "onboarding", "sign-in", "www"].every((w) => slugOf({ name: "X", slug: w }) === "refused:SLUG_INVALID" && hostedSlugProblem(w) !== null));
+  ok(`   consecutive hyphens are refused`, slugOf({ name: "X", slug: "north--side" }) === "refused:SLUG_INVALID" && hostedSlugProblem("north--side") !== null);
+  ok(`   boundaries: leading or trailing hyphen, two characters, and 49 characters are refused; 3 and 48 are accepted`,
+    slugOf({ name: "X", slug: "-abc" }) === "refused:SLUG_INVALID" && slugOf({ name: "X", slug: "abc-" }) === "refused:SLUG_INVALID" && slugOf({ name: "X", slug: "ab" }) === "refused:SLUG_INVALID"
+    && slugOf({ name: "X", slug: "a".repeat(SLUG_MAX + 1) }) === "refused:SLUG_INVALID" && slugOf({ name: "X", slug: "abc" }) === "abc" && slugOf({ name: "X", slug: "a".repeat(SLUG_MAX) }) === "a".repeat(SLUG_MAX));
+  ok(`   a generated address obeys the same rule: "Dashboard" is refused, a long name never ends on a hyphen, an ordinary name slugifies cleanly`,
+    slugOf({ name: "Dashboard" }) === "refused:SLUG_INVALID" && slugify("Dashboard") === "dashboard"
+    && !/-$/.test(slugify("North Side Electric And Lighting Contractors Of Greater X")) && slugify("North Side Electric And Lighting Contractors Of Greater X").length <= SLUG_MAX
+    && slugOf({ name: "North Side Electric!" }) === "north-side-electric" && slugOf({ name: "O'Brien & Sons" }) === "obrien-sons");
+  ok(`   creation's rule IS hostedSlugProblem plus a shorter ceiling — no second reserved list`, /hostedSlugProblem\(slug\)/.test(strip("lib/contractorCreation.ts")) && !/RESERVED|reserved = \[|new Set\(\[/.test(strip("lib/contractorCreation.ts").replace(/hostedSlugProblem/g, "")) && !/SLUG_SHAPE/.test(strip("lib/contractorCreation.ts")));
+  ok(`   the create form's HTML pattern is the shared constant and agrees with the server on shape`, /pattern=\{SLUG_INPUT_PATTERN\}/.test(readFileSync("app/platform/onboarding/page.tsx", "utf8")) && (() => { const re = new RegExp(`^(?:${SLUG_INPUT_PATTERN})$`); return re.test("northside-electric") && re.test("abc") && !re.test("north--side") && !re.test("-abc") && !re.test("abc-") && !re.test("ab") && !re.test("a".repeat(SLUG_MAX + 1)) && re.test("a".repeat(SLUG_MAX)); })());
+
   const chain = (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts.verify;
   ok(`   this verifier runs in the deploy gate, after the read model's`, chain.indexOf("verify-platform-read-model.ts") < chain.indexOf("verify-platform-onboarding.ts"));
 

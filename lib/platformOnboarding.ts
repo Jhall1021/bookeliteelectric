@@ -37,11 +37,12 @@ import {
   type SignedInUser, type PlatformActor, type PlatformContractor,
 } from "./platformContext";
 import { contractorFactsFor, listContractors, mapWithConcurrency, type ContractorFacts } from "./platformReadModel";
-import { validateIdentity, slugTaken, createContractorRecord, isUniqueViolation, type CreationRefusal } from "./contractorCreation";
+import { validateIdentity, slugTaken, createContractorRecord, isUniqueViolation, SLUG_INPUT_PATTERN, SLUG_MAX } from "./contractorCreation";
+export { SLUG_INPUT_PATTERN, SLUG_MAX };
 import { setTradeEnrolment } from "./tradeEnrolment";
 import { availableTrades, templateVersionSource, preflight, installCatalog } from "./templateProvisioning";
 import { assessOnboarding, type Finding, type Stage } from "./onboardingReadiness";
-import { activateService, type ActivationRefusal } from "./serviceActivation";
+import { activateService, activationRefusal, type ActivationRefusal } from "./serviceActivation";
 
 // ── progress, derived ──────────────────────────────────────────────────────
 
@@ -58,9 +59,11 @@ export type OnboardingProgress = "not-started" | "in-progress" | "blocked" | "re
 
 export function onboardingProgress(
   f: { catalog: { total: number; live: number }; readiness: { canLaunch: boolean }; trades: string[] },
-  ownerCount: number
+  ownerCount: number,
+  /** Offered services that are NOT live. A launch that left some behind is not "launched"; it is ready to retry, or blocked. */
+  pendingOffered = 0
 ): OnboardingProgress {
-  if (f.catalog.live > 0) return "launched";
+  if (f.catalog.live > 0 && pendingOffered === 0) return "launched";
   const founderStepsDone = ownerCount > 0 && f.trades.length > 0 && f.catalog.total > 0;
   if (!founderStepsDone) {
     return ownerCount === 0 && f.trades.length === 0 && f.catalog.total === 0 ? "not-started" : "in-progress";
@@ -77,6 +80,18 @@ export type OnboardingStep = {
 
 export type OnboardingOwner = { email: string; emailVerified: boolean };
 
+/**
+ * One offered service's launch state, DERIVED on every read: live, or not
+ * live with the refusal the activation guard gives right now. This is how a
+ * partial launch stays visible after the redirect and after a reload — the
+ * page shows what the guard says today, not a stored copy of what it said.
+ */
+export type LaunchServiceState = {
+  serviceId: string; slug: string; name: string; live: boolean;
+  refusal: { code: ActivationRefusal["code"]; message: string; missingPrerequisites?: string[] } | null;
+};
+export type LaunchState = { offered: LaunchServiceState[]; live: number; pending: number };
+
 export type OnboardingStatus = {
   facts: ContractorFacts;
   owners: OnboardingOwner[];
@@ -85,26 +100,34 @@ export type OnboardingStatus = {
   /** What the readiness engine says still stops launch, with where to fix it. */
   remaining: Finding[];
   stages: Stage[];
-  /** The existing screens for the owner's work. Links, never editors of our own. */
-  links: { label: string; href: string; done: boolean }[];
+  /**
+   * The owner's work, as DESCRIPTIONS of where it happens — never as links.
+   * /dashboard/* resolves the contractor from the SIGNED-IN user's membership
+   * and contractor-choice cookie, not from this page, so a link from here would
+   * carry a founder who also owns a business into the wrong contractor's
+   * editors. Until an audited, contractor-bound staff entry exists, the wizard
+   * names the screen and says an owner session is needed.
+   */
+  ownerWork: { label: string; path: string; done: boolean }[];
   trades: string[];
+  launch: LaunchState;
 };
 
-/** The links a checklist offers. Each is an existing contractor screen; each opens in the CONTRACTOR'S dashboard and needs an owner session there. */
-function ownerWorkLinks(stages: Stage[]): OnboardingStatus["links"] {
+/** Where the owner's work happens, named for the owner to find in THEIR dashboard. Paths are text for the page to show, not hrefs. */
+function ownerWorkFor(stages: Stage[]): OnboardingStatus["ownerWork"] {
   const by = (k: string) => stages.find((s) => s.key === k);
   const ready = (k: string) => by(k)?.status === "ready";
   return [
-    { label: "Business profile & storefront", href: "/dashboard/setup", done: ready("business") },
-    { label: "Pricing settings", href: "/dashboard/pricing-settings", done: ready("pricing-foundation") },
-    { label: "Services & catalog", href: "/dashboard/services", done: ready("services") },
-    { label: "Service area", href: "/dashboard/service-area", done: ready("scheduling") },
-    { label: "Scheduling & calendar", href: "/dashboard/jobber", done: ready("scheduling") },
-    { label: "Payments (Stripe)", href: "/dashboard/payments", done: ready("payments") },
+    { label: "Business profile & storefront", path: "/dashboard/setup", done: ready("business") },
+    { label: "Pricing settings", path: "/dashboard/pricing-settings", done: ready("pricing-foundation") },
+    { label: "Services & catalog", path: "/dashboard/services", done: ready("services") },
+    { label: "Service area", path: "/dashboard/service-area", done: ready("scheduling") },
+    { label: "Scheduling & calendar", path: "/dashboard/jobber", done: ready("scheduling") },
+    { label: "Payments (Stripe)", path: "/dashboard/payments", done: ready("payments") },
   ];
 }
 
-function stepsFor(f: ContractorFacts, owners: OnboardingOwner[], progress: OnboardingProgress): OnboardingStep[] {
+function stepsFor(f: ContractorFacts, owners: OnboardingOwner[], progress: OnboardingProgress, launch: LaunchState): OnboardingStep[] {
   const site = f.site ? `price2book.com/${f.site.hostedSlug}` : "no live storefront";
   return [
     { key: "identity", title: "Identity", status: "done", detail: `${f.contractor.name} · ${f.contractor.slug} · ${site}` },
@@ -112,7 +135,10 @@ function stepsFor(f: ContractorFacts, owners: OnboardingOwner[], progress: Onboa
     { key: "trade", title: "Trade", status: f.trades.length ? "done" : "todo", detail: f.trades.length ? f.trades.join(", ") : "Not enrolled." },
     { key: "catalog", title: "Catalog", status: f.catalog.total > 0 ? "done" : f.trades.length ? "todo" : "blocked", detail: f.catalog.total > 0 ? `${f.catalog.total} service${f.catalog.total === 1 ? "" : "s"} · ${f.catalog.live} live` : f.trades.length ? "Install the trade's published catalog." : "Choose a trade first." },
     { key: "owner-work", title: "Owner's setup", status: f.readiness.canLaunch ? "done" : f.catalog.total > 0 ? "blocked" : "todo", detail: f.readiness.canLaunch ? "The launch check passes." : `${f.readiness.blockers.length} blocker${f.readiness.blockers.length === 1 ? "" : "s"} remain — the checklist below says what and where.` },
-    { key: "launch", title: "Launch", status: progress === "launched" ? "done" : progress === "ready" ? "todo" : "blocked", detail: progress === "launched" ? `${f.catalog.live} live service${f.catalog.live === 1 ? "" : "s"}` : progress === "ready" ? "Every offered service goes through the same activation guard." : "Not until the launch check passes." },
+    { key: "launch", title: "Launch", status: progress === "launched" ? "done" : progress === "ready" ? "todo" : "blocked",
+      detail: progress === "launched" ? `${launch.live} live service${launch.live === 1 ? "" : "s"}; every offered service is live.`
+        : launch.live > 0 ? `${launch.live} live · ${launch.pending} offered not yet live${progress === "ready" ? " — retry below; each goes through the same activation guard" : " — blocked until the launch check passes again"}.`
+        : progress === "ready" ? "Every offered service goes through the same activation guard." : "Not until the launch check passes." },
   ];
 }
 
@@ -128,19 +154,31 @@ async function ownersOf(db: PrismaClient, contractorId: string): Promise<Onboard
   return rows.map((r) => ({ email: r.user.email, emailVerified: r.user.emailVerified }));
 }
 
+/** Every offered service and, for those not live, what the activation guard says today. Read on the guarded client; the guard's own decision, never a copy. */
+async function launchStateFor(guarded: PrismaClient, contractorId: string): Promise<LaunchState> {
+  const offered = await guarded.service.findMany({ where: { contractorId, offered: true }, select: { id: true, slug: true, name: true, active: true }, orderBy: { name: "asc" } });
+  const states: LaunchServiceState[] = [];
+  for (const s of offered) {
+    const refusal = s.active ? null : await activationRefusal(guarded, contractorId, s.id);
+    states.push({ serviceId: s.id, slug: s.slug, name: s.name, live: s.active, refusal: refusal ? { code: refusal.code, message: refusal.message, missingPrerequisites: refusal.missingPrerequisites } : null });
+  }
+  return { offered: states, live: states.filter((x) => x.live).length, pending: states.filter((x) => !x.live).length };
+}
+
 /** Where one contractor is in onboarding, entirely derived. Authorizes twice: once per door. */
 export async function onboardingStatusFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown): Promise<OnboardingStatus> {
   const facts = await contractorFactsFor(db, user, contractorId);
-  const [owners, trades] = await withPlatformContractorFor(db, user, contractorId, async (_guarded, _actor, contractor) =>
-    Promise.all([ownersOf(db, contractor.id), availableTrades(db)]));
-  const progress = onboardingProgress(facts, owners.length);
+  const [owners, trades, launch] = await withPlatformContractorFor(db, user, contractorId, async (guarded, _actor, contractor) =>
+    Promise.all([ownersOf(db, contractor.id), availableTrades(db), launchStateFor(guarded, contractor.id)]));
+  const progress = onboardingProgress(facts, owners.length, launch.pending);
   return {
     facts, owners, progress,
-    steps: stepsFor(facts, owners, progress),
+    steps: stepsFor(facts, owners, progress, launch),
     remaining: facts.readiness.blockers,
     stages: facts.readiness.stages,
-    links: ownerWorkLinks(facts.readiness.stages),
+    ownerWork: ownerWorkFor(facts.readiness.stages),
     trades,
+    launch,
   };
 }
 
@@ -327,7 +365,18 @@ export type LaunchResult =
  * every outcome is reported, so a partial launch is a partial report, not a
  * quiet success.
  */
-export async function launchContractorFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown): Promise<LaunchResult> {
+export type Activate = typeof activateService;
+
+/**
+ * `activate` defaults to the real activateService and is the ONLY thing a
+ * caller may inject — the verifier uses it to interpose a concurrent state
+ * change between the readiness check and one service's activation, so that a
+ * genuinely mixed launch (one live, one refused by the real guard) can be
+ * proven. The readiness gate is never injectable, the request-bound form
+ * passes nothing, and both facts are asserted by scripts/verify-platform-onboarding.ts.
+ */
+export async function launchContractorFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown, opts: { activate?: Activate } = {}): Promise<LaunchResult> {
+  const activate = opts.activate ?? activateService;
   return withPlatformContractorFor(db, user, contractorId, async (guarded, _actor, contractor) => {
     const readiness = await assessOnboarding(guarded, contractor.id);
     if (!readiness.canLaunch) {
@@ -344,7 +393,7 @@ export async function launchContractorFor(db: PrismaClient, user: SignedInUser |
       let progressed = false;
       for (const s of pending) {
         try {
-          const r = await activateService(guarded, contractor.id, s.id);
+          const r = await activate(guarded, contractor.id, s.id);
           if (r.ok) { outcomes.set(s.id, { serviceId: s.id, slug: s.slug, outcome: "activated" }); progressed = true; }
           else {
             outcomes.set(s.id, { serviceId: s.id, slug: s.slug, outcome: "refused", code: r.refusal.code, message: r.refusal.message, missingPrerequisites: r.refusal.missingPrerequisites });
@@ -387,7 +436,8 @@ const NOTICES: Record<string, { tone: "ok" | "warn"; text: string }> = {
   CATALOG_INSTALLED: { tone: "ok", text: "Catalog installed. Every service is inactive until the owner prices it and it is launched." },
   CATALOG_ALREADY: { tone: "ok", text: "The catalog was already installed. Nothing changed." },
   LAUNCHED: { tone: "ok", text: "Launched: every offered service passed its activation guard." },
-  LAUNCH_PARTIAL: { tone: "warn", text: "Partial launch: some services were refused by their activation guard. The outcomes are listed below." },
+  LAUNCH_PARTIAL: { tone: "warn", text: "Partial launch: some offered services were refused by their activation guard. Each service's current state, and what the guard says about it, is under Launch below; the ones not yet live can be retried once their blocker is cleared." },
+  CONFIRMATION_REQUIRED: { tone: "warn", text: "Tick the confirmation before launching." },
   NOT_FOUND: { tone: "warn", text: "That contractor does not exist." },
 };
 

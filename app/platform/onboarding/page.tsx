@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { platformOnboardingIndex, noticeText } from "@/lib/platformOnboarding";
+import { platformOnboardingIndex, noticeText, SLUG_INPUT_PATTERN, SLUG_MAX } from "@/lib/platformOnboarding";
 import { startContractorAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ export default async function PlatformOnboardingIndex({ searchParams }: { search
           </label>
           <label className="text-sm">
             <span className="block text-xs uppercase tracking-wide text-slate">Web address (optional)</span>
-            <input name="slug" maxLength={48} pattern="[a-z0-9][a-z0-9-]{1,46}[a-z0-9]" className="mt-1 w-full rounded-md border border-cardline px-3 py-2" placeholder="northside-electric" />
+            <input name="slug" maxLength={SLUG_MAX} pattern={SLUG_INPUT_PATTERN} title="lowercase letters and numbers joined by single hyphens, 3 to 48 characters; some words are reserved" className="mt-1 w-full rounded-md border border-cardline px-3 py-2" placeholder="northside-electric" />
           </label>
           <button type="submit" className="self-end rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:bg-electric/90">Create</button>
         </form>

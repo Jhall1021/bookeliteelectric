@@ -36,6 +36,14 @@ Branch `feat/platform-onboarding-wizard-mvp`, from `51768f4`. One platform opera
 
 `ContractorOnboarding.completedAt` still has no writer; "finished" stays derived.
 
+## Review corrections (first pass)
+
+- **Owner-work is described, never linked.** `/dashboard/*` resolves its contractor from the signed-in user's membership and contractor-choice cookie, not from the page that linked it; a founder who owns a business would land in their own editors from another contractor's wizard. The wizard names the screen and path as text and says an owner session is needed. Verified by syntax tree: every `href` the onboarding pages render is a literal under `/platform`; a dynamic href or anything under `/dashboard` fails the gate.
+- **One slug authority.** `validateIdentity` asks `hostedSlugProblem` (lib/siteRouting.ts: shape, boundaries, doubled hyphens, the reserved list) plus creation's own 48-character ceiling; `slugify` trims after the cut. The create form's `pattern` is the shared `SLUG_INPUT_PATTERN`. Regressions: reserved words, `north--side`, boundaries at 2/3/48/49, generated slugs (`Dashboard` refused, long names never end on a hyphen), an ordinary slug. Self-serve creation is unchanged except where it previously accepted an address the storefront would refuse to serve.
+- **Partial launch is visible and resumable, without stored state.** The status now carries every offered service's live flag and, for those not live, the activation guard's verdict read fresh (`activationRefusal`), so the outcomes survive the redirect and a reload. `onboardingProgress` says "launched" only when no offered service is pending; with some live and some pending it is "ready" (retry open) or "blocked" (the engine names why). The retry goes through `activateService` and reports already-live services as such. `launchContractorFor` takes an injectable `activate` defaulting to the real function — the only seam, used by the verifier to interpose a concurrent state change so a genuinely mixed launch is proven through the real guards; the readiness gate is not injectable and the request-bound form passes nothing.
+
+The mixed-launch regression reads `basePrice` and `publishedPriceApprovedAt` to assert launching invented no price; `scripts/audit-price-writers.ts` lists the verifier with that reason, as it lists the other price-reading verifiers.
+
 ## Idempotency
 
 Repeat create → `SLUG_TAKEN` with the first contractor's id (the page resumes there); concurrent creates → one row, by the unique constraint. Repeat owner → same membership (`already`). Repeat trade → same enrolment (`setTradeEnrolment`'s own rule). Repeat install → the installer's own `CATALOG_ALREADY_INSTALLED`, reported as done; concurrent installs on one instance share one promise. Launch reports every service's outcome (activated / already live / refused with code / failed) — a partial launch is a partial report.

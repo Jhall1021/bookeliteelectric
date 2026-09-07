@@ -28,6 +28,7 @@
 
 import type { PrismaClient, ContractorRole, Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
+import { hostedSlugProblem } from "./siteRouting";
 
 export type CreationRefusal = {
   code:
@@ -43,17 +44,51 @@ export type CreationResult =
   | { ok: true; contractorId: string; slug: string }
   | { ok: false; refusal: CreationRefusal };
 
-/** Lowercase, hyphenated, no leading or trailing hyphen. A public address. */
+/**
+ * Lowercase, hyphenated, no leading, trailing or doubled hyphen, at most 48
+ * characters — trimmed AFTER the cut so a long name cannot end on a hyphen.
+ * A generated address is still judged by hostedSlugProblem like any other;
+ * "Dashboard" slugifies to a reserved word and is refused, not silently used.
+ */
 export function slugify(name: string): string {
   return name
     .toLowerCase()
     .replace(/['’]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
+    .slice(0, 48)
+    .replace(/^-+|-+$/g, "");
 }
 
-const SLUG_SHAPE = /^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$/;
+/**
+ * The longest address creation accepts. Routing allows 63; creation stays at
+ * 48 so a generated slug and a typed one obey the same ceiling, and the HTML
+ * `pattern` on the create forms can say the same thing.
+ */
+export const SLUG_MAX = 48;
+
+/**
+ * The HTML `pattern` for a slug field: what hostedSlugProblem's SHAPE rules
+ * say — lowercase runs of letters and digits joined by single hyphens, 3 to
+ * SLUG_MAX characters. The reserved list cannot be a pattern; the server
+ * still refuses it.
+ */
+export const SLUG_INPUT_PATTERN = `(?=.{3,${SLUG_MAX}}$)[a-z0-9]+(-[a-z0-9]+)*`;
+
+/**
+ * ONE slug rule. lib/siteRouting.ts's hostedSlugProblem decides what a public
+ * storefront address may be — shape, boundaries, doubled hyphens, the
+ * reserved list — because that is the rule the router enforces when a
+ * homeowner arrives. Creation asks it the same question, plus its own
+ * shorter ceiling, so a contractor can never be created at an address the
+ * storefront would then refuse to serve.
+ */
+export function slugProblem(slug: string): string | null {
+  const problem = hostedSlugProblem(slug);
+  if (problem) return problem;
+  if (slug.length > SLUG_MAX) return `Too long — use at most ${SLUG_MAX} characters.`;
+  return null;
+}
 
 /**
  * The name and web address a contractor will be created with, or the refusal
@@ -68,16 +103,9 @@ export function validateIdentity(
     return { ok: false, refusal: { code: "NAME_REQUIRED", message: "Your business needs a name." } };
   }
   const slug = (input.slug?.trim() || slugify(name)).toLowerCase();
-  if (!SLUG_SHAPE.test(slug)) {
-    return {
-      ok: false,
-      refusal: {
-        code: "SLUG_INVALID",
-        message:
-          "That web address can only use lowercase letters, numbers and hyphens, " +
-          "and must be at least three characters.",
-      },
-    };
+  const problem = slugProblem(slug);
+  if (problem) {
+    return { ok: false, refusal: { code: "SLUG_INVALID", message: `That web address can't be used: ${problem}` } };
   }
   return { ok: true, name, slug };
 }
