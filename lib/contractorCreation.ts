@@ -26,7 +26,7 @@
  * before it is confirmed.
  */
 
-import type { PrismaClient, ContractorRole } from "@prisma/client";
+import type { PrismaClient, ContractorRole, Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 
 export type CreationRefusal = {
@@ -56,6 +56,96 @@ export function slugify(name: string): string {
 const SLUG_SHAPE = /^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$/;
 
 /**
+ * The name and web address a contractor will be created with, or the refusal
+ * a person can act on. Shared by the self-serve path below and the founder's
+ * onboarding wizard so the two cannot disagree about what a slug is.
+ */
+export function validateIdentity(
+  input: { name: string; slug?: string }
+): { ok: true; name: string; slug: string } | { ok: false; refusal: CreationRefusal } {
+  const name = input.name?.trim() ?? "";
+  if (!name) {
+    return { ok: false, refusal: { code: "NAME_REQUIRED", message: "Your business needs a name." } };
+  }
+  const slug = (input.slug?.trim() || slugify(name)).toLowerCase();
+  if (!SLUG_SHAPE.test(slug)) {
+    return {
+      ok: false,
+      refusal: {
+        code: "SLUG_INVALID",
+        message:
+          "That web address can only use lowercase letters, numbers and hyphens, " +
+          "and must be at least three characters.",
+      },
+    };
+  }
+  return { ok: true, name, slug };
+}
+
+/** The refusal a slug collision produces, before or during the transaction. */
+export function slugTaken(slug: string, raced = false): CreationRefusal {
+  return {
+    code: "SLUG_TAKEN",
+    message: `price2book.com/${slug} ${raced ? "was just taken" : "is already taken"}. Try another web address.`,
+  };
+}
+
+/** Prisma's unique-constraint failure, by code first and by message as a fallback. */
+export function isUniqueViolation(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (code === "P2002") return true;
+  const message = err instanceof Error ? err.message : "";
+  return /Unique constraint/i.test(message);
+}
+
+/**
+ * The tenant itself — contractor, storefront, guided-setup record — with NO
+ * membership. The one shape every creation path writes, inside the caller's
+ * transaction. Who may administer the new tenant is the caller's decision:
+ * the self-serve path below makes the signed-in user its OWNER in the same
+ * transaction; the founder's wizard attaches an owner as a later, separate
+ * step. Nothing here is reachable by a homeowner until a service is activated.
+ */
+export async function createContractorRecord(
+  tx: Prisma.TransactionClient | PrismaClient,
+  input: { name: string; slug: string }
+): Promise<{ id: string; slug: string }> {
+  const contractor = await tx.contractor.create({
+    data: {
+      name: input.name,
+      slug: input.slug,
+      // Live from the start: `active` gates whether a membership can be
+      // used at all, and a contractor who cannot open their own dashboard
+      // cannot finish setup. What a homeowner can reach is governed by
+      // ContractorSite and by each service's own activation.
+      active: true,
+    },
+    select: { id: true, slug: true },
+  });
+
+  await tx.contractorSite.create({
+    data: {
+      contractorId: contractor.id,
+      hostedSlug: input.slug,
+      // Opaque, stable, globally unique — the routing key a storefront
+      // request carries. Generated here so the tenant is addressable the
+      // moment it exists.
+      // `site_` + 16 random bytes, matching every publicId already issued.
+      // A second prefix would be a second thing to recognize, and the
+      // embed route has to recognize it.
+      publicId: `site_${randomBytes(16).toString("hex")}`,
+      active: true,
+    },
+  });
+
+  await tx.contractorOnboarding.create({
+    data: { contractorId: contractor.id, currentStage: "business" },
+  });
+
+  return contractor;
+}
+
+/**
  * Create a contractor and make this user its OWNER.
  *
  * `db` is the UNGUARDED client — see the header. Callers pass the signed-in
@@ -77,23 +167,9 @@ export async function createContractorForUser(
     };
   }
 
-  const name = input.name?.trim() ?? "";
-  if (!name) {
-    return { ok: false, refusal: { code: "NAME_REQUIRED", message: "Your business needs a name." } };
-  }
-
-  const slug = (input.slug?.trim() || slugify(name)).toLowerCase();
-  if (!SLUG_SHAPE.test(slug)) {
-    return {
-      ok: false,
-      refusal: {
-        code: "SLUG_INVALID",
-        message:
-          "That web address can only use lowercase letters, numbers and hyphens, " +
-          "and must be at least three characters.",
-      },
-    };
-  }
+  const identity = validateIdentity(input);
+  if (!identity.ok) return identity;
+  const { name, slug } = identity;
 
   // ONE OWNED CONTRACTOR PER ACCOUNT, for now.
   //
@@ -120,46 +196,11 @@ export async function createContractorForUser(
   // unique constraints inside it — two signups racing for the same address
   // must not both win, and the loser gets a rename rather than a stack trace.
   const clash = await db.contractor.findFirst({ where: { slug }, select: { id: true } });
-  if (clash) {
-    return {
-      ok: false,
-      refusal: {
-        code: "SLUG_TAKEN",
-        message: `price2book.com/${slug} is already taken. Try another web address.`,
-      },
-    };
-  }
+  if (clash) return { ok: false, refusal: slugTaken(slug) };
 
   try {
     const created = await db.$transaction(async (tx) => {
-      const contractor = await tx.contractor.create({
-        data: {
-          name,
-          slug,
-          // Live from the start: `active` gates whether a membership can be
-          // used at all, and a contractor who cannot open their own dashboard
-          // cannot finish setup. What a homeowner can reach is governed by
-          // ContractorSite and by each service's own activation.
-          active: true,
-        },
-        select: { id: true, slug: true },
-      });
-
-      await tx.contractorSite.create({
-        data: {
-          contractorId: contractor.id,
-          hostedSlug: slug,
-          // Opaque, stable, globally unique — the routing key a storefront
-          // request carries. Generated here so the tenant is addressable the
-          // moment it exists.
-          // `site_` + 16 random bytes, matching every publicId already issued.
-          // A second prefix would be a second thing to recognize, and the
-          // embed route has to recognize it.
-          publicId: `site_${randomBytes(16).toString("hex")}`,
-          active: true,
-        },
-      });
-
+      const contractor = await createContractorRecord(tx, { name, slug });
       await tx.contractorMembership.create({
         data: {
           contractorId: contractor.id,
@@ -168,11 +209,6 @@ export async function createContractorForUser(
           active: true,
         },
       });
-
-      await tx.contractorOnboarding.create({
-        data: { contractorId: contractor.id, currentStage: "business" },
-      });
-
       return contractor;
     });
 
@@ -180,16 +216,7 @@ export async function createContractorForUser(
   } catch (err) {
     // The unique constraint is the real arbiter of a race; the pre-check above
     // only buys a better message when there is no race.
-    const message = err instanceof Error ? err.message : "";
-    if (/Unique constraint/i.test(message)) {
-      return {
-        ok: false,
-        refusal: {
-          code: "SLUG_TAKEN",
-          message: `price2book.com/${slug} was just taken. Try another web address.`,
-        },
-      };
-    }
+    if (isUniqueViolation(err)) return { ok: false, refusal: slugTaken(slug, true) };
     throw err;
   }
 }

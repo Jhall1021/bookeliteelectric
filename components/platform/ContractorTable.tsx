@@ -20,6 +20,7 @@ export function ContractorTable({ rows }: { rows: PlatformOverview["rows"] }) {
             <th className="px-4 py-2">Scheduling</th>
             <th className="px-4 py-2">Payments</th>
             <th className="px-4 py-2">Owners</th>
+            <th className="px-4 py-2"><span className="sr-only">Onboarding</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-cardline">
@@ -36,6 +37,7 @@ export function ContractorTable({ rows }: { rows: PlatformOverview["rows"] }) {
               <td className="px-4 py-2">{r.schedulingAuthority ? r.schedulingAuthority.toLowerCase() : "undecided"}</td>
               <td className="px-4 py-2">{r.payments.ready ? "ready" : r.payments.reason}</td>
               <td className="px-4 py-2 text-xs text-slate">{r.owners.join(", ") || "none"}</td>
+              <td className="px-4 py-2 text-xs"><Link href={`/platform/onboarding/${r.id}`} className="font-medium text-electric hover:underline">Onboarding</Link></td>
             </tr>
           ))}
         </tbody>

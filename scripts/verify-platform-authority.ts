@@ -306,7 +306,7 @@ async function main() {
 
   // ── 7. no other door ──────────────────────────────────────────────────
   const platformFiles = [
-    "lib/platformContext.ts", "lib/platformReadModel.ts", "scripts/bootstrap-platform-admin.ts",
+    "lib/platformContext.ts", "lib/platformReadModel.ts", "lib/platformOnboarding.ts", "scripts/bootstrap-platform-admin.ts",
     ...sourceFiles(["components/platform"]),
     ...sourceFiles(["app/platform", "app/api/platform"]),
   ];
@@ -337,22 +337,36 @@ async function main() {
   // any local name, a next/headers binding called under any alias, an
   // imported next/headers or next/server module, or a route handler reading
   // its request argument all count as reading the request.
+  // The founder onboarding wizard added a second page that takes a contractor
+  // id from the request, under the same rule, and two pages that read a
+  // `notice` code from searchParams (policed in detail by
+  // scripts/verify-platform-read-model.ts and verify-platform-onboarding.ts).
   const CONTROL_CENTER = "app/platform/contractors/[contractorId]/page.tsx";
-  const others = surfaces.filter((f) => f !== CONTROL_CENTER);
+  const ID_PAGES: Record<string, string> = { [CONTROL_CENTER]: "platformContractor", "app/platform/onboarding/[contractorId]/page.tsx": "platformOnboardingContractor" };
+  const NOTICE_PAGES = new Set(["app/platform/onboarding/page.tsx", "app/platform/onboarding/[contractorId]/page.tsx"]);
+  const others = surfaces.filter((f) => !(f in ID_PAGES) && !NOTICE_PAGES.has(f));
   const strays = others.flatMap((f) => requestAccess(readFileSync(f, "utf8"), f).map((a) => `${f}:${a.line} ${a.kind}`));
-  ok(`    no platform surface but the Control Center reads anything from a request`, strays.length === 0, strays.join("; "));
-  const ccAccess = existsSync(CONTROL_CENTER) ? requestAccess(readFileSync(CONTROL_CENTER, "utf8"), CONTROL_CENTER) : [];
-  const ccUse = existsSync(CONTROL_CENTER) ? paramsUses(readFileSync(CONTROL_CENTER, "utf8"), "platformContractor", CONTROL_CENTER) : { local: null, uses: [], boundaryCalls: 0 };
-  ok(`    and the Control Center's sole use of params is params.contractorId as the direct argument of the one platform boundary call`,
-    ccAccess.length === 1 && ccAccess[0].kind === "params-prop" && ccUse.local === "params" && ccUse.boundaryCalls === 1 && ccUse.uses.length === 1 && ccUse.uses[0].kind === "boundary-arg");
+  ok(`    no platform surface but the enumerated pages reads anything from a request`, strays.length === 0, strays.join("; "));
+  for (const [page, boundary] of Object.entries(ID_PAGES)) {
+    const acc = existsSync(page) ? requestAccess(readFileSync(page, "utf8"), page) : [];
+    const use = existsSync(page) ? paramsUses(readFileSync(page, "utf8"), boundary, page) : { local: null, uses: [], boundaryCalls: 0 };
+    ok(`    ${page.split("/")[2]}'s sole use of params is params.contractorId as the direct argument of the one ${boundary}() call`,
+      acc.filter((a) => a.kind === "params-prop").length === 1 && acc.every((a) => a.kind === "params-prop" || (NOTICE_PAGES.has(page) && a.kind === "searchParams-prop")) && use.local === "params" && use.boundaryCalls === 1 && use.uses.length === 1 && use.uses[0].kind === "boundary-arg");
+  }
   ok(`    no platform surface touches the contractor boundary or the raw client`,
     surfaces.every((f) => !/adminContext|from "@\/lib\/prisma"|platformDb|new PrismaClient/.test(strip(f))));
   ok(`    the tenant context can say a staff member opened it`, /"platform-session"/.test(readFileSync("lib/tenantContext.ts", "utf8")));
   ok(`    withPlatformContractor is the only wrapper that takes a contractor id`,
     /withContractor\(contractor\.id, "platform-session"/.test(platformCtx) && !existsSync("lib/platformAdmin.ts"));
-  ok(`    nothing on the platform side writes SupportAccessEvent or any tenant row`,
+  // The platform side writes from exactly two files: the bootstrap script
+  // (one PlatformAccess row, once) and lib/platformOnboarding.ts — the founder
+  // onboarding commands, each inside a platform door and delegating to an
+  // existing authority, as scripts/verify-platform-onboarding.ts proves.
+  const WRITERS = new Set(["scripts/bootstrap-platform-admin.ts", "lib/platformOnboarding.ts"]);
+  ok(`    nothing on the platform side but the bootstrap and the onboarding commands writes SupportAccessEvent or any tenant row`,
     platformFiles.every((f) => !/supportAccessEvent|\.(create|update|upsert|delete)(Many)?\(/.test(strip(f).replace(/platformAccess\.create|platformAccess\.count|platformAccess\.findUnique/g, ""))
-      || f === "scripts/bootstrap-platform-admin.ts"));
+      || WRITERS.has(f)));
+  ok(`    and the onboarding commands never touch SupportAccessEvent or PlatformAccess`, !/supportAccessEvent|platformAccess/.test(strip("lib/platformOnboarding.ts")));
 
   const self = strip("scripts/verify-platform-authority.ts");
   ok(`11. this verifier writes no PlatformAccess row, in any form`,
