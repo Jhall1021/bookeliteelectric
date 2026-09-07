@@ -217,6 +217,11 @@ export const STUCK_AFTER_DAYS = 14;
  */
 export function attentionFor(f: ContractorFacts, now: Date = new Date()): AttentionItem[] {
   const out: AttentionItem[] = [];
+  // A RETIRED contractor — `active` false, set only by the platform's retire
+  // command — has nothing a person should do today: its storefront and
+  // services are down on purpose, so a failing launch check or an idle setup
+  // is the expected state, not a problem.
+  if (!f.contractor.active) return out;
   const href = `/platform/contractors/${f.contractor.id}`;
   const base = { contractorId: f.contractor.id, slug: f.contractor.slug, name: f.contractor.name, href };
   const pastSetup = f.onboarding?.completedAt !== null && f.onboarding?.completedAt !== undefined || f.catalog.live > 0;

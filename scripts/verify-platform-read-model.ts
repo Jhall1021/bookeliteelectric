@@ -46,7 +46,7 @@ import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard"
  * imports and runtime re-exports are refused, dynamic import() and require()
  * are refused, and type-only edges are exempt because they cannot run.
  */
-const ONBOARDING_ACTIONS = ["startContractorAction", "attachOwnerAction", "enrolTradeAction", "installTemplateAction", "launchAction"];
+const ONBOARDING_ACTIONS = ["startContractorAction", "attachOwnerAction", "enrolTradeAction", "installTemplateAction", "launchAction", "retireAction"];
 const SURFACE_POLICY: Policy = {
   "next/link": ["default"],
   "next/navigation": ["redirect", "notFound"],
@@ -56,7 +56,7 @@ const SURFACE_POLICY: Policy = {
   // The founder onboarding wizard: request-bound commands and reads from the
   // ONE platform module that may write, plus its notice formatter. The
   // commands are policed by scripts/verify-platform-onboarding.ts.
-  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "platformBeginContractor", "platformAttachOwner", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
+  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "platformBeginContractor", "platformAttachOwner", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "platformRetireContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
   "./actions": ONBOARDING_ACTIONS,
   "../actions": ONBOARDING_ACTIONS,
   "@/components/platform/ContractorTable": ["ContractorTable"],
@@ -217,6 +217,7 @@ async function main() {
   const old = new Date(now.getTime() - (STUCK_AFTER_DAYS + 1) * 86400000);
   ok(`   ${STUCK_AFTER_DAYS + 1} idle days in setup is STUCK_IN_ONBOARDING`, codes(facts({ onboarding: { currentStage: "pricing-foundation", completedAt: null, updatedAt: old } })) === "STUCK_IN_ONBOARDING");
   ok(`   but not once services are live`, codes(facts({ onboarding: { currentStage: "launch", completedAt: null, updatedAt: old }, catalog: { total: 1, live: 1, priced: 1, quoteOnly: 0, needsPrice: 0, hidden: 0 } })) === "none");
+  ok(`   a RETIRED contractor (active false) is nobody's job, whatever its blockers or idle time`, codes(facts({ blockers: [{ code: "PRICE_NOT_APPROVED", message: "x" }], contractor: { id: "r", slug: "r", name: "R", trade: "electrical", active: false, createdAt: now, countryCode: "US", schedulingAuthority: "EXTERNAL" }, onboarding: { currentStage: "launch", completedAt: now, updatedAt: old } })) === "none");
   ok(`   a live contractor with no blockers is nothing to do`, codes(facts({ catalog: { total: 5, live: 5, priced: 5, quoteOnly: 0, needsPrice: 0, hidden: 0 }, onboarding: { currentStage: "launch", completedAt: now, updatedAt: now } })) === "none");
   ok(`   every item points at the contractor's control center`, attentionFor(facts({ blockers: [{ code: "X", message: "x" }], onboarding: { currentStage: "launch", completedAt: now, updatedAt: now } }), now).every((a) => a.href === "/platform/contractors/c1"));
 

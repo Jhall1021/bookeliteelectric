@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { PlatformContractorNotFoundError } from "@/lib/platformContext";
 import {
-  platformBeginContractor, platformAttachOwner, platformEnrolTrade, platformInstallTemplate, platformLaunchContractor,
+  platformBeginContractor, platformAttachOwner, platformEnrolTrade, platformInstallTemplate, platformLaunchContractor, platformRetireContractor,
 } from "@/lib/platformOnboarding";
 
 /**
@@ -81,6 +81,21 @@ export async function launchAction(formData: FormData) {
     const r = await platformLaunchContractor(str(formData.get("contractorId")));
     if (!("contractorId" in r)) backTo(str(formData.get("contractorId")), r.refusal.code);
     backTo(r.contractorId, r.ok ? "LAUNCHED" : "LAUNCH_PARTIAL");
+  } catch (e) {
+    if (e instanceof PlatformContractorNotFoundError) notFound();
+    throw e;
+  }
+}
+
+export async function retireAction(formData: FormData) {
+  try {
+    // Retiring takes a storefront down within the minute, so the form carries
+    // both a ticked confirmation and the slug typed back; the command checks
+    // the slug against the contractor the door resolved.
+    if (str(formData.get("confirm")) !== "yes") backTo(str(formData.get("contractorId")), "CONFIRMATION_REQUIRED");
+    const r = await platformRetireContractor(str(formData.get("contractorId")), str(formData.get("confirmSlug")));
+    if (r.ok) backTo(r.contractorId, r.already ? "RETIRED_ALREADY" : "RETIRED");
+    backTo(str(formData.get("contractorId")), r.refusal.code);
   } catch (e) {
     if (e instanceof PlatformContractorNotFoundError) notFound();
     throw e;
