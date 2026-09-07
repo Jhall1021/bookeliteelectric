@@ -29,6 +29,7 @@
 import type { PrismaClient, ContractorRole, Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { hostedSlugProblem } from "./siteRouting";
+import { fixtureSlugProblem, isFixtureContractorSlug } from "./fixtureContractors";
 
 export type CreationRefusal = {
   code:
@@ -83,12 +84,28 @@ export const SLUG_INPUT_PATTERN = `(?=.{3,${SLUG_MAX}}$)[a-z0-9]+(-[a-z0-9]+)*`;
  * shorter ceiling, so a contractor can never be created at an address the
  * storefront would then refuse to serve.
  */
-export function slugProblem(slug: string): string | null {
+export function slugProblem(slug: string, opts: IdentityOptions = {}): string | null {
   const problem = hostedSlugProblem(slug);
   if (problem) return problem;
   if (slug.length > SLUG_MAX) return `Too long — use at most ${SLUG_MAX} characters.`;
-  return null;
+  // Verifier fixtures are told apart by their slug (lib/fixtureContractors).
+  // That only works if no person can create one that matches, so creation
+  // refuses the reserved prefixes on every path — self-serve and wizard.
+  // A verifier building its probe through the shipped path says so, and
+  // then the slug MUST carry a reserved prefix: the flag and the name agree
+  // or the identity is refused, so neither can smuggle the other.
+  if (opts.verifierFixture) {
+    return isFixtureContractorSlug(slug) ? null : "A verifier fixture must carry a reserved prefix (lib/fixtureContractors).";
+  }
+  return fixtureSlugProblem(slug);
 }
+
+/**
+ * `verifierFixture` is passed by verifiers only. No page, action or API
+ * passes it — scripts/verify-platform-onboarding.ts checks that — so a
+ * person can never create a contractor the fixture rule would hide.
+ */
+export type IdentityOptions = { verifierFixture?: boolean };
 
 /**
  * The name and web address a contractor will be created with, or the refusal
@@ -96,14 +113,15 @@ export function slugProblem(slug: string): string | null {
  * onboarding wizard so the two cannot disagree about what a slug is.
  */
 export function validateIdentity(
-  input: { name: string; slug?: string }
+  input: { name: string; slug?: string },
+  opts: IdentityOptions = {},
 ): { ok: true; name: string; slug: string } | { ok: false; refusal: CreationRefusal } {
   const name = input.name?.trim() ?? "";
   if (!name) {
     return { ok: false, refusal: { code: "NAME_REQUIRED", message: "Your business needs a name." } };
   }
   const slug = (input.slug?.trim() || slugify(name)).toLowerCase();
-  const problem = slugProblem(slug);
+  const problem = slugProblem(slug, opts);
   if (problem) {
     return { ok: false, refusal: { code: "SLUG_INVALID", message: `That web address can't be used: ${problem}` } };
   }

@@ -37,7 +37,7 @@ import {
   type SignedInUser, type PlatformActor, type PlatformContractor,
 } from "./platformContext";
 import { contractorFactsFor, listContractors, mapWithConcurrency, type ContractorFacts } from "./platformReadModel";
-import { validateIdentity, slugTaken, createContractorRecord, isUniqueViolation, SLUG_INPUT_PATTERN, SLUG_MAX } from "./contractorCreation";
+import { validateIdentity, slugTaken, createContractorRecord, isUniqueViolation, SLUG_INPUT_PATTERN, SLUG_MAX, type IdentityOptions } from "./contractorCreation";
 export { SLUG_INPUT_PATTERN, SLUG_MAX };
 import { setTradeEnrolment } from "./tradeEnrolment";
 import { availableTrades, templateVersionSource, preflight, installCatalog } from "./templateProvisioning";
@@ -256,10 +256,14 @@ export type BeginResult =
  * constraint inside it. A repeat submission of the same address does not
  * create a second contractor: it is refused with the id of the first, and the
  * wizard resumes there.
+ *
+ * `opts.verifierFixture` lets a verifier build its probe through this exact
+ * path under a reserved slug (lib/fixtureContractors). The request-bound form
+ * passes nothing, so no page can.
  */
-export async function beginContractorFor(db: PrismaClient, user: SignedInUser | null, input: { name: string; slug?: string }): Promise<BeginResult> {
+export async function beginContractorFor(db: PrismaClient, user: SignedInUser | null, input: { name: string; slug?: string }, opts: IdentityOptions = {}): Promise<BeginResult> {
   return withPlatformFor(db, user, async (platformDb) => {
-    const identity = validateIdentity(input);
+    const identity = validateIdentity(input, opts);
     if (!identity.ok) return { ok: false, refusal: identity.refusal };
     const { name, slug } = identity;
 
