@@ -132,6 +132,19 @@ const REVIEWED_SAFE: Record<string, Exception> = {
       "read of Contractor.visits in this file would still be flagged.",
     mustMatch: /jobberGraphQL</,
   },
+  "lib/r2.ts:credentials": {
+    reason:
+      "The AWS SDK v3 S3Client's own `credentials` option (accessKeyId + " +
+      "secretAccessKey), passed to `new S3Client({...})` for Cloudflare R2. It " +
+      "has no relation to Prisma or to Contractor.credentials (G4) — R2 is " +
+      "object storage and this module never imports Prisma at all. Anchored to " +
+      "BOTH field names an S3 credentials object carries and neither of which a " +
+      "Prisma `include`/`select` of Contractor.credentials could ever contain " +
+      "(that shape holds `key`, `declaredAt`, `revokedAt`, `contractorId` — " +
+      "never an AWS access key pair), so a real Contractor.credentials " +
+      "traversal introduced later in this file would still be flagged here.",
+    mustMatch: /accessKeyId[\s\S]*secretAccessKey/,
+  },
 };
 
 type Shape = { parent: string; field: string; child: string; childState: string };
