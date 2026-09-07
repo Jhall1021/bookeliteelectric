@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { platformOverview, attentionSummary } from "@/lib/platformReadModel";
 import { ContractorTable } from "@/components/platform/ContractorTable";
+import { HiddenFixturesNote } from "@/components/platform/HiddenFixturesNote";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export default async function PlatformOverviewPage() {
         </div>
         <Link href="/platform/onboarding" className="rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:bg-electric/90">Onboard a contractor</Link>
       </header>
+      <HiddenFixturesNote hidden={o.fixtures.hidden} />
 
       <dl className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Tile label="Contractors with live services" value={o.contractors.live} note={`${o.contractors.inSetup} still in setup · ${o.contractors.enabled} enabled`} href="/platform/contractors" />

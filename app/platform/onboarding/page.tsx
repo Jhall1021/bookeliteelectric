@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { platformOnboardingIndex, noticeText, SLUG_INPUT_PATTERN, SLUG_MAX } from "@/lib/platformOnboarding";
+import { HiddenFixturesNote } from "@/components/platform/HiddenFixturesNote";
 import { startContractorAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +15,11 @@ export const dynamic = "force-dynamic";
  * contractor's own onboarding page.
  */
 export default async function PlatformOnboardingIndex({ searchParams }: { searchParams?: { notice?: string } }) {
-  const { rows, trades, actor } = await platformOnboardingIndex();
+  const { rows, trades, actor, hiddenFixtures } = await platformOnboardingIndex();
   const notice = noticeText(searchParams?.notice);
-  const open = rows.filter((r) => !r.readable || r.progress !== "launched");
+  const open = rows.filter((r) => !r.readable || (r.progress !== "launched" && r.progress !== "retired"));
   const launched = rows.filter((r) => r.readable && r.progress === "launched");
+  const retired = rows.filter((r) => r.readable && r.progress === "retired");
   return (
     <div>
       <header>
@@ -27,6 +29,7 @@ export default async function PlatformOnboardingIndex({ searchParams }: { search
           Each step is its own submission, so you can stop and come back; progress is read from the contractor&rsquo;s data, not stored by this page.
         </p>
       </header>
+      <HiddenFixturesNote hidden={hiddenFixtures} />
 
       {notice && <p className={`mt-4 rounded-card border px-4 py-3 text-sm ${notice.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-p2b-amber-ink/40 bg-p2b-amber-tint text-p2b-amber-ink"}`}>{notice.text}</p>}
 
@@ -57,6 +60,14 @@ export default async function PlatformOnboardingIndex({ searchParams }: { search
         {launched.length === 0 ? <p className="mt-2 text-sm text-slate">None yet.</p> : <Rows rows={launched} />}
       </section>
 
+      {retired.length > 0 && (
+        <section className="mt-10">
+          <h2 className="font-display text-lg font-bold text-navy">Retired</h2>
+          <p className="mt-1 text-xs text-slate">Storefront and services inactive; data kept.</p>
+          <Rows rows={retired} />
+        </section>
+      )}
+
       <p className="mt-10 text-xs text-slate">Signed in as {actor.email}, {actor.role}. Every change on these pages goes through one reviewed command layer and the authority that already owns the decision.</p>
     </div>
   );
@@ -74,7 +85,7 @@ function Rows({ rows }: { rows: Awaited<ReturnType<typeof platformOnboardingInde
           <div className="flex items-center gap-3">
             {r.readable ? <ProgressPill progress={r.progress} /> : <span className="rounded-pill bg-red-50 px-2 py-0.5 text-xs text-red-700" title={r.error}>could not be read</span>}
             {r.readable && <span className="text-xs text-slate">{r.live} live · {r.blockers} blocker{r.blockers === 1 ? "" : "s"}</span>}
-            <Link href={`/platform/onboarding/${r.id}`} className="text-xs font-medium text-electric hover:underline">{r.readable && r.progress === "launched" ? "Open" : "Resume"}</Link>
+            <Link href={`/platform/onboarding/${r.id}`} className="text-xs font-medium text-electric hover:underline">{r.readable && (r.progress === "launched" || r.progress === "retired") ? "Open" : "Resume"}</Link>
           </div>
         </li>
       ))}
@@ -82,7 +93,7 @@ function Rows({ rows }: { rows: Awaited<ReturnType<typeof platformOnboardingInde
   );
 }
 
-function ProgressPill({ progress }: { progress: "not-started" | "in-progress" | "blocked" | "ready" | "launched" }) {
-  const tone = progress === "launched" ? "bg-emerald-50 text-emerald-800" : progress === "ready" ? "bg-electric/10 text-electric" : progress === "blocked" ? "bg-p2b-amber-tint text-p2b-amber-ink" : "bg-warmwhite text-slate";
+function ProgressPill({ progress }: { progress: "not-started" | "in-progress" | "blocked" | "ready" | "launched" | "retired" }) {
+  const tone = progress === "launched" ? "bg-emerald-50 text-emerald-800" : progress === "ready" ? "bg-electric/10 text-electric" : progress === "blocked" ? "bg-p2b-amber-tint text-p2b-amber-ink" : progress === "retired" ? "bg-navy text-white" : "bg-warmwhite text-slate";
   return <span className={`rounded-pill px-2 py-0.5 text-xs font-medium ${tone}`}>{progress.replace("-", " ")}</span>;
 }

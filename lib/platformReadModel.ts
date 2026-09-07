@@ -46,6 +46,7 @@ import {
 } from "./platformContext";
 import { assessOnboarding, type OnboardingReadiness } from "./onboardingReadiness";
 import { connectReadiness, type Readiness } from "./stripeConnect";
+import { partitionFixtures } from "./fixtureContractors";
 
 /** A contractor as the directory sees it: platform-model facts only. */
 export type ContractorRow = {
@@ -217,6 +218,11 @@ export const STUCK_AFTER_DAYS = 14;
  */
 export function attentionFor(f: ContractorFacts, now: Date = new Date()): AttentionItem[] {
   const out: AttentionItem[] = [];
+  // A RETIRED contractor — `active` false, set only by the platform's retire
+  // command — has nothing a person should do today: its storefront and
+  // services are down on purpose, so a failing launch check or an idle setup
+  // is the expected state, not a problem.
+  if (!f.contractor.active) return out;
   const href = `/platform/contractors/${f.contractor.id}`;
   const base = { contractorId: f.contractor.id, slug: f.contractor.slug, name: f.contractor.name, href };
   const pastSetup = f.onboarding?.completedAt !== null && f.onboarding?.completedAt !== undefined || f.catalog.live > 0;
@@ -267,6 +273,12 @@ export type PlatformOverview = {
   rows: OverviewRow[];
   /** Contractors whose facts could not be read this time, with the reason. Shown, never hidden. */
   unreadable: { contractorId: string; slug: string; name: string; error: string }[];
+  /**
+   * Verifier fixtures left out of every figure above (lib/fixtureContractors),
+   * so staff never mistake a probe for a business. 0 when the caller asked
+   * to see them, which only a verifier inspecting its own probe does.
+   */
+  fixtures: { hidden: number };
   actor: PlatformActor;
 };
 
@@ -298,14 +310,20 @@ export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (i
  * becomes an explicit "unreadable" row with its reason, and the sums cover
  * the rows that were read. Entries run a few at a time, not all at once.
  * `readFacts` is injectable so the verifier can prove both properties.
+ *
+ * Verifier fixtures are left out unless `fixtures: "show"` is passed. The
+ * request-bound form below passes nothing, so a page cannot see one; a
+ * verifier inspecting its own probe asks for them explicitly.
  */
 export async function platformOverviewFor(
   db: PrismaClient, user: SignedInUser | null,
-  opts: { readFacts?: ReadFacts; concurrency?: number } = {},
+  opts: { readFacts?: ReadFacts; concurrency?: number; fixtures?: "hide" | "show" } = {},
 ): Promise<PlatformOverview> {
   const readFacts = opts.readFacts ?? contractorFactsFor;
   return withPlatformFor(db, user, async (platformDb, actor) => {
-    const rows = await listContractors(platformDb);
+    const directory = await listContractors(platformDb);
+    const split = partitionFixtures(directory);
+    const rows = opts.fixtures === "show" ? directory : split.genuine;
     const results = await mapWithConcurrency(rows, opts.concurrency ?? OVERVIEW_CONCURRENCY, async (r) => {
       try { return { ok: true as const, facts: await readFacts(db, user, r.id) }; }
       catch (e) { return { ok: false as const, error: (e as Error).message || String(e) }; }
@@ -331,6 +349,7 @@ export async function platformOverviewFor(
           : { ...r, readable: false as const, error: x.error };
       }),
       unreadable,
+      fixtures: { hidden: opts.fixtures === "show" ? 0 : split.fixtures.length },
       actor,
     };
   });

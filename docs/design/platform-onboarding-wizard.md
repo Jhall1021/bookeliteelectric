@@ -46,6 +46,11 @@ Branch `feat/platform-onboarding-wizard-mvp`, from `51768f4`. One platform opera
 
 The mixed-launch regression reads `basePrice` and `publishedPriceApprovedAt` to assert launching invented no price; `scripts/audit-price-writers.ts` lists the verifier with that reason, as it lists the other price-reading verifiers.
 
+## Retire, and the lifted owner rule (7 September 2026)
+
+- **Verifier fixtures are hidden, and counted.** `lib/fixtureContractors.ts` is the one rule for which contractors are verifier probes (reserved slug prefixes that `validateIdentity` refuses, plus a closed list of older probe prefixes). `platformOverviewFor` and `onboardingIndexFor` leave them out of every row and figure unless asked to `show`, which only a verifier inspecting its own probe does; every listing page shows how many were hidden. A probe listed as a business to onboard was how one leaked on 7 September 2026.
+- **Retire is the reversible form of delete.** `retireContractorFor` sets `Contractor.active` false, every `ContractorSite` inactive and every `Service` inactive in one transaction, and deletes nothing: catalog, materials, memberships, quotes, bookings and payment records stay. The founder types the slug back and ticks a confirmation; a mismatch refuses before anything is read. Retiring twice is one retire. Progress derives as `retired` from `Contractor.active`; the attention rule yields nothing for a retired contractor; the index lists it under Retired; the Control Center links to the onboarding page, which carries the retire section. Reinstating is not built yet; the data is ready for it.
+
 ## Idempotency
 
 Repeat create → `SLUG_TAKEN` with the first contractor's id (the page resumes there); concurrent creates → one row, by the unique constraint. Repeat owner → same membership (`already`). Repeat trade → same enrolment (`setTradeEnrolment`'s own rule). Repeat install → the installer's own `CATALOG_ALREADY_INSTALLED`, reported as done; concurrent installs on one instance share one promise. Launch reports every service's outcome (activated / already live / refused with code / failed) — a partial launch is a partial report.

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PlatformContractorNotFoundError } from "@/lib/platformContext";
 import { platformOnboardingContractor, noticeText } from "@/lib/platformOnboarding";
-import { attachOwnerAction, enrolTradeAction, installTemplateAction, launchAction } from "../actions";
+import { attachOwnerAction, enrolTradeAction, installTemplateAction, launchAction, retireAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +27,10 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
   const notice = noticeText(searchParams?.notice);
   const c = s.facts.contractor;
   const id = c.id;
-  const ownerDone = s.owners.length > 0;
+  const retired = s.progress === "retired";
+  const ownerDone = s.owners.length > 0 || retired;
   const tradeDone = s.facts.trades.length > 0;
-  const catalogDone = s.facts.catalog.total > 0;
+  const catalogDone = s.facts.catalog.total > 0 || retired;
 
   return (
     <div>
@@ -44,11 +45,18 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
 
       {notice && <p className={`mt-4 rounded-card border px-4 py-3 text-sm ${notice.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-p2b-amber-ink/40 bg-p2b-amber-tint text-p2b-amber-ink"}`}>{notice.text}</p>}
 
+      {retired && (
+        <section className="mt-6 rounded-card border border-cardline bg-warmwhite p-4 text-sm text-slate">
+          <p className="font-medium text-navy">This business is retired.</p>
+          <p className="mt-1">Its storefront and every service are inactive and no membership can open its dashboard. Nothing was deleted: the catalog, quotes, bookings and payment records are kept. Reinstating is not built yet; the data is ready for it.</p>
+        </section>
+      )}
+
       <ol className="mt-8 space-y-4">
         <Step n={1} step={s.steps[0]} />
 
         <Step n={2} step={s.steps[1]}>
-          {!ownerDone && (
+          {!retired && !ownerDone && (
             <form action={attachOwnerAction} className="mt-3 flex flex-wrap items-end gap-3">
               <input type="hidden" name="contractorId" value={id} />
               <label className="text-sm">
@@ -62,7 +70,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </Step>
 
         <Step n={3} step={s.steps[2]}>
-          {!tradeDone && (
+          {!retired && !tradeDone && (
             <form action={enrolTradeAction} className="mt-3 flex flex-wrap items-end gap-3">
               <input type="hidden" name="contractorId" value={id} />
               <label className="text-sm">
@@ -78,7 +86,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </Step>
 
         <Step n={4} step={s.steps[3]}>
-          {tradeDone && !catalogDone && (
+          {!retired && tradeDone && !catalogDone && (
             <form action={installTemplateAction} className="mt-3 flex flex-wrap items-center gap-3">
               <input type="hidden" name="contractorId" value={id} />
               <button type="submit" className="rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:bg-electric/90">Install the {s.facts.trades[0]} catalog</button>
@@ -156,13 +164,29 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </Step>
       </ol>
 
+      {!retired && (
+        <section className="mt-10 rounded-card border border-red-200 bg-white p-5 shadow-card">
+          <h2 className="font-display text-lg font-bold text-red-800">Retire this business</h2>
+          <p className="mt-1 text-sm text-slate">The reversible form of delete. Sets the business, its storefront and every service inactive in one step, so nothing is reachable by homeowners or by its owner&rsquo;s dashboard. Deletes nothing: the catalog, quotes, bookings and payment records stay. Retiring cannot be undone from this panel yet.</p>
+          <form action={retireAction} className="mt-4 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="contractorId" value={id} />
+            <label className="text-sm">
+              <span className="block text-xs uppercase tracking-wide text-slate">Type the web address to confirm: <code>{c.slug}</code></span>
+              <input name="confirmSlug" required autoComplete="off" className="mt-1 w-72 rounded-md border border-red-200 px-3 py-2" placeholder={c.slug} />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-navy"><input type="checkbox" name="confirm" value="yes" required /> I understand the storefront goes down now.</label>
+            <button type="submit" className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800">Retire {c.name}</button>
+          </form>
+        </section>
+      )}
+
       <p className="mt-10 text-xs text-slate">Viewed as {s.facts.actor.role}. Each submission is one command; a repeat converges on the same rows rather than creating more.</p>
     </div>
   );
 }
 
-function Progress({ progress }: { progress: "not-started" | "in-progress" | "blocked" | "ready" | "launched" }) {
-  const tone = progress === "launched" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : progress === "ready" ? "bg-electric/10 text-electric border-electric/30" : progress === "blocked" ? "bg-p2b-amber-tint text-p2b-amber-ink border-p2b-amber-ink/40" : "bg-white text-slate border-cardline";
+function Progress({ progress }: { progress: "not-started" | "in-progress" | "blocked" | "ready" | "launched" | "retired" }) {
+  const tone = progress === "launched" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : progress === "ready" ? "bg-electric/10 text-electric border-electric/30" : progress === "blocked" ? "bg-p2b-amber-tint text-p2b-amber-ink border-p2b-amber-ink/40" : progress === "retired" ? "bg-navy text-white border-navy" : "bg-white text-slate border-cardline";
   return <span className={`rounded-pill border px-3 py-1 text-xs font-medium ${tone}`}>{progress.replace("-", " ")}</span>;
 }
 

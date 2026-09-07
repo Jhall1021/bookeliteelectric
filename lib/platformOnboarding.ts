@@ -37,6 +37,7 @@ import {
   type SignedInUser, type PlatformActor, type PlatformContractor,
 } from "./platformContext";
 import { contractorFactsFor, listContractors, mapWithConcurrency, type ContractorFacts } from "./platformReadModel";
+import { partitionFixtures } from "./fixtureContractors";
 import { validateIdentity, slugTaken, createContractorRecord, isUniqueViolation, SLUG_INPUT_PATTERN, SLUG_MAX, type IdentityOptions } from "./contractorCreation";
 export { SLUG_INPUT_PATTERN, SLUG_MAX };
 import { setTradeEnrolment } from "./tradeEnrolment";
@@ -47,7 +48,7 @@ import { activateService, activationRefusal, type ActivationRefusal } from "./se
 // ── progress, derived ──────────────────────────────────────────────────────
 
 /**
- * Five words, each one a fact:
+ * Six words, each one a fact:
  *   not-started  the tenant exists and nothing else does
  *   in-progress  the founder's own steps (owner, trade, catalog) are underway
  *   blocked      those steps are done; what remains is the owner's work, and
@@ -55,14 +56,17 @@ import { activateService, activationRefusal, type ActivationRefusal } from "./se
  *   ready        the readiness engine says launch may proceed
  *   launched     at least one service is live
  */
-export type OnboardingProgress = "not-started" | "in-progress" | "blocked" | "ready" | "launched";
+export type OnboardingProgress = "not-started" | "in-progress" | "blocked" | "ready" | "launched" | "retired";
 
 export function onboardingProgress(
-  f: { catalog: { total: number; live: number }; readiness: { canLaunch: boolean }; trades: string[] },
+  f: { contractor: { active: boolean }; catalog: { total: number; live: number }; readiness: { canLaunch: boolean }; trades: string[] },
   ownerCount: number,
   /** Offered services that are NOT live. A launch that left some behind is not "launched"; it is ready to retry, or blocked. */
   pendingOffered = 0
 ): OnboardingProgress {
+  //   retired      Contractor.active is false — set only by retireContractorFor;
+  //                storefront and services are down on purpose, data kept
+  if (!f.contractor.active) return "retired";
   if (f.catalog.live > 0 && pendingOffered === 0) return "launched";
   const founderStepsDone = ownerCount > 0 && f.trades.length > 0 && f.catalog.total > 0;
   if (!founderStepsDone) {
@@ -224,11 +228,21 @@ export type OnboardingIndexRow =
   | { id: string; slug: string; name: string; owners: string[]; readable: true; progress: OnboardingProgress; live: number; blockers: number }
   | { id: string; slug: string; name: string; owners: string[]; readable: false; error: string };
 
-/** Every contractor with its derived progress, each entered through its own door; one unreadable row never hides the rest. */
-export async function onboardingIndexFor(db: PrismaClient, user: SignedInUser | null): Promise<{ rows: OnboardingIndexRow[]; trades: string[]; actor: PlatformActor }> {
-  const { rows, trades, actor } = await withPlatformFor(db, user, async (platformDb, actor) => ({
-    rows: await listContractors(platformDb), trades: await availableTrades(platformDb), actor,
+/**
+ * Every contractor with its derived progress, each entered through its own
+ * door; one unreadable row never hides the rest.
+ *
+ * Verifier fixtures are left out unless `fixtures: "show"` is passed, and
+ * the number left out is reported. A probe a verifier is using looks exactly
+ * like a business to onboard — one was onboarded that way on 7 Sep 2026 —
+ * so the request-bound form passes nothing and the page can never list one.
+ */
+export async function onboardingIndexFor(db: PrismaClient, user: SignedInUser | null, opts: { fixtures?: "hide" | "show" } = {}): Promise<{ rows: OnboardingIndexRow[]; trades: string[]; actor: PlatformActor; hiddenFixtures: number }> {
+  const { directory, trades, actor } = await withPlatformFor(db, user, async (platformDb, actor) => ({
+    directory: await listContractors(platformDb), trades: await availableTrades(platformDb), actor,
   }));
+  const split = partitionFixtures(directory);
+  const rows = opts.fixtures === "show" ? directory : split.genuine;
   const out = await mapWithConcurrency(rows, 3, async (r): Promise<OnboardingIndexRow> => {
     const base = { id: r.id, slug: r.slug, name: r.name, owners: r.owners };
     try {
@@ -238,7 +252,7 @@ export async function onboardingIndexFor(db: PrismaClient, user: SignedInUser | 
       return { ...base, readable: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
-  return { rows: out, trades, actor };
+  return { rows: out, trades, actor, hiddenFixtures: opts.fixtures === "show" ? 0 : split.fixtures.length };
 }
 
 // ── commands ───────────────────────────────────────────────────────────────
@@ -456,6 +470,44 @@ export async function launchContractorFor(db: PrismaClient, user: SignedInUser |
   });
 }
 
+export type RetireResult =
+  | { ok: true; contractorId: string; slug: string; already: boolean; servicesDeactivated: number; sitesDeactivated: number }
+  | Refused;
+
+/**
+ * Retire a business: the reversible form of "delete". One transaction sets
+ * Contractor.active false (no membership can open its dashboard), every
+ * ContractorSite inactive (the storefront and embed stop resolving) and every
+ * Service inactive (nothing bookable), and deletes NOTHING — quotes, bookings,
+ * payment records, materials and the catalog stay, so the business can be
+ * reinstated or audited later. The caller must type the slug back: a retire
+ * is the one platform action a homeowner would notice within the minute.
+ * Retiring twice is one retire.
+ */
+export async function retireContractorFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown, confirmSlug: string): Promise<RetireResult> {
+  return withPlatformContractorFor(db, user, contractorId, async (guarded, _actor, contractor) => {
+    if (confirmSlug.trim().toLowerCase() !== contractor.slug) {
+      return { ok: false, refusal: { code: "CONFIRMATION_MISMATCH", message: `Type the business's web address, ${contractor.slug}, to confirm.` } };
+    }
+    const [row, liveSites, liveServices] = await Promise.all([
+      guarded.contractor.findUniqueOrThrow({ where: { id: contractor.id }, select: { active: true } }),
+      guarded.contractorSite.count({ where: { contractorId: contractor.id, active: true } }),
+      guarded.service.count({ where: { contractorId: contractor.id, active: true } }),
+    ]);
+    if (!row.active && liveSites === 0 && liveServices === 0) {
+      return { ok: true, contractorId: contractor.id, slug: contractor.slug, already: true, servicesDeactivated: 0, sitesDeactivated: 0 };
+    }
+    // The UNGUARDED client, keyed to the door's contractor id, so the three
+    // writes are one transaction. Nothing here deletes.
+    const [, sites, services] = await db.$transaction([
+      db.contractor.update({ where: { id: contractor.id }, data: { active: false } }),
+      db.contractorSite.updateMany({ where: { contractorId: contractor.id, active: true }, data: { active: false } }),
+      db.service.updateMany({ where: { contractorId: contractor.id, active: true }, data: { active: false } }),
+    ]);
+    return { ok: true, contractorId: contractor.id, slug: contractor.slug, already: false, servicesDeactivated: services.count, sitesDeactivated: sites.count };
+  });
+}
+
 // ── request-bound forms, for pages and server actions ─────────────────────
 
 export const platformOnboardingIndex = async () => onboardingIndexFor(prisma, await currentUser());
@@ -465,6 +517,7 @@ export const platformAttachOwner = async (contractorId: unknown, email: string) 
 export const platformEnrolTrade = async (contractorId: unknown, tradeKey: string) => enrolTradeFor(prisma, await currentUser(), contractorId, tradeKey);
 export const platformInstallTemplate = async (contractorId: unknown) => installTradeTemplateFor(prisma, await currentUser(), contractorId);
 export const platformLaunchContractor = async (contractorId: unknown) => launchContractorFor(prisma, await currentUser(), contractorId);
+export const platformRetireContractor = async (contractorId: unknown, confirmSlug: string) => retireContractorFor(prisma, await currentUser(), contractorId, confirmSlug);
 
 // ── notices, for the query string the actions redirect with ──────────────
 
@@ -479,7 +532,10 @@ const NOTICES: Record<string, { tone: "ok" | "warn"; text: string }> = {
   CATALOG_ALREADY: { tone: "ok", text: "The catalog was already installed. Nothing changed." },
   LAUNCHED: { tone: "ok", text: "Launched: every offered service passed its activation guard." },
   LAUNCH_PARTIAL: { tone: "warn", text: "Partial launch: some offered services were refused by their activation guard. Each service's current state, and what the guard says about it, is under Launch below; the ones not yet live can be retried once their blocker is cleared." },
-  CONFIRMATION_REQUIRED: { tone: "warn", text: "Tick the confirmation before launching." },
+  CONFIRMATION_REQUIRED: { tone: "warn", text: "Tick the confirmation first." },
+  RETIRED: { tone: "warn", text: "Retired: the business, its storefront and every service are now inactive. Nothing was deleted." },
+  RETIRED_ALREADY: { tone: "ok", text: "This business was already retired. Nothing changed." },
+  CONFIRMATION_MISMATCH: { tone: "warn", text: "The web address you typed did not match, so nothing was retired." },
   NOT_FOUND: { tone: "warn", text: "That contractor does not exist." },
 };
 

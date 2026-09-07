@@ -39,8 +39,9 @@ import { destroyContractor } from "./_throwaway";
 import { importViolations, mutatingCalls, usesOf, callsTo, requestAccess, type Policy } from "./_platformSurfaceAudit";
 import {
   onboardingProgress, onboardingStatusFor, onboardingIndexFor,
-  beginContractorFor, attachOwnerFor, enrolTradeFor, installTradeTemplateFor, launchContractorFor, noticeText, LAUNCH_GUARD_CONCURRENCY,
+  beginContractorFor, attachOwnerFor, enrolTradeFor, installTradeTemplateFor, launchContractorFor, retireContractorFor, noticeText, LAUNCH_GUARD_CONCURRENCY,
 } from "../lib/platformOnboarding";
+import { attentionFor } from "../lib/platformReadModel";
 import { availableTrades } from "../lib/templateProvisioning";
 import { activateService, activationRefusal } from "../lib/serviceActivation";
 import { validateIdentity, slugify, SLUG_INPUT_PATTERN, SLUG_MAX } from "../lib/contractorCreation";
@@ -99,6 +100,7 @@ const ONBOARDING_POLICY: Policy = {
   "./templateProvisioning": ["availableTrades", "templateVersionSource", "preflight", "installCatalog"],
   "./onboardingReadiness": ["assessOnboarding"],
   "./serviceActivation": ["activateService", "activationRefusal"],
+  "./fixtureContractors": ["partitionFixtures"],
 };
 const DOORS = new Set(["withPlatformFor", "withPlatformContractorFor"]);
 
@@ -331,19 +333,46 @@ async function main() {
     ok(`   and only now is progress "launched": every offered service live, none pending`, sDone.progress === "launched" && sDone.launch.live === 2 && sDone.launch.pending === 0 && sDone.steps[5].status === "done");
     ok(`   nothing beyond the two offered services went live, and no price was invented`, (await raw.service.count({ where: { contractorId: probeId, active: true } })) === 2 && (await raw.service.count({ where: { id: { in: [A.id, B.id] }, OR: [{ basePrice: { not: null } }, { publishedPriceApprovedAt: { not: null } }] } })) === 0);
 
+    // ── 6c. retire: the reversible delete ───────────────────────────────
+    const before = { services: await raw.service.count({ where: { contractorId: probeId } }), materials: await raw.contractorMaterial.count({ where: { contractorId: probeId } }).catch(() => -1), memberships: await raw.contractorMembership.count({ where: { contractorId: probeId } }) };
+    const wrong = await retireContractorFor(db, staff, probeId, "not-the-slug");
+    ok(`6c. retiring with the wrong web address typed is refused and changes nothing`, !wrong.ok && wrong.refusal.code === "CONFIRMATION_MISMATCH" && (await raw.contractor.findUniqueOrThrow({ where: { id: probeId }, select: { active: true } })).active && (await raw.service.count({ where: { contractorId: probeId, active: true } })) === 2);
+    ok(`   a non-staff session cannot retire`, (await throwsWith(() => retireContractorFor(db, owner, probeId, SLUG))) === "NotPlatformStaffError");
+    const r1 = await retireContractorFor(db, staff, probeId, SLUG.toUpperCase());
+    const afterRow = await raw.contractor.findUniqueOrThrow({ where: { id: probeId }, select: { active: true, _count: { select: { sites: true } } } });
+    ok(`   with the slug typed (case-folded), the business, its storefront and both live services go inactive in one step`, r1.ok && !r1.already && r1.servicesDeactivated === 2 && r1.sitesDeactivated === 1 && !afterRow.active && (await raw.contractorSite.count({ where: { contractorId: probeId, active: true } })) === 0 && (await raw.service.count({ where: { contractorId: probeId, active: true } })) === 0);
+    ok(`   and NOTHING was deleted: services, materials and memberships are all still there`, (await raw.service.count({ where: { contractorId: probeId } })) === before.services && (await raw.contractorMaterial.count({ where: { contractorId: probeId } }).catch(() => -1)) === before.materials && (await raw.contractorMembership.count({ where: { contractorId: probeId } })) === before.memberships && afterRow._count.sites === 1);
+    const r2 = await retireContractorFor(db, staff, probeId, SLUG);
+    ok(`   retiring again is one retire`, r2.ok && r2.already && r2.servicesDeactivated === 0);
+    const sRetired = await onboardingStatusFor(db, staff, probeId);
+    ok(`   progress derives as RETIRED from Contractor.active, and the facts still read through the door`, sRetired.progress === "retired" && sRetired.facts.contractor.active === false && sRetired.facts.catalog.live === 0);
+    ok(`   a retired contractor is nobody's job: the attention rule yields nothing for it`, attentionFor(sRetired.facts).length === 0);
+    const idxR = await onboardingIndexFor(db, staff, { fixtures: "show" });
+    ok(`   and the index lists it as retired`, idxR.rows.some((r) => r.id === probeId && r.readable && r.progress === "retired"));
+    // The probe is a verifier fixture (lib/fixtureContractors). The index a
+    // person sees leaves it out and says so — a fixture listed as a business
+    // to onboard is how one leaked into production on 7 Sep 2026.
+    const idxStaff = await onboardingIndexFor(db, staff);
+    ok(`   by default the index leaves verifier fixtures out and reports how many`, !idxStaff.rows.some((r) => r.id === probeId) && idxStaff.hiddenFixtures >= 1 && idxR.hiddenFixtures === 0 && idxStaff.rows.length === idxR.rows.length - idxStaff.hiddenFixtures);
+    ok(`   the request-bound form passes nothing, so the page can never list one`, /export const platformOnboardingIndex = async \(\) => onboardingIndexFor\(prisma, await currentUser\(\)\);/.test(readFileSync(MODULE, "utf8")));
+
     // ── 7. the index derives every row, isolating failures ──────────────
-    const idx = await onboardingIndexFor(db, staff);
+    const idx = await onboardingIndexFor(db, staff, { fixtures: "show" });
     const mine = idx.rows.find((r) => r.id === probeId);
-    ok(`7. the index lists the probe with its derived progress (launched, after 6b) and its owner`, !!mine && mine.readable && mine.progress === "launched" && mine.live === 2 && mine.owners.includes(owner.email));
+    // `other` is never this contractor's owner: the one-owned-business
+    // rule (restored above) refused attaching it at line ~241, because it
+    // already owns the race-winner contractor. One owner, unambiguously.
+    ok(`7. the index lists the probe with its derived progress (retired, after 6c) and its one owner`, !!mine && mine.readable && mine.progress === "retired" && mine.owners.includes(owner.email) && !mine.owners.includes(other.email) && mine.owners.length === 1);
     ok(`   and the progress rule itself, on synthetic facts`,
-      onboardingProgress({ catalog: { total: 0, live: 0 }, readiness: { canLaunch: false }, trades: [] }, 0) === "not-started"
-      && onboardingProgress({ catalog: { total: 0, live: 0 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 0) === "in-progress"
-      && onboardingProgress({ catalog: { total: 5, live: 0 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1) === "blocked"
-      && onboardingProgress({ catalog: { total: 5, live: 0 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 1) === "ready"
-      && onboardingProgress({ catalog: { total: 5, live: 2 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1, 0) === "launched"
-      && onboardingProgress({ catalog: { total: 5, live: 0 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 0) === "in-progress"
-      && onboardingProgress({ catalog: { total: 5, live: 1 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 1, 1) === "ready"
-      && onboardingProgress({ catalog: { total: 5, live: 1 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1, 1) === "blocked");
+      onboardingProgress({ contractor: { active: false }, catalog: { total: 5, live: 5 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 1, 0) === "retired"
+      && onboardingProgress({ contractor: { active: true }, catalog: { total: 0, live: 0 }, readiness: { canLaunch: false }, trades: [] }, 0) === "not-started"
+      && onboardingProgress({ contractor: { active: true }, catalog: { total: 0, live: 0 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 0) === "in-progress"
+      && onboardingProgress({ contractor: { active: true }, catalog: { total: 5, live: 0 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1) === "blocked"
+      && onboardingProgress({ contractor: { active: true }, catalog: { total: 5, live: 0 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 1) === "ready"
+      && onboardingProgress({ contractor: { active: true }, catalog: { total: 5, live: 2 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1, 0) === "launched"
+      && onboardingProgress({ contractor: { active: true }, catalog: { total: 5, live: 0 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 0) === "in-progress"
+      && onboardingProgress({ contractor: { active: true }, catalog: { total: 5, live: 1 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 1, 1) === "ready"
+      && onboardingProgress({ contractor: { active: true }, catalog: { total: 5, live: 1 }, readiness: { canLaunch: false }, trades: ["electrical"] }, 1, 1) === "blocked");
     ok(`   notices voice only known codes and refusal-shaped codes, never free text`, noticeText("CREATED")?.tone === "ok" && noticeText("SLUG_TAKEN")?.tone === "warn" && noticeText("<script>") === null && noticeText(42) === null && noticeText("a".repeat(60)) === null);
   } finally {
     await teardown();
@@ -362,14 +391,17 @@ async function main() {
   const outside = writesOutsideDoors(src);
   ok(`   every mutating call in it is inside a platform door's callback`, outside.length === 0, outside.join(", "));
   const writes = mutatingCalls(src, MODULE).map((w) => w.callee);
-  ok(`   and the only writes it owns are the tenant transaction and the owner membership upsert (${writes.join(", ")})`, writes.length === 2 && writes.some((w) => /\$transaction/.test(w)) && writes.some((w) => /contractorMembership\.upsert/.test(w)));
+  const OWNED_WRITES = [/platformDb\.\$transaction/, /contractorMembership\.upsert/, /^db\.\$transaction$/, /db\.contractor\.update$/, /db\.contractorSite\.updateMany/, /db\.service\.updateMany/];
+  ok(`   and the only writes it owns are the tenant transaction, the owner membership upsert, and retire's one transaction of three deactivations (${writes.join(", ")})`, writes.length === 6 && OWNED_WRITES.every((re) => writes.some((w) => re.test(w))) && writes.every((w) => OWNED_WRITES.some((re) => re.test(w))));
+  const retire = fnBody(src, "retireContractorFor");
+  ok(`   retire deletes nothing, writes only \`active: false\`, and demands the slug typed back before it reads anything`, !/\.delete\(|\.deleteMany\(|\$executeRaw/.test(retire) && !/data:\s*\{[^}]*\bactive: true/.test(retire) && (retire.match(/active: false/g) ?? []).length === 3 && retire.indexOf("CONFIRMATION_MISMATCH") < retire.indexOf("findUniqueOrThrow") && /confirmSlug\.trim\(\)\.toLowerCase\(\) !== contractor\.slug/.test(retire));
   ok(`   it never constructs a client, reads PlatformAccess, or authorizes by email`, !/new PrismaClient|platformAccess|\.email\s*[!=]==?/.test(mod));
   ok(`   it reads no request: no next/headers or next/server, no params, searchParams or arguments`, !/\bparams\b|searchParams|\barguments\b|next\/headers|next\/server/.test(mod));
   const install = fnBody(src, "installOnce") + fnBody(src, "installTradeTemplateFor");
   ok(`   installation runs preflight and installCatalog, and never touches activation`, /templateVersionSource\(/.test(install) && /preflight\(/.test(install) && /installCatalog\(db, contractor\.id, pre\.catalog\)/.test(install) && !/activateService|data:\s*\{[^}]*active|\.update\(/.test(install));
   const launch = fnBody(src, "launchContractorFor");
   ok(`   launch asks assessOnboarding first and refuses on blockers before any activation`, /assessOnboarding\(guarded, contractor\.id\)/.test(launch) && launch.indexOf("canLaunch") < launch.indexOf("activate(") && /NOT_READY/.test(launch));
-  ok(`   and activates only through activateService, never by writing active`, callsTo(src, "activate").length === 1 && /const activate = opts\.activate \?\? activateService;/.test(src) && !/\.update\(|data:\s*\{[^}]*active/.test(launch) && !/service\.update/.test(mod));
+  ok(`   and activates only through activateService, never by writing active`, callsTo(src, "activate").length === 1 && /const activate = opts\.activate \?\? activateService;/.test(src) && !/\.update\(|data:\s*\{[^}]*active/.test(launch) && !/service\.update\(/.test(mod) && !/data:\s*\{[^}]*\bactive: true/.test(mod.replace(/contractorMembership\.upsert\([\s\S]*?\}\);/g, "")));
   ok(`   the activation seam defaults to the genuine import, the readiness gate is not injectable, and the request-bound form passes nothing`,
     /opts: \{ activate\?: Activate \} = \{\}/.test(src) && !/opts\.(assess|readiness|canLaunch)/.test(src) && /launchContractorFor\(prisma, await currentUser\(\), contractorId\);/.test(src) && !/launchContractorFor/.test(readFileSync("app/platform/onboarding/actions.ts", "utf8")));
   ok(`   guard verdicts are read through the bounded helper with a small bound, never a sequential loop, and the seam defaults to the genuine guard`,
@@ -387,7 +419,7 @@ async function main() {
   const actions = readFileSync("app/platform/onboarding/actions.ts", "utf8");
   ok(`   the actions never pass their FormData onward — fields are read in place`, requestAccess(actions, "app/platform/onboarding/actions.ts").length === 0 && usesOf(actions, "formData", "app/platform/onboarding/actions.ts").every((u) => u.kind === "member" && u.member === "get"));
   ok(`   every redirect carries the id the COMMAND returned, or the form's id only back to the same page`, /backTo\(r\.contractorId/.test(actions) && !/redirect\(`\/platform\/onboarding\/\$\{field/.test(actions));
-  ok(`   launch demands an explicit confirmation`, /confirm"\)+ !== "yes"/.test(actions) && /CONFIRMATION_REQUIRED/.test(actions));
+  ok(`   launch and retire each demand an explicit confirmation, and retire also the slug typed back`, (actions.match(/confirm"\)+ !== "yes"/g) ?? []).length === 2 && /CONFIRMATION_REQUIRED/.test(actions) && /platformRetireContractor\(str\(formData\.get\("contractorId"\)\), str\(formData\.get\("confirmSlug"\)\)\)/.test(actions));
   // ── 10. the wizard never navigates the operator into an unscoped dashboard ──
   //
   // /dashboard/* resolves its contractor from the signed-in user's membership
