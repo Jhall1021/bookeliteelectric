@@ -359,7 +359,10 @@ async function main() {
     // ── 7. the index derives every row, isolating failures ──────────────
     const idx = await onboardingIndexFor(db, staff, { fixtures: "show" });
     const mine = idx.rows.find((r) => r.id === probeId);
-    ok(`7. the index lists the probe with its derived progress (retired, after 6c) and its owners`, !!mine && mine.readable && mine.progress === "retired" && mine.owners.includes(owner.email) && mine.owners.includes(other.email));
+    // `other` is never this contractor's owner: the one-owned-business
+    // rule (restored above) refused attaching it at line ~241, because it
+    // already owns the race-winner contractor. One owner, unambiguously.
+    ok(`7. the index lists the probe with its derived progress (retired, after 6c) and its one owner`, !!mine && mine.readable && mine.progress === "retired" && mine.owners.includes(owner.email) && !mine.owners.includes(other.email) && mine.owners.length === 1);
     ok(`   and the progress rule itself, on synthetic facts`,
       onboardingProgress({ contractor: { active: false }, catalog: { total: 5, live: 5 }, readiness: { canLaunch: true }, trades: ["electrical"] }, 1, 0) === "retired"
       && onboardingProgress({ contractor: { active: true }, catalog: { total: 0, live: 0 }, readiness: { canLaunch: false }, trades: [] }, 0) === "not-started"
