@@ -455,7 +455,10 @@ async function main() {
   ok(`   creation's rule IS hostedSlugProblem plus a shorter ceiling — no second reserved list`, /hostedSlugProblem\(slug\)/.test(strip("lib/contractorCreation.ts")) && !/RESERVED|reserved = \[|new Set\(\[/.test(strip("lib/contractorCreation.ts").replace(/hostedSlugProblem/g, "")) && !/SLUG_SHAPE/.test(strip("lib/contractorCreation.ts")));
   ok(`   the create form's HTML pattern is the shared constant and agrees with the server on shape`, /pattern=\{SLUG_INPUT_PATTERN\}/.test(readFileSync("app/platform/onboarding/page.tsx", "utf8")) && (() => { const re = new RegExp(`^(?:${SLUG_INPUT_PATTERN})$`); return re.test("northside-electric") && re.test("abc") && !re.test("north--side") && !re.test("-abc") && !re.test("abc-") && !re.test("ab") && !re.test("a".repeat(SLUG_MAX + 1)) && re.test("a".repeat(SLUG_MAX)); })());
 
-  const chain = (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts.verify;
+  // Reads verify:full — Development Release Mode (7 Sep) moved the literal
+  // chain text off `verify` (now an alias) onto this key. Same ordering
+  // invariant, same field content, different name.
+  const chain = (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts["verify:full"];
   ok(`   this verifier runs in the deploy gate, after the read model's`, chain.indexOf("verify-platform-read-model.ts") < chain.indexOf("verify-platform-onboarding.ts"));
 
   console.log(fail ? `\n  ${fail} check(s) failed.\n` : `\n  The founder may act. Only through the door, and only by handing the decision to whoever already owns it.\n`);

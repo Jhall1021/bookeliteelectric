@@ -397,8 +397,15 @@ function main() {
       /MALFORMED_CREDENTIAL/.test(guardSrc));
 
     // F6 — the 180-case suite is actually gated on.
+    //
+    // Reads verify:full, not verify. Development Release Mode (7 Sep) made
+    // `verify` a one-line alias to `verify:full` so normal builds could skip
+    // the database-backed steps; the literal chain text this check searches
+    // for moved with it. The invariant is unchanged — verify-release-control
+    // must still appear in SOME chain that actually runs, not just exist as
+    // a file — only the field that carries that chain's text was renamed.
     ok(`   verify-release-control.ts is in the verification chain`,
-      /verify-release-control\.ts/.test(pkg.scripts.verify ?? ""));
+      /verify-release-control\.ts/.test(pkg.scripts["verify:full"] ?? ""));
 
     // ── 5. the release command ───────────────────────────────────────────
     const rel = strip("scripts/release-production.ts");
