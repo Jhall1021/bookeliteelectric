@@ -116,6 +116,11 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// so the compound unique is already in the schema and contract drops the
   /// global one.
   "JobberCrewMember",
+  /// G4. A contractor's own statement of a workforce capability — declared,
+  /// never inferred. contractorId is direct; see lib/credentials.ts, the
+  /// one reader/writer, and prisma/schema.prisma for why it is not scoped
+  /// under ContractorTrade instead.
+  "ContractorCredential",
 ]);
 
 /**

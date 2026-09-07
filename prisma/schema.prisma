@@ -603,6 +603,9 @@ model Contractor {
   /// or refuses bookings a contractor could take.
   onboarding   ContractorOnboarding?
   trades       ContractorTrade[]
+  /// G4. Explicit, contractor-declared workforce-capability facts. See
+  /// model ContractorCredential and lib/credentials.ts.
+  credentials  ContractorCredential[]
 
   schedulingAuthority SchedulingAuthority?
 
@@ -3733,4 +3736,63 @@ model ContractorTrade {
   @@unique([contractorId, tradeKey])
   @@index([contractorId])
   @@map("contractor_trades")
+}
+
+/// A contractor's explicit, contractor-owned statement of a WORKFORCE
+/// capability — never proof, never inferred, never derived from
+/// Contractor.licenseNumber, ContractorTrade, ContractorRole,
+/// ContractorMembership or PlatformAccess. See lib/credentials.ts, the one
+/// reader/writer.
+///
+/// WORKFORCE, NOT PERSONAL. Price2Book does not own technician dispatch
+/// strongly enough to know which individual will perform a given future
+/// booking (G4 audit, 7 Sep 2026). So this is never "the contractor holds
+/// key X" as a personal fact about one person — it is "the contractor states
+/// they can staff applicable work with someone who holds key X". A row here
+/// is a staffing capability statement, not a license record.
+///
+/// FACT ONLY. This model carries no requirement, gate or rule — see
+/// lib/plumbing/roles.ts for that separate concept (a service's own
+/// declared need), which G4 explicitly does not wire to this model. A row
+/// existing here changes no price, no activation outcome, no booking.
+///
+/// MISSING ROW = NOT ESTABLISHED, never "not held" and never "held". The one
+/// reader in lib/credentials.ts returns a three-state result and must never
+/// collapse absence to a boolean default.
+///
+/// NOT SCOPED TO ContractorTrade, deliberately. A credential is a fact about
+/// the contractor's workforce, not about one trade catalog — the same
+/// capability can be relevant to more than one trade, and trade enrollment
+/// is deleted and re-created by lib/tradeEnrolment.ts on every trade
+/// change (Cascade included), which would destroy credential history if it
+/// lived there. Any future requirement that a specific SERVICE names this
+/// key is trade-scoped on the SERVICE side, not here.
+///
+/// REVOKED, NEVER DELETED. `revokedAt` set means the capability is not
+/// CURRENTLY declared; the row and its `declaredAt` remain as history.
+model ContractorCredential {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// A validated string, not an enum — matching ContractorTrade.tradeKey and
+  /// the G1 decision against ordinals. lib/credentials.ts is the one place
+  /// that validates it against a known vocabulary.
+  key String
+
+  /// When the contractor made this statement. Restamped on re-declaration
+  /// after a revocation; this model keeps current state, not a full
+  /// declare/revoke event history.
+  declaredAt DateTime @default(now())
+
+  /// Null: currently declared. Set: the contractor withdrew the statement,
+  /// and the row is kept as history rather than deleted.
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractorId, key])
+  @@index([contractorId])
+  @@map("contractor_credentials")
 }
