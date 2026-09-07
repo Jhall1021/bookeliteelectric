@@ -331,7 +331,7 @@ async function main() {
   const AUDIT = "scripts/audit-platform-tenant-relations.ts";
   const auditSrc = readFileSync(AUDIT, "utf8");
   const ENTRY_KEY = "lib/platformReadModel.ts:services";
-  const ENTRY_ANCHOR = String.raw`services: \{ live: facts\.reduce\(`;
+  const ENTRY_ANCHOR = String.raw`^[ \t]*services: \{ live: facts\.reduce\(`;
   const entry = (() => {
     const sf = ts.createSourceFile(AUDIT, auditSrc, ts.ScriptTarget.Latest, true);
     let found: { keys: string[]; hasMustMatch: boolean; anchor: string | null; reasonIsString: boolean } = { keys: [], hasMustMatch: false, anchor: null, reasonIsString: false };
@@ -355,7 +355,20 @@ async function main() {
   })();
   ok(`   the tenant-relations audit carries exactly one exception for the read model, keyed ${ENTRY_KEY}`, entry.keys.length === 1 && entry.keys[0] === ENTRY_KEY, entry.keys.join(", "));
   ok(`   and that exception is anchored by mustMatch to the summary line, not a bare file+field excuse`, entry.hasMustMatch && entry.anchor === ENTRY_ANCHOR && entry.reasonIsString, `anchor=${entry.anchor}`);
-  ok(`   the anchor matches the read model's summary line and nothing else in it`, (rmSrc.match(new RegExp(ENTRY_ANCHOR, "g")) ?? []).length === 1);
+  // The audit evaluates mustMatch against the flagged line plus the seven
+  // lines after it, joined. So the anchor must hold only when the FLAGGED line
+  // is the summary line: `^` with horizontal whitespace and no multiline flag.
+  // Rebuilt from the regex the audit actually carries, not retyped here.
+  const anchorRe = new RegExp(entry.anchor ?? "(?!)");
+  const rmLines = rmSrc.split("\n");
+  const summaryAt = rmLines.findIndex((l) => /services: \{ live: facts\.reduce\(/.test(l));
+  const contextOf = (lines: string[], i: number) => lines.slice(i, i + 8).join("\n");
+  const approvedContext = contextOf(rmLines, summaryAt);
+  ok(`   the anchor matches the read model's summary line exactly once, as the audit would see it (flagged line + 7)`, summaryAt >= 0 && anchorRe.test(approvedContext) && rmLines.filter((_, i) => anchorRe.test(contextOf(rmLines, i))).length === 1);
+  const unsafeBefore = ["      services: true },", ...rmLines.slice(summaryAt, summaryAt + 7)].join("\n");
+  ok(`   mutant: a real \`services: true\` flagged on the line BEFORE the summary line is NOT excused — its context contains the summary line, but not first`, !anchorRe.test(unsafeBefore));
+  ok(`   and an UNANCHORED pattern would have excused it, which is why the anchor is pinned to the start`, new RegExp((entry.anchor ?? "").replace(/^\^\[ \\t\]\*/, "")).test(unsafeBefore) && (entry.anchor ?? "").startsWith(String.raw`^[ \t]*`));
+  ok(`   nor is the summary line excused if something precedes it on its own line of context`, !anchorRe.test("  x,\n" + approvedContext));
   const tsxBin = join(process.cwd(), "node_modules", ".bin", "tsx");
   const runAudit = (source: string, label: string) => {
     // The audit runs main() only when import.meta.url equals argv[1]'s file
