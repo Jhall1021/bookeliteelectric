@@ -39,10 +39,10 @@ import { destroyContractor } from "./_throwaway";
 import { importViolations, mutatingCalls, usesOf, callsTo, requestAccess, type Policy } from "./_platformSurfaceAudit";
 import {
   onboardingProgress, onboardingStatusFor, onboardingIndexFor,
-  beginContractorFor, attachOwnerFor, enrolTradeFor, installTradeTemplateFor, launchContractorFor, noticeText,
+  beginContractorFor, attachOwnerFor, enrolTradeFor, installTradeTemplateFor, launchContractorFor, noticeText, LAUNCH_GUARD_CONCURRENCY,
 } from "../lib/platformOnboarding";
 import { availableTrades } from "../lib/templateProvisioning";
-import { activateService } from "../lib/serviceActivation";
+import { activateService, activationRefusal } from "../lib/serviceActivation";
 import { validateIdentity, slugify, SLUG_INPUT_PATTERN, SLUG_MAX } from "../lib/contractorCreation";
 import { hostedSlugProblem } from "../lib/siteRouting";
 
@@ -266,16 +266,36 @@ async function main() {
     // check and service B's activation, B's owner "un-decides" a policy: the
     // seam runs that state change and calls the REAL activateService, which
     // refuses B for real. A is live, B is not: one launch, two outcomes.
-    const quoteOnly = await raw.service.findMany({ where: { contractorId: probeId, bookingType: "REMOTE_QUOTE", requiresPreWorkVisit: false }, select: { id: true, slug: true }, orderBy: { name: "asc" }, take: 2 });
-    ok(`6b. the catalog has two quote-only services to launch (${quoteOnly.map((q) => q.slug).join(", ")})`, quoteOnly.length === 2);
+    const quoteOnly = await raw.service.findMany({ where: { contractorId: probeId, bookingType: "REMOTE_QUOTE", requiresPreWorkVisit: false }, select: { id: true, slug: true }, orderBy: { name: "asc" }, take: 6 });
+    ok(`6b. the catalog has quote-only services to launch (${quoteOnly.length}; using ${quoteOnly.slice(0, 2).map((q) => q.slug).join(", ")})`, quoteOnly.length >= 6);
     const [A, B] = quoteOnly;
+    const extra = quoteOnly.slice(2).map((q) => q.id);
+    // A counting, timing seam around the REAL guard: every verdict still comes from activationRefusal.
+    let guardCalls = 0, inFlight = 0, peak = 0;
+    const counting: typeof activationRefusal = async (g, cid, sid) => { guardCalls++; inFlight++; peak = Math.max(peak, inFlight); await new Promise((r) => setTimeout(r, 25)); try { return await activationRefusal(g, cid, sid); } finally { inFlight--; } };
+    const reset = () => { guardCalls = 0; inFlight = 0; peak = 0; };
+    // (i) offered but the owner's work not done: BLOCKED with nothing live → counts read, guards not asked
+    await raw.service.updateMany({ where: { id: { in: quoteOnly.map((q) => q.id) } }, data: { offered: true, materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [], depositCents: 0 } });
+    reset();
+    const sBlocked = await onboardingStatusFor(db, staff, probeId, { refusalFor: counting });
+    ok(`   blocked with zero live: offered/live counts are read (6 offered, 0 live) and the guard is asked ZERO times`, sBlocked.progress === "blocked" && sBlocked.launch.pending === 6 && sBlocked.launch.live === 0 && sBlocked.launch.evaluated === false && guardCalls === 0, `calls=${guardCalls}`);
+    // (ii) the owner's work done → READY → the guards are evaluated, a few at a time, in order
     await raw.contractor.update({ where: { id: probeId }, data: { countryCode: "US", schedulingAuthority: "NATIVE", nativeConcurrentJobs: 2, stripeAccountId: `acct_probe_${RUN}`, stripeMerchantConfigured: true, stripeCardPaymentsStatus: "active", stripeOnboardingBlocked: false, stripeReadinessCheckedAt: new Date() } });
     await raw.pricingSettings.create({ data: { contractorId: probeId, crewHourRateCents: 15000, primaryMinimumCents: 9900, roundingIncrementCents: 500, defaultPermitAdminCents: 0 } });
     await raw.serviceArea.create({ data: { contractorId: probeId, name: "Probe county", zipCodes: ["30301"], active: true } });
-    await raw.service.updateMany({ where: { id: { in: [A.id, B.id] } }, data: { offered: true, materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [], depositCents: 0 } });
-    const sReady = await onboardingStatusFor(db, staff, probeId);
+    reset();
+    const sReadySix = await onboardingStatusFor(db, staff, probeId, { refusalFor: counting });
+    ok(`   ready to launch: the guard is asked once per pending service (6), through the bounded helper — peak in flight ${peak} ≤ ${LAUNCH_GUARD_CONCURRENCY}, and > 1`, sReadySix.progress === "ready" && sReadySix.launch.evaluated && guardCalls === 6 && peak <= LAUNCH_GUARD_CONCURRENCY && peak > 1, `calls=${guardCalls} peak=${peak}`);
+    const sReadyAgain = await onboardingStatusFor(db, staff, probeId, { refusalFor: counting });
+    const order = (x: typeof sReadySix) => x.launch.offered.map((o) => o.serviceId).join(",");
+    const sorted = [...sReadySix.launch.offered].sort((a, b) => a.name.localeCompare(b.name) || a.serviceId.localeCompare(b.serviceId)).map((o) => o.serviceId).join(",");
+    ok(`   result order is deterministic: name then id, identical across two reads`, order(sReadySix) === sorted && order(sReadySix) === order(sReadyAgain));
+    // back to the two services the mixed launch is about
+    await raw.service.updateMany({ where: { id: { in: extra } }, data: { offered: false } });
+    reset();
+    const sReady = await onboardingStatusFor(db, staff, probeId, { refusalFor: counting });
     ok(`   with the owner's work done the readiness engine passes and progress derives as READY (not launched: nothing is live)`, sReady.facts.readiness.canLaunch && sReady.progress === "ready" && sReady.launch.live === 0 && sReady.launch.pending === 2, sReady.remaining.map((b) => b.code).join(",") || "no blockers");
-    ok(`   and each pending service's guard verdict is visible before launch: both allowed`, sReady.launch.offered.every((o) => !o.live && o.refusal === null));
+    ok(`   and each pending service's guard verdict is visible before launch: both allowed (2 guard calls)`, sReady.launch.evaluated && guardCalls === 2 && sReady.launch.offered.every((o) => !o.live && o.refusal === null));
     const interposed: typeof activateService = async (g, cid, sid) => {
       if (sid === B.id) await raw.service.update({ where: { id: B.id }, data: { unresolvedPolicyKeys: ["probe.undecided.policy"] } });
       return activateService(g, cid, sid);
@@ -284,8 +304,10 @@ async function main() {
     const outcomeOf = (id: string) => ("outcomes" in mixed ? mixed.outcomes.find((o) => o.serviceId === id) : undefined);
     ok(`   the launch reports ONE activated and ONE refused — by the real guard, with its code`, "activated" in mixed && !mixed.ok && mixed.activated === 1 && mixed.refused === 1 && mixed.failed === 0 && outcomeOf(A.id)?.outcome === "activated" && outcomeOf(B.id)?.outcome === "refused" && outcomeOf(B.id)?.code === "POLICY_UNRESOLVED", JSON.stringify(mixed).slice(0, 300));
     ok(`   and the rows agree: A live, B not`, (await raw.service.findUniqueOrThrow({ where: { id: A.id }, select: { active: true } })).active && !(await raw.service.findUniqueOrThrow({ where: { id: B.id }, select: { active: true } })).active);
-    const sMixed = await onboardingStatusFor(db, staff, probeId);
+    reset();
+    const sMixed = await onboardingStatusFor(db, staff, probeId, { refusalFor: counting });
     ok(`   after the redirect the outcomes are still visible, derived: A live, B not live with the guard's current refusal`, sMixed.launch.live === 1 && sMixed.launch.pending === 1 && sMixed.launch.offered.find((o) => o.serviceId === A.id)?.live === true && sMixed.launch.offered.find((o) => o.serviceId === B.id)?.refusal?.code === "POLICY_UNRESOLVED");
+    ok(`   a partial launch evaluates only the PENDING service (1 guard call), even though progress is blocked, so its refusal stays visible`, sMixed.launch.evaluated && guardCalls === 1);
     ok(`   progress is NOT "launched" while an offered service is pending — it is blocked, because the engine now names B's policy`, sMixed.progress === "blocked" && !sMixed.facts.readiness.canLaunch && sMixed.remaining.some((b) => b.code === "POLICY_UNRESOLVED"));
     ok(`   a retry while blocked is refused by the readiness gate and changes nothing`, (() => true)() && (await launchContractorFor(db, staff, probeId)).ok === false && (await raw.service.count({ where: { contractorId: probeId, active: true } })) === 1);
     // the owner decides the policy; the wizard re-derives; the founder retries through the same guard
@@ -339,7 +361,11 @@ async function main() {
   ok(`   and activates only through activateService, never by writing active`, callsTo(src, "activate").length === 1 && /const activate = opts\.activate \?\? activateService;/.test(src) && !/\.update\(|data:\s*\{[^}]*active/.test(launch) && !/service\.update/.test(mod));
   ok(`   the activation seam defaults to the genuine import, the readiness gate is not injectable, and the request-bound form passes nothing`,
     /opts: \{ activate\?: Activate \} = \{\}/.test(src) && !/opts\.(assess|readiness|canLaunch)/.test(src) && /launchContractorFor\(prisma, await currentUser\(\), contractorId\);/.test(src) && !/launchContractorFor/.test(readFileSync("app/platform/onboarding/actions.ts", "utf8")));
-  ok(`   launch state is read from activationRefusal — the guard's verdict, never a stored copy`, /activationRefusal\(guarded, contractorId, s\.id\)/.test(fnBody(src, "launchStateFor")) && !/launchedAt|launchOutcome|lastLaunch/.test(mod) && !/launchedAt|launchOutcome|lastLaunch/.test(strip("prisma/schema.prisma")));
+  ok(`   guard verdicts are read through the bounded helper with a small bound, never a sequential loop, and the seam defaults to the genuine guard`,
+    /mapWithConcurrency\(base\.filter\(\(x\) => !x\.live\), LAUNCH_GUARD_CONCURRENCY/.test(fnBody(src, "launchStateFor")) && LAUNCH_GUARD_CONCURRENCY <= 3 && !/for \(const .* of .*\)[^\n]*\n[^\n]*refusalFor/.test(fnBody(src, "launchStateFor"))
+    && /const refusalFor = opts\.refusalFor \?\? activationRefusal;/.test(src) && /onboardingStatusFor\(prisma, await currentUser\(\), contractorId\);/.test(src) && !/refusalFor/.test(readFileSync("app/platform/onboarding/actions.ts", "utf8") + readFileSync("app/platform/onboarding/[contractorId]/page.tsx", "utf8")));
+  ok(`   and verdicts are skipped exactly when nothing is live and the contractor is not ready`, /const detail = live > 0 \|\| progress === "ready";/.test(src) && /if \(!detail \|\| pending === 0\) return \{ offered: base, live, pending, evaluated: false \};/.test(src));
+  ok(`   launch state is read from activationRefusal — the guard's verdict, never a stored copy`, /refusalFor\(guarded, contractorId, x\.serviceId\)/.test(fnBody(src, "launchStateFor")) && !/launchedAt|launchOutcome|lastLaunch/.test(mod) && !/launchedAt|launchOutcome|lastLaunch/.test(strip("prisma/schema.prisma")));
   ok(`   there is one readiness engine: the module never computes canLaunch or a blocker of its own`, !/canLaunch:\s*(true|false|!?[\w.]*blockers)/.test(mod) && !/severity:\s*"blocker"/.test(mod) && /assessOnboarding\(/.test(mod) && /contractorFactsFor\(db, user, contractorId\)/.test(mod));
   ok(`   completedAt is never stamped — finishing is derived, not declared`, !/completedAt:/.test(mod));
   const surfaces = sourceFiles(["app/platform/onboarding"]);

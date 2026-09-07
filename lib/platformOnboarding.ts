@@ -90,7 +90,19 @@ export type LaunchServiceState = {
   serviceId: string; slug: string; name: string; live: boolean;
   refusal: { code: ActivationRefusal["code"]; message: string; missingPrerequisites?: string[] } | null;
 };
-export type LaunchState = { offered: LaunchServiceState[]; live: number; pending: number };
+/**
+ * `evaluated` says whether the guard was asked at all. It is asked only when
+ * the answer can be shown or acted on — something is live (a partial launch
+ * whose refusals must stay visible) or the contractor is ready to launch.
+ * Blocked with nothing live, the page shows no outcomes, so the guards are
+ * not run just to be discarded; the offered/live counts that progress needs
+ * are read in every state.
+ */
+export type LaunchState = { offered: LaunchServiceState[]; live: number; pending: number; evaluated: boolean };
+
+/** How many pending services the guard is asked about at once. Small, like the overview's bound. */
+export const LAUNCH_GUARD_CONCURRENCY = 3;
+export type RefusalFor = typeof activationRefusal;
 
 export type OnboardingStatus = {
   facts: ContractorFacts;
@@ -154,23 +166,49 @@ async function ownersOf(db: PrismaClient, contractorId: string): Promise<Onboard
   return rows.map((r) => ({ email: r.user.email, emailVerified: r.user.emailVerified }));
 }
 
-/** Every offered service and, for those not live, what the activation guard says today. Read on the guarded client; the guard's own decision, never a copy. */
-async function launchStateFor(guarded: PrismaClient, contractorId: string): Promise<LaunchState> {
-  const offered = await guarded.service.findMany({ where: { contractorId, offered: true }, select: { id: true, slug: true, name: true, active: true }, orderBy: { name: "asc" } });
-  const states: LaunchServiceState[] = [];
-  for (const s of offered) {
-    const refusal = s.active ? null : await activationRefusal(guarded, contractorId, s.id);
-    states.push({ serviceId: s.id, slug: s.slug, name: s.name, live: s.active, refusal: refusal ? { code: refusal.code, message: refusal.message, missingPrerequisites: refusal.missingPrerequisites } : null });
-  }
-  return { offered: states, live: states.filter((x) => x.live).length, pending: states.filter((x) => !x.live).length };
+/** Every offered service with its live flag — the counts progress needs, in every state. Ordered by name then id, so two reads agree. */
+async function offeredServicesOf(guarded: PrismaClient, contractorId: string) {
+  return guarded.service.findMany({ where: { contractorId, offered: true }, select: { id: true, slug: true, name: true, active: true }, orderBy: [{ name: "asc" }, { id: "asc" }] });
 }
 
-/** Where one contractor is in onboarding, entirely derived. Authorizes twice: once per door. */
-export async function onboardingStatusFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown): Promise<OnboardingStatus> {
+/**
+ * The launch state: counts always; per-service guard verdicts only when
+ * `detail` is true, and then a few at a time through mapWithConcurrency,
+ * results in the same order as the offered list. The guard is
+ * activationRefusal itself — never a copy, never simplified.
+ */
+async function launchStateFor(guarded: PrismaClient, contractorId: string, offered: Awaited<ReturnType<typeof offeredServicesOf>>, detail: boolean, refusalFor: RefusalFor): Promise<LaunchState> {
+  const base = offered.map((s): LaunchServiceState => ({ serviceId: s.id, slug: s.slug, name: s.name, live: s.active, refusal: null }));
+  const live = base.filter((x) => x.live).length;
+  const pending = base.length - live;
+  if (!detail || pending === 0) return { offered: base, live, pending, evaluated: false };
+  const verdicts = await mapWithConcurrency(base.filter((x) => !x.live), LAUNCH_GUARD_CONCURRENCY, async (x) => {
+    const r = await refusalFor(guarded, contractorId, x.serviceId);
+    return [x.serviceId, r ? { code: r.code, message: r.message, missingPrerequisites: r.missingPrerequisites } : null] as const;
+  });
+  const byId = new Map(verdicts);
+  return { offered: base.map((x) => (x.live ? x : { ...x, refusal: byId.get(x.serviceId) ?? null })), live, pending, evaluated: true };
+}
+
+/**
+ * Where one contractor is in onboarding, entirely derived. Authorizes twice:
+ * once per door. `refusalFor` defaults to activationRefusal and exists so the
+ * verifier can count and time guard calls; the request-bound form passes nothing.
+ */
+export async function onboardingStatusFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown, opts: { refusalFor?: RefusalFor } = {}): Promise<OnboardingStatus> {
+  const refusalFor = opts.refusalFor ?? activationRefusal;
   const facts = await contractorFactsFor(db, user, contractorId);
-  const [owners, trades, launch] = await withPlatformContractorFor(db, user, contractorId, async (guarded, _actor, contractor) =>
-    Promise.all([ownersOf(db, contractor.id), availableTrades(db), launchStateFor(guarded, contractor.id)]));
-  const progress = onboardingProgress(facts, owners.length, launch.pending);
+  const { owners, trades, progress, launch } = await withPlatformContractorFor(db, user, contractorId, async (guarded, _actor, contractor) => {
+    const [owners, trades, offered] = await Promise.all([ownersOf(db, contractor.id), availableTrades(db), offeredServicesOf(guarded, contractor.id)]);
+    const live = offered.filter((s) => s.active).length;
+    const progress = onboardingProgress(facts, owners.length, offered.length - live);
+    // Verdicts are worth reading only where the page can show or act on them:
+    // a partial launch (something live, something pending) or a contractor
+    // ready to launch. Blocked with nothing live, they would be discarded.
+    const detail = live > 0 || progress === "ready";
+    const launch = await launchStateFor(guarded, contractor.id, offered, detail, refusalFor);
+    return { owners, trades, progress, launch };
+  });
   return {
     facts, owners, progress,
     steps: stepsFor(facts, owners, progress, launch),
