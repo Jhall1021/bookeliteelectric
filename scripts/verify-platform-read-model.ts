@@ -179,15 +179,28 @@ async function main() {
   await withPlatformContractorFor(db, staff, probe.id, async () => { tenant = currentTenantOrNull(); });
   ok(`   and the entry is a platform-session tenant scope`, (tenant as { source?: string; contractorId?: string } | null)?.source === "platform-session" && (tenant as { contractorId?: string }).contractorId === probe.id);
   const overview = await platformOverviewFor(db, staff, { fixtures: "show" });
-  ok(`   the overview is a sum over entered tenants and includes the probe when asked to show fixtures`, overview.rows.some((r) => r.id === probe.id) && overview.contractors.total === rows.length && overview.services.live >= 0 && overview.fixtures.hidden === 0);
+  // Checked against the SAME returned snapshot only — never against `rows`,
+  // a full-table read taken several awaits earlier. The shared production
+  // database is written by other sessions concurrently; a contractor
+  // created or removed in that gap would move `rows.length` but not this
+  // object, which is exactly the race that failed a live release build.
+  ok(`   the overview is a sum over entered tenants and includes the probe when asked to show fixtures`, overview.rows.some((r) => r.id === probe.id) && overview.contractors.total === overview.rows.length && overview.services.live >= 0 && overview.fixtures.hidden === 0);
   // The probe is a verifier fixture by the one rule in lib/fixtureContractors.
   // Staff pages must never take it for a business, and must never be silently
   // short a row either: hidden, and counted as hidden.
   ok(`   the fixture rule is one closed list: the probe matches it, genuine slugs do not`, isFixtureContractorSlug(SLUG) && !isFixtureContractorSlug("elite-electric") && !isFixtureContractorSlug("northside-electric"));
   const forStaff = await platformOverviewFor(db, staff);
+  // Same discipline as above: every clause here reads only forStaff's own
+  // fields, or a pure predicate (isFixtureContractorSlug) with no database
+  // dependency. The old version compared forStaff.contractors.total against
+  // overview.contractors.total minus forStaff.fixtures.hidden — arithmetic
+  // across two separate reads of a table other sessions write concurrently,
+  // which is provably not the same instant. Asserting that every VISIBLE
+  // row is genuinely non-fixture is the stronger, race-free version of what
+  // that arithmetic was trying to prove.
   ok(`   by default the overview leaves verifier fixtures out of every figure and says how many`,
     !forStaff.rows.some((r) => r.id === probe.id) && !forStaff.attention.some((a) => a.contractorId === probe.id) && !forStaff.unreadable.some((u) => u.contractorId === probe.id)
-      && forStaff.fixtures.hidden >= 1 && forStaff.contractors.total === forStaff.rows.length && forStaff.contractors.total === overview.contractors.total - forStaff.fixtures.hidden);
+      && forStaff.fixtures.hidden >= 1 && forStaff.contractors.total === forStaff.rows.length && forStaff.rows.every((r) => !isFixtureContractorSlug(r.slug)));
   ok(`   the request-bound form passes nothing, so a page can never see a fixture`, /export const platformOverview = async \(\) => platformOverviewFor\(prisma, await currentUser\(\)\);/.test(readFileSync("lib/platformReadModel.ts", "utf8")));
   // Finding 1 (review): the probe HAS a calendar connection; its access token merely expired.
   ok(`   a connection with an expired access token is CONNECTED, and says the token is due its routine refresh`, f.calendar.connected && f.calendar.accessTokenExpired && f.calendar.connectedAt !== null);
