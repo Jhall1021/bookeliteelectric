@@ -3,7 +3,26 @@ import type { PricingCopy } from "./pricingCopy";
 import { storefrontUrl } from "./origins";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+/**
+ * CONSTRUCTED LAZILY, DELIBERATELY — see lib/auth.ts's platformMailer(),
+ * which documents the same problem this used to have: `new Resend(key)` at
+ * module scope made this file unimportable without RESEND_API_KEY, so a
+ * missing key broke every build and every route that merely imported this
+ * module, rather than failing when a send was actually attempted.
+ *
+ * The contractor's key, not Price2Book's — see PLATFORM_RESEND_API_KEY in
+ * lib/auth.ts for the platform's own mailer, kept separately for the reason
+ * documented there: two senders, two reputations, two Resend accounts.
+ */
+function contractorMailer(): Resend {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    throw new Error(
+      "RESEND_API_KEY is not configured — cannot send this contractor's email."
+    );
+  }
+  return new Resend(key);
+}
 
 // Defaults to Resend's own testing address — real customers won't
 // actually receive anything until a real domain is verified with Resend
@@ -99,7 +118,7 @@ export async function sendBookingConfirmationEmail(booking: {
     </div>
   `;
 
-  const result = await resend.emails.send({
+  const result = await contractorMailer().emails.send({
     from: senderFor(booking.identity, booking.fromAddress ?? null),
     to: booking.customer.email,
     subject: `Your appointment is confirmed — ${booking.identity.displayName}`,
@@ -184,7 +203,7 @@ export async function sendQuoteReadyEmail(quote: {
     </div>
   `;
 
-  const result = await resend.emails.send({
+  const result = await contractorMailer().emails.send({
     from: senderFor(quote.identity, quote.fromAddress ?? null),
     to: quote.customer.email,
     subject: `${quote.copy.quoteEmailSubjectLead} ${quote.serviceName} — ${quote.identity.displayName}`,
