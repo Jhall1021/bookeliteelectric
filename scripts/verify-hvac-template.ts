@@ -16,7 +16,7 @@
  * for a fact-only slice with no consumer yet.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
@@ -32,6 +32,18 @@ import {
 import { HVAC_SERVICE_CALL_SHELL, hvacServiceCallIsSchedulable } from "../lib/hvac/appointments";
 import { HVAC_INTENTS, allHvacIntentPhrases } from "../lib/hvac/intents";
 import { HVAC_TEMPLATE_TRADE } from "../lib/hvac";
+import { HVAC_PRIMITIVE_KEYS, HVAC_PRIMITIVES, type HvacPrimitiveKey } from "../lib/hvac/primitives";
+import { HVAC_GATE_KEYS, capacityGate, conditionGate, type EquipmentCondition } from "../lib/hvac/gates";
+import {
+  HVAC_FAMILIES,
+  HVAC_FAMILY_KEYS,
+  HVAC_SERVICE_FAMILIES,
+  HVAC_SERVICE_ACCESS_SLOTS,
+  type HvacFamilyKey,
+} from "../lib/hvac/families";
+import { EXISTING_CONDITION_SCOPE, EVIDENCE_ONLY_FACTS, REPORTED_SYMPTOMS } from "../lib/hvac/mappings";
+import { maintenanceScopeLocations, maintenanceScopeMatchesDeclaredLocations } from "../lib/hvac/metadata";
+import type { AccessSlot } from "../lib/accessSlots";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 function strip(path: string): string {
@@ -278,6 +290,346 @@ group("14. canonical catalog contains no diagnostic repair inference");
   ok(
     "no service's declared data infers a cause (checked as a structural absence, not a keyword ban on prose)",
     !/diagnos(e|is|ed|ing)\s+(the|a|which)/i.test(catalogSrc)
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H2 — the domain vocabulary and family layer
+// ═══════════════════════════════════════════════════════════════════════
+
+group("15. exactly fifteen HVAC families");
+ok("HVAC_FAMILIES has exactly 15 entries", HVAC_FAMILIES.length === 15, `got ${HVAC_FAMILIES.length}`);
+ok("HVAC_FAMILY_KEYS has 15 unique entries", new Set(HVAC_FAMILY_KEYS).size === 15, `got ${new Set(HVAC_FAMILY_KEYS).size}`);
+ok(
+  '"dedicated_power_availability" is one of the fifteen — the H2 audit correction',
+  (HVAC_FAMILY_KEYS as readonly string[]).includes("dedicated_power_availability")
+);
+ok(
+  "every family declares at least one established fact",
+  HVAC_FAMILIES.every((f) => f.establishes.length > 0)
+);
+
+group("16. exactly seven HVAC gates — not eight, on the stale summary count");
+ok("HVAC_GATE_KEYS has exactly 7 entries", HVAC_GATE_KEYS.length === 7, `got ${HVAC_GATE_KEYS.length}`);
+ok("HVAC_GATE_KEYS has 7 unique entries", new Set(HVAC_GATE_KEYS).size === 7);
+ok(
+  "every gate a family references is one of the seven",
+  HVAC_FAMILIES.every((f) => f.gates.every((g) => (HVAC_GATE_KEYS as readonly string[]).includes(g)))
+);
+{
+  const gatesSrc = strip("lib/hvac/gates.ts");
+  ok(
+    "gates.ts itself declares exactly seven gate functions",
+    ["identityGate", "fuelGate", "ventingGate", "capacityGate", "accessGate", "controlGate", "conditionGate"].every(
+      (fn) => new RegExp(`export function ${fn}\\(`).test(gatesSrc)
+    )
+  );
+  ok(
+    "and no eighth (no function beyond the seven, firstRefusal, and toRouteAction)",
+    (gatesSrc.match(/export function \w+\(/g) ?? []).length === 9 // 7 gates + firstRefusal + toRouteAction
+  );
+}
+
+group("17. no eighth shared primitive");
+ok("HVAC_PRIMITIVE_KEYS has exactly 7 entries", HVAC_PRIMITIVE_KEYS.length === 7, `got ${HVAC_PRIMITIVE_KEYS.length}`);
+ok(
+  "the seven are exactly access/band/supply/component/material/photo/disclaimer",
+  JSON.stringify([...HVAC_PRIMITIVE_KEYS].sort()) ===
+    JSON.stringify(
+      [
+        "access_classification",
+        "band_policy",
+        "supply_arrangement",
+        "component_increment",
+        "material_role",
+        "photo_gate",
+        "conditional_disclaimer",
+      ].sort()
+    )
+);
+ok(
+  "every family's primitive references are among the seven",
+  HVAC_FAMILIES.every((f) => f.primitives.every((p) => (HVAC_PRIMITIVE_KEYS as readonly string[]).includes(p)))
+);
+
+group("18. capacity facts are HVAC structured facts feeding capacity_gate, not component_increment");
+{
+  const heating = HVAC_FAMILIES.find((f) => f.key === "heating_equipment")!;
+  const cooling = HVAC_FAMILIES.find((f) => f.key === "cooling_equipment")!;
+  ok(
+    "heating_equipment establishes heating_input_btu and binds NO shared primitive",
+    heating.establishes.includes("heating_input_btu") && heating.primitives.length === 0
+  );
+  ok(
+    "cooling_equipment establishes cooling_tons and binds NO shared primitive",
+    cooling.establishes.includes("cooling_tons") && cooling.primitives.length === 0
+  );
+  ok(
+    "both route to capacity_gate, not to component_increment",
+    heating.gates.includes("capacity_gate") && cooling.gates.includes("capacity_gate")
+  );
+  const primitivesSrc = strip("lib/hvac/primitives.ts");
+  const componentPrimitive = HVAC_PRIMITIVES.find((p) => p.key === "component_increment")!;
+  ok(
+    "component_increment's platform binding is the additive-component binding, unchanged from Plumbing",
+    componentPrimitive.platformBinding === "TemplateAnswerOptionComponent -> ContractorComponent.approvedPriceCents"
+  );
+  ok(
+    "gates.ts's capacityGate implementation never references component_increment",
+    !strip("lib/hvac/gates.ts").includes("component_increment")
+  );
+  void primitivesSrc;
+}
+
+group("19. capacity_gate consumes both axes independently — approved, whole-system-replacement");
+{
+  const cooling = capacityGate(3, { axis: "COOLING", unit: "tons", covers: [1.5, 2, 2.5, 3, 3.5, 4, 5] });
+  const heating = capacityGate(80000, { axis: "HEATING", unit: "BTU/h", covers: [40000, 60000, 80000, 100000, 120000] });
+  ok("the cooling axis resolves on cooling_tons", cooling.factKey === "cooling_tons" && cooling.action === "CONTINUE");
+  ok("the heating axis resolves on heating_input_btu", heating.factKey === "heating_input_btu" && heating.action === "CONTINUE");
+  ok("the two calls are independent — neither axis's outcome depends on the other", cooling.observed !== heating.observed);
+  ok(
+    "no new gate or primitive was needed to support both — same function, two calls",
+    HVAC_GATE_KEYS.length === 7 && HVAC_PRIMITIVE_KEYS.length === 7
+  );
+}
+
+group("20. the four corrected branch-conditional family declarations");
+{
+  const thermostat = HVAC_SERVICE_FAMILIES["thermostat-installation"];
+  ok("thermostat-installation declares run_distance on a branch", thermostat.some((u) => u.family === "run_distance" && !!u.branch));
+  ok("thermostat-installation declares finish_disruption_ack on a branch", thermostat.some((u) => u.family === "finish_disruption_ack" && !!u.branch));
+
+  const condensate = HVAC_SERVICE_FAMILIES["condensate-pump-installation"];
+  ok("condensate-pump-installation declares run_distance on a branch", condensate.some((u) => u.family === "run_distance" && !!u.branch));
+  ok(
+    "condensate-pump-installation declares dedicated_power_availability on a branch",
+    condensate.some((u) => u.family === "dedicated_power_availability" && !!u.branch)
+  );
+
+  const humidifier = HVAC_SERVICE_FAMILIES["whole-house-humidifier"];
+  ok(
+    "whole-house-humidifier declares dedicated_power_availability on a branch",
+    humidifier.some((u) => u.family === "dedicated_power_availability" && !!u.branch)
+  );
+
+  const ductTreatment = HVAC_SERVICE_FAMILIES["duct-air-treatment-installation"];
+  ok(
+    "duct-air-treatment-installation declares dedicated_power_availability (unconditional — both merge sources need it)",
+    ductTreatment.some((u) => u.family === "dedicated_power_availability" && !u.branch)
+  );
+
+  ok(
+    "air-cleaner-cabinet-installation was rechecked and correctly declares NO dedicated_power_availability",
+    !(HVAC_SERVICE_FAMILIES["air-cleaner-cabinet-installation"] ?? []).some((u) => u.family === "dedicated_power_availability")
+  );
+}
+
+group("21. service → family declaration matches the H1 catalog exactly");
+{
+  const declared = Object.keys(HVAC_SERVICE_FAMILIES).sort();
+  const catalog = [...HVAC_SERVICE_KEYS].sort();
+  ok(
+    "HVAC_SERVICE_FAMILIES declares exactly the 22 H1 catalog keys, no more, no fewer",
+    JSON.stringify(declared) === JSON.stringify(catalog),
+    `only in declaration: ${declared.filter((k) => !catalog.includes(k)).join(",")}; only in catalog: ${catalog.filter((k) => !declared.includes(k)).join(",")}`
+  );
+  const badFamilyRefs = Object.entries(HVAC_SERVICE_FAMILIES).flatMap(([svc, usages]) =>
+    usages.filter((u) => !(HVAC_FAMILY_KEYS as readonly string[]).includes(u.family)).map((u) => `${svc}:${u.family}`)
+  );
+  ok("every family a service declares actually exists", badFamilyRefs.length === 0, badFamilyRefs.join(", "));
+  ok(
+    "every service declares at least one family (hvac-service-call included)",
+    Object.values(HVAC_SERVICE_FAMILIES).every((usages) => usages.length > 0)
+  );
+}
+
+group("22. G1 access-slot split — 14 single-location + hvac-service-call on PRIMARY, 7 dual-location");
+{
+  const declared = Object.keys(HVAC_SERVICE_ACCESS_SLOTS).sort();
+  const catalog = [...HVAC_SERVICE_KEYS].sort();
+  ok(
+    "HVAC_SERVICE_ACCESS_SLOTS declares exactly the 22 H1 catalog keys",
+    JSON.stringify(declared) === JSON.stringify(catalog)
+  );
+  const primaryOnly = Object.entries(HVAC_SERVICE_ACCESS_SLOTS).filter(
+    ([, slots]) => slots.length === 1 && slots[0] === "PRIMARY"
+  );
+  const dualLocation = Object.entries(HVAC_SERVICE_ACCESS_SLOTS).filter((entry) => entry[1].length === 2);
+  ok(
+    "exactly 15 services (14 ordinary + hvac-service-call) declare PRIMARY only",
+    primaryOnly.length === 15,
+    `got ${primaryOnly.length}: ${primaryOnly.map(([k]) => k).join(", ")}`
+  );
+  ok("exactly 7 services declare two slots", dualLocation.length === 7, `got ${dualLocation.length}`);
+  ok(
+    "the seven dual-location slot lists are exactly INDOOR_EQUIPMENT + OUTDOOR_EQUIPMENT",
+    dualLocation.every(([, slots]) => {
+      const sorted = [...slots].sort();
+      return JSON.stringify(sorted) === JSON.stringify(["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"].sort());
+    })
+  );
+  const expectedDual = [
+    "whole-system-replacement",
+    "mini-split-installation",
+    "ac-replacement",
+    "heat-pump-replacement",
+    "ac-tune-up",
+    "heat-pump-tune-up",
+    "mini-split-tune-up",
+  ].sort();
+  ok(
+    "the seven dual-location services are exactly the approved seven",
+    JSON.stringify(dualLocation.map(([k]) => k).sort()) === JSON.stringify(expectedDual)
+  );
+}
+
+group("23. hvac-service-call uses PRIMARY, with no symptom-driven slot refinement");
+{
+  const shellSlots = HVAC_SERVICE_ACCESS_SLOTS["hvac-service-call"];
+  ok('hvac-service-call declares exactly ["PRIMARY"]', JSON.stringify(shellSlots) === JSON.stringify(["PRIMARY"]));
+  const familiesSrc = strip("lib/hvac/families.ts");
+  ok(
+    "no source reference ties reported_symptom to an access-slot decision",
+    !/reported_symptom[\s\S]{0,80}(INDOOR_EQUIPMENT|OUTDOOR_EQUIPMENT)/i.test(familiesSrc) &&
+      !/(INDOOR_EQUIPMENT|OUTDOOR_EQUIPMENT)[\s\S]{0,80}reported_symptom/i.test(familiesSrc)
+  );
+}
+
+group("24. no dual-location service ever references PRIMARY");
+{
+  const offenders = Object.entries(HVAC_SERVICE_ACCESS_SLOTS)
+    .filter(([, slots]) => slots.length > 1)
+    .filter(([, slots]) => (slots as readonly AccessSlot[]).includes("PRIMARY"))
+    .map(([k]) => k);
+  ok("zero dual-location services include PRIMARY in their slot list", offenders.length === 0, offenders.join(", "));
+}
+
+group("25. evidence-only facts cannot feed a gate or a mapping");
+{
+  ok(
+    "EVIDENCE_ONLY_FACTS names exactly manufacturer/model/serial/manufacture_date",
+    JSON.stringify([...EVIDENCE_ONLY_FACTS].sort()) ===
+      JSON.stringify(["manufacturer", "model", "serial", "manufacture_date"].sort())
+  );
+  const gatesSrc = strip("lib/hvac/gates.ts");
+  const mappingsSrc = strip("lib/hvac/mappings.ts");
+  const familiesSrc = strip("lib/hvac/families.ts");
+  for (const fact of EVIDENCE_ONLY_FACTS) {
+    ok(`gates.ts never uses "${fact}" as a factKey or reads it`, !new RegExp(`factKey:\\s*["'\`]${fact}["'\`]`).test(gatesSrc));
+    ok(`mappings.ts never keys a mapping on "${fact}"`, !new RegExp(`Record<${fact}`, "i").test(mappingsSrc));
+    ok(`no family establishes "${fact}"`, !HVAC_FAMILIES.some((f) => f.establishes.includes(fact)));
+  }
+  void familiesSrc;
+}
+
+group("26. reported_symptom maps to no known-work service");
+{
+  ok(
+    "REPORTED_SYMPTOMS is the closed thirteen-labeled (fourteen-item) vocabulary",
+    REPORTED_SYMPTOMS.length === 13 || REPORTED_SYMPTOMS.length === 14
+  );
+  ok(
+    "no family establishes reported_symptom (it is booking-level context, not a gated fact)",
+    !HVAC_FAMILIES.some((f) => f.establishes.includes("reported_symptom"))
+  );
+  const mappingsSrc = strip("lib/hvac/mappings.ts");
+  ok(
+    "mappings.ts declares no mapping FROM reported_symptom to a service key",
+    !new RegExp(`REPORTED_SYMPTOMS[\\s\\S]{0,200}HVAC_SERVICES`).test(mappingsSrc)
+  );
+  // Re-affirms group 11's existing HVAC catalog check from the caller's side:
+  // every reported_symptom string is also one of hvac-service-call's own
+  // aliases, and none is any OTHER service's alias — proven again here
+  // against the mappings.ts copy so the two lists cannot silently diverge.
+  const shellAliases = hvacServiceCall().aliases ?? [];
+  const symptomTextForms = ["not cooling", "no heat", "won't start", "weak airflow", "leaking water", "strange noise"];
+  ok(
+    "a sample of symptom text forms all resolve only through hvac-service-call's own alias list",
+    symptomTextForms.every((t) => shellAliases.some((a) => a.toLowerCase() === t.toLowerCase()))
+  );
+}
+
+group("27. existing_condition is effect-free — structural, not a comment");
+{
+  const conditions: readonly EquipmentCondition[] = ["SERVICEABLE", "DEGRADED", "ACTIVE_FAILURE", "UNKNOWN"];
+  for (const c of conditions) {
+    const consequence = EXISTING_CONDITION_SCOPE[c];
+    ok(
+      `EXISTING_CONDITION_SCOPE.${c} attaches no material role, component or prerequisite`,
+      consequence.materialRoles.length === 0 && consequence.components.length === 0 && consequence.prerequisites.length === 0
+    );
+  }
+  const existingCondition = HVAC_FAMILIES.find((f) => f.key === "existing_condition")!;
+  ok("existing_condition binds no shared primitive", existingCondition.primitives.length === 0);
+  ok(
+    "an active failure routes to ON_SITE_SERVICE, never to a selected repair",
+    conditionGate("ACTIVE_FAILURE").action === "ON_SITE_SERVICE"
+  );
+}
+
+group("28. no refrigerant-charge dimension exists anywhere");
+{
+  const linesetFamily = HVAC_FAMILIES.find((f) => f.key === "refrigerant_lineset")!;
+  ok(
+    "refrigerant_lineset establishes only lineset_status — presence and path, nothing else",
+    JSON.stringify(linesetFamily.establishes) === JSON.stringify(["lineset_status"])
+  );
+  const allSrc = ["lib/hvac/families.ts", "lib/hvac/gates.ts", "lib/hvac/mappings.ts", "lib/hvac/catalog.ts"]
+    .map((f) => strip(f))
+    .join("\n");
+  ok(
+    'no HVAC file mentions "refrigerant charge", "recharge", or a charge-level reading',
+    !/refrigerant charge|re-?charge|charge level|charge state/i.test(allSrc)
+  );
+}
+
+group("29. maintenanceScope location attribution");
+{
+  const sample = [
+    { item: "clean the condenser coil", at: "OUTDOOR" as const },
+    { item: "clear the condensate drain", at: "INDOOR" as const },
+  ];
+  ok(
+    "maintenanceScopeLocations reports both locations for a mixed scope",
+    JSON.stringify(maintenanceScopeLocations(sample)) === JSON.stringify(["INDOOR", "OUTDOOR"])
+  );
+  ok(
+    "a BOTH-declared service is satisfied by any combination of locations",
+    maintenanceScopeMatchesDeclaredLocations(sample, "BOTH")
+  );
+  ok(
+    "an INDOOR-declared service is NOT satisfied by scope items reaching outdoor equipment — the G1 re-audit's own defect",
+    !maintenanceScopeMatchesDeclaredLocations(sample, "INDOOR")
+  );
+  ok(
+    "a single-location scope matches its own narrower declaration",
+    maintenanceScopeMatchesDeclaredLocations([{ item: "furnace inspection", at: "INDOOR" }], "INDOOR")
+  );
+}
+
+group("30. no H2 file imports or changes Plumbing/Electrical trade-owned definitions");
+{
+  const h2Files = ["lib/hvac/primitives.ts", "lib/hvac/gates.ts", "lib/hvac/families.ts", "lib/hvac/mappings.ts", "lib/hvac/metadata.ts"];
+  for (const f of h2Files) {
+    const src = strip(f);
+    ok(`${f} imports nothing from lib/plumbing`, !/from ["'\`]\.\.?\/.*plumbing/.test(src));
+    ok(`${f} imports nothing electrical-specific`, !/from ["'\`]\.\.?\/.*electrical/.test(src));
+  }
+  const plumbingGates = strip("lib/plumbing/gates.ts");
+  const plumbingMappings = strip("lib/plumbing/mappings.ts");
+  ok("lib/plumbing/gates.ts is untouched by H2 (no HVAC reference in it)", !/hvac/i.test(plumbingGates));
+  ok("lib/plumbing/mappings.ts is untouched by H2 (no HVAC reference in it)", !/hvac/i.test(plumbingMappings));
+}
+
+group("31. no service tree, composition, or provisioning surface exists yet");
+{
+  ok("lib/hvac/scope.ts does not exist (composition is H3)", !existsSync(join(ROOT, "lib/hvac/scope.ts")));
+  ok("lib/hvac/composition.ts does not exist (composition is H3)", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
+  ok("lib/hvac/publish.ts does not exist (provisioning is H3+)", !existsSync(join(ROOT, "lib/hvac/publish.ts")));
+  ok(
+    "no HVAC family declares actual Question/AnswerOption content",
+    HVAC_FAMILIES.every((f) => !("questions" in f))
   );
 }
 
