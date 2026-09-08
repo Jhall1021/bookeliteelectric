@@ -124,25 +124,34 @@ class InvitationNoLongerValidError extends Error {}
  * token. Both call this and nothing else, so the two can never disagree.
  *
  * Requires ALL of: this exact user is who spent it; their email is STILL
- * verified; the contractor is STILL active; the membership it should have
- * created still exists and is active. Any one failing means "no" — the
- * caller then falls through to whatever refusal fits (already used,
- * retired, or the generic no-longer-valid), never a stale "yes".
+ * verified AND still the exact address the invitation was sent to (an email
+ * change since acceptance must not keep replaying as a stale "yes"); the
+ * contractor is STILL active; the membership it should have created still
+ * exists, is active, and is STILL the OWNER role the invitation granted (a
+ * membership downgraded or repurposed after the fact is not the membership
+ * this invitation vouches for). Any one failing means "no" — the caller then
+ * falls through to whatever refusal fits (already used, retired, or the
+ * generic no-longer-valid), never a stale "yes".
  */
 async function idempotentAcceptance(
   tx: Prisma.TransactionClient | PrismaClient,
-  params: { acceptedByUserId: string | null; contractorId: string; userId: string; emailVerified: boolean }
+  params: {
+    acceptedByUserId: string | null; contractorId: string; userId: string; userEmail: string; emailVerified: boolean;
+    invitationEmail: string; invitationRole: ContractorRole;
+  }
 ): Promise<AcceptResult | null> {
   if (params.acceptedByUserId !== params.userId) return null;
   if (!params.emailVerified) return null;
+  if (params.userEmail.trim().toLowerCase() !== params.invitationEmail) return null;
   const [membership, contractor] = await Promise.all([
     tx.contractorMembership.findUnique({
       where: { userId_contractorId: { userId: params.userId, contractorId: params.contractorId } },
-      select: { active: true },
+      select: { active: true, role: true },
     }),
     tx.contractor.findUnique({ where: { id: params.contractorId }, select: { slug: true, name: true, active: true } }),
   ]);
   if (!membership?.active) return null;
+  if (membership.role !== params.invitationRole) return null;
   if (!contractor?.active) return null;
   return { ok: true, contractorId: params.contractorId, slug: contractor.slug, name: contractor.name, already: true };
 }
@@ -187,7 +196,8 @@ export async function acceptInvitationFor(
   if (invitation.acceptedAt) {
     const idempotent = await idempotentAcceptance(db, {
       acceptedByUserId: invitation.acceptedByUserId, contractorId: invitation.contractorId,
-      userId: user.id, emailVerified: user.emailVerified,
+      userId: user.id, userEmail: user.email, emailVerified: user.emailVerified,
+      invitationEmail: invitation.email, invitationRole: invitation.role as ContractorRole,
     });
     if (idempotent) return idempotent;
     return { ok: false, refusal: { code: "INVITATION_ALREADY_USED", message: "This invitation has already been used." } };
@@ -260,7 +270,11 @@ export async function acceptInvitationFor(
       // surfaces as an error to the person who legitimately just joined.
       const settled = await db.contractorInvitation.findUnique({ where: { id: invitation.id }, select: { acceptedByUserId: true, contractorId: true } });
       const idempotent = settled
-        ? await idempotentAcceptance(db, { acceptedByUserId: settled.acceptedByUserId, contractorId: settled.contractorId, userId: user.id, emailVerified: user.emailVerified })
+        ? await idempotentAcceptance(db, {
+            acceptedByUserId: settled.acceptedByUserId, contractorId: settled.contractorId,
+            userId: user.id, userEmail: user.email, emailVerified: user.emailVerified,
+            invitationEmail: invitation.email, invitationRole: invitation.role as ContractorRole,
+          })
         : null;
       if (idempotent) return idempotent;
       return { ok: false, refusal: { code: "INVITATION_NO_LONGER_VALID", message: "This invitation is no longer valid — it may have just been used, withdrawn, or expired." } };

@@ -242,6 +242,22 @@ async function main() {
   const usedByAnyone = tokenC ? await acceptInvitationFor(raw, { id: nobody.id, email: ownerEmail /* impossible in reality; proves the used-branch, not the mismatch-branch */, emailVerified: true }, tokenC) : null;
   ok(`   a spent token presented by anyone else is refused INVITATION_ALREADY_USED`, usedByAnyone ? !usedByAnyone.ok && usedByAnyone.refusal.code === "INVITATION_ALREADY_USED" : false);
 
+  // ── 4b. idempotent replay re-verifies identity — it is not just "same user
+  // id, once verified". A changed email or a membership downgraded off OWNER
+  // since acceptance must fall through to the ordinary already-used refusal,
+  // never a stale "yes".
+  const emailChangedSince = tokenC ? await acceptInvitationFor(raw, { id: owner.id, email: `changed-${ownerEmail}`, emailVerified: true }, tokenC) : null;
+  ok(`4b. idempotent replay is refused once the account's CURRENT email no longer matches the invitation`, emailChangedSince ? !emailChangedSince.ok && emailChangedSince.refusal.code === "INVITATION_ALREADY_USED" : false);
+  ok(`   ...it did not touch the real membership`, (await raw.contractorMembership.findUnique({ where: { userId_contractorId: { userId: owner.id, contractorId: c1.contractorId } }, select: { role: true, active: true } }))?.role === "OWNER");
+
+  await raw.contractorMembership.update({ where: { userId_contractorId: { userId: owner.id, contractorId: c1.contractorId } }, data: { role: "ADMIN" } });
+  const downgraded = tokenC ? await acceptInvitationFor(raw, { id: owner.id, email: ownerEmail, emailVerified: true }, tokenC) : null;
+  ok(`   idempotent replay is refused once the membership has been downgraded off OWNER`, downgraded ? !downgraded.ok && downgraded.refusal.code === "INVITATION_ALREADY_USED" : false);
+
+  await raw.contractorMembership.update({ where: { userId_contractorId: { userId: owner.id, contractorId: c1.contractorId } }, data: { role: "OWNER" } });
+  const restoredReplay = tokenC ? await acceptInvitationFor(raw, { id: owner.id, email: ownerEmail, emailVerified: true }, tokenC) : null;
+  ok(`   ...and succeeds again once restored to OWNER — the refusal above was the role check, and nothing else`, restoredReplay ? restoredReplay.ok && restoredReplay.already : false);
+
   // ── 5. concurrency ─────────────────────────────────────────────────────
   // 5a. two simultaneous accepts of ONE token.
   const invite5a = await inviteOwnerFor(db, staff, c4.contractorId, `${EMAIL_PREFIX}${RUN}-race-a@invalid.test`);
