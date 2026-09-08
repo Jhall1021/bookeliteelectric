@@ -56,6 +56,26 @@ function refuse(outcome: GateOutcome): HvacRefusal {
   return { status: "REFUSED", routeAction: toRouteAction(outcome.action), outcome };
 }
 
+/**
+ * H5. The one shape repeated at nearly every unresolved-fact check in this
+ * file: an unestablished fact fails to PHOTO_REVIEW, carrying which fact
+ * and what was (or wasn't) observed. Purely mechanical — it does not decide
+ * WHEN a fact is unresolved, doesn't know about branches, and every other
+ * refusal shape (REMOTE_QUOTE, ON_SITE_SERVICE) is still written out at its
+ * own call site. `observed` defaults to "UNKNOWN" for the ordinary case; a
+ * caller passes its own value when the fact was affirmatively observed but
+ * still leaves the service's scope unconfirmed (condensate-safety-switch's
+ * NONE_VISIBLE, below).
+ *
+ * NOT retrofitted into H3/H4's own already-verified call sites — this
+ * changes nothing about condensate-pump-installation or
+ * thermostat-installation, which keep their original, already-proven
+ * inline refusals unchanged. Used only by the H5 resolvers that follow.
+ */
+function unresolved(factKey: string, reason: string, observed = "UNKNOWN"): HvacRefusal {
+  return refuse({ action: "PHOTO_REVIEW", reason, factKey, observed });
+}
+
 export type SupplyArrangementChoice = "CUSTOMER_SUPPLIED" | "CONTRACTOR_SUPPLIED";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -612,5 +632,215 @@ export const THERMOSTAT_QUESTIONS: readonly ThermostatQuestion[] = [
       { value: "CUSTOMER_SUPPLIED", label: "I already have it" },
       { value: "CONTRACTOR_SUPPLIED", label: "Please supply it" },
     ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// condensate-safety-switch-installation — H5
+//
+// FIXED, not CONDITIONAL_FIXED. condensate_route decides WHICH fitting is
+// scoped — a float switch into a pump reservoir, or an inline switch on a
+// gravity drain line — never a price or route difference: PUMP_PRESENT and
+// GRAVITY_DRAIN_PRESENT both resolve to the SAME one-price terminal.
+// Reuses H3's own four-value condensate_route vocabulary unchanged — no
+// new fact, no new family, no new gate.
+//
+// NONE_VISIBLE fails to PHOTO_REVIEW here — the settled H5 product
+// decision, and NOT the same treatment condensate-pump-installation gives
+// it. That service's whole job is fitting a NEW pump where none exists;
+// this one attaches a switch to an EXISTING mechanism, so "nothing
+// visible" is not a second branch of this service. It is an unconfirmed
+// scope, not a confirmed one.
+//
+// Base scope is exactly ONE switch (catalog review Part 7: "one accessible
+// condensate drain/pan safety switch"). No quantity question — an
+// additional switch is component_increment add-on scope, not asked here.
+// No supply_arrangement — the switch is always contractor-supplied at the
+// fixed price; H2 never declared that family for this service and this
+// resolver does not invent it.
+// ═══════════════════════════════════════════════════════════════════════
+
+export type CondensateSafetySwitchFacts = {
+  /** Q1 — shared start. */
+  accessClass: AccessClass;
+  /** Q2. Reuses H3's own four-value condensate_route vocabulary unchanged. */
+  condensateRoute: CondensateRouteObservation;
+};
+
+export type CondensateSafetySwitchResolution =
+  | {
+      status: "RESOLVED";
+      /** FIXED, not CONDITIONAL_FIXED — one price, no branch adjustment. */
+      routeAction: "RESOLVE_INSTANT";
+    }
+  | HvacRefusal;
+
+/**
+ * Resolve `condensate-safety-switch-installation` against a complete fact
+ * set. FAILS CLOSED, same discipline as every other resolver in this file.
+ * There is no REMOTE_QUOTE branch anywhere — a FIXED-disposition service
+ * has none to reach.
+ */
+export function resolveCondensateSafetySwitchInstallation(
+  facts: CondensateSafetySwitchFacts
+): CondensateSafetySwitchResolution {
+  // Q1 — indoor equipment access. Shared start, same as condensate-pump.
+  const access = accessGate(facts.accessClass);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q2 — visible condensate arrangement.
+  if (facts.condensateRoute === "UNKNOWN") {
+    return unresolved(
+      "condensate_route",
+      "Whether an existing condensate pump or drain is present has not been established."
+    );
+  }
+  if (facts.condensateRoute === "NONE_VISIBLE") {
+    return unresolved(
+      "condensate_route",
+      "No existing condensate pump or drain was observed to attach a safety switch to.",
+      "NONE_VISIBLE"
+    );
+  }
+
+  // PUMP_PRESENT and GRAVITY_DRAIN_PRESENT are BOTH the same one-price
+  // terminal — the fact selects which fitting is scoped, never a price or
+  // route difference.
+  return { status: "RESOLVED", routeAction: "RESOLVE_INSTANT" };
+}
+
+// ---------------------------------------------------------------------------
+// The question sequence as DATA — same rationale as every other resolver in
+// this file. No `branch` field: this service has exactly one path, so
+// nothing here is branch-conditional.
+// ---------------------------------------------------------------------------
+
+export type CondensateSafetySwitchQuestionKey = "indoor_access" | "condensate_route";
+
+export type CondensateSafetySwitchAnswerOption = {
+  value: string;
+  /** Customer-ready wording. An observation — never a cause. */
+  label: string;
+};
+
+export type CondensateSafetySwitchQuestion = {
+  key: CondensateSafetySwitchQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly CondensateSafetySwitchAnswerOption[];
+};
+
+export const CONDENSATE_SAFETY_SWITCH_QUESTIONS: readonly CondensateSafetySwitchQuestion[] = [
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "condensate_route",
+    prompt: "Is there a small pump with a plastic reservoir, or a drain line that runs away on its own, near the equipment?",
+    establishes: "condensate_route",
+    options: [
+      { value: "PUMP_PRESENT", label: "Yes, there's a pump there now" },
+      { value: "GRAVITY_DRAIN_PRESENT", label: "No, but there's a drain line that runs away on its own" },
+      { value: "NONE_VISIBLE", label: "No, I don't see anything like that" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// air-filter-replacement — H5
+//
+// FIXED. The smallest tree in the file: one material fact, one quantity
+// that gates nothing. filter_slot_size is read as an open observation
+// (`string | null`), mirroring capacityGate's own `number | null` shape
+// (lib/hvac/gates.ts) — a printed filter size is not a finite vocabulary
+// this template can enumerate, so there is no closed answer set to define.
+//
+// No accessory_present, no replacement_vs_new, no indoor_equipment_access
+// question — the H5 audit's own conclusion: those facts choose BETWEEN
+// services (accessory-consumable-replacement, air-cleaner-cabinet-
+// installation), not branches within this one, already explicitly-selected
+// service. H2 never declared indoor_equipment_access for this service in
+// the first place, and this resolver does not invent it.
+//
+// No filter compatibility is inferred from the size read. There is no
+// REMOTE_QUOTE branch anywhere — a FIXED-disposition service has none to
+// reach, and no printed size takes this job outside its fixed scope.
+// ═══════════════════════════════════════════════════════════════════════
+
+export type AirFilterReplacementFacts = {
+  /** Q1. The printed size, or null when unreadable / not sure. */
+  filterSlotSize: string | null;
+  /** Q2. A quantity. Gates nothing — same treatment as thermostat_count. */
+  quantity: number;
+};
+
+export type AirFilterReplacementResolution =
+  | {
+      status: "RESOLVED";
+      /** FIXED, not CONDITIONAL_FIXED — one price, no branch adjustment. */
+      routeAction: "RESOLVE_INSTANT";
+    }
+  | HvacRefusal;
+
+/**
+ * Resolve `air-filter-replacement` against a complete fact set. FAILS
+ * CLOSED: an unreadable size is the one and only refusal this tree can
+ * produce.
+ */
+export function resolveAirFilterReplacement(facts: AirFilterReplacementFacts): AirFilterReplacementResolution {
+  // Q1 — the printed size.
+  if (facts.filterSlotSize === null) {
+    return unresolved("filter_slot_size", "The size printed on the filter has not been established.");
+  }
+
+  // Q2 — quantity. Gates nothing; captured for material provisioning only.
+  return { status: "RESOLVED", routeAction: "RESOLVE_INSTANT" };
+}
+
+// ---------------------------------------------------------------------------
+// The question sequence as DATA — same rationale as every other resolver in
+// this file. Both options arrays are empty: an open reading and a quantity
+// are not closed answer sets, the same convention CONDENSATE_PUMP_QUESTIONS
+// and THERMOSTAT_QUESTIONS already use for thermostat_count.
+// ---------------------------------------------------------------------------
+
+export type AirFilterReplacementQuestionKey = "filter_slot_size" | "quantity";
+
+export type AirFilterReplacementAnswerOption = {
+  value: string;
+  label: string;
+};
+
+export type AirFilterReplacementQuestion = {
+  key: AirFilterReplacementQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly AirFilterReplacementAnswerOption[];
+};
+
+export const AIR_FILTER_REPLACEMENT_QUESTIONS: readonly AirFilterReplacementQuestion[] = [
+  {
+    key: "filter_slot_size",
+    prompt: "What size is printed on the edge of the filter?",
+    establishes: "filter_slot_size",
+    options: [],
+  },
+  {
+    key: "quantity",
+    prompt: "How many filters need replacing?",
+    establishes: "quantity",
+    options: [],
   },
 ] as const;
