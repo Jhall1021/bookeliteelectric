@@ -35,7 +35,7 @@
  * point of itemizing.
  */
 
-import type { PrismaClient, Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { assessMaterialReadiness, describeMissing } from "./materialResolution";
 
 /** Any Prisma client or interactive-transaction client. */
@@ -535,6 +535,12 @@ export async function setContractorMaterialCost(
     await db.materialCostEvent.create({
       data: {
         contractorMaterialId: cm.id,
+        // Set explicitly from the ContractorMaterial row just read — the
+        // authoritative relationship — rather than relied on implicitly. A
+        // guarded caller's tenant context would stamp the same value; a raw
+        // client (a script, a seed) has no context to stamp it from at all,
+        // and this event must never be the one row nobody can attribute.
+        contractorId: cm.contractorId,
         oldUnitCostCents: cm.unitCostCents,
         newUnitCostCents: derived.unitCostCents,
         oldUnitCostMilliCents: cm.unitCostMilliCents,
@@ -576,4 +582,285 @@ export async function markContractorMaterialCostStale(
     where: { id: contractorMaterialId },
     data: { costStatus: status, costStatusNote: error ?? null },
   });
+}
+
+// ---------------------------------------------------------------------------
+// MATERIAL BASELINE PRICING
+//
+// Resolving a role this contractor has never costed, from a platform
+// reference rather than a blank field. See MaterialBaselineVersion's own doc
+// comment in prisma/schema.prisma for what a baseline is and is not.
+//
+// SERVER-SIDE RESOLUTION, DELIBERATELY. Accepting a baseline never takes a
+// cost number from the caller — only a baselineVersionId. Every figure that
+// ends up on the ContractorMaterial row is read back out of the
+// MaterialBaselineVersion row by this function, so a compromised or buggy
+// client can misdirect WHICH role gets resolved but can never inject an
+// arbitrary cost under a baseline's name.
+// ---------------------------------------------------------------------------
+
+function isUniqueConstraintViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+}
+
+export type ResolveUnresolvedRoleResult =
+  | { ok: true; contractorMaterialId: string; unitCostCents: number; affected: RecomputeResult[] }
+  /**
+   * The role already had a ContractorMaterial row by the time this write
+   * reached the database — a concurrent accept, override, or ordinary admin
+   * edit won the race. Never overwritten: the FIRST resolution for a role
+   * stands, exactly the same "first write wins, everything after refuses"
+   * shape the invitation and ownership authorities use elsewhere in this
+   * codebase. The caller should treat this as "someone already handled it",
+   * not as an error to surface loudly.
+   */
+  | { ok: false; code: "ALREADY_RESOLVED" };
+
+type ResolvedCreateFields = {
+  contractorId: string;
+  canonicalMaterialId: string;
+  unitCostCents: number;
+  unitCostMilliCents: number | null;
+  packagePriceCents: number | null;
+  packageQuantity: number | null;
+  packageUnit: string | null;
+  costSource: "CUSTOM" | "BASELINE";
+  costConfidence: "CONFIRMED" | "ASSUMED";
+  acceptedBaselineVersionId: string | null;
+};
+
+/**
+ * The one place a brand-new ContractorMaterial row is born for an
+ * UNRESOLVED role — accept and override both end here, sharing one atomic
+ * create and one event write so the two paths cannot record history
+ * differently for the same kind of act.
+ *
+ * `create`, never `upsert`. An unresolved role has no row yet by definition;
+ * if one exists by the time this reaches the database, that is a race this
+ * function lost, not a value to merge into. The unique constraint on
+ * (contractorId, canonicalMaterialId) is what makes that atomic — two
+ * concurrent callers resolving the SAME role settle to exactly one winner,
+ * the same way ContractorInvitation's atomic consume does.
+ */
+async function createResolvedContractorMaterial(
+  db: Db,
+  fields: ResolvedCreateFields,
+  provenance: CostProvenance,
+  baselineVersionId: string | null
+): Promise<ResolveUnresolvedRoleResult> {
+  let cm: { id: string };
+  try {
+    cm = await db.contractorMaterial.create({
+      data: {
+        contractorId: fields.contractorId,
+        canonicalMaterialId: fields.canonicalMaterialId,
+        unitCostCents: fields.unitCostCents,
+        unitCostMilliCents: fields.unitCostMilliCents,
+        packagePriceCents: fields.packagePriceCents,
+        packageQuantity: fields.packageQuantity,
+        packageUnit: fields.packageUnit,
+        costSource: fields.costSource,
+        costConfidence: fields.costConfidence,
+        costStatus: "OK",
+        costUpdatedAt: new Date(),
+        acceptedBaselineVersionId: fields.acceptedBaselineVersionId,
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    if (isUniqueConstraintViolation(e)) return { ok: false, code: "ALREADY_RESOLVED" };
+    throw e;
+  }
+
+  // Only this contractor's services — same scoping setContractorMaterialCost
+  // uses, for the same reason.
+  const affected = await recomputeServicesUsingRole({
+    db, canonicalMaterialId: fields.canonicalMaterialId, contractorId: fields.contractorId,
+  });
+
+  // ALWAYS written, unlike setContractorMaterialCost's guarded `if (changed)`
+  // — a brand-new role resolving from nothing IS the change; there is no
+  // "before" value an unchanged write could be measured against.
+  await db.materialCostEvent.create({
+    data: {
+      contractorMaterialId: cm.id,
+      contractorId: fields.contractorId,
+      newUnitCostCents: fields.unitCostCents,
+      newUnitCostMilliCents: fields.unitCostMilliCents,
+      source: fields.costSource,
+      baselineVersionId,
+      reason: provenance.reason,
+      actor: provenance.actor ?? null,
+      syncRunId: provenance.syncRunId ?? null,
+      affectedServiceIds: affected.filter((a) => a.changed).map((a) => a.serviceId),
+    },
+  });
+
+  return { ok: true, contractorMaterialId: cm.id, unitCostCents: fields.unitCostCents, affected };
+}
+
+export type AcceptBaselineResult = ResolveUnresolvedRoleResult | { ok: false; code: "BASELINE_NOT_FOUND" };
+
+/**
+ * Accept a platform Material Baseline for a role this contractor has not
+ * costed yet.
+ *
+ * Takes ONLY a baselineVersionId — see the section header for why. Every
+ * figure written (cost, package basis, unit) is read back from the
+ * MaterialBaselineVersion row itself, never from the caller.
+ *
+ * `costConfidence: ASSUMED`, always. A baseline is a reference figure, not an
+ * invoice this contractor holds — the same distinction CONFIRMED/ASSUMED
+ * already draws for a hand-entered cost that is a working guess rather than
+ * a confirmed number.
+ */
+export async function acceptMaterialBaselineVersion(
+  db: Db,
+  params: { contractorId: string; baselineVersionId: string },
+  provenance: CostProvenance
+): Promise<AcceptBaselineResult> {
+  const version = await db.materialBaselineVersion.findUnique({
+    where: { id: params.baselineVersionId },
+    select: {
+      id: true, canonicalMaterialId: true, unitCostCents: true, unitCostMilliCents: true,
+      packagePriceCents: true, packageQuantity: true, packageUnit: true,
+    },
+  });
+  if (!version) return { ok: false, code: "BASELINE_NOT_FOUND" };
+
+  return createResolvedContractorMaterial(
+    db,
+    {
+      contractorId: params.contractorId,
+      canonicalMaterialId: version.canonicalMaterialId,
+      unitCostCents: version.unitCostCents,
+      unitCostMilliCents: version.unitCostMilliCents,
+      packagePriceCents: version.packagePriceCents,
+      packageQuantity: version.packageQuantity,
+      packageUnit: version.packageUnit,
+      costSource: "BASELINE",
+      costConfidence: "ASSUMED",
+      acceptedBaselineVersionId: version.id,
+    },
+    provenance,
+    version.id
+  );
+}
+
+export type OverrideUnresolvedMaterialCostInput = {
+  contractorId: string;
+  canonicalMaterialId: string;
+  /** Package figures when known — preferred, for the same reason as SetCostInput. */
+  basis?: PackageBasis;
+  /** A bare per-unit cost, when there is no package behind it. Ignored when `basis` is supplied. */
+  unitCostCents?: number;
+  packageUnit?: string;
+};
+
+/**
+ * Resolve a role this contractor has not costed yet with THEIR OWN figure,
+ * instead of accepting the baseline offered (or when none is offered at
+ * all). Always lands as CUSTOM, confirmed — this is exactly the "individual
+ * override" the batch-review screen offers alongside bulk baseline
+ * acceptance, sharing the same atomic create-and-event path so the history
+ * an accept leaves and the history an override leaves are the same shape.
+ */
+export async function overrideUnresolvedMaterialCost(
+  db: Db,
+  input: OverrideUnresolvedMaterialCostInput,
+  provenance: CostProvenance
+): Promise<ResolveUnresolvedRoleResult> {
+  let derived: DerivedUnitCost;
+  let packageFields: {
+    packagePriceCents: number | null;
+    packageQuantity: number | null;
+    packageUnit: string | null;
+  };
+
+  if (input.basis) {
+    derived = deriveUnitCost(input.basis);
+    packageFields = {
+      packagePriceCents: input.basis.packagePriceCents,
+      packageQuantity: input.basis.packageQuantity,
+      packageUnit: input.packageUnit ?? null,
+    };
+  } else {
+    if (input.unitCostCents === undefined) {
+      throw new MaterialCostError(
+        "overrideUnresolvedMaterialCost needs either a package basis or a unit cost."
+      );
+    }
+    if (!Number.isFinite(input.unitCostCents) || input.unitCostCents < 0) {
+      throw new MaterialCostError(
+        `Unit cost must be a non-negative number of cents, got ${input.unitCostCents}`
+      );
+    }
+    derived = {
+      unitCostCents: Math.round(input.unitCostCents),
+      unitCostMilliCents: Math.round(input.unitCostCents) * 1000,
+    };
+    packageFields = { packagePriceCents: null, packageQuantity: null, packageUnit: input.packageUnit ?? null };
+  }
+
+  return createResolvedContractorMaterial(
+    db,
+    {
+      contractorId: input.contractorId,
+      canonicalMaterialId: input.canonicalMaterialId,
+      unitCostCents: derived.unitCostCents,
+      unitCostMilliCents: derived.unitCostMilliCents,
+      ...packageFields,
+      costSource: "CUSTOM",
+      costConfidence: "CONFIRMED",
+      acceptedBaselineVersionId: null,
+    },
+    provenance,
+    null
+  );
+}
+
+export type OfferedBaseline = {
+  id: string;
+  unitCostCents: number;
+  unit: string;
+  sourceLabel: string;
+  sourceUrl: string | null;
+  specNote: string;
+  sourcedAt: Date;
+};
+
+/**
+ * The current baseline offer per canonical role — the most recently sourced
+ * MaterialBaselineVersion for each id in the list. "Current" is computed
+ * here, not stored anywhere: see the model's own doc comment on why there is
+ * no supersededAt to maintain.
+ *
+ * A role with no baseline at all is simply absent from the returned map —
+ * the batch-review screen still lists it, with override as the only path.
+ */
+export async function latestBaselineVersionsFor(
+  db: Db,
+  canonicalMaterialIds: string[]
+): Promise<Map<string, OfferedBaseline>> {
+  if (canonicalMaterialIds.length === 0) return new Map();
+
+  const rows = await db.materialBaselineVersion.findMany({
+    where: { canonicalMaterialId: { in: canonicalMaterialIds } },
+    orderBy: { sourcedAt: "desc" },
+    select: {
+      id: true, canonicalMaterialId: true, unitCostCents: true, unit: true,
+      sourceLabel: true, sourceUrl: true, specNote: true, sourcedAt: true,
+    },
+  });
+
+  // First hit per id wins — rows arrive newest-sourced first.
+  const out = new Map<string, OfferedBaseline>();
+  for (const r of rows) {
+    if (out.has(r.canonicalMaterialId)) continue;
+    out.set(r.canonicalMaterialId, {
+      id: r.id, unitCostCents: r.unitCostCents, unit: r.unit,
+      sourceLabel: r.sourceLabel, sourceUrl: r.sourceUrl, specNote: r.specNote, sourcedAt: r.sourcedAt,
+    });
+  }
+  return out;
 }

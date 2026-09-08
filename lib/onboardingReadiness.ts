@@ -37,6 +37,15 @@ export type Finding = {
   message: string;
   serviceSlug?: string;
   href?: string;
+  /**
+   * MATERIAL_COST_UNRESOLVED only: the canonical role's own key and every
+   * intended service that needs it — structured, not parsed back out of the
+   * prose message. The batch-review panel (app/dashboard/setup) reads these
+   * rather than re-deriving the same grouping a second time, which is the
+   * mistake the T&M readiness gap made for a different finding.
+   */
+  materialKey?: string;
+  affectedServiceSlugs?: string[];
 };
 
 export type StageKey =
@@ -248,7 +257,7 @@ export async function assessOnboarding(
     // link actionable without pretending a page exists.
     findings["pricing-foundation"].push(b("MATERIAL_COST_UNRESOLVED",
       `You haven't told us what ${role} costs you — ${slugs.length} service${slugs.length === 1 ? "" : "s"} need${slugs.length === 1 ? "s" : ""} it, including ${slugs[0]}.`,
-      { href: "/dashboard/services" }));
+      { href: "/dashboard/services", materialKey: role, affectedServiceSlugs: slugs }));
   }
   // ASKS THE QUESTION, rather than naming the key.
   //
