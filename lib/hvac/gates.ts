@@ -115,6 +115,27 @@ export type VentingClass = "ATMOSPHERIC" | "INDUCED_DRAFT" | "DIRECT_VENT_SEALED
 /** Independently declared — see the file header on why this is not imported. */
 export type AccessClass = "ACCESSIBLE" | "FINISHED" | "UNKNOWN";
 
+/**
+ * H6. `outdoor_equipment_access`'s own second established fact (H2:
+ * `establishes: ["outdoor_location", "access_class"]`) — declared since H2
+ * but never given a concrete vocabulary until now, the same "first concrete
+ * typing of an already-declared fact" shape H4 gave `terminal_scheme`.
+ * Per hvac-v0-architecture.md §E.5.2. Observable only: where the outdoor
+ * unit physically sits, never a judgment about whether that location is
+ * "standard" or "difficult" — `access_class`, gated by the unchanged
+ * `accessGate`, is what carries that boundary. `NONE` is a distinct,
+ * meaningful value (no outdoor unit was found at all), not folded into
+ * `UNKNOWN` — a service whose scope requires outdoor equipment treats it as
+ * a contradiction, not merely an unresolved fact.
+ */
+export type OutdoorLocation =
+  | "GROUND_LEVEL_ADJACENT"
+  | "GROUND_LEVEL_REMOTE"
+  | "ROOF"
+  | "WALL_OR_BALCONY_MOUNT"
+  | "NONE"
+  | "UNKNOWN";
+
 export type ControlPresent = "PRESENT_WORKING" | "PRESENT_NOT_RESPONDING" | "ABSENT" | "UNKNOWN";
 
 /** The C-wire fact, per §E.3 — a homeowner counts wires and looks for one marked C. */

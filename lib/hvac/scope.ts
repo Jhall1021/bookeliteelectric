@@ -1,21 +1,25 @@
 /**
- * HVAC's executable services — H3 added `condensate-pump-installation`, H4
- * adds `thermostat-installation`. Two independent resolvers, not a generic
- * n-service engine.
+ * HVAC's executable services. H3 added `condensate-pump-installation`, H4
+ * `thermostat-installation`, H5 `condensate-safety-switch-installation` and
+ * `air-filter-replacement`, H6 the four tune-ups (`ac-tune-up`,
+ * `furnace-tune-up`, `heat-pump-tune-up`, `mini-split-tune-up`). Eight
+ * independent resolvers, still not a generic n-service engine.
  *
- * STILL NOT A GENERIC RESOLVER, EVEN AT TWO. Mirrors lib/plumbing/scope.ts's
+ * STILL NOT A GENERIC RESOLVER, EVEN AT EIGHT. Mirrors lib/plumbing/scope.ts's
  * ROLE — the layer between a validated answer and the price, deciding WHAT
  * THE JOB IS and never what it costs — but not its generic, multi-service
  * shape. Plumbing's `scopePlumbingService` walks whichever gates a catalog
  * row declares, because sixty-three services share nine families and one
- * shape genuinely pays for itself. Two HVAC services with materially
+ * shape genuinely pays for itself. HVAC's resolvers keep materially
  * different branch structures (condensate's is a flat gate sequence per
- * branch; thermostat's calls back into a SHARED gate with an explicit
- * opt-in for one narrow exception) do not yet establish that a common shape
- * exists to extract — see H4's own instruction against building one merely
- * because a second resolver arrived. What genuinely IS shared between them
- * — `SupplyArrangementChoice` (the same primitive, same two values) and the
- * tiny `refuse()` helper — is shared, narrowly, below. Nothing else is.
+ * branch; thermostat's calls back into a shared gate with an explicit
+ * opt-in; the four H6 tune-ups share one small access-gating helper and
+ * nothing else) — not enough to justify a common tree shape, per every
+ * prior phase's own instruction against building one merely because
+ * another resolver arrived. What genuinely IS shared is narrow and named:
+ * `SupplyArrangementChoice`, `refuse()`, `unresolved()` (H5), and now
+ * `gateTwoSlotAccess()` (H6, below) — one mechanical helper per genuinely
+ * repeated shape, nothing assembled into a shared tree walker.
  *
  *   Visual Assist / manual answer
  *     -> validated canonical Guided Pricing input   (not built for HVAC yet)
@@ -23,22 +27,27 @@
  *     -> deterministic Price2Book pricing engine    (lib/pricing.ts, untouched)
  *
  * PURE. No database, no clock, no network, no price. Reuses lib/hvac/gates.ts's
- * `accessGate`, `identityGate`, `controlGate` and `GateOutcome`/`toRouteAction`
- * unchanged in count — H4 narrowly EXTENDED `controlGate` with two optional,
- * default-preserving parameters (see gates.ts's own comment), not an eighth
- * gate. The platform's own `RouteAction` (lib/flow-types.ts) is the result
- * vocabulary throughout, not a service-local invention.
+ * `accessGate`, `identityGate`, `fuelGate`, `controlGate` and
+ * `GateOutcome`/`toRouteAction` unchanged in count — H4 narrowly EXTENDED
+ * `controlGate` with two optional, default-preserving parameters (see
+ * gates.ts's own comment), not an eighth gate; H6 adds no gate at all, only
+ * the `OutdoorLocation` type (gates.ts's own comment on it). The platform's
+ * own `RouteAction` (lib/flow-types.ts) is the result vocabulary throughout,
+ * not a service-local invention.
  */
 
 import type { RouteAction } from "../flow-types";
 import {
   accessGate,
   identityGate,
+  fuelGate,
   controlGate,
   toRouteAction,
   type AccessClass,
   type GateOutcome,
   type SystemType,
+  type FuelType,
+  type OutdoorLocation,
   type ControlPresent,
   type TerminalScheme,
   type CommonWirePresence,
@@ -842,5 +851,505 @@ export const AIR_FILTER_REPLACEMENT_QUESTIONS: readonly AirFilterReplacementQues
     prompt: "How many filters need replacing?",
     establishes: "quantity",
     options: [],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// The four tune-ups — H6. `ac-tune-up`, `heat-pump-tune-up` and
+// `mini-split-tune-up` are the three services G1 corrected to genuinely
+// BOTH-location scope (families.ts's own comment on each: "truthfully
+// BOTH... Kept FIXED; the fix was the declaration, not the scope").
+// `furnace-tune-up` is the one tune-up that was always genuinely
+// single-location (catalog review Part 6.2's own "control case").
+//
+// POST-G1 ACCESS, THE SETTLED CORRECTION. INDOOR_EQUIPMENT and
+// OUTDOOR_EQUIPMENT are gated INDEPENDENTLY, each through the unchanged
+// `accessGate` — a known access class (ACCESSIBLE or FINISHED) always
+// CONTINUEs; only UNKNOWN refuses. `outdoor_location`'s ROOF /
+// WALL_OR_BALCONY_MOUNT do NOT branch to REMOTE_QUOTE here — that was
+// pre-G1/fallback reasoning, explicitly superseded. `outdoor_location`'s
+// ONLY live effect in this file is catching `NONE` — a genuine
+// contradiction for a service whose scope requires an outdoor unit, not an
+// access-difficulty judgment. No `equipment_height.breakpoints`, no other
+// policy binding, is introduced.
+//
+// A TUNE-UP PROMISES A DEFINED MAINTENANCE PROCEDURE, NEVER A DIAGNOSIS.
+// Every one of these four resolvers gates only identity, fuel (furnace
+// only), access, and quantity. None reads `equipment_condition`. None asks
+// about a burner, an ignitor, a heat exchanger, defrost, a reversing
+// valve, backup heat, or refrigerant — those are `HVAC_MAINTENANCE_SCOPE`
+// items (lib/hvac/metadata.ts), the technician's promised procedure, never
+// a homeowner pre-booking question. See `hvac-v0-architecture.md` F.4's
+// own words: "The scope is defined by the procedure, not by the system's
+// condition. A tune-up on a struggling unit and a tune-up on a healthy one
+// are the same work."
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Every tune-up resolves to the same one shape — FIXED, one price, no branch. */
+export type TuneUpResolution =
+  | {
+      status: "RESOLVED";
+      /** FIXED — one price, no branch adjustment. */
+      routeAction: "RESOLVE_INSTANT";
+    }
+  | HvacRefusal;
+
+/** The facts `gateTwoSlotAccess` needs — the three two-slot tune-ups' shared shape. */
+type TwoSlotAccessFacts = {
+  indoorAccessClass: AccessClass;
+  outdoorLocation: OutdoorLocation;
+  outdoorAccessClass: AccessClass;
+};
+
+/**
+ * H6. The identical INDOOR_EQUIPMENT + OUTDOOR_EQUIPMENT gating sequence
+ * shared by `ac-tune-up`, `heat-pump-tune-up` and `mini-split-tune-up` —
+ * the three services G1 corrected to genuinely both-location scope. Each
+ * slot is gated INDEPENDENTLY (never collapsed to one scalar answer);
+ * `outdoor_location = NONE` fails closed as a contradiction; ROOF and
+ * WALL_OR_BALCONY_MOUNT do NOT branch here — see the section header.
+ *
+ * Purely mechanical: it knows nothing about system identity, fuel, or
+ * quantity — every resolver below still calls its own `identityGate` (or,
+ * for mini-split, none at all) and still writes its own quantity check.
+ * This removes one exact, three-times-repeated gating sequence; it is not
+ * a step toward a generic tree engine.
+ */
+function gateTwoSlotAccess(facts: TwoSlotAccessFacts): GateOutcome {
+  const indoorAccess = accessGate(facts.indoorAccessClass);
+  if (indoorAccess.action !== "CONTINUE") return indoorAccess;
+
+  if (facts.outdoorLocation === "NONE") {
+    return {
+      action: "PHOTO_REVIEW",
+      reason: "No outdoor unit was observed for a service whose scope includes the outdoor unit.",
+      factKey: "outdoor_location",
+      observed: "NONE",
+    };
+  }
+  if (facts.outdoorLocation === "UNKNOWN") {
+    return {
+      action: "PHOTO_REVIEW",
+      reason: "Where the outdoor unit sits has not been established.",
+      factKey: "outdoor_location",
+      observed: "UNKNOWN",
+    };
+  }
+
+  // ROOF / WALL_OR_BALCONY_MOUNT / GROUND_LEVEL_ADJACENT / GROUND_LEVEL_REMOTE
+  // all proceed to the same ordinary access-class check — post-G1, the
+  // location value itself is not a route gate.
+  return accessGate(facts.outdoorAccessClass);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ac-tune-up
+// ─────────────────────────────────────────────────────────────────────────
+
+/** First V1 fixed tree: FURNACE_AND_AC only. */
+const AC_TUNE_UP_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = ["FURNACE_AND_AC"];
+
+export type AcTuneUpFacts = {
+  /** Q1. */
+  systemType: SystemType;
+  /** Q2 — INDOOR_EQUIPMENT slot. */
+  indoorAccessClass: AccessClass;
+  /** Q3 — OUTDOOR_EQUIPMENT slot, the location half. */
+  outdoorLocation: OutdoorLocation;
+  /** Q3 (same look) — OUTDOOR_EQUIPMENT slot, the access half. */
+  outdoorAccessClass: AccessClass;
+  /** Q4. A quantity; gates nothing. */
+  systemCount: number;
+};
+
+/**
+ * Resolve `ac-tune-up` against a complete fact set. FAILS CLOSED. No
+ * question here asks about condensate condition, refrigerant, or any
+ * diagnosis — `HVAC_MAINTENANCE_SCOPE["ac-tune-up"]` (metadata.ts) is the
+ * promised procedure, including clearing the condensate drain, which is
+ * routine included maintenance, never evidence of a diagnosed blockage.
+ */
+export function resolveAcTuneUp(facts: AcTuneUpFacts): TuneUpResolution {
+  // Q1 — system identity.
+  const identity = identityGate(facts.systemType, { serviceExpects: AC_TUNE_UP_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+
+  // Q2/Q3 — both access slots, independently gated. See gateTwoSlotAccess.
+  const access = gateTwoSlotAccess(facts);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q4 — quantity. Gates nothing; scales price, not scope.
+  return { status: "RESOLVED", routeAction: "RESOLVE_INSTANT" };
+}
+
+export type AcTuneUpQuestionKey = "system_identity" | "indoor_access" | "outdoor_access" | "system_count";
+
+export type AcTuneUpAnswerOption = { value: string; label: string };
+
+export type AcTuneUpQuestion = {
+  key: AcTuneUpQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly AcTuneUpAnswerOption[];
+};
+
+export const AC_TUNE_UP_QUESTIONS: readonly AcTuneUpQuestion[] = [
+  {
+    key: "system_identity",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "outdoor_access",
+    prompt: "Where does the outdoor unit sit?",
+    establishes: "outdoor_location",
+    options: [
+      { value: "GROUND_LEVEL_ADJACENT", label: "On the ground, next to the house" },
+      { value: "GROUND_LEVEL_REMOTE", label: "On the ground, away from the house" },
+      { value: "ROOF", label: "On the roof" },
+      { value: "WALL_OR_BALCONY_MOUNT", label: "Mounted on a wall or balcony" },
+      { value: "NONE", label: "There's no outdoor unit" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "system_count",
+    prompt: "How many cooling systems are being serviced?",
+    establishes: "system_count",
+    options: [],
+  },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────────
+// furnace-tune-up
+// ─────────────────────────────────────────────────────────────────────────
+
+const FURNACE_TUNE_UP_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = ["FURNACE_AND_AC"];
+const FURNACE_TUNE_UP_SUPPORTED_FUEL_TYPES: readonly Exclude<FuelType, "UNKNOWN">[] = ["NATURAL_GAS", "PROPANE"];
+
+export type FurnaceTuneUpFacts = {
+  /** Q1. */
+  systemType: SystemType;
+  /** Q2. */
+  fuelType: FuelType;
+  /** Q3 — PRIMARY slot. Genuinely single-location; no outdoor fact exists here. */
+  accessClass: AccessClass;
+  /** Q4. A quantity; gates nothing. */
+  systemCount: number;
+};
+
+/**
+ * Resolve `furnace-tune-up` against a complete fact set. FAILS CLOSED.
+ * `venting_class` and `heating_input_btu` are declared on `heating_equipment`
+ * (H2) but NOT read here — the maintenance procedure and its price are the
+ * same regardless of pipe material or BTU rating; only `fuel_type` genuinely
+ * bounds V1's fixed scope to gas/propane forced-air. `equipment_condition`
+ * is never read. No question here asks whether burners, ignition, venting,
+ * the heat exchanger, or safeties are good, bad, or safe — those are
+ * `HVAC_MAINTENANCE_SCOPE["furnace-tune-up"]`'s own promised checks,
+ * performed by the technician, never asked of the homeowner.
+ */
+export function resolveFurnaceTuneUp(facts: FurnaceTuneUpFacts): TuneUpResolution {
+  // Q1 — system identity.
+  const identity = identityGate(facts.systemType, { serviceExpects: FURNACE_TUNE_UP_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+
+  // Q2 — fuel. V1's fixed scope is gas/propane forced-air only.
+  const fuel = fuelGate(facts.fuelType, { serviceExpects: FURNACE_TUNE_UP_SUPPORTED_FUEL_TYPES });
+  if (fuel.action !== "CONTINUE") return refuse(fuel);
+
+  // Q3 — PRIMARY access. Single location; no second slot to gate.
+  const access = accessGate(facts.accessClass);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q4 — quantity. Gates nothing.
+  return { status: "RESOLVED", routeAction: "RESOLVE_INSTANT" };
+}
+
+export type FurnaceTuneUpQuestionKey = "system_identity" | "fuel_type" | "indoor_access" | "system_count";
+
+export type FurnaceTuneUpAnswerOption = { value: string; label: string };
+
+export type FurnaceTuneUpQuestion = {
+  key: FurnaceTuneUpQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly FurnaceTuneUpAnswerOption[];
+};
+
+export const FURNACE_TUNE_UP_QUESTIONS: readonly FurnaceTuneUpQuestion[] = [
+  {
+    key: "system_identity",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "fuel_type",
+    prompt: "What fuel does the furnace use?",
+    establishes: "fuel_type",
+    options: [
+      { value: "NATURAL_GAS", label: "Natural gas" },
+      { value: "PROPANE", label: "Propane" },
+      { value: "OIL", label: "Oil" },
+      { value: "ELECTRIC", label: "Electric" },
+      { value: "DUAL_FUEL", label: "Dual fuel" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "system_count",
+    prompt: "How many heating systems are being serviced?",
+    establishes: "system_count",
+    options: [],
+  },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────────
+// heat-pump-tune-up
+// ─────────────────────────────────────────────────────────────────────────
+
+/** First V1 fixed tree: HEAT_PUMP_SPLIT only. DUAL_FUEL and PACKAGE_UNIT
+ *  are NOT auto-accepted — their maintenance topology is not represented
+ *  by this approved H6 scope. */
+const HEAT_PUMP_TUNE_UP_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = ["HEAT_PUMP_SPLIT"];
+
+export type HeatPumpTuneUpFacts = {
+  /** Q1. Confirming this is a heat pump is the only identity fact needed. */
+  systemType: SystemType;
+  /** Q2 — INDOOR_EQUIPMENT slot. */
+  indoorAccessClass: AccessClass;
+  /** Q3 — OUTDOOR_EQUIPMENT slot, the location half. */
+  outdoorLocation: OutdoorLocation;
+  /** Q3 (same look) — OUTDOOR_EQUIPMENT slot, the access half. */
+  outdoorAccessClass: AccessClass;
+  /** Q4. A quantity; gates nothing. */
+  systemCount: number;
+};
+
+/**
+ * Resolve `heat-pump-tune-up` against a complete fact set. FAILS CLOSED.
+ * No question here asks about defrost, reversing-valve position, backup
+ * heat, or refrigerant — those are `HVAC_MAINTENANCE_SCOPE["heat-pump-tune-up"]`
+ * items, the technician's promised procedure, never a homeowner question.
+ */
+export function resolveHeatPumpTuneUp(facts: HeatPumpTuneUpFacts): TuneUpResolution {
+  // Q1 — system identity. Confirming a heat pump; nothing further.
+  const identity = identityGate(facts.systemType, { serviceExpects: HEAT_PUMP_TUNE_UP_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+
+  // Q2/Q3 — both access slots, independently gated.
+  const access = gateTwoSlotAccess(facts);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q4 — quantity. Gates nothing.
+  return { status: "RESOLVED", routeAction: "RESOLVE_INSTANT" };
+}
+
+export type HeatPumpTuneUpQuestionKey = "system_identity" | "indoor_access" | "outdoor_access" | "system_count";
+
+export type HeatPumpTuneUpAnswerOption = { value: string; label: string };
+
+export type HeatPumpTuneUpQuestion = {
+  key: HeatPumpTuneUpQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly HeatPumpTuneUpAnswerOption[];
+};
+
+export const HEAT_PUMP_TUNE_UP_QUESTIONS: readonly HeatPumpTuneUpQuestion[] = [
+  {
+    key: "system_identity",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "outdoor_access",
+    prompt: "Where does the outdoor unit sit?",
+    establishes: "outdoor_location",
+    options: [
+      { value: "GROUND_LEVEL_ADJACENT", label: "On the ground, next to the house" },
+      { value: "GROUND_LEVEL_REMOTE", label: "On the ground, away from the house" },
+      { value: "ROOF", label: "On the roof" },
+      { value: "WALL_OR_BALCONY_MOUNT", label: "Mounted on a wall or balcony" },
+      { value: "NONE", label: "There's no outdoor unit" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "system_count",
+    prompt: "How many heat pump systems are being serviced?",
+    establishes: "system_count",
+    options: [],
+  },
+] as const;
+
+// ─────────────────────────────────────────────────────────────────────────
+// mini-split-tune-up
+// ─────────────────────────────────────────────────────────────────────────
+
+export type MiniSplitTuneUpFacts = {
+  /** Q1. Outdoor mini-split SYSTEMS being serviced — not heads. head_count
+   *  alone cannot describe two independent outdoor systems. */
+  systemCount: number;
+  /** Q2. Total indoor HEADS being serviced, across all systems. */
+  headCount: number;
+  /** Q3 — INDOOR_EQUIPMENT slot. */
+  indoorAccessClass: AccessClass;
+  /** Q4 — OUTDOOR_EQUIPMENT slot, the location half. */
+  outdoorLocation: OutdoorLocation;
+  /** Q4 (same look) — OUTDOOR_EQUIPMENT slot, the access half. */
+  outdoorAccessClass: AccessClass;
+};
+
+/**
+ * Resolve `mini-split-tune-up` against a complete fact set. FAILS CLOSED.
+ *
+ * NO `system_type` QUESTION. H2 declares `distribution_and_zoning` for
+ * this service, never `system_identity` — this resolver does not add one.
+ *
+ * Distinct from `mini-split-head-cleaning`: this is the routine tune-up and
+ * light cleaning `HVAC_MAINTENANCE_SCOPE["mini-split-tune-up"]` describes,
+ * never Deep Cleaning's disassembly wash — no disassembly question exists
+ * here, and none should.
+ */
+export function resolveMiniSplitTuneUp(facts: MiniSplitTuneUpFacts): TuneUpResolution {
+  // Q1/Q2 — quantities. Both must be positive to describe real work; a
+  // non-positive count is unresolved scope, not a legitimate zero-priced job.
+  if (facts.systemCount < 1) {
+    return unresolved("system_count", "The number of mini-split systems being serviced has not been established.");
+  }
+  if (facts.headCount < 1) {
+    return unresolved("head_count", "The number of indoor heads being serviced has not been established.");
+  }
+
+  // Q3/Q4 — both access slots, independently gated.
+  const access = gateTwoSlotAccess(facts);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  return { status: "RESOLVED", routeAction: "RESOLVE_INSTANT" };
+}
+
+export type MiniSplitTuneUpQuestionKey = "system_count" | "head_count" | "indoor_access" | "outdoor_access";
+
+export type MiniSplitTuneUpAnswerOption = { value: string; label: string };
+
+export type MiniSplitTuneUpQuestion = {
+  key: MiniSplitTuneUpQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly MiniSplitTuneUpAnswerOption[];
+};
+
+export const MINI_SPLIT_TUNE_UP_QUESTIONS: readonly MiniSplitTuneUpQuestion[] = [
+  {
+    key: "system_count",
+    prompt: "How many outdoor mini-split systems are being serviced?",
+    establishes: "system_count",
+    options: [],
+  },
+  {
+    key: "head_count",
+    prompt: "How many indoor heads, in total, are being serviced?",
+    establishes: "head_count",
+    options: [],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where are the indoor units?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "outdoor_access",
+    prompt: "Where does the outdoor unit sit?",
+    establishes: "outdoor_location",
+    options: [
+      { value: "GROUND_LEVEL_ADJACENT", label: "On the ground, next to the house" },
+      { value: "GROUND_LEVEL_REMOTE", label: "On the ground, away from the house" },
+      { value: "ROOF", label: "On the roof" },
+      { value: "WALL_OR_BALCONY_MOUNT", label: "Mounted on a wall or balcony" },
+      { value: "NONE", label: "There's no outdoor unit" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
   },
 ] as const;
