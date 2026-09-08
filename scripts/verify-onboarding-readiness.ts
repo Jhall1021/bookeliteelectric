@@ -196,6 +196,57 @@ async function main() {
     await teardown(PROBE);
   }
 
+  // ── TIME_AND_MATERIALS strategy — the second readiness engine agrees ────
+  //
+  // assessOnboarding used to re-derive its own FLAT_RATE-shaped idea of
+  // "priced" regardless of pricingStrategy: PRICE_NOT_APPROVED demanded a
+  // publishedPriceApprovedAt T&M never sets, and LABOR_INPUTS_MISSING
+  // demanded a derivable flat price from fieldLaborHours, which T&M treats as
+  // an optional suggestion. A properly configured, fully approved T&M service
+  // was blocked FOREVER — verified directly against this database before the
+  // fix landed. Now it delegates to lib/pricingReadiness.ts's own
+  // validateEstimateBounds, the same authority /dashboard/estimates uses, so
+  // the two screens cannot disagree.
+  await teardown(PROBE);
+  const tm = await raw.contractor.create({
+    data: { slug: PROBE, name: "T&M readiness probe", active: false, countryCode: "US", pricingStrategy: "TIME_AND_MATERIALS" },
+    select: { id: true },
+  });
+  try {
+    await raw.pricingSettings.create({
+      data: { contractorId: tm.id, crewHourRateCents: 15000, primaryMinimumCents: 9900, roundingIncrementCents: 100, defaultPermitAdminCents: 0 },
+    });
+    const cat = await raw.service.findFirstOrThrow({ select: { categoryId: true } });
+    const svc = await raw.service.create({
+      data: {
+        slug: `${PROBE}-tm-svc`, name: "T&M probe service", contractorId: tm.id,
+        categoryId: cat.categoryId, bookingType: "INSTANT", active: false, offered: true,
+        materialCostResolved: true,
+        estimateLowCrewHours: 1.5, estimateHighCrewHours: 3,
+      },
+      select: { id: true },
+    });
+
+    const unapproved = await assess(tm.id);
+    ok(`12a. a T&M service with entered-but-unapproved estimates is blocked ESTIMATE_NOT_APPROVED`,
+      codes(unapproved, "blocker").includes("ESTIMATE_NOT_APPROVED"));
+    ok(`     ...and NOT by the FLAT_RATE-shaped codes that used to fire regardless of strategy`,
+      !codes(unapproved, "blocker").some((c) => c === "PRICE_NOT_APPROVED" || c === "LABOR_INPUTS_MISSING"));
+
+    await raw.service.update({ where: { id: svc.id }, data: { estimateLowCrewHours: null, estimateHighCrewHours: null } });
+    const missing = await assess(tm.id);
+    ok(`12b. no estimate entered at all is blocked ESTIMATE_BOUNDS_MISSING, never zero`,
+      codes(missing, "blocker").includes("ESTIMATE_BOUNDS_MISSING"));
+
+    await raw.service.update({ where: { id: svc.id }, data: { estimateLowCrewHours: 1.5, estimateHighCrewHours: 3, estimateApprovedAt: new Date() } });
+    const approved = await assess(tm.id);
+    const approvedServiceFindings = approved.stages.find((s) => s.key === "services")?.findings ?? [];
+    ok(`12c. once approved, the SERVICES stage itself reports zero findings for it — this is the bug fixed`,
+      approvedServiceFindings.length === 0, JSON.stringify(approvedServiceFindings));
+  } finally {
+    await teardown(PROBE);
+  }
+
   // ── selection is a decision, and only a decision ───────────────────────
   const fixed = await raw.service.findFirstOrThrow({
     where: { contractorId: fresh.id, bookingType: { not: "REMOTE_QUOTE" } },
