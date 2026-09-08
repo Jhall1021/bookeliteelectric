@@ -2,10 +2,32 @@
  * HVAC's executable services. H3 added `condensate-pump-installation`, H4
  * `thermostat-installation`, H5 `condensate-safety-switch-installation` and
  * `air-filter-replacement`, H6 the four tune-ups (`ac-tune-up`,
- * `furnace-tune-up`, `heat-pump-tune-up`, `mini-split-tune-up`). Eight
- * independent resolvers, still not a generic n-service engine.
+ * `furnace-tune-up`, `heat-pump-tune-up`, `mini-split-tune-up`), H7 three
+ * accessory/IAQ services (`air-cleaner-cabinet-installation`,
+ * `duct-air-treatment-installation`, `accessory-consumable-replacement`).
+ * Eleven independent resolvers, still not a generic n-service engine.
+ * `whole-house-humidifier` is deliberately NOT among them — H7's own audit
+ * found two facts (humidifier device type, water supply presence)
+ * genuinely missing from H2's declared vocabulary and load-bearing for its
+ * CONDITIONAL_FIXED branches; H8 settles them.
  *
- * STILL NOT A GENERIC RESOLVER, EVEN AT EIGHT. Mirrors lib/plumbing/scope.ts's
+ * `mini-split-head-cleaning` IS ALSO DELIBERATELY NOT AMONG THEM, though
+ * H7 first implemented it. The final applied trade review requires this
+ * service to capture indoor-unit type, quantity, and height/access as its
+ * CONDITIONAL_FIXED scope drivers — but H2 never declared any fact for
+ * "indoor-unit type," and no approved vocabulary for one exists anywhere
+ * in authority (wall head / cassette / console / ducted, or otherwise).
+ * H7's own implementation captured quantity and access but had to omit
+ * the type question entirely for want of a vocabulary — pricing a job
+ * while silently leaving one of the final authority's own required scope
+ * drivers unestablished, exactly the class of omission this whole
+ * architecture exists to refuse. Removed before push rather than shipped
+ * with a gap. Its H1 catalog entry, H2 family declaration, and
+ * CONDITIONAL_FIXED disposition are untouched — canonical, not executable,
+ * pending a narrow H8/H8a reconciliation that settles the vocabulary
+ * first, deliberately not invented here to preserve a batch count.
+ *
+ * STILL NOT A GENERIC RESOLVER, EVEN AT ELEVEN. Mirrors lib/plumbing/scope.ts's
  * ROLE — the layer between a validated answer and the price, deciding WHAT
  * THE JOB IS and never what it costs — but not its generic, multi-service
  * shape. Plumbing's `scopePlumbingService` walks whichever gates a catalog
@@ -13,12 +35,12 @@
  * shape genuinely pays for itself. HVAC's resolvers keep materially
  * different branch structures (condensate's is a flat gate sequence per
  * branch; thermostat's calls back into a shared gate with an explicit
- * opt-in; the four H6 tune-ups share one small access-gating helper and
- * nothing else) — not enough to justify a common tree shape, per every
- * prior phase's own instruction against building one merely because
- * another resolver arrived. What genuinely IS shared is narrow and named:
- * `SupplyArrangementChoice`, `refuse()`, `unresolved()` (H5), and now
- * `gateTwoSlotAccess()` (H6, below) — one mechanical helper per genuinely
+ * opt-in; the four H6 tune-ups share one small access-gating helper) —
+ * not enough to justify a common tree shape, per every prior phase's own
+ * instruction against building one merely because another resolver
+ * arrived. What genuinely IS shared is narrow and named:
+ * `SupplyArrangementChoice`, `refuse()`, `unresolved()` (H5),
+ * `gateTwoSlotAccess()` (H6) — one mechanical helper per genuinely
  * repeated shape, nothing assembled into a shared tree walker.
  *
  *   Visual Assist / manual answer
@@ -30,10 +52,12 @@
  * `accessGate`, `identityGate`, `fuelGate`, `controlGate` and
  * `GateOutcome`/`toRouteAction` unchanged in count — H4 narrowly EXTENDED
  * `controlGate` with two optional, default-preserving parameters (see
- * gates.ts's own comment), not an eighth gate; H6 adds no gate at all, only
- * the `OutdoorLocation` type (gates.ts's own comment on it). The platform's
- * own `RouteAction` (lib/flow-types.ts) is the result vocabulary throughout,
- * not a service-local invention.
+ * gates.ts's own comment), not an eighth gate; H6 and H7 add no gate at
+ * all. H7 adds exactly one new fact — `accessory_kind`, on the
+ * already-declared `accessory_and_media` family (lib/hvac/families.ts's
+ * own comment on it) — and no new family, gate, or primitive. The
+ * platform's own `RouteAction` (lib/flow-types.ts) is the result
+ * vocabulary throughout, not a service-local invention.
  */
 
 import type { RouteAction } from "../flow-types";
@@ -1351,5 +1375,403 @@ export const MINI_SPLIT_TUNE_UP_QUESTIONS: readonly MiniSplitTuneUpQuestion[] = 
       { value: "NONE", label: "There's no outdoor unit" },
       { value: "UNKNOWN", label: "Not sure" },
     ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// air-cleaner-cabinet-installation — H7
+//
+// CONDITIONAL_FIXED. accessory_present decides the branch — PRESENT
+// (replacement) is bounded, because the existing cabinet proves the
+// opening already exists, the same "one already there proves the scope"
+// logic every merged replacement/new-fit service in this codebase uses.
+// ABSENT (first-time insertion) leaves automated pricing UNCONDITIONALLY:
+// no approved document contains a homeowner-observable proxy for "unbounded
+// sheet-metal transitions" narrower than presence/absence itself — the H7
+// audit's own finding — so this resolver does not invent one.
+//
+// NO POWER FACT. The powered electronic-air-cleaner variant was removed
+// outright at candidate stage (families.ts's own comment); this resolver
+// never reads dedicated_circuit_present and never asks about one.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Ductwork-based systems only — a media cabinet fits into central return ductwork. */
+const AIR_CLEANER_CABINET_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = [
+  "FURNACE_AND_AC",
+  "HEAT_PUMP_SPLIT",
+  "DUAL_FUEL",
+  "PACKAGE_UNIT",
+  "AIR_HANDLER_ONLY",
+];
+
+/** Shared presence vocabulary — PRESENT/ABSENT/UNKNOWN, the ordinary shape
+ *  every presence/absence merge fact in this file uses. */
+export type AccessoryPresence = "PRESENT" | "ABSENT" | "UNKNOWN";
+
+export type AirCleanerCabinetInstallationFacts = {
+  /** Q1. */
+  systemType: SystemType;
+  /** Q2 — PRIMARY slot. */
+  accessClass: AccessClass;
+  /** Q3. The branch decision. */
+  accessoryPresent: AccessoryPresence;
+  /** Q4 (replacement branch only). */
+  filterSlotSize: string | null;
+};
+
+export type AirCleanerCabinetInstallationResolution =
+  | {
+      status: "RESOLVED";
+      /** The approved CONDITIONAL_FIXED terminal, in the platform's own vocabulary. */
+      routeAction: "RESOLVE_ADJUSTED";
+    }
+  | HvacRefusal;
+
+/**
+ * Resolve `air-cleaner-cabinet-installation` against a complete fact set.
+ * FAILS CLOSED. No question here asks whether duct transitions are
+ * standard, easy, or adequate — the branch decision is presence/absence
+ * of the existing cabinet, observation only.
+ */
+export function resolveAirCleanerCabinetInstallation(
+  facts: AirCleanerCabinetInstallationFacts
+): AirCleanerCabinetInstallationResolution {
+  // Q1 — system identity.
+  const identity = identityGate(facts.systemType, { serviceExpects: AIR_CLEANER_CABINET_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+
+  // Q2 — indoor access.
+  const access = accessGate(facts.accessClass);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q3 — the branch decision.
+  if (facts.accessoryPresent === "UNKNOWN") {
+    return unresolved("accessory_present", "Whether a filter cabinet is already fitted has not been established.");
+  }
+  if (facts.accessoryPresent === "ABSENT") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "A first-time filter cabinet insertion may need duct transitions this fixed scope does not bound.",
+      factKey: "accessory_present",
+      observed: "ABSENT",
+    });
+  }
+
+  // Q4 — printed filter size, replacement branch only.
+  if (facts.filterSlotSize === null) {
+    return unresolved("filter_slot_size", "The size printed on the filter has not been established.");
+  }
+
+  return { status: "RESOLVED", routeAction: "RESOLVE_ADJUSTED" };
+}
+
+export type AirCleanerCabinetInstallationQuestionKey = "system_identity" | "indoor_access" | "accessory_present" | "filter_slot_size";
+
+export type AirCleanerCabinetInstallationAnswerOption = { value: string; label: string };
+
+export type AirCleanerCabinetInstallationQuestion = {
+  key: AirCleanerCabinetInstallationQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly AirCleanerCabinetInstallationAnswerOption[];
+};
+
+export const AIR_CLEANER_CABINET_INSTALLATION_QUESTIONS: readonly AirCleanerCabinetInstallationQuestion[] = [
+  {
+    key: "system_identity",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "accessory_present",
+    prompt: "Is there a filter cabinet there now?",
+    establishes: "accessory_present",
+    options: [
+      { value: "PRESENT", label: "Yes, there's one there now" },
+      { value: "ABSENT", label: "No" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "filter_slot_size",
+    prompt: "What size is printed on the filter you take out?",
+    establishes: "filter_slot_size",
+    options: [],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// duct-air-treatment-installation — H7
+//
+// CONDITIONAL_FIXED. Device configuration (UV lamp / PCO cell / ionizer)
+// is exactly that — configuration, never a route gate: catalog review
+// Part 7's own words, "Device is configuration... No performance or
+// air-quality claims in canonical scope." Mounting is bounded regardless
+// of which specific device; only the power prerequisite can leave fixed
+// pricing. No device-type question exists in this resolver at all.
+//
+// dedicated_circuit_present is UNCONDITIONAL, matching H2's own
+// declaration exactly (families.ts's own comment: "a UV/treatment device
+// is powered whether it is a first fit or a replacement") — read on every
+// path, never branch-only.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Ductwork-based systems only, same reasoning as the filter cabinet. */
+const DUCT_AIR_TREATMENT_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = [
+  "FURNACE_AND_AC",
+  "HEAT_PUMP_SPLIT",
+  "DUAL_FUEL",
+  "PACKAGE_UNIT",
+  "AIR_HANDLER_ONLY",
+];
+
+export type DuctAirTreatmentInstallationFacts = {
+  /** Q1. */
+  systemType: SystemType;
+  /** Q2 — PRIMARY slot. */
+  accessClass: AccessClass;
+  /** Q3. Unconditional — read on every path. */
+  dedicatedCircuitPresent: DedicatedCircuitPresence;
+};
+
+export type DuctAirTreatmentInstallationResolution =
+  | {
+      status: "RESOLVED";
+      /** The approved CONDITIONAL_FIXED terminal, in the platform's own vocabulary. */
+      routeAction: "RESOLVE_ADJUSTED";
+    }
+  | HvacRefusal;
+
+/**
+ * Resolve `duct-air-treatment-installation` against a complete fact set.
+ * FAILS CLOSED. No question here claims the air is dirty, contaminated,
+ * unhealthy, or moldy, and none makes any performance or air-quality
+ * claim — this resolver scopes a mounting job, nothing else.
+ */
+export function resolveDuctAirTreatmentInstallation(
+  facts: DuctAirTreatmentInstallationFacts
+): DuctAirTreatmentInstallationResolution {
+  // Q1 — system identity.
+  const identity = identityGate(facts.systemType, { serviceExpects: DUCT_AIR_TREATMENT_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+
+  // Q2 — indoor access.
+  const access = accessGate(facts.accessClass);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q3 — power. Unconditional on every path.
+  if (facts.dedicatedCircuitPresent === "UNKNOWN") {
+    return unresolved("dedicated_circuit_present", "Whether a normal outlet is within reach of the device has not been established.");
+  }
+  if (facts.dedicatedCircuitPresent === "ABSENT") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "No outlet is within reach of the device, and this fixed-price installation cannot be completed as promised without one.",
+      factKey: "dedicated_circuit_present",
+      observed: "ABSENT",
+    });
+  }
+
+  return { status: "RESOLVED", routeAction: "RESOLVE_ADJUSTED" };
+}
+
+export type DuctAirTreatmentInstallationQuestionKey = "system_identity" | "indoor_access" | "dedicated_power";
+
+export type DuctAirTreatmentInstallationAnswerOption = { value: string; label: string };
+
+export type DuctAirTreatmentInstallationQuestion = {
+  key: DuctAirTreatmentInstallationQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly DuctAirTreatmentInstallationAnswerOption[];
+};
+
+export const DUCT_AIR_TREATMENT_INSTALLATION_QUESTIONS: readonly DuctAirTreatmentInstallationQuestion[] = [
+  {
+    key: "system_identity",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "dedicated_power",
+    prompt: "Is there a normal outlet within reach of the device?",
+    establishes: "dedicated_circuit_present",
+    options: [
+      { value: "PRESENT", label: "Yes, there's an outlet nearby" },
+      { value: "ABSENT", label: "No" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// accessory-consumable-replacement — H7
+//
+// FIXED. The merged physical work is always "open an existing accessory,
+// remove the spent element, fit the new one" — no first-time-install
+// branch exists here at all, unlike every other accessory_and_media
+// service in this batch.
+//
+// accessory_kind, NOT accessory_present. This service is the one place
+// "which accessory" (not "is one there") is the decision that matters —
+// families.ts's own comment explains why this fact was added rather than
+// overloading accessory_present's existing presence semantics. No other
+// accessory_and_media-declared service renders accessory_kind.
+//
+// NO supply_arrangement. The H7 decision, settled: the older uv-lamp-
+// bulb-replacement candidate's inclusion of supply_arrangement was a
+// pre-merge artifact. Part 3's consolidated family table, H2's own
+// families.ts declaration, and Part 7's trade pass all agree it does not
+// belong here, and this resolver does not read it. H2 is not modified to
+// restore it.
+//
+// The printed identifier (size, part number, whatever is on the item
+// being replaced) is read as `filter_slot_size` — the one "printed
+// reading" fact accessory_and_media already establishes — and is
+// observation only. Nothing here infers compatibility from its content;
+// the only question asked of it is whether it was read at all.
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * H7. Which existing accessory contains the consumable being replaced —
+ * families.ts's own new fact on accessory_and_media. Concrete typing
+ * lives here, not gates.ts: nothing in the seven gates reads it, the same
+ * placement CondensateRouteObservation already uses for a family-declared,
+ * gate-free fact.
+ */
+export type AccessoryKind = "HUMIDIFIER" | "AIR_CLEANER" | "UV_TREATMENT" | "UNKNOWN";
+
+export type AccessoryConsumableReplacementFacts = {
+  /** Q1. The branch decision — which accessory, not whether one exists. */
+  accessoryKind: AccessoryKind;
+  /** Q2 — PRIMARY slot. */
+  accessClass: AccessClass;
+  /** Q3. Observation only — see the section header. */
+  identifierText: string | null;
+};
+
+export type AccessoryConsumableReplacementResolution =
+  | {
+      status: "RESOLVED";
+      /** FIXED, not CONDITIONAL_FIXED — one price, no branch adjustment. */
+      routeAction: "RESOLVE_INSTANT";
+    }
+  | HvacRefusal;
+
+/**
+ * Resolve `accessory-consumable-replacement` against a complete fact set.
+ * FAILS CLOSED. No compatibility is ever inferred from the printed
+ * identifier's content — only whether it was read at all.
+ */
+export function resolveAccessoryConsumableReplacement(
+  facts: AccessoryConsumableReplacementFacts
+): AccessoryConsumableReplacementResolution {
+  // Q1 — which accessory.
+  if (facts.accessoryKind === "UNKNOWN") {
+    return unresolved("accessory_kind", "Which existing accessory contains the consumable has not been established.");
+  }
+
+  // Q2 — indoor access.
+  const access = accessGate(facts.accessClass);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q3 — the printed identifier. Observation only.
+  if (facts.identifierText === null) {
+    return unresolved("filter_slot_size", "The size or part number printed on the item being replaced has not been established.");
+  }
+
+  return { status: "RESOLVED", routeAction: "RESOLVE_INSTANT" };
+}
+
+export type AccessoryConsumableReplacementQuestionKey = "accessory_kind" | "indoor_access" | "printed_identifier";
+
+export type AccessoryConsumableReplacementAnswerOption = { value: string; label: string };
+
+export type AccessoryConsumableReplacementQuestion = {
+  key: AccessoryConsumableReplacementQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly AccessoryConsumableReplacementAnswerOption[];
+};
+
+export const ACCESSORY_CONSUMABLE_REPLACEMENT_QUESTIONS: readonly AccessoryConsumableReplacementQuestion[] = [
+  {
+    key: "accessory_kind",
+    prompt: "Which piece of equipment is it — humidifier, air cleaner, or UV lamp?",
+    establishes: "accessory_kind",
+    options: [
+      { value: "HUMIDIFIER", label: "Humidifier" },
+      { value: "AIR_CLEANER", label: "Air cleaner" },
+      { value: "UV_TREATMENT", label: "UV lamp" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "printed_identifier",
+    prompt: "What size or part number is printed on the one you are taking out?",
+    establishes: "filter_slot_size",
+    options: [],
   },
 ] as const;

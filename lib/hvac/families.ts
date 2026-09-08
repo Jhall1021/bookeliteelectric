@@ -133,7 +133,16 @@ export const HVAC_FAMILIES: readonly HvacFamily[] = [
     title: "The accessory or media device",
     purpose:
       "One family because accessory presence, whether it's a replacement or a new fit, and the filter/media size are all read off the same cabinet in the same look.",
-    establishes: ["accessory_present", "replacement_vs_new", "filter_slot_size"],
+    // H7: accessory_kind added — HUMIDIFIER | AIR_CLEANER | UV_TREATMENT |
+    // UNKNOWN, which existing accessory contains the consumable being
+    // replaced. Deliberately separate from accessory_present, which stays
+    // about PRESENCE (is one there) — accessory_kind is a different
+    // observation (which one), needed only by accessory-consumable-
+    // replacement, the one merged service without its own accessory_and_media-
+    // declared service to read presence against. Not rendered by any other
+    // accessory_and_media-declared service; each renders only what it needs
+    // (lib/hvac/scope.ts's own per-service resolvers).
+    establishes: ["accessory_present", "accessory_kind", "replacement_vs_new", "filter_slot_size"],
     gates: [],
     primitives: [],
   },
