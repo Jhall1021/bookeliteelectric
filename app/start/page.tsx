@@ -28,15 +28,19 @@ export default async function StartPage() {
 
   // An invitation waiting for this address is the other legitimate way in, and
   // it is surfaced so nobody creates a second business duplicating one they
-  // were already asked to join.
-  //
-  // ACCEPTANCE IS NOT BUILT. ContractorInvitation is a model with no creation
-  // route, no acceptance route and no library — so this can only ever fire on
-  // a row somebody made by hand. The copy says who to ask rather than
-  // promising a link that does not exist, and the gap is recorded as a
-  // dependency rather than papered over here.
+  // were already asked to join. Acceptance is built (lib/contractorInvitations.ts,
+  // Phase 3A) but the raw token is never stored — only its hash — so this
+  // page cannot construct the accept link even for its own invitation; it
+  // can only say to check email, which is where the link actually lives.
+  // Scoped to genuinely PENDING rows: an accepted, revoked or expired
+  // invitation is not "waiting" for anyone, and a retired contractor's
+  // invitation is neutralized even though the row itself is untouched.
   const invited = await prisma.contractorInvitation.findFirst({
-    where: { email: user.email.toLowerCase() },
+    where: {
+      email: user.email.toLowerCase(),
+      acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() },
+      contractor: { active: true },
+    },
     select: { contractor: { select: { name: true } } },
   });
 
@@ -57,8 +61,8 @@ export default async function StartPage() {
 
       {invited && (
         <p className="mt-4 rounded-card border border-cardline bg-white p-4 text-sm text-slate">
-          You have an invitation to join <strong>{invited.contractor.name}</strong>. Ask
-          whoever invited you to add you, rather than creating a second business here.
+          You have an invitation to join <strong>{invited.contractor.name}</strong>. Check your
+          email for the invitation link rather than creating a second business here.
         </p>
       )}
 

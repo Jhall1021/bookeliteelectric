@@ -54,6 +54,15 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// decides — and deliberately holds no readiness, because readiness is
   /// derived from the systems that own each rule.
   "ContractorOnboarding",
+  /// Phase 3A. A contractor-owned invitation to join it — same shape as
+  /// ContractorOnboarding: a direct scalar contractorId, genuinely tenant
+  /// data. NOT the same class as ContractorMembership (deliberately absent
+  /// from this list below): membership is who may reach a tenant, read and
+  /// written on the unguarded client with an explicit contractorId filter
+  /// everywhere it appears; an invitation is a fact belonging TO the tenant,
+  /// like its catalog, and reading it through the wrong door should fail the
+  /// same way a foreign Service would.
+  "ContractorInvitation",
   /// Which canonical trade catalogs this contractor is enrolled in.
   "ContractorTrade",
   "Service",

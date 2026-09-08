@@ -1,11 +1,13 @@
 /**
  * Bringing a contractor into existence, and its first owner with it.
  *
- * THE ONLY SANCTIONED WAY. Until now there was none: invitation into an
- * existing contractor was built, and a brand-new user creating their own
- * tenant was a gap that had to be closed with a direct membership write. That
- * was acceptable for a fixture and is not acceptable for release, because a
- * hand-written membership is a tenant grant nobody reviewed.
+ * THE ONLY SANCTIONED WAY TO CREATE ONE. Before this, there was none: a
+ * brand-new user creating their own tenant was a gap closed with a direct
+ * membership write. That was acceptable for a fixture and is not acceptable
+ * for release, because a hand-written membership is a tenant grant nobody
+ * reviewed. (An earlier version of this comment claimed invitation into an
+ * existing contractor was already built; it was not — see
+ * lib/contractorInvitations.ts, added with Phase 3A, 7 September 2026.)
  *
  * ONE TRANSACTION, for the same reason catalog installation is one: a
  * contractor with no site cannot be reached, and a contractor with no owner
@@ -24,6 +26,25 @@
  * A VERIFIED ADDRESS IS REQUIRED. A membership is what reaches a tenant's
  * data; an unverified address must never hold one, even for the instant
  * before it is confirmed.
+ *
+ * THE ONE-OWNED-BUSINESS GUARD IS RACE-SAFE, DELIBERATELY.
+ *
+ * Three paths can grant a user their first OWNER membership: this file's own
+ * self-serve creation, the founder's `attachOwnerFor`, and invitation
+ * acceptance (`lib/contractorInvitations.ts`). A user could reach two of them
+ * at once — accepting one invitation while another is being attached, or two
+ * invitations accepted in two tabs — and a plain "check, then write" is a
+ * classic TOCTOU gap under Postgres's default READ COMMITTED isolation: both
+ * transactions can pass the check before either commits. `withOwnershipLock`
+ * closes it with a transaction-scoped Postgres advisory lock keyed to the
+ * user, so any two grants for the SAME account serialize regardless of which
+ * of the three paths each one came through — every caller must take the lock
+ * before checking `ownsAnotherBusiness` and before writing the membership,
+ * inside the same transaction. This is a product-policy guard, not a security
+ * boundary (the membership model is many-to-many by design, see below), so an
+ * advisory lock is the right weight: no schema migration, no partial unique
+ * index, and it cannot be forgotten by a caller that already opened the
+ * transaction correctly.
  */
 
 import type { PrismaClient, ContractorRole, Prisma } from "@prisma/client";
@@ -145,6 +166,69 @@ export function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
+ * Thrown INSIDE a transaction wrapped by `withOwnershipLock` to abort it
+ * cleanly when the account already owns a business. A sentinel, not a real
+ * error: every caller catches this specific class and turns it into its own
+ * refusal message, since "This account already owns a business" reads
+ * differently at self-serve signup than at an invitation's acceptance.
+ * Never let this escape past the transaction boundary uncaught.
+ */
+export class OwnershipConflictError extends Error {
+  constructor() {
+    super("This account already owns a business.");
+    this.name = "OwnershipConflictError";
+  }
+}
+
+/**
+ * Serializes every path that can grant a user their first OWNER membership —
+ * see the header for why. `pg_advisory_xact_lock` is transaction-scoped:
+ * acquired here, released automatically at commit or rollback, so there is no
+ * separate unlock call and no lock left behind by a crash or an early return.
+ * `hashtext` turns the user's cuid into the bigint the lock function takes;
+ * a hash collision only makes two unrelated grants wait on each other
+ * briefly; it can never let a real race through, because the CHECK below
+ * still runs inside the lock either way.
+ *
+ * Callers open their own `$transaction`, call this first thing inside it, and
+ * do the "already owns" check plus the membership write inside `fn` — all
+ * three keyed to the same transaction, so the lock covers exactly the window
+ * that matters.
+ */
+export async function withOwnershipLock<T>(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId})::bigint)`;
+  return fn();
+}
+
+/**
+ * The standing rule, checked INSIDE `withOwnershipLock`'s transaction: does
+ * this account already hold an active OWNER membership on some other
+ * contractor? `exceptContractorId` makes the check idempotent for a caller
+ * re-granting the SAME contractor (attaching an owner who is already that
+ * contractor's owner is not "owning another business").
+ */
+export async function ownsAnotherBusiness(
+  tx: Prisma.TransactionClient | PrismaClient,
+  userId: string,
+  exceptContractorId?: string
+): Promise<boolean> {
+  const owned = await tx.contractorMembership.findFirst({
+    where: {
+      userId,
+      role: "OWNER",
+      active: true,
+      ...(exceptContractorId ? { NOT: { contractorId: exceptContractorId } } : {}),
+    },
+    select: { contractorId: true },
+  });
+  return !!owned;
+}
+
+/**
  * The tenant itself — contractor, storefront, guided-setup record — with NO
  * membership. The one shape every creation path writes, inside the caller's
  * transaction. Who may administer the new tenant is the caller's decision:
@@ -217,27 +301,6 @@ export async function createContractorForUser(
   if (!identity.ok) return identity;
   const { name, slug } = identity;
 
-  // ONE OWNED CONTRACTOR PER ACCOUNT, for now.
-  //
-  // Not a technical limit — the membership model is many-to-many and the
-  // switcher at /choose already handles several. It is a guard against the
-  // obvious abuse of a self-serve create endpoint, and against a mistyped
-  // business name quietly becoming a second tenant. Lifting it later is a
-  // product decision; discovering a hundred empty contractors is not.
-  const owned = await db.contractorMembership.findFirst({
-    where: { userId: user.id, role: "OWNER", active: true },
-    select: { contractorId: true },
-  });
-  if (owned) {
-    return {
-      ok: false,
-      refusal: {
-        code: "ALREADY_OWNS",
-        message: "This account already owns a business. Ask us if you need a second one.",
-      },
-    };
-  }
-
   // Checked before the transaction for a readable refusal, and enforced by the
   // unique constraints inside it — two signups racing for the same address
   // must not both win, and the loser gets a rename rather than a stack trace.
@@ -245,21 +308,41 @@ export async function createContractorForUser(
   if (clash) return { ok: false, refusal: slugTaken(slug) };
 
   try {
-    const created = await db.$transaction(async (tx) => {
-      const contractor = await createContractorRecord(tx, { name, slug });
-      await tx.contractorMembership.create({
-        data: {
-          contractorId: contractor.id,
-          userId: user.id,
-          role: "OWNER" as ContractorRole,
-          active: true,
-        },
-      });
-      return contractor;
-    });
+    const created = await db.$transaction(async (tx) =>
+      // ONE OWNED CONTRACTOR PER ACCOUNT, for now — checked and written
+      // together, inside the lock, so this cannot race attachOwnerFor or an
+      // invitation accepted concurrently. Not a technical limit — the
+      // membership model is many-to-many and the switcher at /choose already
+      // handles several. It is a guard against the obvious abuse of a
+      // self-serve create endpoint, and against a mistyped business name
+      // quietly becoming a second tenant. Lifting it later is a product
+      // decision; discovering a hundred empty contractors is not.
+      withOwnershipLock(tx, user.id, async () => {
+        if (await ownsAnotherBusiness(tx, user.id)) throw new OwnershipConflictError();
+        const contractor = await createContractorRecord(tx, { name, slug });
+        await tx.contractorMembership.create({
+          data: {
+            contractorId: contractor.id,
+            userId: user.id,
+            role: "OWNER" as ContractorRole,
+            active: true,
+          },
+        });
+        return contractor;
+      })
+    );
 
     return { ok: true, contractorId: created.id, slug: created.slug };
   } catch (err) {
+    if (err instanceof OwnershipConflictError) {
+      return {
+        ok: false,
+        refusal: {
+          code: "ALREADY_OWNS",
+          message: "This account already owns a business. Ask us if you need a second one.",
+        },
+      };
+    }
     // The unique constraint is the real arbiter of a race; the pre-check above
     // only buys a better message when there is no race.
     if (isUniqueViolation(err)) return { ok: false, refusal: slugTaken(slug, true) };
