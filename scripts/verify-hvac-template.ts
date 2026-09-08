@@ -33,7 +33,7 @@ import { HVAC_SERVICE_CALL_SHELL, hvacServiceCallIsSchedulable } from "../lib/hv
 import { HVAC_INTENTS, allHvacIntentPhrases } from "../lib/hvac/intents";
 import { HVAC_TEMPLATE_TRADE } from "../lib/hvac";
 import { HVAC_PRIMITIVE_KEYS, HVAC_PRIMITIVES, type HvacPrimitiveKey } from "../lib/hvac/primitives";
-import { HVAC_GATE_KEYS, capacityGate, conditionGate, type EquipmentCondition } from "../lib/hvac/gates";
+import { HVAC_GATE_KEYS, capacityGate, conditionGate, controlGate, type EquipmentCondition } from "../lib/hvac/gates";
 import {
   HVAC_FAMILIES,
   HVAC_FAMILY_KEYS,
@@ -48,6 +48,9 @@ import {
   resolveCondensatePumpInstallation,
   CONDENSATE_PUMP_QUESTIONS,
   type CondensatePumpInstallationFacts,
+  resolveThermostatInstallation,
+  THERMOSTAT_QUESTIONS,
+  type ThermostatInstallationFacts,
 } from "../lib/hvac/scope";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -821,10 +824,325 @@ group("40. the tree's questions match H2's own family declaration for this servi
   ok("access slot is PRIMARY, per the settled decision", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["condensate-pump-installation"]) === JSON.stringify(["PRIMARY"]));
 }
 
-group("41. no second HVAC service tree exists yet");
+group("41. exactly two HVAC service trees exist — H3's own check, superseded on purpose");
 {
-  ok("lib/hvac/scope.ts exports exactly one resolve function", (strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? []).length === 1);
-  ok("no other HVAC service has a resolve function anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
+  // H3's own version of this group read "no second tree exists yet" — true
+  // at the time, and superseded now: thermostat-installation is exactly the
+  // ONE additional executable service H4 exists to add. This group now
+  // proves THAT boundary (two, not one, not three) instead of the zero-
+  // growth assertion H4 was always going to cross on purpose.
+  const resolveFns = strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? [];
+  ok("lib/hvac/scope.ts exports exactly two resolve functions", resolveFns.length === 2, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
+  ok("resolveCondensatePumpInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensatePumpInstallation")));
+  ok("resolveThermostatInstallation is the other", resolveFns.some((f) => f.includes("resolveThermostatInstallation")));
+  ok("no third HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H4 — the second executable tree: thermostat-installation
+// ═══════════════════════════════════════════════════════════════════════
+
+const THERMOSTAT_REPLACEMENT_FACTS: ThermostatInstallationFacts = {
+  systemType: "FURNACE_AND_AC",
+  controlPresent: "PRESENT_WORKING",
+  terminalScheme: "STANDARD_LETTERED",
+  commonWire: "PRESENT",
+  supplyArrangement: "CUSTOMER_SUPPLIED",
+  runBand: "STANDARD",
+};
+
+const THERMOSTAT_NEW_LOCATION_FACTS: ThermostatInstallationFacts = {
+  systemType: "FURNACE_AND_AC",
+  controlPresent: "ABSENT",
+  terminalScheme: "UNKNOWN",
+  commonWire: "UNKNOWN",
+  supplyArrangement: "CUSTOMER_SUPPLIED",
+  runBand: "STANDARD",
+};
+
+group("42. H3's condensate behavior is byte-for-byte unchanged by the H4 restructure");
+{
+  // Re-runs H3's own group-32/33/35/36 assertions verbatim against the
+  // POST-restructure scope.ts — proving the shared-code extraction
+  // (HvacRefusal, refuse(), SupplyArrangementChoice) changed nothing
+  // observable about the condensate resolver's behavior.
+  const BASE: CondensatePumpInstallationFacts = {
+    accessClass: "ACCESSIBLE",
+    condensateRoute: "PUMP_PRESENT",
+    supplyArrangement: "CUSTOMER_SUPPLIED",
+    dedicatedCircuitPresent: "PRESENT",
+    runBand: "STANDARD",
+  };
+  const replacement = resolveCondensatePumpInstallation(BASE);
+  ok(
+    "condensate replacement still resolves to RESOLVE_ADJUSTED/REPLACEMENT",
+    replacement.status === "RESOLVED" && replacement.routeAction === "RESOLVE_ADJUSTED" && replacement.branch === "REPLACEMENT"
+  );
+  const newInstall = resolveCondensatePumpInstallation({ ...BASE, condensateRoute: "NONE_VISIBLE" });
+  ok(
+    "condensate new-installation still resolves to RESOLVE_ADJUSTED/NEW_INSTALLATION",
+    newInstall.status === "RESOLVED" && newInstall.routeAction === "RESOLVE_ADJUSTED" && newInstall.branch === "NEW_INSTALLATION"
+  );
+  const accessUnknown = resolveCondensatePumpInstallation({ ...BASE, accessClass: "UNKNOWN" });
+  ok("condensate unresolved access still fails to PHOTO_REVIEW", accessUnknown.status === "REFUSED" && accessUnknown.routeAction === "PHOTO_REVIEW");
+  const powerAbsent = resolveCondensatePumpInstallation({ ...BASE, condensateRoute: "NONE_VISIBLE", dedicatedCircuitPresent: "ABSENT" });
+  ok("condensate dedicated_circuit_present=ABSENT still REMOTE_QUOTEs", powerAbsent.status === "REFUSED" && powerAbsent.routeAction === "REMOTE_QUOTE");
+  ok("CONDENSATE_PUMP_QUESTIONS still has its original question count", CONDENSATE_PUMP_QUESTIONS.length > 0);
+}
+
+group("43. thermostat-installation is the second, and only the second, executable service");
+{
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["thermostat-installation"].map((u) => u.family);
+  ok("thermostat-installation is declared in H2's family map", declaredFamilies.length > 0);
+  ok("thermostat-installation's access slot is PRIMARY, per H2's own declaration", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["thermostat-installation"]) === JSON.stringify(["PRIMARY"]));
+  const replacement = resolveThermostatInstallation(THERMOSTAT_REPLACEMENT_FACTS);
+  ok(
+    "a fully-resolved replacement path RESOLVES to RESOLVE_ADJUSTED/REPLACEMENT",
+    replacement.status === "RESOLVED" && replacement.routeAction === "RESOLVE_ADJUSTED" && replacement.branch === "REPLACEMENT"
+  );
+  const newLocation = resolveThermostatInstallation(THERMOSTAT_NEW_LOCATION_FACTS);
+  ok(
+    "a fully-resolved new-location path RESOLVES to RESOLVE_ADJUSTED/NEW_LOCATION",
+    newLocation.status === "RESOLVED" && newLocation.routeAction === "RESOLVE_ADJUSTED" && newLocation.branch === "NEW_LOCATION"
+  );
+}
+
+group("44. exact supported/excluded system types — Q1");
+{
+  const excluded: readonly ThermostatInstallationFacts["systemType"][] = ["BOILER_HYDRONIC", "MINI_SPLIT_DUCTLESS"];
+  for (const systemType of excluded) {
+    const r = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, systemType });
+    ok(`${systemType} is excluded — refused before any control question`, r.status === "REFUSED" && r.outcome.factKey === "system_type", r.status === "REFUSED" ? r.outcome.factKey : "resolved");
+  }
+  const supported: readonly ThermostatInstallationFacts["systemType"][] = [
+    "FURNACE_AND_AC",
+    "HEAT_PUMP_SPLIT",
+    "DUAL_FUEL",
+    "PACKAGE_UNIT",
+    "AIR_HANDLER_ONLY",
+  ];
+  for (const systemType of supported) {
+    const r = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, systemType });
+    ok(`${systemType} is supported — resolves past identity`, r.status === "RESOLVED" || (r.status === "REFUSED" && r.outcome.factKey !== "system_type"));
+  }
+  const unknown = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, systemType: "UNKNOWN" });
+  ok("UNKNOWN system_type fails to PHOTO_REVIEW, not to a diagnosis", unknown.status === "REFUSED" && unknown.routeAction === "PHOTO_REVIEW");
+}
+
+group("45. control_present=ABSENT stays inside this one canonical service — the merge decision");
+{
+  const absent = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, controlPresent: "ABSENT" });
+  ok("ABSENT resolves within thermostat-installation itself (NEW_LOCATION branch)", absent.status === "RESOLVED" && absent.branch === "NEW_LOCATION");
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok('scope.ts never produces REROUTE_SERVICE — the presence/absence merge rule holds for both trees', !/REROUTE_SERVICE/.test(scopeSrc));
+}
+
+group("46. generic controlGate(PRESENT_NOT_RESPONDING) still produces ON_SITE_SERVICE by default");
+{
+  const generic = controlGate("PRESENT_NOT_RESPONDING", { requiresCommonWire: false, commonWirePresent: "PRESENT" });
+  ok(
+    "with no opt-in, PRESENT_NOT_RESPONDING is still an on-site symptom, unchanged from H2",
+    generic.action === "ON_SITE_SERVICE" && generic.factKey === "control_present"
+  );
+  const genericWithOptInFalse = controlGate("PRESENT_NOT_RESPONDING", {
+    presentNotRespondingIsKnownWork: false,
+    requiresCommonWire: false,
+    commonWirePresent: "PRESENT",
+  });
+  ok("explicitly passing false reproduces the same default behavior", genericWithOptInFalse.action === "ON_SITE_SERVICE");
+}
+
+group("47. the known-work branch accepts PRESENT_NOT_RESPONDING as supporting evidence, not a reroute trigger");
+{
+  const notResponding = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, controlPresent: "PRESENT_NOT_RESPONDING" });
+  ok(
+    "thermostat-installation's replacement branch RESOLVES on PRESENT_NOT_RESPONDING, never ON_SITE_SERVICE",
+    notResponding.status === "RESOLVED" && notResponding.branch === "REPLACEMENT"
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "the known-work opt-in is passed explicitly and only from resolveThermostatInstallation, not made the new default",
+    /presentNotRespondingIsKnownWork:\s*true/.test(scopeSrc)
+  );
+  const gatesSrc = strip("lib/hvac/gates.ts");
+  ok(
+    "controlGate's own PRESENT_NOT_RESPONDING branch is still gated behind the opt-in, not unconditional",
+    /present === "PRESENT_NOT_RESPONDING" && !opts\.presentNotRespondingIsKnownWork/.test(gatesSrc)
+  );
+}
+
+group("48. symptom-only phrasing cannot enter the thermostat tree");
+{
+  const treeSrc = strip("lib/hvac/scope.ts");
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}" (thermostat section included)`, !treeSrc.includes(symptom));
+  }
+  const optionValues = THERMOSTAT_QUESTIONS.flatMap((q) => q.options.map((o) => o.value));
+  ok(
+    "no thermostat answer option value is any of the closed reported_symptom vocabulary",
+    optionValues.every((v) => !(REPORTED_SYMPTOMS as readonly string[]).includes(v))
+  );
+  const symptomPhrases = ["not working", "no heat", "no cooling", "won't turn on", "blank screen"];
+  const allWording = THERMOSTAT_QUESTIONS.flatMap((q) => [q.prompt, ...q.options.map((o) => o.label)])
+    .join(" ")
+    .toLowerCase();
+  ok("no thermostat question prompt or answer label contains symptom phrasing", symptomPhrases.every((p) => !allWording.includes(p)));
+}
+
+group("49. terminal_scheme lives inside existing_control — no new family, no new gate, no new primitive");
+{
+  ok("HVAC_FAMILIES is still exactly 15 — no new family was added for terminal_scheme", HVAC_FAMILIES.length === 15);
+  ok("HVAC_GATE_KEYS is still exactly 7 — no new gate was added", HVAC_GATE_KEYS.length === 7);
+  ok("HVAC_PRIMITIVE_KEYS is still exactly 7 — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
+  const existingControl = HVAC_FAMILIES.find((f) => f.key === "existing_control")!;
+  ok(
+    "existing_control now establishes terminal_scheme, alongside its original four facts",
+    existingControl.establishes.includes("terminal_scheme") &&
+      existingControl.establishes.includes("control_present") &&
+      existingControl.establishes.includes("conductor_count") &&
+      existingControl.establishes.includes("common_wire") &&
+      existingControl.establishes.includes("thermostat_count")
+  );
+  ok("existing_control still routes only through control_gate", JSON.stringify(existingControl.gates) === JSON.stringify(["control_gate"]));
+}
+
+group("50. proprietary/communicating terminal labeling REMOTE_QUOTEs; unknown labeling PHOTO_REVIEWs");
+{
+  const proprietary = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, terminalScheme: "MANUFACTURER_SPECIFIC" });
+  ok(
+    "MANUFACTURER_SPECIFIC -> REMOTE_QUOTE, never priced as a standard swap",
+    proprietary.status === "REFUSED" && proprietary.routeAction === "REMOTE_QUOTE" && proprietary.outcome.factKey === "terminal_scheme"
+  );
+  const unknownScheme = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, terminalScheme: "UNKNOWN" });
+  ok(
+    "UNKNOWN terminal_scheme -> PHOTO_REVIEW, before common_wire is even asked",
+    unknownScheme.status === "REFUSED" && unknownScheme.routeAction === "PHOTO_REVIEW" && unknownScheme.outcome.factKey === "terminal_scheme"
+  );
+}
+
+group("51. common_wire present/absent/unknown behaviors, only reached after terminal_scheme clears");
+{
+  const present = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, commonWire: "PRESENT" });
+  ok("common_wire=PRESENT resolves", present.status === "RESOLVED");
+  const absent = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, commonWire: "ABSENT" });
+  ok(
+    "common_wire=ABSENT -> REMOTE_QUOTE, unconditionally — no automatic adapter",
+    absent.status === "REFUSED" && absent.routeAction === "REMOTE_QUOTE" && absent.outcome.factKey === "common_wire"
+  );
+  const unknown = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, commonWire: "UNKNOWN" });
+  ok(
+    "common_wire=UNKNOWN -> PHOTO_REVIEW",
+    unknown.status === "REFUSED" && unknown.routeAction === "PHOTO_REVIEW" && unknown.outcome.factKey === "common_wire"
+  );
+}
+
+group("52. no automatic C-wire adapter or component — conductor_count is declared but not read by the live resolver");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "ThermostatInstallationFacts has no conductorCount field — structurally unreadable by this resolver, not merely unused",
+    !/conductorCount/.test(scopeSrc)
+  );
+  ok("scope.ts's thermostat section never references a C-wire adapter or component_increment", !/adapter|component_increment/i.test(scopeSrc.slice(scopeSrc.indexOf("thermostat-installation"))));
+  const existingControl = HVAC_FAMILIES.find((f) => f.key === "existing_control")!;
+  ok(
+    "conductor_count remains declared on existing_control for domain completeness, per the H4 decision",
+    existingControl.establishes.includes("conductor_count")
+  );
+  ok(
+    "but it is not one of the facts the live THERMOSTAT_QUESTIONS tree asks",
+    !THERMOSTAT_QUESTIONS.some((q) => q.establishes === "conductor_count")
+  );
+}
+
+group("53. new-location run band: STANDARD/EXTENDED resolve, OVER_BAND REMOTE_QUOTEs, UNKNOWN PHOTO_REVIEWs");
+{
+  const standard = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, runBand: "STANDARD" });
+  ok("STANDARD run resolves", standard.status === "RESOLVED" && standard.branch === "NEW_LOCATION");
+  const extended = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, runBand: "EXTENDED" });
+  ok(
+    "EXTENDED run also resolves — control_wire_run.breakpoints has TWO boundaries, a real three-band policy",
+    extended.status === "RESOLVED" && extended.branch === "NEW_LOCATION"
+  );
+  const overBand = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, runBand: "OVER_BAND" });
+  ok("OVER_BAND -> REMOTE_QUOTE", overBand.status === "REFUSED" && overBand.routeAction === "REMOTE_QUOTE" && overBand.outcome.factKey === "run_band");
+  const unknownBand = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, runBand: "UNKNOWN" });
+  ok("UNKNOWN run -> PHOTO_REVIEW", unknownBand.status === "REFUSED" && unknownBand.routeAction === "PHOTO_REVIEW" && unknownBand.outcome.factKey === "run_band");
+  ok(
+    "THERMOSTAT_QUESTIONS' run_distance question offers all three real bands, unlike condensate's one-boundary policy",
+    THERMOSTAT_QUESTIONS.find((q) => q.key === "run_distance")!.options.some((o) => o.value === "EXTENDED")
+  );
+}
+
+group("54. finish_disruption_ack stays a disclaimer, never a route gate or a price switch");
+{
+  const familiesSrc = strip("lib/hvac/families.ts");
+  ok(
+    "finish_disruption_ack's own family declaration binds conditional_disclaimer, not a gate",
+    /finish_disruption_ack[\s\S]{0,400}gates:\s*\[\]/.test(familiesSrc)
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "resolveThermostatInstallation never branches on a finish-disruption fact",
+    !/finishDisruption|finish_disruption/.test(scopeSrc)
+  );
+}
+
+group("55. no diagnosis, repair, or component inference anywhere in the thermostat tree");
+{
+  const diagnosticLanguage =
+    /\b(blocked|clogged|failed|failing|broken|defective|refrigerant|low on|leaking from|leak in|worn|corroded internally|burnt out|malfunction)\b/i;
+  for (const q of THERMOSTAT_QUESTIONS) {
+    ok(`"${q.key}"'s prompt names no cause`, !diagnosticLanguage.test(q.prompt), q.prompt);
+    for (const o of q.options) {
+      ok(`"${q.key}" option "${o.value}" names no cause`, !diagnosticLanguage.test(o.label), o.label);
+    }
+  }
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "scope.ts declares no material role, component, or prerequisite for the thermostat tree either",
+    !/materialRoles|components:|ScopeConsequence/.test(scopeSrc)
+  );
+}
+
+group("56. the thermostat tree's questions match H2's own family declaration for this service");
+{
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["thermostat-installation"].map((u) => u.family);
+  const establishedFacts = new Set(THERMOSTAT_QUESTIONS.map((q) => q.establishes));
+  ok("system_identity is asked (establishes system_type)", declaredFamilies.includes("system_identity") && establishedFacts.has("system_type"));
+  ok("existing_control is asked (establishes control_present, terminal_scheme, common_wire)", declaredFamilies.includes("existing_control") && establishedFacts.has("control_present") && establishedFacts.has("terminal_scheme") && establishedFacts.has("common_wire"));
+  ok(
+    "supply_arrangement is asked on both branches",
+    declaredFamilies.includes("supply_arrangement") && THERMOSTAT_QUESTIONS.filter((q) => q.establishes === "supply_arrangement").length === 2
+  );
+  ok(
+    "run_distance is asked only on the NEW_LOCATION branch",
+    declaredFamilies.includes("run_distance") && THERMOSTAT_QUESTIONS.filter((q) => q.establishes === "run_band").every((q) => q.branch === "NEW_LOCATION")
+  );
+  ok(
+    "finish_disruption_ack is declared on the NEW_LOCATION branch and asks no live question (disclaimer-only)",
+    HVAC_SERVICE_FAMILIES["thermostat-installation"].some((u) => u.family === "finish_disruption_ack" && u.branch) &&
+      !establishedFacts.has("finish_disruption_ack")
+  );
+  ok(
+    "thermostat_count is asked on the REPLACEMENT branch as a quantity, gating nothing",
+    THERMOSTAT_QUESTIONS.some((q) => q.key === "thermostat_count" && q.branch === "REPLACEMENT" && q.options.length === 0)
+  );
+}
+
+group("57. all prior H1-H3/G5 invariants remain green after the H4 restructure");
+{
+  ok("HVAC_SERVICES still has exactly 22 entries", HVAC_SERVICES.length === 22);
+  ok("HVAC_FAMILIES still has exactly 15 entries", HVAC_FAMILIES.length === 15);
+  ok("HVAC_GATE_KEYS still has exactly 7 entries", HVAC_GATE_KEYS.length === 7);
+  ok("HVAC_PRIMITIVE_KEYS still has exactly 7 entries", HVAC_PRIMITIVE_KEYS.length === 7);
+  ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
+  ok("lib/hvac/publish.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/publish.ts")));
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok("scope.ts still imports nothing from lib/plumbing", !/from ["'`]\.\.?\/.*plumbing/.test(scopeSrc));
+  ok("scope.ts still imports nothing electrical-specific", !/from ["'`]\.\.?\/.*electrical/.test(scopeSrc));
+  ok("scope.ts still imports nothing from lib/hvac/mappings.ts", !/from ["'`]\.\/mappings["'`]/.test(scopeSrc));
+  ok("scope.ts still imports nothing from lib/hvac/primitives.ts — no primitive is activated by either tree", !/from ["'`]\.\/primitives["'`]/.test(scopeSrc));
 }
 
 console.log();
