@@ -30,11 +30,16 @@ const ERROR_TEXT: Record<string, string> = {
  * carries it back in a hidden field for the action to re-resolve, the same
  * discipline the platform onboarding pages use for a contractor id.
  */
-export default async function InvitePage({ params, searchParams }: { params: { token: string }; searchParams?: { error?: string } }) {
+export default async function InvitePage({ params, searchParams }: { params: { token: string }; searchParams?: { error?: string; name?: string } }) {
   const token = params.token;
   const [peek, user] = await Promise.all([peekInvitationFor(prisma, token), currentUser()]);
   const path = `/invite/${encodeURIComponent(token)}`;
   const error = searchParams?.error && ERROR_TEXT[searchParams.error];
+  // Never validated as a return path — it is inert prefill text for a form
+  // field, not a redirect target, so lib/safeReturnPath.ts's rule does not
+  // apply to it. Only ever set by inviteOwnerFor's own URL, but even an
+  // attacker-supplied value here can do no more than mis-prefill a name.
+  const namePrefill = searchParams?.name ?? "";
 
   if (!peek.found) {
     return <Message title="Invitation not found">That invitation link is not valid. Ask whoever invited you for a new one.</Message>;
@@ -69,7 +74,7 @@ export default async function InvitePage({ params, searchParams }: { params: { t
 
       {!user && (
         <div className="mt-6 flex flex-col gap-3">
-          <a href={`/sign-up?next=${encodeURIComponent(path)}&email=${encodeURIComponent(peek.email)}`} className="w-full rounded-sm bg-p2b-accent px-4 py-3.5 text-center text-base font-semibold text-white hover:bg-p2b-accent-hover">
+          <a href={`/sign-up?next=${encodeURIComponent(path)}&email=${encodeURIComponent(peek.email)}${namePrefill ? `&name=${encodeURIComponent(namePrefill)}` : ""}`} className="w-full rounded-sm bg-p2b-accent px-4 py-3.5 text-center text-base font-semibold text-white hover:bg-p2b-accent-hover">
             Create an account
           </a>
           <a href={`/sign-in?next=${encodeURIComponent(path)}&email=${encodeURIComponent(peek.email)}`} className="w-full rounded-sm border border-p2b-line px-4 py-3.5 text-center text-base font-semibold text-p2b-ink hover:bg-p2b-canvas-alt">

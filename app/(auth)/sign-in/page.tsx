@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "@/lib/authClient";
+import { safeReturnPath } from "@/lib/safeReturnPath";
 
 /**
  * Contractor sign-in — a password, with a link as the fallback.
@@ -26,7 +27,9 @@ import { signIn } from "@/lib/authClient";
  */
 function SignInForm() {
   const params = useSearchParams();
-  const next = params.get("next");
+  // Validated once, here — everything below uses ONLY this value, never
+  // params.get("next") directly. See lib/safeReturnPath.ts.
+  const next = safeReturnPath(params.get("next"));
   const [email, setEmail] = useState(params.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [linkSent, setLinkSent] = useState(false);

@@ -159,10 +159,12 @@ function magicLinkEmail(url: string, minutes: number) {
  * about pricing or customers — an invitation that leaked would reveal that
  * someone was asked to join a company, not what that company sells.
  */
-function invitationEmail(contractorName: string, url: string, days: number) {
+function invitationEmail(contractorName: string, url: string, days: number, ownerName?: string) {
+  const greeting = ownerName ? `Hi ${ownerName},` : null;
   return {
     subject: `You're invited to join ${contractorName} on Price2Book`,
     text: [
+      ...(greeting ? [greeting, ""] : []),
       `You've been invited to join ${contractorName} on Price2Book.`,
       "",
       `Accept the invitation: ${url}`,
@@ -182,8 +184,8 @@ function invitationEmail(contractorName: string, url: string, days: number) {
  * on the platform side — the same reason the other three templates take
  * their timing as a plain number.
  */
-export async function sendInvitationEmail(to: string, contractorName: string, url: string, days = 7) {
-  const { subject, text } = invitationEmail(contractorName, url, days);
+export async function sendInvitationEmail(to: string, contractorName: string, url: string, days = 7, ownerName?: string) {
+  const { subject, text } = invitationEmail(contractorName, url, days, ownerName);
   await sendPlatformMail(to, subject, text, "Invitation");
 }
 

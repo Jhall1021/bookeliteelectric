@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signUp } from "@/lib/authClient";
+import { safeReturnPath } from "@/lib/safeReturnPath";
 
 /**
  * Creating a Price2Book account.
@@ -21,8 +22,14 @@ import { signUp } from "@/lib/authClient";
  */
 function SignUpForm() {
   const params = useSearchParams();
-  const next = params.get("next");
-  const [name, setName] = useState("");
+  // Validated once, here — everything below uses ONLY this value, never
+  // params.get("next") directly. See lib/safeReturnPath.ts.
+  const next = safeReturnPath(params.get("next"));
+  // Inert prefill text, not a return path — see lib/safeReturnPath.ts's own
+  // comment on why "email" gets the same treatment: an attacker-supplied
+  // value here can do no more than mis-fill a text field the person can see
+  // and edit before submitting.
+  const [name, setName] = useState(params.get("name") ?? "");
   const [email, setEmail] = useState(params.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [done, setDone] = useState(false);

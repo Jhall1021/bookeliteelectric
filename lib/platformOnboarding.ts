@@ -40,7 +40,7 @@ import { contractorFactsFor, listContractors, mapWithConcurrency, type Contracto
 import { partitionFixtures } from "./fixtureContractors";
 import {
   validateIdentity, slugTaken, createContractorRecord, isUniqueViolation, SLUG_INPUT_PATTERN, SLUG_MAX, type IdentityOptions,
-  withOwnershipLock, ownsAnotherBusiness, OwnershipConflictError,
+  withOwnershipLock, withContractorLock, ownsAnotherBusiness, OwnershipConflictError, ContractorRetiredError,
 } from "./contractorCreation";
 export { SLUG_INPUT_PATTERN, SLUG_MAX };
 import { setTradeEnrolment } from "./tradeEnrolment";
@@ -311,16 +311,18 @@ export type CommandRefusal = { code: string; message: string };
 type Refused = { ok: false; refusal: CommandRefusal };
 
 /**
- * Read fresh, on the GUARDED client, keyed to the door's own contractor id —
- * never trust a cached flag, and never trust the caller's belief about which
- * contractor this is. Every command that would otherwise write to a retired
- * contractor calls this first: attaching an owner, enrolling a trade,
- * installing a catalog, and inviting an owner all refuse once a business is
- * retired. Retiring itself and revoking an invitation deliberately do NOT
- * call this — a retire must succeed on an already-retired contractor
- * (idempotent), and revoking an invitation must remain available precisely
- * because the business is retired and its outstanding invitation should not
- * dangle.
+ * A fast, unlocked refusal before opening a transaction — a nicety for the
+ * common case, not the guarantee. Enrolling a trade and installing a catalog
+ * call only this (they do not grant membership or touch invitations, so a
+ * retirement racing them has no membership/invitation state to tear).
+ * attachOwnerFor and inviteOwnerFor call this too, for the fast path, AND
+ * re-read `active` a second time holding withContractorLock, right before
+ * their write — see each function's own comment for why the second check is
+ * the one that matters. Retiring itself and revoking an invitation
+ * deliberately never call this at all: a retire must succeed on an
+ * already-retired contractor (idempotent), and revoking an invitation must
+ * remain available precisely because the business is retired and its
+ * outstanding invitation should not dangle.
  */
 async function refuseIfRetired(guarded: PrismaClient, contractorId: string): Promise<CommandRefusal | null> {
   const row = await guarded.contractor.findUniqueOrThrow({ where: { id: contractorId }, select: { active: true } });
@@ -397,24 +399,34 @@ export async function attachOwnerFor(db: PrismaClient, user: SignedInUser | null
     });
     if (current?.role === "OWNER" && current.active) return { ok: true, contractorId: contractor.id, email, already: true };
 
-    // Checked and written inside the ownership lock — see
-    // lib/contractorCreation.ts's header — so this cannot race a concurrent
-    // self-serve creation or invitation acceptance for the same account.
+    // CONTRACTOR lock first, then OWNERSHIP lock — the fixed order every
+    // caller that needs both obeys (lib/contractorCreation.ts). The
+    // retirement check above is a fast refusal before opening a transaction;
+    // it is NOT the guarantee — a retirement committing between that check
+    // and this write is exactly the race a check-then-later-unlocked-write
+    // allows, so it is re-read here, holding the contractor's lock, right
+    // before the membership write, on the SAME terms acceptInvitationFor
+    // already re-checks retirement inside its own lock.
     try {
       await db.$transaction(async (tx) =>
-        withOwnershipLock(tx, account.id, async () => {
-          if (await ownsAnotherBusiness(tx, account.id, contractor.id)) throw new OwnershipConflictError();
-          await tx.contractorMembership.upsert({
-            where: { userId_contractorId: { userId: account.id, contractorId: contractor.id } },
-            update: { role: "OWNER" as ContractorRole, active: true, invitedByUserId: actor.userId },
-            create: { userId: account.id, contractorId: contractor.id, role: "OWNER" as ContractorRole, active: true, invitedByUserId: actor.userId },
-          });
-        })
+        withContractorLock(tx, contractor.id, () =>
+          withOwnershipLock(tx, account.id, async () => {
+            const fresh = await tx.contractor.findUniqueOrThrow({ where: { id: contractor.id }, select: { active: true } });
+            if (!fresh.active) throw new ContractorRetiredError();
+            if (await ownsAnotherBusiness(tx, account.id, contractor.id)) throw new OwnershipConflictError();
+            await tx.contractorMembership.upsert({
+              where: { userId_contractorId: { userId: account.id, contractorId: contractor.id } },
+              update: { role: "OWNER" as ContractorRole, active: true, invitedByUserId: actor.userId },
+              create: { userId: account.id, contractorId: contractor.id, role: "OWNER" as ContractorRole, active: true, invitedByUserId: actor.userId },
+            });
+          })
+        )
       );
     } catch (e) {
       if (e instanceof OwnershipConflictError) {
         return { ok: false, refusal: { code: "ALREADY_OWNS_ANOTHER", message: `${email} already owns another business. One owned business per account is the standing rule; lifting it is a product decision.` } };
       }
+      if (e instanceof ContractorRetiredError) return { ok: false, refusal: { code: "RETIRED", message: "This business is retired. Reinstate it before making this change." } };
       throw e;
     }
     return { ok: true, contractorId: contractor.id, email, already: false };
@@ -431,6 +443,20 @@ export type InviteOwnerResult =
  * remains possible through attachOwnerFor, kept as a staff-only immediate
  * shortcut for when the account already exists).
  *
+ * `ownerName`, when given, never leaves this function's own composition of
+ * the email greeting and the sign-up prefill link — ContractorInvitation has
+ * no name column, and none is added here. Staff can re-type it on a resend
+ * if it was wrong; nothing depends on it being remembered.
+ *
+ * EVERYTHING THAT DECIDES THIS IS INSIDE ONE LOCKED TRANSACTION.
+ * Retirement, whether an owner already exists, and which invitation (if any)
+ * is superseded are all read and written holding withContractorLock — not
+ * checked outside and written inside, which is exactly the gap that let two
+ * concurrent invites for the same contractor both read the same
+ * "nothing pending yet" state and each create their own row. Serialized here,
+ * the second call's reads happen only after the first's transaction commits,
+ * so it correctly sees — and revokes — what the first one just created.
+ *
  * ONE PENDING INVITATION PER CONTRACTOR. Inviting again — whether to the
  * same address (a resend) or a different one — REVOKES any invitation that
  * is still neither accepted nor revoked and creates a fresh one in the same
@@ -440,67 +466,77 @@ export type InviteOwnerResult =
  * (onboardingStatusFor reads them back as `invitation.history`).
  *
  * SENDING IS NOT PART OF THE TRANSACTION. The invitation row is the
- * authorization; the email is best-effort delivery of it. A network failure
- * after the row is safely committed must not roll back the invitation and
- * must not look like nothing happened — it is reported as `delivered: false`
- * with the underlying error, and the fix is the SAME action again: staff
- * calls this once more (a "resend"), which is exactly the revoke-and-replace
- * path above, no new contractor and no duplicate row.
+ * authorization; the email is best-effort delivery of it, sent only after
+ * the transaction commits. A network failure after the row is safely
+ * committed must not roll back the invitation and must not look like nothing
+ * happened — it is reported as `delivered: false` with the underlying error,
+ * and the fix is the SAME action again: staff calls this once more (a
+ * "resend"), which is exactly the revoke-and-replace path above, no new
+ * contractor and no duplicate row.
  */
-export async function inviteOwnerFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown, emailInput: string): Promise<InviteOwnerResult> {
-  return withPlatformContractorFor(db, user, contractorId, async (guarded, actor, contractor) => {
-    const retired = await refuseIfRetired(guarded, contractor.id);
-    if (retired) return { ok: false, refusal: retired };
-
+export async function inviteOwnerFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown, emailInput: string, opts: { ownerName?: string } = {}): Promise<InviteOwnerResult> {
+  return withPlatformContractorFor(db, user, contractorId, async (_guarded, actor, contractor) => {
     const email = emailInput.trim().toLowerCase();
     if (!EMAIL_SHAPE.test(email)) return { ok: false, refusal: { code: "EMAIL_INVALID", message: "That does not look like an email address." } };
-
-    // ContractorMembership is access data, not tenant data — read on the
-    // unguarded client with an explicit contractorId, the same convention
-    // ownersOf/attachOwnerFor already use, never through `guarded` (which
-    // classifies only genuine tenant-owned models, and correctly refuses
-    // ContractorMembership as unclassified).
-    const ownerExists = await db.contractorMembership.findFirst({ where: { contractorId: contractor.id, role: "OWNER", active: true }, select: { id: true } });
-    if (ownerExists) return { ok: false, refusal: { code: "OWNER_ALREADY_ATTACHED", message: "This business already has an owner." } };
-
-    const existingPending = await guarded.contractorInvitation.findFirst({
-      where: { contractorId: contractor.id, acceptedAt: null, revokedAt: null },
-      select: { id: true, email: true },
-    });
+    const ownerName = opts.ownerName?.trim() || undefined;
 
     const { raw, hash } = mintInvitationToken();
-    const created = await db.$transaction(async (tx) => {
-      if (existingPending) {
-        await tx.contractorInvitation.update({ where: { id: existingPending.id }, data: { revokedAt: new Date() } });
-      }
-      return tx.contractorInvitation.create({
-        data: {
-          contractorId: contractor.id, email, role: "OWNER" as ContractorRole,
-          tokenHash: hash, expiresAt: new Date(Date.now() + INVITATION_TTL_MS), invitedByUserId: actor.userId,
-        },
-        select: { id: true },
-      });
-    });
+    const result = await db.$transaction(async (tx) =>
+      withContractorLock(tx, contractor.id, async () => {
+        const fresh = await tx.contractor.findUniqueOrThrow({ where: { id: contractor.id }, select: { active: true } });
+        if (!fresh.active) {
+          return { ok: false as const, refusal: { code: "RETIRED", message: "This business is retired. Reinstate it before inviting an owner." } };
+        }
+
+        // ContractorMembership is access data, not tenant data — same
+        // convention as everywhere else in this file, read explicitly by
+        // contractorId rather than through the tenant guard.
+        const ownerExists = await tx.contractorMembership.findFirst({ where: { contractorId: contractor.id, role: "OWNER", active: true }, select: { id: true } });
+        if (ownerExists) return { ok: false as const, refusal: { code: "OWNER_ALREADY_ATTACHED", message: "This business already has an owner." } };
+
+        const existingPending = await tx.contractorInvitation.findFirst({
+          where: { contractorId: contractor.id, acceptedAt: null, revokedAt: null },
+          select: { id: true, email: true },
+        });
+        if (existingPending) {
+          await tx.contractorInvitation.update({ where: { id: existingPending.id }, data: { revokedAt: new Date() } });
+        }
+        const created = await tx.contractorInvitation.create({
+          data: {
+            contractorId: contractor.id, email, role: "OWNER" as ContractorRole,
+            tokenHash: hash, expiresAt: new Date(Date.now() + INVITATION_TTL_MS), invitedByUserId: actor.userId,
+          },
+          select: { id: true },
+        });
+        // Compared via a local, not a `.email ===` literal: this is a
+        // REPORTING fact ("did the resend target the same address as
+        // before"), not an authorization decision, but the module-wide ban
+        // on email-shaped comparisons (checked below by syntax) does not
+        // know the difference — and should not have to, since the two look
+        // identical in source.
+        const priorEmail = existingPending?.email;
+        return { ok: true as const, invitationId: created.id, resent: priorEmail === email };
+      })
+    );
+    if (!result.ok) return result;
 
     let delivered = true;
     let mailError: string | undefined;
     try {
       // Days derived from the same TTL the invitation itself expires by,
       // so the email can never claim a window different from the real one.
-      await sendInvitationEmail(email, contractor.name, `${resolveBaseUrl() ?? "http://localhost:3000"}/invite/${raw}`, Math.round(INVITATION_TTL_MS / 86_400_000));
+      // The name is never stored — ContractorInvitation has no such column,
+      // deliberately (see the function's own doc comment) — so the ONLY way
+      // it reaches the person accepting is riding along in the URL itself,
+      // read back by app/(auth)/invite/[token]/page.tsx to pre-fill sign-up.
+      const url = `${resolveBaseUrl() ?? "http://localhost:3000"}/invite/${raw}${ownerName ? `?name=${encodeURIComponent(ownerName)}` : ""}`;
+      await sendInvitationEmail(email, contractor.name, url, Math.round(INVITATION_TTL_MS / 86_400_000), ownerName);
     } catch (e) {
       delivered = false;
       mailError = e instanceof Error ? e.message : String(e);
     }
 
-    // Compared via a local, not a `.email ===` literal: this is a REPORTING
-    // fact ("did the resend target the same address as before"), not an
-    // authorization decision, but the module-wide ban on email-shaped
-    // comparisons (checked below by syntax) does not know the difference —
-    // and should not have to, since the two look identical in source.
-    const priorEmail = existingPending?.email;
-    const resent = priorEmail === email;
-    return { ok: true, invitationId: created.id, email, resent, delivered, mailError };
+    return { ok: true, invitationId: result.invitationId, email, resent: result.resent, delivered, mailError };
   });
 }
 
@@ -512,26 +548,30 @@ export type RevokeInvitationResult = { ok: true; invitationId: string; already: 
  * should still be revocable, so it stops appearing as "pending" to whoever
  * is deciding what needs attention, even though acceptance was already
  * refused the moment the business retired (see acceptInvitationFor).
+ *
+ * Locked on the SAME contractor lock as invite/accept/attach/retire, for
+ * consistency: a revoke racing a resend must see one settled outcome, not a
+ * read of state that changes under it mid-decision.
  */
 export async function revokeInvitationFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown, invitationId: string): Promise<RevokeInvitationResult> {
-  return withPlatformContractorFor(db, user, contractorId, async (guarded, _actor, contractor) => {
-    const invitation = await guarded.contractorInvitation.findUnique({
-      where: { id: invitationId },
-      select: { contractorId: true, acceptedAt: true, revokedAt: true },
-    });
-    if (!invitation || invitation.contractorId !== contractor.id) {
-      return { ok: false, refusal: { code: "INVITATION_NOT_FOUND", message: "That invitation does not exist for this business." } };
-    }
-    if (invitation.acceptedAt) {
-      return { ok: false, refusal: { code: "INVITATION_ALREADY_USED", message: "This invitation was already accepted; there is nothing to revoke." } };
-    }
-    if (invitation.revokedAt) return { ok: true, invitationId, already: true };
-    // Unguarded, scoped to the door's own contractor id (already checked
-    // above), matching how every other write in this file — membership,
-    // retire — is keyed. Deliberately not gated on refuseIfRetired: see the
-    // function's own doc comment.
-    await db.contractorInvitation.update({ where: { id: invitationId }, data: { revokedAt: new Date() } });
-    return { ok: true, invitationId, already: false };
+  return withPlatformContractorFor(db, user, contractorId, async (_guarded, _actor, contractor) => {
+    return db.$transaction(async (tx) =>
+      withContractorLock(tx, contractor.id, async () => {
+        const invitation = await tx.contractorInvitation.findUnique({
+          where: { id: invitationId },
+          select: { contractorId: true, acceptedAt: true, revokedAt: true },
+        });
+        if (!invitation || invitation.contractorId !== contractor.id) {
+          return { ok: false as const, refusal: { code: "INVITATION_NOT_FOUND", message: "That invitation does not exist for this business." } };
+        }
+        if (invitation.acceptedAt) {
+          return { ok: false as const, refusal: { code: "INVITATION_ALREADY_USED", message: "This invitation was already accepted; there is nothing to revoke." } };
+        }
+        if (invitation.revokedAt) return { ok: true as const, invitationId, already: true };
+        await tx.contractorInvitation.update({ where: { id: invitationId }, data: { revokedAt: new Date() } });
+        return { ok: true as const, invitationId, already: false };
+      })
+    );
   });
 }
 
@@ -670,36 +710,55 @@ export type RetireResult =
   | Refused;
 
 /**
- * Retire a business: the reversible form of "delete". One transaction sets
- * Contractor.active false (no membership can open its dashboard), every
- * ContractorSite inactive (the storefront and embed stop resolving) and every
- * Service inactive (nothing bookable), and deletes NOTHING — quotes, bookings,
+ * Retire a business: the reversible form of "delete". One LOCKED transaction
+ * sets Contractor.active false (no membership can open its dashboard), every
+ * ContractorSite inactive (the storefront and embed stop resolving), every
+ * Service inactive (nothing bookable), and revokes any invitation that is
+ * still neither accepted nor revoked — deleting NOTHING. Quotes, bookings,
  * payment records, materials and the catalog stay, so the business can be
  * reinstated or audited later. The caller must type the slug back: a retire
  * is the one platform action a homeowner would notice within the minute.
  * Retiring twice is one retire.
+ *
+ * withContractorLock is what makes "invalidate pending invitations
+ * atomically" true rather than aspirational: without it, a retirement and a
+ * concurrent invitation acceptance could each read the pre-retirement state
+ * before either commits. Locked, whichever gets here first completes
+ * entirely — invitation revoked, contractor inactive — before the other's
+ * reads run, so acceptInvitationFor (which takes the same lock) never sees a
+ * torn state. The invitation update runs even on an idempotent repeat, so a
+ * leftover pending row from before this ran is still swept.
  */
 export async function retireContractorFor(db: PrismaClient, user: SignedInUser | null, contractorId: unknown, confirmSlug: string): Promise<RetireResult> {
-  return withPlatformContractorFor(db, user, contractorId, async (guarded, _actor, contractor) => {
+  return withPlatformContractorFor(db, user, contractorId, async (_guarded, _actor, contractor) => {
     if (confirmSlug.trim().toLowerCase() !== contractor.slug) {
       return { ok: false, refusal: { code: "CONFIRMATION_MISMATCH", message: `Type the business's web address, ${contractor.slug}, to confirm.` } };
     }
-    const [row, liveSites, liveServices] = await Promise.all([
-      guarded.contractor.findUniqueOrThrow({ where: { id: contractor.id }, select: { active: true } }),
-      guarded.contractorSite.count({ where: { contractorId: contractor.id, active: true } }),
-      guarded.service.count({ where: { contractorId: contractor.id, active: true } }),
-    ]);
-    if (!row.active && liveSites === 0 && liveServices === 0) {
-      return { ok: true, contractorId: contractor.id, slug: contractor.slug, already: true, servicesDeactivated: 0, sitesDeactivated: 0 };
-    }
-    // The UNGUARDED client, keyed to the door's contractor id, so the three
-    // writes are one transaction. Nothing here deletes.
-    const [, sites, services] = await db.$transaction([
-      db.contractor.update({ where: { id: contractor.id }, data: { active: false } }),
-      db.contractorSite.updateMany({ where: { contractorId: contractor.id, active: true }, data: { active: false } }),
-      db.service.updateMany({ where: { contractorId: contractor.id, active: true }, data: { active: false } }),
-    ]);
-    return { ok: true, contractorId: contractor.id, slug: contractor.slug, already: false, servicesDeactivated: services.count, sitesDeactivated: sites.count };
+    return db.$transaction(async (tx) =>
+      withContractorLock(tx, contractor.id, async () => {
+        const [row, liveSites, liveServices] = await Promise.all([
+          tx.contractor.findUniqueOrThrow({ where: { id: contractor.id }, select: { active: true } }),
+          tx.contractorSite.count({ where: { contractorId: contractor.id, active: true } }),
+          tx.service.count({ where: { contractorId: contractor.id, active: true } }),
+        ]);
+        // Sweeps a leftover pending invitation even when already retired —
+        // idempotent, and a no-op `updateMany` when there is nothing to sweep.
+        await tx.contractorInvitation.updateMany({
+          where: { contractorId: contractor.id, acceptedAt: null, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        if (!row.active && liveSites === 0 && liveServices === 0) {
+          return { ok: true as const, contractorId: contractor.id, slug: contractor.slug, already: true, servicesDeactivated: 0, sitesDeactivated: 0 };
+        }
+        // Nothing here deletes.
+        const [, sites, services] = await Promise.all([
+          tx.contractor.update({ where: { id: contractor.id }, data: { active: false } }),
+          tx.contractorSite.updateMany({ where: { contractorId: contractor.id, active: true }, data: { active: false } }),
+          tx.service.updateMany({ where: { contractorId: contractor.id, active: true }, data: { active: false } }),
+        ]);
+        return { ok: true as const, contractorId: contractor.id, slug: contractor.slug, already: false, servicesDeactivated: services.count, sitesDeactivated: sites.count };
+      })
+    );
   });
 }
 
@@ -709,7 +768,7 @@ export const platformOnboardingIndex = async () => onboardingIndexFor(prisma, aw
 export const platformOnboardingContractor = async (contractorId: unknown) => onboardingStatusFor(prisma, await currentUser(), contractorId);
 export const platformBeginContractor = async (input: { name: string; slug?: string }) => beginContractorFor(prisma, await currentUser(), input);
 export const platformAttachOwner = async (contractorId: unknown, email: string) => attachOwnerFor(prisma, await currentUser(), contractorId, email);
-export const platformInviteOwner = async (contractorId: unknown, email: string) => inviteOwnerFor(prisma, await currentUser(), contractorId, email);
+export const platformInviteOwner = async (contractorId: unknown, email: string, ownerName?: string) => inviteOwnerFor(prisma, await currentUser(), contractorId, email, { ownerName });
 export const platformRevokeInvitation = async (contractorId: unknown, invitationId: string) => revokeInvitationFor(prisma, await currentUser(), contractorId, invitationId);
 export const platformEnrolTrade = async (contractorId: unknown, tradeKey: string) => enrolTradeFor(prisma, await currentUser(), contractorId, tradeKey);
 export const platformInstallTemplate = async (contractorId: unknown) => installTradeTemplateFor(prisma, await currentUser(), contractorId);

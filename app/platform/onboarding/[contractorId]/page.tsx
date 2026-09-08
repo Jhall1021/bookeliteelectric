@@ -85,11 +85,15 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
             <form action={inviteOwnerAction} className="mt-3 flex flex-wrap items-end gap-3">
               <input type="hidden" name="contractorId" value={id} />
               <label className="text-sm">
+                <span className="block text-xs uppercase tracking-wide text-slate">Owner&rsquo;s name</span>
+                <input name="ownerName" className="mt-1 w-56 rounded-md border border-cardline px-3 py-2" placeholder="Jane Doe" />
+              </label>
+              <label className="text-sm">
                 <span className="block text-xs uppercase tracking-wide text-slate">Owner&rsquo;s email</span>
                 <input name="email" type="email" required className="mt-1 w-72 rounded-md border border-cardline px-3 py-2" placeholder="owner@example.com" />
               </label>
               <button type="submit" className="rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:bg-electric/90">{s.invitation.current ? "Invite a different address" : "Invite an owner"}</button>
-              <span className="text-xs text-slate">Emails a one-time link, good for 7 days. They sign up or sign in with that address and land in the business&rsquo;s own setup.</span>
+              <span className="text-xs text-slate">Emails a one-time link, good for 7 days. They sign up or sign in with that address and land in the business&rsquo;s own setup. Name is optional — used only in the email greeting and to pre-fill their sign-up.</span>
             </form>
           )}
 

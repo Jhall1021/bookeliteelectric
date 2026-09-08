@@ -54,6 +54,11 @@ const SLUG4 = `${SLUG_PREFIX}-${RUN}-d`; // race: same-token concurrent accept
 const SLUG5 = `${SLUG_PREFIX}-${RUN}-e`; // race: the SECOND contractor in the cross-path ownership race
 const SLUG6 = `${SLUG_PREFIX}-${RUN}-f`; // retirement scenarios
 const SLUG7 = `${SLUG_PREFIX}-${RUN}-g`; // tenant isolation
+const SLUG8 = `${SLUG_PREFIX}-${RUN}-h`; // concurrent invite/resend
+const SLUG9 = `${SLUG_PREFIX}-${RUN}-i`; // accept vs replacement (resend)
+const SLUG10 = `${SLUG_PREFIX}-${RUN}-j`; // accept vs revoke
+const SLUG11 = `${SLUG_PREFIX}-${RUN}-k`; // accept vs retirement
+const SLUG12 = `${SLUG_PREFIX}-${RUN}-l`; // accept vs staff attachment
 const USER_PREFIX = "test-contractor-invitations";
 const EMAIL_PREFIX = "p2b-verify-invitations-";
 const STALE_AFTER_MS = 60 * 60 * 1000;
@@ -76,12 +81,12 @@ async function removeContractor(slug: string) {
   await destroyContractor(raw, slug).catch(() => {});
 }
 async function teardown() {
-  for (const s of [SLUG, SLUG2, SLUG3, SLUG4, SLUG5, SLUG6, SLUG7]) await removeContractor(s);
+  for (const s of [SLUG, SLUG2, SLUG3, SLUG4, SLUG5, SLUG6, SLUG7, SLUG8, SLUG9, SLUG10, SLUG11, SLUG12]) await removeContractor(s);
   await raw.user.deleteMany({ where: { id: { startsWith: `${USER_PREFIX}-${RUN}-` } } }).catch(() => {});
 }
 async function sweepStale() {
   const cutoff = new Date(Date.now() - STALE_AFTER_MS);
-  const stale = await raw.contractor.findMany({ where: { slug: { startsWith: SLUG_PREFIX }, NOT: { slug: { in: [SLUG, SLUG2, SLUG3, SLUG4, SLUG5, SLUG6, SLUG7] } }, createdAt: { lt: cutoff } }, select: { slug: true } });
+  const stale = await raw.contractor.findMany({ where: { slug: { startsWith: SLUG_PREFIX }, NOT: { slug: { in: [SLUG, SLUG2, SLUG3, SLUG4, SLUG5, SLUG6, SLUG7, SLUG8, SLUG9, SLUG10, SLUG11, SLUG12] } }, createdAt: { lt: cutoff } }, select: { slug: true } });
   for (const c of stale) await removeContractor(c.slug);
   await raw.user.deleteMany({ where: { email: { startsWith: EMAIL_PREFIX }, createdAt: { lt: cutoff } } }).catch(() => {});
   if (stale.length) console.log(`  (swept ${stale.length} abandoned fixture(s))`);
@@ -133,8 +138,15 @@ async function main() {
   const c5 = await beginContractorFor(db, staff, { name: "Invitation Probe Five", slug: SLUG5 }, { verifierFixture: true });
   const c6 = await beginContractorFor(db, staff, { name: "Invitation Probe Six", slug: SLUG6 }, { verifierFixture: true });
   const c7 = await beginContractorFor(db, staff, { name: "Invitation Probe Seven", slug: SLUG7 }, { verifierFixture: true });
-  ok(`0. seven fixture contractors created`, c1.ok && c2.ok && c3.ok && c4.ok && c5.ok && c6.ok && c7.ok);
-  if (!c1.ok || !c2.ok || !c3.ok || !c4.ok || !c5.ok || !c6.ok || !c7.ok) { console.error("  setup failed — aborting"); process.exit(1); }
+  const c8 = await beginContractorFor(db, staff, { name: "Invitation Probe Eight", slug: SLUG8 }, { verifierFixture: true });
+  const c9 = await beginContractorFor(db, staff, { name: "Invitation Probe Nine", slug: SLUG9 }, { verifierFixture: true });
+  const c10 = await beginContractorFor(db, staff, { name: "Invitation Probe Ten", slug: SLUG10 }, { verifierFixture: true });
+  const c11 = await beginContractorFor(db, staff, { name: "Invitation Probe Eleven", slug: SLUG11 }, { verifierFixture: true });
+  const c12 = await beginContractorFor(db, staff, { name: "Invitation Probe Twelve", slug: SLUG12 }, { verifierFixture: true });
+  ok(`0. twelve fixture contractors created`, c1.ok && c2.ok && c3.ok && c4.ok && c5.ok && c6.ok && c7.ok && c8.ok && c9.ok && c10.ok && c11.ok && c12.ok);
+  if (!c1.ok || !c2.ok || !c3.ok || !c4.ok || !c5.ok || !c6.ok || !c7.ok || !c8.ok || !c9.ok || !c10.ok || !c11.ok || !c12.ok) {
+    console.error("  setup failed — aborting"); process.exit(1);
+  }
   await raw.contractorMembership.create({ data: { userId: elsewhere.id, contractorId: c2.contractorId, role: "OWNER", active: true } });
 
   // ── 1. authorization ─────────────────────────────────────────────────
@@ -281,10 +293,16 @@ async function main() {
 
   const retireToken = await tokenFor(retireTargetEmail);
   const retiredAccept = retireToken ? await acceptInvitationFor(raw, { id: retireUser.id, email: retireTargetEmail, emailVerified: true }, retireToken) : null;
-  ok(`   accepting an otherwise-good invitation on a retired contractor is refused CONTRACTOR_RETIRED`, retiredAccept ? !retiredAccept.ok && retiredAccept.refusal.code === "CONTRACTOR_RETIRED" : false);
+  // Retirement now revokes any pending invitation ATOMICALLY, in the same
+  // transaction (the review's own requirement) — so by the time this runs
+  // sequentially after retire, the invitation's own revokedAt is already
+  // set, and INVITATION_REVOKED is the correct, more specific refusal.
+  // CONTRACTOR_RETIRED is still real code, reachable when retirement and
+  // acceptance genuinely race — see section 9d below.
+  ok(`   accepting an invitation on a business retired moments earlier is refused INVITATION_REVOKED, atomically`, retiredAccept ? !retiredAccept.ok && retiredAccept.refusal.code === "INVITATION_REVOKED" : false);
   ok(`   ...and no membership was created`, !(await raw.contractorMembership.findUnique({ where: { userId_contractorId: { userId: retireUser.id, contractorId: c6.contractorId } } })));
 
-  ok(`   revoking the neutralized invitation still works after retirement`, invite6.ok ? (await revokeInvitationFor(db, staff, c6.contractorId, invite6.invitationId)).ok : false);
+  ok(`   revoking the already-retirement-revoked invitation is idempotent`, invite6.ok ? (await revokeInvitationFor(db, staff, c6.contractorId, invite6.invitationId)).ok : false);
 
   // ── 7. tenant isolation ────────────────────────────────────────────────
   const invite7 = await inviteOwnerFor(db, staff, c7.contractorId, `${EMAIL_PREFIX}${RUN}-tenant-check@invalid.test`);
@@ -293,10 +311,112 @@ async function main() {
   const untouched = invite7.ok ? await raw.contractorInvitation.findUnique({ where: { id: invite7.invitationId }, select: { revokedAt: true } }) : null;
   ok(`   ...and the real invitation is untouched`, untouched?.revokedAt == null);
 
+  // ── 8. deterministic concurrency, beyond the single-token races above ──
+
+  // 8a. two simultaneous invites/resends for ONE contractor. Before this
+  // review's fix, both could read "nothing pending yet" and each create
+  // their own row — two pending invitations, violating the one-per-contractor
+  // rule. Locked, the second's read happens only after the first commits.
+  const emailA = `${EMAIL_PREFIX}${RUN}-8a-first@invalid.test`;
+  const emailB = `${EMAIL_PREFIX}${RUN}-8a-second@invalid.test`;
+  const [inv8aFirst, inv8aSecond] = await Promise.all([
+    inviteOwnerFor(db, staff, c8.contractorId, emailA),
+    inviteOwnerFor(db, staff, c8.contractorId, emailB),
+  ]);
+  ok(`8a. two simultaneous invites for one contractor: both callers see success`, inv8aFirst.ok && inv8aSecond.ok);
+  const pending8a = await raw.contractorInvitation.findMany({ where: { contractorId: c8.contractorId, acceptedAt: null, revokedAt: null }, select: { id: true } });
+  ok(`     ...and exactly ONE pending invitation exists afterward, never two`, pending8a.length === 1);
+  const total8a = await raw.contractorInvitation.count({ where: { contractorId: c8.contractorId } });
+  ok(`     ...the other is revoked, not deleted — two rows total`, total8a === 2);
+
+  // 8b. acceptance racing a REPLACEMENT (resend to a different address) of
+  // the SAME invitation. Exactly one of two deterministic outcomes: accept
+  // wins (a membership exists; the invite call then sees an owner already
+  // attached and is refused) or the resend wins (accept's token is now
+  // revoked, refused; no membership).
+  const invite9 = await inviteOwnerFor(db, staff, c9.contractorId, `${EMAIL_PREFIX}${RUN}-9-original@invalid.test`);
+  const originalEmail9 = `${EMAIL_PREFIX}${RUN}-9-original@invalid.test`;
+  const originalUser9 = await raw.user.create({ data: { id: `${USER_PREFIX}-${RUN}-9-original`, email: originalEmail9, name: "Original 9", emailVerified: true }, select: { id: true } });
+  const originalToken9 = await tokenFor(originalEmail9);
+  const [accept9, resend9] = originalToken9
+    ? await Promise.all([
+        acceptInvitationFor(raw, { id: originalUser9.id, email: originalEmail9, emailVerified: true }, originalToken9),
+        inviteOwnerFor(db, staff, c9.contractorId, `${EMAIL_PREFIX}${RUN}-9-replacement@invalid.test`),
+      ])
+    : [null, null];
+  const acceptWon9 = accept9?.ok === true;
+  const resendWon9 = resend9?.ok === true && !accept9?.ok;
+  ok(`8b. acceptance racing a resend of the same invitation: exactly one deterministic outcome`,
+    !!((acceptWon9 && resend9 && !resend9.ok && resend9.refusal.code === "OWNER_ALREADY_ATTACHED")
+    || (resendWon9 && accept9 && !accept9.ok && (accept9.refusal.code === "INVITATION_REVOKED" || accept9.refusal.code === "INVITATION_NO_LONGER_VALID"))));
+  const membershipCount9 = await raw.contractorMembership.count({ where: { contractorId: c9.contractorId, role: "OWNER", active: true } });
+  ok(`     ...and the contractor ends up with exactly the owners that outcome implies`, membershipCount9 === (acceptWon9 ? 1 : 0));
+
+  // 8c. acceptance racing an explicit REVOKE of the SAME invitation.
+  const invite10 = await inviteOwnerFor(db, staff, c10.contractorId, `${EMAIL_PREFIX}${RUN}-10@invalid.test`);
+  const email10 = `${EMAIL_PREFIX}${RUN}-10@invalid.test`;
+  const user10 = await raw.user.create({ data: { id: `${USER_PREFIX}-${RUN}-10`, email: email10, name: "Ten", emailVerified: true }, select: { id: true } });
+  const token10 = await tokenFor(email10);
+  const [accept10, revoke10] = token10 && invite10.ok
+    ? await Promise.all([
+        acceptInvitationFor(raw, { id: user10.id, email: email10, emailVerified: true }, token10),
+        revokeInvitationFor(db, staff, c10.contractorId, invite10.invitationId),
+      ])
+    : [null, null];
+  const acceptWon10 = accept10?.ok === true;
+  ok(`8c. acceptance racing an explicit revoke of the same invitation: exactly one deterministic outcome`,
+    acceptWon10
+      ? !!revoke10?.ok // the invitation was already accepted; revoke sees "nothing to revoke" as a clean refusal or an already-consumed row — either way, no crash and no membership loss
+      : !!(accept10 && !accept10.ok && (accept10.refusal.code === "INVITATION_REVOKED" || accept10.refusal.code === "INVITATION_NO_LONGER_VALID")));
+  const membershipCount10 = await raw.contractorMembership.count({ where: { contractorId: c10.contractorId, userId: user10.id, active: true } });
+  ok(`     ...and a membership exists if and only if accept won`, membershipCount10 === (acceptWon10 ? 1 : 0));
+
+  // 8d. acceptance racing RETIREMENT of the same contractor. This is the
+  // race withContractorLock exists for: whichever gets the lock first
+  // completes entirely before the other's reads run.
+  const invite11 = await inviteOwnerFor(db, staff, c11.contractorId, `${EMAIL_PREFIX}${RUN}-11@invalid.test`);
+  const email11 = `${EMAIL_PREFIX}${RUN}-11@invalid.test`;
+  const user11 = await raw.user.create({ data: { id: `${USER_PREFIX}-${RUN}-11`, email: email11, name: "Eleven", emailVerified: true }, select: { id: true } });
+  const token11 = await tokenFor(email11);
+  const [accept11, retire11] = token11
+    ? await Promise.all([
+        acceptInvitationFor(raw, { id: user11.id, email: email11, emailVerified: true }, token11),
+        retireContractorFor(db, staff, c11.contractorId, SLUG11),
+      ])
+    : [null, null];
+  const acceptWon11 = accept11?.ok === true;
+  ok(`8d. acceptance racing retirement of the same contractor: exactly one deterministic outcome`,
+    !!retire11?.ok
+      && (acceptWon11
+        ? true // accept won: a membership exists even though the contractor is now retired — a fair, real outcome, not a bug
+        : accept11 && !accept11.ok && (accept11.refusal.code === "CONTRACTOR_RETIRED" || accept11.refusal.code === "INVITATION_REVOKED")));
+  const membershipCount11 = await raw.contractorMembership.count({ where: { contractorId: c11.contractorId, userId: user11.id, active: true } });
+  ok(`     ...and a membership exists if and only if accept won`, membershipCount11 === (acceptWon11 ? 1 : 0));
+  const retiredRow11 = await raw.contractor.findUniqueOrThrow({ where: { id: c11.contractorId }, select: { active: true } });
+  ok(`     ...and the contractor is retired either way — accept winning first does not block retirement from also completing`, retiredRow11.active === false);
+
+  // 8e. acceptance racing staff ATTACHMENT of the SAME target account —
+  // convergence, not exclusion: both paths grant the identical membership
+  // row (same userId, same contractorId), so the invariant is "exactly one
+  // active OWNER membership for that pair afterward", regardless of order.
+  const email12 = `${EMAIL_PREFIX}${RUN}-12@invalid.test`;
+  const user12 = await raw.user.create({ data: { id: `${USER_PREFIX}-${RUN}-12`, email: email12, name: "Twelve", emailVerified: true }, select: { id: true } });
+  const invite12 = await inviteOwnerFor(db, staff, c12.contractorId, email12);
+  const token12 = await tokenFor(email12);
+  const [accept12, attach12] = token12
+    ? await Promise.all([
+        acceptInvitationFor(raw, { id: user12.id, email: email12, emailVerified: true }, token12),
+        attachOwnerFor(db, staff, c12.contractorId, email12),
+      ])
+    : [null, null];
+  ok(`8e. acceptance racing staff attachment of the SAME account: both converge without error`, accept12?.ok === true && attach12?.ok === true);
+  const membershipRows12 = await raw.contractorMembership.count({ where: { userId: user12.id, contractorId: c12.contractorId, role: "OWNER", active: true } });
+  ok(`     ...to exactly one active OWNER membership, never two`, membershipRows12 === 1);
+
   console.log(`\n  ${fail === 0 ? "cleanup, then done" : `${fail} check(s) failed`}\n`);
   await teardown();
-  const residue = await raw.contractor.count({ where: { slug: { in: [SLUG, SLUG2, SLUG3, SLUG4] } } });
-  ok(`8. every fixture is gone at the end`, residue === 0);
+  const residue = await raw.contractor.count({ where: { slug: { in: [SLUG, SLUG2, SLUG3, SLUG4, SLUG5, SLUG6, SLUG7, SLUG8, SLUG9, SLUG10, SLUG11, SLUG12] } } });
+  ok(`9. every fixture is gone at the end`, residue === 0);
   await raw.$disconnect();
   if (fail > 0) process.exit(1);
 }

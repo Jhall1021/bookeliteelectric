@@ -53,7 +53,8 @@ export async function attachOwnerAction(formData: FormData) {
 
 export async function inviteOwnerAction(formData: FormData) {
   try {
-    const r = await platformInviteOwner(str(formData.get("contractorId")), str(formData.get("email")));
+    const ownerName = str(formData.get("ownerName")).trim() || undefined;
+    const r = await platformInviteOwner(str(formData.get("contractorId")), str(formData.get("email")), ownerName);
     if (r.ok) {
       if (!r.delivered) backTo(str(formData.get("contractorId")), "OWNER_INVITE_UNDELIVERED");
       backTo(str(formData.get("contractorId")), r.resent ? "OWNER_REINVITED" : "OWNER_INVITED");

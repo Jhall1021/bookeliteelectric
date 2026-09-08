@@ -31,6 +31,7 @@
     "verify:bootstrap": "tsx scripts/verify-account-bootstrap.ts",
     "verify:platform-live": "tsx scripts/verify-platform-bootstrap-live.ts",
     "verify:embed": "tsx scripts/verify-embed-surface.ts",
+    "verify:invitation-live": "tsx scripts/verify-invitation-live-flow.ts",
     "db:parity": "tsx scripts/db-parity.ts",
     "verify:freeze": "tsx scripts/verify-write-freeze.ts",
     "template:extract": "tsx scripts/extract-template-service.ts",
