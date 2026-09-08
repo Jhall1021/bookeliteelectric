@@ -51,6 +51,12 @@ import {
   resolveThermostatInstallation,
   THERMOSTAT_QUESTIONS,
   type ThermostatInstallationFacts,
+  resolveCondensateSafetySwitchInstallation,
+  CONDENSATE_SAFETY_SWITCH_QUESTIONS,
+  type CondensateSafetySwitchFacts,
+  resolveAirFilterReplacement,
+  AIR_FILTER_REPLACEMENT_QUESTIONS,
+  type AirFilterReplacementFacts,
 } from "../lib/hvac/scope";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -824,18 +830,26 @@ group("40. the tree's questions match H2's own family declaration for this servi
   ok("access slot is PRIMARY, per the settled decision", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["condensate-pump-installation"]) === JSON.stringify(["PRIMARY"]));
 }
 
-group("41. exactly two HVAC service trees exist — H3's own check, superseded on purpose");
+group("41. exactly FOUR HVAC service trees exist — H3/H4's own check, superseded again on purpose");
 {
-  // H3's own version of this group read "no second tree exists yet" — true
-  // at the time, and superseded now: thermostat-installation is exactly the
-  // ONE additional executable service H4 exists to add. This group now
-  // proves THAT boundary (two, not one, not three) instead of the zero-
-  // growth assertion H4 was always going to cross on purpose.
+  // H3's version read "exactly one"; H4's read "exactly two, not zero, not
+  // three". Both were true when written, and both are superseded now on
+  // the same terms: condensate-safety-switch-installation and
+  // air-filter-replacement are exactly the TWO additional executable
+  // services H5 exists to add. This group now proves the CURRENT boundary
+  // — four, not three, not five — the same discipline every prior phase
+  // applied to its own predecessor's version of this check.
   const resolveFns = strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? [];
-  ok("lib/hvac/scope.ts exports exactly two resolve functions", resolveFns.length === 2, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
+  ok("lib/hvac/scope.ts exports exactly four resolve functions", resolveFns.length === 4, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
   ok("resolveCondensatePumpInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensatePumpInstallation")));
-  ok("resolveThermostatInstallation is the other", resolveFns.some((f) => f.includes("resolveThermostatInstallation")));
-  ok("no third HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
+  ok("resolveThermostatInstallation is one of them", resolveFns.some((f) => f.includes("resolveThermostatInstallation")));
+  ok("resolveCondensateSafetySwitchInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensateSafetySwitchInstallation")));
+  ok("resolveAirFilterReplacement is the fourth", resolveFns.some((f) => f.includes("resolveAirFilterReplacement")));
+  ok(
+    "no resolveCondenserPadReplacement exists — deferred, per the H5 pad audit decision",
+    !resolveFns.some((f) => f.includes("resolveCondenserPadReplacement"))
+  );
+  ok("no fifth HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1143,6 +1157,250 @@ group("57. all prior H1-H3/G5 invariants remain green after the H4 restructure")
   ok("scope.ts still imports nothing electrical-specific", !/from ["'`]\.\.?\/.*electrical/.test(scopeSrc));
   ok("scope.ts still imports nothing from lib/hvac/mappings.ts", !/from ["'`]\.\/mappings["'`]/.test(scopeSrc));
   ok("scope.ts still imports nothing from lib/hvac/primitives.ts — no primitive is activated by either tree", !/from ["'`]\.\/primitives["'`]/.test(scopeSrc));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H5 — two more executable trees: condensate-safety-switch-installation
+// and air-filter-replacement. condenser-pad-replacement is explicitly
+// DEFERRED — no resolver, no facts type, no question data for it anywhere
+// in this file (group 41, above, already proves its resolver's absence).
+// ═══════════════════════════════════════════════════════════════════════
+
+group("58. H3's condensate and H4's thermostat behavior are unchanged by the H5 addition");
+{
+  // Re-runs the same probes group 42 already ran after H4 — proving the
+  // H5 addition (two new, independent resolvers, one new shared helper)
+  // changed nothing observable about either earlier tree.
+  const BASE: CondensatePumpInstallationFacts = {
+    accessClass: "ACCESSIBLE",
+    condensateRoute: "PUMP_PRESENT",
+    supplyArrangement: "CUSTOMER_SUPPLIED",
+    dedicatedCircuitPresent: "PRESENT",
+    runBand: "STANDARD",
+  };
+  const condensatePump = resolveCondensatePumpInstallation(BASE);
+  ok(
+    "condensate-pump-installation still resolves to RESOLVE_ADJUSTED/REPLACEMENT",
+    condensatePump.status === "RESOLVED" && condensatePump.routeAction === "RESOLVE_ADJUSTED" && condensatePump.branch === "REPLACEMENT"
+  );
+  const thermostat = resolveThermostatInstallation(THERMOSTAT_REPLACEMENT_FACTS);
+  ok(
+    "thermostat-installation still resolves to RESOLVE_ADJUSTED/REPLACEMENT",
+    thermostat.status === "RESOLVED" && thermostat.routeAction === "RESOLVE_ADJUSTED" && thermostat.branch === "REPLACEMENT"
+  );
+  const thermostatNotResponding = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, controlPresent: "PRESENT_NOT_RESPONDING" });
+  ok(
+    "thermostat-installation's known-work PRESENT_NOT_RESPONDING opt-in still resolves, not ON_SITE_SERVICE",
+    thermostatNotResponding.status === "RESOLVED"
+  );
+  const generic = controlGate("PRESENT_NOT_RESPONDING", { requiresCommonWire: false, commonWirePresent: "PRESENT" });
+  ok("controlGate's un-opted-in default still refuses to ON_SITE_SERVICE", generic.action === "ON_SITE_SERVICE");
+}
+
+const SAFETY_SWITCH_BASE: CondensateSafetySwitchFacts = {
+  accessClass: "ACCESSIBLE",
+  condensateRoute: "PUMP_PRESENT",
+};
+
+group("59. condensate-safety-switch-installation resolves FIXED (RESOLVE_INSTANT), not CONDITIONAL_FIXED");
+{
+  const pumpPresent = resolveCondensateSafetySwitchInstallation(SAFETY_SWITCH_BASE);
+  ok(
+    "PUMP_PRESENT resolves to RESOLVE_INSTANT",
+    pumpPresent.status === "RESOLVED" && pumpPresent.routeAction === "RESOLVE_INSTANT"
+  );
+  const gravityDrain = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, condensateRoute: "GRAVITY_DRAIN_PRESENT" });
+  ok(
+    "GRAVITY_DRAIN_PRESENT ALSO resolves to RESOLVE_INSTANT — same one-price terminal, no branch adjustment",
+    gravityDrain.status === "RESOLVED" && gravityDrain.routeAction === "RESOLVE_INSTANT"
+  );
+  ok(
+    "the catalog's own disposition for this service is FIXED, matching the RESOLVE_INSTANT terminal used here",
+    HVAC_SERVICES.find((s) => s.key === "condensate-safety-switch-installation")?.disposition === "FIXED"
+  );
+}
+
+group("60. condensate-safety-switch-installation's fixed branches stay inside the same service — no REROUTE_SERVICE");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const safetySwitchSection = scopeSrc.slice(scopeSrc.indexOf("condensate-safety-switch-installation — H5"));
+  ok("no REROUTE_SERVICE anywhere in the safety-switch section", !/REROUTE_SERVICE/.test(safetySwitchSection.slice(0, safetySwitchSection.indexOf("air-filter-replacement — H5"))));
+  const pumpPresent = resolveCondensateSafetySwitchInstallation(SAFETY_SWITCH_BASE);
+  const gravityDrain = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, condensateRoute: "GRAVITY_DRAIN_PRESENT" });
+  ok(
+    "both PUMP_PRESENT and GRAVITY_DRAIN_PRESENT resolve — neither leaves this one canonical service",
+    pumpPresent.status === "RESOLVED" && gravityDrain.status === "RESOLVED"
+  );
+}
+
+group("61. condensate-safety-switch-installation fails closed — access, route UNKNOWN, and NONE_VISIBLE all PHOTO_REVIEW");
+{
+  const accessUnknown = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, accessClass: "UNKNOWN" });
+  ok("unresolved access -> PHOTO_REVIEW", accessUnknown.status === "REFUSED" && accessUnknown.routeAction === "PHOTO_REVIEW");
+
+  const routeUnknown = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, condensateRoute: "UNKNOWN" });
+  ok(
+    "condensate_route=UNKNOWN -> PHOTO_REVIEW, observed carried as UNKNOWN",
+    routeUnknown.status === "REFUSED" && routeUnknown.routeAction === "PHOTO_REVIEW" && routeUnknown.outcome.observed === "UNKNOWN"
+  );
+
+  const noneVisible = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, condensateRoute: "NONE_VISIBLE" });
+  ok(
+    "condensate_route=NONE_VISIBLE -> PHOTO_REVIEW (the settled H5 decision — NOT the same treatment condensate-pump-installation gives it)",
+    noneVisible.status === "REFUSED" && noneVisible.routeAction === "PHOTO_REVIEW"
+  );
+  ok(
+    "NONE_VISIBLE's own observed value is carried through, not silently rewritten to UNKNOWN",
+    noneVisible.status === "REFUSED" && noneVisible.outcome.observed === "NONE_VISIBLE"
+  );
+  ok(
+    "and it is never REMOTE_QUOTE — a FIXED-disposition service has no such branch to reach",
+    noneVisible.status === "REFUSED" && (noneVisible.routeAction as string) !== "REMOTE_QUOTE"
+  );
+}
+
+group("62. condensate-safety-switch-installation's base scope is exactly one switch — no quantity, no supply_arrangement");
+{
+  ok(
+    "CondensateSafetySwitchFacts has no quantity field",
+    !/CondensateSafetySwitchFacts[\s\S]{0,300}quantity/i.test(strip("lib/hvac/scope.ts"))
+  );
+  ok(
+    "CondensateSafetySwitchFacts has no supplyArrangement field",
+    !/CondensateSafetySwitchFacts\s*=\s*\{[\s\S]{0,300}supplyArrangement/i.test(strip("lib/hvac/scope.ts"))
+  );
+  ok(
+    "no supply_arrangement question appears in CONDENSATE_SAFETY_SWITCH_QUESTIONS",
+    !CONDENSATE_SAFETY_SWITCH_QUESTIONS.some((q) => q.establishes === "supply_arrangement")
+  );
+  ok("CONDENSATE_SAFETY_SWITCH_QUESTIONS has exactly two questions", CONDENSATE_SAFETY_SWITCH_QUESTIONS.length === 2);
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["condensate-safety-switch-installation"].map((u) => u.family);
+  ok(
+    "matches H2's own family declaration exactly: indoor_equipment_access + condensate_route, nothing else",
+    JSON.stringify([...declaredFamilies].sort()) === JSON.stringify(["condensate_route", "indoor_equipment_access"].sort())
+  );
+}
+
+const FILTER_BASE: AirFilterReplacementFacts = { filterSlotSize: "16x25x1", quantity: 1 };
+
+group("63. air-filter-replacement: a readable size and quantity resolve FIXED (RESOLVE_INSTANT)");
+{
+  const resolved = resolveAirFilterReplacement(FILTER_BASE);
+  ok("a readable size resolves to RESOLVE_INSTANT", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_INSTANT");
+  const multiple = resolveAirFilterReplacement({ ...FILTER_BASE, quantity: 3 });
+  ok("quantity gates nothing — 3 filters resolves exactly the same as 1", multiple.status === "RESOLVED" && multiple.routeAction === "RESOLVE_INSTANT");
+  ok(
+    "the catalog's own disposition for this service is FIXED, matching the RESOLVE_INSTANT terminal used here",
+    HVAC_SERVICES.find((s) => s.key === "air-filter-replacement")?.disposition === "FIXED"
+  );
+}
+
+group("64. air-filter-replacement: an unreadable size fails to PHOTO_REVIEW, and there is no REMOTE_QUOTE branch");
+{
+  const unreadable = resolveAirFilterReplacement({ ...FILTER_BASE, filterSlotSize: null });
+  ok(
+    "filterSlotSize=null -> PHOTO_REVIEW",
+    unreadable.status === "REFUSED" && unreadable.routeAction === "PHOTO_REVIEW" && unreadable.outcome.factKey === "filter_slot_size"
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const filterSection = scopeSrc.slice(scopeSrc.indexOf("air-filter-replacement — H5"));
+  ok("no REMOTE_QUOTE anywhere in the air-filter section", !/REMOTE_QUOTE/.test(filterSection));
+  ok("no filter compatibility language (fits, compatible, works with) anywhere in the air-filter section", !/\b(fits|compatible|works with)\b/i.test(filterSection));
+}
+
+group("65. no accessory-presence or location question leaks into air-filter-replacement");
+{
+  ok(
+    "AirFilterReplacementFacts has no accessoryPresent or replacementVsNew field",
+    !/AirFilterReplacementFacts[\s\S]{0,300}(accessoryPresent|replacementVsNew)/i.test(strip("lib/hvac/scope.ts"))
+  );
+  ok(
+    "AirFilterReplacementFacts has no indoor-location or access-class field",
+    !/AirFilterReplacementFacts\s*=\s*\{[\s\S]{0,300}(indoorLocation|accessClass)/i.test(strip("lib/hvac/scope.ts"))
+  );
+  ok(
+    "no accessory_present, replacement_vs_new, or indoor_location question in AIR_FILTER_REPLACEMENT_QUESTIONS",
+    !AIR_FILTER_REPLACEMENT_QUESTIONS.some((q) => ["accessory_present", "replacement_vs_new", "indoor_location"].includes(q.establishes))
+  );
+  ok("AIR_FILTER_REPLACEMENT_QUESTIONS has exactly two questions", AIR_FILTER_REPLACEMENT_QUESTIONS.length === 2);
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["air-filter-replacement"].map((u) => u.family);
+  ok(
+    "matches H2's own family declaration exactly: accessory_and_media only, nothing else",
+    JSON.stringify(declaredFamilies) === JSON.stringify(["accessory_and_media"])
+  );
+}
+
+group("66. no symptom vocabulary enters either new H5 tree");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}" (H5 sections included)`, !scopeSrc.includes(symptom));
+  }
+  const allQuestions = [...CONDENSATE_SAFETY_SWITCH_QUESTIONS, ...AIR_FILTER_REPLACEMENT_QUESTIONS];
+  const optionValues = allQuestions.flatMap((q) => q.options.map((o) => o.value));
+  ok(
+    "no H5 answer option value is any of the closed reported_symptom vocabulary",
+    optionValues.every((v) => !(REPORTED_SYMPTOMS as readonly string[]).includes(v))
+  );
+  const symptomPhrases = ["leaking water", "not cooling", "no cooling", "no heat", "overflowing", "blocked", "failed", "won't turn on"];
+  const allWording = allQuestions
+    .flatMap((q) => [q.prompt, ...q.options.map((o) => o.label)])
+    .join(" ")
+    .toLowerCase();
+  ok("no H5 question prompt or answer label contains symptom phrasing", symptomPhrases.every((p) => !allWording.includes(p)));
+}
+
+group("67. no diagnosis or component-repair inference in either new H5 tree");
+{
+  const diagnosticLanguage =
+    /\b(blocked|clogged|failed|failing|broken|defective|refrigerant|low on|leaking from|leak in|worn|corroded internally|burnt out|malfunction|overflow(ing)?)\b/i;
+  const allQuestions = [...CONDENSATE_SAFETY_SWITCH_QUESTIONS, ...AIR_FILTER_REPLACEMENT_QUESTIONS];
+  for (const q of allQuestions) {
+    ok(`"${q.key}"'s prompt names no cause`, !diagnosticLanguage.test(q.prompt), q.prompt);
+    for (const o of q.options) {
+      ok(`"${q.key}" option "${o.value}" names no cause`, !diagnosticLanguage.test(o.label), o.label);
+    }
+  }
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "no refusal reason in scope.ts's H5 sections names a blocked drain or an overflow diagnosis",
+    !/blocked drain|overflow(ing)? (drain|switch)|diagnos/i.test(
+      scopeSrc.slice(scopeSrc.indexOf("condensate-safety-switch-installation — H5"))
+    )
+  );
+}
+
+group("68. WWT stays catalog/commercial metadata only — H5 touches no booking, cart, or scheduling surface");
+{
+  const safetySwitch = HVAC_SERVICES.find((s) => s.key === "condensate-safety-switch-installation")!;
+  const airFilter = HVAC_SERVICES.find((s) => s.key === "air-filter-replacement")!;
+  ok("condensate-safety-switch-installation still declares whileWeThereOnly: true, unchanged since H1", safetySwitch.whileWeThereOnly === true);
+  ok("air-filter-replacement still declares whileWeThereOnly: true, unchanged since H1", airFilter.whileWeThereOnly === true);
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "scope.ts's H5 sections never reference cart, scheduling, booking capacity, or technician-bonus concepts",
+    !/liveCart|LiveCart|schedul|bookingCapacity|technicianBonus|serviceFee|checkout/i.test(
+      scopeSrc.slice(scopeSrc.indexOf("condensate-safety-switch-installation — H5"))
+    )
+  );
+  ok("lib/hvac/appointments.ts is untouched by H5 (still exports the same shell)", strip("lib/hvac/appointments.ts").includes("HVAC_SERVICE_CALL_SHELL"));
+}
+
+group("69. condenser-pad-replacement's H1 catalog entry is untouched — deferred, not removed or altered");
+{
+  const pad = HVAC_SERVICES.find((s) => s.key === "condenser-pad-replacement");
+  ok("condenser-pad-replacement still exists in the catalog", pad !== undefined);
+  ok("its disposition is still CONDITIONAL_FIXED, unchanged", pad?.disposition === "CONDITIONAL_FIXED");
+  ok("it is still whileWeThereOnly: true, unchanged", pad?.whileWeThereOnly === true);
+  ok(
+    "HVAC_SERVICES is still exactly 22 entries — deferring the resolver did not touch the catalog count",
+    HVAC_SERVICES.length === 22
+  );
+  ok(
+    "its H2 family declaration (outdoor_equipment_access + existing_condition) is still intact, unchanged",
+    JSON.stringify([...HVAC_SERVICE_FAMILIES["condenser-pad-replacement"].map((u) => u.family)].sort()) ===
+      JSON.stringify(["existing_condition", "outdoor_equipment_access"].sort())
+  );
 }
 
 console.log();
