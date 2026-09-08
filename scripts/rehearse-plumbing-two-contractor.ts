@@ -37,7 +37,8 @@ import { loadServiceForResolution } from "../lib/routeResolver";
 import { buildPlumbingPayload } from "../lib/plumbing/publish";
 import { PLUMBING_SERVICES, service as canonicalService } from "../lib/plumbing/catalog";
 import { composeService } from "../lib/plumbing/composition";
-import { screenPlumbingEmergency, PLUMBING_INTENTS } from "../lib/plumbing/intents";
+import { PLUMBING_INTENTS } from "../lib/plumbing/intents";
+import { screenForEmergency } from "../lib/serviceMatch";
 import { conditionGate, combustionGate, shutoffGate } from "../lib/plumbing/gates";
 import { CONDITION_SCOPE } from "../lib/plumbing/mappings";
 
@@ -730,8 +731,8 @@ async function main() {
       "symptom phrasing routes to the neutral service call, not a repair");
     const repairIntent = PLUMBING_INTENTS.find((i) => i.phrases.some((p) => /leaking somewhere|not sure what is wrong/.test(p)) && i.serviceKey !== "plumbing-service-call");
     ok(!repairIntent, "no symptom phrase routes to a component-specific repair", repairIntent?.serviceKey ?? "");
-    ok(screenPlumbingEmergency("sewage is backing up into my bathtub").isEmergency,
-      "safety routing still fires on a plumbing emergency");
+    ok(screenForEmergency("sewage is backing up into my bathtub").isEmergency,
+      "safety routing still fires on a plumbing emergency, through the shared screen");
 
     const serviceCallRow = await db.service.findFirst({ where: { contractorId: ids[A_SLUG], slug: "plumbing-service-call" },
       select: { bookingType: true, active: true } });

@@ -45,7 +45,8 @@ import {
 import { COMBUSTION_SCOPE, CONDITION_SCOPE, PIPE_MATERIAL_SCOPE, SHUTOFF_SCOPE, mergeScope, componentsForAnswer } from "../lib/plumbing/mappings";
 import { acceptVisualFact, intakeFacts, combustionOf, capacityOf } from "../lib/plumbing/visualAssist";
 import { scopePlumbingService } from "../lib/plumbing/scope";
-import { PLUMBING_INTENTS, allIntentPhrases, screenPlumbingEmergency } from "../lib/plumbing/intents";
+import { PLUMBING_INTENTS, allIntentPhrases } from "../lib/plumbing/intents";
+import { screenForEmergency } from "../lib/serviceMatch";
 import { boundariesUsed, hasHoles } from "../lib/policyBands";
 // Read-only import of a shared module. The plumbing template must not restate
 // the platform's list of flat-rate phrasings; it must be held to it.
@@ -990,7 +991,11 @@ function intents() {
   }
   ok(collisions.length === 0, "no phrase routes to two different services", collisions.join(" | "));
 
-  // The emergencies the electrical screen cannot see.
+  // G5 — Plumbing's own emergencies, proven against the SHARED live screen,
+  // not a local wrapper. This is Plumbing's file, but it is no longer the
+  // only place that proves Plumbing's vocabulary actually catches — the
+  // consuming function is lib/serviceMatch.ts's screenForEmergency, the same
+  // one every storefront calls.
   const mustCatch = [
     "I smell gas in the basement",
     "there is a gas leak by the meter",
@@ -1001,8 +1006,8 @@ function intents() {
     "the relief valve on the heater is discharging",
     "water is leaking into the electrical panel",
   ];
-  const missed = mustCatch.filter((t) => !screenPlumbingEmergency(t).isEmergency);
-  ok(missed.length === 0, "the plumbing emergency screen catches plumbing emergencies", missed.join(" | "));
+  const missed = mustCatch.filter((t) => !screenForEmergency(t).isEmergency);
+  ok(missed.length === 0, "the shared emergency screen catches plumbing emergencies", missed.join(" | "));
 
   // Over-inclusive is the intended posture, but not so over-inclusive that
   // ordinary bookings are refused into a phone call.
@@ -1014,10 +1019,10 @@ function intents() {
     "install a garbage disposal",
     "my water pressure is low",
   ];
-  const overCaught = mustPass.filter((t) => screenPlumbingEmergency(t).isEmergency);
+  const overCaught = mustPass.filter((t) => screenForEmergency(t).isEmergency);
   ok(overCaught.length === 0, "ordinary requests are not screened out as emergencies", overCaught.join(" | "));
 
-  ok(screenPlumbingEmergency("I smell gas").matched.length > 0,
+  ok(screenForEmergency("I smell gas").matched.length > 0,
     "a caught emergency reports why it was caught");
 
   // Coverage. A service with no intent is findable only by its exact name.

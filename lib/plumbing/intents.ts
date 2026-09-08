@@ -7,24 +7,21 @@
  * cannot derive from a plumbing catalog it has never seen: the trade's own
  * vocabulary, and the trade's own emergencies.
  *
- * THE EMERGENCY SCREEN IS THE POINT OF THIS FILE
+ * THIS FILE OWNS PLUMBING'S EMERGENCY VOCABULARY; IT DOES NOT RUN IT — G5.
  *
- * lib/serviceMatch.ts's EMERGENCY_PATTERNS are electrical: burning, sparking,
- * shock, a hot outlet. Not one of them fires on "sewage backing up into my
- * bathtub" or "I smell gas", and a plumbing storefront running the electrical
- * screen would take an online booking, three days out, for a gas leak.
+ * lib/serviceMatch.ts unions PLUMBING_EMERGENCY_PATTERNS below with
+ * Electrical's own list and HVAC's (lib/hvac/intents.ts) into ONE registry
+ * that runs for every storefront, regardless of which trade that contractor
+ * is enrolled in — screenForEmergency in lib/serviceMatch.ts is the only
+ * live emergency screen. This file is the source of Plumbing's contribution
+ * to it, not a second runtime path: there used to be a screenPlumbingEmergency
+ * here, wired to nothing but the verifier; it is retired now that the
+ * pattern list it wrapped is exercised live through the shared function.
  *
  * Deliberately over-inclusive, on the same reasoning the electrical screen
- * gives: a false positive costs one phone call that might have been a booking;
- * a false negative is somebody scheduling next Tuesday for water pouring
- * through a ceiling. Those are not comparable.
- *
- * NOT WIRED IN YET. lib/serviceMatch.ts is a heavily shared file and is not
- * modified by this slice — see docs/design/plumbing-shared-integrations.md for
- * the exact change required. Until that lands, this screen is exercised by the
- * verifier and by nothing else, and a plumbing storefront would run the
- * electrical screen. That is a gap, and it is recorded rather than papered
- * over by a local copy of the matcher.
+ * gives: a false positive costs one phone call that might have been a
+ * booking; a false negative is somebody scheduling next Tuesday for water
+ * pouring through a ceiling. Those are not comparable.
  */
 
 /** Phrases that mean "stop, phone us". Same contract as the electrical screen. */
@@ -61,14 +58,10 @@ export const PLUMBING_EMERGENCY_PATTERNS: readonly { pattern: RegExp; why: strin
   { pattern: /\bwater\b[^.]{0,15}\b(scalding|far too hot|dangerously hot)\b/i, why: "scalding water" },
 ];
 
-export const PLUMBING_EMERGENCY_MESSAGE =
-  "What you're describing isn't something to book online for later. Please call us now and we'll talk it through. If you can reach the main water shutoff safely, turning it off will limit the damage while we're on the way. If you smell gas, leave the building first and call your gas utility from outside, then call us.";
-
-/** Runs before anything else. No network, no model, no dependencies. */
-export function screenPlumbingEmergency(text: string): { isEmergency: boolean; matched: string[] } {
-  const matched = PLUMBING_EMERGENCY_PATTERNS.filter((p) => p.pattern.test(text)).map((p) => p.why);
-  return { isEmergency: matched.length > 0, matched: [...new Set(matched)] };
-}
+// PLUMBING_EMERGENCY_MESSAGE and screenPlumbingEmergency were retired here —
+// G5. The one authoritative message and screen now live in
+// lib/serviceMatch.ts (EMERGENCY_MESSAGE, screenForEmergency), which this
+// file's PLUMBING_EMERGENCY_PATTERNS feeds. See the file header.
 
 /**
  * Trade vocabulary for the keyword fallback.

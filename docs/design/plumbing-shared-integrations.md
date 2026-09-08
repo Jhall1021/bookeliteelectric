@@ -344,17 +344,24 @@ publication path needs more than "has this contractor recorded that they hold th
 
 ### 2.3 Trade-aware emergency screening — `lib/serviceMatch.ts`
 
-`EMERGENCY_PATTERNS` is electrical: burning, sparking, shock, a hot outlet. None fire on
-*"sewage backing up into my bathtub"* or *"I smell gas"*.
+**RESOLVED — G5, 7 September 2026.** `EMERGENCY_PATTERNS` is now the union of
+Electrical's, Plumbing's, and HVAC's own emergency vocabulary
+(`lib/hvac/intents.ts`), run for every storefront regardless of enrolled trade — the
+union this section recommended over a per-trade switch, not a dispatch.
+`screenForEmergency()` still takes no trade argument, and pinning that is now a
+verifier check.
 
-`lib/plumbing/intents.ts` holds the plumbing patterns, message and screen, all verified,
-wired to nothing. `screenForEmergency()` needs to take the trade — or run the union,
-which is the safer default for a contractor offering both.
+`lib/plumbing/intents.ts` holds the plumbing patterns, and they now actually feed the
+one live screen; the local `screenPlumbingEmergency` wrapper that used to test them in
+isolation is retired, so there is exactly one live emergency path, not two to keep in
+step — the risk this section warned against below was avoided, not merely noted.
 
-A plumbing storefront today would accept an online booking, three days out, for a gas leak.
+A plumbing or HVAC storefront now stops an online booking for a gas leak the same way
+an electrical storefront always has for sparking or a hot outlet.
 
-**Do not** solve this by copying the matcher into `lib/plumbing`. Two emergency screens is
-two things to keep in step, and the one that goes stale is the one that matters.
+**This was not solved** by copying the matcher into `lib/plumbing` as a second live
+screen. Two emergency screens is two things to keep in step, and the one that goes
+stale is the one that matters.
 
 ### 2.4 Intent phrases in the keyword fallback — `lib/serviceMatch.ts`
 
