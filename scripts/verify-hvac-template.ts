@@ -6,14 +6,14 @@
  * PURE SOURCE. NO DATABASE. HVAC provisions nothing yet, so nothing here
  * needs DATABASE_URL, and nothing here mutates anything.
  *
- * WHAT THIS PROVES, AND WHY IT IS ALL STRUCTURAL
+ * WHAT THIS PROVES, AND WHY MOST OF IT IS STRUCTURAL
  *
- * H1 ships a catalog, not a pricing engine, so there is no question tree to
- * walk and no route to resolve (contrast scripts/verify-plumbing-template.ts,
- * which proves scope/gate/family behavior that does not exist here yet).
- * Every check below is either a count, a uniqueness check, or a source-level
- * scan — the same kind of proof G4's verify-contractor-credentials.ts used
- * for a fact-only slice with no consumer yet.
+ * H1/H2 shipped a catalog and a domain vocabulary, not a pricing engine, so
+ * most checks here are a count, a uniqueness check, or a source-level scan
+ * — the same kind of proof G4's verify-contractor-credentials.ts used for a
+ * fact-only slice with no consumer yet. H3 adds the first REAL resolution
+ * calls: scripts/verify-plumbing-template.ts's `scopePlumbingService`
+ * proof, applied to lib/hvac/scope.ts's one executable service.
  */
 
 import { readFileSync, existsSync } from "node:fs";
@@ -44,6 +44,11 @@ import {
 import { EXISTING_CONDITION_SCOPE, EVIDENCE_ONLY_FACTS, REPORTED_SYMPTOMS } from "../lib/hvac/mappings";
 import { maintenanceScopeLocations, maintenanceScopeMatchesDeclaredLocations } from "../lib/hvac/metadata";
 import type { AccessSlot } from "../lib/accessSlots";
+import {
+  resolveCondensatePumpInstallation,
+  CONDENSATE_PUMP_QUESTIONS,
+  type CondensatePumpInstallationFacts,
+} from "../lib/hvac/scope";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 function strip(path: string): string {
@@ -622,15 +627,204 @@ group("30. no H2 file imports or changes Plumbing/Electrical trade-owned definit
   ok("lib/plumbing/mappings.ts is untouched by H2 (no HVAC reference in it)", !/hvac/i.test(plumbingMappings));
 }
 
-group("31. no service tree, composition, or provisioning surface exists yet");
+group("31. no composition/publish/provisioning surface exists yet — scope.ts is H3's one sanctioned exception");
 {
-  ok("lib/hvac/scope.ts does not exist (composition is H3)", !existsSync(join(ROOT, "lib/hvac/scope.ts")));
-  ok("lib/hvac/composition.ts does not exist (composition is H3)", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
-  ok("lib/hvac/publish.ts does not exist (provisioning is H3+)", !existsSync(join(ROOT, "lib/hvac/publish.ts")));
+  // H2's own check here read "lib/hvac/scope.ts does not exist" — true at
+  // the time, and superseded now: H3 is exactly the ONE executable service
+  // this file exists to add. Composition (many services -> one contractor
+  // catalog) and publish (writing to the database) remain unbuilt; this
+  // group now proves that boundary instead of the one scope.ts itself
+  // already crossed on purpose.
+  ok("lib/hvac/scope.ts now exists — H3's one sanctioned exception", existsSync(join(ROOT, "lib/hvac/scope.ts")));
+  ok("lib/hvac/composition.ts still does not exist (composition is H3+, not this slice)", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
+  ok("lib/hvac/publish.ts still does not exist (provisioning is H3+, not this slice)", !existsSync(join(ROOT, "lib/hvac/publish.ts")));
   ok(
-    "no HVAC family declares actual Question/AnswerOption content",
+    "no HVAC family manifest declares actual Question/AnswerOption content — that content stays scope.ts's own, service-specific",
     HVAC_FAMILIES.every((f) => !("questions" in f))
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H3 — the first executable tree: condensate-pump-installation
+// ═══════════════════════════════════════════════════════════════════════
+
+const BASE_FACTS: CondensatePumpInstallationFacts = {
+  accessClass: "ACCESSIBLE",
+  condensateRoute: "PUMP_PRESENT",
+  supplyArrangement: "CUSTOMER_SUPPLIED",
+  dedicatedCircuitPresent: "PRESENT",
+  runBand: "STANDARD",
+};
+
+group("32. explicit known work reaches the approved CONDITIONAL_FIXED terminal");
+{
+  const replacement = resolveCondensatePumpInstallation(BASE_FACTS);
+  ok(
+    "a fully-resolved replacement path RESOLVES to RESOLVE_ADJUSTED",
+    replacement.status === "RESOLVED" && replacement.routeAction === "RESOLVE_ADJUSTED" && replacement.branch === "REPLACEMENT"
+  );
+  const newInstall = resolveCondensatePumpInstallation({ ...BASE_FACTS, condensateRoute: "NONE_VISIBLE" });
+  ok(
+    "a fully-resolved new-installation path (NONE_VISIBLE) RESOLVES to RESOLVE_ADJUSTED",
+    newInstall.status === "RESOLVED" && newInstall.routeAction === "RESOLVE_ADJUSTED" && newInstall.branch === "NEW_INSTALLATION"
+  );
+}
+
+group("33. both no-existing-pump observations stay inside this one service — no REROUTE_SERVICE");
+{
+  const noneVisible = resolveCondensatePumpInstallation({ ...BASE_FACTS, condensateRoute: "NONE_VISIBLE" });
+  const gravityDrain = resolveCondensatePumpInstallation({ ...BASE_FACTS, condensateRoute: "GRAVITY_DRAIN_PRESENT" });
+  ok(
+    "NONE_VISIBLE resolves within condensate-pump-installation (NEW_INSTALLATION branch)",
+    noneVisible.status === "RESOLVED" && noneVisible.branch === "NEW_INSTALLATION"
+  );
+  ok(
+    "GRAVITY_DRAIN_PRESENT resolves within condensate-pump-installation (the SAME branch)",
+    gravityDrain.status === "RESOLVED" && gravityDrain.branch === "NEW_INSTALLATION"
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok('scope.ts never produces REROUTE_SERVICE — old F.3\'s "a different service" is fully superseded', !/REROUTE_SERVICE/.test(scopeSrc));
+}
+
+group("34. equipment_condition is not read — old F.3's ACTIVE_FAILURE reroute is fully superseded");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "CondensatePumpInstallationFacts has no field for equipment_condition — structurally unreadable, not merely unused",
+    !/equipmentCondition|equipment_condition/.test(scopeSrc)
+  );
+  ok("scope.ts never references ACTIVE_FAILURE", !/ACTIVE_FAILURE/.test(scopeSrc));
+  ok("scope.ts never imports conditionGate or EquipmentCondition", !/conditionGate|EquipmentCondition/.test(scopeSrc));
+  ok("scope.ts never produces ON_SITE_SERVICE (the old F.3 reroute target)", !/ON_SITE_SERVICE/.test(scopeSrc));
+}
+
+group("35. every unresolved fact fails closed to PHOTO_REVIEW");
+{
+  const accessUnknown = resolveCondensatePumpInstallation({ ...BASE_FACTS, accessClass: "UNKNOWN" });
+  ok("unresolved access -> PHOTO_REVIEW", accessUnknown.status === "REFUSED" && accessUnknown.routeAction === "PHOTO_REVIEW");
+
+  const routeUnknown = resolveCondensatePumpInstallation({ ...BASE_FACTS, condensateRoute: "UNKNOWN" });
+  ok("unresolved condensate_route -> PHOTO_REVIEW, before either branch is chosen", routeUnknown.status === "REFUSED" && routeUnknown.routeAction === "PHOTO_REVIEW");
+
+  const powerUnknown = resolveCondensatePumpInstallation({ ...BASE_FACTS, condensateRoute: "NONE_VISIBLE", dedicatedCircuitPresent: "UNKNOWN" });
+  ok("unresolved dedicated_circuit_present -> PHOTO_REVIEW", powerUnknown.status === "REFUSED" && powerUnknown.routeAction === "PHOTO_REVIEW");
+
+  const runUnknown = resolveCondensatePumpInstallation({ ...BASE_FACTS, condensateRoute: "NONE_VISIBLE", runBand: "UNKNOWN" });
+  ok("unresolved run_band -> PHOTO_REVIEW", runUnknown.status === "REFUSED" && runUnknown.routeAction === "PHOTO_REVIEW");
+}
+
+group("36. missing power and an over-band run leave fixed pricing — the settled product decision");
+{
+  const powerAbsent = resolveCondensatePumpInstallation({ ...BASE_FACTS, condensateRoute: "NONE_VISIBLE", dedicatedCircuitPresent: "ABSENT" });
+  ok(
+    "dedicated_circuit_present=ABSENT -> REMOTE_QUOTE, never priced with a prerequisite noted",
+    powerAbsent.status === "REFUSED" && powerAbsent.routeAction === "REMOTE_QUOTE"
+  );
+  const overBand = resolveCondensatePumpInstallation({ ...BASE_FACTS, condensateRoute: "NONE_VISIBLE", runBand: "OVER_BAND" });
+  ok("run_band=OVER_BAND -> REMOTE_QUOTE", overBand.status === "REFUSED" && overBand.routeAction === "REMOTE_QUOTE");
+  ok(
+    'no third "EXTENDED" band exists for this service — condensate_run.breakpoints has exactly one boundary',
+    !CONDENSATE_PUMP_QUESTIONS.some((q) => q.options.some((o) => o.value === "EXTENDED"))
+  );
+}
+
+group("37. symptom vocabulary cannot enter this tree — it stays exclusive to hvac-service-call");
+{
+  const treeSrc = strip("lib/hvac/scope.ts");
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}"`, !treeSrc.includes(symptom));
+  }
+  const optionValues = CONDENSATE_PUMP_QUESTIONS.flatMap((q) => q.options.map((o) => o.value));
+  ok(
+    "no answer option value is any of the closed reported_symptom vocabulary",
+    optionValues.every((v) => !(REPORTED_SYMPTOMS as readonly string[]).includes(v))
+  );
+  const symptomPhrases = [
+    "leaking water",
+    "not cooling",
+    "no cooling",
+    "no heat",
+    "water observed",
+    "ac is leaking",
+  ];
+  const allWording = CONDENSATE_PUMP_QUESTIONS.flatMap((q) => [q.prompt, ...q.options.map((o) => o.label)])
+    .join(" ")
+    .toLowerCase();
+  ok(
+    "no question prompt or answer label contains symptom phrasing",
+    symptomPhrases.every((p) => !allWording.includes(p))
+  );
+  ok(
+    "hvac-service-call's own aliases are exactly where these symptom text forms still resolve (unchanged since G5/H1)",
+    ["not cooling", "leaking water"].every((p) => (hvacServiceCall().aliases ?? []).some((a) => a.toLowerCase() === p))
+  );
+}
+
+group("38. no question or answer names a cause — observation only");
+{
+  const diagnosticLanguage =
+    /\b(blocked|clogged|failed|failing|broken|defective|refrigerant|low on|leaking from|leak in|worn|corroded internally|burnt out|malfunction)\b/i;
+  for (const q of CONDENSATE_PUMP_QUESTIONS) {
+    ok(`"${q.key}"'s prompt names no cause`, !diagnosticLanguage.test(q.prompt), q.prompt);
+    for (const o of q.options) {
+      ok(`"${q.key}" option "${o.value}" names no cause`, !diagnosticLanguage.test(o.label), o.label);
+    }
+  }
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "no refusal reason in scope.ts names a blocked drain, a failed pump, or a refrigerant issue",
+    !/blocked drain|failed pump|refrigerant/i.test(scopeSrc)
+  );
+}
+
+group("39. no answer selects a repair, a material, or a component");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "scope.ts declares no material role, component, or prerequisite — no pricing/scope-consequence surface exists yet",
+    !/materialRoles|components:|ScopeConsequence/.test(scopeSrc)
+  );
+  ok("scope.ts imports nothing from lib/hvac/mappings.ts (no scope-consequence layer wired in H3)", !/from ["'`]\.\/mappings["'`]/.test(scopeSrc));
+}
+
+group("40. the tree's questions match H2's own family declaration for this service");
+{
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["condensate-pump-installation"].map((u) => u.family);
+  const establishedFacts = new Set(CONDENSATE_PUMP_QUESTIONS.map((q) => q.establishes));
+  ok(
+    "indoor_equipment_access is asked (establishes indoor_location)",
+    declaredFamilies.includes("indoor_equipment_access") && establishedFacts.has("indoor_location")
+  );
+  ok(
+    "condensate_route is asked (establishes condensate_route)",
+    declaredFamilies.includes("condensate_route") && establishedFacts.has("condensate_route")
+  );
+  ok(
+    "supply_arrangement is asked on both branches (establishes supply_arrangement)",
+    declaredFamilies.includes("supply_arrangement") &&
+      CONDENSATE_PUMP_QUESTIONS.filter((q) => q.establishes === "supply_arrangement").length === 2
+  );
+  ok(
+    "dedicated_power_availability is asked only on the new-installation branch",
+    declaredFamilies.includes("dedicated_power_availability") &&
+      CONDENSATE_PUMP_QUESTIONS.filter((q) => q.establishes === "dedicated_circuit_present").every((q) => q.branch === "NEW_INSTALLATION")
+  );
+  ok(
+    "run_distance is asked only on the new-installation branch",
+    declaredFamilies.includes("run_distance") &&
+      CONDENSATE_PUMP_QUESTIONS.filter((q) => q.establishes === "run_band").every((q) => q.branch === "NEW_INSTALLATION")
+  );
+  ok(
+    "existing_condition is declared for domain completeness but asks no live question",
+    declaredFamilies.includes("existing_condition") && !establishedFacts.has("equipment_condition")
+  );
+  ok("access slot is PRIMARY, per the settled decision", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["condensate-pump-installation"]) === JSON.stringify(["PRIMARY"]));
+}
+
+group("41. no second HVAC service tree exists yet");
+{
+  ok("lib/hvac/scope.ts exports exactly one resolve function", (strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? []).length === 1);
+  ok("no other HVAC service has a resolve function anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
 }
 
 console.log();
