@@ -1172,6 +1172,25 @@ model MaterialCostEvent {
   /// contractorMaterialId is itself null on an ancient pre-split row, from
   /// material.id — no other lookup exists for those). New rows always carry
   /// it; the column tightens once every environment is confirmed backfilled.
+  ///
+  /// PRODUCTION STATE, checked directly (2026-09-08): zero rows in this
+  /// table, scoped or unscoped — there is no historical null-tenant data to
+  /// backfill here today, so nothing has been reconstructed and nothing was
+  /// changed. Any such row a future environment does carry stays exactly as
+  /// it is — preserved, correctly excluded from a tenant-scoped read by
+  /// ordinary Postgres NULL-equality semantics (see the guard's own
+  /// verification of that in tenantGuard.ts's history) — until an explicit,
+  /// separate backfill is run. Also checked: no ContractorMaterial row
+  /// carries a set `costUpdatedAt`, the field this model's writer
+  /// (setContractorMaterialCost) stamps on every call — meaning that
+  /// function's write path has left no residue in production, complete or
+  /// partial, to date. That eliminates the specific partial-write shape this
+  /// column's own fix targets (a committed cost update with no matching
+  /// event) as far as the database can show. It does NOT rule out an admin
+  /// having attempted an edit that failed outright before any row existed to
+  /// examine — a failed request that never reached this table leaves nothing
+  /// here to find, and only server logs, not a retrospective query, could
+  /// settle that.
   contractorId String?
   contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 

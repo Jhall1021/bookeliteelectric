@@ -450,11 +450,34 @@ export type SetCostResult = {
  * service diverged because Lowe's raised the price of 12/2 on 14 March" from
  * "this service diverged and nobody knows why". Without it, live costs would
  * turn the health check into noise within a month.
+ *
+ * ATOMIC, DELIBERATELY. The update, the recompute cascade and the event are
+ * one `$transaction` — not three sequential statements hoping nothing fails
+ * in between. That gap was real, not hypothetical: `MaterialCostEvent`
+ * lacked a `contractorId` column until the fix alongside this one, so the
+ * event write threw `NotYetTenantScopedError` on every genuine cost change
+ * routed through a guarded caller — after the cost had already been
+ * updated. Fixing the column closes that particular throw; wrapping the
+ * writes closes the general case, for this and any future failure between
+ * the same two statements. Requires a top-level `PrismaClient`, not a
+ * `Prisma.TransactionClient` — every real caller already passes one (the
+ * guarded client `withContractor`/`withAdminRoute` hand a route), and
+ * nesting `$transaction` inside an existing transaction is not something
+ * Prisma supports, so the type says so rather than allowing a call nobody
+ * makes and everybody could get wrong.
  */
 export async function setContractorMaterialCost(
-  db: Db,
+  db: PrismaClient,
   input: SetCostInput,
-  provenance: CostProvenance
+  provenance: CostProvenance,
+  /**
+   * TEST SEAM ONLY. Invoked with the transaction client immediately after
+   * the cost update, before the recompute cascade and the event write —
+   * lets a verifier force a fault between the writes and prove the whole
+   * transaction rolls back together, rather than asserting it from reading
+   * the code. No production caller passes this; default is untouched.
+   */
+  injectFaultAfterCostUpdate?: (tx: Prisma.TransactionClient) => Promise<void>
 ): Promise<SetCostResult> {
   const cm = await db.contractorMaterial.findUniqueOrThrow({
     where: { id: input.contractorMaterialId },
@@ -509,50 +532,60 @@ export async function setContractorMaterialCost(
 
   const changed = cm.unitCostCents !== derived.unitCostCents;
 
-  await db.contractorMaterial.update({
-    where: { id: cm.id },
-    data: {
-      unitCostCents: derived.unitCostCents,
-      unitCostMilliCents: derived.unitCostMilliCents,
-      ...packageFields,
-      ...(input.confidence ? { costConfidence: input.confidence } : {}),
-      costStatus: "OK",
-      costStatusNote: null,
-      costUpdatedAt: new Date(),
-    },
-  });
-
-  // Only this contractor's services.
-  const affected = changed
-    ? await recomputeServicesUsingRole({
-        db,
-        canonicalMaterialId: cm.canonicalMaterialId,
-        contractorId: cm.contractorId,
-      })
-    : [];
-
-  if (changed) {
-    await db.materialCostEvent.create({
+  // Update, recompute cascade and event: one transaction. If any step
+  // throws, Prisma rolls back everything the callback did — the cost update
+  // included — so a fault in the event write can never leave a moved cost
+  // with no record of having moved.
+  const affected = await db.$transaction(async (tx) => {
+    await tx.contractorMaterial.update({
+      where: { id: cm.id },
       data: {
-        contractorMaterialId: cm.id,
-        // Set explicitly from the ContractorMaterial row just read — the
-        // authoritative relationship — rather than relied on implicitly. A
-        // guarded caller's tenant context would stamp the same value; a raw
-        // client (a script, a seed) has no context to stamp it from at all,
-        // and this event must never be the one row nobody can attribute.
-        contractorId: cm.contractorId,
-        oldUnitCostCents: cm.unitCostCents,
-        newUnitCostCents: derived.unitCostCents,
-        oldUnitCostMilliCents: cm.unitCostMilliCents,
-        newUnitCostMilliCents: derived.unitCostMilliCents,
-        source: cm.costSource,
-        reason: provenance.reason,
-        actor: provenance.actor ?? null,
-        syncRunId: provenance.syncRunId ?? null,
-        affectedServiceIds: affected.filter((a) => a.changed).map((a) => a.serviceId),
+        unitCostCents: derived.unitCostCents,
+        unitCostMilliCents: derived.unitCostMilliCents,
+        ...packageFields,
+        ...(input.confidence ? { costConfidence: input.confidence } : {}),
+        costStatus: "OK",
+        costStatusNote: null,
+        costUpdatedAt: new Date(),
       },
     });
-  }
+
+    if (injectFaultAfterCostUpdate) await injectFaultAfterCostUpdate(tx);
+
+    // Only this contractor's services.
+    const recomputed = changed
+      ? await recomputeServicesUsingRole({
+          db: tx,
+          canonicalMaterialId: cm.canonicalMaterialId,
+          contractorId: cm.contractorId,
+        })
+      : [];
+
+    if (changed) {
+      await tx.materialCostEvent.create({
+        data: {
+          contractorMaterialId: cm.id,
+          // Set explicitly from the ContractorMaterial row just read — the
+          // authoritative relationship — rather than relied on implicitly. A
+          // guarded caller's tenant context would stamp the same value; a raw
+          // client (a script, a seed) has no context to stamp it from at all,
+          // and this event must never be the one row nobody can attribute.
+          contractorId: cm.contractorId,
+          oldUnitCostCents: cm.unitCostCents,
+          newUnitCostCents: derived.unitCostCents,
+          oldUnitCostMilliCents: cm.unitCostMilliCents,
+          newUnitCostMilliCents: derived.unitCostMilliCents,
+          source: cm.costSource,
+          reason: provenance.reason,
+          actor: provenance.actor ?? null,
+          syncRunId: provenance.syncRunId ?? null,
+          affectedServiceIds: recomputed.filter((a) => a.changed).map((a) => a.serviceId),
+        },
+      });
+    }
+
+    return recomputed;
+  });
 
   return {
     contractorMaterialId: cm.id,
