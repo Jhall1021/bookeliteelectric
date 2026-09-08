@@ -330,9 +330,17 @@ export default async function SetupPage({
       </li>
     );
 
-    const blockersFirst = [...stage.findings].sort(
-      (a, b) => (a.severity === "blocker" ? 0 : 1) - (b.severity === "blocker" ? 0 : 1)
-    );
+    // MATERIAL_COST_UNRESOLVED is excluded here on this one stage — it is
+    // the same finding the batch-review panel above already lists,
+    // interactively, with something to actually do about it. Left in, a
+    // contractor would see every unresolved role twice: once as a real
+    // accept/override/skip, and once more as dead prose pointing at
+    // /dashboard/services, which this panel has superseded. Every other
+    // stage is unaffected — this code only groups MATERIAL_COST_UNRESOLVED
+    // under "pricing-foundation" in the first place.
+    const blockersFirst = stage.findings
+      .filter((f) => !(current === "pricing-foundation" && f.code === "MATERIAL_COST_UNRESOLVED"))
+      .sort((a, b) => (a.severity === "blocker" ? 0 : 1) - (b.severity === "blocker" ? 0 : 1));
 
     return (
       <div className="mx-auto max-w-4xl">
