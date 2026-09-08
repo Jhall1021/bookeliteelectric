@@ -16,6 +16,7 @@ export * from "./gates";
 export * from "./families";
 export * from "./mappings";
 export * from "./metadata";
+export * from "./scope";
 
 /** Mirrors PLUMBING_TEMPLATE_TRADE / PLUMBING_TEMPLATE_VERSION exactly. */
 export const HVAC_TEMPLATE_TRADE = "hvac";
