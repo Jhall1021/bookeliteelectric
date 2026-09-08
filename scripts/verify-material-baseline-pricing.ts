@@ -35,7 +35,7 @@ import { PrismaClient } from "@prisma/client";
 import { withContractor } from "../lib/tenantRoute";
 import {
   acceptMaterialBaselineVersion, overrideUnresolvedMaterialCost, latestBaselineVersionsFor,
-  recomputeServiceMaterialCost,
+  recomputeServiceMaterialCost, setContractorMaterialCost,
 } from "../lib/materialCost";
 
 const raw = new PrismaClient();
@@ -44,6 +44,7 @@ const SLUG_PREFIX = "test-material-baseline";
 const SLUG_A = `${SLUG_PREFIX}-${RUN}-a`;
 const SLUG_B = `${SLUG_PREFIX}-${RUN}-b`;
 const SLUG_C = `${SLUG_PREFIX}-${RUN}-c`;
+const SLUG_D = `${SLUG_PREFIX}-${RUN}-d`;
 const STALE_AFTER_MS = 60 * 60 * 1000;
 
 let fail = 0;
@@ -58,12 +59,12 @@ async function removeContractor(slug: string) {
   await raw.contractor.delete({ where: { id: c.id } }).catch(() => {});
 }
 async function teardown() {
-  for (const s of [SLUG_A, SLUG_B, SLUG_C]) await removeContractor(s);
+  for (const s of [SLUG_A, SLUG_B, SLUG_C, SLUG_D]) await removeContractor(s);
 }
 async function sweepStale() {
   const cutoff = new Date(Date.now() - STALE_AFTER_MS);
   const stale = await raw.contractor.findMany({
-    where: { slug: { startsWith: SLUG_PREFIX }, NOT: { slug: { in: [SLUG_A, SLUG_B, SLUG_C] } }, createdAt: { lt: cutoff } },
+    where: { slug: { startsWith: SLUG_PREFIX }, NOT: { slug: { in: [SLUG_A, SLUG_B, SLUG_C, SLUG_D] } }, createdAt: { lt: cutoff } },
     select: { slug: true },
   });
   for (const c of stale) await removeContractor(c.slug);
@@ -246,10 +247,125 @@ async function main() {
     (await latestBaselineVersionsFor(raw, [wire122.id])).get(wire122.id)?.id === newerVersion.id);
   await raw.materialBaselineVersion.delete({ where: { id: newerVersion.id } });
 
+  // ── 12. editing an ACCEPTED baseline through the ordinary CUSTOM path ──
+  // ContractorMaterial.acceptedBaselineVersionId's own doc comment promises
+  // this: "an override to CUSTOM clears it ... an already-resolved role is
+  // edited through the ordinary CUSTOM path, same as any other cost edit
+  // today." setContractorMaterialCost didn't keep that promise — it left
+  // costSource and the pointer untouched on an ordinary edit, so a BASELINE
+  // row edited by hand kept reporting BASELINE provenance forever.
+  const aMaterialForEdit = await raw.contractorMaterial.findUniqueOrThrow({
+    where: { contractorId_canonicalMaterialId: { contractorId: a.id, canonicalMaterialId: wire122.id } },
+    select: { id: true, costSource: true, acceptedBaselineVersionId: true },
+  });
+  ok(`12. A's wire material is still BASELINE-sourced, going into this edit`,
+    aMaterialForEdit.costSource === "BASELINE" && aMaterialForEdit.acceptedBaselineVersionId === wire122Baseline.id);
+  await withContractor(a.id, "admin-session", (db) =>
+    setContractorMaterialCost(db, { contractorMaterialId: aMaterialForEdit.id, unitCostCents: 91 }, { reason: "ordinary edit of a baseline-sourced cost", actor: "verifier" })
+  );
+  const aMaterialAfterEdit = await raw.contractorMaterial.findUniqueOrThrow({
+    where: { id: aMaterialForEdit.id },
+    select: { costSource: true, acceptedBaselineVersionId: true, unitCostCents: true },
+  });
+  ok(`    ...the ordinary edit path transitions it to CUSTOM`, aMaterialAfterEdit.costSource === "CUSTOM");
+  ok(`    ...and clears the baseline pointer — it is this contractor's own figure now`,
+    aMaterialAfterEdit.acceptedBaselineVersionId === null && aMaterialAfterEdit.unitCostCents === 91);
+  const editEvent = await raw.materialCostEvent.findFirstOrThrow({
+    where: { contractorMaterialId: aMaterialForEdit.id }, orderBy: { createdAt: "desc" },
+    select: { source: true, newUnitCostCents: true },
+  });
+  ok(`    ...and the event records CUSTOM provenance for the transition, not the source it left`,
+    editEvent.source === "CUSTOM" && editEvent.newUnitCostCents === 91);
+
+  // ── 13-18. ATOMICITY — a fault between create, recompute and event write
+  // must roll back the whole resolution, for both the accept path and the
+  // override path, at both points in the sequence. ─────────────────────────
+  const d = await raw.contractor.create({ data: { slug: SLUG_D, name: "Baseline Probe D — atomicity", active: false }, select: { id: true } });
+  const dWireService = await serviceUsing(d.id, "d-wire-service", wire122.id);
+  const dFanService = await serviceUsing(d.id, "d-fan-service", bathFan.id);
+
+  let acceptFaultAfterCreate: unknown = null;
+  try {
+    await withContractor(d.id, "admin-session", (db) =>
+      acceptMaterialBaselineVersion(
+        db, { contractorId: d.id, baselineVersionId: wire122Baseline.id },
+        { reason: "atomicity - accept after create", actor: "verifier" },
+        { afterCreate: async () => { throw new Error("injected fault — accept after create"); } }
+      )
+    );
+  } catch (e) { acceptFaultAfterCreate = e; }
+  ok(`13. accept: an injected fault right after create propagates`,
+    acceptFaultAfterCreate instanceof Error && /injected fault/.test((acceptFaultAfterCreate as Error).message));
+  ok(`    ...the create rolled back — no ContractorMaterial row exists at all`,
+    (await raw.contractorMaterial.findUnique({ where: { contractorId_canonicalMaterialId: { contractorId: d.id, canonicalMaterialId: wire122.id } } })) === null);
+  ok(`    ...no MaterialCostEvent either`, (await raw.materialCostEvent.count({ where: { contractorId: d.id } })) === 0);
+  ok(`    ...and D's service is still unresolved — the recompute never ran`, !(await stateOf(dWireService)).materialCostResolved);
+
+  let acceptFaultAfterRecompute: unknown = null;
+  try {
+    await withContractor(d.id, "admin-session", (db) =>
+      acceptMaterialBaselineVersion(
+        db, { contractorId: d.id, baselineVersionId: wire122Baseline.id },
+        { reason: "atomicity - accept after recompute", actor: "verifier" },
+        { afterRecompute: async () => { throw new Error("injected fault — accept after recompute"); } }
+      )
+    );
+  } catch (e) { acceptFaultAfterRecompute = e; }
+  ok(`14. accept: an injected fault right after the recompute cascade propagates`,
+    acceptFaultAfterRecompute instanceof Error && /injected fault/.test((acceptFaultAfterRecompute as Error).message));
+  ok(`    ...the create AND the recompute both rolled back — still no ContractorMaterial row`,
+    (await raw.contractorMaterial.findUnique({ where: { contractorId_canonicalMaterialId: { contractorId: d.id, canonicalMaterialId: wire122.id } } })) === null);
+  ok(`    ...D's service is STILL unresolved — the recompute's write never survived`, !(await stateOf(dWireService)).materialCostResolved);
+  ok(`    ...and still no event`, (await raw.materialCostEvent.count({ where: { contractorId: d.id } })) === 0);
+
+  const acceptRetry = await withContractor(d.id, "admin-session", (db) =>
+    acceptMaterialBaselineVersion(db, { contractorId: d.id, baselineVersionId: wire122Baseline.id }, { reason: "atomicity - retry after faults", actor: "verifier" })
+  );
+  ok(`15. a real retry after both injected failures succeeds normally — no phantom ALREADY_RESOLVED`, acceptRetry.ok);
+  ok(`    ...D's wire service is now genuinely resolved`, (await stateOf(dWireService)).materialCostResolved);
+
+  let overrideFaultAfterCreate: unknown = null;
+  try {
+    await withContractor(d.id, "admin-session", (db) =>
+      overrideUnresolvedMaterialCost(
+        db, { contractorId: d.id, canonicalMaterialId: bathFan.id, unitCostCents: 5555 },
+        { reason: "atomicity - override after create", actor: "verifier" },
+        { afterCreate: async () => { throw new Error("injected fault — override after create"); } }
+      )
+    );
+  } catch (e) { overrideFaultAfterCreate = e; }
+  ok(`16. override: an injected fault right after create propagates`,
+    overrideFaultAfterCreate instanceof Error && /injected fault/.test((overrideFaultAfterCreate as Error).message));
+  ok(`    ...and rolled back — no row at all`,
+    (await raw.contractorMaterial.findUnique({ where: { contractorId_canonicalMaterialId: { contractorId: d.id, canonicalMaterialId: bathFan.id } } })) === null);
+  ok(`    ...D's fan service is still unresolved`, !(await stateOf(dFanService)).materialCostResolved);
+
+  let overrideFaultAfterRecompute: unknown = null;
+  try {
+    await withContractor(d.id, "admin-session", (db) =>
+      overrideUnresolvedMaterialCost(
+        db, { contractorId: d.id, canonicalMaterialId: bathFan.id, unitCostCents: 5555 },
+        { reason: "atomicity - override after recompute", actor: "verifier" },
+        { afterRecompute: async () => { throw new Error("injected fault — override after recompute"); } }
+      )
+    );
+  } catch (e) { overrideFaultAfterRecompute = e; }
+  ok(`17. override: an injected fault right after the recompute cascade propagates`,
+    overrideFaultAfterRecompute instanceof Error && /injected fault/.test((overrideFaultAfterRecompute as Error).message));
+  ok(`    ...still rolled back completely — no row`,
+    (await raw.contractorMaterial.findUnique({ where: { contractorId_canonicalMaterialId: { contractorId: d.id, canonicalMaterialId: bathFan.id } } })) === null);
+  ok(`    ...and D's fan service is still unresolved`, !(await stateOf(dFanService)).materialCostResolved);
+
+  const overrideRetry = await withContractor(d.id, "admin-session", (db) =>
+    overrideUnresolvedMaterialCost(db, { contractorId: d.id, canonicalMaterialId: bathFan.id, unitCostCents: 5555 }, { reason: "atomicity - retry after faults", actor: "verifier" })
+  );
+  ok(`18. a real retry after both injected failures succeeds normally`, overrideRetry.ok && overrideRetry.unitCostCents === 5555);
+  ok(`    ...D's fan service is now genuinely resolved`, (await stateOf(dFanService)).materialCostResolved);
+
   console.log(`\n  cleanup, then done\n`);
   await teardown();
-  const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B, SLUG_C] } } });
-  ok(`12. every fixture is gone at the end`, residue === 0);
+  const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B, SLUG_C, SLUG_D] } } });
+  ok(`19. every fixture is gone at the end`, residue === 0);
   await raw.$disconnect();
   console.log(`\n  ${fail === 0 ? "all checks passed" : `${fail} check(s) failed`}\n`);
   if (fail > 0) process.exit(1);

@@ -290,7 +290,7 @@ export default async function SetupPage({
       if (roleKeys.length > 0) {
         const canonicalMaterials = await db.canonicalMaterial.findMany({
           where: { key: { in: roleKeys } },
-          select: { id: true, key: true, name: true },
+          select: { id: true, key: true, name: true, unit: true },
         });
         const byKey = new Map(canonicalMaterials.map((m) => [m.key, m]));
         const baselines = await latestBaselineVersionsFor(db, canonicalMaterials.map((m) => m.id));
@@ -303,6 +303,7 @@ export default async function SetupPage({
               canonicalMaterialId: cm.id,
               key: cm.key,
               name: cm.name,
+              unit: cm.unit,
               affectedServiceSlugs: f.affectedServiceSlugs ?? [],
               baseline: baseline ? { ...baseline, sourcedAt: baseline.sourcedAt.toISOString() } : null,
             };

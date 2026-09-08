@@ -16,6 +16,14 @@
  *                 PATCH /api/portal/material-baselines route
  *   override      "Enter your own cost instead" resolves a role with NO
  *                 baseline offered, at the exact figure typed
+ *   unit          the manual-entry label reads the real canonical purchasing
+ *                 unit ("per each", "per ft") even with no baseline to have
+ *                 offered one — never the ambiguous generic "per unit"
+ *   partial batch  a batch accept where ONE role's offered baseline evaporates
+ *                 between page load and the click still resolves every OTHER
+ *                 role normally, names the vanished one's failure for what
+ *                 it is (not "already resolved"), and leaves that one role
+ *                 visible rather than silently removing it
  *   skip          clicking "Skip for now" writes NOTHING — the role is back,
  *                 unresolved, offering the SAME baseline, after a real
  *                 full-page reload (not client state papering over it)
@@ -85,24 +93,27 @@ async function teardown() {
 
 /** Every canonical role this run touches, resolved once so both the fixture builder and the assertions agree on ids. */
 async function roles() {
-  const [wire, fan, gfci, smoke] = await Promise.all([
+  const [wire, fan, gfci, smoke, breaker] = await Promise.all([
     prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "WIRE_12_2" }, select: { id: true, name: true } }),
     prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "BATH_FAN_STANDARD" }, select: { id: true, name: true } }),
     prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "GFCI_WEATHER_RESISTANT" }, select: { id: true, name: true } }),
     prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "SMOKE_CO_COMBO" }, select: { id: true, name: true } }),
+    prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "BREAKER_SINGLE_POLE" }, select: { id: true, name: true } }),
   ]);
-  return { wire, fan, gfci, smoke };
+  return { wire, fan, gfci, smoke, breaker };
 }
 
 /**
  * Everything the browser test needs: a real verified account, an OWNER
- * membership on a throwaway contractor, and four services in four different
- * starting states — one to accept, one to override, one to skip, and one
- * ALREADY resolved before the browser ever loads the page, to prove the
- * other three never touch it.
+ * membership on a throwaway contractor, and five services in five different
+ * starting states — one to accept, one to override, one to skip, one whose
+ * OWN baseline offer evaporates between page load and the accept click (to
+ * prove a batch-accept problem stays visible rather than vanishing as
+ * "already resolved"), and one ALREADY resolved before the browser ever
+ * loads the page, to prove the other four never touch it.
  */
 async function buildFixture(userId: string) {
-  const { wire, fan, gfci, smoke } = await roles();
+  const { wire, fan, gfci, smoke, breaker } = await roles();
   const cat = await prisma.serviceCategory.findFirstOrThrow({ select: { id: true } });
   const contractor = await prisma.contractor.create({
     // active: true — the CONTRACTOR must be active for its OWNER to reach
@@ -119,7 +130,7 @@ async function buildFixture(userId: string) {
     data: { userId, contractorId: contractor.id, role: "OWNER", active: true },
   });
 
-  for (const [slug, roleId] of [["bf-wire-service", wire.id], ["bf-fan-service", fan.id], ["bf-gfci-service", gfci.id], ["bf-smoke-service", smoke.id]] as const) {
+  for (const [slug, roleId] of [["bf-wire-service", wire.id], ["bf-fan-service", fan.id], ["bf-gfci-service", gfci.id], ["bf-breaker-service", breaker.id], ["bf-smoke-service", smoke.id]] as const) {
     const svc = await prisma.service.create({
       data: {
         contractorId: contractor.id, categoryId: cat.id, slug, name: slug,
@@ -156,6 +167,7 @@ async function main() {
   console.log(`  ${BASE}  ·  ${EMAIL}  ·  sink ${SINK}\n`);
 
   const browser = await chromium.launch();
+  let tempBreakerBaselineId: string | null = null;
   try {
     await teardown();
 
@@ -175,39 +187,77 @@ async function main() {
     const user = await prisma.user.findFirstOrThrow({ where: { email: EMAIL }, select: { id: true, emailVerified: true } });
     ok(`   the account is real and verified, not asserted`, user.emailVerified === true);
 
-    // ── the fixture: attach OWNER membership + four services in four states ─
+    // ── the fixture: attach OWNER membership + five services in five states ─
     const { contractorId, preResolvedContractorMaterialId } = await buildFixture(user.id);
     const preResolvedBefore = await prisma.contractorMaterial.findUniqueOrThrow({
       where: { id: preResolvedContractorMaterialId }, select: { unitCostCents: true, costSource: true, updatedAt: true },
     });
 
+    // A throwaway, NEWER baseline for BREAKER_SINGLE_POLE — offered to the
+    // panel in place of the real seeded one (latestBaselineVersionsFor picks
+    // the most recently sourced row), then deleted out from under the batch
+    // between page load and the accept click. Never touches the real seeded
+    // baseline — only this run's own extra row.
+    const breakerId = (await roles()).breaker.id;
+    const tempBreakerBaseline = await prisma.materialBaselineVersion.create({
+      data: {
+        canonicalMaterialId: breakerId, unitCostCents: 999, unit: "each",
+        sourceLabel: "verifier — throwaway, deleted before use", specNote: "test fixture only",
+        sourcedAt: new Date(),
+      },
+    });
+    tempBreakerBaselineId = tempBreakerBaseline.id;
+
     // ── 1. the panel, loaded as this real, signed-in OWNER ──────────────────
     await page.goto(`${BASE}/dashboard/setup?stage=pricing-foundation`);
     await page.waitForSelector("text=Starting costs for your materials");
     const rowsText = await page.innerText("body");
-    ok(`1. the three unresolved roles are all shown`,
-      !!rowsText?.includes("12/2 NM-B") && !!rowsText?.includes("Bathroom exhaust fan") && !!rowsText?.includes("Weather-resistant GFCI"));
+    ok(`1. the four unresolved roles are all shown`,
+      !!rowsText?.includes("12/2 NM-B") && !!rowsText?.includes("Bathroom exhaust fan") &&
+      !!rowsText?.includes("Weather-resistant GFCI") && !!rowsText?.includes("Single-pole breaker"));
     ok(`   the ALREADY-resolved role is not shown at all — nothing to review`,
       !rowsText?.includes("Smoke/CO combination detector"));
 
-    // ── 2. accept — WIRE_12_2 only. Uncheck GFCI first: both offer a
-    // baseline and both default to checked, and this test needs them to
-    // take DIFFERENT paths (accept vs. skip). ────────────────────────────
+    // ── 2. accept — WIRE_12_2 and the breaker both checked by default (both
+    // offer a baseline). GFCI is unchecked so it takes the SKIP path
+    // instead. Right before the click, the breaker's OWN offered baseline
+    // evaporates — proving a batch-accept problem for ONE row never hides
+    // behind, or gets mislabeled as, another row's genuine success. ────────
     await page.locator('input[aria-label*="Weather-resistant GFCI"]').uncheck();
+    await prisma.materialBaselineVersion.delete({ where: { id: tempBreakerBaseline.id } });
     const acceptButton = page.getByRole("button", { name: /Accept \d+ selected/ });
     await acceptButton.click();
-    await page.waitForSelector("text=Accepted 1 starting cost");
-    ok(`2. accepting writes a real cost — the note names exactly one accepted`, true);
+    await page.waitForSelector("text=reference cost no longer exists");
+    const afterAcceptBody = await page.innerText("body");
+    ok(`2. accepting writes a real cost for the role that still had one`, afterAcceptBody.includes("Accepted 1 of 2"));
+    ok(`   the OTHER role's vanished reference is named for what it is, not folded into "already resolved"`,
+      afterAcceptBody.includes("reference cost no longer exists") && !afterAcceptBody.includes("already resolved by someone else"));
+    ok(`   the failed row STAYS VISIBLE — a batch-accept problem is not silently discarded`,
+      afterAcceptBody.includes("Single-pole breaker"));
 
     // ── 3. override — BATH_FAN_STANDARD, which has no baseline at all ──────
-    await page.locator('button:has-text("Enter your own cost instead")').first().click();
+    // Scoped to FAN's OWN row, not `.first()` — the breaker's row is still
+    // visible after its failed accept above, and both rows show this same
+    // button, so position alone is no longer reliable.
+    const fanRow = page.locator("div.rounded-card.p-4").filter({ hasText: "Bathroom exhaust fan" });
+    await fanRow.getByRole("button", { name: "Enter your own cost instead" }).click();
+    // The CANONICAL unit ("each"), shown even though this role has no
+    // baseline offering one — never the old generic "per unit" fallback,
+    // which is genuinely ambiguous for a measured material like wire.
+    const overrideSectionText = await page.innerText("body");
+    ok(`3. the manual-entry unit is the real canonical unit, not the ambiguous "per unit" fallback`,
+      overrideSectionText.includes("per each") && !overrideSectionText.includes("per unit"));
     await page.locator('input[aria-label*="Bathroom exhaust fan"]').fill("42.00");
-    await page.locator('button:has-text("Save this cost instead")').click();
+    await fanRow.getByRole("button", { name: "Save this cost instead" }).click();
     await page.waitForSelector("text=Saved your own cost");
-    ok(`3. overriding a no-baseline role writes the typed figure`, true);
+    ok(`   overriding a no-baseline role writes the typed figure`, true);
 
     // ── 4. skip — GFCI, left unchecked above, never touched otherwise ──────
-    await page.locator('button:has-text("Skip for now")').first().click();
+    // Scoped to GFCI's OWN row for the same reason as FAN's above — the
+    // breaker's row, still visible after its failed accept, has its own
+    // "Skip for now" button too.
+    const gfciRow = page.locator("div.rounded-card.p-4").filter({ hasText: "Weather-resistant GFCI" });
+    await gfciRow.getByRole("button", { name: "Skip for now" }).click();
     // Playwright's own auto-waiting, not a manual race against React's
     // render — the assertion is that this element BECOMES hidden, not that
     // it already is by the time the click handler returns.
@@ -248,6 +298,10 @@ async function main() {
       where: { contractorId_canonicalMaterialId: { contractorId, canonicalMaterialId: gfciId } },
     });
     ok(`   GFCI_WEATHER_RESISTANT genuinely has NO ContractorMaterial row — skip wrote nothing at all`, gfciMaterial === null);
+    const breakerMaterial = await prisma.contractorMaterial.findUnique({
+      where: { contractorId_canonicalMaterialId: { contractorId, canonicalMaterialId: breakerId } },
+    });
+    ok(`   BREAKER_SINGLE_POLE genuinely has NO ContractorMaterial row either — its failed accept wrote nothing`, breakerMaterial === null);
 
     // ── 7. preservation — the pre-existing cost, through all of the above ───
     const preResolvedAfter = await prisma.contractorMaterial.findUniqueOrThrow({
@@ -264,6 +318,11 @@ async function main() {
     fail++;
   } finally {
     await browser.close().catch(() => {});
+    // Safety net only — the real assertion deletes this mid-run. Catches the
+    // case where an earlier step threw before that delete ever ran.
+    if (tempBreakerBaselineId) {
+      await prisma.materialBaselineVersion.delete({ where: { id: tempBreakerBaselineId } }).catch(() => {});
+    }
     await teardown();
     const residue = await prisma.contractor.count({ where: { slug: SLUG } });
     ok(`8. every fixture is gone at the end`, residue === 0);

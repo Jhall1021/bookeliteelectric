@@ -24,6 +24,10 @@ export type BaselineRow = {
   canonicalMaterialId: string;
   key: string;
   name: string;
+  /** CanonicalMaterial.unit — the purchasing unit ServiceMaterial.quantity
+   *  counts, always known, whether or not a baseline is offered. A manual
+   *  entry is priced per THIS unit, never per the baseline's own basis. */
+  unit: string;
   affectedServiceSlugs: string[];
   baseline: {
     id: string;
@@ -63,14 +67,36 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "accept", baselineVersionIds: rowsToAccept.map((r) => r.baseline!.id) }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not accept the selected baselines.");
-      remove(rowsToAccept.map((r) => r.canonicalMaterialId));
-      setNote(
-        data.accepted === rowsToAccept.length
-          ? `Accepted ${data.accepted} starting cost${data.accepted === 1 ? "" : "s"}.`
-          : `Accepted ${data.accepted} of ${rowsToAccept.length} — the rest were already resolved by the time this reached the database. Refresh to see their current cost.`
-      );
+      const data = await res.json() as { accepted: number; problems: { baselineVersionId: string; code: string }[] };
+      if (!res.ok) throw new Error((data as unknown as { error?: string }).error ?? "Could not accept the selected baselines.");
+
+      // Each row is keyed here by ITS OWN baselineVersionId, not by position
+      // — a problem only removes the row it actually names. Everything else
+      // submitted, including every problem row, stays visible: a role this
+      // reached but did not resolve is not the same as a role it resolved,
+      // and showing it as gone would hide the one thing the contractor still
+      // needs to act on.
+      const problemByVersionId = new Map(data.problems.map((p) => [p.baselineVersionId, p.code]));
+      const resolvedRows = rowsToAccept.filter((r) => !problemByVersionId.has(r.baseline!.id));
+      remove(resolvedRows.map((r) => r.canonicalMaterialId));
+
+      if (problemByVersionId.size === 0) {
+        setNote(`Accepted ${data.accepted} starting cost${data.accepted === 1 ? "" : "s"}.`);
+      } else {
+        const codes = [...problemByVersionId.values()];
+        const alreadyResolved = codes.filter((c) => c === "ALREADY_RESOLVED").length;
+        const notFound = codes.filter((c) => c === "BASELINE_NOT_FOUND").length;
+        const parts: string[] = [];
+        if (alreadyResolved) {
+          parts.push(`${alreadyResolved} already resolved by someone else before this reached the database — refresh to see the current cost`);
+        }
+        if (notFound) {
+          parts.push(`${notFound} reference cost no longer exists — enter your own below`);
+        }
+        setNote(
+          `Accepted ${data.accepted} of ${rowsToAccept.length}. ${parts.join("; ")}. Still shown below for you to act on.`
+        );
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally { setBusy(false); }
@@ -166,7 +192,7 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
                     )}
                   </p>
                 ) : (
-                  <p className="mt-3 text-sm text-slate">No reference cost is offered for this role yet — enter your own.</p>
+                  <p className="mt-3 text-sm text-slate">No reference cost is offered for this role yet — enter your own, per {r.unit}.</p>
                 )}
 
                 <div className="mt-3">
@@ -177,8 +203,13 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
                              value={overrideDraft[r.canonicalMaterialId] ?? ""}
                              onChange={(e) => setOverrideDraft((d) => ({ ...d, [r.canonicalMaterialId]: e.target.value }))}
                              className="w-24 rounded border border-cardline px-2 py-1 text-sm"
-                             aria-label={`Your cost per ${r.baseline?.unit ?? "unit"} for ${r.name}`} />
-                      <span className="text-sm text-slate">per {r.baseline?.unit ?? "unit"}</span>
+                             aria-label={`Your cost per ${r.unit} for ${r.name}`} />
+                      {/* Always the CANONICAL unit, never the baseline's own
+                          package basis — a manual entry is priced per what
+                          ServiceMaterial.quantity counts, and "per unit" is
+                          ambiguous for wire and anything else sold by length
+                          or bulk. */}
+                      <span className="text-sm text-slate">per {r.unit}</span>
                       <button type="button" disabled={busy} onClick={() => submitOverride(r)}
                               className="rounded-pill border border-cardline px-3 py-1 text-sm font-semibold text-navy">
                         Save this cost instead

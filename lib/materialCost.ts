@@ -531,6 +531,16 @@ export async function setContractorMaterialCost(
   }
 
   const changed = cm.unitCostCents !== derived.unitCostCents;
+  // This is THE ORDINARY EDIT PATH — an admin typing a number is always this
+  // contractor's own figure from this point on, whether it arrived as a
+  // fresh CUSTOM entry or as a correction to a previously-accepted BASELINE
+  // row. ContractorMaterial.acceptedBaselineVersionId's own doc comment
+  // already promises this transition ("an override to CUSTOM clears it");
+  // this is that promise, kept. Tracked separately from `changed` because a
+  // contractor can "correct" a baseline-sourced cost to the SAME number —
+  // the figure didn't move, but the row is no longer the baseline's value,
+  // and that provenance change is real even with a zero-cent delta.
+  const sourceChanged = cm.costSource !== "CUSTOM";
 
   // Update, recompute cascade and event: one transaction. If any step
   // throws, Prisma rolls back everything the callback did — the cost update
@@ -544,6 +554,10 @@ export async function setContractorMaterialCost(
         unitCostMilliCents: derived.unitCostMilliCents,
         ...packageFields,
         ...(input.confidence ? { costConfidence: input.confidence } : {}),
+        // Always CUSTOM with no baseline pointer after this route touches
+        // the row — see sourceChanged's comment above.
+        costSource: "CUSTOM",
+        acceptedBaselineVersionId: null,
         costStatus: "OK",
         costStatusNote: null,
         costUpdatedAt: new Date(),
@@ -561,7 +575,10 @@ export async function setContractorMaterialCost(
         })
       : [];
 
-    if (changed) {
+    // Written on a cost change OR a source transition — a BASELINE row
+    // becoming CUSTOM at the identical figure is still a real provenance
+    // event, not a no-op, even though nothing recomputes for it.
+    if (changed || sourceChanged) {
       await tx.materialCostEvent.create({
         data: {
           contractorMaterialId: cm.id,
@@ -575,7 +592,10 @@ export async function setContractorMaterialCost(
           newUnitCostCents: derived.unitCostCents,
           oldUnitCostMilliCents: cm.unitCostMilliCents,
           newUnitCostMilliCents: derived.unitCostMilliCents,
-          source: cm.costSource,
+          // The RESULTING source, not the row's old one — this path always
+          // lands as CUSTOM, so an event on a BASELINE->CUSTOM transition
+          // must say CUSTOM, not repeat the source it just left.
+          source: "CUSTOM",
           reason: provenance.reason,
           actor: provenance.actor ?? null,
           syncRunId: provenance.syncRunId ?? null,
@@ -674,62 +694,100 @@ type ResolvedCreateFields = {
  * (contractorId, canonicalMaterialId) is what makes that atomic — two
  * concurrent callers resolving the SAME role settle to exactly one winner,
  * the same way ContractorInvitation's atomic consume does.
+ *
+ * ATOMIC, for the same reason setContractorMaterialCost is. This used to run
+ * the create, the recompute cascade and the event write as three independent
+ * statements. Not hypothetical: a fault between the create and the event
+ * write left a resolved ContractorMaterial row with no MaterialCostEvent —
+ * indistinguishable from a legitimate resolution once looked at later, and a
+ * retry would hit the unique constraint and report ALREADY_RESOLVED for a
+ * role whose "resolution" never actually finished being recorded. A fault
+ * between the recompute and the event write is worse: services would carry
+ * moved totals with no audit trail explaining why. One `$transaction` closes
+ * both gaps the same way. Requires a top-level `PrismaClient` for the same
+ * reason setContractorMaterialCost does — nested `$transaction` isn't
+ * something Prisma supports, and both real callers below already pass a
+ * guarded top-level client.
+ *
+ * Concurrent first-resolution behavior is UNCHANGED: the unique-constraint
+ * catch still wraps only the `create` call, now running as the transaction's
+ * first statement instead of standing alone — two racing callers still
+ * settle to exactly one winner, and the loser still gets ALREADY_RESOLVED
+ * rather than an error, because its `create` still fails exactly the way it
+ * always did.
  */
 async function createResolvedContractorMaterial(
-  db: Db,
+  db: PrismaClient,
   fields: ResolvedCreateFields,
   provenance: CostProvenance,
-  baselineVersionId: string | null
-): Promise<ResolveUnresolvedRoleResult> {
-  let cm: { id: string };
-  try {
-    cm = await db.contractorMaterial.create({
-      data: {
-        contractorId: fields.contractorId,
-        canonicalMaterialId: fields.canonicalMaterialId,
-        unitCostCents: fields.unitCostCents,
-        unitCostMilliCents: fields.unitCostMilliCents,
-        packagePriceCents: fields.packagePriceCents,
-        packageQuantity: fields.packageQuantity,
-        packageUnit: fields.packageUnit,
-        costSource: fields.costSource,
-        costConfidence: fields.costConfidence,
-        costStatus: "OK",
-        costUpdatedAt: new Date(),
-        acceptedBaselineVersionId: fields.acceptedBaselineVersionId,
-      },
-      select: { id: true },
-    });
-  } catch (e) {
-    if (isUniqueConstraintViolation(e)) return { ok: false, code: "ALREADY_RESOLVED" };
-    throw e;
+  baselineVersionId: string | null,
+  /**
+   * TEST SEAM ONLY. Two points, matching the two gaps this closes: a fault
+   * injected right after the create (before anything else has run) and one
+   * injected right after the recompute cascade (before the event write) —
+   * proving each of the two previously-separate boundaries now rolls back
+   * together with everything before it. No production caller passes this.
+   */
+  injectFault?: {
+    afterCreate?: (tx: Prisma.TransactionClient) => Promise<void>;
+    afterRecompute?: (tx: Prisma.TransactionClient) => Promise<void>;
   }
+): Promise<ResolveUnresolvedRoleResult> {
+  return db.$transaction(async (tx) => {
+    let cm: { id: string };
+    try {
+      cm = await tx.contractorMaterial.create({
+        data: {
+          contractorId: fields.contractorId,
+          canonicalMaterialId: fields.canonicalMaterialId,
+          unitCostCents: fields.unitCostCents,
+          unitCostMilliCents: fields.unitCostMilliCents,
+          packagePriceCents: fields.packagePriceCents,
+          packageQuantity: fields.packageQuantity,
+          packageUnit: fields.packageUnit,
+          costSource: fields.costSource,
+          costConfidence: fields.costConfidence,
+          costStatus: "OK",
+          costUpdatedAt: new Date(),
+          acceptedBaselineVersionId: fields.acceptedBaselineVersionId,
+        },
+        select: { id: true },
+      });
+    } catch (e) {
+      if (isUniqueConstraintViolation(e)) return { ok: false, code: "ALREADY_RESOLVED" };
+      throw e;
+    }
 
-  // Only this contractor's services — same scoping setContractorMaterialCost
-  // uses, for the same reason.
-  const affected = await recomputeServicesUsingRole({
-    db, canonicalMaterialId: fields.canonicalMaterialId, contractorId: fields.contractorId,
+    if (injectFault?.afterCreate) await injectFault.afterCreate(tx);
+
+    // Only this contractor's services — same scoping setContractorMaterialCost
+    // uses, for the same reason.
+    const affected = await recomputeServicesUsingRole({
+      db: tx, canonicalMaterialId: fields.canonicalMaterialId, contractorId: fields.contractorId,
+    });
+
+    if (injectFault?.afterRecompute) await injectFault.afterRecompute(tx);
+
+    // ALWAYS written, unlike setContractorMaterialCost's guarded `if (changed)`
+    // — a brand-new role resolving from nothing IS the change; there is no
+    // "before" value an unchanged write could be measured against.
+    await tx.materialCostEvent.create({
+      data: {
+        contractorMaterialId: cm.id,
+        contractorId: fields.contractorId,
+        newUnitCostCents: fields.unitCostCents,
+        newUnitCostMilliCents: fields.unitCostMilliCents,
+        source: fields.costSource,
+        baselineVersionId,
+        reason: provenance.reason,
+        actor: provenance.actor ?? null,
+        syncRunId: provenance.syncRunId ?? null,
+        affectedServiceIds: affected.filter((a) => a.changed).map((a) => a.serviceId),
+      },
+    });
+
+    return { ok: true, contractorMaterialId: cm.id, unitCostCents: fields.unitCostCents, affected };
   });
-
-  // ALWAYS written, unlike setContractorMaterialCost's guarded `if (changed)`
-  // — a brand-new role resolving from nothing IS the change; there is no
-  // "before" value an unchanged write could be measured against.
-  await db.materialCostEvent.create({
-    data: {
-      contractorMaterialId: cm.id,
-      contractorId: fields.contractorId,
-      newUnitCostCents: fields.unitCostCents,
-      newUnitCostMilliCents: fields.unitCostMilliCents,
-      source: fields.costSource,
-      baselineVersionId,
-      reason: provenance.reason,
-      actor: provenance.actor ?? null,
-      syncRunId: provenance.syncRunId ?? null,
-      affectedServiceIds: affected.filter((a) => a.changed).map((a) => a.serviceId),
-    },
-  });
-
-  return { ok: true, contractorMaterialId: cm.id, unitCostCents: fields.unitCostCents, affected };
 }
 
 export type AcceptBaselineResult = ResolveUnresolvedRoleResult | { ok: false; code: "BASELINE_NOT_FOUND" };
@@ -748,9 +806,14 @@ export type AcceptBaselineResult = ResolveUnresolvedRoleResult | { ok: false; co
  * a confirmed number.
  */
 export async function acceptMaterialBaselineVersion(
-  db: Db,
+  db: PrismaClient,
   params: { contractorId: string; baselineVersionId: string },
-  provenance: CostProvenance
+  provenance: CostProvenance,
+  /** TEST SEAM ONLY. See createResolvedContractorMaterial. */
+  injectFault?: {
+    afterCreate?: (tx: Prisma.TransactionClient) => Promise<void>;
+    afterRecompute?: (tx: Prisma.TransactionClient) => Promise<void>;
+  }
 ): Promise<AcceptBaselineResult> {
   const version = await db.materialBaselineVersion.findUnique({
     where: { id: params.baselineVersionId },
@@ -776,7 +839,8 @@ export async function acceptMaterialBaselineVersion(
       acceptedBaselineVersionId: version.id,
     },
     provenance,
-    version.id
+    version.id,
+    injectFault
   );
 }
 
@@ -799,9 +863,14 @@ export type OverrideUnresolvedMaterialCostInput = {
  * an accept leaves and the history an override leaves are the same shape.
  */
 export async function overrideUnresolvedMaterialCost(
-  db: Db,
+  db: PrismaClient,
   input: OverrideUnresolvedMaterialCostInput,
-  provenance: CostProvenance
+  provenance: CostProvenance,
+  /** TEST SEAM ONLY. See createResolvedContractorMaterial. */
+  injectFault?: {
+    afterCreate?: (tx: Prisma.TransactionClient) => Promise<void>;
+    afterRecompute?: (tx: Prisma.TransactionClient) => Promise<void>;
+  }
 ): Promise<ResolveUnresolvedRoleResult> {
   let derived: DerivedUnitCost;
   let packageFields: {
@@ -848,7 +917,8 @@ export async function overrideUnresolvedMaterialCost(
       acceptedBaselineVersionId: null,
     },
     provenance,
-    null
+    null,
+    injectFault
   );
 }
 
