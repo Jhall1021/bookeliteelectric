@@ -107,8 +107,15 @@ export const HVAC_FAMILIES: readonly HvacFamily[] = [
   {
     key: "existing_control",
     title: "The existing thermostat or control",
-    purpose: "The highest-volume family in the catalog. control_present, conductor_count and common_wire are read off one photograph of the sub-base.",
-    establishes: ["control_present", "conductor_count", "common_wire", "thermostat_count"],
+    purpose: "The highest-volume family in the catalog. control_present, terminal_scheme, conductor_count and common_wire are read off one photograph of the sub-base.",
+    // H4: terminal_scheme added — what's printed on the plate (standard
+    // lettered vs. manufacturer-specific), the safety check for a
+    // proprietary or communicating control, asked before common_wire since
+    // "is there a C wire" presumes a lettered scheme in the first place.
+    // conductor_count stays declared: a real, valid observable fact for a
+    // future compatibility refinement, but the V1 tree does not render it
+    // as a live question — see lib/hvac/scope.ts's thermostat resolver.
+    establishes: ["control_present", "terminal_scheme", "conductor_count", "common_wire", "thermostat_count"],
     gates: ["control_gate"],
     primitives: [],
   },

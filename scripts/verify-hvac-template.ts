@@ -33,7 +33,14 @@ import { HVAC_SERVICE_CALL_SHELL, hvacServiceCallIsSchedulable } from "../lib/hv
 import { HVAC_INTENTS, allHvacIntentPhrases } from "../lib/hvac/intents";
 import { HVAC_TEMPLATE_TRADE } from "../lib/hvac";
 import { HVAC_PRIMITIVE_KEYS, HVAC_PRIMITIVES, type HvacPrimitiveKey } from "../lib/hvac/primitives";
-import { HVAC_GATE_KEYS, capacityGate, conditionGate, type EquipmentCondition } from "../lib/hvac/gates";
+import {
+  HVAC_GATE_KEYS,
+  capacityGate,
+  conditionGate,
+  controlGate,
+  type EquipmentCondition,
+  type OutdoorLocation,
+} from "../lib/hvac/gates";
 import {
   HVAC_FAMILIES,
   HVAC_FAMILY_KEYS,
@@ -42,12 +49,37 @@ import {
   type HvacFamilyKey,
 } from "../lib/hvac/families";
 import { EXISTING_CONDITION_SCOPE, EVIDENCE_ONLY_FACTS, REPORTED_SYMPTOMS } from "../lib/hvac/mappings";
-import { maintenanceScopeLocations, maintenanceScopeMatchesDeclaredLocations } from "../lib/hvac/metadata";
+import {
+  maintenanceScopeLocations,
+  maintenanceScopeMatchesDeclaredLocations,
+  HVAC_MAINTENANCE_SCOPE,
+} from "../lib/hvac/metadata";
 import type { AccessSlot } from "../lib/accessSlots";
 import {
   resolveCondensatePumpInstallation,
   CONDENSATE_PUMP_QUESTIONS,
   type CondensatePumpInstallationFacts,
+  resolveThermostatInstallation,
+  THERMOSTAT_QUESTIONS,
+  type ThermostatInstallationFacts,
+  resolveCondensateSafetySwitchInstallation,
+  CONDENSATE_SAFETY_SWITCH_QUESTIONS,
+  type CondensateSafetySwitchFacts,
+  resolveAirFilterReplacement,
+  AIR_FILTER_REPLACEMENT_QUESTIONS,
+  type AirFilterReplacementFacts,
+  resolveAcTuneUp,
+  AC_TUNE_UP_QUESTIONS,
+  type AcTuneUpFacts,
+  resolveFurnaceTuneUp,
+  FURNACE_TUNE_UP_QUESTIONS,
+  type FurnaceTuneUpFacts,
+  resolveHeatPumpTuneUp,
+  HEAT_PUMP_TUNE_UP_QUESTIONS,
+  type HeatPumpTuneUpFacts,
+  resolveMiniSplitTuneUp,
+  MINI_SPLIT_TUNE_UP_QUESTIONS,
+  type MiniSplitTuneUpFacts,
 } from "../lib/hvac/scope";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -55,6 +87,41 @@ function strip(path: string): string {
   return readFileSync(join(ROOT, path), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
+}
+
+/**
+ * Slice `src` from `startMarker` to `endMarker` (or to the end of `src` if
+ * `endMarker` is omitted). MECHANICAL — exact substring search, nothing
+ * more; this is not a parser and never will be.
+ *
+ * THROWS if either marker cannot be found, instead of silently slicing
+ * from a `-1` index. That silent failure is a real defect this function
+ * exists to close: an earlier group sliced on a comment-only marker after
+ * `strip()` had already deleted every `//` line, so `indexOf` returned
+ * -1, `slice(-1)` produced a near-empty string, and the negative
+ * assertion built on it passed vacuously — proving nothing while reading
+ * as a real check.
+ *
+ * EVERY MARKER PASSED HERE MUST BE A REAL CODE TOKEN — an exported type,
+ * function, const, or another string that appears in actual source, never
+ * prose lifted from a comment. `strip()` has already removed every
+ * comment by the time this function sees the text, so a comment-only
+ * marker will always throw, which is exactly the point: a broken boundary
+ * now fails the build instead of passing silently.
+ */
+function section(src: string, startMarker: string, endMarker?: string): string {
+  const start = src.indexOf(startMarker);
+  if (start === -1) {
+    throw new Error(`verify-hvac-template: source boundary start marker not found: ${JSON.stringify(startMarker)}`);
+  }
+  if (endMarker === undefined) return src.slice(start);
+  const end = src.indexOf(endMarker, start + startMarker.length);
+  if (end === -1) {
+    throw new Error(
+      `verify-hvac-template: source boundary end marker not found: ${JSON.stringify(endMarker)} (searched after ${JSON.stringify(startMarker)})`
+    );
+  }
+  return src.slice(start, end);
 }
 
 let failures = 0;
@@ -821,10 +888,983 @@ group("40. the tree's questions match H2's own family declaration for this servi
   ok("access slot is PRIMARY, per the settled decision", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["condensate-pump-installation"]) === JSON.stringify(["PRIMARY"]));
 }
 
-group("41. no second HVAC service tree exists yet");
+group("41. exactly EIGHT HVAC service trees exist — H3-H5's own check, superseded again on purpose");
 {
-  ok("lib/hvac/scope.ts exports exactly one resolve function", (strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? []).length === 1);
-  ok("no other HVAC service has a resolve function anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
+  // H3's version read "exactly one"; H4's "exactly two"; H5's "exactly
+  // four". Each was true when written, and each is superseded on the same
+  // terms: the four tune-ups are exactly the FOUR additional executable
+  // services H6 exists to add. This group now proves the CURRENT boundary
+  // — eight, not seven, not nine — the same discipline every prior phase
+  // applied to its own predecessor's version of this check.
+  const resolveFns = strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? [];
+  ok("lib/hvac/scope.ts exports exactly eight resolve functions", resolveFns.length === 8, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
+  ok("resolveCondensatePumpInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensatePumpInstallation")));
+  ok("resolveThermostatInstallation is one of them", resolveFns.some((f) => f.includes("resolveThermostatInstallation")));
+  ok("resolveCondensateSafetySwitchInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensateSafetySwitchInstallation")));
+  ok("resolveAirFilterReplacement is one of them", resolveFns.some((f) => f.includes("resolveAirFilterReplacement")));
+  ok("resolveAcTuneUp is one of them", resolveFns.some((f) => f.includes("resolveAcTuneUp")));
+  ok("resolveFurnaceTuneUp is one of them", resolveFns.some((f) => f.includes("resolveFurnaceTuneUp")));
+  ok("resolveHeatPumpTuneUp is one of them", resolveFns.some((f) => f.includes("resolveHeatPumpTuneUp")));
+  ok("resolveMiniSplitTuneUp is the eighth", resolveFns.some((f) => f.includes("resolveMiniSplitTuneUp")));
+  ok(
+    "no resolveCondenserPadReplacement exists — deferred, per the H5 pad audit decision, still deferred",
+    !resolveFns.some((f) => f.includes("resolveCondenserPadReplacement"))
+  );
+  ok("no ninth HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H4 — the second executable tree: thermostat-installation
+// ═══════════════════════════════════════════════════════════════════════
+
+const THERMOSTAT_REPLACEMENT_FACTS: ThermostatInstallationFacts = {
+  systemType: "FURNACE_AND_AC",
+  controlPresent: "PRESENT_WORKING",
+  terminalScheme: "STANDARD_LETTERED",
+  commonWire: "PRESENT",
+  supplyArrangement: "CUSTOMER_SUPPLIED",
+  runBand: "STANDARD",
+};
+
+const THERMOSTAT_NEW_LOCATION_FACTS: ThermostatInstallationFacts = {
+  systemType: "FURNACE_AND_AC",
+  controlPresent: "ABSENT",
+  terminalScheme: "UNKNOWN",
+  commonWire: "UNKNOWN",
+  supplyArrangement: "CUSTOMER_SUPPLIED",
+  runBand: "STANDARD",
+};
+
+group("42. H3's condensate behavior is byte-for-byte unchanged by the H4 restructure");
+{
+  // Re-runs H3's own group-32/33/35/36 assertions verbatim against the
+  // POST-restructure scope.ts — proving the shared-code extraction
+  // (HvacRefusal, refuse(), SupplyArrangementChoice) changed nothing
+  // observable about the condensate resolver's behavior.
+  const BASE: CondensatePumpInstallationFacts = {
+    accessClass: "ACCESSIBLE",
+    condensateRoute: "PUMP_PRESENT",
+    supplyArrangement: "CUSTOMER_SUPPLIED",
+    dedicatedCircuitPresent: "PRESENT",
+    runBand: "STANDARD",
+  };
+  const replacement = resolveCondensatePumpInstallation(BASE);
+  ok(
+    "condensate replacement still resolves to RESOLVE_ADJUSTED/REPLACEMENT",
+    replacement.status === "RESOLVED" && replacement.routeAction === "RESOLVE_ADJUSTED" && replacement.branch === "REPLACEMENT"
+  );
+  const newInstall = resolveCondensatePumpInstallation({ ...BASE, condensateRoute: "NONE_VISIBLE" });
+  ok(
+    "condensate new-installation still resolves to RESOLVE_ADJUSTED/NEW_INSTALLATION",
+    newInstall.status === "RESOLVED" && newInstall.routeAction === "RESOLVE_ADJUSTED" && newInstall.branch === "NEW_INSTALLATION"
+  );
+  const accessUnknown = resolveCondensatePumpInstallation({ ...BASE, accessClass: "UNKNOWN" });
+  ok("condensate unresolved access still fails to PHOTO_REVIEW", accessUnknown.status === "REFUSED" && accessUnknown.routeAction === "PHOTO_REVIEW");
+  const powerAbsent = resolveCondensatePumpInstallation({ ...BASE, condensateRoute: "NONE_VISIBLE", dedicatedCircuitPresent: "ABSENT" });
+  ok("condensate dedicated_circuit_present=ABSENT still REMOTE_QUOTEs", powerAbsent.status === "REFUSED" && powerAbsent.routeAction === "REMOTE_QUOTE");
+  ok("CONDENSATE_PUMP_QUESTIONS still has its original question count", CONDENSATE_PUMP_QUESTIONS.length > 0);
+}
+
+group("43. thermostat-installation is the second, and only the second, executable service");
+{
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["thermostat-installation"].map((u) => u.family);
+  ok("thermostat-installation is declared in H2's family map", declaredFamilies.length > 0);
+  ok("thermostat-installation's access slot is PRIMARY, per H2's own declaration", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["thermostat-installation"]) === JSON.stringify(["PRIMARY"]));
+  const replacement = resolveThermostatInstallation(THERMOSTAT_REPLACEMENT_FACTS);
+  ok(
+    "a fully-resolved replacement path RESOLVES to RESOLVE_ADJUSTED/REPLACEMENT",
+    replacement.status === "RESOLVED" && replacement.routeAction === "RESOLVE_ADJUSTED" && replacement.branch === "REPLACEMENT"
+  );
+  const newLocation = resolveThermostatInstallation(THERMOSTAT_NEW_LOCATION_FACTS);
+  ok(
+    "a fully-resolved new-location path RESOLVES to RESOLVE_ADJUSTED/NEW_LOCATION",
+    newLocation.status === "RESOLVED" && newLocation.routeAction === "RESOLVE_ADJUSTED" && newLocation.branch === "NEW_LOCATION"
+  );
+}
+
+group("44. exact supported/excluded system types — Q1");
+{
+  const excluded: readonly ThermostatInstallationFacts["systemType"][] = ["BOILER_HYDRONIC", "MINI_SPLIT_DUCTLESS"];
+  for (const systemType of excluded) {
+    const r = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, systemType });
+    ok(`${systemType} is excluded — refused before any control question`, r.status === "REFUSED" && r.outcome.factKey === "system_type", r.status === "REFUSED" ? r.outcome.factKey : "resolved");
+  }
+  const supported: readonly ThermostatInstallationFacts["systemType"][] = [
+    "FURNACE_AND_AC",
+    "HEAT_PUMP_SPLIT",
+    "DUAL_FUEL",
+    "PACKAGE_UNIT",
+    "AIR_HANDLER_ONLY",
+  ];
+  for (const systemType of supported) {
+    const r = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, systemType });
+    ok(`${systemType} is supported — resolves past identity`, r.status === "RESOLVED" || (r.status === "REFUSED" && r.outcome.factKey !== "system_type"));
+  }
+  const unknown = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, systemType: "UNKNOWN" });
+  ok("UNKNOWN system_type fails to PHOTO_REVIEW, not to a diagnosis", unknown.status === "REFUSED" && unknown.routeAction === "PHOTO_REVIEW");
+}
+
+group("45. control_present=ABSENT stays inside this one canonical service — the merge decision");
+{
+  const absent = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, controlPresent: "ABSENT" });
+  ok("ABSENT resolves within thermostat-installation itself (NEW_LOCATION branch)", absent.status === "RESOLVED" && absent.branch === "NEW_LOCATION");
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok('scope.ts never produces REROUTE_SERVICE — the presence/absence merge rule holds for both trees', !/REROUTE_SERVICE/.test(scopeSrc));
+}
+
+group("46. generic controlGate(PRESENT_NOT_RESPONDING) still produces ON_SITE_SERVICE by default");
+{
+  const generic = controlGate("PRESENT_NOT_RESPONDING", { requiresCommonWire: false, commonWirePresent: "PRESENT" });
+  ok(
+    "with no opt-in, PRESENT_NOT_RESPONDING is still an on-site symptom, unchanged from H2",
+    generic.action === "ON_SITE_SERVICE" && generic.factKey === "control_present"
+  );
+  const genericWithOptInFalse = controlGate("PRESENT_NOT_RESPONDING", {
+    presentNotRespondingIsKnownWork: false,
+    requiresCommonWire: false,
+    commonWirePresent: "PRESENT",
+  });
+  ok("explicitly passing false reproduces the same default behavior", genericWithOptInFalse.action === "ON_SITE_SERVICE");
+}
+
+group("47. the known-work branch accepts PRESENT_NOT_RESPONDING as supporting evidence, not a reroute trigger");
+{
+  const notResponding = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, controlPresent: "PRESENT_NOT_RESPONDING" });
+  ok(
+    "thermostat-installation's replacement branch RESOLVES on PRESENT_NOT_RESPONDING, never ON_SITE_SERVICE",
+    notResponding.status === "RESOLVED" && notResponding.branch === "REPLACEMENT"
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "the known-work opt-in is passed explicitly and only from resolveThermostatInstallation, not made the new default",
+    /presentNotRespondingIsKnownWork:\s*true/.test(scopeSrc)
+  );
+  const gatesSrc = strip("lib/hvac/gates.ts");
+  ok(
+    "controlGate's own PRESENT_NOT_RESPONDING branch is still gated behind the opt-in, not unconditional",
+    /present === "PRESENT_NOT_RESPONDING" && !opts\.presentNotRespondingIsKnownWork/.test(gatesSrc)
+  );
+}
+
+group("48. symptom-only phrasing cannot enter the thermostat tree");
+{
+  const treeSrc = strip("lib/hvac/scope.ts");
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}" (thermostat section included)`, !treeSrc.includes(symptom));
+  }
+  const optionValues = THERMOSTAT_QUESTIONS.flatMap((q) => q.options.map((o) => o.value));
+  ok(
+    "no thermostat answer option value is any of the closed reported_symptom vocabulary",
+    optionValues.every((v) => !(REPORTED_SYMPTOMS as readonly string[]).includes(v))
+  );
+  const symptomPhrases = ["not working", "no heat", "no cooling", "won't turn on", "blank screen"];
+  const allWording = THERMOSTAT_QUESTIONS.flatMap((q) => [q.prompt, ...q.options.map((o) => o.label)])
+    .join(" ")
+    .toLowerCase();
+  ok("no thermostat question prompt or answer label contains symptom phrasing", symptomPhrases.every((p) => !allWording.includes(p)));
+}
+
+group("49. terminal_scheme lives inside existing_control — no new family, no new gate, no new primitive");
+{
+  ok("HVAC_FAMILIES is still exactly 15 — no new family was added for terminal_scheme", HVAC_FAMILIES.length === 15);
+  ok("HVAC_GATE_KEYS is still exactly 7 — no new gate was added", HVAC_GATE_KEYS.length === 7);
+  ok("HVAC_PRIMITIVE_KEYS is still exactly 7 — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
+  const existingControl = HVAC_FAMILIES.find((f) => f.key === "existing_control")!;
+  ok(
+    "existing_control now establishes terminal_scheme, alongside its original four facts",
+    existingControl.establishes.includes("terminal_scheme") &&
+      existingControl.establishes.includes("control_present") &&
+      existingControl.establishes.includes("conductor_count") &&
+      existingControl.establishes.includes("common_wire") &&
+      existingControl.establishes.includes("thermostat_count")
+  );
+  ok("existing_control still routes only through control_gate", JSON.stringify(existingControl.gates) === JSON.stringify(["control_gate"]));
+}
+
+group("50. proprietary/communicating terminal labeling REMOTE_QUOTEs; unknown labeling PHOTO_REVIEWs");
+{
+  const proprietary = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, terminalScheme: "MANUFACTURER_SPECIFIC" });
+  ok(
+    "MANUFACTURER_SPECIFIC -> REMOTE_QUOTE, never priced as a standard swap",
+    proprietary.status === "REFUSED" && proprietary.routeAction === "REMOTE_QUOTE" && proprietary.outcome.factKey === "terminal_scheme"
+  );
+  const unknownScheme = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, terminalScheme: "UNKNOWN" });
+  ok(
+    "UNKNOWN terminal_scheme -> PHOTO_REVIEW, before common_wire is even asked",
+    unknownScheme.status === "REFUSED" && unknownScheme.routeAction === "PHOTO_REVIEW" && unknownScheme.outcome.factKey === "terminal_scheme"
+  );
+}
+
+group("51. common_wire present/absent/unknown behaviors, only reached after terminal_scheme clears");
+{
+  const present = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, commonWire: "PRESENT" });
+  ok("common_wire=PRESENT resolves", present.status === "RESOLVED");
+  const absent = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, commonWire: "ABSENT" });
+  ok(
+    "common_wire=ABSENT -> REMOTE_QUOTE, unconditionally — no automatic adapter",
+    absent.status === "REFUSED" && absent.routeAction === "REMOTE_QUOTE" && absent.outcome.factKey === "common_wire"
+  );
+  const unknown = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, commonWire: "UNKNOWN" });
+  ok(
+    "common_wire=UNKNOWN -> PHOTO_REVIEW",
+    unknown.status === "REFUSED" && unknown.routeAction === "PHOTO_REVIEW" && unknown.outcome.factKey === "common_wire"
+  );
+}
+
+group("52. no automatic C-wire adapter or component — conductor_count is declared but not read by the live resolver");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "ThermostatInstallationFacts has no conductorCount field — structurally unreadable by this resolver, not merely unused",
+    !/conductorCount/.test(scopeSrc)
+  );
+  ok(
+    "scope.ts's thermostat section never references a C-wire adapter or component_increment",
+    !/adapter|component_increment/i.test(section(scopeSrc, "export type ThermostatInstallationFacts", "export type CondensateSafetySwitchFacts"))
+  );
+  const existingControl = HVAC_FAMILIES.find((f) => f.key === "existing_control")!;
+  ok(
+    "conductor_count remains declared on existing_control for domain completeness, per the H4 decision",
+    existingControl.establishes.includes("conductor_count")
+  );
+  ok(
+    "but it is not one of the facts the live THERMOSTAT_QUESTIONS tree asks",
+    !THERMOSTAT_QUESTIONS.some((q) => q.establishes === "conductor_count")
+  );
+}
+
+group("53. new-location run band: STANDARD/EXTENDED resolve, OVER_BAND REMOTE_QUOTEs, UNKNOWN PHOTO_REVIEWs");
+{
+  const standard = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, runBand: "STANDARD" });
+  ok("STANDARD run resolves", standard.status === "RESOLVED" && standard.branch === "NEW_LOCATION");
+  const extended = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, runBand: "EXTENDED" });
+  ok(
+    "EXTENDED run also resolves — control_wire_run.breakpoints has TWO boundaries, a real three-band policy",
+    extended.status === "RESOLVED" && extended.branch === "NEW_LOCATION"
+  );
+  const overBand = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, runBand: "OVER_BAND" });
+  ok("OVER_BAND -> REMOTE_QUOTE", overBand.status === "REFUSED" && overBand.routeAction === "REMOTE_QUOTE" && overBand.outcome.factKey === "run_band");
+  const unknownBand = resolveThermostatInstallation({ ...THERMOSTAT_NEW_LOCATION_FACTS, runBand: "UNKNOWN" });
+  ok("UNKNOWN run -> PHOTO_REVIEW", unknownBand.status === "REFUSED" && unknownBand.routeAction === "PHOTO_REVIEW" && unknownBand.outcome.factKey === "run_band");
+  ok(
+    "THERMOSTAT_QUESTIONS' run_distance question offers all three real bands, unlike condensate's one-boundary policy",
+    THERMOSTAT_QUESTIONS.find((q) => q.key === "run_distance")!.options.some((o) => o.value === "EXTENDED")
+  );
+}
+
+group("54. finish_disruption_ack stays a disclaimer, never a route gate or a price switch");
+{
+  const familiesSrc = strip("lib/hvac/families.ts");
+  ok(
+    "finish_disruption_ack's own family declaration binds conditional_disclaimer, not a gate",
+    /finish_disruption_ack[\s\S]{0,400}gates:\s*\[\]/.test(familiesSrc)
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "resolveThermostatInstallation never branches on a finish-disruption fact",
+    !/finishDisruption|finish_disruption/.test(scopeSrc)
+  );
+}
+
+group("55. no diagnosis, repair, or component inference anywhere in the thermostat tree");
+{
+  const diagnosticLanguage =
+    /\b(blocked|clogged|failed|failing|broken|defective|refrigerant|low on|leaking from|leak in|worn|corroded internally|burnt out|malfunction)\b/i;
+  for (const q of THERMOSTAT_QUESTIONS) {
+    ok(`"${q.key}"'s prompt names no cause`, !diagnosticLanguage.test(q.prompt), q.prompt);
+    for (const o of q.options) {
+      ok(`"${q.key}" option "${o.value}" names no cause`, !diagnosticLanguage.test(o.label), o.label);
+    }
+  }
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "scope.ts declares no material role, component, or prerequisite for the thermostat tree either",
+    !/materialRoles|components:|ScopeConsequence/.test(scopeSrc)
+  );
+}
+
+group("56. the thermostat tree's questions match H2's own family declaration for this service");
+{
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["thermostat-installation"].map((u) => u.family);
+  const establishedFacts = new Set(THERMOSTAT_QUESTIONS.map((q) => q.establishes));
+  ok("system_identity is asked (establishes system_type)", declaredFamilies.includes("system_identity") && establishedFacts.has("system_type"));
+  ok("existing_control is asked (establishes control_present, terminal_scheme, common_wire)", declaredFamilies.includes("existing_control") && establishedFacts.has("control_present") && establishedFacts.has("terminal_scheme") && establishedFacts.has("common_wire"));
+  ok(
+    "supply_arrangement is asked on both branches",
+    declaredFamilies.includes("supply_arrangement") && THERMOSTAT_QUESTIONS.filter((q) => q.establishes === "supply_arrangement").length === 2
+  );
+  ok(
+    "run_distance is asked only on the NEW_LOCATION branch",
+    declaredFamilies.includes("run_distance") && THERMOSTAT_QUESTIONS.filter((q) => q.establishes === "run_band").every((q) => q.branch === "NEW_LOCATION")
+  );
+  ok(
+    "finish_disruption_ack is declared on the NEW_LOCATION branch and asks no live question (disclaimer-only)",
+    HVAC_SERVICE_FAMILIES["thermostat-installation"].some((u) => u.family === "finish_disruption_ack" && u.branch) &&
+      !establishedFacts.has("finish_disruption_ack")
+  );
+  ok(
+    "thermostat_count is asked on the REPLACEMENT branch as a quantity, gating nothing",
+    THERMOSTAT_QUESTIONS.some((q) => q.key === "thermostat_count" && q.branch === "REPLACEMENT" && q.options.length === 0)
+  );
+}
+
+group("57. all prior H1-H3/G5 invariants remain green after the H4 restructure");
+{
+  ok("HVAC_SERVICES still has exactly 22 entries", HVAC_SERVICES.length === 22);
+  ok("HVAC_FAMILIES still has exactly 15 entries", HVAC_FAMILIES.length === 15);
+  ok("HVAC_GATE_KEYS still has exactly 7 entries", HVAC_GATE_KEYS.length === 7);
+  ok("HVAC_PRIMITIVE_KEYS still has exactly 7 entries", HVAC_PRIMITIVE_KEYS.length === 7);
+  ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
+  ok("lib/hvac/publish.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/publish.ts")));
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok("scope.ts still imports nothing from lib/plumbing", !/from ["'`]\.\.?\/.*plumbing/.test(scopeSrc));
+  ok("scope.ts still imports nothing electrical-specific", !/from ["'`]\.\.?\/.*electrical/.test(scopeSrc));
+  ok("scope.ts still imports nothing from lib/hvac/mappings.ts", !/from ["'`]\.\/mappings["'`]/.test(scopeSrc));
+  ok("scope.ts still imports nothing from lib/hvac/primitives.ts — no primitive is activated by either tree", !/from ["'`]\.\/primitives["'`]/.test(scopeSrc));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H5 — two more executable trees: condensate-safety-switch-installation
+// and air-filter-replacement. condenser-pad-replacement is explicitly
+// DEFERRED — no resolver, no facts type, no question data for it anywhere
+// in this file (group 41, above, already proves its resolver's absence).
+// ═══════════════════════════════════════════════════════════════════════
+
+group("58. H3's condensate and H4's thermostat behavior are unchanged by the H5 addition");
+{
+  // Re-runs the same probes group 42 already ran after H4 — proving the
+  // H5 addition (two new, independent resolvers, one new shared helper)
+  // changed nothing observable about either earlier tree.
+  const BASE: CondensatePumpInstallationFacts = {
+    accessClass: "ACCESSIBLE",
+    condensateRoute: "PUMP_PRESENT",
+    supplyArrangement: "CUSTOMER_SUPPLIED",
+    dedicatedCircuitPresent: "PRESENT",
+    runBand: "STANDARD",
+  };
+  const condensatePump = resolveCondensatePumpInstallation(BASE);
+  ok(
+    "condensate-pump-installation still resolves to RESOLVE_ADJUSTED/REPLACEMENT",
+    condensatePump.status === "RESOLVED" && condensatePump.routeAction === "RESOLVE_ADJUSTED" && condensatePump.branch === "REPLACEMENT"
+  );
+  const thermostat = resolveThermostatInstallation(THERMOSTAT_REPLACEMENT_FACTS);
+  ok(
+    "thermostat-installation still resolves to RESOLVE_ADJUSTED/REPLACEMENT",
+    thermostat.status === "RESOLVED" && thermostat.routeAction === "RESOLVE_ADJUSTED" && thermostat.branch === "REPLACEMENT"
+  );
+  const thermostatNotResponding = resolveThermostatInstallation({ ...THERMOSTAT_REPLACEMENT_FACTS, controlPresent: "PRESENT_NOT_RESPONDING" });
+  ok(
+    "thermostat-installation's known-work PRESENT_NOT_RESPONDING opt-in still resolves, not ON_SITE_SERVICE",
+    thermostatNotResponding.status === "RESOLVED"
+  );
+  const generic = controlGate("PRESENT_NOT_RESPONDING", { requiresCommonWire: false, commonWirePresent: "PRESENT" });
+  ok("controlGate's un-opted-in default still refuses to ON_SITE_SERVICE", generic.action === "ON_SITE_SERVICE");
+}
+
+const SAFETY_SWITCH_BASE: CondensateSafetySwitchFacts = {
+  accessClass: "ACCESSIBLE",
+  condensateRoute: "PUMP_PRESENT",
+};
+
+group("59. condensate-safety-switch-installation resolves FIXED (RESOLVE_INSTANT), not CONDITIONAL_FIXED");
+{
+  const pumpPresent = resolveCondensateSafetySwitchInstallation(SAFETY_SWITCH_BASE);
+  ok(
+    "PUMP_PRESENT resolves to RESOLVE_INSTANT",
+    pumpPresent.status === "RESOLVED" && pumpPresent.routeAction === "RESOLVE_INSTANT"
+  );
+  const gravityDrain = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, condensateRoute: "GRAVITY_DRAIN_PRESENT" });
+  ok(
+    "GRAVITY_DRAIN_PRESENT ALSO resolves to RESOLVE_INSTANT — same one-price terminal, no branch adjustment",
+    gravityDrain.status === "RESOLVED" && gravityDrain.routeAction === "RESOLVE_INSTANT"
+  );
+  ok(
+    "the catalog's own disposition for this service is FIXED, matching the RESOLVE_INSTANT terminal used here",
+    HVAC_SERVICES.find((s) => s.key === "condensate-safety-switch-installation")?.disposition === "FIXED"
+  );
+}
+
+group("60. condensate-safety-switch-installation's fixed branches stay inside the same service — no REROUTE_SERVICE");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const safetySwitchSection = section(scopeSrc, "export type CondensateSafetySwitchFacts", "export type AirFilterReplacementFacts");
+  ok("no REROUTE_SERVICE anywhere in the safety-switch section", !/REROUTE_SERVICE/.test(safetySwitchSection));
+  const pumpPresent = resolveCondensateSafetySwitchInstallation(SAFETY_SWITCH_BASE);
+  const gravityDrain = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, condensateRoute: "GRAVITY_DRAIN_PRESENT" });
+  ok(
+    "both PUMP_PRESENT and GRAVITY_DRAIN_PRESENT resolve — neither leaves this one canonical service",
+    pumpPresent.status === "RESOLVED" && gravityDrain.status === "RESOLVED"
+  );
+}
+
+group("61. condensate-safety-switch-installation fails closed — access, route UNKNOWN, and NONE_VISIBLE all PHOTO_REVIEW");
+{
+  const accessUnknown = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, accessClass: "UNKNOWN" });
+  ok("unresolved access -> PHOTO_REVIEW", accessUnknown.status === "REFUSED" && accessUnknown.routeAction === "PHOTO_REVIEW");
+
+  const routeUnknown = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, condensateRoute: "UNKNOWN" });
+  ok(
+    "condensate_route=UNKNOWN -> PHOTO_REVIEW, observed carried as UNKNOWN",
+    routeUnknown.status === "REFUSED" && routeUnknown.routeAction === "PHOTO_REVIEW" && routeUnknown.outcome.observed === "UNKNOWN"
+  );
+
+  const noneVisible = resolveCondensateSafetySwitchInstallation({ ...SAFETY_SWITCH_BASE, condensateRoute: "NONE_VISIBLE" });
+  ok(
+    "condensate_route=NONE_VISIBLE -> PHOTO_REVIEW (the settled H5 decision — NOT the same treatment condensate-pump-installation gives it)",
+    noneVisible.status === "REFUSED" && noneVisible.routeAction === "PHOTO_REVIEW"
+  );
+  ok(
+    "NONE_VISIBLE's own observed value is carried through, not silently rewritten to UNKNOWN",
+    noneVisible.status === "REFUSED" && noneVisible.outcome.observed === "NONE_VISIBLE"
+  );
+  ok(
+    "and it is never REMOTE_QUOTE — a FIXED-disposition service has no such branch to reach",
+    noneVisible.status === "REFUSED" && (noneVisible.routeAction as string) !== "REMOTE_QUOTE"
+  );
+}
+
+group("62. condensate-safety-switch-installation's base scope is exactly one switch — no quantity, no supply_arrangement");
+{
+  ok(
+    "CondensateSafetySwitchFacts has no quantity field",
+    !/CondensateSafetySwitchFacts[\s\S]{0,300}quantity/i.test(strip("lib/hvac/scope.ts"))
+  );
+  ok(
+    "CondensateSafetySwitchFacts has no supplyArrangement field",
+    !/CondensateSafetySwitchFacts\s*=\s*\{[\s\S]{0,300}supplyArrangement/i.test(strip("lib/hvac/scope.ts"))
+  );
+  ok(
+    "no supply_arrangement question appears in CONDENSATE_SAFETY_SWITCH_QUESTIONS",
+    !CONDENSATE_SAFETY_SWITCH_QUESTIONS.some((q) => q.establishes === "supply_arrangement")
+  );
+  ok("CONDENSATE_SAFETY_SWITCH_QUESTIONS has exactly two questions", CONDENSATE_SAFETY_SWITCH_QUESTIONS.length === 2);
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["condensate-safety-switch-installation"].map((u) => u.family);
+  ok(
+    "matches H2's own family declaration exactly: indoor_equipment_access + condensate_route, nothing else",
+    JSON.stringify([...declaredFamilies].sort()) === JSON.stringify(["condensate_route", "indoor_equipment_access"].sort())
+  );
+}
+
+const FILTER_BASE: AirFilterReplacementFacts = { filterSlotSize: "16x25x1", quantity: 1 };
+
+group("63. air-filter-replacement: a readable size and quantity resolve FIXED (RESOLVE_INSTANT)");
+{
+  const resolved = resolveAirFilterReplacement(FILTER_BASE);
+  ok("a readable size resolves to RESOLVE_INSTANT", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_INSTANT");
+  const multiple = resolveAirFilterReplacement({ ...FILTER_BASE, quantity: 3 });
+  ok("quantity gates nothing — 3 filters resolves exactly the same as 1", multiple.status === "RESOLVED" && multiple.routeAction === "RESOLVE_INSTANT");
+  ok(
+    "the catalog's own disposition for this service is FIXED, matching the RESOLVE_INSTANT terminal used here",
+    HVAC_SERVICES.find((s) => s.key === "air-filter-replacement")?.disposition === "FIXED"
+  );
+}
+
+group("64. air-filter-replacement: an unreadable size fails to PHOTO_REVIEW, and there is no REMOTE_QUOTE branch");
+{
+  const unreadable = resolveAirFilterReplacement({ ...FILTER_BASE, filterSlotSize: null });
+  ok(
+    "filterSlotSize=null -> PHOTO_REVIEW",
+    unreadable.status === "REFUSED" && unreadable.routeAction === "PHOTO_REVIEW" && unreadable.outcome.factKey === "filter_slot_size"
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const filterSection = section(scopeSrc, "export type AirFilterReplacementFacts", "export type TuneUpResolution");
+  ok("no REMOTE_QUOTE anywhere in the air-filter section", !/REMOTE_QUOTE/.test(filterSection));
+  ok("no filter compatibility language (fits, compatible, works with) anywhere in the air-filter section", !/\b(fits|compatible|works with)\b/i.test(filterSection));
+}
+
+group("65. no accessory-presence or location question leaks into air-filter-replacement");
+{
+  ok(
+    "AirFilterReplacementFacts has no accessoryPresent or replacementVsNew field",
+    !/AirFilterReplacementFacts[\s\S]{0,300}(accessoryPresent|replacementVsNew)/i.test(strip("lib/hvac/scope.ts"))
+  );
+  ok(
+    "AirFilterReplacementFacts has no indoor-location or access-class field",
+    !/AirFilterReplacementFacts\s*=\s*\{[\s\S]{0,300}(indoorLocation|accessClass)/i.test(strip("lib/hvac/scope.ts"))
+  );
+  ok(
+    "no accessory_present, replacement_vs_new, or indoor_location question in AIR_FILTER_REPLACEMENT_QUESTIONS",
+    !AIR_FILTER_REPLACEMENT_QUESTIONS.some((q) => ["accessory_present", "replacement_vs_new", "indoor_location"].includes(q.establishes))
+  );
+  ok("AIR_FILTER_REPLACEMENT_QUESTIONS has exactly two questions", AIR_FILTER_REPLACEMENT_QUESTIONS.length === 2);
+  const declaredFamilies = HVAC_SERVICE_FAMILIES["air-filter-replacement"].map((u) => u.family);
+  ok(
+    "matches H2's own family declaration exactly: accessory_and_media only, nothing else",
+    JSON.stringify(declaredFamilies) === JSON.stringify(["accessory_and_media"])
+  );
+}
+
+group("66. no symptom vocabulary enters either new H5 tree");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}" (H5 sections included)`, !scopeSrc.includes(symptom));
+  }
+  const allQuestions = [...CONDENSATE_SAFETY_SWITCH_QUESTIONS, ...AIR_FILTER_REPLACEMENT_QUESTIONS];
+  const optionValues = allQuestions.flatMap((q) => q.options.map((o) => o.value));
+  ok(
+    "no H5 answer option value is any of the closed reported_symptom vocabulary",
+    optionValues.every((v) => !(REPORTED_SYMPTOMS as readonly string[]).includes(v))
+  );
+  const symptomPhrases = ["leaking water", "not cooling", "no cooling", "no heat", "overflowing", "blocked", "failed", "won't turn on"];
+  const allWording = allQuestions
+    .flatMap((q) => [q.prompt, ...q.options.map((o) => o.label)])
+    .join(" ")
+    .toLowerCase();
+  ok("no H5 question prompt or answer label contains symptom phrasing", symptomPhrases.every((p) => !allWording.includes(p)));
+}
+
+group("67. no diagnosis or component-repair inference in either new H5 tree");
+{
+  const diagnosticLanguage =
+    /\b(blocked|clogged|failed|failing|broken|defective|refrigerant|low on|leaking from|leak in|worn|corroded internally|burnt out|malfunction|overflow(ing)?)\b/i;
+  const allQuestions = [...CONDENSATE_SAFETY_SWITCH_QUESTIONS, ...AIR_FILTER_REPLACEMENT_QUESTIONS];
+  for (const q of allQuestions) {
+    ok(`"${q.key}"'s prompt names no cause`, !diagnosticLanguage.test(q.prompt), q.prompt);
+    for (const o of q.options) {
+      ok(`"${q.key}" option "${o.value}" names no cause`, !diagnosticLanguage.test(o.label), o.label);
+    }
+  }
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const bothH5Sections = section(scopeSrc, "export type CondensateSafetySwitchFacts", "export type TuneUpResolution");
+  ok(
+    "no refusal reason in either H5 section names a blocked drain or an overflow diagnosis",
+    !/blocked drain|overflow(ing)? (drain|switch)|diagnos/i.test(bothH5Sections)
+  );
+}
+
+group("68. WWT stays catalog/commercial metadata only — H5 touches no booking, cart, or scheduling surface");
+{
+  const safetySwitch = HVAC_SERVICES.find((s) => s.key === "condensate-safety-switch-installation")!;
+  const airFilter = HVAC_SERVICES.find((s) => s.key === "air-filter-replacement")!;
+  ok("condensate-safety-switch-installation still declares whileWeThereOnly: true, unchanged since H1", safetySwitch.whileWeThereOnly === true);
+  ok("air-filter-replacement still declares whileWeThereOnly: true, unchanged since H1", airFilter.whileWeThereOnly === true);
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const bothH5Sections = section(scopeSrc, "export type CondensateSafetySwitchFacts", "export type TuneUpResolution");
+  ok(
+    "neither H5 section references cart, scheduling, booking capacity, or technician-bonus concepts",
+    !/liveCart|LiveCart|schedul|bookingCapacity|technicianBonus|serviceFee|checkout/i.test(bothH5Sections)
+  );
+  ok("lib/hvac/appointments.ts is untouched by H5 (still exports the same shell)", strip("lib/hvac/appointments.ts").includes("HVAC_SERVICE_CALL_SHELL"));
+}
+
+group("69. condenser-pad-replacement's H1 catalog entry is untouched — deferred, not removed or altered");
+{
+  const pad = HVAC_SERVICES.find((s) => s.key === "condenser-pad-replacement");
+  ok("condenser-pad-replacement still exists in the catalog", pad !== undefined);
+  ok("its disposition is still CONDITIONAL_FIXED, unchanged", pad?.disposition === "CONDITIONAL_FIXED");
+  ok("it is still whileWeThereOnly: true, unchanged", pad?.whileWeThereOnly === true);
+  ok(
+    "HVAC_SERVICES is still exactly 22 entries — deferring the resolver did not touch the catalog count",
+    HVAC_SERVICES.length === 22
+  );
+  ok(
+    "its H2 family declaration (outdoor_equipment_access + existing_condition) is still intact, unchanged",
+    JSON.stringify([...HVAC_SERVICE_FAMILIES["condenser-pad-replacement"].map((u) => u.family)].sort()) ===
+      JSON.stringify(["existing_condition", "outdoor_equipment_access"].sort())
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H6 — the four tune-ups: ac-tune-up, furnace-tune-up, heat-pump-tune-up,
+// mini-split-tune-up. condenser-pad-replacement remains deferred (group 41
+// and group 69, above, already prove its resolver's continued absence).
+// ═══════════════════════════════════════════════════════════════════════
+
+group("70. H3-H5 behavior is unchanged by the H6 addition");
+{
+  const BASE: CondensatePumpInstallationFacts = {
+    accessClass: "ACCESSIBLE",
+    condensateRoute: "PUMP_PRESENT",
+    supplyArrangement: "CUSTOMER_SUPPLIED",
+    dedicatedCircuitPresent: "PRESENT",
+    runBand: "STANDARD",
+  };
+  const condensatePump = resolveCondensatePumpInstallation(BASE);
+  ok("condensate-pump-installation still resolves RESOLVE_ADJUSTED/REPLACEMENT", condensatePump.status === "RESOLVED" && condensatePump.routeAction === "RESOLVE_ADJUSTED");
+  const thermostat = resolveThermostatInstallation(THERMOSTAT_REPLACEMENT_FACTS);
+  ok("thermostat-installation still resolves RESOLVE_ADJUSTED/REPLACEMENT", thermostat.status === "RESOLVED" && thermostat.routeAction === "RESOLVE_ADJUSTED");
+  const safetySwitch = resolveCondensateSafetySwitchInstallation({ accessClass: "ACCESSIBLE", condensateRoute: "PUMP_PRESENT" });
+  ok("condensate-safety-switch-installation still resolves RESOLVE_INSTANT", safetySwitch.status === "RESOLVED" && safetySwitch.routeAction === "RESOLVE_INSTANT");
+  const filter = resolveAirFilterReplacement({ filterSlotSize: "16x25x1", quantity: 1 });
+  ok("air-filter-replacement still resolves RESOLVE_INSTANT", filter.status === "RESOLVED" && filter.routeAction === "RESOLVE_INSTANT");
+  ok(
+    "H3/H4/H5's own condensate-safety-switch, air-filter and thermostat question data are all still exported and non-empty",
+    CONDENSATE_SAFETY_SWITCH_QUESTIONS.length === 2 && AIR_FILTER_REPLACEMENT_QUESTIONS.length === 2 && THERMOSTAT_QUESTIONS.length > 0
+  );
+}
+
+const AC_TUNE_UP_BASE: AcTuneUpFacts = {
+  systemType: "FURNACE_AND_AC",
+  indoorAccessClass: "ACCESSIBLE",
+  outdoorLocation: "GROUND_LEVEL_ADJACENT",
+  outdoorAccessClass: "ACCESSIBLE",
+  systemCount: 1,
+};
+
+group("71. ac-tune-up resolves FIXED (RESOLVE_INSTANT) on the fully-resolved bounded path");
+{
+  const resolved = resolveAcTuneUp(AC_TUNE_UP_BASE);
+  ok("supported identity + both known access slots + valid quantity -> RESOLVE_INSTANT", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_INSTANT");
+  ok(
+    "the catalog's own disposition for ac-tune-up is FIXED, matching the RESOLVE_INSTANT terminal used here",
+    HVAC_SERVICES.find((s) => s.key === "ac-tune-up")?.disposition === "FIXED"
+  );
+  const multiSystem = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, systemCount: 3 });
+  ok("quantity gates nothing — 3 systems resolves exactly the same as 1", multiSystem.status === "RESOLVED" && multiSystem.routeAction === "RESOLVE_INSTANT");
+}
+
+group("72. ac-tune-up's first V1 fixed tree supports exactly FURNACE_AND_AC");
+{
+  const supported = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, systemType: "FURNACE_AND_AC" });
+  ok("FURNACE_AND_AC resolves", supported.status === "RESOLVED");
+  const otherKnownTypes: readonly AcTuneUpFacts["systemType"][] = [
+    "HEAT_PUMP_SPLIT",
+    "DUAL_FUEL",
+    "BOILER_HYDRONIC",
+    "MINI_SPLIT_DUCTLESS",
+    "PACKAGE_UNIT",
+    "AIR_HANDLER_ONLY",
+  ];
+  for (const systemType of otherKnownTypes) {
+    const r = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, systemType });
+    ok(`${systemType} -> REMOTE_QUOTE, not silently accepted`, r.status === "REFUSED" && r.routeAction === "REMOTE_QUOTE" && r.outcome.factKey === "system_type");
+  }
+  const unknown = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, systemType: "UNKNOWN" });
+  ok("UNKNOWN system_type -> PHOTO_REVIEW", unknown.status === "REFUSED" && unknown.routeAction === "PHOTO_REVIEW");
+}
+
+group("73. ac-tune-up gates both access slots independently, and outdoor_location=NONE fails closed");
+{
+  const indoorUnknown = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, indoorAccessClass: "UNKNOWN" });
+  ok("indoor access UNKNOWN -> PHOTO_REVIEW", indoorUnknown.status === "REFUSED" && indoorUnknown.routeAction === "PHOTO_REVIEW");
+  const outdoorAccessUnknown = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, outdoorAccessClass: "UNKNOWN" });
+  ok("outdoor access UNKNOWN -> PHOTO_REVIEW", outdoorAccessUnknown.status === "REFUSED" && outdoorAccessUnknown.routeAction === "PHOTO_REVIEW");
+  const outdoorLocationUnknown = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, outdoorLocation: "UNKNOWN" });
+  ok("outdoor_location UNKNOWN -> PHOTO_REVIEW", outdoorLocationUnknown.status === "REFUSED" && outdoorLocationUnknown.routeAction === "PHOTO_REVIEW");
+  const none = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, outdoorLocation: "NONE" });
+  ok(
+    "outdoor_location=NONE fails closed to PHOTO_REVIEW as a contradiction — a service whose scope requires an outdoor unit",
+    none.status === "REFUSED" && none.routeAction === "PHOTO_REVIEW" && none.outcome.factKey === "outdoor_location" && none.outcome.observed === "NONE"
+  );
+  ok(
+    "both indoor and outdoor are read as SEPARATE facts, never collapsed to one scalar access answer",
+    !/AcTuneUpFacts\s*=\s*\{[\s\S]{0,400}\baccessClass\s*:\s*AccessClass;/.test(
+      section(strip("lib/hvac/scope.ts"), "export type AcTuneUpFacts", "export type FurnaceTuneUpFacts")
+    )
+  );
+}
+
+group("74. ac-tune-up: known roof/wall location does NOT create a REMOTE_QUOTE branch — the settled post-G1 correction");
+{
+  const roof = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, outdoorLocation: "ROOF" });
+  ok("ROOF with a known access class resolves -- NOT REMOTE_QUOTE", roof.status === "RESOLVED" && roof.routeAction === "RESOLVE_INSTANT");
+  const wall = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, outdoorLocation: "WALL_OR_BALCONY_MOUNT" });
+  ok("WALL_OR_BALCONY_MOUNT with a known access class resolves -- NOT REMOTE_QUOTE", wall.status === "RESOLVED" && wall.routeAction === "RESOLVE_INSTANT");
+  const remote = resolveAcTuneUp({ ...AC_TUNE_UP_BASE, outdoorLocation: "GROUND_LEVEL_REMOTE" });
+  ok("GROUND_LEVEL_REMOTE resolves identically to GROUND_LEVEL_ADJACENT", remote.status === "RESOLVED" && remote.routeAction === "RESOLVE_INSTANT");
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "no equipment_height or band-policy binding was introduced in H6",
+    !/equipment_height|HEIGHT_BREAKPOINTS/i.test(scopeSrc)
+  );
+  ok(
+    "outdoor_location's ROOF/WALL values never produce REMOTE_QUOTE anywhere in gateTwoSlotAccess",
+    !/ROOF[\s\S]{0,200}REMOTE_QUOTE|WALL_OR_BALCONY_MOUNT[\s\S]{0,200}REMOTE_QUOTE/.test(scopeSrc)
+  );
+}
+
+const FURNACE_TUNE_UP_BASE: FurnaceTuneUpFacts = {
+  systemType: "FURNACE_AND_AC",
+  fuelType: "NATURAL_GAS",
+  accessClass: "ACCESSIBLE",
+  systemCount: 1,
+};
+
+group("75. furnace-tune-up: exact system/fuel support, PRIMARY-only access, RESOLVE_INSTANT on the bounded path");
+{
+  const resolved = resolveFurnaceTuneUp(FURNACE_TUNE_UP_BASE);
+  ok("NATURAL_GAS resolves to RESOLVE_INSTANT", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_INSTANT");
+  const propane = resolveFurnaceTuneUp({ ...FURNACE_TUNE_UP_BASE, fuelType: "PROPANE" });
+  ok("PROPANE also resolves to RESOLVE_INSTANT", propane.status === "RESOLVED" && propane.routeAction === "RESOLVE_INSTANT");
+
+  const otherFuels: readonly FurnaceTuneUpFacts["fuelType"][] = ["OIL", "ELECTRIC", "DUAL_FUEL"];
+  for (const fuelType of otherFuels) {
+    const r = resolveFurnaceTuneUp({ ...FURNACE_TUNE_UP_BASE, fuelType });
+    ok(`fuel ${fuelType} -> REMOTE_QUOTE, not silently accepted as gas/propane`, r.status === "REFUSED" && r.routeAction === "REMOTE_QUOTE" && r.outcome.factKey === "fuel_type");
+  }
+  const unknownFuel = resolveFurnaceTuneUp({ ...FURNACE_TUNE_UP_BASE, fuelType: "UNKNOWN" });
+  ok("fuel UNKNOWN -> PHOTO_REVIEW", unknownFuel.status === "REFUSED" && unknownFuel.routeAction === "PHOTO_REVIEW");
+
+  const otherTypes: readonly FurnaceTuneUpFacts["systemType"][] = ["HEAT_PUMP_SPLIT", "BOILER_HYDRONIC", "MINI_SPLIT_DUCTLESS", "PACKAGE_UNIT"];
+  for (const systemType of otherTypes) {
+    const r = resolveFurnaceTuneUp({ ...FURNACE_TUNE_UP_BASE, systemType });
+    ok(`system type ${systemType} -> REMOTE_QUOTE`, r.status === "REFUSED" && r.routeAction === "REMOTE_QUOTE" && r.outcome.factKey === "system_type");
+  }
+  const unknownAccess = resolveFurnaceTuneUp({ ...FURNACE_TUNE_UP_BASE, accessClass: "UNKNOWN" });
+  ok("access UNKNOWN -> PHOTO_REVIEW", unknownAccess.status === "REFUSED" && unknownAccess.routeAction === "PHOTO_REVIEW");
+
+  ok(
+    "the catalog's own disposition for furnace-tune-up is FIXED",
+    HVAC_SERVICES.find((s) => s.key === "furnace-tune-up")?.disposition === "FIXED"
+  );
+  ok(
+    "furnace-tune-up's G1 access slot is PRIMARY only, per H2's own declaration — no second slot",
+    JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["furnace-tune-up"]) === JSON.stringify(["PRIMARY"])
+  );
+  ok(
+    "FurnaceTuneUpFacts has no outdoor-facing field at all — genuinely single-location",
+    !/FurnaceTuneUpFacts[\s\S]{0,300}outdoor/i.test(strip("lib/hvac/scope.ts"))
+  );
+}
+
+group("76. furnace-tune-up does not render venting_class, heating_input_btu, or equipment_condition");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const furnaceSection = section(scopeSrc, "export type FurnaceTuneUpFacts", "export type HeatPumpTuneUpFacts");
+  ok("no ventingClass field or venting_class question in the furnace-tune-up section", !/ventingClass|venting_class/i.test(furnaceSection));
+  ok("no heatingInputBtu field or heating_input_btu question in the furnace-tune-up section", !/heatingInputBtu|heating_input_btu/i.test(furnaceSection));
+  ok("no equipmentCondition field in the furnace-tune-up section", !/equipmentCondition|equipment_condition/i.test(furnaceSection));
+  ok(
+    "no question or refusal reason asks whether burners, ignition, venting, the heat exchanger, or safeties are good, bad, or safe",
+    !/burners? (is|are) (good|bad|dirty)|ignition (is|good|bad)|venting (is )?(improper|bad)|heat exchanger (is )?(cracked|bad)|(is|are) (it |this )?(unsafe|safe)/i.test(furnaceSection)
+  );
+  ok(
+    "FURNACE_TUNE_UP_QUESTIONS names no combustion-safety judgment",
+    FURNACE_TUNE_UP_QUESTIONS.every((q) => !/crack|unsafe|dirty|improper/i.test(q.prompt))
+  );
+}
+
+const HEAT_PUMP_TUNE_UP_BASE: HeatPumpTuneUpFacts = {
+  systemType: "HEAT_PUMP_SPLIT",
+  indoorAccessClass: "ACCESSIBLE",
+  outdoorLocation: "GROUND_LEVEL_ADJACENT",
+  outdoorAccessClass: "ACCESSIBLE",
+  systemCount: 1,
+};
+
+group("77. heat-pump-tune-up: exact identity support (HEAT_PUMP_SPLIT only), both access slots, NONE and roof/wall behavior");
+{
+  const resolved = resolveHeatPumpTuneUp(HEAT_PUMP_TUNE_UP_BASE);
+  ok("HEAT_PUMP_SPLIT + both known access slots + valid quantity -> RESOLVE_INSTANT", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_INSTANT");
+
+  const notAutoAccepted: readonly HeatPumpTuneUpFacts["systemType"][] = ["DUAL_FUEL", "PACKAGE_UNIT", "FURNACE_AND_AC", "BOILER_HYDRONIC", "MINI_SPLIT_DUCTLESS", "AIR_HANDLER_ONLY"];
+  for (const systemType of notAutoAccepted) {
+    const r = resolveHeatPumpTuneUp({ ...HEAT_PUMP_TUNE_UP_BASE, systemType });
+    ok(`${systemType} -> REMOTE_QUOTE, NOT auto-accepted (DUAL_FUEL/PACKAGE_UNIT's maintenance topology is not represented by this H6 scope)`, r.status === "REFUSED" && r.routeAction === "REMOTE_QUOTE" && r.outcome.factKey === "system_type");
+  }
+  const unknownIdentity = resolveHeatPumpTuneUp({ ...HEAT_PUMP_TUNE_UP_BASE, systemType: "UNKNOWN" });
+  ok("UNKNOWN identity -> PHOTO_REVIEW", unknownIdentity.status === "REFUSED" && unknownIdentity.routeAction === "PHOTO_REVIEW");
+
+  const indoorUnknown = resolveHeatPumpTuneUp({ ...HEAT_PUMP_TUNE_UP_BASE, indoorAccessClass: "UNKNOWN" });
+  ok("indoor access UNKNOWN -> PHOTO_REVIEW", indoorUnknown.status === "REFUSED" && indoorUnknown.routeAction === "PHOTO_REVIEW");
+  const none = resolveHeatPumpTuneUp({ ...HEAT_PUMP_TUNE_UP_BASE, outdoorLocation: "NONE" });
+  ok("outdoor_location=NONE fails closed", none.status === "REFUSED" && none.routeAction === "PHOTO_REVIEW" && none.outcome.observed === "NONE");
+  const roof = resolveHeatPumpTuneUp({ ...HEAT_PUMP_TUNE_UP_BASE, outdoorLocation: "ROOF" });
+  ok("known ROOF access does NOT create a REMOTE_QUOTE branch", roof.status === "RESOLVED" && roof.routeAction === "RESOLVE_INSTANT");
+
+  ok(
+    "the catalog's own disposition for heat-pump-tune-up is FIXED",
+    HVAC_SERVICES.find((s) => s.key === "heat-pump-tune-up")?.disposition === "FIXED"
+  );
+  ok(
+    "heat-pump-tune-up uses both scoped access slots, per H2's own declaration",
+    JSON.stringify([...HVAC_SERVICE_ACCESS_SLOTS["heat-pump-tune-up"]].sort()) === JSON.stringify(["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"].sort())
+  );
+}
+
+group("78. heat-pump-tune-up does not ask about defrost, reversing valve, backup heat, or refrigerant");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const heatPumpSection = section(scopeSrc, "export type HeatPumpTuneUpFacts", "export type MiniSplitTuneUpFacts");
+  ok("no defrost, reversing-valve, backup-heat, or refrigerant field or question in the heat-pump-tune-up section", !/defrost|reversing.valve|backupHeat|backup heat|refrigerant/i.test(heatPumpSection));
+  ok("no equipment_condition field in the heat-pump-tune-up section", !/equipmentCondition|equipment_condition/i.test(heatPumpSection));
+  ok(
+    "HEAT_PUMP_TUNE_UP_QUESTIONS asks only system identity, indoor access, outdoor access, and quantity",
+    JSON.stringify(HEAT_PUMP_TUNE_UP_QUESTIONS.map((q) => q.key)) === JSON.stringify(["system_identity", "indoor_access", "outdoor_access", "system_count"])
+  );
+}
+
+const MINI_SPLIT_TUNE_UP_BASE: MiniSplitTuneUpFacts = {
+  systemCount: 1,
+  headCount: 3,
+  indoorAccessClass: "ACCESSIBLE",
+  outdoorLocation: "GROUND_LEVEL_ADJACENT",
+  outdoorAccessClass: "ACCESSIBLE",
+};
+
+group("79. mini-split-tune-up asks NO system_type question, and asks both system_count and head_count");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const miniSplitSection = section(scopeSrc, "export type MiniSplitTuneUpFacts");
+  ok("MiniSplitTuneUpFacts has no systemType field", !/MiniSplitTuneUpFacts[\s\S]{0,400}systemType/.test(miniSplitSection));
+  ok("resolveMiniSplitTuneUp never calls identityGate", !/identityGate/.test(miniSplitSection));
+  ok(
+    "H2 declares distribution_and_zoning for mini-split-tune-up, never system_identity — matched exactly, nothing added",
+    JSON.stringify(HVAC_SERVICE_FAMILIES["mini-split-tune-up"].map((u) => u.family)) === JSON.stringify(["distribution_and_zoning", "indoor_equipment_access", "outdoor_equipment_access"])
+  );
+  ok(
+    "MINI_SPLIT_TUNE_UP_QUESTIONS asks both system_count and head_count, plus both access questions, nothing else",
+    JSON.stringify(MINI_SPLIT_TUNE_UP_QUESTIONS.map((q) => q.key)) === JSON.stringify(["system_count", "head_count", "indoor_access", "outdoor_access"])
+  );
+
+  const resolved = resolveMiniSplitTuneUp(MINI_SPLIT_TUNE_UP_BASE);
+  ok("known access + valid positive quantities -> RESOLVE_INSTANT", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_INSTANT");
+  const zeroSystems = resolveMiniSplitTuneUp({ ...MINI_SPLIT_TUNE_UP_BASE, systemCount: 0 });
+  ok("systemCount=0 fails closed to PHOTO_REVIEW, not a legitimate zero-priced job", zeroSystems.status === "REFUSED" && zeroSystems.routeAction === "PHOTO_REVIEW" && zeroSystems.outcome.factKey === "system_count");
+  const zeroHeads = resolveMiniSplitTuneUp({ ...MINI_SPLIT_TUNE_UP_BASE, headCount: 0 });
+  ok("headCount=0 fails closed to PHOTO_REVIEW", zeroHeads.status === "REFUSED" && zeroHeads.routeAction === "PHOTO_REVIEW" && zeroHeads.outcome.factKey === "head_count");
+  const twoSystems = resolveMiniSplitTuneUp({ ...MINI_SPLIT_TUNE_UP_BASE, systemCount: 2, headCount: 5 });
+  ok("two independent outdoor systems with five heads still resolves — head_count alone never has to describe this", twoSystems.status === "RESOLVED" && twoSystems.routeAction === "RESOLVE_INSTANT");
+}
+
+group("80. mini-split-tune-up's access matches indoor/outdoor behavior, and stays distinct from Deep Cleaning");
+{
+  const indoorUnknown = resolveMiniSplitTuneUp({ ...MINI_SPLIT_TUNE_UP_BASE, indoorAccessClass: "UNKNOWN" });
+  ok("indoor access UNKNOWN -> PHOTO_REVIEW", indoorUnknown.status === "REFUSED" && indoorUnknown.routeAction === "PHOTO_REVIEW");
+  const none = resolveMiniSplitTuneUp({ ...MINI_SPLIT_TUNE_UP_BASE, outdoorLocation: "NONE" });
+  ok("outdoor_location=NONE fails closed", none.status === "REFUSED" && none.routeAction === "PHOTO_REVIEW" && none.outcome.observed === "NONE");
+  const wall = resolveMiniSplitTuneUp({ ...MINI_SPLIT_TUNE_UP_BASE, outdoorLocation: "WALL_OR_BALCONY_MOUNT" });
+  ok("known WALL_OR_BALCONY_MOUNT access does NOT create a REMOTE_QUOTE branch", wall.status === "RESOLVED" && wall.routeAction === "RESOLVE_INSTANT");
+  ok(
+    "mini-split-tune-up uses both scoped access slots, per H2's own declaration",
+    JSON.stringify([...HVAC_SERVICE_ACCESS_SLOTS["mini-split-tune-up"]].sort()) === JSON.stringify(["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"].sort())
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const miniSplitSection = section(scopeSrc, "export type MiniSplitTuneUpFacts");
+  ok("no disassembly, deep-clean, or wash question in the mini-split-tune-up section", !/disassembl|deep.?clean|\bwash/i.test(miniSplitSection));
+  ok(
+    "the catalog's own disposition for mini-split-tune-up is FIXED",
+    HVAC_SERVICES.find((s) => s.key === "mini-split-tune-up")?.disposition === "FIXED"
+  );
+  ok(
+    "mini-split-head-cleaning remains a separate service, untouched by H6",
+    HVAC_SERVICES.some((s) => s.key === "mini-split-head-cleaning") &&
+      !/mini-split-head-cleaning/i.test(miniSplitSection)
+  );
+}
+
+group("81. maintenanceScope is populated, promise-only, and its structured locations match the H2 access-slot declarations");
+{
+  ok(
+    "HVAC_MAINTENANCE_SCOPE declares all four tune-ups",
+    JSON.stringify(Object.keys(HVAC_MAINTENANCE_SCOPE).sort()) ===
+      JSON.stringify(["ac-tune-up", "furnace-tune-up", "heat-pump-tune-up", "mini-split-tune-up"].sort())
+  );
+  ok(
+    "ac-tune-up's maintenanceScope touches both INDOOR and OUTDOOR, matching its two-slot access declaration",
+    JSON.stringify(maintenanceScopeLocations(HVAC_MAINTENANCE_SCOPE["ac-tune-up"])) === JSON.stringify(["INDOOR", "OUTDOOR"])
+  );
+  ok(
+    "heat-pump-tune-up's maintenanceScope touches both INDOOR and OUTDOOR",
+    JSON.stringify(maintenanceScopeLocations(HVAC_MAINTENANCE_SCOPE["heat-pump-tune-up"])) === JSON.stringify(["INDOOR", "OUTDOOR"])
+  );
+  ok(
+    "mini-split-tune-up's maintenanceScope touches both INDOOR and OUTDOOR",
+    JSON.stringify(maintenanceScopeLocations(HVAC_MAINTENANCE_SCOPE["mini-split-tune-up"])) === JSON.stringify(["INDOOR", "OUTDOOR"])
+  );
+  ok(
+    "furnace-tune-up's maintenanceScope is INDOOR only, matching its PRIMARY (single-location) access declaration",
+    JSON.stringify(maintenanceScopeLocations(HVAC_MAINTENANCE_SCOPE["furnace-tune-up"])) === JSON.stringify(["INDOOR"])
+  );
+  ok(
+    "ac-tune-up's declared work matches a BOTH locationScope — the G1 re-audit's own check, applied",
+    maintenanceScopeMatchesDeclaredLocations(HVAC_MAINTENANCE_SCOPE["ac-tune-up"], "BOTH")
+  );
+  ok(
+    "furnace-tune-up's declared work matches an INDOOR locationScope",
+    maintenanceScopeMatchesDeclaredLocations(HVAC_MAINTENANCE_SCOPE["furnace-tune-up"], "INDOOR")
+  );
+  ok(
+    "furnace-tune-up's declared work does NOT satisfy a narrower-than-actual claim against OUTDOOR alone",
+    !maintenanceScopeMatchesDeclaredLocations(HVAC_MAINTENANCE_SCOPE["furnace-tune-up"], "OUTDOOR")
+  );
+  ok(
+    "AC tune-up's condensate-drain item is present and carries no diagnostic language",
+    HVAC_MAINTENANCE_SCOPE["ac-tune-up"].some((i) => /condensate drain/i.test(i.item)) &&
+      !HVAC_MAINTENANCE_SCOPE["ac-tune-up"].some((i) => /block|clog|fail|leak/i.test(i.item))
+  );
+  const diagnosticLanguage = /\b(cracked|failed|failing|broken|defective|unsafe|dirty|bad|improper|diagnos\w*)\b/i;
+  for (const [key, items] of Object.entries(HVAC_MAINTENANCE_SCOPE)) {
+    for (const item of items) {
+      ok(`${key}'s maintenanceScope item "${item.item}" names no diagnosis or condition judgment`, !diagnosticLanguage.test(item.item));
+    }
+  }
+}
+
+group("82. no tune-up reads equipment_condition, and no technician finding selects a repair, component, or service");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const tuneUpSection = section(scopeSrc, "export type AcTuneUpFacts");
+  ok("conditionGate is never called anywhere in the tune-up section", !/conditionGate/.test(tuneUpSection));
+  ok("EquipmentCondition is never referenced anywhere in the tune-up section", !/EquipmentCondition/.test(tuneUpSection));
+  ok("no tune-up resolver declares a materialRoles, components, or ScopeConsequence field", !/materialRoles|components:|ScopeConsequence/.test(tuneUpSection));
+  ok("no tune-up resolver ever produces REROUTE_SERVICE or a component-repair reference", !/REROUTE_SERVICE|component.?repair/i.test(tuneUpSection));
+  ok(
+    "no tune-up resolver imports anything from lib/hvac/mappings.ts (no scope-consequence layer wired in for H6 either)",
+    !/from ["'`]\.\/mappings["'`]/.test(scopeSrc)
+  );
+}
+
+group("83. no symptom vocabulary enters any of the four H6 trees, and no symptom points at a tune-up as a priced alternative");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const tuneUpSection = section(scopeSrc, "export type AcTuneUpFacts");
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}" in the tune-up sections`, !tuneUpSection.includes(symptom));
+  }
+  const allQuestions = [...AC_TUNE_UP_QUESTIONS, ...FURNACE_TUNE_UP_QUESTIONS, ...HEAT_PUMP_TUNE_UP_QUESTIONS, ...MINI_SPLIT_TUNE_UP_QUESTIONS];
+  const optionValues = allQuestions.flatMap((q) => q.options.map((o) => o.value));
+  ok(
+    "no H6 answer option value is any of the closed reported_symptom vocabulary",
+    optionValues.every((v) => !(REPORTED_SYMPTOMS as readonly string[]).includes(v))
+  );
+
+  const tuneUpKeys = ["ac-tune-up", "furnace-tune-up", "heat-pump-tune-up", "mini-split-tune-up"];
+  const shellAliases = (hvacServiceCall().aliases ?? []).map((a) => a.toLowerCase());
+  for (const key of tuneUpKeys) {
+    const svc = HVAC_SERVICES.find((s) => s.key === key)!;
+    const overlap = (svc.aliases ?? []).filter((a) => shellAliases.includes(a.toLowerCase()));
+    ok(`${key}'s own aliases share no phrase with hvac-service-call's symptom vocabulary`, overlap.length === 0, overlap.join(", "));
+  }
+  const intentPhrases = allHvacIntentPhrases();
+  const symptomPointingAtTuneUp = intentPhrases.filter(
+    (p) => tuneUpKeys.includes(p.serviceKey) && shellAliases.includes(p.phrase.toLowerCase())
+  );
+  ok(
+    "no HVAC_INTENTS entry routes a symptom phrase at a tune-up — the G.6 invariant, checked against these four specifically",
+    symptomPointingAtTuneUp.length === 0,
+    symptomPointingAtTuneUp.map((p) => p.phrase).join(", ")
+  );
+}
+
+group("84. all four H1 dispositions remain FIXED, and no family/gate/primitive count changed");
+{
+  for (const key of ["ac-tune-up", "furnace-tune-up", "heat-pump-tune-up", "mini-split-tune-up"]) {
+    ok(`${key}'s disposition is still FIXED`, HVAC_SERVICES.find((s) => s.key === key)?.disposition === "FIXED");
+  }
+  ok("HVAC_SERVICES is still exactly 22 entries", HVAC_SERVICES.length === 22);
+  ok("HVAC_FAMILIES is still exactly 15 entries — no new family was added for H6", HVAC_FAMILIES.length === 15);
+  ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
+  ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
+  ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
+  ok("lib/hvac/publish.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/publish.ts")));
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok("scope.ts still imports nothing from lib/plumbing", !/from ["'`]\.\.?\/.*plumbing/.test(scopeSrc));
+  ok("scope.ts still imports nothing electrical-specific", !/from ["'`]\.\.?\/.*electrical/.test(scopeSrc));
+}
+
+group("85. gateTwoSlotAccess is a narrow, mechanical helper — not a generic tree engine");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const callSites = scopeSrc.match(/gateTwoSlotAccess\(/g) ?? [];
+  // One definition + three call sites (ac, heat-pump, mini-split).
+  ok("gateTwoSlotAccess is called exactly 3 times — one per two-slot tune-up", callSites.length === 4, `got ${callSites.length} occurrences (definition + call sites)`);
+  ok("gateTwoSlotAccess is never called from furnace-tune-up (single-location, no second slot)", !section(scopeSrc, "export type FurnaceTuneUpFacts", "export type HeatPumpTuneUpFacts").includes("gateTwoSlotAccess"));
+  ok(
+    "gateTwoSlotAccess knows nothing about system identity, fuel, or quantity — it takes only the three access-shaped fields",
+    /function gateTwoSlotAccess\(facts: TwoSlotAccessFacts\)/.test(scopeSrc)
+  );
 }
 
 console.log();
