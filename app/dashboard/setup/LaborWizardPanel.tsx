@@ -12,10 +12,19 @@ import { describeProposal, type TaskProposal } from "@/lib/laborWizard";
  * what the previous answer implied. See lib/laborWizard.ts for what gets
  * written (fieldLaborHours only, through the shared pricing-input authority)
  * and what never does (crew size, visit overhead, WWT hours, any pricing
- * rate) — and for why WHICH SERVICES a proposal applies to is decided here,
- * by the contractor confirming over their own full candidate list, rather
- * than inferred from a recipe.
+ * rate).
+ *
+ * ELIGIBILITY ARRIVES ALREADY DECIDED. `eligible`/`customized` below are
+ * resolved server-side, from the canonical mapping itself (templateKey plus
+ * an unchanged recipe) — this component never sees the rest of the
+ * contractor's catalog, and a checkbox exists ONLY for a service already in
+ * `eligible`. There is nothing here for a contractor to make eligible; the
+ * only choice offered is whether an already-eligible service should be
+ * included in THIS proposal.
  */
+export type EligibleServiceInfo = { id: string; slug: string; name: string; fieldLaborHours: number | null };
+export type CustomizedServiceInfo = { id: string; slug: string; name: string };
+
 export type WizardTaskInfo = {
   key: string;
   label: string;
@@ -23,16 +32,8 @@ export type WizardTaskInfo = {
   includes: string;
   excludes: string;
   relativeTo?: string;
-  /** The canonical outcome this task represents, when the platform has one — used only to pre-check a likely match below. */
-  templateServiceKey: string;
-};
-
-export type CandidateServiceInfo = {
-  id: string;
-  slug: string;
-  name: string;
-  templateKey: string | null;
-  fieldLaborHours: number | null;
+  eligible: EligibleServiceInfo[];
+  customized: CustomizedServiceInfo[];
 };
 
 type Step =
@@ -48,9 +49,7 @@ type Step =
 const money = (n: number) => `${n} min`;
 const currentLabel = (h: number | null) => (h === null ? "not yet established" : `currently ${Math.round(h * 60)} min`);
 
-export default function LaborWizardPanel({
-  tasks, candidates,
-}: { tasks: WizardTaskInfo[]; candidates: CandidateServiceInfo[] }) {
+export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] }) {
   const anchor = tasks.find((t) => !t.relativeTo);
   const derived = tasks.filter((t) => t.relativeTo);
 
@@ -63,7 +62,6 @@ export default function LaborWizardPanel({
   const [queue, setQueue] = useState<string[]>(derived.map((t) => t.key));
   // Populated once, when review is first reached — see enterReview().
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
-  const [filter, setFilter] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -76,21 +74,19 @@ export default function LaborWizardPanel({
   };
 
   /**
-   * Pre-checks candidates whose OWN recorded provenance (templateKey) names
-   * this task's canonical outcome — a real platform fact, never a guess
-   * from what the service's recipe contains. Every service a contractor
-   * hand-authored (templateKey null, including every one of Elite's) starts
-   * UNCHECKED here regardless of its recipe; the contractor adds it
-   * explicitly if it applies.
+   * Every ELIGIBLE service starts checked — eligibility is already the
+   * server-verified canonical mapping, not a guess this screen is asking
+   * the contractor to make. Unchecking one just means "not this specific
+   * service, even though it qualifies" — a real choice, but never the
+   * choice of whether an unrelated service applies, because nothing
+   * outside `eligible` is ever offered as an option here.
    */
   function enterReview(finalProposals: Record<string, TaskProposal>) {
     const initial: Record<string, Set<string>> = {};
     for (const t of tasks) {
       const p = finalProposals[t.key];
       if (!p || p.kind === "crew_mismatch") continue;
-      initial[t.key] = new Set(
-        candidates.filter((c) => c.templateKey === t.templateServiceKey).map((c) => c.id)
-      );
+      initial[t.key] = new Set(t.eligible.map((s) => s.id));
     }
     setSelected(initial);
     setStep({ name: "review" });
@@ -398,18 +394,13 @@ export default function LaborWizardPanel({
       {step.name === "review" && (
         <div className="mt-4">
           <p className="text-sm text-slate">
-            Review each proposal below. For each one, confirm exactly which of your services it
-            applies to — nothing is pre-decided from a recipe, and nothing is saved until you accept.
+            Review each proposal below. Nothing is saved until you accept.
           </p>
           <div className="mt-4 space-y-4">
             {tasks.map((t) => {
               const p = proposals[t.key];
               if (!p) return null;
               const chosen = selected[t.key] ?? new Set<string>();
-              const q = (filter[t.key] ?? "").toLowerCase();
-              const visibleCandidates = q
-                ? candidates.filter((c) => c.name.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q))
-                : candidates;
               return (
                 <div key={t.key} className="rounded-card border border-cardline p-4">
                   <div className="font-medium text-navy">{t.displayName}</div>
@@ -427,33 +418,51 @@ export default function LaborWizardPanel({
                         />
                         <span className="text-sm text-slate">min — {describeProposal(p)}</span>
                       </div>
-                      <p className="mt-3 text-xs font-semibold text-navy">
-                        Applies to {chosen.size} service{chosen.size === 1 ? "" : "s"} — confirm below:
-                      </p>
-                      <input
-                        type="text" placeholder="Filter your services by name"
-                        value={filter[t.key] ?? ""}
-                        onChange={(e) => setFilter((f) => ({ ...f, [t.key]: e.target.value }))}
-                        aria-label={`Filter services for ${t.displayName}`}
-                        className="mt-1 w-full rounded border border-cardline px-2 py-1 text-sm"
-                      />
-                      <div className="mt-2 max-h-48 overflow-y-auto rounded border border-cardline">
-                        {visibleCandidates.map((c) => (
-                          <label key={c.id} className="flex items-center gap-2 border-b border-cardline px-2 py-1 text-sm last:border-b-0">
-                            <input
-                              type="checkbox"
-                              checked={chosen.has(c.id)}
-                              onChange={() => toggleSelected(t.key, c.id)}
-                              aria-label={`Apply ${t.displayName} to ${c.name}`}
-                            />
-                            <span className="text-navy">{c.name}</span>
-                            <span className="text-xs text-slate">({c.slug}) — {currentLabel(c.fieldLaborHours)}</span>
-                          </label>
-                        ))}
-                        {visibleCandidates.length === 0 && (
-                          <p className="px-2 py-2 text-xs text-slate">No services match that filter.</p>
-                        )}
-                      </div>
+
+                      {t.eligible.length > 0 && (
+                        <>
+                          <p className="mt-3 text-xs font-semibold text-navy">
+                            Applies to {chosen.size} of {t.eligible.length} matching service{t.eligible.length === 1 ? "" : "s"}:
+                          </p>
+                          <div className="mt-2 rounded border border-cardline">
+                            {t.eligible.map((s) => (
+                              <label key={s.id} className="flex items-center gap-2 border-b border-cardline px-2 py-1 text-sm last:border-b-0">
+                                <input
+                                  type="checkbox"
+                                  checked={chosen.has(s.id)}
+                                  onChange={() => toggleSelected(t.key, s.id)}
+                                  aria-label={`Apply ${t.displayName} to ${s.name}`}
+                                />
+                                <span className="text-navy">{s.name}</span>
+                                <span className="text-xs text-slate">({s.slug}) — {currentLabel(s.fieldLaborHours)}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </>
+                      )}
+
+                      {t.customized.length > 0 && (
+                        <div className="mt-3 rounded border border-amber-300 bg-amber-50 p-2">
+                          <p className="text-xs font-semibold text-amber-800">
+                            Matched by name, but customized since — set these manually instead:
+                          </p>
+                          {t.customized.map((s) => (
+                            <p key={s.id} className="mt-1 text-xs text-amber-800">
+                              {s.name} ({s.slug})
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
+                      {t.eligible.length === 0 && t.customized.length === 0 && (
+                        <p className="mt-3 text-sm text-slate">
+                          No matching service yet.{" "}
+                          <a href="/dashboard/services" className="text-electric underline-offset-2 hover:underline">
+                            Use the manual pricing editor
+                          </a>{" "}
+                          to set this one.
+                        </p>
+                      )}
                     </>
                   )}
                 </div>

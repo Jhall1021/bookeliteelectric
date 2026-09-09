@@ -3,30 +3,47 @@
  * reviewable elapsed-task-time proposals across a small, explicitly named
  * set of tasks.
  *
- * WHICH SERVICES A TASK APPLIES TO IS NEVER DERIVED FROM A RECIPE. An
- * earlier version of this module matched services by "carries the task's
- * canonical material role and everything else in the recipe is on a small
- * incidental-hardware allowlist" — which is still automatic recipe
- * similarity wearing a narrower disguise. It was wrong in a concrete way: a
- * REPLACEMENT task's recipe can legitimately include a box (an existing
- * outlet whose box also needs swapping) without the contractor's answer
- * about "replace a standard outlet" covering box work at all — the two are
- * different facts, and no fixed "this material is always incidental" list
- * can tell them apart from the recipe alone. Proving one distractor (a
- * receptacle-plus-breaker service) gets excluded does not prove every
- * OTHER match the rule accepts is actually right.
+ * WHICH SERVICES A TASK APPLIES TO IS NEVER DERIVED FROM A RECIPE, AND
+ * NEVER LEFT TO A CHECKBOX. Two earlier designs both failed this the same
+ * way, from different directions:
  *
- * So this module names no material role for any task, and matches nothing
- * itself. `listServiceCandidates` returns a contractor's own services,
- * unfiltered, with each one's current pricing inputs and (when known) which
- * canonical platform outcome it was provisioned from — a real, already-
- * reviewed provenance fact (Service.templateKey), never a guess from
- * ingredients. The task's own `templateServiceKey` is offered only as a
- * PRE-SELECTED default in that list; the contractor's own confirmation in
- * the review screen is what actually decides which of their services this
- * task's time applies to. That confirmation IS the explicit mapping this
- * module used to try to compute — moved to the one place it can actually be
- * gotten right: the person who knows what each of their services does.
+ *   1. Matching by "carries the task's canonical material role and
+ *      everything else in the recipe is on a small incidental-hardware
+ *      allowlist" is automatic recipe similarity wearing a narrower
+ *      disguise. Concretely wrong: a REPLACEMENT task's recipe can
+ *      legitimately include a box without the contractor's answer about
+ *      "replace a standard outlet" covering box work at all.
+ *   2. Offering the contractor's ENTIRE catalog as an unrestricted
+ *      checklist moves the same undecided question onto the contractor
+ *      instead of solving it — a checkbox can still make an unrelated
+ *      service eligible, and nothing stops it.
+ *
+ * ELIGIBILITY IS THE CANONICAL MAPPING ITSELF, established once, server-
+ * side, from real platform provenance:
+ *
+ *   1. Service.templateKey names which TemplateService this row was
+ *      provisioned from — a fact stamped at provisioning time, never
+ *      inferred. Only a service whose templateKey equals a task's own
+ *      templateServiceKey is even a CANDIDATE.
+ *   2. That candidate's CURRENT recipe (ServiceMaterial) must still match
+ *      the ORIGINAL TemplateService's recipe (TemplateServiceMaterial) it
+ *      was provisioned with, exactly. A contractor who customized a
+ *      templated service's scope since — added a part, changed what it
+ *      covers — has made it something the template no longer describes,
+ *      and it is excluded from the eligible set and surfaced separately
+ *      for manual review, never silently offered or silently dropped.
+ *
+ * A service with no templateKey at all — every hand-authored catalog,
+ * including Elite's, which predates templating entirely — has no canonical
+ * mapping to check and is never eligible for anything this module does. No
+ * backfill, no per-contractor special case: the review screen points that
+ * contractor at the manual pricing editor for that task instead of
+ * pretending an inference could stand in for a mapping that does not exist.
+ *
+ * ENFORCED SERVER-SIDE, NOT JUST IN THE REVIEW SCREEN. The accept route
+ * re-resolves eligibility itself and refuses outright if a submitted
+ * service id is not in it — a checkbox never existing for an ineligible
+ * service is a UI convenience, not the guarantee.
  *
  * WHAT THIS WRITES, AND ONLY THIS. Every accepted proposal becomes
  * `Service.fieldLaborHours`, through lib/servicePricingInputs.ts's shared
@@ -114,36 +131,86 @@ export const ELECTRICAL_LABOR_TASKS: LaborTaskDefinition[] = [
   },
 ];
 
-export type ServiceCandidate = {
+export type EligibleService = {
   id: string;
   slug: string;
   name: string;
-  /** The canonical outcome this row was provisioned from, if any — null for every hand-authored service. */
-  templateKey: string | null;
   fieldLaborHours: number | null;
-  wwtLaborHours: number | null;
-  requiresTechCount: number;
+};
+
+/** A templated service whose current recipe no longer matches its own template — flagged, never offered. */
+export type CustomizedService = { id: string; slug: string; name: string };
+
+export type TaskEligibility = {
+  task: LaborTaskDefinition;
+  /** Provisioned from this task's canonical outcome, recipe unchanged since. The only services a checkbox can ever apply to. */
+  eligible: EligibleService[];
+  /** Provisioned from the canonical outcome, but the recipe has since diverged from it — excluded, surfaced for manual review only. */
+  customized: CustomizedService[];
 };
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
 /**
- * Every one of this contractor's own services, unfiltered — the shared
- * mechanism's entire contribution to "which services does this task apply
- * to". No task, no material role, no recipe is consulted here; the caller
- * (the review screen) pre-checks candidates by templateKey and lets the
- * contractor confirm, add, or remove from the full list.
+ * The entire eligibility rule, in one place, server-side.
+ *
+ * For each task: find this contractor's services whose templateKey names
+ * that task's canonical outcome, then require each one's CURRENT recipe to
+ * still be the exact set of canonical materials the ORIGINAL TemplateService
+ * was provisioned with. A service that matches goes in `eligible`; a
+ * service whose recipe has since diverged goes in `customized` and is never
+ * offered. A service with no templateKey at all — every hand-authored
+ * catalog, Elite's included — never appears in either list; there is no
+ * canonical mapping to check, so there is nothing to be eligible FOR.
  */
-export async function listServiceCandidates(db: Db, contractorId: string): Promise<ServiceCandidate[]> {
-  const services = await db.service.findMany({
-    where: { contractorId },
+export async function resolveTaskEligibility(
+  db: Db,
+  contractorId: string,
+  tasks: LaborTaskDefinition[]
+): Promise<TaskEligibility[]> {
+  const candidates = await db.service.findMany({
+    where: { contractorId, templateKey: { in: tasks.map((t) => t.templateServiceKey) } },
     select: {
-      id: true, slug: true, name: true, templateKey: true,
-      fieldLaborHours: true, wwtLaborHours: true, requiresTechCount: true,
+      id: true, slug: true, name: true, fieldLaborHours: true,
+      templateKey: true, templateVersionId: true,
+      materials: { select: { canonicalMaterialId: true } },
     },
-    orderBy: { name: "asc" },
   });
-  return services;
+
+  // One TemplateService lookup per DISTINCT (version, key) actually present
+  // among this contractor's own services — never assumed from "the latest
+  // version", since Service.templateVersionId already records exactly which
+  // version this row came from.
+  const pairs = [...new Set(
+    candidates
+      .filter((c): c is typeof c & { templateVersionId: string } => c.templateVersionId !== null)
+      .map((c) => `${c.templateVersionId} ${c.templateKey}`)
+  )];
+  const originalRecipeByPair = new Map<string, Set<string>>();
+  for (const pair of pairs) {
+    const [templateVersionId, key] = pair.split(" ");
+    const ts = await db.templateService.findUnique({
+      where: { templateVersionId_key: { templateVersionId, key } },
+      select: { materials: { select: { canonicalMaterialId: true } } },
+    });
+    if (ts) originalRecipeByPair.set(pair, new Set(ts.materials.map((m) => m.canonicalMaterialId)));
+  }
+
+  return tasks.map((task) => {
+    const eligible: EligibleService[] = [];
+    const customized: CustomizedService[] = [];
+    for (const svc of candidates) {
+      if (svc.templateKey !== task.templateServiceKey) continue;
+      const pair = `${svc.templateVersionId} ${svc.templateKey}`;
+      const original = originalRecipeByPair.get(pair);
+      const current = new Set(svc.materials.map((m) => m.canonicalMaterialId));
+      const unchanged =
+        original !== undefined && original.size === current.size && [...original].every((id) => current.has(id));
+      if (unchanged) eligible.push({ id: svc.id, slug: svc.slug, name: svc.name, fieldLaborHours: svc.fieldLaborHours });
+      else customized.push({ id: svc.id, slug: svc.slug, name: svc.name });
+    }
+    return { task, eligible, customized };
+  });
 }
 
 /**

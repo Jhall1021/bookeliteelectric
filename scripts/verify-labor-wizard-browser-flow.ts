@@ -9,20 +9,17 @@
  *   anchor + derived     the outlet answer, a "same time" switch answer,
  *                        and a crew-mismatch on GFCI all flow through the
  *                        real conversation into real, reviewable proposals
- *   explicit selection, not recipe inference   the review screen offers
- *                        EVERY one of the contractor's services as a
- *                        candidate for each proposal — including a service
- *                        that shares the outlet's canonical material AND
- *                        carries a box in its recipe (the exact shape the
- *                        old ingredient-based rule got wrong: a
- *                        replacement task's recipe can include a box
- *                        without the answer covering box work). Leaving it
- *                        UNCHECKED is what keeps it untouched — nothing
- *                        classifies it automatically, in either direction.
- *   templateKey pre-check  a service whose OWN recorded provenance names
- *                        the task's canonical outcome starts pre-checked;
- *                        a hand-authored one (no template) starts
- *                        unchecked and needs the contractor's explicit tick
+ *   canonical eligibility only  the review screen offers a checkbox ONLY
+ *                        for a service whose templateKey names the task's
+ *                        real canonical outcome AND whose current recipe
+ *                        still matches what it was provisioned with. A
+ *                        same-tagged service that has since been
+ *                        customized (a box added to its recipe) is shown
+ *                        separately, flagged for manual review, and never
+ *                        offered a checkbox at all
+ *   no eligible service  a task with no eligible or customized match shows
+ *                        "use the manual pricing editor" instead of an
+ *                        empty or unrestricted picker
  *   editable proposals   editing the outlet's proposed minutes changes
  *                        what gets saved for it, and does NOT change what
  *                        was already derived for switch, computed from the
@@ -30,12 +27,16 @@
  *                        anchor is later edited to
  *   crew mismatch        a task flagged "different crew" gets no proposal
  *                        at all and writes nothing on accept
- *   before/after visible   the picker shows each candidate's CURRENT
- *                        fieldLaborHours before it's touched
- *   scoped writes         only the CHECKED services' fieldLaborHours move,
- *                        through the same shared authority the admin
+ *   server-side refusal  a raw, authenticated request to the accept route
+ *                        naming a service id that is NOT eligible for the
+ *                        named task — bypassing the UI, which never offered
+ *                        it as a checkbox in the first place — is refused
+ *                        outright, and that service's fieldLaborHours is
+ *                        confirmed unchanged afterward
+ *   scoped writes         only the checked, eligible services' fieldLaborHours
+ *                        move, through the same shared authority the admin
  *                        Pricing Composition panel uses — requiresTechCount,
- *                        wwtLaborHours, basePrice and the unchecked box
+ *                        wwtLaborHours, basePrice and the customized
  *                        service's own fieldLaborHours are ALL
  *                        byte-for-byte unchanged afterward
  *   T&M excluded          a Time & Materials contractor never sees the
@@ -62,6 +63,8 @@ const PASSWORD = "correct-horse-battery-staple-9";
 const RUN = process.env.BROWSER_FLOW_STAMP ?? `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
 const SLUG = `test-labor-wizard-flow-${RUN}`;
 const EMAIL = `p2b-labor-wizard-flow-${RUN}@resend.dev`;
+const TRADE = "electrical";
+const VERSION = 1;
 
 let fail = 0;
 const ok = (label: string, cond: boolean, detail = "") => {
@@ -95,37 +98,38 @@ async function teardown() {
   }
 }
 
-async function roles() {
-  const [receptacle, switchRole, gfci, boxOldWork] = await Promise.all([
-    prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "RECEPTACLE_STANDARD" }, select: { id: true } }),
-    prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "SWITCH_STANDARD" }, select: { id: true } }),
-    prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "GFCI_INTERIOR" }, select: { id: true } }),
-    prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "BOX_OLD_WORK" }, select: { id: true } }),
-  ]);
-  return { receptacle, switchRole, gfci, boxOldWork };
-}
-
 /**
- * A real, verified account, an OWNER membership, and four services:
+ * A real, verified account, an OWNER membership, and three services:
  *
- *   lw-outlet-service        RECEPTACLE_STANDARD alone, templateKey set to
- *                            the outlet task's own canonical outcome — the
- *                            ONE service that should arrive pre-checked
- *   lw-outlet-with-box       RECEPTACLE_STANDARD + a box — THE REVIEWER'S
- *                            SCENARIO. Shares the outlet's canonical
- *                            material, so any recipe-based rule would have
- *                            called it a match. Pre-set to an existing
- *                            fieldLaborHours the test proves survives
- *                            UNTOUCHED because it is left unchecked.
- *   lw-switch-service        SWITCH_STANDARD alone, no templateKey (hand-
- *                            authored, like Elite's own catalog) — must be
- *                            checked manually. Pre-set to an existing value
- *                            the test proves gets genuinely UPDATED.
- *   lw-gfci-service          GFCI_INTERIOR alone — used only to exercise
- *                            crew-mismatch; never selected, never written.
+ *   lw-eligible-outlet    templateKey "replace-standard-outlet", recipe
+ *                         EXACTLY the template's own — the one service that
+ *                         should arrive as a checkbox, pre-checked
+ *   lw-customized-outlet  same templateKey, but a box added to the recipe
+ *                         since provisioning — THE REVIEWER'S SCENARIO.
+ *                         Must be shown, flagged, and never a checkbox
+ *   lw-tagged-switch      templateKey "replace-standard-switch", recipe
+ *                         exactly the template's own — eligible for the
+ *                         SWITCH task, absent from the outlet task's list
+ *
+ * No service is created for GFCI at all — the crew-mismatch path never
+ * reaches a picker regardless of what eligibility would say.
  */
 async function buildFixture(userId: string) {
-  const { receptacle, switchRole, gfci, boxOldWork } = await roles();
+  const tv = await prisma.templateVersion.findUniqueOrThrow({ where: { trade_version: { trade: TRADE, version: VERSION } } });
+  const [outletTemplate, switchTemplate] = await Promise.all([
+    prisma.templateService.findUniqueOrThrow({
+      where: { templateVersionId_key: { templateVersionId: tv.id, key: "replace-standard-outlet" } },
+      select: { materials: { select: { canonicalMaterialId: true } } },
+    }),
+    prisma.templateService.findUniqueOrThrow({
+      where: { templateVersionId_key: { templateVersionId: tv.id, key: "replace-standard-switch" } },
+      select: { materials: { select: { canonicalMaterialId: true } } },
+    }),
+  ]);
+  const outletRecipe = outletTemplate.materials.map((m) => m.canonicalMaterialId);
+  const switchRecipe = switchTemplate.materials.map((m) => m.canonicalMaterialId);
+  const boxOldWork = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "BOX_OLD_WORK" }, select: { id: true } });
+
   const cat = await prisma.serviceCategory.findFirstOrThrow({ select: { id: true } });
   const contractor = await prisma.contractor.create({
     data: { slug: SLUG, name: "Labor Wizard Flow Electric", active: true, countryCode: "US" },
@@ -136,49 +140,40 @@ async function buildFixture(userId: string) {
   });
   await prisma.contractorMembership.create({ data: { userId, contractorId: contractor.id, role: "OWNER", active: true } });
 
-  const outlet = await prisma.service.create({
+  const eligibleOutlet = await prisma.service.create({
     data: {
-      contractorId: contractor.id, categoryId: cat.id, slug: "lw-outlet-service", name: "lw-outlet-service",
+      contractorId: contractor.id, categoryId: cat.id, slug: "lw-eligible-outlet", name: "lw-eligible-outlet",
       bookingType: "INSTANT", photoState: "NONE", offered: true, active: false,
-      templateKey: "replace-standard-outlet",
+      templateKey: "replace-standard-outlet", templateVersionId: tv.id,
       basePrice: 8800, whileWeThereBasePrice: 6600, publishedPriceApprovedAt: new Date(),
-      materials: { create: [{ canonicalMaterialId: receptacle.id, quantity: 1, order: 0 }] },
+      materials: { create: outletRecipe.map((id, order) => ({ canonicalMaterialId: id, quantity: 1, order })) },
     },
     select: { id: true },
   });
-  const outletWithBox = await prisma.service.create({
+  const customizedOutlet = await prisma.service.create({
     data: {
-      contractorId: contractor.id, categoryId: cat.id, slug: "lw-outlet-with-box", name: "lw-outlet-with-box",
+      contractorId: contractor.id, categoryId: cat.id, slug: "lw-customized-outlet", name: "lw-customized-outlet",
       bookingType: "INSTANT", photoState: "NONE", offered: true, active: false,
-      fieldLaborHours: 0.75, wwtLaborHours: 0.5, requiresTechCount: 1,
+      templateKey: "replace-standard-outlet", templateVersionId: tv.id,
+      fieldLaborHours: 0.6, wwtLaborHours: 0.5, requiresTechCount: 1,
       materials: {
-        create: [
-          { canonicalMaterialId: receptacle.id, quantity: 1, order: 0 },
-          { canonicalMaterialId: boxOldWork.id, quantity: 1, order: 1 },
-        ],
+        create: [...outletRecipe, boxOldWork.id].map((id, order) => ({ canonicalMaterialId: id, quantity: 1, order })),
       },
     },
     select: { id: true },
   });
-  const switchSvc = await prisma.service.create({
+  const taggedSwitch = await prisma.service.create({
     data: {
-      contractorId: contractor.id, categoryId: cat.id, slug: "lw-switch-service", name: "lw-switch-service",
+      contractorId: contractor.id, categoryId: cat.id, slug: "lw-tagged-switch", name: "lw-tagged-switch",
       bookingType: "INSTANT", photoState: "NONE", offered: true, active: false,
+      templateKey: "replace-standard-switch", templateVersionId: tv.id,
       fieldLaborHours: 0.4, wwtLaborHours: 0.3, requiresTechCount: 1,
-      materials: { create: [{ canonicalMaterialId: switchRole.id, quantity: 1, order: 0 }] },
-    },
-    select: { id: true },
-  });
-  const gfciSvc = await prisma.service.create({
-    data: {
-      contractorId: contractor.id, categoryId: cat.id, slug: "lw-gfci-service", name: "lw-gfci-service",
-      bookingType: "INSTANT", photoState: "NONE", offered: true, active: false,
-      materials: { create: [{ canonicalMaterialId: gfci.id, quantity: 1, order: 0 }] },
+      materials: { create: switchRecipe.map((id, order) => ({ canonicalMaterialId: id, quantity: 1, order })) },
     },
     select: { id: true },
   });
 
-  return { contractorId: contractor.id, outletId: outlet.id, outletWithBoxId: outletWithBox.id, switchId: switchSvc.id, gfciId: gfciSvc.id };
+  return { contractorId: contractor.id, eligibleOutletId: eligibleOutlet.id, customizedOutletId: customizedOutlet.id, taggedSwitchId: taggedSwitch.id };
 }
 
 async function serviceState(id: string) {
@@ -189,7 +184,7 @@ async function serviceState(id: string) {
 }
 
 async function main() {
-  console.log(`\nLABOR WIZARD — BROWSER FLOW — explicit service picker, box scenario, editable proposals, through the real panel\n`);
+  console.log(`\nLABOR WIZARD — BROWSER FLOW — canonical eligibility only, customized divergence, server-side refusal, through the real panel\n`);
   console.log(`  ${BASE}  ·  ${EMAIL}  ·  sink ${SINK}\n`);
 
   const browser = await chromium.launch();
@@ -213,10 +208,9 @@ async function main() {
     ok(`   the account is real and verified, not asserted`, user.emailVerified === true);
 
     // ── the fixture ──────────────────────────────────────────────────────
-    const { outletId, outletWithBoxId, switchId, gfciId } = await buildFixture(user.id);
-    const beforeBox = await serviceState(outletWithBoxId);
-    const beforeGfci = await serviceState(gfciId);
-    const beforeOutlet = await serviceState(outletId);
+    const { eligibleOutletId, customizedOutletId, taggedSwitchId } = await buildFixture(user.id);
+    const beforeCustomized = await serviceState(customizedOutletId);
+    const beforeOutlet = await serviceState(eligibleOutletId);
 
     // ── 1. the panel, loaded as this real, signed-in OWNER ──────────────────
     await page.goto(`${BASE}/dashboard/setup?stage=pricing-foundation`);
@@ -240,61 +234,70 @@ async function main() {
     await page.waitForSelector("text=replacing an existing GFCI receptacle");
     await page.getByRole("button", { name: "Different crew" }).click();
 
-    // ── 6. review — explicit selection, not recipe inference ────────────────
+    // ── 6. review — canonical eligibility only ──────────────────────────────
     await page.waitForSelector("text=Review each proposal");
     const outletCard = page.locator("div.rounded-card.p-4").filter({ hasText: "Replace a standard duplex receptacle" });
-    const reviewText = await outletCard.innerText();
-    ok(`1. the outlet's OWN candidate list includes the box-carrying service too — nothing is filtered by recipe`,
-      reviewText.includes("lw-outlet-with-box"));
-    ok(`   ...and shows ITS current, pre-existing labor time, not a blank`,
-      reviewText.includes("currently 45 min"));
-    const outletCheckbox = outletCard.locator('input[aria-label="Apply Replace a standard duplex receptacle to lw-outlet-service"]');
-    ok(`2. the templateKey-tagged service arrives PRE-CHECKED — a real provenance fact, not a guess`,
-      await outletCheckbox.isChecked());
-    const boxCheckbox = outletCard.locator('input[aria-label="Apply Replace a standard duplex receptacle to lw-outlet-with-box"]');
-    ok(`   ...the box-carrying service arrives UNCHECKED — sharing a material is not an outcome match`,
-      !(await boxCheckbox.isChecked()));
-    // Confirm the box row is genuinely left alone — never touch it.
+    const outletText = await outletCard.innerText();
+    ok(`1. only the ONE unmodified, correctly-tagged service is offered as a checkbox`,
+      outletText.includes("lw-eligible-outlet") && outletText.includes("Applies to 1 of 1 matching service"));
+    ok(`   ...the customized service is named, but flagged for manual review, not offered a checkbox`,
+      outletText.includes("customized since") && outletText.includes("lw-customized-outlet"));
+    const customizedCheckbox = outletCard.locator('input[aria-label*="lw-customized-outlet"]');
+    ok(`2. no checkbox exists for the customized service at all`, (await customizedCheckbox.count()) === 0);
+    const eligibleCheckbox = outletCard.locator('input[aria-label="Apply Replace a standard duplex receptacle to lw-eligible-outlet"]');
+    ok(`   ...and the eligible one arrives pre-checked`, await eligibleCheckbox.isChecked());
 
-    // ── 7. switch — hand-authored, no templateKey: must be checked manually ─
+    // ── 7. switch — tagged and unmodified, offered normally ─────────────────
     const switchCard = page.locator("div.rounded-card.p-4").filter({ hasText: "Replace a standard single-pole switch" });
-    const switchCheckbox = switchCard.locator('input[aria-label="Apply Replace a standard single-pole switch to lw-switch-service"]');
-    ok(`3. the hand-authored switch service starts UNCHECKED — no templateKey to pre-check from`,
-      !(await switchCheckbox.isChecked()));
-    await switchCheckbox.check();
+    const switchCheckbox = switchCard.locator('input[aria-label="Apply Replace a standard single-pole switch to lw-tagged-switch"]');
+    ok(`3. the correctly-tagged switch service arrives pre-checked too`, await switchCheckbox.isChecked());
 
     // ── 8. EDIT the outlet's proposed minutes before accepting ──────────────
     await outletCard.locator('input[aria-label="Proposed minutes for Replace a standard duplex receptacle"]').fill("25");
 
-    // ── 9. GFCI shows the flag, no picker, nothing to select ────────────────
+    // ── 9. GFCI shows the flag, no picker ────────────────────────────────────
     const gfciCard = page.locator("div.rounded-card.p-4").filter({ hasText: "Replace an existing GFCI receptacle" });
     ok(`4. the GFCI card shows the crew-mismatch flag instead of a picker`,
       (await gfciCard.innerText()).includes("needs a different crew than the one covered above"));
 
-    // ── 10. accept ───────────────────────────────────────────────────────────
+    // ── 10. server-side refusal — a raw request naming an INELIGIBLE id, ────
+    // bypassing the UI entirely, which never offered lw-customized-outlet as
+    // a checkbox in the first place.
+    const refusal = await page.evaluate(async (serviceId) => {
+      const res = await fetch("/api/portal/labor-tasks", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acceptances: [{ taskKey: "outlet_replacement", minutes: 999, serviceIds: [serviceId] }] }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, customizedOutletId);
+    ok(`5. a direct request naming an ineligible id is refused, not silently applied`,
+      refusal.status === 400 && typeof refusal.body.error === "string" && refusal.body.error.includes("not eligible"));
+    const afterRefusal = await serviceState(customizedOutletId);
+    ok(`   ...and the named service's fieldLaborHours is genuinely unchanged`,
+      afterRefusal.fieldLaborHours === beforeCustomized.fieldLaborHours);
+
+    // ── 11. accept the real, eligible proposals ──────────────────────────────
     await page.getByRole("button", { name: "Accept and save" }).click();
     await page.waitForSelector("text=Saved.");
     const doneText = await page.innerText("body");
-    ok(`5. exactly 2 services were updated — the checked outlet and switch, nothing else`,
+    ok(`6. exactly 2 services were updated — the eligible outlet and switch`,
       doneText.includes("Saved. 2 services updated."));
 
-    // ── 11. server-side truth ────────────────────────────────────────────────
-    const afterOutlet = await serviceState(outletId);
-    ok(`6. the outlet service saved the EDITED figure (25 min), not the originally answered one (20 min)`,
+    // ── 12. server-side truth ────────────────────────────────────────────────
+    const afterOutlet = await serviceState(eligibleOutletId);
+    ok(`7. the outlet service saved the EDITED figure (25 min), not the originally answered one (20 min)`,
       Math.abs((afterOutlet.fieldLaborHours ?? 0) - 25 / 60) < 1e-9);
     ok(`   its basePrice and whileWeThereBasePrice — the PUBLISHED price — are untouched: this only ever saves inputs`,
       afterOutlet.basePrice === beforeOutlet.basePrice && afterOutlet.whileWeThereBasePrice === beforeOutlet.whileWeThereBasePrice);
-    const afterSwitch = await serviceState(switchId);
+    const afterSwitch = await serviceState(taggedSwitchId);
     ok(`   the switch service saved the ORIGINALLY ANSWERED anchor value (20 min) — the edit came after it was derived`,
       Math.abs((afterSwitch.fieldLaborHours ?? 0) - 20 / 60) < 1e-9);
-    const afterBox = await serviceState(outletWithBoxId);
-    ok(`7. the box-carrying service is COMPLETELY UNTOUCHED — left unchecked, so nothing about it moved`,
-      afterBox.fieldLaborHours === beforeBox.fieldLaborHours && afterBox.wwtLaborHours === beforeBox.wwtLaborHours
-        && afterBox.requiresTechCount === beforeBox.requiresTechCount);
-    const afterGfci = await serviceState(gfciId);
-    ok(`   the flagged GFCI service is untouched too — still unestablished`, afterGfci.fieldLaborHours === beforeGfci.fieldLaborHours);
+    const afterCustomized = await serviceState(customizedOutletId);
+    ok(`8. the customized service is COMPLETELY UNTOUCHED — never eligible, never offered, never written`,
+      afterCustomized.fieldLaborHours === beforeCustomized.fieldLaborHours && afterCustomized.wwtLaborHours === beforeCustomized.wwtLaborHours
+        && afterCustomized.requiresTechCount === beforeCustomized.requiresTechCount);
 
-    ok(`8. requiresTechCount is untouched on every service the wizard wrote to`,
+    ok(`9. requiresTechCount is untouched on every service the wizard wrote to`,
       afterOutlet.requiresTechCount === beforeOutlet.requiresTechCount && afterSwitch.requiresTechCount === 1);
     ok(`   wwtLaborHours is untouched on every service the wizard wrote to`,
       afterOutlet.wwtLaborHours === beforeOutlet.wwtLaborHours && afterSwitch.wwtLaborHours === 0.3);
@@ -307,7 +310,7 @@ async function main() {
     await browser.close().catch(() => {});
     await teardown();
     const residue = await prisma.contractor.count({ where: { slug: SLUG } });
-    ok(`9. every fixture is gone at the end`, residue === 0);
+    ok(`10. every fixture is gone at the end`, residue === 0);
     await prisma.$disconnect();
   }
 

@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
-import { ELECTRICAL_LABOR_TASKS } from "@/lib/laborWizard";
+import { ELECTRICAL_LABOR_TASKS, resolveTaskEligibility } from "@/lib/laborWizard";
 import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
 
 /**
  * Accept reviewed elapsed-task-time proposals from the labor wizard.
  *
- * WHICH SERVICES CHANGE IS TRUSTED FROM THE CLIENT, DELIBERATELY, unlike
- * the material baseline batch route. There is no server-side rule left that
- * could re-derive it: lib/laborWizard.ts stopped inferring eligibility from
- * a recipe on purpose (see its header) — the contractor's own confirmation
- * in the review screen, over their own unfiltered candidate list, IS the
- * only "which services" a task has. What's still verified here, and never
- * trusted, is that every service id named actually belongs to THIS
- * contractor — a cross-tenant id is refused outright, the same guarantee
- * every other guarded write in this codebase gives.
+ * ELIGIBILITY IS RE-RESOLVED HERE, NOT TRUSTED FROM THE CLIENT. A checkbox
+ * existing only for an eligible service in the review screen is a UI
+ * convenience; the actual guarantee is this route independently rebuilding
+ * each task's eligible set (lib/laborWizard.ts's resolveTaskEligibility —
+ * the canonical mapping, recipe unchanged since provisioning) and refusing
+ * outright if a submitted service id for that task is not in it. A
+ * cross-tenant id, an unrelated service, or a service whose recipe has
+ * since diverged from its template are all refused the same way: nothing
+ * is written, and the response says exactly which ids were rejected.
  *
  * WRITES THROUGH THE SHARED PRICING-INPUT AUTHORITY
  * (lib/servicePricingInputs.ts), not a bespoke update — the same function
@@ -80,19 +80,21 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: `Unknown task key(s): ${unknownKeys.join(", ")}` }, { status: 400 });
     }
 
-    const allIds = [...new Set(rows.flatMap((r) => r.serviceIds))];
-    if (allIds.length === 0) {
-      return NextResponse.json({ error: "No services selected." }, { status: 400 });
+    const eligibility = await resolveTaskEligibility(db, ctx.contractorId, ELECTRICAL_LABOR_TASKS);
+    const eligibleIdsByTask = new Map(
+      eligibility.map((e) => [e.task.key, new Set(e.eligible.map((s) => s.id))])
+    );
+
+    const rejected: string[] = [];
+    for (const row of rows) {
+      const eligibleIds = eligibleIdsByTask.get(row.taskKey) ?? new Set<string>();
+      for (const id of row.serviceIds) {
+        if (!eligibleIds.has(id)) rejected.push(`${id} (not eligible for ${row.taskKey})`);
+      }
     }
-    const owned = await db.service.findMany({
-      where: { id: { in: allIds }, contractorId: ctx.contractorId },
-      select: { id: true },
-    });
-    const ownedIds = new Set(owned.map((s) => s.id));
-    const foreign = allIds.filter((id) => !ownedIds.has(id));
-    if (foreign.length > 0) {
+    if (rejected.length > 0) {
       return NextResponse.json(
-        { error: `Service id(s) not found on this contractor: ${foreign.join(", ")}` },
+        { error: `Refused — not eligible: ${rejected.join(", ")}` },
         { status: 400 }
       );
     }
