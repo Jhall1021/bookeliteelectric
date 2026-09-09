@@ -45,7 +45,9 @@ export type HvacFamilyKey =
   | "run_distance"
   | "existing_condition"
   | "finish_disruption_ack"
-  | "dedicated_power_availability";
+  | "dedicated_power_availability"
+  | "indoor_unit_form"
+  | "water_supply_availability";
 
 export type HvacFamily = {
   key: HvacFamilyKey;
@@ -142,7 +144,14 @@ export const HVAC_FAMILIES: readonly HvacFamily[] = [
     // declared service to read presence against. Not rendered by any other
     // accessory_and_media-declared service; each renders only what it needs
     // (lib/hvac/scope.ts's own per-service resolvers).
-    establishes: ["accessory_present", "accessory_kind", "replacement_vs_new", "filter_slot_size"],
+    //
+    // H8: humidifier_type added — BYPASS | FAN_POWERED | STEAM | UNKNOWN,
+    // read directly off the unit (a bypass humidifier has no visible
+    // fan/motor, a fan-powered one does, a steam one has a distinct
+    // canister/electrode assembly) — never inferred from a manufacturer or
+    // model string. Needed only by whole-house-humidifier; no other
+    // accessory_and_media-declared service renders it.
+    establishes: ["accessory_present", "accessory_kind", "humidifier_type", "replacement_vs_new", "filter_slot_size"],
     gates: [],
     primitives: [],
   },
@@ -203,6 +212,24 @@ export const HVAC_FAMILIES: readonly HvacFamily[] = [
     purpose:
       "H2 audit addition. An observable fact — is there a socket within reach of the installation point — not a diagnosis of the circuit's adequacy. Confirmed by the catalog review's own observable-question column for two services, and by the original candidate-level analysis for a third (whole-house-humidifier's absent/new-installation branch, dropped from the summarized family table but never revoked).",
     establishes: ["dedicated_circuit_present"],
+    gates: [],
+    primitives: [],
+  },
+  {
+    key: "indoor_unit_form",
+    title: "The physical form of the indoor mini-split unit",
+    purpose:
+      "H8 addition. An observable fact — what the unit looks like and where it sits (wall, ceiling, floor, or concealed) — never a diagnosis of capacity, refrigerant configuration, serviceability, manufacturer compatibility, or whether the unit needs cleaning. Deliberately its own narrow family, not folded into distribution_and_zoning: that family stays quantity/zoning-oriented (how many, never what kind), the same distinction capacity_gate's families draw between counting equipment and describing it. Needed only by mini-split-head-cleaning; not added to mini-split-tune-up or any other service merely because it might be useful later.",
+    establishes: ["indoor_unit_type"],
+    gates: [],
+    primitives: [],
+  },
+  {
+    key: "water_supply_availability",
+    title: "Whether a water connection is within reach",
+    purpose:
+      "H8 addition. An observable fact — is there visible existing water tubing or a connection point within reach of the proposed installation — not a diagnosis of whether that connection is adequate, whether tapping it is permitted, or whether pressure is sufficient. The same narrow shape dedicated_power_availability already established for electrical prerequisites, here for water: F.7's own worked example asks this question and its resolution depends on the answer, but no family or fact was ever declared for it — families.ts's own dedicated_power_availability comment already flagged the gap (\"water supply, condensate_route, dedicated_circuit_present, run_band\" was the original candidate-level branch; the water half was dropped from the summary table and never restored). A genuinely independent physical-domain concept — not condensate (drain, a different pipe), not power (electrical), not run_distance (a length policy) — so it is not hidden inside any of them.",
+    establishes: ["water_supply_present"],
     gates: [],
     primitives: [],
   },
@@ -316,6 +343,10 @@ export const HVAC_SERVICE_FAMILIES: Readonly<Record<string, readonly HvacFamilyU
   "mini-split-head-cleaning": [
     { family: "distribution_and_zoning" },
     { family: "indoor_equipment_access" },
+    // H8: the observable physical form of the unit(s) being cleaned — the
+    // final applied trade review's own third scope driver, alongside
+    // quantity and access.
+    { family: "indoor_unit_form" },
   ],
   "whole-house-humidifier": [
     { family: "accessory_and_media" },
@@ -329,6 +360,10 @@ export const HVAC_SERVICE_FAMILIES: Readonly<Record<string, readonly HvacFamilyU
     // present, run_band" over the -replacement base. Dropped from Part 3's
     // summary, never revoked.
     { family: "dedicated_power_availability", branch: "accessory_present=ABSENT (first-time installation)" },
+    // H8: the water-supply half of that same original candidate-level
+    // branch, restored — the H2 gap families.ts's own comment above has
+    // flagged since H2.
+    { family: "water_supply_availability", branch: "accessory_present=ABSENT (first-time installation)" },
   ],
   "air-cleaner-cabinet-installation": [
     { family: "accessory_and_media" },

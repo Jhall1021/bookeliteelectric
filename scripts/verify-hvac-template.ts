@@ -90,6 +90,12 @@ import {
   resolveAccessoryConsumableReplacement,
   ACCESSORY_CONSUMABLE_REPLACEMENT_QUESTIONS,
   type AccessoryConsumableReplacementFacts,
+  resolveMiniSplitHeadCleaning,
+  MINI_SPLIT_HEAD_CLEANING_QUESTIONS,
+  type MiniSplitHeadCleaningFacts,
+  resolveWholeHouseHumidifier,
+  WHOLE_HOUSE_HUMIDIFIER_QUESTIONS,
+  type WholeHouseHumidifierFacts,
 } from "../lib/hvac/scope";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -379,9 +385,14 @@ group("14. canonical catalog contains no diagnostic repair inference");
 // H2 — the domain vocabulary and family layer
 // ═══════════════════════════════════════════════════════════════════════
 
-group("15. exactly fifteen HVAC families");
-ok("HVAC_FAMILIES has exactly 15 entries", HVAC_FAMILIES.length === 15, `got ${HVAC_FAMILIES.length}`);
-ok("HVAC_FAMILY_KEYS has 15 unique entries", new Set(HVAC_FAMILY_KEYS).size === 15, `got ${new Set(HVAC_FAMILY_KEYS).size}`);
+group("15. exactly seventeen HVAC families — H2's own \"fifteen\" check, superseded by H8's two narrow additions");
+// H2 declared fifteen; H8 adds indoor_unit_form and water_supply_availability
+// — two narrowly-scoped families settling facts the final applied trade
+// review required but H2 never declared a home for. This group now proves
+// the CURRENT boundary, the same discipline every prior phase applied to
+// its own predecessor's version of a count check.
+ok("HVAC_FAMILIES has exactly 17 entries", HVAC_FAMILIES.length === 17, `got ${HVAC_FAMILIES.length}`);
+ok("HVAC_FAMILY_KEYS has 17 unique entries", new Set(HVAC_FAMILY_KEYS).size === 17, `got ${new Set(HVAC_FAMILY_KEYS).size}`);
 ok(
   '"dedicated_power_availability" is one of the fifteen — the H2 audit correction',
   (HVAC_FAMILY_KEYS as readonly string[]).includes("dedicated_power_availability")
@@ -898,24 +909,22 @@ group("40. the tree's questions match H2's own family declaration for this servi
   ok("access slot is PRIMARY, per the settled decision", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["condensate-pump-installation"]) === JSON.stringify(["PRIMARY"]));
 }
 
-group("41. exactly ELEVEN HVAC service trees exist — H3-H6's own check, superseded again on purpose");
+group("41. exactly THIRTEEN HVAC service trees exist — H3-H7's own check, superseded again on purpose");
 {
   // H3's version read "exactly one"; H4's "exactly two"; H5's "exactly
-  // four"; H6's "exactly eight". Each was true when written, and each is
-  // superseded on the same terms: three H7 accessory/IAQ services are
-  // exactly the additional executable services this phase ships. A fourth
-  // — mini-split-head-cleaning — was implemented and then deliberately
-  // REMOVED before push: the final applied trade review requires this
-  // service to capture indoor-unit type as a CONDITIONAL_FIXED scope
-  // driver, and no approved vocabulary for that fact exists anywhere in
-  // authority. Shipping it without that fact would have priced a job
-  // while silently leaving a required scope driver unestablished — see
-  // this file's own header for the full reasoning. This group now proves
-  // the CURRENT boundary — eleven, not ten, not twelve — the same
-  // discipline every prior phase applied to its own predecessor's version
-  // of this check.
+  // four"; H6's "exactly eight"; H7's "exactly eleven" (having removed
+  // mini-split-head-cleaning before push for want of an approved
+  // indoor-unit-type vocabulary). Each was true when written, and each is
+  // superseded on the same terms: H8 settles that vocabulary as an
+  // explicit product decision and restores mini-split-head-cleaning,
+  // and separately settles whole-house-humidifier's own two missing
+  // facts (humidifier type, water supply presence) — exactly the two
+  // additional executable services this phase ships. This group now
+  // proves the CURRENT boundary — thirteen, not twelve, not fourteen —
+  // the same discipline every prior phase applied to its own
+  // predecessor's version of this check.
   const resolveFns = strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? [];
-  ok("lib/hvac/scope.ts exports exactly eleven resolve functions", resolveFns.length === 11, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
+  ok("lib/hvac/scope.ts exports exactly thirteen resolve functions", resolveFns.length === 13, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
   ok("resolveCondensatePumpInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensatePumpInstallation")));
   ok("resolveThermostatInstallation is one of them", resolveFns.some((f) => f.includes("resolveThermostatInstallation")));
   ok("resolveCondensateSafetySwitchInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensateSafetySwitchInstallation")));
@@ -926,20 +935,14 @@ group("41. exactly ELEVEN HVAC service trees exist — H3-H6's own check, supers
   ok("resolveMiniSplitTuneUp is one of them", resolveFns.some((f) => f.includes("resolveMiniSplitTuneUp")));
   ok("resolveAirCleanerCabinetInstallation is one of them", resolveFns.some((f) => f.includes("resolveAirCleanerCabinetInstallation")));
   ok("resolveDuctAirTreatmentInstallation is one of them", resolveFns.some((f) => f.includes("resolveDuctAirTreatmentInstallation")));
-  ok("resolveAccessoryConsumableReplacement is the eleventh", resolveFns.some((f) => f.includes("resolveAccessoryConsumableReplacement")));
+  ok("resolveAccessoryConsumableReplacement is one of them", resolveFns.some((f) => f.includes("resolveAccessoryConsumableReplacement")));
+  ok("resolveMiniSplitHeadCleaning is one of them — restored, on H8's own settled indoor_unit_type vocabulary", resolveFns.some((f) => f.includes("resolveMiniSplitHeadCleaning")));
+  ok("resolveWholeHouseHumidifier is the thirteenth", resolveFns.some((f) => f.includes("resolveWholeHouseHumidifier")));
   ok(
-    "no resolveMiniSplitHeadCleaning exists — removed before push; indoor-unit type has no approved vocabulary",
-    !resolveFns.some((f) => f.includes("resolveMiniSplitHeadCleaning"))
-  );
-  ok(
-    "no resolveCondenserPadReplacement exists — deferred, per the H5 pad audit decision, still deferred",
+    "no resolveCondenserPadReplacement exists — deferred, per the H5 pad audit decision, still deferred; H8 was explicitly told not to reopen it",
     !resolveFns.some((f) => f.includes("resolveCondenserPadReplacement"))
   );
-  ok(
-    "no resolveWholeHouseHumidifier exists — deferred, per the H7 audit decision, pending H8's two new facts",
-    !resolveFns.some((f) => f.includes("resolveWholeHouseHumidifier"))
-  );
-  ok("no twelfth HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
+  ok("no fourteenth HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1095,7 +1098,7 @@ group("48. symptom-only phrasing cannot enter the thermostat tree");
 
 group("49. terminal_scheme lives inside existing_control — no new family, no new gate, no new primitive");
 {
-  ok("HVAC_FAMILIES is still exactly 15 — no new family was added for terminal_scheme", HVAC_FAMILIES.length === 15);
+  ok("HVAC_FAMILIES is now exactly 17 — no new family was added for terminal_scheme specifically (H8 later added two, for unrelated facts)", HVAC_FAMILIES.length === 17);
   ok("HVAC_GATE_KEYS is still exactly 7 — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
   const existingControl = HVAC_FAMILIES.find((f) => f.key === "existing_control")!;
@@ -1240,7 +1243,7 @@ group("56. the thermostat tree's questions match H2's own family declaration for
 group("57. all prior H1-H3/G5 invariants remain green after the H4 restructure");
 {
   ok("HVAC_SERVICES still has exactly 22 entries", HVAC_SERVICES.length === 22);
-  ok("HVAC_FAMILIES still has exactly 15 entries", HVAC_FAMILIES.length === 15);
+  ok("HVAC_FAMILIES has exactly 17 entries (fifteen from H2, plus H8's two narrow additions)", HVAC_FAMILIES.length === 17);
   ok("HVAC_GATE_KEYS still has exactly 7 entries", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS still has exactly 7 entries", HVAC_PRIMITIVE_KEYS.length === 7);
   ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
@@ -1873,7 +1876,7 @@ group("84. all four H1 dispositions remain FIXED, and no family/gate/primitive c
     ok(`${key}'s disposition is still FIXED`, HVAC_SERVICES.find((s) => s.key === key)?.disposition === "FIXED");
   }
   ok("HVAC_SERVICES is still exactly 22 entries", HVAC_SERVICES.length === 22);
-  ok("HVAC_FAMILIES is still exactly 15 entries — no new family was added for H6", HVAC_FAMILIES.length === 15);
+  ok("HVAC_FAMILIES is exactly 17 entries — no new family was added for H6 specifically (H8 later added two, for unrelated facts)", HVAC_FAMILIES.length === 17);
   ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
   ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
@@ -1899,18 +1902,17 @@ group("85. gateTwoSlotAccess is a narrow, mechanical helper — not a generic tr
 // ═══════════════════════════════════════════════════════════════════════
 // H7 — three accessory/IAQ services: air-cleaner-cabinet-installation,
 // duct-air-treatment-installation, accessory-consumable-replacement.
-// whole-house-humidifier remains deferred (group 41, above, already
-// proves its resolver's continued absence pending H8's two new facts).
 //
-// mini-split-head-cleaning was implemented and then REMOVED before push
-// — the final applied trade review requires it to capture indoor-unit
-// type as a CONDITIONAL_FIXED scope driver, and no approved vocabulary
-// for that fact exists anywhere in authority. Group 41, above, proves its
-// resolver's absence; group 88, below, proves the service-specific
-// FINISHED->REMOTE_QUOTE behavior that resolver would have needed does
-// not exist anywhere else either — the removal left no orphaned special
-// case behind. Its catalog entry, H2 family declaration, and
-// CONDITIONAL_FIXED disposition remain untouched (group 87, below).
+// mini-split-head-cleaning was implemented in H7, then REMOVED before
+// push — the final applied trade review requires it to capture indoor-unit
+// type as a CONDITIONAL_FIXED scope driver, and no approved vocabulary for
+// that fact existed anywhere in authority at the time. H8's own audit
+// confirmed the gap was real and settled it as an explicit product
+// decision (groups 87-90, below, prove the resolver, the settled
+// seven-value vocabulary, and the still-service-specific access rule).
+// whole-house-humidifier was blocked for the same reason — two facts
+// (humidifier device type, water supply presence) genuinely missing from
+// H2's declared vocabulary — and H8 settles both (groups 99+, below).
 // ═══════════════════════════════════════════════════════════════════════
 
 group("86. H3-H6 behavior is unchanged by the H7 addition");
@@ -1956,39 +1958,99 @@ group("86. H3-H6 behavior is unchanged by the H7 addition");
   );
 }
 
-group("87. mini-split-head-cleaning's catalog entry, H2 family declaration, and disposition survive the removal untouched");
+// ═══════════════════════════════════════════════════════════════════════
+// H8 — mini-split-head-cleaning (settling indoor_unit_type) and
+// whole-house-humidifier (settling humidifier_type and
+// water_supply_present). Both were blocked after H7's own audit; both are
+// executable now. condenser-pad-replacement remains deferred, untouched,
+// and was NOT reopened by this audit — group 41, above, still proves its
+// resolver's absence, and group 69's own catalog-entry check (H5) still
+// stands unchanged.
+// ═══════════════════════════════════════════════════════════════════════
+
+const MINI_SPLIT_HEAD_CLEANING_BASE: MiniSplitHeadCleaningFacts = {
+  headCount: 2,
+  indoorUnitType: "WALL_MOUNTED",
+  accessClass: "ACCESSIBLE",
+};
+
+group("87. mini-split-head-cleaning resolves on the bounded happy path, and quantity fails closed");
 {
-  ok("mini-split-head-cleaning still exists in the catalog", HVAC_SERVICES.some((s) => s.key === "mini-split-head-cleaning"));
+  const resolved = resolveMiniSplitHeadCleaning(MINI_SPLIT_HEAD_CLEANING_BASE);
+  ok("WALL_MOUNTED + ACCESSIBLE + positive quantity -> RESOLVE_ADJUSTED", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_ADJUSTED");
+  const zeroHeads = resolveMiniSplitHeadCleaning({ ...MINI_SPLIT_HEAD_CLEANING_BASE, headCount: 0 });
+  ok("headCount=0 fails closed to PHOTO_REVIEW, not a legitimate zero-priced job", zeroHeads.status === "REFUSED" && zeroHeads.routeAction === "PHOTO_REVIEW" && zeroHeads.outcome.factKey === "head_count");
+  const multipleHeads = resolveMiniSplitHeadCleaning({ ...MINI_SPLIT_HEAD_CLEANING_BASE, headCount: 4 });
+  ok("multiple heads resolves the same way as one", multipleHeads.status === "RESOLVED");
   ok(
-    "its disposition is still CONDITIONAL_FIXED, unchanged — removing the resolver did not weaken the final trade requirement",
+    "the catalog's own disposition for mini-split-head-cleaning is CONDITIONAL_FIXED, matching the RESOLVE_ADJUSTED terminal used here",
     HVAC_SERVICES.find((s) => s.key === "mini-split-head-cleaning")?.disposition === "CONDITIONAL_FIXED"
-  );
-  ok(
-    "its H2 family declaration (distribution_and_zoning + indoor_equipment_access) is still intact, unchanged",
-    JSON.stringify([...HVAC_SERVICE_FAMILIES["mini-split-head-cleaning"].map((u) => u.family)].sort()) ===
-      JSON.stringify(["distribution_and_zoning", "indoor_equipment_access"].sort())
-  );
-  ok(
-    "its G1 access slot is still declared PRIMARY, unchanged",
-    JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["mini-split-head-cleaning"]) === JSON.stringify(["PRIMARY"])
-  );
-  ok(
-    "HVAC_SERVICES is still exactly 22 entries — removing the resolver did not touch the catalog count",
-    HVAC_SERVICES.length === 22
-  );
-  ok(
-    "mini-split-tune-up's own access slot is still both scoped slots, unchanged by the removal",
-    JSON.stringify([...HVAC_SERVICE_ACCESS_SLOTS["mini-split-tune-up"]].sort()) === JSON.stringify(["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"].sort())
   );
 }
 
-group("88. the final-trade indoor-unit-type requirement is not silently represented as satisfied anywhere");
+group("88. indoor_unit_type: exact seven-value vocabulary, indoor_unit_form is a separate narrow family, distribution_and_zoning stays quantity-only");
 {
-  // The generic accessGate is untouched by the removal — the service-
-  // specific FINISHED->REMOTE_QUOTE shape mini-split-head-cleaning would
-  // have needed no longer exists anywhere in the codebase.
+  const familyKeys = HVAC_FAMILY_KEYS as readonly string[];
+  ok("indoor_unit_form exists as its own H2 family", familyKeys.includes("indoor_unit_form"));
+  const indoorUnitForm = HVAC_FAMILIES.find((f) => f.key === "indoor_unit_form")!;
+  ok("indoor_unit_form establishes exactly indoor_unit_type, nothing else", JSON.stringify(indoorUnitForm.establishes) === JSON.stringify(["indoor_unit_type"]));
+  ok("indoor_unit_form binds no gate", indoorUnitForm.gates.length === 0);
+  ok("indoor_unit_form binds no shared primitive", indoorUnitForm.primitives.length === 0);
+  const distributionAndZoning = HVAC_FAMILIES.find((f) => f.key === "distribution_and_zoning")!;
+  ok(
+    "distribution_and_zoning remains exactly zone_count + head_count — quantity-only, indoor_unit_type was NOT added here",
+    JSON.stringify([...distributionAndZoning.establishes].sort()) === JSON.stringify(["zone_count", "head_count"].sort())
+  );
+  ok(
+    "mini-split-head-cleaning declares indoor_unit_form alongside its original two families",
+    JSON.stringify([...HVAC_SERVICE_FAMILIES["mini-split-head-cleaning"].map((u) => u.family)].sort()) ===
+      JSON.stringify(["distribution_and_zoning", "indoor_equipment_access", "indoor_unit_form"].sort())
+  );
+  ok(
+    "indoor_unit_form is declared for mini-split-head-cleaning only — not added to mini-split-tune-up or any other service",
+    !HVAC_SERVICE_FAMILIES["mini-split-tune-up"].some((u) => u.family === "indoor_unit_form") &&
+      Object.entries(HVAC_SERVICE_FAMILIES).filter(([, usages]) => usages.some((u) => u.family === "indoor_unit_form")).length === 1
+  );
+
+  const typeValues = MINI_SPLIT_HEAD_CLEANING_QUESTIONS.find((q) => q.key === "indoor_unit_type")!.options.map((o) => o.value);
+  ok(
+    "the indoor_unit_type question offers exactly the seven approved values, no more, no fewer",
+    JSON.stringify([...typeValues].sort()) ===
+      JSON.stringify(["WALL_MOUNTED", "CEILING_CASSETTE", "FLOOR_CONSOLE", "CONCEALED_DUCTED", "OTHER", "MIXED_TYPES", "UNKNOWN"].sort())
+  );
+
+  const bounded: readonly MiniSplitHeadCleaningFacts["indoorUnitType"][] = ["WALL_MOUNTED", "CEILING_CASSETTE", "FLOOR_CONSOLE"];
+  for (const indoorUnitType of bounded) {
+    const r = resolveMiniSplitHeadCleaning({ ...MINI_SPLIT_HEAD_CLEANING_BASE, indoorUnitType });
+    ok(`${indoorUnitType} stays in the bounded branch and resolves`, r.status === "RESOLVED" && r.routeAction === "RESOLVE_ADJUSTED");
+  }
+  const leavesPrice: readonly MiniSplitHeadCleaningFacts["indoorUnitType"][] = ["CONCEALED_DUCTED", "OTHER", "MIXED_TYPES"];
+  for (const indoorUnitType of leavesPrice) {
+    const r = resolveMiniSplitHeadCleaning({ ...MINI_SPLIT_HEAD_CLEANING_BASE, indoorUnitType });
+    ok(`${indoorUnitType} -> REMOTE_QUOTE`, r.status === "REFUSED" && r.routeAction === "REMOTE_QUOTE" && r.outcome.factKey === "indoor_unit_type" && r.outcome.observed === indoorUnitType);
+  }
+  const unknownType = resolveMiniSplitHeadCleaning({ ...MINI_SPLIT_HEAD_CLEANING_BASE, indoorUnitType: "UNKNOWN" });
+  ok("UNKNOWN indoor_unit_type -> PHOTO_REVIEW", unknownType.status === "REFUSED" && unknownType.routeAction === "PHOTO_REVIEW" && unknownType.outcome.factKey === "indoor_unit_type");
+
+  const diagnosticLanguage = /\b(capacity|refrigerant|serviceab\w*|compatib\w*|needs? cleaning|condition)\b/i;
+  ok(
+    "no indoor_unit_type option label makes a capacity, refrigerant, serviceability, compatibility, or need-based claim",
+    MINI_SPLIT_HEAD_CLEANING_QUESTIONS.find((q) => q.key === "indoor_unit_type")!.options.every((o) => !diagnosticLanguage.test(o.label))
+  );
+}
+
+group("89. mini-split-head-cleaning's access stays service-specific, and the generic accessGate is unaffected");
+{
+  const finished = resolveMiniSplitHeadCleaning({ ...MINI_SPLIT_HEAD_CLEANING_BASE, accessClass: "FINISHED" });
+  ok(
+    "FINISHED -> REMOTE_QUOTE — the service-specific H7/H8 correction, unique to this resolver",
+    finished.status === "REFUSED" && finished.routeAction === "REMOTE_QUOTE" && finished.outcome.factKey === "access_class" && finished.outcome.observed === "FINISHED"
+  );
+  const unknownAccess = resolveMiniSplitHeadCleaning({ ...MINI_SPLIT_HEAD_CLEANING_BASE, accessClass: "UNKNOWN" });
+  ok("UNKNOWN access -> PHOTO_REVIEW", unknownAccess.status === "REFUSED" && unknownAccess.routeAction === "PHOTO_REVIEW");
+
   const genericFinished = accessGate("FINISHED");
-  ok("accessGate(FINISHED) still CONTINUEs by default", genericFinished.action === "CONTINUE");
+  ok("accessGate(FINISHED) still CONTINUEs by default, outside mini-split-head-cleaning", genericFinished.action === "CONTINUE");
   const genericAccessible = accessGate("ACCESSIBLE");
   ok("accessGate(ACCESSIBLE) still CONTINUEs", genericAccessible.action === "CONTINUE");
   const genericUnknown = accessGate("UNKNOWN");
@@ -2000,23 +2062,37 @@ group("88. the final-trade indoor-unit-type requirement is not silently represen
     filterSlotSize: "20x25x4",
   });
   ok(
-    "air-cleaner-cabinet-installation's own FINISHED still resolves — the ordinary generic-gate behavior",
+    "air-cleaner-cabinet-installation's own FINISHED still resolves — the ordinary generic-gate behavior, not mini-split-head-cleaning's service-specific one",
     filterCabinetFinished.status === "RESOLVED"
   );
-  const scopeSrc = strip("lib/hvac/scope.ts");
   const gatesSrc = strip("lib/hvac/gates.ts");
   ok("lib/hvac/gates.ts's accessGate function body is unchanged — still checks only UNKNOWN", /export function accessGate\(access: AccessClass\): GateOutcome \{\s*if \(access === "UNKNOWN"\)/.test(gatesSrc));
+  const scopeSrc = strip("lib/hvac/scope.ts");
   ok(
-    "no FINISHED->REMOTE_QUOTE special case exists anywhere in scope.ts — the removal left no orphaned behavior behind",
-    !/observed: "FINISHED"/.test(scopeSrc)
+    "the FINISHED->REMOTE_QUOTE refusal exists exactly once in scope.ts, inside resolveMiniSplitHeadCleaning only",
+    (scopeSrc.match(/observed: "FINISHED"/g) ?? []).length === 1
   );
-  // The requirement itself — the indoor-unit-type check — is not
-  // represented anywhere: no resolver, no fact, no question, no gate.
-  ok("no resolveMiniSplitHeadCleaning function exists anywhere in scope.ts", !/function resolveMiniSplitHeadCleaning/.test(scopeSrc));
+}
+
+group("90. mini-split-head-cleaning stays distinct from mini-split-tune-up");
+{
   ok(
-    "no unit-type / head-type / indoor-unit-type fact or question exists anywhere in scope.ts — the missing scope driver is not quietly stood in for by anything",
-    !/unitType|headType|indoorUnitType|unit_type|head_type|indoor_unit_type/i.test(scopeSrc)
+    "mini-split-head-cleaning's access slot is PRIMARY — single-location, unlike mini-split-tune-up's two-slot scope",
+    JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["mini-split-head-cleaning"]) === JSON.stringify(["PRIMARY"])
   );
+  ok(
+    "mini-split-tune-up's own access slot is still both scoped slots, unchanged by H8",
+    JSON.stringify([...HVAC_SERVICE_ACCESS_SLOTS["mini-split-tune-up"]].sort()) === JSON.stringify(["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"].sort())
+  );
+  ok(
+    "mini-split-head-cleaning declares no system_identity family — H2 never declared one, and this resolver does not add one",
+    !HVAC_SERVICE_FAMILIES["mini-split-head-cleaning"].some((u) => u.family === "system_identity")
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const cleaningSection = section(scopeSrc, "export type IndoorUnitType", "export type HumidifierType");
+  ok("mini-split-head-cleaning never calls identityGate", !/identityGate/.test(cleaningSection));
+  ok("mini-split-head-cleaning never references disassembly/deep-clean/wash language in a diagnostic sense — no symptom or condition question", !/why (it'?s|is) dirty|symptom|equipment_condition|EquipmentCondition/i.test(cleaningSection));
+  ok("HVAC_SERVICES is still exactly 22 entries", HVAC_SERVICES.length === 22);
 }
 
 const FILTER_CABINET_BASE: AirCleanerCabinetInstallationFacts = {
@@ -2026,7 +2102,7 @@ const FILTER_CABINET_BASE: AirCleanerCabinetInstallationFacts = {
   filterSlotSize: "20x25x4",
 };
 
-group("89. air-cleaner-cabinet-installation: no powered variant, no dedicated-power question, no sheet-metal judgment question");
+group("91. air-cleaner-cabinet-installation: no powered variant, no dedicated-power question, no sheet-metal judgment question");
 {
   const resolved = resolveAirCleanerCabinetInstallation(FILTER_CABINET_BASE);
   ok("PRESENT (replacement) resolves to RESOLVE_ADJUSTED", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_ADJUSTED");
@@ -2064,7 +2140,7 @@ const DUCT_TREATMENT_BASE: DuctAirTreatmentInstallationFacts = {
   dedicatedCircuitPresent: "PRESENT",
 };
 
-group("90. duct-air-treatment-installation: power stays unconditional, and no health/performance claim exists anywhere");
+group("92. duct-air-treatment-installation: power stays unconditional, and no health/performance claim exists anywhere");
 {
   const resolved = resolveDuctAirTreatmentInstallation(DUCT_TREATMENT_BASE);
   ok("resolved power + access + identity -> RESOLVE_ADJUSTED", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_ADJUSTED");
@@ -2104,7 +2180,7 @@ const CONSUMABLE_BASE: AccessoryConsumableReplacementFacts = {
   identifierText: "Aprilaire 35",
 };
 
-group("91. accessory-consumable-replacement: accessory_kind exists, exact three kinds + UNKNOWN, accessory_present semantics unchanged");
+group("93. accessory-consumable-replacement: accessory_kind exists, exact three kinds + UNKNOWN, accessory_present semantics unchanged");
 {
   const existingFamily = HVAC_FAMILIES.find((f) => f.key === "accessory_and_media")!;
   ok(
@@ -2114,7 +2190,7 @@ group("91. accessory-consumable-replacement: accessory_kind exists, exact three 
       existingFamily.establishes.includes("replacement_vs_new") &&
       existingFamily.establishes.includes("filter_slot_size")
   );
-  ok("HVAC_FAMILIES is still exactly 15 entries — no new family was added for accessory_kind", HVAC_FAMILIES.length === 15);
+  ok("HVAC_FAMILIES is exactly 17 entries — no new family was added for accessory_kind specifically (H8 later added two, for unrelated facts)", HVAC_FAMILIES.length === 17);
   ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
 
@@ -2145,7 +2221,7 @@ group("91. accessory-consumable-replacement: accessory_kind exists, exact three 
   );
 }
 
-group("92. accessory-consumable-replacement declares no supply_arrangement question or family, and never modifies H2");
+group("94. accessory-consumable-replacement declares no supply_arrangement question or family, and never modifies H2");
 {
   ok(
     "H2's own family declaration for accessory-consumable-replacement is exactly accessory_and_media + indoor_equipment_access — no supply_arrangement",
@@ -2165,7 +2241,7 @@ group("92. accessory-consumable-replacement declares no supply_arrangement quest
   );
 }
 
-group("93. no compatibility is ever inferred from a printed identifier's content");
+group("95. no compatibility is ever inferred from a printed identifier's content");
 {
   const differentModel = resolveAccessoryConsumableReplacement({ ...CONSUMABLE_BASE, identifierText: "some other text entirely" });
   ok("any non-null identifier text resolves identically — content is never read for meaning", differentModel.status === "RESOLVED" && differentModel.routeAction === "RESOLVE_INSTANT");
@@ -2179,7 +2255,7 @@ group("93. no compatibility is ever inferred from a printed identifier's content
   );
 }
 
-group("94. no symptom vocabulary enters any of the three H7 trees");
+group("96. no symptom vocabulary enters any of the three H7 trees");
 {
   const scopeSrc = strip("lib/hvac/scope.ts");
   const h7Section = section(scopeSrc, "export type AirCleanerCabinetInstallationFacts");
@@ -2215,7 +2291,7 @@ group("94. no symptom vocabulary enters any of the three H7 trees");
   ok("mini-split-head-cleaning's own aliases still share no phrase with hvac-service-call's symptom vocabulary", cleaningOverlap.length === 0, cleaningOverlap.join(", "));
 }
 
-group("95. no equipment observation selects a repair, a diagnosis, or a component anywhere in the H7 trees");
+group("97. no equipment observation selects a repair, a diagnosis, or a component anywhere in the H7 trees");
 {
   const diagnosticLanguage =
     /\b(blocked|clogged|failed|failing|broken|defective|refrigerant|low on|leaking from|leak in|worn|corroded internally|burnt out|malfunction|cracked|unsafe)\b/i;
@@ -2238,27 +2314,266 @@ group("95. no equipment observation selects a repair, a diagnosis, or a componen
   ok("no H7 resolver ever produces REROUTE_SERVICE", !/REROUTE_SERVICE/.test(h7Section));
 }
 
-group("96. all three H7 H1 dispositions are unchanged, and no schema/pricing/provisioning surface was touched");
+group("98. H1 dispositions for the three original H7 services remain unchanged, and no schema/pricing/provisioning surface was touched");
 {
   ok(
-    "mini-split-head-cleaning's disposition is still CONDITIONAL_FIXED — canonical but non-executable, not weakened",
+    "mini-split-head-cleaning's disposition is still CONDITIONAL_FIXED — now executable, not weakened",
     HVAC_SERVICES.find((s) => s.key === "mini-split-head-cleaning")?.disposition === "CONDITIONAL_FIXED"
   );
   ok("air-cleaner-cabinet-installation's disposition is still CONDITIONAL_FIXED", HVAC_SERVICES.find((s) => s.key === "air-cleaner-cabinet-installation")?.disposition === "CONDITIONAL_FIXED");
   ok("duct-air-treatment-installation's disposition is still CONDITIONAL_FIXED", HVAC_SERVICES.find((s) => s.key === "duct-air-treatment-installation")?.disposition === "CONDITIONAL_FIXED");
   ok("accessory-consumable-replacement's disposition is still FIXED", HVAC_SERVICES.find((s) => s.key === "accessory-consumable-replacement")?.disposition === "FIXED");
-  ok("whole-house-humidifier's disposition is untouched, still CONDITIONAL_FIXED", HVAC_SERVICES.find((s) => s.key === "whole-house-humidifier")?.disposition === "CONDITIONAL_FIXED");
-  ok(
-    "whole-house-humidifier's H2 family declaration is untouched",
-    JSON.stringify([...HVAC_SERVICE_FAMILIES["whole-house-humidifier"].map((u) => u.family)].sort()) ===
-      JSON.stringify(["accessory_and_media", "condensate_route", "dedicated_power_availability", "indoor_equipment_access", "run_distance", "supply_arrangement"].sort())
-  );
+  ok("whole-house-humidifier's disposition is still CONDITIONAL_FIXED — now executable, not weakened", HVAC_SERVICES.find((s) => s.key === "whole-house-humidifier")?.disposition === "CONDITIONAL_FIXED");
   ok("HVAC_SERVICES is still exactly 22 entries", HVAC_SERVICES.length === 22);
   ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
   ok("lib/hvac/publish.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/publish.ts")));
   const scopeSrc = strip("lib/hvac/scope.ts");
   ok("scope.ts still imports nothing from lib/plumbing", !/from ["'`]\.\.?\/.*plumbing/.test(scopeSrc));
   ok("scope.ts still imports nothing electrical-specific", !/from ["'`]\.\.?\/.*electrical/.test(scopeSrc));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H8 — whole-house-humidifier. mini-split-head-cleaning's own groups are
+// 87-90, above.
+// ═══════════════════════════════════════════════════════════════════════
+
+const HUMIDIFIER_REPLACEMENT_BASE: WholeHouseHumidifierFacts = {
+  accessoryPresent: "PRESENT",
+  humidifierType: "BYPASS",
+  accessClass: "ACCESSIBLE",
+  waterSupplyPresent: "PRESENT",
+  condensateRoute: "PUMP_PRESENT",
+  dedicatedCircuitPresent: "PRESENT",
+  runBand: "STANDARD",
+  supplyArrangement: "CUSTOMER_SUPPLIED",
+};
+
+const HUMIDIFIER_NEW_INSTALL_BASE: WholeHouseHumidifierFacts = {
+  ...HUMIDIFIER_REPLACEMENT_BASE,
+  accessoryPresent: "ABSENT",
+};
+
+group("99. whole-house-humidifier's replacement branch: bypass/fan-powered resolve, steam reviews, UNKNOWN photo-reviews");
+{
+  const bypass = resolveWholeHouseHumidifier(HUMIDIFIER_REPLACEMENT_BASE);
+  ok("BYPASS replacement resolves to RESOLVE_ADJUSTED/REPLACEMENT", bypass.status === "RESOLVED" && bypass.routeAction === "RESOLVE_ADJUSTED" && bypass.branch === "REPLACEMENT");
+  const fanPowered = resolveWholeHouseHumidifier({ ...HUMIDIFIER_REPLACEMENT_BASE, humidifierType: "FAN_POWERED" });
+  ok("FAN_POWERED replacement also resolves", fanPowered.status === "RESOLVED" && fanPowered.branch === "REPLACEMENT");
+  const steam = resolveWholeHouseHumidifier({ ...HUMIDIFIER_REPLACEMENT_BASE, humidifierType: "STEAM" });
+  ok(
+    "STEAM replacement -> REMOTE_QUOTE",
+    steam.status === "REFUSED" && steam.routeAction === "REMOTE_QUOTE" && steam.outcome.factKey === "humidifier_type" && steam.outcome.observed === "STEAM"
+  );
+  const unknownType = resolveWholeHouseHumidifier({ ...HUMIDIFIER_REPLACEMENT_BASE, humidifierType: "UNKNOWN" });
+  ok(
+    "UNKNOWN existing type -> PHOTO_REVIEW — an installed device exists and a photo can classify it",
+    unknownType.status === "REFUSED" && unknownType.routeAction === "PHOTO_REVIEW" && unknownType.outcome.factKey === "humidifier_type"
+  );
+  const unknownAccessory = resolveWholeHouseHumidifier({ ...HUMIDIFIER_REPLACEMENT_BASE, accessoryPresent: "UNKNOWN" });
+  ok("UNKNOWN accessory_present -> PHOTO_REVIEW, before either branch is chosen", unknownAccessory.status === "REFUSED" && unknownAccessory.routeAction === "PHOTO_REVIEW");
+  const unknownAccess = resolveWholeHouseHumidifier({ ...HUMIDIFIER_REPLACEMENT_BASE, accessClass: "UNKNOWN" });
+  ok("UNKNOWN access on the replacement branch -> PHOTO_REVIEW", unknownAccess.status === "REFUSED" && unknownAccess.routeAction === "PHOTO_REVIEW");
+}
+
+group("100. whole-house-humidifier's new-installation branch: bypass/fan-powered resolve, steam reviews, UNKNOWN desired type REMOTE_QUOTEs (not PHOTO_REVIEW)");
+{
+  const bypass = resolveWholeHouseHumidifier(HUMIDIFIER_NEW_INSTALL_BASE);
+  ok("BYPASS new install resolves to RESOLVE_ADJUSTED/NEW_INSTALLATION", bypass.status === "RESOLVED" && bypass.routeAction === "RESOLVE_ADJUSTED" && bypass.branch === "NEW_INSTALLATION");
+  const fanPowered = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, humidifierType: "FAN_POWERED" });
+  ok("FAN_POWERED new install also resolves", fanPowered.status === "RESOLVED" && fanPowered.branch === "NEW_INSTALLATION");
+  const steam = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, humidifierType: "STEAM" });
+  ok("STEAM new install -> REMOTE_QUOTE", steam.status === "REFUSED" && steam.routeAction === "REMOTE_QUOTE" && steam.outcome.factKey === "humidifier_type");
+  const unknownType = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, humidifierType: "UNKNOWN" });
+  ok(
+    "UNKNOWN desired type on new install -> REMOTE_QUOTE, NOT PHOTO_REVIEW — the H8 settled distinction: no installed device exists for a photo to classify",
+    unknownType.status === "REFUSED" && unknownType.routeAction === "REMOTE_QUOTE" && unknownType.outcome.factKey === "humidifier_type" && unknownType.outcome.observed === "UNKNOWN"
+  );
+}
+
+group("101. humidifier_type belongs to accessory_and_media, with exactly the four approved values");
+{
+  const accessoryAndMedia = HVAC_FAMILIES.find((f) => f.key === "accessory_and_media")!;
+  ok(
+    "accessory_and_media now establishes humidifier_type, alongside its original facts (accessory_present, accessory_kind, replacement_vs_new, filter_slot_size)",
+    accessoryAndMedia.establishes.includes("humidifier_type") &&
+      accessoryAndMedia.establishes.includes("accessory_present") &&
+      accessoryAndMedia.establishes.includes("accessory_kind") &&
+      accessoryAndMedia.establishes.includes("replacement_vs_new") &&
+      accessoryAndMedia.establishes.includes("filter_slot_size")
+  );
+  const existingType = WHOLE_HOUSE_HUMIDIFIER_QUESTIONS.find((q) => q.key === "humidifier_type_existing")!.options.map((o) => o.value);
+  const newType = WHOLE_HOUSE_HUMIDIFIER_QUESTIONS.find((q) => q.key === "humidifier_type_new")!.options.map((o) => o.value);
+  const expected = ["BYPASS", "FAN_POWERED", "STEAM", "UNKNOWN"].sort();
+  ok("the replacement-branch type question offers exactly the four approved values", JSON.stringify([...existingType].sort()) === JSON.stringify(expected));
+  ok("the new-install-branch type question offers exactly the same four approved values", JSON.stringify([...newType].sort()) === JSON.stringify(expected));
+  ok(
+    "no humidifier_type option label infers type from a manufacturer or model string",
+    WHOLE_HOUSE_HUMIDIFIER_QUESTIONS.filter((q) => q.establishes === "humidifier_type").every((q) => q.options.every((o) => !/model|manufacturer|brand/i.test(o.label)))
+  );
+}
+
+group("102. water_supply_availability is a separate narrow H2 family, establishing exactly water_supply_present, no gate or primitive");
+{
+  const familyKeys = HVAC_FAMILY_KEYS as readonly string[];
+  ok("water_supply_availability exists as its own H2 family", familyKeys.includes("water_supply_availability"));
+  const waterFamily = HVAC_FAMILIES.find((f) => f.key === "water_supply_availability")!;
+  ok("water_supply_availability establishes exactly water_supply_present, nothing else", JSON.stringify(waterFamily.establishes) === JSON.stringify(["water_supply_present"]));
+  ok("water_supply_availability binds no gate", waterFamily.gates.length === 0);
+  ok("water_supply_availability binds no shared primitive", waterFamily.primitives.length === 0);
+  ok(
+    "water_supply_availability is NOT folded into condensate_route, dedicated_power_availability, or run_distance — it is its own family",
+    waterFamily.key !== "condensate_route" && waterFamily.key !== "dedicated_power_availability" && waterFamily.key !== "run_distance"
+  );
+  ok(
+    "whole-house-humidifier declares water_supply_availability branch-only, on the same accessory_present=ABSENT branch as dedicated_power_availability",
+    HVAC_SERVICE_FAMILIES["whole-house-humidifier"].some((u) => u.family === "water_supply_availability" && u.branch) &&
+      HVAC_SERVICE_FAMILIES["whole-house-humidifier"].some((u) => u.family === "dedicated_power_availability" && u.branch)
+  );
+  ok(
+    "water_supply_availability is declared for whole-house-humidifier only",
+    Object.entries(HVAC_SERVICE_FAMILIES).filter(([, usages]) => usages.some((u) => u.family === "water_supply_availability")).length === 1
+  );
+  const waterQuestion = WHOLE_HOUSE_HUMIDIFIER_QUESTIONS.find((q) => q.key === "water_supply")!;
+  ok(
+    "the water_supply question asks about visible existing tubing/connection only — no adequacy, permission, or pressure judgment",
+    !/adequate|permit|pressure|suitable|technically/i.test(waterQuestion.prompt)
+  );
+}
+
+group("103. new-installation water/drain/power: PRESENT continues, ABSENT REMOTE_QUOTEs, UNKNOWN PHOTO_REVIEWs");
+{
+  const waterAbsent = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, waterSupplyPresent: "ABSENT" });
+  ok("water_supply_present=ABSENT -> REMOTE_QUOTE", waterAbsent.status === "REFUSED" && waterAbsent.routeAction === "REMOTE_QUOTE" && waterAbsent.outcome.factKey === "water_supply_present");
+  const waterUnknown = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, waterSupplyPresent: "UNKNOWN" });
+  ok("water_supply_present=UNKNOWN -> PHOTO_REVIEW", waterUnknown.status === "REFUSED" && waterUnknown.routeAction === "PHOTO_REVIEW" && waterUnknown.outcome.factKey === "water_supply_present");
+
+  const noneVisible = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, condensateRoute: "NONE_VISIBLE" });
+  ok("condensate_route=NONE_VISIBLE -> REMOTE_QUOTE", noneVisible.status === "REFUSED" && noneVisible.routeAction === "REMOTE_QUOTE" && noneVisible.outcome.factKey === "condensate_route");
+  const condensateUnknown = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, condensateRoute: "UNKNOWN" });
+  ok("condensate_route=UNKNOWN -> PHOTO_REVIEW", condensateUnknown.status === "REFUSED" && condensateUnknown.routeAction === "PHOTO_REVIEW");
+  const gravityDrain = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, condensateRoute: "GRAVITY_DRAIN_PRESENT" });
+  ok("condensate_route=GRAVITY_DRAIN_PRESENT continues and resolves — a visible usable drain route", gravityDrain.status === "RESOLVED");
+
+  const powerAbsent = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, dedicatedCircuitPresent: "ABSENT" });
+  ok("dedicated_circuit_present=ABSENT -> REMOTE_QUOTE", powerAbsent.status === "REFUSED" && powerAbsent.routeAction === "REMOTE_QUOTE" && powerAbsent.outcome.factKey === "dedicated_circuit_present");
+  const powerUnknown = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, dedicatedCircuitPresent: "UNKNOWN" });
+  ok("dedicated_circuit_present=UNKNOWN -> PHOTO_REVIEW", powerUnknown.status === "REFUSED" && powerUnknown.routeAction === "PHOTO_REVIEW");
+
+  const overBand = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, runBand: "OVER_BAND" });
+  ok("run_band=OVER_BAND -> REMOTE_QUOTE", overBand.status === "REFUSED" && overBand.routeAction === "REMOTE_QUOTE" && overBand.outcome.factKey === "run_band");
+  const runUnknown = resolveWholeHouseHumidifier({ ...HUMIDIFIER_NEW_INSTALL_BASE, runBand: "UNKNOWN" });
+  ok("run_band=UNKNOWN -> PHOTO_REVIEW", runUnknown.status === "REFUSED" && runUnknown.routeAction === "PHOTO_REVIEW");
+  ok(
+    "run_band reuses condensate-pump-installation's own one-boundary CondensateRunBand shape — no new numeric threshold invented in H8",
+    !section(strip("lib/hvac/scope.ts"), "export type HumidifierType").includes("EXTENDED")
+  );
+}
+
+group("104. water, drain, and power are NOT re-asked or required on the bounded existing-replacement branch");
+{
+  // The replacement branch resolves without ever reading waterSupplyPresent,
+  // condensateRoute, or dedicatedCircuitPresent — structurally proven by
+  // varying them freely with no effect on a replacement resolution.
+  const withAbsentEverything = resolveWholeHouseHumidifier({
+    ...HUMIDIFIER_REPLACEMENT_BASE,
+    waterSupplyPresent: "ABSENT",
+    condensateRoute: "NONE_VISIBLE",
+    dedicatedCircuitPresent: "ABSENT",
+    runBand: "OVER_BAND",
+  });
+  ok(
+    "a replacement resolves RESOLVE_ADJUSTED even when water/drain/power/run are all set to their worst-case values — none of them is read on this branch",
+    withAbsentEverything.status === "RESOLVED" && withAbsentEverything.routeAction === "RESOLVE_ADJUSTED" && withAbsentEverything.branch === "REPLACEMENT"
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  // Bounded by a code token, not the ("New-installation branch") comment
+  // that strip() has already removed — `branch: "REPLACEMENT"` is the
+  // literal return value that closes the replacement branch's own code.
+  const replacementBranch = section(scopeSrc, "export function resolveWholeHouseHumidifier", 'branch: "REPLACEMENT"');
+  ok(
+    "the replacement branch's own code never reads waterSupplyPresent, condensateRoute, or dedicatedCircuitPresent",
+    !/waterSupplyPresent|condensateRoute|dedicatedCircuitPresent/.test(replacementBranch)
+  );
+}
+
+group("105. no diagnostic humidity/comfort language, and no symptom vocabulary, in either H8 tree");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const h8Section = section(scopeSrc, "export type IndoorUnitType");
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}" in the H8 sections`, !h8Section.includes(symptom));
+  }
+  const allQuestions = [...MINI_SPLIT_HEAD_CLEANING_QUESTIONS, ...WHOLE_HOUSE_HUMIDIFIER_QUESTIONS];
+  const optionValues = allQuestions.flatMap((q) => q.options.map((o) => o.value));
+  ok(
+    "no H8 answer option value is any of the closed reported_symptom vocabulary",
+    optionValues.every((v) => !(REPORTED_SYMPTOMS as readonly string[]).includes(v))
+  );
+  // Deliberately NOT a bare `need(s|ed)?` catch-all — that also matches
+  // ordinary logistics phrasing this file legitimately uses ("how many
+  // units need deep cleaning", "how far would a run need to travel").
+  // Each alternative here targets the diagnostic/comfort-judgment SENSE
+  // specifically, not the bare word.
+  const humidityDiagnosticLanguage = /humidity complaint|too dry|too humid|comfort complaint|is (it |this )?needed\b|do(es)? (it|this|the \w+) need\b|undersized|working properly|is it working/i;
+  const allWording = allQuestions.flatMap((q) => [q.prompt, ...q.options.map((o) => o.label)]).join(" ");
+  ok("no H8 question prompt or answer label uses humidity/comfort/need/sizing/diagnosis language", !humidityDiagnosticLanguage.test(allWording));
+
+  const h8Keys = ["mini-split-head-cleaning", "whole-house-humidifier"];
+  const shellAliases = (hvacServiceCall().aliases ?? []).map((a) => a.toLowerCase());
+  for (const key of h8Keys) {
+    const svc = HVAC_SERVICES.find((s) => s.key === key)!;
+    const overlap = (svc.aliases ?? []).filter((a) => shellAliases.includes(a.toLowerCase()));
+    ok(`${key}'s own aliases share no phrase with hvac-service-call's symptom vocabulary`, overlap.length === 0, overlap.join(", "));
+  }
+}
+
+group("106. exactly 17 H2 families after H8's two narrow additions, and no gate or primitive count changed");
+{
+  ok("HVAC_FAMILIES is now exactly 17 entries — fifteen original plus indoor_unit_form and water_supply_availability", HVAC_FAMILIES.length === 17);
+  ok("HVAC_FAMILY_KEYS has 17 unique entries", new Set(HVAC_FAMILY_KEYS).size === 17);
+  ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
+  ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
+  ok("no HVAC family manifest declares actual Question/AnswerOption content — indoor_unit_form and water_supply_availability included", HVAC_FAMILIES.every((f) => !("questions" in f)));
+}
+
+group("107. H3-H7 behavior is unchanged by the H8 addition");
+{
+  const condensatePump = resolveCondensatePumpInstallation({
+    accessClass: "ACCESSIBLE",
+    condensateRoute: "PUMP_PRESENT",
+    supplyArrangement: "CUSTOMER_SUPPLIED",
+    dedicatedCircuitPresent: "PRESENT",
+    runBand: "STANDARD",
+  });
+  ok("condensate-pump-installation still resolves RESOLVE_ADJUSTED/REPLACEMENT", condensatePump.status === "RESOLVED" && condensatePump.routeAction === "RESOLVE_ADJUSTED");
+  const thermostat = resolveThermostatInstallation(THERMOSTAT_REPLACEMENT_FACTS);
+  ok("thermostat-installation still resolves RESOLVE_ADJUSTED/REPLACEMENT", thermostat.status === "RESOLVED" && thermostat.routeAction === "RESOLVE_ADJUSTED");
+  const safetySwitch = resolveCondensateSafetySwitchInstallation({ accessClass: "ACCESSIBLE", condensateRoute: "PUMP_PRESENT" });
+  ok("condensate-safety-switch-installation still resolves RESOLVE_INSTANT", safetySwitch.status === "RESOLVED" && safetySwitch.routeAction === "RESOLVE_INSTANT");
+  const filter = resolveAirFilterReplacement({ filterSlotSize: "16x25x1", quantity: 1 });
+  ok("air-filter-replacement still resolves RESOLVE_INSTANT", filter.status === "RESOLVED" && filter.routeAction === "RESOLVE_INSTANT");
+  const acTuneUp = resolveAcTuneUp({
+    systemType: "FURNACE_AND_AC",
+    indoorAccessClass: "ACCESSIBLE",
+    outdoorLocation: "GROUND_LEVEL_ADJACENT",
+    outdoorAccessClass: "ACCESSIBLE",
+    systemCount: 1,
+  });
+  ok("ac-tune-up still resolves RESOLVE_INSTANT", acTuneUp.status === "RESOLVED" && acTuneUp.routeAction === "RESOLVE_INSTANT");
+  const filterCabinet = resolveAirCleanerCabinetInstallation(FILTER_CABINET_BASE);
+  ok("air-cleaner-cabinet-installation still resolves RESOLVE_ADJUSTED", filterCabinet.status === "RESOLVED" && filterCabinet.routeAction === "RESOLVE_ADJUSTED");
+  const consumable = resolveAccessoryConsumableReplacement(CONSUMABLE_BASE);
+  ok("accessory-consumable-replacement still resolves RESOLVE_INSTANT", consumable.status === "RESOLVED" && consumable.routeAction === "RESOLVE_INSTANT");
+  ok(
+    "H3-H7's own question data is all still exported and non-empty",
+    CONDENSATE_SAFETY_SWITCH_QUESTIONS.length === 2 &&
+      AIR_FILTER_REPLACEMENT_QUESTIONS.length === 2 &&
+      THERMOSTAT_QUESTIONS.length > 0 &&
+      AC_TUNE_UP_QUESTIONS.length > 0 &&
+      MINI_SPLIT_TUNE_UP_QUESTIONS.length > 0 &&
+      AIR_CLEANER_CABINET_INSTALLATION_QUESTIONS.length > 0 &&
+      ACCESSORY_CONSUMABLE_REPLACEMENT_QUESTIONS.length > 0
+  );
 }
 
 console.log();

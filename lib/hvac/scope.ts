@@ -4,30 +4,26 @@
  * `air-filter-replacement`, H6 the four tune-ups (`ac-tune-up`,
  * `furnace-tune-up`, `heat-pump-tune-up`, `mini-split-tune-up`), H7 three
  * accessory/IAQ services (`air-cleaner-cabinet-installation`,
- * `duct-air-treatment-installation`, `accessory-consumable-replacement`).
- * Eleven independent resolvers, still not a generic n-service engine.
- * `whole-house-humidifier` is deliberately NOT among them — H7's own audit
- * found two facts (humidifier device type, water supply presence)
+ * `duct-air-treatment-installation`, `accessory-consumable-replacement`),
+ * H8 the two services H7 left blocked: `mini-split-head-cleaning` and
+ * `whole-house-humidifier`. Thirteen independent resolvers, still not a
+ * generic n-service engine.
+ *
+ * `mini-split-head-cleaning` was implemented in H7, then REMOVED before
+ * push — the final applied trade review requires it to capture indoor-unit
+ * type as a CONDITIONAL_FIXED scope driver, and no approved vocabulary for
+ * one existed anywhere in authority. H8's own audit confirmed the gap was
+ * real and settled it as an explicit product decision — the closed
+ * `IndoorUnitType` vocabulary, below — rather than inventing one quietly
+ * to preserve a batch count. `whole-house-humidifier` was blocked for the
+ * same reason: two facts (humidifier device type, water supply presence)
  * genuinely missing from H2's declared vocabulary and load-bearing for its
- * CONDITIONAL_FIXED branches; H8 settles them.
+ * own CONDITIONAL_FIXED branches. H8 settles both with two narrow new H2
+ * families (`indoor_unit_form`, `water_supply_availability`) and one new
+ * fact on an already-declared family (`humidifier_type`, on
+ * `accessory_and_media`) — no new gate, no new shared primitive.
  *
- * `mini-split-head-cleaning` IS ALSO DELIBERATELY NOT AMONG THEM, though
- * H7 first implemented it. The final applied trade review requires this
- * service to capture indoor-unit type, quantity, and height/access as its
- * CONDITIONAL_FIXED scope drivers — but H2 never declared any fact for
- * "indoor-unit type," and no approved vocabulary for one exists anywhere
- * in authority (wall head / cassette / console / ducted, or otherwise).
- * H7's own implementation captured quantity and access but had to omit
- * the type question entirely for want of a vocabulary — pricing a job
- * while silently leaving one of the final authority's own required scope
- * drivers unestablished, exactly the class of omission this whole
- * architecture exists to refuse. Removed before push rather than shipped
- * with a gap. Its H1 catalog entry, H2 family declaration, and
- * CONDITIONAL_FIXED disposition are untouched — canonical, not executable,
- * pending a narrow H8/H8a reconciliation that settles the vocabulary
- * first, deliberately not invented here to preserve a batch count.
- *
- * STILL NOT A GENERIC RESOLVER, EVEN AT ELEVEN. Mirrors lib/plumbing/scope.ts's
+ * STILL NOT A GENERIC RESOLVER, EVEN AT THIRTEEN. Mirrors lib/plumbing/scope.ts's
  * ROLE — the layer between a validated answer and the price, deciding WHAT
  * THE JOB IS and never what it costs — but not its generic, multi-service
  * shape. Plumbing's `scopePlumbingService` walks whichever gates a catalog
@@ -35,11 +31,12 @@
  * shape genuinely pays for itself. HVAC's resolvers keep materially
  * different branch structures (condensate's is a flat gate sequence per
  * branch; thermostat's calls back into a shared gate with an explicit
- * opt-in; the four H6 tune-ups share one small access-gating helper) —
- * not enough to justify a common tree shape, per every prior phase's own
- * instruction against building one merely because another resolver
- * arrived. What genuinely IS shared is narrow and named:
- * `SupplyArrangementChoice`, `refuse()`, `unresolved()` (H5),
+ * opt-in; the four H6 tune-ups share one small access-gating helper;
+ * mini-split-head-cleaning writes its own access refusal, deliberately
+ * bypassing the shared gate) — not enough to justify a common tree shape,
+ * per every prior phase's own instruction against building one merely
+ * because another resolver arrived. What genuinely IS shared is narrow
+ * and named: `SupplyArrangementChoice`, `refuse()`, `unresolved()` (H5),
  * `gateTwoSlotAccess()` (H6) — one mechanical helper per genuinely
  * repeated shape, nothing assembled into a shared tree walker.
  *
@@ -52,10 +49,11 @@
  * `accessGate`, `identityGate`, `fuelGate`, `controlGate` and
  * `GateOutcome`/`toRouteAction` unchanged in count — H4 narrowly EXTENDED
  * `controlGate` with two optional, default-preserving parameters (see
- * gates.ts's own comment), not an eighth gate; H6 and H7 add no gate at
- * all. H7 adds exactly one new fact — `accessory_kind`, on the
- * already-declared `accessory_and_media` family (lib/hvac/families.ts's
- * own comment on it) — and no new family, gate, or primitive. The
+ * gates.ts's own comment), not an eighth gate; H6, H7 and H8 add no gate
+ * at all. H8 adds exactly two new families (`indoor_unit_form`,
+ * `water_supply_availability` — lib/hvac/families.ts's own comments on
+ * them) and one new fact on an existing family (`humidifier_type`, on
+ * `accessory_and_media`) — no new gate, no new shared primitive. The
  * platform's own `RouteAction` (lib/flow-types.ts) is the result
  * vocabulary throughout, not a service-local invention.
  */
@@ -1773,5 +1771,516 @@ export const ACCESSORY_CONSUMABLE_REPLACEMENT_QUESTIONS: readonly AccessoryConsu
     prompt: "What size or part number is printed on the one you are taking out?",
     establishes: "filter_slot_size",
     options: [],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// mini-split-head-cleaning — H7, blocked; H8 settles indoor_unit_type
+//
+// CONDITIONAL_FIXED, and — same as before — deliberately NOT built on
+// gateTwoSlotAccess or the shared accessGate's own behavior. This is the
+// ONE service in the codebase whose access answer diverges from
+// accessGate's generic rule (ACCESSIBLE and FINISHED both continue
+// everywhere else) — the H7 trade decision makes disassembly washing
+// behind finished construction genuinely outside this service's bounded
+// scope, while every other service's FINISHED still continues. accessGate
+// ITSELF is untouched; this resolver simply does not call it, and writes
+// its own two-value check instead.
+//
+// indoor_unit_type — H8's own settled product decision, NOT discovered in
+// approved authority. The H8 audit found no existing vocabulary for a
+// mini-split indoor unit's physical form anywhere in Price2Book's own
+// documents; the seven-value closed set below (WALL_MOUNTED /
+// CEILING_CASSETTE / FLOOR_CONSOLE / CONCEALED_DUCTED / OTHER /
+// MIXED_TYPES / UNKNOWN) is an explicit H8 decision, not a citation.
+// Physical form ONLY — never capacity, refrigerant configuration,
+// serviceability, manufacturer compatibility, or whether the unit "needs"
+// cleaning. MIXED_TYPES exists so one scalar answer can never falsely
+// describe several different heads at once — a home with two wall-mounted
+// heads and one ceiling cassette answers MIXED_TYPES, not a guess at
+// whichever type "counts most."
+//
+// Single-location (PRIMARY) — the outdoor unit is never touched by this
+// service, unlike mini-split-tune-up's genuinely two-slot scope. No
+// system_type question: H2 never declared system_identity for this
+// service, and this resolver does not add one.
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * H8. The physical form of the indoor mini-split unit(s) being cleaned —
+ * families.ts's own new `indoor_unit_form` family. Concrete typing lives
+ * here, not gates.ts: nothing in the seven gates reads it, the same
+ * placement `CondensateRouteObservation` and `AccessoryKind` already use
+ * for a family-declared, gate-free fact.
+ */
+export type IndoorUnitType =
+  | "WALL_MOUNTED"
+  | "CEILING_CASSETTE"
+  | "FLOOR_CONSOLE"
+  | "CONCEALED_DUCTED"
+  | "OTHER"
+  | "MIXED_TYPES"
+  | "UNKNOWN";
+
+export type MiniSplitHeadCleaningFacts = {
+  /** Q1. A quantity; gates nothing beyond being positive. */
+  headCount: number;
+  /** Q2. The H8 settled vocabulary — see the section header. */
+  indoorUnitType: IndoorUnitType;
+  /** Q3. Read directly, NOT through accessGate — see the section header. */
+  accessClass: AccessClass;
+};
+
+export type MiniSplitHeadCleaningResolution =
+  | {
+      status: "RESOLVED";
+      /** The approved CONDITIONAL_FIXED terminal, in the platform's own vocabulary. */
+      routeAction: "RESOLVE_ADJUSTED";
+    }
+  | HvacRefusal;
+
+/**
+ * Resolve `mini-split-head-cleaning` against a complete fact set. FAILS
+ * CLOSED. No symptom question, no equipment_condition, no inference about
+ * why cleaning is needed — the homeowner selected known disassembly-wash
+ * work by name, and this resolver only ever scopes it.
+ */
+export function resolveMiniSplitHeadCleaning(facts: MiniSplitHeadCleaningFacts): MiniSplitHeadCleaningResolution {
+  // Q1 — quantity. Must be positive to describe real work.
+  if (facts.headCount < 1) {
+    return unresolved("head_count", "The number of indoor units being deep cleaned has not been established.");
+  }
+
+  // Q2 — physical form. WALL_MOUNTED/CEILING_CASSETTE/FLOOR_CONSOLE stay
+  // bounded; CONCEALED_DUCTED (hidden behind finished construction, only a
+  // grille visible), OTHER, and MIXED_TYPES all leave automated pricing.
+  if (facts.indoorUnitType === "UNKNOWN") {
+    return unresolved("indoor_unit_type", "The physical form of the indoor unit(s) has not been established.");
+  }
+  if (
+    facts.indoorUnitType === "CONCEALED_DUCTED" ||
+    facts.indoorUnitType === "OTHER" ||
+    facts.indoorUnitType === "MIXED_TYPES"
+  ) {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "This indoor unit form is outside this service's bounded deep-cleaning scope.",
+      factKey: "indoor_unit_type",
+      observed: facts.indoorUnitType,
+    });
+  }
+
+  // Q3 — access. Service-specific: FINISHED leaves automated pricing HERE
+  // ONLY. Not accessGate — see the section header.
+  if (facts.accessClass === "UNKNOWN") {
+    return unresolved("access_class", "Whether the indoor units are in an open or finished space has not been established.");
+  }
+  if (facts.accessClass === "FINISHED") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "Disassembly washing behind finished construction is outside this service's bounded deep-cleaning scope.",
+      factKey: "access_class",
+      observed: "FINISHED",
+    });
+  }
+
+  return { status: "RESOLVED", routeAction: "RESOLVE_ADJUSTED" };
+}
+
+export type MiniSplitHeadCleaningQuestionKey = "head_count" | "indoor_unit_type" | "indoor_access";
+
+export type MiniSplitHeadCleaningAnswerOption = { value: string; label: string };
+
+export type MiniSplitHeadCleaningQuestion = {
+  key: MiniSplitHeadCleaningQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly MiniSplitHeadCleaningAnswerOption[];
+};
+
+export const MINI_SPLIT_HEAD_CLEANING_QUESTIONS: readonly MiniSplitHeadCleaningQuestion[] = [
+  {
+    key: "head_count",
+    prompt: "How many indoor units need deep cleaning?",
+    establishes: "head_count",
+    options: [],
+  },
+  {
+    key: "indoor_unit_type",
+    prompt: "What do the indoor units look like?",
+    establishes: "indoor_unit_type",
+    options: [
+      { value: "WALL_MOUNTED", label: "A wall-mounted unit, high on the wall" },
+      { value: "CEILING_CASSETTE", label: "A flat cassette or grille in the ceiling" },
+      { value: "FLOOR_CONSOLE", label: "A low, floor-level console" },
+      { value: "CONCEALED_DUCTED", label: "Concealed, with only vents or grilles visible" },
+      { value: "OTHER", label: "Something else" },
+      { value: "MIXED_TYPES", label: "More than one different type" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where are the indoor units?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// whole-house-humidifier — H8
+//
+// CONDITIONAL_FIXED. accessory_present decides the branch, the same
+// presence/absence merge pattern every merged replacement/new-fit service
+// in this codebase uses. The existing/replacement branch does NOT re-ask
+// water, drain, or power — the unit standing there already proves them,
+// per catalog review F.7's own resolution logic ("One already there
+// proves the water, drain, duct opening and power"). The new-installation
+// branch establishes all of them, because none is proven yet.
+//
+// humidifier_type gates BOTH branches, not just new installations — a
+// steam humidifier's more complex power/water/drainage requirements apply
+// whether it's a replacement or a first fit. UNKNOWN behaves DIFFERENTLY
+// per branch: on replacement, an installed device exists and a photo can
+// classify it (PHOTO_REVIEW); on new installation, there is no installed
+// device for a photo to classify, so an unestablished desired type simply
+// leaves fixed pricing (REMOTE_QUOTE) — the H8 settled distinction.
+//
+// water_supply_present is the H8-restored half of the original
+// candidate-level new-installation branch (families.ts's own comment on
+// water_supply_availability) — branch-only, matching
+// dedicated_power_availability's own branch-only declaration for the same
+// branch exactly. run_band reuses condensate-pump-installation's own
+// one-boundary CondensateRunBand shape unchanged — no new numeric
+// threshold invented in H8.
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * H8. What kind of humidifier — families.ts's own new `humidifier_type`
+ * fact on the already-declared `accessory_and_media` family. Read directly
+ * off the unit (a bypass humidifier has no visible fan/motor, a
+ * fan-powered one does, a steam one has a distinct canister/electrode
+ * assembly) — never inferred from a manufacturer or model string.
+ */
+export type HumidifierType = "BYPASS" | "FAN_POWERED" | "STEAM" | "UNKNOWN";
+
+/**
+ * H8. Whether visible existing water tubing or a connection point is
+ * within reach of the proposed installation — families.ts's own new
+ * `water_supply_availability` family. Observation only: never whether the
+ * connection is adequate, whether tapping it is permitted, or whether
+ * pressure is sufficient.
+ */
+export type WaterSupplyPresence = "PRESENT" | "ABSENT" | "UNKNOWN";
+
+export type WholeHouseHumidifierBranch = "REPLACEMENT" | "NEW_INSTALLATION";
+
+/**
+ * Every fact this service's tree can read. Always fully present at
+ * resolution time — same discipline as every other resolver in this file.
+ * `waterSupplyPresent`, `condensateRoute`, `dedicatedCircuitPresent` and
+ * `runBand` are asked ONLY on the new-installation branch and are simply
+ * never read when `accessoryPresent` is PRESENT — not because they are
+ * unresolved, but because that branch's questions never establish them.
+ * Ordinary branching, not the diagnostic-risk shape this file exists to
+ * refuse.
+ */
+export type WholeHouseHumidifierFacts = {
+  /** Q1. The branch decision. */
+  accessoryPresent: AccessoryPresence;
+  /** Q2. Asked on both branches; UNKNOWN routes differently per branch — see the section header. */
+  humidifierType: HumidifierType;
+  /** Q3 — PRIMARY slot. */
+  accessClass: AccessClass;
+  /** New-installation only. */
+  waterSupplyPresent: WaterSupplyPresence;
+  /** New-installation only. Reuses H3's own condensate_route vocabulary unchanged. */
+  condensateRoute: CondensateRouteObservation;
+  /** New-installation only. */
+  dedicatedCircuitPresent: DedicatedCircuitPresence;
+  /** New-installation only. Reuses condensate-pump-installation's own one-boundary run-band shape. */
+  runBand: CondensateRunBand;
+  /** Asked on both branches. */
+  supplyArrangement: SupplyArrangementChoice;
+};
+
+export type WholeHouseHumidifierResolution =
+  | {
+      status: "RESOLVED";
+      /** The approved CONDITIONAL_FIXED terminal, in the platform's own vocabulary. */
+      routeAction: "RESOLVE_ADJUSTED";
+      branch: WholeHouseHumidifierBranch;
+    }
+  | HvacRefusal;
+
+/**
+ * Resolve `whole-house-humidifier` against a complete fact set. FAILS
+ * CLOSED. No question here asks whether a humidifier is needed, working
+ * properly, undersized, or causing humidity problems — every fact below is
+ * identity, type, access, or a utility-connection observation.
+ */
+export function resolveWholeHouseHumidifier(facts: WholeHouseHumidifierFacts): WholeHouseHumidifierResolution {
+  // Q1 — the branch decision.
+  if (facts.accessoryPresent === "UNKNOWN") {
+    return unresolved("accessory_present", "Whether a humidifier is already on the ductwork has not been established.");
+  }
+
+  if (facts.accessoryPresent === "PRESENT") {
+    // ── Existing / replacement branch ──────────────────────────────────
+    // Q2 — humidifier type. An installed device exists, so UNKNOWN is
+    // photo-reviewable, not a reason to leave pricing outright.
+    if (facts.humidifierType === "UNKNOWN") {
+      return unresolved("humidifier_type", "The type of the existing humidifier has not been established.");
+    }
+    if (facts.humidifierType === "STEAM") {
+      return refuse({
+        action: "REMOTE_QUOTE",
+        reason: "Steam humidifiers are outside this fixed scope's bounded type branches.",
+        factKey: "humidifier_type",
+        observed: "STEAM",
+      });
+    }
+
+    // Q3 — indoor access.
+    const access = accessGate(facts.accessClass);
+    if (access.action !== "CONTINUE") return refuse(access);
+
+    // Water, drain, and power are NOT re-asked — the existing unit already
+    // proves them. Q4 — supply arrangement, a policy choice that always
+    // continues once asked.
+    return { status: "RESOLVED", routeAction: "RESOLVE_ADJUSTED", branch: "REPLACEMENT" };
+  }
+
+  // ── New-installation branch ────────────────────────────────────────────
+  // Q2 — desired humidifier type. No installed device exists for a photo
+  // to classify, so an unestablished desired type leaves fixed pricing
+  // instead of failing to PHOTO_REVIEW — the H8 settled distinction from
+  // the replacement branch, above.
+  if (facts.humidifierType === "UNKNOWN") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "No desired humidifier type was established, and there is no installed device a photo could classify instead.",
+      factKey: "humidifier_type",
+      observed: "UNKNOWN",
+    });
+  }
+  if (facts.humidifierType === "STEAM") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "Steam humidifiers are outside this fixed scope's bounded type branches.",
+      factKey: "humidifier_type",
+      observed: "STEAM",
+    });
+  }
+
+  // Q3 — indoor access.
+  const access = accessGate(facts.accessClass);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q4 — water supply.
+  if (facts.waterSupplyPresent === "UNKNOWN") {
+    return unresolved("water_supply_present", "Whether a water line is within reach of the installation point has not been established.");
+  }
+  if (facts.waterSupplyPresent === "ABSENT") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "No water line is within reach, and this fixed-price installation cannot be completed as promised without one.",
+      factKey: "water_supply_present",
+      observed: "ABSENT",
+    });
+  }
+
+  // Q5 — condensate route.
+  if (facts.condensateRoute === "UNKNOWN") {
+    return unresolved("condensate_route", "Whether a floor drain or condensate pump is nearby has not been established.");
+  }
+  if (facts.condensateRoute === "NONE_VISIBLE") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "No floor drain or condensate pump was observed, and this fixed-price installation cannot be completed as promised without one.",
+      factKey: "condensate_route",
+      observed: "NONE_VISIBLE",
+    });
+  }
+  // PUMP_PRESENT and GRAVITY_DRAIN_PRESENT both continue.
+
+  // Q6 — power.
+  if (facts.dedicatedCircuitPresent === "UNKNOWN") {
+    return unresolved("dedicated_circuit_present", "Whether a normal outlet is within reach has not been established.");
+  }
+  if (facts.dedicatedCircuitPresent === "ABSENT") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "No outlet is within reach, and this fixed-price installation cannot be completed as promised without one.",
+      factKey: "dedicated_circuit_present",
+      observed: "ABSENT",
+    });
+  }
+
+  // Q7 — run distance.
+  if (facts.runBand === "UNKNOWN") {
+    return unresolved("run_band", "The run distance has not been established.");
+  }
+  if (facts.runBand === "OVER_BAND") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "The run is longer than this contractor's standard band.",
+      factKey: "run_band",
+      observed: "OVER_BAND",
+    });
+  }
+
+  // Q8 — supply arrangement.
+  return { status: "RESOLVED", routeAction: "RESOLVE_ADJUSTED", branch: "NEW_INSTALLATION" };
+}
+
+export type WholeHouseHumidifierQuestionKey =
+  | "accessory_present"
+  | "humidifier_type_existing"
+  | "humidifier_type_new"
+  | "indoor_access"
+  | "water_supply"
+  | "condensate_route"
+  | "dedicated_power"
+  | "run_distance"
+  | "supply_arrangement_replacement"
+  | "supply_arrangement_new_installation";
+
+export type WholeHouseHumidifierAnswerOption = { value: string; label: string };
+
+export type WholeHouseHumidifierQuestion = {
+  key: WholeHouseHumidifierQuestionKey;
+  branch: WholeHouseHumidifierBranch | "SHARED";
+  prompt: string;
+  establishes: string;
+  options: readonly WholeHouseHumidifierAnswerOption[];
+};
+
+export const WHOLE_HOUSE_HUMIDIFIER_QUESTIONS: readonly WholeHouseHumidifierQuestion[] = [
+  {
+    key: "accessory_present",
+    branch: "SHARED",
+    prompt: "Is there a whole-house humidifier on the ductwork now?",
+    establishes: "accessory_present",
+    options: [
+      { value: "PRESENT", label: "Yes, there's one there now" },
+      { value: "ABSENT", label: "No" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "humidifier_type_existing",
+    branch: "REPLACEMENT",
+    prompt: "What type of humidifier is installed now?",
+    establishes: "humidifier_type",
+    options: [
+      { value: "BYPASS", label: "Bypass" },
+      { value: "FAN_POWERED", label: "Fan-powered" },
+      { value: "STEAM", label: "Steam" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "humidifier_type_new",
+    branch: "NEW_INSTALLATION",
+    prompt: "What type of whole-house humidifier would you like installed?",
+    establishes: "humidifier_type",
+    options: [
+      { value: "BYPASS", label: "Bypass" },
+      { value: "FAN_POWERED", label: "Fan-powered" },
+      { value: "STEAM", label: "Steam" },
+      { value: "UNKNOWN", label: "Not sure yet" },
+    ],
+  },
+  {
+    key: "indoor_access",
+    branch: "SHARED",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "water_supply",
+    branch: "NEW_INSTALLATION",
+    prompt: "Is there a water line within reach of where the humidifier would be installed?",
+    establishes: "water_supply_present",
+    options: [
+      { value: "PRESENT", label: "Yes, there's a water line nearby" },
+      { value: "ABSENT", label: "No" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "condensate_route",
+    branch: "NEW_INSTALLATION",
+    prompt: "Is there a floor drain or a condensate pump nearby?",
+    establishes: "condensate_route",
+    options: [
+      { value: "PUMP_PRESENT", label: "Yes, there's a pump there now" },
+      { value: "GRAVITY_DRAIN_PRESENT", label: "No, but there's a drain line that runs away on its own" },
+      { value: "NONE_VISIBLE", label: "No, I don't see anything like that" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "dedicated_power",
+    branch: "NEW_INSTALLATION",
+    prompt: "Is there a normal outlet within reach?",
+    establishes: "dedicated_circuit_present",
+    options: [
+      { value: "PRESENT", label: "Yes, there's an outlet nearby" },
+      { value: "ABSENT", label: "No" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "run_distance",
+    branch: "NEW_INSTALLATION",
+    // {b1} is the contractor's own one boundary — see lib/policyBands.ts.
+    // Never shipped with a hole unresolved; rendering is a template-layer
+    // concern this file does not perform.
+    prompt: "About how far would a run need to travel to reach the installation point?",
+    establishes: "run_band",
+    options: [
+      { value: "STANDARD", label: "{b1} feet or less" },
+      { value: "OVER_BAND", label: "More than {b1} feet" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "supply_arrangement_replacement",
+    branch: "REPLACEMENT",
+    prompt: "Do you already have the replacement humidifier, or should one be supplied?",
+    establishes: "supply_arrangement",
+    options: [
+      { value: "CUSTOMER_SUPPLIED", label: "I already have it" },
+      { value: "CONTRACTOR_SUPPLIED", label: "Please supply it" },
+    ],
+  },
+  {
+    key: "supply_arrangement_new_installation",
+    branch: "NEW_INSTALLATION",
+    prompt: "Do you already have the humidifier, or should one be supplied?",
+    establishes: "supply_arrangement",
+    options: [
+      { value: "CUSTOMER_SUPPLIED", label: "I already have it" },
+      { value: "CONTRACTOR_SUPPLIED", label: "Please supply it" },
+    ],
   },
 ] as const;
