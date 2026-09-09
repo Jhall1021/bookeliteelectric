@@ -29,7 +29,7 @@ export type ServicePricing = {
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 
 export default function PricingFoundationPanel({
-  settings, roleFindings, policyFindings, services, foundationClear,
+  settings, offeredCount, unresolvedRoleCount, policyFindings, services, foundationClear,
 }: {
   settings: {
     crewHourRateCents: number | null;
@@ -37,7 +37,20 @@ export default function PricingFoundationPanel({
     roundingIncrementCents: number | null;
     defaultPermitAdminCents: number | null;
   } | null;
-  roleFindings: Finding[];
+  /** How many services this contractor has chosen to offer — zero means there is nothing to cost yet, distinct from "chosen and fully costed". */
+  offeredCount: number;
+  /**
+   * The real count of unresolved MATERIAL_COST_UNRESOLVED findings, already
+   * scoped to offered services by the readiness engine. Shown as a count
+   * here, never as its own list — MaterialBaselineBatchPanel (rendered
+   * alongside this component) is the one interactive place a contractor
+   * actually resolves one, and listing the same role in both places is what
+   * the pricing-foundation stage's own blockers-list exclusion already
+   * guards against for the page-wide list. A hardcoded 0 here (this panel's
+   * previous shape) said "everything is costed" while that same panel still
+   * listed real unresolved roles — this count is why that can't happen again.
+   */
+  unresolvedRoleCount: number;
   policyFindings: Finding[];
   services: ServicePricing[];
   foundationClear: boolean;
@@ -93,19 +106,45 @@ export default function PricingFoundationPanel({
 
       <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
         <h2 className="font-display text-lg font-bold text-navy">What your materials cost you</h2>
-        {roleFindings.length === 0 && policyFindings.length === 0 ? (
+        {/*
+         * Three states, and only one of them is ever shown — never combined
+         * with a hardcoded stand-in for whichever isn't computed here.
+         * "Choose your services first" and "everything is costed" both read
+         * as roleFindings.length === 0; offeredCount is what actually tells
+         * them apart, since MATERIAL_COST_UNRESOLVED is scoped to offered
+         * services and reports nothing when nothing is offered either.
+         */}
+        {offeredCount === 0 ? (
+          <p className="mt-1 text-sm text-slate">Choose your services first.</p>
+        ) : unresolvedRoleCount > 0 ? (
+          <p className="mt-1 text-sm text-slate">
+            {unresolvedRoleCount} material cost{unresolvedRoleCount === 1 ? "" : "s"} need
+            {unresolvedRoleCount === 1 ? "s" : ""} your review.
+          </p>
+        ) : (
           <p className="mt-1 text-sm text-success">
             Everything the services you offer need is costed.
           </p>
-        ) : (
+        )}
+
+        {/*
+         * Policy decisions — a different kind of thing from a material cost
+         * (which role, at what quantity, vs. a per-contractor policy like an
+         * included run length) and NOT handled by MaterialBaselineBatchPanel,
+         * so this stays the one place they're listed. Independent of the
+         * material-cost status above: a contractor can be fully costed and
+         * still have a policy left, or vice versa, and neither is
+         * contradicted by the other being shown.
+         */}
+        {policyFindings.length > 0 && (
           <>
-            <p className="mt-1 text-sm text-slate">
-              {roleFindings.length + policyFindings.length} decision
-              {roleFindings.length + policyFindings.length === 1 ? "" : "s"} left. Each one is
-              asked once, however many services use it.
+            <p className="mt-3 text-sm text-slate">
+              {policyFindings.length} pricing polic{policyFindings.length === 1 ? "y" : "ies"} decision
+              {policyFindings.length === 1 ? "" : "s"} left. Each one is asked once, however many
+              services use it.
             </p>
             <ul className="mt-4 space-y-2">
-              {[...roleFindings, ...policyFindings].map((f, i) => (
+              {policyFindings.map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
                   <span className="text-slate">
