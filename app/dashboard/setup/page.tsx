@@ -12,6 +12,8 @@ import TradePanel from "./TradePanel";
 import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
 import MaterialBaselineBatchPanel, { type BaselineRow } from "./MaterialBaselineBatchPanel";
 import { latestBaselineVersionsFor } from "@/lib/materialCost";
+import LaborWizardPanel, { type WizardTaskInfo } from "./LaborWizardPanel";
+import { ELECTRICAL_LABOR_TASKS, matchLaborTasks } from "@/lib/laborWizard";
 import SchedulingPanel from "./SchedulingPanel";
 import PaymentsPanel from "./PaymentsPanel";
 import LaunchPanel, { type Launchable } from "./LaunchPanel";
@@ -63,7 +65,7 @@ export default async function SetupPage({
       select: {
         name: true, legalName: true, phone: true, supportEmail: true,
         licenseNumber: true, countryCode: true, trade: true, schedulingAuthority: true,
-        nativeConcurrentJobs: true,
+        nativeConcurrentJobs: true, pricingStrategy: true,
       },
     });
     const site = await db.contractorSite.findFirst({
@@ -215,6 +217,7 @@ export default async function SetupPage({
     } | null = null;
     let pricing: ServicePricing[] = [];
     let baselineRows: BaselineRow[] = [];
+    let laborTasks: WizardTaskInfo[] = [];
 
     if (current === "services") {
       selection = await catalogPromises(db, ctx.contractorId);
@@ -309,6 +312,24 @@ export default async function SetupPage({
             };
           })
           .filter((r): r is BaselineRow => r !== null);
+      }
+
+      // Labor calibration — FLAT_RATE only. A T&M contractor's field labor
+      // hours never feed their price (that's estimateLowCrewHours /
+      // estimateHighCrewHours, resolved through its own existing
+      // review-and-approve path — see lib/timeAndMaterials.ts); offering
+      // this wizard to them would ask for an answer that goes nowhere.
+      if (c.pricingStrategy === "FLAT_RATE") {
+        const matched = await matchLaborTasks(db, ctx.contractorId, ELECTRICAL_LABOR_TASKS);
+        laborTasks = matched.map((m) => ({
+          key: m.task.key,
+          label: m.task.label,
+          displayName: m.task.displayName,
+          includes: m.task.includes,
+          excludes: m.task.excludes,
+          relativeTo: m.task.relativeTo,
+          services: m.services.map((s) => ({ slug: s.slug, name: s.name })),
+        }));
       }
     }
     const totalServices = await db.service.count({ where: { contractorId: ctx.contractorId } });
@@ -429,6 +450,7 @@ export default async function SetupPage({
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
                 />
                 <MaterialBaselineBatchPanel rows={baselineRows} />
+                {laborTasks.length > 0 && <LaborWizardPanel tasks={laborTasks} />}
               </div>
             )}
 
