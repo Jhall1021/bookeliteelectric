@@ -132,12 +132,22 @@ resolves a tenant from the site identifier the *caller* carries, never from the
 resource requested (ADR §2.2). The embed model in Storyboards 6 and 7 has its
 foundation.
 
-### Invitations — built
+### Invitations — built (corrected 7 September 2026)
 
-`ContractorInvitation` exists, and `lib/auth.ts` documents the rule the handoff
-asks for: an invitation authorizes joining, a magic link proves identity, and
-the invitation token is spent on acceptance. "Do not create passwords for
-contractors" is already how it works.
+This section previously claimed invitation acceptance was built on the
+strength of the SCHEMA and `lib/auth.ts`'s doc comment alone — neither wrote
+or redeemed a row. See `docs/design/contractor-accounts.md`'s own
+"schema only, NOT implemented" section, which had it right, and
+`app/start/page.tsx`'s code comment, which said so explicitly. It is now
+actually built, Phase 3A, 7 September 2026: staff invite an owner by email
+from `/platform/onboarding/[contractorId]` (`inviteOwnerFor`,
+`revokeInvitationFor` in `lib/platformOnboarding.ts`); the invited, matching,
+verified user accepts a one-time link at `/invite/[token]`
+(`acceptInvitationFor` in `lib/contractorInvitations.ts`) and lands on a
+minimal tenant-bound page at `/dashboard/welcome`. `lib/auth.ts`'s rule —
+an invitation authorizes joining, a magic link or password proves identity,
+the token is spent on acceptance — is what the implementation follows, not
+what it already was.
 
 ### Billing — does not exist
 

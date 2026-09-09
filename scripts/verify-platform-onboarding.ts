@@ -95,12 +95,14 @@ const ONBOARDING_POLICY: Policy = {
   "./adminContext": ["currentUser"],
   "./platformContext": ["withPlatformFor", "withPlatformContractorFor"],
   "./platformReadModel": ["contractorFactsFor", "listContractors", "mapWithConcurrency"],
-  "./contractorCreation": ["validateIdentity", "slugTaken", "createContractorRecord", "isUniqueViolation", "SLUG_INPUT_PATTERN", "SLUG_MAX", "IdentityOptions"],
+  "./contractorCreation": ["validateIdentity", "slugTaken", "createContractorRecord", "isUniqueViolation", "SLUG_INPUT_PATTERN", "SLUG_MAX", "IdentityOptions", "withOwnershipLock", "withContractorLock", "ownsAnotherBusiness", "OwnershipConflictError", "ContractorRetiredError"],
   "./tradeEnrolment": ["setTradeEnrolment"],
   "./templateProvisioning": ["availableTrades", "templateVersionSource", "preflight", "installCatalog"],
   "./onboardingReadiness": ["assessOnboarding"],
   "./serviceActivation": ["activateService", "activationRefusal"],
   "./fixtureContractors": ["partitionFixtures"],
+  "./contractorInvitations": ["mintInvitationToken", "INVITATION_TTL_MS", "InvitationDisplayStatus"],
+  "./auth": ["sendInvitationEmail", "resolveBaseUrl"],
 };
 const DOORS = new Set(["withPlatformFor", "withPlatformContractorFor"]);
 
@@ -391,8 +393,22 @@ async function main() {
   const outside = writesOutsideDoors(src);
   ok(`   every mutating call in it is inside a platform door's callback`, outside.length === 0, outside.join(", "));
   const writes = mutatingCalls(src, MODULE).map((w) => w.callee);
-  const OWNED_WRITES = [/platformDb\.\$transaction/, /contractorMembership\.upsert/, /^db\.\$transaction$/, /db\.contractor\.update$/, /db\.contractorSite\.updateMany/, /db\.service\.updateMany/];
-  ok(`   and the only writes it owns are the tenant transaction, the owner membership upsert, and retire's one transaction of three deactivations (${writes.join(", ")})`, writes.length === 6 && OWNED_WRITES.every((re) => writes.some((w) => re.test(w))) && writes.every((w) => OWNED_WRITES.some((re) => re.test(w))));
+  // Phase 3A's review pass moved retirement, invite/resend, and revoke all
+  // onto the same withContractorLock, and attachOwnerFor/acceptInvitationFor
+  // additionally take withOwnershipLock — see lib/contractorCreation.ts.
+  // Every one of the four locked commands now opens its OWN `db.$transaction`
+  // (four occurrences, matched by one pattern), and writes inside those
+  // transactions go through `tx`, not `db` — retire's three deactivations
+  // included, which is why their patterns dropped the `db.` prefix.
+  // Retirement gained a fourth write: revoking any invitation still neither
+  // accepted nor revoked, atomically with the rest.
+  const OWNED_WRITES = [
+    /platformDb\.\$transaction/, /contractorMembership\.upsert/, /^db\.\$transaction$/,
+    /\.contractor\.update$/, /\.contractorSite\.updateMany/, /\.service\.updateMany/,
+    /contractorInvitation\.(update|create)/,
+  ];
+  ok(`   and the only writes it owns are the tenant transaction, the owner membership upsert (now lock-guarded), invitation mint/resend/revoke, and retire's one transaction of four writes — three deactivations plus invalidating any pending invitation (${writes.join(", ")})`,
+    writes.length === 13 && OWNED_WRITES.every((re) => writes.some((w) => re.test(w))) && writes.every((w) => OWNED_WRITES.some((re) => re.test(w))));
   const retire = fnBody(src, "retireContractorFor");
   ok(`   retire deletes nothing, writes only \`active: false\`, and demands the slug typed back before it reads anything`, !/\.delete\(|\.deleteMany\(|\$executeRaw/.test(retire) && !/data:\s*\{[^}]*\bactive: true/.test(retire) && (retire.match(/active: false/g) ?? []).length === 3 && retire.indexOf("CONFIRMATION_MISMATCH") < retire.indexOf("findUniqueOrThrow") && /confirmSlug\.trim\(\)\.toLowerCase\(\) !== contractor\.slug/.test(retire));
   ok(`   it never constructs a client, reads PlatformAccess, or authorizes by email`, !/new PrismaClient|platformAccess|\.email\s*[!=]==?/.test(mod));

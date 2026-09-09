@@ -92,6 +92,20 @@ const CLASSIFIED: Record<string, string> = {
     "no session or site header exists on a webhook; the tenant comes from event.account " +
     "and the query is scoped by the booking -> visit relation by hand",
 
+  // ---- Phase 3A: invitation discovery by email --------------------------
+  //
+  // /start is reached by a signed-in user with NO membership yet — there is
+  // no contractor to open a guarded client for, because the whole point of
+  // the query is to DISCOVER whether one exists, by the verified email. Same
+  // shape as resolveAdminContractor's own unguarded membership lookup
+  // (lib/adminContext.ts), which is unguarded for the identical reason: the
+  // guard's premise is that the tenant is already known, and here it is
+  // exactly what is being determined.
+  "app/start/page.tsx::ContractorInvitation":
+    "no membership exists yet, so there is no contractor to scope to — this query DISCOVERS " +
+    "whether one does, by the signed-in user's verified email, the same shape as " +
+    "resolveAdminContractor's own unguarded membership lookup",
+
 
   // The six "awaiting per-contractor auth" entries are GONE as of 27 August.
   // Admin surfaces resolve their contractor from the signed-in user's

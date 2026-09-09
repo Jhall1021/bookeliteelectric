@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { PlatformContractorNotFoundError } from "@/lib/platformContext";
 import {
-  platformBeginContractor, platformAttachOwner, platformEnrolTrade, platformInstallTemplate, platformLaunchContractor, platformRetireContractor,
+  platformBeginContractor, platformAttachOwner, platformInviteOwner, platformRevokeInvitation, platformEnrolTrade, platformInstallTemplate, platformLaunchContractor, platformRetireContractor,
 } from "@/lib/platformOnboarding";
 
 /**
@@ -44,6 +44,32 @@ export async function attachOwnerAction(formData: FormData) {
   try {
     const r = await platformAttachOwner(str(formData.get("contractorId")), str(formData.get("email")));
     if (r.ok) backTo(r.contractorId, r.already ? "OWNER_ALREADY" : "OWNER_ATTACHED");
+    backTo(str(formData.get("contractorId")), r.refusal.code);
+  } catch (e) {
+    if (e instanceof PlatformContractorNotFoundError) notFound();
+    throw e;
+  }
+}
+
+export async function inviteOwnerAction(formData: FormData) {
+  try {
+    const ownerName = str(formData.get("ownerName")).trim() || undefined;
+    const r = await platformInviteOwner(str(formData.get("contractorId")), str(formData.get("email")), ownerName);
+    if (r.ok) {
+      if (!r.delivered) backTo(str(formData.get("contractorId")), "OWNER_INVITE_UNDELIVERED");
+      backTo(str(formData.get("contractorId")), r.resent ? "OWNER_REINVITED" : "OWNER_INVITED");
+    }
+    backTo(str(formData.get("contractorId")), r.refusal.code);
+  } catch (e) {
+    if (e instanceof PlatformContractorNotFoundError) notFound();
+    throw e;
+  }
+}
+
+export async function revokeInvitationAction(formData: FormData) {
+  try {
+    const r = await platformRevokeInvitation(str(formData.get("contractorId")), str(formData.get("invitationId")));
+    if (r.ok) backTo(str(formData.get("contractorId")), r.already ? "INVITATION_ALREADY_REVOKED" : "INVITATION_REVOKED_OK");
     backTo(str(formData.get("contractorId")), r.refusal.code);
   } catch (e) {
     if (e instanceof PlatformContractorNotFoundError) notFound();
