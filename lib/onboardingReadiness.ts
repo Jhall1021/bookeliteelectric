@@ -20,13 +20,14 @@
  * goes stale in the dangerous direction, saying ready when it is not.
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, PricingStrategy } from "@prisma/client";
 import { connectReadiness } from "./stripeConnect";
 import { pricePromiseOf } from "./activationOutcome";
 import { servicesWithoutAddOnPrice } from "./sameVisit";
 import { suggestPrimaryPrice } from "./pricing";
 import { servicesOnHold } from "./materialHolds";
 import { loadServiceForResolution, loadPricingSettings } from "./routeResolver";
+import { validateEstimateBounds } from "./pricingReadiness";
 
 export type Severity = "blocker" | "warning";
 
@@ -37,6 +38,15 @@ export type Finding = {
   message: string;
   serviceSlug?: string;
   href?: string;
+  /**
+   * MATERIAL_COST_UNRESOLVED only: the canonical role's own key and every
+   * intended service that needs it — structured, not parsed back out of the
+   * prose message. The batch-review panel (app/dashboard/setup) reads these
+   * rather than re-deriving the same grouping a second time, which is the
+   * mistake the T&M readiness gap made for a different finding.
+   */
+  materialKey?: string;
+  affectedServiceSlugs?: string[];
 };
 
 export type StageKey =
@@ -207,6 +217,22 @@ export async function assessOnboarding(
     findings["pricing-foundation"].push(b("PRICING_SETTINGS_MISSING", "Your labor rate and minimum have not been set. Nothing can be priced until they are.", { href: "/dashboard/pricing-settings" }));
   }
   const st = settings as { crewHourRateCents?: number; primaryMinimumCents?: number } | null;
+  // STRATEGY-AWARE, from here down. `assessOnboarding` re-derived its own
+  // FLAT_RATE-shaped idea of "priced" instead of calling lib/pricingReadiness.ts's
+  // already-correct, strategy-branching readiness() — so a TIME_AND_MATERIALS
+  // contractor with properly approved estimate bounds was blocked forever:
+  // PRICE_NOT_APPROVED demanded a publishedPriceApprovedAt that strategy never
+  // sets, and LABOR_INPUTS_MISSING demanded a derivable flat price from the
+  // same fieldLaborHours T&M treats as an optional starting suggestion, never
+  // a requirement. Verified directly against this database before this fix: a
+  // T&M service with valid, approved estimateLowCrewHours/estimateHighCrewHours
+  // still reported both blockers and canLaunch: false. Exactly the "second
+  // validation system that disagrees with the first" failure mode
+  // docs/design/guided-setup-readiness.md warns against.
+  // ADR-016: pricingStrategy is stored on Contractor itself — NOT on
+  // PricingSettings — and `c` (the full contractor row) was already fetched
+  // at the top of this function.
+  const strategy: PricingStrategy = c.pricingStrategy;
   if (st && !(st.crewHourRateCents! > 0)) {
     findings["pricing-foundation"].push(b("LABOR_RATE_UNSET", "Your crew-hour rate is zero, so every price would be materials alone.", { href: "/dashboard/pricing-settings" }));
   }
@@ -248,7 +274,7 @@ export async function assessOnboarding(
     // link actionable without pretending a page exists.
     findings["pricing-foundation"].push(b("MATERIAL_COST_UNRESOLVED",
       `You haven't told us what ${role} costs you — ${slugs.length} service${slugs.length === 1 ? "" : "s"} need${slugs.length === 1 ? "s" : ""} it, including ${slugs[0]}.`,
-      { href: "/dashboard/services" }));
+      { href: "/dashboard/services", materialKey: role, affectedServiceSlugs: slugs }));
   }
   // ASKS THE QUESTION, rather than naming the key.
   //
@@ -372,42 +398,61 @@ export async function assessOnboarding(
 
     if (!promise.promisesFixedPrice) continue; // quote-only: no price is owed
 
-    if (svc.publishedPriceApprovedAt === null) {
-      findings.services.push(b("PRICE_NOT_APPROVED",
-        // Strategy-neutral wording: this file is scanned by the storefront
-        // copy linter, and a fixed-price claim is one TIME_AND_MATERIALS
-        // cannot keep. What is true either way is that a route reaches an
-        // amount and nobody has approved one.
-        `${slug} reaches an amount for a homeowner, but none has been approved.`,
-        { serviceSlug: slug, href: "/dashboard/services" }));
-    }
-    if (settings) {
-      const suggestion = suggestPrimaryPrice(svc as never, settings as never);
-      const derived = suggestion.totalCents;
-      if (derived === null) {
-        // NAMES THE INPUT, AND LINKS TO WHERE IT IS EDITED.
-        //
-        // This said "an input is missing, not zero" and pointed at the service
-        // list. Both halves failed a real contractor: BrightPath reached Review
-        // & Launch with four services and no way to learn that what was missing
-        // was crew-hours, or that the field for them is on each service's own
-        // pricing panel. The engine has always said which input it wanted —
-        // this passes that sentence through instead of paraphrasing it away.
-        //
-        // Deliberately NOT auto-filled. How long a job takes is the
-        // contractor's own number, and inventing one to clear a blocker is the
-        // §3.1 defect the engine refuses a price to avoid.
-        findings.services.push(b("LABOR_INPUTS_MISSING",
-          `${slug} can't be priced yet — ${lowerFirst(suggestion.unavailableReason ?? "an input is missing, not zero")}.`,
-          { serviceSlug: slug, href: `/dashboard/services/${svc.id as string}` }));
-      } else if (svc.basePrice !== null && derived !== svc.basePrice) {
-        findings.services.push(w("PRICE_DRIFTED",
-          `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
+    if (strategy === "FLAT_RATE") {
+      if (svc.publishedPriceApprovedAt === null) {
+        findings.services.push(b("PRICE_NOT_APPROVED",
+          // Strategy-neutral wording: this file is scanned by the storefront
+          // copy linter, and a fixed-price claim is one TIME_AND_MATERIALS
+          // cannot keep. What is true either way is that a route reaches an
+          // amount and nobody has approved one.
+          `${slug} reaches an amount for a homeowner, but none has been approved.`,
           { serviceSlug: slug, href: "/dashboard/services" }));
-      } else if (svc.publishedPriceApprovedAt === null && derived !== null) {
-        findings.services.push(w("SUGGESTED_NOT_APPROVED",
-          `${slug} has a suggested price of $${(derived / 100).toFixed(2)} waiting for you to approve it.`,
-          { serviceSlug: slug, href: "/dashboard/services" }));
+      }
+      if (settings) {
+        const suggestion = suggestPrimaryPrice(svc as never, settings as never);
+        const derived = suggestion.totalCents;
+        if (derived === null) {
+          // NAMES THE INPUT, AND LINKS TO WHERE IT IS EDITED.
+          //
+          // This said "an input is missing, not zero" and pointed at the service
+          // list. Both halves failed a real contractor: BrightPath reached Review
+          // & Launch with four services and no way to learn that what was missing
+          // was crew-hours, or that the field for them is on each service's own
+          // pricing panel. The engine has always said which input it wanted —
+          // this passes that sentence through instead of paraphrasing it away.
+          //
+          // Deliberately NOT auto-filled. How long a job takes is the
+          // contractor's own number, and inventing one to clear a blocker is the
+          // §3.1 defect the engine refuses a price to avoid.
+          findings.services.push(b("LABOR_INPUTS_MISSING",
+            `${slug} can't be priced yet — ${lowerFirst(suggestion.unavailableReason ?? "an input is missing, not zero")}.`,
+            { serviceSlug: slug, href: `/dashboard/services/${svc.id as string}` }));
+        } else if (svc.basePrice !== null && derived !== svc.basePrice) {
+          findings.services.push(w("PRICE_DRIFTED",
+            `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
+            { serviceSlug: slug, href: "/dashboard/services" }));
+        } else if (svc.publishedPriceApprovedAt === null && derived !== null) {
+          findings.services.push(w("SUGGESTED_NOT_APPROVED",
+            `${slug} has a suggested price of $${(derived / 100).toFixed(2)} waiting for you to approve it.`,
+            { serviceSlug: slug, href: "/dashboard/services" }));
+        }
+      }
+    } else {
+      // TIME_AND_MATERIALS — delegate to lib/pricingReadiness.ts's own
+      // validateEstimateBounds rather than re-deriving what "unresolved"
+      // means for this strategy a second time. Same codes that string
+      // already returns, so a T&M contractor never gets a different answer
+      // here than on /dashboard/estimates.
+      const bad = validateEstimateBounds(svc.estimateLowCrewHours as number | null, svc.estimateHighCrewHours as number | null);
+      if (bad.length > 0) {
+        const unset = bad.some((x) => x.code === "unset");
+        findings.services.push(b(unset ? "ESTIMATE_BOUNDS_MISSING" : "ESTIMATE_BOUNDS_INVALID",
+          `${slug} can't be priced yet — ${lowerFirst(bad[0].message)}`,
+          { serviceSlug: slug, href: "/dashboard/estimates" }));
+      } else if (svc.estimateApprovedAt === null) {
+        findings.services.push(b("ESTIMATE_NOT_APPROVED",
+          `${slug} has an estimate range entered but not yet approved for customers.`,
+          { serviceSlug: slug, href: "/dashboard/estimates" }));
       }
     }
     if (promise.routes.priced > 0 && promise.routes.review === 0) {

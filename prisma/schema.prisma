@@ -471,6 +471,7 @@ model Contractor {
   updatedAt DateTime @updatedAt
 
   contractorMaterials    ContractorMaterial[]
+  materialCostEvents     MaterialCostEvent[]
   services               Service[]
   pricingSettings        PricingSettings?
   pricingSettingsChanges PricingSettingsChange[]
@@ -735,8 +736,80 @@ model CanonicalMaterial {
   templateServiceMaterials      TemplateServiceMaterial[]
   answerOptionMaterials         AnswerOptionMaterial[]
   templateAnswerOptionMaterials TemplateAnswerOptionMaterial[]
+  baselineVersions              MaterialBaselineVersion[]
 
   @@map("canonical_materials")
+}
+
+/// A platform-curated, dated, sourced REFERENCE cost for a canonical material
+/// role — offered to every contractor who has not yet costed that role, never
+/// written to any of them automatically.
+///
+/// NOT A SUPPLIER LINK. `MaterialSupplierLink` is one contractor's own live
+/// account with a real supplier, refreshed on a cadence, and its whole point
+/// is that `autoApplySupplierCosts` MAY move that contractor's cost without a
+/// click — it is that contractor's own account reflecting what they actually
+/// pay right now. A baseline version has no contractor behind it at all: it
+/// is a platform reference a contractor with NO pricing history yet can
+/// start from. The two must never be conflated — see
+/// docs/MATERIAL-SUPPLIER-CATALOG.md and the "No borrowed defaults" rule in
+/// docs/design/platform-admin.md, which this table exists to satisfy without
+/// violating: a baseline is sourced and dated, not another contractor's
+/// figure, and it moves nothing until explicitly accepted.
+///
+/// IMMUTABLE BY CONVENTION. Application code only ever INSERTS a new row —
+/// never updates or deletes one. A newer reference cost for the same role is
+/// a NEW row; the old one stays exactly as it was, because
+/// ContractorMaterial.acceptedBaselineVersionId and
+/// MaterialCostEvent.baselineVersionId may already point at it. Rewriting a
+/// row a contractor already accepted would rewrite what they agreed to.
+///
+/// "CURRENT" IS COMPUTED, NOT STORED. The most recently sourced row per
+/// canonicalMaterialId is what a still-unresolved role is offered. There is
+/// no supersededAt flag to maintain and no way for it to drift from the
+/// truth.
+model MaterialBaselineVersion {
+  id                  String            @id @default(cuid())
+  canonicalMaterialId String
+  canonicalMaterial   CanonicalMaterial @relation(fields: [canonicalMaterialId], references: [id], onDelete: Restrict)
+
+  /// THE EFFECTIVE REFERENCE COST, in the SAME shape ContractorMaterial's own
+  /// cost fields use, so accepting it is a straight copy — see
+  /// acceptMaterialBaselineVersion in lib/materialCost.ts.
+  unitCostCents      Int
+  unitCostMilliCents Int?
+  packagePriceCents  Int?
+  packageQuantity    Float?
+  packageUnit        String?
+  /// The normalized purchasing unit this figure is quoted in — "ft", "each",
+  /// "box of 100". Recorded here rather than assumed from
+  /// CanonicalMaterial.unit alone, because a baseline sourced from a
+  /// different package size must still show its own actual basis.
+  unit               String
+
+  /// Who or what this figure came from — "Southwire, list price", "Home
+  /// Depot, national average". Shown to the contractor verbatim; never a
+  /// vague "supplier reference".
+  sourceLabel String
+  /// The actual product or price-list link, when one exists. Optional: some
+  /// sourcing is a documented average rather than one linkable product.
+  sourceUrl   String?
+  /// WHAT THIS FIGURE ACTUALLY MATCHES — gauge, grade, rating, pack size —
+  /// so a baseline can never silently stand in for a different specification
+  /// than the one it was priced against.
+  specNote    String
+  /// When this figure was current AT THE SOURCE — not when this row was
+  /// inserted. A baseline sourced from a page dated three months ago should
+  /// say so, even if entered into Price2Book today.
+  sourcedAt   DateTime
+
+  createdAt DateTime @default(now())
+
+  contractorMaterials ContractorMaterial[]
+  costEvents          MaterialCostEvent[]
+
+  @@index([canonicalMaterialId, sourcedAt])
+  @@map("material_baseline_versions")
 }
 
 /// What a material role costs ONE contractor, and eventually which exact
@@ -775,6 +848,17 @@ model ContractorMaterial {
   costStatus     MaterialCostStatus     @default(OK)
   costStatusNote String?
   costUpdatedAt  DateTime?
+
+  /// Set only while costSource is BASELINE, and only to the exact version
+  /// this row's cost was copied from at accept time. An override to CUSTOM
+  /// clears it — the row is no longer "the baseline value", it is this
+  /// contractor's own figure. A later MaterialBaselineVersion for the same
+  /// role never rewrites this pointer; only a fresh, explicit accept could
+  /// move it, and that is not a path this slice builds (an already-resolved
+  /// role is edited through the ordinary CUSTOM path, same as any other cost
+  /// edit today).
+  acceptedBaselineVersionId String?
+  acceptedBaselineVersion   MaterialBaselineVersion? @relation(fields: [acceptedBaselineVersionId], references: [id], onDelete: SetNull)
 
   /// Contractor-specific wording, when the canonical name isn't how this
   /// contractor refers to it. Null means use the canonical name.
@@ -917,6 +1001,11 @@ enum MaterialCostSource {
   CUSTOM
   /// Maintained by the material's active supplier link.
   SUPPLIER
+  /// Copied once from a platform MaterialBaselineVersion, at the moment the
+  /// contractor explicitly accepted it. Never refreshed automatically — an
+  /// updated baseline never rewrites a BASELINE-sourced cost; overriding it
+  /// moves the row to CUSTOM instead of changing what BASELINE means.
+  BASELINE
 }
 
 /// Whether a cost is confirmed or a working assumption.
@@ -1068,6 +1157,51 @@ model MaterialCostEvent {
   contractorMaterialId String?
   contractorMaterial   ContractorMaterial? @relation("ContractorMaterialCostEvents", fields: [contractorMaterialId], references: [id], onDelete: Cascade)
 
+  /// TENANT-SCOPING FIX. This model sat in PENDING_TENANT_SCOPE — no
+  /// contractorId column, so the guarded client threw NotYetTenantScopedError
+  /// on every operation, including a plain `.create()`. That meant
+  /// `setContractorMaterialCost`'s own event write failed the moment a real
+  /// admin route called it through `withAdminContractor`/`withAdminRoute` and
+  /// a cost genuinely changed — verified directly against this database
+  /// before this fix: the no-op path (changed: false) succeeded, the
+  /// forced-change path threw. Not hypothetical.
+  ///
+  /// Nullable for the expand phase only, same discipline as
+  /// ContractorMaterialSettings.contractorId before it: existing rows are
+  /// backfilled from contractorMaterial.contractorId (and, where
+  /// contractorMaterialId is itself null on an ancient pre-split row, from
+  /// material.id — no other lookup exists for those). New rows always carry
+  /// it; the column tightens once every environment is confirmed backfilled.
+  ///
+  /// PRODUCTION STATE, checked directly (2026-09-08): zero rows in this
+  /// table, scoped or unscoped — there is no historical null-tenant data to
+  /// backfill here today, so nothing has been reconstructed and nothing was
+  /// changed. Any such row a future environment does carry stays exactly as
+  /// it is — preserved, correctly excluded from a tenant-scoped read by
+  /// ordinary Postgres NULL-equality semantics (see the guard's own
+  /// verification of that in tenantGuard.ts's history) — until an explicit,
+  /// separate backfill is run. Also checked: no ContractorMaterial row
+  /// carries a set `costUpdatedAt`, the field this model's writer
+  /// (setContractorMaterialCost) stamps on every call — meaning that
+  /// function's write path has left no residue in production, complete or
+  /// partial, to date. That eliminates the specific partial-write shape this
+  /// column's own fix targets (a committed cost update with no matching
+  /// event) as far as the database can show. It does NOT rule out an admin
+  /// having attempted an edit that failed outright before any row existed to
+  /// examine — a failed request that never reached this table leaves nothing
+  /// here to find, and only server logs, not a retrospective query, could
+  /// settle that.
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// Set only when this event recorded accepting a platform Material Baseline
+  /// — never when a cost was entered by hand or synced from a supplier link.
+  /// Points at the EXACT version accepted, frozen at accept time: a later
+  /// baseline version never rewrites this pointer, which is what makes this
+  /// event permanent, un-rewritable history rather than a live reference.
+  baselineVersionId String?
+  baselineVersion   MaterialBaselineVersion? @relation(fields: [baselineVersionId], references: [id], onDelete: SetNull)
+
   oldUnitCostCents      Int?
   newUnitCostCents      Int
   oldUnitCostMilliCents Int?
@@ -1092,6 +1226,8 @@ model MaterialCostEvent {
 
   @@index([materialId, createdAt])
   @@index([syncRunId])
+  @@index([contractorId, createdAt])
+  @@index([baselineVersionId])
   @@map("material_cost_events")
 }
 

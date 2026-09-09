@@ -58,6 +58,13 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "ContractorTrade",
   "Service",
   "ContractorMaterial",
+  /// Moved out of PENDING_TENANT_SCOPE — a real contractorId column now backs
+  /// it (see prisma/schema.prisma). Verified this was load-bearing, not
+  /// theoretical: before the column existed, `setContractorMaterialCost`'s
+  /// own event write threw NotYetTenantScopedError the instant a real cost
+  /// change ran through the guarded admin route — a no-op call (unchanged
+  /// cost) never reached the write and so never surfaced it.
+  "MaterialCostEvent",
   "ContractorComponent",
   /// ADR-006. A contractor's presentation of a canonical category: their
   /// ordering, grouping, naming and whether they offer it at all.
@@ -154,6 +161,11 @@ export const PLATFORM_MODELS = new Set<string>([
   "TemplateAnswerOptionPhotoGroup",
   "Contractor",
   "CanonicalMaterial",
+  /// A platform-curated REFERENCE cost for a canonical material role — no
+  /// contractor on it at all, same basis as CanonicalMaterial itself. See
+  /// its own doc comment in prisma/schema.prisma for why it is not a
+  /// supplier link and never auto-applies.
+  "MaterialBaselineVersion",
   /// A component ROLE is trade knowledge shared by every contractor — the
   /// same basis as CanonicalMaterial. Its economics live on
   /// ContractorComponent, which is tenant-scoped.
@@ -265,7 +277,6 @@ export const DEPRECATED_MODELS = new Set<string>([
  */
 export const PENDING_TENANT_SCOPE = new Set<string>([
   "MaterialSupplierLink",
-  "MaterialCostEvent",
   "ConditionalDisclaimer",
   "TroubleshootingSession",
 ]);
