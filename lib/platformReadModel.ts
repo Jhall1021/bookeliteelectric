@@ -47,6 +47,7 @@ import {
 import { assessOnboarding, type OnboardingReadiness } from "./onboardingReadiness";
 import { connectReadiness, type Readiness } from "./stripeConnect";
 import { partitionFixtures } from "./fixtureContractors";
+import { mapWithConcurrency } from "./concurrency";
 
 /** A contractor as the directory sees it: platform-model facts only. */
 export type ContractorRow = {
@@ -287,16 +288,8 @@ export type ReadFacts = (db: PrismaClient, user: SignedInUser | null, contractor
 /** How many contractors are entered at once. Small on purpose: each entry is several queries. */
 export const OVERVIEW_CONCURRENCY = 3;
 
-/** Run `fn` over `items` with at most `limit` in flight; results in input order. */
-export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
-    while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
-  });
-  await Promise.all(workers);
-  return out;
-}
+/** Re-exported from lib/concurrency.ts — see that file for why it isn't defined here. */
+export { mapWithConcurrency };
 
 /**
  * The cross-tenant picture, built the only way it may be: authorize once,

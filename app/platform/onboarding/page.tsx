@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { platformOnboardingIndex, noticeText, SLUG_INPUT_PATTERN, SLUG_MAX } from "@/lib/platformOnboarding";
 import { HiddenFixturesNote } from "@/components/platform/HiddenFixturesNote";
+import { SubmitButton } from "@/components/platform/SubmitButton";
 import { startContractorAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ export default async function PlatformOnboardingIndex({ searchParams }: { search
             <span className="block text-xs uppercase tracking-wide text-slate">Web address (optional)</span>
             <input name="slug" maxLength={SLUG_MAX} pattern={SLUG_INPUT_PATTERN} title="lowercase letters and numbers joined by single hyphens, 3 to 48 characters; some words are reserved" className="mt-1 w-full rounded-md border border-cardline px-3 py-2" placeholder="northside-electric" />
           </label>
-          <button type="submit" className="self-end rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:bg-electric/90">Create</button>
+          <SubmitButton pendingLabel="Creating…">Create</SubmitButton>
         </form>
         <p className="mt-2 text-xs text-slate">Published catalogs: {trades.join(", ") || "none"}.</p>
       </section>
