@@ -1,7 +1,20 @@
 import { redirect } from "next/navigation";
-import PortalChrome from "@/components/portal/PortalChrome";
-import { AmbiguousContractorError, NoMembershipError, resolveAdminContractor } from "@/lib/adminContext";
+import { SidebarShell, type NavItem } from "@/components/ui/SidebarShell";
+import { AmbiguousContractorError, NoMembershipError, resolveAdminContractor, withAdminContractor } from "@/lib/adminContext";
 import { prisma } from "@/lib/prisma";
+
+const PRIMARY: NavItem[] = [
+  { href: "/dashboard", label: "Overview", icon: "home", exact: true },
+  { href: "/dashboard/setup", label: "Guided setup", icon: "checklist" },
+  { href: "/dashboard/services", label: "Services & Pricing", icon: "wrench" },
+  { href: "/dashboard/quotes", label: "Photo Review", icon: "camera" },
+  { href: "/dashboard/bookings", label: "Bookings", icon: "calendar" },
+  { href: "/dashboard/design", label: "Storefront", icon: "storefront" },
+];
+
+const FOOTER: NavItem[] = [
+  { href: "/dashboard/settings", label: "Settings", icon: "settings" },
+];
 
 /**
  * The contractor portal — Price2Book's own product surface.
@@ -31,18 +44,37 @@ export default async function PortalLayout({ children }: { children: React.React
     redirect("/sign-in");
   }
 
-  const c = await prisma.contractor.findUnique({
-    where: { id: ctx.contractorId },
-    select: { name: true, sites: { where: { active: true }, select: { hostedSlug: true }, take: 1 } },
+  // ONE READ, THROUGH THE GUARDED CLIENT — `Contractor` itself carries no
+  // contractorId FK (it IS the tenant), but `ContractorOnboarding` and
+  // `Quote` do, and reading them to decide the sidebar's labels must go
+  // through the same guarded door every other contractor-scoped read does,
+  // not a bare `prisma` call keyed off ctx.contractorId by hand.
+  const { name, awaitingReview } = await withAdminContractor(async (db) => {
+    const c = await db.contractor.findUnique({ where: { id: ctx.contractorId }, select: { name: true } });
+    const awaiting = await db.quote.count({ where: { status: { in: ["SUBMITTED", "IN_REVIEW"] } } });
+    return { name: c?.name ?? ctx.contractorSlug, awaitingReview: awaiting };
+  }, { contractorId: ctx.contractorId });
+
+  // Whether "Switch business" goes anywhere — an identity-level question
+  // (which businesses does this SIGNED-IN PERSON belong to), so it reads the
+  // unguarded membership table the same way resolveAdminContractor() itself
+  // does, never the guarded per-tenant client scoped to just this one.
+  const membershipCount = await prisma.contractorMembership.count({
+    where: { userId: ctx.userId, active: true },
   });
 
   return (
-    <div className="min-h-screen bg-warmwhite">
-      <PortalChrome
-        contractorName={c?.name ?? ctx.contractorSlug}
-        storefrontHref={c?.sites[0] ? `/${c.sites[0].hostedSlug}` : null}
-      />
-      <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
-    </div>
+    <SidebarShell
+      homeHref="/dashboard"
+      switcherLabel={name}
+      switcherHref={membershipCount > 1 ? "/choose" : undefined}
+      primary={PRIMARY}
+      footerLinks={FOOTER}
+      tagline="Build. Price. Book. Grow."
+      notifications={{ href: "/dashboard/quotes", count: awaitingReview, label: "Quotes awaiting your review" }}
+      identity={{ name, email: ctx.email }}
+    >
+      {children}
+    </SidebarShell>
   );
 }

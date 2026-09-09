@@ -286,6 +286,22 @@ export async function assessOnboarding(
     reason: svc.active ? "offered and live" : "offered, not yet live",
   }));
 
+  // NOTHING CHOSEN IS NOT THE SAME AS NOTHING WRONG. Every check below this
+  // point — material costs, policies, per-service pricing — is scoped to
+  // `intended`, so with zero services offered every one of them finds
+  // nothing to flag and both stages would otherwise read "ready": a
+  // contractor who has selected nothing would see "Services & pricing" and
+  // "Pricing foundation" as complete. A warning (never a blocker — the
+  // launch stage's own NOTHING_ACTIVATABLE already owns blocking launch on
+  // this fact) is enough to keep their status out of "ready" without
+  // reporting the same blocking reason a second time.
+  if (intended.length === 0) {
+    findings.services.push(w("NO_SERVICES_OFFERED",
+      "You haven't chosen which services you offer yet.", { href: "/dashboard/services" }));
+    findings["pricing-foundation"].push(w("NOTHING_OFFERED_YET",
+      "Choose your services first — there's nothing to cost until you do.", { href: "/dashboard/services" }));
+  }
+
   const held = settings ? await servicesOnHold(db, contractorId) : [];
   for (const h of held) {
     if (!intended.some((i) => i.svc.slug === h.slug)) continue;
@@ -651,7 +667,12 @@ export async function assessOnboarding(
     payments: "/dashboard/payments",
   };
 
-  const order: StageKey[] = ["business", "trade", "pricing-foundation", "services", "scheduling", "payments", "launch"];
+  // Services BEFORE pricing foundation, deliberately: what you cost and
+  // calibrate labor for is derived from what you've chosen to sell. This
+  // array is the one canonical stage order — Guided Setup's own OPEN_STAGES
+  // list mirrors it rather than defining a second one, so the rail and the
+  // stage-gating logic can never again disagree about which comes first.
+  const order: StageKey[] = ["business", "trade", "services", "pricing-foundation", "scheduling", "payments", "launch"];
   const stages: Stage[] = order.map((key) => {
     const f = findings[key];
     const hasBlocker = f.some((x) => x.severity === "blocker");

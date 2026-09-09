@@ -116,15 +116,24 @@ function vocabulary() {
 
 function branding() {
   console.log("\n  PRICE2BOOK'S SURFACE, NOT THE CONTRACTOR'S");
-  const chrome = readFileSync("components/portal/PortalChrome.tsx", "utf8");
-  ok(/Price2Book/.test(chrome), "the portal wears the platform's name");
+  // The Admin Portal Redesign replaced the portal's top-bar chrome
+  // (components/portal/PortalChrome.tsx, retired) with the shared sidebar
+  // shell both the contractor dashboard and the staff platform now render
+  // through. The three protections this file has always asserted move with
+  // it: checked against the shell component AND its dashboard call site,
+  // since the shell itself is surface-neutral and the CONTRACTOR NAME is a
+  // fact only the call site has.
+  const shell = readFileSync("components/ui/SidebarShell.tsx", "utf8");
+  ok(/Price2Book/.test(shell), "the shared shell wears the platform's name");
   // The portal must not adopt the contractor's chosen storefront theme: whose
   // software this is should never be ambiguous on the screen where a
   // contractor decides what their customers will see.
-  ok(!/useStructure|ThemeStructureProvider|resolveStorefrontTheme/.test(chrome),
+  ok(!/useStructure|ThemeStructureProvider|resolveStorefrontTheme/.test(shell),
     "…and does not adopt the contractor's storefront theme");
-  ok(/contractorName/.test(chrome),
-    "but always shows WHICH contractor is being acted for");
+  const dashboardLayout = readFileSync("app/dashboard/layout.tsx", "utf8");
+  ok(/switcherLabel=\{name\}/.test(dashboardLayout) && /name:\s*c\?\.\s*name/.test(dashboardLayout.replace(/\s+/g, " ")),
+    "but the dashboard always passes the contractor's own resolved name into the shell",
+    "expected `switcherLabel={name}` fed by the contractor's own row, not a hardcoded or platform-wide label");
 }
 
 function main() {
