@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { publishSuggestedPrice } from "@/lib/pricePublication";
 import { withAdminContractor } from "@/lib/adminContext";
+import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
 
 
 /**
@@ -56,7 +57,13 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return Number.isFinite(n) ? n : null;
   };
 
-  const data: Record<string, unknown> = {
+  // Every key here is explicitly provided (num() never returns undefined),
+  // so saveServicePricingInputs overwrites all of them — reproducing this
+  // route's original full-form-save behavior exactly. A caller that means
+  // to move only ONE figure (the labor wizard) passes a narrower object
+  // instead, and the shared function leaves everything else as it already
+  // was rather than treating "not in this body" as "set it to null".
+  const overrides = {
     fieldLaborHours: num(body.fieldLaborHours),
     wwtLaborHours: num(body.wwtLaborHours),
     materialCostCents: num(body.materialCostCents),
@@ -66,21 +73,24 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     permitAdminCents: num(body.permitAdminCents),
     otherDirectCostCents: num(body.otherDirectCostCents),
     estimatedMinutes: num(body.estimatedMinutes),
-    requiresTechCount: num(body.requiresTechCount) ?? service.requiresTechCount,
+    // Undefined (not null) when the body omits it, so the shared function's
+    // own "keep current" behavior applies — same outcome as the old
+    // `?? service.requiresTechCount`, expressed the way every other caller
+    // signals "leave this alone".
+    requiresTechCount: num(body.requiresTechCount) ?? undefined,
     isPrimaryEligible: body.isPrimaryEligible !== false,
     estimatedMinutesReviewed: body.estimatedMinutesReviewed === true,
+    ...(typeof body.photoState === "string" &&
+        ["NONE", "PREPARATION", "REVIEW_REQUIRED"].includes(body.photoState)
+      ? { photoState: body.photoState as "NONE" | "PREPARATION" | "REVIEW_REQUIRED" }
+      : {}),
   };
-
-  if (typeof body.photoState === "string" &&
-      ["NONE", "PREPARATION", "REVIEW_REQUIRED"].includes(body.photoState)) {
-    data.photoState = body.photoState;
-  }
 
   // Inputs are saved first, so the derivation publishes what the contractor
   // just entered rather than what was there before.
   if (action === "publish") {
     try {
-      await db.service.update({ where: { id: params.serviceId }, data });
+      await saveServicePricingInputs(db, params.serviceId, overrides);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown database error";
       return NextResponse.json({ error: `Could not save: ${message}` }, { status: 500 });
@@ -106,7 +116,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   }
 
   try {
-    await db.service.update({ where: { id: params.serviceId }, data });
+    await saveServicePricingInputs(db, params.serviceId, overrides);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown database error";
     console.error("[pricing PATCH]", params.serviceId, err);
