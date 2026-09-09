@@ -1,12 +1,36 @@
 /**
  * Conversational labor calibration — a few scoped answers that generate
  * reviewable elapsed-task-time proposals across a small, explicitly named
- * set of tasks. NOT an automatic recipe-similarity engine: which tasks exist
- * and which canonical role identifies each one are hardcoded here, reviewed
- * in code, not inferred from how similar two services' material lists look.
+ * set of tasks.
+ *
+ * WHICH SERVICES A TASK APPLIES TO IS NEVER DERIVED FROM A RECIPE. An
+ * earlier version of this module matched services by "carries the task's
+ * canonical material role and everything else in the recipe is on a small
+ * incidental-hardware allowlist" — which is still automatic recipe
+ * similarity wearing a narrower disguise. It was wrong in a concrete way: a
+ * REPLACEMENT task's recipe can legitimately include a box (an existing
+ * outlet whose box also needs swapping) without the contractor's answer
+ * about "replace a standard outlet" covering box work at all — the two are
+ * different facts, and no fixed "this material is always incidental" list
+ * can tell them apart from the recipe alone. Proving one distractor (a
+ * receptacle-plus-breaker service) gets excluded does not prove every
+ * OTHER match the rule accepts is actually right.
+ *
+ * So this module names no material role for any task, and matches nothing
+ * itself. `listServiceCandidates` returns a contractor's own services,
+ * unfiltered, with each one's current pricing inputs and (when known) which
+ * canonical platform outcome it was provisioned from — a real, already-
+ * reviewed provenance fact (Service.templateKey), never a guess from
+ * ingredients. The task's own `templateServiceKey` is offered only as a
+ * PRE-SELECTED default in that list; the contractor's own confirmation in
+ * the review screen is what actually decides which of their services this
+ * task's time applies to. That confirmation IS the explicit mapping this
+ * module used to try to compute — moved to the one place it can actually be
+ * gotten right: the person who knows what each of their services does.
  *
  * WHAT THIS WRITES, AND ONLY THIS. Every accepted proposal becomes
- * `Service.fieldLaborHours` on the matched services — nothing else.
+ * `Service.fieldLaborHours`, through lib/servicePricingInputs.ts's shared
+ * partial-write authority — nothing else.
  *
  *   - Never `requiresTechCount`. Crew size is asked in the conversation for
  *     CONTEXT and wording only ("with your usual crew, how long does...").
@@ -14,32 +38,29 @@
  *     crew; multiplying elapsed time by a headcount would double-count labor
  *     the rate already includes — exactly the bug `compute()`'s own history
  *     warns against. A task the contractor says needs a DIFFERENT crew than
- *     usual is excluded from the proposal entirely (see `crewMismatch`
+ *     usual is excluded from the proposal entirely (see `crew_mismatch`
  *     below) rather than guessed at.
  *   - Never `wwtLaborHours`. The conversation asks about a task as its own
  *     dispatched visit; a While-We're-There add-on's elapsed time is a
  *     different question this slice does not ask, so the field is left
  *     exactly as it already was.
  *   - Never any PricingSettings field, never a new rate dimension. Visit
- *     overhead is explicitly out of scope for this slice — see the design
- *     discussion this module's tests reference.
- *
- * MATCHING RULE, EXPLICIT AND BOUNDED. A service matches a task when its
- * recipe contains the task's designated canonical role AND every other
- * ingredient is drawn from INCIDENTAL_MATERIAL_KEYS below — generic hardware
- * (a wall plate, a box, small consumables) with no labor scope of its own.
- * A service whose recipe carries a SECOND meaningful device or fixture never
- * matches; that is a different, larger job, and calibrating this task's time
- * would misprice it (the same principle that keeps a whole panel-upgrade
- * service out of a single-breaker labor mapping). The role list and the
- * incidental list are both literal constants — extending either is a
- * reviewed code change, never a runtime inference.
+ *     overhead is explicitly out of scope for this slice.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 export type LaborTaskDefinition = {
   key: string;
-  canonicalMaterialKey: string;
+  /**
+   * The platform's own canonical TemplateService.key for this outcome, when
+   * one exists — a real, reviewed provenance fact stamped at provisioning
+   * time (Service.templateKey), never inferred from a recipe. Used only to
+   * PRE-CHECK a likely match in the candidate list; a service whose
+   * templateKey is null (every hand-authored catalog that predates
+   * templating, including Elite's) still appears in the list, unchecked,
+   * for the contractor to confirm explicitly.
+   */
+  templateServiceKey: string;
   /** How this task reads inside a sentence: "how long does {label} take?" */
   label: string;
   /** How this task reads as a review-row heading. */
@@ -51,14 +72,19 @@ export type LaborTaskDefinition = {
 };
 
 /**
- * Electrical — the first question set. The engine above (matching,
+ * Electrical — the first question set. The engine above (candidate listing,
  * proposals, the accept route) is trade-agnostic; a second trade adds its
  * own array here, not a change to how any of this works.
+ *
+ * INSPECTED, NOT ASSUMED. Each templateServiceKey below was checked against
+ * the platform's own TemplateService definition of the same key before
+ * being used here — confirming its actual scope matches this task's
+ * includes/excludes, not just that the name sounds right.
  */
 export const ELECTRICAL_LABOR_TASKS: LaborTaskDefinition[] = [
   {
     key: "outlet_replacement",
-    canonicalMaterialKey: "RECEPTACLE_STANDARD",
+    templateServiceKey: "replace-standard-outlet",
     label: "a standard outlet replacement",
     displayName: "Replace a standard duplex receptacle",
     includes:
@@ -68,7 +94,7 @@ export const ELECTRICAL_LABOR_TASKS: LaborTaskDefinition[] = [
   },
   {
     key: "switch_replacement",
-    canonicalMaterialKey: "SWITCH_STANDARD",
+    templateServiceKey: "replace-standard-switch",
     label: "a standard switch replacement",
     displayName: "Replace a standard single-pole switch",
     includes: "The same scope as the outlet replacement above, for a switch instead of a receptacle.",
@@ -77,7 +103,7 @@ export const ELECTRICAL_LABOR_TASKS: LaborTaskDefinition[] = [
   },
   {
     key: "gfci_replacement",
-    canonicalMaterialKey: "GFCI_INTERIOR",
+    templateServiceKey: "replace-gfci-outlet",
     label: "replacing an existing GFCI receptacle",
     displayName: "Replace an existing GFCI receptacle",
     includes:
@@ -88,79 +114,36 @@ export const ELECTRICAL_LABOR_TASKS: LaborTaskDefinition[] = [
   },
 ];
 
-/**
- * Generic hardware with no labor scope of its own. A literal, reviewed list
- * — never derived from a similarity score. Extending this list is how a
- * future task's "incidental parts" get recognized; nothing here guesses.
- */
-const INCIDENTAL_MATERIAL_KEYS = new Set([
-  "WALL_PLATE",
-  "CONSUMABLES_SMALL",
-  "CONSUMABLES_MEDIUM",
-  "BOX_OLD_WORK",
-]);
-
-export type MatchedService = { id: string; slug: string; name: string; fieldLaborHours: number | null };
-
-export type MatchedTask = {
-  task: LaborTaskDefinition;
-  /** Null when the platform has no canonical role for this key — a data problem, not a normal empty match. */
-  canonicalMaterialId: string | null;
-  services: MatchedService[];
+export type ServiceCandidate = {
+  id: string;
+  slug: string;
+  name: string;
+  /** The canonical outcome this row was provisioned from, if any — null for every hand-authored service. */
+  templateKey: string | null;
+  fieldLaborHours: number | null;
+  wwtLaborHours: number | null;
+  requiresTechCount: number;
 };
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
 /**
- * Resolve every task's matching services for one contractor, server-side.
- * The only inputs trusted are the task definitions above and this
- * contractor's own real recipes — never anything a client supplies.
+ * Every one of this contractor's own services, unfiltered — the shared
+ * mechanism's entire contribution to "which services does this task apply
+ * to". No task, no material role, no recipe is consulted here; the caller
+ * (the review screen) pre-checks candidates by templateKey and lets the
+ * contractor confirm, add, or remove from the full list.
  */
-export async function matchLaborTasks(
-  db: Db,
-  contractorId: string,
-  tasks: LaborTaskDefinition[]
-): Promise<MatchedTask[]> {
-  const roles = await db.canonicalMaterial.findMany({
-    where: { key: { in: tasks.map((t) => t.canonicalMaterialKey) } },
-    select: { id: true, key: true },
-  });
-  const roleIdByKey = new Map(roles.map((r) => [r.key, r.id]));
-
+export async function listServiceCandidates(db: Db, contractorId: string): Promise<ServiceCandidate[]> {
   const services = await db.service.findMany({
     where: { contractorId },
     select: {
-      id: true,
-      slug: true,
-      name: true,
-      fieldLaborHours: true,
-      materials: { select: { canonicalMaterialId: true, canonicalMaterial: { select: { key: true } } } },
+      id: true, slug: true, name: true, templateKey: true,
+      fieldLaborHours: true, wwtLaborHours: true, requiresTechCount: true,
     },
+    orderBy: { name: "asc" },
   });
-
-  return tasks.map((task) => {
-    const roleId = roleIdByKey.get(task.canonicalMaterialKey) ?? null;
-    if (!roleId) return { task, canonicalMaterialId: null, services: [] };
-
-    const matched = services.filter((svc) => {
-      const hasRole = svc.materials.some((m) => m.canonicalMaterialId === roleId);
-      // A ServiceMaterial row with no resolved canonical role (a legacy,
-      // not-yet-migrated recipe line — see the model's own doc comment)
-      // is unknown, not incidental. Treat it as disqualifying rather than
-      // guessing it belongs on the incidental list.
-      const onlyIncidentalElse = svc.materials.every((m) => {
-        const key = m.canonicalMaterial?.key;
-        return key === task.canonicalMaterialKey || (!!key && INCIDENTAL_MATERIAL_KEYS.has(key));
-      });
-      return hasRole && onlyIncidentalElse;
-    });
-
-    return {
-      task,
-      canonicalMaterialId: roleId,
-      services: matched.map((s) => ({ id: s.id, slug: s.slug, name: s.name, fieldLaborHours: s.fieldLaborHours })),
-    };
-  });
+  return services;
 }
 
 /**

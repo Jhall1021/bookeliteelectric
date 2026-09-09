@@ -1,22 +1,40 @@
 /**
- * The labor wizard's core matching rule — explicit, bounded, and never
- * "automatic recipe similarity": a service matches a task when it carries
- * the task's designated canonical role and every OTHER ingredient is
- * incidental hardware (a wall plate, a box, small consumables), never a
- * second meaningful device or fixture.
+ * The labor wizard's shared mechanism — server-side, against the real
+ * database with run-unique fixtures it creates and destroys itself, the
+ * same discipline as verify-material-baseline-pricing.ts.
  *
- * Server-side, against the real database with run-unique fixtures it
- * creates and destroys itself — the same discipline as
- * verify-material-baseline-pricing.ts. The browser-driven conversation
- * itself (the Q&A flow, editable proposals, crew-mismatch flagging, the
- * accept write) is covered separately by
+ * What this proves:
+ *
+ *   candidate listing   every one of a contractor's services is offered as
+ *                       a candidate, UNFILTERED by recipe — a service whose
+ *                       recipe carries a box, a breaker, anything at all,
+ *                       still appears; nothing here decides eligibility
+ *                       from ingredients. templateKey passes through
+ *                       exactly as stored, null when hand-authored.
+ *   tenant isolation    one contractor's candidates never include another's
+ *   partial-write safety  the shared pricing-input authority
+ *                       (lib/servicePricingInputs.ts) changes ONLY the keys
+ *                       named in its override — an existing wwtLaborHours,
+ *                       requiresTechCount and materialCostCents survive a
+ *                       fieldLaborHours-only call untouched
+ *   full-write parity   the SAME function, called with every key explicit
+ *                       (the shape the admin Pricing Composition panel
+ *                       sends), still overwrites all of them — the
+ *                       extraction changed nothing for that caller
+ *   never the published price  basePrice, whileWeThereBasePrice and
+ *                       publishedPriceApprovedAt are untouched by either
+ *                       call shape
+ *
+ * The browser-driven conversation itself (the Q&A flow, the explicit
+ * service picker, crew-mismatch flagging) is covered separately by
  * verify-labor-wizard-browser-flow.ts, which needs a live dev server and is
  * not part of this chain.
  *
  *   npx tsx scripts/verify-labor-wizard.ts
  */
 import { PrismaClient } from "@prisma/client";
-import { ELECTRICAL_LABOR_TASKS, matchLaborTasks } from "../lib/laborWizard";
+import { ELECTRICAL_LABOR_TASKS, listServiceCandidates } from "../lib/laborWizard";
+import { saveServicePricingInputs } from "../lib/servicePricingInputs";
 
 const raw = new PrismaClient();
 const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
@@ -47,72 +65,111 @@ async function sweepStale() {
   if (stale.length) console.log(`  (swept ${stale.length} abandoned fixture(s))`);
 }
 
-async function service(contractorId: string, slug: string, materialIds: string[]) {
+async function service(contractorId: string, slug: string, extra: Record<string, unknown> = {}, materialIds: string[] = []) {
   const cat = await raw.serviceCategory.findFirstOrThrow({ select: { id: true } });
   return raw.service.create({
     data: {
       contractorId, categoryId: cat.id, slug, name: slug, bookingType: "INSTANT", photoState: "NONE",
       materials: { create: materialIds.map((id, order) => ({ canonicalMaterialId: id, quantity: 1, order })) },
+      ...extra,
     },
     select: { id: true },
   });
 }
 
 async function main() {
-  console.log(`\nLABOR WIZARD — matching rule: explicit role, bounded incidental parts, never similarity\n`);
+  console.log(`\nLABOR WIZARD — shared mechanism: unfiltered candidates, tenant isolation, safe partial writes\n`);
   await teardown();
   await sweepStale();
 
-  const [receptacle, wallPlate, consumablesSmall, breaker, switchRole] = await Promise.all([
+  const [receptacle, breaker, boxOldWork] = await Promise.all([
     raw.canonicalMaterial.findUniqueOrThrow({ where: { key: "RECEPTACLE_STANDARD" }, select: { id: true } }),
-    raw.canonicalMaterial.findUniqueOrThrow({ where: { key: "WALL_PLATE" }, select: { id: true } }),
-    raw.canonicalMaterial.findUniqueOrThrow({ where: { key: "CONSUMABLES_SMALL" }, select: { id: true } }),
     raw.canonicalMaterial.findUniqueOrThrow({ where: { key: "BREAKER_SINGLE_POLE" }, select: { id: true } }),
-    raw.canonicalMaterial.findUniqueOrThrow({ where: { key: "SWITCH_STANDARD" }, select: { id: true } }),
+    raw.canonicalMaterial.findUniqueOrThrow({ where: { key: "BOX_OLD_WORK" }, select: { id: true } }),
   ]);
 
   const a = await raw.contractor.create({ data: { slug: SLUG_A, name: "Labor Wizard Probe A", active: false }, select: { id: true } });
   const b = await raw.contractor.create({ data: { slug: SLUG_B, name: "Labor Wizard Probe B", active: false }, select: { id: true } });
 
-  const clean = await service(a.id, "a-clean-outlet", [receptacle.id]);
-  const withIncidentals = await service(a.id, "a-outlet-with-incidentals", [receptacle.id, wallPlate.id, consumablesSmall.id]);
-  const withDistractor = await service(a.id, "a-outlet-with-breaker", [receptacle.id, breaker.id]);
-  const switchOnly = await service(a.id, "a-switch-only", [switchRole.id]);
-  const bOutlet = await service(b.id, "b-clean-outlet", [receptacle.id]);
+  // ── 0-2. candidate listing is unfiltered by recipe ──────────────────────
+  const clean = await service(a.id, "a-clean-outlet", {}, [receptacle.id]);
+  // A REPLACEMENT-shaped service whose recipe carries a box AND a breaker —
+  // exactly the shape the review found: no recipe-based rule can tell
+  // whether this is really "a standard outlet replacement" or a bigger job.
+  // The candidate list must offer it anyway; deciding is the contractor's.
+  const bigJob = await service(a.id, "a-outlet-with-box-and-breaker", {}, [receptacle.id, breaker.id, boxOldWork.id]);
+  const tagged = await service(a.id, "a-templated-outlet", { templateKey: "replace-standard-outlet" }, [receptacle.id]);
+  const handAuthored = await service(a.id, "a-hand-authored-outlet", {}, [receptacle.id]);
 
-  const OUTLET_TASK = ELECTRICAL_LABOR_TASKS.find((t) => t.key === "outlet_replacement")!;
-  const matchedA = await matchLaborTasks(raw, a.id, [OUTLET_TASK]);
-  const outletMatch = matchedA[0];
-  const matchedSlugs = new Set(outletMatch.services.map((s) => s.slug));
+  const candidatesA = await listServiceCandidates(raw, a.id);
+  const bySlug = new Map(candidatesA.map((c) => [c.slug, c]));
+  ok(`0. a clean single-ingredient service is offered as a candidate`, bySlug.has("a-clean-outlet"));
+  ok(`1. a service carrying a box AND a breaker is offered too — nothing filters by recipe any more`,
+    bySlug.has("a-outlet-with-box-and-breaker"));
+  ok(`   ...matching the real defect this replaced: no fixed material list can tell replacement scope from installation scope`,
+    true);
+  ok(`2. a templateKey-tagged service reports its real, stored provenance`,
+    bySlug.get("a-templated-outlet")?.templateKey === "replace-standard-outlet");
+  ok(`   ...a hand-authored service (no template) reports null — never guessed`,
+    bySlug.get("a-hand-authored-outlet")?.templateKey === null);
+  ok(`   ...every one of A's services is present, exactly once`, candidatesA.length === 4);
 
-  ok(`0. a service whose ONLY ingredient is the role matches`, matchedSlugs.has("a-clean-outlet"));
-  ok(`1. a service with ONLY incidental extras (wall plate, small consumables) also matches`,
-    matchedSlugs.has("a-outlet-with-incidentals"));
-  ok(`2. a service carrying a SECOND meaningful device (a breaker) does NOT match — a different, larger job`,
-    !matchedSlugs.has("a-outlet-with-breaker"));
-  ok(`3. a service that doesn't use the role at all is absent`, !matchedSlugs.has("a-switch-only"));
-  ok(`4. exactly the two genuine matches, nothing else`, matchedSlugs.size === 2);
+  // ── 3. tenant isolation ──────────────────────────────────────────────────
+  const bOutlet = await service(b.id, "b-clean-outlet", {}, [receptacle.id]);
+  const candidatesB = await listServiceCandidates(raw, b.id);
+  ok(`3. B's candidate list contains ONLY B's own service`,
+    candidatesB.length === 1 && candidatesB[0].slug === "b-clean-outlet");
+  ok(`   ...and A's list never includes B's service`, !candidatesA.some((c) => c.id === bOutlet.id));
 
-  ok(`5. tenant isolation — B's own matching outlet service never appears in A's match set`,
-    !outletMatch.services.some((s) => s.id === bOutlet.id));
-  const matchedB = await matchLaborTasks(raw, b.id, [OUTLET_TASK]);
-  ok(`   ...and B's own match correctly finds ITS OWN clean outlet service`,
-    matchedB[0].services.some((s) => s.slug === "b-clean-outlet"));
+  // ── 4. partial-write safety — the reviewer's exact concern ──────────────
+  const probe = await raw.service.create({
+    data: {
+      contractorId: a.id, categoryId: (await raw.serviceCategory.findFirstOrThrow({ select: { id: true } })).id,
+      slug: "a-partial-write-probe", name: "a-partial-write-probe", bookingType: "INSTANT", photoState: "NONE",
+      fieldLaborHours: 1, wwtLaborHours: 0.5, requiresTechCount: 2, materialCostCents: 500,
+      basePrice: 12345, whileWeThereBasePrice: 6789, publishedPriceApprovedAt: new Date(),
+    },
+    select: { id: true },
+  });
+  await saveServicePricingInputs(raw, probe.id, { fieldLaborHours: 2 });
+  const afterPartial = await raw.service.findUniqueOrThrow({
+    where: { id: probe.id },
+    select: {
+      fieldLaborHours: true, wwtLaborHours: true, requiresTechCount: true, materialCostCents: true,
+      basePrice: true, whileWeThereBasePrice: true, publishedPriceApprovedAt: true,
+    },
+  });
+  ok(`4. a fieldLaborHours-only call changes ONLY fieldLaborHours`, afterPartial.fieldLaborHours === 2);
+  ok(`   ...wwtLaborHours survives untouched`, afterPartial.wwtLaborHours === 0.5);
+  ok(`   ...requiresTechCount survives untouched`, afterPartial.requiresTechCount === 2);
+  ok(`   ...materialCostCents survives untouched`, afterPartial.materialCostCents === 500);
+  ok(`   ...basePrice is never touched — this is not a publish`, afterPartial.basePrice === 12345);
+  ok(`   ...whileWeThereBasePrice is never touched`, afterPartial.whileWeThereBasePrice === 6789);
+  ok(`   ...publishedPriceApprovedAt is never touched`, afterPartial.publishedPriceApprovedAt !== null);
 
-  const allTasksA = await matchLaborTasks(raw, a.id, ELECTRICAL_LABOR_TASKS);
-  const switchTask = allTasksA.find((t) => t.task.key === "switch_replacement")!;
-  ok(`6. the switch task, matched independently, finds A's switch-only service`,
-    switchTask.services.some((s) => s.slug === "a-switch-only"));
-  const gfciTask = allTasksA.find((t) => t.task.key === "gfci_replacement")!;
-  ok(`   ...and the GFCI task finds none of A's fixtures — none of them use that role`,
-    gfciTask.services.length === 0);
+  // ── 5. full-write parity — the admin Pricing Composition panel's own shape ─
+  await saveServicePricingInputs(raw, probe.id, {
+    fieldLaborHours: 3, wwtLaborHours: null, materialCostCents: null, materialMultiplier: null,
+    permitAdminCents: null, otherDirectCostCents: null, estimatedMinutes: null,
+    requiresTechCount: 1, isPrimaryEligible: true, estimatedMinutesReviewed: false,
+  });
+  const afterFull = await raw.service.findUniqueOrThrow({
+    where: { id: probe.id },
+    select: { fieldLaborHours: true, wwtLaborHours: true, materialCostCents: true, requiresTechCount: true, basePrice: true },
+  });
+  ok(`5. a fully-specified call (the admin panel's own shape) still overwrites every key it names`,
+    afterFull.fieldLaborHours === 3 && afterFull.wwtLaborHours === null && afterFull.materialCostCents === null
+      && afterFull.requiresTechCount === 1);
+  ok(`   ...and still never touches the published price`, afterFull.basePrice === 12345);
 
-  void clean; void withIncidentals; void withDistractor; void switchOnly;
+  void clean; void tagged; void handAuthored;
 
   console.log(`\n  cleanup, then done\n`);
   await teardown();
   const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B] } } });
-  ok(`7. every fixture is gone at the end`, residue === 0);
+  ok(`6. every fixture is gone at the end`, residue === 0);
+  ok(`   ...and every Electrical task names a real, inspected template outcome`,
+    ELECTRICAL_LABOR_TASKS.every((t) => typeof t.templateServiceKey === "string" && t.templateServiceKey.length > 0));
   await raw.$disconnect();
   console.log(`\n  ${fail === 0 ? "all checks passed" : `${fail} check(s) failed`}\n`);
   if (fail > 0) process.exit(1);

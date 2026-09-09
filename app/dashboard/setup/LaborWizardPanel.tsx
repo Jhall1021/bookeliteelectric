@@ -10,8 +10,11 @@ import { describeProposal, type TaskProposal } from "@/lib/laborWizard";
  *
  * ONE QUESTION AT A TIME, DELIBERATELY. This is not a form; each step reads
  * what the previous answer implied. See lib/laborWizard.ts for what gets
- * written (fieldLaborHours only) and what never does (crew size, visit
- * overhead, WWT hours, any pricing rate).
+ * written (fieldLaborHours only, through the shared pricing-input authority)
+ * and what never does (crew size, visit overhead, WWT hours, any pricing
+ * rate) — and for why WHICH SERVICES a proposal applies to is decided here,
+ * by the contractor confirming over their own full candidate list, rather
+ * than inferred from a recipe.
  */
 export type WizardTaskInfo = {
   key: string;
@@ -20,7 +23,16 @@ export type WizardTaskInfo = {
   includes: string;
   excludes: string;
   relativeTo?: string;
-  services: { slug: string; name: string }[];
+  /** The canonical outcome this task represents, when the platform has one — used only to pre-check a likely match below. */
+  templateServiceKey: string;
+};
+
+export type CandidateServiceInfo = {
+  id: string;
+  slug: string;
+  name: string;
+  templateKey: string | null;
+  fieldLaborHours: number | null;
 };
 
 type Step =
@@ -34,8 +46,11 @@ type Step =
   | { name: "done" };
 
 const money = (n: number) => `${n} min`;
+const currentLabel = (h: number | null) => (h === null ? "not yet established" : `currently ${Math.round(h * 60)} min`);
 
-export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] }) {
+export default function LaborWizardPanel({
+  tasks, candidates,
+}: { tasks: WizardTaskInfo[]; candidates: CandidateServiceInfo[] }) {
   const anchor = tasks.find((t) => !t.relativeTo);
   const derived = tasks.filter((t) => t.relativeTo);
 
@@ -46,6 +61,9 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
   const [proposals, setProposals] = useState<Record<string, TaskProposal>>({});
   const [edited, setEdited] = useState<Record<string, string>>({});
   const [queue, setQueue] = useState<string[]>(derived.map((t) => t.key));
+  // Populated once, when review is first reached — see enterReview().
+  const [selected, setSelected] = useState<Record<string, Set<string>>>({});
+  const [filter, setFilter] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -57,9 +75,30 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
     return p && p.kind !== "crew_mismatch" ? p.minutes : 0;
   };
 
-  function advanceToNextDerived(remaining: string[]) {
+  /**
+   * Pre-checks candidates whose OWN recorded provenance (templateKey) names
+   * this task's canonical outcome — a real platform fact, never a guess
+   * from what the service's recipe contains. Every service a contractor
+   * hand-authored (templateKey null, including every one of Elite's) starts
+   * UNCHECKED here regardless of its recipe; the contractor adds it
+   * explicitly if it applies.
+   */
+  function enterReview(finalProposals: Record<string, TaskProposal>) {
+    const initial: Record<string, Set<string>> = {};
+    for (const t of tasks) {
+      const p = finalProposals[t.key];
+      if (!p || p.kind === "crew_mismatch") continue;
+      initial[t.key] = new Set(
+        candidates.filter((c) => c.templateKey === t.templateServiceKey).map((c) => c.id)
+      );
+    }
+    setSelected(initial);
+    setStep({ name: "review" });
+  }
+
+  function advanceToNextDerived(remaining: string[], finalProposals: Record<string, TaskProposal>) {
     if (remaining.length === 0) {
-      setStep({ name: "review" });
+      enterReview(finalProposals);
       return;
     }
     setQueue(remaining.slice(1));
@@ -80,7 +119,7 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
 
   function submitAnchorCrew() {
     if (queue.length === 0) {
-      setStep({ name: "review" });
+      enterReview(proposals);
       return;
     }
     setStep({ name: "crew-match", taskKey: queue[0] });
@@ -88,8 +127,9 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
 
   function answerCrewMatch(taskKey: string, sameCrew: boolean) {
     if (!sameCrew) {
-      setProposals((p) => ({ ...p, [taskKey]: { taskKey, kind: "crew_mismatch" } }));
-      advanceToNextDerived(queue.slice(1));
+      const next = { ...proposals, [taskKey]: { taskKey, kind: "crew_mismatch" as const } };
+      setProposals(next);
+      advanceToNextDerived(queue.slice(1), next);
       return;
     }
     setStep(usesDeltaFraming(taskKey) ? { name: "delta-time", taskKey } : { name: "same-time", taskKey });
@@ -97,11 +137,12 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
 
   function answerSameTime(taskKey: string, sameTime: boolean) {
     if (sameTime) {
-      setProposals((p) => ({
-        ...p,
-        [taskKey]: { taskKey, kind: "same_time", minutes: anchorMinutes(), anchorLabel: anchor!.label },
-      }));
-      advanceToNextDerived(queue.slice(1));
+      const next = {
+        ...proposals,
+        [taskKey]: { taskKey, kind: "same_time" as const, minutes: anchorMinutes(), anchorLabel: anchor!.label },
+      };
+      setProposals(next);
+      advanceToNextDerived(queue.slice(1), next);
       return;
     }
     setStep({ name: "entered-time", taskKey });
@@ -114,9 +155,10 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
       return;
     }
     setError(null);
-    setProposals((p) => ({ ...p, [taskKey]: { taskKey, kind: "entered", minutes } }));
+    const next = { ...proposals, [taskKey]: { taskKey, kind: "entered" as const, minutes } };
+    setProposals(next);
     setDraft("");
-    advanceToNextDerived(queue.slice(1));
+    advanceToNextDerived(queue.slice(1), next);
   }
 
   function submitDelta(taskKey: string) {
@@ -127,25 +169,30 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
     }
     setError(null);
     const anchorMin = anchorMinutes();
-    setProposals((p) => ({
-      ...p,
+    const next = {
+      ...proposals,
       [taskKey]: {
-        taskKey,
-        kind: "delta",
-        minutes: anchorMin + delta,
-        anchorMinutes: anchorMin,
-        deltaMinutes: delta,
-        anchorLabel: anchor!.label,
+        taskKey, kind: "delta" as const, minutes: anchorMin + delta,
+        anchorMinutes: anchorMin, deltaMinutes: delta, anchorLabel: anchor!.label,
       },
-    }));
+    };
+    setProposals(next);
     setDraft("");
-    advanceToNextDerived(queue.slice(1));
+    advanceToNextDerived(queue.slice(1), next);
   }
 
   // "extra time" is asked for any derived task that isn't a plain
   // same-time/different-time choice — here, GFCI. A future trade's task set
   // decides this per task rather than the engine guessing from the label.
   const usesDeltaFraming = (taskKey: string) => taskKey === "gfci_replacement";
+
+  function toggleSelected(taskKey: string, serviceId: string) {
+    setSelected((s) => {
+      const n = new Set(s[taskKey] ?? []);
+      n.has(serviceId) ? n.delete(serviceId) : n.add(serviceId);
+      return { ...s, [taskKey]: n };
+    });
+  }
 
   async function acceptProposals() {
     const rows = tasks
@@ -154,10 +201,16 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
       .map((p) => {
         const overridden = edited[p.taskKey];
         const minutes = overridden !== undefined && overridden !== "" ? Number(overridden) : p.minutes;
-        return { taskKey: p.taskKey, minutes };
-      });
+        const serviceIds = [...(selected[p.taskKey] ?? [])];
+        return { taskKey: p.taskKey, minutes, serviceIds };
+      })
+      .filter((r) => r.serviceIds.length > 0);
     if (rows.some((r) => !Number.isFinite(r.minutes) || r.minutes <= 0)) {
       setError("Every proposal needs a time greater than zero before accepting.");
+      return;
+    }
+    if (rows.length === 0) {
+      setError("Select at least one service for at least one proposal before accepting.");
       return;
     }
     setBusy(true);
@@ -345,32 +398,63 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
       {step.name === "review" && (
         <div className="mt-4">
           <p className="text-sm text-slate">
-            Review each proposal below and adjust anything before accepting. Nothing is saved yet.
+            Review each proposal below. For each one, confirm exactly which of your services it
+            applies to — nothing is pre-decided from a recipe, and nothing is saved until you accept.
           </p>
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-4">
             {tasks.map((t) => {
               const p = proposals[t.key];
               if (!p) return null;
+              const chosen = selected[t.key] ?? new Set<string>();
+              const q = (filter[t.key] ?? "").toLowerCase();
+              const visibleCandidates = q
+                ? candidates.filter((c) => c.name.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q))
+                : candidates;
               return (
                 <div key={t.key} className="rounded-card border border-cardline p-4">
                   <div className="font-medium text-navy">{t.displayName}</div>
-                  <p className="mt-1 text-xs text-slate">
-                    Needed by {t.services.length} service{t.services.length === 1 ? "" : "s"}
-                    {t.services.length > 0 ? `: ${t.services.map((s) => s.slug).join(", ")}` : " — none yet"}
-                  </p>
                   {p.kind === "crew_mismatch" ? (
                     <p className="mt-2 text-sm text-amber-700">{describeProposal(p)}</p>
                   ) : (
-                    <div className="mt-2 flex items-center gap-2">
+                    <>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="number" min="1" step="1"
+                          defaultValue={p.minutes}
+                          onChange={(e) => setEdited((d) => ({ ...d, [t.key]: e.target.value }))}
+                          aria-label={`Proposed minutes for ${t.displayName}`}
+                          className="w-24 rounded border border-cardline px-2 py-1 text-sm"
+                        />
+                        <span className="text-sm text-slate">min — {describeProposal(p)}</span>
+                      </div>
+                      <p className="mt-3 text-xs font-semibold text-navy">
+                        Applies to {chosen.size} service{chosen.size === 1 ? "" : "s"} — confirm below:
+                      </p>
                       <input
-                        type="number" min="1" step="1"
-                        defaultValue={p.minutes}
-                        onChange={(e) => setEdited((d) => ({ ...d, [t.key]: e.target.value }))}
-                        aria-label={`Proposed minutes for ${t.displayName}`}
-                        className="w-24 rounded border border-cardline px-2 py-1 text-sm"
+                        type="text" placeholder="Filter your services by name"
+                        value={filter[t.key] ?? ""}
+                        onChange={(e) => setFilter((f) => ({ ...f, [t.key]: e.target.value }))}
+                        aria-label={`Filter services for ${t.displayName}`}
+                        className="mt-1 w-full rounded border border-cardline px-2 py-1 text-sm"
                       />
-                      <span className="text-sm text-slate">min — {describeProposal(p)}</span>
-                    </div>
+                      <div className="mt-2 max-h-48 overflow-y-auto rounded border border-cardline">
+                        {visibleCandidates.map((c) => (
+                          <label key={c.id} className="flex items-center gap-2 border-b border-cardline px-2 py-1 text-sm last:border-b-0">
+                            <input
+                              type="checkbox"
+                              checked={chosen.has(c.id)}
+                              onChange={() => toggleSelected(t.key, c.id)}
+                              aria-label={`Apply ${t.displayName} to ${c.name}`}
+                            />
+                            <span className="text-navy">{c.name}</span>
+                            <span className="text-xs text-slate">({c.slug}) — {currentLabel(c.fieldLaborHours)}</span>
+                          </label>
+                        ))}
+                        {visibleCandidates.length === 0 && (
+                          <p className="px-2 py-2 text-xs text-slate">No services match that filter.</p>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               );

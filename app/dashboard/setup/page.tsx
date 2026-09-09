@@ -12,8 +12,8 @@ import TradePanel from "./TradePanel";
 import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
 import MaterialBaselineBatchPanel, { type BaselineRow } from "./MaterialBaselineBatchPanel";
 import { latestBaselineVersionsFor } from "@/lib/materialCost";
-import LaborWizardPanel, { type WizardTaskInfo } from "./LaborWizardPanel";
-import { ELECTRICAL_LABOR_TASKS, matchLaborTasks } from "@/lib/laborWizard";
+import LaborWizardPanel, { type WizardTaskInfo, type CandidateServiceInfo } from "./LaborWizardPanel";
+import { ELECTRICAL_LABOR_TASKS, listServiceCandidates } from "@/lib/laborWizard";
 import SchedulingPanel from "./SchedulingPanel";
 import PaymentsPanel from "./PaymentsPanel";
 import LaunchPanel, { type Launchable } from "./LaunchPanel";
@@ -218,6 +218,7 @@ export default async function SetupPage({
     let pricing: ServicePricing[] = [];
     let baselineRows: BaselineRow[] = [];
     let laborTasks: WizardTaskInfo[] = [];
+    let laborCandidates: CandidateServiceInfo[] = [];
 
     if (current === "services") {
       selection = await catalogPromises(db, ctx.contractorId);
@@ -320,16 +321,19 @@ export default async function SetupPage({
       // review-and-approve path — see lib/timeAndMaterials.ts); offering
       // this wizard to them would ask for an answer that goes nowhere.
       if (c.pricingStrategy === "FLAT_RATE") {
-        const matched = await matchLaborTasks(db, ctx.contractorId, ELECTRICAL_LABOR_TASKS);
-        laborTasks = matched.map((m) => ({
-          key: m.task.key,
-          label: m.task.label,
-          displayName: m.task.displayName,
-          includes: m.task.includes,
-          excludes: m.task.excludes,
-          relativeTo: m.task.relativeTo,
-          services: m.services.map((s) => ({ slug: s.slug, name: s.name })),
+        laborTasks = ELECTRICAL_LABOR_TASKS.map((t) => ({
+          key: t.key,
+          label: t.label,
+          displayName: t.displayName,
+          includes: t.includes,
+          excludes: t.excludes,
+          relativeTo: t.relativeTo,
+          templateServiceKey: t.templateServiceKey,
         }));
+        // The FULL candidate list, unfiltered by recipe — see
+        // lib/laborWizard.ts's header for why. The panel pre-checks by
+        // templateKey and the contractor confirms from there.
+        laborCandidates = await listServiceCandidates(db, ctx.contractorId);
       }
     }
     const totalServices = await db.service.count({ where: { contractorId: ctx.contractorId } });
@@ -450,7 +454,7 @@ export default async function SetupPage({
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
                 />
                 <MaterialBaselineBatchPanel rows={baselineRows} />
-                {laborTasks.length > 0 && <LaborWizardPanel tasks={laborTasks} />}
+                {laborTasks.length > 0 && <LaborWizardPanel tasks={laborTasks} candidates={laborCandidates} />}
               </div>
             )}
 
