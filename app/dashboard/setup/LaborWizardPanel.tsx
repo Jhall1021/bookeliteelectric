@@ -391,7 +391,15 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
         </div>
       )}
 
-      {step.name === "review" && (
+      {step.name === "review" && (() => {
+        // Nothing to save when every checkbox is unchecked — whether
+        // because the contractor unchecked them all or, as with a task
+        // whose services are ALL flagged customized, there was never a
+        // checkbox to check. Computed the same way acceptProposals()
+        // itself decides "nothing selected", so the button's disabled
+        // state and the save it guards never disagree.
+        const hasSelection = Object.values(selected).some((s) => s.size > 0);
+        return (
         <div className="mt-4">
           <p className="text-sm text-slate">
             Review each proposal below. Nothing is saved until you accept.
@@ -470,13 +478,19 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
             })}
           </div>
           <button
-            type="button" disabled={busy} onClick={acceptProposals}
+            type="button" disabled={busy || !hasSelection} onClick={acceptProposals}
             className="mt-4 rounded-pill bg-electric px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             Accept and save
           </button>
+          {!hasSelection && (
+            <p className="mt-2 text-xs text-slate">
+              Select at least one service above before saving.
+            </p>
+          )}
         </div>
-      )}
+        );
+      })()}
 
       {step.name === "done" && <p className="mt-4 text-sm text-success">{note}</p>}
     </div>
