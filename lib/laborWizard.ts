@@ -38,6 +38,20 @@
  *      the service from the eligible set and surfaces it separately for
  *      manual review, never silently offered or silently dropped.
  *
+ *      A NEWLY PROVISIONED SERVICE IS NOT THE SAME THING AS ITS FULL
+ *      TEMPLATE RECIPE, and the match below accounts for that on purpose.
+ *      installCatalog links a ServiceMaterial row for every STRUCTURAL
+ *      (fixed-quantity) material a template names, but deliberately links
+ *      NONE for a policy-driven one — the key lands in
+ *      Service.unresolvedMaterialKeys instead, until the contractor enters
+ *      their own quantity. So a service the contractor has not touched at
+ *      all is expected to be missing every policy-driven role from its
+ *      current recipe, not carrying it at some placeholder quantity. Only a
+ *      policy role on SCOPE_EQUIVALENT_POLICY_MATERIALS below gets that
+ *      expected absence tolerated; treating it as "the ingredient set
+ *      changed" flagged every fresh install as customized before the
+ *      contractor had edited anything.
+ *
  * A service with no templateKey at all — every hand-authored catalog,
  * including Elite's, which predates templating entirely — has no canonical
  * mapping to check and is never eligible for anything this module does. No
@@ -187,6 +201,53 @@ const pairKey = (templateVersionId: string, templateKey: string) => `${templateV
 const SCOPE_EQUIVALENT_POLICY_MATERIALS = new Set(["CONSUMABLES_SMALL"]);
 
 /**
+ * Whether a service's CURRENT recipe still matches the ORIGINAL
+ * TemplateService recipe it was provisioned with.
+ *
+ * Walked from BOTH sides, deliberately:
+ *
+ *   - Every material actually on the service must be one the template
+ *     named at all — a role the template never mentioned is an addition,
+ *     full stop, regardless of what kind of role it is.
+ *   - Every material the template names must be accounted for on the
+ *     service — EXCEPT a policy-driven role on the allowlist above, whose
+ *     absence is not a divergence but the expected, unresolved starting
+ *     state installCatalog always leaves it in. Present anyway (a
+ *     contractor could add the link by hand) is fine too; there is no
+ *     quantity to compare it against. A policy-driven role NOT on the
+ *     allowlist gets no such pass, present or absent — the same
+ *     conservative default as before: no confirmed basis for treating any
+ *     quantity as scope-independent, so it disqualifies the match.
+ *   - Every structural (non-policy) material must carry the exact
+ *     quantity the template fixed it at.
+ */
+function matchesOriginalRecipe(
+  original: Map<string, OriginalSpec>,
+  // Deprecated legacy `Material` links carry no canonicalMaterialId at all —
+  // real, though installCatalog never creates one. A null key can never be
+  // "one the template named", so it always disqualifies below, same as any
+  // other stray addition.
+  current: Map<string | null, number>
+): boolean {
+  for (const id of current.keys()) {
+    if (id === null || !original.has(id)) return false;
+  }
+  for (const [id, spec] of original) {
+    const currentQuantity = current.get(id);
+    if (currentQuantity === undefined) {
+      if (spec.quantityIsPolicy && SCOPE_EQUIVALENT_POLICY_MATERIALS.has(spec.materialKey)) continue;
+      return false;
+    }
+    if (spec.quantityIsPolicy) {
+      if (!SCOPE_EQUIVALENT_POLICY_MATERIALS.has(spec.materialKey)) return false;
+      continue;
+    }
+    if (currentQuantity !== spec.quantity) return false;
+  }
+  return true;
+}
+
+/**
  * The entire eligibility rule, in one place, server-side.
  *
  * For each task: find this contractor's services whose templateKey names
@@ -260,25 +321,7 @@ export async function resolveTaskEligibility(
       const original = originalByPair.get(pair);
       const currentQuantityByMaterial = new Map(svc.materials.map((m) => [m.canonicalMaterialId, m.quantity]));
 
-      const sameIngredients =
-        original !== undefined &&
-        original.size === currentQuantityByMaterial.size &&
-        [...original.keys()].every((id) => currentQuantityByMaterial.has(id));
-
-      // A fixed (non-policy) template quantity is compared exactly. A
-      // policy-driven one is skipped ONLY when it's on the explicit,
-      // evidence-backed SCOPE_EQUIVALENT_POLICY_MATERIALS list above — an
-      // unrecognized policy role has no confirmed basis for treating any
-      // quantity as safe, so it disqualifies the match rather than passing
-      // by default.
-      const sameFixedQuantities =
-        sameIngredients &&
-        [...original!.entries()].every(([id, spec]) => {
-          if (spec.quantityIsPolicy) return SCOPE_EQUIVALENT_POLICY_MATERIALS.has(spec.materialKey);
-          return currentQuantityByMaterial.get(id) === spec.quantity;
-        });
-
-      if (sameIngredients && sameFixedQuantities) {
+      if (original !== undefined && matchesOriginalRecipe(original, currentQuantityByMaterial)) {
         eligible.push({ id: svc.id, slug: svc.slug, name: svc.name, fieldLaborHours: svc.fieldLaborHours });
       } else {
         customized.push({ id: svc.id, slug: svc.slug, name: svc.name });

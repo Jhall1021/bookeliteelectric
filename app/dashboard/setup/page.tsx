@@ -216,6 +216,7 @@ export default async function SetupPage({
       roundingIncrementCents: number; defaultPermitAdminCents: number;
     } | null = null;
     let pricing: ServicePricing[] = [];
+    let offeredCount = 0;
     let baselineRows: BaselineRow[] = [];
     let laborTasks: WizardTaskInfo[] = [];
 
@@ -263,6 +264,17 @@ export default async function SetupPage({
           crewHourRateCents: true, primaryMinimumCents: true,
           roundingIncrementCents: true, defaultPermitAdminCents: true,
         },
+      });
+      // Independent of `settings` below — "has the contractor chosen
+      // anything to sell" is a fact about the SERVICES stage, not about
+      // whether a crew-hour rate has been entered yet. roleFindings (the
+      // readiness engine's own MATERIAL_COST_UNRESOLVED findings) is
+      // ALREADY scoped to offered services only (lib/onboardingReadiness.ts's
+      // offeredServices()), so it reads 0 both when nothing is offered and
+      // when everything offered is costed — this is the signal that tells
+      // those two states apart.
+      offeredCount = await db.service.count({
+        where: { contractorId: ctx.contractorId, offered: true },
       });
       let settings: unknown = null;
       try { settings = await loadPricingSettings(db as never, ctx.contractorId); } catch { settings = null; }
@@ -444,12 +456,18 @@ export default async function SetupPage({
                 <PricingFoundationPanel
                   settings={rateSettings}
                   // Material findings are handled interactively by the batch
-                  // panel below now, not lumped into this panel's own
-                  // "decisions left" prose list — passing them here too would
-                  // show the same unresolved role twice, once as a dead-end
-                  // "Fix" link and once as something this page can actually
-                  // act on.
-                  roleFindings={[]}
+                  // panel below, not re-listed here — that list is the one
+                  // and only interactive material list. This panel's own
+                  // status text still needs to know whether any exist,
+                  // though: `offeredCount` and `unresolvedRoleCount` (the
+                  // real, non-hardcoded count) are what tell "nothing chosen
+                  // yet" apart from "chosen and fully costed" apart from
+                  // "chosen, N still need review" — see PricingFoundationPanel's
+                  // own comment for why collapsing those into one boolean
+                  // (or one hardcoded `[]`) said "everything is costed" while
+                  // the batch panel below still listed real unresolved roles.
+                  offeredCount={offeredCount}
+                  unresolvedRoleCount={roleFindings.length}
                   policyFindings={stage.findings.filter((f) => f.code === "POLICY_UNRESOLVED")}
                   services={pricing}
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}

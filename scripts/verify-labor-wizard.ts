@@ -36,6 +36,19 @@
  *   never the published price  basePrice, whileWeThereBasePrice and
  *                       publishedPriceApprovedAt are untouched by either
  *                       call shape
+ *   a fresh install is eligible, not customized  a service installed
+ *                       through the REAL catalog installer (not this file's
+ *                       own hand-rolled fixture, which links every template
+ *                       material and so never exercises the actual
+ *                       install-time shape) and never touched afterward is
+ *                       ELIGIBLE for its task, end to end through the same
+ *                       write path the accept route uses — even though its
+ *                       template includes a policy-driven material
+ *                       (CONSUMABLES_SMALL) installCatalog deliberately
+ *                       leaves unlinked until the contractor resolves it.
+ *                       That expected, install-time absence is not a
+ *                       recipe change; a genuine edit on the SAME installed
+ *                       service still is, and is still excluded
  *   no lost update      two concurrent saveServicePricingInputs calls
  *                       naming DIFFERENT fields on the SAME service both
  *                       land — neither call reads the row first, so
@@ -66,12 +79,18 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import { ELECTRICAL_LABOR_TASKS, resolveTaskEligibility, resolveTaskEligibilityForWrite } from "../lib/laborWizard";
 import { saveServicePricingInputs } from "../lib/servicePricingInputs";
+import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
+import { withThrowaway } from "./_throwaway";
 
 const raw = new PrismaClient();
 const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
 const SLUG_PREFIX = "test-labor-wizard";
 const SLUG_A = `${SLUG_PREFIX}-${RUN}-a`;
 const SLUG_B = `${SLUG_PREFIX}-${RUN}-b`;
+// Provisioned through the real installer, not this file's hand-rolled
+// `service()` helper — see withThrowaway's own cleanup below, which follows
+// the full FK graph a real install actually creates.
+const SLUG_C = `${SLUG_PREFIX}-${RUN}-install`;
 const STALE_AFTER_MS = 60 * 60 * 1000;
 const TRADE = "electrical";
 const VERSION = 1;
@@ -195,6 +214,86 @@ async function main() {
   ok(`   ...and B's own resolution finds ONLY its own service`,
     resolvedB[0].eligible.length === 1 && resolvedB[0].eligible[0].id === bEligibleOutlet.id);
 
+  // ── real installer — reproduces the exact reported defect. wizard-demo-
+  // electric installed the Electrical catalog through Guided Setup, selected
+  // outlet/switch/GFCI replacement with no manual recipe edits, and the
+  // labor review flagged all three "customized since" with nothing eligible.
+  // This file's own `service()` helper above links EVERY template material,
+  // including policy-driven ones — it never exercises what the real
+  // installer actually leaves behind, which is why the defect shipped. Only
+  // going through templateVersionSource -> preflight -> installCatalog, the
+  // same path Guided Setup and the CLI both use, reproduces it. ────────────
+  await withThrowaway(raw, SLUG_C, "Labor Wizard Install Probe", async (installedContractorId) => {
+    const source = templateVersionSource(raw, TRADE);
+    const pf = await preflight(raw, installedContractorId, source);
+    if (!pf.ok) throw new Error(`preflight failed unexpectedly: ${pf.code} ${pf.message}`);
+    await installCatalog(raw, installedContractorId, pf.catalog);
+
+    const installedTasks = [
+      ELECTRICAL_LABOR_TASKS.find((t) => t.key === "outlet_replacement")!,
+      ELECTRICAL_LABOR_TASKS.find((t) => t.key === "switch_replacement")!,
+      ELECTRICAL_LABOR_TASKS.find((t) => t.key === "gfci_replacement")!,
+    ];
+    const resolvedInstalled = await resolveTaskEligibility(raw, installedContractorId, installedTasks);
+    const installedOutlet = resolvedInstalled.find((r) => r.task.key === "outlet_replacement")!;
+    const installedSwitch = resolvedInstalled.find((r) => r.task.key === "switch_replacement")!;
+    const installedGfci = resolvedInstalled.find((r) => r.task.key === "gfci_replacement")!;
+
+    ok(`6. a freshly installed, UNTOUCHED outlet service is ELIGIBLE — not flagged customized`,
+      installedOutlet.eligible.length === 1 && installedOutlet.customized.length === 0,
+      `eligible=${installedOutlet.eligible.length} customized=${installedOutlet.customized.length}`);
+    ok(`   ...same for the freshly installed switch service`,
+      installedSwitch.eligible.length === 1 && installedSwitch.customized.length === 0,
+      `eligible=${installedSwitch.eligible.length} customized=${installedSwitch.customized.length}`);
+    ok(`   ...same for the freshly installed GFCI service`,
+      installedGfci.eligible.length === 1 && installedGfci.customized.length === 0,
+      `eligible=${installedGfci.eligible.length} customized=${installedGfci.customized.length}`);
+
+    // ── install → select → labor review → save, end to end, through the
+    // SAME locked write path app/api/portal/labor-tasks/route.ts uses ──
+    const acceptances = [
+      { taskKey: "outlet_replacement", minutes: 20, serviceId: installedOutlet.eligible[0]?.id },
+      { taskKey: "switch_replacement", minutes: 18, serviceId: installedSwitch.eligible[0]?.id },
+      { taskKey: "gfci_replacement", minutes: 22, serviceId: installedGfci.eligible[0]?.id },
+    ];
+    await raw.$transaction(
+      async (tx) => {
+        const eligibility = await resolveTaskEligibilityForWrite(tx, installedContractorId, installedTasks);
+        const eligibleIdsByTask = new Map(eligibility.map((e) => [e.task.key, new Set(e.eligible.map((s) => s.id))]));
+        for (const acc of acceptances) {
+          if (!acc.serviceId || !eligibleIdsByTask.get(acc.taskKey)?.has(acc.serviceId)) {
+            throw new Error(`${acc.taskKey}'s installed service was not eligible at write time`);
+          }
+          await saveServicePricingInputs(tx, acc.serviceId, { fieldLaborHours: acc.minutes / 60 });
+        }
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+    const savedServices = await raw.service.findMany({
+      where: { id: { in: acceptances.map((acc) => acc.serviceId!) } },
+      select: { id: true, fieldLaborHours: true },
+    });
+    ok(`7. the accept write actually lands for all three freshly installed services`,
+      acceptances.every((acc) => {
+        const s = savedServices.find((x) => x.id === acc.serviceId);
+        return !!s && Math.abs((s.fieldLaborHours ?? 0) - acc.minutes / 60) < 1e-9;
+      }));
+
+    // ── the safeguard still holds on this SAME real install: a genuine
+    // recipe edit — not a policy role's expected, unresolved absence — is
+    // still excluded. The fix corrects a false positive; it does not stop
+    // detecting a real one. ──
+    const installedOutletId = installedOutlet.eligible[0]!.id;
+    await raw.serviceMaterial.updateMany({
+      where: { serviceId: installedOutletId, canonicalMaterial: { key: "RECEPTACLE_STANDARD" } },
+      data: { quantity: 2 },
+    });
+    const afterEdit = await resolveTaskEligibility(raw, installedContractorId, [installedTasks[0]]);
+    ok(`8. a genuine quantity edit on the SAME installed service is still correctly excluded`,
+      !afterEdit[0].eligible.some((s) => s.id === installedOutletId) &&
+      afterEdit[0].customized.some((s) => s.id === installedOutletId));
+  });
+
   // ── partial-write safety — the reviewer's exact concern from the prior round ─
   const probe = await raw.service.create({
     data: {
@@ -213,7 +312,7 @@ async function main() {
       basePrice: true, whileWeThereBasePrice: true, publishedPriceApprovedAt: true,
     },
   });
-  ok(`6. a fieldLaborHours-only call changes ONLY fieldLaborHours`, afterPartial.fieldLaborHours === 2);
+  ok(`9. a fieldLaborHours-only call changes ONLY fieldLaborHours`, afterPartial.fieldLaborHours === 2);
   ok(`   ...wwtLaborHours survives untouched`, afterPartial.wwtLaborHours === 0.5);
   ok(`   ...requiresTechCount survives untouched`, afterPartial.requiresTechCount === 2);
   ok(`   ...materialCostCents survives untouched`, afterPartial.materialCostCents === 500);
@@ -231,7 +330,7 @@ async function main() {
     where: { id: probe.id },
     select: { fieldLaborHours: true, wwtLaborHours: true, materialCostCents: true, requiresTechCount: true, basePrice: true },
   });
-  ok(`7. a fully-specified call (the admin panel's own shape) still overwrites every key it names`,
+  ok(`10. a fully-specified call (the admin panel's own shape) still overwrites every key it names`,
     afterFull.fieldLaborHours === 3 && afterFull.wwtLaborHours === null && afterFull.materialCostCents === null
       && afterFull.requiresTechCount === 1);
   ok(`   ...and still never touches the published price`, afterFull.basePrice === 12345);
@@ -256,7 +355,7 @@ async function main() {
   const afterConcurrent = await raw.service.findUniqueOrThrow({
     where: { id: concurrencyProbe.id }, select: { fieldLaborHours: true, wwtLaborHours: true },
   });
-  ok(`8. two concurrent calls naming different fields BOTH land — no lost update`,
+  ok(`11. two concurrent calls naming different fields BOTH land — no lost update`,
     afterConcurrent.fieldLaborHours === 10 && afterConcurrent.wwtLaborHours === 20,
     `got fieldLaborHours=${afterConcurrent.fieldLaborHours}, wwtLaborHours=${afterConcurrent.wwtLaborHours}`);
 
@@ -304,7 +403,7 @@ async function main() {
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   );
 
-  ok(`9. a genuinely concurrent recipe edit is BLOCKED while the accept transaction holds its locks`,
+  ok(`12. a genuinely concurrent recipe edit is BLOCKED while the accept transaction holds its locks`,
     concurrentEditBlocked, concurrentEditDetail || "the concurrent update did not throw — the lock was not actually held");
   ok(`   ...the accept transaction saw the fixture as eligible throughout — the block, not a false rejection, is what protected it`,
     raceServiceStillEligible);
@@ -327,7 +426,7 @@ async function main() {
   const raceMaterialAfterRelease = await raw.serviceMaterial.findFirstOrThrow({
     where: { serviceId: raceService.id, canonicalMaterialId: receptacle.id }, select: { quantity: true },
   });
-  ok(`10. once the transaction releases its locks, the SAME edit succeeds normally — a temporary block, not a deadlock`,
+  ok(`13. once the transaction releases its locks, the SAME edit succeeds normally — a temporary block, not a deadlock`,
     raceMaterialAfterRelease.quantity === 5);
 
   // And with that later, legitimate change now in place, a FRESH
@@ -341,8 +440,11 @@ async function main() {
 
   console.log(`\n  cleanup, then done\n`);
   await teardown();
-  const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B] } } });
-  ok(`11. every fixture is gone at the end`, residue === 0);
+  // withThrowaway already removed SLUG_C's contractor on the way out of its
+  // own block above; checked again here for the same end-to-end guarantee
+  // the other two fixtures get.
+  const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B, SLUG_C] } } });
+  ok(`14. every fixture is gone at the end`, residue === 0);
   await raw.$disconnect();
   console.log(`\n  ${fail === 0 ? "all checks passed" : `${fail} check(s) failed`}\n`);
   if (fail > 0) process.exit(1);
