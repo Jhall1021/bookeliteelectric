@@ -6,8 +6,22 @@
  * accessory/IAQ services (`air-cleaner-cabinet-installation`,
  * `duct-air-treatment-installation`, `accessory-consumable-replacement`),
  * H8 the two services H7 left blocked: `mini-split-head-cleaning` and
- * `whole-house-humidifier`, H9 `vent-cover-replacement`. Fourteen priced
- * resolvers, still not a generic n-service engine.
+ * `whole-house-humidifier`, H9 `vent-cover-replacement`, H11 the five
+ * `REMOTE_QUOTE`-disposition equipment-replacement services
+ * (`furnace-replacement`, `ac-replacement`, `heat-pump-replacement`,
+ * `whole-system-replacement`, `mini-split-installation`). Nineteen
+ * executable resolvers, still not a generic n-service engine — but no
+ * longer nineteen PRICED resolvers: the five H11 adds never produce a
+ * price. Their catalog disposition is `REMOTE_QUOTE`, and a fully
+ * established modeled scope on any of them is its own SUCCESSFUL terminal
+ * (`{ status: "RESOLVED", routeAction: "REMOTE_QUOTE" }`,
+ * `HvacRemoteQuoteResolved` below) — never represented as `HvacRefusal`,
+ * which stays reserved for an interrupted, unresolved or out-of-modeled-
+ * scope tree. H10's own audit is why: `REMOTE_QUOTE` is these five's
+ * approved COMMERCIAL disposition (catalog review Part 7), not a failure
+ * mode, and Guided Pricing collecting their complete observable scope is a
+ * materially better experience than a bare quote form even though both
+ * end in a human pricing the job (catalog review Audit 4).
  *
  * `duct-assessment` and `hvac-service-call` are DELIBERATELY NOT among
  * them, and never routed through this file at all — both are
@@ -33,7 +47,7 @@
  * fact on an already-declared family (`humidifier_type`, on
  * `accessory_and_media`) — no new gate, no new shared primitive.
  *
- * STILL NOT A GENERIC RESOLVER, EVEN AT FOURTEEN. Mirrors lib/plumbing/scope.ts's
+ * STILL NOT A GENERIC RESOLVER, EVEN AT NINETEEN. Mirrors lib/plumbing/scope.ts's
  * ROLE — the layer between a validated answer and the price, deciding WHAT
  * THE JOB IS and never what it costs — but not its generic, multi-service
  * shape. Plumbing's `scopePlumbingService` walks whichever gates a catalog
@@ -56,19 +70,38 @@
  *     -> deterministic Price2Book pricing engine    (lib/pricing.ts, untouched)
  *
  * PURE. No database, no clock, no network, no price. Reuses lib/hvac/gates.ts's
- * `accessGate`, `identityGate`, `fuelGate`, `controlGate` and
- * `GateOutcome`/`toRouteAction` unchanged in count — H4 narrowly EXTENDED
+ * `accessGate`, `identityGate`, `fuelGate`, `controlGate`, `ventingGate`,
+ * `capacityGate`, `conditionGate` and `GateOutcome`/`toRouteAction` — seven
+ * gates throughout, unchanged in COUNT at every phase. H4 narrowly EXTENDED
  * `controlGate` with two optional, default-preserving parameters (see
  * gates.ts's own comment), not an eighth gate; H6, H7, H8 and H9 add no
- * gate at all. H8 adds exactly two new families (`indoor_unit_form`,
+ * gate at all; H11 narrowly EXTENDS `conditionGate` the same way —
+ * `opts.knownWorkReplacement`, optional and default-preserving, used only
+ * by `resolveFurnaceReplacement` (gates.ts's own comment on it) — still
+ * not an eighth gate. H8 adds exactly two new families (`indoor_unit_form`,
  * `water_supply_availability` — lib/hvac/families.ts's own comments on
  * them) and one new fact on an existing family (`humidifier_type`, on
  * `accessory_and_media`); H9 adds one more narrow family
  * (`vent_cover_configuration`) and removes `indoor_equipment_access` from
- * exactly one service (families.ts's own comment on both) — no new gate,
- * no new shared primitive at any point. The platform's own `RouteAction`
+ * exactly one service; H11 adds one more (`equipment_installation_context`,
+ * declared for `mini-split-installation` only) and removes
+ * `existing_control` from exactly one service (`heat-pump-replacement` —
+ * families.ts's own comment on why) and makes `heating_equipment`
+ * branch-conditional on exactly one service (`whole-system-replacement`)
+ * — no new shared primitive at any point. The platform's own `RouteAction`
  * (lib/flow-types.ts) is the result vocabulary throughout, not a
  * service-local invention.
+ *
+ * H11's OWN NEW GROUND: `LinesetStatus` (below) is `refrigerant_lineset`'s
+ * first concrete typing since H2 — the family existed and bound no gate
+ * for three phases with zero consumers. `checkLinesetStatus()` is a narrow
+ * mechanical helper in the exact shape of `gateTwoSlotAccess()` — not a
+ * gate, never registered in `HVAC_GATE_KEYS`, presence-and-path only,
+ * reusability never asked (`refrigerant_lineset`'s own locked purpose).
+ * `capacityGate` is also read for the first time here, with two canonical
+ * manufactured-value arrays (`COOLING_TONS_COVERED`, `HEATING_INPUT_BTU_
+ * COVERED`) that H12+ should reuse rather than re-derive if a future
+ * service needs the same axis.
  */
 
 import type { RouteAction } from "../flow-types";
@@ -77,11 +110,16 @@ import {
   identityGate,
   fuelGate,
   controlGate,
+  ventingGate,
+  capacityGate,
+  conditionGate,
   toRouteAction,
   type AccessClass,
   type GateOutcome,
   type SystemType,
   type FuelType,
+  type VentingClass,
+  type EquipmentCondition,
   type OutdoorLocation,
   type ControlPresent,
   type TerminalScheme,
@@ -2456,6 +2494,1076 @@ export const VENT_COVER_REPLACEMENT_QUESTIONS: readonly VentCoverReplacementQues
       { value: "CEILING", label: "On the ceiling" },
       { value: "FLOOR", label: "On the floor" },
       { value: "MIXED", label: "More than one of these" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// H11 — REMOTE_QUOTE equipment replacement: shared shapes
+//
+// Five services share one catalog disposition, REMOTE_QUOTE, and therefore
+// one SUCCESSFUL terminal — HvacRemoteQuoteResolved, below. A fully
+// established modeled scope on any of these five is the tree doing its
+// job correctly, never HvacRefusal: that shape stays exactly what it
+// always was — an interrupted, unresolved, or out-of-modeled-scope branch
+// — for these five exactly as for the fourteen before them. See the file
+// header for the H10 audit this settles.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** H11. The one shared successful terminal for a REMOTE_QUOTE-disposition service — see the file header. Never a price; never HvacRefusal. */
+type HvacRemoteQuoteResolved = {
+  status: "RESOLVED";
+  routeAction: "REMOTE_QUOTE";
+};
+
+const REMOTE_QUOTE_RESOLVED: HvacRemoteQuoteResolved = { status: "RESOLVED", routeAction: "REMOTE_QUOTE" };
+
+/**
+ * refrigerant_lineset's own vocabulary (H2: establishes lineset_status,
+ * binds no gate — "Refusal only — presence and path, never reusability")
+ * — first given a concrete type here, H11. PRESENT_VISIBLE and
+ * PRESENT_CONCEALED both continue, exactly like NONE — none of the three
+ * is a refusal, because reusability is never asked. Only UNKNOWN is
+ * unresolved.
+ */
+export type LinesetStatus = "PRESENT_VISIBLE" | "PRESENT_CONCEALED" | "NONE" | "UNKNOWN";
+
+/**
+ * H11. Shared by every resolver below that reads a line set — a narrow
+ * mechanical helper in gateTwoSlotAccess's own shape, not an eighth gate;
+ * never registered in HVAC_GATE_KEYS. Never asks whether the line set is
+ * reusable, suitable, correctly sized, or should be replaced — those are
+ * contractor judgments, and one reason the successful terminal on every
+ * caller below remains REMOTE_QUOTE rather than a price.
+ */
+function checkLinesetStatus(status: LinesetStatus): GateOutcome {
+  if (status === "UNKNOWN") {
+    return {
+      action: "PHOTO_REVIEW",
+      reason: "Whether an existing refrigerant line set is present has not been established.",
+      factKey: "lineset_status",
+      observed: status,
+    };
+  }
+  return { action: "CONTINUE", reason: "", factKey: "lineset_status", observed: status };
+}
+
+/** Canonical manufactured cooling-capacity values, tons — shared by every H11 resolver reading cooling_tons. Do not add another cooling list; reuse this one. */
+const COOLING_TONS_COVERED: readonly number[] = [1.5, 2, 2.5, 3, 3.5, 4, 5];
+
+/** Canonical manufactured heating-input values, BTU/h — shared by every H11 resolver reading heating_input_btu. Do not add another heating list; reuse this one. */
+const HEATING_INPUT_BTU_COVERED: readonly number[] = [40000, 60000, 80000, 100000, 120000];
+
+// ═══════════════════════════════════════════════════════════════════════
+// furnace-replacement — H11
+//
+// REMOTE_QUOTE disposition (catalog review Part 7: "V1 structured scope is
+// gas/propane forced-air. Oil stays deferred."). FURNACE_AND_AC only — NOT
+// DUAL_FUEL: Audit 2's own merge table assigns dual-fuel-system-replacement
+// to whole-system-replacement, not here, and this service's own alias list
+// carries no dual-fuel phrase while whole-system-replacement's does.
+//
+// equipment_condition opts into conditionGate's own knownWorkReplacement —
+// this is the ONE resolver in the whole file that does. A homeowner who
+// explicitly asked to replace their furnace very often reports it as dead;
+// that is on-point evidence FOR the choice already made, not a symptom
+// needing a visit to interpret — the same principle H4 gave controlGate's
+// presentNotRespondingIsKnownWork, for thermostat-installation. Every
+// OTHER caller of conditionGate in this file still gets the unopted-in
+// default: ACTIVE_FAILURE -> ON_SITE_SERVICE, DEGRADED -> PHOTO_REVIEW.
+//
+// No duct sizing, no vent-termination suitability judgment, no efficiency
+// classification anywhere below — vent_termination_unmodeled is exactly
+// why the terminal stays REMOTE_QUOTE even on a fully established scope.
+// ═══════════════════════════════════════════════════════════════════════
+
+const FURNACE_REPLACEMENT_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = ["FURNACE_AND_AC"];
+const FURNACE_REPLACEMENT_SUPPORTED_FUEL_TYPES: readonly Exclude<FuelType, "UNKNOWN">[] = ["NATURAL_GAS", "PROPANE"];
+const FURNACE_REPLACEMENT_SUPPORTED_VENTING_CLASSES: readonly Exclude<VentingClass, "UNKNOWN">[] = [
+  "ATMOSPHERIC",
+  "INDUCED_DRAFT",
+  "DIRECT_VENT_SEALED",
+];
+
+export type FurnaceReplacementFacts = {
+  /** Q1. */
+  systemType: SystemType;
+  /** Q2. Gas/propane forced-air only; oil stays deferred. */
+  fuelType: FuelType;
+  /** Q3. */
+  ventingClass: VentingClass;
+  /** Q4. */
+  heatingInputBtu: number | null;
+  /** Q5 — PRIMARY slot. */
+  accessClass: AccessClass;
+  /** Q6. */
+  condensateRoute: CondensateRouteObservation;
+  /** Q7. */
+  supplyArrangement: SupplyArrangementChoice;
+  /** Q8. Opts into conditionGate's known-work replacement behavior — see the section header. */
+  equipmentCondition: EquipmentCondition;
+};
+
+export type FurnaceReplacementResolution = HvacRemoteQuoteResolved | HvacRefusal;
+
+/** Resolve `furnace-replacement` against a complete fact set. FAILS CLOSED. Never produces a price — see the file header. */
+export function resolveFurnaceReplacement(facts: FurnaceReplacementFacts): FurnaceReplacementResolution {
+  // Q1 — system identity.
+  const identity = identityGate(facts.systemType, { serviceExpects: FURNACE_REPLACEMENT_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+
+  // Q2 — fuel. Gas/propane forced-air only; oil stays deferred.
+  const fuel = fuelGate(facts.fuelType, { serviceExpects: FURNACE_REPLACEMENT_SUPPORTED_FUEL_TYPES });
+  if (fuel.action !== "CONTINUE") return refuse(fuel);
+
+  // Q3 — venting.
+  const venting = ventingGate(facts.ventingClass, { serviceExpects: FURNACE_REPLACEMENT_SUPPORTED_VENTING_CLASSES });
+  if (venting.action !== "CONTINUE") return refuse(venting);
+
+  // Q4 — heating input.
+  const capacity = capacityGate(facts.heatingInputBtu, { axis: "HEATING", unit: "BTU/h", covers: HEATING_INPUT_BTU_COVERED });
+  if (capacity.action !== "CONTINUE") return refuse(capacity);
+
+  // Q5 — PRIMARY access.
+  const access = accessGate(facts.accessClass);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q6 — condensate route. All three known values continue; only UNKNOWN is unresolved.
+  if (facts.condensateRoute === "UNKNOWN") {
+    return unresolved("condensate_route", "Where condensate goes has not been established.");
+  }
+
+  // Q7 — supply arrangement. Closed vocabulary; both values continue, nothing to gate.
+
+  // Q8 — equipment condition. Known-work replacement: a failed or degraded
+  // existing furnace is evidence FOR the replacement already selected, not
+  // a symptom needing a visit — see the section header.
+  const condition = conditionGate(facts.equipmentCondition, { knownWorkReplacement: true });
+  if (condition.action !== "CONTINUE") return refuse(condition);
+
+  return REMOTE_QUOTE_RESOLVED;
+}
+
+export type FurnaceReplacementQuestionKey =
+  | "system_identity"
+  | "fuel_type"
+  | "venting_class"
+  | "heating_input_btu"
+  | "indoor_access"
+  | "condensate_route"
+  | "supply_arrangement"
+  | "equipment_condition";
+
+export type FurnaceReplacementAnswerOption = { value: string; label: string };
+
+export type FurnaceReplacementQuestion = {
+  key: FurnaceReplacementQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly FurnaceReplacementAnswerOption[];
+};
+
+export const FURNACE_REPLACEMENT_QUESTIONS: readonly FurnaceReplacementQuestion[] = [
+  {
+    key: "system_identity",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "fuel_type",
+    prompt: "What fuel does the furnace use?",
+    establishes: "fuel_type",
+    options: [
+      { value: "NATURAL_GAS", label: "Natural gas" },
+      { value: "PROPANE", label: "Propane" },
+      { value: "OIL", label: "Oil" },
+      { value: "ELECTRIC", label: "Electric" },
+      { value: "DUAL_FUEL", label: "Dual fuel" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "venting_class",
+    prompt: "What leaves the top of the furnace — a metal pipe, or one or two white plastic pipes?",
+    establishes: "venting_class",
+    options: [
+      { value: "ATMOSPHERIC", label: "A metal pipe into a chimney" },
+      { value: "INDUCED_DRAFT", label: "A metal pipe with a fan behind it" },
+      { value: "DIRECT_VENT_SEALED", label: "One or two white plastic pipes through a wall" },
+      { value: "NON_COMBUSTION", label: "Nothing — there's no vent pipe" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "heating_input_btu",
+    prompt: "What input is printed on the rating plate?",
+    establishes: "heating_input_btu",
+    options: [],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the furnace?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "condensate_route",
+    prompt: "Is there a small pump with a plastic reservoir beside or under the furnace, or a drain line that runs away on its own?",
+    establishes: "condensate_route",
+    options: [
+      { value: "PUMP_PRESENT", label: "Yes, there's a pump there now" },
+      { value: "GRAVITY_DRAIN_PRESENT", label: "No, but there's a drain line that runs away on its own" },
+      { value: "NONE_VISIBLE", label: "No, I don't see anything like that" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "supply_arrangement",
+    prompt: "Do you already have the new furnace, or should one be supplied?",
+    establishes: "supply_arrangement",
+    options: [
+      { value: "CUSTOMER_SUPPLIED", label: "I already have it" },
+      { value: "CONTRACTOR_SUPPLIED", label: "Please supply it" },
+    ],
+  },
+  {
+    key: "equipment_condition",
+    prompt: "What does the existing furnace look like?",
+    establishes: "equipment_condition",
+    options: [
+      { value: "SERVICEABLE", label: "Working, no visible issues" },
+      { value: "DEGRADED", label: "Visible wear, rust, or damage" },
+      { value: "ACTIVE_FAILURE", label: "Not working" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// ac-replacement — H11
+//
+// REMOTE_QUOTE disposition. FURNACE_AND_AC or AIR_HANDLER_ONLY — every
+// configuration pairs a plain AC condenser outdoors with SOME indoor
+// equipment, but never a package unit (that isn't "replace the outdoor
+// unit against an untouched indoor half," this service's own promise) and
+// never a heat-pump or dual-fuel outdoor unit (heat-pump-replacement's own
+// territory — Audit 6: "different system_type gate coverage, genuinely
+// different homeowner purchases").
+//
+// Both access slots via gateTwoSlotAccess — G1's own truthful BOTH
+// re-declaration (catalog review §6.6): the indoor coil is worked too.
+// Indoor coil / air-handler IDENTITY stays evidence, entirely outside this
+// resolver — access and identity are different things (§6.6's own
+// distinction: "Identity is not access"), and no equipment-match question
+// exists here.
+//
+// lineset_suitability_is_trade_judgment and equipment_match_not_observable
+// are exactly why the terminal stays REMOTE_QUOTE even once every fact
+// below is established.
+// ═══════════════════════════════════════════════════════════════════════
+
+const AC_REPLACEMENT_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = ["FURNACE_AND_AC", "AIR_HANDLER_ONLY"];
+
+export type AcReplacementFacts = {
+  /** Q1. */
+  systemType: SystemType;
+  /** Q2. */
+  coolingTons: number | null;
+  /** Q3 — INDOOR_EQUIPMENT slot. */
+  indoorAccessClass: AccessClass;
+  /** Q4 — OUTDOOR_EQUIPMENT slot, the location half. */
+  outdoorLocation: OutdoorLocation;
+  /** Q4 (same look) — OUTDOOR_EQUIPMENT slot, the access half. */
+  outdoorAccessClass: AccessClass;
+  /** Q5. Presence and path only — never reusability. */
+  linesetStatus: LinesetStatus;
+  /** Q6. */
+  supplyArrangement: SupplyArrangementChoice;
+};
+
+export type AcReplacementResolution = HvacRemoteQuoteResolved | HvacRefusal;
+
+/** Resolve `ac-replacement` against a complete fact set. FAILS CLOSED. Never produces a price — see the file header. */
+export function resolveAcReplacement(facts: AcReplacementFacts): AcReplacementResolution {
+  // Q1 — system identity.
+  const identity = identityGate(facts.systemType, { serviceExpects: AC_REPLACEMENT_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+
+  // Q2 — cooling capacity.
+  const capacity = capacityGate(facts.coolingTons, { axis: "COOLING", unit: "tons", covers: COOLING_TONS_COVERED });
+  if (capacity.action !== "CONTINUE") return refuse(capacity);
+
+  // Q3/Q4 — both access slots, independently gated. See gateTwoSlotAccess.
+  const access = gateTwoSlotAccess(facts);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q5 — line set. Presence and path only; reusability is never asked.
+  const lineset = checkLinesetStatus(facts.linesetStatus);
+  if (lineset.action !== "CONTINUE") return refuse(lineset);
+
+  // Q6 — supply arrangement. Closed vocabulary; both values continue.
+
+  return REMOTE_QUOTE_RESOLVED;
+}
+
+export type AcReplacementQuestionKey =
+  | "system_identity"
+  | "cooling_capacity"
+  | "indoor_access"
+  | "outdoor_access"
+  | "lineset_status"
+  | "supply_arrangement";
+
+export type AcReplacementAnswerOption = { value: string; label: string };
+
+export type AcReplacementQuestion = {
+  key: AcReplacementQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly AcReplacementAnswerOption[];
+};
+
+export const AC_REPLACEMENT_QUESTIONS: readonly AcReplacementQuestion[] = [
+  {
+    key: "system_identity",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "cooling_capacity",
+    prompt: "What size is on the outdoor unit's nameplate?",
+    establishes: "cooling_tons",
+    options: [],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "outdoor_access",
+    prompt: "Where does the outdoor unit sit?",
+    establishes: "outdoor_location",
+    options: [
+      { value: "GROUND_LEVEL_ADJACENT", label: "On the ground, next to the house" },
+      { value: "GROUND_LEVEL_REMOTE", label: "On the ground, away from the house" },
+      { value: "ROOF", label: "On the roof" },
+      { value: "WALL_OR_BALCONY_MOUNT", label: "Mounted on a wall or balcony" },
+      { value: "NONE", label: "There's no outdoor unit" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "lineset_status",
+    prompt: "Are there insulated copper lines running to the outdoor unit, and can you see where they go?",
+    establishes: "lineset_status",
+    options: [
+      { value: "PRESENT_VISIBLE", label: "Yes, and I can see the whole run" },
+      { value: "PRESENT_CONCEALED", label: "Yes, but part of it is hidden" },
+      { value: "NONE", label: "No existing lines" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "supply_arrangement",
+    prompt: "Do you already have the new unit, or should one be supplied?",
+    establishes: "supply_arrangement",
+    options: [
+      { value: "CUSTOMER_SUPPLIED", label: "I already have it" },
+      { value: "CONTRACTOR_SUPPLIED", label: "Please supply it" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// heat-pump-replacement — H11
+//
+// REMOTE_QUOTE disposition. HEAT_PUMP_SPLIT or DUAL_FUEL — a dual-fuel
+// system's outdoor unit IS a heat pump, and replacing that outdoor half
+// while the existing furnace stays is legitimately this service, not
+// whole-system-replacement (which replaces both halves together).
+//
+// No existing_control, no controlGate: Part 7's own applied text —
+// "capture indoor equipment identity, backup heat where observable, and
+// thermostat identity" — describes evidence captures, not a
+// control-compatibility gate (families.ts's own comment on the removal).
+// No supply_arrangement: not part of Part 7's own narrower applied scope
+// for this service (H10's own review; not a gap).
+//
+// Both access slots via gateTwoSlotAccess, same G1 truthful-BOTH
+// correction as ac-replacement. lineset_suitability_is_trade_judgment and
+// equipment_match_not_observable are exactly why the terminal stays
+// REMOTE_QUOTE even once every fact below is established.
+// ═══════════════════════════════════════════════════════════════════════
+
+const HEAT_PUMP_REPLACEMENT_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = ["HEAT_PUMP_SPLIT", "DUAL_FUEL"];
+
+export type HeatPumpReplacementFacts = {
+  /** Q1. */
+  systemType: SystemType;
+  /** Q2. */
+  coolingTons: number | null;
+  /** Q3 — INDOOR_EQUIPMENT slot. */
+  indoorAccessClass: AccessClass;
+  /** Q4 — OUTDOOR_EQUIPMENT slot, the location half. */
+  outdoorLocation: OutdoorLocation;
+  /** Q4 (same look) — OUTDOOR_EQUIPMENT slot, the access half. */
+  outdoorAccessClass: AccessClass;
+  /** Q5. Presence and path only — never reusability. */
+  linesetStatus: LinesetStatus;
+};
+
+export type HeatPumpReplacementResolution = HvacRemoteQuoteResolved | HvacRefusal;
+
+/** Resolve `heat-pump-replacement` against a complete fact set. FAILS CLOSED. Never produces a price — see the file header. */
+export function resolveHeatPumpReplacement(facts: HeatPumpReplacementFacts): HeatPumpReplacementResolution {
+  // Q1 — system identity.
+  const identity = identityGate(facts.systemType, { serviceExpects: HEAT_PUMP_REPLACEMENT_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+
+  // Q2 — cooling capacity.
+  const capacity = capacityGate(facts.coolingTons, { axis: "COOLING", unit: "tons", covers: COOLING_TONS_COVERED });
+  if (capacity.action !== "CONTINUE") return refuse(capacity);
+
+  // Q3/Q4 — both access slots, independently gated. See gateTwoSlotAccess.
+  const access = gateTwoSlotAccess(facts);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q5 — line set. Presence and path only; reusability is never asked.
+  const lineset = checkLinesetStatus(facts.linesetStatus);
+  if (lineset.action !== "CONTINUE") return refuse(lineset);
+
+  return REMOTE_QUOTE_RESOLVED;
+}
+
+export type HeatPumpReplacementQuestionKey = "system_identity" | "cooling_capacity" | "indoor_access" | "outdoor_access" | "lineset_status";
+
+export type HeatPumpReplacementAnswerOption = { value: string; label: string };
+
+export type HeatPumpReplacementQuestion = {
+  key: HeatPumpReplacementQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly HeatPumpReplacementAnswerOption[];
+};
+
+export const HEAT_PUMP_REPLACEMENT_QUESTIONS: readonly HeatPumpReplacementQuestion[] = [
+  {
+    key: "system_identity",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "cooling_capacity",
+    prompt: "What size is on the outdoor unit's nameplate?",
+    establishes: "cooling_tons",
+    options: [],
+  },
+  {
+    key: "indoor_access",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "outdoor_access",
+    prompt: "Where does the outdoor unit sit?",
+    establishes: "outdoor_location",
+    options: [
+      { value: "GROUND_LEVEL_ADJACENT", label: "On the ground, next to the house" },
+      { value: "GROUND_LEVEL_REMOTE", label: "On the ground, away from the house" },
+      { value: "ROOF", label: "On the roof" },
+      { value: "WALL_OR_BALCONY_MOUNT", label: "Mounted on a wall or balcony" },
+      { value: "NONE", label: "There's no outdoor unit" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "lineset_status",
+    prompt: "Are there insulated copper lines, and can you see where they run?",
+    establishes: "lineset_status",
+    options: [
+      { value: "PRESENT_VISIBLE", label: "Yes, and I can see the whole run" },
+      { value: "PRESENT_CONCEALED", label: "Yes, but part of it is hidden" },
+      { value: "NONE", label: "No existing lines" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// whole-system-replacement — H11
+//
+// REMOTE_QUOTE disposition. FURNACE_AND_AC, HEAT_PUMP_SPLIT, or DUAL_FUEL
+// — both indoor and outdoor equipment replaced together (Part 5: "Every
+// intent preserved; answers determine the system classification").
+//
+// heating_equipment is branch-only: every configuration has outdoor
+// cooling capacity (cooling_equipment stays unconditional), but only
+// FURNACE_AND_AC and DUAL_FUEL have a combustion appliance — a straight
+// HEAT_PUMP_SPLIT has no furnace at all, so fuel/venting/heating-input are
+// not read on that branch (families.ts's own comment on the correction).
+// The two combustion branches also read different fuel vocabularies:
+// FURNACE_AND_AC never legitimately observes DUAL_FUEL fuel (that would
+// contradict the system identity already selected); DUAL_FUEL's own
+// branch does.
+//
+// Both access slots via gateTwoSlotAccess on every branch — this is the
+// truthfully-BOTH service Audit 4/§6.6 never disputed. equipment_match_
+// not_observable and vent_termination_unmodeled are exactly why the
+// terminal stays REMOTE_QUOTE on every branch even once every fact is
+// established. No homeowner equipment-match judgment, no duct sizing, no
+// vent-termination suitability question — those are why a human
+// ultimately quotes.
+// ═══════════════════════════════════════════════════════════════════════
+
+const WHOLE_SYSTEM_REPLACEMENT_SUPPORTED_SYSTEM_TYPES: readonly Exclude<SystemType, "UNKNOWN">[] = [
+  "FURNACE_AND_AC",
+  "HEAT_PUMP_SPLIT",
+  "DUAL_FUEL",
+];
+const WHOLE_SYSTEM_FURNACE_AND_AC_FUEL_TYPES: readonly Exclude<FuelType, "UNKNOWN">[] = ["NATURAL_GAS", "PROPANE"];
+const WHOLE_SYSTEM_DUAL_FUEL_FUEL_TYPES: readonly Exclude<FuelType, "UNKNOWN">[] = ["NATURAL_GAS", "PROPANE", "DUAL_FUEL"];
+const WHOLE_SYSTEM_REPLACEMENT_SUPPORTED_VENTING_CLASSES: readonly Exclude<VentingClass, "UNKNOWN">[] = [
+  "ATMOSPHERIC",
+  "INDUCED_DRAFT",
+  "DIRECT_VENT_SEALED",
+];
+
+export type WholeSystemReplacementBranch = "FURNACE_AND_AC" | "HEAT_PUMP_SPLIT" | "DUAL_FUEL";
+
+export type WholeSystemReplacementFacts = {
+  /** Q1. Drives which branch below applies. */
+  systemType: SystemType;
+  /** Q2/Q3/Q4 — FURNACE_AND_AC and DUAL_FUEL branches only; not read at all on HEAT_PUMP_SPLIT. */
+  fuelType: FuelType;
+  ventingClass: VentingClass;
+  heatingInputBtu: number | null;
+  /** Q5. Every branch. */
+  coolingTons: number | null;
+  /** Q6 — INDOOR_EQUIPMENT slot. Every branch. */
+  indoorAccessClass: AccessClass;
+  /** Q7 — OUTDOOR_EQUIPMENT slot, the location half. Every branch. */
+  outdoorLocation: OutdoorLocation;
+  /** Q7 (same look) — OUTDOOR_EQUIPMENT slot, the access half. Every branch. */
+  outdoorAccessClass: AccessClass;
+  /** Q8. Presence and path only — never reusability. Every branch. */
+  linesetStatus: LinesetStatus;
+  /** Q9. Every branch. */
+  condensateRoute: CondensateRouteObservation;
+  /** Q10. Every branch. */
+  supplyArrangement: SupplyArrangementChoice;
+};
+
+export type WholeSystemReplacementResolution = HvacRemoteQuoteResolved | HvacRefusal;
+
+/** Resolve `whole-system-replacement` against a complete fact set. FAILS CLOSED on every branch. Never produces a price — see the file header. */
+export function resolveWholeSystemReplacement(facts: WholeSystemReplacementFacts): WholeSystemReplacementResolution {
+  // Q1 — system identity. Drives which branch below applies.
+  const identity = identityGate(facts.systemType, { serviceExpects: WHOLE_SYSTEM_REPLACEMENT_SUPPORTED_SYSTEM_TYPES });
+  if (identity.action !== "CONTINUE") return refuse(identity);
+  const branch = facts.systemType as WholeSystemReplacementBranch;
+
+  // Q2/Q3/Q4 — heating_equipment, branch-only: FURNACE_AND_AC and
+  // DUAL_FUEL have a combustion appliance; HEAT_PUMP_SPLIT does not, and
+  // none of these three facts is read on that branch at all.
+  if (branch === "FURNACE_AND_AC" || branch === "DUAL_FUEL") {
+    const fuelServiceExpects = branch === "DUAL_FUEL" ? WHOLE_SYSTEM_DUAL_FUEL_FUEL_TYPES : WHOLE_SYSTEM_FURNACE_AND_AC_FUEL_TYPES;
+    const fuel = fuelGate(facts.fuelType, { serviceExpects: fuelServiceExpects });
+    if (fuel.action !== "CONTINUE") return refuse(fuel);
+
+    const venting = ventingGate(facts.ventingClass, { serviceExpects: WHOLE_SYSTEM_REPLACEMENT_SUPPORTED_VENTING_CLASSES });
+    if (venting.action !== "CONTINUE") return refuse(venting);
+
+    const heatingCapacity = capacityGate(facts.heatingInputBtu, { axis: "HEATING", unit: "BTU/h", covers: HEATING_INPUT_BTU_COVERED });
+    if (heatingCapacity.action !== "CONTINUE") return refuse(heatingCapacity);
+  }
+
+  // Q5 — cooling capacity. Every branch has outdoor cooling capacity.
+  const coolingCapacity = capacityGate(facts.coolingTons, { axis: "COOLING", unit: "tons", covers: COOLING_TONS_COVERED });
+  if (coolingCapacity.action !== "CONTINUE") return refuse(coolingCapacity);
+
+  // Q6/Q7 — both access slots, independently gated, every branch.
+  const access = gateTwoSlotAccess(facts);
+  if (access.action !== "CONTINUE") return refuse(access);
+
+  // Q8 — line set. Presence and path only; reusability is never asked.
+  const lineset = checkLinesetStatus(facts.linesetStatus);
+  if (lineset.action !== "CONTINUE") return refuse(lineset);
+
+  // Q9 — condensate route. All three known values continue.
+  if (facts.condensateRoute === "UNKNOWN") {
+    return unresolved("condensate_route", "Where condensate goes has not been established.");
+  }
+
+  // Q10 — supply arrangement. Closed vocabulary; both values continue.
+
+  return REMOTE_QUOTE_RESOLVED;
+}
+
+export type WholeSystemReplacementQuestionKey =
+  | "system_identity"
+  | "fuel_type_furnace_and_ac"
+  | "fuel_type_dual_fuel"
+  | "venting_class_furnace_and_ac"
+  | "venting_class_dual_fuel"
+  | "heating_input_btu_furnace_and_ac"
+  | "heating_input_btu_dual_fuel"
+  | "cooling_capacity"
+  | "indoor_access"
+  | "outdoor_access"
+  | "lineset_status"
+  | "condensate_route"
+  | "supply_arrangement";
+
+export type WholeSystemReplacementAnswerOption = { value: string; label: string };
+
+export type WholeSystemReplacementQuestion = {
+  key: WholeSystemReplacementQuestionKey;
+  branch: WholeSystemReplacementBranch | "SHARED";
+  prompt: string;
+  establishes: string;
+  options: readonly WholeSystemReplacementAnswerOption[];
+};
+
+export const WHOLE_SYSTEM_REPLACEMENT_QUESTIONS: readonly WholeSystemReplacementQuestion[] = [
+  {
+    key: "system_identity",
+    branch: "SHARED",
+    prompt: "What kind of system do you have?",
+    establishes: "system_type",
+    options: [
+      { value: "FURNACE_AND_AC", label: "Furnace and central air conditioner" },
+      { value: "HEAT_PUMP_SPLIT", label: "Heat pump" },
+      { value: "DUAL_FUEL", label: "Dual fuel (furnace and heat pump together)" },
+      { value: "PACKAGE_UNIT", label: "One outdoor package unit" },
+      { value: "AIR_HANDLER_ONLY", label: "Indoor air handler only" },
+      { value: "BOILER_HYDRONIC", label: "Boiler or radiators" },
+      { value: "MINI_SPLIT_DUCTLESS", label: "Ductless mini-split" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "fuel_type_furnace_and_ac",
+    branch: "FURNACE_AND_AC",
+    prompt: "What fuel does the furnace use?",
+    establishes: "fuel_type",
+    options: [
+      { value: "NATURAL_GAS", label: "Natural gas" },
+      { value: "PROPANE", label: "Propane" },
+      { value: "OIL", label: "Oil" },
+      { value: "ELECTRIC", label: "Electric" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "fuel_type_dual_fuel",
+    branch: "DUAL_FUEL",
+    prompt: "What fuel does the furnace use?",
+    establishes: "fuel_type",
+    options: [
+      { value: "NATURAL_GAS", label: "Natural gas" },
+      { value: "PROPANE", label: "Propane" },
+      { value: "DUAL_FUEL", label: "Dual fuel" },
+      { value: "OIL", label: "Oil" },
+      { value: "ELECTRIC", label: "Electric" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "venting_class_furnace_and_ac",
+    branch: "FURNACE_AND_AC",
+    prompt: "What leaves the top of the furnace — a metal pipe, or one or two white plastic pipes?",
+    establishes: "venting_class",
+    options: [
+      { value: "ATMOSPHERIC", label: "A metal pipe into a chimney" },
+      { value: "INDUCED_DRAFT", label: "A metal pipe with a fan behind it" },
+      { value: "DIRECT_VENT_SEALED", label: "One or two white plastic pipes through a wall" },
+      { value: "NON_COMBUSTION", label: "Nothing — there's no vent pipe" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "venting_class_dual_fuel",
+    branch: "DUAL_FUEL",
+    prompt: "What leaves the top of the furnace — a metal pipe, or one or two white plastic pipes?",
+    establishes: "venting_class",
+    options: [
+      { value: "ATMOSPHERIC", label: "A metal pipe into a chimney" },
+      { value: "INDUCED_DRAFT", label: "A metal pipe with a fan behind it" },
+      { value: "DIRECT_VENT_SEALED", label: "One or two white plastic pipes through a wall" },
+      { value: "NON_COMBUSTION", label: "Nothing — there's no vent pipe" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "heating_input_btu_furnace_and_ac",
+    branch: "FURNACE_AND_AC",
+    prompt: "What input is printed on the furnace's rating plate?",
+    establishes: "heating_input_btu",
+    options: [],
+  },
+  {
+    key: "heating_input_btu_dual_fuel",
+    branch: "DUAL_FUEL",
+    prompt: "What input is printed on the furnace's rating plate?",
+    establishes: "heating_input_btu",
+    options: [],
+  },
+  {
+    key: "cooling_capacity",
+    branch: "SHARED",
+    prompt: "What size is on the outdoor unit's nameplate?",
+    establishes: "cooling_tons",
+    options: [],
+  },
+  {
+    key: "indoor_access",
+    branch: "SHARED",
+    prompt: "Where is the indoor equipment?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "outdoor_access",
+    branch: "SHARED",
+    prompt: "Where does the outdoor unit sit?",
+    establishes: "outdoor_location",
+    options: [
+      { value: "GROUND_LEVEL_ADJACENT", label: "On the ground, next to the house" },
+      { value: "GROUND_LEVEL_REMOTE", label: "On the ground, away from the house" },
+      { value: "ROOF", label: "On the roof" },
+      { value: "WALL_OR_BALCONY_MOUNT", label: "Mounted on a wall or balcony" },
+      { value: "NONE", label: "There's no outdoor unit" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "lineset_status",
+    branch: "SHARED",
+    prompt: "Is there an existing line set, and can you see where it runs?",
+    establishes: "lineset_status",
+    options: [
+      { value: "PRESENT_VISIBLE", label: "Yes, and I can see the whole run" },
+      { value: "PRESENT_CONCEALED", label: "Yes, but part of it is hidden" },
+      { value: "NONE", label: "No existing line set" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "condensate_route",
+    branch: "SHARED",
+    prompt: "Is there a small pump with a plastic reservoir beside or under the equipment, or a drain line that runs away on its own?",
+    establishes: "condensate_route",
+    options: [
+      { value: "PUMP_PRESENT", label: "Yes, there's a pump there now" },
+      { value: "GRAVITY_DRAIN_PRESENT", label: "No, but there's a drain line that runs away on its own" },
+      { value: "NONE_VISIBLE", label: "No, I don't see anything like that" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "supply_arrangement",
+    branch: "SHARED",
+    prompt: "Do you already have the new equipment, or should it be supplied?",
+    establishes: "supply_arrangement",
+    options: [
+      { value: "CUSTOMER_SUPPLIED", label: "I already have it" },
+      { value: "CONTRACTOR_SUPPLIED", label: "Please supply it" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// mini-split-installation — H11, corrected
+//
+// REMOTE_QUOTE disposition. No system_identity question — every mini-split
+// is, by definition, MINI_SPLIT_DUCTLESS; asking would ask a homeowner to
+// confirm what selecting this service already told the platform. No
+// authority declares one for this service.
+//
+// replacement_vs_new (equipment_installation_context, H11's own new
+// family) is the presence/absence merge (decision 8) already reused across
+// the catalog — an existing unit being replaced and a first-time
+// installation are one physical service with a branch, not two services.
+// It gates only UNKNOWN; the branch itself drives which facts below are
+// read at all.
+//
+// zone_count is NOT rendered — distribution_and_zoning's own "how many
+// heads or zones" language covers a duct-zoning concept this service does
+// not need (that belongs to zoning-installation, a deferred canonical
+// service); mini-split-installation asks only head_count, the same
+// "declared but not rendered" shape existing_control's own conductor_count
+// already uses.
+//
+// ACCESS IS REPLACEMENT-ONLY — the H11 patch-review correction. Both
+// access slots (gateTwoSlotAccess, "G1 alone is why it cannot be
+// fixed-priced" per the catalog review) describe reaching EXISTING
+// equipment. On the REPLACEMENT branch that equipment exists and its
+// access is a genuine observable decision fact, exactly like every other
+// two-slot service in this file. On NEW_INSTALLATION there is no existing
+// indoor or outdoor unit whose access can be classified — Part 8 places
+// "proposed indoor head positions" and "proposed outdoor unit position"
+// in estimate-intake, collected only on a future GUIDED_ESTIMATE route,
+// never in this deterministic tree. So indoorAccessClass, outdoorLocation
+// and outdoorAccessClass are read ONLY when replacementVsNew ===
+// "REPLACEMENT" — on NEW_INSTALLATION the resolver skips them entirely,
+// regardless of what those fields happen to contain in the facts object.
+// lineset_suitability_is_trade_judgment is the OTHER, still-standing
+// REMOTE_QUOTE reason (§8.5) — exactly why the terminal stays REMOTE_QUOTE
+// on either branch even once every readable fact is established.
+//
+// run_band's OVER_BAND value stays informational here, unlike condensate-
+// pump-installation's own OVER_BAND (which REMOTE_QUOTEs as a refusal
+// because that service's disposition is CONDITIONAL_FIXED and an
+// over-band run genuinely leaves automated pricing). This service's
+// disposition is already REMOTE_QUOTE — OVER_BAND is scope handed to the
+// human, never a reason to refuse a tree that was never going to price
+// itself. Its answer labels reuse the same {b1}/{b2} contractor-boundary
+// placeholder presentation control-wire's own NEW_LOCATION run_band
+// question already uses (lib/policyBands.ts renders the real numbers) —
+// not "typical" or "usual," which would ask a homeowner to apply
+// contractor policy themselves.
+// ═══════════════════════════════════════════════════════════════════════
+
+export type ReplacementVsNew = "REPLACEMENT" | "NEW_INSTALLATION" | "UNKNOWN";
+
+export type MiniSplitInstallationRunBand = "STANDARD" | "EXTENDED" | "OVER_BAND" | "UNKNOWN";
+
+export type MiniSplitInstallationFacts = {
+  /** Q1. equipment_installation_context — H11's own new family. Gates only UNKNOWN; drives which of Q3/Q4 below are read at all. */
+  replacementVsNew: ReplacementVsNew;
+  /** Q2. A quantity; gates nothing beyond being a positive whole number. zone_count is declared on distribution_and_zoning but not rendered here — see the section header. */
+  headCount: number;
+  /** Q3 — INDOOR_EQUIPMENT slot. Read ONLY when replacementVsNew === "REPLACEMENT" — see the section header. */
+  indoorAccessClass: AccessClass;
+  /** Q4 — OUTDOOR_EQUIPMENT slot, the location half. Read ONLY when replacementVsNew === "REPLACEMENT". */
+  outdoorLocation: OutdoorLocation;
+  /** Q4 (same look) — OUTDOOR_EQUIPMENT slot, the access half. Read ONLY when replacementVsNew === "REPLACEMENT". */
+  outdoorAccessClass: AccessClass;
+  /** Q5. Informational for this REMOTE_QUOTE service — see the section header. */
+  runBand: MiniSplitInstallationRunBand;
+  /** Q6. Presence and path only — never reusability. */
+  linesetStatus: LinesetStatus;
+  /** Q7. */
+  condensateRoute: CondensateRouteObservation;
+};
+
+export type MiniSplitInstallationResolution = HvacRemoteQuoteResolved | HvacRefusal;
+
+/** Resolve `mini-split-installation` against a complete fact set. FAILS CLOSED. Never produces a price — see the file header. */
+export function resolveMiniSplitInstallation(facts: MiniSplitInstallationFacts): MiniSplitInstallationResolution {
+  // Q1 — replacement vs. new. Gates only UNKNOWN; drives Q3/Q4 below.
+  if (facts.replacementVsNew === "UNKNOWN") {
+    return unresolved(
+      "replacement_vs_new",
+      "Whether this replaces an existing mini-split or is a first-time installation has not been established."
+    );
+  }
+
+  // Q2 — quantity. An observed count, not a number to normalize into
+  // validity — mirrors vent-cover-replacement's own H9 boundary exactly.
+  if (!Number.isInteger(facts.headCount) || facts.headCount < 1) {
+    return unresolved("head_count", "The number of indoor units has not been established.");
+  }
+
+  // Q3/Q4 — REPLACEMENT branch only. NEW_INSTALLATION has no existing
+  // equipment whose access can be classified — these three facts are not
+  // read at all on that branch, whatever they happen to contain — see the
+  // section header.
+  if (facts.replacementVsNew === "REPLACEMENT") {
+    const access = gateTwoSlotAccess(facts);
+    if (access.action !== "CONTINUE") return refuse(access);
+  }
+
+  // Q5 — run band. Informational for this REMOTE_QUOTE service; only
+  // UNKNOWN is unresolved, and OVER_BAND is never turned into a refusal —
+  // see the section header.
+  if (facts.runBand === "UNKNOWN") {
+    return unresolved("run_band", "Roughly how far apart the indoor and outdoor units would be has not been established.");
+  }
+
+  // Q6 — line set. Presence and path only; reusability is never asked.
+  const lineset = checkLinesetStatus(facts.linesetStatus);
+  if (lineset.action !== "CONTINUE") return refuse(lineset);
+
+  // Q7 — condensate route. All three known values continue.
+  if (facts.condensateRoute === "UNKNOWN") {
+    return unresolved("condensate_route", "Where condensate would drain to has not been established.");
+  }
+
+  return REMOTE_QUOTE_RESOLVED;
+}
+
+export type MiniSplitInstallationBranch = "REPLACEMENT" | "NEW_INSTALLATION";
+
+export type MiniSplitInstallationQuestionKey =
+  | "replacement_vs_new"
+  | "head_count"
+  | "indoor_access"
+  | "outdoor_access"
+  | "run_band"
+  | "lineset_status"
+  | "condensate_route";
+
+export type MiniSplitInstallationAnswerOption = { value: string; label: string };
+
+export type MiniSplitInstallationQuestion = {
+  key: MiniSplitInstallationQuestionKey;
+  branch: MiniSplitInstallationBranch | "SHARED";
+  prompt: string;
+  establishes: string;
+  options: readonly MiniSplitInstallationAnswerOption[];
+};
+
+export const MINI_SPLIT_INSTALLATION_QUESTIONS: readonly MiniSplitInstallationQuestion[] = [
+  {
+    key: "replacement_vs_new",
+    branch: "SHARED",
+    prompt: "Are you replacing an existing mini-split, or is this a first-time installation?",
+    establishes: "replacement_vs_new",
+    options: [
+      { value: "REPLACEMENT", label: "Replacing an existing mini-split" },
+      { value: "NEW_INSTALLATION", label: "First-time installation" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "head_count",
+    branch: "SHARED",
+    prompt: "How many indoor units?",
+    establishes: "head_count",
+    options: [],
+  },
+  {
+    key: "indoor_access",
+    branch: "REPLACEMENT",
+    prompt: "Where are the existing indoor units?",
+    establishes: "indoor_location",
+    options: [
+      { value: "BASEMENT", label: "Basement" },
+      { value: "UTILITY_CLOSET", label: "Utility closet" },
+      { value: "GARAGE", label: "Garage" },
+      { value: "ATTIC", label: "Attic" },
+      { value: "CRAWL_SPACE", label: "Crawl space" },
+      { value: "MECHANICAL_ROOM", label: "Mechanical room" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "outdoor_access",
+    branch: "REPLACEMENT",
+    prompt: "Where does the existing outdoor unit sit?",
+    establishes: "outdoor_location",
+    options: [
+      { value: "GROUND_LEVEL_ADJACENT", label: "On the ground, next to the house" },
+      { value: "GROUND_LEVEL_REMOTE", label: "On the ground, away from the house" },
+      { value: "ROOF", label: "On the roof" },
+      { value: "WALL_OR_BALCONY_MOUNT", label: "Mounted on a wall or balcony" },
+      { value: "NONE", label: "There's no outdoor unit" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "run_band",
+    branch: "SHARED",
+    // {b1} and {b2} are the contractor's own two boundaries — see
+    // lib/policyBands.ts. Never shipped with a hole unresolved; rendering
+    // is a template-layer concern this file does not perform.
+    prompt: "Roughly how far apart would the indoor and outdoor units be?",
+    establishes: "run_band",
+    options: [
+      { value: "STANDARD", label: "{b1} feet or less" },
+      { value: "EXTENDED", label: "{b1} to {b2} feet" },
+      { value: "OVER_BAND", label: "More than {b2} feet" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "lineset_status",
+    branch: "SHARED",
+    prompt: "Is there an existing line set, and can you see where it runs?",
+    establishes: "lineset_status",
+    options: [
+      { value: "PRESENT_VISIBLE", label: "Yes, and I can see the whole run" },
+      { value: "PRESENT_CONCEALED", label: "Yes, but part of it is hidden" },
+      { value: "NONE", label: "No existing line set" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "condensate_route",
+    branch: "SHARED",
+    prompt: "Where would the condensate drain to?",
+    establishes: "condensate_route",
+    options: [
+      { value: "PUMP_PRESENT", label: "There's a pump" },
+      { value: "GRAVITY_DRAIN_PRESENT", label: "There's a drain line that runs away on its own" },
+      { value: "NONE_VISIBLE", label: "Nothing like that yet" },
       { value: "UNKNOWN", label: "Not sure" },
     ],
   },
