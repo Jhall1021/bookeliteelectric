@@ -413,8 +413,24 @@ export function controlGate(
  * no-self-diagnosis boundary is the same boundary in every trade.
  * EFFECT-FREE: see lib/hvac/mappings.ts's EXISTING_CONDITION_SCOPE, which
  * attaches no material role, no component and no prerequisite to any member.
+ *
+ * `opts.knownWorkReplacement` IS THE ONE NARROW EXCEPTION — H11, the same
+ * shape as `controlGate`'s own `presentNotRespondingIsKnownWork` (H4).
+ * Every caller that omits it (every caller today, and every future one,
+ * unless it deliberately opts in) gets the exact behavior above, unchanged.
+ * It exists for exactly one shape of caller: an explicitly selected
+ * KNOWN-WORK replacement request (`furnace-replacement`'s own resolver),
+ * where a dead or visibly degraded furnace is not an unresolved question —
+ * the homeowner already said "replace it", and a failed or degraded
+ * existing unit is on-point evidence FOR that choice, not a symptom report
+ * needing a visit to interpret. It does not weaken the default: the
+ * verifier proves the un-opted-in call still refuses to ON_SITE_SERVICE on
+ * ACTIVE_FAILURE and to PHOTO_REVIEW on DEGRADED. `EXISTING_CONDITION_SCOPE`
+ * stays effect-free regardless of this option: no condition value, in
+ * either mode, may select a repair, a component, a material role or a
+ * different service.
  */
-export function conditionGate(condition: EquipmentCondition): GateOutcome {
+export function conditionGate(condition: EquipmentCondition, opts?: { knownWorkReplacement?: boolean }): GateOutcome {
   if (condition === "UNKNOWN")
     return {
       action: "PHOTO_REVIEW",
@@ -422,14 +438,14 @@ export function conditionGate(condition: EquipmentCondition): GateOutcome {
       factKey: "equipment_condition",
       observed: condition,
     };
-  if (condition === "ACTIVE_FAILURE")
+  if (condition === "ACTIVE_FAILURE" && !opts?.knownWorkReplacement)
     return {
       action: "ON_SITE_SERVICE",
       reason: "An active failure was observed, so this is an on-site service call rather than a scheduled visit.",
       factKey: "equipment_condition",
       observed: condition,
     };
-  if (condition === "DEGRADED")
+  if (condition === "DEGRADED" && !opts?.knownWorkReplacement)
     return {
       action: "PHOTO_REVIEW",
       reason: "A visible condition was reported that may put the work outside the fixed scope.",
