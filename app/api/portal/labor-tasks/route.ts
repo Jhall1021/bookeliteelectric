@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { withAdminRoute } from "@/lib/adminContext";
-import { ELECTRICAL_LABOR_TASKS, resolveTaskEligibility } from "@/lib/laborWizard";
+import { ELECTRICAL_LABOR_TASKS, resolveTaskEligibilityForWrite } from "@/lib/laborWizard";
 import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
 
 /**
@@ -18,23 +19,37 @@ class NotEligibleError extends Error {
 /**
  * Accept reviewed elapsed-task-time proposals from the labor wizard.
  *
- * ELIGIBILITY IS RE-RESOLVED HERE, NOT TRUSTED FROM THE CLIENT — AND
- * RE-RESOLVED INSIDE THE SAME TRANSACTION AS THE WRITE IT GATES, NOT
- * BEFORE IT. A checkbox existing only for an eligible service in the
- * review screen is a UI convenience; the actual guarantee is this route
- * independently rebuilding each task's eligible set
- * (lib/laborWizard.ts's resolveTaskEligibility — the canonical mapping,
- * recipe AND fixed quantities unchanged since provisioning) using the
- * transaction's own client, then refusing outright — nothing written, the
- * whole transaction rolled back — if a submitted service id for that task
- * is not in it. Resolving eligibility OUTSIDE the transaction and writing
- * afterward would leave a window between the check and the write for the
- * checked service's own recipe to change; resolving it with the same
- * transaction client that performs the write closes that window to the
- * transaction's own duration. A cross-tenant id, an unrelated service, or
- * a service whose recipe has since diverged from its template are all
- * refused the same way, and the response says exactly which ids were
- * rejected.
+ * ELIGIBILITY IS RE-RESOLVED HERE, NOT TRUSTED FROM THE CLIENT — WITH THE
+ * CANDIDATE SERVICES' OWN ROWS LOCKED FIRST, NOT MERELY READ INSIDE A
+ * TRANSACTION. A checkbox existing only for an eligible service in the
+ * review screen is a UI convenience; the actual guarantee is
+ * lib/laborWizard.ts's resolveTaskEligibilityForWrite, which takes
+ * `SELECT ... FOR UPDATE` locks on every candidate service and its
+ * existing recipe rows BEFORE resolving eligibility. An ordinary read
+ * inside a transaction is not this: two transactions that never take a
+ * lock can both read the same rows and both proceed as if nothing had
+ * changed, because Postgres has no reason to make them conflict. A real
+ * row lock does — any OTHER transaction (at any isolation level; row
+ * locks are unconditional) trying to add, change, or remove a candidate's
+ * recipe blocks until this one commits or rolls back, so the eligibility
+ * this transaction decides on cannot be invalidated by something that
+ * happens while it's still deciding. See resolveTaskEligibilityForWrite's
+ * own comment for exactly what each lock blocks and why one alone isn't
+ * enough.
+ *
+ * SERIALIZABLE ISOLATION, IN ADDITION. Matches this codebase's own
+ * established convention for a write that must not race
+ * (scripts/bootstrap-platform-admin.ts) — the locks above are what
+ * actually close this specific race, but Serializable is retained as
+ * defense in depth and its conflict is still handled explicitly:
+ * Prisma's P2025/serialization-failure surfaces as a clear refusal
+ * rather than a generic 500, and nothing partial is ever left committed.
+ *
+ * A cross-tenant id, an unrelated service, or a service whose recipe has
+ * since diverged from its template — including one that diverged AFTER
+ * this request arrived, caught by the locks above rather than the
+ * snapshot this request started with — are all refused the same way, and
+ * the response says exactly which ids were rejected.
  *
  * WRITES THROUGH THE SHARED PRICING-INPUT AUTHORITY
  * (lib/servicePricingInputs.ts), not a bespoke update — the same function
@@ -102,36 +117,51 @@ export async function PATCH(req: Request) {
 
     const results: { taskKey: string; servicesUpdated: number }[] = [];
     try {
-      await db.$transaction(async (tx) => {
-        // Resolved with THIS transaction's own client, immediately before
-        // the writes below — see the header comment on why that timing,
-        // not a read taken before the transaction opened, is what makes
-        // this check meaningful at write time.
-        const eligibility = await resolveTaskEligibility(tx, ctx.contractorId, ELECTRICAL_LABOR_TASKS);
-        const eligibleIdsByTask = new Map(
-          eligibility.map((e) => [e.task.key, new Set(e.eligible.map((s) => s.id))])
-        );
+      await db.$transaction(
+        async (tx) => {
+          // Locks every candidate's own row and its existing recipe rows
+          // FIRST, then resolves eligibility against that now-immovable
+          // state — see resolveTaskEligibilityForWrite and the header
+          // comment above for why a lock, not just a transaction-scoped
+          // read, is what actually closes this race.
+          const eligibility = await resolveTaskEligibilityForWrite(tx, ctx.contractorId, ELECTRICAL_LABOR_TASKS);
+          const eligibleIdsByTask = new Map(
+            eligibility.map((e) => [e.task.key, new Set(e.eligible.map((s) => s.id))])
+          );
 
-        const rejected: string[] = [];
-        for (const row of rows) {
-          const eligibleIds = eligibleIdsByTask.get(row.taskKey) ?? new Set<string>();
-          for (const id of row.serviceIds) {
-            if (!eligibleIds.has(id)) rejected.push(`${id} (not eligible for ${row.taskKey})`);
+          const rejected: string[] = [];
+          for (const row of rows) {
+            const eligibleIds = eligibleIdsByTask.get(row.taskKey) ?? new Set<string>();
+            for (const id of row.serviceIds) {
+              if (!eligibleIds.has(id)) rejected.push(`${id} (not eligible for ${row.taskKey})`);
+            }
           }
-        }
-        if (rejected.length > 0) throw new NotEligibleError(rejected);
+          if (rejected.length > 0) throw new NotEligibleError(rejected);
 
-        for (const row of rows) {
-          const hours = row.minutes / 60;
-          for (const id of row.serviceIds) {
-            await saveServicePricingInputs(tx, id, { fieldLaborHours: hours });
+          for (const row of rows) {
+            const hours = row.minutes / 60;
+            for (const id of row.serviceIds) {
+              await saveServicePricingInputs(tx, id, { fieldLaborHours: hours });
+            }
+            results.push({ taskKey: row.taskKey, servicesUpdated: row.serviceIds.length });
           }
-          results.push({ taskKey: row.taskKey, servicesUpdated: row.serviceIds.length });
-        }
-      });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
     } catch (e) {
       if (e instanceof NotEligibleError) {
         return NextResponse.json({ error: e.message }, { status: 400 });
+      }
+      // P2034: Prisma's own code for a Postgres serialization failure
+      // (SQLSTATE 40001) — the locks above are what should ordinarily
+      // prevent ever reaching this, but a genuine one is still a refusal
+      // to report cleanly, not a 500, and never a partial write: Prisma
+      // rolls the whole transaction back before this ever surfaces.
+      if ((e as { code?: string }).code === "P2034") {
+        return NextResponse.json(
+          { error: "A concurrent change was detected — nothing was saved. Please try again." },
+          { status: 409 }
+        );
       }
       throw e;
     }

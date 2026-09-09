@@ -41,6 +41,19 @@
  *                       land — neither call reads the row first, so
  *                       neither can write back a stale snapshot of the
  *                       field the other one just changed
+ *   the race itself, proven, not asserted  a SEPARATE, genuinely
+ *                       concurrent connection tries to change a candidate
+ *                       service's recipe WHILE the accept transaction's
+ *                       own locks are held (resolveTaskEligibilityForWrite's
+ *                       injectDuringLock seam) and is shown to actually
+ *                       block — a short lock_timeout makes it fail fast
+ *                       and loud instead of silently racing through. The
+ *                       accept transaction's own write still lands
+ *                       correctly; the blocked edit never applied; once
+ *                       the lock releases the same edit succeeds normally
+ *                       (a temporary block, not a deadlock); and a fresh
+ *                       eligibility read afterward correctly demotes the
+ *                       now-actually-changed service
  *
  * The browser-driven conversation itself (the Q&A flow, the eligibility-
  * scoped picker, crew-mismatch flagging, and the direct-API refusal of an
@@ -50,8 +63,8 @@
  *
  *   npx tsx scripts/verify-labor-wizard.ts
  */
-import { PrismaClient } from "@prisma/client";
-import { ELECTRICAL_LABOR_TASKS, resolveTaskEligibility } from "../lib/laborWizard";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { ELECTRICAL_LABOR_TASKS, resolveTaskEligibility, resolveTaskEligibilityForWrite } from "../lib/laborWizard";
 import { saveServicePricingInputs } from "../lib/servicePricingInputs";
 
 const raw = new PrismaClient();
@@ -247,10 +260,89 @@ async function main() {
     afterConcurrent.fieldLaborHours === 10 && afterConcurrent.wwtLaborHours === 20,
     `got fieldLaborHours=${afterConcurrent.fieldLaborHours}, wwtLaborHours=${afterConcurrent.wwtLaborHours}`);
 
+  // ── the race itself — a GENUINELY separate connection, not just a second
+  // async call on this same one, trying to change a candidate's recipe
+  // WHILE the accept transaction's own locks are held. Proves the lock is
+  // real by making the concurrent attempt fail fast (a short lock_timeout)
+  // rather than either hanging or silently succeeding. ────────────────────
+  const concurrent = new PrismaClient();
+  const raceService = await service(a.id, "a-race-outlet", outletRecipe, {
+    templateKey: "replace-standard-outlet", templateVersionId: tv.id,
+  });
+
+  let concurrentEditBlocked = false;
+  let concurrentEditDetail = "";
+  let raceServiceStillEligible = false;
+
+  await raw.$transaction(
+    async (tx) => {
+      const eligibility = await resolveTaskEligibilityForWrite(
+        tx, a.id, [outletTask],
+        async () => {
+          // The locks above are held by `tx` right now. A fully separate
+          // connection attempting to change the SAME service's recipe
+          // must block on them — proven, not assumed, with a short
+          // lock_timeout so a missing lock fails this check fast instead
+          // of the test hanging or (worse) passing by accident.
+          try {
+            await concurrent.$transaction(async (ctx) => {
+              await ctx.$executeRaw`SET LOCAL lock_timeout = '500ms'`;
+              await ctx.serviceMaterial.updateMany({
+                where: { serviceId: raceService.id, canonicalMaterialId: receptacle.id },
+                data: { quantity: 5 },
+              });
+            });
+          } catch (e) {
+            concurrentEditBlocked = true;
+            concurrentEditDetail = (e as Error).message;
+          }
+        }
+      );
+      raceServiceStillEligible = eligibility[0].eligible.some((s) => s.id === raceService.id);
+      await saveServicePricingInputs(tx, raceService.id, { fieldLaborHours: 30 / 60 });
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+  );
+
+  ok(`9. a genuinely concurrent recipe edit is BLOCKED while the accept transaction holds its locks`,
+    concurrentEditBlocked, concurrentEditDetail || "the concurrent update did not throw — the lock was not actually held");
+  ok(`   ...the accept transaction saw the fixture as eligible throughout — the block, not a false rejection, is what protected it`,
+    raceServiceStillEligible);
+
+  const afterRace = await raw.service.findUniqueOrThrow({ where: { id: raceService.id }, select: { fieldLaborHours: true } });
+  ok(`   ...and the accept transaction's own write still landed correctly (30 min)`,
+    Math.abs((afterRace.fieldLaborHours ?? 0) - 30 / 60) < 1e-9);
+
+  const raceMaterialAfterBlock = await raw.serviceMaterial.findFirstOrThrow({
+    where: { serviceId: raceService.id, canonicalMaterialId: receptacle.id }, select: { quantity: true },
+  });
+  ok(`   ...and the blocked edit never actually applied — quantity is still the original 1`,
+    raceMaterialAfterBlock.quantity === 1);
+
+  // Once the lock releases (the transaction above committed), the exact
+  // same edit must succeed normally — a temporary block, never a deadlock.
+  await concurrent.serviceMaterial.updateMany({
+    where: { serviceId: raceService.id, canonicalMaterialId: receptacle.id }, data: { quantity: 5 },
+  });
+  const raceMaterialAfterRelease = await raw.serviceMaterial.findFirstOrThrow({
+    where: { serviceId: raceService.id, canonicalMaterialId: receptacle.id }, select: { quantity: true },
+  });
+  ok(`10. once the transaction releases its locks, the SAME edit succeeds normally — a temporary block, not a deadlock`,
+    raceMaterialAfterRelease.quantity === 5);
+
+  // And with that later, legitimate change now in place, a FRESH
+  // eligibility read correctly demotes it — the exact property the locked
+  // transaction above was protecting against seeing prematurely.
+  const afterReleaseEligibility = await resolveTaskEligibility(raw, a.id, [outletTask]);
+  ok(`    ...and a fresh eligibility check now correctly excludes it — the change is real once it's actually committed`,
+    !afterReleaseEligibility[0].eligible.some((s) => s.id === raceService.id));
+
+  await concurrent.$disconnect();
+
   console.log(`\n  cleanup, then done\n`);
   await teardown();
   const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B] } } });
-  ok(`9. every fixture is gone at the end`, residue === 0);
+  ok(`11. every fixture is gone at the end`, residue === 0);
   await raw.$disconnect();
   console.log(`\n  ${fail === 0 ? "all checks passed" : `${fail} check(s) failed`}\n`);
   if (fail > 0) process.exit(1);

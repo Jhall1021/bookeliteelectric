@@ -160,9 +160,31 @@ export type TaskEligibility = {
 type Db = PrismaClient | Prisma.TransactionClient;
 
 /** What the template specifies for one material role: a fixed quantity to compare against, or none when it's policy-driven. */
-type OriginalSpec = { quantity: number | null; quantityIsPolicy: boolean };
+type OriginalSpec = { quantity: number | null; quantityIsPolicy: boolean; materialKey: string };
 
 const pairKey = (templateVersionId: string, templateKey: string) => `${templateVersionId}::${templateKey}`;
+
+/**
+ * Policy-driven material roles EXPLICITLY confirmed scope-independent for
+ * these three tasks — never assumed from `quantityIsPolicy` alone.
+ *
+ * CONSUMABLES_SMALL is the only policy-quantity role any of the three
+ * mapped TemplateServices carry (checked directly: outlet, switch, and
+ * GFCI replacement each carry exactly this one). Its own CanonicalMaterial
+ * record states its basis in the platform's own reference data: "Per
+ * Josh: a couple of dollars" — a flat, per-service allowance of small
+ * hardware (wire nuts, tape), not a figure that scales with how many
+ * devices the service replaces. The thing that WOULD signal a different
+ * job size — the device role itself (RECEPTACLE_STANDARD,
+ * SWITCH_STANDARD, GFCI_INTERIOR) — is a FIXED, non-policy quantity on
+ * all three templates and is already compared exactly above. A policy
+ * role not on this list is NOT given the same pass: with no confirmed
+ * basis for treating its quantity as scope-independent, a service whose
+ * only divergence is an unrecognized policy role's quantity is excluded
+ * from eligible and surfaced as customized, same as any other unexplained
+ * difference — silence is never read as safety.
+ */
+const SCOPE_EQUIVALENT_POLICY_MATERIALS = new Set(["CONSUMABLES_SMALL"]);
 
 /**
  * The entire eligibility rule, in one place, server-side.
@@ -212,12 +234,19 @@ export async function resolveTaskEligibility(
     const key = pair.slice(sep + 2);
     const ts = await db.templateService.findUnique({
       where: { templateVersionId_key: { templateVersionId, key } },
-      select: { materials: { select: { canonicalMaterialId: true, quantity: true, quantityIsPolicy: true } } },
+      select: {
+        materials: {
+          select: { canonicalMaterialId: true, quantity: true, quantityIsPolicy: true, canonicalMaterial: { select: { key: true } } },
+        },
+      },
     });
     if (ts) {
       originalByPair.set(
         pair,
-        new Map(ts.materials.map((m) => [m.canonicalMaterialId, { quantity: m.quantity, quantityIsPolicy: m.quantityIsPolicy }]))
+        new Map(ts.materials.map((m) => [
+          m.canonicalMaterialId,
+          { quantity: m.quantity, quantityIsPolicy: m.quantityIsPolicy, materialKey: m.canonicalMaterial.key },
+        ]))
       );
     }
   }
@@ -236,13 +265,16 @@ export async function resolveTaskEligibility(
         original.size === currentQuantityByMaterial.size &&
         [...original.keys()].every((id) => currentQuantityByMaterial.has(id));
 
-      // Only a fixed (non-policy) template quantity is comparable — a
-      // policy-driven one (e.g. "one per device", quantity null in the
-      // template) has no single number to check a current recipe against.
+      // A fixed (non-policy) template quantity is compared exactly. A
+      // policy-driven one is skipped ONLY when it's on the explicit,
+      // evidence-backed SCOPE_EQUIVALENT_POLICY_MATERIALS list above — an
+      // unrecognized policy role has no confirmed basis for treating any
+      // quantity as safe, so it disqualifies the match rather than passing
+      // by default.
       const sameFixedQuantities =
         sameIngredients &&
         [...original!.entries()].every(([id, spec]) => {
-          if (spec.quantityIsPolicy || spec.quantity === null) return true;
+          if (spec.quantityIsPolicy) return SCOPE_EQUIVALENT_POLICY_MATERIALS.has(spec.materialKey);
           return currentQuantityByMaterial.get(id) === spec.quantity;
         });
 
@@ -254,6 +286,68 @@ export async function resolveTaskEligibility(
     }
     return { task, eligible, customized };
   });
+}
+
+/**
+ * Eligibility, resolved for a WRITE, not a read. Locks every candidate
+ * service's own row AND its existing recipe rows before resolving
+ * eligibility, so the two things a recipe edit could do — add a material,
+ * or change/remove an existing one — are both blocked for the rest of this
+ * transaction, not merely rechecked against a snapshot that could already
+ * be stale by the time the lock is taken.
+ *
+ * PLAIN "MOVE THE READ INSIDE THE TRANSACTION" IS NOT THIS. An ordinary
+ * SELECT inside a transaction still only sees a snapshot; nothing stops a
+ * FULLY SEPARATE, concurrent transaction from committing a change to the
+ * exact rows just read before this transaction's own write runs — the two
+ * transactions never conflict from Postgres's point of view unless
+ * something forces them to. Two real row locks do:
+ *
+ *   1. `SELECT ... FOR UPDATE` on the candidate `services` rows. Adding a
+ *      NEW ServiceMaterial to one of them is an INSERT whose foreign key
+ *      must validate against that exact parent row — Postgres acquires a
+ *      FOR KEY SHARE lock on the parent to do that, which conflicts with
+ *      the FOR UPDATE lock held here and blocks until this transaction
+ *      ends. This is what stops "the box gets added mid-flight".
+ *   2. `SELECT ... FOR UPDATE` on the candidates' EXISTING ServiceMaterial
+ *      rows. A concurrent UPDATE to a quantity, or a DELETE, targets an
+ *      already-locked row directly and blocks the same way. Lock #1 alone
+ *      does not cover this — changing a quantity on an existing row never
+ *      touches the foreign key, so it never contends for the parent lock.
+ *
+ * Together, ANY structural or quantity change to a candidate's recipe,
+ * from ANY other transaction regardless of ITS isolation level (row locks
+ * are not an isolation-level feature — they are always enforced), blocks
+ * until this transaction commits or rolls back. The caller commits its
+ * writes and releases both locks in the same transaction that acquired
+ * them; whoever was blocked then proceeds against the state this
+ * transaction actually left behind, never in between.
+ *
+ * `injectDuringLock` is a TEST SEAM ONLY — invoked with the locks already
+ * held, before eligibility is computed, so a test can attempt a genuinely
+ * concurrent write from a separate connection and observe it block. No
+ * production caller passes this.
+ */
+export async function resolveTaskEligibilityForWrite(
+  tx: Prisma.TransactionClient,
+  contractorId: string,
+  tasks: LaborTaskDefinition[],
+  injectDuringLock?: () => Promise<void>
+): Promise<TaskEligibility[]> {
+  const candidates = await tx.service.findMany({
+    where: { contractorId, templateKey: { in: tasks.map((t) => t.templateServiceKey) } },
+    select: { id: true },
+  });
+  const candidateIds = candidates.map((c) => c.id);
+
+  if (candidateIds.length > 0) {
+    await tx.$queryRaw`SELECT id FROM services WHERE id = ANY(${candidateIds}) FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM service_materials WHERE "serviceId" = ANY(${candidateIds}) FOR UPDATE`;
+  }
+
+  if (injectDuringLock) await injectDuringLock();
+
+  return resolveTaskEligibility(tx, contractorId, tasks);
 }
 
 /**
