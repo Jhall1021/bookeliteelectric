@@ -47,7 +47,7 @@ import { TENANT_SCOPED_MODELS, DERIVED_TENANT_MODELS } from "../lib/tenantGuard"
  * imports and runtime re-exports are refused, dynamic import() and require()
  * are refused, and type-only edges are exempt because they cannot run.
  */
-const ONBOARDING_ACTIONS = ["startContractorAction", "attachOwnerAction", "enrolTradeAction", "installTemplateAction", "launchAction", "retireAction"];
+const ONBOARDING_ACTIONS = ["startContractorAction", "attachOwnerAction", "inviteOwnerAction", "revokeInvitationAction", "enrolTradeAction", "installTemplateAction", "launchAction", "retireAction"];
 const SURFACE_POLICY: Policy = {
   "next/link": ["default"],
   "next/navigation": ["redirect", "notFound"],
@@ -57,7 +57,7 @@ const SURFACE_POLICY: Policy = {
   // The founder onboarding wizard: request-bound commands and reads from the
   // ONE platform module that may write, plus its notice formatter. The
   // commands are policed by scripts/verify-platform-onboarding.ts.
-  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "platformBeginContractor", "platformAttachOwner", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "platformRetireContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
+  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "platformBeginContractor", "platformAttachOwner", "platformInviteOwner", "platformRevokeInvitation", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "platformRetireContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
   "./actions": ONBOARDING_ACTIONS,
   "../actions": ONBOARDING_ACTIONS,
   "@/components/platform/ContractorTable": ["ContractorTable"],

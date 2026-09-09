@@ -91,7 +91,7 @@ function platformMailer(): { client: Resend; from: string } {
  * exactly the thing not to write, and an env var set by accident should fail
  * loudly rather than quietly divert a contractor's mail.
  */
-async function sendPlatformMail(to: string, subject: string, text: string, what: string) {
+export async function sendPlatformMail(to: string, subject: string, text: string, what: string) {
   const sink = process.env.PLATFORM_MAIL_SINK;
   if (sink) {
     if (process.env.NODE_ENV === "production") {
@@ -154,6 +154,41 @@ function magicLinkEmail(url: string, minutes: number) {
   };
 }
 
+/**
+ * The invitation email. Names the business and who sent it, and nothing
+ * about pricing or customers — an invitation that leaked would reveal that
+ * someone was asked to join a company, not what that company sells.
+ */
+function invitationEmail(contractorName: string, url: string, days: number, ownerName?: string) {
+  const greeting = ownerName ? `Hi ${ownerName},` : null;
+  return {
+    subject: `You're invited to join ${contractorName} on Price2Book`,
+    text: [
+      ...(greeting ? [greeting, ""] : []),
+      `You've been invited to join ${contractorName} on Price2Book.`,
+      "",
+      `Accept the invitation: ${url}`,
+      "",
+      `This link works once and expires in ${days} days.`,
+      "",
+      "If you weren't expecting this, you can ignore it — nothing happens " +
+        "until the link is opened and accepted.",
+    ].join("\n"),
+  };
+}
+
+/**
+ * Sent by staff when they invite an owner (lib/platformOnboarding.ts). Days
+ * defaults to the invitation's own TTL; passed explicitly rather than
+ * imported from lib/contractorInvitations.ts so this file has no dependency
+ * on the platform side — the same reason the other three templates take
+ * their timing as a plain number.
+ */
+export async function sendInvitationEmail(to: string, contractorName: string, url: string, days = 7, ownerName?: string) {
+  const { subject, text } = invitationEmail(contractorName, url, days, ownerName);
+  await sendPlatformMail(to, subject, text, "Invitation");
+}
+
 /** Long enough for a contractor who checks email between jobs. */
 const MAGIC_LINK_MINUTES = 15;
 
@@ -174,7 +209,7 @@ const MAGIC_LINK_MINUTES = 15;
  *
  * An explicit BETTER_AUTH_URL still overrides everything, for a custom domain.
  */
-function resolveBaseUrl(): string | undefined {
+export function resolveBaseUrl(): string | undefined {
   if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL;
 
   // On production the deployment must identify itself by its PRODUCTION

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "@/lib/authClient";
+import { safeReturnPath } from "@/lib/safeReturnPath";
 
 /**
  * Contractor sign-in — a password, with a link as the fallback.
@@ -18,9 +20,17 @@ import { signIn } from "@/lib/authClient";
  * turns this form into a way to test which email addresses can reach a
  * contractor's pricing and customers — which was already true of the link
  * flow, and is more tempting to get wrong with passwords.
+ *
+ * `next` and `email`, same terms as sign-up: returning an invited person to
+ * their invitation and pre-filling the address it named — a convenience, not
+ * an enforcement.
  */
-export default function SignInPage() {
-  const [email, setEmail] = useState("");
+function SignInForm() {
+  const params = useSearchParams();
+  // Validated once, here — everything below uses ONLY this value, never
+  // params.get("next") directly. See lib/safeReturnPath.ts.
+  const next = safeReturnPath(params.get("next"));
+  const [email, setEmail] = useState(params.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [linkSent, setLinkSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +46,7 @@ export default function SignInPage() {
     const { error } = await signIn.email({
       email: email.trim().toLowerCase(),
       password,
-      callbackURL: "/dashboard",
+      callbackURL: next || "/dashboard",
     });
 
     setSubmitting(false);
@@ -48,7 +58,7 @@ export default function SignInPage() {
       setError("That email and password don't match an account.");
       return;
     }
-    window.location.href = "/dashboard";
+    window.location.href = next || "/dashboard";
   }
 
   async function emailALink() {
@@ -56,7 +66,7 @@ export default function SignInPage() {
     setError(null);
     await signIn.magicLink({
       email: email.trim().toLowerCase(),
-      callbackURL: "/dashboard",
+      callbackURL: next || "/dashboard",
     });
     setSubmitting(false);
     setLinkSent(true);
@@ -139,10 +149,18 @@ export default function SignInPage() {
         >
           Email me a link instead
         </button>
-        <Link href="/sign-up" className="font-semibold text-p2b-accent underline underline-offset-2">
+        <Link href={next ? `/sign-up?next=${encodeURIComponent(next)}` : "/sign-up"} className="font-semibold text-p2b-accent underline underline-offset-2">
           Create an account
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInForm />
+    </Suspense>
   );
 }

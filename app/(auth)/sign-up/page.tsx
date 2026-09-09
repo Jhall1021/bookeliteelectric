@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { signUp } from "@/lib/authClient";
+import { safeReturnPath } from "@/lib/safeReturnPath";
 
 /**
  * Creating a Price2Book account.
@@ -10,10 +12,25 @@ import { signUp } from "@/lib/authClient";
  * The account and the business are separate steps on purpose. This creates a
  * person; /start creates the contractor they own. Collapsing them would mean
  * writing a tenant membership for an address nobody has confirmed yet.
+ *
+ * `next` and `email` are read ONLY to return an invited person to the
+ * invitation they arrived from (app/invite/[token]/page.tsx links here with
+ * both) and to pre-fill the address they were invited at — a convenience,
+ * not an enforcement: `email` is editable, and the real check is
+ * acceptInvitationFor's server-side comparison against the signed-in user's
+ * verified address. Nothing else on this app should link here with `next`.
  */
-export default function SignUpPage() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+function SignUpForm() {
+  const params = useSearchParams();
+  // Validated once, here — everything below uses ONLY this value, never
+  // params.get("next") directly. See lib/safeReturnPath.ts.
+  const next = safeReturnPath(params.get("next"));
+  // Inert prefill text, not a return path — see lib/safeReturnPath.ts's own
+  // comment on why "email" gets the same treatment: an attacker-supplied
+  // value here can do no more than mis-fill a text field the person can see
+  // and edit before submitting.
+  const [name, setName] = useState(params.get("name") ?? "");
+  const [email, setEmail] = useState(params.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +45,7 @@ export default function SignUpPage() {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password,
-      callbackURL: "/start",
+      callbackURL: next || "/start",
     });
 
     setSubmitting(false);
@@ -52,7 +69,7 @@ export default function SignUpPage() {
         <h1 className="text-[30px] font-bold tracking-[-0.022em] lg:text-[34px]">Confirm your email</h1>
         <p className="mt-3 text-[15px] leading-[1.6] text-p2b-muted">
           We&rsquo;ve sent a link to <span className="font-medium text-p2b-ink">{email}</span>.
-          Open it and we&rsquo;ll take you straight to setting up your business.
+          {next ? " Open it and we'll take you back to your invitation." : " Open it and we'll take you straight to setting up your business."}
         </p>
       </div>
     );
@@ -62,7 +79,7 @@ export default function SignUpPage() {
     <div>
       <h1 className="text-[30px] font-bold tracking-[-0.022em] lg:text-[34px]">Create your account</h1>
       <p className="mt-2 text-[15px] leading-[1.6] text-p2b-muted">
-        Then we&rsquo;ll set up your business and your pricing.
+        {next ? "Then we'll take you back to accept your invitation." : "Then we'll set up your business and your pricing."}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -107,10 +124,18 @@ export default function SignUpPage() {
       </form>
 
       <p className="mt-5 text-[14px]">
-        <Link href="/sign-in" className="font-semibold text-p2b-accent underline underline-offset-2">
+        <Link href={next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in"} className="font-semibold text-p2b-accent underline underline-offset-2">
           Already have an account?
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignUpForm />
+    </Suspense>
   );
 }

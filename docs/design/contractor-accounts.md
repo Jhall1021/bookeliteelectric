@@ -90,26 +90,55 @@ routing, and ADR-011's "a browser session is not a tenant" are untouched — thi
 adds a way to bring a tenant into existence, not a new way to reach one.
 
 
-## Invitations — schema only, NOT implemented
+## Invitations — built, Phase 3A (7 September 2026)
 
-`ContractorInvitation` exists in the schema with an email, a role and a
-SHA-256 `tokenHash`. There is **no creation route, no acceptance route and no
-library** — nothing anywhere writes or redeems one. The model is a design that
-was never built.
+`ContractorInvitation` (email, role, SHA-256 `tokenHash`, `expiresAt`,
+`acceptedAt`/`acceptedByUserId`, `revokedAt`) now has both ends built:
 
-Consequences, recorded so nobody assumes otherwise:
+- **Minting.** `inviteOwnerFor` in `lib/platformOnboarding.ts` — staff-only,
+  through `withPlatformContractorFor` like every other command in that
+  module. ONE PENDING INVITATION PER CONTRACTOR: inviting again, to the same
+  address or a different one, revokes any invitation that is still neither
+  accepted nor revoked and creates a fresh one in the same transaction, so
+  the old link stops working the instant the new one exists. Refuses on a
+  retired contractor. `revokeInvitationFor` withdraws one explicitly and
+  deliberately does NOT check retirement — see below.
+- **Acceptance.** `acceptInvitationFor` in `lib/contractorInvitations.ts` —
+  neutral ground, not part of the platform module, because the person
+  accepting is not staff; the same relationship `createContractorForUser`
+  (self-serve) already has to the founder's `attachOwnerFor`. Consumption is
+  atomic (a conditional `updateMany` that only one of two simultaneous
+  accepts can win) and idempotent ONLY for the original accepting user with a
+  still-active membership — anything else that already carries `acceptedAt`
+  is spent and refused, never re-granted. `/invite/[token]`
+  (`app/(auth)/invite/[token]/page.tsx`) is GET-only and read-only
+  (`peekInvitationFor`); only a POST server action ever calls
+  `acceptInvitationFor`, so an email client's link-prefetch cannot burn the
+  token before a human opens the page.
+- **The one-owned-business rule, race-safe.** All three paths that can grant
+  a user their first OWNER membership — self-serve creation, `attachOwnerFor`,
+  invitation acceptance — now check and write inside
+  `withOwnershipLock` (`lib/contractorCreation.ts`), a transaction-scoped
+  Postgres advisory lock keyed to the user. A plain "check, then write" is a
+  TOCTOU gap under READ COMMITTED; the lock closes it regardless of which two
+  of the three paths race each other.
+- **Retirement.** Neutralized, not deleted: `acceptInvitationFor` refuses
+  `CONTRACTOR_RETIRED` (checked once before the transaction for a fast
+  message, and again inside it, right before the membership write, so a
+  retirement racing an acceptance cannot be followed by a grant).
+  `attachOwnerFor`, `enrolTradeFor` and `installTradeTemplateFor` gained the
+  same server-side retirement refusal they were missing (a gap the retire
+  branch's own review had already found and left open). `revokeInvitationFor`
+  is the one exception on purpose: withdrawing an invitation must keep
+  working on a retired business.
+- **Delivery.** Reuses the platform's own mailer (`sendPlatformMail`,
+  `lib/auth.ts`) via a new `sendInvitationEmail`. The invitation row and the
+  email send are not one unit: a send failure is reported
+  (`delivered: false`, the underlying error) without rolling back the row,
+  and the fix is calling invite again — the same revoke-and-replace path a
+  deliberate resend uses.
 
-- No invitation email exists. `/start` surfaces a pending invitation if a row
-  is present but says to ask whoever invited them; it deliberately does not
-  promise a link, because there is none to open.
-- The replay semantics required of the other signed links cannot be tested for
-  invitations, because there is no flow to replay. That is a gap in coverage
-  only in the sense that there is nothing to cover.
-- Today the only sanctioned way into a tenant is creating one
-  (`lib/contractorCreation.ts`). A second person on one contractor's account
-  currently requires a membership written by hand — the exact thing the
-  bootstrap work removed for owners.
-
-**Classification: a separate account enhancement.** Not part of Embed V1, and
-not a dependency of it. It becomes urgent the first time a contractor needs a
-second person in the dashboard.
+Not built here, on purpose: `/start`'s messaging changed to point at "check
+your email" now that a real link exists, but Phase 3B owns the full
+contractor setup wizard — `/dashboard/welcome` is a minimal, tenant-bound
+landing page and nothing more.

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PlatformContractorNotFoundError } from "@/lib/platformContext";
 import { platformOnboardingContractor, noticeText } from "@/lib/platformOnboarding";
-import { attachOwnerAction, enrolTradeAction, installTemplateAction, launchAction, retireAction } from "../actions";
+import { attachOwnerAction, inviteOwnerAction, revokeInvitationAction, enrolTradeAction, installTemplateAction, launchAction, retireAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
       {retired && (
         <section className="mt-6 rounded-card border border-cardline bg-warmwhite p-4 text-sm text-slate">
           <p className="font-medium text-navy">This business is retired.</p>
-          <p className="mt-1">Its storefront and every service are inactive and no membership can open its dashboard. Nothing was deleted: the catalog, quotes, bookings and payment records are kept. Reinstating is not built yet; the data is ready for it.</p>
+          <p className="mt-1">Its storefront and every service are inactive and no membership can open its dashboard. Nothing was deleted: the catalog, quotes, bookings and payment records are kept. An outstanding invitation can no longer be accepted, but stays visible below and can still be revoked. Reinstating is not built yet; the data is ready for it.</p>
         </section>
       )}
 
@@ -56,16 +56,71 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         <Step n={1} step={s.steps[0]} />
 
         <Step n={2} step={s.steps[1]}>
+          {s.invitation.current && (
+            <div className={`mt-3 rounded-card border p-3 text-sm ${s.invitation.current.status === "pending" ? "border-electric/30 bg-electric/5" : "border-cardline bg-warmwhite"}`}>
+              <p className="text-navy">
+                Invited <span className="font-medium">{s.invitation.current.email}</span>
+                {s.invitation.current.status === "pending" && <> · expires {s.invitation.current.expiresAt.toISOString().slice(0, 10)}</>}
+                {s.invitation.current.status === "expired" && <span className="ml-1 text-p2b-amber-ink">· expired</span>}
+                {s.invitation.current.status === "neutralized" && <span className="ml-1 text-slate">· business retired, this link no longer works</span>}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {!retired && (
+                  <form action={inviteOwnerAction}>
+                    <input type="hidden" name="contractorId" value={id} />
+                    <input type="hidden" name="email" value={s.invitation.current.email} />
+                    <button type="submit" className="rounded-md border border-electric px-3 py-1.5 text-xs font-medium text-electric hover:bg-electric/10">Resend</button>
+                  </form>
+                )}
+                <form action={revokeInvitationAction}>
+                  <input type="hidden" name="contractorId" value={id} />
+                  <input type="hidden" name="invitationId" value={s.invitation.current.id} />
+                  <button type="submit" className="rounded-md border border-cardline px-3 py-1.5 text-xs font-medium text-slate hover:bg-white">Revoke</button>
+                </form>
+              </div>
+            </div>
+          )}
+
           {!retired && !ownerDone && (
-            <form action={attachOwnerAction} className="mt-3 flex flex-wrap items-end gap-3">
+            <form action={inviteOwnerAction} className="mt-3 flex flex-wrap items-end gap-3">
               <input type="hidden" name="contractorId" value={id} />
               <label className="text-sm">
-                <span className="block text-xs uppercase tracking-wide text-slate">Owner&rsquo;s account email</span>
+                <span className="block text-xs uppercase tracking-wide text-slate">Owner&rsquo;s name</span>
+                <input name="ownerName" className="mt-1 w-56 rounded-md border border-cardline px-3 py-2" placeholder="Jane Doe" />
+              </label>
+              <label className="text-sm">
+                <span className="block text-xs uppercase tracking-wide text-slate">Owner&rsquo;s email</span>
                 <input name="email" type="email" required className="mt-1 w-72 rounded-md border border-cardline px-3 py-2" placeholder="owner@example.com" />
               </label>
-              <button type="submit" className="rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:bg-electric/90">Attach owner</button>
-              <span className="text-xs text-slate">Must already have a confirmed Price2Book account (they sign up at <code>/sign-up</code>). Invitations by email are not built yet.</span>
+              <button type="submit" className="rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:bg-electric/90">{s.invitation.current ? "Invite a different address" : "Invite an owner"}</button>
+              <span className="text-xs text-slate">Emails a one-time link, good for 7 days. They sign up or sign in with that address and land in the business&rsquo;s own setup. Name is optional — used only in the email greeting and to pre-fill their sign-up.</span>
             </form>
+          )}
+
+          {!retired && !ownerDone && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs text-slate hover:text-navy">Or attach an existing, already-confirmed account directly</summary>
+              <form action={attachOwnerAction} className="mt-3 flex flex-wrap items-end gap-3">
+                <input type="hidden" name="contractorId" value={id} />
+                <label className="text-sm">
+                  <span className="block text-xs uppercase tracking-wide text-slate">Owner&rsquo;s account email</span>
+                  <input name="email" type="email" required className="mt-1 w-72 rounded-md border border-cardline px-3 py-2" placeholder="owner@example.com" />
+                </label>
+                <button type="submit" className="rounded-md border border-cardline px-4 py-2 text-sm font-medium text-navy hover:bg-warmwhite">Attach owner</button>
+                <span className="text-xs text-slate">Must already have a confirmed Price2Book account. For when you know it already exists — otherwise, invite them above.</span>
+              </form>
+            </details>
+          )}
+
+          {s.invitation.history.length > 0 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs text-slate hover:text-navy">Invitation history ({s.invitation.history.length})</summary>
+              <ul className="mt-2 space-y-1 text-xs text-slate">
+                {s.invitation.history.map((h) => (
+                  <li key={h.id}>{h.email} — {h.status} {h.at.toISOString().slice(0, 10)}</li>
+                ))}
+              </ul>
+            </details>
           )}
         </Step>
 
