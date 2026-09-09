@@ -28,6 +28,46 @@ import { suggestPrimaryPrice } from "./pricing";
 import { servicesOnHold } from "./materialHolds";
 import { loadServiceForResolution, loadPricingSettings } from "./routeResolver";
 import { validateEstimateBounds } from "./pricingReadiness";
+import { mapWithConcurrency } from "./concurrency";
+
+/**
+ * How many offered services' promises are resolved at once, per contractor.
+ *
+ * Each one is ~8 sequential queries (loadServiceForResolution's question
+ * tree, answer options, components, photo groups, …) with no shared state
+ * between services, so running them one at a time serialized pure network
+ * round-trip time for nothing: measured directly against the real database,
+ * a 65-offered-service contractor cost 526 queries and 18.3s wall clock, 95%
+ * of it query time.
+ *
+ * QUERY COUNT ALSO DROPS UNDER CONCURRENCY — PROVEN, NOT GUESSED, AND NOT
+ * WHY THIS EXISTS. A same-data, same-moment before/after comparison (the
+ * sequential code from a throwaway worktree at the prior commit, run
+ * immediately before and after this code, against the identical rows)
+ * showed 526 -> 480 queries for that contractor. Diffing the exact query
+ * text, not just the count, showed why: sequential resolution issued one
+ * `WHERE "id" = $1` per service; concurrent resolution let Prisma's own
+ * client batch same-tick `findUnique`-shaped calls into `WHERE "id" IN
+ * ($1..$5)` — its own documented behavior, not something this file does.
+ * Fewer round trips, identical rows returned, so the byte-for-byte
+ * identical findings this fix was measured against are exactly what a
+ * proven-safe batching optimization predicts. An EARLIER version of this
+ * comment (and the commit that introduced this constant) attributed the
+ * drop to a duplicate-query race in diagnosticFor's cache below — checked
+ * directly and it was wrong: the diffed queries are the services/questions
+ * resolution path, never the diagnostic lookup, and a race would have ADDED
+ * queries, not removed them. The wall-clock win this constant exists for
+ * comes from concurrency letting independent round-trips overlap; the
+ * query-count drop is Prisma's batching riding along for free, not the
+ * mechanism being tuned here.
+ *
+ * Conservative on purpose, and paired with the platform overview's own
+ * OVERVIEW_CONCURRENCY (3 contractors at once): worst case is 3 contractors
+ * each resolving 5 services at once, 15 connections in flight, not 5 alone.
+ * Raise it only with a fresh before/after measurement in hand — see
+ * docs on this fix for the method.
+ */
+const SERVICE_PROMISE_CONCURRENCY = 5;
 
 export type Severity = "blocker" | "warning";
 
@@ -327,6 +367,15 @@ export async function assessOnboarding(
     | { kind: "ONE"; name: string; offered: boolean; active: boolean }
     | { kind: "NONE" }
     | { kind: "AMBIGUOUS" };
+  // Read by up to SERVICE_PROMISE_CONCURRENCY services at once. Two same-trade
+  // services racing before either has cached still both query and both cache
+  // the same answer — a possible duplicate query under concurrency, never a
+  // wrong one, so this needs no lock. NOTE: this is not what the measured
+  // query-count drop above turned out to be — diagnosticFor is only called
+  // for services with a dead route, far fewer than the offered-service
+  // total, and the queries that actually dropped were the services/questions
+  // resolution path. Left here because it's still a true, if unrelated,
+  // property of this cache under concurrency.
   const diagnosticByTrade = new Map<string, DiagnosticState>();
   const diagnosticFor = async (tradeKey: string | null): Promise<DiagnosticState> => {
     // No trade established: not "no diagnostic", but "this service cannot say
@@ -353,7 +402,14 @@ export async function assessOnboarding(
     return state;
   };
 
-  for (const { svc } of intended) {
+  // Bounded concurrency, not a sequential loop: each service's promise is
+  // independent (own query, own findings), and running them one at a time
+  // serialized pure network round-trip time. mapWithConcurrency returns
+  // results in input order, so this is a mechanical restructuring — same
+  // findings, same order, same every-check-still-runs guarantee — not a
+  // behavior change. See SERVICE_PROMISE_CONCURRENCY's own comment.
+  const perServiceFindings = await mapWithConcurrency(intended, SERVICE_PROMISE_CONCURRENCY, async ({ svc }): Promise<Finding[]> => {
+    const out: Finding[] = [];
     const slug = svc.slug as string;
     const promise = await promiseFor(
       db, { id: svc.id as string, bookingType: svc.bookingType as string }, settings
@@ -384,7 +440,7 @@ export async function assessOnboarding(
       const resolvesOnLaunch =
         onlyDiagnostic && diagnostic.kind === "ONE" && diagnostic.offered && !diagnostic.active;
 
-      findings.services.push(
+      out.push(
         resolvesOnLaunch
           ? w("HANDOFF_NOT_LIVE_YET",
               `${slug} sends "it stopped working" to ${diagnostic.kind === "ONE" ? diagnostic.name : "your diagnostic"}, which isn't live yet. ` +
@@ -396,11 +452,11 @@ export async function assessOnboarding(
       );
     }
 
-    if (!promise.promisesFixedPrice) continue; // quote-only: no price is owed
+    if (!promise.promisesFixedPrice) return out; // quote-only: no price is owed
 
     if (strategy === "FLAT_RATE") {
       if (svc.publishedPriceApprovedAt === null) {
-        findings.services.push(b("PRICE_NOT_APPROVED",
+        out.push(b("PRICE_NOT_APPROVED",
           // Strategy-neutral wording: this file is scanned by the storefront
           // copy linter, and a fixed-price claim is one TIME_AND_MATERIALS
           // cannot keep. What is true either way is that a route reaches an
@@ -424,15 +480,15 @@ export async function assessOnboarding(
           // Deliberately NOT auto-filled. How long a job takes is the
           // contractor's own number, and inventing one to clear a blocker is the
           // §3.1 defect the engine refuses a price to avoid.
-          findings.services.push(b("LABOR_INPUTS_MISSING",
+          out.push(b("LABOR_INPUTS_MISSING",
             `${slug} can't be priced yet — ${lowerFirst(suggestion.unavailableReason ?? "an input is missing, not zero")}.`,
             { serviceSlug: slug, href: `/dashboard/services/${svc.id as string}` }));
         } else if (svc.basePrice !== null && derived !== svc.basePrice) {
-          findings.services.push(w("PRICE_DRIFTED",
+          out.push(w("PRICE_DRIFTED",
             `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
             { serviceSlug: slug, href: "/dashboard/services" }));
         } else if (svc.publishedPriceApprovedAt === null && derived !== null) {
-          findings.services.push(w("SUGGESTED_NOT_APPROVED",
+          out.push(w("SUGGESTED_NOT_APPROVED",
             `${slug} has a suggested price of $${(derived / 100).toFixed(2)} waiting for you to approve it.`,
             { serviceSlug: slug, href: "/dashboard/services" }));
         }
@@ -446,21 +502,23 @@ export async function assessOnboarding(
       const bad = validateEstimateBounds(svc.estimateLowCrewHours as number | null, svc.estimateHighCrewHours as number | null);
       if (bad.length > 0) {
         const unset = bad.some((x) => x.code === "unset");
-        findings.services.push(b(unset ? "ESTIMATE_BOUNDS_MISSING" : "ESTIMATE_BOUNDS_INVALID",
+        out.push(b(unset ? "ESTIMATE_BOUNDS_MISSING" : "ESTIMATE_BOUNDS_INVALID",
           `${slug} can't be priced yet — ${lowerFirst(bad[0].message)}`,
           { serviceSlug: slug, href: "/dashboard/estimates" }));
       } else if (svc.estimateApprovedAt === null) {
-        findings.services.push(b("ESTIMATE_NOT_APPROVED",
+        out.push(b("ESTIMATE_NOT_APPROVED",
           `${slug} has an estimate range entered but not yet approved for customers.`,
           { serviceSlug: slug, href: "/dashboard/estimates" }));
       }
     }
     if (promise.routes.priced > 0 && promise.routes.review === 0) {
-      findings.services.push(w("TREE_UNBOUNDED",
+      out.push(w("TREE_UNBOUNDED",
         `${slug} prices every answer path. Nothing sends an unusual job to review.`,
         { serviceSlug: slug, href: "/dashboard/services" }));
     }
-  }
+    return out;
+  });
+  findings.services.push(...perServiceFindings.flat());
 
   // THE SAME-VISIT PROMISE, only if it can be kept.
   //

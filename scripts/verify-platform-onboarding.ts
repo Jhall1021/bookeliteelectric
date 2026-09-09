@@ -428,7 +428,10 @@ async function main() {
   ok(`   there is one readiness engine: the module never computes canLaunch or a blocker of its own`, !/canLaunch:\s*(true|false|!?[\w.]*blockers)/.test(mod) && !/severity:\s*"blocker"/.test(mod) && /assessOnboarding\(/.test(mod) && /contractorFactsFor\(db, user, contractorId\)/.test(mod));
   ok(`   completedAt is never stamped — finishing is derived, not declared`, !/completedAt:/.test(mod));
   const surfaces = sourceFiles(["app/platform/onboarding"]);
-  ok(`   the wizard's pages and actions exist`, surfaces.length === 3, surfaces.join(", "));
+  // 4, not 3: page.tsx, actions.ts, [contractorId]/page.tsx, plus loading.tsx —
+  // a static skeleton with no data, no query and (checked below) no mutating
+  // call, added so the browser shows something during the per-contractor reads.
+  ok(`   the wizard's pages and actions exist`, surfaces.length === 4, surfaces.join(", "));
   const surfaceWrites = surfaces.flatMap((f) => mutatingCalls(readFileSync(f, "utf8"), f).map((w) => `${f}:${w.callee}`));
   ok(`   no page or action makes a mutating call`, surfaceWrites.length === 0, surfaceWrites.join("; "));
   ok(`   no page or action imports a Prisma client, the contractor boundary, or the read model's doors`, surfaces.every((f) => !/from "@\/lib\/prisma"|adminContext|withPlatformContractor|withPlatformFor|PrismaClient/.test(strip(f))));

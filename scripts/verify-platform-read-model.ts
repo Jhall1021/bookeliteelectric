@@ -65,6 +65,10 @@ const SURFACE_POLICY: Policy = {
   // queries nothing. Shown on Overview, Contractors and the onboarding
   // index so a hidden verifier fixture is never mistaken for silence.
   "@/components/platform/HiddenFixturesNote": ["HiddenFixturesNote"],
+  // Presentational: reads only the form's own pending state via
+  // useFormStatus, decides nothing, queries nothing.
+  "react-dom": ["useFormStatus"],
+  "@/components/platform/SubmitButton": ["SubmitButton"],
 };
 const READ_MODEL_POLICY: Policy = {
   "./prisma": ["prisma"],
@@ -73,6 +77,10 @@ const READ_MODEL_POLICY: Policy = {
   "./onboardingReadiness": ["assessOnboarding"],
   "./stripeConnect": ["connectReadiness"],
   "./fixtureContractors": ["partitionFixtures"],
+  // A pure, dependency-free scheduling helper — extracted so
+  // onboardingReadiness.ts can use it too without importing FROM this file,
+  // which already imports assessOnboarding FROM onboardingReadiness.ts.
+  "./concurrency": ["mapWithConcurrency"],
 };
 
 const raw = new PrismaClient();
