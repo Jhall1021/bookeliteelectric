@@ -31,7 +31,7 @@ export async function PATCH(req: Request) {
     });
     if (contractor.pricingStrategy !== "FLAT_RATE") {
       return NextResponse.json(
-        { error: "Labor time calibration applies to flat-rate pricing only." },
+        { error: "Labor time calibration is not used by time-and-materials estimating." },
         { status: 409 }
       );
     }

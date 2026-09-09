@@ -189,9 +189,9 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
       <div className="mt-6 rounded-card border border-cardline bg-white p-5 shadow-card">
         <h2 className="font-display text-lg font-bold text-navy">Calibrate your labor times</h2>
         <p className="mt-1 text-sm text-slate">
-          A few quick questions about how long common tasks take with your usual crew — Elite&apos;s own
-          numbers play no part in what you answer here. Your answers generate proposed times you can
-          edit and review before anything is saved.
+          A few quick questions about how long common tasks take with your usual crew — nothing here
+          is seeded from another contractor&apos;s numbers. Your answers generate proposed times you
+          can edit and review before anything is saved.
         </p>
         <button
           type="button"
@@ -242,8 +242,8 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
         <div className="mt-4">
           <p className="text-sm text-slate">What&apos;s your usual crew for this kind of work?</p>
           <p className="mt-1 text-xs text-slate">
-            For context only — this never changes your price. Your existing crew-hour rate already
-            covers your usual crew.
+            For context only — this never changes what you charge. Your existing crew-hour rate
+            already covers your usual crew.
           </p>
           <div className="mt-3 flex items-center gap-2">
             <input
