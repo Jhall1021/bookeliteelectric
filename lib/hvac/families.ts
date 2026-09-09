@@ -47,7 +47,8 @@ export type HvacFamilyKey =
   | "finish_disruption_ack"
   | "dedicated_power_availability"
   | "indoor_unit_form"
-  | "water_supply_availability";
+  | "water_supply_availability"
+  | "vent_cover_configuration";
 
 export type HvacFamily = {
   key: HvacFamilyKey;
@@ -233,6 +234,15 @@ export const HVAC_FAMILIES: readonly HvacFamily[] = [
     gates: [],
     primitives: [],
   },
+  {
+    key: "vent_cover_configuration",
+    title: "The vent covers or grilles being replaced",
+    purpose:
+      "H9 addition. Three facts read off the same existing covers in the same look — whether several openings are a uniform size, the printed or measured size itself, and which surface they're on — the same 'read together, declared together' justification accessory_and_media already uses for its own bundled facts. NOT indoor_equipment_access: that family's own purpose is reaching indoor EQUIPMENT (a furnace, an air handler), and a vent cover is not equipment — its own mount surface already carries the only placement signal this service needs, more precisely than indoor_equipment_access's generic ACCESSIBLE/FINISHED vocabulary would. No duct sizing, no adequacy, no airflow, no condition — every fact here is a direct physical observation of the cover itself, never a judgment about the ductwork behind it.",
+    establishes: ["opening_size_pattern", "opening_dimensions", "mount_surface"],
+    gates: [],
+    primitives: [],
+  },
 ] as const;
 
 export const HVAC_FAMILY_KEYS: readonly HvacFamilyKey[] = HVAC_FAMILIES.map((f) => f.key);
@@ -400,7 +410,12 @@ export const HVAC_SERVICE_FAMILIES: Readonly<Record<string, readonly HvacFamilyU
     { family: "accessory_and_media" },
   ],
   "vent-cover-replacement": [
-    { family: "indoor_equipment_access" },
+    // H9 correction: indoor_equipment_access removed — a vent cover is not
+    // HVAC equipment, and that family's own ACCESSIBLE/FINISHED vocabulary
+    // was written for reaching a furnace or air handler, not for
+    // describing which wall a register sits on. mount_surface (below)
+    // already carries the only placement signal this service needs.
+    { family: "vent_cover_configuration" },
     // "count" is a quantity, not a family (H2 audit item 2) — not listed
     // here because it establishes no canonical fact a gate or mapping
     // reads; it is a number the tree asks directly.
