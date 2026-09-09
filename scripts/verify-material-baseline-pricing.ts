@@ -29,6 +29,17 @@
  *                         contractor, carrying the exact baseline version
  *                         accepted (or none, for an override)
  *
+ * FIXTURE ISOLATION. Any SYNTHETIC baseline version this script needs
+ * (reference immutability's "a newer version arrives") is attached to a
+ * CanonicalMaterial this run creates and destroys itself — never to a real
+ * catalog role like WIRE_12_2. A fake price attached to a real role, even
+ * for the instant between creating it and deleting it, is what
+ * latestBaselineVersionsFor would offer to every OTHER contractor's live
+ * unresolved role of that kind — a real cross-tenant leak, not an
+ * untidiness. Cleanup runs in a `finally`, so a throw from ANY check still
+ * leaves the run-owned role, its baseline versions, and every fixture
+ * contractor gone at the end — not just on the happy path.
+ *
  *   npx tsx scripts/verify-material-baseline-pricing.ts
  */
 import { PrismaClient } from "@prisma/client";
@@ -98,6 +109,13 @@ async function main() {
   console.log(`\nMATERIAL BASELINE PRICING — batch accept, override, skip, and every guard around them\n`);
   await teardown();
   await sweepStale();
+
+  // Set once check 11 creates its own run-owned canonical role. Read in the
+  // finally block below so a throw ANYWHERE in this function — not just a
+  // failed assertion inside check 11 itself — still leaves nothing behind.
+  let testRoleId: string | null = null;
+
+  try {
 
   const [wire122, gfci, bathFan] = await Promise.all([
     raw.canonicalMaterial.findUniqueOrThrow({ where: { key: "WIRE_12_2" }, select: { id: true } }),
@@ -221,31 +239,56 @@ async function main() {
   ok(`    ...recording it came from BASELINE, pointing at the EXACT version accepted`,
     aAcceptEvent.source === "BASELINE" && aAcceptEvent.baselineVersionId === wire122Baseline.id);
 
-  // ── 11. reference immutability — a NEW version never rewrites what A already accepted ─
+  // ── 11. reference immutability — a NEW version never rewrites what's
+  // already accepted. RUN-OWNED canonical role and RUN-OWNED baseline
+  // versions throughout — NEVER a synthetic "newer" version attached to a
+  // REAL catalog role like WIRE_12_2. Attaching one there, even briefly,
+  // would make it `latestBaselineVersionsFor`'s answer for every OTHER
+  // contractor's live unresolved wire role for however long it existed
+  // before this script's own delete ran — a real cross-tenant leak of a
+  // fake price, not just an untidy test. A role this run creates, prices,
+  // and destroys itself carries none of that risk. ───────────────────────
+  const testRole = await raw.canonicalMaterial.create({
+    data: { key: `TEST_BASELINE_IMMUTABILITY_ROLE_${RUN}`, name: "Test-only role (reference immutability fixture)", unit: "ft" },
+  });
+  testRoleId = testRole.id;
+  const originalVersion = await raw.materialBaselineVersion.create({
+    data: {
+      canonicalMaterialId: testRole.id, unitCostCents: 500, unit: "ft",
+      sourceLabel: "verifier — run-owned fixture, original", specNote: "test fixture only, deleted at teardown",
+      sourcedAt: new Date(Date.now() - 1000),
+    },
+  });
+  const acceptedTestRole = await withContractor(a.id, "admin-session", (db) =>
+    acceptMaterialBaselineVersion(db, { contractorId: a.id, baselineVersionId: originalVersion.id }, { reason: "reference immutability fixture", actor: "verifier" })
+  );
+  ok(`11. the run-owned fixture role accepts cleanly, giving this check something to hold immutable`, acceptedTestRole.ok);
+
   const newerVersion = await raw.materialBaselineVersion.create({
     data: {
-      canonicalMaterialId: wire122.id, unitCostCents: wire122Baseline.unitCostCents + 500, unit: "ft",
-      sourceLabel: "verifier — simulated later price rise", specNote: "test fixture, deleted at teardown",
+      canonicalMaterialId: testRole.id, unitCostCents: originalVersion.unitCostCents + 500, unit: "ft",
+      sourceLabel: "verifier — run-owned fixture, simulated later price rise", specNote: "test fixture only, deleted at teardown",
       sourcedAt: new Date(),
     },
   });
   const aMaterialAfterNewVersion = await raw.contractorMaterial.findUniqueOrThrow({
-    where: { contractorId_canonicalMaterialId: { contractorId: a.id, canonicalMaterialId: wire122.id } },
+    where: { contractorId_canonicalMaterialId: { contractorId: a.id, canonicalMaterialId: testRole.id } },
     select: { unitCostCents: true, acceptedBaselineVersionId: true },
   });
-  ok(`11. a NEW baseline version changes nothing already accepted — cost is exactly the same`,
-    aMaterialAfterNewVersion.unitCostCents === wire122Baseline.unitCostCents);
+  ok(`    a NEW baseline version changes nothing already accepted — cost is exactly the same`,
+    aMaterialAfterNewVersion.unitCostCents === originalVersion.unitCostCents);
   ok(`    ...and still points at the OLD version, not the new one`,
-    aMaterialAfterNewVersion.acceptedBaselineVersionId === wire122Baseline.id);
+    aMaterialAfterNewVersion.acceptedBaselineVersionId === originalVersion.id);
   const aAcceptEventAfterNewVersion = await raw.materialCostEvent.findFirstOrThrow({
-    where: { contractorMaterial: { contractorId: a.id, canonicalMaterialId: wire122.id } },
+    where: { contractorMaterial: { contractorId: a.id, canonicalMaterialId: testRole.id } },
     select: { baselineVersionId: true },
   });
   ok(`    ...and the ORIGINAL event's pointer is unchanged too — permanent history, not a live reference`,
-    aAcceptEventAfterNewVersion.baselineVersionId === wire122Baseline.id);
+    aAcceptEventAfterNewVersion.baselineVersionId === originalVersion.id);
   ok(`    ...and the offer for anyone NOT yet resolved is now the newer, later-sourced version`,
-    (await latestBaselineVersionsFor(raw, [wire122.id])).get(wire122.id)?.id === newerVersion.id);
+    (await latestBaselineVersionsFor(raw, [testRole.id])).get(testRole.id)?.id === newerVersion.id);
   await raw.materialBaselineVersion.delete({ where: { id: newerVersion.id } });
+  await raw.materialBaselineVersion.delete({ where: { id: originalVersion.id } });
 
   // ── 12. editing an ACCEPTED baseline through the ordinary CUSTOM path ──
   // ContractorMaterial.acceptedBaselineVersionId's own doc comment promises
@@ -362,11 +405,26 @@ async function main() {
   ok(`18. a real retry after both injected failures succeeds normally`, overrideRetry.ok && overrideRetry.unitCostCents === 5555);
   ok(`    ...D's fan service is now genuinely resolved`, (await stateOf(dFanService)).materialCostResolved);
 
-  console.log(`\n  cleanup, then done\n`);
-  await teardown();
-  const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B, SLUG_C, SLUG_D] } } });
-  ok(`19. every fixture is gone at the end`, residue === 0);
-  await raw.$disconnect();
+  } finally {
+    // Runs on every exit path, including a throw from any check above —
+    // not just the happy path this used to assume. Contractors first (their
+    // own ContractorMaterial rows, including any pointing at the run-owned
+    // role, go with them), THEN the run-owned role's own baseline versions
+    // and the role itself, in FK order: ContractorMaterial -> CanonicalMaterial
+    // is Restrict, so the role can't go until nothing still references it.
+    console.log(`\n  cleanup, then done\n`);
+    await teardown();
+    if (testRoleId) {
+      await raw.materialBaselineVersion.deleteMany({ where: { canonicalMaterialId: testRoleId } }).catch(() => {});
+      await raw.canonicalMaterial.delete({ where: { id: testRoleId } }).catch(() => {});
+    }
+    const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B, SLUG_C, SLUG_D] } } });
+    ok(`19. every fixture is gone at the end`, residue === 0);
+    const roleResidue = testRoleId ? await raw.canonicalMaterial.count({ where: { id: testRoleId } }) : 0;
+    ok(`    ...and the run-owned canonical role is gone too — never left attached to the real catalog`, roleResidue === 0);
+    await raw.$disconnect();
+  }
+
   console.log(`\n  ${fail === 0 ? "all checks passed" : `${fail} check(s) failed`}\n`);
   if (fail > 0) process.exit(1);
 }
