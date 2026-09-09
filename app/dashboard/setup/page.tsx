@@ -10,6 +10,8 @@ import BusinessPanel from "./BusinessPanel";
 import StageRail from "./StageRail";
 import TradePanel from "./TradePanel";
 import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
+import MaterialBaselineBatchPanel, { type BaselineRow } from "./MaterialBaselineBatchPanel";
+import { latestBaselineVersionsFor } from "@/lib/materialCost";
 import SchedulingPanel from "./SchedulingPanel";
 import PaymentsPanel from "./PaymentsPanel";
 import LaunchPanel, { type Launchable } from "./LaunchPanel";
@@ -85,6 +87,11 @@ export default async function SetupPage({
     let launchable: Launchable[] = [];
 
     const stage = r.stages.find((s) => s.key === current)!;
+    // Computed once, read by both the batch-review data fetch below and the
+    // panel's own render — the readiness engine already grouped these by
+    // role rather than by service, and this must not re-derive that grouping
+    // a second way.
+    const roleFindings = stage.findings.filter((f) => f.code === "MATERIAL_COST_UNRESOLVED");
 
     if (current === "scheduling") {
       jobberConnected = (await db.jobberConnection.count({ where: { contractorId: ctx.contractorId } })) > 0;
@@ -207,6 +214,7 @@ export default async function SetupPage({
       roundingIncrementCents: number; defaultPermitAdminCents: number;
     } | null = null;
     let pricing: ServicePricing[] = [];
+    let baselineRows: BaselineRow[] = [];
 
     if (current === "services") {
       selection = await catalogPromises(db, ctx.contractorId);
@@ -274,6 +282,34 @@ export default async function SetupPage({
           };
         });
       }
+
+      // Batch-review data: one row per unresolved canonical role, its
+      // affected services (already grouped by the readiness engine, not
+      // re-derived here) and the current Material Baseline offer, if any.
+      const roleKeys = roleFindings.map((f) => f.materialKey).filter((k): k is string => !!k);
+      if (roleKeys.length > 0) {
+        const canonicalMaterials = await db.canonicalMaterial.findMany({
+          where: { key: { in: roleKeys } },
+          select: { id: true, key: true, name: true, unit: true },
+        });
+        const byKey = new Map(canonicalMaterials.map((m) => [m.key, m]));
+        const baselines = await latestBaselineVersionsFor(db, canonicalMaterials.map((m) => m.id));
+        baselineRows = roleFindings
+          .map((f) => {
+            const cm = f.materialKey ? byKey.get(f.materialKey) : undefined;
+            if (!cm) return null;
+            const baseline = baselines.get(cm.id);
+            return {
+              canonicalMaterialId: cm.id,
+              key: cm.key,
+              name: cm.name,
+              unit: cm.unit,
+              affectedServiceSlugs: f.affectedServiceSlugs ?? [],
+              baseline: baseline ? { ...baseline, sourcedAt: baseline.sourcedAt.toISOString() } : null,
+            };
+          })
+          .filter((r): r is BaselineRow => r !== null);
+      }
     }
     const totalServices = await db.service.count({ where: { contractorId: ctx.contractorId } });
 
@@ -295,9 +331,17 @@ export default async function SetupPage({
       </li>
     );
 
-    const blockersFirst = [...stage.findings].sort(
-      (a, b) => (a.severity === "blocker" ? 0 : 1) - (b.severity === "blocker" ? 0 : 1)
-    );
+    // MATERIAL_COST_UNRESOLVED is excluded here on this one stage — it is
+    // the same finding the batch-review panel above already lists,
+    // interactively, with something to actually do about it. Left in, a
+    // contractor would see every unresolved role twice: once as a real
+    // accept/override/skip, and once more as dead prose pointing at
+    // /dashboard/services, which this panel has superseded. Every other
+    // stage is unaffected — this code only groups MATERIAL_COST_UNRESOLVED
+    // under "pricing-foundation" in the first place.
+    const blockersFirst = stage.findings
+      .filter((f) => !(current === "pricing-foundation" && f.code === "MATERIAL_COST_UNRESOLVED"))
+      .sort((a, b) => (a.severity === "blocker" ? 0 : 1) - (b.severity === "blocker" ? 0 : 1));
 
     return (
       <div className="mx-auto max-w-4xl">
@@ -373,11 +417,18 @@ export default async function SetupPage({
               <div className="mt-4">
                 <PricingFoundationPanel
                   settings={rateSettings}
-                  roleFindings={stage.findings.filter((f) => f.code === "MATERIAL_COST_UNRESOLVED")}
+                  // Material findings are handled interactively by the batch
+                  // panel below now, not lumped into this panel's own
+                  // "decisions left" prose list — passing them here too would
+                  // show the same unresolved role twice, once as a dead-end
+                  // "Fix" link and once as something this page can actually
+                  // act on.
+                  roleFindings={[]}
                   policyFindings={stage.findings.filter((f) => f.code === "POLICY_UNRESOLVED")}
                   services={pricing}
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
                 />
+                <MaterialBaselineBatchPanel rows={baselineRows} />
               </div>
             )}
 

@@ -1,5 +1,12 @@
 /**
- * Fifteen HVAC question families — H2, corrected.
+ * Nineteen HVAC question families. H2 settled fifteen (corrected from the
+ * original package's fourteen — see the H2 audit correction note, below);
+ * H8 added two (`indoor_unit_form`, `water_supply_availability`); H9 added
+ * one (`vent_cover_configuration`); H11 added one (`equipment_installation_
+ * context`). 15 + 2 + 1 + 1 = 19, the CURRENT boundary this file's own
+ * `HVAC_FAMILIES` array holds — scripts/verify-hvac-template.ts asserts it
+ * directly, retitled at each phase on the same supersede-on-purpose
+ * discipline this comment now follows too.
  *
  * A family is a MANIFEST, not a tree — exactly Plumbing's definition
  * (lib/plumbing/families.ts): which canonical facts a family establishes,
@@ -45,7 +52,11 @@ export type HvacFamilyKey =
   | "run_distance"
   | "existing_condition"
   | "finish_disruption_ack"
-  | "dedicated_power_availability";
+  | "dedicated_power_availability"
+  | "indoor_unit_form"
+  | "water_supply_availability"
+  | "vent_cover_configuration"
+  | "equipment_installation_context";
 
 export type HvacFamily = {
   key: HvacFamilyKey;
@@ -107,8 +118,15 @@ export const HVAC_FAMILIES: readonly HvacFamily[] = [
   {
     key: "existing_control",
     title: "The existing thermostat or control",
-    purpose: "The highest-volume family in the catalog. control_present, conductor_count and common_wire are read off one photograph of the sub-base.",
-    establishes: ["control_present", "conductor_count", "common_wire", "thermostat_count"],
+    purpose: "The highest-volume family in the catalog. control_present, terminal_scheme, conductor_count and common_wire are read off one photograph of the sub-base.",
+    // H4: terminal_scheme added — what's printed on the plate (standard
+    // lettered vs. manufacturer-specific), the safety check for a
+    // proprietary or communicating control, asked before common_wire since
+    // "is there a C wire" presumes a lettered scheme in the first place.
+    // conductor_count stays declared: a real, valid observable fact for a
+    // future compatibility refinement, but the V1 tree does not render it
+    // as a live question — see lib/hvac/scope.ts's thermostat resolver.
+    establishes: ["control_present", "terminal_scheme", "conductor_count", "common_wire", "thermostat_count"],
     gates: ["control_gate"],
     primitives: [],
   },
@@ -126,7 +144,23 @@ export const HVAC_FAMILIES: readonly HvacFamily[] = [
     title: "The accessory or media device",
     purpose:
       "One family because accessory presence, whether it's a replacement or a new fit, and the filter/media size are all read off the same cabinet in the same look.",
-    establishes: ["accessory_present", "replacement_vs_new", "filter_slot_size"],
+    // H7: accessory_kind added — HUMIDIFIER | AIR_CLEANER | UV_TREATMENT |
+    // UNKNOWN, which existing accessory contains the consumable being
+    // replaced. Deliberately separate from accessory_present, which stays
+    // about PRESENCE (is one there) — accessory_kind is a different
+    // observation (which one), needed only by accessory-consumable-
+    // replacement, the one merged service without its own accessory_and_media-
+    // declared service to read presence against. Not rendered by any other
+    // accessory_and_media-declared service; each renders only what it needs
+    // (lib/hvac/scope.ts's own per-service resolvers).
+    //
+    // H8: humidifier_type added — BYPASS | FAN_POWERED | STEAM | UNKNOWN,
+    // read directly off the unit (a bypass humidifier has no visible
+    // fan/motor, a fan-powered one does, a steam one has a distinct
+    // canister/electrode assembly) — never inferred from a manufacturer or
+    // model string. Needed only by whole-house-humidifier; no other
+    // accessory_and_media-declared service renders it.
+    establishes: ["accessory_present", "accessory_kind", "humidifier_type", "replacement_vs_new", "filter_slot_size"],
     gates: [],
     primitives: [],
   },
@@ -187,6 +221,42 @@ export const HVAC_FAMILIES: readonly HvacFamily[] = [
     purpose:
       "H2 audit addition. An observable fact — is there a socket within reach of the installation point — not a diagnosis of the circuit's adequacy. Confirmed by the catalog review's own observable-question column for two services, and by the original candidate-level analysis for a third (whole-house-humidifier's absent/new-installation branch, dropped from the summarized family table but never revoked).",
     establishes: ["dedicated_circuit_present"],
+    gates: [],
+    primitives: [],
+  },
+  {
+    key: "indoor_unit_form",
+    title: "The physical form of the indoor mini-split unit",
+    purpose:
+      "H8 addition. An observable fact — what the unit looks like and where it sits (wall, ceiling, floor, or concealed) — never a diagnosis of capacity, refrigerant configuration, serviceability, manufacturer compatibility, or whether the unit needs cleaning. Deliberately its own narrow family, not folded into distribution_and_zoning: that family stays quantity/zoning-oriented (how many, never what kind), the same distinction capacity_gate's families draw between counting equipment and describing it. Needed only by mini-split-head-cleaning; not added to mini-split-tune-up or any other service merely because it might be useful later.",
+    establishes: ["indoor_unit_type"],
+    gates: [],
+    primitives: [],
+  },
+  {
+    key: "water_supply_availability",
+    title: "Whether a water connection is within reach",
+    purpose:
+      "H8 addition. An observable fact — is there visible existing water tubing or a connection point within reach of the proposed installation — not a diagnosis of whether that connection is adequate, whether tapping it is permitted, or whether pressure is sufficient. The same narrow shape dedicated_power_availability already established for electrical prerequisites, here for water: F.7's own worked example asks this question and its resolution depends on the answer, but no family or fact was ever declared for it — families.ts's own dedicated_power_availability comment already flagged the gap (\"water supply, condensate_route, dedicated_circuit_present, run_band\" was the original candidate-level branch; the water half was dropped from the summary table and never restored). A genuinely independent physical-domain concept — not condensate (drain, a different pipe), not power (electrical), not run_distance (a length policy) — so it is not hidden inside any of them.",
+    establishes: ["water_supply_present"],
+    gates: [],
+    primitives: [],
+  },
+  {
+    key: "vent_cover_configuration",
+    title: "The vent covers or grilles being replaced",
+    purpose:
+      "H9 addition. Three facts read off the same existing covers in the same look — whether several openings are a uniform size, the printed or measured size itself, and which surface they're on — the same 'read together, declared together' justification accessory_and_media already uses for its own bundled facts. NOT indoor_equipment_access: that family's own purpose is reaching indoor EQUIPMENT (a furnace, an air handler), and a vent cover is not equipment — its own mount surface already carries the only placement signal this service needs, more precisely than indoor_equipment_access's generic ACCESSIBLE/FINISHED vocabulary would. No duct sizing, no adequacy, no airflow, no condition — every fact here is a direct physical observation of the cover itself, never a judgment about the ductwork behind it.",
+    establishes: ["opening_size_pattern", "opening_dimensions", "mount_surface"],
+    gates: [],
+    primitives: [],
+  },
+  {
+    key: "equipment_installation_context",
+    title: "Whether an existing unit is being replaced or this is a first-time installation",
+    purpose:
+      "H11 addition. One fact, narrow on purpose: mini-split-installation is the presence/absence merge (decision 8) already reused across the catalog — replacement and new-install are the same physical service with one branch, not two services. NOT accessory_and_media: that family's own replacement_vs_new value describes an accessory or media device (a humidifier, a filter cabinet), and a mini-split system is neither — reusing it here would be the same category error H9 declined when it built vent_cover_configuration instead of reaching for indoor_equipment_access. No judgment about the existing unit's condition, age or suitability — only whether one exists.",
+    establishes: ["replacement_vs_new"],
     gates: [],
     primitives: [],
   },
@@ -257,11 +327,26 @@ export const HVAC_SERVICE_FAMILIES: Readonly<Record<string, readonly HvacFamilyU
     { family: "indoor_equipment_access" },
     { family: "outdoor_equipment_access" },
     { family: "refrigerant_lineset" },
-    { family: "existing_control" },
+    // H11 correction: existing_control removed. Part 7's applied text —
+    // "capture indoor equipment identity, backup heat where observable,
+    // and thermostat identity" — describes evidence captures, not a
+    // control-compatibility gate. existing_control's own deterministic
+    // facts (control_present, terminal_scheme, conductor_count,
+    // common_wire) answer "can the selected new control be installed
+    // here", a question that belongs to thermostat-installation. Forcing
+    // controlGate in here would invent a thermostat-compatibility rule
+    // this service was never given authority for.
   ],
   "whole-system-replacement": [
     { family: "system_identity" },
-    { family: "heating_equipment" },
+    // H11 correction: heating_equipment is branch-only. Every configuration
+    // has outdoor cooling capacity (cooling_equipment stays unconditional
+    // below), but only FURNACE_AND_AC and DUAL_FUEL have a combustion
+    // appliance — a straight HEAT_PUMP_SPLIT has no furnace at all, so
+    // asking fuel/venting/heating-input on that branch would ask about
+    // equipment that does not exist.
+    { family: "heating_equipment", branch: "system_type=FURNACE_AND_AC" },
+    { family: "heating_equipment", branch: "system_type=DUAL_FUEL" },
     { family: "cooling_equipment" },
     { family: "indoor_equipment_access" },
     { family: "outdoor_equipment_access" },
@@ -290,9 +375,27 @@ export const HVAC_SERVICE_FAMILIES: Readonly<Record<string, readonly HvacFamilyU
     { family: "existing_condition" },
   ],
   "mini-split-installation": [
+    // H11 addition: whether this replaces an existing mini-split or is a
+    // first-time installation — the presence/absence merge (decision 8),
+    // not accessory_and_media, which describes an accessory or media
+    // device, not equipment.
+    { family: "equipment_installation_context" },
     { family: "distribution_and_zoning" },
-    { family: "indoor_equipment_access" },
-    { family: "outdoor_equipment_access" },
+    // H11 patch-review correction: both access families are branch-only,
+    // on replacement_vs_new=REPLACEMENT. Each family's own purpose is
+    // reaching EXISTING equipment; there is no existing indoor or outdoor
+    // unit on a first-time installation whose access can be classified.
+    // Proposed indoor head positions and proposed outdoor unit position
+    // are estimate-intake facts (catalog review Part 8), collected only on
+    // a future GUIDED_ESTIMATE route, never through these families. This
+    // service still genuinely owns both HVAC_SERVICE_ACCESS_SLOTS entries
+    // below — the REPLACEMENT branch is reachable and reads them exactly
+    // as ac-replacement, heat-pump-replacement and whole-system-replacement
+    // do — it simply does not read them on every path, the same shape
+    // whole-system-replacement's own heating_equipment already has for
+    // HEAT_PUMP_SPLIT.
+    { family: "indoor_equipment_access", branch: "replacement_vs_new=REPLACEMENT" },
+    { family: "outdoor_equipment_access", branch: "replacement_vs_new=REPLACEMENT" },
     { family: "run_distance" },
     { family: "refrigerant_lineset" },
     { family: "condensate_route" },
@@ -300,6 +403,10 @@ export const HVAC_SERVICE_FAMILIES: Readonly<Record<string, readonly HvacFamilyU
   "mini-split-head-cleaning": [
     { family: "distribution_and_zoning" },
     { family: "indoor_equipment_access" },
+    // H8: the observable physical form of the unit(s) being cleaned — the
+    // final applied trade review's own third scope driver, alongside
+    // quantity and access.
+    { family: "indoor_unit_form" },
   ],
   "whole-house-humidifier": [
     { family: "accessory_and_media" },
@@ -313,6 +420,10 @@ export const HVAC_SERVICE_FAMILIES: Readonly<Record<string, readonly HvacFamilyU
     // present, run_band" over the -replacement base. Dropped from Part 3's
     // summary, never revoked.
     { family: "dedicated_power_availability", branch: "accessory_present=ABSENT (first-time installation)" },
+    // H8: the water-supply half of that same original candidate-level
+    // branch, restored — the H2 gap families.ts's own comment above has
+    // flagged since H2.
+    { family: "water_supply_availability", branch: "accessory_present=ABSENT (first-time installation)" },
   ],
   "air-cleaner-cabinet-installation": [
     { family: "accessory_and_media" },
@@ -349,7 +460,12 @@ export const HVAC_SERVICE_FAMILIES: Readonly<Record<string, readonly HvacFamilyU
     { family: "accessory_and_media" },
   ],
   "vent-cover-replacement": [
-    { family: "indoor_equipment_access" },
+    // H9 correction: indoor_equipment_access removed — a vent cover is not
+    // HVAC equipment, and that family's own ACCESSIBLE/FINISHED vocabulary
+    // was written for reaching a furnace or air handler, not for
+    // describing which wall a register sits on. mount_surface (below)
+    // already carries the only placement signal this service needs.
+    { family: "vent_cover_configuration" },
     // "count" is a quantity, not a family (H2 audit item 2) — not listed
     // here because it establishes no canonical fact a gate or mapping
     // reads; it is a number the tree asks directly.
@@ -429,6 +545,14 @@ export const HVAC_SERVICE_ACCESS_SLOTS: Readonly<Record<string, readonly AccessS
   "hvac-service-call": ["PRIMARY"],
 
   "whole-system-replacement": ["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"],
+  // mini-split-installation owns both slots BRANCH-CONDITIONALLY — genuinely
+  // used on the reachable replacement_vs_new=REPLACEMENT branch, exactly
+  // like every other two-slot REMOTE_QUOTE service above, but not read at
+  // all on NEW_INSTALLATION (families.ts's own comment on the two access
+  // family usages, above). No branch-specific access-slot platform
+  // machinery exists or is needed for this — the slot declaration itself
+  // stays a flat, unconditional list; only the SERVICE's own resolver
+  // decides whether it reads them on a given request.
   "mini-split-installation": ["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"],
   "ac-replacement": ["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"],
   "heat-pump-replacement": ["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"],
