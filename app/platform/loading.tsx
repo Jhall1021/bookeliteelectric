@@ -12,8 +12,8 @@ export default function PlatformLoading() {
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="animate-pulse rounded-card border border-cardline bg-white p-5 shadow-card">
-            <div className="h-3 w-20 rounded bg-warmwhite" />
-            <div className="mt-3 h-6 w-14 rounded bg-warmwhite" />
+            <div className="h-3 w-20 rounded bg-cardline" />
+            <div className="mt-3 h-6 w-14 rounded bg-cardline" />
           </div>
         ))}
       </div>

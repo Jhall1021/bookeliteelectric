@@ -38,7 +38,28 @@ import { mapWithConcurrency } from "./concurrency";
  * between services, so running them one at a time serialized pure network
  * round-trip time for nothing: measured directly against the real database,
  * a 65-offered-service contractor cost 526 queries and 18.3s wall clock, 95%
- * of it query time, none of it duplicate work — just unparallelized.
+ * of it query time.
+ *
+ * QUERY COUNT ALSO DROPS UNDER CONCURRENCY — PROVEN, NOT GUESSED, AND NOT
+ * WHY THIS EXISTS. A same-data, same-moment before/after comparison (the
+ * sequential code from a throwaway worktree at the prior commit, run
+ * immediately before and after this code, against the identical rows)
+ * showed 526 -> 480 queries for that contractor. Diffing the exact query
+ * text, not just the count, showed why: sequential resolution issued one
+ * `WHERE "id" = $1` per service; concurrent resolution let Prisma's own
+ * client batch same-tick `findUnique`-shaped calls into `WHERE "id" IN
+ * ($1..$5)` — its own documented behavior, not something this file does.
+ * Fewer round trips, identical rows returned, so the byte-for-byte
+ * identical findings this fix was measured against are exactly what a
+ * proven-safe batching optimization predicts. An EARLIER version of this
+ * comment (and the commit that introduced this constant) attributed the
+ * drop to a duplicate-query race in diagnosticFor's cache below — checked
+ * directly and it was wrong: the diffed queries are the services/questions
+ * resolution path, never the diagnostic lookup, and a race would have ADDED
+ * queries, not removed them. The wall-clock win this constant exists for
+ * comes from concurrency letting independent round-trips overlap; the
+ * query-count drop is Prisma's batching riding along for free, not the
+ * mechanism being tuned here.
  *
  * Conservative on purpose, and paired with the platform overview's own
  * OVERVIEW_CONCURRENCY (3 contractors at once): worst case is 3 contractors
@@ -349,7 +370,12 @@ export async function assessOnboarding(
   // Read by up to SERVICE_PROMISE_CONCURRENCY services at once. Two same-trade
   // services racing before either has cached still both query and both cache
   // the same answer — a possible duplicate query under concurrency, never a
-  // wrong one, so this needs no lock.
+  // wrong one, so this needs no lock. NOTE: this is not what the measured
+  // query-count drop above turned out to be — diagnosticFor is only called
+  // for services with a dead route, far fewer than the offered-service
+  // total, and the queries that actually dropped were the services/questions
+  // resolution path. Left here because it's still a true, if unrelated,
+  // property of this cache under concurrency.
   const diagnosticByTrade = new Map<string, DiagnosticState>();
   const diagnosticFor = async (tradeKey: string | null): Promise<DiagnosticState> => {
     // No trade established: not "no diagnostic", but "this service cannot say

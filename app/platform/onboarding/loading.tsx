@@ -3,9 +3,9 @@ export default function OnboardingIndexLoading() {
   return (
     <div aria-busy="true" aria-live="polite">
       <div className="animate-pulse space-y-2">
-        <div className="h-7 w-40 rounded bg-warmwhite" />
-        <div className="h-4 w-full max-w-2xl rounded bg-warmwhite" />
-        <div className="h-4 w-2/3 max-w-2xl rounded bg-warmwhite" />
+        <div className="h-7 w-40 rounded bg-cardline" />
+        <div className="h-4 w-full max-w-2xl rounded bg-cardline" />
+        <div className="h-4 w-2/3 max-w-2xl rounded bg-cardline" />
       </div>
       <p className="mt-6 text-sm text-slate">Loading contractors and their setup progress…</p>
       <div className="mt-4 animate-pulse space-y-3">
