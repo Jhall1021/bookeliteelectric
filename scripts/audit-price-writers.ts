@@ -229,6 +229,10 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Named owner-approved migration, 23 Aug: five services converted to quote-only, prices cleared.",
   "prisma/publish-low-voltage-sconces-2026-08-24.ts":
     "Named owner-approved migration, 24 Aug: ethernet, coax and the two sconce services published at their model figures. Refuses to write over a price already set, so a rerun cannot overwrite a later owner edit.",
+  "scripts/verify-labor-wizard.ts":
+    "Stamps basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on a THROWAWAY service so it can prove the labor wizard's shared write authority (saveServicePricingInputs) never touches them — a fieldLaborHours-only call and a full-form call are both re-read afterward to show the published price survives untouched. The contractor is created and destroyed by the test; no real contractor's price is read or written.",
+  "scripts/verify-labor-wizard-browser-flow.ts":
+    "Stamps basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on a THROWAWAY service so the browser flow can prove accepting a labor-time proposal through the real panel never moves the published price — re-read and asserted unchanged after acceptance. The contractor is created and destroyed by the test; no real contractor's price is read or written.",
 };
 
 function walk(dir: string, out: string[] = []): string[] {
