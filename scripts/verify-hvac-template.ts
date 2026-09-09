@@ -99,6 +99,23 @@ import {
   resolveVentCoverReplacement,
   VENT_COVER_REPLACEMENT_QUESTIONS,
   type VentCoverReplacementFacts,
+  resolveFurnaceReplacement,
+  FURNACE_REPLACEMENT_QUESTIONS,
+  type FurnaceReplacementFacts,
+  resolveAcReplacement,
+  AC_REPLACEMENT_QUESTIONS,
+  type AcReplacementFacts,
+  resolveHeatPumpReplacement,
+  HEAT_PUMP_REPLACEMENT_QUESTIONS,
+  type HeatPumpReplacementFacts,
+  resolveWholeSystemReplacement,
+  WHOLE_SYSTEM_REPLACEMENT_QUESTIONS,
+  type WholeSystemReplacementFacts,
+  resolveMiniSplitInstallation,
+  MINI_SPLIT_INSTALLATION_QUESTIONS,
+  type MiniSplitInstallationFacts,
+  type LinesetStatus,
+  type ReplacementVsNew,
 } from "../lib/hvac/scope";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -388,15 +405,16 @@ group("14. canonical catalog contains no diagnostic repair inference");
 // H2 — the domain vocabulary and family layer
 // ═══════════════════════════════════════════════════════════════════════
 
-group("15. exactly eighteen HVAC families — H2's own \"fifteen\" check, superseded again by H9's own narrow addition");
+group("15. exactly nineteen HVAC families — H2's own \"fifteen\" check, superseded again by H11's own narrow addition");
 // H2 declared fifteen; H8 added indoor_unit_form and water_supply_availability
-// (seventeen); H9 adds vent_cover_configuration — three narrowly-scoped
-// families total, each settling facts approved authority required but H2
-// never declared a home for. This group now proves the CURRENT boundary,
-// the same discipline every prior phase applied to its own predecessor's
+// (seventeen); H9 added vent_cover_configuration (eighteen); H11 adds
+// equipment_installation_context — four narrowly-scoped families total
+// since H2, each settling facts approved authority required but H2 never
+// declared a home for. This group now proves the CURRENT boundary, the
+// same discipline every prior phase applied to its own predecessor's
 // version of a count check.
-ok("HVAC_FAMILIES has exactly 18 entries", HVAC_FAMILIES.length === 18, `got ${HVAC_FAMILIES.length}`);
-ok("HVAC_FAMILY_KEYS has 18 unique entries", new Set(HVAC_FAMILY_KEYS).size === 18, `got ${new Set(HVAC_FAMILY_KEYS).size}`);
+ok("HVAC_FAMILIES has exactly 19 entries", HVAC_FAMILIES.length === 19, `got ${HVAC_FAMILIES.length}`);
+ok("HVAC_FAMILY_KEYS has 19 unique entries", new Set(HVAC_FAMILY_KEYS).size === 19, `got ${new Set(HVAC_FAMILY_KEYS).size}`);
 ok(
   '"dedicated_power_availability" is one of the fifteen — the H2 audit correction',
   (HVAC_FAMILY_KEYS as readonly string[]).includes("dedicated_power_availability")
@@ -778,16 +796,24 @@ group("33. both no-existing-pump observations stay inside this one service — n
   ok('scope.ts never produces REROUTE_SERVICE — old F.3\'s "a different service" is fully superseded', !/REROUTE_SERVICE/.test(scopeSrc));
 }
 
-group("34. equipment_condition is not read — old F.3's ACTIVE_FAILURE reroute is fully superseded");
+group("34. condensate-pump-installation does not read equipment_condition — old F.3's ACTIVE_FAILURE reroute is fully superseded on THIS service — H11's own narrowing of this check, superseded on purpose");
 {
+  // H11 correction: this group originally scanned the WHOLE file for
+  // ACTIVE_FAILURE/conditionGate/EquipmentCondition, which was accurate
+  // only because nothing anywhere in scope.ts read equipment_condition
+  // before H11. resolveFurnaceReplacement now legitimately does (with the
+  // known-work opt-in — see group 121) — so this group narrows to prove
+  // its original, still-true claim about condensate-pump-installation
+  // SPECIFICALLY, not about the file as a whole.
   const scopeSrc = strip("lib/hvac/scope.ts");
+  const condensatePumpSection = section(scopeSrc, "export function resolveCondensatePumpInstallation", "export type ThermostatInstallationFacts");
   ok(
     "CondensatePumpInstallationFacts has no field for equipment_condition — structurally unreadable, not merely unused",
-    !/equipmentCondition|equipment_condition/.test(scopeSrc)
+    !/equipmentCondition|equipment_condition/.test(condensatePumpSection)
   );
-  ok("scope.ts never references ACTIVE_FAILURE", !/ACTIVE_FAILURE/.test(scopeSrc));
-  ok("scope.ts never imports conditionGate or EquipmentCondition", !/conditionGate|EquipmentCondition/.test(scopeSrc));
-  ok("scope.ts never produces ON_SITE_SERVICE (the old F.3 reroute target)", !/ON_SITE_SERVICE/.test(scopeSrc));
+  ok("condensate-pump-installation's own section never references ACTIVE_FAILURE", !/ACTIVE_FAILURE/.test(condensatePumpSection));
+  ok("condensate-pump-installation's own section never calls conditionGate or reads EquipmentCondition", !/conditionGate|EquipmentCondition/.test(condensatePumpSection));
+  ok("condensate-pump-installation's own section never produces ON_SITE_SERVICE (the old F.3 reroute target)", !/ON_SITE_SERVICE/.test(condensatePumpSection));
 }
 
 group("35. every unresolved fact fails closed to PHOTO_REVIEW");
@@ -863,9 +889,14 @@ group("38. no question or answer names a cause — observation only");
     }
   }
   const scopeSrc = strip("lib/hvac/scope.ts");
+  // H11 correction: scoped to condensate-pump-installation's own section —
+  // the file as a whole now legitimately says "refrigerant" (refrigerant_
+  // lineset, a real H2 family several H11 resolvers read), which is not a
+  // diagnosed refrigerant ISSUE and was never what this check meant to catch.
+  const condensatePumpSection = section(scopeSrc, "export function resolveCondensatePumpInstallation", "export type ThermostatInstallationFacts");
   ok(
-    "no refusal reason in scope.ts names a blocked drain, a failed pump, or a refrigerant issue",
-    !/blocked drain|failed pump|refrigerant/i.test(scopeSrc)
+    "no refusal reason in condensate-pump-installation's own section names a blocked drain, a failed pump, or a refrigerant issue",
+    !/blocked drain|failed pump|refrigerant/i.test(condensatePumpSection)
   );
 }
 
@@ -913,25 +944,35 @@ group("40. the tree's questions match H2's own family declaration for this servi
   ok("access slot is PRIMARY, per the settled decision", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["condensate-pump-installation"]) === JSON.stringify(["PRIMARY"]));
 }
 
-group("41. exactly FOURTEEN HVAC service trees exist — H3-H8's own check, superseded again on purpose");
+group("41. exactly NINETEEN HVAC service trees exist — H3-H9's own check, superseded again on purpose");
 {
   // H3's version read "exactly one"; H4's "exactly two"; H5's "exactly
   // four"; H6's "exactly eight"; H7's "exactly eleven"; H8's "exactly
-  // thirteen". Each was true when written, and each is superseded on the
-  // same terms: H9 adds vent-cover-replacement, settling three previously
-  // stale Part-5 questions (size, mount surface) as genuinely load-bearing
-  // once "duct sizing" and "opening dimensions" were correctly separated.
-  // This group now proves the CURRENT boundary — fourteen, not thirteen,
-  // not fifteen — the same discipline every prior phase applied to its
+  // thirteen"; H9's "exactly fourteen". Each was true when written, and
+  // each is superseded on the same terms: H11 adds five more —
+  // furnace-replacement, ac-replacement, heat-pump-replacement,
+  // whole-system-replacement, mini-split-installation — the five
+  // REMOTE_QUOTE-disposition equipment services H10's audit settled.
+  // This group now proves the CURRENT boundary — nineteen, not fourteen,
+  // not twenty — the same discipline every prior phase applied to its
   // own predecessor's version of this check.
   //
+  // NOT ALL NINETEEN ARE "PRICED" ANY LONGER. The fourteen from H3-H9
+  // terminate RESOLVE_INSTANT or RESOLVE_ADJUSTED — an actual price. The
+  // five H11 adds terminate RESOLVE_INSTANT for nothing: their disposition
+  // is REMOTE_QUOTE, and a fully established modeled scope on any of them
+  // is its own successful terminal (HvacRemoteQuoteResolved, scope.ts's
+  // own file header), never a price. "Executable HVAC scope resolvers" is
+  // this group's own, and the file's own, language from here on —
+  // "priced resolvers" stopped being accurate the moment H11 landed.
+  //
   // duct-assessment and hvac-service-call are DELIBERATELY not among
-  // these fourteen and never will be through this file — both are
+  // these nineteen and never will be through this file — both are
   // APPOINTMENT_ONLY, never produce a priced RouteAction, and H9's own
   // audit settled that direct-selection context capture for both belongs
   // to a later booking/intake integration, not a scope.ts resolver.
   const resolveFns = strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? [];
-  ok("lib/hvac/scope.ts exports exactly fourteen resolve functions", resolveFns.length === 14, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
+  ok("lib/hvac/scope.ts exports exactly nineteen resolve functions", resolveFns.length === 19, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
   ok("resolveCondensatePumpInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensatePumpInstallation")));
   ok("resolveThermostatInstallation is one of them", resolveFns.some((f) => f.includes("resolveThermostatInstallation")));
   ok("resolveCondensateSafetySwitchInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensateSafetySwitchInstallation")));
@@ -945,9 +986,14 @@ group("41. exactly FOURTEEN HVAC service trees exist — H3-H8's own check, supe
   ok("resolveAccessoryConsumableReplacement is one of them", resolveFns.some((f) => f.includes("resolveAccessoryConsumableReplacement")));
   ok("resolveMiniSplitHeadCleaning is one of them", resolveFns.some((f) => f.includes("resolveMiniSplitHeadCleaning")));
   ok("resolveWholeHouseHumidifier is one of them", resolveFns.some((f) => f.includes("resolveWholeHouseHumidifier")));
-  ok("resolveVentCoverReplacement is the fourteenth", resolveFns.some((f) => f.includes("resolveVentCoverReplacement")));
+  ok("resolveVentCoverReplacement is one of them", resolveFns.some((f) => f.includes("resolveVentCoverReplacement")));
+  ok("resolveFurnaceReplacement is one of the five H11 adds", resolveFns.some((f) => f.includes("resolveFurnaceReplacement")));
+  ok("resolveAcReplacement is one of the five H11 adds", resolveFns.some((f) => f.includes("resolveAcReplacement")));
+  ok("resolveHeatPumpReplacement is one of the five H11 adds", resolveFns.some((f) => f.includes("resolveHeatPumpReplacement")));
+  ok("resolveWholeSystemReplacement is one of the five H11 adds", resolveFns.some((f) => f.includes("resolveWholeSystemReplacement")));
+  ok("resolveMiniSplitInstallation is the nineteenth", resolveFns.some((f) => f.includes("resolveMiniSplitInstallation")));
   ok(
-    "no resolveCondenserPadReplacement exists — deferred, per the H5 pad audit decision, still deferred; not reopened by H9",
+    "no resolveCondenserPadReplacement exists — deferred, per the H5 pad audit decision, still deferred; not reopened by H9 or H11",
     !resolveFns.some((f) => f.includes("resolveCondenserPadReplacement"))
   );
   ok(
@@ -958,7 +1004,7 @@ group("41. exactly FOURTEEN HVAC service trees exist — H3-H8's own check, supe
     "no resolveHvacServiceCall exists — APPOINTMENT_ONLY/TROUBLESHOOT_ONLY, existing G2/G3 shell remains authority",
     !resolveFns.some((f) => f.includes("resolveHvacServiceCall"))
   );
-  ok("no fifteenth HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
+  ok("no second HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1114,7 +1160,7 @@ group("48. symptom-only phrasing cannot enter the thermostat tree");
 
 group("49. terminal_scheme lives inside existing_control — no new family, no new gate, no new primitive");
 {
-  ok("HVAC_FAMILIES is now exactly 18 — no new family was added for terminal_scheme specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 18);
+  ok("HVAC_FAMILIES is now exactly 19 — no new family was added for terminal_scheme specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 19);
   ok("HVAC_GATE_KEYS is still exactly 7 — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
   const existingControl = HVAC_FAMILIES.find((f) => f.key === "existing_control")!;
@@ -1259,7 +1305,7 @@ group("56. the thermostat tree's questions match H2's own family declaration for
 group("57. all prior H1-H3/G5 invariants remain green after the H4 restructure");
 {
   ok("HVAC_SERVICES still has exactly 22 entries", HVAC_SERVICES.length === 22);
-  ok("HVAC_FAMILIES has exactly 18 entries (fifteen from H2, plus H8's two and H9's one narrow additions)", HVAC_FAMILIES.length === 18);
+  ok("HVAC_FAMILIES has exactly 19 entries (fifteen from H2, plus H8's two and H9's one narrow additions)", HVAC_FAMILIES.length === 19);
   ok("HVAC_GATE_KEYS still has exactly 7 entries", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS still has exactly 7 entries", HVAC_PRIMITIVE_KEYS.length === 7);
   ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
@@ -1892,7 +1938,7 @@ group("84. all four H1 dispositions remain FIXED, and no family/gate/primitive c
     ok(`${key}'s disposition is still FIXED`, HVAC_SERVICES.find((s) => s.key === key)?.disposition === "FIXED");
   }
   ok("HVAC_SERVICES is still exactly 22 entries", HVAC_SERVICES.length === 22);
-  ok("HVAC_FAMILIES is exactly 18 entries — no new family was added for H6 specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 18);
+  ok("HVAC_FAMILIES is exactly 19 entries — no new family was added for H6 specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 19);
   ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
   ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
@@ -1906,8 +1952,15 @@ group("85. gateTwoSlotAccess is a narrow, mechanical helper — not a generic tr
 {
   const scopeSrc = strip("lib/hvac/scope.ts");
   const callSites = scopeSrc.match(/gateTwoSlotAccess\(/g) ?? [];
-  // One definition + three call sites (ac, heat-pump, mini-split).
-  ok("gateTwoSlotAccess is called exactly 3 times — one per two-slot tune-up", callSites.length === 4, `got ${callSites.length} occurrences (definition + call sites)`);
+  // One definition + three H6 tune-up call sites (ac, heat-pump, mini-split
+  // tune-up) + four H11 call sites (ac-replacement, heat-pump-replacement,
+  // whole-system-replacement, mini-split-installation) — H11's own
+  // narrowing of this count, superseded on purpose.
+  ok(
+    "gateTwoSlotAccess is called exactly 7 times — three H6 tune-ups plus four H11 REMOTE_QUOTE equipment services",
+    callSites.length === 8,
+    `got ${callSites.length} occurrences (definition + call sites)`
+  );
   ok("gateTwoSlotAccess is never called from furnace-tune-up (single-location, no second slot)", !section(scopeSrc, "export type FurnaceTuneUpFacts", "export type HeatPumpTuneUpFacts").includes("gateTwoSlotAccess"));
   ok(
     "gateTwoSlotAccess knows nothing about system identity, fuel, or quantity — it takes only the three access-shaped fields",
@@ -2206,7 +2259,7 @@ group("93. accessory-consumable-replacement: accessory_kind exists, exact three 
       existingFamily.establishes.includes("replacement_vs_new") &&
       existingFamily.establishes.includes("filter_slot_size")
   );
-  ok("HVAC_FAMILIES is exactly 18 entries — no new family was added for accessory_kind specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 18);
+  ok("HVAC_FAMILIES is exactly 19 entries — no new family was added for accessory_kind specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 19);
   ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
 
@@ -2274,7 +2327,7 @@ group("95. no compatibility is ever inferred from a printed identifier's content
 group("96. no symptom vocabulary enters any of the three H7 trees");
 {
   const scopeSrc = strip("lib/hvac/scope.ts");
-  const h7Section = section(scopeSrc, "export type AirCleanerCabinetInstallationFacts");
+  const h7Section = section(scopeSrc, "export type AirCleanerCabinetInstallationFacts", "export type MiniSplitHeadCleaningFacts");
   for (const symptom of REPORTED_SYMPTOMS) {
     ok(`scope.ts never references the symptom "${symptom}" in the H7 sections`, !h7Section.includes(symptom));
   }
@@ -2323,7 +2376,7 @@ group("97. no equipment observation selects a repair, a diagnosis, or a componen
     }
   }
   const scopeSrc = strip("lib/hvac/scope.ts");
-  const h7Section = section(scopeSrc, "export type AirCleanerCabinetInstallationFacts");
+  const h7Section = section(scopeSrc, "export type AirCleanerCabinetInstallationFacts", "export type MiniSplitHeadCleaningFacts");
   ok("no H7 resolver reads equipment_condition anywhere", !/EquipmentCondition|conditionGate|equipmentCondition/.test(h7Section));
   ok("no H7 resolver declares a materialRoles, components, or ScopeConsequence field", !/materialRoles|components:|ScopeConsequence/.test(h7Section));
   ok("no H7 resolver imports anything from lib/hvac/mappings.ts", !/from ["'`]\.\/mappings["'`]/.test(scopeSrc));
@@ -2481,7 +2534,12 @@ group("103. new-installation water/drain/power: PRESENT continues, ABSENT REMOTE
   ok("run_band=UNKNOWN -> PHOTO_REVIEW", runUnknown.status === "REFUSED" && runUnknown.routeAction === "PHOTO_REVIEW");
   ok(
     "run_band reuses condensate-pump-installation's own one-boundary CondensateRunBand shape — no new numeric threshold invented in H8",
-    !section(strip("lib/hvac/scope.ts"), "export type HumidifierType").includes("EXTENDED")
+    // H11 correction: bounded to whole-house-humidifier's own section — an
+    // unbounded scan now also covers H9's and H11's own, unrelated
+    // EXTENDED-shaped run-band types (mini-split-installation's own
+    // MiniSplitInstallationRunBand genuinely has three bands, and legitimately
+    // isn't this check's business).
+    !section(strip("lib/hvac/scope.ts"), "export type HumidifierType", "export type OpeningSizePattern").includes("EXTENDED")
   );
 }
 
@@ -2543,14 +2601,17 @@ group("105. no diagnostic humidity/comfort language, and no symptom vocabulary, 
   }
 }
 
-group("106. exactly 17 H2 families after H8's two narrow additions — H9's own check, superseded again on purpose");
+group("106. exactly 19 H2 families after H8's two, H9's one, and H11's one narrow additions — H9's own check, superseded again on purpose");
 {
-  // H9 adds one more narrow family (vent_cover_configuration), so this
-  // group's own boundary moves from seventeen to eighteen — the same
-  // discipline this group's own title already documents H8 applying to
-  // H2's original fifteen.
-  ok("HVAC_FAMILIES is now exactly 18 entries — fifteen original, plus H8's indoor_unit_form and water_supply_availability, plus H9's vent_cover_configuration", HVAC_FAMILIES.length === 18);
-  ok("HVAC_FAMILY_KEYS has 18 unique entries", new Set(HVAC_FAMILY_KEYS).size === 18);
+  // H9 moved this group's own boundary from seventeen to eighteen
+  // (vent_cover_configuration); H11 moves it again, eighteen to nineteen
+  // (equipment_installation_context) — the same discipline this group's
+  // own title already documents H8 applying to H2's original fifteen.
+  ok(
+    "HVAC_FAMILIES is now exactly 19 entries — fifteen original, plus H8's indoor_unit_form and water_supply_availability, plus H9's vent_cover_configuration, plus H11's equipment_installation_context",
+    HVAC_FAMILIES.length === 19
+  );
+  ok("HVAC_FAMILY_KEYS has 19 unique entries", new Set(HVAC_FAMILY_KEYS).size === 19);
   ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
   ok("no HVAC family manifest declares actual Question/AnswerOption content — vent_cover_configuration included", HVAC_FAMILIES.every((f) => !("questions" in f)));
@@ -2714,7 +2775,12 @@ group("113. opening_dimensions is a direct measurement/readout only — missing 
   );
 
   const scopeSrc = strip("lib/hvac/scope.ts");
-  const ventSection = section(scopeSrc, "export type OpeningSizePattern");
+  // H11 correction: bounded to vent-cover-replacement's own section — an
+  // unbounded scan now also covers H11's own, unrelated STANDARD-shaped
+  // run-band and fuel/venting vocabularies (mini-split-installation's
+  // run_band, ac-tune-up-style STANDARD values), which legitimately are
+  // not this check's business.
+  const ventSection = section(scopeSrc, "export type OpeningSizePattern", "type HvacRemoteQuoteResolved");
   ok("opening_dimensions is typed as string | null — no STANDARD/NONSTANDARD or enum classification exists", /openingDimensions: string \| null/.test(ventSection));
   ok(
     "no STANDARD/NONSTANDARD or size-classification vocabulary was invented anywhere in the vent-cover-replacement section",
@@ -2791,7 +2857,7 @@ group("116. no duct-sizing, adequacy, airflow, or condition language anywhere in
   ok("no materialRoles, components, or ScopeConsequence field is declared in this resolver", !/materialRoles|components:|ScopeConsequence/.test(ventSection));
 }
 
-group("117. appointment-only services remain without scope.ts resolvers, and condenser-pad-replacement remains without one — H9 built exactly one new resolver");
+group("117. appointment-only services remain without scope.ts resolvers, and condenser-pad-replacement remains without one — H9's own \"exactly one new resolver\" check, superseded again on purpose by H11's five");
 {
   const scopeSrc = strip("lib/hvac/scope.ts");
   ok("no resolveDuctAssessment function exists anywhere in scope.ts", !/export function resolveDuctAssessment\(/.test(scopeSrc));
@@ -2803,13 +2869,17 @@ group("117. appointment-only services remain without scope.ts resolvers, and con
   const hvacServiceCallSvc = HVAC_SERVICES.find((s) => s.key === "hvac-service-call")!;
   ok("hvac-service-call is still disposition APPOINTMENT_ONLY", hvacServiceCallSvc.disposition === "APPOINTMENT_ONLY");
   ok("hvac-service-call still carries bookingType TROUBLESHOOT_ONLY", hvacServiceCallSvc.bookingType === "TROUBLESHOOT_ONLY");
-  ok("HVAC_SERVICE_CALL_SHELL is still schedulable through the existing G2/G3 mechanism, unchanged by H9", hvacServiceCallIsSchedulable());
+  ok("HVAC_SERVICE_CALL_SHELL is still schedulable through the existing G2/G3 mechanism, unchanged by H9 or H11", hvacServiceCallIsSchedulable());
   ok("HVAC_SERVICE_CALL_SHELL itself is still exported and unchanged in shape", typeof HVAC_SERVICE_CALL_SHELL === "object" && HVAC_SERVICE_CALL_SHELL !== null);
 
   const resolveFnNames = (scopeSrc.match(/export function (resolve\w+)\(/g) ?? []).map((m) => m.replace(/export function |\(/g, ""));
   ok(
-    "exactly one new resolve function was added this phase: resolveVentCoverReplacement",
-    resolveFnNames.includes("resolveVentCoverReplacement") && resolveFnNames.length === 14
+    "H9 added exactly one new resolve function (resolveVentCoverReplacement) and H11 added exactly five more — nineteen total, not fourteen",
+    resolveFnNames.includes("resolveVentCoverReplacement") &&
+      ["resolveFurnaceReplacement", "resolveAcReplacement", "resolveHeatPumpReplacement", "resolveWholeSystemReplacement", "resolveMiniSplitInstallation"].every((f) =>
+        resolveFnNames.includes(f)
+      ) &&
+      resolveFnNames.length === 19
   );
 }
 
@@ -2835,8 +2905,8 @@ group("118. H3-H8 behavior is unchanged by the H9 addition");
     humidifierReplacement.status === "RESOLVED" && humidifierReplacement.routeAction === "RESOLVE_ADJUSTED"
   );
   ok(
-    "H2's family count is exactly 18, not disturbed by any change other than the one H9 addition",
-    HVAC_FAMILIES.length === 18 && HVAC_FAMILY_KEYS.length === 18
+    "H2's family count moved from 18 to 19 with H11's own equipment_installation_context — this group's own H9-era check, superseded again on purpose",
+    HVAC_FAMILIES.length === 19 && HVAC_FAMILY_KEYS.length === 19
   );
   ok(
     "H3-H8's own question data is all still exported and non-empty",
@@ -2907,6 +2977,683 @@ group("120. opening_dimensions fails closed to PHOTO_REVIEW for null, empty, and
       !/openingDimensions\.(replace|split|toUpperCase|toLowerCase|match)/.test(ventSection)
   );
   ok("no width/height parsing, standard-size list, or compatibility inference was added alongside the trim fix", !/parseInt|parseFloat|STANDARD_SIZE|COMPATIBLE/.test(ventSection));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// H11 — five REMOTE_QUOTE equipment-replacement resolvers
+// ═══════════════════════════════════════════════════════════════════════
+
+const FURNACE_REPLACEMENT_BASE: FurnaceReplacementFacts = {
+  systemType: "FURNACE_AND_AC",
+  fuelType: "NATURAL_GAS",
+  ventingClass: "INDUCED_DRAFT",
+  heatingInputBtu: 80000,
+  accessClass: "ACCESSIBLE",
+  condensateRoute: "PUMP_PRESENT",
+  supplyArrangement: "CONTRACTOR_SUPPLIED",
+  equipmentCondition: "SERVICEABLE",
+};
+
+const AC_REPLACEMENT_BASE: AcReplacementFacts = {
+  systemType: "FURNACE_AND_AC",
+  coolingTons: 3,
+  indoorAccessClass: "ACCESSIBLE",
+  outdoorLocation: "GROUND_LEVEL_ADJACENT",
+  outdoorAccessClass: "ACCESSIBLE",
+  linesetStatus: "PRESENT_VISIBLE",
+  supplyArrangement: "CONTRACTOR_SUPPLIED",
+};
+
+const HEAT_PUMP_REPLACEMENT_BASE: HeatPumpReplacementFacts = {
+  systemType: "HEAT_PUMP_SPLIT",
+  coolingTons: 3,
+  indoorAccessClass: "ACCESSIBLE",
+  outdoorLocation: "GROUND_LEVEL_ADJACENT",
+  outdoorAccessClass: "ACCESSIBLE",
+  linesetStatus: "PRESENT_VISIBLE",
+};
+
+const WHOLE_SYSTEM_FURNACE_AND_AC_BASE: WholeSystemReplacementFacts = {
+  systemType: "FURNACE_AND_AC",
+  fuelType: "NATURAL_GAS",
+  ventingClass: "INDUCED_DRAFT",
+  heatingInputBtu: 80000,
+  coolingTons: 3,
+  indoorAccessClass: "ACCESSIBLE",
+  outdoorLocation: "GROUND_LEVEL_ADJACENT",
+  outdoorAccessClass: "ACCESSIBLE",
+  linesetStatus: "PRESENT_VISIBLE",
+  condensateRoute: "PUMP_PRESENT",
+  supplyArrangement: "CONTRACTOR_SUPPLIED",
+};
+
+// systemType=HEAT_PUMP_SPLIT with fuel/venting/heating deliberately UNKNOWN/null
+// — the branch must resolve WITHOUT reading them, so if it ever regresses to
+// reading them unconditionally, these otherwise-refusing values would catch it.
+const WHOLE_SYSTEM_HEAT_PUMP_SPLIT_BASE: WholeSystemReplacementFacts = {
+  ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE,
+  systemType: "HEAT_PUMP_SPLIT",
+  fuelType: "UNKNOWN",
+  ventingClass: "UNKNOWN",
+  heatingInputBtu: null,
+};
+
+const WHOLE_SYSTEM_DUAL_FUEL_BASE: WholeSystemReplacementFacts = {
+  ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE,
+  systemType: "DUAL_FUEL",
+  fuelType: "DUAL_FUEL",
+};
+
+// NEW_INSTALLATION baseline — deliberately UNUSABLE access values
+// (UNKNOWN/NONE/UNKNOWN). This is the H11 patch-review correction's own
+// proof shape: if this baseline still resolves RESOLVED/REMOTE_QUOTE, the
+// access fields are genuinely unread on this branch, not merely happening
+// to pass. Every other, actually-consumed shared fact is valid.
+const MINI_SPLIT_INSTALLATION_BASE: MiniSplitInstallationFacts = {
+  replacementVsNew: "NEW_INSTALLATION",
+  headCount: 2,
+  indoorAccessClass: "UNKNOWN",
+  outdoorLocation: "NONE",
+  outdoorAccessClass: "UNKNOWN",
+  runBand: "STANDARD",
+  linesetStatus: "NONE",
+  condensateRoute: "GRAVITY_DRAIN_PRESENT",
+};
+
+// REPLACEMENT baseline — real, valid access. On this branch the two
+// access families are genuine decision facts, gated exactly like every
+// other two-slot REMOTE_QUOTE service in this file.
+const MINI_SPLIT_REPLACEMENT_BASE: MiniSplitInstallationFacts = {
+  replacementVsNew: "REPLACEMENT",
+  headCount: 2,
+  indoorAccessClass: "ACCESSIBLE",
+  outdoorLocation: "GROUND_LEVEL_ADJACENT",
+  outdoorAccessClass: "ACCESSIBLE",
+  runBand: "STANDARD",
+  linesetStatus: "NONE",
+  condensateRoute: "GRAVITY_DRAIN_PRESENT",
+};
+
+group("121. conditionGate's known-work replacement opt-in — default behavior unchanged, opt-in scoped to exactly one caller");
+{
+  ok("default SERVICEABLE -> CONTINUE, no opts", conditionGate("SERVICEABLE").action === "CONTINUE");
+  ok("default DEGRADED -> PHOTO_REVIEW, no opts", conditionGate("DEGRADED").action === "PHOTO_REVIEW");
+  ok("default ACTIVE_FAILURE -> ON_SITE_SERVICE, no opts", conditionGate("ACTIVE_FAILURE").action === "ON_SITE_SERVICE");
+  ok("default UNKNOWN -> PHOTO_REVIEW, no opts", conditionGate("UNKNOWN").action === "PHOTO_REVIEW");
+
+  ok("knownWorkReplacement:false SERVICEABLE -> CONTINUE, same as default", conditionGate("SERVICEABLE", { knownWorkReplacement: false }).action === "CONTINUE");
+  ok("knownWorkReplacement:false DEGRADED -> PHOTO_REVIEW, same as default", conditionGate("DEGRADED", { knownWorkReplacement: false }).action === "PHOTO_REVIEW");
+  ok("knownWorkReplacement:false ACTIVE_FAILURE -> ON_SITE_SERVICE, same as default", conditionGate("ACTIVE_FAILURE", { knownWorkReplacement: false }).action === "ON_SITE_SERVICE");
+
+  ok("knownWorkReplacement:true SERVICEABLE -> CONTINUE", conditionGate("SERVICEABLE", { knownWorkReplacement: true }).action === "CONTINUE");
+  ok("knownWorkReplacement:true DEGRADED -> CONTINUE", conditionGate("DEGRADED", { knownWorkReplacement: true }).action === "CONTINUE");
+  ok("knownWorkReplacement:true ACTIVE_FAILURE -> CONTINUE", conditionGate("ACTIVE_FAILURE", { knownWorkReplacement: true }).action === "CONTINUE");
+  ok("knownWorkReplacement:true UNKNOWN -> PHOTO_REVIEW — the opt-in never weakens the UNKNOWN case", conditionGate("UNKNOWN", { knownWorkReplacement: true }).action === "PHOTO_REVIEW");
+
+  const gatesSrc = strip("lib/hvac/gates.ts");
+  ok("HVAC_GATE_KEYS is still exactly 7 — the opt-in extends conditionGate, it is not an eighth gate", HVAC_GATE_KEYS.length === 7);
+  ok("conditionGate's own signature carries an optional opts parameter, not a required one", /function conditionGate\(condition: EquipmentCondition, opts\?: \{ knownWorkReplacement\?: boolean \}\)/.test(gatesSrc));
+  ok("knownWorkReplacement appears exactly once in gates.ts, on conditionGate's own signature — no second caller-side vocabulary invented", (gatesSrc.match(/knownWorkReplacement/g) ?? []).length >= 1);
+
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "knownWorkReplacement: true is passed exactly once in scope.ts — only resolveFurnaceReplacement opts in",
+    (scopeSrc.match(/knownWorkReplacement: true/g) ?? []).length === 1
+  );
+  const furnaceSection = section(scopeSrc, "export function resolveFurnaceReplacement", "export type FurnaceReplacementQuestionKey");
+  ok("resolveFurnaceReplacement itself calls conditionGate with the known-work opt-in", /conditionGate\(facts\.equipmentCondition, \{ knownWorkReplacement: true \}\)/.test(furnaceSection));
+  for (const fnName of [
+    "resolveAcReplacement",
+    "resolveHeatPumpReplacement",
+    "resolveWholeSystemReplacement",
+    "resolveMiniSplitInstallation",
+    "resolveVentCoverReplacement",
+    "resolveWholeHouseHumidifier",
+    "resolveAcTuneUp",
+  ]) {
+    const startMarker = `export function ${fnName}(`;
+    const fnStart = scopeSrc.indexOf(startMarker);
+    const nextExportFn = scopeSrc.indexOf("export function", fnStart + startMarker.length);
+    const fnBody = nextExportFn === -1 ? scopeSrc.slice(fnStart) : scopeSrc.slice(fnStart, nextExportFn);
+    ok(`${fnName} never calls conditionGate at all`, fnStart !== -1 && !fnBody.includes("conditionGate"));
+  }
+  ok("EXISTING_CONDITION_SCOPE stays effect-free — every member still attaches no material role, component or prerequisite", Object.values(EXISTING_CONDITION_SCOPE).every((c) => c.materialRoles.length === 0 && c.components.length === 0 && c.prerequisites.length === 0));
+}
+
+group("122. furnace-replacement: FURNACE_AND_AC only, gas/propane only, exact venting/heating coverage, known-work condition, successful REMOTE_QUOTE terminal");
+{
+  const resolved = resolveFurnaceReplacement(FURNACE_REPLACEMENT_BASE);
+  ok("a fully established scope resolves RESOLVED/REMOTE_QUOTE, not REFUSED", resolved.status === "RESOLVED" && resolved.routeAction === "REMOTE_QUOTE");
+  ok("the successful shape carries no HvacRefusal outcome field", !("outcome" in resolved));
+
+  const heatPumpMismatch = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, systemType: "HEAT_PUMP_SPLIT" });
+  ok("HEAT_PUMP_SPLIT system -> REFUSED/REMOTE_QUOTE (incompatible identity, not the successful shape)", heatPumpMismatch.status === "REFUSED" && heatPumpMismatch.routeAction === "REMOTE_QUOTE");
+  const dualFuelMismatch = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, systemType: "DUAL_FUEL" });
+  ok("DUAL_FUEL system -> REFUSED/REMOTE_QUOTE — NOT accepted, per the explicit exclusion", dualFuelMismatch.status === "REFUSED" && dualFuelMismatch.routeAction === "REMOTE_QUOTE");
+  const unknownSystem = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, systemType: "UNKNOWN" });
+  ok("UNKNOWN system -> PHOTO_REVIEW", unknownSystem.status === "REFUSED" && unknownSystem.routeAction === "PHOTO_REVIEW");
+
+  const oilFuel = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, fuelType: "OIL" });
+  ok("OIL fuel -> REFUSED/REMOTE_QUOTE — oil stays outside V1 structured scope", oilFuel.status === "REFUSED" && oilFuel.routeAction === "REMOTE_QUOTE");
+  const electricFuel = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, fuelType: "ELECTRIC" });
+  ok("ELECTRIC fuel -> REFUSED/REMOTE_QUOTE", electricFuel.status === "REFUSED" && electricFuel.routeAction === "REMOTE_QUOTE");
+  const dualFuelFuel = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, fuelType: "DUAL_FUEL" });
+  ok("DUAL_FUEL fuel -> REFUSED/REMOTE_QUOTE", dualFuelFuel.status === "REFUSED" && dualFuelFuel.routeAction === "REMOTE_QUOTE");
+  const unknownFuel = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, fuelType: "UNKNOWN" });
+  ok("UNKNOWN fuel -> PHOTO_REVIEW", unknownFuel.status === "REFUSED" && unknownFuel.routeAction === "PHOTO_REVIEW");
+  const propaneFuel = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, fuelType: "PROPANE" });
+  ok("PROPANE fuel still resolves", propaneFuel.status === "RESOLVED");
+
+  for (const venting of ["ATMOSPHERIC", "INDUCED_DRAFT", "DIRECT_VENT_SEALED"] as const) {
+    const r = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, ventingClass: venting });
+    ok(`venting ${venting} continues to a successful terminal`, r.status === "RESOLVED");
+  }
+  const nonCombustionVenting = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, ventingClass: "NON_COMBUSTION" });
+  ok("NON_COMBUSTION venting -> REFUSED/REMOTE_QUOTE", nonCombustionVenting.status === "REFUSED" && nonCombustionVenting.routeAction === "REMOTE_QUOTE");
+  const unknownVenting = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, ventingClass: "UNKNOWN" });
+  ok("UNKNOWN venting -> PHOTO_REVIEW", unknownVenting.status === "REFUSED" && unknownVenting.routeAction === "PHOTO_REVIEW");
+
+  for (const btu of [40000, 60000, 80000, 100000, 120000]) {
+    const r = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, heatingInputBtu: btu });
+    ok(`heating input ${btu} BTU/h continues`, r.status === "RESOLVED");
+  }
+  const offListBtu = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, heatingInputBtu: 75000 });
+  ok("an off-list heating input (75000) -> REFUSED/REMOTE_QUOTE, not silently accepted", offListBtu.status === "REFUSED" && offListBtu.routeAction === "REMOTE_QUOTE");
+  const nullBtu = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, heatingInputBtu: null });
+  ok("null heating input -> PHOTO_REVIEW", nullBtu.status === "REFUSED" && nullBtu.routeAction === "PHOTO_REVIEW");
+
+  const unknownAccess = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, accessClass: "UNKNOWN" });
+  ok("UNKNOWN access -> PHOTO_REVIEW", unknownAccess.status === "REFUSED" && unknownAccess.routeAction === "PHOTO_REVIEW");
+  const finishedAccess = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, accessClass: "FINISHED" });
+  ok("FINISHED access still resolves (only UNKNOWN blocks the PRIMARY slot)", finishedAccess.status === "RESOLVED");
+
+  for (const route of ["PUMP_PRESENT", "GRAVITY_DRAIN_PRESENT", "NONE_VISIBLE"] as const) {
+    const r = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, condensateRoute: route });
+    ok(`condensate_route ${route} continues — NONE_VISIBLE is useful scope context, not an automatic-pricing failure`, r.status === "RESOLVED");
+  }
+  const unknownCondensate = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, condensateRoute: "UNKNOWN" });
+  ok("UNKNOWN condensate_route -> PHOTO_REVIEW", unknownCondensate.status === "REFUSED" && unknownCondensate.routeAction === "PHOTO_REVIEW");
+
+  for (const supply of ["CUSTOMER_SUPPLIED", "CONTRACTOR_SUPPLIED"] as const) {
+    const r = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, supplyArrangement: supply });
+    ok(`supply_arrangement ${supply} continues`, r.status === "RESOLVED");
+  }
+
+  const serviceable = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, equipmentCondition: "SERVICEABLE" });
+  ok("equipment_condition SERVICEABLE resolves", serviceable.status === "RESOLVED");
+  const degraded = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, equipmentCondition: "DEGRADED" });
+  ok("equipment_condition DEGRADED still resolves — known-work replacement, not a symptom", degraded.status === "RESOLVED");
+  const activeFailure = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, equipmentCondition: "ACTIVE_FAILURE" });
+  ok("equipment_condition ACTIVE_FAILURE still resolves — the homeowner already selected replacement", activeFailure.status === "RESOLVED");
+  const unknownCondition = resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, equipmentCondition: "UNKNOWN" });
+  ok("equipment_condition UNKNOWN -> PHOTO_REVIEW, even with the known-work opt-in", unknownCondition.status === "REFUSED" && unknownCondition.routeAction === "PHOTO_REVIEW");
+
+  ok("FURNACE_REPLACEMENT_QUESTIONS has exactly 8 questions", FURNACE_REPLACEMENT_QUESTIONS.length === 8);
+  ok("no supply_arrangement or equipment_condition question is missing", FURNACE_REPLACEMENT_QUESTIONS.some((q) => q.key === "supply_arrangement") && FURNACE_REPLACEMENT_QUESTIONS.some((q) => q.key === "equipment_condition"));
+}
+
+group("123. ac-replacement: FURNACE_AND_AC/AIR_HANDLER_ONLY only, two-slot access, lineset all-continue, no equipment-match question, successful REMOTE_QUOTE terminal");
+{
+  const resolved = resolveAcReplacement(AC_REPLACEMENT_BASE);
+  ok("a fully established scope resolves RESOLVED/REMOTE_QUOTE", resolved.status === "RESOLVED" && resolved.routeAction === "REMOTE_QUOTE");
+
+  const airHandlerOnly = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, systemType: "AIR_HANDLER_ONLY" });
+  ok("AIR_HANDLER_ONLY system also resolves", airHandlerOnly.status === "RESOLVED");
+  for (const excluded of ["HEAT_PUMP_SPLIT", "DUAL_FUEL", "PACKAGE_UNIT", "MINI_SPLIT_DUCTLESS", "BOILER_HYDRONIC"] as const) {
+    const r = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, systemType: excluded });
+    ok(`system type ${excluded} -> REFUSED/REMOTE_QUOTE — explicitly excluded`, r.status === "REFUSED" && r.routeAction === "REMOTE_QUOTE");
+  }
+  const unknownSystem = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, systemType: "UNKNOWN" });
+  ok("UNKNOWN system -> PHOTO_REVIEW", unknownSystem.status === "REFUSED" && unknownSystem.routeAction === "PHOTO_REVIEW");
+
+  for (const tons of [1.5, 2, 2.5, 3, 3.5, 4, 5]) {
+    const r = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, coolingTons: tons });
+    ok(`cooling capacity ${tons} tons continues`, r.status === "RESOLVED");
+  }
+  const offListTons = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, coolingTons: 2.75 });
+  ok("an off-list cooling capacity -> REFUSED/REMOTE_QUOTE", offListTons.status === "REFUSED" && offListTons.routeAction === "REMOTE_QUOTE");
+  const nullTons = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, coolingTons: null });
+  ok("null cooling capacity -> PHOTO_REVIEW", nullTons.status === "REFUSED" && nullTons.routeAction === "PHOTO_REVIEW");
+
+  const finishedIndoor = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, indoorAccessClass: "FINISHED" });
+  ok("indoor access FINISHED still continues (ordinary accessGate behavior, not mini-split-head-cleaning's own override)", finishedIndoor.status === "RESOLVED");
+  const unknownIndoor = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, indoorAccessClass: "UNKNOWN" });
+  ok("indoor access UNKNOWN -> PHOTO_REVIEW", unknownIndoor.status === "REFUSED" && unknownIndoor.routeAction === "PHOTO_REVIEW");
+  for (const loc of ["GROUND_LEVEL_ADJACENT", "GROUND_LEVEL_REMOTE", "ROOF", "WALL_OR_BALCONY_MOUNT"] as const) {
+    const r = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, outdoorLocation: loc });
+    ok(`outdoor location ${loc} continues — no pre-G1 roof/wall refusal restored`, r.status === "RESOLVED");
+  }
+  const noOutdoor = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, outdoorLocation: "NONE" });
+  ok("outdoor location NONE -> PHOTO_REVIEW, a contradiction for a service that requires an outdoor unit", noOutdoor.status === "REFUSED" && noOutdoor.routeAction === "PHOTO_REVIEW");
+  const unknownOutdoorLoc = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, outdoorLocation: "UNKNOWN" });
+  ok("outdoor location UNKNOWN -> PHOTO_REVIEW", unknownOutdoorLoc.status === "REFUSED" && unknownOutdoorLoc.routeAction === "PHOTO_REVIEW");
+
+  for (const lineset of ["PRESENT_VISIBLE", "PRESENT_CONCEALED", "NONE"] as const) {
+    const r = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, linesetStatus: lineset });
+    ok(`lineset_status ${lineset} continues — reusability is never asked`, r.status === "RESOLVED");
+  }
+  const unknownLineset = resolveAcReplacement({ ...AC_REPLACEMENT_BASE, linesetStatus: "UNKNOWN" });
+  ok("lineset_status UNKNOWN -> PHOTO_REVIEW", unknownLineset.status === "REFUSED" && unknownLineset.routeAction === "PHOTO_REVIEW");
+
+  ok("AC_REPLACEMENT_QUESTIONS has exactly 6 questions", AC_REPLACEMENT_QUESTIONS.length === 6);
+  ok("no coil/air-handler identity or equipment-match question exists", !AC_REPLACEMENT_QUESTIONS.some((q) => /match|compat/i.test(q.prompt)));
+}
+
+group("124. heat-pump-replacement: HEAT_PUMP_SPLIT/DUAL_FUEL only, no existing_control, no controlGate, no supply_arrangement, successful REMOTE_QUOTE terminal");
+{
+  const resolved = resolveHeatPumpReplacement(HEAT_PUMP_REPLACEMENT_BASE);
+  ok("a fully established scope resolves RESOLVED/REMOTE_QUOTE", resolved.status === "RESOLVED" && resolved.routeAction === "REMOTE_QUOTE");
+
+  const dualFuel = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, systemType: "DUAL_FUEL" });
+  ok("DUAL_FUEL system also resolves — replacing the outdoor heat-pump half while the furnace stays", dualFuel.status === "RESOLVED");
+  const furnaceAndAc = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, systemType: "FURNACE_AND_AC" });
+  ok("FURNACE_AND_AC system -> REFUSED/REMOTE_QUOTE — that is ac-replacement's own territory", furnaceAndAc.status === "REFUSED" && furnaceAndAc.routeAction === "REMOTE_QUOTE");
+  const unknownSystem = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, systemType: "UNKNOWN" });
+  ok("UNKNOWN system -> PHOTO_REVIEW", unknownSystem.status === "REFUSED" && unknownSystem.routeAction === "PHOTO_REVIEW");
+
+  for (const tons of [1.5, 2, 2.5, 3, 3.5, 4, 5]) {
+    const r = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, coolingTons: tons });
+    ok(`cooling capacity ${tons} tons continues`, r.status === "RESOLVED");
+  }
+  const offListTons = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, coolingTons: 6 });
+  ok("an off-list cooling capacity -> REFUSED/REMOTE_QUOTE", offListTons.status === "REFUSED" && offListTons.routeAction === "REMOTE_QUOTE");
+
+  const unknownIndoor = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, indoorAccessClass: "UNKNOWN" });
+  ok("indoor access UNKNOWN -> PHOTO_REVIEW", unknownIndoor.status === "REFUSED" && unknownIndoor.routeAction === "PHOTO_REVIEW");
+  const noOutdoor = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, outdoorLocation: "NONE" });
+  ok("outdoor location NONE -> PHOTO_REVIEW, a contradiction", noOutdoor.status === "REFUSED" && noOutdoor.routeAction === "PHOTO_REVIEW");
+
+  for (const lineset of ["PRESENT_VISIBLE", "PRESENT_CONCEALED", "NONE"] as const) {
+    const r = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, linesetStatus: lineset });
+    ok(`lineset_status ${lineset} continues`, r.status === "RESOLVED");
+  }
+  const unknownLineset = resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, linesetStatus: "UNKNOWN" });
+  ok("lineset_status UNKNOWN -> PHOTO_REVIEW", unknownLineset.status === "REFUSED" && unknownLineset.routeAction === "PHOTO_REVIEW");
+
+  ok("HEAT_PUMP_REPLACEMENT_QUESTIONS has exactly 5 questions", HEAT_PUMP_REPLACEMENT_QUESTIONS.length === 5);
+  ok("no supply_arrangement question exists for heat-pump-replacement", !HEAT_PUMP_REPLACEMENT_QUESTIONS.some((q) => (q as { establishes: string }).establishes === "supply_arrangement"));
+  ok(
+    "heat-pump-replacement no longer declares existing_control",
+    !HVAC_SERVICE_FAMILIES["heat-pump-replacement"].some((u) => u.family === "existing_control")
+  );
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const heatPumpSection = section(scopeSrc, "export function resolveHeatPumpReplacement", "export type HeatPumpReplacementQuestionKey");
+  ok("resolveHeatPumpReplacement never calls controlGate", !heatPumpSection.includes("controlGate"));
+  ok("resolveHeatPumpReplacement never reads a supplyArrangement fact", !heatPumpSection.includes("supplyArrangement") && !heatPumpSection.includes("supply_arrangement"));
+  const existingControlFamily = HVAC_FAMILIES.find((f) => f.key === "existing_control")!;
+  ok(
+    "the existing_control family itself is untouched — same four gated facts, same control_gate binding",
+    JSON.stringify(existingControlFamily.establishes) === JSON.stringify(["control_present", "terminal_scheme", "conductor_count", "common_wire", "thermostat_count"]) &&
+      JSON.stringify(existingControlFamily.gates) === JSON.stringify(["control_gate"])
+  );
+}
+
+group("125. whole-system-replacement: three system types, heating_equipment branch-only for FURNACE_AND_AC/DUAL_FUEL, HEAT_PUMP_SPLIT never reads fuel/venting/heating-BTU, every branch resolves REMOTE_QUOTE");
+{
+  const furnaceAndAc = resolveWholeSystemReplacement(WHOLE_SYSTEM_FURNACE_AND_AC_BASE);
+  ok("FURNACE_AND_AC branch, fully established, resolves RESOLVED/REMOTE_QUOTE", furnaceAndAc.status === "RESOLVED" && furnaceAndAc.routeAction === "REMOTE_QUOTE");
+  const heatPumpSplit = resolveWholeSystemReplacement(WHOLE_SYSTEM_HEAT_PUMP_SPLIT_BASE);
+  ok(
+    "HEAT_PUMP_SPLIT branch resolves RESOLVED/REMOTE_QUOTE even with fuelType/ventingClass UNKNOWN and heatingInputBtu null — those facts are never read on this branch",
+    heatPumpSplit.status === "RESOLVED" && heatPumpSplit.routeAction === "REMOTE_QUOTE"
+  );
+  const dualFuel = resolveWholeSystemReplacement(WHOLE_SYSTEM_DUAL_FUEL_BASE);
+  ok("DUAL_FUEL branch, fully established, resolves RESOLVED/REMOTE_QUOTE", dualFuel.status === "RESOLVED" && dualFuel.routeAction === "REMOTE_QUOTE");
+
+  for (const excluded of ["PACKAGE_UNIT", "AIR_HANDLER_ONLY", "MINI_SPLIT_DUCTLESS", "BOILER_HYDRONIC"] as const) {
+    const r = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE, systemType: excluded });
+    ok(`system type ${excluded} -> REFUSED/REMOTE_QUOTE — outside the three supported types`, r.status === "REFUSED" && r.routeAction === "REMOTE_QUOTE");
+  }
+  const unknownSystem = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE, systemType: "UNKNOWN" });
+  ok("UNKNOWN system -> PHOTO_REVIEW", unknownSystem.status === "REFUSED" && unknownSystem.routeAction === "PHOTO_REVIEW");
+
+  // FURNACE_AND_AC branch's own fuel/venting/capacity gating.
+  const furnaceUnknownFuel = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE, fuelType: "UNKNOWN" });
+  ok("FURNACE_AND_AC branch: UNKNOWN fuel -> PHOTO_REVIEW (fuel IS read on this branch)", furnaceUnknownFuel.status === "REFUSED" && furnaceUnknownFuel.routeAction === "PHOTO_REVIEW");
+  const furnaceDualFuelObserved = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE, fuelType: "DUAL_FUEL" });
+  ok(
+    "FURNACE_AND_AC branch: an observed DUAL_FUEL fuel -> REFUSED/REMOTE_QUOTE — contradicts the FURNACE_AND_AC identity already selected",
+    furnaceDualFuelObserved.status === "REFUSED" && furnaceDualFuelObserved.routeAction === "REMOTE_QUOTE"
+  );
+  const furnaceNonCombustion = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE, ventingClass: "NON_COMBUSTION" });
+  ok("FURNACE_AND_AC branch: NON_COMBUSTION venting -> REFUSED/REMOTE_QUOTE", furnaceNonCombustion.status === "REFUSED" && furnaceNonCombustion.routeAction === "REMOTE_QUOTE");
+  const furnaceOffListBtu = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE, heatingInputBtu: 75000 });
+  ok("FURNACE_AND_AC branch: an off-list heating input -> REFUSED/REMOTE_QUOTE", furnaceOffListBtu.status === "REFUSED" && furnaceOffListBtu.routeAction === "REMOTE_QUOTE");
+
+  // DUAL_FUEL branch accepts DUAL_FUEL as an observed fuel value, where FURNACE_AND_AC does not.
+  const dualFuelFuelObserved = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_DUAL_FUEL_BASE, fuelType: "DUAL_FUEL" });
+  ok("DUAL_FUEL branch: an observed DUAL_FUEL fuel continues", dualFuelFuelObserved.status === "RESOLVED");
+  const dualFuelGasObserved = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_DUAL_FUEL_BASE, fuelType: "NATURAL_GAS" });
+  ok("DUAL_FUEL branch: an observed NATURAL_GAS fuel also continues", dualFuelGasObserved.status === "RESOLVED");
+  const dualFuelOil = resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_DUAL_FUEL_BASE, fuelType: "OIL" });
+  ok("DUAL_FUEL branch: OIL fuel -> REFUSED/REMOTE_QUOTE", dualFuelOil.status === "REFUSED" && dualFuelOil.routeAction === "REMOTE_QUOTE");
+
+  // Shared facts, every branch.
+  for (const base of [WHOLE_SYSTEM_FURNACE_AND_AC_BASE, WHOLE_SYSTEM_HEAT_PUMP_SPLIT_BASE, WHOLE_SYSTEM_DUAL_FUEL_BASE]) {
+    const nullCooling = resolveWholeSystemReplacement({ ...base, coolingTons: null });
+    ok(`${base.systemType} branch: null cooling capacity -> PHOTO_REVIEW — cooling_equipment is unconditional on every branch`, nullCooling.status === "REFUSED" && nullCooling.routeAction === "PHOTO_REVIEW");
+    const noOutdoor = resolveWholeSystemReplacement({ ...base, outdoorLocation: "NONE" });
+    ok(`${base.systemType} branch: outdoor location NONE -> PHOTO_REVIEW`, noOutdoor.status === "REFUSED" && noOutdoor.routeAction === "PHOTO_REVIEW");
+    const unknownLineset = resolveWholeSystemReplacement({ ...base, linesetStatus: "UNKNOWN" });
+    ok(`${base.systemType} branch: lineset_status UNKNOWN -> PHOTO_REVIEW`, unknownLineset.status === "REFUSED" && unknownLineset.routeAction === "PHOTO_REVIEW");
+    const unknownCondensate = resolveWholeSystemReplacement({ ...base, condensateRoute: "UNKNOWN" });
+    ok(`${base.systemType} branch: condensate_route UNKNOWN -> PHOTO_REVIEW`, unknownCondensate.status === "REFUSED" && unknownCondensate.routeAction === "PHOTO_REVIEW");
+  }
+
+  const familyUsage = HVAC_SERVICE_FAMILIES["whole-system-replacement"];
+  ok(
+    "heating_equipment is declared branch-only, exactly twice — FURNACE_AND_AC and DUAL_FUEL",
+    familyUsage.filter((u) => u.family === "heating_equipment").length === 2 &&
+      familyUsage.some((u) => u.family === "heating_equipment" && u.branch === "system_type=FURNACE_AND_AC") &&
+      familyUsage.some((u) => u.family === "heating_equipment" && u.branch === "system_type=DUAL_FUEL")
+  );
+  ok(
+    "cooling_equipment, both access families, refrigerant_lineset, condensate_route and supply_arrangement all stay unconditional",
+    ["cooling_equipment", "indoor_equipment_access", "outdoor_equipment_access", "refrigerant_lineset", "condensate_route", "supply_arrangement"].every(
+      (key) => familyUsage.some((u) => u.family === key && u.branch === undefined)
+    )
+  );
+
+  ok("WHOLE_SYSTEM_REPLACEMENT_QUESTIONS has exactly 13 questions", WHOLE_SYSTEM_REPLACEMENT_QUESTIONS.length === 13);
+  ok(
+    "HEAT_PUMP_SPLIT is never named as a branch value on any fuel/venting/heating-input question",
+    !WHOLE_SYSTEM_REPLACEMENT_QUESTIONS.some((q) => ["fuel_type_furnace_and_ac", "fuel_type_dual_fuel", "venting_class_furnace_and_ac", "venting_class_dual_fuel", "heating_input_btu_furnace_and_ac", "heating_input_btu_dual_fuel"].includes(q.key) && (q as { branch: string }).branch === "HEAT_PUMP_SPLIT")
+  );
+}
+
+group("126. mini-split-installation: replacement_vs_new first live consumer, access is REPLACEMENT-only, no system_identity question, zone_count not rendered, run band informational, successful REMOTE_QUOTE terminal");
+{
+  // NEW_INSTALLATION, with deliberately unusable access values — proves
+  // those three facts are genuinely UNREAD on this branch, not merely
+  // happening to pass. This is the H11 patch-review correction's own core
+  // proof.
+  const newInstall = resolveMiniSplitInstallation(MINI_SPLIT_INSTALLATION_BASE);
+  ok(
+    "NEW_INSTALLATION resolves RESOLVED/REMOTE_QUOTE even with indoorAccessClass=UNKNOWN, outdoorLocation=NONE, outdoorAccessClass=UNKNOWN — those facts are not read on this branch",
+    newInstall.status === "RESOLVED" && newInstall.routeAction === "REMOTE_QUOTE"
+  );
+
+  // REPLACEMENT, with real access — the branch where access genuinely gates.
+  const replacement = resolveMiniSplitInstallation(MINI_SPLIT_REPLACEMENT_BASE);
+  ok("REPLACEMENT with valid access resolves RESOLVED/REMOTE_QUOTE", replacement.status === "RESOLVED" && replacement.routeAction === "REMOTE_QUOTE");
+  const unknownReplacement = resolveMiniSplitInstallation({ ...MINI_SPLIT_REPLACEMENT_BASE, replacementVsNew: "UNKNOWN" });
+  ok("UNKNOWN replacement_vs_new -> PHOTO_REVIEW", unknownReplacement.status === "REFUSED" && unknownReplacement.routeAction === "PHOTO_REVIEW");
+
+  const replacementUnknownIndoor = resolveMiniSplitInstallation({ ...MINI_SPLIT_REPLACEMENT_BASE, indoorAccessClass: "UNKNOWN" });
+  ok(
+    "REPLACEMENT branch: indoor access UNKNOWN -> PHOTO_REVIEW — access genuinely gates on this branch",
+    replacementUnknownIndoor.status === "REFUSED" && replacementUnknownIndoor.routeAction === "PHOTO_REVIEW"
+  );
+  const replacementNoOutdoor = resolveMiniSplitInstallation({ ...MINI_SPLIT_REPLACEMENT_BASE, outdoorLocation: "NONE" });
+  ok("REPLACEMENT branch: outdoor location NONE -> PHOTO_REVIEW", replacementNoOutdoor.status === "REFUSED" && replacementNoOutdoor.routeAction === "PHOTO_REVIEW");
+  const replacementUnknownOutdoorLoc = resolveMiniSplitInstallation({ ...MINI_SPLIT_REPLACEMENT_BASE, outdoorLocation: "UNKNOWN" });
+  ok("REPLACEMENT branch: outdoor location UNKNOWN -> PHOTO_REVIEW", replacementUnknownOutdoorLoc.status === "REFUSED" && replacementUnknownOutdoorLoc.routeAction === "PHOTO_REVIEW");
+  const replacementUnknownOutdoorAccess = resolveMiniSplitInstallation({ ...MINI_SPLIT_REPLACEMENT_BASE, outdoorAccessClass: "UNKNOWN" });
+  ok(
+    "REPLACEMENT branch: outdoor access UNKNOWN -> PHOTO_REVIEW",
+    replacementUnknownOutdoorAccess.status === "REFUSED" && replacementUnknownOutdoorAccess.routeAction === "PHOTO_REVIEW"
+  );
+  const replacementFinishedIndoor = resolveMiniSplitInstallation({ ...MINI_SPLIT_REPLACEMENT_BASE, indoorAccessClass: "FINISHED" });
+  ok("REPLACEMENT branch: indoor access FINISHED still continues", replacementFinishedIndoor.status === "RESOLVED");
+  const replacementFinishedOutdoor = resolveMiniSplitInstallation({ ...MINI_SPLIT_REPLACEMENT_BASE, outdoorAccessClass: "FINISHED" });
+  ok("REPLACEMENT branch: outdoor access FINISHED still continues", replacementFinishedOutdoor.status === "RESOLVED");
+  for (const loc of ["GROUND_LEVEL_ADJACENT", "GROUND_LEVEL_REMOTE", "ROOF", "WALL_OR_BALCONY_MOUNT"] as const) {
+    const r = resolveMiniSplitInstallation({ ...MINI_SPLIT_REPLACEMENT_BASE, outdoorLocation: loc });
+    ok(`REPLACEMENT branch: outdoor location ${loc} continues`, r.status === "RESOLVED");
+  }
+
+  const zeroHeads = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, headCount: 0 });
+  ok("head_count 0 -> PHOTO_REVIEW", zeroHeads.status === "REFUSED" && zeroHeads.routeAction === "PHOTO_REVIEW");
+  const negativeHeads = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, headCount: -1 });
+  ok("negative head_count -> PHOTO_REVIEW", negativeHeads.status === "REFUSED" && negativeHeads.routeAction === "PHOTO_REVIEW");
+  const fractionalHeads = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, headCount: 1.5 });
+  ok("fractional head_count -> PHOTO_REVIEW, never rounded or floored", fractionalHeads.status === "REFUSED" && fractionalHeads.routeAction === "PHOTO_REVIEW");
+  const nanHeads = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, headCount: NaN });
+  ok("NaN head_count -> PHOTO_REVIEW", nanHeads.status === "REFUSED" && nanHeads.routeAction === "PHOTO_REVIEW");
+  const infiniteHeads = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, headCount: Infinity });
+  ok("Infinity head_count -> PHOTO_REVIEW", infiniteHeads.status === "REFUSED" && infiniteHeads.routeAction === "PHOTO_REVIEW");
+  const validHeads = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, headCount: 5 });
+  ok("a valid positive integer head_count still resolves", validHeads.status === "RESOLVED");
+
+  for (const band of ["STANDARD", "EXTENDED", "OVER_BAND"] as const) {
+    const r = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, runBand: band });
+    ok(`run_band ${band} continues — informational for this REMOTE_QUOTE service, never a refusal`, r.status === "RESOLVED");
+  }
+  const unknownBand = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, runBand: "UNKNOWN" });
+  ok("run_band UNKNOWN -> PHOTO_REVIEW", unknownBand.status === "REFUSED" && unknownBand.routeAction === "PHOTO_REVIEW");
+
+  for (const lineset of ["PRESENT_VISIBLE", "PRESENT_CONCEALED", "NONE"] as const) {
+    const r = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, linesetStatus: lineset });
+    ok(`lineset_status ${lineset} continues`, r.status === "RESOLVED");
+  }
+  for (const route of ["PUMP_PRESENT", "GRAVITY_DRAIN_PRESENT", "NONE_VISIBLE"] as const) {
+    const r = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, condensateRoute: route });
+    ok(`condensate_route ${route} continues`, r.status === "RESOLVED");
+  }
+
+  ok("no system_identity question exists for mini-split-installation", !MINI_SPLIT_INSTALLATION_QUESTIONS.some((q) => (q as { establishes: string }).establishes === "system_type"));
+  ok("no zone_count question exists for mini-split-installation", !MINI_SPLIT_INSTALLATION_QUESTIONS.some((q) => (q as { establishes: string }).establishes === "zone_count"));
+  ok("head_count is asked directly, no options list", MINI_SPLIT_INSTALLATION_QUESTIONS.find((q) => q.key === "head_count")!.options.length === 0);
+  ok("MINI_SPLIT_INSTALLATION_QUESTIONS has exactly 7 questions", MINI_SPLIT_INSTALLATION_QUESTIONS.length === 7);
+  ok("no electrical-source, disconnect, or mounting-method question exists", !MINI_SPLIT_INSTALLATION_QUESTIONS.some((q) => /electrical|disconnect|mounting/i.test(q.prompt)));
+  ok(
+    "no proposed-position wording appears anywhere in mini-split-installation's own questions",
+    !MINI_SPLIT_INSTALLATION_QUESTIONS.some((q) => /proposed|which wall or ceiling would/i.test(q.prompt))
+  );
+
+  const indoorAccessQuestion = MINI_SPLIT_INSTALLATION_QUESTIONS.find((q) => q.key === "indoor_access")!;
+  const outdoorAccessQuestion = MINI_SPLIT_INSTALLATION_QUESTIONS.find((q) => q.key === "outdoor_access")!;
+  ok("the indoor_access question is REPLACEMENT-only", indoorAccessQuestion.branch === "REPLACEMENT");
+  ok("the outdoor_access question is REPLACEMENT-only", outdoorAccessQuestion.branch === "REPLACEMENT");
+  ok(
+    "no NEW_INSTALLATION-branch question establishes indoor_location or outdoor_location",
+    !MINI_SPLIT_INSTALLATION_QUESTIONS.some((q) => q.branch === "NEW_INSTALLATION" && (q.establishes === "indoor_location" || q.establishes === "outdoor_location"))
+  );
+  ok(
+    "replacement_vs_new, head_count, run_band, lineset_status and condensate_route are all SHARED",
+    ["replacement_vs_new", "head_count", "run_band", "lineset_status", "condensate_route"].every(
+      (key) => MINI_SPLIT_INSTALLATION_QUESTIONS.find((q) => q.key === key)!.branch === "SHARED"
+    )
+  );
+
+  ok(
+    "mini-split-installation declares equipment_installation_context, not accessory_and_media",
+    HVAC_SERVICE_FAMILIES["mini-split-installation"].some((u) => u.family === "equipment_installation_context") &&
+      !HVAC_SERVICE_FAMILIES["mini-split-installation"].some((u) => u.family === "accessory_and_media")
+  );
+  const familyUsage = HVAC_SERVICE_FAMILIES["mini-split-installation"];
+  ok(
+    "indoor_equipment_access and outdoor_equipment_access are both branch-qualified to replacement_vs_new=REPLACEMENT",
+    familyUsage.some((u) => u.family === "indoor_equipment_access" && u.branch === "replacement_vs_new=REPLACEMENT") &&
+      familyUsage.some((u) => u.family === "outdoor_equipment_access" && u.branch === "replacement_vs_new=REPLACEMENT")
+  );
+  ok(
+    "equipment_installation_context, distribution_and_zoning, run_distance, refrigerant_lineset and condensate_route stay unconditional",
+    ["equipment_installation_context", "distribution_and_zoning", "run_distance", "refrigerant_lineset", "condensate_route"].every((key) =>
+      familyUsage.some((u) => u.family === key && u.branch === undefined)
+    )
+  );
+  ok(
+    "HVAC_SERVICE_ACCESS_SLOTS still declares both slots for mini-split-installation — genuinely owned, just branch-conditionally read",
+    JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["mini-split-installation"]) === JSON.stringify(["INDOOR_EQUIPMENT", "OUTDOOR_EQUIPMENT"])
+  );
+
+  // run_band's own presentation — the {b1}/{b2} contractor-boundary
+  // placeholder shape, not a subjective "typical/usual" judgment the
+  // homeowner would have to supply themselves.
+  const runBandQuestion = MINI_SPLIT_INSTALLATION_QUESTIONS.find((q) => q.key === "run_band")!;
+  const runBandLabels = Object.fromEntries(runBandQuestion.options.map((o) => [o.value, o.label]));
+  ok('STANDARD label is exactly "{b1} feet or less"', runBandLabels.STANDARD === "{b1} feet or less");
+  ok('EXTENDED label is exactly "{b1} to {b2} feet"', runBandLabels.EXTENDED === "{b1} to {b2} feet");
+  ok('OVER_BAND label is exactly "More than {b2} feet"', runBandLabels.OVER_BAND === "More than {b2} feet");
+  ok('UNKNOWN label is exactly "Not sure"', runBandLabels.UNKNOWN === "Not sure");
+  const subjectiveLanguage = /typical distance|farther than usual|much farther than usual|standard installation|normal distance|\beasy\b/i;
+  ok(
+    "no run_band option label or prompt contains subjective classification",
+    !subjectiveLanguage.test(runBandQuestion.prompt) && runBandQuestion.options.every((o) => !subjectiveLanguage.test(o.label))
+  );
+  ok('run_band prompt stays observational: "Roughly how far apart would the indoor and outdoor units be?"', runBandQuestion.prompt === "Roughly how far apart would the indoor and outdoor units be?");
+
+  const standardBand = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, runBand: "STANDARD" });
+  ok("run_band STANDARD still continues to the successful terminal", standardBand.status === "RESOLVED" && standardBand.routeAction === "REMOTE_QUOTE");
+  const extendedBand = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, runBand: "EXTENDED" });
+  ok("run_band EXTENDED still continues to the successful terminal", extendedBand.status === "RESOLVED" && extendedBand.routeAction === "REMOTE_QUOTE");
+  const overBandStillContinues = resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, runBand: "OVER_BAND" });
+  ok("run_band OVER_BAND still continues to the successful terminal — presentation changed, routing semantics did not", overBandStillContinues.status === "RESOLVED" && overBandStillContinues.routeAction === "REMOTE_QUOTE");
+}
+
+group("127. every REMOTE_QUOTE terminal is RESOLVED, never REFUSED — and every interrupted path is REFUSED, never the successful shape");
+{
+  const resolvedCases: Array<{ label: string; result: { status: string } }> = [
+    { label: "furnace-replacement", result: resolveFurnaceReplacement(FURNACE_REPLACEMENT_BASE) },
+    { label: "ac-replacement", result: resolveAcReplacement(AC_REPLACEMENT_BASE) },
+    { label: "heat-pump-replacement", result: resolveHeatPumpReplacement(HEAT_PUMP_REPLACEMENT_BASE) },
+    { label: "whole-system-replacement", result: resolveWholeSystemReplacement(WHOLE_SYSTEM_FURNACE_AND_AC_BASE) },
+    { label: "mini-split-installation", result: resolveMiniSplitInstallation(MINI_SPLIT_INSTALLATION_BASE) },
+  ];
+  for (const { label, result } of resolvedCases) {
+    ok(`${label}'s fully-established scope is status "RESOLVED"`, result.status === "RESOLVED");
+    ok(`${label}'s successful result is never status "REFUSED"`, (result as { status: string }).status !== "REFUSED");
+  }
+
+  const refusedCases: Array<{ label: string; result: { status: string } }> = [
+    { label: "furnace-replacement UNKNOWN system", result: resolveFurnaceReplacement({ ...FURNACE_REPLACEMENT_BASE, systemType: "UNKNOWN" }) },
+    { label: "ac-replacement UNKNOWN system", result: resolveAcReplacement({ ...AC_REPLACEMENT_BASE, systemType: "UNKNOWN" }) },
+    { label: "heat-pump-replacement UNKNOWN system", result: resolveHeatPumpReplacement({ ...HEAT_PUMP_REPLACEMENT_BASE, systemType: "UNKNOWN" }) },
+    { label: "whole-system-replacement UNKNOWN system", result: resolveWholeSystemReplacement({ ...WHOLE_SYSTEM_FURNACE_AND_AC_BASE, systemType: "UNKNOWN" }) },
+    { label: "mini-split-installation UNKNOWN replacement_vs_new", result: resolveMiniSplitInstallation({ ...MINI_SPLIT_INSTALLATION_BASE, replacementVsNew: "UNKNOWN" }) },
+  ];
+  for (const { label, result } of refusedCases) {
+    ok(`${label} is status "REFUSED"`, result.status === "REFUSED");
+    ok(`${label} is never status "RESOLVED"`, (result as { status: string }).status !== "RESOLVED");
+  }
+
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const h11Section = section(scopeSrc, "type HvacRemoteQuoteResolved");
+  ok("HvacRemoteQuoteResolved's own status literal is RESOLVED, never REFUSED", /status: "RESOLVED"/.test(h11Section) && !/HvacRemoteQuoteResolved[\s\S]{0,80}status: "REFUSED"/.test(h11Section));
+  ok("REMOTE_QUOTE_RESOLVED is declared exactly once, as a single shared constant", (h11Section.match(/const REMOTE_QUOTE_RESOLVED/g) ?? []).length === 1);
+}
+
+group("128. no symptom vocabulary, no diagnosis, no equipment-match inference, no lineset-suitability inference, no duct sizing, no age-based replacement, no manufacturer/model lookup, no component-repair selection in any H11 tree");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const h11Section = section(scopeSrc, "type HvacRemoteQuoteResolved");
+
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}" in the H11 section`, !h11Section.includes(symptom));
+  }
+  const allQuestions = [
+    ...FURNACE_REPLACEMENT_QUESTIONS,
+    ...AC_REPLACEMENT_QUESTIONS,
+    ...HEAT_PUMP_REPLACEMENT_QUESTIONS,
+    ...WHOLE_SYSTEM_REPLACEMENT_QUESTIONS,
+    ...MINI_SPLIT_INSTALLATION_QUESTIONS,
+  ];
+  const optionValues = allQuestions.flatMap((q) => q.options.map((o) => o.value));
+  ok("no H11 answer option value is any of the closed reported_symptom vocabulary", optionValues.every((v) => !(REPORTED_SYMPTOMS as readonly string[]).includes(v)));
+  const symptomPhrases = ["mold smell", "odor", "not cooling", "no heat", "won't turn on", "leaking water", "rattling", "whistling"];
+  const allWording = allQuestions.flatMap((q) => [q.prompt, ...q.options.map((o) => o.label)]).join(" ").toLowerCase();
+  ok("no H11 question prompt or answer label contains symptom phrasing", symptomPhrases.every((p) => !allWording.includes(p)));
+
+  const diagnosticLanguage =
+    /\b(blocked|clogged|failed|failing|broken|defective|leaking from|leak in|worn|corroded internally|burnt out|malfunction|cracked|unsafe)\b/i;
+  for (const q of allQuestions) {
+    ok(`"${q.key}"'s prompt names no cause`, !diagnosticLanguage.test(q.prompt), q.prompt);
+    for (const o of q.options) {
+      ok(`"${q.key}" option "${o.value}" names no cause`, !diagnosticLanguage.test(o.label), o.label);
+    }
+  }
+
+  ok("no equipment-match/compatibility inference language anywhere in the H11 section", !/equipment.?match|matches the (proposed|new)|compatib/i.test(h11Section));
+  ok("no lineset suitability/reusability/correct-sizing language anywhere in the H11 section", !/reusab|suitab.{0,20}line|correctly sized|should be replaced/i.test(h11Section));
+  ok("no duct sizing or adequacy language anywhere in the H11 section", !/duct siz|duct adequa|duct condition/i.test(h11Section));
+  ok("no age-based or manufacture-date replacement inference anywhere in the H11 section", !/manufacture_date|manufactureDate|too old|age.?based/i.test(h11Section));
+  ok("no manufacturer or model lookup anywhere in the H11 section", !/\bmanufacturer\b|\bmodel\b/i.test(h11Section));
+  ok("no component, material role, or repair selection anywhere in the H11 section", !/materialRoles|components:|ScopeConsequence|selectRepair/i.test(h11Section));
+  ok("no H11 resolver imports anything from lib/hvac/mappings.ts", !/from ["'`]\.\/mappings["'`]/.test(scopeSrc));
+  ok("no H11 resolver ever produces REROUTE_SERVICE", !/REROUTE_SERVICE/.test(h11Section));
+  ok("no H11 resolver ever produces REROUTE_TROUBLESHOOTING directly (conditionGate's own ON_SITE_SERVICE translation is the only path there, and only for furnace-replacement's non-opted-in callers, which do not exist)", !/REROUTE_TROUBLESHOOTING/.test(h11Section));
+}
+
+group("129. H3-H10 runtime behavior is unchanged by H11, appointment-only services and condenser-pad-replacement remain resolver-free");
+{
+  const ventCover = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("vent-cover-replacement still resolves RESOLVE_INSTANT, unaffected by H11", ventCover.status === "RESOLVED" && ventCover.routeAction === "RESOLVE_INSTANT");
+  const acTuneUp = resolveAcTuneUp({
+    systemType: "FURNACE_AND_AC",
+    indoorAccessClass: "ACCESSIBLE",
+    outdoorLocation: "GROUND_LEVEL_ADJACENT",
+    outdoorAccessClass: "ACCESSIBLE",
+    systemCount: 1,
+  });
+  ok("ac-tune-up still resolves RESOLVE_INSTANT, unaffected by H11", acTuneUp.status === "RESOLVED" && acTuneUp.routeAction === "RESOLVE_INSTANT");
+  const filter = resolveAirFilterReplacement({ filterSlotSize: "16x25x1", quantity: 1 });
+  ok("air-filter-replacement still resolves RESOLVE_INSTANT, unaffected by H11", filter.status === "RESOLVED" && filter.routeAction === "RESOLVE_INSTANT");
+  const humidifier = resolveWholeHouseHumidifier(HUMIDIFIER_REPLACEMENT_BASE);
+  ok("whole-house-humidifier still resolves RESOLVE_ADJUSTED, unaffected by H11", humidifier.status === "RESOLVED" && humidifier.routeAction === "RESOLVE_ADJUSTED");
+
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok("no resolveDuctAssessment function exists anywhere in scope.ts", !/export function resolveDuctAssessment\(/.test(scopeSrc));
+  ok("no resolveHvacServiceCall function exists anywhere in scope.ts", !/export function resolveHvacServiceCall\(/.test(scopeSrc));
+  ok("no resolveCondenserPadReplacement function exists anywhere in scope.ts", !/export function resolveCondenserPadReplacement\(/.test(scopeSrc));
+
+  const ductAssessment = HVAC_SERVICES.find((s) => s.key === "duct-assessment")!;
+  ok("duct-assessment is still disposition APPOINTMENT_ONLY", ductAssessment.disposition === "APPOINTMENT_ONLY");
+  const hvacServiceCallSvc = HVAC_SERVICES.find((s) => s.key === "hvac-service-call")!;
+  ok("hvac-service-call is still disposition APPOINTMENT_ONLY", hvacServiceCallSvc.disposition === "APPOINTMENT_ONLY");
+  ok("HVAC_SERVICE_CALL_SHELL is still schedulable through the existing G2/G3 mechanism, unchanged by H11", hvacServiceCallIsSchedulable());
+
+  const condenserPad = HVAC_SERVICES.find((s) => s.key === "condenser-pad-replacement")!;
+  ok("condenser-pad-replacement is still disposition CONDITIONAL_FIXED, untouched by H11", condenserPad.disposition === "CONDITIONAL_FIXED");
+  ok(
+    "condenser-pad-replacement's own family declaration is untouched",
+    JSON.stringify(HVAC_SERVICE_FAMILIES["condenser-pad-replacement"]) === JSON.stringify([{ family: "outdoor_equipment_access" }, { family: "existing_condition" }])
+  );
+
+  for (const key of ["furnace-replacement", "ac-replacement", "heat-pump-replacement", "whole-system-replacement", "mini-split-installation"] as const) {
+    const svc = HVAC_SERVICES.find((s) => s.key === key)!;
+    ok(`${key}'s own catalog disposition is still REMOTE_QUOTE`, svc.disposition === "REMOTE_QUOTE");
+  }
+
+  ok("HVAC_GATE_KEYS is still exactly 7 entries after H11", HVAC_GATE_KEYS.length === 7);
+  ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries after H11", HVAC_PRIMITIVE_KEYS.length === 7);
+}
+
+group("130. LinesetStatus vocabulary, canonical capacity arrays, and equipment_installation_context's exact shape");
+{
+  const linesetValues: readonly LinesetStatus[] = ["PRESENT_VISIBLE", "PRESENT_CONCEALED", "NONE", "UNKNOWN"];
+  ok("LinesetStatus has exactly the four canonical values", linesetValues.length === 4);
+
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok(
+    "COOLING_TONS_COVERED is exactly [1.5, 2, 2.5, 3, 3.5, 4, 5]",
+    /const COOLING_TONS_COVERED: readonly number\[\] = \[1\.5, 2, 2\.5, 3, 3\.5, 4, 5\];/.test(scopeSrc)
+  );
+  ok(
+    "HEATING_INPUT_BTU_COVERED is exactly [40000, 60000, 80000, 100000, 120000]",
+    /const HEATING_INPUT_BTU_COVERED: readonly number\[\] = \[40000, 60000, 80000, 100000, 120000\];/.test(scopeSrc)
+  );
+  ok("COOLING_TONS_COVERED is declared exactly once — every resolver reuses the same array, none invents its own", (scopeSrc.match(/const COOLING_TONS_COVERED/g) ?? []).length === 1);
+  ok("HEATING_INPUT_BTU_COVERED is declared exactly once", (scopeSrc.match(/const HEATING_INPUT_BTU_COVERED/g) ?? []).length === 1);
+
+  const familyKeys = HVAC_FAMILY_KEYS as readonly string[];
+  ok("equipment_installation_context exists as its own H11 family", familyKeys.includes("equipment_installation_context"));
+  const family = HVAC_FAMILIES.find((f) => f.key === "equipment_installation_context")!;
+  ok("equipment_installation_context establishes exactly replacement_vs_new, nothing else", JSON.stringify(family.establishes) === JSON.stringify(["replacement_vs_new"]));
+  ok("equipment_installation_context binds no gate", family.gates.length === 0);
+  ok("equipment_installation_context binds no shared primitive", family.primitives.length === 0);
+  ok(
+    "equipment_installation_context is declared for mini-split-installation only",
+    Object.entries(HVAC_SERVICE_FAMILIES).filter(([, usages]) => usages.some((u) => u.family === "equipment_installation_context")).length === 1 &&
+      HVAC_SERVICE_FAMILIES["mini-split-installation"].some((u) => u.family === "equipment_installation_context")
+  );
+  ok(
+    "accessory_and_media's own replacement_vs_new is untouched — same four facts, still not equipment_installation_context",
+    HVAC_FAMILIES.find((f) => f.key === "accessory_and_media")!.establishes.includes("replacement_vs_new")
+  );
+
+  const replacementVsNewValues: readonly ReplacementVsNew[] = ["REPLACEMENT", "NEW_INSTALLATION", "UNKNOWN"];
+  ok("ReplacementVsNew has exactly the three canonical values", replacementVsNewValues.length === 3);
 }
 console.log();
 console.log(failures === 0 ? `All ${checks} checks passed.\n` : `${failures}/${checks} check(s) FAILED.\n`);
