@@ -10,16 +10,24 @@
  * publishedPriceApprovedAt, and never will; a caller that needs to publish
  * uses that authority explicitly, on its own click, same as the admin panel.
  *
- * PARTIAL, SAFELY. Only the keys present in `overrides` change — everything
- * else keeps its current stored value. This is what the extraction is FOR:
- * the original inline code built its update payload from a full admin-form
- * body every key of which came out of `num()`, which turns "the field was
- * absent" into an explicit `null` — so a second caller sending only
- * `{ fieldLaborHours }` would have silently nulled out wwtLaborHours,
- * materialCostCents, and everything else on that service. This function reads
- * the row first and only overwrites what the caller actually named, so a
- * caller (like the labor wizard) that only means to move one figure cannot
- * touch the rest by omission.
+ * PARTIAL, BY CONSTRUCTION, NOT BY READING FIRST. The update payload is
+ * built from ONLY the keys actually present on `overrides` — a key that
+ * isn't there is left as JavaScript `undefined`, and Prisma's own `update`
+ * treats an `undefined` field as "do not touch this column", never as
+ * "write null". An earlier version of this function read the row first and
+ * wrote every field back — the override where present, the just-read
+ * current value everywhere else — which reproduces the CORRECT value in the
+ * common case but is a real read-modify-write race: a concurrent write to
+ * ANY of the fields this function re-supplies, landing between the read and
+ * this function's own update, would be silently overwritten with the stale
+ * value this function read. Never reading `current` at all closes that
+ * race outright — the SQL UPDATE this issues does not mention a column
+ * unless the caller named it, so a concurrent writer's change to a column
+ * this call omits survives regardless of timing.
+ *
+ * `null` is preserved exactly as an explicit instruction: passing
+ * `{ wwtLaborHours: null }` clears that column, same as the admin form
+ * submitting a blanked-out field always has.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { PhotoState } from "@prisma/client";
@@ -46,32 +54,25 @@ export async function saveServicePricingInputs(
   serviceId: string,
   overrides: ServicePricingInputOverrides
 ) {
-  const current = await db.service.findUniqueOrThrow({
-    where: { id: serviceId },
-    select: {
-      fieldLaborHours: true, wwtLaborHours: true, materialCostCents: true, materialMultiplier: true,
-      permitAdminCents: true, otherDirectCostCents: true, estimatedMinutes: true, requiresTechCount: true,
-      isPrimaryEligible: true, estimatedMinutesReviewed: true, photoState: true,
-    },
-  });
-
-  const pick = <K extends keyof ServicePricingInputOverrides>(key: K) =>
-    overrides[key] !== undefined ? overrides[key] : current[key];
-
   return db.service.update({
     where: { id: serviceId },
     data: {
-      fieldLaborHours: pick("fieldLaborHours"),
-      wwtLaborHours: pick("wwtLaborHours"),
-      materialCostCents: pick("materialCostCents"),
-      materialMultiplier: pick("materialMultiplier"),
-      permitAdminCents: pick("permitAdminCents"),
-      otherDirectCostCents: pick("otherDirectCostCents"),
-      estimatedMinutes: pick("estimatedMinutes"),
-      requiresTechCount: pick("requiresTechCount"),
-      isPrimaryEligible: pick("isPrimaryEligible"),
-      estimatedMinutesReviewed: pick("estimatedMinutesReviewed"),
-      photoState: pick("photoState"),
+      // Each right-hand side is `undefined` whenever the caller didn't
+      // supply that key — Prisma's own semantics for "leave this column
+      // alone" — and the caller's actual value (including an explicit
+      // `null`) otherwise. No field is ever read back from the database
+      // first.
+      fieldLaborHours: overrides.fieldLaborHours,
+      wwtLaborHours: overrides.wwtLaborHours,
+      materialCostCents: overrides.materialCostCents,
+      materialMultiplier: overrides.materialMultiplier,
+      permitAdminCents: overrides.permitAdminCents,
+      otherDirectCostCents: overrides.otherDirectCostCents,
+      estimatedMinutes: overrides.estimatedMinutes,
+      requiresTechCount: overrides.requiresTechCount,
+      isPrimaryEligible: overrides.isPrimaryEligible,
+      estimatedMinutesReviewed: overrides.estimatedMinutesReviewed,
+      photoState: overrides.photoState,
     },
     select: {
       id: true, fieldLaborHours: true, wwtLaborHours: true, requiresTechCount: true,

@@ -11,9 +11,12 @@
  *                       set the TemplateService was provisioned with — not
  *                       "carries the role", not "contractor checked it"
  *   customized, not silently either way  a templated service whose recipe
- *                       has since diverged is excluded from eligible and
- *                       surfaced separately, never offered and never
- *                       dropped without a trace
+ *                       OR a fixed quantity has since diverged is excluded
+ *                       from eligible and surfaced separately, never
+ *                       offered and never dropped without a trace — the
+ *                       SAME set of materials at a DIFFERENT quantity
+ *                       (one outlet vs. three) is exactly as disqualifying
+ *                       as a different material entirely
  *   hand-authored is absent  a service with no templateKey at all (every
  *                       catalog that predates templating, Elite's
  *                       included) appears in neither list — there is no
@@ -33,6 +36,11 @@
  *   never the published price  basePrice, whileWeThereBasePrice and
  *                       publishedPriceApprovedAt are untouched by either
  *                       call shape
+ *   no lost update      two concurrent saveServicePricingInputs calls
+ *                       naming DIFFERENT fields on the SAME service both
+ *                       land — neither call reads the row first, so
+ *                       neither can write back a stale snapshot of the
+ *                       field the other one just changed
  *
  * The browser-driven conversation itself (the Q&A flow, the eligibility-
  * scoped picker, crew-mismatch flagging, and the direct-API refusal of an
@@ -78,13 +86,16 @@ async function sweepStale() {
 }
 
 async function service(
-  contractorId: string, slug: string, materialIds: string[], extra: Record<string, unknown> = {}
+  contractorId: string, slug: string, materialIds: string[], extra: Record<string, unknown> = {},
+  quantityOverrides: Record<string, number> = {}
 ) {
   const cat = await raw.serviceCategory.findFirstOrThrow({ select: { id: true } });
   return raw.service.create({
     data: {
       contractorId, categoryId: cat.id, slug, name: slug, bookingType: "INSTANT", photoState: "NONE",
-      materials: { create: materialIds.map((id, order) => ({ canonicalMaterialId: id, quantity: 1, order })) },
+      materials: {
+        create: materialIds.map((id, order) => ({ canonicalMaterialId: id, quantity: quantityOverrides[id] ?? 1, order })),
+      },
       ...extra,
     },
     select: { id: true },
@@ -124,6 +135,13 @@ async function main() {
   const customizedOutlet = await service(a.id, "a-customized-outlet", [...outletRecipe, boxOldWork.id], {
     templateKey: "replace-standard-outlet", templateVersionId: tv.id,
   });
+  // SAME material set as the template — nothing added, nothing removed —
+  // but the receptacle's own quantity moved from the template's fixed 1 to
+  // 3: this service now replaces three outlets, not one. The reviewer's
+  // exact scenario: a set-only comparison would have called this eligible.
+  const differentQuantityOutlet = await service(a.id, "a-different-quantity-outlet", outletRecipe, {
+    templateKey: "replace-standard-outlet", templateVersionId: tv.id,
+  }, { [receptacle.id]: 3 });
   const handAuthoredOutlet = await service(a.id, "a-hand-authored-outlet", [receptacle.id]);
   const unrelatedSwitch = await service(a.id, "a-tagged-switch", switchRecipe, {
     templateKey: "replace-standard-switch", templateVersionId: tv.id,
@@ -145,6 +163,10 @@ async function main() {
     !outletResult.eligible.some((s) => s.id === customizedOutlet.id));
   ok(`   ...and appears in customized instead, not silently dropped`,
     outletResult.customized.some((s) => s.id === customizedOutlet.id));
+  ok(`1b. same materials, different FIXED quantity (1 outlet -> 3) is ALSO excluded from eligible`,
+    !outletResult.eligible.some((s) => s.id === differentQuantityOutlet.id));
+  ok(`    ...and appears in customized too — a quantity change is not silently accepted`,
+    outletResult.customized.some((s) => s.id === differentQuantityOutlet.id));
   ok(`2. the hand-authored service (no templateKey) appears in NEITHER list`,
     !outletResult.eligible.some((s) => s.id === handAuthoredOutlet.id) &&
     !outletResult.customized.some((s) => s.id === handAuthoredOutlet.id));
@@ -201,10 +223,34 @@ async function main() {
       && afterFull.requiresTechCount === 1);
   ok(`   ...and still never touches the published price`, afterFull.basePrice === 12345);
 
+  // ── no lost update — the reviewer's exact concern about reading current
+  // values back into the write. Two calls naming DIFFERENT fields, fired
+  // concurrently: a read-modify-write implementation can lose one of them
+  // depending on interleaving; a build-from-overrides-only implementation
+  // cannot, because neither call's SQL ever mentions the other's column. ──
+  const concurrencyProbe = await raw.service.create({
+    data: {
+      contractorId: a.id, categoryId: (await raw.serviceCategory.findFirstOrThrow({ select: { id: true } })).id,
+      slug: "a-concurrency-probe", name: "a-concurrency-probe", bookingType: "INSTANT", photoState: "NONE",
+      fieldLaborHours: 1, wwtLaborHours: 1,
+    },
+    select: { id: true },
+  });
+  await Promise.all([
+    saveServicePricingInputs(raw, concurrencyProbe.id, { fieldLaborHours: 10 }),
+    saveServicePricingInputs(raw, concurrencyProbe.id, { wwtLaborHours: 20 }),
+  ]);
+  const afterConcurrent = await raw.service.findUniqueOrThrow({
+    where: { id: concurrencyProbe.id }, select: { fieldLaborHours: true, wwtLaborHours: true },
+  });
+  ok(`8. two concurrent calls naming different fields BOTH land — no lost update`,
+    afterConcurrent.fieldLaborHours === 10 && afterConcurrent.wwtLaborHours === 20,
+    `got fieldLaborHours=${afterConcurrent.fieldLaborHours}, wwtLaborHours=${afterConcurrent.wwtLaborHours}`);
+
   console.log(`\n  cleanup, then done\n`);
   await teardown();
   const residue = await raw.contractor.count({ where: { slug: { in: [SLUG_A, SLUG_B] } } });
-  ok(`8. every fixture is gone at the end`, residue === 0);
+  ok(`9. every fixture is gone at the end`, residue === 0);
   await raw.$disconnect();
   console.log(`\n  ${fail === 0 ? "all checks passed" : `${fail} check(s) failed`}\n`);
   if (fail > 0) process.exit(1);

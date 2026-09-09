@@ -27,11 +27,16 @@
  *      templateServiceKey is even a CANDIDATE.
  *   2. That candidate's CURRENT recipe (ServiceMaterial) must still match
  *      the ORIGINAL TemplateService's recipe (TemplateServiceMaterial) it
- *      was provisioned with, exactly. A contractor who customized a
- *      templated service's scope since — added a part, changed what it
- *      covers — has made it something the template no longer describes,
- *      and it is excluded from the eligible set and surfaced separately
- *      for manual review, never silently offered or silently dropped.
+ *      was provisioned with — the same SET of canonical materials AND, for
+ *      every one of them the template gives a fixed quantity (not a
+ *      policy-driven one), the same quantity. Quantity matters on its own:
+ *      a service that still lists exactly RECEPTACLE_STANDARD but now
+ *      replaces three of them instead of one is a different job than "a
+ *      standard outlet replacement" describes, even though its material
+ *      SET never changed. Either kind of divergence — a different
+ *      ingredient or a different fixed quantity of the same one — excludes
+ *      the service from the eligible set and surfaces it separately for
+ *      manual review, never silently offered or silently dropped.
  *
  * A service with no templateKey at all — every hand-authored catalog,
  * including Elite's, which predates templating entirely — has no canonical
@@ -40,10 +45,16 @@
  * contractor at the manual pricing editor for that task instead of
  * pretending an inference could stand in for a mapping that does not exist.
  *
- * ENFORCED SERVER-SIDE, NOT JUST IN THE REVIEW SCREEN. The accept route
- * re-resolves eligibility itself and refuses outright if a submitted
- * service id is not in it — a checkbox never existing for an ineligible
- * service is a UI convenience, not the guarantee.
+ * ENFORCED SERVER-SIDE, NOT JUST IN THE REVIEW SCREEN, INSIDE THE WRITE
+ * TRANSACTION. The accept route re-resolves eligibility itself and refuses
+ * outright if a submitted service id is not in it — a checkbox never
+ * existing for an ineligible service is a UI convenience, not the
+ * guarantee. That re-resolution runs INSIDE the same transaction as the
+ * write it gates, using the transaction's own client, so the check and the
+ * write share one consistent snapshot — a recipe edit landing between
+ * "the review screen loaded" and "the contractor clicked accept" is
+ * caught, because eligibility is decided again, freshly, at write time,
+ * not trusted from whenever the page was rendered.
  *
  * WHAT THIS WRITES, AND ONLY THIS. Every accepted proposal becomes
  * `Service.fieldLaborHours`, through lib/servicePricingInputs.ts's shared
@@ -69,13 +80,10 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 export type LaborTaskDefinition = {
   key: string;
   /**
-   * The platform's own canonical TemplateService.key for this outcome, when
-   * one exists — a real, reviewed provenance fact stamped at provisioning
-   * time (Service.templateKey), never inferred from a recipe. Used only to
-   * PRE-CHECK a likely match in the candidate list; a service whose
-   * templateKey is null (every hand-authored catalog that predates
-   * templating, including Elite's) still appears in the list, unchecked,
-   * for the contractor to confirm explicitly.
+   * The platform's own canonical TemplateService.key for this outcome — a
+   * real, reviewed provenance fact stamped at provisioning time
+   * (Service.templateKey), never inferred from a recipe. Only a service
+   * whose templateKey equals this is even a candidate for the task.
    */
   templateServiceKey: string;
   /** How this task reads inside a sentence: "how long does {label} take?" */
@@ -89,9 +97,9 @@ export type LaborTaskDefinition = {
 };
 
 /**
- * Electrical — the first question set. The engine above (candidate listing,
- * proposals, the accept route) is trade-agnostic; a second trade adds its
- * own array here, not a change to how any of this works.
+ * Electrical — the first question set. The engine above (eligibility
+ * resolution, proposals, the accept route) is trade-agnostic; a second
+ * trade adds its own array here, not a change to how any of this works.
  *
  * INSPECTED, NOT ASSUMED. Each templateServiceKey below was checked against
  * the platform's own TemplateService definition of the same key before
@@ -143,25 +151,36 @@ export type CustomizedService = { id: string; slug: string; name: string };
 
 export type TaskEligibility = {
   task: LaborTaskDefinition;
-  /** Provisioned from this task's canonical outcome, recipe unchanged since. The only services a checkbox can ever apply to. */
+  /** Provisioned from this task's canonical outcome, recipe (materials AND fixed quantities) unchanged since. The only services a checkbox can ever apply to. */
   eligible: EligibleService[];
-  /** Provisioned from the canonical outcome, but the recipe has since diverged from it — excluded, surfaced for manual review only. */
+  /** Provisioned from the canonical outcome, but the recipe or a fixed quantity has since diverged — excluded, surfaced for manual review only. */
   customized: CustomizedService[];
 };
 
 type Db = PrismaClient | Prisma.TransactionClient;
+
+/** What the template specifies for one material role: a fixed quantity to compare against, or none when it's policy-driven. */
+type OriginalSpec = { quantity: number | null; quantityIsPolicy: boolean };
+
+const pairKey = (templateVersionId: string, templateKey: string) => `${templateVersionId}::${templateKey}`;
 
 /**
  * The entire eligibility rule, in one place, server-side.
  *
  * For each task: find this contractor's services whose templateKey names
  * that task's canonical outcome, then require each one's CURRENT recipe to
- * still be the exact set of canonical materials the ORIGINAL TemplateService
- * was provisioned with. A service that matches goes in `eligible`; a
- * service whose recipe has since diverged goes in `customized` and is never
- * offered. A service with no templateKey at all — every hand-authored
- * catalog, Elite's included — never appears in either list; there is no
- * canonical mapping to check, so there is nothing to be eligible FOR.
+ * still match the ORIGINAL TemplateService's recipe it was provisioned
+ * with — same set of canonical materials, and for every one the template
+ * pins to a fixed (non-policy) quantity, the same quantity. A service that
+ * matches goes in `eligible`; a service whose recipe or a fixed quantity
+ * has since diverged goes in `customized` and is never offered. A service
+ * with no templateKey at all — every hand-authored catalog, Elite's
+ * included — never appears in either list; there is no canonical mapping
+ * to check, so there is nothing to be eligible FOR.
+ *
+ * Callers that need this check to hold at write time (the accept route)
+ * pass a transaction client here and perform the write inside the SAME
+ * transaction, so the check and the write share one snapshot.
  */
 export async function resolveTaskEligibility(
   db: Db,
@@ -173,7 +192,7 @@ export async function resolveTaskEligibility(
     select: {
       id: true, slug: true, name: true, fieldLaborHours: true,
       templateKey: true, templateVersionId: true,
-      materials: { select: { canonicalMaterialId: true } },
+      materials: { select: { canonicalMaterialId: true, quantity: true } },
     },
   });
 
@@ -184,30 +203,54 @@ export async function resolveTaskEligibility(
   const pairs = [...new Set(
     candidates
       .filter((c): c is typeof c & { templateVersionId: string } => c.templateVersionId !== null)
-      .map((c) => `${c.templateVersionId} ${c.templateKey}`)
+      .map((c) => pairKey(c.templateVersionId, c.templateKey as string))
   )];
-  const originalRecipeByPair = new Map<string, Set<string>>();
+  const originalByPair = new Map<string, Map<string, OriginalSpec>>();
   for (const pair of pairs) {
-    const [templateVersionId, key] = pair.split(" ");
+    const sep = pair.indexOf("::");
+    const templateVersionId = pair.slice(0, sep);
+    const key = pair.slice(sep + 2);
     const ts = await db.templateService.findUnique({
       where: { templateVersionId_key: { templateVersionId, key } },
-      select: { materials: { select: { canonicalMaterialId: true } } },
+      select: { materials: { select: { canonicalMaterialId: true, quantity: true, quantityIsPolicy: true } } },
     });
-    if (ts) originalRecipeByPair.set(pair, new Set(ts.materials.map((m) => m.canonicalMaterialId)));
+    if (ts) {
+      originalByPair.set(
+        pair,
+        new Map(ts.materials.map((m) => [m.canonicalMaterialId, { quantity: m.quantity, quantityIsPolicy: m.quantityIsPolicy }]))
+      );
+    }
   }
 
   return tasks.map((task) => {
     const eligible: EligibleService[] = [];
     const customized: CustomizedService[] = [];
     for (const svc of candidates) {
-      if (svc.templateKey !== task.templateServiceKey) continue;
-      const pair = `${svc.templateVersionId} ${svc.templateKey}`;
-      const original = originalRecipeByPair.get(pair);
-      const current = new Set(svc.materials.map((m) => m.canonicalMaterialId));
-      const unchanged =
-        original !== undefined && original.size === current.size && [...original].every((id) => current.has(id));
-      if (unchanged) eligible.push({ id: svc.id, slug: svc.slug, name: svc.name, fieldLaborHours: svc.fieldLaborHours });
-      else customized.push({ id: svc.id, slug: svc.slug, name: svc.name });
+      if (svc.templateKey !== task.templateServiceKey || svc.templateVersionId === null) continue;
+      const pair = pairKey(svc.templateVersionId, svc.templateKey);
+      const original = originalByPair.get(pair);
+      const currentQuantityByMaterial = new Map(svc.materials.map((m) => [m.canonicalMaterialId, m.quantity]));
+
+      const sameIngredients =
+        original !== undefined &&
+        original.size === currentQuantityByMaterial.size &&
+        [...original.keys()].every((id) => currentQuantityByMaterial.has(id));
+
+      // Only a fixed (non-policy) template quantity is comparable — a
+      // policy-driven one (e.g. "one per device", quantity null in the
+      // template) has no single number to check a current recipe against.
+      const sameFixedQuantities =
+        sameIngredients &&
+        [...original!.entries()].every(([id, spec]) => {
+          if (spec.quantityIsPolicy || spec.quantity === null) return true;
+          return currentQuantityByMaterial.get(id) === spec.quantity;
+        });
+
+      if (sameIngredients && sameFixedQuantities) {
+        eligible.push({ id: svc.id, slug: svc.slug, name: svc.name, fieldLaborHours: svc.fieldLaborHours });
+      } else {
+        customized.push({ id: svc.id, slug: svc.slug, name: svc.name });
+      }
     }
     return { task, eligible, customized };
   });
