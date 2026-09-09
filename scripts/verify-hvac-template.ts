@@ -96,6 +96,9 @@ import {
   resolveWholeHouseHumidifier,
   WHOLE_HOUSE_HUMIDIFIER_QUESTIONS,
   type WholeHouseHumidifierFacts,
+  resolveVentCoverReplacement,
+  VENT_COVER_REPLACEMENT_QUESTIONS,
+  type VentCoverReplacementFacts,
 } from "../lib/hvac/scope";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -385,14 +388,15 @@ group("14. canonical catalog contains no diagnostic repair inference");
 // H2 — the domain vocabulary and family layer
 // ═══════════════════════════════════════════════════════════════════════
 
-group("15. exactly seventeen HVAC families — H2's own \"fifteen\" check, superseded by H8's two narrow additions");
-// H2 declared fifteen; H8 adds indoor_unit_form and water_supply_availability
-// — two narrowly-scoped families settling facts the final applied trade
-// review required but H2 never declared a home for. This group now proves
-// the CURRENT boundary, the same discipline every prior phase applied to
-// its own predecessor's version of a count check.
-ok("HVAC_FAMILIES has exactly 17 entries", HVAC_FAMILIES.length === 17, `got ${HVAC_FAMILIES.length}`);
-ok("HVAC_FAMILY_KEYS has 17 unique entries", new Set(HVAC_FAMILY_KEYS).size === 17, `got ${new Set(HVAC_FAMILY_KEYS).size}`);
+group("15. exactly eighteen HVAC families — H2's own \"fifteen\" check, superseded again by H9's own narrow addition");
+// H2 declared fifteen; H8 added indoor_unit_form and water_supply_availability
+// (seventeen); H9 adds vent_cover_configuration — three narrowly-scoped
+// families total, each settling facts approved authority required but H2
+// never declared a home for. This group now proves the CURRENT boundary,
+// the same discipline every prior phase applied to its own predecessor's
+// version of a count check.
+ok("HVAC_FAMILIES has exactly 18 entries", HVAC_FAMILIES.length === 18, `got ${HVAC_FAMILIES.length}`);
+ok("HVAC_FAMILY_KEYS has 18 unique entries", new Set(HVAC_FAMILY_KEYS).size === 18, `got ${new Set(HVAC_FAMILY_KEYS).size}`);
 ok(
   '"dedicated_power_availability" is one of the fifteen — the H2 audit correction',
   (HVAC_FAMILY_KEYS as readonly string[]).includes("dedicated_power_availability")
@@ -909,22 +913,25 @@ group("40. the tree's questions match H2's own family declaration for this servi
   ok("access slot is PRIMARY, per the settled decision", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["condensate-pump-installation"]) === JSON.stringify(["PRIMARY"]));
 }
 
-group("41. exactly THIRTEEN HVAC service trees exist — H3-H7's own check, superseded again on purpose");
+group("41. exactly FOURTEEN HVAC service trees exist — H3-H8's own check, superseded again on purpose");
 {
   // H3's version read "exactly one"; H4's "exactly two"; H5's "exactly
-  // four"; H6's "exactly eight"; H7's "exactly eleven" (having removed
-  // mini-split-head-cleaning before push for want of an approved
-  // indoor-unit-type vocabulary). Each was true when written, and each is
-  // superseded on the same terms: H8 settles that vocabulary as an
-  // explicit product decision and restores mini-split-head-cleaning,
-  // and separately settles whole-house-humidifier's own two missing
-  // facts (humidifier type, water supply presence) — exactly the two
-  // additional executable services this phase ships. This group now
-  // proves the CURRENT boundary — thirteen, not twelve, not fourteen —
-  // the same discipline every prior phase applied to its own
-  // predecessor's version of this check.
+  // four"; H6's "exactly eight"; H7's "exactly eleven"; H8's "exactly
+  // thirteen". Each was true when written, and each is superseded on the
+  // same terms: H9 adds vent-cover-replacement, settling three previously
+  // stale Part-5 questions (size, mount surface) as genuinely load-bearing
+  // once "duct sizing" and "opening dimensions" were correctly separated.
+  // This group now proves the CURRENT boundary — fourteen, not thirteen,
+  // not fifteen — the same discipline every prior phase applied to its
+  // own predecessor's version of this check.
+  //
+  // duct-assessment and hvac-service-call are DELIBERATELY not among
+  // these fourteen and never will be through this file — both are
+  // APPOINTMENT_ONLY, never produce a priced RouteAction, and H9's own
+  // audit settled that direct-selection context capture for both belongs
+  // to a later booking/intake integration, not a scope.ts resolver.
   const resolveFns = strip("lib/hvac/scope.ts").match(/export function resolve\w+\(/g) ?? [];
-  ok("lib/hvac/scope.ts exports exactly thirteen resolve functions", resolveFns.length === 13, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
+  ok("lib/hvac/scope.ts exports exactly fourteen resolve functions", resolveFns.length === 14, `got ${resolveFns.length}: ${resolveFns.join(", ")}`);
   ok("resolveCondensatePumpInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensatePumpInstallation")));
   ok("resolveThermostatInstallation is one of them", resolveFns.some((f) => f.includes("resolveThermostatInstallation")));
   ok("resolveCondensateSafetySwitchInstallation is one of them", resolveFns.some((f) => f.includes("resolveCondensateSafetySwitchInstallation")));
@@ -936,13 +943,22 @@ group("41. exactly THIRTEEN HVAC service trees exist — H3-H7's own check, supe
   ok("resolveAirCleanerCabinetInstallation is one of them", resolveFns.some((f) => f.includes("resolveAirCleanerCabinetInstallation")));
   ok("resolveDuctAirTreatmentInstallation is one of them", resolveFns.some((f) => f.includes("resolveDuctAirTreatmentInstallation")));
   ok("resolveAccessoryConsumableReplacement is one of them", resolveFns.some((f) => f.includes("resolveAccessoryConsumableReplacement")));
-  ok("resolveMiniSplitHeadCleaning is one of them — restored, on H8's own settled indoor_unit_type vocabulary", resolveFns.some((f) => f.includes("resolveMiniSplitHeadCleaning")));
-  ok("resolveWholeHouseHumidifier is the thirteenth", resolveFns.some((f) => f.includes("resolveWholeHouseHumidifier")));
+  ok("resolveMiniSplitHeadCleaning is one of them", resolveFns.some((f) => f.includes("resolveMiniSplitHeadCleaning")));
+  ok("resolveWholeHouseHumidifier is one of them", resolveFns.some((f) => f.includes("resolveWholeHouseHumidifier")));
+  ok("resolveVentCoverReplacement is the fourteenth", resolveFns.some((f) => f.includes("resolveVentCoverReplacement")));
   ok(
-    "no resolveCondenserPadReplacement exists — deferred, per the H5 pad audit decision, still deferred; H8 was explicitly told not to reopen it",
+    "no resolveCondenserPadReplacement exists — deferred, per the H5 pad audit decision, still deferred; not reopened by H9",
     !resolveFns.some((f) => f.includes("resolveCondenserPadReplacement"))
   );
-  ok("no fourteenth HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
+  ok(
+    "no resolveDuctAssessment exists — APPOINTMENT_ONLY, never priced, deliberately kept out of this file",
+    !resolveFns.some((f) => f.includes("resolveDuctAssessment"))
+  );
+  ok(
+    "no resolveHvacServiceCall exists — APPOINTMENT_ONLY/TROUBLESHOOT_ONLY, existing G2/G3 shell remains authority",
+    !resolveFns.some((f) => f.includes("resolveHvacServiceCall"))
+  );
+  ok("no fifteenth HVAC service resolver file exists anywhere in lib/hvac", !existsSync(join(ROOT, "lib/hvac/scope2.ts")));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1098,7 +1114,7 @@ group("48. symptom-only phrasing cannot enter the thermostat tree");
 
 group("49. terminal_scheme lives inside existing_control — no new family, no new gate, no new primitive");
 {
-  ok("HVAC_FAMILIES is now exactly 17 — no new family was added for terminal_scheme specifically (H8 later added two, for unrelated facts)", HVAC_FAMILIES.length === 17);
+  ok("HVAC_FAMILIES is now exactly 18 — no new family was added for terminal_scheme specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 18);
   ok("HVAC_GATE_KEYS is still exactly 7 — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
   const existingControl = HVAC_FAMILIES.find((f) => f.key === "existing_control")!;
@@ -1243,7 +1259,7 @@ group("56. the thermostat tree's questions match H2's own family declaration for
 group("57. all prior H1-H3/G5 invariants remain green after the H4 restructure");
 {
   ok("HVAC_SERVICES still has exactly 22 entries", HVAC_SERVICES.length === 22);
-  ok("HVAC_FAMILIES has exactly 17 entries (fifteen from H2, plus H8's two narrow additions)", HVAC_FAMILIES.length === 17);
+  ok("HVAC_FAMILIES has exactly 18 entries (fifteen from H2, plus H8's two and H9's one narrow additions)", HVAC_FAMILIES.length === 18);
   ok("HVAC_GATE_KEYS still has exactly 7 entries", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS still has exactly 7 entries", HVAC_PRIMITIVE_KEYS.length === 7);
   ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
@@ -1876,7 +1892,7 @@ group("84. all four H1 dispositions remain FIXED, and no family/gate/primitive c
     ok(`${key}'s disposition is still FIXED`, HVAC_SERVICES.find((s) => s.key === key)?.disposition === "FIXED");
   }
   ok("HVAC_SERVICES is still exactly 22 entries", HVAC_SERVICES.length === 22);
-  ok("HVAC_FAMILIES is exactly 17 entries — no new family was added for H6 specifically (H8 later added two, for unrelated facts)", HVAC_FAMILIES.length === 17);
+  ok("HVAC_FAMILIES is exactly 18 entries — no new family was added for H6 specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 18);
   ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
   ok("lib/hvac/composition.ts still does not exist", !existsSync(join(ROOT, "lib/hvac/composition.ts")));
@@ -2190,7 +2206,7 @@ group("93. accessory-consumable-replacement: accessory_kind exists, exact three 
       existingFamily.establishes.includes("replacement_vs_new") &&
       existingFamily.establishes.includes("filter_slot_size")
   );
-  ok("HVAC_FAMILIES is exactly 17 entries — no new family was added for accessory_kind specifically (H8 later added two, for unrelated facts)", HVAC_FAMILIES.length === 17);
+  ok("HVAC_FAMILIES is exactly 18 entries — no new family was added for accessory_kind specifically (H8 and H9 later added three, for unrelated facts)", HVAC_FAMILIES.length === 18);
   ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
 
@@ -2527,13 +2543,17 @@ group("105. no diagnostic humidity/comfort language, and no symptom vocabulary, 
   }
 }
 
-group("106. exactly 17 H2 families after H8's two narrow additions, and no gate or primitive count changed");
+group("106. exactly 17 H2 families after H8's two narrow additions — H9's own check, superseded again on purpose");
 {
-  ok("HVAC_FAMILIES is now exactly 17 entries — fifteen original plus indoor_unit_form and water_supply_availability", HVAC_FAMILIES.length === 17);
-  ok("HVAC_FAMILY_KEYS has 17 unique entries", new Set(HVAC_FAMILY_KEYS).size === 17);
+  // H9 adds one more narrow family (vent_cover_configuration), so this
+  // group's own boundary moves from seventeen to eighteen — the same
+  // discipline this group's own title already documents H8 applying to
+  // H2's original fifteen.
+  ok("HVAC_FAMILIES is now exactly 18 entries — fifteen original, plus H8's indoor_unit_form and water_supply_availability, plus H9's vent_cover_configuration", HVAC_FAMILIES.length === 18);
+  ok("HVAC_FAMILY_KEYS has 18 unique entries", new Set(HVAC_FAMILY_KEYS).size === 18);
   ok("HVAC_GATE_KEYS is still exactly 7 entries — no new gate was added", HVAC_GATE_KEYS.length === 7);
   ok("HVAC_PRIMITIVE_KEYS is still exactly 7 entries — no new primitive was added", HVAC_PRIMITIVE_KEYS.length === 7);
-  ok("no HVAC family manifest declares actual Question/AnswerOption content — indoor_unit_form and water_supply_availability included", HVAC_FAMILIES.every((f) => !("questions" in f)));
+  ok("no HVAC family manifest declares actual Question/AnswerOption content — vent_cover_configuration included", HVAC_FAMILIES.every((f) => !("questions" in f)));
 }
 
 group("107. H3-H7 behavior is unchanged by the H8 addition");
@@ -2576,6 +2596,318 @@ group("107. H3-H7 behavior is unchanged by the H8 addition");
   );
 }
 
+
+group("108. vent-cover-replacement's own catalog entry is unchanged — still FIXED, still defaultOffered false");
+{
+  const svc = HVAC_SERVICES.find((s) => s.key === "vent-cover-replacement")!;
+  ok("vent-cover-replacement is still disposition FIXED", svc.disposition === "FIXED");
+  ok("vent-cover-replacement is still defaultOffered false", svc.defaultOffered === false);
+  ok("vent-cover-replacement's category is still ducts-vents", svc.category === "ducts-vents");
+  ok("vent-cover-replacement still has no bookingType", svc.bookingType === undefined);
+  ok("vent-cover-replacement's G1 access slot is still exactly PRIMARY", JSON.stringify(HVAC_SERVICE_ACCESS_SLOTS["vent-cover-replacement"]) === JSON.stringify(["PRIMARY"]));
+}
+
+group("109. vent_cover_configuration is a separate H9 family, establishes exactly the three approved facts, no gate, no primitive");
+{
+  const familyKeys = HVAC_FAMILY_KEYS as readonly string[];
+  ok("vent_cover_configuration exists as its own H9 family", familyKeys.includes("vent_cover_configuration"));
+  const family = HVAC_FAMILIES.find((f) => f.key === "vent_cover_configuration")!;
+  ok(
+    "vent_cover_configuration establishes exactly opening_size_pattern, opening_dimensions, mount_surface — nothing else",
+    JSON.stringify(family.establishes) === JSON.stringify(["opening_size_pattern", "opening_dimensions", "mount_surface"])
+  );
+  ok("vent_cover_configuration binds no gate", family.gates.length === 0);
+  ok("vent_cover_configuration binds no shared primitive", family.primitives.length === 0);
+  ok(
+    "vent_cover_configuration is declared for vent-cover-replacement only, and for no other service",
+    Object.entries(HVAC_SERVICE_FAMILIES).filter(([, usages]) => usages.some((u) => u.family === "vent_cover_configuration")).length === 1 &&
+      HVAC_SERVICE_FAMILIES["vent-cover-replacement"].some((u) => u.family === "vent_cover_configuration")
+  );
+  ok(
+    "vent-cover-replacement declares exactly one family usage — vent_cover_configuration, unbranched",
+    HVAC_SERVICE_FAMILIES["vent-cover-replacement"].length === 1 && HVAC_SERVICE_FAMILIES["vent-cover-replacement"][0].branch === undefined
+  );
+}
+
+group("110. indoor_equipment_access was removed from vent-cover-replacement only — the generic family and every other service's usage are untouched");
+{
+  ok(
+    "vent-cover-replacement no longer declares indoor_equipment_access",
+    !HVAC_SERVICE_FAMILIES["vent-cover-replacement"].some((u) => u.family === "indoor_equipment_access")
+  );
+  const familyKeys = HVAC_FAMILY_KEYS as readonly string[];
+  ok("indoor_equipment_access still exists as a family — not deleted, only unhooked from this one service", familyKeys.includes("indoor_equipment_access"));
+  const accessFamily = HVAC_FAMILIES.find((f) => f.key === "indoor_equipment_access")!;
+  ok(
+    "indoor_equipment_access's own purpose text is untouched — still framed around reaching indoor EQUIPMENT",
+    /indoor equipment/i.test(accessFamily.purpose)
+  );
+  const stillUsing = Object.entries(HVAC_SERVICE_FAMILIES).filter(([, usages]) => usages.some((u) => u.family === "indoor_equipment_access"));
+  ok(
+    "every other service that declared indoor_equipment_access before H9 still declares it — duct-assessment is one of them",
+    stillUsing.some(([key]) => key === "duct-assessment") && stillUsing.some(([key]) => key === "ac-tune-up") && stillUsing.length >= 10
+  );
+  ok("no service other than vent-cover-replacement lost an indoor_equipment_access usage this phase", !stillUsing.some(([key]) => key === "vent-cover-replacement"));
+}
+
+group("111. count is a direct quantity, not a family — and a single opening skips the size-consistency question entirely");
+{
+  const familyKeys = HVAC_FAMILY_KEYS as readonly string[];
+  ok("no family named count, quantity, or vent_cover_count exists", !familyKeys.some((k) => /count|quantity/i.test(k)));
+  const countQuestion = VENT_COVER_REPLACEMENT_QUESTIONS.find((q) => q.key === "count")!;
+  ok("count is asked directly, with no options list — a number, not a closed vocabulary", countQuestion.options.length === 0);
+
+  const zero = resolveVentCoverReplacement({ count: 0, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("count 0 is unresolved -> PHOTO_REVIEW, never treated as a valid quantity", zero.status === "REFUSED" && zero.routeAction === "PHOTO_REVIEW" && zero.outcome.factKey === "count");
+  const negative = resolveVentCoverReplacement({ count: -1, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("a negative count is unresolved -> PHOTO_REVIEW", negative.status === "REFUSED" && negative.routeAction === "PHOTO_REVIEW");
+
+  const singleUnknownPattern = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNKNOWN", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok(
+    "count === 1 never reads opening_size_pattern — an UNKNOWN pattern value does not block a singleton from resolving",
+    singleUnknownPattern.status === "RESOLVED" && singleUnknownPattern.routeAction === "RESOLVE_INSTANT"
+  );
+  const singleMixedPattern = resolveVentCoverReplacement({ count: 1, openingSizePattern: "MIXED", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok(
+    "count === 1 never reads opening_size_pattern — a MIXED pattern value (which cannot even be truthfully asked of one opening) does not block resolution either",
+    singleMixedPattern.status === "RESOLVED" && singleMixedPattern.routeAction === "RESOLVE_INSTANT"
+  );
+}
+
+group("112. opening_size_pattern: read only when count > 1 — UNIFORM continues, MIXED REMOTE_QUOTEs, UNKNOWN PHOTO_REVIEWs");
+{
+  const patternQuestion = VENT_COVER_REPLACEMENT_QUESTIONS.find((q) => q.key === "opening_size_pattern")!;
+  ok(
+    "opening_size_pattern has exactly the three approved values, in this order",
+    patternQuestion.options.map((o) => o.value).join(",") === "UNIFORM,MIXED,UNKNOWN"
+  );
+
+  const uniform = resolveVentCoverReplacement({ count: 3, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("count > 1, UNIFORM -> continues to RESOLVE_INSTANT (with dimensions and surface known)", uniform.status === "RESOLVED" && uniform.routeAction === "RESOLVE_INSTANT");
+
+  const mixed = resolveVentCoverReplacement({ count: 3, openingSizePattern: "MIXED", openingDimensions: null, mountSurface: "UNKNOWN" });
+  ok(
+    "count > 1, MIXED sizes -> REMOTE_QUOTE, before dimensions or mount_surface are even read — a single fixed price cannot bound mixed-size openings",
+    mixed.status === "REFUSED" && mixed.routeAction === "REMOTE_QUOTE" && mixed.outcome.factKey === "opening_size_pattern" && mixed.outcome.observed === "MIXED"
+  );
+
+  const unknownPattern = resolveVentCoverReplacement({ count: 2, openingSizePattern: "UNKNOWN", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok(
+    "count > 1, UNKNOWN pattern -> PHOTO_REVIEW",
+    unknownPattern.status === "REFUSED" && unknownPattern.routeAction === "PHOTO_REVIEW" && unknownPattern.outcome.factKey === "opening_size_pattern"
+  );
+}
+
+group("113. opening_dimensions is a direct measurement/readout only — missing or unreadable PHOTO_REVIEWs, and no standard-size vocabulary exists");
+{
+  const dimensionsQuestion = VENT_COVER_REPLACEMENT_QUESTIONS.find((q) => q.key === "opening_dimensions")!;
+  ok("opening_dimensions is asked directly, with no closed options list — a free-text reading, not a picklist", dimensionsQuestion.options.length === 0);
+  ok(
+    "the opening_dimensions prompt asks for the existing opening's size, not a duct or airflow judgment",
+    /size/i.test(dimensionsQuestion.prompt) && !/duct|airflow|adequa|balance/i.test(dimensionsQuestion.prompt)
+  );
+
+  const missing = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: null, mountSurface: "WALL" });
+  ok(
+    "null opening_dimensions -> PHOTO_REVIEW",
+    missing.status === "REFUSED" && missing.routeAction === "PHOTO_REVIEW" && missing.outcome.factKey === "opening_dimensions"
+  );
+
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const ventSection = section(scopeSrc, "export type OpeningSizePattern");
+  ok("opening_dimensions is typed as string | null — no STANDARD/NONSTANDARD or enum classification exists", /openingDimensions: string \| null/.test(ventSection));
+  ok(
+    "no STANDARD/NONSTANDARD or size-classification vocabulary was invented anywhere in the vent-cover-replacement section",
+    !/STANDARD|NONSTANDARD/.test(ventSection)
+  );
+  ok(
+    "opening_dimensions carries no duct sizing, airflow, or compatibility inference anywhere in its handling",
+    !/duct.?siz|airflow|compat/i.test(ventSection)
+  );
+}
+
+group("114. mount_surface: WALL/CEILING/FLOOR resolve, MIXED REMOTE_QUOTEs, UNKNOWN PHOTO_REVIEWs — never flattened into one scalar");
+{
+  const surfaceQuestion = VENT_COVER_REPLACEMENT_QUESTIONS.find((q) => q.key === "mount_surface")!;
+  ok(
+    "mount_surface has exactly the five approved values, in this order",
+    surfaceQuestion.options.map((o) => o.value).join(",") === "WALL,CEILING,FLOOR,MIXED,UNKNOWN"
+  );
+
+  for (const surface of ["WALL", "CEILING", "FLOOR"] as const) {
+    const resolved = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: surface });
+    ok(`mount_surface ${surface} -> RESOLVE_INSTANT`, resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_INSTANT");
+  }
+
+  const mixedSurface = resolveVentCoverReplacement({ count: 2, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "MIXED" });
+  ok(
+    "mount_surface MIXED -> REMOTE_QUOTE — covers on more than one kind of surface are never flattened into a single scalar",
+    mixedSurface.status === "REFUSED" && mixedSurface.routeAction === "REMOTE_QUOTE" && mixedSurface.outcome.factKey === "mount_surface" && mixedSurface.outcome.observed === "MIXED"
+  );
+
+  const unknownSurface = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "UNKNOWN" });
+  ok(
+    "mount_surface UNKNOWN -> PHOTO_REVIEW",
+    unknownSurface.status === "REFUSED" && unknownSurface.routeAction === "PHOTO_REVIEW" && unknownSurface.outcome.factKey === "mount_surface"
+  );
+}
+
+group("115. the fully-resolved path terminates RESOLVE_INSTANT only — no REROUTE_SERVICE or REROUTE_TROUBLESHOOTING exists anywhere in this tree");
+{
+  const resolved = resolveVentCoverReplacement({ count: 4, openingSizePattern: "UNIFORM", openingDimensions: "12x6", mountSurface: "CEILING" });
+  ok("a fully-established multi-cover, uniform-size, single-surface case resolves RESOLVE_INSTANT", resolved.status === "RESOLVED" && resolved.routeAction === "RESOLVE_INSTANT");
+  ok("resolveVentCoverReplacement never returns RESOLVE_ADJUSTED — FIXED disposition, one price, no branch adjustment", (resolved as { routeAction: string }).routeAction !== "RESOLVE_ADJUSTED");
+
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const ventSection = section(scopeSrc, "export type OpeningSizePattern", "export type VentCoverReplacementQuestionKey");
+  ok("no REROUTE_SERVICE exists anywhere in the vent-cover-replacement resolver", !/REROUTE_SERVICE/.test(ventSection));
+  ok("no REROUTE_TROUBLESHOOTING exists anywhere in the vent-cover-replacement resolver", !/REROUTE_TROUBLESHOOTING/.test(ventSection));
+  ok("no identityGate, fuelGate, ventingGate, capacityGate, or controlGate is called in this resolver", !/identityGate|fuelGate|ventingGate|capacityGate|controlGate/.test(ventSection));
+  ok("no accessGate is called in this resolver — access is out of scope for H9, per the recorded G1-slot decision", !/accessGate/.test(ventSection));
+}
+
+group("116. no duct-sizing, adequacy, airflow, or condition language anywhere in the vent-cover-replacement tree, and no symptom vocabulary");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const ventSection = section(scopeSrc, "export type OpeningSizePattern", "export type VentCoverReplacementQuestionKey");
+  const diagnosticLanguage = /duct siz|adequa|airflow|air flow|balanc|condition of the duct|leaky duct|insulat|damaged duct/i;
+  ok("no diagnostic duct/airflow/adequacy/condition language appears in the resolver source", !diagnosticLanguage.test(ventSection));
+
+  for (const q of VENT_COVER_REPLACEMENT_QUESTIONS) {
+    ok(`"${q.key}"'s prompt names no duct-sizing, adequacy, airflow, or condition judgment`, !diagnosticLanguage.test(q.prompt), q.prompt);
+    for (const o of q.options) {
+      ok(`"${q.key}" option "${o.value}" names no duct-sizing, adequacy, airflow, or condition judgment`, !diagnosticLanguage.test(o.label), o.label);
+    }
+  }
+
+  for (const symptom of REPORTED_SYMPTOMS) {
+    ok(`scope.ts never references the symptom "${symptom}" in the vent-cover-replacement section`, !ventSection.includes(symptom));
+  }
+  const allWording = VENT_COVER_REPLACEMENT_QUESTIONS.flatMap((q) => [q.prompt, ...q.options.map((o) => o.label)]).join(" ").toLowerCase();
+  const symptomPhrases = ["mold smell", "odor", "not cooling", "no heat", "won't turn on", "leaking water", "rattling", "whistling"];
+  ok("no vent-cover-replacement question prompt or answer label contains symptom phrasing", symptomPhrases.every((p) => !allWording.includes(p)));
+
+  ok("no EquipmentCondition or conditionGate is read in this resolver", !/EquipmentCondition|conditionGate|equipmentCondition/.test(ventSection));
+  ok("no materialRoles, components, or ScopeConsequence field is declared in this resolver", !/materialRoles|components:|ScopeConsequence/.test(ventSection));
+}
+
+group("117. appointment-only services remain without scope.ts resolvers, and condenser-pad-replacement remains without one — H9 built exactly one new resolver");
+{
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  ok("no resolveDuctAssessment function exists anywhere in scope.ts", !/export function resolveDuctAssessment\(/.test(scopeSrc));
+  ok("no resolveHvacServiceCall function exists anywhere in scope.ts", !/export function resolveHvacServiceCall\(/.test(scopeSrc));
+  ok("no resolveCondenserPadReplacement function exists anywhere in scope.ts", !/export function resolveCondenserPadReplacement\(/.test(scopeSrc));
+
+  const ductAssessment = HVAC_SERVICES.find((s) => s.key === "duct-assessment")!;
+  ok("duct-assessment is still disposition APPOINTMENT_ONLY", ductAssessment.disposition === "APPOINTMENT_ONLY");
+  const hvacServiceCallSvc = HVAC_SERVICES.find((s) => s.key === "hvac-service-call")!;
+  ok("hvac-service-call is still disposition APPOINTMENT_ONLY", hvacServiceCallSvc.disposition === "APPOINTMENT_ONLY");
+  ok("hvac-service-call still carries bookingType TROUBLESHOOT_ONLY", hvacServiceCallSvc.bookingType === "TROUBLESHOOT_ONLY");
+  ok("HVAC_SERVICE_CALL_SHELL is still schedulable through the existing G2/G3 mechanism, unchanged by H9", hvacServiceCallIsSchedulable());
+  ok("HVAC_SERVICE_CALL_SHELL itself is still exported and unchanged in shape", typeof HVAC_SERVICE_CALL_SHELL === "object" && HVAC_SERVICE_CALL_SHELL !== null);
+
+  const resolveFnNames = (scopeSrc.match(/export function (resolve\w+)\(/g) ?? []).map((m) => m.replace(/export function |\(/g, ""));
+  ok(
+    "exactly one new resolve function was added this phase: resolveVentCoverReplacement",
+    resolveFnNames.includes("resolveVentCoverReplacement") && resolveFnNames.length === 14
+  );
+}
+
+group("118. H3-H8 behavior is unchanged by the H9 addition");
+{
+  const heatPump = resolveHeatPumpTuneUp({
+    systemType: "HEAT_PUMP_SPLIT",
+    indoorAccessClass: "ACCESSIBLE",
+    outdoorLocation: "GROUND_LEVEL_ADJACENT",
+    outdoorAccessClass: "ACCESSIBLE",
+    systemCount: 1,
+  });
+  ok("heat-pump-tune-up still resolves RESOLVE_INSTANT", heatPump.status === "RESOLVED" && heatPump.routeAction === "RESOLVE_INSTANT");
+  const ductTreatment = resolveDuctAirTreatmentInstallation({
+    systemType: "FURNACE_AND_AC",
+    accessClass: "ACCESSIBLE",
+    dedicatedCircuitPresent: "PRESENT",
+  });
+  ok("duct-air-treatment-installation still resolves RESOLVE_ADJUSTED", ductTreatment.status === "RESOLVED" && ductTreatment.routeAction === "RESOLVE_ADJUSTED");
+  const humidifierReplacement = resolveWholeHouseHumidifier(HUMIDIFIER_REPLACEMENT_BASE);
+  ok(
+    "whole-house-humidifier's replacement branch still resolves RESOLVE_ADJUSTED, unaffected by the H9 addition",
+    humidifierReplacement.status === "RESOLVED" && humidifierReplacement.routeAction === "RESOLVE_ADJUSTED"
+  );
+  ok(
+    "H2's family count is exactly 18, not disturbed by any change other than the one H9 addition",
+    HVAC_FAMILIES.length === 18 && HVAC_FAMILY_KEYS.length === 18
+  );
+  ok(
+    "H3-H8's own question data is all still exported and non-empty",
+    HEAT_PUMP_TUNE_UP_QUESTIONS.length > 0 && DUCT_AIR_TREATMENT_INSTALLATION_QUESTIONS.length > 0 && WHOLE_HOUSE_HUMIDIFIER_QUESTIONS.length > 0
+  );
+}
+
+group("119. quantity fails closed to PHOTO_REVIEW for anything that is not a positive integer — fractional, NaN, and Infinity are never coerced");
+{
+  const zero = resolveVentCoverReplacement({ count: 0, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("count 0 -> PHOTO_REVIEW", zero.status === "REFUSED" && zero.routeAction === "PHOTO_REVIEW" && zero.outcome.factKey === "count");
+  const negative = resolveVentCoverReplacement({ count: -3, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("a negative count -> PHOTO_REVIEW", negative.status === "REFUSED" && negative.routeAction === "PHOTO_REVIEW" && negative.outcome.factKey === "count");
+  const fractional = resolveVentCoverReplacement({ count: 1.5, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok(
+    "a fractional count (1.5) -> PHOTO_REVIEW, never rounded or floored into a valid quantity",
+    fractional.status === "REFUSED" && fractional.routeAction === "PHOTO_REVIEW" && fractional.outcome.factKey === "count"
+  );
+  const notANumber = resolveVentCoverReplacement({ count: NaN, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("NaN count -> PHOTO_REVIEW", notANumber.status === "REFUSED" && notANumber.routeAction === "PHOTO_REVIEW" && notANumber.outcome.factKey === "count");
+  const infinite = resolveVentCoverReplacement({ count: Infinity, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("Infinity count -> PHOTO_REVIEW", infinite.status === "REFUSED" && infinite.routeAction === "PHOTO_REVIEW" && infinite.outcome.factKey === "count");
+  const negativeInfinite = resolveVentCoverReplacement({ count: -Infinity, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("negative Infinity count -> PHOTO_REVIEW", negativeInfinite.status === "REFUSED" && negativeInfinite.routeAction === "PHOTO_REVIEW");
+
+  const validInteger = resolveVentCoverReplacement({ count: 3, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("a valid positive integer count still follows the existing tree and resolves RESOLVE_INSTANT", validInteger.status === "RESOLVED" && validInteger.routeAction === "RESOLVE_INSTANT");
+  const validSingleton = resolveVentCoverReplacement({ count: 1, openingSizePattern: "MIXED", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok(
+    "count === 1 still ignores opening_size_pattern entirely — Q2 is not part of that branch, unaffected by the boundary fix",
+    validSingleton.status === "RESOLVED" && validSingleton.routeAction === "RESOLVE_INSTANT"
+  );
+
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const ventSection = section(scopeSrc, "export type OpeningSizePattern", "export type VentCoverReplacementQuestionKey");
+  ok("the quantity boundary reads Number.isInteger — not a manual modulo, floor, or round check", /Number\.isInteger\(facts\.count\)/.test(ventSection));
+  ok("no Math.floor, Math.round, Math.ceil, or Math.trunc silently coerces the observed quantity", !/Math\.(floor|round|ceil|trunc)/.test(ventSection));
+}
+
+group("120. opening_dimensions fails closed to PHOTO_REVIEW for null, empty, and whitespace-only readings — the stored value is never rewritten");
+{
+  const missing = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: null, mountSurface: "WALL" });
+  ok("null opening_dimensions -> PHOTO_REVIEW", missing.status === "REFUSED" && missing.routeAction === "PHOTO_REVIEW" && missing.outcome.factKey === "opening_dimensions");
+  const empty = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: "", mountSurface: "WALL" });
+  ok("an empty string opening_dimensions -> PHOTO_REVIEW", empty.status === "REFUSED" && empty.routeAction === "PHOTO_REVIEW" && empty.outcome.factKey === "opening_dimensions");
+  const whitespaceOnly = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: "   ", mountSurface: "WALL" });
+  ok(
+    "a whitespace-only opening_dimensions (\"   \") -> PHOTO_REVIEW",
+    whitespaceOnly.status === "REFUSED" && whitespaceOnly.routeAction === "PHOTO_REVIEW" && whitespaceOnly.outcome.factKey === "opening_dimensions"
+  );
+  const tabsAndNewlines = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: "\t\n  \t", mountSurface: "WALL" });
+  ok("a tabs/newlines-only opening_dimensions -> PHOTO_REVIEW", tabsAndNewlines.status === "REFUSED" && tabsAndNewlines.routeAction === "PHOTO_REVIEW");
+
+  const nonEmpty = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: "10x6", mountSurface: "WALL" });
+  ok("a non-empty reading still resolves RESOLVE_INSTANT when every other fact is bounded", nonEmpty.status === "RESOLVED" && nonEmpty.routeAction === "RESOLVE_INSTANT");
+  const paddedReading = resolveVentCoverReplacement({ count: 1, openingSizePattern: "UNIFORM", openingDimensions: " 10x6 ", mountSurface: "WALL" });
+  ok(
+    "a padded reading (\" 10x6 \") counts as established — .trim() only decides whether a reading exists, it never rewrites the stored value",
+    paddedReading.status === "RESOLVED" && paddedReading.routeAction === "RESOLVE_INSTANT"
+  );
+
+  const scopeSrc = strip("lib/hvac/scope.ts");
+  const ventSection = section(scopeSrc, "export type OpeningSizePattern", "export type VentCoverReplacementQuestionKey");
+  ok("the dimensions boundary calls .trim() only to test for emptiness, on the same line as the null check", /openingDimensions === null \|\| facts\.openingDimensions\.trim\(\) === ""/.test(ventSection));
+  ok(
+    "openingDimensions is never reassigned, parsed, or normalized anywhere in the resolver — no .replace, .split, .toUpperCase, or regex rewrite of it",
+    !/openingDimensions\s*=(?!=)/.test(ventSection) &&
+      !/openingDimensions\.(replace|split|toUpperCase|toLowerCase|match)/.test(ventSection)
+  );
+  ok("no width/height parsing, standard-size list, or compatibility inference was added alongside the trim fix", !/parseInt|parseFloat|STANDARD_SIZE|COMPATIBLE/.test(ventSection));
+}
 console.log();
 console.log(failures === 0 ? `All ${checks} checks passed.\n` : `${failures}/${checks} check(s) FAILED.\n`);
 process.exit(failures === 0 ? 0 : 1);

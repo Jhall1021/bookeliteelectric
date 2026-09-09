@@ -6,8 +6,18 @@
  * accessory/IAQ services (`air-cleaner-cabinet-installation`,
  * `duct-air-treatment-installation`, `accessory-consumable-replacement`),
  * H8 the two services H7 left blocked: `mini-split-head-cleaning` and
- * `whole-house-humidifier`. Thirteen independent resolvers, still not a
- * generic n-service engine.
+ * `whole-house-humidifier`, H9 `vent-cover-replacement`. Fourteen priced
+ * resolvers, still not a generic n-service engine.
+ *
+ * `duct-assessment` and `hvac-service-call` are DELIBERATELY NOT among
+ * them, and never routed through this file at all — both are
+ * `APPOINTMENT_ONLY`, mode `V` only (catalog review: *"scope produced by
+ * the visit"*), and neither ever produces a priced `RouteAction` the way
+ * every resolver below does. `hvac-service-call`'s own reroute-in path is
+ * already fully built (`lib/troubleshooting.ts`, pre-dating HVAC). Direct-
+ * selection context capture for both belongs to a later booking/intake
+ * integration, not a `scope.ts` pricing resolver — H9's own audit raised
+ * this and it was settled, not implemented.
  *
  * `mini-split-head-cleaning` was implemented in H7, then REMOVED before
  * push — the final applied trade review requires it to capture indoor-unit
@@ -23,7 +33,7 @@
  * fact on an already-declared family (`humidifier_type`, on
  * `accessory_and_media`) — no new gate, no new shared primitive.
  *
- * STILL NOT A GENERIC RESOLVER, EVEN AT THIRTEEN. Mirrors lib/plumbing/scope.ts's
+ * STILL NOT A GENERIC RESOLVER, EVEN AT FOURTEEN. Mirrors lib/plumbing/scope.ts's
  * ROLE — the layer between a validated answer and the price, deciding WHAT
  * THE JOB IS and never what it costs — but not its generic, multi-service
  * shape. Plumbing's `scopePlumbingService` walks whichever gates a catalog
@@ -49,13 +59,16 @@
  * `accessGate`, `identityGate`, `fuelGate`, `controlGate` and
  * `GateOutcome`/`toRouteAction` unchanged in count — H4 narrowly EXTENDED
  * `controlGate` with two optional, default-preserving parameters (see
- * gates.ts's own comment), not an eighth gate; H6, H7 and H8 add no gate
- * at all. H8 adds exactly two new families (`indoor_unit_form`,
+ * gates.ts's own comment), not an eighth gate; H6, H7, H8 and H9 add no
+ * gate at all. H8 adds exactly two new families (`indoor_unit_form`,
  * `water_supply_availability` — lib/hvac/families.ts's own comments on
  * them) and one new fact on an existing family (`humidifier_type`, on
- * `accessory_and_media`) — no new gate, no new shared primitive. The
- * platform's own `RouteAction` (lib/flow-types.ts) is the result
- * vocabulary throughout, not a service-local invention.
+ * `accessory_and_media`); H9 adds one more narrow family
+ * (`vent_cover_configuration`) and removes `indoor_equipment_access` from
+ * exactly one service (families.ts's own comment on both) — no new gate,
+ * no new shared primitive at any point. The platform's own `RouteAction`
+ * (lib/flow-types.ts) is the result vocabulary throughout, not a
+ * service-local invention.
  */
 
 import type { RouteAction } from "../flow-types";
@@ -2281,6 +2294,169 @@ export const WHOLE_HOUSE_HUMIDIFIER_QUESTIONS: readonly WholeHouseHumidifierQues
     options: [
       { value: "CUSTOMER_SUPPLIED", label: "I already have it" },
       { value: "CONTRACTOR_SUPPLIED", label: "Please supply it" },
+    ],
+  },
+] as const;
+
+// ═══════════════════════════════════════════════════════════════════════
+// vent-cover-replacement — H9
+//
+// FIXED. Nothing behind the wall changes on this service — the catalog
+// review's own reason it stays bounded — so every fact here is a direct
+// physical observation of the cover itself, never a duct-sizing, adequacy,
+// airflow, balancing, or condition judgment. No `identityGate`, no
+// `accessGate`: a vent cover is not HVAC equipment (families.ts's own
+// comment on removing `indoor_equipment_access` from this service),
+// and this service has no system-identity concern at all.
+//
+// THE MULTI-COVER PROBLEM, SOLVED THE SAME WAY H8 ALREADY DID. A
+// homeowner replacing several covers may not have uniform sizes or
+// surfaces. Exactly like H8's own `indoor_unit_type`, one scalar answer
+// must never falsely describe several different items — `opening_size_
+// pattern` and `mount_surface` each carry their own MIXED-shaped signal
+// (`MIXED` for mount_surface, `MIXED` for opening_size_pattern) and each
+// leaves automated pricing on its own, independently. No repeater, no
+// array — the smallest architecture this platform already has a working
+// precedent for.
+//
+// A SINGLE OPENING IS INHERENTLY UNIFORM. `opening_size_pattern` is read
+// ONLY when `count > 1` — asking a homeowner replacing one cover whether
+// several different sizes match would be a redundant, meaningless
+// question, and this resolver skips it entirely rather than ask it.
+//
+// NO STANDARD-SIZE VOCABULARY. `opening_dimensions` is an open reading —
+// `string | null`, the same shape `filter_slot_size` already uses —
+// because no approved document anywhere defines a closed register/grille
+// size list or a numeric size policy. Its content is never normalized,
+// classified STANDARD/NONSTANDARD, or read for duct-sizing/airflow/
+// compatibility meaning — only whether it was established at all.
+// ═══════════════════════════════════════════════════════════════════════
+
+export type OpeningSizePattern = "UNIFORM" | "MIXED" | "UNKNOWN";
+
+export type MountSurface = "WALL" | "CEILING" | "FLOOR" | "MIXED" | "UNKNOWN";
+
+export type VentCoverReplacementFacts = {
+  /** Q1. A quantity; gates nothing beyond being positive. */
+  count: number;
+  /** Q2. Read only when count > 1 — see the section header. */
+  openingSizePattern: OpeningSizePattern;
+  /** Q3. A direct measurement/readout only — never duct sizing. */
+  openingDimensions: string | null;
+  /** Q4. */
+  mountSurface: MountSurface;
+};
+
+export type VentCoverReplacementResolution =
+  | {
+      status: "RESOLVED";
+      /** FIXED, not CONDITIONAL_FIXED — one price, no branch adjustment. */
+      routeAction: "RESOLVE_INSTANT";
+    }
+  | HvacRefusal;
+
+/**
+ * Resolve `vent-cover-replacement` against a complete fact set. FAILS
+ * CLOSED. No question here asks about airflow, duct adequacy, sizing
+ * calculations, balancing, or condition — every branch below is either a
+ * quantity, a direct physical reading, or a same-look observation of the
+ * cover itself. Never REROUTE_SERVICE, never REROUTE_TROUBLESHOOTING.
+ */
+export function resolveVentCoverReplacement(facts: VentCoverReplacementFacts): VentCoverReplacementResolution {
+  // Q1 — quantity. An observed count, not a number to normalize into
+  // validity: a fraction, NaN, or Infinity is never rounded, floored, or
+  // clamped into something usable — it fails closed exactly like an
+  // unestablished count would.
+  if (!Number.isInteger(facts.count) || facts.count < 1) {
+    return unresolved("count", "The number of vent covers or grilles being replaced has not been established.");
+  }
+
+  // Q2 — size consistency. Only meaningful, and only read, when there is
+  // more than one opening to compare — see the section header.
+  if (facts.count > 1) {
+    if (facts.openingSizePattern === "UNKNOWN") {
+      return unresolved("opening_size_pattern", "Whether the openings are all the same size has not been established.");
+    }
+    if (facts.openingSizePattern === "MIXED") {
+      return refuse({
+        action: "REMOTE_QUOTE",
+        reason: "Openings of different sizes cannot be bounded by this service's single fixed-price configuration.",
+        factKey: "opening_size_pattern",
+        observed: "MIXED",
+      });
+    }
+  }
+
+  // Q3 — physical dimensions. A direct measurement or printed readout,
+  // never a duct-sizing or adequacy judgment. .trim() decides only whether
+  // a reading exists — the stored value itself is never rewritten,
+  // normalized, or parsed into width/height.
+  if (facts.openingDimensions === null || facts.openingDimensions.trim() === "") {
+    return unresolved("opening_dimensions", "The size of the existing opening has not been established.");
+  }
+
+  // Q4 — mounting surface.
+  if (facts.mountSurface === "UNKNOWN") {
+    return unresolved("mount_surface", "Whether the covers are on a wall, ceiling, or floor has not been established.");
+  }
+  if (facts.mountSurface === "MIXED") {
+    return refuse({
+      action: "REMOTE_QUOTE",
+      reason: "Covers on more than one kind of surface cannot be bounded by this service's single fixed-price configuration.",
+      factKey: "mount_surface",
+      observed: "MIXED",
+    });
+  }
+
+  return { status: "RESOLVED", routeAction: "RESOLVE_INSTANT" };
+}
+
+export type VentCoverReplacementQuestionKey = "count" | "opening_size_pattern" | "opening_dimensions" | "mount_surface";
+
+export type VentCoverReplacementAnswerOption = { value: string; label: string };
+
+export type VentCoverReplacementQuestion = {
+  key: VentCoverReplacementQuestionKey;
+  prompt: string;
+  establishes: string;
+  options: readonly VentCoverReplacementAnswerOption[];
+};
+
+export const VENT_COVER_REPLACEMENT_QUESTIONS: readonly VentCoverReplacementQuestion[] = [
+  {
+    key: "count",
+    prompt: "How many vent covers or grilles are being replaced?",
+    establishes: "count",
+    options: [],
+  },
+  {
+    // Rendered only when count > 1 — a single opening is inherently
+    // uniform for this tree, per resolveVentCoverReplacement's own logic.
+    key: "opening_size_pattern",
+    prompt: "Are all of the openings the same size?",
+    establishes: "opening_size_pattern",
+    options: [
+      { value: "UNIFORM", label: "Yes, they're all the same size" },
+      { value: "MIXED", label: "No, they're different sizes" },
+      { value: "UNKNOWN", label: "Not sure" },
+    ],
+  },
+  {
+    key: "opening_dimensions",
+    prompt: "What size is the existing opening?",
+    establishes: "opening_dimensions",
+    options: [],
+  },
+  {
+    key: "mount_surface",
+    prompt: "Where are the vent covers?",
+    establishes: "mount_surface",
+    options: [
+      { value: "WALL", label: "On a wall" },
+      { value: "CEILING", label: "On the ceiling" },
+      { value: "FLOOR", label: "On the floor" },
+      { value: "MIXED", label: "More than one of these" },
+      { value: "UNKNOWN", label: "Not sure" },
     ],
   },
 ] as const;
