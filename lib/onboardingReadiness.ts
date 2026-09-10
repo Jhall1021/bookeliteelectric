@@ -77,6 +77,9 @@ export type Finding = {
   severity: Severity;
   message: string;
   serviceSlug?: string;
+  /** The same service's real name, wherever serviceSlug names a real Service — so a
+   *  display surface never has to show the machine slug to a contractor. */
+  serviceName?: string;
   href?: string;
   /**
    * MATERIAL_COST_UNRESOLVED only: the canonical role's own key and every
@@ -349,10 +352,11 @@ export async function assessOnboarding(
 
   const held = settings ? await servicesOnHold(db, contractorId) : [];
   for (const h of held) {
-    if (!intended.some((i) => i.svc.slug === h.slug)) continue;
+    const match = intended.find((i) => i.svc.slug === h.slug);
+    if (!match) continue;
     findings["pricing-foundation"].push(b("MATERIAL_COST_ON_HOLD",
       `${h.slug} depends on ${h.heldRoles.length} material cost(s) still on hold.`,
-      { serviceSlug: h.slug, href: "/dashboard/services" }));
+      { serviceSlug: h.slug, serviceName: match.svc.name as string, href: "/dashboard/services" }));
   }
   // GROUPED BY ROLE, not repeated per service.
   //
@@ -472,6 +476,7 @@ export async function assessOnboarding(
   const perServiceFindings = await mapWithConcurrency(intended, SERVICE_PROMISE_CONCURRENCY, async ({ svc }): Promise<Finding[]> => {
     const out: Finding[] = [];
     const slug = svc.slug as string;
+    const name = svc.name as string;
     const promise = await promiseFor(
       db, { id: svc.id as string, bookingType: svc.bookingType as string }, settings
     );
@@ -506,10 +511,10 @@ export async function assessOnboarding(
           ? w("HANDOFF_NOT_LIVE_YET",
               `${slug} sends "it stopped working" to ${diagnostic.kind === "ONE" ? diagnostic.name : "your diagnostic"}, which isn't live yet. ` +
               `Put that live and this resolves itself — we launch it first for you.`,
-              { serviceSlug: slug, href: IN_SETUP })
+              { serviceSlug: slug, serviceName: name, href: IN_SETUP })
           : b("TREE_HAS_DEAD_ROUTE",
               `${slug} has ${promise.routes.dead} answer path(s) that reach nothing.`,
-              { serviceSlug: slug, href: "/dashboard/services" })
+              { serviceSlug: slug, serviceName: name, href: "/dashboard/services" })
       );
     }
 
@@ -523,7 +528,7 @@ export async function assessOnboarding(
           // cannot keep. What is true either way is that a route reaches an
           // amount and nobody has approved one.
           `${slug} reaches an amount for a homeowner, but none has been approved.`,
-          { serviceSlug: slug, href: "/dashboard/services" }));
+          { serviceSlug: slug, serviceName: name, href: "/dashboard/services" }));
       }
       if (settings) {
         const suggestion = suggestPrimaryPrice(svc as never, settings as never);
@@ -543,15 +548,15 @@ export async function assessOnboarding(
           // §3.1 defect the engine refuses a price to avoid.
           out.push(b("LABOR_INPUTS_MISSING",
             `${slug} can't be priced yet — ${lowerFirst(suggestion.unavailableReason ?? "an input is missing, not zero")}.`,
-            { serviceSlug: slug, href: `/dashboard/services/${svc.id as string}` }));
+            { serviceSlug: slug, serviceName: name, href: `/dashboard/services/${svc.id as string}` }));
         } else if (svc.basePrice !== null && derived !== svc.basePrice) {
           out.push(w("PRICE_DRIFTED",
             `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
-            { serviceSlug: slug, href: "/dashboard/services" }));
+            { serviceSlug: slug, serviceName: name, href: "/dashboard/services" }));
         } else if (svc.publishedPriceApprovedAt === null && derived !== null) {
           out.push(w("SUGGESTED_NOT_APPROVED",
             `${slug} has a suggested price of $${(derived / 100).toFixed(2)} waiting for you to approve it.`,
-            { serviceSlug: slug, href: "/dashboard/services" }));
+            { serviceSlug: slug, serviceName: name, href: "/dashboard/services" }));
         }
       }
     } else {
@@ -565,17 +570,17 @@ export async function assessOnboarding(
         const unset = bad.some((x) => x.code === "unset");
         out.push(b(unset ? "ESTIMATE_BOUNDS_MISSING" : "ESTIMATE_BOUNDS_INVALID",
           `${slug} can't be priced yet — ${lowerFirst(bad[0].message)}`,
-          { serviceSlug: slug, href: "/dashboard/estimates" }));
+          { serviceSlug: slug, serviceName: name, href: "/dashboard/estimates" }));
       } else if (svc.estimateApprovedAt === null) {
         out.push(b("ESTIMATE_NOT_APPROVED",
           `${slug} has an estimate range entered but not yet approved for customers.`,
-          { serviceSlug: slug, href: "/dashboard/estimates" }));
+          { serviceSlug: slug, serviceName: name, href: "/dashboard/estimates" }));
       }
     }
     if (promise.routes.priced > 0 && promise.routes.review === 0) {
       out.push(w("TREE_UNBOUNDED",
         `${slug} prices every answer path. Nothing sends an unusual job to review.`,
-        { serviceSlug: slug, href: "/dashboard/services" }));
+        { serviceSlug: slug, serviceName: name, href: "/dashboard/services" }));
     }
     return out;
   });

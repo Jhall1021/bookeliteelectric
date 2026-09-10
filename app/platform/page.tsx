@@ -71,7 +71,13 @@ export default async function PlatformOverviewPage() {
                 const pct = r.readable ? Math.round((r.stagesReady / r.stagesTotal) * 100) : 0;
                 return (
                   <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2.5 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto]">
-                    <p className="truncate font-medium text-navy">{r.name}</p>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-navy">{r.name}</p>
+                      {/* Below `sm` the bar+count column is hidden entirely (no
+                          room), so the count moves here instead of disappearing —
+                          a contractor's progress should never be a desktop-only fact. */}
+                      <p className="text-xs text-slate sm:hidden">{r.readable ? `${r.stagesReady} of ${r.stagesTotal} stages complete` : ""}</p>
+                    </div>
                     <div className="hidden items-center gap-2 sm:flex">
                       <div className="h-1.5 w-28 shrink-0 overflow-hidden rounded-pill bg-cardline">
                         <div className="h-full rounded-pill bg-electric" style={{ width: `${pct}%` }} />

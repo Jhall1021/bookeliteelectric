@@ -2,15 +2,16 @@ import Link from "next/link";
 import { withAdminContractor } from "@/lib/adminContext";
 import { findDefinition } from "@/lib/theme/definition";
 import { resolveStorefrontTheme, readBrandInputs } from "@/lib/theme/resolve";
-import { assessOnboarding, SETUP_SUMMARY_GROUPS, summaryGroupStatus } from "@/lib/onboardingReadiness";
+import { assessOnboarding, SETUP_SUMMARY_GROUPS, summaryGroupStatus, type GroupStatus, type OnboardingReadiness, type Finding } from "@/lib/onboardingReadiness";
 import { actionLabelFor } from "@/lib/setupActionLabels";
+import { findingSummary } from "@/lib/setupFindingSummary";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/Button";
 import { ServiceIcon } from "@/components/ui/ServiceIcon";
 import { ServicesIllustration, PricingIllustration, BookingIllustration, EmptyCalendarIllustration } from "@/components/ui/illustrations";
-import { CheckCircleIcon, ClockIcon, AlertTriangleIcon, ArrowRightIcon } from "@/components/ui/icons";
+import { CheckCircleIcon, AlertTriangleIcon, ArrowRightIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -96,18 +97,19 @@ export default async function PortalOverviewPage() {
   // hand-rolled list that could silently drift from it.
   const groupStatus = SETUP_SUMMARY_GROUPS.map((g) => summaryGroupStatus(g, data.readiness));
   const stepsComplete = groupStatus.filter((s) => s === "ready").length;
-  const GROUP_BLURB: Record<string, string> = {
-    business: "Confirm your business details and storefront address",
-    services: "Choose which of your services you offer",
-    pricing: "Set your labor rate and material costs",
-    scheduling: "Set your availability and how deposits work",
-    launch: "Review your settings and go live",
-  };
+  // The first not-yet-ready group is "where you are" — everything after it
+  // is simply not reached yet (a neutral number, not a warning), and
+  // everything before it is ready by construction (resumeStage is the
+  // FIRST non-ready stage anywhere in the readiness engine's own order).
+  const currentGroupIndex = SETUP_SUMMARY_GROUPS.findIndex((g) => (g.stages as string[]).includes(resumeStage));
 
-  // Pricing readiness — a real, comparable proportion (costed OFFERED
+  // Material costs — a real, comparable proportion (costed OFFERED
   // services / offered services), never roles compared against services.
   // Shares its "nothing chosen yet" / "fully costed" split with the
-  // PricingFoundationPanel banner, so the two can never disagree.
+  // PricingFoundationPanel banner, so the two can never disagree. This is
+  // ONLY material-cost coverage — it says nothing about labor rate, price
+  // approval, or pricing being finished, and the card's own copy is
+  // written not to imply otherwise.
   const offeredCount = data.offered.length;
   const pricingReady = offeredCount > 0 && data.costedOffered === offeredCount;
   const pricingPct = offeredCount === 0 ? 0 : Math.round((data.costedOffered / offeredCount) * 100);
@@ -118,9 +120,19 @@ export default async function PortalOverviewPage() {
   // app/dashboard/setup/page.tsx's own findings list excludes it: its
   // message names a raw canonical-material key and a raw service slug
   // (`onboardingReadiness.ts` writes it for a batch-review panel to parse
-  // back apart, not for prose), and the Pricing readiness card above
+  // back apart, not for prose), and the Material costs card above
   // already surfaces the same fact in plain language with a real count.
-  const nextSteps = data.readiness.blockers.filter((f) => f.code !== "MATERIAL_COST_UNRESOLVED").slice(0, 3);
+  //
+  // GROUPED BY SERVICE. Two blockers on the same service (a dead route AND
+  // an unapproved price) used to render as two nearly-identical rows, both
+  // naming the same slug. A Map keyed by serviceSlug — falling back to a
+  // per-index key so a business-level finding never merges with anything —
+  // preserves the engine's own order (first occurrence wins the slot) while
+  // collapsing same-service findings into one task with the rest available
+  // in a disclosure.
+  const nextStepGroups = groupFindingsByService(
+    data.readiness.blockers.filter((f) => f.code !== "MATERIAL_COST_UNRESOLVED")
+  ).slice(0, 3);
 
   return (
     <div>
@@ -144,42 +156,45 @@ export default async function PortalOverviewPage() {
             <ul className="space-y-3">
               {SETUP_SUMMARY_GROUPS.map((g, i) => (
                 <li key={g.key} className="flex items-start gap-3">
-                  <GroupStatusIcon status={groupStatus[i]} />
+                  <GroupStatusIcon index={i} currentIndex={currentGroupIndex} status={groupStatus[i]} isLaunch={g.key === "launch"} />
                   <div>
                     <p className="text-sm font-semibold text-navy">{g.label}</p>
-                    <p className="text-xs text-slate">{groupStatus[i] === "ready" ? "Complete" : GROUP_BLURB[g.key]}</p>
+                    <p className="text-xs text-slate">{groupBlurb(g.key, groupStatus[i], data.readiness, offeredCount)}</p>
                   </div>
                 </li>
               ))}
             </ul>
 
-            {/* The illustrated journey — desktop only; mobile gets a
-                compact strip below instead of this much whitespace. */}
-            <div className="hidden lg:block">
-              <div className="flex items-start justify-between gap-2">
+            {/* One composition: the journey, then its own primary action and
+                progress directly beneath it — not a separate row stretched
+                under the (taller) checklist column, which is what left a
+                gap of empty space here before. */}
+            <div className="flex flex-col">
+              {/* Desktop journey. */}
+              <div className="hidden lg:flex lg:items-start lg:justify-between lg:gap-2">
                 <JourneyStep illustration={ServicesIllustration} caption="Choose your services" sub="Select the services you want to offer." />
                 <DottedConnector />
                 <JourneyStep illustration={PricingIllustration} caption="Set your pricing" sub="Add material costs and your labor rate." />
                 <DottedConnector />
                 <JourneyStep illustration={BookingIllustration} caption="Open for bookings" sub="Launch your storefront and start taking requests." />
               </div>
-            </div>
-            {/* Compact mobile treatment — small, in a row, no desktop-sized gap. */}
-            <div className="flex items-center justify-center gap-6 lg:hidden">
-              <ServicesIllustration className="h-12 w-12" />
-              <PricingIllustration className="h-12 w-12" />
-              <BookingIllustration className="h-12 w-12" />
-            </div>
+              {/* Compact mobile treatment — small, in a row, no desktop-sized gap. */}
+              <div className="flex items-center justify-center gap-6 lg:hidden">
+                <ServicesIllustration className="h-12 w-12" />
+                <PricingIllustration className="h-12 w-12" />
+                <BookingIllustration className="h-12 w-12" />
+              </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:col-start-2">
-              <LinkButton href={`/dashboard/setup?stage=${resumeStage}`} variant="primary">
-                Continue setup
-              </LinkButton>
-              <div className="w-full sm:w-56">
-                <div className="h-2 overflow-hidden rounded-pill bg-cardline">
-                  <div className="h-full rounded-pill bg-electric" style={{ width: `${(stepsComplete / SETUP_SUMMARY_GROUPS.length) * 100}%` }} />
+              <div className="mt-5 flex flex-col gap-3 border-t border-cardline pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <LinkButton href={`/dashboard/setup?stage=${resumeStage}`} variant="primary">
+                  Continue setup
+                </LinkButton>
+                <div className="w-full sm:w-56">
+                  <div className="h-2 overflow-hidden rounded-pill bg-cardline">
+                    <div className="h-full rounded-pill bg-electric" style={{ width: `${(stepsComplete / SETUP_SUMMARY_GROUPS.length) * 100}%` }} />
+                  </div>
+                  <p className="mt-1.5 text-right text-xs text-slate">{stepsComplete} of {SETUP_SUMMARY_GROUPS.length} steps complete</p>
                 </div>
-                <p className="mt-1.5 text-right text-xs text-slate">{stepsComplete} of {SETUP_SUMMARY_GROUPS.length} steps complete</p>
               </div>
             </div>
           </div>
@@ -206,7 +221,12 @@ export default async function PortalOverviewPage() {
         </Card>
 
         <Card className="p-5">
-          <CardHeader title="Pricing readiness" action={<Link href="/dashboard/pricing-settings" className="text-sm font-medium text-electric hover:underline">View pricing</Link>} />
+          {/* This card measures MATERIAL-cost coverage only — the same
+              costed/offered count Guided Setup's own material-status
+              banner trusts. It says nothing about labor rate, price
+              approval, or full pricing being finished, so the copy never
+              claims more than that one fact. */}
+          <CardHeader title="Material costs" action={<Link href="/dashboard/pricing-settings" className="text-sm font-medium text-electric hover:underline">View pricing</Link>} />
           {offeredCount === 0 ? (
             <>
               <div className="mt-3"><Badge tone="neutral">Nothing chosen yet</Badge></div>
@@ -217,9 +237,9 @@ export default async function PortalOverviewPage() {
               <div className="mt-3 h-2 overflow-hidden rounded-pill bg-cardline">
                 <div className={`h-full rounded-pill ${pricingReady ? "bg-success" : "bg-electric"}`} style={{ width: `${pricingPct}%` }} />
               </div>
-              <p className="mt-1.5 text-xs text-slate">{data.costedOffered} of {offeredCount} services costed</p>
+              <p className="mt-1.5 text-sm text-navy">Materials costed for {data.costedOffered} of {offeredCount} selected services.</p>
               {pricingReady ? (
-                <p className="mt-2 text-sm text-success">Everything you offer is costed.</p>
+                <p className="mt-2 text-sm text-success">Every service you offer has its materials costed.</p>
               ) : (
                 <>
                   <div className="mt-2"><Badge tone="attention">{offeredCount - data.costedOffered} need{offeredCount - data.costedOffered === 1 ? "s" : ""} review</Badge></div>
@@ -238,23 +258,43 @@ export default async function PortalOverviewPage() {
         />
       </div>
 
-      {nextSteps.length > 0 && (
+      {nextStepGroups.length > 0 && (
         <Card className="mt-6 p-5">
           <CardHeader title="Your next steps" description="Keep going to get ready for launch." action={<Link href={`/dashboard/setup?stage=${resumeStage}`} className="text-sm font-medium text-electric hover:underline">View all steps →</Link>} />
           <ul className="mt-3 divide-y divide-cardline">
-            {nextSteps.map((f, i) => (
-              <li key={i} className="flex items-center justify-between gap-4 py-2.5">
-                <div className="flex items-start gap-3">
-                  <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-p2b-amber-ink" />
-                  <p className="text-sm text-slate">{f.message}</p>
-                </div>
-                {f.href && (
-                  <LinkButton href={f.href} variant="secondary" size="sm" className="shrink-0">
-                    {actionLabelFor(f.code)} <ArrowRightIcon className="h-3.5 w-3.5" />
-                  </LinkButton>
-                )}
-              </li>
-            ))}
+            {nextStepGroups.map((group, i) => {
+              const primary = group[0];
+              return (
+                <li key={i} className="py-2.5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-p2b-amber-ink" />
+                      <p className="text-sm text-slate">
+                        {group.length === 1
+                          ? findingSummary(primary)
+                          : `${primary.serviceName ?? "This"} has ${group.length} issues to resolve before it can go live.`}
+                      </p>
+                    </div>
+                    {primary.href && (
+                      <LinkButton href={primary.href} variant="secondary" size="sm" className="shrink-0">
+                        {actionLabelFor(primary.code)} <ArrowRightIcon className="h-3.5 w-3.5" />
+                      </LinkButton>
+                    )}
+                  </div>
+                  {/* Technical detail stays available rather than deleted —
+                      just tucked behind a disclosure instead of repeated as
+                      its own near-identical row for every finding. */}
+                  {group.length > 1 && (
+                    <details className="ml-7 mt-1.5">
+                      <summary className="cursor-pointer text-xs font-medium text-slate">What's affected</summary>
+                      <ul className="mt-1 space-y-1 text-xs text-slate">
+                        {group.map((f, j) => <li key={j}>{findingSummary(f)}</li>)}
+                      </ul>
+                    </details>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </Card>
       )}
@@ -284,11 +324,77 @@ export default async function PortalOverviewPage() {
   );
 }
 
-function GroupStatusIcon({ status }: { status: "ready" | "warning" | "blocked" | "not-applicable" }) {
+/**
+ * Ordinary, unfinished setup should not look alarming — most contractors sit
+ * in exactly that state for most of onboarding. A neutral numbered marker
+ * says "you haven't gotten here yet"; a blue marker says "you are here."
+ * Red is reserved for the one place a real problem stands between a
+ * contractor and going live: Review & launch, still blocked. Every other
+ * group's underlying readiness/launch restriction is unchanged by this —
+ * only which icon represents the same status changes.
+ */
+function GroupStatusIcon({
+  index, currentIndex, status, isLaunch,
+}: { index: number; currentIndex: number; status: GroupStatus; isLaunch: boolean }) {
   if (status === "ready") return <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-success" />;
-  if (status === "blocked") return <AlertTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />;
   if (status === "not-applicable") return <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-cardline" />;
-  return <ClockIcon className="mt-0.5 h-5 w-5 shrink-0 text-p2b-amber-ink" />;
+  if (isLaunch && status === "blocked") return <AlertTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />;
+  const isCurrent = index === currentIndex;
+  return (
+    <span
+      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+        isCurrent ? "bg-electric text-white" : "bg-cardline text-slate"
+      }`}
+    >
+      {index + 1}
+    </span>
+  );
+}
+
+/** Findings for the same service collapse into one task; everything else
+ *  (business/scheduling-level findings) stays its own row. First occurrence
+ *  wins the slot, so the engine's own ordering survives the grouping. */
+function groupFindingsByService(findings: Finding[]): Finding[][] {
+  const groups = new Map<string, Finding[]>();
+  findings.forEach((f, i) => {
+    const key = f.serviceSlug ?? `__solo_${i}`;
+    const arr = groups.get(key) ?? [];
+    arr.push(f);
+    groups.set(key, arr);
+  });
+  return [...groups.values()];
+}
+
+/**
+ * What's actually left for one summary group — derived from its real
+ * findings, never a fixed sentence that can't tell "nothing chosen" from
+ * "chosen, but not yet ready to sell." Reading the live findings is what
+ * keeps this from ever telling a contractor to do something they already did.
+ */
+function groupBlurb(key: string, status: GroupStatus, readiness: OnboardingReadiness, offeredCount: number): string {
+  if (status === "ready") return "Complete";
+  if (key === "services") {
+    if (offeredCount === 0) return "Choose which of your services you offer";
+    const n = readiness.stages
+      .filter((s) => s.key === "trade" || s.key === "services")
+      .reduce((sum, s) => sum + s.findings.length, 0);
+    return `${offeredCount} selected — ${n} issue${n === 1 ? "" : "s"} to resolve before ${n === 1 ? "it's" : "they're"} ready to sell`;
+  }
+  if (key === "pricing") {
+    const findings = readiness.stages.find((s) => s.key === "pricing-foundation")?.findings ?? [];
+    if (findings.some((f) => f.code === "NOTHING_OFFERED_YET")) return "Choose your services first";
+    if (findings.some((f) => f.code === "PRICING_SETTINGS_MISSING" || f.code === "LABOR_RATE_UNSET" || f.code === "MINIMUM_UNSET")) {
+      return "Set your labor rate and minimum";
+    }
+    if (findings.length > 0) return "Some material costs still need review";
+    return "Set your labor rate and material costs";
+  }
+  const STATIC: Record<string, string> = {
+    business: "Confirm your business details and storefront address",
+    scheduling: "Set your availability and how deposits work",
+    launch: "Review your settings and go live",
+  };
+  return STATIC[key] ?? "Review this section";
 }
 
 function JourneyStep({
