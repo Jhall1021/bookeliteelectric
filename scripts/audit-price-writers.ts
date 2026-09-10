@@ -53,6 +53,13 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "cannot be reached without an approved price and the whole point is to " +
     "prove the guards fire in isolation. It refuses to run anywhere but a " +
     "proven branch of production, and touches no real contractor's price.",
+  "scripts/verify-dependency-refusal-surface.ts":
+    "Stamps an approved price on each candidate service in a THROWAWAY " +
+    "contractor's catalog before probing for DEPENDENCY_UNAVAILABLE — " +
+    "PRICE_NOT_APPROVED precedes it in activationRefusal's own order and " +
+    "would otherwise mask the refusal this file exists to test. The " +
+    "contractor is created and destroyed by the run; no real contractor's " +
+    "price is read or written.",
   "scripts/verify-material-readiness-lifecycle.ts":
     "Proves a missing material cost blocks activation, stops blocking when the " +
     "contractor enters the cost, and blocks again when it is removed — the B1 " +
