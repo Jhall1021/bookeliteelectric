@@ -24,19 +24,61 @@ import { useRouter } from "next/navigation";
  *     router is never invoked at all. "Discard" then completes the SAME
  *     navigation via `router.push`.
  *
- *   the browser's back/forward button
- *     `popstate` cannot be canceled — by the time it fires, the address
- *     bar already shows the new URL. The trick: the instant edits become
- *     dirty, push one extra history entry for the CURRENT url. The next
- *     back-press just returns to that duplicate — same URL, so Next's own
- *     router treats it as no navigation and nothing unmounts — which is
- *     exactly when this shows the prompt. Every further back-press while
- *     still dirty re-plants the same duplicate (pushState from a
- *     mid-stack position always overwrites the forward stack, so this
- *     never actually grows past one extra entry no matter how many times
- *     it cycles). "Discard" jumps back exactly two real steps — one for
- *     the duplicate, one for the step the contractor actually meant —
- *     with a bypass flag so that jump's own popstate isn't re-trapped.
+ *   the browser's own back/forward button — PRE-ARMED, NOT REACTIVE
+ *     `popstate` cannot be canceled, and by the time any listener runs the
+ *     browser has ALREADY committed to whichever entry the press landed
+ *     on. A first version of this hook reacted only AFTER that happened —
+ *     it looked direction-agnostic on paper, but it was unsafe: this app's
+ *     own router keeps a single listener alive for the life of the whole
+ *     session (registered once, long before this editor ever mounts), so
+ *     it always runs first, and for an already-cached destination it can
+ *     synchronously swap the page's content — unmounting this very editor,
+ *     and the unsaved edit React state living in it, before this hook's
+ *     own listener ever gets a turn. That is a data-loss bug hiding behind
+ *     a passing test, not a working design — confirmed live: the previous
+ *     version of this hook failed the very "Back → Stay preserves the
+ *     edit" case it was meant to guarantee.
+ *
+ *     The only technique that is actually safe is to make sure the entry
+ *     a press WOULD land on is already harmless before the press happens:
+ *     the moment an edit makes this editor dirty, one extra history entry
+ *     is pushed at this editor's OWN url. Now the entry immediately behind
+ *     the current position is identical, in url, to where the browser
+ *     already is — so if the user presses Back, the browser lands on a
+ *     page whose url never actually changes. This app's router sees no
+ *     path difference and never re-renders anything, so this editor is
+ *     never at risk of being torn down mid-edit. THAT is what makes "Stay"
+ *     trustworthy, not any cleverness in how popstate is handled after the
+ *     fact.
+ *
+ *     Every time that same-url press is caught, another same-url entry is
+ *     immediately planted in its place, so a second Back press (after
+ *     choosing Stay) is equally safe. This keeps one invariant true for as
+ *     long as the contractor stays dirty: the real previous page is always
+ *     exactly two steps behind wherever the pointer currently sits — one
+ *     for the guard entry, one for the editor's own real entry beneath it
+ *     — so "Discard" is always `history.go(-2)`, regardless of how many
+ *     Stay/re-arm cycles came before it.
+ *
+ *     Nothing is pushed until the contractor is actually dirty, and the
+ *     guard entry is silently popped back off (via a bypassed `go(-1)`) the
+ *     moment a save or cancel clears it with no back/forward press in
+ *     between — the common path is untouched by any of this.
+ *
+ *     HARD LIMITATION, disclosed rather than papered over: the History API
+ *     has no way to insert an entry AHEAD of the current position without
+ *     destroying whatever real page used to be there. That means arming
+ *     this guard — the only way to make Back safe — necessarily discards
+ *     any real forward-reachable page the instant an edit begins, whether
+ *     or not Back or Forward is ever actually pressed. In practice this
+ *     means the browser's own Forward button is simply inert for as long
+ *     as this editor is dirty: there is nothing left to traverse to, so
+ *     pressing it does nothing — not a data-loss risk (nothing is ever
+ *     misdirected), just an unavailable button. There is no way to give
+ *     Forward a genuine destination here without either a cross-cutting,
+ *     app-wide navigation history of its own (well beyond this one editor)
+ *     or the newer, Chromium-only Navigation API (no cross-browser
+ *     fallback) — both bigger changes than this guard's own scope.
  */
 export type PendingNavigation = { kind: "link"; href: string } | { kind: "history" };
 
@@ -46,7 +88,8 @@ export function useUnsavedChangesGuard(dirty: boolean) {
   dirtyRef.current = dirty;
 
   const [pending, setPending] = useState<PendingNavigation | null>(null);
-  const historyArmedRef = useRef(false);
+  // Is a same-url guard entry currently sitting under the pointer?
+  const armedRef = useRef(false);
   const bypassNextPopStateRef = useRef(false);
 
   useEffect(() => {
@@ -79,17 +122,19 @@ export function useUnsavedChangesGuard(dirty: boolean) {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
+  // Arm the same-url backstop the instant editing starts; silently
+  // disarm it if the contractor clears dirty (Save/Cancel) without ever
+  // pressing Back — see the header doc for why this has to happen up
+  // front rather than reactively.
   useEffect(() => {
-    if (dirty && !historyArmedRef.current) {
+    if (dirty) {
+      if (armedRef.current) return;
       window.history.pushState({ unsavedGuard: true }, "", window.location.href);
-      historyArmedRef.current = true;
-    }
-    if (!dirty) {
-      // The planted duplicate (if any) is harmless and left in place —
-      // removing it would itself require a history mutation with its own
-      // edge cases, for no real benefit. A future dirty cycle re-arms
-      // fresh from wherever the contractor is by then.
-      historyArmedRef.current = false;
+      armedRef.current = true;
+    } else if (armedRef.current) {
+      bypassNextPopStateRef.current = true;
+      window.history.back();
+      armedRef.current = false;
     }
   }, [dirty]);
 
@@ -100,6 +145,9 @@ export function useUnsavedChangesGuard(dirty: boolean) {
         return;
       }
       if (!dirtyRef.current) return;
+      // This press just consumed the same-url guard entry — the browser
+      // never actually moved anywhere, so nothing here was ever at risk.
+      // Re-arm immediately so a second press is equally safe.
       window.history.pushState({ unsavedGuard: true }, "", window.location.href);
       setPending({ kind: "history" });
     }
@@ -117,8 +165,8 @@ export function useUnsavedChangesGuard(dirty: boolean) {
       router.push(p.href);
       return;
     }
-    // One step for the planted duplicate, one for the real step the
-    // contractor was actually trying to take.
+    // Always exactly two steps behind wherever the pointer currently sits:
+    // one for the guard entry, one for this editor's own real entry.
     bypassNextPopStateRef.current = true;
     window.history.go(-2);
   }, [pending, router]);

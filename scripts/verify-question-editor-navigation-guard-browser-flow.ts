@@ -26,6 +26,17 @@
  *                              it there
  *   browser back, Discard      the second back-then-discard cycle
  *                              actually lands on the real previous page
+ *   browser FORWARD is safe    pressing forward while dirty no longer
+ *                              misdirects backward the way the previous
+ *                              version of this guard did — it's simply
+ *                              inert (nothing to traverse to; see the
+ *                              hook's own header for why), URL and edit
+ *                              both completely undisturbed
+ *   no phantom stops           after a clean Save (or Cancel) with no
+ *                              back/forward press in between, a single
+ *                              Back or Forward press moves exactly one
+ *                              real step — nothing was ever pushed onto
+ *                              history in the first place
  *
  *   PLATFORM_MAIL_SINK=/tmp/some-file.jsonl BROWSER_FLOW_BASE_URL=http://localhost:3423 \
  *     npx tsx scripts/verify-question-editor-navigation-guard-browser-flow.ts
@@ -218,6 +229,76 @@ async function main() {
     await page.waitForURL((u) => u.pathname === "/dashboard/services", { timeout: 5000 });
     ok(`6. Discard on a back-button prompt lands on the REAL previous page`, page.url().endsWith("/dashboard/services"), page.url());
 
+    // ── 7. browser FORWARD while dirty is a safe no-op — never misdirected ──
+    // Real Catalog → Service → Overview, so stepping back onto the editor
+    // leaves a genuine forward target (Overview). Making Back safe requires
+    // arming a same-url guard entry the instant an edit starts, and the
+    // History API has no way to insert an entry ahead of the current one
+    // without destroying whatever real page was already there — so that
+    // arming unavoidably discards the Overview forward-entry the moment the
+    // field is edited, before Forward is ever pressed. The fix this round
+    // is not "Forward reaches Overview" (the browser has nothing left to
+    // traverse to, through no fault of the guard's direction logic) — it's
+    // that Forward no longer does the WRONG thing the way it used to
+    // (silently landing one step backward). It now does nothing at all:
+    // the edit and the URL are both completely undisturbed.
+    const dashboardUrl = `${BASE}/dashboard`;
+    await page.goto(catalogUrl, { waitUntil: "networkidle" });
+    await page.getByRole("link", { name: "Nav Guard Test Service" }).click();
+    await page.waitForURL(serviceUrl, { timeout: 5000 });
+    await page.getByRole("link", { name: "Overview" }).click();
+    await page.waitForURL(dashboardUrl, { timeout: 5000 });
+
+    await page.goBack();
+    await page.waitForURL(serviceUrl, { timeout: 5000 });
+    await page.getByRole("button", { name: "Customer questions" }).click();
+    await page.getByRole("button", { name: "Edit questions" }).click();
+    await page.waitForSelector('input[placeholder="Optional helper text shown under the question"]');
+    const help3 = await makeEdit("edit five — untouched by a forward press while dirty");
+
+    await page.goForward();
+    const noPromptOnForward = await page.waitForSelector("text=Leave without saving?", { timeout: 1500 }).then(() => false).catch(() => true);
+    ok(`7. pressing FORWARD while dirty is a safe no-op — not misdirected backward`, noPromptOnForward, "a Stay/Discard prompt appeared for a press with nothing to traverse to");
+    ok(`   ...the URL is exactly where it was`, page.url() === serviceUrl, page.url());
+    ok(`   ...and the edit is completely undisturbed`, (await help3.inputValue()) === "edit five — untouched by a forward press while dirty");
+
+    // ── 8. after Save with no detour, Back/Forward move exactly one step ──
+    // Nothing was ever pushed onto history (no back/forward was pressed
+    // while dirty), so there is no extra stop for the guard to introduce.
+    await page.goto(catalogUrl, { waitUntil: "networkidle" });
+    await page.getByRole("link", { name: "Nav Guard Test Service" }).click();
+    await page.waitForURL(serviceUrl, { timeout: 5000 });
+    await page.getByRole("button", { name: "Customer questions" }).click();
+    await page.getByRole("button", { name: "Edit questions" }).click();
+    await page.waitForSelector('input[placeholder="Optional helper text shown under the question"]');
+    await makeEdit("edit seven — saved, no detour");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.waitForSelector("text=✓ Saved.", { timeout: 10000 });
+
+    await page.goBack();
+    await page.waitForURL(catalogUrl, { timeout: 5000 });
+    ok(`8. after Save, one Back press lands directly on the catalog — no phantom stop`, page.url() === catalogUrl, page.url());
+    await page.goForward();
+    await page.waitForURL(serviceUrl, { timeout: 5000 });
+    ok(`   ...and one Forward press returns directly to the service editor`, page.url() === serviceUrl, page.url());
+
+    // ── 9. Cancel behaves the same way ──
+    await page.goto(catalogUrl, { waitUntil: "networkidle" });
+    await page.getByRole("link", { name: "Nav Guard Test Service" }).click();
+    await page.waitForURL(serviceUrl, { timeout: 5000 });
+    await page.getByRole("button", { name: "Customer questions" }).click();
+    await page.getByRole("button", { name: "Edit questions" }).click();
+    await page.waitForSelector('input[placeholder="Optional helper text shown under the question"]');
+    await makeEdit("edit eight — canceled, no detour");
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
+    await page.goBack();
+    await page.waitForURL(catalogUrl, { timeout: 5000 });
+    ok(`9. after Cancel, one Back press lands directly on the catalog — no phantom stop`, page.url() === catalogUrl, page.url());
+    await page.goForward();
+    await page.waitForURL(serviceUrl, { timeout: 5000 });
+    ok(`   ...and one Forward press returns directly to the service editor`, page.url() === serviceUrl, page.url());
+
     await ctx.close();
   } catch (e) {
     console.error(e);
@@ -226,7 +307,7 @@ async function main() {
     await browser.close().catch(() => {});
     await teardown();
     const residue = await prisma.contractor.count({ where: { slug: SLUG } });
-    ok(`7. every fixture is gone at the end`, residue === 0);
+    ok(`10. every fixture is gone at the end`, residue === 0);
     await prisma.$disconnect();
   }
 
