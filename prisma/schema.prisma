@@ -699,6 +699,8 @@ model Contractor {
   /// ADR-016 — how this contractor prices. Presentation only; see the enum.
   pricingStrategy PricingStrategy @default(FLAT_RATE)
 
+  guidedFlowSessions GuidedFlowSession[]
+
   @@map("contractors")
 }
 
@@ -2114,6 +2116,8 @@ model Service {
   /// backfill over a reviewed set, never by `WHERE tradeKey IS NULL`.
   tradeKey String?
 
+  guidedFlowSessions GuidedFlowSession[]
+
   @@unique([contractorId, slug])
   @@index([contractorId])
   @@map("services")
@@ -2398,6 +2402,155 @@ model Visit {
   // which Prisma cannot express in a schema file.
   @@index([contractorId, sessionId, status])
   @@map("visits")
+}
+
+enum GuidedFlowSessionStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+/// Canonical server-side mirror of an in-progress homeowner Guided Pricing
+/// flow — docs/design/guided-flow-session-v1.md. Owns none of: route
+/// resolution, pricing, Route Assist semantics, or Device Handoff
+/// semantics. It stores what the customer told us (consumedAnswers) and
+/// nothing this system computed from it — no "current question", no
+/// derived state — because resolveRoute stays the only price authority and
+/// GuidedFlowEngine's existing client-side walk stays the only "what's
+/// next" authority. Resuming a flow means handing consumedAnswers back to
+/// that same, unmodified walk against a freshly-fetched ServiceFlowDTO —
+/// never asking this row what to show.
+model GuidedFlowSession {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// The SAME anonymous token lib/session.ts already issues for the cart —
+  /// not a new homeowner identity. Unhashed, matching Visit.sessionId's own
+  /// precedent; already scoped by contractor resolution (ADR-011) before
+  /// this token is ever read.
+  sessionId String
+
+  serviceId   String
+  service     Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  /// Denormalized — survives a rename, same precedent as PriceSight's
+  /// serviceSlug/serviceName snapshot fields.
+  serviceSlug String
+
+  /// Same shape as LineItem.answersSnapshot / Quote.answersSnapshot — the
+  /// existing vocabulary, captured earlier, not a new one.
+  consumedAnswers Json    @default("{}")
+  customerNote    String?
+
+  status GuidedFlowSessionStatus @default(ACTIVE)
+  /// Optimistic concurrency. Every write supplies the version it read; a
+  /// write against a stale version is rejected (updateMany count === 0),
+  /// never silently overwritten. New idiom for this codebase — no existing
+  /// version-based concurrency pattern to copy — but the standard Prisma
+  /// one, not a novel invention.
+  version Int @default(0)
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastActivityAt DateTime  @default(now())
+  completedAt    DateTime?
+
+  /// What this session became, once it becomes something. Deliberately a
+  /// bare id, not a Prisma relation — LineItem and Quote are not touched by
+  /// this migration.
+  lineItemId String?
+  quoteId    String?
+
+  visualAssistTasks GuidedFlowVisualAssistTask[]
+  deviceHandoffs    DeviceHandoff[]
+
+  /// The lookup every "find or create the active session for this
+  /// browser+service" call uses. NOT unique — "at most one ACTIVE session
+  /// per contractor+session+service" is a contract-phase invariant, same
+  /// reasoning as Visit's own index comment two models up.
+  @@index([contractorId, sessionId, serviceId, status])
+  @@map("guided_flow_sessions")
+}
+
+enum VisualAssistTaskType {
+  ROUTE_ASSIST
+  PHOTO_CAPTURE
+}
+
+enum VisualAssistTaskStatus {
+  PENDING
+  COMPLETED
+}
+
+/// A lightweight, generic pointer: "this flow asked for a camera-based
+/// task, here's whether it's done." Deliberately NOT a Route Assist model
+/// — Route Assist owns its own result shape and, eventually, its own
+/// persisted table (docs/design/route-assist-v1.md §6). `result` is a
+/// generic JSON payload here because neither Visual Assist nor Route
+/// Assist has its own persisted result table yet — a transitional home,
+/// documented as such, not a permanent design commitment.
+model GuidedFlowVisualAssistTask {
+  id                  String            @id @default(cuid())
+  guidedFlowSessionId String
+  guidedFlowSession   GuidedFlowSession @relation(fields: [guidedFlowSessionId], references: [id], onDelete: Cascade)
+
+  taskType VisualAssistTaskType
+  /// Caller-assigned, opaque to this model — e.g. which question/step in
+  /// the tree asked for this task. Display only.
+  taskKey String?
+
+  status VisualAssistTaskStatus @default(PENDING)
+  /// The canonical result once COMPLETED — e.g. a RouteAssistResult JSON.
+  /// One task, one result, visible to every client reading this session —
+  /// never a per-device copy.
+  result Json?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([guidedFlowSessionId, taskType])
+  @@map("guided_flow_visual_assist_tasks")
+}
+
+enum DeviceHandoffTaskType {
+  ROUTE_ASSIST
+  PHOTO_CAPTURE
+  VISUAL_ASSIST
+}
+
+enum DeviceHandoffStatus {
+  AVAILABLE
+  CONNECTED
+  COMPLETED
+  EXPIRED
+  REVOKED
+}
+
+/// Shared cross-device continuation infrastructure — deliberately outside
+/// Visual Assist and not owned by GuidedFlowSession either; both consume
+/// it. Matches lib/device-handoff/'s already-proven pure domain (token.ts,
+/// lifecycle.ts) exactly — this is that domain's first real persistence,
+/// not a redesign. tokenHash only, never the raw token, same rationale as
+/// ContractorInvitation.
+model DeviceHandoff {
+  id                  String            @id @default(cuid())
+  guidedFlowSessionId String
+  guidedFlowSession   GuidedFlowSession @relation(fields: [guidedFlowSessionId], references: [id], onDelete: Cascade)
+
+  taskType DeviceHandoffTaskType
+  taskId   String?
+
+  tokenHash String              @unique
+  status    DeviceHandoffStatus @default(AVAILABLE)
+
+  expiresAt   DateTime
+  connectedAt DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([guidedFlowSessionId, status])
+  @@map("device_handoffs")
 }
 
 model LineItem {

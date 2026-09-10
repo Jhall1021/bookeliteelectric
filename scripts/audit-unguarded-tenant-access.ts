@@ -44,6 +44,9 @@ const GUARDED_IDENTIFIERS = new Set(["db", "tx", "guarded"]);
  * `file::Model` -> the reason it is acceptable today.
  */
 const CLASSIFIED: Record<string, string> = {
+  // ---- GuidedFlowSession's derived satellites ---------------------------
+  "app/api/guided-flow-sessions/[id]/visual-assist-tasks/route.ts::GuidedFlowVisualAssistTask":
+    "docs/design/guided-flow-session-v1.md §4. GuidedFlowVisualAssistTask derives its owner through GuidedFlowSession, so it has no contractorId of its own to stamp, and the guard correctly refuses a direct create. Same precedent as Photo in POST /api/visit: ownership is proven immediately above via the GUARDED loadOwnedSession/loadSession read, checked against the caller's own session token, before this unguarded create ever runs — a foreign session would have returned null there and this line would be unreachable.",
   // ---- Canonical catalog installation ----------------------------------
   "lib/templateProvisioning.ts::AnswerOption":
     "Catalog installation, ADR-014. Questions, answer options and their children are DERIVED models: they take their owner through Service, so there is no contractorId to stamp and the guard REFUSES to create them — its own message says to validate the parent and use the unguarded client, which is what this does. The contractorId is established before any write, by withAdminRoute from an authenticated membership or by an explicit slug on the CLI, and every write is keyed to that id or to a row created under it inside the same transaction. The whole install is one transaction, so a partial catalog is not a reachable state.",

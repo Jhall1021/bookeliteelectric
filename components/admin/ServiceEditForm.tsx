@@ -30,12 +30,24 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A refusal is not an error, and it has somewhere to send you.
+   *
+   * Activation refuses for reasons the contractor can act on — most often that
+   * an answer in this service's tree leads somewhere that isn't live yet. The
+   * platform already says which one; this holds onto it so the sentence can end
+   * in a link instead of a rule the contractor has to decode.
+   */
+  const [blockedBy, setBlockedBy] = useState<
+    { id: string | null; slug: string | null; label: string }[]
+  >([]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
     setError(null);
+    setBlockedBy([]);
 
     const res = await fetch(`/api/admin/services/${service.id}`, {
       method: "PATCH",
@@ -55,19 +67,14 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
       router.refresh();
       setTimeout(() => setSaved(false), 2500);
     } else {
-      // Surfaces the real refusal (e.g. an activation guard naming exactly
-      // which material role is unresolved) instead of a generic failure —
-      // the guard already computed the accurate reason, so showing it costs
-      // nothing and saves a trip to find out why.
-      let detail = "Something went wrong saving this service.";
-      try {
-        const data = await res.json();
-        if (data?.message) detail = data.message;
-        else if (data?.error) detail = data.error;
-      } catch {
-        // Non-JSON response — keep the generic message.
-      }
-      setError(detail);
+      // The response body was being discarded and replaced with "something went
+      // wrong". Nothing had gone wrong: the platform refused, deliberately, and
+      // had already written the reason and where to go. A 409 here is a
+      // decision, so it is reported as one.
+      const data = await res.json().catch(() => ({}) as Record<string, unknown>);
+      const message = typeof data.message === "string" ? data.message : null;
+      setError(message ?? "Something went wrong saving this service.");
+      setBlockedBy(Array.isArray(data.prerequisites) ? data.prerequisites : []);
     }
   }
 
@@ -156,7 +163,28 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         </p>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <div className="space-y-2">
+          <p className="text-sm text-red-600">{error}</p>
+          {blockedBy.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {blockedBy.map((p, i) => (
+                <li key={p.id ?? p.slug ?? i}>
+                  {p.id ? (
+                    <a href={`/dashboard/services/${p.id}`} className="font-medium text-electric underline">
+                      Activate {p.label} first
+                    </a>
+                  ) : (
+                    // No row to send them to — a handoff target they don't own,
+                    // or a diagnostic they don't offer. Saying so beats a dead link.
+                    <span className="text-navy">{p.label} — nothing to open yet</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <button
         type="submit"
