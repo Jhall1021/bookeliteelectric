@@ -55,7 +55,19 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
       router.refresh();
       setTimeout(() => setSaved(false), 2500);
     } else {
-      setError("Something went wrong saving this service.");
+      // Surfaces the real refusal (e.g. an activation guard naming exactly
+      // which material role is unresolved) instead of a generic failure —
+      // the guard already computed the accurate reason, so showing it costs
+      // nothing and saves a trip to find out why.
+      let detail = "Something went wrong saving this service.";
+      try {
+        const data = await res.json();
+        if (data?.message) detail = data.message;
+        else if (data?.error) detail = data.error;
+      } catch {
+        // Non-JSON response — keep the generic message.
+      }
+      setError(detail);
     }
   }
 
@@ -139,8 +151,8 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
 
       {service.hasTree && (
         <p className="rounded-card bg-warmwhite p-3 text-xs text-slate">
-          This service has answer-branching questions — edit them in the Guided Pricing section
-          below. This form only controls the base price shown before any questions are asked.
+          This service has answer-branching questions — edit them on the Customer questions tab.
+          This form only controls the base price shown before any questions are asked.
         </p>
       )}
 

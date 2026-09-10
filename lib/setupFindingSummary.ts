@@ -20,6 +20,7 @@ const SERVICE_FINDING_SUMMARY: Record<string, (name: string) => string> = {
   ESTIMATE_NOT_APPROVED: (name) => `${name} has an estimate range that hasn't been approved for customers yet.`,
   TREE_UNBOUNDED: (name) => `${name} prices every answer automatically, with nothing routed to your review.`,
   MATERIAL_COST_ON_HOLD: (name) => `${name} depends on material costs still on hold.`,
+  PRE_WORK_WITHOUT_DEPOSIT: (name) => `${name} needs a site visit before installation, but takes no deposit to book.`,
 };
 
 /**

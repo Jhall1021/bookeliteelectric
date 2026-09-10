@@ -233,6 +233,8 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Stamps basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on a THROWAWAY service so it can prove the labor wizard's shared write authority (saveServicePricingInputs) never touches them — a fieldLaborHours-only call and a full-form call are both re-read afterward to show the published price survives untouched. The contractor is created and destroyed by the test; no real contractor's price is read or written.",
   "scripts/verify-labor-wizard-browser-flow.ts":
     "Stamps basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on a THROWAWAY service so the browser flow can prove accepting a labor-time proposal through the real panel never moves the published price — re-read and asserted unchanged after acceptance. The contractor is created and destroyed by the test; no real contractor's price is read or written.",
+  "scripts/verify-services-workspace-redesign.ts":
+    "Stamps basePrice/publishedPriceApprovedAt on a THROWAWAY branching service so the admin question-tree preview (lib/adminQuestionPreview.ts) can be proven against a route that actually resolves to a price — resolveRoute correctly refuses a RESOLVE_INSTANT route with no published base price, so the fixture needs one to exercise the priced branch at all. Re-read and asserted UNCHANGED after every preview step, proving the preview never writes. The contractor and its services are created and destroyed by the test; no real contractor's price is read or written.",
 };
 
 function walk(dir: string, out: string[] = []): string[] {
