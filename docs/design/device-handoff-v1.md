@@ -1,15 +1,42 @@
 # Device Handoff V1 — architecture
 
-**Status:** domain/security layer implemented and verified (token entropy,
-constant-time verification, expiry/revocation, safe re-scan of a completed
-handoff, non-disclosing failures — `scripts/verify-device-handoff-domain.ts`,
-all passing). **Cross-device quote resume is not end-to-end complete** — it
-is blocked on canonical server-side `GuidedFlow` session persistence, which
-does not exist anywhere in this codebase yet (§1.2) and is being held for a
-separate, coordinated decision rather than built here (§3, §5). Do not
-represent QR continuation as shippable until that lands. Route Assist's
-mobile-only/manual capture does not depend on this and is independently
-usable today.
+**Status, updated 10 Sep 2026 — the blocker below is resolved.** Canonical
+server-side `GuidedFlowSession` persistence now exists and is **merged to
+`main`** (PR #45, docs/design/guided-flow-session-v1.md). Device Handoff
+has real Prisma persistence, a full `app/api/device-handoffs/*` surface,
+and a live, proven cross-device flow — not just the domain/security layer
+this doc originally scoped.
+
+**What changed, concretely:**
+
+```text
+GuidedFlowSession                  (real, on main — consumedAnswers only,
+    ↓                                the deterministic tree walker unchanged)
+Device Handoff                     (real, on main — resolve joins a second
+    ↓                                device to the SAME anonymous session
+                                     token, no new auth system)
+second device joins same flow      (proven live — two independent cookie
+                                     jars, real HTTP layer, real service)
+```
+
+`lib/device-handoff/` here on the Route Assist branch is no longer a
+second implementation — it was reconciled to be byte-identical to the
+canonical copy on `main` (`docs/design/guided-flow-session-v1.md §12`),
+including the `quoteSessionId` → `guidedFlowSessionId` rename. This file's
+§1–§9 below describe the *original* architecture read and reasoning
+(still accurate as history — the token pattern, the security design, why
+`lib/device-handoff/` is pure domain) but its original §1.2 "genuine
+blocker" and the persistence proposal in §3/§5 are **superseded**: that
+design mostly happened as proposed, and the live implementation now
+exceeds what was speculative here. For the current, load-bearing
+architecture — schema, API routes, the concurrency mechanism, and the
+actual live-proof evidence — `docs/design/guided-flow-session-v1.md` is
+the source of truth, not this document.
+
+**What Route Assist itself still doesn't do:** `RouteAssistCapture.tsx`
+doesn't yet call the real `/api/guided-flow-sessions/*` /
+`/api/device-handoffs/*` endpoints — the mechanism is proven generically
+over HTTP, not yet wired into that component. That's the next slice.
 
 ## 1. What was asked, and what was found
 
@@ -113,7 +140,13 @@ This is genuinely reusable today by anything that wants "hand this task to
 another device" — Route Assist, an equipment photo task, a future capture
 flow — none of it is Route-Assist-specific.
 
-## 3. The decision this doc is asking for
+## 3. The decision this doc is asking for (RESOLVED — see top-of-doc status)
+
+**This decision was made and built.** `GuidedFlowSession` exists, is
+merged to `main`, and all four items below landed — see
+`docs/design/guided-flow-session-v1.md` for the real schema, routes, and
+proof. Kept here as the historical record of the question as originally
+posed, not as a current TODO.
 
 Wiring this to the brief's actual acceptance proof (QR → phone resumes the
 exact tree position → completes Route Assist → desktop sees it, no
@@ -150,7 +183,7 @@ active guided-flow work are doing first. Everything in §2 is ready to sit
 on top of it as soon as it lands, and nothing in §2 needs to change to
 support it.
 
-## 4. Designed, not yet built — for review once §3 is resolved
+## 4. Designed, then built (BUILT — see guided-flow-session-v1.md for the real routes)
 
 **Polling contract.** `GET /api/device-handoff/[id]/status` → `{ status:
 DesktopPresentationState }`, polled every 3–5s from the desktop tab while
