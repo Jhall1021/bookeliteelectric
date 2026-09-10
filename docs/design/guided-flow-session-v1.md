@@ -397,10 +397,57 @@ that true.
 
 ## 8. Migration safety — rehearsed and proven, 10 Sep 2026
 
-- Purely additive: **three new models, five new enums**
-  (`GuidedFlowSessionStatus`, `VisualAssistTaskType`,
-  `VisualAssistTaskStatus`, `DeviceHandoffTaskType`, `DeviceHandoffStatus`
-  — corrected count; an earlier pass of this doc said four), zero changes
+### 8.0 Scope, reconciled — exactly what this feature adds
+
+**Three models, five enums, confirmed by re-reading the actual schema, not
+by recount from memory** (an earlier informal summary in this session said
+four enums — that was a miscount made before the schema was final, not a
+later design change; the fifth was always there once
+`GuidedFlowVisualAssistTask` got its own model):
+
+| Enum | Values | Why it's separate from the others |
+|---|---|---|
+| `GuidedFlowSessionStatus` | `ACTIVE`, `COMPLETED`, `ABANDONED` | The flow's own lifecycle (§9 of the brief's vocabulary) |
+| `VisualAssistTaskType` | `ROUTE_ASSIST`, `PHOTO_CAPTURE` | What kind of camera task was requested on a session |
+| `VisualAssistTaskStatus` | `PENDING`, `COMPLETED` | A task's own two-state lifecycle — **not** the same vocabulary as the session's three-state one, even though both models can be "COMPLETED" at the same moment for different reasons |
+| `DeviceHandoffTaskType` | `ROUTE_ASSIST`, `PHOTO_CAPTURE`, `VISUAL_ASSIST` | What a handoff token is *for* — copied from Route Assist's own pure domain (`lib/device-handoff/types.ts`), unchanged |
+| `DeviceHandoffStatus` | `AVAILABLE`, `CONNECTED`, `COMPLETED`, `EXPIRED`, `REVOKED` | A handoff token's own five-state lifecycle, also copied unchanged from Route Assist's pure domain |
+
+`VisualAssistTaskStatus` is the one worth naming explicitly: it would have
+been tempting to reuse `GuidedFlowSessionStatus` or invent a shared
+"done/not done" enum across all three models, but a task, a session, and a
+handoff are three genuinely different things that all happen to use the
+word "COMPLETED" — collapsing them into one enum would make a future
+schema change to one silently able to affect the other two. Kept separate
+on purpose, not by oversight.
+
+**Confirmed additive, re-verified directly against the diff, not asserted:**
+`git diff 2c4d821 origin/feat/guided-flow-session -- prisma/schema.prisma`
+contains **zero removal lines** — not one existing enum member, column,
+index, or type was touched. Every line in that file's diff is a pure
+addition.
+
+### 8.0.1 Two separate things, kept separate in this document on purpose
+
+**This feature's own schema change** (§4 above) — 3 models, 5 enums, 0
+existing-column changes, described in full above.
+
+**Pre-existing schema drift already committed on `origin/main`** (§8.1
+below) — unrelated destructive changes (an enum-value removal, two column
+drops with real data, three new constraints) that some *other*,
+already-merged work introduced to `schema.prisma` before this branch
+existed, and that the live database simply hasn't caught up to yet. This
+branch didn't create that drift and doesn't resolve it — `db push` just
+can't apply *anything* to the rehearsal clone, including this feature's
+own additive change, without also being told to accept it. **Nothing
+about accepting it on a disposable rehearsal clone authorizes running the
+same command, or any command, against production. That drift's actual
+resolution is a separate, later release/migration decision for whoever
+owns it — not scoped, not started, not implied by anything in this
+document.**
+
+- Purely additive: **three new models, five new enums** — see §8.0 for the
+  exact names and the reasoning, and zero changes
   to any existing model's columns, indexes, or types.
 - Rehearsed on a dedicated Neon branch created off the actual production
   lineage for this work alone — `br-sparkling-band-axoiwyf5`
@@ -603,3 +650,105 @@ classified, justified entry in that script's own registry, matching the
   intended sequence can collide. The targeted, relevant subset above was
   run instead, and the live proof in §11.1–§11.2 already exercises the
   real booking write path (`POST /api/visit`) end-to-end.
+
+## 12. Branch reconciliation — `lib/device-handoff/` overlap, and the merge plan
+
+Both `feat/route-assist-v1` (HEAD `f8f501a`) and `feat/guided-flow-session`
+(HEAD `6cbdad9`) forked from the same commit, `2c4d821`. Diffed against
+that actual fork point (not against `origin/main`, which has since moved
+forward past both — PR #41 merged after this work began, touching four
+files neither branch actually changed; a naive diff against current
+`origin/main` would misreport those as "overlap" when they're not).
+
+### 12.1 The real overlap — exactly five files, minimal divergence
+
+Only `lib/device-handoff/{index,invariants,lifecycle,token,types}.ts`
+exist on both branches. `index.ts` is **byte-identical**. The other four
+differ by exactly one thing: `feat/guided-flow-session` renamed
+`quoteSessionId` → `guidedFlowSessionId` throughout (plus updated header
+comments explaining the rename and the real Prisma FK it now matches) —
+2–20 changed lines per file, zero logic changes. No other file path is
+touched by both branches.
+
+### 12.2 Which branch is more complete, and the recommended canonical owner
+
+`feat/route-assist-v1` has the pure domain only — no Prisma model, no
+persistence, no API routes; its own design doc (`device-handoff-v1.md`)
+states outright that cross-device resume was blocked there. `feat/
+guided-flow-session` has the same domain (correctly renamed) **plus** the
+real `DeviceHandoff` Prisma model, `lib/deviceHandoffStore.ts`, the full
+`app/api/device-handoffs/*` surface, and a live, end-to-end proof (§11.2)
+that it actually works across two devices.
+
+**Recommended canonical owner: `feat/guided-flow-session`'s version.**
+Not because it happened to build persistence — because the field name it
+uses (`guidedFlowSessionId`) is the semantically correct one now that
+`GuidedFlowSession` is the canonical term; Route Assist's `quoteSessionId`
+was a placeholder name coined before `GuidedFlowSession` existed. Device
+Handoff should end up owned by neither Route Assist nor GuidedFlowSession
+architecturally (§6 of the brief: shared cross-device infrastructure,
+consumed by both) — but as a practical matter of *which git history it
+lives in*, the more complete, correctly-named, already-proven copy is the
+one to keep.
+
+### 12.3 What to remove/rebase — recommendation, not executed here
+
+**Not performed in this session** — `feat/route-assist-v1` was already
+reported as an accepted, pushed checkpoint, and rewriting its content
+without a fresh go-ahead would cross into "rewriting working code" the
+brief asked not to do unnecessarily. Recommendation for whoever sequences
+the actual merge:
+
+1. Delete `feat/route-assist-v1`'s own copy of the five
+   `lib/device-handoff/` files (superseded by the canonical one below).
+2. Update its `docs/design/device-handoff-v1.md`, which currently states
+   Device Handoff is blocked/undesigned for persistence — that's no longer
+   true once `feat/guided-flow-session` is in the base it rebases onto.
+3. `scripts/verify-device-handoff-domain.ts` (Route Assist's own pure,
+   no-DB proof of the same domain) can stay — it still proves something
+   real about the domain layer and costs nothing to keep, now importing
+   from the canonical (renamed) module instead of its own copy.
+
+Nothing else on either branch references `lib/device-handoff/` internals
+directly (confirmed: `RouteAssistCapture.tsx` and the Route Assist domain
+module never import from it — Device Handoff and Route Assist are wired
+together only at the level of "both exist," not through direct imports),
+so this cleanup is mechanical, not a redesign.
+
+### 12.4 Recommended merge sequence
+
+1. **Merge `feat/guided-flow-session` first.** It doesn't depend on Route
+   Assist at all (confirmed: nothing in it imports `lib/visual-assist/
+   route-assist/` or `RouteAssistCapture.tsx`) and carries the canonical
+   `lib/device-handoff/`, the real `DeviceHandoff`/`GuidedFlowSession`
+   models, and the full API surface. This becomes the new base.
+2. **Rebase `feat/route-assist-v1` onto the post-merge `main`**, applying
+   §12.3's cleanup as part of that rebase (delete the duplicate domain
+   copy, update its design doc). This is the only branch with expected
+   conflicts, and only in the five overlapping files plus the one doc.
+3. **New integration slice — not yet built on either branch:** wire
+   `RouteAssistCapture.tsx` to actually call the real
+   `/api/guided-flow-sessions/*` and `/api/device-handoffs/*` endpoints for
+   cross-device continuation. §11.2's proof exercises the mechanism
+   generically over HTTP; nothing today makes the Route Assist *component*
+   itself create a session, request a handoff, or read back a
+   `GuidedFlowVisualAssistTask` result. This is real, scoped, straightforward
+   work — the API it would call is already proven — but it hasn't happened
+   yet and shouldn't be assumed done.
+4. **Service-tree invocation points** — deliberately not started, per
+   explicit instruction (§10).
+5. **Full homeowner end-to-end proof** — once 3 and 4 exist, a real
+   desktop→QR→phone→Route Assist→booking pass, the way §11.1/§11.2 proved
+   the underlying pieces separately.
+
+### 12.5 Expected conflicts and cleanup, summarized
+
+| Branch | Needs a cleanup commit before PR? | What |
+|---|---|---|
+| `feat/guided-flow-session` | No | Self-contained; merges cleanly against current `main` today |
+| `feat/route-assist-v1` | Yes, if sequenced after guided-flow-session | Delete duplicate `lib/device-handoff/`, update `device-handoff-v1.md`'s now-stale "blocked" framing |
+
+No conflicts expected outside `lib/device-handoff/*` and
+`docs/design/device-handoff-v1.md` — every other file either branch
+touches is disjoint, confirmed by diffing both against their actual fork
+point.
