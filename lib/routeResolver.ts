@@ -55,6 +55,7 @@ import {
   type JobConfiguration,
   type PricingSettings,
 } from "./pricing";
+import { capabilityState, loadCapabilityFacts, type CapabilityFacts } from "./capabilities";
 
 export type ResolvedRoute =
   | {
@@ -129,6 +130,8 @@ export type ResolvedRoute =
  * discarded after loading is not one.
  */
 export async function loadServiceForResolution(db: PrismaClient, serviceId: string) {
+  // Contractor-owned facts, loaded HERE so resolveRoute stays deterministic:
+  // routing receives resolved facts and never queries a database mid-walk.
   const owner = await db.service.findUnique({
     where: { id: serviceId },
     select: { slug: true, contractorId: true, tradeKey: true },
@@ -253,12 +256,20 @@ export async function loadServiceForResolution(db: PrismaClient, serviceId: stri
     }
   }
 
+  // Contractor-owned scope facts. Loaded HERE, with the rest of the
+  // contractor's data, so resolveRoute stays deterministic — routing receives
+  // resolved facts and never reaches for a database mid-walk.
+  const capabilities = service.contractorId
+    ? await loadCapabilityFacts(db, service.contractorId)
+    : ({} as CapabilityFacts);
+
   return {
     ...service,
     ownComponents,
     ownMaterialCosts,
     troubleshootingServiceId,
     troubleshootingProblem,
+    capabilities,
   };
 }
 
@@ -589,6 +600,34 @@ export function resolveRoute(
         status: "INVALID",
         reason: `"${given}" is not a valid answer to "${current.key}" in ${service.slug}`,
       };
+    }
+
+    // ROUTING V2 — CAPABILITY GATE.
+    //
+    // The option says what SCOPE its outcome requires; the contractor's own
+    // record says whether they offer it. Only "declared" may resolve.
+    //
+    // The two non-declared states deliberately reach the SAME homeowner outcome
+    // and remain DIFFERENT facts: this is written from the three-state result
+    // rather than `if (!hasCapability)`, so "we never asked" cannot quietly
+    // become "they said no" for onboarding or reporting later.
+    //
+    // There is no third path where the route resolves and the restoration
+    // component is quietly dropped. Either the scope is offered and the recipe
+    // includes it, or the customer goes to review.
+    if (option.requiresCapabilityKey) {
+      const state = capabilityState(service.capabilities ?? {}, option.requiresCapabilityKey);
+      if (state !== "declared") {
+        return {
+          status: "REVIEW",
+          reason: "This route needs the office to confirm scope",
+          photoLabels: [...new Set(photoLabels)],
+          photoSafetyNotes: [...new Set(photoSafetyNotes)],
+          floorPriceCents: null,
+          isPrimary,
+          config,
+        } as ResolvedRoute;
+      }
     }
 
     consumed.push({ key: current.key, value: given, label: option.label });

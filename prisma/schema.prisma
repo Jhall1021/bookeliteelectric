@@ -608,6 +608,10 @@ model Contractor {
   /// model ContractorCredential and lib/credentials.ts.
   credentials  ContractorCredential[]
 
+  /// Scopes this contractor CHOOSES TO OFFER, as distinct from what it is
+  /// qualified for. See model ContractorCapability and lib/capabilities.ts.
+  capabilities ContractorCapability[]
+
   schedulingAuthority SchedulingAuthority?
 
   /// How many jobs this contractor can run AT ONCE in one arrival window,
@@ -2374,6 +2378,18 @@ model AnswerOption {
   /// This is a generic capability. The resolver knows nothing about feet, walls
   /// or eligibility; it validates a number and picks the one authored range
   /// containing it. What a range MEANS is authored by the module that writes it.
+  /// ROUTING V2 — the contractor scope this option's outcome REQUIRES.
+  ///
+  /// A statement by the TEMPLATE about the work ("this route needs baseboard
+  /// reinstatement"), never a claim that any contractor offers it. Whether a
+  /// given contractor does is ContractorCapability, which is contractor-owned
+  /// and is deliberately not set by provisioning.
+  ///
+  /// Only `declared` lets this option resolve. `not-established` and `revoked`
+  /// both send the customer to review — and stay distinct in storage, because
+  /// onboarding needs to know which one it is looking at.
+  requiresCapabilityKey String?
+
   numberAtLeast Int?
   numberAtMost  Int?
 
@@ -3718,6 +3734,9 @@ model TemplateAnswerOption {
 
   /// ROUTING V2 — see AnswerOption.numberAtLeast/numberAtMost.
   /// Carried explicitly: this model is a subset and the copy is a field list.
+  /// ROUTING V2 — see AnswerOption.requiresCapabilityKey.
+  requiresCapabilityKey String?
+
   numberAtLeast Int?
   numberAtMost  Int?
 
@@ -3976,6 +3995,43 @@ model ContractorTrade {
 ///
 /// REVOKED, NEVER DELETED. `revokedAt` set means the capability is not
 /// CURRENTLY declared; the row and its `declaredAt` remain as history.
+/// A scope a contractor CHOOSES TO OFFER — deliberately not a credential.
+///
+/// ContractorCredential answers "what is this workforce qualified to do"
+/// (EPA_608). This answers "what work does this business take on". Same storage
+/// shape, different kind of fact, and collapsing them would make a commercial
+/// choice look like a regulatory one.
+///
+/// THREE-STATE, NEVER A BOOLEAN DEFAULT — the contract borrowed deliberately
+/// from ContractorCredential. No row is "not-established"; a row with no
+/// revokedAt is "declared"; a revoked row is "revoked". There is no boolean
+/// helper collapsing the first and last, because "we never asked" and "they
+/// said no" are different facts about the business, and a gate that treats them
+/// alike cannot later tell an onboarding screen which one it is looking at.
+///
+/// GENERIC. Routing V2 is the first consumer, but this table knows nothing
+/// about outlets, drywall, route envelopes or feet.
+model ContractorCapability {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// A key from CAPABILITY_KEYS in lib/capabilities.ts. Not free text.
+  key String
+
+  declaredAt DateTime  @default(now())
+  /// Set when the contractor stops offering the scope. The row is KEPT: the
+  /// difference between "never declared" and "no longer offered" is the point.
+  revokedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractorId, key])
+  @@index([contractorId])
+  @@map("contractor_capabilities")
+}
+
 model ContractorCredential {
   id           String     @id @default(cuid())
   contractorId String
