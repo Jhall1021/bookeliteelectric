@@ -61,7 +61,7 @@ export default function ServiceWorkspace({
           onClick={() => setTab("questions")}
           className="shrink-0 rounded-pill border border-cardline px-4 py-2 text-sm font-medium text-navy hover:border-electric"
         >
-          Preview customer experience
+          Test question flow
         </button>
       </div>
 

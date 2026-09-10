@@ -25,7 +25,11 @@ function AutoGrowTextarea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={1}
-      className={`resize-none overflow-hidden ${className ?? ""}`}
+      // scroll-mb leaves room below the field when a mobile keyboard's
+      // focus-scroll brings it into view, so the sticky Save/Cancel bar
+      // (roughly this tall) never ends up sitting on top of what was just
+      // scrolled to.
+      className={`scroll-mb-28 resize-none overflow-hidden ${className ?? ""}`}
     />
   );
 }
@@ -107,13 +111,13 @@ export default function QuestionEditForm({
         value={question.prompt}
         onChange={(e) => onUpdateQuestion("prompt", e.target.value)}
         placeholder="What do you want to ask the customer?"
-        className="mt-2 w-full rounded-card border border-cardline px-3 py-2 text-lg font-bold text-navy focus:border-electric"
+        className="mt-2 w-full scroll-mb-28 rounded-card border border-cardline px-3 py-2 text-lg font-bold text-navy focus:border-electric"
       />
       <input
         value={question.helpText ?? ""}
         onChange={(e) => onUpdateQuestion("helpText", e.target.value)}
         placeholder="Optional helper text shown under the question"
-        className="mt-2 w-full rounded-card border border-cardline px-3 py-2 text-xs text-slate focus:border-electric"
+        className="mt-2 w-full scroll-mb-28 rounded-card border border-cardline px-3 py-2 text-xs text-slate focus:border-electric"
       />
 
       <div className="mt-4 space-y-2">
@@ -402,7 +406,7 @@ function ExpandedAnswer({
             value={o.requiredPhotoLabels.join("\n")}
             onChange={(e) => onUpdate({ requiredPhotoLabels: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
             rows={2}
-            className="mt-1 w-full rounded-card border border-cardline px-3 py-1.5 text-xs focus:border-electric"
+            className="mt-1 w-full scroll-mb-28 rounded-card border border-cardline px-3 py-1.5 text-xs focus:border-electric"
           />
         </div>
       )}

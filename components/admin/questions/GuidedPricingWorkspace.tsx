@@ -219,7 +219,11 @@ export default function GuidedPricingWorkspace({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-[200px_1fr_280px]">
+            {/* pb-28 reserves room below the LAST answer/button so a sticky
+                footer the same rough height never ends up painted over
+                content that hasn't fully scrolled clear of it — a sticky
+                element doesn't claim that space on its own. */}
+            <div className="grid grid-cols-1 gap-4 pb-28 md:grid-cols-[200px_1fr_280px] md:pb-4">
               <div className={mobilePane === "preview" ? "hidden md:block" : ""}>
                 <QuestionsNav
                   questions={questions}
