@@ -13,6 +13,11 @@
  *   - and give the same answer whatever order the options are in
  *
  * Generic: no knowledge of what the numbers measure.
+ *
+ * INTEGER DOMAIN ONLY. Adjacency is `prev.hi + 1`, which is what makes "no gap"
+ * meaningful — between 20 and 21 there is nothing. That reasoning does not hold
+ * for decimals, so this validator, like the resolver, is integer-only by
+ * contract rather than by accident.
  */
 export type RangeOption = {
   value: string;

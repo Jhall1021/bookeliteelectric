@@ -57,6 +57,19 @@ for (const [n, want] of [["1", "within"], ["18", "within"], ["20", "within"],
     "B  whereas 301 is invalid against the QUESTION's range — a different failure", JSON.stringify(r301));
 }
 
+console.log("\n  B2  INTEGER ROUTING ONLY — A DECIMAL IS REFUSED, NOT ROUNDED\n");
+for (const dec of ["18.5", "20.5", "0.5", "19.999", "18,5"]) {
+  const r = selectNumericOption(Q(ENVELOPE), dec);
+  ok(r.kind === "invalid", `B2  ${dec} is refused as not a whole number`, JSON.stringify(r));
+  // The specific hazard: 18.5 must not be quietly rounded into "within" or
+  // truncated into it either. Eligibility is not decided by a rounding rule.
+  ok(!(r.kind === "option"), `B2  ${dec} never silently lands in a range`, JSON.stringify(r));
+}
+{
+  const neg = selectNumericOption(Q(ENVELOPE), "-5");
+  ok(neg.kind === "invalid", "B2  a negative is refused", JSON.stringify(neg));
+}
+
 console.log("\n  C  ORDER MUST NOT DECIDE\n");
 {
   const forward = selectNumericOption(Q(ENVELOPE), "18");

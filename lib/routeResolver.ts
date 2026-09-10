@@ -323,6 +323,20 @@ type LoadedService = NonNullable<Awaited<ReturnType<typeof loadServiceForResolut
  * Entirely generic. This function knows nothing about feet, walls, eligibility
  * or price; it validates a number against the question's authored range and
  * returns the one authored range containing it.
+ *
+ * INTEGER ROUTING, DELIBERATELY AND ONLY.
+ *
+ * The predicates are `Int?`, coverage is proven across the authored INTEGER
+ * domain, and Routing V2 measures in whole units. So a decimal is REFUSED, not
+ * rounded and not truncated: `18.5` against a 1-20 / 21-300 envelope has no
+ * defensible answer, and silently making it 18 or 19 would decide a customer's
+ * eligibility by a rounding rule nobody authored.
+ *
+ * This is a limit of the primitive, stated so nobody later reaches for it to
+ * route a decimal-valued measurement and assumes semantics that were never
+ * built. A decimal domain would need its own coverage model — adjacency is not
+ * `prev.hi + 1` when values between them exist — and that is a different
+ * feature, not a looser regex here.
  */
 export type NumericOptionChoice<T> =
   | { kind: "option"; option: T }
@@ -360,6 +374,8 @@ export function selectNumericOption<
   }
 
   const text = String(raw ?? "").trim();
+  // Whole numbers only — see INTEGER ROUTING above. A decimal is refused rather
+  // than rounded, because rounding would silently pick a range for the customer.
   if (!/^\d+$/.test(text)) {
     return { kind: "invalid", reason: `"${question.key}" is "${text}", which is not a whole number` };
   }
