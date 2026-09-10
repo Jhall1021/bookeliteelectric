@@ -235,6 +235,7 @@ export default function GuidedPricingWorkspace({
                   isFirst={questions[0]?.id === activeQuestion.id}
                   allQuestions={questions}
                   allServices={allServices}
+                  troubleshootingServiceName={troubleshootingServiceName}
                   inboundQuestionRefs={inboundQuestionReferences(activeQuestion.id)}
                   inboundOptionRefs={impacts}
                   onUpdateQuestion={(field, value) => updateQuestion(activeQuestion.id, field, value)}
@@ -249,7 +250,10 @@ export default function GuidedPricingWorkspace({
               </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-3">
+            {/* Sticky so Save/Cancel stay reachable without scrolling back up
+                past every answer — the point that mattered most on mobile,
+                where the editor can run long. */}
+            <div className="sticky bottom-0 -mx-1 mt-4 flex items-center gap-3 border-t border-cardline bg-warmwhite px-1 py-3">
               <button
                 type="button"
                 onClick={handleSave}

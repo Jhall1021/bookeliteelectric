@@ -1,14 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { OverflowMenu } from "@/components/ui/OverflowMenu";
 import {
   type QuestionData, type AnswerOptionData, type ServiceOption,
-  ROUTE_ACTION_LABELS, PRICED_ACTIONS, blankOption,
+  ROUTE_ACTION_LABELS, PRICED_ACTIONS, whatHappensNext,
 } from "./types";
 
+/** A textarea that grows with its content instead of scrolling internally — for an answer label or a note that can run long. */
+function AutoGrowTextarea({
+  value, onChange, placeholder, className,
+}: { value: string; onChange: (v: string) => void; placeholder?: string; className?: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={1}
+      className={`resize-none overflow-hidden ${className ?? ""}`}
+    />
+  );
+}
+
 export default function QuestionEditForm({
-  question, questionIndex, isFirst, allQuestions, allServices,
+  question, questionIndex, isFirst, allQuestions, allServices, troubleshootingServiceName,
   inboundQuestionRefs, inboundOptionRefs,
   onUpdateQuestion, onUpdateOption, onAddOption, onRemoveOption, onRemoveQuestion,
 }: {
@@ -17,6 +40,7 @@ export default function QuestionEditForm({
   isFirst: boolean;
   allQuestions: QuestionData[];
   allServices: ServiceOption[];
+  troubleshootingServiceName: string | null;
   /** Answers elsewhere in the tree that CONTINUE to this question — non-empty means "can't delete this question". */
   inboundQuestionRefs: string[];
   /**
@@ -32,12 +56,34 @@ export default function QuestionEditForm({
   onRemoveOption: (optionId: string) => void;
   onRemoveQuestion: () => void;
 }) {
+  // Only one answer's controls are ever open — opening another one closes
+  // whichever was open, and everything else stays a readable summary.
+  // Reset whenever the focused QUESTION changes, so switching questions in
+  // the nav never leaves a stale answer expanded underneath a new one.
+  const [expandedId, setExpandedId] = useState<string | null>(question.options[0]?.id ?? null);
+  useEffect(() => {
+    setExpandedId(null);
+  }, [question.id]);
+
+  // A freshly added answer is blank and needs editing immediately — auto-
+  // open the newest one rather than adding a fourth summary row nobody
+  // asked to look at yet.
+  const prevOptionCount = useRef(question.options.length);
+  useEffect(() => {
+    if (question.options.length > prevOptionCount.current) {
+      setExpandedId(question.options[question.options.length - 1]?.id ?? null);
+    }
+    prevOptionCount.current = question.options.length;
+  }, [question.options.length, question.options]);
+
+  const questionsById = new Map(allQuestions.map((q) => [q.id, q]));
+
   return (
     <div className="rounded-card border border-cardline bg-white p-5">
       <div className="flex items-start justify-between gap-3">
-        <div className="text-xs font-semibold text-electric">
+        <div className="text-xs font-semibold uppercase tracking-wide text-electric">
           Question {questionIndex + 1}
-          {isFirst && <span className="ml-2 font-normal text-slate">· starting question</span>}
+          {isFirst && <span className="ml-2 font-normal normal-case tracking-normal text-slate">· starting question</span>}
         </div>
         <OverflowMenu
           label="Question actions"
@@ -61,7 +107,7 @@ export default function QuestionEditForm({
         value={question.prompt}
         onChange={(e) => onUpdateQuestion("prompt", e.target.value)}
         placeholder="What do you want to ask the customer?"
-        className="mt-3 w-full rounded-card border border-cardline px-3 py-2 text-sm font-medium text-navy focus:border-electric"
+        className="mt-2 w-full rounded-card border border-cardline px-3 py-2 text-lg font-bold text-navy focus:border-electric"
       />
       <input
         value={question.helpText ?? ""}
@@ -70,20 +116,30 @@ export default function QuestionEditForm({
         className="mt-2 w-full rounded-card border border-cardline px-3 py-2 text-xs text-slate focus:border-electric"
       />
 
-      <div className="mt-4 space-y-3">
-        {question.options.map((o) => (
-          <AnswerRow
-            key={o.id}
-            option={o}
-            allQuestions={allQuestions}
-            currentQuestionId={question.id}
-            allServices={allServices}
-            deleteWarning={inboundOptionRefs.get(o.id) ?? null}
-            canDelete={question.options.length > 1}
-            onUpdate={(patch) => onUpdateOption(o.id, patch)}
-            onRemove={() => onRemoveOption(o.id)}
-          />
-        ))}
+      <div className="mt-4 space-y-2">
+        {question.options.map((o) =>
+          expandedId === o.id ? (
+            <ExpandedAnswer
+              key={o.id}
+              option={o}
+              allQuestions={allQuestions}
+              currentQuestionId={question.id}
+              allServices={allServices}
+              deleteWarning={inboundOptionRefs.get(o.id) ?? null}
+              canDelete={question.options.length > 1}
+              onUpdate={(patch) => onUpdateOption(o.id, patch)}
+              onRemove={() => onRemoveOption(o.id)}
+              onCollapse={() => setExpandedId(null)}
+            />
+          ) : (
+            <CollapsedAnswer
+              key={o.id}
+              option={o}
+              summary={whatHappensNext(o, questionsById, troubleshootingServiceName)}
+              onEdit={() => setExpandedId(o.id)}
+            />
+          )
+        )}
       </div>
 
       <button
@@ -96,8 +152,29 @@ export default function QuestionEditForm({
   );
 }
 
-function AnswerRow({
-  option: o, allQuestions, currentQuestionId, allServices, deleteWarning, canDelete, onUpdate, onRemove,
+/** The default state for every answer except the one being edited: read, not edited. */
+function CollapsedAnswer({
+  option: o, summary, onEdit,
+}: { option: AnswerOptionData; summary: string; onEdit: () => void }) {
+  const isDeadEnd = /dead-end|no next question|no service chosen|not resolvable/.test(summary);
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className="flex w-full items-start justify-between gap-3 rounded-card border border-cardline bg-white p-3 text-left hover:border-electric"
+    >
+      <div className="min-w-0">
+        <div className="break-words text-sm font-medium text-navy">{o.label || "(unnamed answer)"}</div>
+        <div className={`mt-0.5 text-xs ${isDeadEnd ? "text-red-700" : "text-slate"}`}>{summary}</div>
+        {o.disclaimer && <div className="mt-0.5 text-xs text-slate">Note: {o.disclaimer}</div>}
+      </div>
+      <span className="shrink-0 rounded-pill border border-cardline px-3 py-1 text-xs font-semibold text-navy">Edit</span>
+    </button>
+  );
+}
+
+function ExpandedAnswer({
+  option: o, allQuestions, currentQuestionId, allServices, deleteWarning, canDelete, onUpdate, onRemove, onCollapse,
 }: {
   option: AnswerOptionData;
   allQuestions: QuestionData[];
@@ -107,6 +184,7 @@ function AnswerRow({
   canDelete: boolean;
   onUpdate: (patch: Partial<AnswerOptionData>) => void;
   onRemove: () => void;
+  onCollapse: () => void;
 }) {
   const hasPrice = o.priceModifierCents !== 0 || o.referencedServiceId !== null;
   const hasNote = !!o.disclaimer;
@@ -115,14 +193,21 @@ function AnswerRow({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   return (
-    <div className="rounded-card bg-warmwhite p-3">
-      <div className="flex items-center gap-2">
-        <input
+    <div className="rounded-card border border-electric/40 bg-warmwhite p-3 ring-1 ring-electric/10">
+      <div className="flex items-start gap-2">
+        <AutoGrowTextarea
           value={o.label}
-          onChange={(e) => onUpdate({ label: e.target.value })}
+          onChange={(v) => onUpdate({ label: v })}
           placeholder="Answer the customer can pick"
           className="flex-1 rounded-card border border-cardline px-3 py-1.5 text-sm focus:border-electric"
         />
+        <button
+          type="button"
+          onClick={onCollapse}
+          className="shrink-0 rounded-pill border border-cardline px-3 py-1.5 text-xs font-semibold text-navy hover:border-electric"
+        >
+          Done
+        </button>
         <OverflowMenu
           label={`Actions for "${o.label || "this answer"}"`}
           items={[
@@ -199,7 +284,7 @@ function AnswerRow({
             <option value="">— choose a question —</option>
             {allQuestions
               .filter((target) => target.id !== currentQuestionId)
-              .map((target, i) => (
+              .map((target) => (
                 <option key={target.id} value={target.id}>
                   {allQuestions.indexOf(target) + 1}. {target.prompt || "(unnamed question)"}
                 </option>
@@ -283,10 +368,10 @@ function AnswerRow({
       )}
 
       {noteOpen ? (
-        <div className="mt-2 flex items-center gap-2">
-          <input
+        <div className="mt-2 flex items-start gap-2">
+          <AutoGrowTextarea
             value={o.disclaimer ?? ""}
-            onChange={(e) => onUpdate({ disclaimer: e.target.value || null })}
+            onChange={(v) => onUpdate({ disclaimer: v || null })}
             placeholder="Note shown with this price (optional)"
             className="w-full rounded-card border border-cardline px-3 py-1.5 text-xs focus:border-electric"
           />
@@ -347,7 +432,6 @@ function AnswerRow({
           )}
         </div>
       )}
-
     </div>
   );
 }

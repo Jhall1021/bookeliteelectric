@@ -26,7 +26,7 @@ export default function QuestionsNav({
               q.id === activeQuestionId ? "bg-electric/10 text-electric" : "text-navy hover:bg-warmwhite"
             }`}
           >
-            <div className="truncate font-medium">{q.prompt || `Question ${i + 1}`}</div>
+            <div className="break-words font-medium">{q.prompt || `Question ${i + 1}`}</div>
             {i === 0 && <div className="text-xs text-slate">Starting question</div>}
           </button>
         ))}

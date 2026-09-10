@@ -117,9 +117,9 @@ export function whatHappensNext(
     }
     case "RESOLVE_INSTANT":
     case "RESOLVE_ADJUSTED":
-      if (o.referencedServiceId) return `Prices at "${o.referencedServiceName}"'s current price`;
-      if (o.priceModifierCents === 0) return "Prices at the base price, no adjustment";
-      return `${o.priceModifierCents > 0 ? "Adds" : "Subtracts"} ${Math.abs(o.priceModifierCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}`;
+      if (o.referencedServiceId) return `Show price · Linked to "${o.referencedServiceName}"'s price`;
+      if (o.priceModifierCents === 0) return "Show price · No adjustment";
+      return `Show price · ${o.priceModifierCents > 0 ? "Adds" : "Subtracts"} ${Math.abs(o.priceModifierCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}`;
     case "REMOTE_QUOTE":
       return "Sends to a remote quote" + (o.requiredPhotoLabels.length > 0 ? " with photos" : "");
     case "REROUTE_SERVICE":

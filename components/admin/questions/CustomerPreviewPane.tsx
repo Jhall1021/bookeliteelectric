@@ -1,24 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/Badge";
 import type { PreviewOutcome, PreviewQuestion } from "@/lib/adminQuestionPreview";
 
 /**
- * What a customer would actually see — walked through the real,
- * server-authoritative evaluator (POST /api/admin/services/[id]/preview,
- * built on lib/routeResolver.ts's resolveRoute, the same function real
- * checkout uses). Read-only: nothing clicked here creates a booking or
- * changes saved data.
+ * Tests how the SAVED tree routes and prices, answer by answer — walked
+ * through the real, server-authoritative evaluator (POST /api/admin/
+ * services/[id]/preview, built on lib/routeResolver.ts's resolveRoute, the
+ * same function real checkout uses). Read-only: nothing clicked here
+ * creates a booking or changes saved data.
  *
- * Always previews the SAVED tree. `dirty` tells the admin, in plain terms,
- * that unsaved edits below aren't reflected yet — never lets a preview of
- * stale saved data pass as a preview of what they just typed.
+ * DELIBERATELY NOT CALLED "customer preview". It proves routing and
+ * pricing are correct — which service a reroute opens, what an answer
+ * resolves to — not what a homeowner's screen actually looks like. Calling
+ * "Opens Replace Standard Outlet" a preview of "exactly what a customer
+ * would see" overclaims; this pane is a routing/outcome tester, labeled as
+ * one, always against the SAVED tree (never an unsaved draft below).
  */
 export default function CustomerPreviewPane({ serviceId, dirty }: { serviceId: string; dirty: boolean }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<{ prompt: string; chosenLabel: string }[]>([]);
   const [outcome, setOutcome] = useState<PreviewOutcome | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function step(nextAnswers: Record<string, string>) {
@@ -40,11 +44,18 @@ export default function CustomerPreviewPane({ serviceId, dirty }: { serviceId: s
     }
   }
 
-  function start() {
+  function restart() {
     setAnswers({});
     setHistory([]);
     void step({});
   }
+
+  // Useful the instant this pane appears — the first saved question, not an
+  // empty card asking to be clicked first.
+  useEffect(() => {
+    void step({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceId]);
 
   function choose(question: PreviewQuestion, value: string, label: string) {
     const nextAnswers = { ...answers, [question.key]: value };
@@ -53,33 +64,24 @@ export default function CustomerPreviewPane({ serviceId, dirty }: { serviceId: s
     void step(nextAnswers);
   }
 
-  if (!outcome && !loading && !error) {
-    return (
-      <div className="rounded-card border border-cardline bg-white p-5 text-center">
-        <p className="text-sm text-slate">See exactly what a customer would see, answer by answer.</p>
-        <button
-          type="button"
-          onClick={start}
-          className="mt-3 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white hover:bg-electric-hover"
-        >
-          Start preview
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="rounded-card border border-cardline bg-white p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate">Customer preview</h3>
-        <button type="button" onClick={start} className="text-xs font-medium text-electric hover:underline">
-          Restart
-        </button>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate">Test question flow</h3>
+        <Badge tone="neutral">Saved version</Badge>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <p className="text-xs text-slate">Tests routing and pricing — not a preview of the homeowner's screen.</p>
+        {history.length > 0 && (
+          <button type="button" onClick={restart} className="shrink-0 text-xs font-medium text-electric hover:underline">
+            Restart
+          </button>
+        )}
       </div>
 
       {dirty && (
         <p className="mt-2 rounded-card bg-amber-50 p-2 text-xs text-amber-800">
-          You have unsaved changes — this preview reflects the last saved version. Save to preview them.
+          Unsaved changes below aren&rsquo;t reflected here yet — this always tests the saved version. Save to test them.
         </p>
       )}
 
@@ -143,7 +145,7 @@ export default function CustomerPreviewPane({ serviceId, dirty }: { serviceId: s
         <div className={`mt-3 rounded-card p-2.5 text-sm ${outcome.unresolved ? "bg-red-50 text-red-700" : "bg-electric/5 text-navy"}`}>
           {outcome.unresolved
             ? `Dead end: ${outcome.targetServiceName}`
-            : `Opens ${outcome.targetServiceName}`}
+            : `Opens "${outcome.targetServiceName}"`}
         </div>
       )}
 
