@@ -85,6 +85,7 @@ const SURFACE_POLICY: Policy = {
   "@/components/ui/Button": ["LinkButton"],
   "@/components/ui/Donut": ["Donut"],
   "@/components/ui/icons": ["HomeIcon", "UsersIcon", "ClipboardIcon", "AlertTriangleIcon", "StorefrontIcon", "ClockIcon", "ArrowRightIcon"],
+  "@/components/ui/illustrations": ["BusinessIllustration", "PricingIllustration", "BookingIllustration"],
 };
 const READ_MODEL_POLICY: Policy = {
   "./prisma": ["prisma"],

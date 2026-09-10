@@ -11,8 +11,11 @@
 import type { SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement>;
+// Decorative — every call site pairs one of these with its own visible
+// label (a nav item's text, a button's own wording) or an aria-label on
+// the interactive element it sits inside (the header bell).
 const base = (props: IconProps) => ({
-  viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+  viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "aria-hidden": true,
   strokeWidth: 1.75, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
   ...props,
 });

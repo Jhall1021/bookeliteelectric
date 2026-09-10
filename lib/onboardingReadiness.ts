@@ -113,6 +113,51 @@ export type OnboardingReadiness = {
   notes: string[];
 };
 
+/**
+ * A glance-able grouping of the seven real stages — for a summary view (the
+ * dashboard's own setup card) that has room for five items, not seven. This
+ * is the ONE place the grouping is defined; a summary screen imports it
+ * rather than hand-rolling a second list that can drift from the stage keys
+ * above. Every StageKey appears in exactly one group.
+ */
+export const SETUP_SUMMARY_GROUPS: { key: string; label: string; stages: StageKey[] }[] = [
+  { key: "business", label: "Business details", stages: ["business"] },
+  { key: "services", label: "Services", stages: ["trade", "services"] },
+  { key: "pricing", label: "Pricing", stages: ["pricing-foundation"] },
+  { key: "scheduling", label: "Scheduling", stages: ["scheduling", "payments"] },
+  { key: "launch", label: "Review & launch", stages: ["launch"] },
+];
+
+export type GroupStatus = "ready" | "warning" | "blocked" | "not-applicable";
+
+/**
+ * One group's status, worst-of its member stages — EXCEPT "launch", which
+ * asks a different question than its own narrow stage does. The launch
+ * STAGE only checks "is there something to sell" (`NOTHING_ACTIVATABLE`,
+ * `PRE_WORK_WITHOUT_DEPOSIT`, `SINGLE_SERVICE_LAUNCH`); it says nothing
+ * about whether business info or scheduling are also done, so it can read
+ * "ready" while the contractor genuinely cannot launch. `canLaunch` — the
+ * SAME blockers-anywhere check the Review & launch panel and the platform
+ * overview already use to decide whether a homeowner can book — is what
+ * "can this actually launch" already means; the launch GROUP reads it
+ * instead of re-deriving a second opinion from one narrow stage.
+ */
+export function summaryGroupStatus(
+  group: { key: string; stages: StageKey[] },
+  readiness: Pick<OnboardingReadiness, "stages" | "canLaunch">
+): GroupStatus {
+  const stageStatus = new Map(readiness.stages.map((s) => [s.key, s] as const));
+  const members = group.stages.map((k) => stageStatus.get(k)).filter((s): s is Stage => !!s);
+  if (members.length === 0) return "not-applicable";
+  if (group.key === "launch") {
+    if (!readiness.canLaunch) return "blocked";
+    return members.some((s) => s.status !== "ready") ? "warning" : "ready";
+  }
+  if (members.some((s) => s.status === "blocked")) return "blocked";
+  if (members.some((s) => s.status === "warning")) return "warning";
+  return "ready";
+}
+
 const b = (code: string, message: string, extra: Partial<Finding> = {}): Finding =>
   ({ code, severity: "blocker", message, ...extra });
 const w = (code: string, message: string, extra: Partial<Finding> = {}): Finding =>
