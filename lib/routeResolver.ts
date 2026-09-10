@@ -55,7 +55,7 @@ import {
   type JobConfiguration,
   type PricingSettings,
 } from "./pricing";
-import { capabilityState, loadCapabilityFacts, type CapabilityFacts } from "./capabilities";
+import { capabilityState, isCapabilityKey, loadCapabilityFacts, type CapabilityFacts } from "./capabilities";
 
 export type ResolvedRoute =
   | {
@@ -616,6 +616,18 @@ export function resolveRoute(
     // component is quietly dropped. Either the scope is offered and the recipe
     // includes it, or the customer goes to review.
     if (option.requiresCapabilityKey) {
+      // AN UNKNOWN KEY IS A BROKEN TREE, NOT AN UNDECLARED SCOPE.
+      //
+      // Absent a row, `capabilityState` answers "not-established" — correct for
+      // a real key nobody has answered for, and badly wrong for a typo. A
+      // misspelled key would send every customer to review forever and look
+      // exactly like a contractor who has not finished onboarding.
+      if (!isCapabilityKey(option.requiresCapabilityKey)) {
+        throw new Error(
+          `${service.slug}: "${current.key}" requires capability ` +
+          `"${option.requiresCapabilityKey}", which is not a known capability key`
+        );
+      }
       const state = capabilityState(service.capabilities ?? {}, option.requiresCapabilityKey);
       if (state !== "declared") {
         return {

@@ -11,6 +11,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { attachAccessibleConcealedModule, attachBackToBackModule } from "./_concealedRouteModules";
+import { attachFinishedWallModule } from "./_finishedWallModule";
 
 const prisma = new PrismaClient();
 
@@ -21,6 +22,8 @@ export const ROUTE_FIXTURES = [
     module: "ACCESSIBLE" as const, endpoint: "SWITCH" as const },
   { slug: "rv2-fixture-back-to-back-outlet", name: "RV2 fixture — back to back (outlet)",
     module: "BACK_TO_BACK" as const, endpoint: "OUTLET" as const },
+  { slug: "rv2-fixture-finished-wall-outlet", name: "RV2 fixture — finished wall (outlet)",
+    module: "FINISHED_WALL" as const, endpoint: "OUTLET" as const },
 ];
 
 export async function seedRoutingV2Fixtures(db: PrismaClient = prisma) {
@@ -42,6 +45,7 @@ export async function seedRoutingV2Fixtures(db: PrismaClient = prisma) {
       }, select: { id: true } });
 
     if (f.module === "ACCESSIBLE") await attachAccessibleConcealedModule(db, svc.id, f.endpoint, 1);
+    else if (f.module === "FINISHED_WALL") await attachFinishedWallModule(db, svc.id, f.endpoint, 1);
     else await attachBackToBackModule(db, svc.id, f.endpoint, 1);
   }
   return ROUTE_FIXTURES.length;
