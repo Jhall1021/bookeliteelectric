@@ -215,6 +215,9 @@ async function main() {
     prompt: resolveCopy(q.key, "prompt", q.prompt),
     helpText: q.helpText ? resolveCopy(q.key, "helpText", q.helpText) : null,
     inputType: q.inputType,
+    // ROUTING V2 — part of the executable pricing contract, not presentation.
+    numberMin: q.numberMin,
+    numberMax: q.numberMax,
     order: qi,
     options: q.options.map((o, oi) => {
       const where = `${q.key}/${o.value}`;
@@ -235,6 +238,8 @@ async function main() {
         components: o.components.filter((c) => c.canonicalComponentId).map((c) => ({
           canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity,
           conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+          // ROUTING V2 — see AnswerOptionComponent.quantityAnswerKey.
+          quantityAnswerKey: c.quantityAnswerKey,
         })),
         // A QuestionDisclaimer may point at the deprecated ConditionalDisclaimer
         // instead of a ContractorDisclaimer; only the canonical-backed ones can
@@ -287,7 +292,8 @@ async function main() {
     await prisma.templateQuestion.create({
       data: {
         templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
-        inputType: q.inputType, order: q.order,
+        inputType: q.inputType, numberMin: q.numberMin, numberMax: q.numberMax,
+        order: q.order,
         options: { create: q.options.map((o) => ({
           value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
           nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,

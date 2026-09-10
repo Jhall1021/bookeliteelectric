@@ -1776,6 +1776,23 @@ model AnswerOptionComponent {
   conditionAnswerKey   String?
   conditionAnswerValue String?
 
+  /// ROUTING V2. When null, `quantity` above is the authored static quantity —
+  /// every row that existed before this field, so nothing is backfilled.
+  ///
+  /// When set, it names the QUESTION KEY of a NUMBER question earlier in the
+  /// walk whose validated answer IS the quantity. Route footage and corner
+  /// counts are facts a homeowner measures, not labor bands: 27 ft is a
+  /// quantity of 27, not a "20 to 30 ft" component.
+  ///
+  /// The namespace is the resolver's own `answers[question.key]` — the same one
+  /// `conditionAnswerKey` resolves against. Components are declared on the
+  /// TERMINAL option, so a binding must name which earlier question supplies the
+  /// number; there is no accumulation across the walk to draw it from.
+  ///
+  /// A binding that cannot be resolved FAILS CLOSED. It never falls back to the
+  /// static quantity: pricing a 31-foot route as 1 is the failure it prevents.
+  quantityAnswerKey String?
+
   /// Retained while componentId exists. Postgres treats NULLs as distinct, so
   /// it stops constraining canonical-only rows on its own — the constraint
   /// below carries the guarantee now.
@@ -2136,6 +2153,21 @@ model Question {
   helpText        String?
   inputType       InputType
   order           Int
+
+  /// ROUTING V2 — the authored valid range for a NUMBER question, inclusive.
+  ///
+  /// Bounds belong to the QUESTION, not to a component binding or to the
+  /// resolver: "how many feet of route?" has a sensible range because of what it
+  /// asks, and the same generic machinery has to serve counts of fixtures,
+  /// corners or anything else later. A ceiling baked into the resolver would be
+  /// an electrical-route assumption compiled into the platform.
+  ///
+  /// REQUIRED when a component binds its quantity to this question. A binding to
+  /// an unbounded question is refused as a tree defect rather than silently
+  /// accepting any number a homeowner types.
+  numberMin       Int?
+  numberMax       Int?
+
   options         AnswerOption[]
   /// Help text that only applies under a condition.
   conditionalHelp QuestionDisclaimer[]
@@ -3618,6 +3650,13 @@ model TemplateQuestion {
   inputType         InputType
   order             Int
 
+  /// ROUTING V2 — see Question.numberMin/numberMax. Carried explicitly: losing
+  /// the range in provisioning would leave a contractor with a bound component
+  /// whose question declares no range, which the resolver refuses as a broken
+  /// tree. Fail-closed, but it would disable the service after provisioning.
+  numberMin         Int?
+  numberMax         Int?
+
   options TemplateAnswerOption[]
 
   @@unique([templateServiceId, key])
@@ -3697,6 +3736,14 @@ model TemplateAnswerOptionComponent {
   quantity               Int                  @default(1)
   conditionAnswerKey     String?
   conditionAnswerValue   String?
+
+  /// ROUTING V2 — see AnswerOptionComponent.quantityAnswerKey.
+  ///
+  /// This model is a deliberate SUBSET of the live one (no access
+  /// classification), so a new field does NOT arrive here by analogy. It is
+  /// listed explicitly in lib/templateProvisioning.ts, and a binding dropped in
+  /// provisioning degrades to static quantity 1 with no error anywhere.
+  quantityAnswerKey String?
 
   @@unique([templateAnswerOptionId, canonicalComponentId])
   @@map("template_answer_option_components")

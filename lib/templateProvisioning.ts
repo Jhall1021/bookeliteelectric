@@ -452,11 +452,15 @@ export async function installCatalog(
         for (const q of questions) {
           const qq = q as unknown as {
             key: string; prompt: string; helpText: string | null; inputType: never; order: number;
+            /// ROUTING V2 — an authored range is required for a bound NUMBER
+            /// question, so it must arrive with the question.
+            numberMin: number | null; numberMax: number | null;
           };
           const created = await t.question.create({
             data: {
               serviceId: svc.id, key: qq.key, prompt: qq.prompt, helpText: qq.helpText,
-              inputType: qq.inputType, order: qq.order,
+              inputType: qq.inputType, numberMin: qq.numberMin, numberMax: qq.numberMax,
+              order: qq.order,
               templateVersionId: fromVersionId, templateKey: qq.key,
             },
             select: { id: true },
@@ -475,7 +479,12 @@ export async function installCatalog(
               labelPattern: string | null;
               templatePolicyDefinition: { key: string } | null;
               components: { canonicalComponentId: string; quantity: number;
-                conditionAnswerKey: string | null; conditionAnswerValue: string | null }[];
+                conditionAnswerKey: string | null; conditionAnswerValue: string | null;
+                /// ROUTING V2. Listed explicitly because this copy is a field
+                /// list, not a spread — a binding dropped here degrades to
+                /// static quantity 1 and prices a 31-foot route as one foot,
+                /// with no error anywhere.
+                quantityAnswerKey: string | null }[];
               disclaimers: { canonicalDisclaimerId: string }[];
               materials: { canonicalMaterialId: string; quantity: number; order: number }[];
               photoGroups: { photoGroupId: string }[];
@@ -540,7 +549,8 @@ export async function installCatalog(
               await t.answerOptionComponent.create({
                 data: {
                   answerOptionId: ao.id, canonicalComponentId: c.canonicalComponentId,
-                  quantity: c.quantity, conditionAnswerKey: c.conditionAnswerKey,
+                  quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey,
+                  conditionAnswerKey: c.conditionAnswerKey,
                   conditionAnswerValue: c.conditionAnswerValue,
                 },
               });

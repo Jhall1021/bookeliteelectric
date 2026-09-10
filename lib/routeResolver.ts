@@ -271,6 +271,100 @@ type LoadedService = NonNullable<Awaited<ReturnType<typeof loadServiceForResolut
  * by the client — it changes the price, so it's exactly the sort of thing a
  * browser shouldn't get to assert.
  */
+/**
+ * ROUTING V2 — what a NUMBER answer is allowed to mean as a component quantity.
+ *
+ * `null` binding: the authored static quantity, unchanged. Every row written
+ * before this field behaves exactly as it did.
+ *
+ * A populated binding FAILS CLOSED in every direction. It never falls back to
+ * the static quantity, because the fallback is the bug: a 31-foot route quietly
+ * priced as one foot is worse than a refusal, and it looks like a price.
+ *
+ * TWO KINDS OF FAULT, DELIBERATELY SEPARATED.
+ *
+ *   broken  — the TREE is wrong. The question does not exist on the walked
+ *             path, is not a NUMBER, or declares no authored range. No answer a
+ *             customer could give would fix it, so it must never price.
+ *   invalid — the ANSWER is wrong or missing. Review can resolve that.
+ *
+ * REACHABILITY IS STRUCTURAL, NOT ASSUMED. `visited` is the questions actually
+ * consumed on THIS path, in order, so a binding cannot reach a NUMBER question
+ * on an untaken branch, one that comes after the terminal, or one the walk
+ * simply never passed through. Service-wide existence is not sufficient: the
+ * answer map can carry values from a path the customer has since left.
+ *
+ * BOUNDS COME FROM THE QUESTION, NOT FROM HERE. A ceiling written into this
+ * function would be an electrical-route assumption compiled into a generic
+ * platform primitive; the same machinery has to serve counts of anything later.
+ *
+ * `omit` is the one non-error outcome that yields no component. Zero inside
+ * corners is an ordinary answer and must not become `INSIDE_CORNER × 0`
+ * (meaningless) or, through the shared `Math.max(q, 1)`, `× 1` (a charge for
+ * geometry that is not there).
+ */
+export type BoundQuantity =
+  | { kind: "quantity"; value: number }
+  | { kind: "omit" }
+  | { kind: "invalid"; reason: string }
+  | { kind: "broken"; reason: string };
+
+export type BoundQuestion = {
+  key: string;
+  inputType: string;
+  numberMin: number | null;
+  numberMax: number | null;
+};
+
+export function resolveBoundQuantity(
+  binding: { quantity: number; quantityAnswerKey: string | null },
+  answers: Record<string, string>,
+  /** Questions CONSUMED on the current path, not every question on the service. */
+  visited: readonly BoundQuestion[],
+  componentKey: string
+): BoundQuantity {
+  if (binding.quantityAnswerKey === null || binding.quantityAnswerKey === undefined) {
+    return { kind: "quantity", value: binding.quantity };
+  }
+  const key = binding.quantityAnswerKey;
+
+  const q = visited.find((x) => x.key === key);
+  if (!q) {
+    return { kind: "broken", reason:
+      `component ${componentKey} binds its quantity to "${key}", which this path never asked` };
+  }
+  if (q.inputType !== "NUMBER") {
+    return { kind: "broken", reason:
+      `component ${componentKey} binds its quantity to "${key}", a ${q.inputType} question, not NUMBER` };
+  }
+  if (q.numberMin === null || q.numberMin === undefined || q.numberMax === null || q.numberMax === undefined) {
+    return { kind: "broken", reason:
+      `component ${componentKey} binds its quantity to "${key}", which declares no authored range` };
+  }
+
+  const raw = answers[key];
+  if (raw === undefined || raw === null || String(raw).trim() === "") {
+    return { kind: "invalid", reason: `"${key}" has no answer, so ${componentKey} has no quantity` };
+  }
+  const text = String(raw).trim();
+  if (!/^\d+$/.test(text)) {
+    return { kind: "invalid", reason: `"${key}" is "${text}", which is not a whole number` };
+  }
+  const n = Number(text);
+  if (!Number.isSafeInteger(n)) {
+    return { kind: "invalid", reason: `"${key}" is "${text}", which is not a usable whole number` };
+  }
+  if (n < q.numberMin || n > q.numberMax) {
+    return { kind: "invalid", reason:
+      `"${key}" is ${n}, outside its authored range ${q.numberMin}\u2013${q.numberMax}` };
+  }
+  // Zero is a real answer for an optional count and no answer at all for a
+  // measured scope. Which one it is comes from the question's authored minimum:
+  // a route whose minimum is 1 refuses zero above, before reaching here.
+  if (n === 0) return { kind: "omit" };
+  return { kind: "quantity", value: n };
+}
+
 export function resolveRoute(
   service: LoadedService,
   answers: Record<string, string>,
@@ -427,6 +521,36 @@ export function resolveRoute(
       };
     }
 
+    // ROUTING V2 — resolve bound quantities BEFORE the branch is applied.
+    //
+    // Done here rather than in pricing so pricing keeps receiving ordinary
+    // `{ component, quantity }` pairs and never learns a number came from a
+    // homeowner. One pipeline, one meaning of quantity.
+    // Reachability, structurally: only questions this walk actually consumed.
+    // `consumed` is appended as each answer is taken, so it holds this path and
+    // nothing else — an answer left over from an abandoned branch is invisible.
+    const visitedKeys = new Set(consumed.map((x) => x.key));
+    const visitedQuestions = service.questions.filter((x) => visitedKeys.has(x.key));
+    const boundQuantities = new Map<string, number>();
+    for (const c of option.components) {
+      const ckey = c.canonicalComponent?.key ?? "(unlinked)";
+      const bq = resolveBoundQuantity(
+        { quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey ?? null },
+        answers,
+        visitedQuestions,
+        ckey
+      );
+      // Same class as an unlinked canonical role: the TREE is wrong, and no
+      // answer the customer could give would make it right.
+      if (bq.kind === "broken") throw new Error(`${service.slug}: ${bq.reason}`);
+      // The answer is wrong or missing. Review can resolve that; a price cannot.
+      if (bq.kind === "invalid") return { status: "INVALID", reason: `${service.slug}: ${bq.reason}` };
+      // Absent, not zero — see the filter below.
+      if (bq.kind === "omit") continue;
+      boundQuantities.set(c.id, bq.value);
+    }
+
+
     // applyBranch returns the new configuration directly — it isn't wrapped.
     config = applyBranch(
       config,
@@ -443,7 +567,10 @@ export function resolveRoute(
         addFieldLaborHours: option.addFieldLaborHours,
         addMaterialCostCents: option.addMaterialCostCents,
         addScheduleMinutes: option.addScheduleMinutes,
-        components: option.components.map((c) => {
+        // A component whose bound quantity resolved to zero is ABSENT, not
+        // zero-quantity: no inside corners means no corner work, and a `× 0`
+        // line would be promoted to `× 1` by the shared pricing guard.
+        components: option.components.filter((c) => boundQuantities.has(c.id)).map((c) => {
           const canonical = c.canonicalComponent;
           // A recipe line pointing at nothing. Post-migration this cannot
           // happen — the migration reported zero unlinked — but a broken
@@ -482,7 +609,9 @@ export function resolveRoute(
             : null;
 
           return {
-            quantity: c.quantity,
+            // Resolved above: the authored static value, or the homeowner's
+            // number. Never zero, never negative — those never reach here.
+            quantity: boundQuantities.get(c.id)!,
             conditionAnswerKey: c.conditionAnswerKey,
             conditionAnswerValue: c.conditionAnswerValue,
             conditionAccessClass: c.conditionAccessClass,

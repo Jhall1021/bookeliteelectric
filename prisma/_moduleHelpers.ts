@@ -30,7 +30,16 @@ import type { PrismaClient } from "@prisma/client";
 export async function upsertQuestion(
   prisma: PrismaClient,
   serviceId: string,
-  data: { key: string; prompt: string; helpText?: string | null; order: number }
+  data: {
+    key: string; prompt: string; helpText?: string | null; order: number;
+    /// ROUTING V2. Defaults to SINGLE_SELECT, which is what every caller written
+    /// before this parameter meant — their behaviour is unchanged.
+    inputType?: "SINGLE_SELECT" | "MULTI_SELECT" | "NUMBER" | "PHOTO_UPLOAD" | "TEXT";
+    /// Required by the resolver for a question a component binds to. Updated in
+    /// place like prompt and order, so re-running a seeder corrects a stale range.
+    numberMin?: number | null;
+    numberMax?: number | null;
+  }
 ) {
   const existing = await prisma.question.findFirst({
     where: { serviceId, key: data.key },
@@ -45,7 +54,10 @@ export async function upsertQuestion(
       data: {
         prompt: data.prompt,
         helpText: data.helpText ?? null,
-        order: data.order,
+          order: data.order,
+          inputType: data.inputType ?? "SINGLE_SELECT",
+          numberMin: data.numberMin ?? null,
+          numberMax: data.numberMax ?? null,
       },
     });
   }
@@ -56,7 +68,9 @@ export async function upsertQuestion(
       key: data.key,
       prompt: data.prompt,
       helpText: data.helpText ?? null,
-      inputType: "SINGLE_SELECT",
+      inputType: data.inputType ?? "SINGLE_SELECT",
+      numberMin: data.numberMin ?? null,
+      numberMax: data.numberMax ?? null,
       order: data.order,
     },
   });
