@@ -22,7 +22,13 @@ import { useRouter } from "next/navigation";
  *     Intercepted on `document` at the CAPTURE phase — before next/link's
  *     own click handler ever runs, so `preventDefault()` here means the
  *     router is never invoked at all. "Discard" then completes the SAME
- *     navigation via `router.push`.
+ *     navigation via `router.push` — but only after first stepping back off
+ *     the same-url guard entry (see below) if one is armed, and waiting for
+ *     that step to actually land before pushing. Pushing while still on the
+ *     guard entry would leave it stranded ahead of the real page — an extra
+ *     stop nobody asked for, reachable forever after by pressing Back once
+ *     too many times. Stepping off first means the destination's own push
+ *     is what truncates it, the same way any ordinary navigation would.
  *
  *   the browser's own back/forward button — PRE-ARMED, NOT REACTIVE
  *     `popstate` cannot be canceled, and by the time any listener runs the
@@ -91,6 +97,11 @@ export function useUnsavedChangesGuard(dirty: boolean) {
   // Is a same-url guard entry currently sitting under the pointer?
   const armedRef = useRef(false);
   const bypassNextPopStateRef = useRef(false);
+  // Set only when a bypassed pop is a step in a larger sequence (see
+  // discard()'s "link" branch) — run once that pop actually lands, never
+  // before, so the next real navigation is built on top of the guard entry
+  // actually being gone rather than racing its still-pending removal.
+  const afterBypassRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!dirty) return;
@@ -142,6 +153,9 @@ export function useUnsavedChangesGuard(dirty: boolean) {
     function onPopState() {
       if (bypassNextPopStateRef.current) {
         bypassNextPopStateRef.current = false;
+        const after = afterBypassRef.current;
+        afterBypassRef.current = null;
+        if (after) after();
         return;
       }
       if (!dirtyRef.current) return;
@@ -162,7 +176,28 @@ export function useUnsavedChangesGuard(dirty: boolean) {
     setPending(null);
     if (!p) return;
     if (p.kind === "link") {
-      router.push(p.href);
+      if (armedRef.current) {
+        // The guard entry is still sitting under the pointer (arming never
+        // gets a chance to disarm itself on this path — a link Discard
+        // leaves the page entirely). Step off it FIRST, and only push the
+        // real destination once that step has actually landed: pushState
+        // always inserts right after wherever the pointer already is, so
+        // pushing while still on the guard entry would leave it stranded,
+        // reachable forever after by an extra Back press nobody asked for.
+        // Doing this in order — wait for the bypassed pop, then push — means
+        // the destination's own pushState is the thing that truncates it.
+        armedRef.current = false;
+        bypassNextPopStateRef.current = true;
+        // Deferred one tick: calling router.push synchronously from inside
+        // the popstate handler that a history.back() itself produced fights
+        // with this app's own router processing that SAME event — it can
+        // silently drop the push. Letting that finish first, then pushing,
+        // is reliable; doing both in one breath was not.
+        afterBypassRef.current = () => { setTimeout(() => router.push(p.href), 0); };
+        window.history.back();
+      } else {
+        router.push(p.href);
+      }
       return;
     }
     // Always exactly two steps behind wherever the pointer currently sits:

@@ -37,6 +37,16 @@
  *                              Back or Forward press moves exactly one
  *                              real step — nothing was ever pushed onto
  *                              history in the first place
+ *   dialog keyboard behavior   initial focus lands on Stay, Tab/Shift+Tab
+ *                              stay contained inside the dialog (proven by
+ *                              actually wrapping both directions), Escape
+ *                              acts like Stay, and focus returns to
+ *                              whatever triggered the dialog once it closes
+ *   no duplicate history stop  an internal-link Discard doesn't strand the
+ *                              same-url guard entry ahead of the real page
+ *                              — proven by history.length growing by
+ *                              exactly the one entry the real navigation
+ *                              itself accounts for, not one extra
  *
  *   PLATFORM_MAIL_SINK=/tmp/some-file.jsonl BROWSER_FLOW_BASE_URL=http://localhost:3423 \
  *     npx tsx scripts/verify-question-editor-navigation-guard-browser-flow.ts
@@ -299,6 +309,62 @@ async function main() {
     await page.waitForURL(serviceUrl, { timeout: 5000 });
     ok(`   ...and one Forward press returns directly to the service editor`, page.url() === serviceUrl, page.url());
 
+    // ── 10. the Stay/Discard dialog's keyboard behavior, and — while it's
+    //         open for real — proof that an internal-link Discard leaves no
+    //         duplicate stop in history behind it ──
+    await page.goto(catalogUrl, { waitUntil: "networkidle" });
+    await page.getByRole("link", { name: "Nav Guard Test Service" }).click();
+    await page.waitForURL(serviceUrl, { timeout: 5000 });
+    // Baseline taken while NOT dirty — nothing has armed the guard yet.
+    const historyLengthBeforeEdit = await page.evaluate(() => window.history.length);
+    await page.getByRole("button", { name: "Customer questions" }).click();
+    await page.getByRole("button", { name: "Edit questions" }).click();
+    await page.waitForSelector('input[placeholder="Optional helper text shown under the question"]');
+    const help4 = await makeEdit("edit nine — dialog keyboard behavior + duplicate-stop check");
+
+    const breadcrumb = servicesLink();
+    await breadcrumb.focus();
+    await breadcrumb.click();
+    await page.waitForSelector("text=Leave without saving?", { timeout: 5000 });
+
+    const initialFocus = await page.evaluate(() => document.activeElement?.textContent?.trim());
+    ok(`10. the dialog opens with initial focus on Stay, the non-destructive default`, initialFocus === "Stay", initialFocus ?? "(nothing focused)");
+
+    await page.keyboard.press("Shift+Tab");
+    const afterShiftTab = await page.evaluate(() => document.activeElement?.textContent?.trim());
+    ok(`    ...Shift+Tab from the first control wraps to the last — focus stays contained`, afterShiftTab === "Discard changes and leave", afterShiftTab ?? "(nothing focused)");
+
+    await page.keyboard.press("Tab");
+    const afterTab = await page.evaluate(() => document.activeElement?.textContent?.trim());
+    ok(`    ...Tab from the last control wraps back to the first — contained both ways`, afterTab === "Stay", afterTab ?? "(nothing focused)");
+
+    await page.keyboard.press("Escape");
+    const dialogGoneAfterEscape = (await page.locator("text=Leave without saving?").count()) === 0;
+    ok(`    ...Escape closes the dialog, the same as clicking Stay`, dialogGoneAfterEscape);
+    ok(`    ...and Escape-as-Stay preserved the edit rather than discarding it`, (await help4.inputValue()) === "edit nine — dialog keyboard behavior + duplicate-stop check");
+    ok(`    ...the URL never left the service editor either`, page.url() === serviceUrl, page.url());
+
+    const focusRestored = await page.evaluate(() => document.activeElement?.textContent?.trim());
+    ok(`    ...and focus returns to whatever triggered the dialog once it closes`, focusRestored === "Services & Pricing", focusRestored ?? "(nothing focused)");
+
+    // Now actually discard, and prove no orphaned guard entry was left
+    // behind: history.length should show exactly ONE new entry for the
+    // real navigation that just happened — the same as if the guard had
+    // never touched history at all. Before this fix, the still-armed
+    // same-url guard entry was left stranded ahead of the real page,
+    // reachable only by an extra Back press nobody asked for — this would
+    // show up here as one entry MORE than expected.
+    await breadcrumb.click();
+    await page.waitForSelector("text=Leave without saving?", { timeout: 5000 });
+    await page.getByRole("button", { name: "Discard changes and leave" }).click();
+    await page.waitForURL((u) => u.pathname === "/dashboard/services", { timeout: 5000 });
+    const historyLengthAfterDiscard = await page.evaluate(() => window.history.length);
+    ok(
+      `    ...and an internal-link Discard leaves no duplicate stop: history grew by exactly one entry, not two`,
+      historyLengthAfterDiscard === historyLengthBeforeEdit + 1,
+      `before=${historyLengthBeforeEdit} after=${historyLengthAfterDiscard}`
+    );
+
     await ctx.close();
   } catch (e) {
     console.error(e);
@@ -307,7 +373,7 @@ async function main() {
     await browser.close().catch(() => {});
     await teardown();
     const residue = await prisma.contractor.count({ where: { slug: SLUG } });
-    ok(`10. every fixture is gone at the end`, residue === 0);
+    ok(`11. every fixture is gone at the end`, residue === 0);
     await prisma.$disconnect();
   }
 

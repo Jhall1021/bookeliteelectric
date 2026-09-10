@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import AnswerSummaryTable from "./AnswerSummaryTable";
 import QuestionsNav from "./QuestionsNav";
@@ -89,7 +89,12 @@ export default function GuidedPricingWorkspace({
     setError(null);
     setQuestions((qs) => qs.filter((q) => q.id !== qId));
     setActiveQuestionId((cur) => (cur === qId ? questions.find((q) => q.id !== qId)?.id ?? null : cur));
-    if (questions.length <= 1) setMode("summary");
+    // Stays in edit mode even when this was the last question — the empty
+    // state below still renders Save/Cancel, so deleting everything remains
+    // reversible (Cancel) or committable (Save) without ever losing the
+    // controls that do either. Falling back to summary mode here used to
+    // strand a dirty tree with no way to act on it: summary has no Save or
+    // Cancel of its own.
   }
 
   function removeOption(qId: string, oId: string) {
@@ -131,11 +136,40 @@ export default function GuidedPricingWorkspace({
     });
     setSaving(false);
     if (res.ok) {
+      // The server hands back every temporary "new-" id it just assigned a
+      // real one to. A router.refresh() alone doesn't reach this component's
+      // OWN state — this is a mounted Client Component, and a fresh server
+      // prop doesn't retroactively reset a useState already in memory — so
+      // without this reconciliation, editing the same item again and saving
+      // a second time (no reload in between) would still be carrying the
+      // FIRST save's temporary ids, which the server would see as new all
+      // over again and create duplicates instead of updating.
+      const { questionIdMap, optionIdMap } = (await res.json().catch(() => ({}))) as {
+        questionIdMap?: Record<string, string>;
+        optionIdMap?: Record<string, string>;
+      };
+      const qMap = questionIdMap ?? {};
+      const oMap = optionIdMap ?? {};
+      const reconciled = questions.map((q) => ({
+        ...q,
+        id: qMap[q.id] ?? q.id,
+        options: q.options.map((o) => ({
+          ...o,
+          id: oMap[o.id] ?? o.id,
+          // A CONTINUE target created in this SAME save also arrived with a
+          // temporary id — remap it too, or the routing would point at an id
+          // nothing in the reconciled tree carries any more.
+          nextQuestionId: o.nextQuestionId ? qMap[o.nextQuestionId] ?? o.nextQuestionId : o.nextQuestionId,
+        })),
+      }));
+      setQuestions(reconciled);
+      setSavedQuestions(reconciled);
+      setActiveQuestionId((cur) => (cur ? qMap[cur] ?? cur : cur));
       setSaved(true);
-      setSavedQuestions(questions);
       setMode("summary");
-      // New rows came back with real ids — refresh so the next save edits
-      // them instead of trying to create duplicates, same as before.
+      // Refreshes the server-rendered parts of the page (breadcrumb status,
+      // etc.) — the client state above is what keeps this component itself
+      // correct, refresh() was never enough for that on its own.
       router.refresh();
       setTimeout(() => setSaved(false), 2500);
     } else {
@@ -158,6 +192,48 @@ export default function GuidedPricingWorkspace({
 
   const activeQuestion = questions.find((q) => q.id === activeQuestionId) ?? questions[0] ?? null;
   const impacts = computeOptionDeleteImpacts(questions);
+
+  // Keyboard behavior for the Stay/Discard dialog: focus starts on Stay (the
+  // non-destructive default), Tab/Shift+Tab stay contained inside it rather
+  // than escaping to the page underneath, Escape means the same thing as
+  // clicking Stay, and whatever had focus before the dialog opened — the
+  // link that was clicked, or nothing at all for a browser back/forward
+  // press — gets it back once the dialog closes either way.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const stayButtonRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!pending) return;
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    stayButtonRef.current?.focus();
+    return () => {
+      previouslyFocusedRef.current?.focus?.();
+    };
+  }, [pending]);
+
+  function onDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      stay();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (!focusables || focusables.length === 0) return;
+    const list = Array.from(focusables);
+    const first = list[0];
+    const last = list[list.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   return (
     <div>
@@ -194,65 +270,89 @@ export default function GuidedPricingWorkspace({
             onEditQuestion={(qId) => { setActiveQuestionId(qId); setMode("edit"); }}
             onAddQuestion={addQuestion}
           />
-        ) : activeQuestion ? (
+        ) : (
           <div>
-            {/* Small-screen switch — the nav/editor/preview three-up layout
-                below only fits from md up. */}
-            <div className="mb-3 flex gap-1 rounded-pill border border-cardline bg-white p-1 md:hidden">
-              <button
-                type="button"
-                onClick={() => setMobilePane("edit")}
-                className={`flex-1 rounded-pill py-1.5 text-xs font-semibold ${mobilePane === "edit" ? "bg-electric text-white" : "text-slate"}`}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobilePane("preview")}
-                className={`flex-1 rounded-pill py-1.5 text-xs font-semibold ${mobilePane === "preview" ? "bg-electric text-white" : "text-slate"}`}
-              >
-                Preview
-              </button>
-            </div>
+            {activeQuestion ? (
+              <>
+                {/* Small-screen switch — the nav/editor/preview three-up
+                    layout below only fits from md up. */}
+                <div className="mb-3 flex gap-1 rounded-pill border border-cardline bg-white p-1 md:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setMobilePane("edit")}
+                    className={`flex-1 rounded-pill py-1.5 text-xs font-semibold ${mobilePane === "edit" ? "bg-electric text-white" : "text-slate"}`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobilePane("preview")}
+                    className={`flex-1 rounded-pill py-1.5 text-xs font-semibold ${mobilePane === "preview" ? "bg-electric text-white" : "text-slate"}`}
+                  >
+                    Preview
+                  </button>
+                </div>
 
-            {/* pb-28 reserves room below the LAST answer/button so a sticky
-                footer the same rough height never ends up painted over
-                content that hasn't fully scrolled clear of it — a sticky
-                element doesn't claim that space on its own. */}
-            <div className="grid grid-cols-1 gap-4 pb-28 md:grid-cols-[200px_1fr_280px] md:pb-4">
-              <div className={mobilePane === "preview" ? "hidden md:block" : ""}>
-                <QuestionsNav
-                  questions={questions}
-                  activeQuestionId={activeQuestion.id}
-                  onSelect={setActiveQuestionId}
-                  onAddQuestion={addQuestion}
-                />
+                {/* pb-28 reserves room below the LAST answer/button so a sticky
+                    footer the same rough height never ends up painted over
+                    content that hasn't fully scrolled clear of it — a sticky
+                    element doesn't claim that space on its own. */}
+                <div className="grid grid-cols-1 gap-4 pb-28 md:grid-cols-[200px_1fr_280px] md:pb-4">
+                  <div className={mobilePane === "preview" ? "hidden md:block" : ""}>
+                    <QuestionsNav
+                      questions={questions}
+                      activeQuestionId={activeQuestion.id}
+                      onSelect={setActiveQuestionId}
+                      onAddQuestion={addQuestion}
+                    />
+                  </div>
+                  <div className={mobilePane === "preview" ? "hidden md:block" : ""}>
+                    <QuestionEditForm
+                      question={activeQuestion}
+                      questionIndex={questions.indexOf(activeQuestion)}
+                      isFirst={questions[0]?.id === activeQuestion.id}
+                      allQuestions={questions}
+                      allServices={allServices}
+                      troubleshootingServiceName={troubleshootingServiceName}
+                      inboundQuestionRefs={inboundQuestionReferences(activeQuestion.id)}
+                      inboundOptionRefs={impacts}
+                      onUpdateQuestion={(field, value) => updateQuestion(activeQuestion.id, field, value)}
+                      onUpdateOption={(oId, patch) => updateOption(activeQuestion.id, oId, patch)}
+                      onAddOption={() => addOption(activeQuestion.id)}
+                      onRemoveOption={(oId) => removeOption(activeQuestion.id, oId)}
+                      onRemoveQuestion={() => removeQuestion(activeQuestion.id)}
+                    />
+                  </div>
+                  <div className={mobilePane === "edit" ? "hidden md:block" : ""}>
+                    <CustomerPreviewPane serviceId={serviceId} dirty={dirty} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Every question was just deleted, but we stay in edit mode —
+              // Save (commits the deletion) and Cancel (undoes it) both live
+              // in the sticky footer below, unconditionally, so neither ever
+              // disappears just because the tree is momentarily empty.
+              <div className="pb-28 md:pb-4">
+                <div className="rounded-card border border-dashed border-cardline bg-white p-8 text-center text-sm text-slate">
+                  No questions left. Save to remove them all, or Cancel to keep what was there before.
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={addQuestion}
+                      className="rounded-pill border border-cardline px-4 py-2 text-xs font-medium text-electric hover:border-electric"
+                    >
+                      + Add a question
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className={mobilePane === "preview" ? "hidden md:block" : ""}>
-                <QuestionEditForm
-                  question={activeQuestion}
-                  questionIndex={questions.indexOf(activeQuestion)}
-                  isFirst={questions[0]?.id === activeQuestion.id}
-                  allQuestions={questions}
-                  allServices={allServices}
-                  troubleshootingServiceName={troubleshootingServiceName}
-                  inboundQuestionRefs={inboundQuestionReferences(activeQuestion.id)}
-                  inboundOptionRefs={impacts}
-                  onUpdateQuestion={(field, value) => updateQuestion(activeQuestion.id, field, value)}
-                  onUpdateOption={(oId, patch) => updateOption(activeQuestion.id, oId, patch)}
-                  onAddOption={() => addOption(activeQuestion.id)}
-                  onRemoveOption={(oId) => removeOption(activeQuestion.id, oId)}
-                  onRemoveQuestion={() => removeQuestion(activeQuestion.id)}
-                />
-              </div>
-              <div className={mobilePane === "edit" ? "hidden md:block" : ""}>
-                <CustomerPreviewPane serviceId={serviceId} dirty={dirty} />
-              </div>
-            </div>
+            )}
 
             {/* Sticky so Save/Cancel stay reachable without scrolling back up
                 past every answer — the point that mattered most on mobile,
-                where the editor can run long. */}
+                where the editor can run long. Rendered regardless of whether
+                a question is currently selected. */}
             <div className="sticky bottom-0 -mx-1 mt-4 flex items-center gap-3 border-t border-cardline bg-warmwhite px-1 py-3">
               <button
                 type="button"
@@ -273,12 +373,19 @@ export default function GuidedPricingWorkspace({
               {dirty && <span className="text-xs text-amber-700">Unsaved changes</span>}
             </div>
           </div>
-        ) : null}
+        )}
       </div>
 
       {pending && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div role="alertdialog" aria-modal="true" aria-labelledby="unsaved-guard-title" className="w-full max-w-sm rounded-card bg-white p-5 shadow-raised">
+          <div
+            ref={dialogRef}
+            onKeyDown={onDialogKeyDown}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="unsaved-guard-title"
+            className="w-full max-w-sm rounded-card bg-white p-5 shadow-raised"
+          >
             <h3 id="unsaved-guard-title" className="font-display text-base font-bold text-navy">
               Leave without saving?
             </h3>
@@ -287,6 +394,7 @@ export default function GuidedPricingWorkspace({
             </p>
             <div className="mt-4 flex justify-end gap-3">
               <button
+                ref={stayButtonRef}
                 type="button"
                 onClick={stay}
                 className="rounded-pill border border-cardline px-4 py-2 text-sm font-medium text-navy hover:border-electric"

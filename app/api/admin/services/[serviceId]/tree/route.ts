@@ -19,6 +19,13 @@ import { withAdminContractor } from "@/lib/adminContext";
  * exists. The GuidedFlowEngine fails safe on a dangling nextQuestionId by
  * resolving to a price — which means a broken tree doesn't crash, it quotes
  * the wrong number. That's worse than an error, so we refuse to save instead.
+ *
+ * The response carries `questionIdMap`/`optionIdMap` — every temporary
+ * "new-" id the client sent, mapped to the real one it was assigned. The
+ * client is expected to write these back into its own state before the next
+ * save: without that, a second save of the same session — still holding the
+ * ids from the first — would see them as "new-" all over again and create
+ * duplicates instead of updating the rows that now already exist.
  */
 
 const VALID_ROUTE_ACTIONS = new Set([
@@ -232,6 +239,14 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     existing.filter((q) => incomingQuestionIds.has(q.id)).map((q) => q.key)
   );
 
+  // Handed back to the client so it can replace every temporary "new-" id
+  // it just sent with the real one — without this, a second save before the
+  // next full page load would still be carrying temporary ids the server no
+  // longer recognizes as new, creating a duplicate instead of updating the
+  // row that already exists.
+  const questionIdMap: Record<string, string> = {};
+  const optionIdMap: Record<string, string> = {};
+
   try {
     // The guard SURVIVES $transaction — tx is scoped, proven in the live
     // harness. So this stays one guarded transaction rather than checking
@@ -291,6 +306,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
             );
           }
           idMap.set(q.id, created.id);
+          questionIdMap[q.id] = created.id;
         } else {
           idMap.set(q.id, q.id);
           await tx.question.update({
@@ -306,9 +322,10 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
 
       for (const q of questions) {
         const realQuestionId = idMap.get(q.id)!;
+        const opts = q.options ?? [];
 
-        for (let j = 0; j < (q.options ?? []).length; j++) {
-          const o = q.options![j];
+        for (let j = 0; j < opts.length; j++) {
+          const o = opts[j];
           const isPhotoReview = o.routeAction === "PHOTO_REVIEW";
           const resolvedNext =
             o.routeAction === "CONTINUE" && o.nextQuestionId
@@ -358,6 +375,31 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
             });
           }
         }
+
+        // Every option under this question now carries its final, unique
+        // `order` (0..n-1 — new and existing rows both got one above), so
+        // reading the set back and matching by position is unambiguous.
+        // Matching DURING the loop above isn't safe: a not-yet-processed
+        // existing option can still be sitting on the very `order` value a
+        // brand-new sibling was just created with, until its own turn in
+        // this same loop moves it off.
+        if (opts.some((o) => isNew(o.id))) {
+          const rows = await tx.answerOption.findMany({
+            where: { questionId: realQuestionId },
+            select: { id: true, order: true },
+          });
+          const byOrder = new Map(rows.map((r) => [r.order, r.id]));
+          for (let j = 0; j < opts.length; j++) {
+            if (!isNew(opts[j].id)) continue;
+            const realId = byOrder.get(j);
+            if (!realId) {
+              throw new Error(
+                `Answer option under question ${realQuestionId} at position ${j} was created but could not be read back.`
+              );
+            }
+            optionIdMap[opts[j].id] = realId;
+          }
+        }
       }
     });
   } catch (err) {
@@ -366,6 +408,6 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: `Could not save tree: ${message}` }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, questionIdMap, optionIdMap });
   });
 }
