@@ -1,7 +1,11 @@
 import { cookies, headers } from "next/headers";
 import { randomBytes, randomUUID } from "crypto";
 
-const SESSION_COOKIE = "elite_session_id";
+// Exported so a caller that must set this cookie to a SPECIFIC value —
+// today, only Device Handoff's resolve step, joining a second device into
+// an existing anonymous session — uses the same name rather than a second
+// hardcoded copy of it.
+export const SESSION_COOKIE = "elite_session_id";
 
 /**
  * The header an embedded storefront sends instead of the cookie.

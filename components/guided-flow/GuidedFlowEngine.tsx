@@ -111,6 +111,12 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   const [history, setHistory] = useState<
     { state: TerminalState; config: JobConfiguration | null; answers: Record<string, string> }[]
   >([]);
+  // Server-side mirror of `answers` — docs/design/guided-flow-session-v1.md.
+  // Null until the create-or-resume call returns; nothing before that point
+  // blocks the existing flow, so a failure here degrades to "answers aren't
+  // saved across a reload," never to a broken booking. `version` is the
+  // optimistic-concurrency token every write must present back.
+  const [guidedFlowSession, setGuidedFlowSession] = useState<{ id: string; version: number } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -122,13 +128,24 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       siteFetch("/api/visit")
         .then((r) => r.json())
         .catch(() => ({ lineItems: [] })),
-    ]).then(([data, visit]: [ServiceFlowDTO, { lineItems?: unknown[] }]) => {
+      // Same tolerance: a session that can't be created/resumed just means
+      // this visit isn't persisted mid-flow, not that the customer can't
+      // book. Never awaited by anything that would block the page.
+      siteFetch("/api/guided-flow-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceSlug }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(([data, visit, session]: [ServiceFlowDTO, { lineItems?: unknown[] }, { id: string; version: number; consumedAnswers?: Record<string, string> } | null]) => {
       const addOn = (visit?.lineItems?.length ?? 0) > 0 && data.whileWeThereBasePrice !== null;
       setFlow(data);
       setIsAddOn(addOn);
       setConfig(startDisplayConfiguration(data));
       setState({ kind: "intro" });
       setHistory([]);
+      setGuidedFlowSession(session ? { id: session.id, version: session.version } : null);
       // Answers carried over from a reroute, if this is where one landed.
       //
       // Consumed once and cleared immediately: the payload is tagged with
@@ -157,10 +174,46 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         // Storage unavailable. The customer answers again — not ideal, not
         // broken.
       }
-      setAnswers(carried);
+      // Reroute-carry wins when both exist: it's the more specific, more
+      // recent intent ("this is what the customer just told the OTHER
+      // service"), and it's already scoped to keys this tree asks about.
+      // The resumed session fills in only when there's no reroute payload —
+      // same precedence a fresh visitor implicitly has today (reroute over
+      // nothing), just extended by one more fallback.
+      const hasCarried = Object.keys(carried).length > 0;
+      setAnswers(hasCarried ? carried : (session?.consumedAnswers ?? {}));
       setLoading(false);
     });
   }, [serviceSlug]);
+
+  // Fire-and-forget mirror of `answers` to the server. Never blocks the UI
+  // and never retried on failure — the NEXT answer's write carries the
+  // latest state anyway, so a single dropped request just means one fewer
+  // point a second device could have resumed from, not lost data. A 409
+  // (another device already moved the session forward) is read back so this
+  // tab's local version catches up; it does not overwrite what the other
+  // device wrote, matching docs/design/guided-flow-session-v1.md §5 — this
+  // is the CLIENT side of that same rule, not a second implementation of it.
+  function persistAnswers(newAnswers: Record<string, string>) {
+    if (!guidedFlowSession) return;
+    siteFetch(`/api/guided-flow-sessions/${guidedFlowSession.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedVersion: guidedFlowSession.version, consumedAnswers: newAnswers }),
+    })
+      .then((r) => r.json())
+      .then((body) => {
+        if (typeof body?.version === "number") {
+          setGuidedFlowSession({ id: guidedFlowSession.id, version: body.version });
+        }
+      })
+      .catch(() => {
+        // Network failure — the next answer tries again with the same
+        // (now further-behind) expectedVersion and will itself 409 if
+        // something else moved the session on. Never surfaced to the
+        // customer; booking doesn't depend on this succeeding.
+      });
+  }
 
   // Snapshot the CURRENT step before moving on. Called at the top of every
   // transition so the stack always holds where the customer just was.
@@ -429,6 +482,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     pushHistory();
     const newAnswers = { ...answers, [question.key]: option.value };
     setAnswers(newAnswers);
+    persistAnswers(newAnswers);
 
     const result = evaluate(option, config ?? startDisplayConfiguration(flow!), newAnswers);
 
@@ -488,6 +542,25 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // empty visit page with no idea their photos went nowhere. The queue is
     // untouched too, so a retry resumes rather than skipping a service.
     if (!res.ok) throw new Error("Could not add this to your visit");
+
+    // Mark the session COMPLETED only now — after the write it describes
+    // has actually succeeded, never before (docs/design/
+    // guided-flow-session-v1.md's completeSession doc comment). Best
+    // effort: a failure here means bookkeeping alone is stale, not that
+    // the booking itself is in doubt — the LineItem the response names is
+    // the real record either way.
+    if (guidedFlowSession) {
+      const lineItemId = await res
+        .clone()
+        .json()
+        .then((b) => (typeof b?.lineItemId === "string" ? b.lineItemId : null))
+        .catch(() => null);
+      siteFetch(`/api/guided-flow-sessions/${guidedFlowSession.id}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedVersion: guidedFlowSession.version, lineItemId }),
+      }).catch(() => {});
+    }
 
     // If the service finder found more than one job in what the customer
     // typed, the rest are waiting. Go to the next one instead of the visit
