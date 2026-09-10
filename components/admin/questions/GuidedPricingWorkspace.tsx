@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AnswerSummaryTable from "./AnswerSummaryTable";
 import QuestionsNav from "./QuestionsNav";
 import QuestionEditForm from "./QuestionEditForm";
 import CustomerPreviewPane from "./CustomerPreviewPane";
+import { useUnsavedChangesGuard } from "./useUnsavedChangesGuard";
 import {
   type QuestionData, type AnswerOptionData, type ServiceOption,
   blankQuestion, blankOption, computeOptionDeleteImpacts,
@@ -34,19 +35,14 @@ export default function GuidedPricingWorkspace({
 
   const dirty = JSON.stringify(questions) !== JSON.stringify(savedQuestions);
 
-  // "Protection against accidentally discarding edits" — a full page
-  // navigation or reload is the one kind of loss switching between this
-  // workspace's own tabs can't cause (they stay mounted; see
-  // ServiceWorkspace's `hidden` panes), so this is the remaining gap.
-  useEffect(() => {
-    if (!dirty) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
+  // Protection against accidentally discarding edits — a full unload,
+  // an internal link click (sidebar nav, breadcrumb, another catalog
+  // row), and the browser's own back/forward button are three genuinely
+  // different mechanisms; see the hook's own header for why each needs
+  // its own handling. Workspace TAB switches never reach any of this,
+  // since ServiceWorkspace keeps every panel mounted (hidden, not
+  // unmounted) — there is nothing for a tab switch to discard.
+  const { pending, stay, discard } = useUnsavedChangesGuard(dirty);
 
   function updateQuestion(qId: string, field: "prompt" | "helpText", value: string) {
     setQuestions((qs) => qs.map((q) => (q.id === qId ? { ...q, [field]: value } : q)));
@@ -279,6 +275,35 @@ export default function GuidedPricingWorkspace({
           </div>
         ) : null}
       </div>
+
+      {pending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="unsaved-guard-title" className="w-full max-w-sm rounded-card bg-white p-5 shadow-raised">
+            <h3 id="unsaved-guard-title" className="font-display text-base font-bold text-navy">
+              Leave without saving?
+            </h3>
+            <p className="mt-2 text-sm text-slate">
+              Your changes to these questions haven&rsquo;t been saved. Leaving now discards them.
+            </p>
+            <div className="mt-4 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={stay}
+                className="rounded-pill border border-cardline px-4 py-2 text-sm font-medium text-navy hover:border-electric"
+              >
+                Stay
+              </button>
+              <button
+                type="button"
+                onClick={discard}
+                className="rounded-pill bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Discard changes and leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

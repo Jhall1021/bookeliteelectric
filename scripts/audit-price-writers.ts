@@ -235,6 +235,8 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Stamps basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on a THROWAWAY service so the browser flow can prove accepting a labor-time proposal through the real panel never moves the published price — re-read and asserted unchanged after acceptance. The contractor is created and destroyed by the test; no real contractor's price is read or written.",
   "scripts/verify-services-workspace-redesign.ts":
     "Stamps basePrice/publishedPriceApprovedAt on a THROWAWAY branching service so the admin question-tree preview (lib/adminQuestionPreview.ts) can be proven against a route that actually resolves to a price — resolveRoute correctly refuses a RESOLVE_INSTANT route with no published base price, so the fixture needs one to exercise the priced branch at all. Re-read and asserted UNCHANGED after every preview step, proving the preview never writes. The contractor and its services are created and destroyed by the test; no real contractor's price is read or written.",
+  "scripts/verify-question-editor-navigation-guard-browser-flow.ts":
+    "Stamps basePrice/publishedPriceApprovedAt on a THROWAWAY service, created through the real sign-up pipeline and destroyed by the test, purely so the fixture is a real INSTANT service the admin question editor can open — this script proves the unsaved-changes navigation guard (Stay/Discard/Save-clears-dirty), not anything about pricing, and never touches the price again after creating it.",
 };
 
 function walk(dir: string, out: string[] = []): string[] {
