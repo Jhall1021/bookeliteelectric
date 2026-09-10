@@ -472,7 +472,7 @@ document.**
 - **Unrelated pre-existing drift, found and explicitly separated from this
   migration's own result:** production's live schema is significantly
   behind what's already committed on `origin/main` — `db push` required
-  `--accept-data-loss` for a `BookingStatus.CANCELLED` enum-value removal,
+  `--accept-data-loss` for a `BookingStatus.CANCELED` enum-value removal,
   two column drops with real data (`answer_option_disclaimers.disclaimerId`,
   `pricing_settings.targetRateCents`), and three new unique constraints,
   plus 24 other already-committed tables that don't exist on the live
