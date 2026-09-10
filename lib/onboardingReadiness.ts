@@ -80,6 +80,15 @@ export type Finding = {
   /** The same service's real name, wherever serviceSlug names a real Service — so a
    *  display surface never has to show the machine slug to a contractor. */
   serviceName?: string;
+  /**
+   * Whether that service is CURRENTLY active (live), wherever serviceSlug names a
+   * real Service. `activationRefusal` only ever gates the transition INTO active —
+   * a service already live can still develop a finding afterward (a labor input
+   * cleared, a catalog edit introduces a dead route), so "has a blocker" and "has
+   * never launched" are not the same fact. A display surface must tell them apart
+   * rather than defaulting to "not yet live" language for a service that already is.
+   */
+  serviceActive?: boolean;
   href?: string;
   /**
    * MATERIAL_COST_UNRESOLVED only: the canonical role's own key and every
@@ -356,7 +365,7 @@ export async function assessOnboarding(
     if (!match) continue;
     findings["pricing-foundation"].push(b("MATERIAL_COST_ON_HOLD",
       `${h.slug} depends on ${h.heldRoles.length} material cost(s) still on hold.`,
-      { serviceSlug: h.slug, serviceName: match.svc.name as string, href: "/dashboard/services" }));
+      { serviceSlug: h.slug, serviceName: match.svc.name as string, serviceActive: match.svc.active as boolean, href: "/dashboard/services" }));
   }
   // GROUPED BY ROLE, not repeated per service.
   //
@@ -511,10 +520,10 @@ export async function assessOnboarding(
           ? w("HANDOFF_NOT_LIVE_YET",
               `${slug} sends "it stopped working" to ${diagnostic.kind === "ONE" ? diagnostic.name : "your diagnostic"}, which isn't live yet. ` +
               `Put that live and this resolves itself — we launch it first for you.`,
-              { serviceSlug: slug, serviceName: name, href: IN_SETUP })
+              { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: IN_SETUP })
           : b("TREE_HAS_DEAD_ROUTE",
               `${slug} has ${promise.routes.dead} answer path(s) that reach nothing.`,
-              { serviceSlug: slug, serviceName: name, href: "/dashboard/services" })
+              { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" })
       );
     }
 
@@ -528,7 +537,7 @@ export async function assessOnboarding(
           // cannot keep. What is true either way is that a route reaches an
           // amount and nobody has approved one.
           `${slug} reaches an amount for a homeowner, but none has been approved.`,
-          { serviceSlug: slug, serviceName: name, href: "/dashboard/services" }));
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
       }
       if (settings) {
         const suggestion = suggestPrimaryPrice(svc as never, settings as never);
@@ -548,15 +557,15 @@ export async function assessOnboarding(
           // §3.1 defect the engine refuses a price to avoid.
           out.push(b("LABOR_INPUTS_MISSING",
             `${slug} can't be priced yet — ${lowerFirst(suggestion.unavailableReason ?? "an input is missing, not zero")}.`,
-            { serviceSlug: slug, serviceName: name, href: `/dashboard/services/${svc.id as string}` }));
+            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/services/${svc.id as string}` }));
         } else if (svc.basePrice !== null && derived !== svc.basePrice) {
           out.push(w("PRICE_DRIFTED",
             `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
-            { serviceSlug: slug, serviceName: name, href: "/dashboard/services" }));
+            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
         } else if (svc.publishedPriceApprovedAt === null && derived !== null) {
           out.push(w("SUGGESTED_NOT_APPROVED",
             `${slug} has a suggested price of $${(derived / 100).toFixed(2)} waiting for you to approve it.`,
-            { serviceSlug: slug, serviceName: name, href: "/dashboard/services" }));
+            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
         }
       }
     } else {
@@ -570,17 +579,17 @@ export async function assessOnboarding(
         const unset = bad.some((x) => x.code === "unset");
         out.push(b(unset ? "ESTIMATE_BOUNDS_MISSING" : "ESTIMATE_BOUNDS_INVALID",
           `${slug} can't be priced yet — ${lowerFirst(bad[0].message)}`,
-          { serviceSlug: slug, serviceName: name, href: "/dashboard/estimates" }));
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/estimates" }));
       } else if (svc.estimateApprovedAt === null) {
         out.push(b("ESTIMATE_NOT_APPROVED",
           `${slug} has an estimate range entered but not yet approved for customers.`,
-          { serviceSlug: slug, serviceName: name, href: "/dashboard/estimates" }));
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/estimates" }));
       }
     }
     if (promise.routes.priced > 0 && promise.routes.review === 0) {
       out.push(w("TREE_UNBOUNDED",
         `${slug} prices every answer path. Nothing sends an unusual job to review.`,
-        { serviceSlug: slug, serviceName: name, href: "/dashboard/services" }));
+        { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
     }
     return out;
   });

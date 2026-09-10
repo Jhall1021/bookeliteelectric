@@ -4,7 +4,7 @@ import { findDefinition } from "@/lib/theme/definition";
 import { resolveStorefrontTheme, readBrandInputs } from "@/lib/theme/resolve";
 import { assessOnboarding, SETUP_SUMMARY_GROUPS, summaryGroupStatus, type GroupStatus, type OnboardingReadiness, type Finding } from "@/lib/onboardingReadiness";
 import { actionLabelFor } from "@/lib/setupActionLabels";
-import { findingSummary } from "@/lib/setupFindingSummary";
+import { findingSummary, groupHeadline } from "@/lib/setupFindingSummary";
 import { prisma } from "@/lib/prisma";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -52,7 +52,7 @@ export default async function PortalOverviewPage() {
       assessOnboarding(db, ctx.contractorId),
       db.service.findMany({
         where: { offered: true },
-        select: { id: true, name: true, templateKey: true, active: true, publishedPriceApprovedAt: true, basePrice: true },
+        select: { id: true, slug: true, name: true, templateKey: true, active: true, publishedPriceApprovedAt: true, basePrice: true },
         orderBy: { name: "asc" }, take: 8,
       }),
       // A same-shape count, not a second rule: "costed" is exactly the flag
@@ -110,6 +110,15 @@ export default async function PortalOverviewPage() {
   // ONLY material-cost coverage — it says nothing about labor rate, price
   // approval, or pricing being finished, and the card's own copy is
   // written not to imply otherwise.
+  // Services whose "Live" badge must NOT read as trouble-free — a service
+  // can be active and still carry a real blocker (see Finding.serviceActive's
+  // own comment). Checked by slug so the badge and "Your next steps" always
+  // agree about which services still need something.
+  const blockedSlugs = new Set(data.readiness.blockers.map((f) => f.serviceSlug).filter((s): s is string => !!s));
+  // Reuses `liveServices` (already a real, un-truncated count) rather than
+  // `data.offered`, which is capped to 8 rows for the services card and
+  // would silently under-report on a larger catalog.
+  const anyOfferedLive = liveServices > 0;
   const offeredCount = data.offered.length;
   const pricingReady = offeredCount > 0 && data.costedOffered === offeredCount;
   const pricingPct = offeredCount === 0 ? 0 : Math.round((data.costedOffered / offeredCount) * 100);
@@ -159,7 +168,7 @@ export default async function PortalOverviewPage() {
                   <GroupStatusIcon index={i} currentIndex={currentGroupIndex} status={groupStatus[i]} isLaunch={g.key === "launch"} />
                   <div>
                     <p className="text-sm font-semibold text-navy">{g.label}</p>
-                    <p className="text-xs text-slate">{groupBlurb(g.key, groupStatus[i], data.readiness, offeredCount)}</p>
+                    <p className="text-xs text-slate">{groupBlurb(g.key, groupStatus[i], data.readiness, offeredCount, anyOfferedLive)}</p>
                   </div>
                 </li>
               ))}
@@ -211,7 +220,10 @@ export default async function PortalOverviewPage() {
                 <li key={s.id} className="flex flex-col items-center gap-1.5 rounded-card border border-cardline p-3 text-center">
                   <ServiceIcon templateKey={s.templateKey} className="h-10 w-10" />
                   <span className="text-xs font-medium text-navy">{s.name}</span>
-                  <ServiceStatusBadge active={s.active} approved={s.publishedPriceApprovedAt !== null} priced={s.basePrice !== null} />
+                  <ServiceStatusBadge
+                    active={s.active} approved={s.publishedPriceApprovedAt !== null} priced={s.basePrice !== null}
+                    needsAttention={blockedSlugs.has(s.slug)}
+                  />
                 </li>
               ))}
             </ul>
@@ -270,9 +282,7 @@ export default async function PortalOverviewPage() {
                     <div className="flex items-start gap-3">
                       <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-p2b-amber-ink" />
                       <p className="text-sm text-slate">
-                        {group.length === 1
-                          ? findingSummary(primary)
-                          : `${primary.serviceName ?? "This"} has ${group.length} issues to resolve before it can go live.`}
+                        {group.length === 1 ? findingSummary(primary) : groupHeadline(group)}
                       </p>
                     </div>
                     {primary.href && (
@@ -308,7 +318,15 @@ export default async function PortalOverviewPage() {
         ) : (
           <div className="mt-2 flex items-center gap-4">
             <EmptyCalendarIllustration className="h-16 w-16 shrink-0" />
-            <p className="text-sm text-slate">Your bookings will appear here after launch.</p>
+            {/* "After launch" is only true before the storefront is live —
+                once it is (see StorefrontCard's own `launched`), a real
+                homeowner could book at any moment, so saying "after launch"
+                here too would contradict the "Live" badge above it. */}
+            <p className="text-sm text-slate">
+              {launched
+                ? "Your bookings will appear here once a homeowner books."
+                : "Your bookings will appear here after launch."}
+            </p>
           </div>
         )}
       </Card>
@@ -371,14 +389,21 @@ function groupFindingsByService(findings: Finding[]): Finding[][] {
  * "chosen, but not yet ready to sell." Reading the live findings is what
  * keeps this from ever telling a contractor to do something they already did.
  */
-function groupBlurb(key: string, status: GroupStatus, readiness: OnboardingReadiness, offeredCount: number): string {
+function groupBlurb(
+  key: string, status: GroupStatus, readiness: OnboardingReadiness, offeredCount: number, anyOfferedLive: boolean
+): string {
   if (status === "ready") return "Complete";
   if (key === "services") {
     if (offeredCount === 0) return "Choose which of your services you offer";
     const n = readiness.stages
       .filter((s) => s.key === "trade" || s.key === "services")
       .reduce((sum, s) => sum + s.findings.length, 0);
-    return `${offeredCount} selected — ${n} issue${n === 1 ? "" : "s"} to resolve before ${n === 1 ? "it's" : "they're"} ready to sell`;
+    // "Before they're ready to sell" is only true when nothing is live yet.
+    // At least one already-selling service with an open finding is a live
+    // service that needs attention, not one still waiting to launch.
+    return anyOfferedLive
+      ? `${offeredCount} selected — ${n} issue${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} attention`
+      : `${offeredCount} selected — ${n} issue${n === 1 ? "" : "s"} to resolve before ${n === 1 ? "it's" : "they're"} ready to sell`;
   }
   if (key === "pricing") {
     const findings = readiness.stages.find((s) => s.key === "pricing-foundation")?.findings ?? [];
@@ -416,7 +441,16 @@ function DottedConnector() {
   );
 }
 
-function ServiceStatusBadge({ active, approved, priced }: { active: boolean; approved: boolean; priced: boolean }) {
+/**
+ * "Live" alone would say the same thing for a healthy service and one with
+ * an open blocker — exactly the contradiction "Your next steps" complained
+ * about once shown side by side. A live service that still has a real
+ * finding gets its own amber variant instead of a plain, all-clear "Live".
+ */
+function ServiceStatusBadge({
+  active, approved, priced, needsAttention,
+}: { active: boolean; approved: boolean; priced: boolean; needsAttention: boolean }) {
+  if (active && needsAttention) return <Badge tone="attention">Live · needs attention</Badge>;
   if (active) return <Badge tone="success">Live</Badge>;
   if (approved) return <Badge tone="info">Approved</Badge>;
   if (priced) return <Badge tone="neutral">Priced</Badge>;

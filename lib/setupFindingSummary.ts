@@ -38,3 +38,24 @@ export function findingSummary(f: Finding): string {
   }
   return f.message;
 }
+
+/**
+ * The headline for a GROUP of 2+ findings on the same service.
+ *
+ * "Before it can go live" is only true of a service that has never
+ * activated. `activationRefusal` (lib/serviceActivation.ts) only ever gates
+ * the transition INTO active — it does not re-check an already-live service,
+ * so a live service can genuinely pick up a blocker afterward (a labor input
+ * cleared, a catalog edit breaks a route). Telling a contractor their live
+ * service "can't go live" is the exact contradiction `serviceActive` exists
+ * to prevent: an active service gets "needs attention" language instead.
+ */
+export function groupHeadline(findings: Finding[]): string {
+  const primary = findings[0];
+  const name = primary.serviceName ?? "This service";
+  const n = findings.length;
+  if (primary.serviceActive) {
+    return `${name} is live, but ${n} issue${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} attention.`;
+  }
+  return `${name} has ${n} issue${n === 1 ? "" : "s"} to resolve before it can go live.`;
+}
