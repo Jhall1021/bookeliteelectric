@@ -473,6 +473,10 @@ export async function installCatalog(
           for (const rawOpt of qq.options) {
             const o = rawOpt as unknown as {
               value: string; label: string; routeAction: never; order: number;
+              /// ROUTING V2 numeric routing — see AnswerOption.numberAtLeast.
+              /// An option whose range is lost stops matching, which turns a
+              /// sound tree into a gap and refuses every answer in that span.
+              numberAtLeast: number | null; numberAtMost: number | null;
               nextQuestionKey: string | null; rerouteServiceKey: string | null;
               referencedServiceKey: string | null; requiredPhotoLabels: string[];
               photosBlockBooking: boolean; illustrationUrls: string[];
@@ -508,6 +512,7 @@ export async function installCatalog(
               data: {
                 questionId: qId.get(qq.key)!, value: o.value, label: o.label,
                 routeAction: o.routeAction, order: o.order,
+                numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
                 nextQuestionId: o.nextQuestionKey ? qId.get(o.nextQuestionKey) ?? null : null,
                 rerouteServiceId: target?.id ?? null, referencedServiceId: ref?.id ?? null,
                 requiredPhotoLabels: o.requiredPhotoLabels,

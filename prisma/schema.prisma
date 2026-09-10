@@ -2358,6 +2358,24 @@ model AnswerOption {
   /// the service carrying it cannot publish.
   labelPattern String?
   policyKey    String?
+  /// ROUTING V2 — NUMERIC ROUTING. Inclusive bounds on the NUMBER answer that
+  /// selects this option. Null on every row that existed before this field.
+  ///
+  /// A NUMBER question whose options carry NO predicates keeps its original
+  /// behaviour exactly: one option, taken whatever the value. If ANY option on
+  /// the question carries one, the question is in numeric-routing mode and
+  /// EXACTLY ONE option must match the validated answer.
+  ///
+  /// ORDER MUST NOT DECIDE. Zero matches or more than one are both authoring
+  /// defects and both fail closed — a gap or an overlap is never silently
+  /// repaired by taking the first match, because "first" is not a fact about
+  /// the physical world.
+  ///
+  /// This is a generic capability. The resolver knows nothing about feet, walls
+  /// or eligibility; it validates a number and picks the one authored range
+  /// containing it. What a range MEANS is authored by the module that writes it.
+  numberAtLeast Int?
+  numberAtMost  Int?
 
   @@index([questionId])
   @@map("answer_options")
@@ -3697,6 +3715,11 @@ model TemplateAnswerOption {
   materials   TemplateAnswerOptionMaterial[]
   disclaimers TemplateAnswerOptionDisclaimer[]
   photoGroups TemplateAnswerOptionPhotoGroup[]
+
+  /// ROUTING V2 — see AnswerOption.numberAtLeast/numberAtMost.
+  /// Carried explicitly: this model is a subset and the copy is a field list.
+  numberAtLeast Int?
+  numberAtMost  Int?
 
   @@unique([templateQuestionId, value])
   @@map("template_answer_options")

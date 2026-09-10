@@ -226,6 +226,9 @@ async function main() {
       return {
         value: o.value,
         routeAction: o.routeAction,
+        // ROUTING V2 numeric routing — part of the executable contract.
+        numberAtLeast: o.numberAtLeast,
+        numberAtMost: o.numberAtMost,
         label: resolveCopy(`${q.key}/${o.value}`, "label", o.label),
         order: oi,
         nextQuestionKey: o.nextQuestionId ? svc.questions.find((x) => x.id === o.nextQuestionId)?.key ?? null : null,
@@ -296,6 +299,7 @@ async function main() {
         order: q.order,
         options: { create: q.options.map((o) => ({
           value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
+          numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
           nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
           referencedServiceKey: o.referencedServiceKey,
           requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,

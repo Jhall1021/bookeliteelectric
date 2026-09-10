@@ -303,6 +303,94 @@ type LoadedService = NonNullable<Awaited<ReturnType<typeof loadServiceForResolut
  * (meaningless) or, through the shared `Math.max(q, 1)`, `× 1` (a charge for
  * geometry that is not there).
  */
+/**
+ * ROUTING V2 — choose a NUMBER question's option by the VALUE of the answer.
+ *
+ * Two modes, and which one applies is a fact about the authored options rather
+ * than a flag anyone has to remember to set:
+ *
+ *   no option carries a predicate  -> legacy behaviour, options[0], untouched.
+ *                                     Every NUMBER question written before this
+ *                                     existed keeps working exactly as it did.
+ *   any option carries one         -> numeric routing. EXACTLY ONE option must
+ *                                     contain the validated answer.
+ *
+ * ORDER MUST NEVER DECIDE. A gap and an overlap are both authoring defects, and
+ * both fail closed. "First match wins" would let a range overlap resolve
+ * silently by accident of `order`, which is not a fact about the physical world
+ * and would make two identically-authored trees behave differently.
+ *
+ * Entirely generic. This function knows nothing about feet, walls, eligibility
+ * or price; it validates a number against the question's authored range and
+ * returns the one authored range containing it.
+ */
+export type NumericOptionChoice<T> =
+  | { kind: "option"; option: T }
+  | { kind: "invalid"; reason: string }
+  | { kind: "broken"; reason: string };
+
+export function selectNumericOption<
+  T extends { value: string; numberAtLeast: number | null; numberAtMost: number | null }
+>(
+  question: { key: string; numberMin: number | null; numberMax: number | null; options: readonly T[] },
+  raw: string
+): NumericOptionChoice<T> {
+  const routing = question.options.filter(
+    (o) => o.numberAtLeast !== null || o.numberAtMost !== null
+  );
+  if (routing.length === 0) {
+    const first = question.options[0];
+    if (!first) return { kind: "broken", reason: `"${question.key}" has no answer options` };
+    return { kind: "option", option: first };
+  }
+
+  // In numeric-routing mode the question's own range is what "valid" means, so
+  // it has to exist before any option can be judged against it.
+  if (question.numberMin === null || question.numberMax === null) {
+    return { kind: "broken", reason:
+      `"${question.key}" routes on its number but declares no numberMin/numberMax` };
+  }
+  const unbounded = question.options.filter(
+    (o) => o.numberAtLeast === null && o.numberAtMost === null
+  );
+  if (unbounded.length > 0) {
+    return { kind: "broken", reason:
+      `"${question.key}" mixes numeric routing with option(s) carrying no range: ` +
+      unbounded.map((o) => o.value).join(", ") };
+  }
+
+  const text = String(raw ?? "").trim();
+  if (!/^\d+$/.test(text)) {
+    return { kind: "invalid", reason: `"${question.key}" is "${text}", which is not a whole number` };
+  }
+  const n = Number(text);
+  if (!Number.isSafeInteger(n)) {
+    return { kind: "invalid", reason: `"${question.key}" is "${text}", which is not a usable whole number` };
+  }
+  if (n < question.numberMin || n > question.numberMax) {
+    return { kind: "invalid", reason:
+      `"${question.key}" is ${n}, outside its authored range ${question.numberMin}\u2013${question.numberMax}` };
+  }
+
+  const matches = routing.filter(
+    (o) => (o.numberAtLeast === null || n >= o.numberAtLeast) &&
+           (o.numberAtMost === null || n <= o.numberAtMost)
+  );
+  if (matches.length === 0) {
+    return { kind: "broken", reason:
+      `"${question.key}" has no authored range containing ${n} \u2014 a gap in the tree` };
+  }
+  if (matches.length > 1) {
+    return { kind: "broken", reason:
+      `"${question.key}" has ${matches.length} ranges containing ${n} (${matches.map((m) => m.value).join(", ")}) ` +
+      `\u2014 an overlap; option order must not decide this` };
+  }
+  return { kind: "option", option: matches[0] };
+}
+
+/**
+ * ROUTING V2 \u2014 what a NUMBER answer is allowed to mean as a component quantity.
+ */
 export type BoundQuantity =
   | { kind: "quantity"; value: number }
   | { kind: "omit" }
@@ -457,12 +545,26 @@ export function resolveRoute(
       return { status: "INVALID", reason: `No answer for "${current.key}"` };
     }
 
-    // TEXT and NUMBER questions carry the typed value, so the option is
-    // whichever one the question holds rather than a value match.
-    const isFreeText = current.inputType === "TEXT" || current.inputType === "NUMBER";
-    const option = isFreeText
-      ? current.options[0]
-      : current.options.find((o) => o.value === given);
+    // TEXT carries the typed value and has one option — unchanged.
+    //
+    // NUMBER may now ROUTE on that value. selectNumericOption keeps the old
+    // behaviour for any NUMBER question whose options carry no ranges, so
+    // nothing authored before this changes; a question that does carry them must
+    // have exactly one range containing the answer, decided by the ranges and
+    // never by option order.
+    let option;
+    if (current.inputType === "NUMBER") {
+      const choice = selectNumericOption(current, given);
+      // An authoring defect — a gap, an overlap, or a missing range. No answer
+      // the customer could give would fix it.
+      if (choice.kind === "broken") throw new Error(`${service.slug}: ${choice.reason}`);
+      if (choice.kind === "invalid") return { status: "INVALID", reason: `${service.slug}: ${choice.reason}` };
+      option = choice.option;
+    } else if (current.inputType === "TEXT") {
+      option = current.options[0];
+    } else {
+      option = current.options.find((o) => o.value === given);
+    }
 
     if (!option) {
       // The answer doesn't map to anything on this question. Usually means

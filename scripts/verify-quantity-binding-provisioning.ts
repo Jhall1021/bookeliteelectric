@@ -140,6 +140,40 @@ async function main() {
       "question fixture removed");
   }
 
+  // ── numeric ROUTING predicates travel the same road ────────────────────
+  console.log("\n  NUMERIC ROUTING PREDICATES SURVIVE THE SAME LIFECYCLE\n");
+  for (const table of ["answer_options", "template_answer_options"] as const) {
+    for (const col of ["numberAtLeast", "numberAtMost"] as const) {
+      const r: { c: bigint }[] = await prisma.$queryRawUnsafe(
+        `select count(*)::bigint as c from information_schema.columns
+          where table_name = '${table}' and column_name = '${col}'`);
+      ok(Number(r[0].c) === 1, `${table}.${col} exists`);
+    }
+  }
+  // Counted per site, for the reason the earlier attempt failed: extraction has
+  // a shape AND a create, and a substring test lets one cover for the other.
+  ok(times(/numberAtLeast: o\.numberAtLeast/g, src.extract) === 2,
+    "extraction carries the predicates at BOTH sites",
+    `${times(/numberAtLeast: o\.numberAtLeast/g, src.extract)}, expected 2`);
+  ok(times(/numberAtLeast: number \| null/g, src.prov) === 1 &&
+     times(/numberAtLeast: o\.numberAtLeast/g, src.prov) === 1,
+    "provisioning names them in the typed shape AND copies them in the create",
+    `type=${times(/numberAtLeast: number \| null/g, src.prov)} create=${times(/numberAtLeast: o\.numberAtLeast/g, src.prov)}`);
+
+  const tq2 = await prisma.templateQuestion.findFirst({ select: { id: true } });
+  if (tq2) {
+    const to = await prisma.templateAnswerOption.create({
+      data: { templateQuestionId: tq2.id, value: `${RUN}_within`, label: "Within",
+              routeAction: "CONTINUE", order: 9999, numberAtLeast: 1, numberAtMost: 20 },
+      select: { id: true, numberAtLeast: true, numberAtMost: true },
+    });
+    ok(to.numberAtLeast === 1 && to.numberAtMost === 20,
+      "a template option persists its authored range", JSON.stringify(to));
+    await prisma.templateAnswerOption.delete({ where: { id: to.id } });
+    ok((await prisma.templateAnswerOption.findUnique({ where: { id: to.id } })) === null,
+      "option fixture removed");
+  }
+
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);
   await prisma.$disconnect();
   if (fail) process.exit(1);
