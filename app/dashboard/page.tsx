@@ -35,7 +35,7 @@ export const dynamic = "force-dynamic";
 export default async function PortalOverviewPage() {
   const data = await withAdminContractor(async (db, ctx) => {
     const QUOTE_ONLY = { bookingType: "REMOTE_QUOTE" as const };
-    const [priced, quoteOnly, needsPrice, hidden, awaitingReview, themeRow, onboarding, readiness, offered, costedOffered, bookingsTotal] = await Promise.all([
+    const [priced, quoteOnly, needsPrice, hidden, awaitingReview, themeRow, onboarding, readiness, offered, offeredTotal, costedOffered, bookingsTotal] = await Promise.all([
       db.service.count({ where: { active: true, publishedPriceApprovedAt: { not: null } } }),
       db.service.count({ where: { active: true, ...QUOTE_ONLY } }),
       db.service.count({ where: { active: true, publishedPriceApprovedAt: null, NOT: QUOTE_ONLY } }),
@@ -50,17 +50,25 @@ export default async function PortalOverviewPage() {
       }),
       db.contractorOnboarding.findUnique({ where: { contractorId: ctx.contractorId }, select: { completedAt: true, currentStage: true } }),
       assessOnboarding(db, ctx.contractorId),
+      // Capped to 8 — this is a PREVIEW list for the four tiles the card
+      // renders, never the count. A contractor with more than 8 selected
+      // services would otherwise see "20 of 8" and a negative remaining
+      // count, since `offered.length` could never exceed the cap.
       db.service.findMany({
         where: { offered: true },
         select: { id: true, slug: true, name: true, templateKey: true, active: true, publishedPriceApprovedAt: true, basePrice: true },
         orderBy: { name: "asc" }, take: 8,
       }),
+      // The REAL total, uncapped — every count and percentage on this page
+      // (Material costs, the Services checklist blurb, "N need review")
+      // must divide against this, not against the length of the preview list.
+      db.service.count({ where: { offered: true } }),
       // A same-shape count, not a second rule: "costed" is exactly the flag
       // the launch check and the material-baseline panel already trust.
       db.service.count({ where: { offered: true, materialCostResolved: true } }),
       db.booking.count(),
     ]);
-    return { priced, quoteOnly, needsPrice, hidden, awaitingReview, themeRow, onboarding, readiness, offered, costedOffered, bookingsTotal, userId: ctx.userId };
+    return { priced, quoteOnly, needsPrice, hidden, awaitingReview, themeRow, onboarding, readiness, offered, offeredTotal, costedOffered, bookingsTotal, userId: ctx.userId };
   });
 
   // Person, not business — "Welcome back, Joshua" reads for the human at the
@@ -119,7 +127,11 @@ export default async function PortalOverviewPage() {
   // `data.offered`, which is capped to 8 rows for the services card and
   // would silently under-report on a larger catalog.
   const anyOfferedLive = liveServices > 0;
-  const offeredCount = data.offered.length;
+  // The REAL total — never `data.offered.length`, which is capped to 8 for
+  // the preview tiles and would otherwise cap every count/percentage this
+  // page derives (Material costs, "N need review", the Services blurb) at 8
+  // regardless of how many services are actually selected.
+  const offeredCount = data.offeredTotal;
   const pricingReady = offeredCount > 0 && data.costedOffered === offeredCount;
   const pricingPct = offeredCount === 0 ? 0 : Math.round((data.costedOffered / offeredCount) * 100);
 
@@ -213,8 +225,8 @@ export default async function PortalOverviewPage() {
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="p-5">
           <CardHeader title="Your services" action={<Link href="/dashboard/services" className="text-sm font-medium text-electric hover:underline">Manage services</Link>} />
-          <p className="mt-1 text-sm text-slate">{data.offered.length} selected of {total} in your catalog</p>
-          {data.offered.length > 0 ? (
+          <p className="mt-1 text-sm text-slate">{offeredCount} selected of {total} in your catalog</p>
+          {offeredCount > 0 ? (
             <ul className="mt-4 grid grid-cols-2 gap-3">
               {data.offered.slice(0, 4).map((s) => (
                 <li key={s.id} className="flex flex-col items-center gap-1.5 rounded-card border border-cardline p-3 text-center">

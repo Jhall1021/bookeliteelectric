@@ -59,17 +59,59 @@ export function SidebarShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const router = useRouter();
 
+  /**
+   * Focus management for the drawer, all through one effect keyed on
+   * `mobileOpen` so every way it closes — Escape, the backdrop, the close
+   * button, or a nav link navigating away (the pathname effect below) —
+   * runs the SAME cleanup and restores focus, rather than each dismiss path
+   * needing its own `.focus()` call and one of them (previously all but
+   * Escape) silently skipping it.
+   *
+   * Opening moves focus into the drawer (its first focusable element, which
+   * is the close button) instead of leaving it on the trigger behind the
+   * overlay, and Tab/Shift+Tab are trapped to the drawer's own focusable
+   * elements while it is open — without this, a keyboard user tabbing
+   * forward reaches the header's notification bell and avatar menu, then
+   * the page content underneath, none of which is visible under the
+   * backdrop.
+   */
   useEffect(() => {
     if (!mobileOpen) return;
+    const drawer = drawerRef.current;
+    if (!drawer) return;
+
+    const focusable = () =>
+      Array.from(
+        drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')
+      ).filter((el) => el.offsetParent !== null);
+
+    (focusable()[0] ?? drawer).focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setMobileOpen(false); menuButtonRef.current?.focus(); }
+      if (e.key === "Escape") { setMobileOpen(false); return; }
+      if (e.key !== "Tab") return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      menuButtonRef.current?.focus();
+    };
   }, [mobileOpen]);
 
   useEffect(() => {
@@ -212,7 +254,14 @@ export function SidebarShell({
       {mobileOpen && (
         <div id="admin-mobile-nav" className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} aria-hidden="true" />
-          <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-navy shadow-raised">
+          <div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Primary navigation"
+            tabIndex={-1}
+            className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-navy shadow-raised"
+          >
             <div className="flex justify-end px-3 pt-3">
               <button
                 type="button"
