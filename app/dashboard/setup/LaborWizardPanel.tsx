@@ -49,7 +49,7 @@ type Step =
 const money = (n: number) => `${n} min`;
 const currentLabel = (h: number | null) => (h === null ? "not yet established" : `currently ${Math.round(h * 60)} min`);
 
-export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] }) {
+export default function LaborWizardPanel({ tasks, hasCrewRate }: { tasks: WizardTaskInfo[]; hasCrewRate: boolean }) {
   const anchor = tasks.find((t) => !t.relativeTo);
   const derived = tasks.filter((t) => t.relativeTo);
 
@@ -291,8 +291,9 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
         <div className="mt-4">
           <p className="text-sm text-slate">What&apos;s your usual crew for this kind of work?</p>
           <p className="mt-1 text-xs text-slate">
-            For context only — this never changes what you charge. Your existing crew-hour rate
-            already covers your usual crew.
+            {hasCrewRate
+              ? "For context only — this never changes what you charge. Your crew-hour rate already covers your usual crew."
+              : "For context only — this never changes what you charge. You'll set your crew-hour rate separately; it's built to cover your usual crew, whatever you tell us here."}
           </p>
           <div className="mt-3 flex items-center gap-2">
             <input
@@ -331,7 +332,7 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
       {step.name === "same-time" && (
         <div className="mt-4">
           <p className="text-sm text-slate">
-            Do standard <strong>{taskByKey(step.taskKey).label}</strong> jobs usually take about the same
+            Does <strong>{taskByKey(step.taskKey).label}</strong> usually take about the same
             time as {anchor.label} ({money(anchorMinutes())})?
           </p>
           <div className="mt-3 flex gap-2">
@@ -441,8 +442,8 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
                                   onChange={() => toggleSelected(t.key, s.id)}
                                   aria-label={`Apply ${t.displayName} to ${s.name}`}
                                 />
-                                <span className="text-navy">{s.name}</span>
-                                <span className="text-xs text-slate">({s.slug}) — {currentLabel(s.fieldLaborHours)}</span>
+                                <span className="text-navy" title={s.slug}>{s.name}</span>
+                                <span className="text-xs text-slate">{currentLabel(s.fieldLaborHours)}</span>
                               </label>
                             ))}
                           </div>
@@ -455,8 +456,8 @@ export default function LaborWizardPanel({ tasks }: { tasks: WizardTaskInfo[] })
                             Matched by name, but customized since — set these manually instead:
                           </p>
                           {t.customized.map((s) => (
-                            <p key={s.id} className="mt-1 text-xs text-amber-800">
-                              {s.name} ({s.slug})
+                            <p key={s.id} className="mt-1 text-xs text-amber-800" title={s.slug}>
+                              {s.name}
                             </p>
                           ))}
                         </div>

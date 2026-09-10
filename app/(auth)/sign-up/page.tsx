@@ -107,8 +107,19 @@ function SignUpForm() {
             value={password} onChange={(e) => setPassword(e.target.value)}
             className="mt-1.5 w-full rounded-sm border border-p2b-line bg-white px-4 py-3 text-[15px] focus:border-p2b-accent focus:outline-none focus:ring-1 focus:ring-p2b-accent"
           />
-          <p className="mt-1 text-[13px] text-p2b-muted">At least 12 characters.</p>
         </div>
+
+        {/*
+         * Live, not just a static caption — so a disabled button never has an
+         * invisible reason. Each line reflects the CURRENT form state, the
+         * same fields the button's own `disabled` check reads, so the two
+         * can never disagree about what's still missing.
+         */}
+        <ul className="space-y-1 text-[13px]">
+          <Requirement met={!!name.trim()} label="Your name" />
+          <Requirement met={!!email.trim()} label="A valid email address" />
+          <Requirement met={password.length >= 12} label="A password of at least 12 characters" />
+        </ul>
 
         {error && (
           <div className="rounded-sm border border-p2b-error-line bg-p2b-error-bg p-3 text-sm text-p2b-error-ink">{error}</div>
@@ -129,6 +140,15 @@ function SignUpForm() {
         </Link>
       </p>
     </div>
+  );
+}
+
+function Requirement({ met, label }: { met: boolean; label: string }) {
+  return (
+    <li className={`flex items-center gap-1.5 ${met ? "text-p2b-green" : "text-p2b-muted"}`}>
+      <span aria-hidden="true">{met ? "✓" : "•"}</span>
+      {label}
+    </li>
   );
 }
 

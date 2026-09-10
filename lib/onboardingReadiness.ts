@@ -77,6 +77,18 @@ export type Finding = {
   severity: Severity;
   message: string;
   serviceSlug?: string;
+  /** The same service's real name, wherever serviceSlug names a real Service — so a
+   *  display surface never has to show the machine slug to a contractor. */
+  serviceName?: string;
+  /**
+   * Whether that service is CURRENTLY active (live), wherever serviceSlug names a
+   * real Service. `activationRefusal` only ever gates the transition INTO active —
+   * a service already live can still develop a finding afterward (a labor input
+   * cleared, a catalog edit introduces a dead route), so "has a blocker" and "has
+   * never launched" are not the same fact. A display surface must tell them apart
+   * rather than defaulting to "not yet live" language for a service that already is.
+   */
+  serviceActive?: boolean;
   href?: string;
   /**
    * MATERIAL_COST_UNRESOLVED only: the canonical role's own key and every
@@ -112,6 +124,51 @@ export type OnboardingReadiness = {
   /** Facts the schema cannot currently express. Reported, not worked around. */
   notes: string[];
 };
+
+/**
+ * A glance-able grouping of the seven real stages — for a summary view (the
+ * dashboard's own setup card) that has room for five items, not seven. This
+ * is the ONE place the grouping is defined; a summary screen imports it
+ * rather than hand-rolling a second list that can drift from the stage keys
+ * above. Every StageKey appears in exactly one group.
+ */
+export const SETUP_SUMMARY_GROUPS: { key: string; label: string; stages: StageKey[] }[] = [
+  { key: "business", label: "Business details", stages: ["business"] },
+  { key: "services", label: "Services", stages: ["trade", "services"] },
+  { key: "pricing", label: "Pricing", stages: ["pricing-foundation"] },
+  { key: "scheduling", label: "Scheduling", stages: ["scheduling", "payments"] },
+  { key: "launch", label: "Review & launch", stages: ["launch"] },
+];
+
+export type GroupStatus = "ready" | "warning" | "blocked" | "not-applicable";
+
+/**
+ * One group's status, worst-of its member stages — EXCEPT "launch", which
+ * asks a different question than its own narrow stage does. The launch
+ * STAGE only checks "is there something to sell" (`NOTHING_ACTIVATABLE`,
+ * `PRE_WORK_WITHOUT_DEPOSIT`, `SINGLE_SERVICE_LAUNCH`); it says nothing
+ * about whether business info or scheduling are also done, so it can read
+ * "ready" while the contractor genuinely cannot launch. `canLaunch` — the
+ * SAME blockers-anywhere check the Review & launch panel and the platform
+ * overview already use to decide whether a homeowner can book — is what
+ * "can this actually launch" already means; the launch GROUP reads it
+ * instead of re-deriving a second opinion from one narrow stage.
+ */
+export function summaryGroupStatus(
+  group: { key: string; stages: StageKey[] },
+  readiness: Pick<OnboardingReadiness, "stages" | "canLaunch">
+): GroupStatus {
+  const stageStatus = new Map(readiness.stages.map((s) => [s.key, s] as const));
+  const members = group.stages.map((k) => stageStatus.get(k)).filter((s): s is Stage => !!s);
+  if (members.length === 0) return "not-applicable";
+  if (group.key === "launch") {
+    if (!readiness.canLaunch) return "blocked";
+    return members.some((s) => s.status !== "ready") ? "warning" : "ready";
+  }
+  if (members.some((s) => s.status === "blocked")) return "blocked";
+  if (members.some((s) => s.status === "warning")) return "warning";
+  return "ready";
+}
 
 const b = (code: string, message: string, extra: Partial<Finding> = {}): Finding =>
   ({ code, severity: "blocker", message, ...extra });
@@ -286,12 +343,29 @@ export async function assessOnboarding(
     reason: svc.active ? "offered and live" : "offered, not yet live",
   }));
 
+  // NOTHING CHOSEN IS NOT THE SAME AS NOTHING WRONG. Every check below this
+  // point — material costs, policies, per-service pricing — is scoped to
+  // `intended`, so with zero services offered every one of them finds
+  // nothing to flag and both stages would otherwise read "ready": a
+  // contractor who has selected nothing would see "Services & pricing" and
+  // "Pricing foundation" as complete. A warning (never a blocker — the
+  // launch stage's own NOTHING_ACTIVATABLE already owns blocking launch on
+  // this fact) is enough to keep their status out of "ready" without
+  // reporting the same blocking reason a second time.
+  if (intended.length === 0) {
+    findings.services.push(w("NO_SERVICES_OFFERED",
+      "You haven't chosen which services you offer yet.", { href: "/dashboard/services" }));
+    findings["pricing-foundation"].push(w("NOTHING_OFFERED_YET",
+      "Choose your services first — there's nothing to cost until you do.", { href: "/dashboard/services" }));
+  }
+
   const held = settings ? await servicesOnHold(db, contractorId) : [];
   for (const h of held) {
-    if (!intended.some((i) => i.svc.slug === h.slug)) continue;
+    const match = intended.find((i) => i.svc.slug === h.slug);
+    if (!match) continue;
     findings["pricing-foundation"].push(b("MATERIAL_COST_ON_HOLD",
       `${h.slug} depends on ${h.heldRoles.length} material cost(s) still on hold.`,
-      { serviceSlug: h.slug, href: "/dashboard/services" }));
+      { serviceSlug: h.slug, serviceName: match.svc.name as string, serviceActive: match.svc.active as boolean, href: "/dashboard/services" }));
   }
   // GROUPED BY ROLE, not repeated per service.
   //
@@ -411,6 +485,7 @@ export async function assessOnboarding(
   const perServiceFindings = await mapWithConcurrency(intended, SERVICE_PROMISE_CONCURRENCY, async ({ svc }): Promise<Finding[]> => {
     const out: Finding[] = [];
     const slug = svc.slug as string;
+    const name = svc.name as string;
     const promise = await promiseFor(
       db, { id: svc.id as string, bookingType: svc.bookingType as string }, settings
     );
@@ -445,10 +520,10 @@ export async function assessOnboarding(
           ? w("HANDOFF_NOT_LIVE_YET",
               `${slug} sends "it stopped working" to ${diagnostic.kind === "ONE" ? diagnostic.name : "your diagnostic"}, which isn't live yet. ` +
               `Put that live and this resolves itself — we launch it first for you.`,
-              { serviceSlug: slug, href: IN_SETUP })
+              { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: IN_SETUP })
           : b("TREE_HAS_DEAD_ROUTE",
               `${slug} has ${promise.routes.dead} answer path(s) that reach nothing.`,
-              { serviceSlug: slug, href: "/dashboard/services" })
+              { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" })
       );
     }
 
@@ -462,7 +537,7 @@ export async function assessOnboarding(
           // cannot keep. What is true either way is that a route reaches an
           // amount and nobody has approved one.
           `${slug} reaches an amount for a homeowner, but none has been approved.`,
-          { serviceSlug: slug, href: "/dashboard/services" }));
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
       }
       if (settings) {
         const suggestion = suggestPrimaryPrice(svc as never, settings as never);
@@ -482,15 +557,15 @@ export async function assessOnboarding(
           // §3.1 defect the engine refuses a price to avoid.
           out.push(b("LABOR_INPUTS_MISSING",
             `${slug} can't be priced yet — ${lowerFirst(suggestion.unavailableReason ?? "an input is missing, not zero")}.`,
-            { serviceSlug: slug, href: `/dashboard/services/${svc.id as string}` }));
+            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/services/${svc.id as string}` }));
         } else if (svc.basePrice !== null && derived !== svc.basePrice) {
           out.push(w("PRICE_DRIFTED",
             `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
-            { serviceSlug: slug, href: "/dashboard/services" }));
+            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
         } else if (svc.publishedPriceApprovedAt === null && derived !== null) {
           out.push(w("SUGGESTED_NOT_APPROVED",
             `${slug} has a suggested price of $${(derived / 100).toFixed(2)} waiting for you to approve it.`,
-            { serviceSlug: slug, href: "/dashboard/services" }));
+            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
         }
       }
     } else {
@@ -504,17 +579,17 @@ export async function assessOnboarding(
         const unset = bad.some((x) => x.code === "unset");
         out.push(b(unset ? "ESTIMATE_BOUNDS_MISSING" : "ESTIMATE_BOUNDS_INVALID",
           `${slug} can't be priced yet — ${lowerFirst(bad[0].message)}`,
-          { serviceSlug: slug, href: "/dashboard/estimates" }));
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/estimates" }));
       } else if (svc.estimateApprovedAt === null) {
         out.push(b("ESTIMATE_NOT_APPROVED",
           `${slug} has an estimate range entered but not yet approved for customers.`,
-          { serviceSlug: slug, href: "/dashboard/estimates" }));
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/estimates" }));
       }
     }
     if (promise.routes.priced > 0 && promise.routes.review === 0) {
       out.push(w("TREE_UNBOUNDED",
         `${slug} prices every answer path. Nothing sends an unusual job to review.`,
-        { serviceSlug: slug, href: "/dashboard/services" }));
+        { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
     }
     return out;
   });
@@ -651,7 +726,12 @@ export async function assessOnboarding(
     payments: "/dashboard/payments",
   };
 
-  const order: StageKey[] = ["business", "trade", "pricing-foundation", "services", "scheduling", "payments", "launch"];
+  // Services BEFORE pricing foundation, deliberately: what you cost and
+  // calibrate labor for is derived from what you've chosen to sell. This
+  // array is the one canonical stage order — Guided Setup's own OPEN_STAGES
+  // list mirrors it rather than defining a second one, so the rail and the
+  // stage-gating logic can never again disagree about which comes first.
+  const order: StageKey[] = ["business", "trade", "services", "pricing-foundation", "scheduling", "payments", "launch"];
   const stages: Stage[] = order.map((key) => {
     const f = findings[key];
     const hasBlocker = f.some((x) => x.severity === "blocker");

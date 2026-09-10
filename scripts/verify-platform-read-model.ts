@@ -69,6 +69,23 @@ const SURFACE_POLICY: Policy = {
   // useFormStatus, decides nothing, queries nothing.
   "react-dom": ["useFormStatus"],
   "@/components/platform/SubmitButton": ["SubmitButton"],
+  // Admin Portal Redesign — the shared sidebar shell and its design-system
+  // primitives (components/ui/*). All presentational: they render from
+  // props already read through the platform boundary, hold no data of
+  // their own, and query nothing. `useState`/`useMemo` are the client-side
+  // filter state for the searchable directory, over rows the server already
+  // fetched — see ContractorDirectory's own header comment for why that
+  // never becomes a new guarded-client surface.
+  "react": ["useState", "useMemo"],
+  "@/components/ui/SidebarShell": ["SidebarShell"],
+  "@/components/platform/ContractorDirectory": ["ContractorDirectory"],
+  "@/components/ui/SearchInput": ["SearchInput"],
+  "@/components/ui/Card": ["Card", "CardHeader"],
+  "@/components/ui/Badge": ["Badge"],
+  "@/components/ui/Button": ["LinkButton"],
+  "@/components/ui/Donut": ["Donut"],
+  "@/components/ui/icons": ["HomeIcon", "UsersIcon", "ClipboardIcon", "AlertTriangleIcon", "StorefrontIcon", "ClockIcon", "ArrowRightIcon"],
+  "@/components/ui/illustrations": ["BusinessIllustration", "PricingIllustration", "BookingIllustration"],
 };
 const READ_MODEL_POLICY: Policy = {
   "./prisma": ["prisma"],

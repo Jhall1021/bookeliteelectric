@@ -249,9 +249,22 @@ export function attentionFor(f: ContractorFacts, now: Date = new Date()): Attent
 
 /** A directory row plus what its own boundary said — or why it could not be read. */
 export type OverviewRow = ContractorRow & (
-  | { readable: true; live: number; canLaunch: boolean; blockers: number }
+  | { readable: true; live: number; canLaunch: boolean; blockers: number; nextStep: string | null; stagesReady: number; stagesTotal: number }
   | { readable: false; error: string }
 );
+
+/**
+ * A short, actionable hint for the directory table's own "Next step" column
+ * — never a new completion rule, only a plain-language surface of facts
+ * `platformOverviewFor` already computed (owners, `readiness.blockers`).
+ * `null` means nothing is owed right now, not that nothing was checked.
+ */
+function nextStepFor(owners: string[], readiness: OnboardingReadiness): string | null {
+  if (owners.length === 0) return "Invite owner";
+  const blockedStage = readiness.stages.find((s) => s.status === "blocked");
+  if (blockedStage) return `Finish ${blockedStage.title.toLowerCase()}`;
+  return null;
+}
 
 /**
  * What the Attention page may CLAIM when it has nothing to list. "Nothing"
@@ -338,7 +351,17 @@ export async function platformOverviewFor(
       rows: rows.map((r, i) => {
         const x = results[i];
         return x.ok
-          ? { ...r, readable: true as const, live: x.facts.catalog.live, canLaunch: x.facts.readiness.canLaunch, blockers: x.facts.readiness.blockers.length }
+          ? {
+              ...r, readable: true as const, live: x.facts.catalog.live,
+              canLaunch: x.facts.readiness.canLaunch, blockers: x.facts.readiness.blockers.length,
+              nextStep: nextStepFor(r.owners, x.facts.readiness),
+              // Free — assessOnboarding already computed every stage's status
+              // for `nextStep` above; this just counts how many read "ready".
+              // No second query, and never a rule of its own about what
+              // "done" means.
+              stagesReady: x.facts.readiness.stages.filter((s) => s.status === "ready").length,
+              stagesTotal: x.facts.readiness.stages.length,
+            }
           : { ...r, readable: false as const, error: x.error };
       }),
       unreadable,

@@ -410,7 +410,7 @@ async function main() {
     "/api/admin/services/",
   ];
   const setupDir = ["page.tsx", "BusinessPanel.tsx", "SchedulingAuthorityControl.tsx",
-    "StageRail.tsx", "TradePanel.tsx", "PricingFoundationPanel.tsx",
+    "SetupStepperNav.tsx", "TradePanel.tsx", "PricingFoundationPanel.tsx",
     "SchedulingPanel.tsx", "PaymentsPanel.tsx", "LaunchPanel.tsx"];
   const endpoints = setupDir.flatMap((f) =>
     [...strip(`app/dashboard/setup/${f}`).matchAll(/fetch\(\s*[`"']([^`"'$]*)/g)].map((m) => m[1])

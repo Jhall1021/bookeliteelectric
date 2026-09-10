@@ -122,8 +122,8 @@ export default function TradePanel({
               </p>
               {preview.unresolvedMaterialRoles.length > 0 && (
                 <p className="mt-2">
-                  You&rsquo;ll need to tell us what {preview.unresolvedMaterialRoles.length} materials
-                  cost you before anything can be priced.
+                  Once you choose which of these you offer, we&rsquo;ll walk you through what each
+                  one costs — most materials already have a suggested cost to start from.
                 </p>
               )}
             </div>

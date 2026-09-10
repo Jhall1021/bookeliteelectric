@@ -7,7 +7,8 @@ import SchedulingAuthorityControl from "./SchedulingAuthorityControl";
 import NativeCapacityControl from "./NativeCapacityControl";
 import EmbedOriginsControl from "./EmbedOriginsControl";
 import BusinessPanel from "./BusinessPanel";
-import StageRail from "./StageRail";
+import SetupStepperNav from "./SetupStepperNav";
+import type { Step } from "@/components/ui/Stepper";
 import TradePanel from "./TradePanel";
 import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
 import MaterialBaselineBatchPanel, { type BaselineRow } from "./MaterialBaselineBatchPanel";
@@ -73,14 +74,37 @@ export default async function SetupPage({
       select: { hostedSlug: true, publicId: true, embedOrigins: true },
     });
 
-    const stageMeta = r.stages.map((s) => ({
-      key: s.key, title: s.title, status: s.status,
-      blockers: s.findings.filter((f) => f.severity === "blocker").length,
-      locked: !(OPEN_STAGES as readonly string[]).includes(s.key),
-    }));
+    // Same launch-stage exception as the stepper below: its own narrow
+    // status can read "ready" while canLaunch is false, and this count
+    // must never claim more stages are done than actually are.
     const complete = r.stages.filter(
-      (s) => (OPEN_STAGES as readonly string[]).includes(s.key) && s.status === "ready"
+      (s) => (OPEN_STAGES as readonly string[]).includes(s.key)
+        && (s.key === "launch" ? r.canLaunch : s.status === "ready")
     ).length;
+
+    // The compact stepper's own visual state — layered ON TOP of the
+    // readiness engine's status, never a second opinion about it. A stage
+    // you haven't reached yet stays neutral ("upcoming") even if it already
+    // has findings, the same way an untouched Scheduling stage always will
+    // (no calendar authority declared is a blocker from the moment a
+    // contractor is created); a stage you've already passed shows
+    // "attention" instead, because by then it's something you moved past
+    // rather than something you simply haven't gotten to.
+    const currentIndex = (OPEN_STAGES as readonly string[]).indexOf(current);
+    const steps: Step[] = r.stages
+      .filter((s) => (OPEN_STAGES as readonly string[]).includes(s.key))
+      .map((s) => {
+        const index = (OPEN_STAGES as readonly string[]).indexOf(s.key);
+        if (s.key === current) return { key: s.key, title: s.title, state: "active" as const };
+        // "launch" is a narrow stage — it only asks "is there something to
+        // sell" — so it can read "ready" while other stages still block a
+        // real launch. `canLaunch` (blockers.length === 0, everywhere) is
+        // what "launch is actually complete" already means; this stage's
+        // own dot must never claim more than that.
+        const ready = s.key === "launch" ? r.canLaunch : s.status === "ready";
+        if (ready) return { key: s.key, title: s.title, state: "complete" as const };
+        return { key: s.key, title: s.title, state: index < currentIndex ? ("attention" as const) : ("upcoming" as const) };
+      });
 
     let jobberConnected = false;
     let eligibleCrew = 0;
@@ -398,11 +422,11 @@ export default async function SetupPage({
           {r.warnings.length > 0 && ` · ${r.warnings.length} to review`}
         </p>
 
-        <div className="mt-8 grid gap-8 md:grid-cols-[220px_1fr]">
-          <aside>
-            <StageRail stages={stageMeta} current={current} />
-          </aside>
+        <div className="mt-6">
+          <SetupStepperNav steps={steps} stageKeys={OPEN_STAGES} current={current} />
+        </div>
 
+        <div className="mt-6">
           <main>
             <h2 className="font-display text-xl font-bold text-navy">{stage.title}</h2>
 
@@ -473,7 +497,9 @@ export default async function SetupPage({
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
                 />
                 <MaterialBaselineBatchPanel rows={baselineRows} />
-                {laborTasks.length > 0 && <LaborWizardPanel tasks={laborTasks} />}
+                {laborTasks.length > 0 && (
+                  <LaborWizardPanel tasks={laborTasks} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
+                )}
               </div>
             )}
 

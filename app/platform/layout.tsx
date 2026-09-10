@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   NotAuthenticatedError, NotPlatformStaffError, resolvePlatformActor,
 } from "@/lib/platformContext";
+import { SidebarShell, type NavItem } from "@/components/ui/SidebarShell";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +21,12 @@ export const dynamic = "force-dynamic";
  * attention. Onboarding is the one surface that changes anything, and it does
  * so only through lib/platformOnboarding's reviewed commands.
  */
-const NAV = [
-  { href: "/platform", label: "Overview" },
-  { href: "/platform/contractors", label: "Contractors" },
-  { href: "/platform/attention", label: "Attention needed" },
-  { href: "/platform/onboarding", label: "Onboarding" },
-] as const;
+const NAV: NavItem[] = [
+  { href: "/platform", label: "Overview", icon: "home", exact: true },
+  { href: "/platform/contractors", label: "Contractors", icon: "users" },
+  { href: "/platform/onboarding", label: "Onboarding", icon: "clipboard" },
+  { href: "/platform/attention", label: "Attention needed", icon: "attention" },
+];
 
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   let actor;
@@ -38,24 +39,15 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   }
 
   return (
-    <div className="min-h-screen bg-warmwhite">
-      <header className="border-b border-cardline bg-navy text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-3 text-sm">
-          <div className="flex items-center gap-6">
-            <span className="font-display font-bold">Price2Book · Platform</span>
-            <nav className="flex items-center gap-4" aria-label="Platform">
-              {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className="text-white/80 hover:text-white hover:underline">{n.label}</Link>
-              ))}
-            </nav>
-          </div>
-          <span className="text-white/80">
-            {actor.email} · {actor.role}
-          </span>
-        </div>
-      </header>
-      <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
-    </div>
+    <SidebarShell
+      homeHref="/platform"
+      switcherLabel="Platform admin"
+      primary={NAV}
+      notifications={{ href: "/platform/attention", label: "Attention needed" }}
+      identity={{ name: actor.email, email: actor.email }}
+    >
+      {children}
+    </SidebarShell>
   );
 }
 

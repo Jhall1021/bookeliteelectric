@@ -166,13 +166,10 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
                                  return n;
                                })} />
                       )}
-                      <span className="font-medium text-navy">{r.name}</span>
-                      <span className="text-xs text-slate">({r.key})</span>
+                      <span className="font-medium text-navy" title={r.key}>{r.name}</span>
                     </div>
-                    <p className="mt-1 text-xs text-slate">
-                      Needed by {r.affectedServiceSlugs.length} service{r.affectedServiceSlugs.length === 1 ? "" : "s"}:{" "}
-                      {r.affectedServiceSlugs.slice(0, 3).join(", ")}
-                      {r.affectedServiceSlugs.length > 3 ? `, and ${r.affectedServiceSlugs.length - 3} more` : ""}
+                    <p className="mt-1 text-xs text-slate" title={r.affectedServiceSlugs.join(", ")}>
+                      Needed by {r.affectedServiceSlugs.length} of your services
                     </p>
                   </div>
                   <button type="button" disabled={busy} onClick={() => remove([r.canonicalMaterialId])}
