@@ -33,6 +33,8 @@ const clear = (feet: string, inside = "0", outside = "0", surface = "drywall") =
   [SURFACE_KEYS.feet]: feet,
   [SURFACE_KEYS.inside]: inside,
   [SURFACE_KEYS.outside]: outside,
+  // Zero flat corners: the component is omitted, so every expectation below is unchanged.
+  [SURFACE_KEYS.flat]: "0",
   [SURFACE_KEYS.surface]: surface,
   [SURFACE_KEYS.obstacles]: "clear",
 });

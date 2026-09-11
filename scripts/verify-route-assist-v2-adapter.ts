@@ -199,6 +199,8 @@ async function main() {
     [SURFACE_KEYS.feet]: answerFor(SURFACE_KEYS.feet, r) ?? "",
     [SURFACE_KEYS.inside]: answerFor(SURFACE_KEYS.inside, r) ?? "",
     [SURFACE_KEYS.outside]: answerFor(SURFACE_KEYS.outside, r) ?? "",
+    // Route Assist has no flat-turn observation yet, so the homeowner answers it.
+    [SURFACE_KEYS.flat]: "0",
     [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear",
   });
   /* eslint-disable @typescript-eslint/no-explicit-any */

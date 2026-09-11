@@ -87,6 +87,7 @@ async function main() {
   console.log("\n  5  DIRECT vs IN-FLOW SURFACE EQUIVALENCE\n");
   {
     const facts = { [SURFACE_KEYS.feet]: "31", [SURFACE_KEYS.inside]: "2", [SURFACE_KEYS.outside]: "0",
+                    [SURFACE_KEYS.flat]: "0",
                     [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear" };
     const direct = await walk(DIRECT, facts);
     const inFlow = await walk(OUTLET, { ...qualified, below_above_access: "no_access",
@@ -187,7 +188,8 @@ async function main() {
 
     const dup = await walk(OUTLET, { ...qualified, below_above_access: "no_access",
       [OUTLET_V2_KEYS.method]: "surface", [SURFACE_KEYS.feet]: "31", [SURFACE_KEYS.inside]: "2",
-      [SURFACE_KEYS.outside]: "1", [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear" });
+      [SURFACE_KEYS.outside]: "1", [SURFACE_KEYS.flat]: "0",
+      [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear" });
     const keys = comps(dup).map((c: any) => c.key);
     ok(new Set(keys).size === keys.length, "18  no duplicated component in a resolved recipe", JSON.stringify(keys));
 

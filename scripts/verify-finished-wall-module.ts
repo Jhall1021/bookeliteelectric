@@ -90,6 +90,7 @@ async function main() {
       "B  50 ft accessible concealed still builds its recipe", JSON.stringify(comps(acc)));
     const surf = await walk("surface-mounted-outlet", {
       [SURFACE_KEYS.feet]: "63", [SURFACE_KEYS.inside]: "0", [SURFACE_KEYS.outside]: "0",
+      [SURFACE_KEYS.flat]: "0",
       [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear" });
     ok(built(surf) && qty(surf, "SURFACE_ROUTE_FT") === 63,
       "B  63 ft surface-mounted still builds its recipe", JSON.stringify(comps(surf)));

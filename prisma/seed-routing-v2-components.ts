@@ -135,6 +135,23 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
       "EXCLUDES: route length, route setup, the endpoint, and inside corners, which are counted " +
       "separately. OBSERVABLE GEOMETRY, NOT A PRODUCT. OMITTED ENTIRELY WHEN THE COUNT IS ZERO.",
   },
+  {
+    key: "SURFACE_ROUTE_FLAT_CORNER",
+    name: "Surface-mounted route — flat corner",
+    customerFacingLabel: "Corner along the same wall",
+    notes:
+      "MEASURED QUANTITY, unit = one flat corner, quantity from the homeowner's count. " +
+      "INCLUDES: turning the surface route ninety degrees WITHIN one flat surface — the fitting " +
+      "that requires and the labor of forming and fixing it. " +
+      "EXCLUDES: route length, route setup, the endpoint, and the inside and outside corners, " +
+      "which are different physical turns counted separately. " +
+      "WHY IT IS ITS OWN COMPONENT: the NECA Manual of Labor Units publishes a flat elbow as a " +
+      "distinct line item in every raceway family, at a different figure from the internal and " +
+      "external elbows. A route that turns along a wall consumes a different fitting from one " +
+      "that turns into or around a corner, and folding them together would make a real part " +
+      "invisible to any takeoff. " +
+      "OBSERVABLE GEOMETRY, NOT A PRODUCT. OMITTED ENTIRELY WHEN THE COUNT IS ZERO.",
+  },
 
   // ── endpoints. What is being installed, independent of how power reaches it. ──
   {

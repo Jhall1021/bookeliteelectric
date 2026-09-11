@@ -95,7 +95,8 @@ async function main() {
 
   const expected = [
     OUTLET_V2_KEYS.method, ACCESSIBLE_KEYS.feet,
-    SURFACE_KEYS.feet, SURFACE_KEYS.inside, SURFACE_KEYS.outside, SURFACE_KEYS.surface, SURFACE_KEYS.obstacles,
+    SURFACE_KEYS.feet, SURFACE_KEYS.inside, SURFACE_KEYS.outside, SURFACE_KEYS.flat,
+    SURFACE_KEYS.surface, SURFACE_KEYS.obstacles,
     FINISHED_KEYS.backToBack, FINISHED_KEYS.feet, FINISHED_KEYS.surface,
     FINISHED_KEYS.obstacles, FINISHED_KEYS.method, FINISHED_KEYS.baseboard,
   ];
@@ -109,7 +110,7 @@ async function main() {
 
   const bounds = [
     [ACCESSIBLE_KEYS.feet, 1, 300], [SURFACE_KEYS.feet, 1, 200],
-    [SURFACE_KEYS.inside, 0, 20], [SURFACE_KEYS.outside, 0, 20],
+    [SURFACE_KEYS.inside, 0, 20], [SURFACE_KEYS.outside, 0, 20], [SURFACE_KEYS.flat, 0, 20],
     [FINISHED_KEYS.feet, 1, 300],
   ] as const;
   for (const [k, min, max] of bounds) {
@@ -139,6 +140,7 @@ async function main() {
   console.log("\n  B  THE REAL RESOLVER, ON A CONTRACTOR WITH NO ECONOMICS\n");
   {
     const facts = { [SURFACE_KEYS.feet]: "31", [SURFACE_KEYS.inside]: "2", [SURFACE_KEYS.outside]: "0",
+                    [SURFACE_KEYS.flat]: "0",
                     [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear" };
     const inFlow = await walk(OUTLET_SLUG, { ...qualified, below_above_access: "no_access",
       [OUTLET_V2_KEYS.method]: "surface", ...facts });
@@ -214,6 +216,7 @@ async function main() {
   console.log("\n  D  DIRECT vs IN-FLOW, ON THE NEW CONTRACTOR\n");
   {
     const facts = { [SURFACE_KEYS.feet]: "31", [SURFACE_KEYS.inside]: "2", [SURFACE_KEYS.outside]: "0",
+                    [SURFACE_KEYS.flat]: "0",
                     [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear" };
     const direct = await walk(DIRECT, facts);
     const inFlow = await walk(OUTLET_SLUG, { ...qualified, below_above_access: "no_access",
@@ -270,7 +273,13 @@ async function main() {
     ok(cc.every((x) => !x.addFieldLaborHours && !x.addMaterialCostCents),
       "E  and no component labor hours or material cost",
       JSON.stringify(cc.filter((x) => x.addFieldLaborHours || x.addMaterialCostCents).slice(0, 3)));
-    ok(eCC === 44, `E  Elite still has its own ${eCC} component rows — nothing was moved`, String(eCC));
+    // The invariant, not a magic number: Elite keeps its own rows and the fresh
+    // contractor has none of them. A hard-coded 44 broke the moment a new
+    // canonical component was added, which is a change of catalog rather than
+    // a leak between tenants.
+    ok(eCC > 0 && cc.length === 0,
+      `E  Elite keeps its own ${eCC} component rows and the fresh contractor has ${cc.length} — nothing moved`,
+      `elite=${eCC} fresh=${cc.length}`);
 
     const cm = await prisma.contractorMaterial.findMany({
       where: { contractorId: CID }, select: { unitCostCents: true } });

@@ -40,12 +40,14 @@ export const SURFACE_ROUTE_COMPONENTS = [
   "SURFACE_ROUTE_FT",
   "SURFACE_ROUTE_INSIDE_CORNER",
   "SURFACE_ROUTE_OUTSIDE_CORNER",
+  "SURFACE_ROUTE_FLAT_CORNER",
 ] as const;
 
 export const SURFACE_KEYS = {
   feet: "surface_route_feet",
   inside: "surface_inside_corner_count",
   outside: "surface_outside_corner_count",
+  flat: "surface_route_flat_corner_count",
   surface: "surface_mounting_surface",
   obstacles: "surface_route_obstacles",
 } as const;
@@ -93,7 +95,7 @@ export async function attachSurfaceRouteModule(
       "Look along the wall between the power source and the new spot. We're asking what you can " +
       "see — you don't need to know how it's built.",
     inputType: "SINGLE_SELECT",
-    order: entryOrder + 4,
+    order: entryOrder + 5,
   });
 
   const qSurface = await upsertQuestion(prisma, serviceId, {
@@ -101,7 +103,7 @@ export async function attachSurfaceRouteModule(
     prompt: "What is that wall surface?",
     helpText: "If you're not certain, choose “I'm not sure” and we'll take a look.",
     inputType: "SINGLE_SELECT",
-    order: entryOrder + 3,
+    order: entryOrder + 4,
   });
 
   const qOutside = await upsertQuestion(prisma, serviceId, {
@@ -115,6 +117,30 @@ export async function attachSurfaceRouteModule(
     numberMin: SURFACE_BOUNDS.corners.min,
     numberMax: SURFACE_BOUNDS.corners.max,
     order: entryOrder + 2,
+  });
+
+  /**
+   * FLAT CORNER — a ninety-degree turn that never leaves the wall.
+   *
+   * Physically distinct from both siblings, and the research settled it: the
+   * NECA MLU publishes a flat elbow as its own line in every raceway family
+   * (2911, 411, 811, G4011), separately from the internal and external elbows,
+   * and at a different figure. Overloading either of the existing corner
+   * questions would have made a real fitting invisible to any takeoff.
+   *
+   * Same bounds and same NUMBER contract as its siblings — deliberately, since
+   * nothing about counting flat turns differs from counting the other two.
+   */
+  const qFlat = await upsertQuestion(prisma, serviceId, {
+    key: SURFACE_KEYS.flat,
+    prompt: "How many times does the route turn a corner while staying on the same wall?",
+    helpText:
+      "This is a turn that stays flat against the surface — the wiring changes direction but never " +
+      "leaves the wall, for example going along and then up. If there are none, enter 0.",
+    inputType: "NUMBER",
+    numberMin: SURFACE_BOUNDS.corners.min,
+    numberMax: SURFACE_BOUNDS.corners.max,
+    order: entryOrder + 3,
   });
 
   const qInside = await upsertQuestion(prisma, serviceId, {
@@ -152,7 +178,12 @@ export async function attachSurfaceRouteModule(
 
   await numberOption(qFeet.id, qInside.id, "Route length in feet");
   await numberOption(qInside.id, qOutside.id, "Inside corner count");
-  await numberOption(qOutside.id, qSurface.id, "Outside corner count");
+  // The flat corner sits INSIDE the chain, not merely beside it. A component
+  // may only bind its quantity to a question the walked path actually asked —
+  // adding the question without threading it here made the binding unreachable
+  // and the resolver said so, which is the guard working.
+  await numberOption(qOutside.id, qFlat.id, "Outside corner count");
+  await numberOption(qFlat.id, qSurface.id, "Flat corner count");
 
   // Mounting surface. Ordinary surfaces continue; anything we cannot fix a
   // method to from a homeowner's description goes to review rather than being
@@ -213,6 +244,10 @@ export async function attachSurfaceRouteModule(
         quantity: 1, quantityAnswerKey: SURFACE_KEYS.inside },
       { answerOptionId: clear.id, canonicalComponentId: await comp("SURFACE_ROUTE_OUTSIDE_CORNER"),
         quantity: 1, quantityAnswerKey: SURFACE_KEYS.outside },
+      // The generic binding, not a surface-specific engine: 0 omits the
+      // component, 3 yields exactly 3. Same mechanism as the other two turns.
+      { answerOptionId: clear.id, canonicalComponentId: await comp("SURFACE_ROUTE_FLAT_CORNER"),
+        quantity: 1, quantityAnswerKey: SURFACE_KEYS.flat },
       // The only endpoint-dependent lines in the whole module.
       { answerOptionId: clear.id, canonicalComponentId: await comp(recipe.core), quantity: 1 },
       { answerOptionId: clear.id, canonicalComponentId: await comp(recipe.box), quantity: 1 },
