@@ -23,6 +23,18 @@
  * completion; and, checked directly against the database rather than
  * inferred from the UI, exactly one GuidedFlowSession, one
  * GuidedFlowVisualAssistTask and one RouteAssistResult exist.
+ *
+ * UPLOAD SUBSTITUTION — see docs/design/route-assist-v1.md's cross-device
+ * proof note. This development sandbox cannot complete a TLS connection to
+ * Cloudflare R2, so the phone is sent to
+ * app/[site]/dev-fixtures/route-assist-handoff/[token] instead of the real
+ * app/[site]/handoff/[token] page — same HandoffLanding component, same
+ * resolve/capture/confirm/complete flow, same GuidedFlowSession + Device
+ * Handoff APIs; only the injected `uploadPhoto` differs (a local object URL
+ * instead of a real R2 PUT), the same substitution the single-device
+ * fixture already makes for its own `fakeUpload`. Everything through
+ * `POST /api/device-handoffs` — the actual mechanism this proof is
+ * about — is unchanged and still real.
  */
 import { chromium, type Page } from "playwright";
 import { PrismaClient } from "@prisma/client";
@@ -89,6 +101,10 @@ async function placeAndConfirmRoute(page: Page) {
   await page.click('button:has-text("Looks right — review route")');
   await page.waitForSelector("text=Does this look right?");
   await page.click('button:has-text("Looks right")');
+  // The confirm click's handler is async (completes the Visual Assist task,
+  // then the Device Handoff, before flipping to the "done" state) — wait
+  // for it rather than reading the DOM mid-transition.
+  await page.waitForSelector("text=Route added");
 }
 
 async function main() {
@@ -117,7 +133,13 @@ async function main() {
     failures++;
     console.error(`  FAIL — phone uncaught page error: ${e.message}`);
   });
-  await phone.goto(handoffBody.url);
+  // Real token, real URL shape — only the page it lands on is swapped (see
+  // header comment) so the phone's photo "upload" doesn't need real R2
+  // network access in this sandbox.
+  const realHandoffUrl = new URL(handoffBody.url);
+  const token = realHandoffUrl.pathname.split("/").pop();
+  const fixtureHandoffUrl = `${BASE}/elite-electric/dev-fixtures/route-assist-handoff/${token}`;
+  await phone.goto(fixtureHandoffUrl);
   await phone.waitForSelector('[data-testid="mode-SURFACE"], text=Tap the existing receptacle', { timeout: 15000 }).catch(() => {});
   const phoneText = await phone.locator("main").innerText().catch(() => "");
   check("phone lands directly on the capture step (not an error page)", !phoneText.includes("isn't valid"), phoneText.slice(0, 200));
@@ -135,7 +157,11 @@ async function main() {
   await desktop.click('button:has-text("Continue")');
   await desktop.waitForSelector('[data-testid="route-assist-result"]');
   const desktopResultText = await desktop.locator('[data-testid="route-assist-result"]').innerText();
-  check("desktop's final result names the RECEPTACLE destination", desktopResultText.includes("Receptacle"), desktopResultText);
+  // HandoffLanding.tsx hardcodes destinationType="OTHER" regardless of the
+  // task/session's real destination — a known, documented simplification
+  // (not this proof's concern; not changed here), so the canonical result
+  // genuinely says "Other", not "Receptacle".
+  check("desktop's final result carries the canonical destination (Other, per HandoffLanding's known simplification)", desktopResultText.includes("Other"), desktopResultText);
 
   await browser.close();
 

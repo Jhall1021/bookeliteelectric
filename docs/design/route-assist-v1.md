@@ -83,25 +83,52 @@ registered — that seam is designed in now, built later.
 
 ### 1.3.1 Device Handoff — a desktop customer's path to the camera step
 
-A desktop customer reaching a Route Assist camera step needs to continue on
-a phone (see `docs/design/device-handoff-v1.md`). Device Handoff is built
-as a separate, reusable capability (`lib/device-handoff/`) — not a
-Route-Assist-only QR implementation — with its token/lifecycle domain
-implemented and proven. **It cannot resume an in-progress quote yet**,
-because no mid-flow booking session exists anywhere in this codebase to
-resume (`GuidedFlowEngine` is pure client state today) — that's a
-prerequisite change to the shared booking engine, flagged as its own
-decision point in that doc's §3 rather than built silently inside this
-branch. Route Assist's mobile-only flow (this doc) doesn't depend on that
-landing; the desktop entry path does.
+**Status, updated 10 Sep 2026 — live, not a blocker.** A desktop customer
+reaching a Route Assist camera step continues on a phone via Device Handoff
+(`docs/design/device-handoff-v1.md`), built as a separate, reusable
+capability (`lib/device-handoff/`), not a Route-Assist-only QR
+implementation. What this section originally called a blocker — no mid-flow
+booking session to hand a QR code to — is resolved: `GuidedFlowSession`
+persists the flow server-side (`docs/design/guided-flow-session-v1.md`), and
+`RouteAssistWithHandoff.tsx` (desktop) + `HandoffLanding.tsx` (phone,
+`app/[site]/handoff/[token]/page.tsx`) implement the full continuation —
+desktop creates a `GuidedFlowVisualAssistTask` and a Device Handoff, the
+phone's scan resolves into the SAME `GuidedFlowSession`, captures the route,
+and the desktop observes completion by polling the task, all against one
+canonical result — exercised end to end by
+`scripts/verify-route-assist-cross-device-browser.ts`.
+
+**Cross-device orchestration was proven end-to-end with a fixture-only
+upload adapter because the development sandbox cannot establish TLS to
+Cloudflare R2. Production R2 URL generation was separately verified with the
+real account ID. A real-storage transport proof from an unrestricted
+environment remains required before production rollout.** Concretely: the
+proof script sends the phone to
+`app/[site]/dev-fixtures/route-assist-handoff/[token]` instead of the real
+`app/[site]/handoff/[token]`, a fixture page that renders the SAME
+`HandoffLanding` component with every real API call intact
+(`GuidedFlowSession`, the Visual Assist task, Device Handoff resolve/status/
+complete) and only `uploadPhoto` swapped for a local object URL, the same
+substitution the single-device fixture already makes with its own
+`fakeUpload`. `HandoffLanding.tsx`, `lib/upload.ts`, and the real production
+page are untouched. `scripts/verify-upload-presign-url.ts` separately proves
+the real presign route — the actual code that builds the R2 upload URL a
+real browser would receive — produces the correct
+`{bucket}.{accountId}.r2.cloudflarestorage.com` endpoint and a well-formed
+public URL, without making any network call (`getSignedUrl` computes a
+SigV4 signature locally), closing the gap the fixture substitution leaves
+open.
 
 ### 1.4 What genuinely doesn't exist yet (blockers, not conflicts)
 
-1. **No Prisma model for Route Assist results.** Visual Assist itself has
-   none either — this is consistent with the rest of the codebase's stated
-   posture ("no migration in this workstream," per `pricesight-v1.md`).
-   Phase 1 ships a pure, DB-free domain library plus a documented model shape
-   (§6) for review, not a migration.
+1. **No DEDICATED Prisma model for Route Assist results — superseded, not a
+   gap.** Phase 1 shipped a pure, DB-free domain library plus a documented
+   model shape (§6) for review, no migration, on the stated posture that
+   Visual Assist itself has none either ("no migration in this workstream,"
+   per `pricesight-v1.md`). `GuidedFlowVisualAssistTask.result` (added by
+   `docs/design/guided-flow-session-v1.md`) now persists a `RouteAssistResult`
+   as JSON against that documented shape — one task, one canonical result,
+   no separate Route-Assist-specific table, exactly as §6 anticipated.
 2. **No private photo storage is live.** `lib/visual-assist/storage.ts`
    (private R2 bucket, no public URL) is uncommitted and its env vars are
    presumably unconfigured. The only *live* photo upload path is the public
@@ -340,12 +367,16 @@ whether clicking, dragging and tagging on screen actually produces that
 input — and a real pass found a defect a domain-only suite structurally
 cannot catch (below).
 
-**`app/dev-fixtures/route-assist/page.tsx`** is a committed test fixture,
-not a product route (Route Assist has no product route yet — §1.4). It
-mounts `RouteAssistCapture` behind a `?case=` query param selecting one of
+**`app/[site]/dev-fixtures/route-assist/page.tsx`** is a committed test
+fixture, not a product route (Route Assist has no product route yet — §1.4).
+It mounts `RouteAssistCapture` behind a `?case=` query param selecting one of
 the four proof scenarios, and exists so both a human and
 `scripts/verify-route-assist-browser.ts` can drive the real component
-without waiting on booking-tree integration.
+without waiting on booking-tree integration. It lives under `app/[site]/`
+rather than at the root — the same fixture also supports `?mode=handoff`,
+exercising the real cross-device flow (§1.3.1) via `RouteAssistWithHandoff`,
+which needs the `SiteProvider` context every real storefront page gets from
+that layout.
 
 **`scripts/verify-route-assist-browser.ts`** — raw `playwright`
 (`chromium.launch()`) driven via `tsx`, the same tool and pattern
