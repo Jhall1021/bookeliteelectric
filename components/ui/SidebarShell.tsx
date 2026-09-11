@@ -8,24 +8,12 @@ import { LogoMark, BellIcon, ChevronDownIcon, NAV_ICONS, type NavIconKey } from 
 
 /**
  * The one navigation shell for both admin surfaces — Price2Book staff and
- * the contractor's own dashboard: a permanent navy sidebar, a white utility
- * header, a light canvas below. Neither surface had this before (both used
- * a horizontal top bar — see git history on PortalChrome.tsx and the
- * pre-redesign app/platform/layout.tsx).
+ * the contractor's own dashboard. The visual system belongs here so every
+ * operational page inherits the same typography, spacing and navigation
+ * language without each feature inventing its own chrome.
  *
- * EVERY HEADER CONTROL IS REAL. There is no header search box: nothing in
- * either surface searches "services, settings, or help" as one index, and a
- * text field that goes nowhere is worse than no field. The contractor
- * directory keeps its own working, scoped search instead (see
- * ContractorDirectory.tsx). The bell and the business switcher below are
- * real for the same reason — each points at a capability that already
- * exists, never a decoration added to match a reference image.
- *
- * MOBILE DRAWER FOLLOWS components/marketing/MobileNav.tsx's OWN PATTERN —
- * the only prior art for a collapsing nav in this codebase: plain `useState`
- * (no headless-UI dependency), the panel conditionally RENDERED rather than
- * CSS-hidden (so it is not tab-reachable while closed), and an Escape
- * handler that closes the drawer and returns focus to the trigger button.
+ * EVERY HEADER CONTROL IS REAL. There is no decorative search box: the bell,
+ * business switcher and account menu all point at capabilities that exist.
  */
 
 export type NavItem = { href: string; label: string; icon: NavIconKey; exact?: boolean; badge?: number };
@@ -34,24 +22,12 @@ export function SidebarShell({
   homeHref, switcherLabel, switcherHref, primary, footerLinks, tagline,
   notifications, identity, children,
 }: {
-  /** Where the wordmark links — this surface's own home, never the marketing site. */
   homeHref: string;
-  /** The contractor's own name, or "Platform admin" — always shown, never implied. */
   switcherLabel: string;
-  /** A REAL place to change which business this account acts for (the existing /choose chooser). Omit when there's nothing to switch to. */
   switcherHref?: string;
   primary: NavItem[];
-  /** Settings, and anything else real but secondary. Omit rather than link somewhere unbuilt. */
   footerLinks?: NavItem[];
   tagline?: string;
-  /**
-   * The bell — a real link, always. `count` is optional and left undefined
-   * on pages that haven't already computed it (the layout wraps every
-   * route, and re-running the count query on each navigation just to badge
-   * a bell is the "expensive dashboard query" this shell is built to avoid);
-   * a page that already has the number for its own content passes it
-   * through, no separate fetch.
-   */
   notifications?: { href: string; count?: number; label: string };
   identity: { name: string; email: string };
   children: React.ReactNode;
@@ -64,22 +40,6 @@ export function SidebarShell({
   const pathname = usePathname();
   const router = useRouter();
 
-  /**
-   * Focus management for the drawer, all through one effect keyed on
-   * `mobileOpen` so every way it closes — Escape, the backdrop, the close
-   * button, or a nav link navigating away (the pathname effect below) —
-   * runs the SAME cleanup and restores focus, rather than each dismiss path
-   * needing its own `.focus()` call and one of them (previously all but
-   * Escape) silently skipping it.
-   *
-   * Opening moves focus into the drawer (its first focusable element, which
-   * is the close button) instead of leaving it on the trigger behind the
-   * overlay, and Tab/Shift+Tab are trapped to the drawer's own focusable
-   * elements while it is open — without this, a keyboard user tabbing
-   * forward reaches the header's notification bell and avatar menu, then
-   * the page content underneath, none of which is visible under the
-   * backdrop.
-   */
   useEffect(() => {
     if (!mobileOpen) return;
     const drawer = drawerRef.current;
@@ -125,8 +85,6 @@ export function SidebarShell({
     return () => { document.removeEventListener("mousedown", onClick); document.removeEventListener("keydown", onKey); };
   }, [avatarOpen]);
 
-  // Close the drawer on navigation — otherwise a tapped link leaves a full
-  // overlay standing over the page it just navigated to.
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const isActive = (item: NavItem) =>
@@ -142,22 +100,27 @@ export function SidebarShell({
 
   const nav = (
     <nav className="flex h-full flex-col" aria-label="Primary">
-      <div className="px-5 pb-4 pt-6">
-        <Link href={homeHref} className="flex items-center gap-2 font-display text-lg font-bold text-white">
-          <LogoMark className="h-6 w-6 text-electric" />
+      <div className="px-5 pb-5 pt-6">
+        <Link href={homeHref} className="group flex items-center gap-3 font-display text-[17px] font-extrabold tracking-[-0.02em] text-white">
+          <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-white/[0.08] ring-1 ring-inset ring-white/10 transition group-hover:bg-white/[0.12]">
+            <LogoMark className="h-5 w-5 text-electric" />
+          </span>
           Price2Book
         </Link>
       </div>
 
-      <div className="px-5 pb-4">
+      <div className="px-4 pb-5">
         {switcherHref ? (
-          <Link href={switcherHref} className="block rounded-md border border-white/10 bg-white/5 px-3 py-2 hover:border-white/20">
-            <p className="truncate text-sm font-semibold text-white">{switcherLabel}</p>
-            <p className="text-xs text-white/60">Switch business</p>
+          <Link
+            href={switcherHref}
+            className="group block rounded-xl border border-white/10 bg-white/[0.055] px-3.5 py-3 transition hover:border-white/20 hover:bg-white/[0.08]"
+          >
+            <p className="truncate text-[13px] font-bold tracking-[-0.01em] text-white">{switcherLabel}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-white/45 transition group-hover:text-white/60">Switch business</p>
           </Link>
         ) : (
-          <div className="rounded-md border border-white/10 bg-white/5 px-3 py-2">
-            <p className="truncate text-sm font-semibold text-white">{switcherLabel}</p>
+          <div className="rounded-xl border border-white/10 bg-white/[0.055] px-3.5 py-3">
+            <p className="truncate text-[13px] font-bold tracking-[-0.01em] text-white">{switcherLabel}</p>
           </div>
         )}
       </div>
@@ -168,51 +131,50 @@ export function SidebarShell({
         ))}
       </div>
 
-      <div className="space-y-1 border-t border-white/10 px-3 py-3">
+      <div className="mx-3 space-y-1 border-t border-white/[0.08] pb-2 pt-3">
         {(footerLinks ?? []).map((item) => (
           <SidebarLink key={item.href} item={item} active={isActive(item)} />
         ))}
       </div>
 
-      {tagline && <p className="px-5 pb-5 text-[11px] text-white/40">{tagline}</p>}
+      {tagline && <p className="px-5 pb-5 pt-1 text-[10px] font-medium tracking-[0.03em] text-white/30">{tagline}</p>}
     </nav>
   );
 
   return (
-    <div className="min-h-screen bg-warmwhite">
+    <div className="p2b-app min-h-screen">
       <div className="lg:flex">
-        <aside className="hidden lg:block lg:w-64 lg:shrink-0 lg:bg-navy">
+        <aside className="hidden lg:block lg:w-[260px] lg:shrink-0 lg:bg-[#0D1F3B]">
           <div className="lg:sticky lg:top-0 lg:h-screen">{nav}</div>
         </aside>
 
         <div className="min-w-0 flex-1">
-          {/* Utility header — white, real controls only. */}
-          <header className="flex items-center justify-between gap-4 border-b border-cardline bg-white px-4 py-3 lg:px-8">
+          <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-line/80 bg-white/90 px-4 backdrop-blur-md lg:px-8">
             <button
               ref={menuButtonRef}
               type="button"
               onClick={() => setMobileOpen(true)}
               aria-expanded={mobileOpen}
               aria-controls="admin-mobile-nav"
-              className="rounded-md p-2 text-navy hover:bg-warmwhite lg:hidden"
+              className="rounded-[10px] border border-line bg-white p-2 text-ink shadow-sm transition hover:bg-canvas lg:hidden"
             >
               <span className="sr-only">Open navigation</span>
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <span className="font-display text-sm font-semibold text-navy lg:hidden">{switcherLabel}</span>
+            <span className="font-display text-sm font-bold tracking-[-0.01em] text-ink lg:hidden">{switcherLabel}</span>
 
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex items-center gap-2">
               {notifications && (
                 <Link
                   href={notifications.href}
                   aria-label={notifications.count ? `${notifications.label}: ${notifications.count}` : notifications.label}
-                  className="relative rounded-full p-2 text-navy hover:bg-warmwhite"
+                  className="relative rounded-[10px] p-2.5 text-ink-soft transition hover:bg-canvas hover:text-ink"
                 >
-                  <BellIcon className="h-5 w-5" />
+                  <BellIcon className="h-[18px] w-[18px]" />
                   {!!notifications.count && notifications.count > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                    <span className="absolute right-0 top-0 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
                       {notifications.count > 9 ? "9+" : notifications.count}
                     </span>
                   )}
@@ -224,20 +186,23 @@ export function SidebarShell({
                   type="button"
                   onClick={() => setAvatarOpen((v) => !v)}
                   aria-expanded={avatarOpen}
-                  className="flex items-center gap-1.5 rounded-full p-1 hover:bg-warmwhite"
+                  className="flex items-center gap-1 rounded-[12px] p-1.5 transition hover:bg-canvas"
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-electric text-xs font-bold text-white">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent text-[11px] font-extrabold text-white shadow-sm">
                     {initials}
                   </span>
-                  <ChevronDownIcon className="h-4 w-4 text-slate" />
+                  <ChevronDownIcon className="h-4 w-4 text-muted" />
                 </button>
                 {avatarOpen && (
-                  <div className="absolute right-0 top-full z-40 mt-2 w-56 rounded-card border border-cardline bg-white py-2 shadow-raised">
-                    <p className="truncate px-3 pb-2 text-xs text-slate">{identity.email}</p>
+                  <div className="absolute right-0 top-full z-40 mt-2 w-60 rounded-card border border-line bg-white p-2 shadow-raised">
+                    <div className="border-b border-line px-2 pb-2.5 pt-1.5">
+                      <p className="truncate text-[13px] font-bold text-ink">{identity.name}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-muted">{identity.email}</p>
+                    </div>
                     <button
                       type="button"
                       onClick={handleSignOut}
-                      className="block w-full px-3 py-1.5 text-left text-sm text-navy hover:bg-warmwhite"
+                      className="mt-1 block w-full rounded-[10px] px-2.5 py-2 text-left text-[13px] font-semibold text-ink-soft transition hover:bg-canvas hover:text-ink"
                     >
                       Sign out
                     </button>
@@ -247,26 +212,26 @@ export function SidebarShell({
             </div>
           </header>
 
-          <main className="mx-auto max-w-6xl px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+          <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">{children}</main>
         </div>
       </div>
 
       {mobileOpen && (
         <div id="admin-mobile-nav" className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} aria-hidden="true" />
+          <div className="absolute inset-0 bg-[#081426]/55 backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} aria-hidden="true" />
           <div
             ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Primary navigation"
             tabIndex={-1}
-            className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-navy shadow-raised"
+            className="absolute inset-y-0 left-0 w-[300px] max-w-[88vw] bg-[#0D1F3B] shadow-raised"
           >
             <div className="flex justify-end px-3 pt-3">
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="rounded-md p-2 text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                className="rounded-[10px] p-2 text-white/80 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
               >
                 <span className="sr-only">Close navigation</span>
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
@@ -288,14 +253,17 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
-        active ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
+      className={`relative flex items-center gap-3 rounded-[11px] px-3 py-2.5 text-[13px] font-semibold transition-all duration-150 ${
+        active
+          ? "bg-white/[0.11] text-white shadow-[inset_0_0_0_1px_rgb(255_255_255/0.035)]"
+          : "text-white/62 hover:bg-white/[0.055] hover:text-white"
       }`}
     >
-      <Icon className="h-[18px] w-[18px] shrink-0" />
+      {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-[#5F86FF]" aria-hidden="true" />}
+      <Icon className={`h-[17px] w-[17px] shrink-0 ${active ? "text-[#AFC2FF]" : "text-white/50"}`} />
       <span className="flex-1">{item.label}</span>
       {item.badge !== undefined && item.badge > 0 && (
-        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold text-white">
+        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500/90 px-1.5 text-[10px] font-extrabold text-white">
           {item.badge}
         </span>
       )}
