@@ -44,6 +44,14 @@ type Shot = {
   /**
    * Capture width in CSS px, defaulting to the full viewport.
    *
+   * THE 1040 CROP IS GONE for the admin surfaces. It was written when these
+   * sat in quarter-width module tiles; What You Control now shows them at
+   * 58vw, and the September portal redesign added a fixed ~245px sidebar that
+   * the crop could not pay for. The result cut sentences mid-word at the right
+   * edge — "jobs too long to finish before t", "you don't have t" — which
+   * reads as a broken screenshot rather than a cropped one. A full-viewport
+   * capture downsamples to roughly 835px on the page and stays legible.
+   *
    * The module tiles are a quarter of a 1440px grid, so a full-width capture
    * lands in them at roughly one fifth scale and every label turns to texture.
    * Cropping to the left of the screen instead keeps the same real screenshot
@@ -51,6 +59,16 @@ type Shot = {
    */
   width?: number;
   anchor?: string;
+  /**
+   * A control to press before the shutter opens, matched by its text.
+   *
+   * The service workspace keeps its four panes in the DOM and shows one, so a
+   * heading anchor can match a pane that is not on screen — which is how the
+   * first capture of the rebuilt editor produced a photograph of the Overview
+   * tab captioned as the question editor. Pressing the tab is the difference
+   * between "this heading exists" and "this is what a contractor sees".
+   */
+  click?: string;
   /**
    * Why this surface is NOT photographed for the marketing site. Recorded
    * here rather than by silently omitting the entry: "we have no screenshot
@@ -62,15 +80,15 @@ type Shot = {
 
 const SHOTS: Shot[] = [
   { name: "storefront", path: `/${DEMO.slug}/services/tv-media`, height: 760 },
-  { name: "services-pricing", width: 1040, path: "/dashboard/services", height: 620 },
-  { name: "storefront-design", width: 1040, path: "/dashboard/design", height: 620 },
-  { name: "hours-availability", width: 1040, path: "/dashboard/business-hours", height: 620 },
-  { name: "service-area", width: 1040, path: "/dashboard/service-area", height: 620 },
+  { name: "services-pricing", path: "/dashboard/services", height: 900 },
+  { name: "storefront-design", path: "/dashboard/design", height: 900 },
+  { name: "hours-availability", path: "/dashboard/business-hours", height: 900 },
+  { name: "service-area", path: "/dashboard/service-area", height: 900 },
   {
     name: "crew-eligibility", width: 1040, path: "/dashboard/jobber/crews", height: 620,
     notReady: "empty until a Jobber account is connected and crews are synced — the demo tenant has neither",
   },
-  { name: "integrations", width: 1040, path: "/dashboard/jobber", height: 620 },
+  { name: "integrations", path: "/dashboard/jobber", height: 900 },
   {
     name: "photo-review", width: 1040, path: "/dashboard/quotes", height: 620,
     notReady: "an empty queue; photographing it would need fabricated customer submissions",
@@ -130,7 +148,13 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
 
   const guided = await guidedPricingPath();
-  if (guided) SHOTS.splice(2, 0, { name: "guided-pricing", path: guided, height: 620, width: 1040, anchor: "Guided Pricing" });
+  // THE ANCHOR FOLLOWS THE PRODUCT. The service editor was rebuilt in the
+  // September workspace redesign — TreeEditor became GuidedPricingWorkspace —
+  // and the screen no longer carries a "Guided Pricing" heading. The anchor
+  // said so by refusing to shoot, which is the behavior working: it did not
+  // photograph whatever happened to be on screen. "Customer questions" is the
+  // rebuilt workspace's own heading.
+  if (guided) SHOTS.splice(2, 0, { name: "guided-pricing", path: guided, height: 900, click: "Customer questions", anchor: "Customer questions" });
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2 });
   const page = await ctx.newPage();
@@ -150,6 +174,20 @@ async function main() {
     if (!res || res.status() >= 400) {
       console.log(`  ! ${shot.name}: ${res?.status() ?? "no response"} at ${shot.path} — skipped`);
       continue;
+    }
+    if (shot.click) {
+      const pressed = await page.evaluate((text) => {
+        const el = [...document.querySelectorAll("button,[role='tab'],a")]
+          .find((e) => e.textContent?.trim() === text) as HTMLElement | undefined;
+        if (!el) return false;
+        el.click();
+        return true;
+      }, shot.click);
+      if (!pressed) {
+        console.log(`  ! ${shot.name}: no control labeled "${shot.click}" — skipped`);
+        continue;
+      }
+      await page.waitForTimeout(400);
     }
     if (shot.anchor) {
       const found = await page.evaluate((text) => {
