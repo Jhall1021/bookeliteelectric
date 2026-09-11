@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Inter_Tight } from "next/font/google";
 import "../styles/globals.css";
+import "../styles/admin.css";
 import ThemeTokens from "@/components/theme/ThemeTokens";
 
 // The approved Price2Book UI system uses Inter for body copy and Inter Tight
