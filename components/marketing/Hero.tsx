@@ -3,244 +3,177 @@ import { SHOTS } from "./shots";
 import ShotFigure from "./ShotFigure";
 
 /**
- * The hero — the contractor's own website, with their price inside it.
+ * The first screen now leads with the result a contractor wants, then proves it
+ * with the real contractor/customer product pair. The previous version put a
+ * long explanation, four bullets, a payoff and three calls to action ahead of
+ * the product on a phone; a visitor had to read most of the pitch before seeing
+ * what Price2Book actually is.
  *
- * ONE CARD, NOT TWO. A "Contractor · what you set" card used to sit behind
- * this one, so the hero read "you control this → your customer sees this".
- * The claim was right and the example was doing it badly: the card's most
- * interesting row was "While We're There™ +$95" against no named addition,
- * which is a price for nothing. Both the card and that pairing moved to the
- * While We're There™ section, where the mechanic is explained and the numbers
- * have something to attach to.
- *
- * What is left is the sentence the page most needs to land in three seconds —
- * keep your website, add Price2Book to it — carried by an address bar rather
- * than by a paragraph.
- *
- * The frame is a mock-up of the DESTINATION, and the embed that puts
- * Price2Book inside a contractor's page has not shipped. EMBED_STATUS.line
- * sits directly under it saying so, in the same visual, rather than in a
- * footnote further down that an interested reader would not meet until after
- * they had believed the picture.
+ * No new capability claims are introduced here. The stronger hierarchy is
+ * built entirely from the already-approved outcome copy in content.ts.
  */
 export default function Hero() {
   return (
-    <section id="top" className="mx-auto max-w-[1440px] px-5 pb-14 pt-12 lg:px-[88px] lg:pb-[72px] lg:pt-[76px]">
-      <div className="grid gap-10 lg:grid-cols-12 lg:items-start lg:gap-10">
-        <div className="lg:col-span-6">
-          <div className="mb-6 flex items-center gap-2.5 lg:mb-[26px]">
-            <div className="h-0.5 w-[26px] bg-p2b-accent" />
-            <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-p2b-accent lg:text-[15px]">
-              {HERO.eyebrow}
-            </span>
-          </div>
-
-          <h1 className="max-w-[17ch] text-[36px] font-bold leading-[1.06] tracking-[-0.022em] sm:text-[46px] lg:text-[56px] lg:leading-[1.03]">
-            {HERO.headline}
-          </h1>
-
-          <p className="mt-5 max-w-[50ch] text-[17px] leading-[1.55] text-p2b-ink-warm lg:mt-6 lg:text-[19px]">
-            {HERO.body}
-          </p>
-
-          {/* Four outcomes, scannable without reading the paragraph above. A
-              contractor who skims the hero should still leave with the four
-              things Price2Book removes from their day. */}
-          <ul className="mt-6 grid gap-x-7 gap-y-2.5 sm:grid-cols-2">
-            {HERO.proof.map((line) => (
-              <li key={line} className="flex gap-2.5 text-[15px] leading-[1.4] text-p2b-ink lg:text-base">
-                <svg viewBox="0 0 20 20" fill="none" stroke="#1B4B8F" strokeWidth="2.2"
-                     strokeLinecap="round" strokeLinejoin="round"
-                     className="mt-[3px] h-[15px] w-[15px] shrink-0" aria-hidden="true">
-                  <path d="M4 10.5 8 14.5 16 5.5" />
-                </svg>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-
-          <p className="mt-6 text-[18px] font-semibold leading-[1.35] tracking-[-0.01em] text-p2b-ink lg:text-[21px]">
-            {HERO.payoff}
-          </p>
-
-          {/* ORDER CHANGED: understanding before commitment. "See How It
-              Works" is the filled button because someone who just landed is
-              not ready to ask for access to a thing they cannot yet describe. */}
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-            <a href="/how-it-fits"
-               className="rounded-sm bg-p2b-accent px-[30px] py-4 text-center text-base font-semibold text-p2b-canvas hover:bg-p2b-accent-hover">
-              {HERO.primaryCta}
-            </a>
-            <a href="#access"
-               className="rounded-sm border border-p2b-ink px-[30px] py-4 text-center text-[15px] font-medium text-p2b-ink hover:border-p2b-accent hover:text-p2b-accent sm:border-0 sm:px-0 sm:py-0 sm:text-base">
-              {HERO.secondaryCta} <span aria-hidden="true">→</span>
-            </a>
-            {/* The demo is still real and still linked — it just stopped being
-                the way a visitor works out what the company is. */}
-            <a href="/demo"
-               className="text-center text-[15px] font-medium text-p2b-muted hover:text-p2b-accent sm:text-base">
-              {HERO.tertiaryCta} <span aria-hidden="true">→</span>
-            </a>
-          </div>
-
-          <p className="mt-6 text-[14px] text-p2b-muted lg:mt-8 lg:text-[15px]">
-            {HERO.support} <span className="font-medium text-p2b-ink">{HERO.supportEmphasis}</span>
-          </p>
-          <p className="mt-2.5 text-[13px] text-p2b-muted-soft lg:text-sm">{HERO.footnote}</p>
-        </div>
-
-        <div className="min-w-0 lg:col-span-6 lg:pl-[34px] lg:pt-2">
-          {/* The contractor's own page, with the real product running inside
-              it. The static price card that used to sit here showed the END of
-              the story; this shows the story. Everything in it is captured
-              from a live catalog — see HeroWalkthrough. */}
-          {/* FRAMING, OUTSIDE THE ISLAND — 2 September 2026.
-              The captured storefront carries that contractor's own no-estimates
-              line, which is TRUE of the Elite service being demonstrated and
-              must not be overridden: it is that contractor's product state,
-              not Price2Book's positioning. But
-              beside corporate copy offering Guided Estimates it could read as
-              the only model on offer. So the label sits outside the island and
-              names the configuration, leaving the capture untouched. That the
-              two can disagree is the point — the contractor picks per service. */}
-          {/* WAS THE ANIMATED WALKTHROUGH — 2 September 2026.
-              It is honest, captured from live data, and drift-checked, and it
-              is still the centerpiece of /demo. But it asked a visitor to
-              WATCH something for thirty seconds before they knew what they
-              were looking at, and the first screen is not where a company
-              should be inferred. A still of the same product says it at a
-              glance: a real storefront, a real question, a real approved
-              price. The moving version is one click away. */}
-          {/* FLUID WITH A CEILING, not a fixed width. `lg:w-[560px]` was
-              safe only while the two-column layout began at `xl`: 1280 minus
-              176px of padding leaves 552px per column, so 560 just fit. Moving
-              the nav breakpoint to `lg` to make the site reachable on tablets
-              started the same two-column layout at 1024, where the column is
-              about 404px — and a 560px panel inside it pushed the whole page
-              sideways, +102px at 1024, easing to +14px at 1200 and clear by
-              1240. The homepage scrolled horizontally on exactly the devices
-              the nav fix was for. max-w keeps the intended size everywhere it
-              fits and lets the panel shrink where it does not. */}
-          <div className="min-w-0 lg:mx-auto lg:w-full lg:max-w-[560px]">
-            <div className="mb-2.5 flex items-center gap-2">
-              <span className="h-1 w-1 shrink-0 rounded-full bg-p2b-faint" aria-hidden="true" />
-              <span className="text-[12px] leading-[1.4] text-p2b-muted-soft lg:text-[13px]">
-                A real storefront. The contractor’s name has been changed.
+    <section id="top" className="overflow-hidden border-b border-p2b-line/70 bg-[radial-gradient(circle_at_78%_8%,rgba(27,75,143,.07),transparent_31rem)]">
+      <div className="mx-auto max-w-[1480px] px-5 pb-12 pt-10 sm:px-8 lg:px-[72px] lg:pb-16 lg:pt-[68px] xl:px-[88px]">
+        <div className="grid gap-9 lg:grid-cols-12 lg:items-start lg:gap-12 xl:gap-16">
+          <div className="lg:col-span-5 lg:pt-2">
+            <div className="mb-5 flex items-center gap-2.5">
+              <span className="h-[2px] w-7 bg-p2b-accent" aria-hidden="true" />
+              <span className="text-[12px] font-bold uppercase tracking-[0.085em] text-p2b-accent sm:text-[13px]">
+                {HERO.eyebrow}
               </span>
             </div>
-            {/* OVERLAPPED, NOT STACKED.
-                Two panels in a column cost ~950px and the laptop fold is 800:
-                the customer screen landed above it, the control screen did
-                not. Only its navy bar peeked in, so the first screen said
-                "customers can get a price" and never showed the half that
-                says "you set the rules".
 
-                So the catalog becomes the BACKDROP and the price card floats
-                over it. Same two screenshots, same lightbox, a third of the
-                height — and the arrangement carries the argument the stack
-                could only imply: the customer's experience sits inside the
-                system the contractor controls.
+            {/* The contractor benefit is now the headline. It used to be the
+                first small bullet six paragraphs into the mobile hero. */}
+            <h1 className="max-w-[12ch] text-[42px] font-bold leading-[0.99] tracking-[-0.045em] text-p2b-ink sm:text-[52px] lg:text-[58px] xl:text-[64px]">
+              {HERO.proof[0]}.
+            </h1>
 
-                Overlap only from lg. Below that they stack, because a card on
-                top of another card at 390px hides more than it says. */}
-            <div className="relative lg:pb-8">
+            <p className="mt-5 max-w-[34ch] text-[21px] font-semibold leading-[1.28] tracking-[-0.018em] text-p2b-ink-warm sm:text-[23px] lg:text-[24px]">
+              {HERO.headline}
+            </p>
+
+            <p className="mt-4 max-w-[48ch] text-[16px] leading-[1.58] text-p2b-muted sm:text-[17px]">
+              {HERO.body}
+            </p>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <a
+                href="/how-it-fits"
+                className="inline-flex min-h-12 items-center justify-center rounded-[7px] bg-p2b-accent px-6 text-[15px] font-bold text-white shadow-[0_6px_18px_rgba(27,75,143,.16)] transition hover:-translate-y-px hover:bg-p2b-accent-hover"
+              >
+                {HERO.primaryCta}
+              </a>
+              <a
+                href="/demo"
+                className="inline-flex min-h-12 items-center justify-center rounded-[7px] border border-p2b-line bg-white px-5 text-[15px] font-semibold text-p2b-ink transition hover:border-p2b-accent-line hover:text-p2b-accent"
+              >
+                {HERO.tertiaryCta} <span className="ml-1.5" aria-hidden="true">→</span>
+              </a>
+            </div>
+
+            <a href="#access" className="mt-4 inline-flex text-[14px] font-semibold text-p2b-muted hover:text-p2b-accent">
+              {HERO.secondaryCta} <span className="ml-1.5" aria-hidden="true">→</span>
+            </a>
+
+            <p className="mt-6 max-w-[44ch] text-[13px] leading-5 text-p2b-muted-soft">
+              {HERO.support} <span className="font-semibold text-p2b-ink-warm">{HERO.supportEmphasis}</span>
+            </p>
+          </div>
+
+          <div className="min-w-0 lg:col-span-7">
+            <div className="mb-2.5 flex items-center gap-2">
+              <span className="h-1 w-1 shrink-0 rounded-full bg-p2b-faint" aria-hidden="true" />
+              <span className="text-[11px] leading-[1.4] text-p2b-muted-soft sm:text-[12px]">
+                A real product screen. The contractor’s name has been changed.
+              </span>
+            </div>
+
+            {/* Contractor control is the backdrop; the customer's approved
+                price sits over it. That relationship explains the product much
+                faster than two unrelated screenshots side by side. */}
+            <div className="relative lg:pb-10">
               {SHOTS.adminServices ? (
-                <div className="overflow-hidden rounded-[8px] border border-p2b-line bg-white shadow-[0_2px_6px_rgba(16,24,40,.06),0_22px_50px_-20px_rgba(16,24,40,.24)]">
-                  <div className="flex items-center gap-2.5 border-b border-p2b-line bg-p2b-navy-deep px-3.5 py-2.5">
+                <div className="overflow-hidden rounded-[10px] border border-p2b-line bg-white shadow-[0_2px_8px_rgba(16,24,40,.05),0_26px_64px_-28px_rgba(16,24,40,.28)]">
+                  <div className="flex items-center gap-2.5 border-b border-p2b-navy-line bg-p2b-navy-deep px-3.5 py-2.5">
                     <span className="text-[12px] font-bold text-[#F4F6F9] lg:text-[13px]">Price2Book</span>
-                    <span className="rounded-full bg-[rgba(255,255,255,.14)] px-2.5 py-0.5 text-[11px] font-semibold text-[#F4F6F9]">
+                    <span className="rounded-full bg-white/[0.14] px-2.5 py-0.5 text-[11px] font-semibold text-[#F4F6F9]">
                       Voltmark Electric
                     </span>
-                    <span className="ml-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-p2b-navy-muted">
+                    <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-[0.09em] text-p2b-navy-muted sm:text-[10px]">
                       What you control
                     </span>
                   </div>
-                  {/* THE CROP HEIGHT IS THE OVERLAP GEOMETRY, not a taste
-                      choice. The card is pinned to this container's bottom, so
-                      growing the crop moves the card DOWN across the catalog
-                      while the catalog stays anchored at the top. At 320px the
-                      card's top edge landed on the admin sub-navigation and cut
-                      a row of link text through its middle, and clipped two
-                      labels mid-word — "nissing", "utomatically when a
-                      service's materials are itemized" — which reads as a
-                      rendering fault rather than a layer. It also buried every
-                      service NAME, leaving the control side showing a column of
-                      prices attached to nothing.
-
-                      At 503px the card clears the whole head of the page: the
-                      nav, the sub-nav, the "Services & Pricing" title, all five
-                      readiness counters and the banner under them are intact,
-                      and the card's edge falls in the table body where a layer
-                      over rows reads as a layer. */}
-                  <div className="h-[290px] overflow-hidden lg:h-[503px]">
-                    <ShotFigure src={SHOTS.adminServices.full ?? SHOTS.adminServices.src}
-                                alt={SHOTS.adminServices.alt}
-                                width={SHOTS.adminServices.fullW ?? SHOTS.adminServices.w}
-                                height={SHOTS.adminServices.fullH ?? SHOTS.adminServices.h}
-                                full={SHOTS.adminServices.full} fullWidth={SHOTS.adminServices.fullW}
-                                fullHeight={SHOTS.adminServices.fullH}
-                                className="rounded-none border-0 shadow-none hover:shadow-none"
-                                sizes="(min-width: 1024px) 560px, 100vw" />
+                  <div className="h-[285px] overflow-hidden sm:h-[360px] lg:h-[500px] xl:h-[535px]">
+                    <ShotFigure
+                      src={SHOTS.adminServices.full ?? SHOTS.adminServices.src}
+                      alt={SHOTS.adminServices.alt}
+                      width={SHOTS.adminServices.fullW ?? SHOTS.adminServices.w}
+                      height={SHOTS.adminServices.fullH ?? SHOTS.adminServices.h}
+                      full={SHOTS.adminServices.full}
+                      fullWidth={SHOTS.adminServices.fullW}
+                      fullHeight={SHOTS.adminServices.fullH}
+                      className="rounded-none border-0 shadow-none hover:shadow-none"
+                      sizes="(min-width: 1024px) 650px, 100vw"
+                    />
                   </div>
                 </div>
               ) : null}
 
               {SHOTS.homePrice ? (
-                <div className="mt-4 overflow-hidden rounded-[8px] border border-p2b-line bg-white shadow-[0_3px_10px_rgba(16,24,40,.10),0_26px_54px_-18px_rgba(16,24,40,.34)] lg:absolute lg:-bottom-1 lg:left-0 lg:mt-0 lg:w-8/12">
+                <div className="mt-4 overflow-hidden rounded-[10px] border border-p2b-line bg-white shadow-[0_4px_14px_rgba(16,24,40,.10),0_30px_62px_-22px_rgba(16,24,40,.34)] lg:absolute lg:-bottom-1 lg:left-0 lg:mt-0 lg:w-[62%]">
                   <div className="flex items-center gap-2.5 border-b border-p2b-line bg-p2b-canvas-alt px-3 py-2">
                     <span className="flex gap-1.5" aria-hidden="true">
                       <span className="h-2 w-2 rounded-full bg-p2b-line-dash" />
                       <span className="h-2 w-2 rounded-full bg-p2b-line-dash" />
                       <span className="h-2 w-2 rounded-full bg-p2b-line-dash" />
                     </span>
-                    <span className="ml-0.5 flex-1 truncate rounded-sm bg-white px-2.5 py-1 text-[11px] text-p2b-muted lg:text-[12px]">
+                    <span className="ml-0.5 flex-1 truncate rounded-sm bg-white px-2.5 py-1 text-[10px] text-p2b-muted sm:text-[11px]">
                       {CUSTOMER_URL}
                     </span>
-                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-p2b-accent">
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-[0.08em] text-p2b-accent sm:text-[10px]">
                       Your customer
                     </span>
                   </div>
-                  <ShotFigure src={SHOTS.homePrice.src} alt={SHOTS.homePrice.alt}
-                              width={SHOTS.homePrice.w} height={SHOTS.homePrice.h}
-                              full={SHOTS.homePrice.full} fullWidth={SHOTS.homePrice.fullW}
-                              fullHeight={SHOTS.homePrice.fullH}
-                              className="rounded-none border-0 shadow-none hover:shadow-none"
-                              priority sizes="(min-width: 1024px) 350px, 100vw" />
+                  <ShotFigure
+                    src={SHOTS.homePrice.src}
+                    alt={SHOTS.homePrice.alt}
+                    width={SHOTS.homePrice.w}
+                    height={SHOTS.homePrice.h}
+                    full={SHOTS.homePrice.full}
+                    fullWidth={SHOTS.homePrice.fullW}
+                    fullHeight={SHOTS.homePrice.fullH}
+                    className="rounded-none border-0 shadow-none hover:shadow-none"
+                    priority
+                    sizes="(min-width: 1024px) 390px, 100vw"
+                  />
                 </div>
               ) : null}
             </div>
 
-            {/* The four handling modes, under the composition where they read
-                as a caption to both panels rather than a divider between. */}
-            <div className="mt-5 flex flex-wrap gap-x-2 gap-y-2 lg:mt-4">
-              {["Instant Price", "Guided Estimate", "While We\u2019re There\u2122", "Smart Booking"].map((t) => (
-                <span key={t}
-                      className="rounded-full border border-p2b-line bg-white px-3 py-1.5 text-[12px] font-semibold text-p2b-ink-warm lg:text-[13px]">
-                  {t}
+            <div className="mt-4 flex flex-wrap gap-2 lg:mt-3">
+              {["Instant Price", "Guided Estimate", "While We’re There™", "Smart Booking"].map((label) => (
+                <span key={label} className="rounded-full border border-p2b-line bg-white px-3 py-1.5 text-[11px] font-semibold text-p2b-ink-warm sm:text-[12px]">
+                  {label}
                 </span>
               ))}
             </div>
-          </div>
 
-          <div className="mt-5 flex w-full flex-col gap-2.5 lg:mx-auto lg:max-w-[500px]">
-            <div className="flex items-center gap-2.5">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1B4B8F" strokeWidth="2"
-                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M5 12h14M13 6l6 6-6 6" />
+            <div className="mt-4 flex items-start gap-2.5 text-[13px] leading-5 text-p2b-muted">
+              <svg className="mt-0.5 h-4 w-4 shrink-0 text-p2b-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              {/* The control claim, kept in the hero as one line now that the
-                  card that used to make it has moved to While We're There™. */}
-              <span className="text-sm text-p2b-muted">
-                Your page. <span className="font-semibold text-p2b-ink">Every price and every window in it is one you set.</span>
-              </span>
+              <span>Your page. <strong className="font-semibold text-p2b-ink">Every price and every window in it is one you set.</strong></span>
             </div>
-            <p className="text-[13px] leading-[1.55] text-p2b-muted-soft">
-              <span className="mr-2 rounded-sm bg-p2b-accent-tint-strong px-2 py-[3px] text-[11px] font-semibold uppercase tracking-[0.05em] text-p2b-accent">
+
+            <p className="mt-2.5 text-[11px] leading-[1.55] text-p2b-muted-soft sm:text-[12px]">
+              <span className="mr-2 rounded bg-p2b-accent-tint-strong px-2 py-[3px] text-[9px] font-bold uppercase tracking-[0.06em] text-p2b-accent sm:text-[10px]">
                 {EMBED_STATUS.label}
               </span>
               {EMBED_STATUS.line}
             </p>
           </div>
+        </div>
+
+        {/* The rest of the value proposition comes after the product proof on
+            mobile instead of delaying that proof. On desktop it works as a
+            compact outcome rail under the two-column hero. */}
+        <div className="mt-9 grid gap-3 border-t border-p2b-line pt-6 sm:grid-cols-3 lg:mt-10 lg:gap-5">
+          {HERO.proof.slice(1).map((line, index) => (
+            <div key={line} className="flex items-start gap-3 rounded-[9px] bg-white/55 px-3 py-2.5 sm:bg-transparent sm:px-0 sm:py-0">
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-p2b-accent-tint text-[11px] font-bold text-p2b-accent">
+                {index + 1}
+              </span>
+              <span className="text-[14px] font-semibold leading-5 text-p2b-ink sm:text-[15px]">{line}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-1.5 sm:flex-row sm:items-baseline sm:justify-between">
+          <p className="text-[17px] font-bold tracking-[-0.015em] text-p2b-ink sm:text-[19px]">{HERO.payoff}</p>
+          <p className="text-[11px] text-p2b-muted-soft sm:text-[12px]">{HERO.footnote}</p>
         </div>
       </div>
     </section>
