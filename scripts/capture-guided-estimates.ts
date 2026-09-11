@@ -30,8 +30,37 @@
  * QUOTE EVIDENCE IS HISTORY, NOT ESTATE. The review-queue counts show the
  * mechanism has been used by real homeowners. They are kept across a
  * contractor's retirement on purpose — a job that was priced was priced —
- * and exclude only fixtures. Note what follows: a new quote submission
- * changes this snapshot and needs a re-capture before the next release.
+ * and exclude only fixtures.
+ *
+ * --check IS NOT "equals the committed file" ANY MORE (10 Sep 2026). It was,
+ * and it meant this could only ever pass against the literal, current
+ * production connection — never a rehearsal branch, never anything but the
+ * one moving target the file happened to be captured from. Ordinary,
+ * correct platform growth (a genuine contractor adding one more photo-gated
+ * answer) changed a number the page never even reads (`bookingTypes`,
+ * `routes`) and blocked a release over it. `--check` now asks three
+ * separate, narrower questions instead of one broad one:
+ *
+ *   1. Is the committed file internally consistent? (no database needed —
+ *      distinctLabels really is labels.length, quotes.total really is the
+ *      sum of quotes.byStatus)
+ *   2. Is every number the page actually PRINTS still true, or only stale
+ *      in the safe direction? `live >= committed` on each: growth never
+ *      fails this, because a conservative true number isn't a lie. Only a
+ *      DECREASE — the one direction that would make the page overstate the
+ *      product — does. `bookingTypes` and `routes` aren't checked here at
+ *      all: nothing on the page reads them, so there is no claim to
+ *      protect, and comparing them was never anything but noise.
+ *   3. Does the committed WORKED EXAMPLE still route the way the page
+ *      illustrates? Re-located by its own text on ONE deliberately stable
+ *      reference tenant — the same one capture-hero-flow.ts already uses —
+ *      never re-ranked against the whole estate, so an unrelated contractor
+ *      adding a better example elsewhere can never be why this fails.
+ *
+ * `photos.labels` (the full list) and `quotes` stay in the captured file
+ * for visibility, but drop out of `--check` entirely: nothing on the page
+ * enumerates the list itself, only its length, which floor-check #2 already
+ * covers. A count with no reader has no claim to protect either way.
  *
  * READ ONLY. Nothing here writes: every mutating method on every model it
  * touches is poisoned before the first query, and `assertReadOnly` fails
@@ -267,27 +296,127 @@ async function main() {
     process.exit(1);
   }
   const committed = (await import(pathToFileURL(`${process.cwd()}/${OUT}`).href)).GUIDED_ESTIMATES;
-  const differences = diff(committed, snapshot, "");
-  if (!differences.length) {
+  const failures: string[] = [];
+
+  // ── the committed file cannot contradict itself ─────────────────────────
+  // Cheap, needs no database at all: catches a hand-edit or a bad capture
+  // before anything else runs.
+  if (committed.photos.distinctLabels !== committed.photos.labels.length) {
+    failures.push(
+      `committed photos.distinctLabels (${committed.photos.distinctLabels}) does not match ` +
+        `committed photos.labels.length (${committed.photos.labels.length}) — the committed file is internally inconsistent`
+    );
+  }
+  const committedQuotesSum = Object.values(committed.quotes.byStatus as Record<string, number>).reduce(
+    (a: number, b: number) => a + b,
+    0
+  );
+  if (committed.quotes.total !== committedQuotesSum) {
+    failures.push(
+      `committed quotes.total (${committed.quotes.total}) does not match the sum of ` +
+        `committed quotes.byStatus (${committedQuotesSum})`
+    );
+  }
+
+  // ── capability floors — the number the page prints must never be an
+  //    OVERSTATEMENT of what is currently true. Ordinary growth (a new
+  //    genuine contractor's catalog, a new photo-gated answer) only ever
+  //    moves these up, and up is never a lie — the committed number stays
+  //    true, just conservative, until the next deliberate re-capture. Only
+  //    a DECREASE is worth blocking a release over, because that is the one
+  //    direction that would make the printed number false. `routes` and
+  //    `bookingTypes` are captured for visibility but read by nothing on
+  //    the page, so nothing here checks them — there is no claim to protect.
+  const floors: [string, number, number][] = [
+    ["remoteQuote.services", committed.remoteQuote.services, snapshot.remoteQuote.services],
+    ["remoteQuote.withoutPublishedPrice", committed.remoteQuote.withoutPublishedPrice, snapshot.remoteQuote.withoutPublishedPrice],
+    ["remoteQuote.categories.length", committed.remoteQuote.categories.length, snapshot.remoteQuote.categories.length],
+    ["photos.distinctLabels", committed.photos.distinctLabels, snapshot.photos.distinctLabels],
+    ["photos.blocking", committed.photos.blocking, snapshot.photos.blocking],
+  ];
+  for (const [label, committedVal, liveVal] of floors) {
+    if (liveVal < committedVal) {
+      failures.push(`${label}: committed ${committedVal}, live is only ${liveVal} — the page would be overstating the product`);
+    }
+  }
+  // A floor of committed-vs-live isn't enough on its own: if the committed
+  // figure were ever captured as zero, a live zero would pass the floor
+  // check while the page's central claim — that the mechanism is actually
+  // used — would be false. Asserted directly against live, not committed.
+  if (snapshot.remoteQuote.withoutPublishedPrice === 0) {
+    failures.push(`live remoteQuote.withoutPublishedPrice is 0 — no live service demonstrates "no published price", the page's central claim`);
+  }
+  if (snapshot.photos.blocking === 0) {
+    failures.push(`live photos.blocking is 0 — no live answer demonstrates a photo gating a price, the mechanism this page describes`);
+  }
+
+  // ── the worked example, re-verified on ONE stable reference tenant ──────
+  // Not re-ranked against the whole estate — a new, even-better example
+  // appearing elsewhere must never silently swap out which one this checks,
+  // and must never be why this fails. The committed example is re-located
+  // by its own identifying text on a deliberately stable tenant (the same
+  // one capture-hero-flow.ts and capture-trade-electrical.ts already use)
+  // and re-checked for exactly the properties the page's illustration
+  // depends on. This is what actually catches broken example routing and a
+  // worked example that stopped requiring photos.
+  const REFERENCE_TENANT = process.env.GUIDED_ESTIMATES_REFERENCE_TENANT ?? "elite-electric";
+  if (!committed.example) {
+    failures.push(`committed snapshot has no worked example to re-verify`);
+  } else {
+    const ex = committed.example;
+    const refContractor = await prisma.contractor.findUnique({ where: { slug: REFERENCE_TENANT }, select: { id: true } });
+    if (!refContractor) {
+      failures.push(`reference tenant "${REFERENCE_TENANT}" does not exist on this database — cannot re-verify the worked example`);
+    } else {
+      const liveOption = await prisma.answerOption.findFirst({
+        where: {
+          label: ex.answer,
+          routeAction: ex.routeAction,
+          question: { prompt: ex.prompt, service: { name: ex.serviceName, contractorId: refContractor.id } },
+        },
+        select: {
+          requiredPhotoLabels: true,
+          photosBlockBooking: true,
+          question: { select: { service: { select: { active: true, bookingType: true } } } },
+        },
+      });
+      if (!liveOption) {
+        failures.push(
+          `the committed worked example ("${ex.serviceName}" — "${ex.answer}") no longer exists on ${REFERENCE_TENANT} — the example routing is broken`
+        );
+      } else {
+        if (!liveOption.question.service.active) {
+          failures.push(`the worked example's service ("${ex.serviceName}") is no longer active on ${REFERENCE_TENANT}`);
+        }
+        if (liveOption.requiredPhotoLabels.length === 0) {
+          failures.push(`the worked example ("${ex.serviceName}" — "${ex.answer}") no longer requires any photos — the page's illustration is now empty`);
+        }
+        if (liveOption.photosBlockBooking !== ex.blocksBooking) {
+          failures.push(
+            `the worked example's photosBlockBooking changed: committed ${ex.blocksBooking}, live ${liveOption.photosBlockBooking}`
+          );
+        }
+        if (String(liveOption.question.service.bookingType) !== ex.bookingType) {
+          failures.push(
+            `the worked example's service bookingType changed: committed ${ex.bookingType}, live ${liveOption.question.service.bookingType}`
+          );
+        }
+      }
+    }
+  }
+
+  if (!failures.length) {
     console.log(`\n  ok   /product/guided-estimates still matches the product\n`);
     await prisma.$disconnect();
     return;
   }
   console.error(`\n  FAIL Guided Estimates drifted from what the page claims:`);
-  for (const d of differences.slice(0, 25)) console.error(`         ${d}`);
-  if (differences.length > 25) console.error(`         …and ${differences.length - 25} more`);
-  console.error(`\n       Re-capture: npx tsx scripts/capture-guided-estimates.ts`);
-  console.error(`       Then read the page — a route that changed changes what it promises.\n`);
+  for (const f of failures) console.error(`         ${f}`);
+  console.error(`\n       If this is genuine platform growth and every figure above only went UP,`);
+  console.error(`       re-capture when convenient: npx tsx scripts/capture-guided-estimates.ts`);
+  console.error(`       If anything above is a DECREASE or the worked example broke, read the`);
+  console.error(`       page first — this is telling you it may now be wrong.\n`);
   process.exit(1);
-}
-
-function diff(a: any, b: any, at: string): string[] {
-  if (a === b) return [];
-  if (typeof a !== typeof b || a === null || b === null || typeof a !== "object") {
-    return [`${at || "(root)"}: committed ${JSON.stringify(a)} — live ${JSON.stringify(b)}`];
-  }
-  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])];
-  return keys.flatMap((k) => diff(a[k], b[k], at ? `${at}.${k}` : k));
 }
 
 main().catch(async (e) => { console.error(`\n  ${e.message}\n`); await prisma.$disconnect(); process.exit(1); });
