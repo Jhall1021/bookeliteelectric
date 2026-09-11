@@ -74,8 +74,8 @@ export const SHOTS: Record<string, Shot | null> = {
   guidedPricing: {
     src: "/marketing/guided-pricing.png",
     alt: "The Guided Pricing editor, showing a question, its answers and what each answer does",
-    w: 2080,
-    h: 1240,
+    w: 2880,
+    h: 1800,
   },
 
   // THE CONTRACTOR'S PANEL — /product/what-you-control.
@@ -87,20 +87,20 @@ export const SHOTS: Record<string, Shot | null> = {
   servicesPricing: {
     src: "/marketing/services-pricing.png",
     alt: "The Services & Pricing catalog, listing each service with its price, labor hours, same-visit price and materials",
-    w: 2080,
-    h: 1240,
+    w: 2880,
+    h: 1800,
   },
   storefrontDesign: {
     src: "/marketing/storefront-design.png",
     alt: "The storefront design picker, showing selectable layouts previewed with the contractor's own branding",
-    w: 2080,
-    h: 1240,
+    w: 2880,
+    h: 1800,
   },
   hoursAvailability: {
     src: "/marketing/hours-availability.png",
     alt: "The Hours & Availability screen, where working hours and bookable windows are set",
-    w: 2080,
-    h: 1240,
+    w: 2880,
+    h: 1800,
   },
   // ── The homeowner's side, captured from the running storefront ────────
   homeServices: {
@@ -141,7 +141,7 @@ export const SHOTS: Record<string, Shot | null> = {
     h: 860,
     full: "/marketing/admin-services-full.jpg",
     fullW: 2560,
-    fullH: 12378,
+    fullH: 2016,
   },
   adminRates: {
     src: "/marketing/admin-rates.jpg",
