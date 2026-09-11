@@ -5,11 +5,13 @@
  * active contractors, verifier fixtures excluded. The page that reads this
  * may not claim anything the capture does not contain.
  *
- * Re-capture:   npx tsx scripts/capture-guided-estimates.ts
- * Check drift:  npx tsx scripts/capture-guided-estimates.ts --check
+ * Re-capture:      npx tsx scripts/capture-guided-estimates.ts
+ * Capability check: npx tsx scripts/capture-guided-estimates.ts --check   (any database)
+ * Exact audit:      npx tsx scripts/capture-guided-estimates.ts --audit   (production only)
  */
 export const GUIDED_ESTIMATES = {
   "generatedBy": "scripts/capture-guided-estimates.ts",
+  "capturedAt": "2026-09-11",
   "identity": "Voltmark Electric",
   "scope": "live services of active contractors; verifier fixtures excluded (lib/fixtureContractors.ts); quotes are history",
   "bookingTypes": {

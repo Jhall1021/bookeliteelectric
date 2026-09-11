@@ -10,6 +10,7 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/Button";
 import { ServiceIcon } from "@/components/ui/ServiceIcon";
+import { ServiceStatusBadge } from "@/components/ui/ServiceStatusBadge";
 import { ServicesIllustration, PricingIllustration, BookingIllustration, EmptyCalendarIllustration } from "@/components/ui/illustrations";
 import { CheckCircleIcon, AlertTriangleIcon, ArrowRightIcon } from "@/components/ui/icons";
 
@@ -451,22 +452,6 @@ function DottedConnector() {
   return (
     <div className="mt-14 hidden flex-1 border-t-2 border-dotted border-cardline sm:block" aria-hidden="true" />
   );
-}
-
-/**
- * "Live" alone would say the same thing for a healthy service and one with
- * an open blocker — exactly the contradiction "Your next steps" complained
- * about once shown side by side. A live service that still has a real
- * finding gets its own amber variant instead of a plain, all-clear "Live".
- */
-function ServiceStatusBadge({
-  active, approved, priced, needsAttention,
-}: { active: boolean; approved: boolean; priced: boolean; needsAttention: boolean }) {
-  if (active && needsAttention) return <Badge tone="attention">Live · needs attention</Badge>;
-  if (active) return <Badge tone="success">Live</Badge>;
-  if (approved) return <Badge tone="info">Approved</Badge>;
-  if (priced) return <Badge tone="neutral">Priced</Badge>;
-  return <Badge tone="neutral">Selected</Badge>;
 }
 
 /**

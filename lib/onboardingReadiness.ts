@@ -705,8 +705,13 @@ export async function assessOnboarding(
   for (const i of intended) {
     if (i.svc.requiresPreWorkVisit && ((i.svc.depositCents as number | null) ?? 0) === 0) {
       findings.launch.push(w("PRE_WORK_WITHOUT_DEPOSIT",
-        `${i.svc.slug} needs a site visit before installation but takes no deposit.`,
-        { serviceSlug: i.svc.slug as string, href: "/dashboard/services" }));
+        `${i.svc.name} needs a site visit before installation but takes no deposit.`,
+        {
+          serviceSlug: i.svc.slug as string,
+          serviceName: i.svc.name as string,
+          serviceActive: i.svc.active as boolean,
+          href: "/dashboard/services",
+        }));
     }
   }
   if (intended.length === 1) {

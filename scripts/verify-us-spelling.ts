@@ -162,7 +162,13 @@ function sourceScan() {
     }
   }
 
-  const AMERICAN_CONTAINING_BRITISH = [/analyses/gi];
+  // aria-labelledby is the W3C ARIA spec's own attribute name — there is no
+  // US-spelling variant to use instead, and respelling it would not merely
+  // be non-standard, it would silently stop working for assistive
+  // technology, which reads this exact string. Same shape as "analyses":
+  // correct wherever it appears, so masked wherever it appears rather than
+  // excused per file.
+  const AMERICAN_CONTAINING_BRITISH = [/analyses/gi, /aria-labelledby/gi];
   const mask = (line: string) =>
     AMERICAN_CONTAINING_BRITISH.reduce((l, re) => l.replace(re, (m) => "·".repeat(m.length)), line);
 
