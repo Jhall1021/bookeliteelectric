@@ -126,6 +126,15 @@ export const conductorFunctions = (gauge: "14" | "12" | "10") => [
 export function surfaceRacewayRequiredClasses(args: {
   components: SelectedComponent[];
   conductors: ConductorRequirement;
+  /**
+   * Classes a declared material system has ESTABLISHED, replacing the
+   * unquantifiable stub of the same key.
+   *
+   * Replacement, never addition: the stub and the resolved form are two states
+   * of one class, and letting both stand would declare the class twice and
+   * leave it permanently unresolved however completely it was configured.
+   */
+  resolvedClasses?: RequiredClass[];
 }): RequiredClass[] {
   const qty = (key: string) =>
     args.components.find((c) => c.key === key)?.quantity ?? 0;
@@ -189,5 +198,6 @@ export function surfaceRacewayRequiredClasses(args: {
         },
   );
 
-  return classes;
+  const resolved = new Map((args.resolvedClasses ?? []).map((c) => [c.classKey, c]));
+  return classes.map((c) => resolved.get(c.classKey) ?? c);
 }

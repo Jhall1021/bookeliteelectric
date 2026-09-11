@@ -162,4 +162,9 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch(async (e) => { console.error(e); await prisma.$disconnect(); process.exit(1); });
+// Guarded: this module EXPORTS PROOF_SLUG, and several suites import it. An
+// unguarded call meant importing the name also provisioned a contractor —
+// side effects on import, printed into the middle of other suites' output.
+if (process.argv[1] && process.argv[1].endsWith("provision-routing-v2-proof-contractor.ts")) {
+  main().catch(async (e) => { console.error(e); await prisma.$disconnect(); process.exit(1); });
+}

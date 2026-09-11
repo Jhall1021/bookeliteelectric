@@ -99,6 +99,7 @@ async function main() {
       requiredClasses: surfaceRacewayRequiredClasses({ components: args.components, conductors }),
       segmentation: { linearRole: CHANNEL, jointRole: JOINT },
       conductors,
+      derivedRequirements: [],
     };
     return computeMaterialTakeoff(input);
   };
@@ -234,8 +235,17 @@ async function main() {
     "G  …and says why: a role resolves to one product, one wire cannot serve two functions",
     JSON.stringify(codes(collapsed)));
   ok(!collapsed.purchaseComplete, "G  …and that takeoff is not complete");
-  ok(known.unresolvedRequirements.some((u) => u.code === "TERMINATION_SLACK_NOT_ESTABLISHED"),
-    "G  termination slack is explicitly NOT established");
+  // Slack is no longer THIS function's claim to make: `footPerConductor`
+  // arrives already carrying whatever allowance the caller established, and
+  // this layer cannot see where the number came from. The layer that reads the
+  // policy refuses there instead — proved in verify-surface-system-pilot
+  // section H, which withdraws a declared allowance and watches completion stop.
+  ok(known.unresolvedRequirements.every((u) => u.code !== "TERMINATION_SLACK_NOT_ESTABLISHED"),
+    "G  the takeoff makes no claim about slack it cannot see",
+    JSON.stringify(codes(known)));
+  const derivationSrc = readFileSync("lib/electrical/surfaceSystemConfiguration.ts", "utf8");
+  ok(/TERMINATION_SLACK_NOT_ESTABLISHED/.test(derivationSrc),
+    "G  …and the layer that CAN see it still refuses by that name");
   const src = readFileSync("lib/electrical/materialTakeoff.ts", "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, "");
   ok(!/slack\s*[=:]\s*[0-9]/.test(src) && !/1\.1|0\.1|\* 1\.05/.test(src),
     "G  no slack constant exists anywhere in the code", "found a numeric slack factor");
@@ -283,6 +293,7 @@ async function main() {
     requiredClasses: [{ classKey: "DEVICE_BOX", roles: [SURFACE_ROLES.deviceBox], because: "proof that true is attainable" }],
     segmentation: { notApplicable: true, because: "no linear run in this fixture" },
     conductors: { known: true, footPerConductor: 0, functions: [] },
+    derivedRequirements: [],
   });
   ok(reachable.purchaseComplete,
     "I  a takeoff whose every declared class resolved IS complete", JSON.stringify(reachable.unresolvedRequirements));
@@ -294,6 +305,7 @@ async function main() {
     requiredClasses: [{ classKey: "DEVICE_BOX", roles: [SURFACE_ROLES.deviceBox], because: "deliberately the only class declared" }],
     segmentation: { notApplicable: true, because: "deliberately ignored" },
     conductors: { known: true, footPerConductor: 0, functions: [] },
+    derivedRequirements: [],
   });
   ok(!underDeclared.purchaseComplete,
     "I  declaring only ONE class does not make a full route complete", JSON.stringify(codes(underDeclared)));

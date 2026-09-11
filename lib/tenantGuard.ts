@@ -87,6 +87,21 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// template holds the shape of the band; these are the numbers, and they
   /// are commercially specific to this contractor.
   "ContractorPolicyValue",
+  /// One contractor's declaration of how a material system they install
+  /// behaves — grounding path, support interval, what each terminus takes.
+  /// Commercially and physically specific to them: another contractor
+  /// installing a different family has different answers, and reading one
+  /// tenant's row for another would put a system nobody selected into a
+  /// takeoff.
+  "ContractorMaterialSystem",
+  /// Which Routing V2 strategies this contractor offers. Added with Routing
+  /// V2's capability gate and left unclassified until now, which made every
+  /// read of it through the guarded client throw UnclassifiedModelError —
+  /// caught by verify-policy-resolution and verify-activation-dependencies
+  /// going red, not by anyone reading the list. Same lesson as the
+  /// PricingSettings note below, in the other direction: a model added to the
+  /// schema is not classified until someone classifies it.
+  "ContractorCapability",
   /// CONFIGURATION, scoped in an earlier pass and left in PENDING_TENANT_SCOPE
   /// by mistake until 27 August. All five carry contractorId today —
   /// PricingSettings, BusinessHours, ContractorMaterialSettings and

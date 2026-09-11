@@ -100,7 +100,11 @@ export type UnresolvedCode =
   | "TERMINATION_SLACK_NOT_ESTABLISHED"
   | "SUPPORT_SPACING_NOT_ESTABLISHED"
   | "END_FITTING_POLICY_NOT_ESTABLISHED"
-  | "CLASS_NOT_ACCOUNTED_FOR";
+  | "CLASS_NOT_ACCOUNTED_FOR"
+  | "MATERIAL_SYSTEM_NOT_SELECTED"
+  | "GROUNDING_STRATEGY_NOT_ESTABLISHED"
+  | "SUPPORT_TERMINUS_RULE_NOT_ESTABLISHED"
+  | "TERMINATION_ASSEMBLY_NOT_ESTABLISHED";
 
 /**
  * RETIRED: CIRCUIT_AMPACITY_REQUIRED.
@@ -206,6 +210,18 @@ export type TakeoffInput = {
    * now a compile error and `{ known: false, reason }` is the way to say so.
    */
   conductors: ConductorRequirement;
+  /**
+   * Requirements that exist because a DECLARED RULE produced them, rather than
+   * because a component recipe listed them — support clips at the system's own
+   * interval, the fitting each terminus takes.
+   *
+   * They arrive already quantified because the rule that quantifies them is
+   * the contractor's declaration, not this function's arithmetic. What this
+   * function guarantees is that they are purchased and counted for
+   * completeness exactly like a recipe requirement, so a declared rule cannot
+   * produce a requirement that quietly costs nothing.
+   */
+  derivedRequirements: PhysicalRequirement[];
 };
 
 export type MaterialTakeoff = {
@@ -293,6 +309,7 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
     });
   };
 
+  for (const d of input.derivedRequirements) physical.push(d);
   for (const p of [...physical]) resolvePurchase(p);
 
   // ── joints, and only where segmentation is actually knowable ──────────────
@@ -365,16 +382,16 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
         physical.push(req);
         resolvePurchase(req);
       }
-      // Only when there ARE conductors. An empty function list has no
-      // terminations to cut long, and reporting a slack gap for conductors
-      // nobody requires is the same false incompleteness as a false
-      // completeness — it just fails in the safer direction.
-      if (functions.length > 0) {
-        unresolved.push({
-        code: "TERMINATION_SLACK_NOT_ESTABLISHED", role: null,
-        reason: `Conductor figures above are route length only. Conductors are also cut long at each termination, and no canonical or contractor-owned slack policy exists — so no allowance has been added rather than inventing one.`,
-        });
-      }
+      // SLACK IS NOT THIS FUNCTION'S TO CLAIM.
+      //
+      // An earlier version pushed TERMINATION_SLACK_NOT_ESTABLISHED here
+      // unconditionally, which was right while nothing could establish it and
+      // wrong the moment something could: a contractor who HAS declared their
+      // allowance got told it was unknown, and their complete takeoff could
+      // never complete. `footPerConductor` arrives already including whatever
+      // allowance the caller established, and this function cannot see where
+      // that number came from. The layer that knows — the one that reads the
+      // policy — refuses there instead.
     }
   }
 

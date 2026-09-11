@@ -706,6 +706,7 @@ model Contractor {
   guidedFlowSessions GuidedFlowSession[]
 
   @@map("contractors")
+  materialSystems               ContractorMaterialSystem[]
 }
 
 /// A material ROLE, owned by the platform.
@@ -743,6 +744,8 @@ model CanonicalMaterial {
   answerOptionMaterials         AnswerOptionMaterial[]
   templateAnswerOptionMaterials TemplateAnswerOptionMaterial[]
   baselineVersions              MaterialBaselineVersion[]
+  systemSourceTerminations      ContractorMaterialSystem[]    @relation("SystemSourceTermination")
+  systemDestinationTerminations ContractorMaterialSystem[]    @relation("SystemDestinationTermination")
 
   @@map("canonical_materials")
 }
@@ -1235,6 +1238,106 @@ model MaterialCostEvent {
   @@index([contractorId, createdAt])
   @@index([baselineVersionId])
   @@map("material_cost_events")
+}
+
+/// Whether the raceway assembly itself establishes an equipment grounding path.
+///
+/// NOT A GLOBAL TRUTH, which is why it is configured rather than constant. Some
+/// raceway families are listed as an equipment grounding conductor and some are
+/// not, and the same contractor may install both. Hard-coding either answer
+/// would make Price2Book assert a code conclusion about a jurisdiction and a
+/// product it cannot see.
+enum RacewayGroundingStrategy {
+  /// The assembly does not serve as the grounding path; the takeoff must
+  /// include a separate equipment grounding conductor.
+  SEPARATE_EQUIPMENT_GROUNDING_CONDUCTOR
+  /// The selected system establishes the grounding path itself, so no separate
+  /// grounding conductor is pulled.
+  SYSTEM_PROVIDES_GROUNDING_PATH
+}
+
+/// What a terminus of a raceway run requires where it meets an enclosure.
+enum RacewayTerminationRequirement {
+  /// A fitting is required; the material relation names which canonical role.
+  FITTING_REQUIRED
+  /// The enclosure accepts the raceway directly and no separate fitting is
+  /// bought. A DELIBERATE "none", distinct from the null that means nobody has
+  /// said yet — which is the whole reason this is an enum and not a nullable
+  /// foreign key standing in for both.
+  DIRECT_ENTRY
+}
+
+/// One contractor's declaration of how a MATERIAL SYSTEM they install behaves.
+///
+/// WHY THIS IS NOT COLUMNS ON ContractorMaterial. That table is one row per
+/// ROLE and answers "what do you buy for this, and what does it cost". None of
+/// the facts here are properties of a single role: whether the assembly
+/// establishes a grounding path is not true of the channel, or the elbow, or
+/// the box, but of the three together, and a `providesGroundPath` flag on the
+/// channel row would let a contractor state that the channel grounds while the
+/// fitting does not — a sentence with no physical meaning. Support spacing and
+/// termination behaviour move as one when a contractor changes family. One
+/// coherent set of facts, one lifecycle, one owner.
+///
+/// WHY IT IS NOT A CONTRACTOR POLICY VALUE. Those are business and
+/// work-practice choices — how much slack this contractor cuts, how far a job
+/// may run before it costs more. These are physical properties of a product
+/// family that the contractor REPORTS rather than decides. Both are
+/// contractor-supplied; only one of them is the contractor's opinion.
+///
+/// EVERY PHYSICAL FIELD IS NULLABLE AND MEANS "NOT ESTABLISHED". None has a
+/// default. Price2Book does not know how far apart a given raceway wants its
+/// straps, and a platform-chosen number would be indistinguishable from a
+/// contractor's declaration at exactly the point where the difference matters.
+model ContractorMaterialSystem {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// Which system slot this configures, e.g. "SURFACE_RACEWAY". Canonical and
+  /// vendor-neutral — the same key means the same thing for every contractor.
+  systemKey String
+
+  /// The contractor's own name for the family they install. For explanation
+  /// only: never parsed, never matched to a catalog, never priced.
+  declaredSystemLabel String?
+
+  /// Null until the contractor says. See RacewayGroundingStrategy.
+  groundingStrategy RacewayGroundingStrategy?
+
+  /// The declared interval between intermediate supports along a run, in feet.
+  /// Null means not established. Must be > 0 when set — a zero interval is not
+  /// a rule, it is a division by zero wearing one.
+  supportSpacingFt Float?
+
+  /// Whether the system additionally wants a support at each terminus.
+  ///
+  /// Kept separate from the interval because endpoint mounting genuinely
+  /// changes the count, and folding it into a single ceil(feet / spacing)
+  /// would silently pick one answer for a question nobody asked.
+  supportAtEachTerminus Boolean?
+
+  /// What the run requires where it leaves the existing source enclosure.
+  sourceTermination           RacewayTerminationRequirement?
+  sourceTerminationMaterialId String?
+  sourceTerminationMaterial   CanonicalMaterial? @relation("SystemSourceTermination", fields: [sourceTerminationMaterialId], references: [id], onDelete: Restrict)
+
+  /// What the run requires where it enters the new device enclosure.
+  destinationTermination           RacewayTerminationRequirement?
+  destinationTerminationMaterialId String?
+  destinationTerminationMaterial   CanonicalMaterial? @relation("SystemDestinationTermination", fields: [destinationTerminationMaterialId], references: [id], onDelete: Restrict)
+
+  /// When the contractor last affirmed this configuration. Null means the row
+  /// exists as an empty slot — provisioned, unanswered.
+  declaredAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One declaration per system per contractor.
+  @@unique([contractorId, systemKey])
+  @@index([contractorId])
+  @@map("contractor_material_systems")
 }
 
 /// Contractor-level material sourcing settings. Single row today.
@@ -3787,6 +3890,14 @@ enum TemplatePolicyType {
   HEIGHT_BREAKPOINTS
   /// Who provides the equipment for a service. No boundaries.
   SUPPLY_ARRANGEMENT
+  /// A single scalar quantity in `unit` — not a boundary set. A termination
+  /// slack allowance is one number, and putting it in `boundaries` would make
+  /// an ascending-order rule apply to a value that has no neighbours.
+  MEASUREMENT
+  /// A selection from the enumerated set in `choices`. Used where a contractor
+  /// must name the material specification they work to, and the set of valid
+  /// answers is trade knowledge the template holds while the choice is not.
+  MATERIAL_SPECIFICATION
 }
 
 /// A decision the template knows must be made, and refuses to make.
@@ -3815,6 +3926,11 @@ model TemplatePolicyDefinition {
   boundaryCount Int                @default(0)
   /// What the contractor is being asked, in their words rather than ours.
   prompt        String
+  /// The valid answers for MATERIAL_SPECIFICATION. Empty for every other type.
+  /// The template holds the SET because which specifications exist is trade
+  /// knowledge; it holds no default, because which one this contractor works
+  /// to is theirs.
+  choices       String[]
 
   options  TemplateAnswerOption[]
   services TemplateServicePolicy[]
@@ -3841,8 +3957,17 @@ model ContractorPolicyValue {
 
   /// Ascending, and exactly `boundaryCount` long once resolved. Empty until.
   boundaries Int[]
-  /// Free text for SUPPLY_ARRANGEMENT, which has no boundaries.
+  /// Free text for SUPPLY_ARRANGEMENT and the selected value for
+  /// MATERIAL_SPECIFICATION, which have no boundaries.
   choice     String?
+  /// The single value for MEASUREMENT, in `unit`.
+  ///
+  /// NULL IS NOT ZERO, and this is the field where that distinction earns its
+  /// keep. A contractor who has not told us their termination slack allowance
+  /// has not told us it is nothing: null must reach the takeoff as
+  /// unresolved, while an explicit 0 is a real answer meaning "I model no
+  /// additional allowance". No default, and no `?? 0` anywhere downstream.
+  measurement Float?
   resolvedAt DateTime?
 
   @@unique([contractorId, key])
