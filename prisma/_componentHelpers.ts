@@ -96,7 +96,11 @@ export async function upsertComponent(
 
   const economics = {
     approvedPriceCents: def.approvedPriceCents ?? null,
-    addFieldLaborHours: def.addFieldLaborHours ?? 0,
+    // UNDEFINED STAYS UNKNOWN. This `?? 0` is how seventeen Routing V2
+    // components came to look like zero-labor work: their definitions simply
+    // never mentioned labor. A seed that means zero says zero, explicitly, and
+    // five of them do — with reasons.
+    addFieldLaborHours: def.addFieldLaborHours ?? null,
     addMaterialCostCents: def.addMaterialCostCents ?? 0,
     addScheduleMinutes: def.addScheduleMinutes ?? 0,
     addTechCount: def.addTechCount ?? 0,

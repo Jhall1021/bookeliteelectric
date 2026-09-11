@@ -709,7 +709,10 @@ export function resolveRoute(
                 : null,
               // Only reached when the price above is non-null, since a null
               // price stops the route before these are used.
-              addFieldLaborHours: own?.addFieldLaborHours ?? 0,
+              // NOT `?? 0`. A missing contractor row and an unestablished labor
+              // figure both mean "never asked", and coercing either to zero is the
+              // exact conflation this nullability was introduced to remove.
+              addFieldLaborHours: own ? own.addFieldLaborHours : null,
               addMaterialCostCents: own?.addMaterialCostCents ?? 0,
               addScheduleMinutes: own?.addScheduleMinutes ?? 0,
               addTechCount: own?.addTechCount ?? 0,
@@ -772,6 +775,21 @@ export function resolveRoute(
 
   // A selected component consumes material this contractor has never costed.
   // Same rule as a missing material on the service itself: no price.
+  // A selected component whose labor this contractor has never established.
+  // Same rule as an unapproved price or an uncosted material role: no price.
+  if (config.awaitingComponentLabor) {
+    const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
+    return {
+      status: "REVIEW",
+      reason: "A component on this route has no established labor time",
+      photoLabels: [...new Set(photoLabels)],
+      photoSafetyNotes: [...new Set(photoSafetyNotes)],
+      floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
+      isPrimary,
+      config,
+    };
+  }
+
   if (config.awaitingComponentMaterialCost) {
     return {
       status: "REVIEW",

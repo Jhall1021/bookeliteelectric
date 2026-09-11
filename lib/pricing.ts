@@ -348,6 +348,16 @@ export type JobConfiguration = {
   /** A selected component's material recipe names a role with no cost. */
   awaitingComponentMaterialCost: boolean;
   /**
+   * A selected component's LABOR was never established by this contractor —
+   * `addFieldLaborHours` is null rather than a number.
+   *
+   * Distinct from zero, which is a decision: five components declare zero
+   * deliberately with stated reasons. Seventeen Routing V2 components had
+   * never been asked, and `@default(0)` made the two indistinguishable. This
+   * is what stops "nobody measured it" pricing as "it is free".
+   */
+  awaitingComponentLabor: boolean;
+  /**
    * Crew-hours the ANSWERS added, tracked separately from the running total.
    *
    * TIME_AND_MATERIALS needs the increment on its own, not the sum: the
@@ -383,6 +393,7 @@ export function startConfiguration(svc: {
     components: [],
     awaitingComponentApproval: false,
     awaitingComponentMaterialCost: false,
+    awaitingComponentLabor: false,
     addedCrewHours: 0,
     approvedIncrementCents: 0,
     legacyModifierCents: 0,
@@ -425,6 +436,7 @@ export function startDisplayConfiguration(svc: { estimatedMinutes: number | null
     components: [],
     awaitingComponentApproval: false,
     awaitingComponentMaterialCost: false,
+    awaitingComponentLabor: false,
     addedCrewHours: 0,
     approvedIncrementCents: 0,
     legacyModifierCents: 0,
@@ -549,6 +561,7 @@ export function applyBranch(
   let material = config.materialCostCents;
   /** Set when a selected component's recipe names a role with no cost. */
   let awaitingRecipeCost = false;
+  let awaitingLabor = false;
   const components = [...config.components];
 
   // Tracks the increment separately from the running total. An OVERRIDE is
@@ -626,7 +639,13 @@ export function applyBranch(
   for (const sel of selected) {
     const q = Math.max(sel.quantity, 1);
     const c = sel.component;
-    if (c.addFieldLaborHours) addHours(c.addFieldLaborHours * q);
+    // NULL IS NOT ZERO. An unestablished component adds no hours AND makes the
+    // route fail closed below; a deliberate zero adds no hours and prices fine.
+    if (c.addFieldLaborHours === null || c.addFieldLaborHours === undefined) {
+      awaitingLabor = true;
+    } else if (c.addFieldLaborHours) {
+      addHours(c.addFieldLaborHours * q);
+    }
     // The recipe wins where one exists; the constant is what a component that
     // has not been converted yet still uses. Never both.
     if (c.materialRecipe) {
@@ -676,6 +695,7 @@ export function applyBranch(
       // exactly as an unapproved component price does. Never zero.
       awaitingComponentMaterialCost:
         config.awaitingComponentMaterialCost || awaitingRecipeCost,
+    awaitingComponentLabor: config.awaitingComponentLabor || awaitingLabor,
     fieldLaborHours: hours,
     materialCostCents: material,
     estimatedMinutes: minutes,

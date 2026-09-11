@@ -43,7 +43,8 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export type OwnComponent = {
   labelOverride: string | null;
   approvedPriceCents: number | null;
-  addFieldLaborHours: number;
+  /** null = this contractor has not established labor. Never treat as zero. */
+  addFieldLaborHours: number | null;
   addMaterialCostCents: number;
   addScheduleMinutes: number;
   addTechCount: number;

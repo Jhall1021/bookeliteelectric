@@ -1571,9 +1571,24 @@ model CanonicalComponent {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// ADJUDICATED reference labor, when the evidence supports ONE
+  /// product-independent value. Null whenever it does not — which is the
+  /// common case for anything whose labor depends on the material family,
+  /// the size, or the installation system. A surface-raceway flat elbow is
+  /// 0.11 manhours in one Wiremold family and 0.40 in another; no single
+  /// number is true, so none is stored.
+  ///
+  /// Never a midpoint. A DISPUTED component keeps its evidence and stays
+  /// null rather than being averaged into a figure nobody published.
+  referenceLaborHours  Float?
+  /// What the number above is PER — "each", "ft". Meaningless without it.
+  referenceLaborUnit   String?
+  referenceLaborStatus ReferenceLaborStatus @default(NONE)
+
   contractorComponents           ContractorComponent[]
   options                        AnswerOptionComponent[]
   materials                      CanonicalComponentMaterial[]
+  laborEvidence                  ComponentLaborEvidence[]
   templateAnswerOptionComponents TemplateAnswerOptionComponent[]
 
   @@map("canonical_components")
@@ -1599,6 +1614,94 @@ model CanonicalComponent {
 /// The constant is not removed. A component with no recipe still uses it, so
 /// conversion is incremental and a half-converted library prices correctly
 /// throughout — see applyBranch, which prefers the recipe and falls back.
+/// How well a published observation matches what the component actually means.
+enum LaborEvidenceScopeMatch {
+  DIRECT
+  PARTIAL
+  SCOPE_DIFFERENT
+  SCOPE_BLOCKED
+}
+
+/// Whether a single adjudicated reference value exists for a component.
+enum ReferenceLaborStatus {
+  /// One product-independent value the evidence genuinely supports.
+  VERIFIED
+  /// Usable evidence that does not cover the whole component.
+  PARTIAL
+  /// Sources or conventions disagree. Preserved, never averaged.
+  DISPUTED
+  /// No usable published evidence found.
+  NONE
+}
+
+/// ONE PUBLISHED OBSERVATION about one canonical component.
+///
+/// Many per component, deliberately. The targeted research made the reason
+/// concrete: the NECA MLU publishes a surface-raceway flat elbow at 0.11
+/// manhours in the Wiremold 2900 family and 0.40 in the G4000 family, and
+/// publishes NM 2/C #14 at 0.030 manhours/ft where the 2026 National
+/// Electrical Estimator publishes 0.006 — a five-fold disagreement between two
+/// current references. Collapsing either into a single column would destroy
+/// the fact that the disagreement exists.
+///
+/// So an observation is never overwritten by another. `observationId` is
+/// unique per component, and a differing figure from a different source,
+/// edition, family or difficulty column is a NEW row.
+///
+/// Provenance is carried verbatim -- published value, original unit, the
+/// source's own line item -- alongside the normalized figure, because the
+/// normalization is ours and the publication is theirs, and a reader must be
+/// able to check one against the other.
+model ComponentLaborEvidence {
+  id                   String             @id @default(cuid())
+  canonicalComponentId String
+  canonicalComponent   CanonicalComponent @relation(fields: [canonicalComponentId], references: [id], onDelete: Cascade)
+
+  /// Stable identity for this observation, e.g. "MLU2015:2911-flat-elbow".
+  /// Unique per component so re-ingesting updates in place instead of
+  /// silently accumulating duplicates.
+  observationId String
+
+  source    String
+  edition   String
+  /// Page, table or section reference within the source.
+  sourceRef String?
+  url       String?
+
+  /// The source's own wording, unedited.
+  publishedLineItem String
+  /// The published figure exactly as printed, e.g. "11.00 C", "L1@0.38 Ea".
+  publishedValue    String
+  /// The source's unit code, e.g. "C" (per hundred), "M" (per thousand), "E".
+  originalUnit      String
+  /// The source's own time basis / crew convention, when it states one.
+  crewConvention    String?
+  /// Which column this came from — Normal, Difficult, Very Difficult. Kept
+  /// because they are different published facts, not a range to average.
+  difficulty        String?
+
+  /// Our conversion into manhours per single item or per linear foot.
+  normalizedLabor Float
+  normalizedUnit  String
+
+  /// APPLICABILITY. Null means the observation is product-independent.
+  /// A value scopes it: labor that is only true for one raceway family or one
+  /// trade size must never masquerade as universal.
+  materialSystem    String?
+  sizeApplicability String?
+
+  scopeMatch LaborEvidenceScopeMatch
+  confidence String
+  caution    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([canonicalComponentId, observationId])
+  @@index([canonicalComponentId])
+  @@map("component_labor_evidence")
+}
+
 model CanonicalComponentMaterial {
   id String @id @default(cuid())
 
@@ -1636,17 +1739,30 @@ model ContractorComponent {
   canonicalComponent   CanonicalComponent @relation(fields: [canonicalComponentId], references: [id], onDelete: Restrict)
 
   /// Incremental technician-hours this component adds.
-  addFieldLaborHours   Float @default(0)
+  /// NULLABLE, AND THE DEFAULT IS GONE ON PURPOSE.
+  ///
+  ///   null      this contractor has not established labor for this component
+  ///   0         this contractor deliberately says it adds no labor
+  ///   positive  this contractor's own calibration
+  ///
+  /// `@default(0)` made the first two identical. An audit of the 44 existing
+  /// rows found both meanings living in the same value: five rows declare
+  /// `addFieldLaborHours: 0` in their seed WITH a stated reason — "12/2 costs
+  /// 30% more than 14/2. Pulling it takes no meaningful extra time" — while
+  /// seventeen Routing V2 rows never mentioned labor at all and were coerced
+  /// to zero by `def.addFieldLaborHours ?? 0`. Those seventeen are unpriced
+  /// work, not free work.
+  addFieldLaborHours   Float?
   /// Incremental direct material cost in cents, BEFORE markup. The markup is
   /// applied to the assembled total, not per component.
-  addMaterialCostCents Int   @default(0)
+  addMaterialCostCents Int    @default(0)
   /// Incremental calendar minutes. Independent of labor hours on purpose: a
   /// second technician doubles the hours without changing the clock time, and
   /// some work adds setup time without adding hours. Never derive one from
   /// the other.
-  addScheduleMinutes   Int   @default(0)
+  addScheduleMinutes   Int    @default(0)
   /// Rarely used — a component that changes the crew size.
-  addTechCount         Int   @default(0)
+  addTechCount         Int    @default(0)
 
   /// Approved customer-facing price for this component, in cents.
   ///
@@ -2153,14 +2269,14 @@ enum InputType {
 }
 
 model Question {
-  id              String               @id @default(cuid())
-  serviceId       String
-  service         Service              @relation(fields: [serviceId], references: [id])
-  key             String // e.g. "wall_construction"
-  prompt          String
-  helpText        String?
-  inputType       InputType
-  order           Int
+  id        String    @id @default(cuid())
+  serviceId String
+  service   Service   @relation(fields: [serviceId], references: [id])
+  key       String // e.g. "wall_construction"
+  prompt    String
+  helpText  String?
+  inputType InputType
+  order     Int
 
   /// ROUTING V2 — the authored valid range for a NUMBER question, inclusive.
   ///
@@ -2173,8 +2289,8 @@ model Question {
   /// REQUIRED when a component binds its quantity to this question. A binding to
   /// an unbounded question is refused as a tree defect rather than silently
   /// accepting any number a homeowner types.
-  numberMin       Int?
-  numberMax       Int?
+  numberMin Int?
+  numberMax Int?
 
   options         AnswerOption[]
   /// Help text that only applies under a condition.
@@ -2364,8 +2480,8 @@ model AnswerOption {
   /// Set when this option's wording depends on a contractor policy decision.
   /// While the policy is unresolved `label` holds the raw pattern, which is why
   /// the service carrying it cannot publish.
-  labelPattern String?
-  policyKey    String?
+  labelPattern          String?
+  policyKey             String?
   /// ROUTING V2 — NUMERIC ROUTING. Inclusive bounds on the NUMBER answer that
   /// selects this option. Null on every row that existed before this field.
   ///
@@ -2508,13 +2624,13 @@ model GuidedFlowSession {
   consumedAnswers Json    @default("{}")
   customerNote    String?
 
-  status GuidedFlowSessionStatus @default(ACTIVE)
+  status  GuidedFlowSessionStatus @default(ACTIVE)
   /// Optimistic concurrency. Every write supplies the version it read; a
   /// write against a stale version is rejected (updateMany count === 0),
   /// never silently overwritten. New idiom for this codebase — no existing
   /// version-based concurrency pattern to copy — but the standard Prisma
   /// one, not a novel invention.
-  version Int @default(0)
+  version Int                     @default(0)
 
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -2563,7 +2679,7 @@ model GuidedFlowVisualAssistTask {
   taskType VisualAssistTaskType
   /// Caller-assigned, opaque to this model — e.g. which question/step in
   /// the tree asked for this task. Display only.
-  taskKey String?
+  taskKey  String?
 
   status VisualAssistTaskStatus @default(PENDING)
   /// The canonical result once COMPLETED — e.g. a RouteAssistResult JSON.
@@ -3841,8 +3957,8 @@ model TemplateQuestion {
   /// the range in provisioning would leave a contractor with a bound component
   /// whose question declares no range, which the resolver refuses as a broken
   /// tree. Fail-closed, but it would disable the service after provisioning.
-  numberMin         Int?
-  numberMax         Int?
+  numberMin Int?
+  numberMax Int?
 
   options TemplateAnswerOption[]
 

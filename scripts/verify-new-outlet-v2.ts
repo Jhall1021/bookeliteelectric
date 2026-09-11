@@ -295,8 +295,12 @@ async function main() {
       "23  …and still returns REVIEW, because the economics are not approved yet", String(r.status));
     // `reason` exists only on the non-priced variants, so narrow rather than cast.
     const reason = "reason" in r ? String(r.reason) : "";
-    ok(/price|approv/i.test(reason),
-      "23  …for the PRICING reason, not a routing one", reason || "(none)");
+    // ECONOMIC, not routing. Which economic input is named depends on which is
+    // missing first: labor is more fundamental than an approved price — you
+    // cannot approve a price for work whose duration nobody has established —
+    // so the resolver names labor when both are absent.
+    ok(/price|approv|labor/i.test(reason),
+      "23  …for an ECONOMIC reason, not a routing one", reason || "(none)");
     ok(comps(r).every((c: any) => typeof c.quantity === "number" && c.quantity > 0),
       "23  every component carries a measured quantity", JSON.stringify(comps(r)));
   }

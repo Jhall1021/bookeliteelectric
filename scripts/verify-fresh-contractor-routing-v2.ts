@@ -303,8 +303,8 @@ async function main() {
     // holds for the same reason on both tenants.
     const r = await walk(OUTLET_SLUG, { ...qualified, below_above_access: "has_access",
       [ACCESSIBLE_KEYS.feet]: "18" });
-    ok(r.status === "REVIEW" && /approved price/i.test(reasonOf(r)),
-      "G  an unpriced component fails CLOSED — REVIEW on component approval, never a price",
+    ok(r.status === "REVIEW" && /approved price|established labor/i.test(reasonOf(r)),
+      "G  an unconfigured component fails CLOSED — REVIEW on the missing economic input, never a price",
       `${r.status} / ${reasonOf(r)}`);
     ok(built(r), "G  …while the physical recipe is still built in full", fingerprint(r));
 
