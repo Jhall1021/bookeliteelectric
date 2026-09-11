@@ -18,7 +18,7 @@ import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../
 import { eliteService, serviceFor } from "../prisma/_serviceTargets";
 import { SURFACE_KEYS, SURFACE_BOUNDS } from "../prisma/_surfaceRouteModule";
 import { OUTLET_V2_KEYS, OUTLET_SLUG } from "../prisma/seed-new-outlet-v2";
-import { SURFACE_RACEWAY_ROLES, EMT_ROLES, CONDUCTOR_ROLES, FORBIDDEN_BRANDS } from "../prisma/seed-routing-v2-material-roles";
+import { SURFACE_RACEWAY_ROLES, EMT_ROLES, CONDUCTOR_ROLES, RETIRED_CONDUCTOR_ROLES, FORBIDDEN_BRANDS } from "../prisma/seed-routing-v2-material-roles";
 import { PROOF_SLUG } from "./provision-routing-v2-proof-contractor";
 
 const prisma = new PrismaClient();
@@ -71,11 +71,24 @@ async function main() {
 
   console.log("\n  C  NM CABLE AND INDIVIDUAL CONDUCTORS STAY SEPARATE\n");
   const nm = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "WIRE_14_2" }, select: { key: true, unit: true } });
-  const thhn = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "CONDUCTOR_THHN_14" }, select: { key: true, unit: true, notes: true } });
-  ok(nm.key !== thhn.key, "C  WIRE_14_2 and CONDUCTOR_THHN_14 are different roles");
+  const thhn = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "CONDUCTOR_THHN_14_UNGROUNDED" }, select: { key: true, unit: true, notes: true } });
+  ok(nm.key !== thhn.key, "C  WIRE_14_2 and the #14 conductor roles are different roles");
   ok(/not interchangeable/i.test(thhn.notes ?? ""), "C  …and the conductor role says so explicitly");
   const conductorCount = await prisma.canonicalMaterial.count({ where: { key: { startsWith: "CONDUCTOR_THHN_" } } });
-  ok(conductorCount === CONDUCTOR_ROLES.length, `C  ${conductorCount} conductor gauges, matching the branch-circuit work the catalog performs`);
+  ok(conductorCount === CONDUCTOR_ROLES.length, `C  ${conductorCount} conductor roles, matching the branch-circuit work the catalog performs`);
+
+  // The function-less roles are gone, and their absence is asserted rather
+  // than assumed: a retired role that quietly survives is still purchasable.
+  for (const retired of RETIRED_CONDUCTOR_ROLES) {
+    const gone = await prisma.canonicalMaterial.findUnique({ where: { key: retired }, select: { id: true } });
+    ok(gone === null, `C  retired ${retired} is absent from the catalog`);
+  }
+  const fnSuffixes = ["UNGROUNDED", "GROUNDED", "EQUIPMENT_GROUND"];
+  const allConductors = await prisma.canonicalMaterial.findMany({
+    where: { key: { startsWith: "CONDUCTOR_THHN_" } }, select: { key: true } });
+  ok(allConductors.every((c) => fnSuffixes.some((f) => c.key.endsWith(`_${f}`))),
+    "C  every conductor role names its electrical function",
+    JSON.stringify(allConductors.filter((c) => !fnSuffixes.some((f) => c.key.endsWith(`_${f}`))).map((c) => c.key)));
 
   console.log("\n  D  EMT FITTINGS ARE ATOMIC, NOT A SET\n");
   for (const kind of ["EMT_", "EMT_COUPLING_", "EMT_CONNECTOR_", "EMT_STRAP_"]) {
