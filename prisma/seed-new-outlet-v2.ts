@@ -35,6 +35,7 @@ import { attachSurfaceRouteModule } from "./_surfaceRouteModule";
 import { attachAccessibleConcealedModule } from "./_concealedRouteModules";
 import { attachFinishedWallModule } from "./_finishedWallModule";
 import { eliteService } from "./_serviceTargets";
+import { assertNoBaseMaterial } from "../lib/materialCost";
 
 const prisma = new PrismaClient();
 
@@ -117,6 +118,38 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
     await db.answerOption.deleteMany({ where: { questionId: q.id } });
     await db.question.update({ where: { id: q.id }, data: { order: 900 } });
   }
+
+  /**
+   * THE UNCONDITIONAL ASSEMBLY GOES WITH THE MODEL THAT JUSTIFIED IT.
+   *
+   * V1 billed every outlet for a fixed 25 ft of 14/2 -- RECEPTACLE_STANDARD x1,
+   * BOX_OLD_WORK x1, WALL_PLATE x1, WIRE_14_2 x25, CONSUMABLES_SMALL x1 -- and
+   * `seed-materials.ts` says so in its own comment: "A run, not a device. 25 ft
+   * of cable is a 10 ft route with slack." That was the standard-run model, and
+   * it is the thing Routing V2 replaces. An 8 ft run and a 50 ft run were
+   * charged the same cable either way, which is the whole argument.
+   *
+   * Under V2 the quantity is bound to a measured answer on the route components
+   * instead, so an unconditional service-level allowance would double-count the
+   * moment component economics arrive.
+   *
+   * NOTHING CANONICAL IS DELETED. The materials still exist and Elite's costs
+   * for them are untouched -- WIRE_14_2 is still 50 c/ft. What is retired is the
+   * unconditional COMBINATION, which is a claim about this service rather than
+   * a fact about the parts.
+   *
+   * Asserted rather than left implied: deleting the rows alone would leave the
+   * cached $21.50 sitting on the service, which is exactly how the bathroom fan
+   * kept $11 of retired duct connector and went on pricing it.
+   */
+  await assertNoBaseMaterial(
+    db,
+    svc.id,
+    "Routing V2: distance determines quantity. The V1 assembly charged a fixed " +
+      "25 ft run on every outlet regardless of the actual route; quantity is now " +
+      "bound to a measured answer on the route components. Canonical materials " +
+      "and Elite's costs for them are unchanged."
+  );
 
   return { surface, accessible, finished, method: qMethod.id };
 }

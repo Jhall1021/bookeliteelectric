@@ -19,6 +19,7 @@ import { FINISHED_KEYS } from "../prisma/_finishedWallModule";
 import { OUTLET_V2_KEYS, RETIRED_OUTLET_QUESTIONS } from "../prisma/seed-new-outlet-v2";
 import { findDanglingReferences, findUnreachableQuestions } from "../prisma/_moduleHelpers";
 import { eliteService } from "../prisma/_serviceTargets";
+import { eliteContractorId } from "../prisma/_componentHelpers";
 
 const prisma = new PrismaClient();
 const OUTLET = "new-120v-outlet";
@@ -205,6 +206,99 @@ async function main() {
       select: { approvedPriceCents: true } });
     ok(econ.length > 0 && econ.every((e) => e.approvedPriceCents === null),
       `20  every V2 route component remains unpriced (${econ.length} rows)`);
+  }
+
+  console.log("\n  21  THE V1 STANDARD-RUN MODEL IS GONE FROM THIS SERVICE\n");
+  {
+    const svc = await eliteService(prisma, OUTLET);
+    const rows = await prisma.serviceMaterial.findMany({
+      where: { serviceId: svc.id },
+      select: { quantity: true, canonicalMaterial: { select: { key: true } } },
+    });
+
+    // The specific defect: every outlet billed a fixed 25 ft of cable whether
+    // the run was 8 ft or 50 ft. Named rather than counted, so a future
+    // assembly that reintroduces it is caught by the thing it reintroduces.
+    const wire = rows.find((r) => r.canonicalMaterial?.key === "WIRE_14_2");
+    ok(!wire, "21  no unconditional WIRE_14_2 requirement at all", `found x${wire?.quantity}`);
+    ok(!(wire && wire.quantity === 25),
+      "21  and specifically not the fixed 25 ft standard run", `found x${wire?.quantity}`);
+
+    const box = rows.find((r) => r.canonicalMaterial?.key === "BOX_OLD_WORK");
+    ok(!box, "21  no unconditional BOX_OLD_WORK — the box belongs to an endpoint, not the service",
+      `found x${box?.quantity}`);
+
+    ok(rows.length === 0,
+      "21  the whole unconditional assembly is gone", JSON.stringify(rows.map((r) => r.canonicalMaterial?.key ?? "(unlinked)")));
+
+    // Asserted, not implied. Deleting rows alone would leave the cached $21.50.
+    const st = await prisma.service.findUniqueOrThrow({
+      where: { id: svc.id },
+      select: { materialCostCents: true, materialCostResolved: true,
+                unresolvedMaterialKeys: true, unresolvedPolicyKeys: true },
+    });
+    ok(st.materialCostCents === 0,
+      "21  materialCostCents is 0 — asserted, not a stale $21.50 left behind", String(st.materialCostCents));
+    ok(st.materialCostResolved === true && st.unresolvedMaterialKeys.length === 0,
+      "21  and readiness is derived, not faked",
+      JSON.stringify({ r: st.materialCostResolved, k: st.unresolvedMaterialKeys }));
+
+    // The materials themselves are a fact about the trade and must survive.
+    const preserved = await prisma.contractorMaterial.findMany({
+      where: {
+        contractorId: svc.contractorId,
+        canonicalMaterial: { key: { in: ["WIRE_14_2", "BOX_OLD_WORK", "RECEPTACLE_STANDARD", "WALL_PLATE", "CONSUMABLES_SMALL"] } },
+        active: true,
+      },
+      select: { unitCostCents: true, canonicalMaterial: { select: { key: true } } },
+    });
+    ok(preserved.length === 5,
+      "21  all five canonical materials keep Elite's real costs — the COMBINATION was retired, not the parts",
+      JSON.stringify(preserved.map((m) => `${m.canonicalMaterial.key}=${m.unitCostCents}`)));
+
+    console.log("\n  22  NO DEPENDENCY ON THE LEGACY DISTANCE POLICY\n");
+    ok(!st.unresolvedPolicyKeys.includes("outlet_run.breakpoints"),
+      "22  Elite's outlet does not depend on outlet_run.breakpoints", st.unresolvedPolicyKeys.join(","));
+    const policyOptions = await prisma.answerOption.count({
+      where: { question: { serviceId: svc.id }, policyKey: "outlet_run.breakpoints" },
+    });
+    ok(policyOptions === 0, "22  no option on this service reads that policy", String(policyOptions));
+    const patterned = await prisma.answerOption.count({
+      where: { question: { serviceId: svc.id }, labelPattern: { not: null } },
+    });
+    ok(patterned === 0,
+      "22  and no option label still carries an unfilled band pattern", String(patterned));
+
+    // The definition itself is preserved: other services have not migrated.
+    const eliteId = await eliteContractorId(prisma);
+    const stillUsing = await prisma.service.findMany({
+      where: { unresolvedPolicyKeys: { has: "outlet_run.breakpoints" } },
+      select: { slug: true, contractorId: true, contractor: { select: { slug: true } } },
+    });
+    ok(!stillUsing.some((x) => x.contractorId === eliteId),
+      "22  no Elite service depends on it",
+      stillUsing.map((x) => `${x.contractor?.slug}/${x.slug}`).join(", "));
+    console.log(`         (still depended on elsewhere: ${stillUsing.map((x) => `${x.contractor?.slug}/${x.slug}`).join(", ") || "nobody"} — definition preserved)`);
+  }
+
+  console.log("\n  23  ROUTING SUCCEEDS; PRICING WAITS. THEY ARE DIFFERENT ANSWERS.\n");
+  {
+    // The whole architecture in one assertion. A complete physical recipe that
+    // cannot be priced is a ROUTING SUCCESS held at the pricing gate — not a
+    // routing failure, and not a price. If these two ever collapse into each
+    // other, an unpriced component becomes either a free one or a broken tree.
+    const r = await walk(OUTLET, {
+      ...qualified, below_above_access: "has_access", accessible_route_feet: "18",
+    });
+    ok(built(r), "23  a qualified route builds a complete physical recipe", JSON.stringify(comps(r)));
+    ok(r.status === "REVIEW",
+      "23  …and still returns REVIEW, because the economics are not approved yet", String(r.status));
+    // `reason` exists only on the non-priced variants, so narrow rather than cast.
+    const reason = "reason" in r ? String(r.reason) : "";
+    ok(/price|approv/i.test(reason),
+      "23  …for the PRICING reason, not a routing one", reason || "(none)");
+    ok(comps(r).every((c: any) => typeof c.quantity === "number" && c.quantity > 0),
+      "23  every component carries a measured quantity", JSON.stringify(comps(r)));
   }
 
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);
