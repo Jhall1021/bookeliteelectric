@@ -144,7 +144,7 @@ export function SidebarShell({
   return (
     <div className="p2b-app min-h-screen">
       <div className="lg:flex">
-        <aside className="hidden lg:block lg:w-[260px] lg:shrink-0 lg:bg-[#0D1F3B]">
+        <aside className="hidden lg:block lg:w-[260px] lg:shrink-0 lg:bg-navy">
           <div className="lg:sticky lg:top-0 lg:h-screen">{nav}</div>
         </aside>
 
@@ -212,20 +212,23 @@ export function SidebarShell({
             </div>
           </header>
 
-          <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">{children}</main>
+          {/* Each admin route already owns its content measure and spacing.
+              The shell supplies navigation, chrome and the application theme;
+              it deliberately does not add a second layer of page padding. */}
+          <main className="min-h-[calc(100vh-4rem)]">{children}</main>
         </div>
       </div>
 
       {mobileOpen && (
         <div id="admin-mobile-nav" className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-[#081426]/55 backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} aria-hidden="true" />
+          <div className="absolute inset-0 bg-navy/55 backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} aria-hidden="true" />
           <div
             ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Primary navigation"
             tabIndex={-1}
-            className="absolute inset-y-0 left-0 w-[300px] max-w-[88vw] bg-[#0D1F3B] shadow-raised"
+            className="absolute inset-y-0 left-0 w-[300px] max-w-[88vw] bg-navy shadow-raised"
           >
             <div className="flex justify-end px-3 pt-3">
               <button
@@ -255,12 +258,12 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
       aria-current={active ? "page" : undefined}
       className={`relative flex items-center gap-3 rounded-[11px] px-3 py-2.5 text-[13px] font-semibold transition-all duration-150 ${
         active
-          ? "bg-white/[0.11] text-white shadow-[inset_0_0_0_1px_rgb(255_255_255/0.035)]"
-          : "text-white/62 hover:bg-white/[0.055] hover:text-white"
+          ? "bg-white/[0.11] text-white ring-1 ring-inset ring-white/[0.04]"
+          : "text-white/[0.62] hover:bg-white/[0.055] hover:text-white"
       }`}
     >
-      {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-[#5F86FF]" aria-hidden="true" />}
-      <Icon className={`h-[17px] w-[17px] shrink-0 ${active ? "text-[#AFC2FF]" : "text-white/50"}`} />
+      {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-electric" aria-hidden="true" />}
+      <Icon className={`h-[17px] w-[17px] shrink-0 ${active ? "text-white/70" : "text-white/50"}`} />
       <span className="flex-1">{item.label}</span>
       {item.badge !== undefined && item.badge > 0 && (
         <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500/90 px-1.5 text-[10px] font-extrabold text-white">
