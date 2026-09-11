@@ -17,6 +17,7 @@ import { FINISHED_KEYS, CONCEALED_ENVELOPE_FT } from "../prisma/_finishedWallMod
 import { ACCESSIBLE_KEYS } from "../prisma/_concealedRouteModules";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import { findDanglingReferences, findUnreachableQuestions } from "../prisma/_moduleHelpers";
+import { eliteService } from "../prisma/_serviceTargets";
 
 const prisma = new PrismaClient();
 const SLUG = "rv2-fixture-finished-wall-outlet";
@@ -27,7 +28,7 @@ const ok = (c: boolean, label: string, detail = "") => {
 };
 
 async function walk(slug: string, answers: Record<string, string>) {
-  const svc = await prisma.service.findFirstOrThrow({ where: { slug }, select: { id: true } });
+  const svc = await eliteService(prisma, slug);
   const loaded = await loadServiceForResolution(prisma, svc.id);
   if (!loaded) throw new Error(`${slug} not loadable`);
   const settings = await loadPricingSettings(prisma, loaded.contractorId ?? "");
@@ -57,8 +58,8 @@ async function setCapability(contractorId: string, key: string, state: "none" | 
 
 async function main() {
   console.log("\nROUTING V2 — FINISHED-WALL QUALIFICATION AND CAPABILITY GATE\n");
-  const svc = await prisma.service.findFirstOrThrow({ where: { slug: SLUG }, select: { contractorId: true } });
-  const CID = svc.contractorId!;
+  const svc = await eliteService(prisma, SLUG);
+  const CID = svc.contractorId;
   const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_RESTORATION";
   await setCapability(CID, BB, "declared");
   await setCapability(CID, DW, "declared");
@@ -159,7 +160,7 @@ async function main() {
 
   console.log("\n  G  GRAPH AND ECONOMICS\n");
   {
-    const s2 = await prisma.service.findFirstOrThrow({ where: { slug: SLUG }, select: { id: true } });
+    const s2 = await eliteService(prisma, SLUG);
     ok((await findDanglingReferences(prisma, s2.id)).length === 0, "G  no dangling reference");
     ok((await findUnreachableQuestions(prisma, s2.id)).length === 0, "G  no unreachable question");
     const rows = await prisma.contractorComponent.findMany({

@@ -12,6 +12,7 @@
 import { PrismaClient } from "@prisma/client";
 import { attachAccessibleConcealedModule, attachBackToBackModule } from "./_concealedRouteModules";
 import { attachFinishedWallModule } from "./_finishedWallModule";
+import { eliteService } from "./_serviceTargets";
 
 const prisma = new PrismaClient();
 
@@ -27,8 +28,13 @@ export const ROUTE_FIXTURES = [
 ];
 
 export async function seedRoutingV2Fixtures(db: PrismaClient = prisma) {
-  const anchor = await db.service.findFirstOrThrow({
-    where: { slug: "new-120v-outlet" },
+  // ELITE, NAMED. These fixtures prove the shared modules against the only
+  // contractor carrying real component economics. Anchoring on an unscoped
+  // slug lookup put them under BrightPath and split the fixtures from the
+  // economics meant to price them.
+  const anchorTarget = await eliteService(db, "new-120v-outlet");
+  const anchor = await db.service.findUniqueOrThrow({
+    where: { id: anchorTarget.id },
     select: { categoryId: true, contractorId: true, contractorCategoryId: true, tradeKey: true, bookingType: true },
   });
 

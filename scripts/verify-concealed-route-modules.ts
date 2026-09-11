@@ -14,6 +14,7 @@ import { PrismaClient } from "@prisma/client";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { ACCESSIBLE_KEYS, BACK_TO_BACK_KEYS } from "../prisma/_concealedRouteModules";
 import { findDanglingReferences, findUnreachableQuestions } from "../prisma/_moduleHelpers";
+import { eliteService } from "../prisma/_serviceTargets";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -23,7 +24,7 @@ const ok = (c: boolean, label: string, detail = "") => {
 };
 
 async function walk(slug: string, answers: Record<string, string>) {
-  const svc = await prisma.service.findFirstOrThrow({ where: { slug }, select: { id: true } });
+  const svc = await eliteService(prisma, slug);
   const loaded = await loadServiceForResolution(prisma, svc.id);
   if (!loaded) throw new Error(`${slug} could not be loaded`);
   const settings = await loadPricingSettings(prisma, loaded.contractorId ?? "");
@@ -103,7 +104,7 @@ async function main() {
   console.log("\n  E  GRAPH AND ECONOMICS\n");
   for (const slug of ["rv2-fixture-accessible-outlet", "rv2-fixture-accessible-switch",
                       "rv2-fixture-back-to-back-outlet"]) {
-    const svc = await prisma.service.findFirstOrThrow({ where: { slug }, select: { id: true } });
+    const svc = await eliteService(prisma, slug);
     ok((await findDanglingReferences(prisma, svc.id)).length === 0, `E  ${slug}: no dangling reference`);
     ok((await findUnreachableQuestions(prisma, svc.id)).length === 0, `E  ${slug}: no unreachable question`);
   }

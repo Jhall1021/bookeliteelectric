@@ -14,6 +14,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { attachSurfaceRouteModule, type SurfaceEndpoint } from "./_surfaceRouteModule";
+import { eliteService } from "./_serviceTargets";
 
 const prisma = new PrismaClient();
 
@@ -50,8 +51,13 @@ export async function seedSurfaceMountedServices(db: PrismaClient = prisma) {
   // Anchored to the existing outlet service so these land in the same catalog
   // position a customer already browses — and so a missing catalog is a loud
   // failure rather than an invented category.
-  const anchor = await db.service.findFirstOrThrow({
-    where: { slug: "new-120v-outlet" },
+  // ELITE, NAMED. These fixtures prove the shared modules against the only
+  // contractor carrying real component economics. Anchoring on an unscoped
+  // slug lookup put them under BrightPath and split the fixtures from the
+  // economics meant to price them.
+  const anchorTarget = await eliteService(db, "new-120v-outlet");
+  const anchor = await db.service.findUniqueOrThrow({
+    where: { id: anchorTarget.id },
     select: { categoryId: true, contractorId: true, contractorCategoryId: true, tradeKey: true, bookingType: true },
   });
 

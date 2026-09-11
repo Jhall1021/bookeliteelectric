@@ -9,6 +9,7 @@
 import { PrismaClient } from "@prisma/client";
 import { capabilityState, loadCapabilityFacts, CAPABILITY_KEYS, isCapabilityKey } from "../lib/capabilities";
 import { readFileSync } from "node:fs";
+import { eliteContractorId } from "../prisma/_componentHelpers";
 
 const prisma = new PrismaClient();
 const RUN = `rv2cap-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
@@ -38,7 +39,9 @@ async function main() {
     "A  there is NO boolean helper collapsing the two non-declared states");
 
   console.log("\n  B  THREE STATES, FROM REAL ROWS\n");
-  const c = await prisma.contractor.findFirstOrThrow({ select: { id: true, slug: true } });
+  // ELITE, NAMED. This took whichever contractor came back first, so the
+  // capability rows it wrote and deleted belonged to an arbitrary tenant.
+  const c = { id: await eliteContractorId(prisma), slug: "elite-electric" };
   const KEY = "BASEBOARD_ACCESS_REINSTALL";
   await prisma.contractorCapability.deleteMany({ where: { contractorId: c.id, key: KEY } });
 

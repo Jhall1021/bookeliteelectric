@@ -14,6 +14,7 @@ import { PrismaClient } from "@prisma/client";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { SURFACE_KEYS, SURFACE_ENDPOINT_RECIPE, SURFACE_ROUTE_COMPONENTS } from "../prisma/_surfaceRouteModule";
 import { findDanglingReferences, findUnreachableQuestions } from "../prisma/_moduleHelpers";
+import { eliteService } from "../prisma/_serviceTargets";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -37,7 +38,7 @@ const clear = (feet: string, inside = "0", outside = "0", surface = "drywall") =
 });
 
 async function walk(slug: string, answers: Record<string, string>) {
-  const svc = await prisma.service.findFirstOrThrow({ where: { slug }, select: { id: true } });
+  const svc = await eliteService(prisma, slug);
   const loaded = await loadServiceForResolution(prisma, svc.id);
   // Null means the service could not be loaded for resolution at all. Throwing
   // beats a null-check that quietly reports every walk as unresolved.
@@ -140,7 +141,7 @@ async function main() {
 
   console.log("\n  10  GRAPH INTEGRITY\n");
   for (const [ep, slug] of Object.entries(SLUGS)) {
-    const svc = await prisma.service.findFirstOrThrow({ where: { slug }, select: { id: true } });
+    const svc = await eliteService(prisma, slug);
     const dangling = await findDanglingReferences(prisma, svc.id);
     const unreachable = await findUnreachableQuestions(prisma, svc.id);
     ok(dangling.length === 0, `10  ${ep}: no dangling nextQuestionId`, JSON.stringify(dangling));
