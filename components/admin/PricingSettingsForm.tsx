@@ -3,14 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+// Nullable: a contractor who has not decided a field must see an EMPTY input,
+// not a confident 0. Showing zero would mean "I charge no service-call
+// minimum" — a real, different business decision they never made.
 type Settings = {
-  crewHourRateCents: number;
-  primaryMinimumCents: number;
-  roundingIncrementCents: number;
-  defaultPermitAdminCents: number;
+  crewHourRateCents: number | null;
+  primaryMinimumCents: number | null;
+  roundingIncrementCents: number | null;
+  defaultPermitAdminCents: number | null;
 };
 
-function toDollars(cents: number): string {
+function toDollars(cents: number | null): string {
+  if (cents === null || cents === undefined) return "";
   return (cents / 100).toFixed(2);
 }
 
