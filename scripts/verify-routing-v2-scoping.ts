@@ -68,6 +68,8 @@ const ROUTING_V2_FILES = [
   "scripts/verify-numeric-route-ranges.ts",
   "scripts/verify-routing-v2-components.ts",
   "scripts/verify-quantity-binding-provisioning.ts",
+  // Defines what every future contractor receives, so it is V2 surface now.
+  "scripts/extract-template-service.ts",
 ];
 
 const READ_METHODS = new Set([

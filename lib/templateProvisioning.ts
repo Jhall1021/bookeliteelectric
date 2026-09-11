@@ -477,6 +477,12 @@ export async function installCatalog(
               /// An option whose range is lost stops matching, which turns a
               /// sound tree into a gap and refuses every answer in that span.
               numberAtLeast: number | null; numberAtMost: number | null;
+              /// ROUTING V2 capability gate — what this route REQUIRES. The
+              /// contractor's ContractorCapability says what they OFFER, and
+              /// provisioning must never write that: a route being able to
+              /// require drywall restoration is not a claim that this
+              /// contractor does it.
+              requiresCapabilityKey: string | null;
               nextQuestionKey: string | null; rerouteServiceKey: string | null;
               referencedServiceKey: string | null; requiredPhotoLabels: string[];
               photosBlockBooking: boolean; illustrationUrls: string[];
@@ -513,6 +519,7 @@ export async function installCatalog(
                 questionId: qId.get(qq.key)!, value: o.value, label: o.label,
                 routeAction: o.routeAction, order: o.order,
                 numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+                requiresCapabilityKey: o.requiresCapabilityKey,
                 nextQuestionId: o.nextQuestionKey ? qId.get(o.nextQuestionKey) ?? null : null,
                 rerouteServiceId: target?.id ?? null, referencedServiceId: ref?.id ?? null,
                 requiredPhotoLabels: o.requiredPhotoLabels,
