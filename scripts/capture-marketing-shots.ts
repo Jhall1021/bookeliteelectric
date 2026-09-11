@@ -190,14 +190,34 @@ async function main() {
       await page.waitForTimeout(400);
     }
     if (shot.anchor) {
+      // VISIBLY RENDERED, not merely present. Matching any heading in the DOM
+      // is what let the rebuilt service workspace be photographed on the wrong
+      // tab: it keeps all four panes mounted and shows one, so the anchor found
+      // a heading nobody could see and reported success. The click above fixes
+      // today's screenshot; this is what keeps it fixed. If the tab interaction
+      // ever stops working, no VISIBLE heading matches and the capture refuses
+      // instead of quietly photographing whatever pane happens to be open.
+      // The predicate is inline rather than a named const on purpose: tsx keeps
+      // function names, and a NAMED function inside page.evaluate ships a
+      // `__name(...)` call into a browser that has no such helper — the whole
+      // capture dies with "__name is not defined" after the first shot.
       const found = await page.evaluate((text) => {
-        const h = [...document.querySelectorAll("h1,h2,h3")].find((e) => e.textContent?.includes(text));
+        const h = [...document.querySelectorAll("h1,h2,h3")]
+          .filter((e) => e.textContent?.includes(text))
+          .find((e) => {
+            if (e.getClientRects().length === 0) return false;    // display:none, here or above
+            const cs = getComputedStyle(e);
+            if (cs.visibility === "hidden" || cs.visibility === "collapse") return false;
+            if (Number(cs.opacity) === 0) return false;
+            const r = e.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          });
         if (!h) return false;
         window.scrollTo(0, h.getBoundingClientRect().top + window.scrollY - 24);
         return true;
       }, shot.anchor);
       if (!found) {
-        console.log(`  ! ${shot.name}: no heading matching "${shot.anchor}" — skipped`);
+        console.log(`  ! ${shot.name}: no VISIBLE heading matching "${shot.anchor}" — skipped`);
         continue;
       }
     }
