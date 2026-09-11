@@ -55,7 +55,7 @@ const IDENTITY_PATTERNS: { re: RegExp; what: string }[] = [
 const ALLOWED = new Set([
   "scripts/lint-storefront-identity.ts",
   "app/[site]/why-elite/page.tsx", // the compatibility redirect itself
-  "lib/siteRouting.ts",            // keeps the old slug reserved
+  "lib/reservedHostedSlugs.ts",    // the reserved-slug infrastructure that legitimately keeps the old compatibility slug reserved
   "scripts/audit-storefront-navigation.ts",
   "lib/theme/definition.ts",   // the elite-baseline parity anchor's key/label
   "lib/theme/tokens.ts",       // ELITE_V1_* palette constant names

@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { RESERVED_HOSTED_SLUGS } from "@/lib/reservedHostedSlugs";
+import { SESSION_COOKIE_NAME, SESSION_COOKIE_ATTRS } from "@/lib/sessionCookieConfig";
 
 /**
  * Second layer of the write freeze — ADR-013 Phase 4.
@@ -53,10 +55,66 @@ async function framePolicy(req: NextRequest): Promise<string> {
   }
 }
 
+/**
+ * Root-level routes that sit beside `app/[site]/` but aren't in
+ * RESERVED_HOSTED_SLUGS, because that list exists to keep a CONTRACTOR from
+ * claiming these words as a hosted slug, not to describe every non-storefront
+ * path Next itself already serves at the root.
+ *
+ * `platform`, `start` and `invite` are real top-level routes
+ * (app/platform/, app/start/, app/(auth)/invite/) that RESERVED_HOSTED_SLUGS
+ * does not list — a pre-existing gap in that set, unrelated to this fix and
+ * not corrected here (narrowing/widening which slugs a contractor may
+ * register is a separate decision). Listed here only so this middleware's
+ * own scoping doesn't inherit that gap.
+ */
+const NON_STOREFRONT_TOP_SEGMENTS = new Set([
+  "robots.txt", "sitemap.xml", "icon.png", "embed.js",
+  "platform", "start", "invite",
+]);
+
+/**
+ * Anonymous session bootstrap — docs/design/anonymous-session-bootstrap.md.
+ *
+ * True only for a real `app/[site]/**` homeowner storefront page: the one
+ * place `elite_session_id` needs to exist before client-side code runs,
+ * because Header.tsx and GuidedFlowEngine.tsx both fire their own requests
+ * that depend on it as soon as they mount.
+ *
+ * `/embed/<publicId>/...` is excluded even though it eventually serves the
+ * same storefront pages: that rewrite (next.config.mjs) happens AFTER
+ * middleware runs, so at this point the path still reads "embed", and an
+ * embed never uses this cookie anyway (lib/session.ts — SameSite=Lax cannot
+ * reach a cross-origin iframe; the embed carries its own header token).
+ *
+ * Everything reserved against a contractor's OWN hosted slug
+ * (RESERVED_HOSTED_SLUGS — /admin, /dashboard, /api, marketing, auth, …) is
+ * excluded for the same reason it's reserved: those paths are never a real
+ * `[site]` segment, so they're never where a homeowner client fetch depending
+ * on this cookie originates.
+ */
+function isHomeownerStorefrontPath(pathname: string): boolean {
+  const first = pathname.split("/").filter(Boolean)[0];
+  if (!first) return false; // "/" itself — resolved by a redirect, not a [site] page.
+  if (first === "embed") return false;
+  if (NON_STOREFRONT_TOP_SEGMENTS.has(first)) return false;
+  return !RESERVED_HOSTED_SLUGS.has(first);
+}
+
 export async function middleware(req: NextRequest) {
   if (!frozen() || READ_ONLY.has(req.method)) {
     const res = NextResponse.next();
     res.headers.set("Content-Security-Policy", await framePolicy(req));
+
+    // Issue the anonymous session cookie here, before React hydrates and
+    // Header/GuidedFlowEngine can independently race to mint their own —
+    // see docs/design/anonymous-session-bootstrap.md. Mint-only-if-absent:
+    // an existing identity, including one Device Handoff just assigned this
+    // browser, is never touched.
+    if (isHomeownerStorefrontPath(req.nextUrl.pathname) && !req.cookies.has(SESSION_COOKIE_NAME)) {
+      res.cookies.set(SESSION_COOKIE_NAME, crypto.randomUUID(), SESSION_COOKIE_ATTRS);
+    }
+
     return res;
   }
 

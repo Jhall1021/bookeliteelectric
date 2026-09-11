@@ -137,6 +137,11 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// one reader/writer, and prisma/schema.prisma for why it is not scoped
   /// under ContractorTrade instead.
   "ContractorCredential",
+  /// Shared booking-flow persistence — docs/design/guided-flow-session-v1.md.
+  /// A direct contractorId scalar, same shape as Visit two lines up; its two
+  /// satellites (GuidedFlowVisualAssistTask, DeviceHandoff) derive through
+  /// it instead, in DERIVED_TENANT_MODELS below.
+  "GuidedFlowSession",
 ]);
 
 /**
@@ -361,6 +366,11 @@ export const DERIVED_TENANT_MODELS = new Map<string, readonly string[]>([
   /// contractor able to read what another was paid.
   ["PaymentEvent", ["booking", "visit"]],
   ["BookingAdjustment", ["booking", "visit"]],
+  /// GuidedFlowSession's own two satellites — neither carries a
+  /// contractorId scalar; both derive through the session, same shape as
+  /// Question deriving through Service two lines up.
+  ["GuidedFlowVisualAssistTask", ["guidedFlowSession"]],
+  ["DeviceHandoff", ["guidedFlowSession"]],
 ]);
 
 /** `["question","service"]` -> `{ question: { service: { contractorId } } }`. */

@@ -79,6 +79,14 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
           ...(refusal.unresolvedMaterialKeys
             ? { unresolvedMaterialKeys: refusal.unresolvedMaterialKeys }
             : {}),
+          // The prerequisites travel too. They were computed to decide this
+          // refusal and then dropped right here, which is why the contractor
+          // could only ever be told the ordering rule, never sent to the
+          // thing that satisfies it.
+          ...(refusal.missingPrerequisites
+            ? { missingPrerequisites: refusal.missingPrerequisites }
+            : {}),
+          ...(refusal.prerequisites ? { prerequisites: refusal.prerequisites } : {}),
         },
         { status: 409 }
       );

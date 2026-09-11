@@ -26,6 +26,20 @@ export type ActivationRefusal = {
   unresolvedPolicyKeys?: string[];
   /** Slugs the contractor must launch first, when the refusal is a dependency. */
   missingPrerequisites?: string[];
+  /**
+   * The same prerequisites, with enough to ACT on them.
+   *
+   * `missingPrerequisites` names them; it cannot link to them, so the contractor
+   * was left to find "your diagnostic visit" in a catalog by hand — the ordering
+   * rule wearing a friendlier sentence. The id was already loaded to decide the
+   * refusal and then discarded; this keeps it.
+   *
+   * `id` is null for a prerequisite that is not a row this contractor owns — a
+   * handoff target outside their catalog, or a diagnostic they do not offer.
+   * There is nothing to link to in those cases, and the caller must say so
+   * rather than invent a destination.
+   */
+  prerequisites?: { id: string | null; slug: string | null; label: string }[];
 };
 
 /**
@@ -169,6 +183,7 @@ export async function activationRefusal(
         `${named.join(" and ")}, which ${named.length === 1 ? "isn't" : "aren't"} live. ` +
         `Launch ${named.length === 1 ? "it" : "those"} first and this can follow.`,
       missingPrerequisites: blocked.map((d) => d.slug).filter((x): x is string => x !== null),
+        prerequisites: blocked,
     };
   }
 
@@ -191,8 +206,8 @@ async function unavailableDependencies(
   contractorId: string,
   serviceId: string,
   promise: { handoffTargets: string[]; deadReasons: string[] }
-): Promise<{ slug: string | null; label: string }[]> {
-  const out: { slug: string | null; label: string }[] = [];
+): Promise<{ id: string | null; slug: string | null; label: string }[]> {
+  const out: { id: string | null; slug: string | null; label: string }[] = [];
 
   if (promise.handoffTargets.length > 0) {
     const targets = await db.service.findMany({
@@ -200,14 +215,14 @@ async function unavailableDependencies(
       select: { id: true, slug: true, name: true, active: true },
     });
     for (const t of targets) {
-      if (!t.active) out.push({ slug: t.slug, label: `"${t.name}"` });
+      if (!t.active) out.push({ id: t.id, slug: t.slug, label: `"${t.name}"` });
     }
     // A target that is not this contractor's at all is a catalog defect rather
     // than an ordering problem, but it is equally unreachable, so it is named
     // too rather than passing silently.
     const found = new Set(targets.map((t) => t.id));
     for (const id of promise.handoffTargets) {
-      if (!found.has(id)) out.push({ slug: null, label: "a service that isn't in your catalog" });
+      if (!found.has(id)) out.push({ id: null, slug: null, label: "a service that isn't in your catalog" });
     }
   }
 
@@ -221,11 +236,11 @@ async function unavailableDependencies(
     // homeowner to, which is the property this whole module exists to keep.
     const trade = await tradeOfService(db, contractorId, serviceId);
     if (!trade.ok) {
-      out.push({ slug: null, label: "a diagnostic visit, which this service cannot resolve" });
+      out.push({ id: null, slug: null, label: "a diagnostic visit, which this service cannot resolve" });
     } else {
       const found = await findTroubleshootingService(db, contractorId, trade.tradeKey);
       if (found.ok) {
-        out.push({ slug: found.service.slug, label: `your diagnostic visit ("${found.service.name}")` });
+        out.push({ id: found.service.id, slug: found.service.slug, label: `your diagnostic visit ("${found.service.name}")` });
       } else {
         // The lookup above answers the routing question — which LIVE diagnostic
         // a homeowner would be sent to — so inside a dependency refusal it can
@@ -239,13 +254,13 @@ async function unavailableDependencies(
         // answer "you don't offer one".
         const installed = await db.service.findFirst({
           where: { contractorId, tradeKey: trade.tradeKey, bookingType: "TROUBLESHOOT_ONLY" },
-          select: { slug: true, name: true },
+          select: { id: true, slug: true, name: true },
           orderBy: { slug: "asc" },
         });
         out.push(
           installed
-            ? { slug: installed.slug, label: `your diagnostic visit ("${installed.name}")` }
-            : { slug: null, label: "a diagnostic visit, which you don't offer yet" }
+            ? { id: installed.id, slug: installed.slug, label: `your diagnostic visit ("${installed.name}")` }
+            : { id: null, slug: null, label: "a diagnostic visit, which you don't offer yet" }
         );
       }
     }
