@@ -40,6 +40,22 @@ type Props = {
   destinationHint: string;
   onUploadPhoto: (file: File) => Promise<string>;
   onComplete: (result: RouteAssistResult) => void;
+  /**
+   * Scopes task lookup/creation to ONE logical invocation on this session —
+   * e.g. one question in one guided flow. Without it, any ROUTE_ASSIST task
+   * on the session looks like "this" one, which is exactly right for the
+   * one caller that predates this (the dev fixture, one task per session)
+   * and exactly wrong once a real flow could plausibly have more than one
+   * invocation. Omitted, behavior is unchanged from before this field.
+   */
+  taskKey?: string;
+  /**
+   * Skip the choice screen and start this step immediately on mount — for a
+   * caller that has already decided which path makes sense (e.g. a phone
+   * viewport shouldn't be asked to scan its own QR code). Omitted, the
+   * customer sees both options exactly as before.
+   */
+  autoStart?: "capture-here" | "handoff";
 };
 
 type Step =
@@ -58,11 +74,17 @@ export default function RouteAssistWithHandoff({
   destinationHint,
   onUploadPhoto,
   onComplete,
+  taskKey,
+  autoStart,
 }: Props) {
   const siteFetch = useSiteFetch();
   const [step, setStep] = useState<Step>({ kind: "choice" });
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Guards both React Strict Mode's double-invoke AND a genuine repeated
+  // click landing before the first request resolves — either would
+  // otherwise create two tasks/handoffs for one customer action.
+  const startingRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -70,18 +92,35 @@ export default function RouteAssistWithHandoff({
     };
   }, []);
 
-  // If a Route Assist task on this session was already completed
-  // elsewhere (e.g. the desktop reloaded after the phone finished),
-  // surface that immediately instead of asking the customer to start over.
+  // Resume, not just "was it already finished": a task for THIS invocation
+  // (taskKey-scoped, when given) that's still PENDING means a prior attempt
+  // was interrupted (reload, closed tab) — reusing it, rather than starting
+  // a fresh one, is what keeps a resume from ever creating a duplicate.
   useEffect(() => {
     listVisualAssistTasks(siteFetch, guidedFlowSessionId)
       .then((tasks) => {
-        const done = tasks.find((t) => t.taskType === "ROUTE_ASSIST" && t.status === "COMPLETED" && t.result);
-        if (done?.result) setStep({ kind: "handoff-completed", result: done.result });
+        const mine = tasks.find((t) => t.taskType === "ROUTE_ASSIST" && (taskKey === undefined || t.taskKey === taskKey));
+        if (!mine) {
+          if (autoStart === "capture-here") startCaptureHere();
+          else if (autoStart === "handoff") startHandoff();
+          return;
+        }
+        if (mine.status === "COMPLETED" && mine.result) {
+          setStep({ kind: "handoff-completed", result: mine.result });
+          return;
+        }
+        // PENDING: reuse the existing task directly rather than create a
+        // second one. Same-device capture always resolves this correctly;
+        // it does mean a desktop resuming mid-QR-wait finishes via capture
+        // here instead of a regenerated QR — an acceptable trade for never
+        // duplicating a task, and the phone's own in-flight attempt (if
+        // any) still completes this exact task normally either way.
+        startingRef.current = true;
+        setStep({ kind: "capture-here", taskId: mine.id });
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guidedFlowSessionId]);
+  }, [guidedFlowSessionId, taskKey]);
 
   async function persistAndComplete(taskId: string, result: RouteAssistResult) {
     await completeVisualAssistTask(siteFetch, guidedFlowSessionId, taskId, result).catch(() => {
@@ -92,19 +131,24 @@ export default function RouteAssistWithHandoff({
   }
 
   async function startCaptureHere() {
+    if (startingRef.current) return;
+    startingRef.current = true;
     setError(null);
     try {
-      const task = await createVisualAssistTask(siteFetch, guidedFlowSessionId, "ROUTE_ASSIST");
+      const task = await createVisualAssistTask(siteFetch, guidedFlowSessionId, "ROUTE_ASSIST", taskKey);
       setStep({ kind: "capture-here", taskId: task.id });
     } catch {
       setError("Couldn't start Route Assist. Try again.");
+      startingRef.current = false;
     }
   }
 
   async function startHandoff() {
+    if (startingRef.current) return;
+    startingRef.current = true;
     setError(null);
     try {
-      const task = await createVisualAssistTask(siteFetch, guidedFlowSessionId, "ROUTE_ASSIST");
+      const task = await createVisualAssistTask(siteFetch, guidedFlowSessionId, "ROUTE_ASSIST", taskKey);
       const handoff = await createDeviceHandoff(siteFetch, guidedFlowSessionId, "ROUTE_ASSIST", task.id);
       const qrDataUrl = await qrToDataURL(handoff.url, { margin: 1, width: 280 });
       setStep({ kind: "handoff-waiting", taskId: task.id, handoffId: handoff.id, qrDataUrl, url: handoff.url });
@@ -126,6 +170,7 @@ export default function RouteAssistWithHandoff({
           } else if (status === "HANDOFF_EXPIRED" || status === "HANDOFF_REVOKED") {
             if (pollRef.current) clearInterval(pollRef.current);
             setError("That QR code expired. Generate a new one.");
+            startingRef.current = false;
             setStep({ kind: "choice" });
           }
         } catch {
@@ -135,6 +180,7 @@ export default function RouteAssistWithHandoff({
       }, POLL_INTERVAL_MS);
     } catch {
       setError("Couldn't create a handoff link. Try again, or capture here instead.");
+      startingRef.current = false;
     }
   }
 

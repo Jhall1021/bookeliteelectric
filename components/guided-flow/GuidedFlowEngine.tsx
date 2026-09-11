@@ -20,6 +20,7 @@ import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
 import { advanceQueue, queuedServiceHref } from "@/lib/multiServiceQueue";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
+import RouteAssistQuestionAssist from "@/components/route-assist/RouteAssistQuestionAssist";
 
 type Props = {
   serviceSlug: string;
@@ -656,12 +657,20 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
   if (state.kind === "question") {
     return withBack(
-      <QuestionStep
-        question={state.question}
-        answers={answers}
-        accessBySlot={config?.accessBySlot ?? {}}
-        onAnswer={(option) => handleAnswer(state.question, option)}
-      />
+      <>
+        <QuestionStep
+          question={state.question}
+          answers={answers}
+          accessBySlot={config?.accessBySlot ?? {}}
+          onAnswer={(option) => handleAnswer(state.question, option)}
+        />
+        <RouteAssistQuestionAssist
+          serviceSlug={serviceSlug}
+          question={state.question}
+          guidedFlowSessionId={guidedFlowSession?.id ?? null}
+          onResolved={(option) => handleAnswer(state.question, option)}
+        />
+      </>
     );
   }
 
