@@ -18,7 +18,7 @@
  * `startDrag` comment). A domain-only test suite cannot catch that class of
  * bug by construction — there is no domain function called "drag."
  *
- * Requires a running dev server serving app/dev-fixtures/route-assist
+ * Requires a running dev server serving app/elite-electric/dev-fixtures/route-assist
  * (a committed test fixture, not a product route — see that file's header).
  *
  *   npx tsx scripts/verify-route-assist-browser.ts --base http://localhost:3424
@@ -78,7 +78,7 @@ async function imageBox(page: Page) {
 
 async function runSurfaceReceptacle(page: Page) {
   console.log("\nSurface receptacle — full interaction pass");
-  await page.goto(`${BASE}/dev-fixtures/route-assist?case=surface-receptacle`);
+  await page.goto(`${BASE}/elite-electric/dev-fixtures/route-assist?case=surface-receptacle`);
   await page.click('[data-testid="mode-SURFACE"]');
   await uploadSyntheticPhoto(page);
 
@@ -143,7 +143,7 @@ async function runSurfaceReceptacle(page: Page) {
 
 async function runConcealed(page: Page) {
   console.log("\nConcealed — doorway + different-wall + complexity");
-  await page.goto(`${BASE}/dev-fixtures/route-assist?case=concealed`);
+  await page.goto(`${BASE}/elite-electric/dev-fixtures/route-assist?case=concealed`);
   await page.click('[data-testid="mode-CONCEALED"]');
   await page.click('[data-testid="drywall-yes"]');
   await uploadSyntheticPhoto(page);
