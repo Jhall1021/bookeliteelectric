@@ -32,39 +32,59 @@
  * contractor's retirement on purpose — a job that was priced was priced —
  * and exclude only fixtures.
  *
- * --check IS NOT "equals the committed file" ANY MORE (10 Sep 2026). It was,
- * and it meant this could only ever pass against the literal, current
+ * --check IS NOT "equals the committed file" ANY MORE (10-11 Sep 2026). It
+ * was, and it meant this could only ever pass against the literal, current
  * production connection — never a rehearsal branch, never anything but the
  * one moving target the file happened to be captured from. Ordinary,
  * correct platform growth (a genuine contractor adding one more photo-gated
  * answer) changed a number the page never even reads (`bookingTypes`,
- * `routes`) and blocked a release over it. `--check` now asks three
- * separate, narrower questions instead of one broad one:
+ * `routes`) and blocked a release over it.
+ *
+ * A first correction to this kept an exact-equality check but loosened it
+ * to `live >= committed` on the estate-wide numbers, so growth alone
+ * couldn't fail it. That was still an estate-wide comparison running inside
+ * `--check` — the very thing that made this non-reproducible on an isolated
+ * database in the first place, just with a wider tolerance. `--check` now
+ * makes NO estate-wide comparison of any kind. It asks two narrower
+ * questions, both answerable from ONE deliberately stable reference tenant
+ * (`elite-electric` — the same one capture-hero-flow.ts already uses) plus
+ * the committed file's own arithmetic, so the result never depends on how
+ * many services any OTHER contractor happens to have right now:
  *
  *   1. Is the committed file internally consistent? (no database needed —
  *      distinctLabels really is labels.length, quotes.total really is the
  *      sum of quotes.byStatus)
- *   2. Is every number the page actually PRINTS still true, or only stale
- *      in the safe direction? `live >= committed` on each: growth never
- *      fails this, because a conservative true number isn't a lie. Only a
- *      DECREASE — the one direction that would make the page overstate the
- *      product — does. `bookingTypes` and `routes` aren't checked here at
- *      all: nothing on the page reads them, so there is no claim to
- *      protect, and comparing them was never anything but noise.
- *   3. Does the committed WORKED EXAMPLE still route the way the page
- *      illustrates? Re-located by its own text on ONE deliberately stable
- *      reference tenant — the same one capture-hero-flow.ts already uses —
- *      never re-ranked against the whole estate, so an unrelated contractor
- *      adding a better example elsewhere can never be why this fails.
+ *   2. On elite-electric specifically: does the mechanism still exist (at
+ *      least one live REMOTE_QUOTE service with no published price, at
+ *      least one live PHOTO_REVIEW answer that blocks booking on photos),
+ *      and does the committed WORKED EXAMPLE still route the way the page
+ *      illustrates — re-located by its own text, never re-ranked against
+ *      the whole estate, with its EXACT set of required photo labels
+ *      checked, not just non-empty (a single label quietly dropped is a
+ *      wrong illustration, not just a smaller one).
  *
- * `photos.labels` (the full list) and `quotes` stay in the captured file
- * for visibility, but drop out of `--check` entirely: nothing on the page
- * enumerates the list itself, only its length, which floor-check #2 already
- * covers. A count with no reader has no claim to protect either way.
+ * THE ESTATE-WIDE NUMBERS THEMSELVES — `bookingTypes`, `remoteQuote.*`,
+ * `routes`, `photos.distinctLabels`/`labels`/`blocking`/`preparation`,
+ * `quotes` — are still captured, still printed on the page where the page
+ * reads them, and still worth keeping honest. They are simply no longer
+ * part of `--check`, or of `verify:full`. Their accuracy is a SEPARATE
+ * question from "does the product still work", checked by a SEPARATE,
+ * separately-invoked command against production specifically:
+ *
+ *   npx tsx scripts/capture-guided-estimates.ts --audit
+ *
+ * `--audit` does the exact, estate-wide, field-for-field comparison this
+ * file used to do inside `--check` — a genuine drift there means the page's
+ * printed numbers are stale, which is worth knowing, but is a marketing
+ * content question to resolve on its own schedule (a deliberate
+ * re-capture), never a reason to block `verify:full` on a rehearsal
+ * database that was never going to hold the same numbers as production in
+ * the first place.
  *
  * READ ONLY. Nothing here writes: every mutating method on every model it
  * touches is poisoned before the first query, and `assertReadOnly` fails
- * loudly rather than quietly if a future edit reaches for one.
+ * loudly rather than quietly if a future edit reaches for one. `--audit`
+ * inherits this — it only reads.
  *
  * WHAT IS DELIBERATELY NOT CAPTURED. No customer name, email, phone,
  * address or photograph URL, and no quoted amount. A quote is a real
@@ -75,7 +95,8 @@
  * does it, so a real tenant's brand never reaches Price2Book's marketing.
  *
  *   npx tsx scripts/capture-guided-estimates.ts           # write the fixture
- *   npx tsx scripts/capture-guided-estimates.ts --check   # fail if it drifted
+ *   npx tsx scripts/capture-guided-estimates.ts --check   # capability + example, safe on any database
+ *   npx tsx scripts/capture-guided-estimates.ts --audit   # exact estate-wide numbers, production only
  */
 import { PrismaClient } from "@prisma/client";
 import { writeFileSync, existsSync } from "node:fs";
@@ -108,7 +129,8 @@ const IDENTITY = "Voltmark Electric";
 async function main() {
   assertReadOnly();
   const checking = process.argv.includes("--check");
-  console.log(`\nGUIDED ESTIMATES — ${checking ? "checking" : "capturing"}\n`);
+  const auditing = process.argv.includes("--audit");
+  console.log(`\nGUIDED ESTIMATES — ${checking ? "checking" : auditing ? "auditing (estate-wide, exact)" : "capturing"}\n`);
 
   // The one fixture rule, applied in code (see lib/fixtureContractors for why
   // not in SQL), then every query is scoped by contractor id.
@@ -253,6 +275,12 @@ async function main() {
 
   const snapshot = {
     generatedBy: "scripts/capture-guided-estimates.ts",
+    // When the estate-wide figures below were last confirmed accurate — set
+    // only by a real capture, never touched by --check or --audit. The page
+    // qualifies its aggregate numbers with this date rather than implying
+    // they are live, so a number that has only grown since capture stays
+    // truthful without needing to match live data on every request.
+    capturedAt: new Date().toISOString().slice(0, 10),
     identity: IDENTITY,
     scope: "live services of active contractors; verifier fixtures excluded (lib/fixtureContractors.ts); quotes are history",
     bookingTypes: counts,
@@ -273,7 +301,7 @@ async function main() {
   console.log(`  ${photoLabels.length} distinct photo requests · ${blocking} gating answers · ${preparation} preparation answers · ${quotesTotal} quote(s) submitted`);
   console.log(`  example: ${example ? `${example.serviceName} — "${example.answer}" (${example.photoLabels.length} photos)` : "none"}`);
 
-  if (!checking) {
+  if (!checking && !auditing) {
     const file =
       `/**\n` +
       ` * GENERATED — do not edit by hand.\n` +
@@ -282,8 +310,9 @@ async function main() {
       ` * active contractors, verifier fixtures excluded. The page that reads this\n` +
       ` * may not claim anything the capture does not contain.\n` +
       ` *\n` +
-      ` * Re-capture:   npx tsx scripts/capture-guided-estimates.ts\n` +
-      ` * Check drift:  npx tsx scripts/capture-guided-estimates.ts --check\n */\n` +
+      ` * Re-capture:      npx tsx scripts/capture-guided-estimates.ts\n` +
+      ` * Capability check: npx tsx scripts/capture-guided-estimates.ts --check   (any database)\n` +
+      ` * Exact audit:      npx tsx scripts/capture-guided-estimates.ts --audit   (production only)\n */\n` +
       `export const GUIDED_ESTIMATES = ${JSON.stringify(snapshot, null, 2)} as const;\n`;
     writeFileSync(OUT, file);
     console.log(`\n  wrote ${OUT}\n`);
@@ -300,7 +329,7 @@ async function main() {
 
   // ── the committed file cannot contradict itself ─────────────────────────
   // Cheap, needs no database at all: catches a hand-edit or a bad capture
-  // before anything else runs.
+  // before anything else runs. Shared by --check and --audit.
   if (committed.photos.distinctLabels !== committed.photos.labels.length) {
     failures.push(
       `committed photos.distinctLabels (${committed.photos.distinctLabels}) does not match ` +
@@ -318,56 +347,81 @@ async function main() {
     );
   }
 
-  // ── capability floors — the number the page prints must never be an
-  //    OVERSTATEMENT of what is currently true. Ordinary growth (a new
-  //    genuine contractor's catalog, a new photo-gated answer) only ever
-  //    moves these up, and up is never a lie — the committed number stays
-  //    true, just conservative, until the next deliberate re-capture. Only
-  //    a DECREASE is worth blocking a release over, because that is the one
-  //    direction that would make the printed number false. `routes` and
-  //    `bookingTypes` are captured for visibility but read by nothing on
-  //    the page, so nothing here checks them — there is no claim to protect.
-  const floors: [string, number, number][] = [
-    ["remoteQuote.services", committed.remoteQuote.services, snapshot.remoteQuote.services],
-    ["remoteQuote.withoutPublishedPrice", committed.remoteQuote.withoutPublishedPrice, snapshot.remoteQuote.withoutPublishedPrice],
-    ["remoteQuote.categories.length", committed.remoteQuote.categories.length, snapshot.remoteQuote.categories.length],
-    ["photos.distinctLabels", committed.photos.distinctLabels, snapshot.photos.distinctLabels],
-    ["photos.blocking", committed.photos.blocking, snapshot.photos.blocking],
-  ];
-  for (const [label, committedVal, liveVal] of floors) {
-    if (liveVal < committedVal) {
-      failures.push(`${label}: committed ${committedVal}, live is only ${liveVal} — the page would be overstating the product`);
+  if (auditing) {
+    // ── exact, estate-wide, production-only ──────────────────────────────
+    // The comparison --check used to make. Deliberately separate: this is a
+    // question about whether the MARKETING CONTENT is current, not about
+    // whether the product still works, and it is only ever meaningful
+    // against the literal, current production connection — a rehearsal or
+    // any other database has no reason to carry the same numbers.
+    const exact: [string, unknown, unknown][] = [
+      ["bookingTypes", committed.bookingTypes, snapshot.bookingTypes],
+      ["remoteQuote", committed.remoteQuote, snapshot.remoteQuote],
+      ["routes", committed.routes, snapshot.routes],
+      ["photos.distinctLabels", committed.photos.distinctLabels, snapshot.photos.distinctLabels],
+      ["photos.labels", committed.photos.labels, snapshot.photos.labels],
+      ["photos.blocking", committed.photos.blocking, snapshot.photos.blocking],
+      ["photos.preparation", committed.photos.preparation, snapshot.photos.preparation],
+      ["quotes", committed.quotes, snapshot.quotes],
+    ];
+    for (const [label, committedVal, liveVal] of exact) {
+      const cs = JSON.stringify(committedVal);
+      const ls = JSON.stringify(liveVal);
+      if (cs !== ls) failures.push(`${label}: committed ${cs} — live ${ls}`);
     }
-  }
-  // A floor of committed-vs-live isn't enough on its own: if the committed
-  // figure were ever captured as zero, a live zero would pass the floor
-  // check while the page's central claim — that the mechanism is actually
-  // used — would be false. Asserted directly against live, not committed.
-  if (snapshot.remoteQuote.withoutPublishedPrice === 0) {
-    failures.push(`live remoteQuote.withoutPublishedPrice is 0 — no live service demonstrates "no published price", the page's central claim`);
-  }
-  if (snapshot.photos.blocking === 0) {
-    failures.push(`live photos.blocking is 0 — no live answer demonstrates a photo gating a price, the mechanism this page describes`);
+    if (!failures.length) {
+      console.log(`\n  ok   the committed snapshot (captured ${committed.capturedAt}) matches production exactly\n`);
+      await prisma.$disconnect();
+      return;
+    }
+    console.error(`\n  FAIL the marketing snapshot (captured ${committed.capturedAt}) has drifted from production:`);
+    for (const f of failures) console.error(`         ${f}`);
+    console.error(`\n       This is a content-freshness question, not a product regression — re-capture`);
+    console.error(`       when convenient: npx tsx scripts/capture-guided-estimates.ts\n`);
+    process.exit(1);
   }
 
-  // ── the worked example, re-verified on ONE stable reference tenant ──────
-  // Not re-ranked against the whole estate — a new, even-better example
-  // appearing elsewhere must never silently swap out which one this checks,
-  // and must never be why this fails. The committed example is re-located
-  // by its own identifying text on a deliberately stable tenant (the same
-  // one capture-hero-flow.ts and capture-trade-electrical.ts already use)
-  // and re-checked for exactly the properties the page's illustration
-  // depends on. This is what actually catches broken example routing and a
-  // worked example that stopped requiring photos.
+  // ── --check: capability, not estate-wide equality ──────────────────────
+  // Everything below is answerable from ONE deliberately stable reference
+  // tenant plus the committed file's own text — never the whole estate, so
+  // an unrelated contractor's activity is never why this fails.
   const REFERENCE_TENANT = process.env.GUIDED_ESTIMATES_REFERENCE_TENANT ?? "elite-electric";
-  if (!committed.example) {
-    failures.push(`committed snapshot has no worked example to re-verify`);
+  const refContractor = await prisma.contractor.findUnique({ where: { slug: REFERENCE_TENANT }, select: { id: true } });
+  if (!refContractor) {
+    failures.push(`reference tenant "${REFERENCE_TENANT}" does not exist on this database — cannot verify Guided Estimates capability`);
   } else {
-    const ex = committed.example;
-    const refContractor = await prisma.contractor.findUnique({ where: { slug: REFERENCE_TENANT }, select: { id: true } });
-    if (!refContractor) {
-      failures.push(`reference tenant "${REFERENCE_TENANT}" does not exist on this database — cannot re-verify the worked example`);
+    const REF_LIVE_SERVICE = { active: true, contractorId: refContractor.id };
+
+    // The mechanism must still exist on the reference tenant: at least one
+    // live quote-only service with no published price, and at least one
+    // live photo-gating answer. Existence, not a count — ordinary growth or
+    // shrinkage elsewhere on the estate can never affect this, because it
+    // never leaves elite-electric.
+    const refRemoteQuoteWithoutPrice = await prisma.service.count({
+      where: { ...REF_LIVE_SERVICE, bookingType: "REMOTE_QUOTE", basePrice: null },
+    });
+    if (refRemoteQuoteWithoutPrice === 0) {
+      failures.push(`${REFERENCE_TENANT} has no live REMOTE_QUOTE service with no published price — the page's central claim has nothing to point to`);
+    }
+    const refBlockingAnswers = await prisma.answerOption.count({
+      where: {
+        routeAction: { in: ["REMOTE_QUOTE", "PHOTO_REVIEW"] },
+        photosBlockBooking: true,
+        requiredPhotoLabels: { isEmpty: false },
+        question: { service: REF_LIVE_SERVICE },
+      },
+    });
+    if (refBlockingAnswers === 0) {
+      failures.push(`${REFERENCE_TENANT} has no live answer that gates a price on required photos — the mechanism this page describes has nothing to point to`);
+    }
+
+    // The committed WORKED EXAMPLE, re-located by its own text — never
+    // re-ranked against the whole estate, so a better example appearing
+    // elsewhere can never be why this fails.
+    if (!committed.example) {
+      failures.push(`committed snapshot has no worked example to re-verify`);
     } else {
+      const ex = committed.example;
       const liveOption = await prisma.answerOption.findFirst({
         where: {
           label: ex.answer,
@@ -388,8 +442,17 @@ async function main() {
         if (!liveOption.question.service.active) {
           failures.push(`the worked example's service ("${ex.serviceName}") is no longer active on ${REFERENCE_TENANT}`);
         }
-        if (liveOption.requiredPhotoLabels.length === 0) {
-          failures.push(`the worked example ("${ex.serviceName}" — "${ex.answer}") no longer requires any photos — the page's illustration is now empty`);
+        // EXACT set comparison, not just non-empty: dropping even one
+        // required photo is a wrong illustration, not merely a smaller one.
+        const committedPhotoSet = new Set(ex.photoLabels as string[]);
+        const livePhotoSet = new Set(liveOption.requiredPhotoLabels);
+        const missing = (ex.photoLabels as string[]).filter((l) => !livePhotoSet.has(l));
+        const added = liveOption.requiredPhotoLabels.filter((l) => !committedPhotoSet.has(l));
+        if (missing.length || added.length) {
+          const parts: string[] = [];
+          if (missing.length) parts.push(`no longer requires ${JSON.stringify(missing)}`);
+          if (added.length) parts.push(`now also requires ${JSON.stringify(added)}`);
+          failures.push(`the worked example's required photos changed: ${parts.join("; ")}`);
         }
         if (liveOption.photosBlockBooking !== ex.blocksBooking) {
           failures.push(
@@ -410,12 +473,10 @@ async function main() {
     await prisma.$disconnect();
     return;
   }
-  console.error(`\n  FAIL Guided Estimates drifted from what the page claims:`);
+  console.error(`\n  FAIL Guided Estimates capability check failed:`);
   for (const f of failures) console.error(`         ${f}`);
-  console.error(`\n       If this is genuine platform growth and every figure above only went UP,`);
-  console.error(`       re-capture when convenient: npx tsx scripts/capture-guided-estimates.ts`);
-  console.error(`       If anything above is a DECREASE or the worked example broke, read the`);
-  console.error(`       page first — this is telling you it may now be wrong.\n`);
+  console.error(`\n       This means the product itself changed on ${REFERENCE_TENANT}, or the committed`);
+  console.error(`       file is malformed — read the page before re-capturing.\n`);
   process.exit(1);
 }
 

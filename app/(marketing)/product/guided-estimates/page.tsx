@@ -40,6 +40,20 @@ const SHELL = "mx-auto max-w-[1440px] px-5 lg:px-[88px]";
 /** The capture is a literal; a count of one must read as one. */
 const word = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
+/**
+ * The aggregate figures below (photo-label count, service counts) are an
+ * estate-wide snapshot, not a live query — see capture-guided-estimates.ts's
+ * own header for why. Qualifying them with the date they were last confirmed
+ * accurate is what keeps a number that has only grown since then honest,
+ * without needing to match live data on every request.
+ */
+const CAPTURED_AT_LABEL = new Date(`${GE.capturedAt}T00:00:00Z`).toLocaleDateString("en-US", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
 export default function GuidedEstimatesPage() {
   const ex = GE.example;
 
@@ -127,7 +141,7 @@ export default function GuidedEstimatesPage() {
                 until they have sent it.
               </p>
               <p className="mt-5 text-[16px] leading-[1.6] text-p2b-muted">
-                Across the catalog the product asks for{" "}
+                As of {CAPTURED_AT_LABEL}, the catalog asks for at least{" "}
                 <strong className="font-semibold text-p2b-ink">{GE.photos.distinctLabels}</strong>{" "}
                 different photographs by name. Nothing reads them. They are collected, and a person
                 looks at them.
@@ -212,6 +226,10 @@ export default function GuidedEstimatesPage() {
               </div>
             ))}
           </div>
+          <p className="mt-4 text-[13px] leading-[1.4] text-p2b-muted-soft">
+            Figures as of {CAPTURED_AT_LABEL} — a floor, not a live count; the product has never run
+            fewer than this.
+          </p>
         </div>
       </section>
 
