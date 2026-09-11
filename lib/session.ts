@@ -1,11 +1,12 @@
 import { cookies, headers } from "next/headers";
 import { randomBytes, randomUUID } from "crypto";
+import { SESSION_COOKIE_NAME, SESSION_COOKIE_ATTRS } from "./sessionCookieConfig";
 
 // Exported so a caller that must set this cookie to a SPECIFIC value —
 // today, only Device Handoff's resolve step, joining a second device into
 // an existing anonymous session — uses the same name rather than a second
 // hardcoded copy of it.
-export const SESSION_COOKIE = "elite_session_id";
+export const SESSION_COOKIE = SESSION_COOKIE_NAME;
 
 /**
  * The header an embedded storefront sends instead of the cookie.
@@ -60,17 +61,23 @@ function tokenFromRequest(): string | null {
  * An embedded request arrives with its token already in hand and no cookie can
  * be set for it, so this returns what it was given rather than minting a
  * second identity the browser would immediately forget.
+ *
+ * A DEFENSIVE FALLBACK, NOT THE NORMAL BOOTSTRAP
+ *
+ * For a real homeowner page, `middleware.ts` has already issued this cookie
+ * on the document response, before any client-side fetch could run — see
+ * docs/design/anonymous-session-bootstrap.md. This still mints one when
+ * genuinely nothing has, e.g. a direct API call with no prior page load. Two
+ * or more concurrent callers reaching this with no cookie yet will still each
+ * mint their own id, exactly as before; middleware exists to keep a real
+ * homeowner page from ever putting this function in that position.
  */
 export function getOrCreateSessionId(): string {
   const existing = tokenFromRequest();
   if (existing) return existing;
 
   const id = randomUUID();
-  cookies().set(SESSION_COOKIE, id, {
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  });
+  cookies().set(SESSION_COOKIE, id, SESSION_COOKIE_ATTRS);
   return id;
 }
 
