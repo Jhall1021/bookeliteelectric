@@ -104,7 +104,14 @@ export default async function EditServicePage({ params }: { params: { serviceId:
         photoState={service.photoState}
         legacyPrimaryUnits={service.primaryLaborUnits}
         settings={
-          settings
+          // This panel SUGGESTS a price, so it needs decisions actually made.
+          // A partially-configured contractor passes null and sees "not set up
+          // yet" rather than a suggestion computed from a zero they never chose.
+          settings &&
+          settings.crewHourRateCents !== null &&
+          settings.primaryMinimumCents !== null &&
+          settings.roundingIncrementCents !== null &&
+          settings.defaultPermitAdminCents !== null
             ? {
                 crewHourRateCents: settings.crewHourRateCents,
                 primaryMinimumCents: settings.primaryMinimumCents,

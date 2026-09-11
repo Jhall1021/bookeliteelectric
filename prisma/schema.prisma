@@ -707,6 +707,7 @@ model Contractor {
 
   @@map("contractors")
   materialSystems               ContractorMaterialSystem[]
+  derivedPricingApprovals       ContractorDerivedPricingApproval[]
 }
 
 /// A material ROLE, owned by the platform.
@@ -732,6 +733,13 @@ model CanonicalMaterial {
   /// is a foot for everyone, so this is canonical rather than per-contractor.
   unit   String  @default("each")
   notes  String?
+
+  /// PRESENTATION TAXONOMY ONLY — how this role is grouped for a human
+  /// reading a list of them. Never pricing identity, never routing identity,
+  /// and deliberately NOT encoded in `key`: a key is what the platform means
+  /// by the role, and a category is how a contractor likes to find it. Null
+  /// means ungrouped, which is a display state and never a blocker.
+  displayCategory String?
   active Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -1338,6 +1346,63 @@ model ContractorMaterialSystem {
   @@unique([contractorId, systemKey])
   @@index([contractorId])
   @@map("contractor_material_systems")
+}
+
+/// A contractor's approval of the ECONOMIC BASIS a derived service prices from.
+///
+/// WHY A STORED PRICE IS NOT ENOUGH, AND WHY A BOOLEAN IS WORSE
+///
+/// `approvedPriceCents` is stable because it is a number somebody typed. A
+/// derived price is not: it moves when labor calibration, a material cost, a
+/// product selection, the material system configuration, a policy value or
+/// PricingSettings moves. So "the contractor approved derived pricing" cannot
+/// be a flag — a flag set in March keeps authorising a price computed in
+/// September from inputs nobody re-read.
+///
+/// Instead the contractor approves a FINGERPRINT of the inputs. The same
+/// pattern ContractorMaterial.acceptedBaselineVersionId already uses: a
+/// pointer to the exact thing that was agreed to, which stops pointing the
+/// moment that thing changes. When the recomputed fingerprint differs from the
+/// approved one, the approval no longer matches and the route goes to review —
+/// not because anything is wrong, but because nobody has agreed to THESE
+/// numbers yet.
+///
+/// The fingerprint deliberately covers only price-relevant inputs. Renaming a
+/// material, editing a note or touching `updatedAt` must not invalidate an
+/// approval: an invalidation that fires on irrelevant edits trains people to
+/// re-approve without reading, which is worse than no invalidation at all.
+model ContractorDerivedPricingApproval {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  serviceId    String
+  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  /// Hash over the price-relevant contractor inputs. See
+  /// lib/electrical/derivedPricingBasis.ts for exactly what participates —
+  /// the list is code, tested, and not a comment that drifts.
+  approvedBasisFingerprint String
+
+  /// What the contractor was looking at when they approved. Audit only: never
+  /// read back as a price, because the price is always recomputed and checked
+  /// against the fingerprint. Storing it lets us answer "what did they think
+  /// they were agreeing to" without re-deriving a past world.
+  approvedTotalCents   Int
+  approvedLaborCents   Int
+  approvedMaterialCents Int
+
+  approvedAt     DateTime
+  approvedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One standing approval per service per contractor. Re-approving replaces
+  /// it; there is no history of superseded approvals here because the booking
+  /// record is where a past price's basis is preserved.
+  @@unique([contractorId, serviceId])
+  @@index([serviceId])
+  @@map("contractor_derived_pricing_approvals")
 }
 
 /// Contractor-level material sourcing settings. Single row today.
@@ -2029,6 +2094,28 @@ model AnswerOptionComponent {
   @@map("answer_option_components")
 }
 
+/// How a service's customer price is arrived at.
+///
+/// LEGACY_PUBLISHED is the behaviour every existing service already has, and
+/// the default is safe for exactly that reason: there is no "undecided" state
+/// here to protect. Every service in the catalog today IS priced from a
+/// published base plus approved component increments, so recording that fact
+/// changes nothing about any of them. This is the opposite of the labor and
+/// policy fields, where a default would have invented an answer nobody gave.
+enum ServicePricingMethod {
+  /// published base + Σ(ContractorComponent.approvedPriceCents × quantity)
+  /// + legacy modifiers. Unchanged, and unchanged for every existing tenant.
+  LEGACY_PUBLISHED
+  /// The whole terminal physical outcome is priced as ONE resolved scope from
+  /// its own economics: established contractor labor, the package-aware
+  /// material takeoff, and the contractor's PricingSettings.
+  ///
+  /// A derived scope NEVER also consumes approvedPriceCents. The components
+  /// are cost and labor inputs to one scope price, not independently approved
+  /// selling increments — counting both would charge for the same work twice.
+  DERIVED_RESOLVED_SCOPE
+}
+
 model Service {
   id         String          @id @default(cuid())
   slug       String
@@ -2361,6 +2448,10 @@ model Service {
   @@unique([contractorId, slug])
   @@index([contractorId])
   @@map("services")
+
+  /// See ServicePricingMethod. Defaults to today's behaviour.
+  pricingMethod ServicePricingMethod @default(LEGACY_PUBLISHED)
+  derivedPricingApprovals ContractorDerivedPricingApproval[]
 }
 
 enum InputType {
@@ -2870,6 +2961,20 @@ model LineItem {
   resolvedAccessClass   AccessClassification?
   /// Component keys that priced this line — for the job sheet and for audit.
   resolvedComponentKeys String[]
+
+  /// DERIVED PRICING PROVENANCE — why this customer received this price.
+  ///
+  /// The existing snapshot answers "what work" and "what did it cost them".
+  /// For a derived scope it could not answer "computed from which economic
+  /// basis", because that basis lives in mutable contractor rows a later cost
+  /// edit rewrites. These two fields are the smallest record that closes it:
+  /// the fingerprint identifies the exact input set, and the material figure
+  /// is the package-aware takeoff cost that was actually used.
+  ///
+  /// Immutable with the rest of the snapshot. A material cost edited next
+  /// month changes no booked line.
+  resolvedEconomicBasis     String?
+  resolvedMaterialCostCents Int?
 
   /// The running total at the point the flow stopped.
   ///
@@ -3465,10 +3570,26 @@ model PricingSettings {
   /// mean different things by the same field, and only an explicit name makes
   /// that safe.
   ///
-  crewHourRateCents       Int
-  primaryMinimumCents     Int // floor for any primary price when labor units > 0
-  roundingIncrementCents  Int // round every computed price up to this increment
-  defaultPermitAdminCents Int // fallback when a service has no per-row override
+  /// ALL FOUR ARE NULLABLE, AND NONE HAS A DEFAULT.
+  ///
+  ///   null      this contractor has not decided
+  ///   0         this contractor deliberately chose zero
+  ///   positive  their decision
+  ///
+  /// They were four required Ints, which made a partially-decided contractor
+  /// impossible to represent: provisioning had to invent four numbers at once
+  /// or create no row, and it created none. `loadPricingSettings` then threw
+  /// the same error for "this contractor has decided nothing" and "this
+  /// tenant's state is broken", which are not the same problem and do not
+  /// have the same fix.
+  ///
+  /// Nullable TOGETHER on purpose. They are one row with one lifecycle, and
+  /// making only the rate nullable would leave three mandatory invented
+  /// numbers behind — the defect in a smaller box.
+  crewHourRateCents       Int? // revenue per productive CREW-hour
+  primaryMinimumCents     Int? // floor for any primary price when labor units > 0
+  roundingIncrementCents  Int? // round every computed price up to this increment
+  defaultPermitAdminCents Int? // fallback when a service has no per-row override
   updatedAt               DateTime @updatedAt
 
   @@map("pricing_settings")

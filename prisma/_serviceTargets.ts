@@ -142,3 +142,21 @@ export async function everyServiceNamed(db: Db, slug: string): Promise<ServiceTa
   }
   return rows.map(toTarget);
 }
+
+/**
+ * Contractors that exist ONLY to rehearse a configuration.
+ *
+ * Suites that assert about SEEDED state — "no Routing V2 component has labor",
+ * "nothing was invented" — are making a claim about what provisioning
+ * produces, not about every row in the database. A rehearsal fixture whose
+ * whole purpose is to hold a deliberate configuration is not a
+ * counter-example to that claim, and letting it read as one would push the
+ * next person to weaken the assertion instead of scoping it.
+ *
+ * Excluding them is therefore narrowing the claim to what it always meant, not
+ * making it easier to pass.
+ */
+export const REHEARSAL_FIXTURE_SLUGS = [
+  "rv2-rehearsal-surface-system",
+  "rv2-lifecycle-derived-pricing",
+];

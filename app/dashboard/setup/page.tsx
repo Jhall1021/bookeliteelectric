@@ -282,13 +282,29 @@ export default async function SetupPage({
     }
 
     if (current === "pricing-foundation") {
-      rateSettings = await db.pricingSettings.findUnique({
+      const rawRates = await db.pricingSettings.findUnique({
         where: { contractorId: ctx.contractorId },
         select: {
           crewHourRateCents: true, primaryMinimumCents: true,
           roundingIncrementCents: true, defaultPermitAdminCents: true,
         },
       });
+      // The setup step reads these to SUGGEST prices. An undecided field is
+      // not a zero, so a partially-configured contractor reads as unset here
+      // and is sent to finish the decisions rather than shown a figure.
+      rateSettings =
+        rawRates &&
+        rawRates.crewHourRateCents !== null &&
+        rawRates.primaryMinimumCents !== null &&
+        rawRates.roundingIncrementCents !== null &&
+        rawRates.defaultPermitAdminCents !== null
+          ? {
+              crewHourRateCents: rawRates.crewHourRateCents,
+              primaryMinimumCents: rawRates.primaryMinimumCents,
+              roundingIncrementCents: rawRates.roundingIncrementCents,
+              defaultPermitAdminCents: rawRates.defaultPermitAdminCents,
+            }
+          : null;
       // Independent of `settings` below — "has the contractor chosen
       // anything to sell" is a fact about the SERVICES stage, not about
       // whether a crew-hour rate has been entered yet. roleFindings (the

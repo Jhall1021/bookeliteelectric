@@ -36,6 +36,9 @@ import type { PrismaClient } from "@prisma/client";
 // they run on whatever client the caller hands them, guarded or not, and the
 // caller decides.
 import {
+  resolvePricingSettings, PricingSettingsIncompleteError, PricingSettingsMissingError,
+} from "./pricingSettingsState";
+import {
   loadOwnComponents,
   canonicalComponentIdsIn,
   type OwnComponentMap,
@@ -890,14 +893,21 @@ export async function loadPricingSettings(
   if (!contractorId) {
     throw new Error("loadPricingSettings called with no contractor — cannot price anything.");
   }
-  const s = await db.pricingSettings.findUnique({ where: { contractorId } });
-  if (!s) {
-    throw new Error(
-      `No pricing settings for contractor ${contractorId} — cannot price anything. ` +
-        `Onboarding must create them; they are not defaulted.`
-    );
-  }
-  return s;
+  const row = await db.pricingSettings.findUnique({ where: { contractorId } });
+  // TWO DIFFERENT PROBLEMS, TWO DIFFERENT ERRORS. A missing row is broken
+  // tenant state; a row with undecided fields is an ordinary setup step, and
+  // sending someone to debug onboarding for the second wastes their afternoon.
+  //
+  // This call site has no service in hand, so it asks for the strictest
+  // context — a primary, primary-eligible service with no permit figure of its
+  // own, which requires all four. Callers that know their context should use
+  // resolvePricingSettings directly and get a narrower requirement.
+  const state = resolvePricingSettings(row, {
+    isPrimary: true, isPrimaryEligible: true, servicePermitAdminEstablished: false,
+  });
+  if (state.kind === "MISSING") throw new PricingSettingsMissingError(contractorId);
+  if (state.kind === "INCOMPLETE") throw new PricingSettingsIncompleteError(contractorId, state.missing);
+  return state.settings;
 }
 
 /**
