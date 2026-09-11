@@ -378,10 +378,9 @@ export default function RouteAssistCapture({
                       y1={from.y * 100}
                       x2={to.x * 100}
                       y2={to.y * 100}
-                      stroke="#2563eb"
                       strokeWidth={1.2}
                       vectorEffect="non-scaling-stroke"
-                      className="pointer-events-none"
+                      className="pointer-events-none stroke-accent"
                     />
                   </g>
                 );

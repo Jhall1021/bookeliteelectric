@@ -91,8 +91,11 @@ async function runSurfaceReceptacle(page: Page) {
   // Each segment renders two <line>s (a wide invisible tap target plus the
   // thin visible one) — see RouteAssistCapture.tsx's onLineClick comment.
   // Count only the visible ones so this assertion doesn't depend on that
-  // rendering detail.
-  const visibleLines = () => page.locator('svg line[stroke="#2563eb"]');
+  // rendering detail. Selected by the semantic `stroke-accent` class rather
+  // than a literal color — lint-storefront-tokens.ts (ADR-015) refuses a
+  // raw hex on a rendered element, so the color comes from the theme's
+  // `accent` token, not a fixed hex this selector could match on.
+  const visibleLines = () => page.locator("svg line.stroke-accent");
 
   await page.mouse.click(aX, aY);
   check("point A placed", (await page.locator('button:has-text("A")').count()) > 0);
