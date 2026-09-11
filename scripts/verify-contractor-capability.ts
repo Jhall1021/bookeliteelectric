@@ -68,7 +68,11 @@ async function main() {
     "B  fixture removed, back to not-established");
 
   console.log("\n  C  PROVISIONING DOES NOT DECLARE ON A CONTRACTOR'S BEHALF\n");
-  const prov = readFileSync("lib/templateProvisioning.ts", "utf8");
+  // CODE, not prose. This tested the raw file and so went red the moment
+  // provisioning grew a comment explaining the very rule it enforces — a check
+  // that cannot tell a rule from a violation trains people to ignore it.
+  const prov = readFileSync("lib/templateProvisioning.ts", "utf8")
+    .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, "");
   ok(!/contractorCapability/i.test(prov),
     "C  provisioning never creates a capability row — the template says what a route " +
     "REQUIRES; only the contractor says what they OFFER");
