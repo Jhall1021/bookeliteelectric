@@ -19,6 +19,13 @@ export type AnswerOptionDTO = {
   priceModifierCents: number;
   nextQuestionId: string | null;
   routeAction: RouteAction;
+  /**
+   * ROUTING V2 — inclusive bounds of the answer range that selects this option.
+   * Both null on an option that carries no numeric predicate, which is every
+   * option authored before numeric routing existed.
+   */
+  numberAtLeast: number | null;
+  numberAtMost: number | null;
   rerouteServiceId: string | null;
   /**
    * Fully resolved photo labels for this answer: any referenced photo groups
@@ -98,6 +105,19 @@ export type QuestionDTO = {
   prompt: string;
   helpText: string | null;
   inputType: "SINGLE_SELECT" | "MULTI_SELECT" | "NUMBER" | "PHOTO_UPLOAD" | "TEXT";
+  /**
+   * ROUTING V2 — the authored validity domain of a NUMBER answer.
+   *
+   * Carried to the browser because the homeowner's walk has to apply the SAME
+   * numeric rule the server does, and it cannot do that from labels or from
+   * option order. Absent these, QuestionStep fell back to options[0] and a
+   * 45 ft answer continued down the 1–20 branch while resolveRoute sent it to
+   * review.
+   *
+   * Null on every question that is not in numeric-routing mode.
+   */
+  numberMin: number | null;
+  numberMax: number | null;
   /**
    * Help text that only applies on some routes. Evaluated client-side against
    * the access class established so far; `replaces` swaps out the default

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
+import { selectNumericOption } from "@/lib/numericRouteRanges";
 import { formatCents } from "@/lib/flow-types";
 import { answerPriceDelta } from "@/lib/pricing";
 import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
@@ -44,8 +45,50 @@ export default function QuestionStep({ question, answers, accessBySlot, onAnswer
   // the beginning but nothing rendered them, which is why the bathroom-fan
   // housing measurements and the smart-switch make/model both got deferred.
   if (question.inputType === "TEXT" || question.inputType === "NUMBER") {
-    const route = question.options[0];
-    const required = question.options.length > 0 && !route?.value?.startsWith("optional");
+    const typed = text.trim();
+
+    /**
+     * A NUMBER answer selects its own option. A TEXT answer does not.
+     *
+     * These shared one line — `question.options[0]` — under a comment saying a
+     * TEXT question has one option carrying the routing. That was true when it
+     * was written, and it stayed true for TEXT. It stopped being true for
+     * NUMBER the day numeric routing arrived, because a numeric-routing
+     * question has two or more options and options[0] is merely the first.
+     *
+     * The concrete cost: concealed_route_feet authors `within` (1–20, CONTINUE)
+     * ahead of `beyond` (21–300, PHOTO_REVIEW), so a homeowner typing 45 was
+     * walked into the wall-surface question here while resolveRoute sent the
+     * same answer to Guided Estimate. Option order decided the route, which is
+     * the one thing this primitive forbids.
+     *
+     * selectNumericOption is the SAME function the server resolver calls, from
+     * a module with no imports so the browser can reach it. A question whose
+     * options carry no numeric predicate still resolves to options[0] inside
+     * it, so every NUMBER question written before numeric routing behaves
+     * exactly as it did — including free-text answers like "8 x 8", which the
+     * legacy path returns before any digit check.
+     */
+    const choice =
+      question.inputType === "NUMBER" ? selectNumericOption(question, typed) : null;
+    const route =
+      question.inputType === "NUMBER"
+        ? choice?.kind === "option"
+          ? choice.option
+          : null
+        : question.options[0];
+
+    // Convenience, never authority. The server validates this answer again and
+    // refuses it independently; this only spares the customer a round trip.
+    const refusal =
+      question.inputType === "NUMBER" && typed.length > 0 && choice?.kind !== "option"
+        ? choice?.reason ?? null
+        : null;
+
+    // Read from the authored options, not from `route` — which is null until a
+    // NUMBER answer is valid.
+    const first = question.options[0];
+    const required = question.options.length > 0 && !first?.value?.startsWith("optional");
     return (
       <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
         <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>
@@ -64,9 +107,15 @@ export default function QuestionStep({ question, answers, accessBySlot, onAnswer
           placeholder={question.inputType === "NUMBER" ? "e.g. 8 x 8" : "Type your answer here"}
         />
 
+        {refusal && (
+          <p className="mt-2 text-sm text-rust" role="alert">
+            {refusal}
+          </p>
+        )}
+
         <button
-          onClick={() => route && onAnswer({ ...route, value: text.trim() || route.value })}
-          disabled={!route || (required && text.trim().length === 0)}
+          onClick={() => route && onAnswer({ ...route, value: typed || route.value })}
+          disabled={!route || (required && typed.length === 0)}
           className="mt-4 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40"
         >
           Continue
