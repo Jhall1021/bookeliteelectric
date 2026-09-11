@@ -21,6 +21,20 @@
  * on something else. A grep that is wrong in the safe direction still trains
  * people to ignore it.
  *
+ * WHAT THIS DELIBERATELY DOES NOT COVER
+ *
+ * It reads the `where` clause, not the client. Request paths reach the database
+ * through a tenant-guarded client -- `withSite`, `withAdminContractor` -- where
+ * a bare `where: { slug }` is already scoped by the guard and is correct;
+ * app/api/services/[slug]/route.ts is exactly that, and says so. Pointed at the
+ * whole repository this check reports about ninety such lines, and they are a
+ * census of a shape rather than a list of defects.
+ *
+ * So it is scoped to the Routing V2 files, which drive the raw client directly
+ * and have no guard standing behind them. Widening it means teaching it to
+ * recognise the guarded clients first -- otherwise it produces a wall of false
+ * positives, which is how a check stops being read.
+ *
  * DELIBERATE EXCEPTIONS carry `TENANT-SCOPE-EXEMPT: <reason>` on or above the
  * statement. The identity module itself needs two — enumerating every
  * contractor's copy is its whole job. The marker is greppable, so the set of
@@ -75,7 +89,7 @@ function leadingComments(sf: ts.SourceFile, text: string, node: ts.Node): string
   return ranges.map((r) => text.slice(r.pos, r.end)).join("\n");
 }
 
-function auditSource(file: string, text: string): Finding[] {
+export function auditSource(file: string, text: string): Finding[] {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true);
   const found: Finding[] = [];
 
@@ -192,4 +206,9 @@ function main() {
   process.exit(fail === 0 ? 0 : 1);
 }
 
-main();
+// Guarded so `auditSource` can be imported and pointed at other files without
+// running the suite as a side effect — which is how you find out whether this
+// defect exists outside the Routing V2 workstream.
+if (process.argv[1] && process.argv[1].endsWith("verify-routing-v2-scoping.ts")) {
+  main();
+}
