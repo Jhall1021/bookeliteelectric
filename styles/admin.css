@@ -1,0 +1,41 @@
+/*
+ * PRICE2BOOK APPLICATION SYSTEM
+ *
+ * This file belongs only to Price2Book's contractor and staff application
+ * chrome. `SidebarShell` scopes it with `.p2b-app`, so these values never style
+ * a contractor storefront. Keeping the application palette here also lets the
+ * storefront color linter continue policing globals.css without granting that
+ * shared file a blanket exception.
+ */
+.p2b-app {
+  --t-canvas: 247 249 252;
+  --t-surface: 255 255 255;
+  --t-ink: 17 31 54;
+  --t-ink-soft: 37 55 82;
+  --t-ink-strong: 10 24 46;
+  --t-muted: 91 105 126;
+  --t-muted-soft: 137 150 168;
+  --t-accent: 36 82 217;
+  --t-accent-hover: 29 67 190;
+  --t-accent-ink: 255 255 255;
+  --t-line: 225 231 239;
+  --t-positive: 31 157 99;
+  --t-radius-card: 16px;
+  --t-radius-pill: 999px;
+  --t-shadow-card: 0 1px 2px rgb(17 31 54 / 0.04), 0 8px 24px rgb(17 31 54 / 0.045);
+  --t-shadow-raised: 0 10px 30px rgb(17 31 54 / 0.10), 0 2px 8px rgb(17 31 54 / 0.06);
+  --t-font-display: var(--font-inter-tight), var(--font-inter), system-ui, sans-serif;
+  --t-font-body: var(--font-inter), system-ui, sans-serif;
+
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 78% -12%, rgb(36 82 217 / 0.055), transparent 29rem),
+    rgb(var(--t-canvas));
+  color: rgb(var(--t-ink));
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.p2b-app ::selection {
+  background: rgb(var(--t-accent) / 0.16);
+  color: rgb(var(--t-ink-strong));
+}
