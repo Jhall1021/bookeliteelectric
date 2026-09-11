@@ -90,13 +90,31 @@ function resolveOutletRunDistance(result: RouteAssistResult): string | null {
  * fished-wall route.
  */
 function measuredFeetFor(
-  expected: "surface" | "concealed" | null
+  /**
+   * NOT optional, and deliberately has no "any mode" case.
+   *
+   * `accessible_route_feet` was bound here briefly with no mode constraint.
+   * That was an observation-authority error, not a pricing one: an accessible
+   * concealed route runs through an attic, crawlspace or unfinished basement,
+   * and a camera capture of the ROOM has not observed that path at all. Turning
+   * estimated room geometry into known accessible-path footage claims a
+   * measurement nobody took.
+   *
+   * The homeowner still answers that question in the ordinary Guided Pricing
+   * UI, and the canonical question and its Routing V2 support are untouched —
+   * only the camera auto-answer is gone. If an explicit accessible-path
+   * observation is built later, it earns its own separately authorised mapping.
+   *
+   * Requiring a concrete mode here means re-adding a mode-less binding is a
+   * type error rather than a judgement call somebody has to remember.
+   */
+  expected: "surface" | "concealed"
 ): (result: RouteAssistResult) => string | null {
   return (result) => {
     if (!result.customerConfirmedRoute || result.needsContractorReview) return null;
     const { mapped, invalid } = adaptRouteAssistResult(result);
     if (invalid.length > 0) return null;
-    if (expected !== null && mapped.installMethod !== expected) return null;
+    if (mapped.installMethod !== expected) return null;
     return mapped.routeLengthFt === null ? null : String(mapped.routeLengthFt);
   };
 }
@@ -126,7 +144,6 @@ const V2_SURFACE_FEET = "surface_route_feet";
 const V2_SURFACE_INSIDE = "surface_inside_corner_count";
 const V2_SURFACE_OUTSIDE = "surface_outside_corner_count";
 const V2_CONCEALED_FEET = "concealed_route_feet";
-const V2_ACCESSIBLE_FEET = "accessible_route_feet";
 
 const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = {
   "new-120v-outlet": {
@@ -181,23 +198,6 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
       destinationHint: "Tap where you'd like the new outlet.",
       actionLabel: "Not sure? Measure the route with your phone.",
       resolveAnswerValue: measuredFeetFor("concealed"),
-    },
-    /**
-     * The has_access branch. Route Assist's full capture workflow is aimed at
-     * surface and finished-wall work, so this may often go unused — but the
-     * question is a NUMBER with the same 1-300 domain, and leaving it unbound
-     * while binding its siblings would be an accident of coverage rather than
-     * a decision. Mode is not constrained: an accessible route is concealed
-     * work that happens to have an open path, and the capture mode does not
-     * distinguish that.
-     */
-    [V2_ACCESSIBLE_FEET]: {
-      taskKey: V2_ACCESSIBLE_FEET,
-      destinationType: "RECEPTACLE",
-      sourceHint: "Tap the existing outlet you'd run the power from.",
-      destinationHint: "Tap where you'd like the new outlet.",
-      actionLabel: "Not sure? Measure the route with your phone.",
-      resolveAnswerValue: measuredFeetFor(null),
     },
   },
 };

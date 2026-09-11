@@ -88,11 +88,21 @@ async function main() {
   for (const [label, key] of [
     ["surface feet", SURFACE_KEYS.feet], ["surface inside", SURFACE_KEYS.inside],
     ["surface outside", SURFACE_KEYS.outside], ["concealed feet", FINISHED_KEYS.feet],
-    ["accessible feet", ACCESSIBLE_KEYS.feet],
   ] as const) {
     ok(src.includes(`"${key}"`), `B  registry binds the authored ${label} key (${key})`);
     ok(getRouteAssistInvocation(OUTLET_SLUG, key) !== null, `B  …and getRouteAssistInvocation resolves it`);
   }
+
+  /**
+   * OBSERVATION AUTHORITY. An accessible concealed route runs through an attic,
+   * crawlspace or unfinished basement. A camera capture of the ROOM has not
+   * observed that path, so it must not produce a number for it — estimated room
+   * geometry is not measured accessible-path footage.
+   */
+  ok(getRouteAssistInvocation(OUTLET_SLUG, ACCESSIBLE_KEYS.feet) === null,
+    `B  ${ACCESSIBLE_KEYS.feet} has NO camera auto-answer — the room capture never saw that path`);
+  ok(!src.includes(`"${ACCESSIBLE_KEYS.feet}"`),
+    "B  …and the registry does not name the key at all");
 
   console.log("\n  C  V1 COMPATIBILITY IS UNTOUCHED\n");
   const v1 = getRouteAssistInvocation(OUTLET_SLUG, "outlet_run_distance");
@@ -114,8 +124,10 @@ async function main() {
     "D  a V2 answer is NEVER one of the V1 band values");
   ok(answerFor(FINISHED_KEYS.feet, capture({ mode: "CONCEALED", estimatedTotalRouteLengthFt: 18 })) === "18",
     "D  concealed 18 ft reaches the finished-wall question");
-  ok(answerFor(ACCESSIBLE_KEYS.feet, capture({ mode: "CONCEALED", estimatedTotalRouteLengthFt: 50 })) === "50",
-    "D  accessible 50 ft reaches the accessible question");
+  for (const mode of ["SURFACE", "CONCEALED", "UNSURE"] as const) {
+    ok(answerFor(ACCESSIBLE_KEYS.feet, capture({ mode, estimatedTotalRouteLengthFt: 50 })) === null,
+      `D  an ordinary ${mode} capture cannot populate ${ACCESSIBLE_KEYS.feet}`);
+  }
   ok(answerFor(SURFACE_KEYS.inside, capture({ insideCornersCount: 2 })) === "2",
     "D  inside corner count arrives");
   ok(answerFor(SURFACE_KEYS.outside, capture({ outsideCornersCount: 0 })) === "0",
@@ -211,12 +223,18 @@ async function main() {
       `I  ${ft} ft via Route Assist ${shouldBuild ? "continues" : "routes to Guided Estimate"} — numeric routing survives the adapter`,
       `${r.status} components=${comps(r).length}`);
   }
-  const acc = resolveRoute(loaded, {
-    ...base, below_above_access: "has_access",
-    [ACCESSIBLE_KEYS.feet]: answerFor(ACCESSIBLE_KEYS.feet, capture({ mode: "CONCEALED", estimatedTotalRouteLengthFt: 50 })) ?? "",
+  // The canonical question and its Routing V2 support are UNTOUCHED — only the
+  // camera auto-answer is gone. A homeowner typing 50 in the ordinary Guided
+  // Pricing UI still routes exactly as before.
+  const accTyped = resolveRoute(loaded, {
+    ...base, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: "50",
   }, true, settings);
-  ok(comps(acc).find((c) => c.key === "CONCEALED_ROUTE_FT")?.quantity === 50,
-    "I  accessible 50 ft reaches the resolver intact", JSON.stringify(comps(acc)));
+  ok(comps(accTyped).find((c) => c.key === "CONCEALED_ROUTE_FT")?.quantity === 50,
+    "I  a HOMEOWNER-typed accessible 50 ft still resolves intact — the question is not disabled",
+    JSON.stringify(comps(accTyped)));
+  const accCam = answerFor(ACCESSIBLE_KEYS.feet, capture({ mode: "CONCEALED", estimatedTotalRouteLengthFt: 50 }));
+  ok(accCam === null,
+    "I  …while the camera contributes nothing to it", String(accCam));
 
   console.log(`\n  ${pass} passed, ${fail} failed\n`);
   await prisma.$disconnect();
