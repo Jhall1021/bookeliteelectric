@@ -1,0 +1,3309 @@
+{
+  "source": {
+    "id": "SRC-MLU-2015",
+    "title": "NECA Manual of Labor Units 2015-2016 Edition",
+    "provider": "National Electrical Contractors Association",
+    "edition": "2015-2016",
+    "file": "MLU 2015-16.pdf"
+  },
+  "conventions": {
+    "values": "man-hours",
+    "units": {
+      "C": "per 100 items or per 100 linear feet",
+      "M": "per 1000 linear feet",
+      "E": "each"
+    },
+    "columns": [
+      "Normal",
+      "Difficult",
+      "Very Difficult",
+      "Company Experience (blank)"
+    ],
+    "included": [
+      "normal material handling",
+      "drawing study, measurement and layout",
+      "material installation",
+      "normal non-productive labor"
+    ],
+    "excluded": [
+      "field supervision",
+      "raceway terminations",
+      "welding or painting",
+      "testing of any type",
+      "fasteners, hangers and supports (separately published)"
+    ],
+    "scopeRule": "Labor units in this manual are for new work only and for a complete electrical installation. For remodeling or change order situations these labor units need to be substantially increased.",
+    "conditionRule": "Labor units are based on NEW material and de-energized conditions."
+  },
+  "blocks": {
+    "surface_metal_raceway": {
+      "title": "Section 2 \u2014 Surface Metal Raceways",
+      "page": "MLU 2-42/2-43",
+      "rowCount": 85,
+      "rows": [
+        {
+          "line": 5344,
+          "description": "G3000B Raceway Base",
+          "normal": 13.0,
+          "difficult": 16.25,
+          "veryDifficult": 19.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.13,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5345,
+          "description": "G4000B Raceway Base",
+          "normal": 16.0,
+          "difficult": 20.0,
+          "veryDifficult": 24.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5346,
+          "description": "G4000C Raceway Cover",
+          "normal": 4.0,
+          "difficult": 5.0,
+          "veryDifficult": 6.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5347,
+          "description": "G4000D Raceway Divider",
+          "normal": 2.0,
+          "difficult": 2.5,
+          "veryDifficult": 3.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.02,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5348,
+          "description": "G6000B Raceway Base",
+          "normal": 18.0,
+          "difficult": 22.5,
+          "veryDifficult": 27.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.18,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5351,
+          "description": "G6000B 5 Base",
+          "normal": 17.0,
+          "difficult": 21.25,
+          "veryDifficult": 25.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.17,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5352,
+          "description": "G6000C Cover",
+          "normal": 3.0,
+          "difficult": 3.75,
+          "veryDifficult": 4.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5353,
+          "description": "G3000WC Wire Clip",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5354,
+          "description": "G3001A Coupling",
+          "normal": 15.0,
+          "difficult": 18.75,
+          "veryDifficult": 22.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5355,
+          "description": "G3007C 4.5 Dev Bracket",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5358,
+          "description": "G3010B Blank End Fitting",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5359,
+          "description": "G3010C Entrance End Fitting",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5360,
+          "description": "G3000CE Raceway Cover",
+          "normal": 3.0,
+          "difficult": 3.75,
+          "veryDifficult": 4.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5361,
+          "description": "G6001 Coupling",
+          "normal": 25.0,
+          "difficult": 31.25,
+          "veryDifficult": 37.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.25,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5362,
+          "description": "G6006 Connector Cover",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5365,
+          "description": "G6007C1 1-Gang Plate",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5366,
+          "description": "G6007C2 2-Gang Plate",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5367,
+          "description": "G6010B Combination End Fitting",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5368,
+          "description": "G6017TX Combination Elbow",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5369,
+          "description": "G6011TX Combination Flat Elbow",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5372,
+          "description": "G6086 Panel Connector",
+          "normal": 100.0,
+          "difficult": 125.0,
+          "veryDifficult": 150.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 1.0,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5373,
+          "description": "G6001TX Convert Coupling",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5374,
+          "description": "G6000WC Wire Clip",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5375,
+          "description": "G6008A C-Hanger Clamp",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5376,
+          "description": "G4012TX 45D Elbow",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5379,
+          "description": "G4000WC Wire Clip",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5380,
+          "description": "G4001 Coupling",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5381,
+          "description": "G4007C1 1-Gang Plate",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5382,
+          "description": "G4001 D Divider Coupling",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5383,
+          "description": "G4007C2 2-Gang Plate",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5386,
+          "description": "G4010B Blank End",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5387,
+          "description": "G4011 Flat Elbow",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5388,
+          "description": "G4017 Internal Elbow",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5389,
+          "description": "G4018 External Elbow",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5390,
+          "description": "G4015 Tee",
+          "normal": 60.0,
+          "difficult": 75.0,
+          "veryDifficult": 90.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.6,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5393,
+          "description": "G4014A Wall Box Connector",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5394,
+          "description": "G4046B Combination Cover",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5395,
+          "description": "G4046T Telephone Cover",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5396,
+          "description": "G4010D Entrance End Fitting",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 40.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5397,
+          "description": "G4017TC Interior Corner",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5400,
+          "description": "G4086A Panel Connector",
+          "normal": 100.0,
+          "difficult": 125.0,
+          "veryDifficult": 150.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 1.0,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5401,
+          "description": "G3010AE Entrance End Fitting",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5402,
+          "description": "G3018AE Exterior Corner Coupling",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5403,
+          "description": "G3011E 90D Flat Elbow",
+          "normal": 35.0,
+          "difficult": 43.75,
+          "veryDifficult": 52.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5404,
+          "description": "G3006E Cover Clip",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5417,
+          "description": "G3015 Tee",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5418,
+          "description": "G3014C Wall Box Connector",
+          "normal": 35.0,
+          "difficult": 43.75,
+          "veryDifficult": 52.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5419,
+          "description": "G3017TCE Inverted Corner",
+          "normal": 35.0,
+          "difficult": 43.75,
+          "veryDifficult": 52.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5420,
+          "description": "810A1 Entrance End Fitting",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5421,
+          "description": "810B Blank End",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5424,
+          "description": "840 15A Inline Single Pole Switch",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5425,
+          "description": "843G 15A Inline Receptacle",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5426,
+          "description": "889E Reducing Connector",
+          "normal": 30.0,
+          "difficult": 37.5,
+          "veryDifficult": 45.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5427,
+          "description": "200 Raceway",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5428,
+          "description": "700 Raceway",
+          "normal": 7.0,
+          "difficult": 8.75,
+          "veryDifficult": 10.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.07,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5431,
+          "description": "500 Raceway",
+          "normal": 6.0,
+          "difficult": 7.5,
+          "veryDifficult": 9.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.06,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5432,
+          "description": "201 Coupling",
+          "normal": 3.0,
+          "difficult": 3.75,
+          "veryDifficult": 4.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5433,
+          "description": "202 Bushing",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5434,
+          "description": "203 Support Clip",
+          "normal": 3.0,
+          "difficult": 3.75,
+          "veryDifficult": 4.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5435,
+          "description": "205 One-Hole Strap",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5438,
+          "description": "206 Connector Cover",
+          "normal": 2.5,
+          "difficult": 3.13,
+          "veryDifficult": 3.75,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.025,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5439,
+          "description": "211 90D Flat Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5440,
+          "description": "211LH Internal Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5441,
+          "description": "211RH Internal Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5442,
+          "description": "217 Internal Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5445,
+          "description": "218 Internal Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5446,
+          "description": "228 ADJ Junction Box",
+          "normal": 30.0,
+          "difficult": 37.5,
+          "veryDifficult": 45.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5447,
+          "description": "251 Exterior Adapter",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5448,
+          "description": "289 Reducing Connector",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5449,
+          "description": "502 Bushing",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5452,
+          "description": "504 Strap",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5453,
+          "description": "506 Connector Cover",
+          "normal": 3.0,
+          "difficult": 3.75,
+          "veryDifficult": 4.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5454,
+          "description": "511 90D Flat Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5455,
+          "description": "512 45D Flat Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5456,
+          "description": "517 Internal Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5459,
+          "description": "518 External Elbow",
+          "normal": 10.0,
+          "difficult": 12.5,
+          "veryDifficult": 15.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5460,
+          "description": "704 Strap",
+          "normal": 5.0,
+          "difficult": 6.25,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5461,
+          "description": "706 Connector Cover",
+          "normal": 3.5,
+          "difficult": 4.38,
+          "veryDifficult": 5.25,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.035,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5462,
+          "description": "711 90D Flat Elbow",
+          "normal": 15.0,
+          "difficult": 18.75,
+          "veryDifficult": 22.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5463,
+          "description": "717 Internal Elbow",
+          "normal": 15.0,
+          "difficult": 18.75,
+          "veryDifficult": 22.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5466,
+          "description": "718 External Elbow",
+          "normal": 15.0,
+          "difficult": 18.75,
+          "veryDifficult": 22.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5467,
+          "description": "2338A Fixture Box",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5468,
+          "description": "2347 Device Box",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5469,
+          "description": "2348 Device Box",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        },
+        {
+          "line": 5470,
+          "description": "2348S Device Box",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-42/2-43"
+        }
+      ]
+    },
+    "nonmetallic_surface_raceway": {
+      "title": "Section 2 \u2014 Nonmetallic Surface Raceways (Wiremold)",
+      "page": "MLU 2-46/2-47",
+      "rowCount": 87,
+      "rows": [
+        {
+          "line": 5650,
+          "description": "2700 Latching Raceway - Base and Cover",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5651,
+          "description": "2706 Joint Cover",
+          "normal": 3.0,
+          "difficult": 3.6,
+          "veryDifficult": 4.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5652,
+          "description": "2710B Blank End",
+          "normal": 3.0,
+          "difficult": 3.6,
+          "veryDifficult": 4.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5653,
+          "description": "2711 Flat Elbow",
+          "normal": 10.0,
+          "difficult": 12.0,
+          "veryDifficult": 14.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5654,
+          "description": "2717 Internal Elbow",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5655,
+          "description": "2718 External Elbow",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5656,
+          "description": "2715 Tee",
+          "normal": 15.0,
+          "difficult": 18.0,
+          "veryDifficult": 21.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5657,
+          "description": "2786 Drop Ceiling Connector",
+          "normal": 15.0,
+          "difficult": 18.0,
+          "veryDifficult": 21.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5663,
+          "description": "2800 Latching Raceway - Base and Cover",
+          "normal": 4.5,
+          "difficult": 5.4,
+          "veryDifficult": 6.3,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.045,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5664,
+          "description": "2806 Joint Cover",
+          "normal": 3.0,
+          "difficult": 3.6,
+          "veryDifficult": 4.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5665,
+          "description": "2810B Blank End",
+          "normal": 3.0,
+          "difficult": 3.6,
+          "veryDifficult": 4.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5666,
+          "description": "2811 Flat Elbow",
+          "normal": 10.0,
+          "difficult": 12.0,
+          "veryDifficult": 14.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5667,
+          "description": "2817 Internal Elbow",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5668,
+          "description": "2818 External Elbow",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5669,
+          "description": "2815 Tee",
+          "normal": 15.0,
+          "difficult": 18.0,
+          "veryDifficult": 21.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5670,
+          "description": "2886 Drop Ceiling",
+          "normal": 15.0,
+          "difficult": 18.0,
+          "veryDifficult": 21.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5671,
+          "description": "2889 Reducing Connector",
+          "normal": 10.0,
+          "difficult": 12.0,
+          "veryDifficult": 14.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 10.0,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5677,
+          "description": "2900 Latching Raceway - Base and Cover",
+          "normal": 6.0,
+          "difficult": 7.2,
+          "veryDifficult": 8.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.06,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5678,
+          "description": "2906 Joint Cover",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5679,
+          "description": "2910B Blank End",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5680,
+          "description": "2911 Flat Elbow",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5681,
+          "description": "2917 Internal Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5682,
+          "description": "2918 External Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5683,
+          "description": "2915 Tee",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5684,
+          "description": "2986 Drop Ceiling Connector",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5685,
+          "description": "2989 Reducing Connector",
+          "normal": 10.0,
+          "difficult": 12.0,
+          "veryDifficult": 14.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5690,
+          "description": "NM2044 1-Gang Deep Device Box",
+          "normal": 30.0,
+          "difficult": 36.0,
+          "veryDifficult": 42.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5691,
+          "description": "NM2044 2-Gang Deep Device Box",
+          "normal": 35.0,
+          "difficult": 42.0,
+          "veryDifficult": 49.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5692,
+          "description": "CM-MMB-291 One Multimedia Box",
+          "normal": 40.0,
+          "difficult": 48.0,
+          "veryDifficult": 56.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 40.0,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5693,
+          "description": "CM-MMB-293 Two Multimedia Box",
+          "normal": 40.0,
+          "difficult": 48.0,
+          "veryDifficult": 56.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 40.0,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5694,
+          "description": "CM-MMB-293 Three Multimedia Box",
+          "normal": 45.0,
+          "difficult": 54.0,
+          "veryDifficult": 63.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 45.0,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5701,
+          "description": "400BAC 2-Piece Raceway - Base and Cover",
+          "normal": 7.0,
+          "difficult": 8.4,
+          "veryDifficult": 9.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.07,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5702,
+          "description": "400WC Wire Clip",
+          "normal": 2.5,
+          "difficult": 3.0,
+          "veryDifficult": 3.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.025,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5703,
+          "description": "406 Joint Cover",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5704,
+          "description": "410B Blank End",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5705,
+          "description": "411 Flat Elbow",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5706,
+          "description": "417 Internal Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5707,
+          "description": "418 External Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5708,
+          "description": "415 Tee",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5709,
+          "description": "810A2 Entrance End Fitting",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5717,
+          "description": "800BAC 2-Piece Raceway - Base and Cover",
+          "normal": 7.5,
+          "difficult": 9.0,
+          "veryDifficult": 10.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.075,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5718,
+          "description": "800WC Wire Clip",
+          "normal": 2.5,
+          "difficult": 3.0,
+          "veryDifficult": 3.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.025,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5719,
+          "description": "806 Joint Cover",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5720,
+          "description": "810B Blank End",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5721,
+          "description": "811 Flat Elbow",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5722,
+          "description": "817 Internal Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5723,
+          "description": "818 External Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5724,
+          "description": "815 Tee",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5725,
+          "description": "810A2 Entrance End",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5726,
+          "description": "889A Reducing Connector",
+          "normal": 10.0,
+          "difficult": 12.0,
+          "veryDifficult": 14.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5744,
+          "description": "2300BAC 2-Piece Raceway - Base and Cover",
+          "normal": 8.0,
+          "difficult": 9.6,
+          "veryDifficult": 11.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.08,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5745,
+          "description": "2300WC Wire Clip",
+          "normal": 2.5,
+          "difficult": 3.0,
+          "veryDifficult": 3.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.025,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5746,
+          "description": "2306 Joint Cover",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5747,
+          "description": "2310B Blank End",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5748,
+          "description": "2311 Flat Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5749,
+          "description": "2317 Internal Elbow",
+          "normal": 13.0,
+          "difficult": 15.6,
+          "veryDifficult": 18.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.13,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5750,
+          "description": "2318 External Elbow",
+          "normal": 13.0,
+          "difficult": 15.6,
+          "veryDifficult": 18.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.13,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5751,
+          "description": "2315 Tee",
+          "normal": 16.5,
+          "difficult": 19.8,
+          "veryDifficult": 23.1,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.165,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5752,
+          "description": "2310A2 Entrance End Fitting",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5753,
+          "description": "889A Reducing Connector",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5758,
+          "description": "2348 1-Gang Deep Device Box",
+          "normal": 30.0,
+          "difficult": 36.0,
+          "veryDifficult": 42.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5759,
+          "description": "2348 2-Gang Deep Device Box",
+          "normal": 35.0,
+          "difficult": 42.0,
+          "veryDifficult": 49.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5760,
+          "description": "2348 3-Gang Deep Device Box",
+          "normal": 40.0,
+          "difficult": 48.0,
+          "veryDifficult": 56.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5761,
+          "description": "2348S Shallow Extension Box",
+          "normal": 30.0,
+          "difficult": 36.0,
+          "veryDifficult": 42.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5762,
+          "description": "2348AMP Magnetic Deep Device Box",
+          "normal": 30.0,
+          "difficult": 36.0,
+          "veryDifficult": 42.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5763,
+          "description": "2338A Fixture Box",
+          "normal": 35.0,
+          "difficult": 42.0,
+          "veryDifficult": 49.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5764,
+          "description": "2337A Round Box Extension",
+          "normal": 35.0,
+          "difficult": 42.0,
+          "veryDifficult": 49.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5765,
+          "description": "2336 Blank Cover",
+          "normal": 15.0,
+          "difficult": 18.0,
+          "veryDifficult": 21.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5766,
+          "description": "2333SD-2A 2-Gang Deep Box/Divider",
+          "normal": 35.0,
+          "difficult": 42.0,
+          "veryDifficult": 49.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5767,
+          "description": "CM-MMB-231 One Multimedia Box",
+          "normal": 40.0,
+          "difficult": 48.0,
+          "veryDifficult": 56.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 40.0,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5768,
+          "description": "CM-MMB-232 Two Multimedia Box",
+          "normal": 40.0,
+          "difficult": 48.0,
+          "veryDifficult": 56.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 40.0,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5769,
+          "description": "CM-MMB-233 Three Multimedia Box",
+          "normal": 45.0,
+          "difficult": 54.0,
+          "veryDifficult": 63.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 45.0,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5776,
+          "description": "NM200BC 2-Piece Raceway - Base and Cover",
+          "normal": 7.5,
+          "difficult": 9.0,
+          "veryDifficult": 10.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.075,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5777,
+          "description": "NM200WC Wire Clip",
+          "normal": 2.5,
+          "difficult": 3.0,
+          "veryDifficult": 3.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.025,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5778,
+          "description": "NM2006 Joint Cover",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5779,
+          "description": "NM201B Blank End",
+          "normal": 4.0,
+          "difficult": 4.8,
+          "veryDifficult": 5.6,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5780,
+          "description": "NM2011 Flat Elbow",
+          "normal": 11.0,
+          "difficult": 13.2,
+          "veryDifficult": 15.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5781,
+          "description": "NM2017 Internal Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5782,
+          "description": "NM2018 External Elbow",
+          "normal": 12.0,
+          "difficult": 14.4,
+          "veryDifficult": 16.8,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5783,
+          "description": "NM2015 Tee",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5784,
+          "description": "NM2010A Entrance End Fitting",
+          "normal": 16.0,
+          "difficult": 19.2,
+          "veryDifficult": 22.4,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5785,
+          "description": "NM2003 Supporting Clip",
+          "normal": 10.0,
+          "difficult": 12.0,
+          "veryDifficult": 14.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5786,
+          "description": "NM2015H/NM2051V Wall Box Adaptor",
+          "normal": 10.0,
+          "difficult": 12.0,
+          "veryDifficult": 14.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5790,
+          "description": "NM2048 1-Gang Deep Device Box",
+          "normal": 30.0,
+          "difficult": 36.0,
+          "veryDifficult": 42.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5791,
+          "description": "NM2048-2 2-Gang Deep Device Box",
+          "normal": 35.0,
+          "difficult": 42.0,
+          "veryDifficult": 49.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5792,
+          "description": "NM2044 1-Gang Extra Deep Box",
+          "normal": 30.0,
+          "difficult": 36.0,
+          "veryDifficult": 42.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-46/2-47"
+        },
+        {
+          "line": 5793,
+          "description": "NM2044 2-Gang Extra Deep Box",
+          "normal": 35.0,
+          "difficult": 42.0,
+          "veryDifficult": 49.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-46/2-47"
+        }
+      ]
+    },
+    "emt_and_fittings": {
+      "title": "Section 2 \u2014 EMT and Fittings",
+      "page": "MLU 2-21/2-22",
+      "rowCount": 57,
+      "rows": [
+        {
+          "line": 3767,
+          "description": "1/2\"",
+          "normal": 4.5,
+          "difficult": 5.6,
+          "veryDifficult": 6.7,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.045,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3768,
+          "description": "3/4\"",
+          "normal": 5.0,
+          "difficult": 6.2,
+          "veryDifficult": 7.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3769,
+          "description": "1\"",
+          "normal": 5.5,
+          "difficult": 6.8,
+          "veryDifficult": 8.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.055,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3770,
+          "description": "1 1/4\"",
+          "normal": 6.2,
+          "difficult": 7.8,
+          "veryDifficult": 9.3,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.062,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3771,
+          "description": "1 1/2\"",
+          "normal": 7.0,
+          "difficult": 8.7,
+          "veryDifficult": 10.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.07,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3772,
+          "description": "2\"",
+          "normal": 8.0,
+          "difficult": 10.0,
+          "veryDifficult": 12.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.08,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3773,
+          "description": "2 1/2\"",
+          "normal": 9.5,
+          "difficult": 11.8,
+          "veryDifficult": 14.2,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.095,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3774,
+          "description": "3\"",
+          "normal": 11.0,
+          "difficult": 13.7,
+          "veryDifficult": 16.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3775,
+          "description": "3 1/2\"",
+          "normal": 13.0,
+          "difficult": 16.2,
+          "veryDifficult": 19.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.13,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3776,
+          "description": "4\"",
+          "normal": 16.0,
+          "difficult": 20.0,
+          "veryDifficult": 24.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3781,
+          "description": "1/2\"",
+          "normal": 0.04,
+          "difficult": 0.05,
+          "veryDifficult": 0.06,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3782,
+          "description": "3/4\"",
+          "normal": 0.05,
+          "difficult": 0.06,
+          "veryDifficult": 0.07,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3783,
+          "description": "1\"",
+          "normal": 0.06,
+          "difficult": 0.07,
+          "veryDifficult": 0.08,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.06,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3784,
+          "description": "1 1/4\"",
+          "normal": 0.08,
+          "difficult": 0.09,
+          "veryDifficult": 0.1,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.08,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3785,
+          "description": "1 1/2\"",
+          "normal": 0.1,
+          "difficult": 0.11,
+          "veryDifficult": 0.13,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3786,
+          "description": "2\"",
+          "normal": 0.12,
+          "difficult": 0.14,
+          "veryDifficult": 0.16,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3787,
+          "description": "2 1/2\"",
+          "normal": 0.14,
+          "difficult": 0.16,
+          "veryDifficult": 0.18,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.14,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3788,
+          "description": "3\"",
+          "normal": 0.16,
+          "difficult": 0.18,
+          "veryDifficult": 0.2,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3789,
+          "description": "3 1/2\"",
+          "normal": 0.2,
+          "difficult": 0.22,
+          "veryDifficult": 0.24,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3790,
+          "description": "4\"",
+          "normal": 0.22,
+          "difficult": 0.24,
+          "veryDifficult": 0.26,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.22,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3794,
+          "description": "1/2\"",
+          "normal": 0.2,
+          "difficult": 0.25,
+          "veryDifficult": 0.3,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3795,
+          "description": "3/4\"",
+          "normal": 0.22,
+          "difficult": 0.27,
+          "veryDifficult": 0.33,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.22,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3796,
+          "description": "1\"",
+          "normal": 0.25,
+          "difficult": 0.31,
+          "veryDifficult": 0.37,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.25,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3797,
+          "description": "1 1/4\"",
+          "normal": 0.32,
+          "difficult": 0.4,
+          "veryDifficult": 0.48,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.32,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3798,
+          "description": "1 1/2\"",
+          "normal": 0.4,
+          "difficult": 0.5,
+          "veryDifficult": 0.6,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3799,
+          "description": "2'",
+          "normal": 0.5,
+          "difficult": 0.62,
+          "veryDifficult": 0.75,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3800,
+          "description": "2 1/2\"",
+          "normal": 0.6,
+          "difficult": 0.75,
+          "veryDifficult": 0.9,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.6,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3801,
+          "description": "3\"",
+          "normal": 0.7,
+          "difficult": 0.87,
+          "veryDifficult": 1.05,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.7,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3802,
+          "description": "3 1/2\"",
+          "normal": 0.85,
+          "difficult": 1.05,
+          "veryDifficult": 1.25,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.85,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3803,
+          "description": "4\"",
+          "normal": 1.0,
+          "difficult": 1.25,
+          "veryDifficult": 1.5,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 1.0,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3808,
+          "description": "1 1/4\"",
+          "normal": 0.64,
+          "difficult": 0.8,
+          "veryDifficult": 0.96,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.64,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3809,
+          "description": "1 1/2\"",
+          "normal": 0.8,
+          "difficult": 1.0,
+          "veryDifficult": 1.2,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.8,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3810,
+          "description": "2\"",
+          "normal": 1.0,
+          "difficult": 1.24,
+          "veryDifficult": 1.5,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 1.0,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3811,
+          "description": "2 1/2\"",
+          "normal": 1.2,
+          "difficult": 1.5,
+          "veryDifficult": 1.8,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 1.2,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3812,
+          "description": "3\"",
+          "normal": 1.4,
+          "difficult": 1.74,
+          "veryDifficult": 2.1,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 1.4,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3813,
+          "description": "3 1/2\"",
+          "normal": 1.7,
+          "difficult": 2.1,
+          "veryDifficult": 2.5,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 1.7,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3814,
+          "description": "4\"",
+          "normal": 2.0,
+          "difficult": 2.5,
+          "veryDifficult": 3.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 2.0,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3818,
+          "description": "1/2\"",
+          "normal": 0.08,
+          "difficult": 0.1,
+          "veryDifficult": 0.12,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.08,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3819,
+          "description": "3/4\"",
+          "normal": 0.1,
+          "difficult": 0.12,
+          "veryDifficult": 0.15,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3820,
+          "description": "1\"",
+          "normal": 0.12,
+          "difficult": 0.15,
+          "veryDifficult": 0.18,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3821,
+          "description": "1 1/4\"",
+          "normal": 0.16,
+          "difficult": 0.2,
+          "veryDifficult": 0.24,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.16,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3822,
+          "description": "1 1/2\"",
+          "normal": 0.2,
+          "difficult": 0.25,
+          "veryDifficult": 0.3,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3823,
+          "description": "2\"",
+          "normal": 0.25,
+          "difficult": 0.31,
+          "veryDifficult": 0.37,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.25,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3824,
+          "description": "2 1/2\"",
+          "normal": 0.3,
+          "difficult": 0.37,
+          "veryDifficult": 0.45,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3825,
+          "description": "3\"",
+          "normal": 0.35,
+          "difficult": 0.45,
+          "veryDifficult": 0.5,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3826,
+          "description": "3 1/2\"",
+          "normal": 0.4,
+          "difficult": 0.5,
+          "veryDifficult": 0.6,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3827,
+          "description": "4\"",
+          "normal": 0.45,
+          "difficult": 0.6,
+          "veryDifficult": 0.75,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.45,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3831,
+          "description": "1/2\"",
+          "normal": 0.25,
+          "difficult": 0.31,
+          "veryDifficult": 0.37,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.25,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3832,
+          "description": "3/4\"",
+          "normal": 0.3,
+          "difficult": 0.37,
+          "veryDifficult": 0.45,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3833,
+          "description": "1\"",
+          "normal": 0.35,
+          "difficult": 0.43,
+          "veryDifficult": 0.52,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3834,
+          "description": "1 1/4\"",
+          "normal": 0.4,
+          "difficult": 0.5,
+          "veryDifficult": 0.6,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3835,
+          "description": "1 1/2\"",
+          "normal": 0.45,
+          "difficult": 0.56,
+          "veryDifficult": 0.67,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.45,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3836,
+          "description": "2\"",
+          "normal": 0.5,
+          "difficult": 0.62,
+          "veryDifficult": 0.75,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3837,
+          "description": "2 1/2\"",
+          "normal": 0.6,
+          "difficult": 0.75,
+          "veryDifficult": 0.9,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.6,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3838,
+          "description": "3\"",
+          "normal": 0.7,
+          "difficult": 0.87,
+          "veryDifficult": 1.05,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.7,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3839,
+          "description": "3 1/2\"",
+          "normal": 0.8,
+          "difficult": 1.0,
+          "veryDifficult": 1.2,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.8,
+          "page": "MLU 2-21/2-22"
+        },
+        {
+          "line": 3840,
+          "description": "4\"",
+          "normal": 0.9,
+          "difficult": 1.12,
+          "veryDifficult": 1.35,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.9,
+          "page": "MLU 2-21/2-22"
+        }
+      ]
+    },
+    "knockout_steel_boxes": {
+      "title": "Section 2 \u2014 Knockout Type Steel Boxes",
+      "page": "MLU 2-19",
+      "rowCount": 33,
+      "rows": [
+        {
+          "line": 3620,
+          "description": "4\" Square Boxes",
+          "normal": 30.0,
+          "difficult": 35.0,
+          "veryDifficult": 40.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3621,
+          "description": "4\" Octagon Boxes",
+          "normal": 30.0,
+          "difficult": 35.0,
+          "veryDifficult": 40.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3622,
+          "description": "4 11/16\" Square Boxes",
+          "normal": 30.0,
+          "difficult": 35.0,
+          "veryDifficult": 40.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3623,
+          "description": "4\" Concrete Boxes",
+          "normal": 40.0,
+          "difficult": 45.0,
+          "veryDifficult": 50.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3624,
+          "description": "4\" Handy Boxes",
+          "normal": 25.0,
+          "difficult": 30.0,
+          "veryDifficult": 35.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.25,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3625,
+          "description": "4\" Switch Boxes",
+          "normal": 25.0,
+          "difficult": 30.0,
+          "veryDifficult": 35.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.25,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3626,
+          "description": "2-Gang Solid Boxes",
+          "normal": 25.0,
+          "difficult": 30.0,
+          "veryDifficult": 35.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.25,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3627,
+          "description": "3-Gang Solid Boxes",
+          "normal": 27.0,
+          "difficult": 32.0,
+          "veryDifficult": 37.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.27,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3628,
+          "description": "4-Gang Solid Boxes",
+          "normal": 30.0,
+          "difficult": 35.0,
+          "veryDifficult": 40.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.3,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3629,
+          "description": "5-Gang Solid Boxes",
+          "normal": 33.0,
+          "difficult": 38.0,
+          "veryDifficult": 43.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.33,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3630,
+          "description": "6-Gang Solid Boxes",
+          "normal": 36.0,
+          "difficult": 41.0,
+          "veryDifficult": 46.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.36,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3631,
+          "description": "7-Gang Solid Boxes",
+          "normal": 40.0,
+          "difficult": 45.0,
+          "veryDifficult": 50.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3632,
+          "description": "8-Gang Solid Boxes",
+          "normal": 45.0,
+          "difficult": 50.0,
+          "veryDifficult": 55.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.45,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3633,
+          "description": "4\" Hung Ceiling Boxes",
+          "normal": 45.0,
+          "difficult": 50.0,
+          "veryDifficult": 55.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.45,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3636,
+          "description": "6\" Square Boxes-Blank/Customizable",
+          "normal": 0.4,
+          "difficult": 0.45,
+          "veryDifficult": 0.5,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3637,
+          "description": "6\" Square Boxes -with ko's",
+          "normal": 0.4,
+          "difficult": 0.45,
+          "veryDifficult": 0.5,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3638,
+          "description": "6\" Flat cover",
+          "normal": 0.1,
+          "difficult": 0.12,
+          "veryDifficult": 0.15,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3639,
+          "description": "6\" 1 Gang Mud Ring",
+          "normal": 0.15,
+          "difficult": 0.2,
+          "veryDifficult": 0.25,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3640,
+          "description": "6\" 2 Gang Mud Ring",
+          "normal": 0.15,
+          "difficult": 0.2,
+          "veryDifficult": 0.25,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3641,
+          "description": "6\" Three Gang Mud Ring",
+          "normal": 0.15,
+          "difficult": 0.2,
+          "veryDifficult": 0.25,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3643,
+          "description": "Ceiling Fan Box with Adjustable Stud Bracket",
+          "normal": 0.5,
+          "difficult": 0.75,
+          "veryDifficult": 1.0,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.5,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3644,
+          "description": "Ceiling Fan Box-Direct Mount to Rafter",
+          "normal": 0.4,
+          "difficult": 0.5,
+          "veryDifficult": 0.65,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3650,
+          "description": "1-Gang Masonry & Tile Boxes",
+          "normal": 35.0,
+          "difficult": 40.0,
+          "veryDifficult": 45.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3651,
+          "description": "2-Gang Masonry & Tile Boxes",
+          "normal": 37.0,
+          "difficult": 42.0,
+          "veryDifficult": 47.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.37,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3652,
+          "description": "3-Gang Masonry & Tile Boxes",
+          "normal": 40.0,
+          "difficult": 45.0,
+          "veryDifficult": 50.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3653,
+          "description": "4-Gang Masonry & Tile Boxes",
+          "normal": 45.0,
+          "difficult": 50.0,
+          "veryDifficult": 55.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.45,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3657,
+          "description": "1-Gang Thru-Wall Boxes",
+          "normal": 35.0,
+          "difficult": 40.0,
+          "veryDifficult": 45.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.35,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3658,
+          "description": "2-Gang Thru-Wall Boxes",
+          "normal": 37.0,
+          "difficult": 42.0,
+          "veryDifficult": 47.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.37,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3659,
+          "description": "3-Gang Thru-Wall Boxes",
+          "normal": 40.0,
+          "difficult": 45.0,
+          "veryDifficult": 50.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.4,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3663,
+          "description": "Box Extensions-All Types",
+          "normal": 20.0,
+          "difficult": 25.0,
+          "veryDifficult": 30.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.2,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3664,
+          "description": "Plaster Rings-All Sizes",
+          "normal": 15.0,
+          "difficult": 20.0,
+          "veryDifficult": 25.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.15,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3665,
+          "description": "Tile Rings-All Sizes",
+          "normal": 17.5,
+          "difficult": 22.0,
+          "veryDifficult": 27.5,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.175,
+          "page": "MLU 2-19"
+        },
+        {
+          "line": 3666,
+          "description": "Box Covers-All Types",
+          "normal": 8.0,
+          "difficult": 9.0,
+          "veryDifficult": 10.0,
+          "unit": "C",
+          "normalizedPerItemOrFoot": 0.08,
+          "page": "MLU 2-19"
+        }
+      ]
+    },
+    "nm_cable": {
+      "title": "Section 3 \u2014 600V NM/UF Cable Copper",
+      "page": "MLU 3-15/3-16",
+      "rowCount": 29,
+      "rows": [
+        {
+          "line": 10959,
+          "description": "1/C #12",
+          "normal": 25.0,
+          "difficult": 31.2,
+          "veryDifficult": 37.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.025,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10960,
+          "description": "1/C #10",
+          "normal": 30.0,
+          "difficult": 37.5,
+          "veryDifficult": 45.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10961,
+          "description": "1/C #8",
+          "normal": 35.0,
+          "difficult": 43.7,
+          "veryDifficult": 52.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.035,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10962,
+          "description": "1/C #6",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10963,
+          "description": "2/C #14",
+          "normal": 30.0,
+          "difficult": 37.5,
+          "veryDifficult": 45.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10964,
+          "description": "2/C #12",
+          "normal": 35.0,
+          "difficult": 43.7,
+          "veryDifficult": 52.7,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.035,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10965,
+          "description": "2/C #10",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10966,
+          "description": "2/C #8",
+          "normal": 45.0,
+          "difficult": 56.2,
+          "veryDifficult": 67.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.045,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10967,
+          "description": "2/C #6",
+          "normal": 55.0,
+          "difficult": 68.7,
+          "veryDifficult": 82.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.055,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10968,
+          "description": "3/C #14",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10969,
+          "description": "3/C #12",
+          "normal": 45.0,
+          "difficult": 56.2,
+          "veryDifficult": 67.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.045,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10970,
+          "description": "3/C #10",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10971,
+          "description": "3/C #8",
+          "normal": 60.0,
+          "difficult": 75.0,
+          "veryDifficult": 90.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.06,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10972,
+          "description": "3/C #6",
+          "normal": 70.0,
+          "difficult": 87.0,
+          "veryDifficult": 105.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.07,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10989,
+          "description": "2/C #14",
+          "normal": 30.0,
+          "difficult": 37.5,
+          "veryDifficult": 45.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10990,
+          "description": "2/C #12",
+          "normal": 35.0,
+          "difficult": 43.75,
+          "veryDifficult": 52.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.035,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10991,
+          "description": "2/C #10",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10992,
+          "description": "2/C #8",
+          "normal": 45.0,
+          "difficult": 56.25,
+          "veryDifficult": 67.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.045,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10993,
+          "description": "3 2/C #6",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10994,
+          "description": "3/C #14",
+          "normal": 35.0,
+          "difficult": 43.75,
+          "veryDifficult": 52.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.035,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10995,
+          "description": "3/C #12",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10996,
+          "description": "3/C #10",
+          "normal": 45.0,
+          "difficult": 56.25,
+          "veryDifficult": 67.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.045,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10997,
+          "description": "3/C #8",
+          "normal": 50.0,
+          "difficult": 62.5,
+          "veryDifficult": 75.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10998,
+          "description": "3/C #6",
+          "normal": 60.0,
+          "difficult": 75.0,
+          "veryDifficult": 90.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.06,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 10999,
+          "description": "3/C #4",
+          "normal": 70.0,
+          "difficult": 81.0,
+          "veryDifficult": 98.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.07,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 11000,
+          "description": "3/C #2",
+          "normal": 80.0,
+          "difficult": 92.0,
+          "veryDifficult": 105.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.08,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 11001,
+          "description": "4/C #14",
+          "normal": 35.0,
+          "difficult": 44.0,
+          "veryDifficult": 53.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.035,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 11002,
+          "description": "4/C #12",
+          "normal": 40.0,
+          "difficult": 50.0,
+          "veryDifficult": 60.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 3-15/3-16"
+        },
+        {
+          "line": 11003,
+          "description": "4/C #10",
+          "normal": 45.0,
+          "difficult": 56.0,
+          "veryDifficult": 68.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.045,
+          "page": "MLU 3-15/3-16"
+        }
+      ]
+    },
+    "cable_straps": {
+      "title": "Section 3 \u2014 One-hole straps",
+      "page": "MLU 3-15",
+      "rowCount": 10,
+      "rows": [
+        {
+          "line": 10945,
+          "description": "14-2, 12-2 One Hole Strap",
+          "normal": 0.03,
+          "difficult": 0.04,
+          "veryDifficult": 0.05,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10946,
+          "description": "14-3, 12-3 One Hole Strap",
+          "normal": 0.03,
+          "difficult": 0.04,
+          "veryDifficult": 0.05,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10947,
+          "description": "3/8\" One Hole Strap",
+          "normal": 0.03,
+          "difficult": 0.04,
+          "veryDifficult": 0.05,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.03,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10948,
+          "description": "3/4\" One Hole Strap",
+          "normal": 0.04,
+          "difficult": 0.05,
+          "veryDifficult": 0.06,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10949,
+          "description": "1\" One Hole Strap",
+          "normal": 0.04,
+          "difficult": 0.05,
+          "veryDifficult": 0.06,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.04,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10950,
+          "description": "1 1/4\" One Hole Strap",
+          "normal": 0.05,
+          "difficult": 0.06,
+          "veryDifficult": 0.08,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.05,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10951,
+          "description": "1 1/2\" One Hole Strap",
+          "normal": 0.06,
+          "difficult": 0.08,
+          "veryDifficult": 0.09,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.06,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10952,
+          "description": "2\" One Hole Strap",
+          "normal": 0.1,
+          "difficult": 0.13,
+          "veryDifficult": 0.16,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.1,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10953,
+          "description": "2 1/2\" One Hole Strap",
+          "normal": 0.11,
+          "difficult": 0.14,
+          "veryDifficult": 0.17,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.11,
+          "page": "MLU 3-15"
+        },
+        {
+          "line": 10954,
+          "description": "3\" One Hole Strap",
+          "normal": 0.12,
+          "difficult": 0.15,
+          "veryDifficult": 0.19,
+          "unit": "E",
+          "normalizedPerItemOrFoot": 0.12,
+          "page": "MLU 3-15"
+        }
+      ]
+    },
+    "building_wire_thhn": {
+      "title": "Section 3 \u2014 600V Bldg Wire 1/C Copper THHN/THWN",
+      "page": "MLU 3-6",
+      "rowCount": 21,
+      "rows": [
+        {
+          "line": 10289,
+          "description": "#14",
+          "normal": 5.0,
+          "difficult": 6.2,
+          "veryDifficult": 7.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.005,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10290,
+          "description": "#12",
+          "normal": 6.0,
+          "difficult": 7.5,
+          "veryDifficult": 9.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.006,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10291,
+          "description": "#10",
+          "normal": 7.0,
+          "difficult": 8.75,
+          "veryDifficult": 10.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.007,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10292,
+          "description": "#8",
+          "normal": 9.0,
+          "difficult": 11.25,
+          "veryDifficult": 13.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.009,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10293,
+          "description": "#6",
+          "normal": 11.0,
+          "difficult": 13.75,
+          "veryDifficult": 16.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.011,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10294,
+          "description": "#4",
+          "normal": 13.0,
+          "difficult": 16.25,
+          "veryDifficult": 19.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.013,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10295,
+          "description": "#3",
+          "normal": 15.0,
+          "difficult": 18.75,
+          "veryDifficult": 22.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.015,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10296,
+          "description": "#2",
+          "normal": 17.0,
+          "difficult": 21.25,
+          "veryDifficult": 25.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.017,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10297,
+          "description": "#1",
+          "normal": 19.0,
+          "difficult": 23.75,
+          "veryDifficult": 28.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.019,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10298,
+          "description": "1/0",
+          "normal": 22.0,
+          "difficult": 27.5,
+          "veryDifficult": 33.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.022,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10299,
+          "description": "2/0",
+          "normal": 24.0,
+          "difficult": 30.0,
+          "veryDifficult": 36.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.024,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10300,
+          "description": "3/0",
+          "normal": 26.0,
+          "difficult": 32.5,
+          "veryDifficult": 39.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.026,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10301,
+          "description": "4/0",
+          "normal": 29.0,
+          "difficult": 36.2,
+          "veryDifficult": 43.5,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.029,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10302,
+          "description": "250 kcmil",
+          "normal": 32.0,
+          "difficult": 40.0,
+          "veryDifficult": 48.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.032,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10303,
+          "description": "300 kcmil",
+          "normal": 35.0,
+          "difficult": 44.0,
+          "veryDifficult": 52.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.035,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10304,
+          "description": "350 kcmil",
+          "normal": 38.0,
+          "difficult": 48.0,
+          "veryDifficult": 57.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.038,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10305,
+          "description": "400 kcmil",
+          "normal": 41.0,
+          "difficult": 51.0,
+          "veryDifficult": 62.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.041,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10306,
+          "description": "500 kcmil",
+          "normal": 44.0,
+          "difficult": 55.0,
+          "veryDifficult": 66.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.044,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10307,
+          "description": "600 kcmil",
+          "normal": 48.0,
+          "difficult": 60.0,
+          "veryDifficult": 72.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.048,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10308,
+          "description": "750 kcmil",
+          "normal": 54.0,
+          "difficult": 67.0,
+          "veryDifficult": 81.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.054,
+          "page": "MLU 3-6"
+        },
+        {
+          "line": 10309,
+          "description": "1000 kcmil",
+          "normal": 62.0,
+          "difficult": 77.0,
+          "veryDifficult": 93.0,
+          "unit": "M",
+          "normalizedPerItemOrFoot": 0.062,
+          "page": "MLU 3-6"
+        }
+      ]
+    }
+  }
+}
