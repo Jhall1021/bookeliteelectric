@@ -320,8 +320,11 @@ async function main() {
     "L  …and that is a constraint, not a convention");
 
   console.log("\n  M  WRITE PATHS ARE TENANT SCOPED\n");
-  const productSrc = readFileSync("app/api/admin/material-product/route.ts", "utf8");
-  ok(/contractorId: ctx\.contractorId/.test(productSrc) && /contractorMaterial: \{ contractorId: ctx\.contractorId \}/.test(productSrc),
+  // The handler BODIES moved to lib/admin/onboardingActions so they can be
+  // exercised without a running server. These assertions follow the logic
+  // rather than the file it used to be in.
+  const actionsSrc = readFileSync("lib/admin/onboardingActions.ts", "utf8");
+  ok(/contractorId: ctx\.contractorId/.test(actionsSrc) && /contractorMaterial: \{ contractorId: ctx\.contractorId \}/.test(actionsSrc),
     "M  product selection checks BOTH the material's and the link's owner");
   for (const f of ["app/api/admin/component-labor/route.ts", "app/api/admin/pricing-settings-fields/route.ts",
                    "app/api/admin/material-system/route.ts", "app/api/admin/materials-overview/route.ts",
@@ -330,11 +333,12 @@ async function main() {
     ok(/withAdminContractor/.test(src) && /isAdminAuthenticated/.test(src),
       `M  ${f.split("/").slice(-2)[0]} resolves its tenant and authenticates`);
   }
-  const laborSrc = readFileSync("app/api/admin/component-labor/route.ts", "utf8");
-  ok(/action === "clear"/.test(laborSrc) && /action === "set"/.test(laborSrc) && /accept-reference/.test(laborSrc),
+  ok(/action === "clear"/.test(actionsSrc) && /action === "set"/.test(actionsSrc) && /accept-reference/.test(actionsSrc),
     "M  labor supports set, explicit zero via set, clear back to unresolved, and accept-reference");
-  ok(/reference: \{/.test(laborSrc) && !/addFieldLaborHours: c\.referenceLaborHours/.test(laborSrc.split("accept-reference")[0]),
+  ok(/reference: \{/.test(actionsSrc) && !/addFieldLaborHours: c\.referenceLaborHours/.test(actionsSrc.split("accept-reference")[0]),
     "M  …and reference evidence is returned separately, never auto-applied");
+  ok(/referenceLaborStatus === "DISPUTED"/.test(actionsSrc),
+    "M  …and disputed evidence is refused rather than offered as a recommendation");
 
   console.log(`\n  ${pass} passed, ${fail} failed\n`);
   if (unresolved.length > 0) {

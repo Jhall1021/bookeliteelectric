@@ -20,7 +20,8 @@ import { assessActivationMaterialReadiness } from "./materialResolution";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
-      | "POLICY_UNRESOLVED" | "DEPENDENCY_UNAVAILABLE";
+      | "POLICY_UNRESOLVED" | "DEPENDENCY_UNAVAILABLE"
+      | "DERIVED_PRICING_NOT_APPROVED";
   message: string;
   unresolvedMaterialKeys?: string[];
   unresolvedPolicyKeys?: string[];
@@ -60,6 +61,7 @@ export async function activationRefusal(
       id: true, slug: true, active: true, bookingType: true,
       publishedPriceApprovedAt: true, materialCostResolved: true,
       unresolvedMaterialKeys: true, unresolvedPolicyKeys: true,
+      pricingMethod: true,
     },
   });
   if (!service) {
@@ -82,7 +84,36 @@ export async function activationRefusal(
   const promise = await promiseFor(
     db, { id: service.id, bookingType: service.bookingType }, settings
   );
-  if (promise.promisesFixedPrice && service.publishedPriceApprovedAt === null) {
+  /**
+   * TWO CONTRACTS, SELECTED BY THE SERVICE'S PRICING METHOD.
+   *
+   * A derived service has no published base price and never will — its price
+   * is computed per route from the approved economic basis. Asking it for
+   * `publishedPriceApprovedAt` would refuse every derived service forever, and
+   * the tempting fix (relax the check for everyone) would let a LEGACY service
+   * go live quoting a price nobody approved. That is the one thing this guard
+   * exists to prevent, so the legacy branch below is untouched and derived
+   * pricing gets its own requirement instead.
+   *
+   * Staleness is deliberately NOT checked here. It is the pricing guard's
+   * business, exactly as a live service whose material cost breaks is — a
+   * stale basis makes routes return review, which is the fail-closed outcome,
+   * and silently deactivating a service because a cost moved would be worse.
+   */
+  if (service.pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+    const approval = await db.contractorDerivedPricingApproval.findUnique({
+      where: { contractorId_serviceId: { contractorId, serviceId: service.id } },
+      select: { id: true },
+    });
+    if (!approval) {
+      return {
+        code: "DERIVED_PRICING_NOT_APPROVED",
+        message:
+          "This service can't go live yet — its price is worked out from your costs " +
+          "and labour, and you haven't approved those figures.",
+      };
+    }
+  } else if (promise.promisesFixedPrice && service.publishedPriceApprovedAt === null) {
     return {
       code: "PRICE_NOT_APPROVED",
       message:

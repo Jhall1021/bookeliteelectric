@@ -364,6 +364,10 @@ export async function installCatalog(
             photoState: (s as unknown as { photoState: never }).photoState,
             isPrimaryEligible: (s as unknown as { isPrimaryEligible: boolean }).isPrimaryEligible,
             requiresTechCount: (s as unknown as { requiresTechCount: number }).requiresTechCount,
+            // Carried from the template, never defaulted here. A Routing V2
+            // service arriving as LEGACY_PUBLISHED would be configured to price
+            // the one way its measured scope cannot be priced.
+            pricingMethod: (s as unknown as { pricingMethod: never }).pricingMethod,
             templateVersionId: fromVersionId, templateKey: s.key,
             // THE DURABLE TRADE IDENTITY — G2.
             //
@@ -442,8 +446,32 @@ export async function installCatalog(
 
         // Two passes: nextQuestionKey can point forward, and a key only
         // becomes an id once the row exists.
+        /**
+         * `unresolvedPolicyKeys` means one specific thing: ANSWER TEXT A
+         * HOMEOWNER WOULD READ cannot be written yet. Band policies
+         * interpolate their boundaries into option labels — an unresolved one
+         * literally renders "{b1} feet or less" on the storefront, which is
+         * why activation refuses on it.
+         *
+         * MEASUREMENT and MATERIAL_SPECIFICATION policies write no label. A
+         * termination slack allowance and a conductor specification are real
+         * decisions a contractor owes, and they gate PRICING through the
+         * derived-scope readiness contract — but they corrupt no homeowner
+         * text, so listing them here would refuse activation for a service
+         * whose storefront reads perfectly.
+         *
+         * The offcut policy makes that concrete: it is deliberately left
+         * unresolved, because it only decides turned-route piece counts and
+         * those stay in review by design. Counted here, it would block this
+         * service from ever going live for a reason that is working as
+         * intended.
+         */
+        const LABEL_WRITING_POLICY_TYPES = new Set([
+          "DISTANCE_BREAKPOINTS", "HEIGHT_BREAKPOINTS", "SUPPLY_ARRANGEMENT",
+        ]);
         const unresolvedPolicies = new Set<string>(
-          (s.policies as unknown as { templatePolicyDefinition: { key: string } }[])
+          (s.policies as unknown as { templatePolicyDefinition: { key: string; type: string } }[])
+            .filter((sp) => LABEL_WRITING_POLICY_TYPES.has(sp.templatePolicyDefinition.type))
             .map((sp) => sp.templatePolicyDefinition.key)
         );
         const qId = new Map<string, string>();

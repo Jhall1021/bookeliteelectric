@@ -4177,6 +4177,19 @@ model TemplateService {
   isPrimaryEligible Boolean     @default(true)
   requiresTechCount Int         @default(1)
 
+  /// How a service provisioned from this definition prices its customers.
+  ///
+  /// DECLARED BY THE TEMPLATE, because it is a property of the SERVICE CONCEPT
+  /// rather than of one contractor's taste: a service whose scope is a measured
+  /// physical route cannot be priced from flat per-unit increments by anybody,
+  /// and one that is a single fixed job does not need a takeoff. Leaving it to
+  /// be set per tenant after provisioning would mean a brand-new contractor
+  /// received a Routing V2 service configured to price the one way it cannot.
+  ///
+  /// Default is LEGACY_PUBLISHED so every existing template definition keeps
+  /// producing exactly what it produces today.
+  pricingMethod ServicePricingMethod @default(LEGACY_PUBLISHED)
+
   questions TemplateQuestion[]
   materials TemplateServiceMaterial[]
 

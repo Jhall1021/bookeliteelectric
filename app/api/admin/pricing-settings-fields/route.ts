@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { withAdminContractor } from "@/lib/adminContext";
 import { FIELD_PROMPT, requiredFields, type PricingSettingsField } from "@/lib/pricingSettingsState";
+import { writePricingSettingsField } from "@/lib/admin/onboardingActions";
 
 const FIELDS: PricingSettingsField[] = [
   "crewHourRateCents", "primaryMinimumCents", "roundingIncrementCents", "defaultPermitAdminCents",
@@ -54,34 +55,11 @@ export async function POST(req: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
-  const body = (await req.json()) as {
-    action?: "set" | "clear"; field?: PricingSettingsField; value?: number;
-  };
-  const field = body.field;
-  if (!field || !FIELDS.includes(field)) {
-    return NextResponse.json({ error: `field must be one of ${FIELDS.join(", ")}` }, { status: 400 });
-  }
+  const body = await req.json();
   return withAdminContractor(async (db, ctx) => {
-    if (body.action === "clear") {
-      const r = await db.pricingSettings.upsert({
-        where: { contractorId: ctx.contractorId },
-        update: { [field]: null }, create: { contractorId: ctx.contractorId },
-        select: { [field]: true } as never,
-      });
-      return NextResponse.json({ ok: true, field, value: null, decided: false, row: r });
-    }
-    const v = body.value;
-    if (typeof v !== "number" || !Number.isInteger(v) || v < 0) {
-      return NextResponse.json(
-        { error: "value must be a whole number of cents >= 0. Use action \"clear\" to undecide." },
-        { status: 400 },
-      );
-    }
-    const r = await db.pricingSettings.upsert({
-      where: { contractorId: ctx.contractorId },
-      update: { [field]: v }, create: { contractorId: ctx.contractorId, [field]: v },
-      select: { [field]: true } as never,
-    });
-    return NextResponse.json({ ok: true, field, value: v, decided: true, row: r });
+    const r = await writePricingSettingsField(db, ctx, body);
+    return r.ok
+      ? NextResponse.json({ ok: true, ...r.data })
+      : NextResponse.json({ error: r.error }, { status: r.status });
   });
 }

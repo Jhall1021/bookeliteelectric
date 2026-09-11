@@ -391,6 +391,14 @@ export function resolveBoundQuantity(
   return { kind: "quantity", value: n };
 }
 
+/**
+ * The verdict a derived route carries out of the pure resolver.
+ *
+ * Deliberately not a price and not an INVALID: the physical route is valid and
+ * fully resolved, and only the money is computed elsewhere.
+ */
+export const DERIVED_PRICING_PENDING = "Derived pricing pending — resolve through resolveRouteWithDerivedPricing";
+
 export function resolveRoute(
   service: LoadedService,
   answers: Record<string, string>,
@@ -805,8 +813,19 @@ export function resolveRoute(
     };
   }
 
+  /**
+   * LEGACY ONLY. `approvedPriceCents` is the legacy customer-price mechanism —
+   * published base plus approved per-unit increments — and an unapproved
+   * component genuinely makes that sum unquotable.
+   *
+   * A DERIVED scope never reads the field. Its components are cost and labor
+   * inputs, and requiring an approved unit price on them would refuse every
+   * derived route forever for missing a number it is defined not to use. The
+   * derived path has its own approval, over the economic basis, checked in
+   * priceDerivedScope — so this is scoped rather than relaxed.
+   */
   // Anything unresolved at this point becomes a review rather than a price.
-  if (config.awaitingComponentApproval) {
+  if (config.awaitingComponentApproval && service.pricingMethod !== "DERIVED_RESOLVED_SCOPE") {
     const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
     return {
       status: "REVIEW",
@@ -826,6 +845,31 @@ export function resolveRoute(
       photoLabels: [...new Set(photoLabels)],
       photoSafetyNotes: [...new Set(photoSafetyNotes)],
       floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
+      isPrimary,
+      config,
+    };
+  }
+
+  /**
+   * A DERIVED service stops here, holding its finished physical recipe.
+   *
+   * It has no published base price and never will — its price is computed per
+   * route from the approved economic basis, which needs database reads this
+   * function is deliberately not allowed to make. Falling through would hit
+   * the INVALID below and report "no published price", which is true and
+   * useless: the service is not misconfigured, it is priced somewhere else.
+   *
+   * `resolveRouteWithDerivedPricing` replaces this verdict. Nothing else may:
+   * a caller that forgets shows the sentinel reason rather than a price, which
+   * is the fail-closed direction.
+   */
+  if (service.pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+    return {
+      status: "REVIEW",
+      reason: DERIVED_PRICING_PENDING,
+      photoLabels: [...new Set(photoLabels)],
+      photoSafetyNotes: [...new Set(photoSafetyNotes)],
+      floorPriceCents: null,
       isPrimary,
       config,
     };

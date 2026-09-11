@@ -159,4 +159,5 @@ export async function everyServiceNamed(db: Db, slug: string): Promise<ServiceTa
 export const REHEARSAL_FIXTURE_SLUGS = [
   "rv2-rehearsal-surface-system",
   "rv2-lifecycle-derived-pricing",
+  "rv2-onboarding-pilot",
 ];
