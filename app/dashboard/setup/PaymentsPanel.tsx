@@ -50,7 +50,7 @@ export default function PaymentsPanel({
                       <div className="mt-1 text-sm font-semibold text-navy">Your rules can require a deposit, but no amount is set</div>
                       <p className="mt-1 text-sm text-slate">Set the one company deposit amount before connecting payments. Price2Book never invents an amount for you.</p>
                     </div>
-                    <Link href="/dashboard/settings/billing" className="rounded-pill border border-cardline bg-white px-4 py-2 text-sm font-semibold text-electric transition hover:border-electric">
+                    <Link href="/dashboard/billing" className="rounded-pill border border-cardline bg-white px-4 py-2 text-sm font-semibold text-electric transition hover:border-electric">
                       Set deposit rules
                     </Link>
                   </div>
