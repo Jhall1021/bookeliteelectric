@@ -12,6 +12,13 @@ export type Launchable = {
   reason: string | null;
 };
 
+type LaunchResult = {
+  name: string;
+  ok: boolean;
+  message?: string;
+  uncertain?: boolean;
+};
+
 export default function LaunchPanel({
   services, canLaunch, blockerCount,
 }: {
@@ -22,7 +29,7 @@ export default function LaunchPanel({
   const router = useRouter();
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [results, setResults] = useState<{ name: string; ok: boolean; message?: string }[]>([]);
+  const [results, setResults] = useState<LaunchResult[]>([]);
 
   const eligible = services.filter((s) => !s.active && s.ready);
   const waiting = services.filter((s) => !s.active && !s.ready);
@@ -35,20 +42,50 @@ export default function LaunchPanel({
   }
 
   async function launch() {
-    setBusy(true); setResults([]);
-    const out: { name: string; ok: boolean; message?: string }[] = [];
-    for (const s of eligible.filter((x) => chosen.has(x.id))) {
-      const res = await fetch(`/api/admin/services/${s.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: s.name, active: true }),
-      });
-      const data = await res.json().catch(() => ({}));
-      out.push({ name: s.name, ok: res.ok, message: data.message ?? data.error });
+    if (busy || chosen.size === 0 || !canLaunch) return;
+
+    setBusy(true);
+    setResults([]);
+    const out: LaunchResult[] = [];
+
+    try {
+      for (const s of eligible.filter((x) => chosen.has(x.id))) {
+        try {
+          const res = await fetch(`/api/admin/services/${s.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: s.name, active: true }),
+          });
+          const data = await res.json().catch(() => ({}));
+          out.push({
+            name: s.name,
+            ok: res.ok,
+            message: typeof data.message === "string"
+              ? data.message
+              : typeof data.error === "string"
+                ? data.error
+                : undefined,
+          });
+        } catch {
+          // A lost browser response is ambiguous: the request may have reached
+          // Price2Book and activated the service before the connection failed.
+          // Stop the sequence rather than guessing and publishing dependent
+          // services behind a prerequisite whose state we no longer know.
+          out.push({
+            name: s.name,
+            ok: false,
+            uncertain: true,
+            message: "Price2Book lost the response. This service may have gone live; refresh and confirm its status before publishing anything else.",
+          });
+          break;
+        }
+      }
+    } finally {
+      setResults(out);
+      setChosen(new Set());
+      setBusy(false);
+      router.refresh();
     }
-    setResults(out);
-    setChosen(new Set());
-    setBusy(false);
-    router.refresh();
   }
 
   return (
@@ -125,7 +162,7 @@ export default function LaunchPanel({
                 })}
               </div>
               <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-cardline pt-5">
-                <button type="button" onClick={launch} disabled={busy || chosen.size === 0 || !canLaunch} className="rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
+                <button type="button" onClick={() => void launch()} disabled={busy || chosen.size === 0 || !canLaunch} className="rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
                   {busy ? "Publishing..." : chosen.size > 0 ? `Put ${chosen.size} service${chosen.size === 1 ? "" : "s"} live` : "Select services to publish"}
                 </button>
                 {!canLaunch && <span className="text-xs text-slate">Complete the launch blockers first.</span>}
@@ -137,7 +174,11 @@ export default function LaunchPanel({
             <div className="mt-5 border-t border-cardline pt-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate">Publish results</div>
               <ul className="mt-2 space-y-2 text-sm">
-                {results.map((r, i) => <li key={i} className={`rounded-card p-3 ${r.ok ? "bg-success/5 text-success" : "bg-red-50 text-red-700"}`}>{r.ok ? `${r.name} is live.` : `${r.name} — ${r.message ?? "could not go live."}`}</li>)}
+                {results.map((r, i) => (
+                  <li key={i} className={`rounded-card p-3 ${r.ok ? "bg-success/5 text-success" : r.uncertain ? "bg-p2b-amber-tint text-p2b-amber-ink" : "bg-red-50 text-red-700"}`}>
+                    {r.ok ? `${r.name} is live.` : `${r.name} — ${r.message ?? "could not go live."}`}
+                  </li>
+                ))}
               </ul>
             </div>
           )}
