@@ -31,8 +31,46 @@ type Props = {
 };
 
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
-const numOrNull = (s: string) => (s === "" ? null : Number(s));
 const str = (n: number | null) => (n === null || n === undefined ? "" : String(n));
+
+function previewNumber(raw: string, min = 0): number | null {
+  if (raw.trim() === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= min ? value : null;
+}
+
+function requiredWholeNumber(raw: string, label: string, min: number) {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value < min) {
+    return { ok: false as const, error: `${label} must be a whole number of ${min} or more.` };
+  }
+  return { ok: true as const, value };
+}
+
+function optionalNumber(raw: string, label: string, min: number, integer = false) {
+  if (raw.trim() === "") return { ok: true as const, value: null };
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    return { ok: false as const, error: `${label} must be a valid number.` };
+  }
+  if (value < min) {
+    return { ok: false as const, error: `${label} must be ${min} or more.` };
+  }
+  if (integer && !Number.isInteger(value)) {
+    return { ok: false as const, error: `${label} must be a whole number.` };
+  }
+  return { ok: true as const, value };
+}
+
+function optionalMoneyCents(raw: string, label: string) {
+  const parsed = optionalNumber(raw, label, 0);
+  if (!parsed.ok || parsed.value === null) return parsed;
+  const cents = Math.round(parsed.value * 100);
+  if (!Number.isSafeInteger(cents)) {
+    return { ok: false as const, error: `${label} is too large.` };
+  }
+  return { ok: true as const, value: cents };
+}
 
 export default function PricingPanel(p: Props) {
   const router = useRouter();
@@ -57,17 +95,27 @@ export default function PricingPanel(p: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const materialCents = material === "" ? null : Math.round(parseFloat(material) * 100);
+  const materialDollars = previewNumber(material);
+  const materialCents = materialDollars === null ? null : Math.round(materialDollars * 100);
 
   const inputs = useMemo(
     () => ({
-      fieldLaborHours: numOrNull(hours),
-      wwtLaborHours: numOrNull(wwtHours),
-      requiresTechCount: Number(techs) || 1,
+      fieldLaborHours: previewNumber(hours),
+      wwtLaborHours: previewNumber(wwtHours),
+      requiresTechCount: (() => {
+        const value = Number(techs);
+        return Number.isInteger(value) && value >= 1 ? value : 1;
+      })(),
       materialCostCents: materialCents,
-      materialMultiplier: numOrNull(multOverride),
-      permitAdminCents: permit === "" ? null : Math.round(parseFloat(permit) * 100),
-      otherDirectCostCents: other === "" ? null : Math.round(parseFloat(other) * 100),
+      materialMultiplier: previewNumber(multOverride, 1),
+      permitAdminCents: (() => {
+        const value = previewNumber(permit);
+        return value === null ? null : Math.round(value * 100);
+      })(),
+      otherDirectCostCents: (() => {
+        const value = previewNumber(other);
+        return value === null ? null : Math.round(value * 100);
+      })(),
       isPrimaryEligible: primaryEligible,
     }),
     [hours, wwtHours, techs, materialCents, multOverride, permit, other, primaryEligible]
@@ -80,39 +128,69 @@ export default function PricingPanel(p: Props) {
   const derivedMult = materialCents ? effectiveMaterialMarkup(materialCents) : null;
 
   async function send(action: "save" | "publish") {
+    const fieldLaborHours = optionalNumber(hours, "Actual field labor", 0);
+    const wwtLaborHours = optionalNumber(wwtHours, "While We’re There labor", 0);
+    const requiresTechCount = requiredWholeNumber(techs, "Crew members", 1);
+    const estimatedMinutes = optionalNumber(minutes, "Dispatch duration", 0, true);
+    const materialCostCents = optionalMoneyCents(material, "Direct material cost");
+    const materialMultiplier = optionalNumber(multOverride, "Markup multiplier", 1);
+    const permitAdminCents = optionalMoneyCents(permit, "Permit / admin cost");
+    const otherDirectCostCents = optionalMoneyCents(other, "Other direct cost");
+
+    for (const parsed of [
+      fieldLaborHours,
+      wwtLaborHours,
+      requiresTechCount,
+      estimatedMinutes,
+      materialCostCents,
+      materialMultiplier,
+      permitAdminCents,
+      otherDirectCostCents,
+    ]) {
+      if (!parsed.ok) {
+        setMsg(null);
+        setError(parsed.error);
+        return;
+      }
+    }
+
     setBusy(true);
     setMsg(null);
     setError(null);
-    const res = await fetch(`/api/admin/services/${p.serviceId}/pricing`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action,
-        fieldLaborHours: numOrNull(hours),
-        wwtLaborHours: numOrNull(wwtHours),
-        requiresTechCount: Number(techs) || 1,
-        estimatedMinutes: numOrNull(minutes),
-        estimatedMinutesReviewed: minutesOk,
-        materialCostCents: materialCents,
-        materialMultiplier: numOrNull(multOverride),
-        permitAdminCents: permit === "" ? null : Math.round(parseFloat(permit) * 100),
-        otherDirectCostCents: other === "" ? null : Math.round(parseFloat(other) * 100),
-        isPrimaryEligible: primaryEligible,
-        photoState,
-      }),
-    });
-    setBusy(false);
-    if (res.ok) {
+
+    try {
+      const res = await fetch(`/api/admin/services/${p.serviceId}/pricing`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          fieldLaborHours: fieldLaborHours.value,
+          wwtLaborHours: wwtLaborHours.value,
+          requiresTechCount: requiresTechCount.value,
+          estimatedMinutes: estimatedMinutes.value,
+          estimatedMinutesReviewed: minutesOk,
+          materialCostCents: materialCostCents.value,
+          materialMultiplier: materialMultiplier.value,
+          permitAdminCents: permitAdminCents.value,
+          otherDirectCostCents: otherDirectCostCents.value,
+          isPrimaryEligible: primaryEligible,
+          photoState,
+        }),
+      });
+
+      const data = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) {
+        setError(data?.error ?? "Price2Book could not save these pricing changes. Please try again.");
+        return;
+      }
+
       setMsg(action === "publish" ? "Published — customers now see this price." : "Inputs saved. Published price unchanged.");
       router.refresh();
       setTimeout(() => setMsg(null), 4000);
-    } else {
-      let detail = `${res.status} ${res.statusText}`;
-      try {
-        const d = await res.json();
-        if (d?.error) detail = d.error;
-      } catch {}
-      setError(detail);
+    } catch {
+      setError("Price2Book could not reach the server. Nothing was saved; check your connection and try again.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -194,9 +272,6 @@ export default function PricingPanel(p: Props) {
               onChange={(e) => setTechs(e.target.value)}
               className={field}
             />
-            {/* Vans, not people. Every van carries a lead and a helper, and
-                both are already inside the crew-hour rate — putting 2 here
-                means a genuine second van and doubles the price. */}
             <p className="mt-1 text-xs text-slate">
               One crew is a van with a lead and a helper. Only change this for a
               job that genuinely needs a second van.
@@ -223,9 +298,6 @@ export default function PricingPanel(p: Props) {
           <p className="mt-1 text-xs text-slate">
             No service-call minimum applies here — the technician is already on site.
           </p>
-          {/* The commonest confusion in this panel: editing the primary hours
-              doesn't move the add-on price, because incremental work isn't a
-              fraction of the full job. Says so where it's noticed. */}
           {wwtHours === "" && p.publishedWwtCents !== null && (
             <p className="mt-1 rounded-card bg-amber-50 p-2 text-xs text-amber-800">
               This service sells an add-on at {money(p.publishedWwtCents)}, but the hours
