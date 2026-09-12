@@ -68,26 +68,47 @@ function PolicyCard({ policy, index, total }: { policy: PolicyView; index: numbe
     : values.some((value, i) => value !== savedValues[i]);
 
   async function save() {
-    if (!dirty && resolved) return;
-    setState("saving");
-    setError(null);
-    const res = await fetch("/api/admin/policies", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        isChoice ? { key: policy.key, choice } : { key: policy.key, boundaries: values }
-      ),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(json.error ?? "Could not save that.");
-      setState("idle");
+    if (state === "saving" || (!dirty && resolved)) return;
+
+    if (isChoice && choice.trim() === "") {
+      setError("Enter your company rule before saving.");
       return;
     }
-    setResolved(true);
-    setSavedChoice(choice);
-    setSavedValues(values);
-    setState("saved");
+    if (!isChoice) {
+      const converted = values.map((value) => value.trim() === "" ? NaN : Number(value));
+      if (converted.some((value) => !Number.isFinite(value))) {
+        setError("Enter a number for every breakpoint before saving.");
+        return;
+      }
+    }
+
+    setState("saving");
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/policies", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isChoice ? { key: policy.key, choice } : { key: policy.key, boundaries: values }
+        ),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json.error ?? "Could not save that policy. Nothing was changed.");
+        setState("idle");
+        return;
+      }
+      setResolved(true);
+      setSavedChoice(choice);
+      setSavedValues(values);
+      setState("saved");
+    } catch {
+      // A network failure after PATCH is ambiguous: the server may have committed
+      // the policy even though the browser never received the response. Refuse a
+      // blind retry so one contractor decision cannot be sent twice from stale UI.
+      setError("Price2Book lost the response while saving. Reload this page to confirm the current policy before trying again.");
+      setState("idle");
+    }
   }
 
   function markChanged() {
