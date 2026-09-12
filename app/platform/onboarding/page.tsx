@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { platformOnboardingIndex, noticeText, SLUG_INPUT_PATTERN, SLUG_MAX } from "@/lib/platformOnboarding";
+import { hasPlatformCapability } from "@/lib/platformCapabilities";
 import { HiddenFixturesNote } from "@/components/platform/HiddenFixturesNote";
 import { SubmitButton } from "@/components/platform/SubmitButton";
 import { startContractorAction } from "./actions";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function PlatformOnboardingIndex({ searchParams }: { searchParams?: { notice?: string } }) {
   const { rows, trades, actor, hiddenFixtures } = await platformOnboardingIndex();
   const notice = noticeText(searchParams?.notice);
+  const canOnboard = hasPlatformCapability(actor.role, "CONTRACTOR_ONBOARD");
   const open = rows.filter((r) => !r.readable || (r.progress !== "launched" && r.progress !== "retired"));
   const launched = rows.filter((r) => r.readable && r.progress === "launched");
   const retired = rows.filter((r) => r.readable && r.progress === "retired");
@@ -20,7 +22,9 @@ export default async function PlatformOnboardingIndex({ searchParams }: { search
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-electric">Platform admin</p>
           <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-navy">Onboarding</h1>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate">
-            Start a contractor, hand off each real setup decision to the authority that owns it, and resume the process without creating a parallel onboarding system.
+            {canOnboard
+              ? "Start a contractor, hand off each real setup decision to the authority that owns it, and resume the process without creating a parallel onboarding system."
+              : "Review contractor onboarding progress and blockers. Your staff access is read-only for onboarding changes."}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:min-w-[250px]">
@@ -37,52 +41,59 @@ export default async function PlatformOnboardingIndex({ searchParams }: { search
         </p>
       )}
 
-      <section className="mt-6 overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
-        <div className="border-b border-cardline bg-warmwhite/60 px-5 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-lg font-bold text-navy">Start a contractor</h2>
-              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate">
-                Creates the contractor, storefront address, and guided-setup record only. It does not assign an owner, install a trade catalog, publish services, or make anything customer-facing.
-              </p>
+      {canOnboard ? (
+        <section className="mt-6 overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
+          <div className="border-b border-cardline bg-warmwhite/60 px-5 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-display text-lg font-bold text-navy">Start a contractor</h2>
+                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate">
+                  Creates the contractor, storefront address, and guided-setup record only. It does not assign an owner, install a trade catalog, publish services, or make anything customer-facing.
+                </p>
+              </div>
+              <span className="rounded-pill border border-cardline bg-white px-3 py-1 text-[11px] font-semibold text-slate">
+                {trades.length} published trade{trades.length === 1 ? "" : "s"}
+              </span>
             </div>
-            <span className="rounded-pill border border-cardline bg-white px-3 py-1 text-[11px] font-semibold text-slate">
-              {trades.length} published trade{trades.length === 1 ? "" : "s"}
-            </span>
           </div>
-        </div>
 
-        <form action={startContractorAction} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
-          <label className="text-sm">
-            <span className="block text-xs font-semibold uppercase tracking-wide text-slate">Business name</span>
-            <input
-              name="name"
-              required
-              maxLength={120}
-              className="mt-2 w-full rounded-card border border-cardline px-4 py-2.5 text-sm text-navy outline-none focus:border-electric focus:ring-2 focus:ring-electric/10"
-              placeholder="Northside Electric"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="block text-xs font-semibold uppercase tracking-wide text-slate">Web address <span className="font-normal normal-case tracking-normal">(optional)</span></span>
-            <input
-              name="slug"
-              maxLength={SLUG_MAX}
-              pattern={SLUG_INPUT_PATTERN}
-              title="lowercase letters and numbers joined by single hyphens, 3 to 48 characters; some words are reserved"
-              className="mt-2 w-full rounded-card border border-cardline px-4 py-2.5 text-sm text-navy outline-none focus:border-electric focus:ring-2 focus:ring-electric/10"
-              placeholder="northside-electric"
-            />
-          </label>
-          <div className="sm:col-span-2 lg:col-span-1">
-            <SubmitButton pendingLabel="Creating…">Create contractor</SubmitButton>
+          <form action={startContractorAction} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+            <label className="text-sm">
+              <span className="block text-xs font-semibold uppercase tracking-wide text-slate">Business name</span>
+              <input
+                name="name"
+                required
+                maxLength={120}
+                className="mt-2 w-full rounded-card border border-cardline px-4 py-2.5 text-sm text-navy outline-none focus:border-electric focus:ring-2 focus:ring-electric/10"
+                placeholder="Northside Electric"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block text-xs font-semibold uppercase tracking-wide text-slate">Web address <span className="font-normal normal-case tracking-normal">(optional)</span></span>
+              <input
+                name="slug"
+                maxLength={SLUG_MAX}
+                pattern={SLUG_INPUT_PATTERN}
+                title="lowercase letters and numbers joined by single hyphens, 3 to 48 characters; some words are reserved"
+                className="mt-2 w-full rounded-card border border-cardline px-4 py-2.5 text-sm text-navy outline-none focus:border-electric focus:ring-2 focus:ring-electric/10"
+                placeholder="northside-electric"
+              />
+            </label>
+            <div className="sm:col-span-2 lg:col-span-1">
+              <SubmitButton pendingLabel="Creating…">Create contractor</SubmitButton>
+            </div>
+          </form>
+
+          <div className="border-t border-cardline bg-warmwhite/40 px-5 py-3 text-xs text-slate sm:px-6">
+            Published catalogs: {trades.join(", ") || "none"}. If the web address is already in use, onboarding resumes that contractor instead of creating a duplicate.
           </div>
-        </form>
-
-        <div className="border-t border-cardline bg-warmwhite/40 px-5 py-3 text-xs text-slate sm:px-6">
-          Published catalogs: {trades.join(", ") || "none"}. If the web address is already in use, onboarding resumes that contractor instead of creating a duplicate.
-        </div>
-      </section>
+        </section>
+      ) : (
+        <section className="mt-6 rounded-card border border-cardline bg-warmwhite/60 px-5 py-4 text-sm text-slate sm:px-6">
+          <p className="font-semibold text-navy">Read-only onboarding access</p>
+          <p className="mt-1 leading-relaxed">You can review progress, launch blockers, and contractor setup state, but this role cannot create contractors or change onboarding data.</p>
+        </section>
+      )}
 
       <OnboardingSection
         title="In onboarding"
@@ -108,7 +119,7 @@ export default async function PlatformOnboardingIndex({ searchParams }: { search
       )}
 
       <div className="mt-8 rounded-card border border-cardline bg-warmwhite/60 px-4 py-3 text-xs leading-relaxed text-slate">
-        Signed in as {actor.email}, {actor.role}. Every change on these pages still goes through the reviewed platform command layer and the existing authority for that decision.
+        Signed in as {actor.email}, {actor.role}. {canOnboard ? "Onboarding changes" : "Reads"} still go through the reviewed platform authority boundary.
       </div>
     </div>
   );
