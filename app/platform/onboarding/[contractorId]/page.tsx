@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PlatformContractorNotFoundError } from "@/lib/platformContext";
+import { hasPlatformCapability } from "@/lib/platformCapabilities";
 import { platformOnboardingContractor, noticeText } from "@/lib/platformOnboarding";
 import { attachOwnerAction, inviteOwnerAction, revokeInvitationAction, enrolTradeAction, installTemplateAction, launchAction, retireAction } from "../actions";
 
@@ -23,6 +24,9 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
   const tradeDone = s.facts.trades.length > 0;
   const catalogDone = s.facts.catalog.total > 0 || retired;
   const completedSteps = s.steps.filter((step) => step.status === "done").length;
+  const canOnboard = hasPlatformCapability(s.facts.actor.role, "CONTRACTOR_ONBOARD");
+  const canLaunch = hasPlatformCapability(s.facts.actor.role, "CONTRACTOR_LAUNCH");
+  const canRetire = hasPlatformCapability(s.facts.actor.role, "CONTRACTOR_RETIRE");
 
   return (
     <div className="mx-auto w-full max-w-6xl">
@@ -64,10 +68,22 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </p>
       )}
 
+      {!canOnboard && (
+        <section className="mt-4 rounded-card border border-cardline bg-warmwhite/60 px-4 py-3 text-sm leading-relaxed text-slate">
+          <span className="font-semibold text-navy">Read-only access.</span> Your staff role can inspect onboarding progress, readiness, invitations, and launch outcomes, but it cannot change contractor setup.
+        </section>
+      )}
+
+      {canOnboard && !canLaunch && (
+        <section className="mt-4 rounded-card border border-electric/20 bg-electric/[0.04] px-4 py-3 text-sm leading-relaxed text-slate">
+          <span className="font-semibold text-navy">Onboarding access.</span> You can complete contractor setup steps, but launch and retirement remain Platform Admin actions.
+        </section>
+      )}
+
       {retired && (
         <section className="mt-5 rounded-card border border-cardline bg-warmwhite p-4 text-sm leading-relaxed text-slate">
           <p className="font-semibold text-navy">This business is retired.</p>
-          <p className="mt-1">Its storefront and every service are inactive and no membership can open its dashboard. Nothing was deleted: the catalog, quotes, bookings and payment records are kept. An outstanding invitation can no longer be accepted, but stays visible below and can still be revoked. Reinstating is not built yet; the data is ready for it.</p>
+          <p className="mt-1">Its storefront and every service are inactive and no membership can open its dashboard. Nothing was deleted: the catalog, quotes, bookings and payment records are kept. An outstanding invitation can no longer be accepted, but stays visible below. Reinstating is not built yet; the data is ready for it.</p>
         </section>
       )}
 
@@ -83,24 +99,26 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
                 {s.invitation.current.status === "expired" && <span className="ml-1 text-p2b-amber-ink">· expired</span>}
                 {s.invitation.current.status === "neutralized" && <span className="ml-1 text-slate">· business retired, this link no longer works</span>}
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {!retired && (
-                  <form action={inviteOwnerAction}>
+              {canOnboard && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {!retired && (
+                    <form action={inviteOwnerAction}>
+                      <input type="hidden" name="contractorId" value={id} />
+                      <input type="hidden" name="email" value={s.invitation.current.email} />
+                      <button type="submit" className="rounded-pill border border-electric px-3 py-1.5 text-xs font-semibold text-electric transition hover:bg-electric/5">Resend invitation</button>
+                    </form>
+                  )}
+                  <form action={revokeInvitationAction}>
                     <input type="hidden" name="contractorId" value={id} />
-                    <input type="hidden" name="email" value={s.invitation.current.email} />
-                    <button type="submit" className="rounded-pill border border-electric px-3 py-1.5 text-xs font-semibold text-electric transition hover:bg-electric/5">Resend invitation</button>
+                    <input type="hidden" name="invitationId" value={s.invitation.current.id} />
+                    <button type="submit" className="rounded-pill border border-cardline px-3 py-1.5 text-xs font-semibold text-slate transition hover:bg-white">Revoke</button>
                   </form>
-                )}
-                <form action={revokeInvitationAction}>
-                  <input type="hidden" name="contractorId" value={id} />
-                  <input type="hidden" name="invitationId" value={s.invitation.current.id} />
-                  <button type="submit" className="rounded-pill border border-cardline px-3 py-1.5 text-xs font-semibold text-slate transition hover:bg-white">Revoke</button>
-                </form>
-              </div>
+                </div>
+              )}
             </div>
           )}
 
-          {!retired && !ownerDone && (
+          {canOnboard && !retired && !ownerDone && (
             <form action={inviteOwnerAction} className="mt-4 rounded-card border border-cardline bg-warmwhite/50 p-4">
               <input type="hidden" name="contractorId" value={id} />
               <div className="grid gap-3 md:grid-cols-2">
@@ -118,7 +136,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
             </form>
           )}
 
-          {!retired && !ownerDone && (
+          {canOnboard && !retired && !ownerDone && (
             <details className="mt-4 rounded-card border border-cardline bg-white p-3">
               <summary className="cursor-pointer text-xs font-semibold text-slate hover:text-navy">Attach an existing confirmed account instead</summary>
               <form action={attachOwnerAction} className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
@@ -144,7 +162,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </Step>
 
         <Step n={3} step={s.steps[2]}>
-          {!retired && !tradeDone && (
+          {canOnboard && !retired && !tradeDone && (
             <form action={enrolTradeAction} className="mt-4 rounded-card border border-cardline bg-warmwhite/50 p-4">
               <input type="hidden" name="contractorId" value={id} />
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -162,7 +180,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </Step>
 
         <Step n={4} step={s.steps[3]}>
-          {!retired && tradeDone && !catalogDone && (
+          {canOnboard && !retired && tradeDone && !catalogDone && (
             <form action={installTemplateAction} className="mt-4 rounded-card border border-cardline bg-warmwhite/50 p-4">
               <input type="hidden" name="contractorId" value={id} />
               <p className="text-xs leading-relaxed text-slate">Runs the same preflight and installer the contractor&apos;s own setup uses. It creates every service inactive and unpriced; it activates nothing.</p>
@@ -219,7 +237,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </Step>
 
         <Step n={6} step={s.steps[5]}>
-          {s.progress === "ready" && (
+          {canLaunch && s.progress === "ready" && (
             <form action={launchAction} className="mt-4 rounded-card border border-navy/15 bg-navy/[0.035] p-4">
               <input type="hidden" name="contractorId" value={id} />
               <label className="flex items-start gap-3 text-sm leading-relaxed text-navy">
@@ -228,6 +246,12 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
               </label>
               <button type="submit" className="mt-4 w-full rounded-pill bg-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy/90 sm:w-auto">{s.launch.live > 0 ? `Retry launch (${s.launch.pending} not yet live)` : "Launch contractor"}</button>
             </form>
+          )}
+
+          {!canLaunch && s.progress === "ready" && (
+            <div className="mt-4 rounded-card border border-cardline bg-warmwhite/50 p-4 text-sm leading-relaxed text-slate">
+              The contractor is ready to launch. Launch requires Platform Admin access, so this view remains read-only at the final step.
+            </div>
           )}
 
           {(s.launch.live > 0 || s.progress === "ready" || s.progress === "launched") && s.launch.offered.length > 0 && (
@@ -262,7 +286,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </Step>
       </ol>
 
-      {!retired && (
+      {canRetire && !retired && (
         <section className="mt-10 overflow-hidden rounded-card border border-red-200 bg-white shadow-sm">
           <div className="border-b border-red-100 bg-red-50/70 px-5 py-4 sm:px-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-red-700">Destructive action</p>
@@ -286,7 +310,13 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
         </section>
       )}
 
-      <div className="mt-8 rounded-card border border-cardline bg-warmwhite/60 px-4 py-3 text-xs leading-relaxed text-slate">Viewed as {s.facts.actor.role}. Each submission remains one reviewed command; repeating a command converges on the same rows instead of creating duplicates.</div>
+      {!canRetire && !retired && (
+        <div className="mt-8 rounded-card border border-cardline bg-warmwhite/60 px-4 py-3 text-xs leading-relaxed text-slate">
+          Retirement is restricted to Platform Admin. Your current role cannot take the storefront or services offline.
+        </div>
+      )}
+
+      <div className="mt-8 rounded-card border border-cardline bg-warmwhite/60 px-4 py-3 text-xs leading-relaxed text-slate">Viewed as {s.facts.actor.role}. Each permitted submission remains one reviewed command; repeating a command converges on the same rows instead of creating duplicates.</div>
     </div>
   );
 }
