@@ -24,7 +24,7 @@ export default async function ConfirmationPage({
         // and does a pre-work visit come next.
         visit: { include: { lineItems: { include: { service: {
           select: {
-            requiresPreWorkVisit: true, depositCreditsToJob: true,
+            requiresPreWorkVisit: true,
             preWorkCustomerNote: true,
           },
         } } } } },
@@ -42,7 +42,6 @@ export default async function ConfirmationPage({
     services.filter((s) => s.requiresPreWorkVisit && s.preWorkCustomerNote)
             .map((s) => s.preWorkCustomerNote as string)
   )];
-  const creditsToJob = services.every((s) => s.depositCreditsToJob);
   // The STATE decides, not the amount: a booking whose capture failed has a
   // deposit due and no money taken, and must not be told it paid one.
   const depositPaid = booking.paymentState === "DEPOSIT_CAPTURED";
@@ -109,18 +108,16 @@ export default async function ConfirmationPage({
               <span className="font-semibold text-navy">{formatCents(booking.depositDueCents ?? 0)}</span>
             </div>
             <div className="mt-1 flex justify-between text-sm text-slate">
-              <span>{creditsToJob ? "Remaining, applied to your project" : "Remaining"}</span>
+              <span>Remaining balance</span>
               <span className="font-semibold text-navy">
                 {formatCents(
                   (booking.totalWithTaxCents ?? booking.totalCents) - (booking.depositDueCents ?? 0)
                 )}
               </span>
             </div>
-            {/* The approved sentence. The homeowner is booking with the
-                contractor: naming a second company, or saying the balance is
-                "arranged directly with" somebody, tells them they are being
-                handed off. Price2Book still does not collect the balance —
-                that stays true without being said to the customer. */}
+            {/* A captured deposit is payment against the booked total. The
+                ledger, not a per-service presentation flag, determines the
+                remaining balance. */}
             <div className="mt-3 text-xs text-slate">
               Your deposit will be applied to the total. The remaining balance will be due
               when the work is complete.
