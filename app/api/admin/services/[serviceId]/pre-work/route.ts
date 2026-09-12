@@ -6,6 +6,9 @@
  * policy: always require it, never require it, or use the company rules.
  * `Service.depositCents` is retained in the schema for migration history but
  * is not a live checkout input and is deliberately not written here.
+ *
+ * A captured deposit is always payment against the booking balance. There is
+ * no per-service switch for whether money already paid counts toward the job.
  */
 
 import { NextResponse } from "next/server";
@@ -77,9 +80,6 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   const requiresVisit = optionalBoolean(body.requiresPreWorkVisit, "Site visit requirement");
   if (!requiresVisit.ok) return NextResponse.json({ error: requiresVisit.error }, { status: 400 });
 
-  const creditsToJob = optionalBoolean(body.depositCreditsToJob, "Deposit credit setting");
-  if (!creditsToJob.ok) return NextResponse.json({ error: creditsToJob.error }, { status: 400 });
-
   const cta = optionalText(body.ctaLabel, "Booking button label");
   if (!cta.ok) return NextResponse.json({ error: cta.error }, { status: 400 });
 
@@ -95,7 +95,6 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
         requiresPreWorkVisit: true,
         preWorkVisitMinutes: true,
         depositRule: true,
-        depositCreditsToJob: true,
         ctaLabel: true,
         preWorkCustomerNote: true,
       },
@@ -119,8 +118,6 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
         requiresPreWorkVisit: nextRequiresVisit,
         preWorkVisitMinutes: nextVisitMinutes,
         depositRule: depositRule.value ?? service.depositRule,
-        depositCreditsToJob:
-          creditsToJob.value === undefined ? service.depositCreditsToJob : creditsToJob.value,
         ctaLabel: cta.value === undefined ? service.ctaLabel : cta.value,
         preWorkCustomerNote:
           customerNote.value === undefined ? service.preWorkCustomerNote : customerNote.value,
