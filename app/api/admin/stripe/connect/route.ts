@@ -139,6 +139,10 @@ export async function POST() {
     // V2 ACCOUNT LINK, targeting the merchant configuration — the thing the
     // contractor is actually onboarding for. A link that did not name it would
     // collect details for an account that still could not take a card.
+    //
+    // Both Stripe callbacks return to the durable contractor payments page.
+    // The old /admin/payments target no longer exists in the dashboard and
+    // turned a completed onboarding hand-off into a 404.
     const link = (await (stripe as unknown as {
       v2: { core: { accountLinks: { create(p: unknown): Promise<{ url: string }> } } };
     }).v2.core.accountLinks.create({
@@ -147,8 +151,8 @@ export async function POST() {
         type: "account_onboarding",
         account_onboarding: {
           configurations: ["merchant"],
-          refresh_url: `${origin}/admin/payments?stripe=refresh`,
-          return_url: `${origin}/admin/payments?stripe=return`,
+          refresh_url: `${origin}/dashboard/payments?stripe=refresh`,
+          return_url: `${origin}/dashboard/payments?stripe=return`,
         },
       },
     })) as { url: string };
