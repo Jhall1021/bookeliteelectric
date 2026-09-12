@@ -156,7 +156,6 @@ export default async function EditServicePage({ params }: { params: { serviceId:
             preWorkVisitMinutes={service.preWorkVisitMinutes}
             depositRule={service.depositRule}
             companyDepositAmountCents={contractor.depositAmountCents}
-            depositCreditsToJob={service.depositCreditsToJob}
             ctaLabel={service.ctaLabel}
             preWorkCustomerNote={service.preWorkCustomerNote}
             stripeReady={connectReadiness(contractor).ready}
