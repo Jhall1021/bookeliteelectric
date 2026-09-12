@@ -46,6 +46,12 @@ export default function EmbedOriginsControl({
         return;
       }
 
+      if (
+        Array.isArray(json.origins) &&
+        json.origins.every((origin: unknown) => typeof origin === "string")
+      ) {
+        setValue((json.origins as string[]).join("\n"));
+      }
       setState("saved");
       router.refresh();
     } catch {
