@@ -12,7 +12,6 @@ type Props = {
   preWorkVisitMinutes: number | null;
   depositRule: DepositRule;
   companyDepositAmountCents: number | null;
-  depositCreditsToJob: boolean;
   ctaLabel: string | null;
   preWorkCustomerNote: string | null;
   /** Shown, never enforced here — checkout is authoritative. */
@@ -27,7 +26,6 @@ export default function PreWorkDepositPanel(p: Props) {
   const [requiresVisit, setRequiresVisit] = useState(p.requiresPreWorkVisit);
   const [minutes, setMinutes] = useState(p.preWorkVisitMinutes?.toString() ?? "");
   const [depositRule, setDepositRule] = useState<DepositRule>(p.depositRule);
-  const [credits, setCredits] = useState(p.depositCreditsToJob);
   const [cta, setCta] = useState(p.ctaLabel ?? "");
   const [note, setNote] = useState(p.preWorkCustomerNote ?? "");
   const [busy, setBusy] = useState(false);
@@ -71,7 +69,6 @@ export default function PreWorkDepositPanel(p: Props) {
           requiresPreWorkVisit: requiresVisit,
           preWorkVisitMinutes: visitMinutes === null ? "" : visitMinutes,
           depositRule,
-          depositCreditsToJob: credits,
           ctaLabel: cta,
           preWorkCustomerNote: note,
         }),
@@ -166,6 +163,9 @@ export default function PreWorkDepositPanel(p: Props) {
           {depositRule === "NEVER_REQUIRE" && (
             <span className="mt-1 block">This service opts out. If every service on a booking opts out, no deposit is collected.</span>
           )}
+          {serviceCanRequireDeposit && canCollectDeposit && (
+            <span className="mt-1 block">Any deposit collected is applied toward the booking total.</span>
+          )}
         </div>
 
         {serviceCanRequireDeposit && !canCollectDeposit && (
@@ -180,13 +180,6 @@ export default function PreWorkDepositPanel(p: Props) {
               Finish payment setup
             </Link>
           </div>
-        )}
-
-        {serviceCanRequireDeposit && canCollectDeposit && (
-          <label className="mt-3 flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={credits} onChange={(e) => changed(() => setCredits(e.target.checked))} />
-            <span className="text-slate">Deposit counts toward the project total</span>
-          </label>
         )}
       </div>
 
