@@ -32,10 +32,10 @@ export default async function AdminBookingsPage() {
 
     return (
       <article className={`overflow-hidden rounded-card border border-cardline bg-white shadow-sm ${muted ? "opacity-90" : ""}`}>
-        <div className="flex flex-col gap-4 border-b border-cardline bg-warmwhite/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-cardline bg-warmwhite/50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate font-display text-base font-bold text-navy">{primaryService}</h3>
+              <h3 className="break-words font-display text-base font-bold leading-snug text-navy sm:truncate">{primaryService}</h3>
               {addOnCount > 0 && (
                 <span className="rounded-pill border border-electric/20 bg-electric/5 px-2 py-0.5 text-[11px] font-semibold text-electric">
                   +{addOnCount} add-on{addOnCount === 1 ? "" : "s"}
@@ -45,8 +45,8 @@ export default async function AdminBookingsPage() {
             <p className="mt-1 text-sm font-medium text-navy">{b.customer.name}</p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3 sm:text-right">
-            <div>
+          <div className="flex items-center justify-between gap-3 sm:shrink-0 sm:justify-start sm:text-right">
+            <div className="text-left sm:text-right">
               <div className="text-sm font-semibold text-navy">{dateLabel}</div>
               <div className="mt-0.5 text-xs text-slate">{b.arrivalWindow.startTime} – {b.arrivalWindow.endTime}</div>
             </div>
@@ -56,12 +56,12 @@ export default async function AdminBookingsPage() {
           </div>
         </div>
 
-        <div className="grid gap-5 px-5 py-4 lg:grid-cols-[1fr_auto]">
+        <div className="grid gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[1fr_auto] lg:gap-5">
           <div className="min-w-0">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate">Customer & visit</div>
             <div className="mt-2 space-y-1 text-sm">
-              <p className="text-navy">{b.address} {b.zipCode}</p>
-              <p className="break-words text-slate">{b.customer.email}{b.customer.phone && ` · ${b.customer.phone}`}</p>
+              <p className="break-words text-navy">{b.address} {b.zipCode}</p>
+              <p className="break-all text-slate sm:break-words">{b.customer.email}{b.customer.phone && ` · ${b.customer.phone}`}</p>
             </div>
 
             <div className="mt-4 border-t border-cardline pt-4">
@@ -70,14 +70,14 @@ export default async function AdminBookingsPage() {
                 {b.visit.lineItems.map((li) => (
                   <div key={li.id} className="flex items-start gap-2 text-sm text-navy">
                     <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${li.isPrimary ? "bg-electric" : "bg-slate-300"}`} />
-                    <span>{li.service.name}</span>
+                    <span className="min-w-0 break-words">{li.service.name}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          <div className="min-w-[210px] rounded-card border border-cardline bg-warmwhite/50 p-4">
+          <div className="w-full rounded-card border border-cardline bg-warmwhite/50 p-4 lg:min-w-[210px] lg:w-auto">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm text-slate">Booking total</span>
               <span className="font-display text-xl font-bold text-navy">{formatCents(b.totalCents)}</span>
@@ -89,9 +89,11 @@ export default async function AdminBookingsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-cardline px-5 py-3">
+        <div className="flex flex-col gap-3 border-t border-cardline px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-xs text-slate">Booking ID <span className="font-mono text-navy">{b.id.slice(0, 8)}</span></p>
-          <PushToJobberButton bookingId={b.id} alreadySent={!!b.jobberJobId} />
+          <div className="w-full sm:w-auto">
+            <PushToJobberButton bookingId={b.id} alreadySent={!!b.jobberJobId} />
+          </div>
         </div>
       </article>
     );
@@ -128,7 +130,7 @@ export default async function AdminBookingsPage() {
         </div>
         <div className="space-y-4">
           {upcoming.length === 0 && (
-            <div className="rounded-card border border-dashed border-cardline bg-white px-6 py-10 text-center">
+            <div className="rounded-card border border-dashed border-cardline bg-white px-5 py-9 text-center sm:px-6 sm:py-10">
               <div className="text-sm font-semibold text-navy">Nothing scheduled yet</div>
               <p className="mt-1 text-xs text-slate">New customer bookings will appear here automatically.</p>
             </div>
