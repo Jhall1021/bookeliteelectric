@@ -58,6 +58,11 @@ export default function BillingPolicyForm({ settings }: { settings: Settings }) 
 
   function validate(): string | null {
     const number = (value: string) => value.trim() === "" ? null : Number(value);
+    const exactCents = (value: number | null) => {
+      if (value === null || !Number.isFinite(value)) return true;
+      const scaled = value * 100;
+      return Number.isSafeInteger(Math.round(scaled)) && Math.abs(scaled - Math.round(scaled)) <= 1e-7;
+    };
     const taxRate = number(rate);
     const deposit = number(amount);
     const subtotal = number(threshold);
@@ -69,8 +74,14 @@ export default function BillingPolicyForm({ settings }: { settings: Settings }) 
     if (deposit !== null && (!Number.isFinite(deposit) || deposit < 0)) {
       return "Deposit amount must be a valid dollar amount of zero or more.";
     }
+    if (!exactCents(deposit)) {
+      return "Deposit amount can have no more than two decimal places.";
+    }
     if (subtotal !== null && (!Number.isFinite(subtotal) || subtotal < 0)) {
       return "Deposit subtotal threshold must be a valid dollar amount of zero or more.";
+    }
+    if (!exactCents(subtotal)) {
+      return "Deposit subtotal threshold can have no more than two decimal places.";
     }
     if (hoursReserved !== null && (!Number.isFinite(hoursReserved) || hoursReserved <= 0)) {
       return "Deposit duration threshold must be greater than zero hours, or left blank to turn the rule off.";
