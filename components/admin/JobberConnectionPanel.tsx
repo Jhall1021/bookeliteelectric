@@ -3,6 +3,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const JOBBER_ERROR_MESSAGES: Record<string, string> = {
+  invalid_state:
+    "That Jobber connection attempt expired or could not be verified. Start the connection again.",
+  contractor_changed:
+    "The selected contractor changed while Jobber was connecting. Switch back to the company you want to connect, then start again.",
+  not_configured:
+    "Jobber is not configured for this Price2Book environment yet. Nothing was connected.",
+  exchange_failed:
+    "Jobber did not complete the connection. Start again; no contractor connection was changed.",
+};
+
+function jobberErrorMessage(error?: string): string | null {
+  if (!error) return null;
+  return JOBBER_ERROR_MESSAGES[error] ?? "Jobber did not complete the connection. Nothing was changed; try again.";
+}
+
 export default function JobberConnectionPanel({
   isConnected,
   connectedAt,
@@ -17,6 +33,7 @@ export default function JobberConnectionPanel({
   const router = useRouter();
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  const connectionError = jobberErrorMessage(error);
 
   async function handleDisconnect() {
     if (disconnecting) return;
@@ -69,9 +86,9 @@ export default function JobberConnectionPanel({
             Successfully connected to Jobber.
           </div>
         )}
-        {error && (
-          <div className="mb-4 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            Connection failed ({error}). Try again, or double-check the Jobber integration credentials configured for this environment.
+        {connectionError && (
+          <div role="alert" className="mb-4 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {connectionError}
           </div>
         )}
         {disconnectError && (
