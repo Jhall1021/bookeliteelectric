@@ -39,3 +39,25 @@
   background: rgb(var(--t-accent) / 0.16);
   color: rgb(var(--t-ink-strong));
 }
+
+/*
+ * Page hierarchy belongs to the application system, not to whichever feature
+ * happened to create a route first. Existing pages already mark their titles
+ * with `font-display`; this makes those titles read like the approved mockups
+ * without forcing every feature file to carry a slightly different copy of
+ * the same type recipe.
+ */
+.p2b-app main h1.font-display {
+  font-family: var(--t-font-display);
+  font-size: clamp(1.75rem, 1.4rem + 0.7vw, 2.15rem);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: rgb(var(--t-ink-strong));
+}
+
+.p2b-app main h2.font-display {
+  font-family: var(--t-font-display);
+  letter-spacing: -0.025em;
+  color: rgb(var(--t-ink));
+}
