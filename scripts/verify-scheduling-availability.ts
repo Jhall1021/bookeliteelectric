@@ -181,8 +181,24 @@ async function main() {
   ok(`9. the local stub is gated on the flag AND on not being production`,
     /NODE_ENV\s*!==\s*"production"\s*&&\s*process\.env\.JOBBER_LOCAL_STUB\s*===\s*"1"/.test(jobber));
 
+  // ── provider completeness is part of availability correctness ──────────
+  //
+  // A successful GraphQL response is not enough if Jobber says there are more
+  // visits or more assignees than we read. Either omission can turn a busy
+  // technician into an apparently free one, so both are protected here.
+  ok(`10. Jobber visits are cursor-paginated until the day is complete`,
+    /\$pageAfter:\s*String/.test(jobber) &&
+      /after:\s*\$pageAfter/.test(jobber) &&
+      /hasNextPage/.test(jobber) &&
+      /endCursor/.test(jobber) &&
+      /pageAfter\s*=\s*nextCursor/.test(jobber));
+  ok(`11. a truncated assigned-user connection refuses availability`,
+    /assignedUsers\(first:\s*10\)[\s\S]*pageInfo\s*\{\s*hasNextPage\s*\}/.test(jobber) &&
+      /visit\.assignedUsers\.pageInfo\.hasNextPage/.test(jobber) &&
+      /availability cannot be verified completely/.test(jobber));
+
   console.log();
-  console.log(fail ? `  ${fail} check(s) failed.\n` : `  An outage costs a retry, never a booking or a charge.\n`);
+  console.log(fail ? `  ${fail} check(s) failed.\n` : `  An outage or incomplete calendar costs a retry, never a booking or a charge.\n`);
   await prisma.$disconnect();
   if (fail) process.exit(1);
 }
