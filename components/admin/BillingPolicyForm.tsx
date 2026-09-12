@@ -79,7 +79,7 @@ export default function BillingPolicyForm({ settings }: { settings: Settings }) 
   }
 
   async function save() {
-    if (!dirty) return;
+    if (!dirty || state === "saving") return;
     const problem = validate();
     if (problem) {
       setError(problem);
@@ -111,8 +111,12 @@ export default function BillingPolicyForm({ settings }: { settings: Settings }) 
       setState("saved");
       router.refresh();
     } catch {
-      setError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+      // A dropped browser response does not prove the write failed. Refresh the
+      // server state and make the contractor confirm it before sending another
+      // billing-policy mutation against stale values.
+      setError("Price2Book lost the response while saving. Refreshing the current settings now — confirm them before trying again.");
       setState("idle");
+      router.refresh();
     }
   }
 
