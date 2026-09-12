@@ -170,7 +170,7 @@ export default function PreWorkDepositPanel(p: Props) {
 
         {serviceCanRequireDeposit && !canCollectDeposit && (
           <div className="mt-3 rounded-card bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-            A deposit rule can apply here, but your company deposit amount is not set. Checkout will collect $0 until you set an amount under Tax &amp; Deposits.
+            A deposit rule can apply here, but your company deposit amount is not set. Checkout will not require a deposit until you set an amount under Tax &amp; Deposits.
           </div>
         )}
         {serviceCanRequireDeposit && canCollectDeposit && !p.stripeReady && (
