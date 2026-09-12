@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { publishSuggestedPrice } from "@/lib/pricePublication";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
 
 /**
@@ -18,10 +17,6 @@ import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
  * Nothing here recalculates anything on a schedule or in the background.
  */
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -33,7 +28,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Pricing action must be save or publish." }, { status: 400 });
   }
 
-  return withAdminContractor(async (db, ctx) => {
+  return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
     const service = await db.service.findUnique({ where: { id: params.serviceId } });
     if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
