@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { publishSuggestedPrice } from "@/lib/pricePublication";
 import { withAdminContractor } from "@/lib/adminContext";
 import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
-
 
 /**
  * Pricing composition for one service.
@@ -31,98 +29,119 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
 
-  // GUARD-ADOPTED (ADR-007a). This route PUBLISHES a customer-facing price,
-  // and until now took a service id straight from the URL with no contractor
-  // condition at all — so it would have published a price onto another
-  // contractor's service on request. Moot at one contractor; a cross-tenant
-  // price write at two.
-  //
-  // No hand-written ownership check: the guard enforces the same invariant
-  // centrally, and the 404 below now covers "not yours" as well as "not
-  // there". A cross-tenant probe should not be able to tell the difference.
+  if (body.action !== "save" && body.action !== "publish") {
+    return NextResponse.json({ error: "Pricing action must be save or publish." }, { status: 400 });
+  }
 
   return withAdminContractor(async (db, ctx) => {
-  const contractorId = ctx.contractorId;
-  const service = await db.service.findUnique({ where: { id: params.serviceId } });
-  if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
+    const contractorId = ctx.contractorId;
+    const service = await db.service.findUnique({ where: { id: params.serviceId } });
+    if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
 
-  const action = body.action === "publish" ? "publish" : "save";
+    const action = body.action;
 
-  // Empty string and null both mean "not established" — which is a real,
-  // meaningful state here, distinct from zero. A service with no field labor
-  // hours must produce NO suggested price rather than a $0 one.
-  const num = (v: unknown): number | null => {
-    if (v === null || v === undefined || v === "") return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  };
+    // Blank and null mean "not established". Anything else must be a finite
+    // number in the range the contractor UI promises. Invalid text must never
+    // collapse to null, because null is a real instruction to clear a value.
+    const optionalNumber = (
+      key: string,
+      options: { min?: number; integer?: boolean } = {},
+    ): { ok: true; value: number | null } | { ok: false; error: string } => {
+      const raw = body[key];
+      if (raw === null || raw === undefined || raw === "") return { ok: true, value: null };
+      const value = Number(raw);
+      if (!Number.isFinite(value)) return { ok: false, error: `${key} must be a valid number.` };
+      if (options.integer && !Number.isInteger(value)) {
+        return { ok: false, error: `${key} must be a whole number.` };
+      }
+      if (options.min !== undefined && value < options.min) {
+        return { ok: false, error: `${key} must be ${options.min} or greater.` };
+      }
+      return { ok: true, value };
+    };
 
-  // Every key here is explicitly provided (num() never returns undefined),
-  // so saveServicePricingInputs overwrites all of them — reproducing this
-  // route's original full-form-save behavior exactly. A caller that means
-  // to move only ONE figure (the labor wizard) passes a narrower object
-  // instead, and the shared function leaves everything else as it already
-  // was rather than treating "not in this body" as "set it to null".
-  const overrides = {
-    fieldLaborHours: num(body.fieldLaborHours),
-    wwtLaborHours: num(body.wwtLaborHours),
-    materialCostCents: num(body.materialCostCents),
-    // Null here means "use the tier derived from material cost" (handoff §4).
-    // Only a deliberate departure stores a number.
-    materialMultiplier: num(body.materialMultiplier),
-    permitAdminCents: num(body.permitAdminCents),
-    otherDirectCostCents: num(body.otherDirectCostCents),
-    estimatedMinutes: num(body.estimatedMinutes),
-    // Undefined (not null) when the body omits it, so the shared function's
-    // own "keep current" behavior applies — same outcome as the old
-    // `?? service.requiresTechCount`, expressed the way every other caller
-    // signals "leave this alone".
-    requiresTechCount: num(body.requiresTechCount) ?? undefined,
-    isPrimaryEligible: body.isPrimaryEligible !== false,
-    estimatedMinutesReviewed: body.estimatedMinutesReviewed === true,
-    ...(typeof body.photoState === "string" &&
-        ["NONE", "PREPARATION", "REVIEW_REQUIRED"].includes(body.photoState)
-      ? { photoState: body.photoState as "NONE" | "PREPARATION" | "REVIEW_REQUIRED" }
-      : {}),
-  };
+    const fieldLaborHours = optionalNumber("fieldLaborHours", { min: 0 });
+    const wwtLaborHours = optionalNumber("wwtLaborHours", { min: 0 });
+    const materialCostCents = optionalNumber("materialCostCents", { min: 0, integer: true });
+    const materialMultiplier = optionalNumber("materialMultiplier", { min: 1 });
+    const permitAdminCents = optionalNumber("permitAdminCents", { min: 0, integer: true });
+    const otherDirectCostCents = optionalNumber("otherDirectCostCents", { min: 0, integer: true });
+    const estimatedMinutes = optionalNumber("estimatedMinutes", { min: 0, integer: true });
+    const requiresTechCount = optionalNumber("requiresTechCount", { min: 1, integer: true });
 
-  // Inputs are saved first, so the derivation publishes what the contractor
-  // just entered rather than what was there before.
-  if (action === "publish") {
+    for (const parsed of [
+      fieldLaborHours,
+      wwtLaborHours,
+      materialCostCents,
+      materialMultiplier,
+      permitAdminCents,
+      otherDirectCostCents,
+      estimatedMinutes,
+      requiresTechCount,
+    ]) {
+      if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+
+    if (typeof body.isPrimaryEligible !== "boolean") {
+      return NextResponse.json({ error: "isPrimaryEligible must be true or false." }, { status: 400 });
+    }
+    if (typeof body.estimatedMinutesReviewed !== "boolean") {
+      return NextResponse.json({ error: "estimatedMinutesReviewed must be true or false." }, { status: 400 });
+    }
+    if (
+      typeof body.photoState !== "string" ||
+      !["NONE", "PREPARATION", "REVIEW_REQUIRED"].includes(body.photoState)
+    ) {
+      return NextResponse.json({ error: "Choose a valid customer-photo setting." }, { status: 400 });
+    }
+
+    const overrides = {
+      fieldLaborHours: fieldLaborHours.value,
+      wwtLaborHours: wwtLaborHours.value,
+      materialCostCents: materialCostCents.value,
+      materialMultiplier: materialMultiplier.value,
+      permitAdminCents: permitAdminCents.value,
+      otherDirectCostCents: otherDirectCostCents.value,
+      estimatedMinutes: estimatedMinutes.value,
+      requiresTechCount: requiresTechCount.value ?? service.requiresTechCount,
+      isPrimaryEligible: body.isPrimaryEligible,
+      estimatedMinutesReviewed: body.estimatedMinutesReviewed,
+      photoState: body.photoState as "NONE" | "PREPARATION" | "REVIEW_REQUIRED",
+    };
+
+    // Inputs are saved first, so the derivation publishes what the contractor
+    // just entered rather than what was there before.
+    if (action === "publish") {
+      try {
+        await saveServicePricingInputs(db, params.serviceId, overrides);
+      } catch (err) {
+        console.error("[pricing PATCH save-before-publish]", params.serviceId, err);
+        return NextResponse.json(
+          { error: "Could not save the pricing inputs. Nothing was published." },
+          { status: 500 }
+        );
+      }
+
+      const published = await publishSuggestedPrice(db, contractorId, params.serviceId);
+      if (!published.ok) {
+        return NextResponse.json(
+          { error: published.refusal.message, code: published.refusal.code },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({ ok: true, basePrice: published.basePrice });
+    }
+
     try {
       await saveServicePricingInputs(db, params.serviceId, overrides);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown database error";
-      return NextResponse.json({ error: `Could not save: ${message}` }, { status: 500 });
-    }
-
-    // The single publication authority — see lib/pricePublication.ts. This
-    // route says WHICH service; it does not decide what the price is.
-    const published = await publishSuggestedPrice(db, contractorId, params.serviceId);
-    if (!published.ok) {
-      // THE SENTENCE IN `error`, THE CODE BESIDE IT.
-      //
-      // These were the other way round, and the panel — which renders `error`,
-      // like every other admin form — showed a contractor the literal word
-      // POLICY_UNRESOLVED where a refusal had been written for them to read.
-      // The authority's message names the undecided policy and says what the
-      // homeowner would otherwise see; the code is for logs and tests.
+      console.error("[pricing PATCH]", params.serviceId, err);
       return NextResponse.json(
-        { error: published.refusal.message, code: published.refusal.code },
-        { status: 400 }
+        { error: "Could not save the pricing inputs. Nothing was changed." },
+        { status: 500 }
       );
     }
-    return NextResponse.json({ ok: true, basePrice: published.basePrice });
-  }
 
-  try {
-    await saveServicePricingInputs(db, params.serviceId, overrides);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown database error";
-    console.error("[pricing PATCH]", params.serviceId, err);
-    return NextResponse.json({ error: `Could not save: ${message}` }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true, action });
+    return NextResponse.json({ ok: true, action });
   });
 }
