@@ -32,9 +32,12 @@ export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: Cre
         router.refresh();
         return;
       }
-      setError(typeof data.error === "string" ? data.error : "Could not sync Jobber users. Nothing was changed.");
+      setError(typeof data.error === "string" ? data.error : "Could not sync Jobber users. No confirmed roster change was returned.");
     } catch {
-      setError("Could not reach Price2Book. Check your connection and try the sync again. Nothing was changed.");
+      // Sync can update the local roster before the browser receives its response.
+      // Treat a dropped response as uncertain and refresh before offering another sync.
+      setError("Price2Book lost the response while syncing Jobber users. Refreshing the saved roster now — confirm it before syncing again.");
+      router.refresh();
     } finally {
       setSyncing(false);
     }
@@ -58,9 +61,12 @@ export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: Cre
       }
 
       const data = await res.json().catch(() => ({}));
-      setError(typeof data.error === "string" ? data.error : "Could not update crew eligibility. Nothing was changed.");
+      setError(typeof data.error === "string" ? data.error : "Could not confirm the crew eligibility change.");
     } catch {
-      setError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+      // The PATCH may have committed even if its response was lost. Re-render from
+      // server state rather than encouraging a blind second toggle.
+      setError("Price2Book lost the response while updating crew eligibility. Refreshing the saved setting now — confirm it before trying again.");
+      router.refresh();
     } finally {
       setUpdatingId(null);
     }
