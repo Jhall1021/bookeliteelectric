@@ -38,11 +38,12 @@ export default function SetupStepperNav({
   const prevKey = index > 0 ? stageKeys[index - 1] : null;
   const nextKey = index >= 0 && index < stageKeys.length - 1 ? stageKeys[index + 1] : null;
   const currentStep = steps.find((step) => step.key === current);
+  const progress = stageKeys.length > 0 ? Math.round(((Math.max(index, 0) + 1) / stageKeys.length) * 100) : 0;
 
   return (
     <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
-      <div className="border-b border-cardline bg-warmwhite/60 px-4 py-3 sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="border-b border-cardline bg-warmwhite/60 px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-electric">Guided setup</p>
             <p className="mt-1 text-sm font-semibold text-navy">
@@ -50,24 +51,34 @@ export default function SetupStepperNav({
               {currentStep?.title ? <span className="font-normal text-slate"> · {currentStep.title}</span> : null}
             </p>
           </div>
-          <p className="text-xs text-slate">Your progress is saved as you move between steps.</p>
+          <p className="text-xs leading-relaxed text-slate sm:max-w-[250px] sm:text-right">Your progress is saved as you move between steps.</p>
+        </div>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-cardline" aria-hidden="true">
+          <div className="h-full rounded-full bg-electric transition-all" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      <div className="px-4 py-4 sm:px-5">
-        <Stepper steps={steps} onSelect={go} />
+      <div className="overflow-x-auto px-4 py-4 sm:overflow-visible sm:px-5">
+        <div className="min-w-[620px] sm:min-w-0">
+          <Stepper steps={steps} onSelect={go} />
+        </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-cardline bg-white px-4 py-3 sm:px-5">
-        <Button variant="secondary" onClick={() => prevKey && go(prevKey)} disabled={!prevKey || pending}>
-          Back
-        </Button>
-        <div className="hidden text-center text-xs text-slate sm:block">
+      <div className="border-t border-cardline bg-white px-4 py-3 sm:px-5">
+        <div className="mb-2 text-center text-xs text-slate sm:hidden">
           {pending ? "Saving your place…" : nextKey ? "Continue when this step looks right." : "You’re at the final step."}
         </div>
-        <Button variant="primary" onClick={() => nextKey && go(nextKey)} disabled={!nextKey || pending}>
-          {pending ? "Saving…" : nextKey ? "Continue" : "Finished"}
-        </Button>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
+          <Button variant="secondary" onClick={() => prevKey && go(prevKey)} disabled={!prevKey || pending}>
+            Back
+          </Button>
+          <div className="hidden text-center text-xs text-slate sm:block">
+            {pending ? "Saving your place…" : nextKey ? "Continue when this step looks right." : "You’re at the final step."}
+          </div>
+          <Button variant="primary" onClick={() => nextKey && go(nextKey)} disabled={!nextKey || pending}>
+            {pending ? "Saving…" : nextKey ? "Continue" : "Finished"}
+          </Button>
+        </div>
       </div>
     </div>
   );
