@@ -5,24 +5,15 @@ import StripeConnectionActions from "./StripeConnectionActions";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Payments configuration — connection status and what it means.
- *
- * DELIBERATELY SMALL. Guided Setup's payment findings needed a destination and
- * were pointing at a route that did not exist, so a "Fix" button led to a 404.
- * This is the durable page that answers those findings and nothing else.
- *
- * NOT here, on purpose: ledger reporting, payouts, refunds, transaction
- * history, accounting. Price2Book collects a deposit on the contractor's own
- * Stripe account — they are the merchant of record, and their money lives in
- * their Stripe dashboard rather than in a reporting surface we would have to
- * keep true.
- */
 export default async function PaymentsPage() {
   return withAdminContractor(async (db, ctx) => {
     const c = await db.contractor.findUniqueOrThrow({
       where: { id: ctx.contractorId },
       select: {
+        depositAmountCents: true,
+        depositOnEveryBooking: true,
+        depositSubtotalThresholdCents: true,
+        depositDurationThresholdMinutes: true,
         stripeAccountId: true,
         stripeMerchantConfigured: true,
         stripeCardPaymentsStatus: true,
@@ -32,15 +23,32 @@ export default async function PaymentsPage() {
     });
     const readiness = connectReadiness(c);
 
-    // Which of this contractor's services actually ask for money up front.
-    const depositing = await db.service.findMany({
-      where: { contractorId: ctx.contractorId, offered: true, depositCents: { gt: 0 } },
-      select: { slug: true, name: true, depositCents: true, active: true },
+    // Checkout does not read the deprecated Service.depositCents field. There
+    // is one contractor deposit amount per booking; each service either always
+    // requires it, never requires it, or participates in these company rules.
+    const offered = await db.service.findMany({
+      where: { contractorId: ctx.contractorId, offered: true },
+      select: { slug: true, name: true, depositRule: true, active: true },
       orderBy: { name: "asc" },
     });
 
-    const needed = depositing.length > 0;
-    const liveDepositing = depositing.filter((service) => service.active).length;
+    const companyRuleActive =
+      c.depositOnEveryBooking ||
+      c.depositSubtotalThresholdCents !== null ||
+      c.depositDurationThresholdMinutes !== null;
+    const companyPolicyServices = offered.filter((service) => service.depositRule === "USE_COMPANY_POLICY");
+    const alwaysRequire = offered.filter((service) => service.depositRule === "ALWAYS_REQUIRE");
+    const canTriggerDeposit =
+      alwaysRequire.length > 0 || (companyRuleActive && companyPolicyServices.length > 0);
+    const amountConfigured = (c.depositAmountCents ?? 0) > 0;
+    const needed = canTriggerDeposit && amountConfigured;
+    const policyMissingAmount = canTriggerDeposit && !amountConfigured;
+    const livePotential = offered.filter(
+      (service) => service.active && (
+        service.depositRule === "ALWAYS_REQUIRE" ||
+        (service.depositRule === "USE_COMPANY_POLICY" && companyRuleActive)
+      )
+    ).length;
 
     return (
       <div className="mx-auto w-full max-w-5xl">
@@ -75,9 +83,21 @@ export default async function PaymentsPage() {
             value={readiness.ready ? "Ready" : c.stripeAccountId ? "Needs attention" : "Not connected"}
             tone={readiness.ready ? "success" : needed ? "attention" : "calm"}
           />
-          <Summary label="Services using deposits" value={String(depositing.length)} />
-          <Summary label="Live with deposits" value={String(liveDepositing)} />
+          <Summary
+            label="Company deposit"
+            value={amountConfigured ? `$${((c.depositAmountCents ?? 0) / 100).toFixed(2)}` : "Not set"}
+            tone={policyMissingAmount ? "attention" : "calm"}
+          />
+          <Summary label="Live work that may collect" value={String(livePotential)} />
         </div>
+
+        {policyMissingAmount && (
+          <div className="mt-5 rounded-card border border-p2b-amber-ink/30 bg-p2b-amber-tint px-4 py-3 text-sm leading-relaxed text-p2b-amber-ink">
+            <p className="font-semibold text-navy">Your deposit rules can require a deposit, but no company deposit amount is set.</p>
+            <p className="mt-1">Checkout will collect $0 when those rules match until you set the amount under Tax &amp; Deposits.</p>
+            <Link href="/dashboard/billing" className="mt-2 inline-flex font-semibold text-electric hover:underline">Set deposit amount</Link>
+          </div>
+        )}
 
         <section className="mt-6 overflow-hidden rounded-card border border-cardline bg-white shadow-card">
           <div className="flex flex-col gap-4 border-b border-cardline bg-warmwhite/55 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -105,16 +125,8 @@ export default async function PaymentsPage() {
           </div>
 
           <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-3">
-            <ReadinessFact
-              label="Stripe account"
-              value={c.stripeAccountId ? "Connected" : "Not connected"}
-              ready={Boolean(c.stripeAccountId)}
-            />
-            <ReadinessFact
-              label="Merchant setup"
-              value={c.stripeMerchantConfigured ? "Configured" : "Not complete"}
-              ready={c.stripeMerchantConfigured}
-            />
+            <ReadinessFact label="Stripe account" value={c.stripeAccountId ? "Connected" : "Not connected"} ready={Boolean(c.stripeAccountId)} />
+            <ReadinessFact label="Merchant setup" value={c.stripeMerchantConfigured ? "Configured" : "Not complete"} ready={c.stripeMerchantConfigured} />
             <ReadinessFact
               label="Card payments"
               value={c.stripeCardPaymentsStatus ?? "Not checked"}
@@ -127,8 +139,8 @@ export default async function PaymentsPage() {
               <p className="font-semibold text-navy">No Stripe account is connected yet.</p>
               <p className="mt-1">
                 {needed
-                  ? "At least one offered service asks for a deposit, so Stripe must be connected before that work can be booked online."
-                  : "Nothing currently requires a Stripe connection. You only need one if you decide to collect deposits through Price2Book."}
+                  ? "Your current deposit policy can collect money at booking, so Stripe must be connected before those bookings can complete online."
+                  : "Your current booking rules do not collect a deposit. Stripe is optional until you configure a deposit that can apply."}
               </p>
             </div>
           )}
@@ -136,48 +148,56 @@ export default async function PaymentsPage() {
 
         <section className="mt-6 overflow-hidden rounded-card border border-cardline bg-white shadow-card">
           <div className="border-b border-cardline bg-warmwhite/55 px-5 py-4 sm:px-6">
-            <h2 className="font-display text-lg font-bold text-navy">Services that ask for a deposit</h2>
+            <h2 className="font-display text-lg font-bold text-navy">What can trigger a deposit?</h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate">
-              This list comes from your offered services. A service-level deposit remains that service&apos;s decision; company-wide deposit rules are managed separately under Tax &amp; Deposits.
+              One company deposit is evaluated for the whole booking. Services can override whether that company deposit applies; they do not carry a separate deposit amount.
             </p>
           </div>
 
-          {depositing.length === 0 ? (
-            <div className="p-6 sm:p-8">
-              <div className="rounded-card border border-dashed border-cardline bg-warmwhite/35 px-5 py-8 text-center">
-                <p className="font-medium text-navy">No offered service currently asks for a service-level deposit.</p>
-                <p className="mt-1 text-sm text-slate">That is a valid setup. Stripe is not required unless another deposit rule makes it necessary.</p>
-              </div>
+          <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-2">
+            <div className="rounded-card border border-cardline bg-warmwhite/35 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate">Company rules</p>
+              {companyRuleActive ? (
+                <ul className="mt-3 space-y-2 text-sm text-navy">
+                  {c.depositOnEveryBooking && <li>• Every online booking</li>}
+                  {c.depositSubtotalThresholdCents !== null && <li>• Pre-tax subtotal at or above ${ (c.depositSubtotalThresholdCents / 100).toFixed(2) }</li>}
+                  {c.depositDurationThresholdMinutes !== null && <li>• Booking reserves at least { (c.depositDurationThresholdMinutes / 60).toFixed(1) } hours</li>}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-slate">No company-wide trigger is enabled.</p>
+              )}
             </div>
-          ) : (
-            <ul className="divide-y divide-cardline">
-              {depositing.map((service) => (
-                <li key={service.slug} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+
+            <div className="rounded-card border border-cardline bg-warmwhite/35 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate">Service overrides</p>
+              <p className="mt-2 text-sm text-navy">
+                {alwaysRequire.length} offered service{alwaysRequire.length === 1 ? "" : "s"} always require{alwaysRequire.length === 1 ? "s" : ""} the company deposit.
+              </p>
+              <p className="mt-1 text-sm text-slate">
+                {companyPolicyServices.length} offered service{companyPolicyServices.length === 1 ? "" : "s"} use{companyPolicyServices.length === 1 ? "s" : ""} the company rules.
+              </p>
+            </div>
+          </div>
+
+          {alwaysRequire.length > 0 && (
+            <ul className="divide-y divide-cardline border-t border-cardline">
+              {alwaysRequire.map((service) => (
+                <li key={service.slug} className="flex items-center justify-between gap-4 px-5 py-3.5 sm:px-6">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-navy">{service.name}</span>
-                      <span className={`rounded-pill px-2 py-0.5 text-[11px] font-semibold ${service.active ? "bg-success/10 text-success" : "bg-warmwhite text-slate"}`}>
-                        {service.active ? "Live" : "Not live"}
-                      </span>
-                    </div>
-                    <code className="mt-1 block break-all text-[11px] text-slate">{service.slug}</code>
+                    <span className="font-medium text-navy">{service.name}</span>
+                    <code className="mt-0.5 block break-all text-[11px] text-slate">{service.slug}</code>
                   </div>
-                  <div className="shrink-0 sm:text-right">
-                    <div className="font-display text-lg font-bold tabular-nums text-navy">
-                      ${((service.depositCents ?? 0) / 100).toFixed(2)}
-                    </div>
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-slate">service deposit</div>
-                  </div>
+                  <span className={`rounded-pill px-2.5 py-1 text-[11px] font-semibold ${service.active ? "bg-success/10 text-success" : "bg-warmwhite text-slate"}`}>
+                    {service.active ? "Live · always deposit" : "Always deposit"}
+                  </span>
                 </li>
               ))}
             </ul>
           )}
 
           <div className="border-t border-cardline bg-warmwhite/40 px-5 py-3 text-xs leading-relaxed text-slate sm:px-6">
-            Service-level deposits are edited on the service itself under Site visit &amp; deposit. {" "}
-            <Link href="/dashboard/services" className="font-semibold text-electric hover:underline">
-              Open Services &amp; Pricing
-            </Link>
+            Company amount and thresholds live under Tax &amp; Deposits. Per-service behavior is edited on each service under Site visit &amp; deposit. {" "}
+            <Link href="/dashboard/services" className="font-semibold text-electric hover:underline">Open Services &amp; Pricing</Link>
           </div>
         </section>
 
