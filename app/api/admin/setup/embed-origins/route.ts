@@ -11,19 +11,31 @@ import { normalizeEmbedOrigin, validateEmbedOrigin } from "@/lib/embedOrigins";
  * can.
  */
 export async function PATCH(req: Request) {
-  let body: { origins?: unknown };
+  let parsed: unknown;
   try {
-    body = await req.json();
+    parsed = await req.json();
   } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
 
-  const raw = Array.isArray(body.origins) ? body.origins : null;
-  if (!raw) return NextResponse.json({ error: "Expected a list of website addresses." }, { status: 400 });
+  const raw = (parsed as Record<string, unknown>).origins;
+  if (!Array.isArray(raw)) {
+    return NextResponse.json({ error: "Expected a list of website addresses." }, { status: 400 });
+  }
 
   const cleaned: string[] = [];
   for (const entry of raw) {
-    if (typeof entry !== "string" || !entry.trim()) continue;
+    // Blank form rows are harmless and intentionally ignored, but a non-text
+    // value is malformed input. Silently dropping an object/number could turn
+    // a bad request into an unexpectedly empty allow-list and disable embeds.
+    if (typeof entry !== "string") {
+      return NextResponse.json({ error: "Every website address must be text." }, { status: 400 });
+    }
+    if (!entry.trim()) continue;
+
     const problem = validateEmbedOrigin(entry);
     if (problem) {
       return NextResponse.json({ error: problem.message, code: problem.code }, { status: 400 });
