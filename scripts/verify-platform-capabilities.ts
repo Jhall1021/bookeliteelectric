@@ -101,9 +101,10 @@ for (const [fn, capability] of runtimeChecks) {
 
 // Application code must never regain a side door around the facade. The raw
 // request-bound mutation exports still exist in platformOnboarding.ts for
-// compatibility with older verifier/domain seams, so protect the whole
-// app/platform tree instead of checking only today's actions file. Read-model
-// imports from platformOnboarding remain allowed.
+// compatibility with older verifier/domain seams, so protect the ENTIRE app
+// tree, not just app/platform. A future API route, dashboard action or other
+// server entry point is just as capable of bypassing authorization as a page.
+// Read-model imports from platformOnboarding remain allowed.
 const RAW_MUTATIONS = [
   "platformBeginContractor",
   "platformAttachOwner",
@@ -123,8 +124,8 @@ function sourceFilesUnder(dir: string): string[] {
   });
 }
 
-const platformAppRoot = path.join(process.cwd(), "app/platform");
-for (const file of sourceFilesUnder(platformAppRoot)) {
+const appRoot = path.join(process.cwd(), "app");
+for (const file of sourceFilesUnder(appRoot)) {
   const source = fs.readFileSync(file, "utf8");
   const relative = path.relative(process.cwd(), file);
   const rawImportBlocks = source.match(/import\s+[\s\S]*?from\s+["']@\/lib\/platformOnboarding["'];?/g) ?? [];
