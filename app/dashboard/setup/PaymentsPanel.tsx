@@ -3,13 +3,6 @@
 import Link from "next/link";
 import type { Finding } from "@/lib/onboardingReadiness";
 
-/**
- * Deposits, and only if the contractor actually takes them.
- *
- * A contractor who charges nothing up front needs no Stripe account, and
- * saying otherwise — even as a warning — would invent a requirement their
- * business does not have. So this stage is genuinely finished for them.
- */
 export default function PaymentsPanel({
   depositing, stripeReady, stripeReason, findings,
 }: {
@@ -21,59 +14,78 @@ export default function PaymentsPanel({
   const money = (c: number) => `$${(c / 100).toFixed(2)}`;
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold text-navy">Deposits</h2>
+    <div className="space-y-5">
+      <section className="overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
+        <div className="border-b border-cardline bg-warmwhite/60 px-5 py-4 sm:px-6">
+          <h2 className="font-display text-lg font-bold text-navy">Payments & deposits</h2>
+          <p className="mt-1 text-sm text-slate">You only need payment setup if one of your services collects money before the visit.</p>
+        </div>
 
-        {depositing.length === 0 ? (
-          <>
-            <p className="mt-1 text-sm text-success">
-              None of the services you offer asks for a deposit, so there is nothing to set up here.
-            </p>
-            <p className="mt-2 text-sm text-slate">
-              That is a perfectly normal way to run. If you later decide to take a deposit on a
-              job, you&rsquo;ll set it on that service and connect Stripe then.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="mt-1 text-sm text-slate">
-              {depositing.length} of the services you offer ask{depositing.length === 1 ? "s" : ""} for a
-              deposit, so you&rsquo;ll need to be able to take one.
-            </p>
-            <ul className="mt-3 space-y-2 text-sm">
-              {depositing.map((d) => (
-                <li key={d.name} className="flex justify-between border-b border-cardline pb-2 last:border-0">
-                  <span className="text-navy">{d.name}</span>
-                  <span className="font-medium text-navy">{money(d.depositCents)}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-4 flex items-center justify-between rounded-card bg-warmwhite p-4">
-              <span className={`text-sm ${stripeReady ? "text-success" : "text-slate"}`}>
-                {stripeReady ? "Stripe is ready to take deposits." : stripeReason}
-              </span>
-              <Link href="/dashboard/payments" className="shrink-0 text-sm font-semibold text-electric hover:underline">
-                Open
-              </Link>
+        <div className="p-5 sm:p-6">
+          {depositing.length === 0 ? (
+            <div className="rounded-card border border-success/20 bg-success/5 p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success/10 text-sm font-bold text-success">✓</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-navy">No payment setup needed right now</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-slate">None of the services you currently offer asks for a deposit. Customers can still price and book those services without connecting Stripe.</p>
+                  <p className="mt-2 text-xs text-slate">If you add a deposit to a service later, Price2Book will prompt you to finish payment setup then.</p>
+                </div>
+              </div>
             </div>
-          </>
-        )}
+          ) : (
+            <div className="space-y-4">
+              <div className={`rounded-card border p-4 ${stripeReady ? "border-success/20 bg-success/5" : "border-cardline bg-warmwhite/50"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${stripeReady ? "text-success" : "text-slate"}`}>Payment account</div>
+                    <div className="mt-1 text-sm font-semibold text-navy">{stripeReady ? "Ready to collect deposits" : "Stripe setup needs attention"}</div>
+                    <p className="mt-1 text-sm text-slate">{stripeReady ? "Your account is ready for the services below." : stripeReason}</p>
+                  </div>
+                  <Link href="/dashboard/payments" className="rounded-pill border border-cardline bg-white px-4 py-2 text-sm font-semibold text-electric transition hover:border-electric">
+                    {stripeReady ? "Manage payments" : "Finish setup"}
+                  </Link>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-navy">Services collecting deposits</h3>
+                    <p className="mt-0.5 text-xs text-slate">These amounts come from each service&rsquo;s pricing settings.</p>
+                  </div>
+                  <span className="text-xs font-medium text-slate">{depositing.length} {depositing.length === 1 ? "service" : "services"}</span>
+                </div>
+                <div className="mt-3 overflow-hidden rounded-card border border-cardline">
+                  {depositing.map((d, i) => (
+                    <div key={d.name} className={`flex items-center justify-between gap-4 px-4 py-3 text-sm ${i > 0 ? "border-t border-cardline" : ""}`}>
+                      <span className="font-medium text-navy">{d.name}</span>
+                      <span className="shrink-0 rounded-pill bg-warmwhite px-2.5 py-1 font-semibold text-navy">{money(d.depositCents)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </section>
 
       {findings.length > 0 && (
-        <section className="rounded-card border border-cardline bg-warmwhite p-5">
-          <h3 className="text-sm font-semibold text-navy">Before a homeowner can book</h3>
-          <ul className="mt-3 space-y-2">
+        <section className="rounded-card border border-cardline bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-navy">Before customers can book these services</h3>
+              <p className="mt-1 text-xs text-slate">Price2Book is showing the remaining payment-related items from your setup checks.</p>
+            </div>
+            <span className="rounded-pill bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">{findings.length} to review</span>
+          </div>
+          <ul className="mt-4 space-y-2">
             {findings.map((f, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm">
-                <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                  f.severity === "blocker" ? "bg-red-500" : "bg-amber-400"}`} />
+              <li key={i} className="flex items-start gap-3 rounded-card border border-cardline bg-warmwhite/40 p-3 text-sm">
+                <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${f.severity === "blocker" ? "bg-red-500" : "bg-amber-400"}`} />
                 <span className="text-slate">
                   {f.message}
-                  {f.href && (
-                    <Link href={f.href} className="ml-1 font-medium text-electric hover:underline">Fix</Link>
-                  )}
+                  {f.href && <Link href={f.href} className="ml-1 font-semibold text-electric hover:underline">Fix this</Link>}
                 </span>
               </li>
             ))}
