@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withAdminContractor } from "@/lib/adminContext";
-
+import { withAdminRoute } from "@/lib/adminContext";
 
 /**
  * Full sync of a service's decision tree: creates, updates and deletes in
@@ -82,11 +79,11 @@ function uniqueKey(desired: string, taken: Set<string>): string {
   return result;
 }
 
-export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+function optionalId(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || (typeof value === "string" && value.trim() !== "");
+}
 
+export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
   let body: unknown;
   try {
     body = await req.json();
@@ -94,320 +91,340 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
 
-  const questions = (body as { questions?: unknown })?.questions as IncomingQuestion[] | undefined;
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Request body must be an object" }, { status: 400 });
+  }
 
-  if (!Array.isArray(questions)) {
+  const rawQuestions = (body as { questions?: unknown }).questions;
+  if (!Array.isArray(rawQuestions)) {
     return NextResponse.json({ error: "Invalid payload: expected a questions array" }, { status: 400 });
   }
+  const questions = rawQuestions as IncomingQuestion[];
 
-  // GUARD-ADOPTED (ADR-007a). Everything below runs inside one contractor's
-  // context on the guarded client — reads, updates, deletes and the
-  // transaction alike.
-
-  return withAdminContractor(async (db, ctx) => {
-  const contractorId = ctx.contractorId;
-  // Scoped by the guard, so a service belonging to another contractor is
-  // simply not found. The 404 is correct for that case as well as for a
-  // service that does not exist — a cross-tenant probe should not be able to
-  // tell the difference.
-  const service = await db.service.findUnique({
-    where: { id: params.serviceId },
-    select: { id: true },
-  });
-  if (!service) {
-    return NextResponse.json({ error: "Service not found" }, { status: 404 });
-  }
-
-  // Question is derived-owned, so the guard adds `service: { contractorId }`
-  // and this stays the natural top-level shape.
-  const existing = await db.question.findMany({
-    where: { serviceId: params.serviceId },
-    select: { id: true, key: true, options: { select: { id: true } } },
-  });
-  const existingQuestionIds = new Set(existing.map((q) => q.id));
-  const existingOptionIds = new Set(existing.flatMap((q) => q.options.map((o) => o.id)));
-
-  // ---- validation -------------------------------------------------------
-
-  const incomingQuestionIds = new Set<string>();
-  const incomingOptionIds = new Set<string>();
-
-  for (const q of questions) {
-    if (!q?.id || typeof q.id !== "string") {
-      return NextResponse.json({ error: "A question is missing its id" }, { status: 400 });
-    }
-    if (!isNew(q.id) && !existingQuestionIds.has(q.id)) {
-      return NextResponse.json(
-        { error: `Question ${q.id} does not belong to this service` },
-        { status: 400 }
-      );
-    }
-    if (incomingQuestionIds.has(q.id)) {
-      return NextResponse.json({ error: `Duplicate question id ${q.id}` }, { status: 400 });
-    }
-    incomingQuestionIds.add(q.id);
-
-    if (typeof q.prompt !== "string" || !q.prompt.trim()) {
-      return NextResponse.json(
-        { error: "Every question needs a prompt before it can be saved" },
-        { status: 400 }
-      );
+  return withAdminRoute(async (db) => {
+    // Scoped by the guard, so a service belonging to another contractor is
+    // simply not found. The 404 is correct for that case as well as for a
+    // service that does not exist — a cross-tenant probe should not be able to
+    // tell the difference.
+    const service = await db.service.findUnique({
+      where: { id: params.serviceId },
+      select: { id: true },
+    });
+    if (!service) {
+      return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
 
-    const opts = q.options ?? [];
-    if (opts.length === 0) {
-      return NextResponse.json(
-        { error: `"${q.prompt}" has no answer options — a question with no answers is a dead end.` },
-        { status: 400 }
-      );
-    }
+    // Question is derived-owned, so the guard constrains it through Service.
+    const existing = await db.question.findMany({
+      where: { serviceId: params.serviceId },
+      select: { id: true, key: true, options: { select: { id: true } } },
+    });
+    const existingQuestionIds = new Set(existing.map((q) => q.id));
+    const existingOptionIds = new Set(existing.flatMap((q) => q.options.map((o) => o.id)));
 
-    for (const o of opts) {
-      if (!o?.id || typeof o.id !== "string") {
-        return NextResponse.json({ error: "An answer option is missing its id" }, { status: 400 });
+    // ---- validation -----------------------------------------------------
+
+    const incomingQuestionIds = new Set<string>();
+    const incomingOptionIds = new Set<string>();
+    const linkedServiceIds = new Set<string>();
+
+    for (const q of questions) {
+      if (!q || typeof q !== "object" || Array.isArray(q)) {
+        return NextResponse.json({ error: "Every question must be an object" }, { status: 400 });
       }
-      if (!isNew(o.id) && !existingOptionIds.has(o.id)) {
+      if (!q.id || typeof q.id !== "string") {
+        return NextResponse.json({ error: "A question is missing its id" }, { status: 400 });
+      }
+      if (!isNew(q.id) && !existingQuestionIds.has(q.id)) {
+        return NextResponse.json({ error: "A question does not belong to this service" }, { status: 400 });
+      }
+      if (incomingQuestionIds.has(q.id)) {
+        return NextResponse.json({ error: `Duplicate question id ${q.id}` }, { status: 400 });
+      }
+      incomingQuestionIds.add(q.id);
+
+      if (typeof q.prompt !== "string" || !q.prompt.trim()) {
         return NextResponse.json(
-          { error: `Answer option ${o.id} does not belong to this service` },
+          { error: "Every question needs a prompt before it can be saved" },
           { status: 400 }
         );
       }
-      if (incomingOptionIds.has(o.id)) {
-        return NextResponse.json({ error: `Duplicate answer option id ${o.id}` }, { status: 400 });
+      if (q.helpText !== undefined && q.helpText !== null && typeof q.helpText !== "string") {
+        return NextResponse.json({ error: `Help text under "${q.prompt}" must be text.` }, { status: 400 });
       }
-      incomingOptionIds.add(o.id);
+      if (q.options !== undefined && !Array.isArray(q.options)) {
+        return NextResponse.json({ error: `Answers under "${q.prompt}" must be a list.` }, { status: 400 });
+      }
 
-      if (typeof o.label !== "string" || !o.label.trim()) {
+      const opts = q.options ?? [];
+      if (opts.length === 0) {
         return NextResponse.json(
-          { error: `An answer under "${q.prompt}" has no label` },
+          { error: `"${q.prompt}" has no answer options — a question with no answers is a dead end.` },
           { status: 400 }
         );
       }
-      if (!VALID_ROUTE_ACTIONS.has(o.routeAction)) {
-        return NextResponse.json(
-          { error: `"${o.label}" has an unrecognized route action` },
-          { status: 400 }
-        );
-      }
-      if (o.routeAction === "CONTINUE") {
-        if (!o.nextQuestionId) {
+
+      for (const o of opts) {
+        if (!o || typeof o !== "object" || Array.isArray(o)) {
+          return NextResponse.json({ error: `An answer under "${q.prompt}" is invalid.` }, { status: 400 });
+        }
+        if (!o.id || typeof o.id !== "string") {
+          return NextResponse.json({ error: "An answer option is missing its id" }, { status: 400 });
+        }
+        if (!isNew(o.id) && !existingOptionIds.has(o.id)) {
+          return NextResponse.json({ error: "An answer option does not belong to this service" }, { status: 400 });
+        }
+        if (incomingOptionIds.has(o.id)) {
+          return NextResponse.json({ error: `Duplicate answer option id ${o.id}` }, { status: 400 });
+        }
+        incomingOptionIds.add(o.id);
+
+        if (typeof o.label !== "string" || !o.label.trim()) {
           return NextResponse.json(
-            { error: `"${o.label}" continues to another question but none is selected.` },
+            { error: `An answer under "${q.prompt}" has no label` },
             { status: 400 }
           );
         }
-        if (!incomingQuestionIds.has(o.nextQuestionId) && !questions.some((qq) => qq.id === o.nextQuestionId)) {
+        if (!VALID_ROUTE_ACTIONS.has(o.routeAction)) {
           return NextResponse.json(
-            {
-              error: `"${o.label}" points at a question that no longer exists. Pick a different next question, or keep that question.`,
-            },
+            { error: `"${o.label}" has an unrecognized route action` },
             { status: 400 }
           );
         }
-      }
-      if (o.routeAction === "REROUTE_SERVICE" && !o.rerouteServiceId) {
-        return NextResponse.json(
-          { error: `"${o.label}" reroutes to another service but none is selected.` },
-          { status: 400 }
-        );
-      }
-    }
-  }
+        if (o.priceModifierCents !== undefined && !Number.isSafeInteger(o.priceModifierCents)) {
+          return NextResponse.json(
+            { error: `The price adjustment for "${o.label}" must be a whole number of cents.` },
+            { status: 400 }
+          );
+        }
+        if (!optionalId(o.referencedServiceId) || !optionalId(o.rerouteServiceId) || !optionalId(o.nextQuestionId)) {
+          return NextResponse.json(
+            { error: `A service or question link under "${o.label}" is invalid.` },
+            { status: 400 }
+          );
+        }
+        if (o.disclaimer !== undefined && o.disclaimer !== null && typeof o.disclaimer !== "string") {
+          return NextResponse.json({ error: `The note under "${o.label}" must be text.` }, { status: 400 });
+        }
+        if (
+          o.requiredPhotoLabels !== undefined &&
+          (!Array.isArray(o.requiredPhotoLabels) ||
+            !o.requiredPhotoLabels.every((label) => typeof label === "string" && label.trim() !== ""))
+        ) {
+          return NextResponse.json(
+            { error: `Photo requests under "${o.label}" must be non-empty text labels.` },
+            { status: 400 }
+          );
+        }
+        if (o.photosBlockBooking !== undefined && typeof o.photosBlockBooking !== "boolean") {
+          return NextResponse.json(
+            { error: `The photo-review booking rule under "${o.label}" must be true or false.` },
+            { status: 400 }
+          );
+        }
 
-  // Second pass: now that every incoming question id is known, re-check every
-  // CONTINUE target. The loop above can only see questions declared so far,
-  // and an answer may legitimately point forward to a later question.
-  for (const q of questions) {
-    for (const o of q.options ?? []) {
-      if (o.routeAction === "CONTINUE" && o.nextQuestionId && !incomingQuestionIds.has(o.nextQuestionId)) {
-        return NextResponse.json(
-          {
-            error: `"${o.label}" points at a question that isn't in this tree any more. Restore that question or change where this answer goes.`,
-          },
-          { status: 400 }
-        );
-      }
-    }
-  }
+        if (o.referencedServiceId) linkedServiceIds.add(o.referencedServiceId);
+        if (o.routeAction === "REROUTE_SERVICE" && o.rerouteServiceId) linkedServiceIds.add(o.rerouteServiceId);
 
-  const questionIdsToDelete = [...existingQuestionIds].filter((id) => !incomingQuestionIds.has(id));
-  const optionIdsToDelete = [...existingOptionIds].filter((id) => !incomingOptionIds.has(id));
-
-  // ---- write ------------------------------------------------------------
-
-  const takenKeys = new Set(
-    existing.filter((q) => incomingQuestionIds.has(q.id)).map((q) => q.key)
-  );
-
-  // Handed back to the client so it can replace every temporary "new-" id
-  // it just sent with the real one — without this, a second save before the
-  // next full page load would still be carrying temporary ids the server no
-  // longer recognizes as new, creating a duplicate instead of updating the
-  // row that already exists.
-  const questionIdMap: Record<string, string> = {};
-  const optionIdMap: Record<string, string> = {};
-
-  try {
-    // The guard SURVIVES $transaction — tx is scoped, proven in the live
-    // harness. So this stays one guarded transaction rather than checking
-    // ownership up front and dropping to the unguarded client.
-    await db.$transaction(async (tx) => {
-      // Options first — a question can't be removed while its options remain.
-      if (optionIdsToDelete.length > 0) {
-        await tx.answerOption.deleteMany({ where: { id: { in: optionIdsToDelete } } });
-      }
-      if (questionIdsToDelete.length > 0) {
-        await tx.answerOption.deleteMany({ where: { questionId: { in: questionIdsToDelete } } });
-        await tx.question.deleteMany({ where: { id: { in: questionIdsToDelete } } });
-      }
-
-      // Create questions before any options, so a nextQuestionId pointing at
-      // a brand-new question can be resolved to its real cuid below.
-      const idMap = new Map<string, string>();
-
-      for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
-        if (isNew(q.id)) {
-          // NESTED CREATE THROUGH THE SCOPED PARENT — ADR-010.
-          //
-          // A direct tx.question.create() would throw DerivedCreateError:
-          // Question has no contractorId to stamp, so the guard refuses to
-          // invent one. Creating through the Service instead means ownership
-          // is structural — the parent is already scoped, so the child cannot
-          // land under anyone else.
-          //
-          // The key is generated unique within this transaction by
-          // uniqueKey(), which mutates takenKeys, so selecting the new row
-          // back by that key is unambiguous.
-          const key = uniqueKey(slugifyKey(q.prompt, `question_${i + 1}`), takenKeys);
-          const withNew = await tx.service.update({
-            where: { id: params.serviceId },
-            data: {
-              questions: {
-                create: {
-                  key,
-                  prompt: q.prompt.trim(),
-                  helpText: q.helpText?.trim() || null,
-                  // Only SINGLE_SELECT is offered in the editor — the other
-                  // input types in the schema have no verified renderer in
-                  // QuestionStep.
-                  inputType: "SINGLE_SELECT",
-                  order: i,
-                },
-              },
-            },
-            select: { questions: { where: { key }, select: { id: true } } },
-          });
-          const created = withNew.questions[0];
-          if (!created) {
-            throw new Error(
-              `Question "${key}" was created but could not be read back. ` +
-                `Refusing to continue with an unmapped temporary id.`
+        if (o.routeAction === "CONTINUE") {
+          if (!o.nextQuestionId) {
+            return NextResponse.json(
+              { error: `"${o.label}" continues to another question but none is selected.` },
+              { status: 400 }
             );
           }
-          idMap.set(q.id, created.id);
-          questionIdMap[q.id] = created.id;
-        } else {
-          idMap.set(q.id, q.id);
-          await tx.question.update({
-            where: { id: q.id },
-            data: {
-              prompt: q.prompt.trim(),
-              helpText: q.helpText?.trim() || null,
-              order: i,
-            },
-          });
+          if (!incomingQuestionIds.has(o.nextQuestionId) && !questions.some((qq) => qq?.id === o.nextQuestionId)) {
+            return NextResponse.json(
+              {
+                error: `"${o.label}" points at a question that no longer exists. Pick a different next question, or keep that question.`,
+              },
+              { status: 400 }
+            );
+          }
+        }
+        if (o.routeAction === "REROUTE_SERVICE" && !o.rerouteServiceId) {
+          return NextResponse.json(
+            { error: `"${o.label}" reroutes to another service but none is selected.` },
+            { status: 400 }
+          );
         }
       }
+    }
 
-      for (const q of questions) {
-        const realQuestionId = idMap.get(q.id)!;
-        const opts = q.options ?? [];
+    // Second pass: now that every incoming question id is known, re-check every
+    // CONTINUE target. An answer may legitimately point forward to a later question.
+    for (const q of questions) {
+      for (const o of q.options ?? []) {
+        if (o.routeAction === "CONTINUE" && o.nextQuestionId && !incomingQuestionIds.has(o.nextQuestionId)) {
+          return NextResponse.json(
+            {
+              error: `"${o.label}" points at a question that isn't in this tree any more. Restore that question or change where this answer goes.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
 
-        for (let j = 0; j < opts.length; j++) {
-          const o = opts[j];
-          const isPhotoReview = o.routeAction === "PHOTO_REVIEW";
-          const resolvedNext =
-            o.routeAction === "CONTINUE" && o.nextQuestionId
-              ? idMap.get(o.nextQuestionId) ?? null
-              : null;
+    // Service links are plain ids rather than foreign keys. Resolve all of
+    // them through the guarded client before writing so a stale or foreign id
+    // can never become a customer-facing reroute or linked-price reference.
+    if (linkedServiceIds.size > 0) {
+      const linked = await db.service.findMany({
+        where: { id: { in: [...linkedServiceIds] } },
+        select: { id: true },
+      });
+      if (linked.length !== linkedServiceIds.size) {
+        return NextResponse.json(
+          { error: "One or more linked services are no longer available to this contractor." },
+          { status: 400 }
+        );
+      }
+    }
 
-          const data = {
-            label: o.label.trim(),
-            routeAction: o.routeAction as never,
-            // A linked option always uses the referenced service's live
-            // price, so its own modifier is forced to zero rather than left
-            // as a stale number that nothing reads.
-            priceModifierCents: o.referencedServiceId ? 0 : o.priceModifierCents ?? 0,
-            referencedServiceId: o.referencedServiceId || null,
-            rerouteServiceId: o.routeAction === "REROUTE_SERVICE" ? o.rerouteServiceId || null : null,
-            nextQuestionId: resolvedNext,
-            disclaimer: o.disclaimer?.trim() || null,
-            requiredPhotoLabels: o.requiredPhotoLabels ?? [],
-            // Meaningful only on PHOTO_REVIEW; forced back to the safe default
-            // elsewhere so a stale false can't lie in wait.
-            photosBlockBooking: isPhotoReview ? o.photosBlockBooking !== false : true,
-            order: j,
-          };
+    const questionIdsToDelete = [...existingQuestionIds].filter((id) => !incomingQuestionIds.has(id));
+    const optionIdsToDelete = [...existingOptionIds].filter((id) => !incomingOptionIds.has(id));
 
-          if (isNew(o.id)) {
-            // Nested through the scoped Question, same reason as above.
-            // Question is derived-owned, so this update is guarded and the
-            // new option inherits ownership structurally.
-            await tx.question.update({
-              where: { id: realQuestionId },
+    // ---- write ----------------------------------------------------------
+
+    const takenKeys = new Set(
+      existing.filter((q) => incomingQuestionIds.has(q.id)).map((q) => q.key)
+    );
+
+    const questionIdMap: Record<string, string> = {};
+    const optionIdMap: Record<string, string> = {};
+
+    try {
+      // The guard survives $transaction — tx remains contractor-scoped.
+      await db.$transaction(async (tx) => {
+        // Options first — a question can't be removed while its options remain.
+        if (optionIdsToDelete.length > 0) {
+          await tx.answerOption.deleteMany({ where: { id: { in: optionIdsToDelete } } });
+        }
+        if (questionIdsToDelete.length > 0) {
+          await tx.answerOption.deleteMany({ where: { questionId: { in: questionIdsToDelete } } });
+          await tx.question.deleteMany({ where: { id: { in: questionIdsToDelete } } });
+        }
+
+        // Create questions before any options, so a nextQuestionId pointing at
+        // a brand-new question can be resolved to its real cuid below.
+        const idMap = new Map<string, string>();
+
+        for (let i = 0; i < questions.length; i++) {
+          const q = questions[i];
+          if (isNew(q.id)) {
+            const key = uniqueKey(slugifyKey(q.prompt, `question_${i + 1}`), takenKeys);
+            const withNew = await tx.service.update({
+              where: { id: params.serviceId },
               data: {
-                options: {
+                questions: {
                   create: {
-                    ...data,
-                    // value feeds answersSnapshot; derived from the label once
-                    // at creation and never rewritten, so historical answers
-                    // keep matching even if the label is later reworded.
-                    value: slugifyKey(o.label, `option_${j + 1}`),
+                    key,
+                    prompt: q.prompt.trim(),
+                    helpText: q.helpText?.trim() || null,
+                    inputType: "SINGLE_SELECT",
+                    order: i,
                   },
                 },
               },
+              select: { questions: { where: { key }, select: { id: true } } },
             });
-          } else {
-            await tx.answerOption.update({
-              where: { id: o.id },
-              data: { ...data, questionId: realQuestionId },
-            });
-          }
-        }
-
-        // Every option under this question now carries its final, unique
-        // `order` (0..n-1 — new and existing rows both got one above), so
-        // reading the set back and matching by position is unambiguous.
-        // Matching DURING the loop above isn't safe: a not-yet-processed
-        // existing option can still be sitting on the very `order` value a
-        // brand-new sibling was just created with, until its own turn in
-        // this same loop moves it off.
-        if (opts.some((o) => isNew(o.id))) {
-          const rows = await tx.answerOption.findMany({
-            where: { questionId: realQuestionId },
-            select: { id: true, order: true },
-          });
-          const byOrder = new Map(rows.map((r) => [r.order, r.id]));
-          for (let j = 0; j < opts.length; j++) {
-            if (!isNew(opts[j].id)) continue;
-            const realId = byOrder.get(j);
-            if (!realId) {
-              throw new Error(
-                `Answer option under question ${realQuestionId} at position ${j} was created but could not be read back.`
-              );
+            const created = withNew.questions[0];
+            if (!created) {
+              throw new Error(`Question "${key}" was created but could not be read back.`);
             }
-            optionIdMap[opts[j].id] = realId;
+            idMap.set(q.id, created.id);
+            questionIdMap[q.id] = created.id;
+          } else {
+            idMap.set(q.id, q.id);
+            await tx.question.update({
+              where: { id: q.id },
+              data: {
+                prompt: q.prompt.trim(),
+                helpText: q.helpText?.trim() || null,
+                order: i,
+              },
+            });
           }
         }
-      }
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown database error";
-    console.error("[tree PATCH] failed for service", params.serviceId, err);
-    return NextResponse.json({ error: `Could not save tree: ${message}` }, { status: 500 });
-  }
 
-  return NextResponse.json({ ok: true, questionIdMap, optionIdMap });
+        for (const q of questions) {
+          const realQuestionId = idMap.get(q.id)!;
+          const opts = q.options ?? [];
+
+          for (let j = 0; j < opts.length; j++) {
+            const o = opts[j];
+            const isPhotoReview = o.routeAction === "PHOTO_REVIEW";
+            const resolvedNext =
+              o.routeAction === "CONTINUE" && o.nextQuestionId
+                ? idMap.get(o.nextQuestionId) ?? null
+                : null;
+
+            const data = {
+              label: o.label.trim(),
+              routeAction: o.routeAction as never,
+              // A linked option always uses the referenced service's live
+              // price, so its own modifier is forced to zero.
+              priceModifierCents: o.referencedServiceId ? 0 : o.priceModifierCents ?? 0,
+              referencedServiceId: o.referencedServiceId || null,
+              rerouteServiceId: o.routeAction === "REROUTE_SERVICE" ? o.rerouteServiceId || null : null,
+              nextQuestionId: resolvedNext,
+              disclaimer: o.disclaimer?.trim() || null,
+              requiredPhotoLabels: (o.requiredPhotoLabels ?? []).map((label) => label.trim()),
+              photosBlockBooking: isPhotoReview ? o.photosBlockBooking !== false : true,
+              order: j,
+            };
+
+            if (isNew(o.id)) {
+              await tx.question.update({
+                where: { id: realQuestionId },
+                data: {
+                  options: {
+                    create: {
+                      ...data,
+                      value: slugifyKey(o.label, `option_${j + 1}`),
+                    },
+                  },
+                },
+              });
+            } else {
+              await tx.answerOption.update({
+                where: { id: o.id },
+                data: { ...data, questionId: realQuestionId },
+              });
+            }
+          }
+
+          // Every option now carries its final order, so newly created ids can
+          // be matched back to their temporary ids without ambiguity.
+          if (opts.some((o) => isNew(o.id))) {
+            const rows = await tx.answerOption.findMany({
+              where: { questionId: realQuestionId },
+              select: { id: true, order: true },
+            });
+            const byOrder = new Map(rows.map((r) => [r.order, r.id]));
+            for (let j = 0; j < opts.length; j++) {
+              if (!isNew(opts[j].id)) continue;
+              const realId = byOrder.get(j);
+              if (!realId) {
+                throw new Error(
+                  `Answer option under question ${realQuestionId} at position ${j} was created but could not be read back.`
+                );
+              }
+              optionIdMap[opts[j].id] = realId;
+            }
+          }
+        }
+      });
+    } catch (err) {
+      // Database/provider details and internal ids stay in the server log.
+      console.error("[tree PATCH] failed for service", params.serviceId, err);
+      return NextResponse.json(
+        { error: "Could not save the customer-question tree. Nothing was intentionally changed; try again." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ ok: true, questionIdMap, optionIdMap });
   });
 }
