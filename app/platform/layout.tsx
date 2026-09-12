@@ -28,6 +28,14 @@ const NAV: NavItem[] = [
   { href: "/platform/attention", label: "Attention needed", icon: "attention" },
 ];
 
+function roleLabel(role: string) {
+  return role
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   let actor;
   try {
@@ -38,13 +46,15 @@ export default async function PlatformLayout({ children }: { children: React.Rea
     throw e;
   }
 
+  const staffRole = roleLabel(actor.role);
+
   return (
     <SidebarShell
       homeHref="/platform"
-      switcherLabel="Platform admin"
+      switcherLabel={`Price2Book staff · ${staffRole}`}
       primary={NAV}
       notifications={{ href: "/platform/attention", label: "Attention needed" }}
-      identity={{ name: actor.email, email: actor.email }}
+      identity={{ name: actor.email, email: `${staffRole} · ${actor.email}` }}
     >
       {children}
     </SidebarShell>
@@ -54,16 +64,20 @@ export default async function PlatformLayout({ children }: { children: React.Rea
 function Refused() {
   return (
     <div className="mx-auto max-w-xl px-6 py-16">
-      <h1 className="font-display text-2xl font-bold text-navy">This area is for Price2Book staff</h1>
-      <p className="mt-2 text-sm text-slate">
-        Your account is signed in, but it isn&rsquo;t platform staff. Owning or managing a
-        contractor doesn&rsquo;t open this door &mdash; that&rsquo;s deliberate.
-      </p>
-      <p className="mt-6 text-sm">
-        <Link href="/dashboard" className="font-medium text-electric hover:underline">
-          Go to your dashboard
+      <div className="rounded-card border border-cardline bg-white p-6 shadow-sm sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-electric">Price2Book staff</p>
+        <h1 className="mt-2 font-display text-2xl font-bold text-navy">This area is restricted</h1>
+        <p className="mt-2 text-sm leading-relaxed text-slate">
+          Your account is signed in, but it doesn&rsquo;t have active platform access. Owning or managing a
+          contractor does not grant staff access &mdash; those permissions stay deliberately separate.
+        </p>
+        <Link
+          href="/dashboard"
+          className="mt-6 inline-flex items-center justify-center rounded-pill border border-cardline bg-white px-4 py-2.5 text-sm font-semibold text-navy transition hover:border-electric hover:text-electric"
+        >
+          Go to contractor dashboard
         </Link>
-      </p>
+      </div>
     </div>
   );
 }
