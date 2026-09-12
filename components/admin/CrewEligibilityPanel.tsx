@@ -14,35 +14,47 @@ export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: Cre
   const eligibleCount = crewMembers.filter((member) => member.eligibleForWebsiteBookings).length;
 
   async function handleSync() {
+    if (syncing || updatingId !== null) return;
     setSyncing(true);
     setError(null);
-    const res = await fetch("/api/admin/jobber/crews/sync", { method: "POST" });
-    setSyncing(false);
-    if (res.ok) {
-      router.refresh();
-    } else {
+    try {
+      const res = await fetch("/api/admin/jobber/crews/sync", { method: "POST" });
+      if (res.ok) {
+        router.refresh();
+        return;
+      }
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Sync failed.");
+      setError(typeof data.error === "string" ? data.error : "Could not sync Jobber users. Nothing was changed.");
+    } catch {
+      setError("Could not reach Price2Book. Check your connection and try the sync again.");
+    } finally {
+      setSyncing(false);
     }
   }
 
   async function handleToggle(id: string, current: boolean) {
+    if (syncing || updatingId !== null) return;
     setUpdatingId(id);
     setError(null);
-    const res = await fetch(`/api/admin/jobber/crews/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eligibleForWebsiteBookings: !current }),
-    });
-    setUpdatingId(null);
+    try {
+      const res = await fetch(`/api/admin/jobber/crews/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eligibleForWebsiteBookings: !current }),
+      });
 
-    if (res.ok) {
-      router.refresh();
-      return;
+      if (res.ok) {
+        router.refresh();
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      setError(typeof data.error === "string" ? data.error : "Could not update crew eligibility. Nothing was changed.");
+    } catch {
+      setError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+    } finally {
+      setUpdatingId(null);
     }
-
-    const data = await res.json().catch(() => ({}));
-    setError(data.error ?? "Could not update crew eligibility.");
   }
 
   return (
