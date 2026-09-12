@@ -63,6 +63,11 @@ export async function POST() {
     });
 
     const differences = [];
+    // Agreement follows this contractor's configured pricing precision. The
+    // old fixed $5 tolerance became wrong as soon as rounding was configurable:
+    // a contractor rounding to $10 could be told a $6 gap needed reconciliation,
+    // while a contractor rounding to $1 could have a $4 gap hidden from them.
+    const agreementToleranceCents = settings.roundingIncrementCents;
 
     for (const svc of services) {
       const inputs = {
@@ -79,11 +84,10 @@ export async function POST() {
       const primary = suggestPrimaryPrice(inputs, settings).totalCents;
       const wwt = svc.wwtLaborHours === null ? null : suggestWwtPrice(inputs, settings).totalCents;
 
-      // $5 is the rounding increment, so anything inside it is agreement.
       const primaryOff = primary !== null && svc.basePrice !== null
-        && Math.abs(primary - svc.basePrice) > 500;
+        && Math.abs(primary - svc.basePrice) > agreementToleranceCents;
       const wwtOff = wwt !== null && svc.whileWeThereBasePrice !== null
-        && Math.abs(wwt - svc.whileWeThereBasePrice) > 500;
+        && Math.abs(wwt - svc.whileWeThereBasePrice) > agreementToleranceCents;
 
       if (primaryOff || wwtOff) {
         differences.push({
