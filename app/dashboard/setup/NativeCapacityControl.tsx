@@ -12,15 +12,41 @@ export default function NativeCapacityControl({
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
-    setState("saving"); setError(null);
-    const res = await fetch("/api/admin/setup/native-capacity", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ concurrentJobs: value === "" ? null : value }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(json.error ?? "Could not save."); setState("idle"); return; }
-    setState("saved");
-    router.refresh();
+    if (state === "saving") return;
+
+    const trimmed = value.trim();
+    if (trimmed !== "" && !/^\d+$/.test(trimmed)) {
+      setError("Enter a whole number of jobs, or leave this blank to clear the capacity.");
+      setState("idle");
+      return;
+    }
+
+    setState("saving");
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/setup/native-capacity", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concurrentJobs: trimmed === "" ? null : trimmed }),
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(
+          typeof json.error === "string"
+            ? json.error
+            : "Price2Book couldn't save your booking capacity. Try again."
+        );
+        setState("idle");
+        return;
+      }
+
+      setState("saved");
+      router.refresh();
+    } catch {
+      setError("Price2Book couldn't save your booking capacity. Check your connection and try again.");
+      setState("idle");
+    }
   }
 
   return (
@@ -54,14 +80,15 @@ export default function NativeCapacityControl({
               id="native-capacity"
               value={value}
               inputMode="numeric"
-              onChange={(e) => { setValue(e.target.value); setState("idle"); }}
+              onChange={(e) => { setValue(e.target.value); setState("idle"); setError(null); }}
               placeholder="e.g. 2"
+              aria-invalid={error ? true : undefined}
               className="mt-1.5 w-36 rounded-card border border-cardline bg-white px-3 py-2.5 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10"
             />
           </div>
           <button
             type="button"
-            onClick={save}
+            onClick={() => void save()}
             disabled={state === "saving"}
             className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-60"
           >
@@ -70,7 +97,7 @@ export default function NativeCapacityControl({
         </div>
 
         {state === "saved" && <p className="mt-3 text-sm font-medium text-success">Your booking capacity is saved.</p>}
-        {error && <div className="mt-3 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-p2b-error-ink">{error}</div>}
+        {error && <div role="alert" className="mt-3 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-p2b-error-ink">{error}</div>}
       </div>
     </section>
   );
