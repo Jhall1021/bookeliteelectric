@@ -50,6 +50,31 @@ assert.throws(
   "Unknown roles must fail closed at the authoritative guard",
 );
 
+// All platform read doors must require PLATFORM_READ before handing callers a
+// cross-tenant client or entering a contractor scope. This keeps page routing,
+// read models and future API callers on one authorization boundary.
+const context = fs.readFileSync(path.join(process.cwd(), "lib/platformContext.ts"), "utf8");
+for (const fn of ["withPlatformFor", "withPlatformContractorFor"] as const) {
+  const start = context.indexOf(`export async function ${fn}`);
+  assert.ok(start >= 0, `${fn} is missing`);
+  const next = context.indexOf("\nexport async function ", start + 1);
+  const body = context.slice(start, next === -1 ? context.length : next);
+  assert.ok(
+    body.includes('requirePlatformCapability(actor.role, "PLATFORM_READ")'),
+    `${fn} must require PLATFORM_READ`,
+  );
+}
+assert.ok(
+  context.includes("e instanceof PlatformCapabilityError"),
+  "Platform API refusal translation must return a deliberate capability refusal",
+);
+
+const layout = fs.readFileSync(path.join(process.cwd(), "app/platform/layout.tsx"), "utf8");
+assert.ok(
+  layout.includes('requirePlatformCapability(actor.role, "PLATFORM_READ")'),
+  "Platform shell must require PLATFORM_READ before rendering navigation",
+);
+
 // The runtime command facade is the authoritative application mutation door.
 // Each operation must name its capability before it delegates to the existing
 // onboarding command, so a future non-page caller cannot bypass a UI check.
