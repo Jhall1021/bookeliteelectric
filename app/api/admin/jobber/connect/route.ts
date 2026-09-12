@@ -9,21 +9,30 @@ import { cookies } from "next/headers";
 // the ONE step where you log in with your REAL contractor Jobber account
 // (not the Developer Center login), to grant this app access.
 export async function GET() {
+  let redirectUri: string;
+  try {
+    redirectUri = jobberRedirectUri();
+  } catch (err) {
+    console.error("Jobber OAuth cannot start: application origin is not configured.", err);
+    return NextResponse.json(
+      { error: "Jobber is not configured for this Price2Book environment." },
+      { status: 503 }
+    );
+  }
+
   if (!(await isAdminAuthenticated())) {
-    return NextResponse.redirect(new URL("/sign-in", jobberRedirectUri()));
+    return NextResponse.redirect(new URL("/sign-in", redirectUri));
   }
 
   const clientId = process.env.JOBBER_CLIENT_ID;
-  if (!clientId) {
-    console.error("Jobber OAuth cannot start: JOBBER_CLIENT_ID is not configured.");
-    return NextResponse.redirect(new URL("/dashboard/jobber?error=not_configured", jobberRedirectUri()));
+  const clientSecret = process.env.JOBBER_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    console.error(
+      `Jobber OAuth cannot start: ${!clientId ? "JOBBER_CLIENT_ID" : "JOBBER_CLIENT_SECRET"} is not configured.`
+    );
+    return NextResponse.redirect(new URL("/dashboard/jobber?error=not_configured", redirectUri));
   }
 
-  // Bind the OAuth attempt to the contractor that STARTED it, not whichever
-  // contractor context happens to exist when Jobber redirects back. A random
-  // state alone protects against CSRF, but without the owner binding an admin
-  // switching contractor context in another tab mid-flow could attach the
-  // returned Jobber account to the wrong business.
   const { contractorId } = await resolveAdminContractor();
   const state = randomUUID();
   cookies().set("jobber_oauth_state", `${state}:${contractorId}`, {
@@ -36,7 +45,7 @@ export async function GET() {
 
   const url = new URL(JOBBER_AUTH_URL);
   url.searchParams.set("client_id", clientId);
-  url.searchParams.set("redirect_uri", jobberRedirectUri());
+  url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
 
