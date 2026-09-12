@@ -19,18 +19,31 @@ export default function JobberConnectionPanel({
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
   async function handleDisconnect() {
+    if (disconnecting) return;
     setDisconnecting(true);
     setDisconnectError(null);
-    const res = await fetch("/api/admin/jobber/disconnect", { method: "POST" });
-    setDisconnecting(false);
 
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/admin/jobber/disconnect", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setDisconnectError(
+          typeof data.error === "string"
+            ? data.error
+            : "Could not disconnect Jobber. Nothing was changed."
+        );
+        return;
+      }
+
       router.refresh();
-      return;
+    } catch {
+      setDisconnectError(
+        "Could not reach Price2Book. Check your connection and try again; nothing was changed."
+      );
+    } finally {
+      setDisconnecting(false);
     }
-
-    const data = await res.json().catch(() => ({}));
-    setDisconnectError(data.error ?? "Could not disconnect Jobber.");
   }
 
   return (
@@ -86,8 +99,8 @@ export default function JobberConnectionPanel({
               >
                 {disconnecting ? "Disconnecting…" : "Disconnect Jobber"}
               </button>
-              <p className="mt-2 text-xs leading-relaxed text-slate">
-                Disconnecting stops Price2Book from using this Jobber connection. It does not delete anything in Jobber.
+              <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate">
+                Disconnecting stops Price2Book from using this Jobber connection and clears the synced crew cache used for website-capacity checks. It does not delete anything in Jobber. If you reconnect later, sync the crew list and choose eligible people again.
               </p>
             </div>
           </>
