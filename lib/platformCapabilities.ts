@@ -40,6 +40,29 @@ export function hasPlatformCapability(role: PlatformRole | string, capability: P
   return platformCapabilitiesForRole(role).includes(capability);
 }
 
+/**
+ * A staff identity can be valid while still lacking authority for a specific
+ * operation. Keep that refusal distinct from "not platform staff" so callers
+ * can render an honest permission message without weakening authentication.
+ */
+export class PlatformCapabilityError extends Error {
+  readonly capability: PlatformCapability;
+
+  constructor(capability: PlatformCapability) {
+    super(`Price2Book staff permission required: ${PLATFORM_CAPABILITY_LABELS[capability]}.`);
+    this.name = "PlatformCapabilityError";
+    this.capability = capability;
+  }
+}
+
+/** Authoritative capability decision for mutation/read command boundaries. */
+export function requirePlatformCapability(
+  role: PlatformRole | string,
+  capability: PlatformCapability,
+): void {
+  if (!hasPlatformCapability(role, capability)) throw new PlatformCapabilityError(capability);
+}
+
 export const PLATFORM_CAPABILITY_LABELS: Record<PlatformCapability, string> = {
   PLATFORM_READ: "view platform operations",
   CONTRACTOR_ONBOARD: "onboard contractors",
