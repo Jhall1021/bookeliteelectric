@@ -21,6 +21,11 @@ const DAYS = [
   { n: 0, label: "Sun" },
 ];
 
+function minutes(time: string) {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
 /**
  * Working days and hours.
  *
@@ -53,23 +58,46 @@ export default function BusinessHoursForm({
     }));
   }
 
+  const scheduleError = minutes(hours.dayEnd) <= minutes(hours.dayStart)
+    ? "Crews need to finish after they start."
+    : null;
+
   async function save() {
-    setSaving(true);
-    setNote(null);
-    const res = await fetch("/api/admin/business-hours", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(hours),
-    });
-    setSaving(false);
-    const data = await res.json();
-    if (!res.ok) {
-      setNote({ text: data.error ?? "Something went wrong.", warn: true });
+    if (hours.workingDays.length === 0) {
+      setNote({ text: "Pick at least one working day, or nobody can book at all.", warn: true });
       return;
     }
-    setWindows(data.windows);
-    setNote({ text: `Saved — ${data.windows.length} arrival windows a day.`, warn: false });
-    router.refresh();
+    if (scheduleError) {
+      setNote({ text: scheduleError, warn: true });
+      return;
+    }
+
+    setSaving(true);
+    setNote(null);
+    try {
+      const res = await fetch("/api/admin/business-hours", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(hours),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setNote({ text: data?.error ?? "Could not save working hours. Nothing was changed.", warn: true });
+        return;
+      }
+      if (!data || !Array.isArray(data.windows)) {
+        setNote({ text: "Working hours were saved, but the arrival-window preview could not be refreshed.", warn: true });
+        router.refresh();
+        return;
+      }
+      setWindows(data.windows);
+      setNote({ text: `Saved — ${data.windows.length} arrival windows a day.`, warn: false });
+      router.refresh();
+    } catch {
+      setNote({ text: "Could not reach Price2Book. Your working hours were not changed.", warn: true });
+    } finally {
+      setSaving(false);
+    }
   }
 
   const dirty = JSON.stringify(hours) !== JSON.stringify(initial);
@@ -142,6 +170,12 @@ export default function BusinessHoursForm({
             </label>
           </div>
 
+          {scheduleError && (
+            <p className="mt-3 rounded-card border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {scheduleError} No schedule has been changed yet.
+            </p>
+          )}
+
           <label className="mt-4 block rounded-card border border-cardline p-4 sm:max-w-md">
             <span className="text-sm font-semibold text-navy">Arrival window length</span>
             <span className="mt-1 block text-xs leading-5 text-slate">How wide a promise customers see, such as “8–11 AM.”</span>
@@ -166,7 +200,9 @@ export default function BusinessHoursForm({
           </div>
           <span className="text-xs font-medium text-slate">{windows.length} window{windows.length === 1 ? "" : "s"} per day</span>
         </div>
-        <p className="mt-2 text-sm text-slate">This is what customers will choose from when they book.</p>
+        <p className="mt-2 text-sm text-slate">
+          {dirty ? "This preview shows the last saved schedule until you save your changes." : "This is what customers will choose from when they book."}
+        </p>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           {windows.map((w) => (
@@ -190,7 +226,7 @@ export default function BusinessHoursForm({
 
       {note && (
         <p
-          role="status"
+          role={note.warn ? "alert" : "status"}
           className={`rounded-card border p-3 text-sm ${
             note.warn ? "border-amber-200 bg-amber-50 text-amber-900" : "border-electric/15 bg-electric/5 text-navy"
           }`}
@@ -203,7 +239,7 @@ export default function BusinessHoursForm({
         <button
           type="button"
           onClick={save}
-          disabled={saving || !dirty || hours.workingDays.length === 0}
+          disabled={saving || !dirty || hours.workingDays.length === 0 || !!scheduleError}
           className="w-full rounded-pill bg-electric px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-electric-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-36"
         >
           {saving ? "Saving..." : dirty ? "Save working hours" : "Saved"}
