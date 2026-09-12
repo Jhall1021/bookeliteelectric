@@ -14,8 +14,15 @@ export async function POST() {
 
       const removedCount = await db.$transaction(async (tx) => {
         for (const user of users) {
+          // Keep contractorId explicit inside the transaction even though the
+          // enclosing client is tenant-guarded. Transaction-client extension
+          // behavior must never be the only thing preventing a Jobber user id
+          // from matching another contractor's cached crew row.
           const existing = await tx.jobberCrewMember.findFirst({
-            where: { jobberUserId: user.id },
+            where: {
+              contractorId: ctx.contractorId,
+              jobberUserId: user.id,
+            },
             select: { id: true },
           });
 
@@ -23,7 +30,10 @@ export async function POST() {
             // Preserve the contractor's explicit eligibility choice while
             // refreshing Jobber-owned identity fields.
             await tx.jobberCrewMember.update({
-              where: { id: existing.id },
+              where: {
+                id: existing.id,
+                contractorId: ctx.contractorId,
+              },
               data: { name: user.name, lastSyncedAt: new Date() },
             });
           } else {
@@ -40,10 +50,14 @@ export async function POST() {
         }
 
         // The roster is complete here, so rows Jobber no longer returns can be
-        // removed safely. This prevents departed users from remaining eligible
-        // and inflating website-booking capacity.
+        // removed safely. The contractor filter stays explicit so an empty
+        // Jobber roster can only clear THIS contractor's cache, even if this
+        // transaction were ever executed without the query extension.
         const removed = await tx.jobberCrewMember.deleteMany({
-          where: ids.length ? { jobberUserId: { notIn: ids } } : {},
+          where: {
+            contractorId: ctx.contractorId,
+            ...(ids.length ? { jobberUserId: { notIn: ids } } : {}),
+          },
         });
         return removed.count;
       });
