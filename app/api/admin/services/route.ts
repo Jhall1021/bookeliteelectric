@@ -4,135 +4,122 @@ import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { withAdminContractor } from "@/lib/adminContext";
 import { availableTrades } from "@/lib/templateProvisioning";
 
+const BOOKING_TYPES = new Set(["INSTANT", "ADJUSTED", "REMOTE_QUOTE"]);
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export async function POST(req: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const body = await req.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
+  }
+
   // No price is accepted at creation. A service is created unpriced and priced
   // through its pricing route's publish action, which derives the figure and
   // stamps the approval. See app/api/admin/services/[serviceId]/pricing.
-  const { categoryId, name, slug, shortDescription, bookingType, startingPriceLabel, icon, tradeKey } = body;
+  const categoryId = typeof body.categoryId === "string" ? body.categoryId : "";
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const slug = typeof body.slug === "string" ? body.slug.trim() : "";
+  const bookingType = typeof body.bookingType === "string" ? body.bookingType : "";
+  const tradeKey = typeof body.tradeKey === "string" ? body.tradeKey.trim() : "";
+  const shortDescription = typeof body.shortDescription === "string" ? body.shortDescription.trim() : null;
+  const startingPriceLabel = typeof body.startingPriceLabel === "string" ? body.startingPriceLabel.trim() : null;
+  const icon = typeof body.icon === "string" ? body.icon.trim() : null;
 
   if (!categoryId || !name || !slug || !bookingType) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
+  if (!SLUG.test(slug)) {
+    return NextResponse.json(
+      { error: "URL slug may contain lowercase letters, numbers and single hyphens only." },
+      { status: 400 }
+    );
+  }
+  if (!BOOKING_TYPES.has(bookingType)) {
+    return NextResponse.json({ error: "Choose a valid booking type." }, { status: 400 });
+  }
 
   // TRADE IS REQUIRED, AND EXPLICIT — G2.
-  //
-  // A custom service created without one would be exactly the defect G2 exists
-  // to remove: a live service with no durable trade identity, unable to resolve
-  // its own troubleshooting destination, and invisible to every scoped lookup.
-  // The backfill closed the historical set; this closes the tap.
-  //
-  // NEVER INFERRED. Not from the category, not from the contractor's name, not
-  // from "only one trade exists today" — the last is the tempting one and it is
-  // the one that quietly breaks on the day a second trade ships. A single
-  // available trade may be PRESELECTED in the form, but what is stored is still
-  // a choice somebody made.
-  if (typeof tradeKey !== "string" || tradeKey.trim() === "") {
+  if (!tradeKey) {
     return NextResponse.json(
       { error: "Choose which trade this service belongs to." },
       { status: 400 }
     );
   }
 
-  // GUARD-ADOPTED (ADR-007a).
-
   return withAdminContractor(async (db, ctx) => {
-  const contractorId = ctx.contractorId;
-  // findFirst, not findUnique: slug is unique PER CONTRACTOR now, so it is no
-  // longer a unique selector on its own. The guard scopes this to the active
-  // contractor, which makes the question "does THIS contractor already have
-  // that slug" — the only question that was ever correct here.
-  const existing = await db.service.findFirst({ where: { slug } });
-  if (existing) {
-    return NextResponse.json({ error: `A service with the slug "${slug}" already exists — try a different name or edit the slug.` }, { status: 409 });
-  }
+    const contractorId = ctx.contractorId;
 
-  // `categoryId` from the form is a ContractorCategory id — ADR-006. The
-  // new-service page lists this contractor's categories, not the shared
-  // taxonomy.
-  //
-  // Checked against the contractor rather than trusted. A client can post any
-  // id; without this a service could be attached to another contractor's
-  // category, which is a cross-tenant foreign key written by the request body.
-  // The hand-written `contractorId` filter is gone: the guard scopes this
-  // centrally, so a category belonging to someone else simply is not found.
-  // Validated against published catalogs, the same server-authoritative set the
-  // form is populated from — so the list that offers a choice is the list that
-  // refuses a typo, and a client cannot post a trade Price2Book has no catalog
-  // for. Read through the guarded client: TemplateVersion is a platform model
-  // the guard passes through, and an adopted route hands the unguarded client
-  // to nothing — the audit that caught this exists so that stays true.
-  const trades = await availableTrades(db);
-  if (!trades.includes(tradeKey)) {
-    return NextResponse.json(
-      { error: `"${tradeKey}" is not a trade Price2Book publishes a catalog for yet.` },
-      { status: 400 }
-    );
-  }
+    const existing = await db.service.findFirst({ where: { slug } });
+    if (existing) {
+      return NextResponse.json(
+        { error: `A service with the slug "${slug}" already exists — try a different name or edit the slug.` },
+        { status: 409 }
+      );
+    }
 
-  const contractorCategory = await db.contractorCategory.findFirst({
-    where: { id: categoryId },
-    include: { canonicalCategory: { select: { slug: true } } },
-  });
-  if (!contractorCategory) {
-    return NextResponse.json(
-      { error: "That category does not belong to this contractor" },
-      { status: 403 }
-    );
-  }
+    const trades = await availableTrades(db);
+    if (!trades.includes(tradeKey)) {
+      return NextResponse.json(
+        { error: `"${tradeKey}" is not a trade Price2Book publishes a catalog for yet.` },
+        { status: 400 }
+      );
+    }
 
-  // EXPAND-PHASE WRITE. Service.categoryId is still NOT NULL, so the legacy
-  // row has to be filled to satisfy the column. It is DERIVED from the
-  // canonical slug rather than taken from the request — the contractor
-  // category is the source of truth, and this write disappears in the
-  // contract phase when ServiceCategory is dropped.
-  // Deprecated compatibility read, on the unguarded client by design:
-  // ServiceCategory is a DEPRECATED_MODEL awaiting the contract-phase drop,
-  // holds no tenant data, and this write only exists to satisfy the NOT NULL
-  // column. Derived from the canonical slug, never from the request.
-  const legacy = await prisma.serviceCategory.findUnique({
-    where: { slug: contractorCategory.canonicalCategory.slug },
-    select: { id: true },
-  });
-  if (!legacy) {
-    return NextResponse.json(
-      {
-        error:
-          `No legacy ServiceCategory for slug "${contractorCategory.canonicalCategory.slug}". ` +
-          `Run prisma/backfill-category-split-2026-08-27.ts.`,
+    const contractorCategory = await db.contractorCategory.findFirst({
+      where: { id: categoryId },
+      include: { canonicalCategory: { select: { slug: true } } },
+    });
+    if (!contractorCategory) {
+      return NextResponse.json(
+        { error: "That category does not belong to this contractor" },
+        { status: 403 }
+      );
+    }
+
+    // EXPAND-PHASE WRITE. Service.categoryId is still NOT NULL, so the legacy
+    // row has to be filled to satisfy the column. It is DERIVED from the
+    // canonical slug rather than taken from the request.
+    const legacy = await prisma.serviceCategory.findUnique({
+      where: { slug: contractorCategory.canonicalCategory.slug },
+      select: { id: true },
+    });
+    if (!legacy) {
+      console.error(
+        "[admin/services] missing legacy ServiceCategory for canonical slug",
+        contractorCategory.canonicalCategory.slug,
+      );
+      return NextResponse.json(
+        { error: "This category is not ready for new services yet. Please contact Price2Book support." },
+        { status: 500 }
+      );
+    }
+
+    // New services deliberately start HIDDEN. Creation cannot bypass the
+    // activation guard: the contractor still needs to establish pricing,
+    // resolve materials/policies and explicitly make the service live through
+    // the normal activation path.
+    const service = await db.service.create({
+      data: {
+        categoryId: legacy.id,
+        contractorCategoryId: contractorCategory.id,
+        contractorId,
+        name,
+        slug,
+        shortDescription: shortDescription || null,
+        bookingType,
+        startingPriceLabel: startingPriceLabel || null,
+        icon: icon || null,
+        tradeKey,
+        active: false,
       },
-      { status: 500 }
-    );
-  }
+    });
 
-  // Service is directly tenant-owned, so the guard stamps contractorId on the
-  // create — the explicit one below is kept for readability, and the guard
-  // refuses outright if the two ever disagree.
-  const service = await db.service.create({
-    data: {
-      categoryId: legacy.id,
-      contractorCategoryId: contractorCategory.id,
-      // Without this a new service has no owner, and route resolution throws
-      // on it the first time anyone opens its page.
-      contractorId,
-      name,
-      slug,
-      shortDescription: shortDescription ?? null,
-      bookingType,
-      startingPriceLabel: startingPriceLabel ?? null,
-      icon: icon ?? null,
-      // The durable trade identity — G2. Stamped from the validated explicit
-      // choice, the same way provisioning stamps `catalog.trade`.
-      tradeKey,
-      active: true,
-    },
-  });
-
-  return NextResponse.json({ id: service.id });
+    return NextResponse.json({ id: service.id });
   });
 }
