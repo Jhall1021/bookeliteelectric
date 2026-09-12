@@ -74,10 +74,18 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       );
     }
 
+    const requiresPreWorkVisit = body.requiresPreWorkVisit === true;
+    if (requiresPreWorkVisit && (!preWorkVisitMinutes || preWorkVisitMinutes <= 0)) {
+      return NextResponse.json(
+        { error: "Enter how long the required site visit takes before saving." },
+        { status: 400 }
+      );
+    }
+
     await db.service.update({
       where: { id: params.serviceId },
       data: {
-        requiresPreWorkVisit: body.requiresPreWorkVisit === true,
+        requiresPreWorkVisit,
         preWorkVisitMinutes,
         depositCents,
         depositCreditsToJob: body.depositCreditsToJob !== false,
