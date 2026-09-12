@@ -3,14 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-/**
- * The contractor's own details, and the action that gives them a storefront.
- *
- * Writes through the general business-profile route, not a setup-only one.
- * Readiness is NOT mirrored here: the page re-renders from the saved domain
- * state, so the verdict can never drift from what the engine would say.
- */
-
 type Profile = {
   name: string; legalName: string | null; phone: string | null;
   supportEmail: string | null; licenseNumber: string | null; countryCode: string | null;
@@ -29,7 +21,7 @@ export default function BusinessPanel({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const field = "mt-1 w-full rounded-card border border-cardline px-3 py-2 text-sm focus:border-electric";
+  const field = "mt-1.5 w-full rounded-card border border-cardline bg-white px-3.5 py-2.5 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10";
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -54,74 +46,96 @@ export default function BusinessPanel({
   }
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={save} className="rounded-card border border-cardline bg-white p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold text-navy">Your business</h2>
-        <p className="mt-1 text-sm text-slate">What a homeowner sees, and what we need before payments can be set up.</p>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {([
-            ["name", "Business name", "text"], ["legalName", "Legal name (optional)", "text"],
-            ["phone", "Phone", "tel"], ["supportEmail", "Support email", "email"],
-            ["licenseNumber", "License number", "text"], ["countryCode", "Country", "text"],
-          ] as const).map(([key, label, type]) => (
-            <div key={key}>
-              <label className="text-sm font-medium text-navy">{label}</label>
-              <input
-                type={type} value={form[key]} disabled={busy}
-                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                className={field}
-              />
+    <div className="space-y-5">
+      <form onSubmit={save} className="overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
+        <div className="border-b border-cardline bg-warmwhite/60 px-5 py-4 sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-electric/10 text-sm font-bold text-electric">1</span>
+            <div>
+              <h2 className="font-display text-lg font-bold text-navy">Tell us about your business</h2>
+              <p className="mt-1 text-sm text-slate">These details identify your company to customers and support the rest of your setup.</p>
             </div>
-          ))}
+          </div>
         </div>
 
-        {error && <div className="mt-4 rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-        {saved && <div className="mt-4 text-sm text-success">Saved.</div>}
+        <div className="p-5 sm:p-6">
+          <div className="grid gap-5 sm:grid-cols-2">
+            {([
+              ["name", "Business name", "text", "The name customers know you by"],
+              ["legalName", "Legal name", "text", "Optional — if different from your public name"],
+              ["phone", "Phone", "tel", "Your customer-facing business number"],
+              ["supportEmail", "Support email", "email", "Where customer questions should go"],
+              ["licenseNumber", "License number", "text", "Shown where your business requires it"],
+              ["countryCode", "Country", "text", "Used for account and payment setup"],
+            ] as const).map(([key, label, type, helper]) => (
+              <div key={key}>
+                <label className="text-sm font-semibold text-navy">{label}</label>
+                <p className="mt-0.5 text-xs text-slate">{helper}</p>
+                <input
+                  type={type} value={form[key]} disabled={busy}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  className={field}
+                />
+              </div>
+            ))}
+          </div>
 
-        <button
-          type="submit" disabled={busy}
-          className="mt-5 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
-        >
-          {busy ? "Saving..." : "Save"}
-        </button>
+          {error && <div className="mt-5 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+          {saved && <div className="mt-5 rounded-card border border-success/20 bg-success/5 p-3 text-sm font-medium text-success">Business details saved.</div>}
+
+          <div className="mt-6 flex justify-end border-t border-cardline pt-5">
+            <button
+              type="submit" disabled={busy}
+              className="rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
+            >
+              {busy ? "Saving..." : "Save business details"}
+            </button>
+          </div>
+        </div>
       </form>
 
-      <div className="rounded-card border border-cardline bg-white p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold text-navy">Your Price2Book storefront</h2>
-        {hostedSlug ? (
-          <>
-            {/* THE HOSTED ADDRESS IS THE FALLBACK, NOT THE HEADLINE.
-                This said "Homeowners book you at /slug" full stop, which
-                tells a contractor with a perfectly good website that their
-                public address is now somewhere else. Most of them have a
-                site, and adding Price2Book to it is the easier sell than
-                sending customers elsewhere. */}
-            <p className="mt-1 text-sm text-slate">
-              This always works: <span className="font-medium text-navy">/{hostedSlug}</span>.
-            </p>
-            <p className="mt-2 text-sm text-slate">
-              Most businesses put Price2Book on their own website instead — a page
-              like <span className="font-medium text-navy">yourcompany.com/pricing</span> —
-              so customers stay on your site. That page becomes the one link you
-              put everywhere. We&rsquo;ll set that up with you; nothing here is
-              required to start taking bookings.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="mt-1 text-sm text-slate">
-              You don&rsquo;t have one yet, so there is nowhere to send a homeowner. We&rsquo;ll set up
-              the address for you — you can add branding and a custom domain later.
-            </p>
-            <button
-              type="button" onClick={createStorefront} disabled={busy}
-              className="mt-4 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
-            >
-              {busy ? "Creating..." : "Create my Price2Book storefront"}
-            </button>
-          </>
-        )}
+      <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
+        <div className="border-b border-cardline bg-warmwhite/60 px-5 py-4 sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-electric/10 text-sm font-bold text-electric">2</span>
+            <div>
+              <h2 className="font-display text-lg font-bold text-navy">Choose where customers book</h2>
+              <p className="mt-1 text-sm text-slate">Price2Book can live on your own website, with a hosted address available as a fallback.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-6">
+          {hostedSlug ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-card border border-electric/20 bg-electric/[0.03] p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-electric">Recommended</div>
+                <h3 className="mt-1 text-sm font-semibold text-navy">Keep customers on your website</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate">
+                  Add Price2Book to a page like <span className="font-medium text-navy">yourcompany.com/pricing</span> or <span className="font-medium text-navy">/book</span>. That becomes the pricing-and-booking link you can put anywhere customers find you.
+                </p>
+              </div>
+              <div className="rounded-card border border-cardline bg-warmwhite/50 p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate">Always available</div>
+                <h3 className="mt-1 text-sm font-semibold text-navy">Price2Book-hosted address</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate">Your fallback storefront is ready at <span className="font-medium text-navy">/{hostedSlug}</span>. It is useful for testing and for businesses without a website.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-card border border-dashed border-cardline bg-warmwhite/50 p-5">
+              <h3 className="text-sm font-semibold text-navy">Create your booking destination</h3>
+              <p className="mt-1.5 max-w-2xl text-sm text-slate">
+                We&rsquo;ll create the hosted address Price2Book needs behind the scenes. You can still embed the experience on your own website afterward.
+              </p>
+              <button
+                type="button" onClick={createStorefront} disabled={busy}
+                className="mt-4 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
+              >
+                {busy ? "Creating..." : "Create booking destination"}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
