@@ -44,6 +44,18 @@ function formatMoney(cents: number) {
   return `${cents < 0 ? "−" : ""}$${(Math.abs(cents) / 100).toFixed(0)}`;
 }
 
+function dollarsToCents(value: string, label: string, allowZero: boolean): number {
+  const normalized = value.trim();
+  if (normalized === "") throw new Error(`${label} is required.`);
+  const dollars = Number(normalized);
+  if (!Number.isFinite(dollars) || dollars < 0 || (!allowZero && dollars === 0)) {
+    throw new Error(`${label} must be ${allowZero ? "zero or more" : "greater than zero"}.`);
+  }
+  const cents = Math.round(dollars * 100);
+  if (!Number.isSafeInteger(cents)) throw new Error(`${label} is too large.`);
+  return cents;
+}
+
 export default function PricingSettingsForm({ settings }: { settings: Settings | null }) {
   const router = useRouter();
   const [rate, setRate] = useState(settings ? toDollars(settings.crewHourRateCents) : "250.00");
@@ -56,43 +68,64 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
   const [recalculating, setRecalculating] = useState(false);
   const [result, setResult] = useState<CompareResult | null>(null);
   const [pendingImpact, setPendingImpact] = useState<SettingsImpact | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   function payload() {
     return {
-      crewHourRateCents: Math.round(parseFloat(rate) * 100),
-      primaryMinimumCents: Math.round(parseFloat(minimum) * 100),
-      roundingIncrementCents: Math.round(parseFloat(rounding) * 100),
-      defaultPermitAdminCents: Math.round(parseFloat(permit) * 100),
+      crewHourRateCents: dollarsToCents(rate, "Crew-hour rate", true),
+      primaryMinimumCents: dollarsToCents(minimum, "Service-call minimum", true),
+      roundingIncrementCents: dollarsToCents(rounding, "Rounding increment", false),
+      defaultPermitAdminCents: dollarsToCents(permit, "Default permit / admin allowance", true),
     };
   }
 
+  function changed() {
+    setPendingImpact(null);
+    setSettingsSaved(false);
+    setSaveError(null);
+  }
+
   async function saveSettings(acknowledgeImpact?: number) {
+    if (savingSettings) return;
+
+    let body: ReturnType<typeof payload>;
+    try {
+      body = payload();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Check the pricing values and try again.");
+      return;
+    }
+
     setSavingSettings(true);
-    setError(null);
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/admin/pricing-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, ...(acknowledgeImpact !== undefined ? { acknowledgeImpact } : {}) }),
+      });
+      const data = await res.json().catch(() => ({}));
 
-    const res = await fetch("/api/admin/pricing-settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload(), ...(acknowledgeImpact ? { acknowledgeImpact } : {}) }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setSavingSettings(false);
+      if (res.ok) {
+        setPendingImpact(null);
+        setSettingsSaved(true);
+        router.refresh();
+        setTimeout(() => setSettingsSaved(false), 2500);
+        return;
+      }
 
-    if (res.ok) {
-      setPendingImpact(null);
-      setSettingsSaved(true);
-      router.refresh();
-      setTimeout(() => setSettingsSaved(false), 2500);
-      return;
+      if (res.status === 409 && data.error === "IMPACT_CONFIRMATION_REQUIRED" && data.impact) {
+        setPendingImpact(data.impact as SettingsImpact);
+        return;
+      }
+
+      setSaveError(typeof data.error === "string" ? data.error : "Something went wrong saving settings. Nothing was changed.");
+    } catch {
+      setSaveError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+    } finally {
+      setSavingSettings(false);
     }
-
-    if (res.status === 409 && data.error === "IMPACT_CONFIRMATION_REQUIRED" && data.impact) {
-      setPendingImpact(data.impact as SettingsImpact);
-      return;
-    }
-
-    setError(data.error ?? "Something went wrong saving settings.");
   }
 
   async function handleSaveSettings(e: React.FormEvent) {
@@ -102,18 +135,23 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
   }
 
   async function handleRecalculate() {
+    if (recalculating) return;
     setRecalculating(true);
-    setError(null);
+    setCompareError(null);
+    try {
+      const res = await fetch("/api/admin/pricing-settings/recalculate", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
 
-    const res = await fetch("/api/admin/pricing-settings/recalculate", { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    setRecalculating(false);
-
-    if (res.ok) {
-      setResult(data as CompareResult);
-      router.refresh();
-    } else {
-      setError(data.error ?? "Recalculation failed — no prices were changed.");
+      if (res.ok) {
+        setResult(data as CompareResult);
+        router.refresh();
+      } else {
+        setCompareError(typeof data.error === "string" ? data.error : "Comparison failed — no prices were changed.");
+      }
+    } catch {
+      setCompareError("Could not reach Price2Book. Try the comparison again when your connection is available.");
+    } finally {
+      setRecalculating(false);
     }
   }
 
@@ -139,7 +177,7 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
             <div className="relative max-w-sm">
               <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
               <input type="number" step="0.01" min="0" required value={rate}
-                onChange={(e) => { setRate(e.target.value); setPendingImpact(null); }}
+                onChange={(e) => { setRate(e.target.value); changed(); }}
                 className={`${inputClass} pl-8`} />
             </div>
           </div>
@@ -150,7 +188,7 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
             <div className="relative">
               <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
               <input type="number" step="0.01" min="0" required value={minimum}
-                onChange={(e) => { setMinimum(e.target.value); setPendingImpact(null); }}
+                onChange={(e) => { setMinimum(e.target.value); changed(); }}
                 className={`${inputClass} pl-8`} />
             </div>
           </div>
@@ -161,7 +199,7 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
             <div className="relative">
               <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
               <input type="number" step="0.01" min="0.01" required value={rounding}
-                onChange={(e) => { setRounding(e.target.value); setPendingImpact(null); }}
+                onChange={(e) => { setRounding(e.target.value); changed(); }}
                 className={`${inputClass} pl-8`} />
             </div>
           </div>
@@ -172,11 +210,17 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
             <div className="relative max-w-sm">
               <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
               <input type="number" step="0.01" min="0" required value={permit}
-                onChange={(e) => { setPermit(e.target.value); setPendingImpact(null); }}
+                onChange={(e) => { setPermit(e.target.value); changed(); }}
                 className={`${inputClass} pl-8`} />
             </div>
           </div>
         </div>
+
+        {saveError && (
+          <div role="alert" className="mx-6 mb-6 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {saveError}
+          </div>
+        )}
 
         {pendingImpact && (
           <div className="mx-6 mb-6 rounded-card border border-amber-300 bg-amber-50 p-4">
@@ -200,12 +244,12 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" disabled={savingSettings}
-                onClick={() => saveSettings(pendingImpact.affected)}
+                onClick={() => void saveSettings(pendingImpact.affected)}
                 className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
                 {savingSettings ? "Saving…" : `Save and acknowledge ${pendingImpact.affected} differences`}
               </button>
-              <button type="button" onClick={() => setPendingImpact(null)}
-                className="rounded-pill border border-cardline bg-white px-5 py-2.5 text-sm font-semibold text-navy">
+              <button type="button" disabled={savingSettings} onClick={() => setPendingImpact(null)}
+                className="rounded-pill border border-cardline bg-white px-5 py-2.5 text-sm font-semibold text-navy disabled:opacity-50">
                 Cancel
               </button>
             </div>
@@ -229,12 +273,12 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
         </div>
 
         <div className="p-5">
-          <button onClick={handleRecalculate} disabled={recalculating}
+          <button onClick={() => void handleRecalculate()} disabled={recalculating}
             className="w-full rounded-pill border border-electric px-5 py-2.5 text-sm font-semibold text-electric transition hover:bg-electric/5 disabled:opacity-50">
             {recalculating ? "Checking..." : "Check for differences"}
           </button>
 
-          {error && <p className="mt-3 rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          {compareError && <p role="alert" className="mt-3 rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">{compareError}</p>}
 
           {result && (
             <div className="mt-5">
