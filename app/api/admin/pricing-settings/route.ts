@@ -25,12 +25,16 @@ function nonNegativeInteger(value: unknown): number | null {
 }
 
 export async function PATCH(req: Request) {
-  let body: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    body = await req.json();
+    parsed = await req.json();
   } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as Record<string, unknown>;
 
   const crewHourRateCents = nonNegativeInteger(body.crewHourRateCents);
   const primaryMinimumCents = nonNegativeInteger(body.primaryMinimumCents);
@@ -101,40 +105,45 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // ADR-007a: keyed by contractor. `id: "default"` meant one labor rate for
-    // every contractor — and this route SETS the rate that prices their work.
-    await db.pricingSettings.upsert({
-      where: { contractorId: ctx.contractorId },
-      update: { crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents },
-      create: {
-        contractorId: ctx.contractorId,
-        crewHourRateCents,
-        primaryMinimumCents,
-        roundingIncrementCents,
-        defaultPermitAdminCents,
-      },
-    });
+    // The setting and its audit row are one business event. If the history
+    // write fails, the setting must not move without the record explaining who
+    // changed it and what impact they acknowledged.
+    await db.$transaction(async (tx) => {
+      // ADR-007a: keyed by contractor. `id: "default"` meant one labor rate for
+      // every contractor — and this route SETS the rate that prices their work.
+      await tx.pricingSettings.upsert({
+        where: { contractorId: ctx.contractorId },
+        update: { crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents },
+        create: {
+          contractorId: ctx.contractorId,
+          crewHourRateCents,
+          primaryMinimumCents,
+          roundingIncrementCents,
+          defaultPermitAdminCents,
+        },
+      });
 
-    // Recorded even when nothing moved and even when the impact was zero: the
-    // history is only trustworthy if it is complete. A gap in it reads as "no
-    // change was made", which is the one thing it must never say wrongly.
-    await db.pricingSettingsChange.create({
-      data: {
-        contractorId: ctx.contractorId,
-        changedByUserId: ctx.userId,
-        changedByEmail: ctx.email,
-        fromCrewHourRateCents: before?.crewHourRateCents ?? crewHourRateCents,
-        toCrewHourRateCents: crewHourRateCents,
-        fromPrimaryMinimumCents: before?.primaryMinimumCents ?? primaryMinimumCents,
-        toPrimaryMinimumCents: primaryMinimumCents,
-        fromRoundingIncrementCents: before?.roundingIncrementCents ?? roundingIncrementCents,
-        toRoundingIncrementCents: roundingIncrementCents,
-        fromDefaultPermitAdminCents: before?.defaultPermitAdminCents ?? defaultPermitAdminCents,
-        toDefaultPermitAdminCents: defaultPermitAdminCents,
-        publishedPricesAffected: impact?.affected ?? 0,
-        impactAcknowledged: Boolean(impact && impact.affected > 0),
-        note: note && note.trim() ? note.trim().slice(0, 500) : null,
-      },
+      // Recorded even when nothing moved and even when the impact was zero: the
+      // history is only trustworthy if it is complete. A gap in it reads as "no
+      // change was made", which is the one thing it must never say wrongly.
+      await tx.pricingSettingsChange.create({
+        data: {
+          contractorId: ctx.contractorId,
+          changedByUserId: ctx.userId,
+          changedByEmail: ctx.email,
+          fromCrewHourRateCents: before?.crewHourRateCents ?? crewHourRateCents,
+          toCrewHourRateCents: crewHourRateCents,
+          fromPrimaryMinimumCents: before?.primaryMinimumCents ?? primaryMinimumCents,
+          toPrimaryMinimumCents: primaryMinimumCents,
+          fromRoundingIncrementCents: before?.roundingIncrementCents ?? roundingIncrementCents,
+          toRoundingIncrementCents: roundingIncrementCents,
+          fromDefaultPermitAdminCents: before?.defaultPermitAdminCents ?? defaultPermitAdminCents,
+          toDefaultPermitAdminCents: defaultPermitAdminCents,
+          publishedPricesAffected: impact?.affected ?? 0,
+          impactAcknowledged: Boolean(impact && impact.affected > 0),
+          note: note && note.trim() ? note.trim().slice(0, 500) : null,
+        },
+      });
     });
 
     return NextResponse.json({ ok: true, impact });
