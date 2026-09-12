@@ -12,14 +12,33 @@ export default function SchedulingAuthorityControl({
   const [error, setError] = useState<string | null>(null);
 
   async function choose(value: "NATIVE" | "EXTERNAL") {
-    setBusy(true); setError(null);
-    const res = await fetch("/api/admin/setup/scheduling-authority", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ authority: value }),
-    });
-    setBusy(false);
-    if (!res.ok) { setError("Could not save."); return; }
-    router.refresh();
+    if (busy || authority === value) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/setup/scheduling-authority", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ authority: value }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(
+          typeof data.error === "string"
+            ? data.error
+            : "Price2Book couldn't save your scheduling choice. Try again."
+        );
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setError("Price2Book couldn't save your scheduling choice. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -45,7 +64,7 @@ export default function SchedulingAuthorityControl({
               <input
                 type="radio" name="authority" className="mt-1 h-4 w-4 accent-electric"
                 checked={selected} disabled={busy}
-                onChange={() => choose(value)}
+                onChange={() => void choose(value)}
               />
               <span className="min-w-0 flex-1">
                 <span className={`text-[11px] font-semibold uppercase tracking-wide ${selected ? "text-electric" : "text-slate"}`}>{eyebrow}</span>
@@ -57,7 +76,7 @@ export default function SchedulingAuthorityControl({
           );
         })}
         {busy && <p className="text-xs text-slate">Saving your scheduling choice…</p>}
-        {error && <div className="rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {error && <div role="alert" className="rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       </div>
     </div>
   );
