@@ -23,7 +23,9 @@ export async function PATCH(req: Request) {
   const body = parsed as Record<string, unknown>;
 
   // A blank box means "no rule", which is a real answer and distinct from
-  // zero: a $0 threshold would fire on every booking.
+  // zero: a $0 threshold would fire on every booking. Dollar values must be
+  // exact to the cent; silently rounding a contractor-entered half-cent would
+  // mutate a payment rule they never actually chose.
   const optionalCents = (v: unknown): number | null | undefined => {
     if (v === undefined) return undefined;
     if (v === null || v === "") return null;
@@ -31,8 +33,10 @@ export async function PATCH(req: Request) {
     if (typeof v === "string" && v.trim() === "") return null;
     const numeric = Number(v);
     if (!Number.isFinite(numeric) || numeric < 0) return undefined;
-    const n = Math.round(numeric * 100);
-    return Number.isSafeInteger(n) ? n : undefined;
+    const scaled = numeric * 100;
+    const rounded = Math.round(scaled);
+    if (Math.abs(scaled - rounded) > 1e-7 || !Number.isSafeInteger(rounded)) return undefined;
+    return rounded;
   };
   const optionalMinutes = (v: unknown): number | null | undefined => {
     if (v === undefined) return undefined;
@@ -78,7 +82,7 @@ export async function PATCH(req: Request) {
   const amount = optionalCents(body.depositAmountDollars);
   if (body.depositAmountDollars !== undefined && amount === undefined) {
     return NextResponse.json(
-      { error: "Deposit amount must be a valid dollar amount of zero or more." },
+      { error: "Deposit amount must be a valid dollar amount with no more than two decimal places." },
       { status: 400 }
     );
   }
@@ -93,7 +97,7 @@ export async function PATCH(req: Request) {
   const threshold = optionalCents(body.depositSubtotalThresholdDollars);
   if (body.depositSubtotalThresholdDollars !== undefined && threshold === undefined) {
     return NextResponse.json(
-      { error: "Deposit subtotal threshold must be a valid dollar amount of zero or more." },
+      { error: "Deposit subtotal threshold must be a valid dollar amount with no more than two decimal places." },
       { status: 400 }
     );
   }
