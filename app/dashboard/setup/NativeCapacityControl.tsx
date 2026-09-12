@@ -3,17 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-/**
- * The one number native scheduling needs.
- *
- * Shown only when Price2Book keeps the calendar, because it is meaningless
- * otherwise — an external provider's own calendar answers this.
- *
- * Deliberately not a crew list. Asking "how many jobs at once" gets a
- * contractor to an honest answer in one box; asking them to enter their people
- * would be a staffing model they did not ask for, and Price2Book would still
- * have to guess how many of them go to a job.
- */
 export default function NativeCapacityControl({
   concurrentJobs,
 }: { concurrentJobs: number | null }) {
@@ -35,33 +24,53 @@ export default function NativeCapacityControl({
   }
 
   return (
-    <section className="mt-4 rounded-card border border-cardline bg-white p-5">
-      <h3 className="font-display text-base font-bold text-navy">
-        How many jobs can your company handle at the same time?
-      </h3>
-      <p className="mt-1 text-sm text-slate">
-        We use this so we never offer a homeowner more appointments in the same
-        arrival window than you could actually service. If you run two vans that
-        can each be on a job at once, that&apos;s 2.
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <input
-          value={value}
-          inputMode="numeric"
-          onChange={(e) => { setValue(e.target.value); setState("idle"); }}
-          placeholder="e.g. 2"
-          aria-label="Jobs at the same time"
-          className="w-28 rounded-md border border-cardline px-3 py-2 text-sm"
-        />
-        <button
-          onClick={save}
-          disabled={state === "saving"}
-          className="rounded-md bg-electric px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {state === "saving" ? "Saving…" : "Save"}
-        </button>
-        {state === "saved" && <span className="text-sm text-success">Saved.</span>}
-        {error && <span className="text-sm text-p2b-error-ink">{error}</span>}
+    <section className="mt-4 overflow-hidden rounded-card border border-cardline bg-white shadow-card">
+      <div className="border-b border-cardline bg-warmwhite/60 px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-electric">Booking capacity</p>
+            <h3 className="mt-1 font-display text-base font-bold text-navy">How many jobs can you handle at the same time?</h3>
+          </div>
+          {concurrentJobs !== null && (
+            <span className="rounded-pill bg-success/10 px-3 py-1 text-xs font-semibold text-success">Capacity set</span>
+          )}
+        </div>
+      </div>
+
+      <div className="p-5 sm:p-6">
+        <p className="max-w-2xl text-sm leading-relaxed text-slate">
+          Price2Book uses this number to avoid offering more appointments in the same arrival window than your team can actually cover.
+        </p>
+
+        <div className="mt-4 rounded-card border border-cardline bg-warmwhite/50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate">Example</p>
+          <p className="mt-1 text-sm text-navy">Two vans that can each be on a separate job at the same time = <span className="font-bold">2 jobs</span>.</p>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-end gap-3">
+          <div>
+            <label htmlFor="native-capacity" className="block text-xs font-semibold text-navy">Jobs at the same time</label>
+            <input
+              id="native-capacity"
+              value={value}
+              inputMode="numeric"
+              onChange={(e) => { setValue(e.target.value); setState("idle"); }}
+              placeholder="e.g. 2"
+              className="mt-1.5 w-36 rounded-card border border-cardline bg-white px-3 py-2.5 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={save}
+            disabled={state === "saving"}
+            className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-60"
+          >
+            {state === "saving" ? "Saving..." : state === "saved" ? "Saved" : "Save capacity"}
+          </button>
+        </div>
+
+        {state === "saved" && <p className="mt-3 text-sm font-medium text-success">Your booking capacity is saved.</p>}
+        {error && <div className="mt-3 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-p2b-error-ink">{error}</div>}
       </div>
     </section>
   );
