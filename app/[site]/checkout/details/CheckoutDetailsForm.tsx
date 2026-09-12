@@ -12,7 +12,6 @@ type DepositInfo = {
   salesTaxCents?: number;
   totalWithTaxCents?: number;
   remainingCents?: number;
-  creditsToJob?: boolean;
   ready?: boolean;
   stripeAccountId?: string | null;
   publishableKey?: string | null;
@@ -225,7 +224,6 @@ export default function CheckoutDetailsForm() {
         {depositDue && deposit?.ready && deposit.publishableKey && deposit.stripeAccountId ? (
           <DepositPayment
             depositDueCents={deposit.depositDueCents}
-            creditsToJob={deposit.creditsToJob ?? true}
             publishableKey={deposit.publishableKey}
             stripeAccountId={deposit.stripeAccountId}
             apiRef={cardApi}
