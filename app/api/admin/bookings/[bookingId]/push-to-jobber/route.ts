@@ -3,36 +3,34 @@ import { withAdminRoute } from "@/lib/adminContext";
 import { pushBookingToJobber } from "@/lib/jobber";
 
 export async function POST(_req: Request, { params }: { params: { bookingId: string } }) {
-  // Authentication AND tenancy together. A booking id in a URL is not
-  // authority to push another contractor's job into THIS contractor's Jobber
-  // account — which is what an unscoped update here allowed.
   return withAdminRoute(async (db, ctx) => {
-    // Ownership is proven BEFORE the external call, not after. Booking derives
-    // through Visit (ADR-011), so a foreign id is null here and nothing
-    // reaches Jobber at all. Doing this the other way round would push the job
-    // first and only then discover it was never ours.
     const owned = await db.booking.findUnique({
       where: { id: params.bookingId },
-      select: { id: true },
+      select: { id: true, jobberJobId: true },
     });
     if (!owned) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // jobberJobId is the durable success marker for this integration. Once it
+    // exists, a repeated request is already complete and must not create a
+    // second Jobber job.
+    if (owned.jobberJobId) {
+      return NextResponse.json({ ok: true, alreadySent: true });
+    }
+
     try {
       const result = await pushBookingToJobber(ctx.contractorId, db, owned.id);
-      // jobberJobId stays the recovery marker: null means committed locally
-      // but not successfully pushed. Unchanged by pass three.
       await db.booking.update({
         where: { id: owned.id },
         data: { jobberJobId: result.jobberJobId },
       });
-      return NextResponse.json({ ok: true, jobNumber: result.jobNumber });
+      return NextResponse.json({ ok: true, jobNumber: result.jobNumber, alreadySent: false });
     } catch (err) {
       console.error("Push to Jobber failed:", err);
       return NextResponse.json(
-        { error: err instanceof Error ? err.message : "Unknown error pushing to Jobber" },
-        { status: 500 }
+        { error: "Could not send this booking to Jobber. Nothing was marked as sent; try again." },
+        { status: 502 }
       );
     }
   });
