@@ -109,12 +109,16 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   return withAdminRoute(async (db, ctx) => {
-    let body: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      body = await req.json();
+      parsed = await req.json();
     } catch {
       return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
     }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+    }
+    const body = parsed as Record<string, unknown>;
 
     const id = optionalText(body.id, "Service area id");
     if (isResponse(id)) return id;
