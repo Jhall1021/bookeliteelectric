@@ -45,8 +45,16 @@ export async function PATCH(req: Request) {
     if (typeof v === "string" && v.trim() === "") return null;
     const numeric = Number(v);
     if (!Number.isFinite(numeric) || numeric <= 0) return undefined;
-    const n = Math.round(numeric * 60);
-    return Number.isSafeInteger(n) && n > 0 ? n : undefined;
+    const scaled = numeric * 60;
+    const rounded = Math.round(scaled);
+    // Minutes are stored as integers. Do not silently turn, for example,
+    // 1.333 hours into 80 minutes when that is not the value the contractor
+    // entered. The UI can accept fractional hours, but only when they resolve
+    // exactly to a whole minute.
+    if (Math.abs(scaled - rounded) > 1e-7 || !Number.isSafeInteger(rounded) || rounded <= 0) {
+      return undefined;
+    }
+    return rounded;
   };
   const optionalBoolean = (v: unknown, label: string): boolean | NextResponse => {
     if (typeof v === "boolean") return v;
@@ -69,11 +77,15 @@ export async function PATCH(req: Request) {
       }
       const numeric = Number(body.salesTaxRatePercent);
       // Percent in, parts per million stored — 6.625 becomes 66_250, and the
-      // arithmetic downstream never touches a float.
-      const ppm = Math.round(numeric * 10_000);
-      const problem = Number.isFinite(numeric) && Number.isSafeInteger(ppm)
+      // arithmetic downstream never touches a float. Reject precision the
+      // integer representation cannot preserve rather than quietly rounding
+      // the contractor's chosen rate.
+      const scaled = numeric * 10_000;
+      const ppm = Math.round(scaled);
+      const exact = Math.abs(scaled - ppm) <= 1e-7;
+      const problem = Number.isFinite(numeric) && exact && Number.isSafeInteger(ppm)
         ? validateRatePpm(ppm)
-        : "Enter a tax rate, like 6.625.";
+        : "Enter a valid tax rate with no more than four decimal places, like 6.625.";
       if (problem) return NextResponse.json({ error: problem }, { status: 400 });
       data.salesTaxRatePpm = ppm;
     }
@@ -106,7 +118,7 @@ export async function PATCH(req: Request) {
   const duration = optionalMinutes(body.depositDurationThresholdHours);
   if (body.depositDurationThresholdHours !== undefined && duration === undefined) {
     return NextResponse.json(
-      { error: "Deposit duration threshold must be greater than zero hours, or left blank to turn the rule off." },
+      { error: "Deposit duration threshold must be greater than zero and resolve to a whole minute, or be left blank to turn the rule off." },
       { status: 400 }
     );
   }
