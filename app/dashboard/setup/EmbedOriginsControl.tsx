@@ -22,19 +22,36 @@ export default function EmbedOriginsControl({
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    if (state === "saving") return;
+
     setState("saving");
     setError(null);
-    const res = await fetch("/api/admin/setup/embed-origins", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origins: value.split("\n").map((l) => l.trim()).filter(Boolean),
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(json.error ?? "Could not save that."); setState("idle"); return; }
-    setState("saved");
-    router.refresh();
+    try {
+      const res = await fetch("/api/admin/setup/embed-origins", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origins: value.split("\n").map((l) => l.trim()).filter(Boolean),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(
+          typeof json.error === "string"
+            ? json.error
+            : "Price2Book couldn't save your website address. Try again."
+        );
+        setState("idle");
+        return;
+      }
+
+      setState("saved");
+      router.refresh();
+    } catch {
+      setError("Price2Book couldn't save your website address. Check your connection and try again.");
+      setState("idle");
+    }
   }
 
   // RESOLVED, NEVER WRITTEN. The host came from a literal, which sent every
@@ -63,8 +80,9 @@ export default function EmbedOriginsControl({
         id="origins"
         value={value}
         rows={2}
-        onChange={(e) => { setValue(e.target.value); setState("idle"); }}
+        onChange={(e) => { setValue(e.target.value); setState("idle"); setError(null); }}
         placeholder="https://yourcompany.com"
+        aria-invalid={error ? true : undefined}
         className="mt-1 w-full rounded-md border border-cardline px-3 py-2 font-mono text-xs"
       />
       <p className="mt-1 text-xs text-slate">
@@ -74,14 +92,15 @@ export default function EmbedOriginsControl({
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button
-          onClick={save}
+          type="button"
+          onClick={() => void save()}
           disabled={state === "saving"}
           className="rounded-md bg-electric px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
           {state === "saving" ? "Saving…" : "Save"}
         </button>
         {state === "saved" && <span className="text-sm text-success">Saved.</span>}
-        {error && <span className="text-sm text-p2b-error-ink">{error}</span>}
+        {error && <span role="alert" className="text-sm text-p2b-error-ink">{error}</span>}
       </div>
 
       {snippet && (
