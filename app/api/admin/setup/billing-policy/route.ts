@@ -50,13 +50,34 @@ export async function PATCH(req: Request) {
   }
 
   const amount = optionalCents(body.depositAmountDollars);
+  if (body.depositAmountDollars !== undefined && amount === undefined) {
+    return NextResponse.json(
+      { error: "Deposit amount must be a valid dollar amount of zero or more." },
+      { status: 400 }
+    );
+  }
   if (amount !== undefined) data.depositAmountCents = amount;
+
   if (body.depositOnEveryBooking !== undefined) {
     data.depositOnEveryBooking = body.depositOnEveryBooking === true;
   }
+
   const threshold = optionalCents(body.depositSubtotalThresholdDollars);
+  if (body.depositSubtotalThresholdDollars !== undefined && threshold === undefined) {
+    return NextResponse.json(
+      { error: "Deposit subtotal threshold must be a valid dollar amount of zero or more." },
+      { status: 400 }
+    );
+  }
   if (threshold !== undefined) data.depositSubtotalThresholdCents = threshold;
+
   const duration = optionalMinutes(body.depositDurationThresholdHours);
+  if (body.depositDurationThresholdHours !== undefined && duration === undefined) {
+    return NextResponse.json(
+      { error: "Deposit duration threshold must be greater than zero hours, or left blank to turn the rule off." },
+      { status: 400 }
+    );
+  }
   if (duration !== undefined) data.depositDurationThresholdMinutes = duration;
 
   if (Object.keys(data).length === 0) {
