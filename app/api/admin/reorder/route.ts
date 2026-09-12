@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 
 /**
  * Reordering categories, or services within a category.
@@ -14,10 +13,6 @@ import { withAdminContractor } from "@/lib/adminContext";
  * write a plausible-looking set of numbers with no coherent customer order.
  */
 export async function PATCH(req: Request) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
   let body: { kind?: unknown; ids?: unknown };
   try {
     body = await req.json();
@@ -41,7 +36,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "kind must be 'categories' or 'services'" }, { status: 400 });
   }
 
-  return withAdminContractor(async (db) => {
+  return withAdminRoute(async (db) => {
     try {
       if (body.kind === "categories") {
         const owned = await db.contractorCategory.findMany({
@@ -50,8 +45,8 @@ export async function PATCH(req: Request) {
         });
         if (owned.length !== ids.length) {
           return NextResponse.json(
-            { error: "One or more categories do not belong to this contractor" },
-            { status: 403 }
+            { error: "One or more categories could not be found" },
+            { status: 404 }
           );
         }
 
@@ -67,8 +62,8 @@ export async function PATCH(req: Request) {
         });
         if (ownedServices.length !== ids.length) {
           return NextResponse.json(
-            { error: "One or more services do not belong to this contractor" },
-            { status: 403 }
+            { error: "One or more services could not be found" },
+            { status: 404 }
           );
         }
 
