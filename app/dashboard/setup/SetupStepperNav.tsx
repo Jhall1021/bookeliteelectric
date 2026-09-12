@@ -51,6 +51,11 @@ export default function SetupStepperNav({
     }
   }
 
+  function finish() {
+    if (pending) return;
+    router.push("/dashboard");
+  }
+
   const index = stageKeys.indexOf(current);
   const prevKey = index > 0 ? stageKeys[index - 1] : null;
   const nextKey = index >= 0 && index < stageKeys.length - 1 ? stageKeys[index + 1] : null;
@@ -88,17 +93,21 @@ export default function SetupStepperNav({
           </p>
         )}
         <div className="mb-2 text-center text-xs text-slate sm:hidden">
-          {pending ? "Saving your place…" : nextKey ? "Continue when this step looks right." : "You’re at the final step."}
+          {pending ? "Saving your place…" : nextKey ? "Continue when this step looks right." : "Setup review complete — return to your dashboard when you're ready."}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
           <Button variant="secondary" onClick={() => prevKey && go(prevKey)} disabled={!prevKey || pending}>
             Back
           </Button>
           <div className="hidden text-center text-xs text-slate sm:block">
-            {pending ? "Saving your place…" : nextKey ? "Continue when this step looks right." : "You’re at the final step."}
+            {pending ? "Saving your place…" : nextKey ? "Continue when this step looks right." : "Setup review complete — return to your dashboard when you're ready."}
           </div>
-          <Button variant="primary" onClick={() => nextKey && go(nextKey)} disabled={!nextKey || pending}>
-            {pending ? "Saving…" : nextKey ? "Continue" : "Finished"}
+          <Button
+            variant="primary"
+            onClick={() => nextKey ? void go(nextKey) : finish()}
+            disabled={pending}
+          >
+            {pending ? "Saving…" : nextKey ? "Continue" : "Back to dashboard"}
           </Button>
         </div>
       </div>
