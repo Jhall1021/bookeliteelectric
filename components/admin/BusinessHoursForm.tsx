@@ -75,126 +75,140 @@ export default function BusinessHoursForm({
   const dirty = JSON.stringify(hours) !== JSON.stringify(initial);
 
   return (
-    <div className="mt-6 space-y-6">
-      <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-        <h2 className="font-display text-base font-bold text-navy">Days we work</h2>
-        <p className="mt-0.5 text-sm text-slate">
-          Which days customers can book. This is ours to decide — it doesn&rsquo;t come from
-          Jobber, so you don&rsquo;t have to block days off there to keep them off the website.
-        </p>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {DAYS.map((d) => {
-            const on = hours.workingDays.includes(d.n);
-            return (
-              <button
-                key={d.n}
-                onClick={() => toggleDay(d.n)}
-                className={`rounded-pill border px-4 py-2 text-sm font-semibold transition ${
-                  on
-                    ? "border-electric bg-electric text-white"
-                    : "border-cardline text-slate hover:bg-warmwhite"
-                }`}
-              >
-                {d.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {hours.workingDays.length === 0 && (
-          <p className="mt-3 text-sm text-amber-700">
-            No days selected — nobody would be able to book at all.
+    <div className="mt-6 space-y-5 sm:space-y-6">
+      <section className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
+        <div className="border-b border-cardline bg-warmwhite/60 px-4 py-4 sm:px-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-electric">Your schedule</p>
+          <h2 className="mt-1 font-display text-base font-bold text-navy">Days and working hours</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate">
+            Pick the days and hours customers can book. Price2Book uses these to build the arrival windows shown at checkout.
           </p>
-        )}
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-sm font-medium text-navy">Crews start</span>
-            <input
-              type="time"
-              value={hours.dayStart}
-              onChange={(e) => setHours((h) => ({ ...h, dayStart: e.target.value }))}
-              className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 focus:border-electric"
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-navy">Crews finish</span>
-            <input
-              type="time"
-              value={hours.dayEnd}
-              onChange={(e) => setHours((h) => ({ ...h, dayEnd: e.target.value }))}
-              className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 focus:border-electric"
-            />
-            <span className="mt-1 block text-xs text-slate">
-              A job that would run past this isn&rsquo;t offered — a five-hour job stops
-              appearing in the afternoon windows.
-            </span>
-          </label>
         </div>
 
-        <label className="mt-4 block sm:w-1/2">
-          <span className="text-sm font-medium text-navy">Arrival window length</span>
-          <select
-            value={hours.windowMinutes}
-            onChange={(e) => setHours((h) => ({ ...h, windowMinutes: Number(e.target.value) }))}
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 focus:border-electric"
-          >
-            <option value={120}>2 hours</option>
-            <option value={180}>3 hours</option>
-            <option value={240}>4 hours</option>
-          </select>
-          <span className="mt-1 block text-xs text-slate">
-            How wide a window we promise — &ldquo;someone will arrive between 8 and 11&rdquo;.
-          </span>
-        </label>
-      </div>
+        <div className="p-4 sm:p-6">
+          <div>
+            <h3 className="text-sm font-semibold text-navy">Days you work</h3>
+            <p className="mt-1 text-xs leading-5 text-slate">
+              These are Price2Book booking days. They do not change another scheduling system.
+            </p>
+            <div className="mt-3 grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
+              {DAYS.map((d) => {
+                const on = hours.workingDays.includes(d.n);
+                return (
+                  <button
+                    key={d.n}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleDay(d.n)}
+                    className={`min-h-10 rounded-pill border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric/30 sm:px-4 ${
+                      on
+                        ? "border-electric bg-electric text-white shadow-sm"
+                        : "border-cardline bg-white text-slate hover:border-electric/40 hover:bg-warmwhite hover:text-navy"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+            </div>
 
-      <div className="rounded-card border border-cardline bg-warmwhite p-6">
-        <h2 className="font-display text-base font-bold text-navy">
-          What customers will see
-        </h2>
-        <p className="mt-0.5 text-sm text-slate">
-          Generated from the hours above, so the two can&rsquo;t drift apart.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+            {hours.workingDays.length === 0 && (
+              <p className="mt-3 rounded-card border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Select at least one day before saving. With no days selected, customers cannot book online.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <label className="block rounded-card border border-cardline bg-warmwhite/40 p-4">
+              <span className="text-sm font-semibold text-navy">Crews start</span>
+              <span className="mt-1 block text-xs text-slate">First time a customer can be offered an arrival window.</span>
+              <input
+                type="time"
+                value={hours.dayStart}
+                onChange={(e) => setHours((h) => ({ ...h, dayStart: e.target.value }))}
+                className="mt-3 w-full rounded-card border border-cardline bg-white px-4 py-2.5 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10"
+              />
+            </label>
+            <label className="block rounded-card border border-cardline bg-warmwhite/40 p-4">
+              <span className="text-sm font-semibold text-navy">Crews finish</span>
+              <span className="mt-1 block text-xs text-slate">Jobs that would run past this time are not offered.</span>
+              <input
+                type="time"
+                value={hours.dayEnd}
+                onChange={(e) => setHours((h) => ({ ...h, dayEnd: e.target.value }))}
+                className="mt-3 w-full rounded-card border border-cardline bg-white px-4 py-2.5 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10"
+              />
+            </label>
+          </div>
+
+          <label className="mt-4 block rounded-card border border-cardline p-4 sm:max-w-md">
+            <span className="text-sm font-semibold text-navy">Arrival window length</span>
+            <span className="mt-1 block text-xs leading-5 text-slate">How wide a promise customers see, such as “8–11 AM.”</span>
+            <select
+              value={hours.windowMinutes}
+              onChange={(e) => setHours((h) => ({ ...h, windowMinutes: Number(e.target.value) }))}
+              className="mt-3 w-full rounded-card border border-cardline bg-white px-4 py-2.5 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10"
+            >
+              <option value={120}>2 hours</option>
+              <option value={180}>3 hours</option>
+              <option value={240}>4 hours</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className="rounded-card border border-cardline bg-white p-4 shadow-card sm:p-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate">Customer view</p>
+            <h2 className="mt-1 font-display text-base font-bold text-navy">Arrival windows generated from your hours</h2>
+          </div>
+          <span className="text-xs font-medium text-slate">{windows.length} window{windows.length === 1 ? "" : "s"} per day</span>
+        </div>
+        <p className="mt-2 text-sm text-slate">This is what customers will choose from when they book.</p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           {windows.map((w) => (
             <span
               key={w.start}
-              className="rounded-pill border border-cardline bg-white px-4 py-2 text-sm text-navy"
+              className="rounded-card border border-cardline bg-warmwhite px-3 py-2 text-center text-sm font-medium text-navy sm:rounded-pill sm:px-4"
             >
               {w.start} – {w.end}
             </span>
           ))}
           {windows.length === 0 && (
-            <span className="text-sm text-amber-700">No windows — check the times.</span>
+            <span className="col-span-2 rounded-card border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              No arrival windows are being generated. Check the selected days and times.
+            </span>
           )}
         </div>
-        {/* The last window is often shorter, and that's deliberate rather than
-            a rounding accident — worth saying so nobody "fixes" it. */}
-        <p className="mt-3 text-xs text-slate">
-          The last window is whatever time is left in the day. If that would be
-          under an hour it gets folded into the one before it.
+        <p className="mt-3 text-xs leading-5 text-slate">
+          If the final window would be shorter than an hour, Price2Book folds it into the previous window instead of showing an awkward short slot.
         </p>
-      </div>
+      </section>
 
       {note && (
         <p
-          className={`rounded-card p-3 text-sm ${
-            note.warn ? "bg-amber-50 text-amber-900" : "bg-electric/5 text-navy"
+          role="status"
+          className={`rounded-card border p-3 text-sm ${
+            note.warn ? "border-amber-200 bg-amber-50 text-amber-900" : "border-electric/15 bg-electric/5 text-navy"
           }`}
         >
           {note.text}
         </p>
       )}
 
-      <button
-        onClick={save}
-        disabled={saving || !dirty || hours.workingDays.length === 0}
-        className="rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white hover:bg-electric-hover disabled:opacity-50"
-      >
-        {saving ? "Saving..." : dirty ? "Save changes" : "Saved"}
-      </button>
+      <div className="flex justify-stretch sm:justify-end">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !dirty || hours.workingDays.length === 0}
+          className="w-full rounded-pill bg-electric px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-electric-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-36"
+        >
+          {saving ? "Saving..." : dirty ? "Save working hours" : "Saved"}
+        </button>
+      </div>
     </div>
   );
 }
