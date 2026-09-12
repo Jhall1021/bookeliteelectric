@@ -21,6 +21,15 @@ export default function NativeCapacityControl({
       return;
     }
 
+    if (trimmed !== "") {
+      const jobs = Number(trimmed);
+      if (!Number.isSafeInteger(jobs) || jobs < 1 || jobs > 100) {
+        setError("Enter a booking capacity between 1 and 100 jobs.");
+        setState("idle");
+        return;
+      }
+    }
+
     setState("saving");
     setError(null);
     try {
