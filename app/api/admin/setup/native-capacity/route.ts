@@ -33,10 +33,23 @@ export async function PATCH(req: Request) {
     });
   }
 
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1 || n > 100) {
+  // Forms may send a numeric string, but booleans/objects must not be allowed
+  // through JavaScript's Number() coercion (Number(true) === 1). Capacity is a
+  // deliberate operating decision, not something malformed JSON can invent.
+  if (
+    (typeof raw !== "number" && typeof raw !== "string") ||
+    (typeof raw === "string" && raw.trim() === "")
+  ) {
     return NextResponse.json(
-      { error: "Tell us a whole number of jobs, at least 1." },
+      { error: "Tell us a whole number of jobs between 1 and 100." },
+      { status: 400 }
+    );
+  }
+
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < 1 || n > 100) {
+    return NextResponse.json(
+      { error: "Tell us a whole number of jobs between 1 and 100." },
       { status: 400 }
     );
   }
