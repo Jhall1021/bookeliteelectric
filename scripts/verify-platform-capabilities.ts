@@ -130,4 +130,22 @@ for (const [fn, capability] of uiChecks) {
   assert.ok(body.includes(`can(\"${capability}\")`), `${fn} should keep a friendly ${capability} precheck`);
 }
 
+// Presentation follows the same decisions. Support must be able to inspect the
+// workflow without seeing mutation affordances; onboarding may set up but not
+// launch/retire; admin sees all three capability-controlled action groups.
+const detailPage = fs.readFileSync(path.join(process.cwd(), "app/platform/onboarding/[contractorId]/page.tsx"), "utf8");
+for (const [local, capability] of [
+  ["canOnboard", "CONTRACTOR_ONBOARD"],
+  ["canLaunch", "CONTRACTOR_LAUNCH"],
+  ["canRetire", "CONTRACTOR_RETIRE"],
+] as const) {
+  assert.ok(
+    detailPage.includes(`const ${local} = hasPlatformCapability(s.facts.actor.role, \"${capability}\")`),
+    `Onboarding detail must derive ${local} from ${capability}`,
+  );
+}
+assert.ok(detailPage.includes("{canLaunch && s.progress === \"ready\" && ("), "Launch form must be capability-gated");
+assert.ok(detailPage.includes("{canRetire && !retired && ("), "Retire form must be capability-gated");
+assert.ok(detailPage.includes("{canOnboard && !retired && !ownerDone && ("), "Owner setup actions must be capability-gated");
+
 console.log("platform capabilities: verified");
