@@ -19,102 +19,125 @@ import type { PricingSettings } from "@/lib/pricing";
 // So a save that would do that now takes two steps. The first returns the
 // impact and writes nothing; the second must acknowledge the exact number it
 // was shown. Both are recorded in PricingSettingsChange with who made them.
-export async function PATCH(req: Request) {
-  return withAdminRoute(async (db, ctx) => {
 
-  const {
-    crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents,
-    /** The `affected` count from the preview. Absent on the first call. */
-    acknowledgeImpact,
-    note,
-  } = await req.json();
+function nonNegativeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+export async function PATCH(req: Request) {
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
+  }
+
+  const crewHourRateCents = nonNegativeInteger(body.crewHourRateCents);
+  const primaryMinimumCents = nonNegativeInteger(body.primaryMinimumCents);
+  const roundingIncrementCents = nonNegativeInteger(body.roundingIncrementCents);
+  const defaultPermitAdminCents = nonNegativeInteger(body.defaultPermitAdminCents);
 
   if (
-    typeof crewHourRateCents !== "number" ||
-    typeof primaryMinimumCents !== "number" ||
-    typeof roundingIncrementCents !== "number" ||
-    typeof defaultPermitAdminCents !== "number"
+    crewHourRateCents === null ||
+    primaryMinimumCents === null ||
+    roundingIncrementCents === null ||
+    roundingIncrementCents < 1 ||
+    defaultPermitAdminCents === null
   ) {
-    return NextResponse.json({ error: "Invalid values" }, { status: 400 });
-  }
-  if (crewHourRateCents < 0 || primaryMinimumCents < 0 || roundingIncrementCents < 1) {
-    return NextResponse.json({ error: "Invalid values" }, { status: 400 });
-  }
-
-  const before = await db.pricingSettings.findUnique({
-    where: { contractorId: ctx.contractorId },
-  });
-
-  const proposed = {
-    crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents,
-  } as PricingSettings;
-
-  // Only the figures that price work can put the book out of agreement.
-  // Rounding and the permit default are stored the same way but do not move a
-  // derived total on their own, so they never trigger the confirmation.
-  const pricingFiguresMoved =
-    !before ||
-    before.crewHourRateCents !== crewHourRateCents ||
-    before.primaryMinimumCents !== primaryMinimumCents;
-
-  const impact = pricingFiguresMoved
-    ? await pricingSettingsImpact(db, ctx.contractorId, proposed)
-    : null;
-
-  if (impact && impact.affected > 0 && acknowledgeImpact !== impact.affected) {
-    // Nothing written. The count must come back exactly, so that what is
-    // acknowledged is the impact that was actually shown — not a stale one
-    // from a preview taken before somebody else changed a price.
     return NextResponse.json(
-      {
-        error: "IMPACT_CONFIRMATION_REQUIRED",
-        impact,
-        message:
-          `${impact.affected} published price point(s) would no longer agree with ` +
-          `the model. No customer price changes now; re-send with ` +
-          `acknowledgeImpact: ${impact.affected} to save.`,
-      },
-      { status: 409 }
+      { error: "Pricing settings must be whole, non-negative cent amounts; rounding must be at least 1 cent." },
+      { status: 400 }
     );
   }
 
-  // ADR-007a: keyed by contractor. `id: "default"` meant one labor rate for
-  // every contractor — and this route SETS the rate that prices their work.
-  await db.pricingSettings.upsert({
-    where: { contractorId: ctx.contractorId },
-    update: { crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents },
-    create: {
-      contractorId: ctx.contractorId,
-      crewHourRateCents,
-      primaryMinimumCents,
-      roundingIncrementCents,
-      defaultPermitAdminCents,
-    },
-  });
+  if (
+    body.acknowledgeImpact !== undefined &&
+    (!Number.isSafeInteger(body.acknowledgeImpact) || (body.acknowledgeImpact as number) < 0)
+  ) {
+    return NextResponse.json({ error: "Impact acknowledgement must be a non-negative whole number." }, { status: 400 });
+  }
+  if (body.note !== undefined && body.note !== null && typeof body.note !== "string") {
+    return NextResponse.json({ error: "Change note must be text." }, { status: 400 });
+  }
 
-  // Recorded even when nothing moved and even when the impact was zero: the
-  // history is only trustworthy if it is complete. A gap in it reads as "no
-  // change was made", which is the one thing it must never say wrongly.
-  await db.pricingSettingsChange.create({
-    data: {
-      contractorId: ctx.contractorId,
-      changedByUserId: ctx.userId,
-      changedByEmail: ctx.email,
-      fromCrewHourRateCents: before?.crewHourRateCents ?? crewHourRateCents,
-      toCrewHourRateCents: crewHourRateCents,
-      fromPrimaryMinimumCents: before?.primaryMinimumCents ?? primaryMinimumCents,
-      toPrimaryMinimumCents: primaryMinimumCents,
-      fromRoundingIncrementCents: before?.roundingIncrementCents ?? roundingIncrementCents,
-      toRoundingIncrementCents: roundingIncrementCents,
-      fromDefaultPermitAdminCents: before?.defaultPermitAdminCents ?? defaultPermitAdminCents,
-      toDefaultPermitAdminCents: defaultPermitAdminCents,
-      publishedPricesAffected: impact?.affected ?? 0,
-      impactAcknowledged: Boolean(impact && impact.affected > 0),
-      note: typeof note === "string" && note.trim() ? note.trim().slice(0, 500) : null,
-    },
-  });
+  const acknowledgeImpact = body.acknowledgeImpact as number | undefined;
+  const note = typeof body.note === "string" ? body.note : null;
 
-  return NextResponse.json({ ok: true, impact });
+  return withAdminRoute(async (db, ctx) => {
+    const before = await db.pricingSettings.findUnique({
+      where: { contractorId: ctx.contractorId },
+    });
+
+    const proposed = {
+      crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents,
+    } as PricingSettings;
+
+    // Only the figures that price work can put the book out of agreement.
+    // Rounding and the permit default are stored the same way but do not move a
+    // derived total on their own, so they never trigger the confirmation.
+    const pricingFiguresMoved =
+      !before ||
+      before.crewHourRateCents !== crewHourRateCents ||
+      before.primaryMinimumCents !== primaryMinimumCents;
+
+    const impact = pricingFiguresMoved
+      ? await pricingSettingsImpact(db, ctx.contractorId, proposed)
+      : null;
+
+    if (impact && impact.affected > 0 && acknowledgeImpact !== impact.affected) {
+      // Nothing written. The count must come back exactly, so that what is
+      // acknowledged is the impact that was actually shown — not a stale one
+      // from a preview taken before somebody else changed a price.
+      return NextResponse.json(
+        {
+          error: "IMPACT_CONFIRMATION_REQUIRED",
+          impact,
+          message:
+            `${impact.affected} published price point(s) would no longer agree with ` +
+            `the model. No customer price changes now; re-send with ` +
+            `acknowledgeImpact: ${impact.affected} to save.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // ADR-007a: keyed by contractor. `id: "default"` meant one labor rate for
+    // every contractor — and this route SETS the rate that prices their work.
+    await db.pricingSettings.upsert({
+      where: { contractorId: ctx.contractorId },
+      update: { crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents },
+      create: {
+        contractorId: ctx.contractorId,
+        crewHourRateCents,
+        primaryMinimumCents,
+        roundingIncrementCents,
+        defaultPermitAdminCents,
+      },
+    });
+
+    // Recorded even when nothing moved and even when the impact was zero: the
+    // history is only trustworthy if it is complete. A gap in it reads as "no
+    // change was made", which is the one thing it must never say wrongly.
+    await db.pricingSettingsChange.create({
+      data: {
+        contractorId: ctx.contractorId,
+        changedByUserId: ctx.userId,
+        changedByEmail: ctx.email,
+        fromCrewHourRateCents: before?.crewHourRateCents ?? crewHourRateCents,
+        toCrewHourRateCents: crewHourRateCents,
+        fromPrimaryMinimumCents: before?.primaryMinimumCents ?? primaryMinimumCents,
+        toPrimaryMinimumCents: primaryMinimumCents,
+        fromRoundingIncrementCents: before?.roundingIncrementCents ?? roundingIncrementCents,
+        toRoundingIncrementCents: roundingIncrementCents,
+        fromDefaultPermitAdminCents: before?.defaultPermitAdminCents ?? defaultPermitAdminCents,
+        toDefaultPermitAdminCents: defaultPermitAdminCents,
+        publishedPricesAffected: impact?.affected ?? 0,
+        impactAcknowledged: Boolean(impact && impact.affected > 0),
+        note: note && note.trim() ? note.trim().slice(0, 500) : null,
+      },
+    });
+
+    return NextResponse.json({ ok: true, impact });
   });
 }
 
