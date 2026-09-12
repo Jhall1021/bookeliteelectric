@@ -20,10 +20,14 @@ const STAGES = new Set([
 ]);
 
 export async function PATCH(req: Request) {
-  let body: { currentStage?: unknown; acknowledge?: unknown };
-  try { body = await req.json(); } catch {
+  let parsed: unknown;
+  try { parsed = await req.json(); } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as { currentStage?: unknown; acknowledge?: unknown };
 
   if (body.currentStage !== undefined) {
     if (typeof body.currentStage !== "string" || !STAGES.has(body.currentStage)) {
