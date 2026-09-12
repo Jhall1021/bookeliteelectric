@@ -467,6 +467,7 @@ export async function POST(req: Request) {
           },
         });
 
+        const packageCost = packagePriceCents !== undefined && packageQuantity !== undefined;
         const material = await db.contractorMaterial.upsert({
           where: {
             contractorId_canonicalMaterialId: {
@@ -477,13 +478,20 @@ export async function POST(req: Request) {
           update: {
             unitCostCents: derived.unitCostCents,
             unitCostMilliCents: derived.unitCostMilliCents,
+            packagePriceCents: packageCost ? packagePriceCents : null,
+            packageQuantity: packageCost ? packageQuantity : null,
+            packageUnit: packageCost ? (packageUnit ?? unit ?? "each") : null,
+            costSource: "CUSTOM",
+            costConfidence: confidence ?? "CONFIRMED",
+            costStatus: "OK",
+            costUpdatedAt: new Date(),
           },
           create: {
             contractorId,
             canonicalMaterialId: canonical.id,
             unitCostCents: derived.unitCostCents,
             unitCostMilliCents: derived.unitCostMilliCents,
-            ...(packagePriceCents !== undefined && packageQuantity !== undefined
+            ...(packageCost
               ? {
                   packagePriceCents,
                   packageQuantity,
