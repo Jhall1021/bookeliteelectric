@@ -50,6 +50,7 @@ import { prisma } from "./prisma";
 import { currentUser, NotAuthenticatedError } from "./adminContext";
 import { asPlatform } from "./tenantContext";
 import { withContractor } from "./tenantRoute";
+import { PlatformCapabilityError, requirePlatformCapability } from "./platformCapabilities";
 
 export { NotAuthenticatedError };
 
@@ -135,8 +136,8 @@ export async function resolvePlatformActor(): Promise<PlatformActor> {
 
 /**
  * Cross-tenant platform reads — the directory, counts, anything not inside
- * one contractor. The actor is resolved first; only then does the callback
- * receive the unguarded client, and only inside `asPlatform()`.
+ * one contractor. PLATFORM_READ is required before the callback receives the
+ * unguarded client, and only inside `asPlatform()`.
  */
 export async function withPlatformFor<T>(
   db: PrismaClient,
@@ -144,6 +145,7 @@ export async function withPlatformFor<T>(
   fn: (db: PrismaClient, actor: PlatformActor) => Promise<T>
 ): Promise<T> {
   const actor = await platformActorFor(db, user);
+  requirePlatformCapability(actor.role, "PLATFORM_READ");
   return asPlatform(async () => await fn(db, actor));
 }
 
@@ -156,9 +158,10 @@ export async function withPlatform<T>(
 /**
  * Staff entering ONE contractor.
  *
- *   1. authorize — before `contractorId` is so much as inspected
- *   2. validate — the id must be a plausible id, then must resolve
- *   3. scope — the same withContractor() guard as every other path
+ *   1. authenticate / resolve active PlatformAccess
+ *   2. authorize PLATFORM_READ
+ *   3. validate — the id must be a plausible id, then must resolve
+ *   4. scope — the same withContractor() guard as every other path
  *
  * The callback receives the GUARDED client, so a foreign service or booking
  * id inside it resolves to nothing, exactly as it would for the contractor's
@@ -176,6 +179,7 @@ export async function withPlatformContractorFor<T>(
   fn: (db: PrismaClient, actor: PlatformActor, contractor: PlatformContractor) => Promise<T>
 ): Promise<T> {
   const actor = await platformActorFor(db, user);
+  requirePlatformCapability(actor.role, "PLATFORM_READ");
 
   if (typeof contractorId !== "string" || !PLAUSIBLE_ID.test(contractorId)) {
     throw new PlatformContractorNotFoundError();
@@ -203,11 +207,13 @@ export async function withPlatformContractor<T>(
  *
  *   401  no session
  *   403  session, but not platform staff (never granted, or revoked)
- *   404  staff, but the contractor named does not resolve
+ *   403  staff identity exists but lacks the required platform capability
+ *   404  staff with read authority, but the contractor named does not resolve
  */
 export function platformRefusal(e: unknown): Response | null {
   if (e instanceof NotAuthenticatedError) return Response.json({ error: "Not signed in." }, { status: 401 });
   if (e instanceof NotPlatformStaffError) return Response.json({ error: e.message }, { status: 403 });
+  if (e instanceof PlatformCapabilityError) return Response.json({ error: e.message }, { status: 403 });
   if (e instanceof PlatformContractorNotFoundError) return Response.json({ error: e.message }, { status: 404 });
   return null;
 }
