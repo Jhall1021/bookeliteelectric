@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import type { PrismaClient } from "@prisma/client";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
 import {
   setContractorMaterialCost,
   recomputeServiceMaterialCost,
@@ -11,7 +10,7 @@ import {
   impliedPackagePriceCents,
   MaterialCostError,
 } from "@/lib/materialCost";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 
 /**
  * A service's material list, and the shared catalog behind it.
@@ -103,8 +102,8 @@ function numberValue(
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return NextResponse.json({ error: `${label} must be a valid number.` }, { status: 400 });
   }
-  if (options.integer && !Number.isInteger(value)) {
-    return NextResponse.json({ error: `${label} must be a whole number.` }, { status: 400 });
+  if (options.integer && !Number.isSafeInteger(value)) {
+    return NextResponse.json({ error: `${label} must be a safe whole number.` }, { status: 400 });
   }
   if (options.min !== undefined && value < options.min) {
     return NextResponse.json({ error: `${label} must be ${options.min} or greater.` }, { status: 400 });
@@ -126,9 +125,6 @@ function confidenceValue(value: unknown): "CONFIRMED" | "ASSUMED" | undefined | 
 }
 
 export async function GET(req: Request) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
   const { searchParams } = new URL(req.url);
   const serviceId = searchParams.get("serviceId");
 
@@ -142,7 +138,7 @@ export async function GET(req: Request) {
   // and includes the canonical role from there. Rooting at CanonicalMaterial
   // and nesting contractorMaterials would be the platform-parent shape the
   // live harness proved the guard cannot see.
-  return withAdminContractor(async (db, ctx) => {
+  return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
     const catalog = await db.contractorMaterial.findMany({
       where: { contractorId, active: true },
@@ -226,13 +222,13 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
   let body: Record<string, unknown>;
   try {
-    body = await req.json();
+    const parsed: unknown = await req.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+    }
+    body = parsed as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
@@ -244,7 +240,7 @@ export async function POST(req: Request) {
 
   // GUARD-ADOPTED (ADR-007a). One context for the whole handler; every action
   // below reads and writes through the guarded client.
-  return withAdminContractor(async (db, ctx) => {
+  return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
     try {
       // ---- add a material to a service ----------------------------------
