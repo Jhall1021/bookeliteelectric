@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Area = { id: string; name: string; zipCodes: string[]; active: boolean };
@@ -35,24 +35,45 @@ export default function ServiceAreaForm({
   const selected = new Set(area?.zipCodes ?? []);
 
   async function send(body: Record<string, unknown>) {
+    if (busy) return;
     setBusy(true);
     setNote(null);
-    const res = await fetch("/api/admin/service-area", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: area?.id, ...body }),
-    });
-    setBusy(false);
-    const data = await res.json();
-    if (!res.ok) {
-      setNote({ text: data.error ?? "Something went wrong.", warn: true });
-      return;
+    try {
+      const res = await fetch("/api/admin/service-area", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: area?.id, ...body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNote({
+          text: typeof data.error === "string" ? data.error : "Could not save the service area. Nothing was changed.",
+          warn: true,
+        });
+        return;
+      }
+      const savedZipCount = Array.isArray(data.area?.zipCodes) ? data.area.zipCodes.length : null;
+      setNote({
+        text: typeof data.warning === "string"
+          ? data.warning
+          : savedZipCount !== null
+            ? `Saved — ${savedZipCount} ZIP codes.`
+            : "Service area saved.",
+        warn: typeof data.warning === "string",
+      });
+      router.refresh();
+    } catch {
+      // A service-area write may have committed before the browser lost the
+      // response. Refresh from the server instead of encouraging a blind retry
+      // that could toggle booking or ZIP membership a second time.
+      setNote({
+        text: "Price2Book lost the response while saving. Refreshing the current service area now — confirm it before trying again.",
+        warn: true,
+      });
+      router.refresh();
+    } finally {
+      setBusy(false);
     }
-    setNote({
-      text: data.warning ?? `Saved — ${data.area.zipCodes.length} ZIP codes.`,
-      warn: !!data.warning,
-    });
-    router.refresh();
   }
 
   async function loadCounty(c: County) {
@@ -63,12 +84,18 @@ export default function ServiceAreaForm({
     }
     setOpenCounty(key);
     if (countyZips[key]) return;
-    const res = await fetch(
-      `/api/admin/service-area?state=${c.state}&county=${encodeURIComponent(c.county)}`
-    );
-    if (res.ok) {
-      const d = await res.json();
-      setCountyZips((s) => ({ ...s, [key]: d.zips }));
+    try {
+      const res = await fetch(
+        `/api/admin/service-area?state=${c.state}&county=${encodeURIComponent(c.county)}`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !Array.isArray(data.zips)) {
+        setNote({ text: "Could not load this county's ZIP codes. Try opening it again.", warn: true });
+        return;
+      }
+      setCountyZips((s) => ({ ...s, [key]: data.zips }));
+    } catch {
+      setNote({ text: "Could not reach Price2Book to load this county's ZIP codes.", warn: true });
     }
   }
 
@@ -175,7 +202,7 @@ export default function ServiceAreaForm({
       </section>
 
       {note && (
-        <p role="status" className={`rounded-card border p-3 text-sm ${note.warn ? "border-amber-200 bg-amber-50 text-amber-900" : "border-electric/15 bg-electric/5 text-navy"}`}>
+        <p role={note.warn ? "alert" : "status"} className={`rounded-card border p-3 text-sm ${note.warn ? "border-amber-200 bg-amber-50 text-amber-900" : "border-electric/15 bg-electric/5 text-navy"}`}>
           {note.text}
         </p>
       )}
