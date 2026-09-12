@@ -112,6 +112,10 @@ export async function resolvePolicy(
     if (!choice) {
       return { ok: false, refusal: { code: "CHOICE_REQUIRED", message: "This policy needs an answer." } };
     }
+    // Count BEFORE clearing the key. Counting afterward always reports zero,
+    // which made a successful resolution look as though it affected no
+    // services even when several were just unblocked.
+    const servicesToClear = await countServicesWith(db, contractorId, key);
     await db.$transaction(async (tx) => {
       await tx.contractorPolicyValue.update({
         where: { id: value.id },
@@ -119,8 +123,7 @@ export async function resolvePolicy(
       });
       await clearKeyFromServices(tx as unknown as PrismaClient, contractorId, key);
     });
-    const cleared = await countServicesWith(db, contractorId, key);
-    return { ok: true, key, optionsRelabeled: 0, servicesCleared: cleared };
+    return { ok: true, key, optionsRelabeled: 0, servicesCleared: servicesToClear };
   }
 
   const boundaries = answer.boundaries ?? [];
@@ -161,6 +164,9 @@ export async function resolvePolicy(
     }
   }
 
+  // Same rule as the choice path: capture the impact while the unresolved key
+  // still exists. After the transaction succeeds those rows no longer match.
+  const servicesToClear = await countServicesWith(db, contractorId, key);
   await db.$transaction(async (tx) => {
     await tx.contractorPolicyValue.update({
       where: { id: value.id },
@@ -172,8 +178,7 @@ export async function resolvePolicy(
     await clearKeyFromServices(tx as unknown as PrismaClient, contractorId, key);
   });
 
-  const cleared = await countServicesWith(db, contractorId, key);
-  return { ok: true, key, optionsRelabeled: rendered.length, servicesCleared: cleared };
+  return { ok: true, key, optionsRelabeled: rendered.length, servicesCleared: servicesToClear };
 }
 
 async function countServicesWith(db: PrismaClient, contractorId: string, key: string) {
