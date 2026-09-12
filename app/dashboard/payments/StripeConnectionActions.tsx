@@ -16,6 +16,7 @@ export default function StripeConnectionActions({ connected, ready }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   async function beginOnboarding() {
+    if (busy !== null) return;
     setBusy("connect");
     setError(null);
     try {
@@ -27,13 +28,19 @@ export default function StripeConnectionActions({ connected, ready }: Props) {
       }
       window.location.assign(data.onboardingUrl);
     } catch {
-      setError("Price2Book could not reach the payment setup service. Check your connection and try again.");
+      // This request can create and persist a connected Stripe account before
+      // returning the hosted onboarding URL. A dropped browser response is
+      // therefore ambiguous; refresh local state before inviting another
+      // connect attempt instead of assuming nothing happened.
+      setError("Price2Book lost the response while starting Stripe setup. Refreshing the payment status now — confirm it before trying again.");
+      router.refresh();
     } finally {
       setBusy(null);
     }
   }
 
   async function refreshReadiness({ cleanUrl = false }: { cleanUrl?: boolean } = {}) {
+    if (busy !== null) return;
     setBusy("refresh");
     setError(null);
     try {
@@ -50,7 +57,12 @@ export default function StripeConnectionActions({ connected, ready }: Props) {
       if (cleanUrl) router.replace("/dashboard/payments");
       router.refresh();
     } catch {
-      setError("Price2Book could not refresh Stripe status. Check your connection and try again.");
+      // Readiness refresh persists Stripe facts. If the response disappears,
+      // re-render from server state rather than telling the contractor the
+      // refresh definitely failed.
+      setError("Price2Book lost the response while checking Stripe. Refreshing the saved payment status now.");
+      if (cleanUrl) router.replace("/dashboard/payments");
+      router.refresh();
     } finally {
       setBusy(null);
     }
