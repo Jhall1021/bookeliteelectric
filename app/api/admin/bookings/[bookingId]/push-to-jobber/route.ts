@@ -19,19 +19,38 @@ export async function POST(_req: Request, { params }: { params: { bookingId: str
       return NextResponse.json({ ok: true, alreadySent: true });
     }
 
+    let result;
     try {
-      const result = await pushBookingToJobber(ctx.contractorId, db, owned.id);
+      result = await pushBookingToJobber(ctx.contractorId, db, owned.id);
+    } catch (err) {
+      console.error("Push to Jobber failed before completion:", err);
+      return NextResponse.json(
+        { error: "Could not send this booking to Jobber. Try again in a moment." },
+        { status: 502 }
+      );
+    }
+
+    try {
       await db.booking.update({
         where: { id: owned.id },
         data: { jobberJobId: result.jobberJobId },
       });
-      return NextResponse.json({ ok: true, jobNumber: result.jobNumber, alreadySent: false });
     } catch (err) {
-      console.error("Push to Jobber failed:", err);
+      console.error(
+        "Jobber returned success but Price2Book could not persist the result for booking",
+        owned.id,
+        err
+      );
       return NextResponse.json(
-        { error: "Could not send this booking to Jobber. Nothing was marked as sent; try again." },
+        {
+          error:
+            "Jobber returned a result, but Price2Book could not finish recording it. Check Jobber before trying again.",
+          uncertain: true,
+        },
         { status: 502 }
       );
     }
+
+    return NextResponse.json({ ok: true, jobNumber: result.jobNumber, alreadySent: false });
   });
 }
