@@ -110,10 +110,9 @@ function CardFields({ apiRef }: { apiRef: MutableRefObject<DepositCardApi | null
 }
 
 export default function DepositPayment({
-  depositDueCents, creditsToJob, publishableKey, stripeAccountId, apiRef,
+  depositDueCents, publishableKey, stripeAccountId, apiRef,
 }: {
   depositDueCents: number;
-  creditsToJob: boolean;
   publishableKey: string;
   stripeAccountId: string;
   apiRef: MutableRefObject<DepositCardApi | null>;
@@ -129,12 +128,11 @@ export default function DepositPayment({
   return (
     <div className="rounded-card border border-cardline p-4">
       <h2 className="text-sm font-semibold text-navy">Deposit</h2>
-      {/* Locked wording. The customer is booking the actual fixed-price
-          project, so the deposit is stated as applied TOWARD it — not as a
-          fee, and not as a payment for an estimate. */}
+      {/* A captured deposit is payment against the booking balance. It is not
+          a fee and there is no service-level switch that can make paid money
+          stop counting toward the project total. */}
       <p className="mt-1 text-sm text-slate">
-        A {dollars} deposit is required when booking
-        {creditsToJob ? " and will be applied toward your project." : "."}
+        A {dollars} deposit is required when booking and will be applied toward your project.
       </p>
       <div className="mt-4">
         <Elements stripe={stripeFor(publishableKey, stripeAccountId)} options={options}>
