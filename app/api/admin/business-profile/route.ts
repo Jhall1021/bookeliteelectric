@@ -33,10 +33,16 @@ import { readBusinessProfileRequest } from "@/lib/businessProfileRequest";
 import { setTradeEnrolment } from "@/lib/tradeEnrolment";
 
 export async function PATCH(req: Request) {
-  let body: Record<string, unknown>;
-  try { body = await req.json(); } catch {
+  let parsed: unknown;
+  try {
+    parsed = await req.json();
+  } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as Record<string, unknown>;
 
   const request = readBusinessProfileRequest(body);
   if (!request.ok) {
