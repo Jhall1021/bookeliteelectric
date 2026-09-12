@@ -23,31 +23,42 @@ export default function SchedulingAuthorityControl({
   }
 
   return (
-    <div>
-      <div className="space-y-2">
-        {([
-          ["NATIVE", "Price2Book", "We keep your availability from your working hours and bookings."],
-          ["EXTERNAL", "A system I already use", "Your existing calendar decides. We never show a slot we could not check against it."],
-        ] as const).map(([value, label, blurb]) => (
-          <label
-            key={value}
-            className={`flex cursor-pointer items-start gap-3 rounded-card border p-4 ${
-              authority === value ? "border-electric bg-electric/5" : "border-cardline"
-            }`}
-          >
-            <input
-              type="radio" name="authority" className="mt-1"
-              checked={authority === value} disabled={busy}
-              onChange={() => choose(value)}
-            />
-            <span className="text-sm">
-              <span className="font-medium text-navy">{label}</span>
-              <span className="block text-slate">{blurb}</span>
-            </span>
-          </label>
-        ))}
+    <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
+      <div className="border-b border-cardline bg-warmwhite/60 px-5 py-4 sm:px-6">
+        <h3 className="font-display text-lg font-bold text-navy">Who should control your calendar?</h3>
+        <p className="mt-1 text-sm text-slate">Price2Book needs one scheduling source of truth so customers only see times you can actually honor.</p>
       </div>
-      {error && <div className="mt-3 rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      <div className="space-y-3 p-5 sm:p-6">
+        {([
+          ["NATIVE", "Let Price2Book manage availability", "Best if you want Price2Book to calculate open times from your working hours, capacity, and existing bookings.", "Built-in scheduling"],
+          ["EXTERNAL", "Use the scheduling system I already have", "Best if another calendar or field-service platform should remain authoritative for what times are available.", "Keep your current calendar"],
+        ] as const).map(([value, label, blurb, eyebrow]) => {
+          const selected = authority === value;
+          return (
+            <label
+              key={value}
+              className={`group flex cursor-pointer items-start gap-4 rounded-card border p-4 transition ${
+                selected ? "border-electric bg-electric/[0.04] ring-1 ring-electric/10" : "border-cardline bg-white hover:border-electric/50 hover:bg-warmwhite/40"
+              }`}
+            >
+              <input
+                type="radio" name="authority" className="mt-1 h-4 w-4 accent-electric"
+                checked={selected} disabled={busy}
+                onChange={() => choose(value)}
+              />
+              <span className="min-w-0 flex-1">
+                <span className={`text-[11px] font-semibold uppercase tracking-wide ${selected ? "text-electric" : "text-slate"}`}>{eyebrow}</span>
+                <span className="mt-0.5 block text-sm font-semibold text-navy">{label}</span>
+                <span className="mt-1 block text-sm leading-relaxed text-slate">{blurb}</span>
+              </span>
+              {selected && <span className="shrink-0 rounded-pill bg-electric px-2.5 py-1 text-[11px] font-semibold text-white">Selected</span>}
+            </label>
+          );
+        })}
+        {busy && <p className="text-xs text-slate">Saving your scheduling choice…</p>}
+        {error && <div className="rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      </div>
     </div>
   );
 }
