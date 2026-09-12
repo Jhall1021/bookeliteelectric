@@ -24,24 +24,52 @@ export default function TradePanel({
   const [confirming, setConfirming] = useState(false);
 
   async function enrol(tradeKey: string) {
-    setBusy(true); setError(null);
-    const res = await fetch("/api/admin/business-profile", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tradeKey }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) { setError(data.message ?? "Could not save."); return; }
-    router.refresh();
+    if (busy || installedCount > 0 || enrolled === tradeKey) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/business-profile", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tradeKey }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message ?? data.error ?? "Could not save your trade. Nothing was changed.");
+        return;
+      }
+      setConfirming(false);
+      router.refresh();
+    } catch {
+      setError("Could not reach Price2Book. Check your connection and try choosing your trade again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function install() {
-    setBusy(true); setError(null);
-    const res = await fetch("/api/admin/setup/install-catalog", { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false); setConfirming(false);
-    if (!res.ok) { setError(data.message ?? "Could not install your catalog."); return; }
-    router.refresh();
+    if (busy || installedCount > 0 || !enrolled || !preview) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/setup/install-catalog", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message ?? data.error ?? "Could not install your catalog. Nothing was published.");
+        return;
+      }
+      setConfirming(false);
+      router.refresh();
+    } catch {
+      // The request may have reached the server before the browser lost the
+      // response. Refreshing lets the server-rendered installedCount become
+      // the authority instead of inviting a blind second install attempt.
+      setError("The catalog request did not return a result. Refresh this step before trying again so Price2Book can confirm whether it was installed.");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   const label = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -61,7 +89,7 @@ export default function TradePanel({
               const locked = installedCount > 0 && !selected;
               return (
                 <label key={t} className={`relative flex cursor-pointer items-start gap-3 rounded-card border p-4 transition ${selected ? "border-electric bg-electric/5 ring-1 ring-electric/10" : "border-cardline hover:border-electric/50"} ${locked ? "cursor-not-allowed opacity-45" : ""}`}>
-                  <input type="radio" name="trade" checked={selected} disabled={busy || installedCount > 0} onChange={() => enrol(t)} className="mt-1" />
+                  <input type="radio" name="trade" checked={selected} disabled={busy || installedCount > 0} onChange={() => void enrol(t)} className="mt-1" />
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-navy">{label(t)}</span>
                     <span className="mt-1 block text-xs leading-relaxed text-slate">Start with Price2Book&apos;s prepared {label(t).toLowerCase()} services, scope questions, and rules.</span>
@@ -76,6 +104,7 @@ export default function TradePanel({
               Your catalog is already installed with <span className="font-semibold text-navy">{installedCount} services</span>, so the trade is locked here to protect the work you have already configured.
             </div>
           )}
+          {error && <div role="alert" className="mt-4 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         </div>
       </section>
 
@@ -117,7 +146,7 @@ export default function TradePanel({
               </div>
 
               {!confirming ? (
-                <button type="button" onClick={() => setConfirming(true)} disabled={busy} className="mt-5 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
+                <button type="button" onClick={() => { setError(null); setConfirming(true); }} disabled={busy} className="mt-5 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
                   Add the {label(preview.trade)} catalog
                 </button>
               ) : (
@@ -125,15 +154,15 @@ export default function TradePanel({
                   <p className="text-sm font-semibold text-navy">Add {preview.services} prepared services to your account?</p>
                   <p className="mt-1 text-xs text-slate">You can choose which ones you actually offer on the next step.</p>
                   <div className="mt-3 flex flex-wrap gap-3">
-                    <button type="button" onClick={install} disabled={busy} className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">{busy ? "Adding catalog..." : `Yes, add ${preview.services} services`}</button>
-                    <button type="button" onClick={() => setConfirming(false)} disabled={busy} className="rounded-pill border border-cardline bg-white px-5 py-2.5 text-sm font-semibold text-navy hover:border-electric">Cancel</button>
+                    <button type="button" onClick={() => void install()} disabled={busy} className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">{busy ? "Adding catalog..." : `Yes, add ${preview.services} services`}</button>
+                    <button type="button" onClick={() => { setConfirming(false); setError(null); }} disabled={busy} className="rounded-pill border border-cardline bg-white px-5 py-2.5 text-sm font-semibold text-navy hover:border-electric">Cancel</button>
                   </div>
                 </div>
               )}
             </>
           ) : null}
 
-          {error && <div className="mt-4 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+          {error && <div role="alert" className="mt-4 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         </div>
       </section>
     </div>
