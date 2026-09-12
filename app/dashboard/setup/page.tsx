@@ -108,7 +108,8 @@ export default async function SetupPage({
 
     let jobberConnected = false;
     let eligibleCrew = 0;
-    let depositing: { name: string; depositCents: number }[] = [];
+    let depositing: { name: string; source: "always" | "company" }[] = [];
+    let depositAmountCents: number | null = null;
     let stripe = { ready: false, reason: "" };
     let launchable: Launchable[] = [];
 
@@ -127,19 +128,44 @@ export default async function SetupPage({
     }
 
     if (current === "payments" || current === "launch") {
-      const rows = await db.service.findMany({
-        where: { contractorId: ctx.contractorId, offered: true, depositCents: { gt: 0 } },
-        select: { name: true, depositCents: true },
-        orderBy: { name: "asc" },
+      const [rows, cc] = await Promise.all([
+        db.service.findMany({
+          where: { contractorId: ctx.contractorId, offered: true },
+          select: { name: true, depositRule: true },
+          orderBy: { name: "asc" },
+        }),
+        db.contractor.findUniqueOrThrow({
+          where: { id: ctx.contractorId },
+          select: {
+            depositAmountCents: true,
+            depositOnEveryBooking: true,
+            depositSubtotalThresholdCents: true,
+            depositDurationThresholdMinutes: true,
+            stripeAccountId: true, stripeMerchantConfigured: true, stripeCardPaymentsStatus: true,
+            stripeOnboardingBlocked: true, stripeReadinessCheckedAt: true,
+          },
+        }),
+      ]);
+
+      // Same stored facts as lib/depositPolicy.ts and onboardingReadiness.ts.
+      // The legacy per-service depositCents field is intentionally not read:
+      // checkout collects one company deposit per booking, with service-level
+      // ALWAYS / COMPANY / NEVER precedence.
+      const companyRuleEnabled =
+        cc.depositOnEveryBooking ||
+        cc.depositSubtotalThresholdCents !== null ||
+        cc.depositDurationThresholdMinutes !== null;
+      depositing = rows.flatMap((svc) => {
+        if (svc.depositRule === "ALWAYS_REQUIRE") {
+          return [{ name: svc.name, source: "always" as const }];
+        }
+        if (svc.depositRule === "USE_COMPANY_POLICY" && companyRuleEnabled) {
+          return [{ name: svc.name, source: "company" as const }];
+        }
+        return [];
       });
-      depositing = rows.map((x) => ({ name: x.name, depositCents: x.depositCents! }));
-      const cc = await db.contractor.findUniqueOrThrow({
-        where: { id: ctx.contractorId },
-        select: {
-          stripeAccountId: true, stripeMerchantConfigured: true, stripeCardPaymentsStatus: true,
-          stripeOnboardingBlocked: true, stripeReadinessCheckedAt: true,
-        },
-      });
+      depositAmountCents = cc.depositAmountCents;
+
       const readiness = connectReadiness(cc);
       stripe = { ready: readiness.ready, reason: readiness.reason };
     }
@@ -530,6 +556,7 @@ export default async function SetupPage({
               <div className="mt-4">
                 <PaymentsPanel
                   depositing={depositing}
+                  depositAmountCents={depositAmountCents}
                   stripeReady={stripe.ready}
                   stripeReason={stripe.reason}
                   findings={stage.findings}
