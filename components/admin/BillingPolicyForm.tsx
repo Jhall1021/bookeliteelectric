@@ -58,10 +58,11 @@ export default function BillingPolicyForm({ settings }: { settings: Settings }) 
 
   function validate(): string | null {
     const number = (value: string) => value.trim() === "" ? null : Number(value);
-    const exactCents = (value: number | null) => {
+    const exactlyRepresentable = (value: number | null, scale: number) => {
       if (value === null || !Number.isFinite(value)) return true;
-      const scaled = value * 100;
-      return Number.isSafeInteger(Math.round(scaled)) && Math.abs(scaled - Math.round(scaled)) <= 1e-7;
+      const scaled = value * scale;
+      const rounded = Math.round(scaled);
+      return Number.isSafeInteger(rounded) && Math.abs(scaled - rounded) <= 1e-7;
     };
     const taxRate = number(rate);
     const deposit = number(amount);
@@ -71,20 +72,26 @@ export default function BillingPolicyForm({ settings }: { settings: Settings }) 
     if (taxOn && (taxRate === null || !Number.isFinite(taxRate) || taxRate <= 0)) {
       return "Enter the tax rate you charge before turning sales tax on.";
     }
+    if (taxRate !== null && Number.isFinite(taxRate) && !exactlyRepresentable(taxRate, 10_000)) {
+      return "Sales tax rate can have no more than four decimal places.";
+    }
     if (deposit !== null && (!Number.isFinite(deposit) || deposit < 0)) {
       return "Deposit amount must be a valid dollar amount of zero or more.";
     }
-    if (!exactCents(deposit)) {
+    if (!exactlyRepresentable(deposit, 100)) {
       return "Deposit amount can have no more than two decimal places.";
     }
     if (subtotal !== null && (!Number.isFinite(subtotal) || subtotal < 0)) {
       return "Deposit subtotal threshold must be a valid dollar amount of zero or more.";
     }
-    if (!exactCents(subtotal)) {
+    if (!exactlyRepresentable(subtotal, 100)) {
       return "Deposit subtotal threshold can have no more than two decimal places.";
     }
     if (hoursReserved !== null && (!Number.isFinite(hoursReserved) || hoursReserved <= 0)) {
       return "Deposit duration threshold must be greater than zero hours, or left blank to turn the rule off.";
+    }
+    if (hoursReserved !== null && Number.isFinite(hoursReserved) && !exactlyRepresentable(hoursReserved, 60)) {
+      return "Deposit duration threshold must resolve to a whole number of minutes.";
     }
     return null;
   }
