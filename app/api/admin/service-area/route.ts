@@ -157,9 +157,14 @@ export async function PATCH(req: Request) {
         });
     return NextResponse.json({ ok: true, area, warning });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown database error";
+    // Keep database/provider details in server logs. Prisma errors can contain
+    // table, constraint, connection and query information that should never be
+    // reflected into the contractor UI.
     console.error("[service-area]", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Could not save the service area. Nothing was changed." },
+      { status: 500 }
+    );
   }
   });
 }
