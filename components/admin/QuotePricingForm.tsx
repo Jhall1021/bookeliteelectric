@@ -9,27 +9,53 @@ export default function QuotePricingForm({ quoteId }: { quoteId: string }) {
   const [depositRequired, setDepositRequired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const dollars = parseFloat(price);
-    if (isNaN(dollars) || dollars <= 0) {
-      setError("Enter a valid price.");
+    if (submitting) return;
+
+    const dollars = Number(price);
+    const cents = dollars * 100;
+    if (!Number.isFinite(dollars) || dollars <= 0 || !Number.isSafeInteger(cents)) {
+      setError("Enter a valid price with no more than two decimal places.");
       return;
     }
+
     setSubmitting(true);
     setError(null);
+    setNotice(null);
 
-    const res = await fetch(`/api/admin/quotes/${quoteId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quotedPriceCents: Math.round(dollars * 100), depositRequired }),
-    });
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quotedPriceCents: cents, depositRequired }),
+      });
+      const data = await res.json().catch(() => ({}));
 
-    if (res.ok) {
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Price2Book could not send this price. Nothing was intentionally changed.");
+        return;
+      }
+
+      if (data.emailed === false) {
+        setNotice(
+          typeof data.emailError === "string"
+            ? `Price saved, but the customer was not emailed: ${data.emailError}`
+            : "Price saved, but Price2Book could not confirm that the customer was emailed."
+        );
+      } else {
+        setNotice("Price saved and the customer was notified.");
+      }
       router.refresh();
-    } else {
-      setError("Something went wrong — try again.");
+    } catch {
+      // The route saves the quote before attempting the notification email, so
+      // a dropped browser response may mean the price is already live. Do not
+      // encourage a blind retry that could resend or overwrite the decision.
+      setError("Price2Book lost the response while sending this price. Refreshing the quote now — confirm its status before trying again.");
+      router.refresh();
+    } finally {
       setSubmitting(false);
     }
   }
@@ -58,10 +84,14 @@ export default function QuotePricingForm({ quoteId }: { quoteId: string }) {
               id={`quote-price-${quoteId}`}
               type="number"
               step="0.01"
-              min="0"
+              min="0.01"
               required
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              onChange={(e) => {
+                setPrice(e.target.value);
+                setError(null);
+                setNotice(null);
+              }}
               className="w-full rounded-card border border-cardline bg-white py-2.5 pl-7 pr-3 text-sm font-medium text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10"
               placeholder="495.00"
             />
@@ -72,7 +102,11 @@ export default function QuotePricingForm({ quoteId }: { quoteId: string }) {
           <input
             type="checkbox"
             checked={depositRequired}
-            onChange={(e) => setDepositRequired(e.target.checked)}
+            onChange={(e) => {
+              setDepositRequired(e.target.checked);
+              setError(null);
+              setNotice(null);
+            }}
             className="h-4 w-4 accent-electric"
           />
           <span>
@@ -90,6 +124,11 @@ export default function QuotePricingForm({ quoteId }: { quoteId: string }) {
         </button>
       </div>
 
+      {notice && (
+        <p role="status" className="mt-3 rounded-card border border-success/25 bg-success/[0.06] px-3 py-2 text-sm text-success">
+          {notice}
+        </p>
+      )}
       {error && (
         <p role="alert" className="mt-3 rounded-card border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
