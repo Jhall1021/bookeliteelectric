@@ -63,6 +63,7 @@ export default function BusinessHoursForm({
     : null;
 
   async function save() {
+    if (saving) return;
     if (hours.workingDays.length === 0) {
       setNote({ text: "Pick at least one working day, or nobody can book at all.", warn: true });
       return;
@@ -94,7 +95,13 @@ export default function BusinessHoursForm({
       setNote({ text: `Saved — ${data.windows.length} arrival windows a day.`, warn: false });
       router.refresh();
     } catch {
-      setNote({ text: "Could not reach Price2Book. Your working hours were not changed.", warn: true });
+      // A network failure after PATCH was sent does not prove the save failed.
+      // Re-read the authoritative server state before inviting another write.
+      setNote({
+        text: "Price2Book lost the response while saving. Refreshing the current working hours now — confirm them before trying again.",
+        warn: true,
+      });
+      router.refresh();
     } finally {
       setSaving(false);
     }
