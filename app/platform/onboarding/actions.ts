@@ -6,14 +6,14 @@ import { PlatformContractorNotFoundError, resolvePlatformActor } from "@/lib/pla
 import { hasPlatformCapability, type PlatformCapability } from "@/lib/platformCapabilities";
 import {
   platformBeginContractor, platformAttachOwner, platformInviteOwner, platformRevokeInvitation, platformEnrolTrade, platformInstallTemplate, platformLaunchContractor, platformRetireContractor,
-} from "@/lib/platformOnboarding";
+} from "@/lib/platformOnboardingCommands";
 
 /**
  * The wizard's server actions. Each one reads its form fields, checks the
  * platform capability required for THAT mutation, then hands the operation to
- * the existing command in lib/platformOnboarding. Capability checks live here
- * at the product mutation boundary; the command still owns contractor scoping,
- * validation and domain rules.
+ * the capability-guarded runtime command facade. The facade repeats the
+ * capability decision before delegating to lib/platformOnboarding, where
+ * contractor scoping, validation and domain rules remain authoritative.
  *
  * The contractor id in every redirect is the one the COMMAND returned after
  * validating it, never the one the form supplied.
