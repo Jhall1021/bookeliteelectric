@@ -99,16 +99,51 @@ for (const [fn, capability] of runtimeChecks) {
   assert.ok(body.includes(`authorizedUser(\"${capability}\")`), `${fn} must require ${capability} in the runtime command facade`);
 }
 
+// Application code must never regain a side door around the facade. The raw
+// request-bound mutation exports still exist in platformOnboarding.ts for
+// compatibility with older verifier/domain seams, so protect the whole
+// app/platform tree instead of checking only today's actions file. Read-model
+// imports from platformOnboarding remain allowed.
+const RAW_MUTATIONS = [
+  "platformBeginContractor",
+  "platformAttachOwner",
+  "platformInviteOwner",
+  "platformRevokeInvitation",
+  "platformEnrolTrade",
+  "platformInstallTemplate",
+  "platformLaunchContractor",
+  "platformRetireContractor",
+] as const;
+
+function sourceFilesUnder(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFilesUnder(full);
+    return entry.isFile() && /\.(ts|tsx)$/.test(entry.name) ? [full] : [];
+  });
+}
+
+const platformAppRoot = path.join(process.cwd(), "app/platform");
+for (const file of sourceFilesUnder(platformAppRoot)) {
+  const source = fs.readFileSync(file, "utf8");
+  const relative = path.relative(process.cwd(), file);
+  const rawImportBlocks = source.match(/import\s+[\s\S]*?from\s+["']@\/lib\/platformOnboarding["'];?/g) ?? [];
+  for (const importBlock of rawImportBlocks) {
+    for (const mutation of RAW_MUTATIONS) {
+      assert.ok(
+        !new RegExp(`\\b${mutation}\\b`).test(importBlock),
+        `${relative} must import ${mutation} from @/lib/platformOnboardingCommands, never @/lib/platformOnboarding`,
+      );
+    }
+  }
+}
+
 // Server actions keep a presentation-level precheck for a friendly refusal,
 // but must invoke the guarded facade rather than the raw mutation exports.
 const actions = fs.readFileSync(path.join(process.cwd(), "app/platform/onboarding/actions.ts"), "utf8");
 assert.ok(
   actions.includes('from "@/lib/platformOnboardingCommands"'),
   "Platform onboarding server actions must use the capability-guarded runtime facade",
-);
-assert.ok(
-  !actions.includes('platformBeginContractor, platformAttachOwner') || !actions.includes('from "@/lib/platformOnboarding"'),
-  "Platform onboarding server actions must not import raw mutation commands",
 );
 
 const uiChecks = [
