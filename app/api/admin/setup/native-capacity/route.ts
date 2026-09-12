@@ -14,10 +14,14 @@ import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 
 export async function PATCH(req: Request) {
-  let body: { concurrentJobs?: unknown };
-  try { body = await req.json(); } catch {
+  let parsed: unknown;
+  try { parsed = await req.json(); } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as { concurrentJobs?: unknown };
 
   // A blank box is "not answered" and clears the value, which readiness then
   // blocks on. Zero is refused rather than stored: a contractor who can run no
