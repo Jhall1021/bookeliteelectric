@@ -47,6 +47,7 @@ export default function ReorderList({
   }
 
   async function save() {
+    if (saving || !dirty) return;
     setSaving(true);
     setError(null);
     try {
@@ -67,8 +68,10 @@ export default function ReorderList({
       setDirty(false);
       router.refresh();
     } catch {
+      // A dropped response can happen after the server committed the new order.
+      // Do not encourage a blind second write against stale client state.
       setError(
-        "Could not reach Price2Book. Your unsaved order is still shown here; try saving again when the connection returns."
+        "Price2Book lost the response while saving the order. Reload this page to confirm the saved order before trying again."
       );
     } finally {
       setSaving(false);
