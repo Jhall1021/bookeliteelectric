@@ -33,10 +33,11 @@ export default function JobberConnectionPanel({
   const router = useRouter();
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  const [disconnectUncertain, setDisconnectUncertain] = useState(false);
   const connectionError = jobberErrorMessage(error);
 
   async function handleDisconnect() {
-    if (disconnecting) return;
+    if (disconnecting || disconnectUncertain) return;
     setDisconnecting(true);
     setDisconnectError(null);
 
@@ -55,8 +56,12 @@ export default function JobberConnectionPanel({
 
       router.refresh();
     } catch {
+      // The request may have reached Price2Book and committed before the
+      // browser lost the response. Do not invite another destructive action
+      // until the contractor has re-read the authoritative server state.
+      setDisconnectUncertain(true);
       setDisconnectError(
-        "Could not reach Price2Book. Check your connection and try again; nothing was changed."
+        "Price2Book could not confirm the result of that disconnect. Check the connection status before trying again."
       );
     } finally {
       setDisconnecting(false);
@@ -93,7 +98,16 @@ export default function JobberConnectionPanel({
         )}
         {disconnectError && (
           <div role="alert" className="mb-4 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {disconnectError}
+            <p>{disconnectError}</p>
+            {disconnectUncertain && (
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-2 font-semibold text-electric hover:underline"
+              >
+                Reload connection status
+              </button>
+            )}
           </div>
         )}
 
@@ -111,10 +125,10 @@ export default function JobberConnectionPanel({
               <button
                 type="button"
                 onClick={handleDisconnect}
-                disabled={disconnecting}
+                disabled={disconnecting || disconnectUncertain}
                 className="inline-flex min-h-11 items-center justify-center rounded-pill border border-cardline px-5 py-2.5 text-sm font-semibold text-navy transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {disconnecting ? "Disconnecting…" : "Disconnect Jobber"}
+                {disconnecting ? "Disconnecting…" : disconnectUncertain ? "Check status first" : "Disconnect Jobber"}
               </button>
               <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate">
                 Disconnecting stops Price2Book from using this Jobber connection and clears the synced crew cache used for website-capacity checks. It does not delete anything in Jobber. If you reconnect later, sync the crew list and choose eligible people again.
