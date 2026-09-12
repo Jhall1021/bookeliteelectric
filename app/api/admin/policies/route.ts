@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 import { policiesFor, resolvePolicy } from "@/lib/policyResolution";
 
 /**
@@ -17,40 +16,57 @@ import { policiesFor, resolvePolicy } from "@/lib/policyResolution";
  * "{b1} feet or less" and call the problem solved.
  */
 export async function GET() {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-  return withAdminContractor(async (db, ctx) =>
+  return withAdminRoute(async (db, ctx) =>
     NextResponse.json({ policies: await policiesFor(db, ctx.contractorId) })
   );
 }
 
 export async function PATCH(req: Request) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  let body: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    body = await req.json();
+    parsed = await req.json();
   } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
 
-  const key = typeof body.key === "string" ? body.key : null;
-  if (!key) return NextResponse.json({ error: "Missing policy key" }, { status: 400 });
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as Record<string, unknown>;
 
-  // Numbers arrive from a form, so they arrive as strings. Anything that is
-  // not a finite number is dropped rather than coerced to zero — a blank box
-  // is "not answered", and zero is not a boundary.
-  const boundaries = Array.isArray(body.boundaries)
-    ? body.boundaries
-        .map((v) => (v === null || v === undefined || v === "" ? NaN : Number(v)))
-        .filter((n) => Number.isFinite(n))
-    : undefined;
-  const choice = typeof body.choice === "string" ? body.choice : undefined;
+  if (typeof body.key !== "string" || body.key.trim() === "") {
+    return NextResponse.json({ error: "Missing policy key" }, { status: 400 });
+  }
+  const key = body.key.trim();
 
-  return withAdminContractor(async (db, ctx) => {
+  let boundaries: number[] | undefined;
+  if (body.boundaries !== undefined) {
+    if (!Array.isArray(body.boundaries)) {
+      return NextResponse.json({ error: "Policy boundaries must be a list of numbers." }, { status: 400 });
+    }
+
+    const converted = body.boundaries.map((value) => {
+      if (value === null || value === undefined || value === "") return NaN;
+      return typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
+    });
+    if (converted.some((value) => !Number.isFinite(value))) {
+      return NextResponse.json(
+        { error: "Every policy boundary must be a finite number." },
+        { status: 400 }
+      );
+    }
+    boundaries = converted;
+  }
+
+  let choice: string | undefined;
+  if (body.choice !== undefined) {
+    if (typeof body.choice !== "string" || body.choice.trim() === "") {
+      return NextResponse.json({ error: "Policy choice must be non-empty text." }, { status: 400 });
+    }
+    choice = body.choice.trim();
+  }
+
+  return withAdminRoute(async (db, ctx) => {
     const result = await resolvePolicy(db, ctx.contractorId, key, { boundaries, choice });
     if (!result.ok) {
       const status = result.refusal.code === "UNKNOWN_POLICY" ? 404 : 400;
