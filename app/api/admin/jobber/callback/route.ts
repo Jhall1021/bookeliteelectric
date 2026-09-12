@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCodeForTokens, saveJobberTokens } from "@/lib/jobber";
+import { exchangeCodeForTokens, jobberRedirectUri, saveJobberTokens } from "@/lib/jobber";
 import { resolveAdminContractor } from "@/lib/adminContext";
+
+function jobberPage(path: string): URL {
+  // Never derive a post-OAuth redirect from the callback request's Host header.
+  // jobberRedirectUri() is built from the configured contractor-app origin, so
+  // every success/refusal lands back inside the Price2Book app we registered
+  // with Jobber rather than on an origin supplied by the inbound request.
+  return new URL(path, jobberRedirectUri());
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -18,7 +26,7 @@ export async function GET(req: Request) {
 
   if (!code || !state || !expectedState || !initiatingContractorId || state !== expectedState) {
     cookies().delete("jobber_oauth_state");
-    return NextResponse.redirect(new URL("/dashboard/jobber?error=invalid_state", url.origin));
+    return NextResponse.redirect(jobberPage("/dashboard/jobber?error=invalid_state"));
   }
 
   // Consume the state before any external call. A failed token exchange is
@@ -29,15 +37,15 @@ export async function GET(req: Request) {
     const { contractorId } = await resolveAdminContractor();
     if (contractorId !== initiatingContractorId) {
       console.error("Jobber OAuth contractor context changed before callback completion.");
-      return NextResponse.redirect(new URL("/dashboard/jobber?error=contractor_changed", url.origin));
+      return NextResponse.redirect(jobberPage("/dashboard/jobber?error=contractor_changed"));
     }
 
     const tokens = await exchangeCodeForTokens(code);
     await saveJobberTokens(tokens, contractorId);
   } catch (err) {
     console.error("Jobber OAuth exchange failed:", err);
-    return NextResponse.redirect(new URL("/dashboard/jobber?error=exchange_failed", url.origin));
+    return NextResponse.redirect(jobberPage("/dashboard/jobber?error=exchange_failed"));
   }
 
-  return NextResponse.redirect(new URL("/dashboard/jobber?connected=1", url.origin));
+  return NextResponse.redirect(jobberPage("/dashboard/jobber?connected=1"));
 }
