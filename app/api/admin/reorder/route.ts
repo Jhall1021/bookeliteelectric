@@ -13,12 +13,18 @@ import { withAdminRoute } from "@/lib/adminContext";
  * write a plausible-looking set of numbers with no coherent customer order.
  */
 export async function PATCH(req: Request) {
-  let body: { kind?: unknown; ids?: unknown };
+  let parsed: unknown;
   try {
-    body = await req.json();
+    parsed = await req.json();
   } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+
+  const body = parsed as { kind?: unknown; ids?: unknown };
 
   if (!Array.isArray(body.ids) || body.ids.length === 0) {
     return NextResponse.json({ error: "No ids given" }, { status: 400 });
