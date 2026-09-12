@@ -10,6 +10,7 @@ export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: Cre
   const [syncing, setSyncing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const eligibleCount = crewMembers.filter((member) => member.eligibleForWebsiteBookings).length;
 
@@ -17,16 +18,23 @@ export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: Cre
     if (syncing || updatingId !== null) return;
     setSyncing(true);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch("/api/admin/jobber/crews/sync", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        const removed = typeof data.removed === "number" ? data.removed : 0;
+        setNotice(
+          removed > 0
+            ? `Crew refreshed. ${removed} user${removed === 1 ? "" : "s"} no longer returned by Jobber ${removed === 1 ? "was" : "were"} removed from booking capacity.`
+            : "Crew refreshed from Jobber. Existing eligibility choices were preserved."
+        );
         router.refresh();
         return;
       }
-      const data = await res.json().catch(() => ({}));
       setError(typeof data.error === "string" ? data.error : "Could not sync Jobber users. Nothing was changed.");
     } catch {
-      setError("Could not reach Price2Book. Check your connection and try the sync again.");
+      setError("Could not reach Price2Book. Check your connection and try the sync again. Nothing was changed.");
     } finally {
       setSyncing(false);
     }
@@ -36,6 +44,7 @@ export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: Cre
     if (syncing || updatingId !== null) return;
     setUpdatingId(id);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch(`/api/admin/jobber/crews/${id}`, {
         method: "PATCH",
@@ -65,7 +74,7 @@ export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: Cre
             {eligibleCount} of {crewMembers.length} synced user{crewMembers.length === 1 ? "" : "s"} count toward booking capacity
           </p>
           <p className="mt-1 text-xs leading-relaxed text-slate">
-            Syncing refreshes the Jobber user list. It does not make anyone eligible automatically.
+            Syncing refreshes the authoritative Jobber roster. Existing eligibility choices stay in place for people still returned by Jobber; users no longer in that account are removed from Price2Book capacity.
           </p>
         </div>
         <button
@@ -77,6 +86,12 @@ export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: Cre
           {syncing ? "Syncing…" : "Sync from Jobber"}
         </button>
       </div>
+
+      {notice && (
+        <p role="status" className="rounded-card border border-success/20 bg-success/[0.06] px-4 py-3 text-sm text-success">
+          {notice}
+        </p>
+      )}
 
       {error && (
         <p role="alert" className="rounded-card border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
