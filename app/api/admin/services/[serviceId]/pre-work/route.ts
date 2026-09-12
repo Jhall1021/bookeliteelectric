@@ -21,7 +21,7 @@ type DepositRuleValue = "USE_COMPANY_POLICY" | "ALWAYS_REQUIRE" | "NEVER_REQUIRE
 function optionalInt(v: unknown, label: string): OptionalValue<number> {
   if (v === undefined) return { ok: true, value: undefined };
   if (v === null || v === "") return { ok: true, value: null };
-  if (typeof v !== "number" || !Number.isFinite(v) || !Number.isInteger(v) || v < 0) {
+  if (typeof v !== "number" || !Number.isFinite(v) || !Number.isSafeInteger(v) || v < 0) {
     return { ok: false, error: `${label} must be a non-negative whole number, or empty.` };
   }
   return { ok: true, value: v };
