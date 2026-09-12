@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 
 import type { PrismaClient } from "@prisma/client";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
@@ -81,6 +80,51 @@ async function afterRecipeChange(db: PrismaClient, serviceId: string) {
   return { totalCents, clearedMultiplier };
 }
 
+function requiredString(value: unknown, label: string): string | NextResponse {
+  if (typeof value !== "string" || value.trim() === "") {
+    return NextResponse.json({ error: `${label} is required.` }, { status: 400 });
+  }
+  return value.trim();
+}
+
+function optionalString(value: unknown, label: string): string | undefined | NextResponse {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") {
+    return NextResponse.json({ error: `${label} must be text.` }, { status: 400 });
+  }
+  return value.trim() || undefined;
+}
+
+function numberValue(
+  value: unknown,
+  label: string,
+  options: { min?: number; greaterThan?: number; integer?: boolean } = {},
+): number | NextResponse {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return NextResponse.json({ error: `${label} must be a valid number.` }, { status: 400 });
+  }
+  if (options.integer && !Number.isInteger(value)) {
+    return NextResponse.json({ error: `${label} must be a whole number.` }, { status: 400 });
+  }
+  if (options.min !== undefined && value < options.min) {
+    return NextResponse.json({ error: `${label} must be ${options.min} or greater.` }, { status: 400 });
+  }
+  if (options.greaterThan !== undefined && value <= options.greaterThan) {
+    return NextResponse.json({ error: `${label} must be greater than ${options.greaterThan}.` }, { status: 400 });
+  }
+  return value;
+}
+
+function isResponse(value: unknown): value is NextResponse {
+  return value instanceof NextResponse;
+}
+
+function confidenceValue(value: unknown): "CONFIRMED" | "ASSUMED" | undefined | NextResponse {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (value === "CONFIRMED" || value === "ASSUMED") return value;
+  return NextResponse.json({ error: "Choose a valid cost confidence." }, { status: 400 });
+}
+
 export async function GET(req: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -99,85 +143,85 @@ export async function GET(req: Request) {
   // and nesting contractorMaterials would be the platform-parent shape the
   // live harness proved the guard cannot see.
   return withAdminContractor(async (db, ctx) => {
-  const contractorId = ctx.contractorId;
-  const catalog = await db.contractorMaterial.findMany({
-    where: { contractorId, active: true },
-    orderBy: { canonicalMaterial: { name: "asc" } },
-    include: {
-      canonicalMaterial: { select: { id: true, key: true, name: true, unit: true } },
-      activeSupplierLink: {
-        select: {
-          id: true,
-          supplier: true,
-          supplierProductId: true,
-          productName: true,
-          productUrl: true,
-          storeLabel: true,
-          packagePriceCents: true,
-          packageQuantity: true,
-          packageUnit: true,
-          lastSyncedAt: true,
-          lastSyncStatus: true,
+    const contractorId = ctx.contractorId;
+    const catalog = await db.contractorMaterial.findMany({
+      where: { contractorId, active: true },
+      orderBy: { canonicalMaterial: { name: "asc" } },
+      include: {
+        canonicalMaterial: { select: { id: true, key: true, name: true, unit: true } },
+        activeSupplierLink: {
+          select: {
+            id: true,
+            supplier: true,
+            supplierProductId: true,
+            productName: true,
+            productUrl: true,
+            storeLabel: true,
+            packagePriceCents: true,
+            packageQuantity: true,
+            packageUnit: true,
+            lastSyncedAt: true,
+            lastSyncStatus: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  const catalogOut = catalog.map((c) => ({
-    /** The CONTRACTOR material's id — what a cost edit targets. */
-    id: c.id,
-    canonicalMaterialId: c.canonicalMaterialId,
-    key: c.canonicalMaterial.key,
-    name: c.nameOverride ?? c.canonicalMaterial.name,
-    unit: c.canonicalMaterial.unit,
-    unitCostCents: c.unitCostCents,
-    costSource: c.costSource,
-    costConfidence: c.costConfidence,
-    costStatus: c.costStatus,
-    packagePriceCents: c.packagePriceCents,
-    packageQuantity: c.packageQuantity,
-    packageUnit: c.packageUnit,
-    activeSupplierLink: c.activeSupplierLink,
-  }));
+    const catalogOut = catalog.map((c) => ({
+      /** The CONTRACTOR material's id — what a cost edit targets. */
+      id: c.id,
+      canonicalMaterialId: c.canonicalMaterialId,
+      key: c.canonicalMaterial.key,
+      name: c.nameOverride ?? c.canonicalMaterial.name,
+      unit: c.canonicalMaterial.unit,
+      unitCostCents: c.unitCostCents,
+      costSource: c.costSource,
+      costConfidence: c.costConfidence,
+      costStatus: c.costStatus,
+      packagePriceCents: c.packagePriceCents,
+      packageQuantity: c.packageQuantity,
+      packageUnit: c.packageUnit,
+      activeSupplierLink: c.activeSupplierLink,
+    }));
 
-  if (!serviceId) return NextResponse.json({ catalog: catalogOut, items: [] });
+    if (!serviceId) return NextResponse.json({ catalog: catalogOut, items: [] });
 
-  const items = await db.serviceMaterial.findMany({
-    where: { serviceId },
-    orderBy: { order: "asc" },
-    include: { canonicalMaterial: true },
-  });
+    const items = await db.serviceMaterial.findMany({
+      where: { serviceId },
+      orderBy: { order: "asc" },
+      include: { canonicalMaterial: true },
+    });
 
-  // A recipe line whose role this contractor hasn't costed is reported as
-  // unpriced rather than shown at zero. A dash-priced row that still sums
-  // into a total is how a job gets underquoted.
-  const costs = new Map(catalog.map((c) => [c.canonicalMaterialId, c]));
+    // A recipe line whose role this contractor hasn't costed is reported as
+    // unpriced rather than shown at zero. A dash-priced row that still sums
+    // into a total is how a job gets underquoted.
+    const costs = new Map(catalog.map((c) => [c.canonicalMaterialId, c]));
 
-  return NextResponse.json({
-    catalog: catalogOut,
-    items: items.map((i) => {
-      const cost = i.canonicalMaterialId ? costs.get(i.canonicalMaterialId) : undefined;
-      return {
-        id: i.id,
-        canonicalMaterialId: i.canonicalMaterialId,
-        contractorMaterialId: cost?.id ?? null,
-        key: i.canonicalMaterial?.key ?? null,
-        name: cost?.nameOverride ?? i.canonicalMaterial?.name ?? null,
-        unit: i.canonicalMaterial?.unit ?? null,
-        quantity: i.quantity,
-        unitCostCents: cost?.unitCostCents ?? null,
-        lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null,
-        /** True when this contractor has no cost for the role. */
-        unpriced: !cost,
-        costSource: cost?.costSource ?? null,
-        costConfidence: cost?.costConfidence ?? null,
-        costStatus: cost?.costStatus ?? null,
-        packagePriceCents: cost?.packagePriceCents ?? null,
-        packageQuantity: cost?.packageQuantity ?? null,
-        packageUnit: cost?.packageUnit ?? null,
-      };
-    }),
-  });
+    return NextResponse.json({
+      catalog: catalogOut,
+      items: items.map((i) => {
+        const cost = i.canonicalMaterialId ? costs.get(i.canonicalMaterialId) : undefined;
+        return {
+          id: i.id,
+          canonicalMaterialId: i.canonicalMaterialId,
+          contractorMaterialId: cost?.id ?? null,
+          key: i.canonicalMaterial?.key ?? null,
+          name: cost?.nameOverride ?? i.canonicalMaterial?.name ?? null,
+          unit: i.canonicalMaterial?.unit ?? null,
+          quantity: i.quantity,
+          unitCostCents: cost?.unitCostCents ?? null,
+          lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null,
+          /** True when this contractor has no cost for the role. */
+          unpriced: !cost,
+          costSource: cost?.costSource ?? null,
+          costConfidence: cost?.costConfidence ?? null,
+          costStatus: cost?.costStatus ?? null,
+          packagePriceCents: cost?.packagePriceCents ?? null,
+          packageQuantity: cost?.packageQuantity ?? null,
+          packageUnit: cost?.packageUnit ?? null,
+        };
+      }),
+    });
   });
 }
 
@@ -194,315 +238,294 @@ export async function POST(req: Request) {
   }
 
   const action = body.action;
+  if (typeof action !== "string") {
+    return NextResponse.json({ error: "A materials action is required." }, { status: 400 });
+  }
 
   // GUARD-ADOPTED (ADR-007a). One context for the whole handler; every action
   // below reads and writes through the guarded client.
-
   return withAdminContractor(async (db, ctx) => {
-  const contractorId = ctx.contractorId;
-  try {
-    // ---- add a material to a service ----------------------------------
-    if (action === "add") {
-      const { serviceId, canonicalMaterialId, quantity } = body as {
-        serviceId: string;
-        canonicalMaterialId: string;
-        quantity: number;
-      };
-      if (!canonicalMaterialId) {
-        return NextResponse.json(
-          { error: "canonicalMaterialId is required — a recipe names a material role" },
-          { status: 400 }
-        );
-      }
-      const count = await db.serviceMaterial.count({ where: { serviceId } });
-      // ADR-010: ServiceMaterial is DERIVED-owned, so upsert() would throw —
-      // there is no contractorId to stamp on the create half and the guard
-      // refuses to invent one. Split into a scoped update and, failing that, a
-      // nested create through the already-scoped Service, which makes
-      // ownership structural rather than asserted.
-      const existingLine = await db.serviceMaterial.findFirst({
-        where: { serviceId, canonicalMaterialId },
-        select: { id: true },
-      });
-      if (existingLine) {
-        await db.serviceMaterial.update({
-          where: { id: existingLine.id },
-          data: { quantity: quantity || 1 },
+    const contractorId = ctx.contractorId;
+    try {
+      // ---- add a material to a service ----------------------------------
+      if (action === "add") {
+        const serviceId = requiredString(body.serviceId, "serviceId");
+        if (isResponse(serviceId)) return serviceId;
+        const canonicalMaterialId = requiredString(body.canonicalMaterialId, "canonicalMaterialId");
+        if (isResponse(canonicalMaterialId)) return canonicalMaterialId;
+        const quantity = body.quantity === undefined
+          ? 1
+          : numberValue(body.quantity, "Quantity", { greaterThan: 0 });
+        if (isResponse(quantity)) return quantity;
+
+        const count = await db.serviceMaterial.count({ where: { serviceId } });
+        // ADR-010: ServiceMaterial is DERIVED-owned, so upsert() would throw —
+        // there is no contractorId to stamp on the create half and the guard
+        // refuses to invent one. Split into a scoped update and, failing that, a
+        // nested create through the already-scoped Service, which makes
+        // ownership structural rather than asserted.
+        const existingLine = await db.serviceMaterial.findFirst({
+          where: { serviceId, canonicalMaterialId },
+          select: { id: true },
         });
-      } else {
-        await db.service.update({
-          where: { id: serviceId },
-          data: {
-            materials: {
-              create: { canonicalMaterialId, quantity: quantity || 1, order: count },
+        if (existingLine) {
+          await db.serviceMaterial.update({
+            where: { id: existingLine.id },
+            data: { quantity },
+          });
+        } else {
+          await db.service.update({
+            where: { id: serviceId },
+            data: {
+              materials: {
+                create: { canonicalMaterialId, quantity, order: count },
+              },
+            },
+          });
+        }
+        const { totalCents } = await afterRecipeChange(db, serviceId);
+        return NextResponse.json({ ok: true, totalCents });
+      }
+
+      // ---- change how much of it a service uses --------------------------
+      if (action === "quantity") {
+        const id = requiredString(body.id, "Material line id");
+        if (isResponse(id)) return id;
+        const quantity = numberValue(body.quantity, "Quantity", { min: 0 });
+        if (isResponse(quantity)) return quantity;
+
+        const row = await db.serviceMaterial.findUnique({ where: { id } });
+        if (!row) return NextResponse.json({ error: "Material line not found" }, { status: 404 });
+        await db.serviceMaterial.update({
+          where: { id },
+          data: { quantity },
+        });
+        const { totalCents } = await afterRecipeChange(db, row.serviceId);
+        return NextResponse.json({ ok: true, totalCents });
+      }
+
+      // ---- take a material off a service ---------------------------------
+      if (action === "remove") {
+        const id = requiredString(body.id, "Material line id");
+        if (isResponse(id)) return id;
+        const row = await db.serviceMaterial.findUnique({ where: { id } });
+        if (!row) return NextResponse.json({ error: "Material line not found" }, { status: 404 });
+        await db.serviceMaterial.delete({ where: { id } });
+        const { totalCents } = await afterRecipeChange(db, row.serviceId);
+        return NextResponse.json({ ok: true, totalCents });
+      }
+
+      // ---- change a material's cost, everywhere --------------------------
+      // Does NOT touch materialMultiplier. See the note at the top of the file.
+      if (action === "cost") {
+        const contractorMaterialId = requiredString(body.contractorMaterialId, "contractorMaterialId");
+        if (isResponse(contractorMaterialId)) return contractorMaterialId;
+        const packageUnit = optionalString(body.packageUnit, "Package unit");
+        if (isResponse(packageUnit)) return packageUnit;
+        const confidence = confidenceValue(body.confidence);
+        if (isResponse(confidence)) return confidence;
+
+        const hasPackagePrice = body.packagePriceCents !== undefined && body.packagePriceCents !== null;
+        const hasPackageQuantity = body.packageQuantity !== undefined && body.packageQuantity !== null;
+        if (hasPackagePrice !== hasPackageQuantity) {
+          return NextResponse.json(
+            { error: "Package price and package quantity must be provided together." },
+            { status: 400 },
+          );
+        }
+
+        let packagePriceCents: number | undefined;
+        let packageQuantity: number | undefined;
+        let unitCostCents: number | undefined;
+
+        if (hasPackagePrice && hasPackageQuantity) {
+          const parsedPrice = numberValue(body.packagePriceCents, "Package price", { min: 0, integer: true });
+          if (isResponse(parsedPrice)) return parsedPrice;
+          const parsedQuantity = numberValue(body.packageQuantity, "Package quantity", { greaterThan: 0 });
+          if (isResponse(parsedQuantity)) return parsedQuantity;
+          packagePriceCents = parsedPrice;
+          packageQuantity = parsedQuantity;
+        } else {
+          const parsedUnit = numberValue(body.unitCostCents, "Unit cost", { min: 0, integer: true });
+          if (isResponse(parsedUnit)) return parsedUnit;
+          unitCostCents = parsedUnit;
+        }
+
+        // How many of THIS contractor's services hold the role, independent of
+        // whether the cost moved — preserves the existing response contract.
+        const cm = await db.contractorMaterial.findUnique({
+          where: { id: contractorMaterialId },
+          select: { canonicalMaterialId: true, contractorId: true },
+        });
+        if (!cm) {
+          return NextResponse.json({ error: "Unknown material" }, { status: 404 });
+        }
+        const using = await db.serviceMaterial.findMany({
+          where: {
+            canonicalMaterialId: cm.canonicalMaterialId,
+            service: { contractorId: cm.contractorId },
+          },
+          select: { serviceId: true },
+          distinct: ["serviceId"],
+        });
+
+        const result = await setContractorMaterialCost(
+          db,
+          {
+            contractorMaterialId,
+            ...(packagePriceCents !== undefined && packageQuantity !== undefined
+              ? { basis: { packagePriceCents, packageQuantity } }
+              : { unitCostCents: unitCostCents! }),
+            packageUnit,
+            confidence,
+          },
+          { reason: "admin edit", actor: "admin" },
+        );
+
+        return NextResponse.json({
+          ok: true,
+          affectedServices: using.length,
+          changed: result.changed,
+          beforeCents: result.beforeCents,
+          afterCents: result.afterCents,
+          servicesMoved: result.affected.filter((a) => a.changed).length,
+          movedServices: result.affected
+            .filter((a) => a.changed)
+            .map((a) => ({ slug: a.slug, beforeCents: a.beforeCents, afterCents: a.afterCents })),
+          stillUnresolved: result.affected
+            .filter((a) => !a.resolved)
+            .map((a) => ({ slug: a.slug, missingKeys: a.missingKeys })),
+        });
+      }
+
+      // ---- preview a package conversion before committing it -------------
+      if (action === "preview-package") {
+        const packagePriceCents = numberValue(body.packagePriceCents, "Package price", { min: 0, integer: true });
+        if (isResponse(packagePriceCents)) return packagePriceCents;
+        const packageQuantity = numberValue(body.packageQuantity, "Package quantity", { greaterThan: 0 });
+        if (isResponse(packageQuantity)) return packageQuantity;
+
+        const derived = deriveUnitCost({ packagePriceCents, packageQuantity });
+        const implied = impliedPackagePriceCents(derived.unitCostCents, packageQuantity);
+        return NextResponse.json({
+          ok: true,
+          ...derived,
+          impliedPackagePriceCents: implied,
+          roundingDriftCents: implied - packagePriceCents,
+        });
+      }
+
+      // ---- add a new part to the catalog ---------------------------------
+      // The key is a CANONICAL ROLE, not a product.
+      if (action === "create") {
+        const keyInput = requiredString(body.key, "Key");
+        if (isResponse(keyInput)) return keyInput;
+        const name = requiredString(body.name, "Name");
+        if (isResponse(name)) return name;
+        const unit = optionalString(body.unit, "Unit");
+        if (isResponse(unit)) return unit;
+        const packageUnit = optionalString(body.packageUnit, "Package unit");
+        if (isResponse(packageUnit)) return packageUnit;
+        const confidence = confidenceValue(body.confidence);
+        if (isResponse(confidence)) return confidence;
+
+        const key = keyInput.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        if (!key) {
+          return NextResponse.json({ error: "Key must contain at least one letter or number." }, { status: 400 });
+        }
+
+        const hasPackagePrice = body.packagePriceCents !== undefined && body.packagePriceCents !== null;
+        const hasPackageQuantity = body.packageQuantity !== undefined && body.packageQuantity !== null;
+        if (hasPackagePrice !== hasPackageQuantity) {
+          return NextResponse.json(
+            { error: "Package price and package quantity must be provided together." },
+            { status: 400 },
+          );
+        }
+
+        let packagePriceCents: number | undefined;
+        let packageQuantity: number | undefined;
+        let derived: { unitCostCents: number; unitCostMilliCents: number };
+
+        if (hasPackagePrice && hasPackageQuantity) {
+          const parsedPrice = numberValue(body.packagePriceCents, "Package price", { min: 0, integer: true });
+          if (isResponse(parsedPrice)) return parsedPrice;
+          const parsedQuantity = numberValue(body.packageQuantity, "Package quantity", { greaterThan: 0 });
+          if (isResponse(parsedQuantity)) return parsedQuantity;
+          packagePriceCents = parsedPrice;
+          packageQuantity = parsedQuantity;
+          derived = deriveUnitCost({ packagePriceCents, packageQuantity });
+        } else {
+          const flat = numberValue(body.unitCostCents, "Unit cost", { min: 0, integer: true });
+          if (isResponse(flat)) return flat;
+          derived = { unitCostCents: flat, unitCostMilliCents: flat * 1000 };
+        }
+
+        const canonical = await db.canonicalMaterial.upsert({
+          where: { key },
+          update: {},
+          create: {
+            key,
+            name,
+            unit: unit ?? "each",
+          },
+        });
+
+        const material = await db.contractorMaterial.upsert({
+          where: {
+            contractorId_canonicalMaterialId: {
+              contractorId,
+              canonicalMaterialId: canonical.id,
             },
           },
-        });
-      }
-      const { totalCents } = await afterRecipeChange(db, serviceId);
-      return NextResponse.json({ ok: true, totalCents });
-    }
-
-    // ---- change how much of it a service uses --------------------------
-    if (action === "quantity") {
-      const { id, quantity } = body as { id: string; quantity: number };
-      const row = await db.serviceMaterial.findUniqueOrThrow({ where: { id } });
-      await db.serviceMaterial.update({
-        where: { id },
-        data: { quantity: Math.max(quantity, 0) },
-      });
-      const { totalCents } = await afterRecipeChange(db, row.serviceId);
-      return NextResponse.json({ ok: true, totalCents });
-    }
-
-    // ---- take a material off a service ---------------------------------
-    if (action === "remove") {
-      const { id } = body as { id: string };
-      const row = await db.serviceMaterial.findUniqueOrThrow({ where: { id } });
-      await db.serviceMaterial.delete({ where: { id } });
-      const { totalCents } = await afterRecipeChange(db, row.serviceId);
-      return NextResponse.json({ ok: true, totalCents });
-    }
-
-    // ---- change a material's cost, everywhere --------------------------
-    //
-    // Accepts either a package basis (preferred — it preserves the invoice)
-    // or a bare per-unit cost. Sending packagePriceCents and packageQuantity
-    // lets a $189.00 box of 1000 ft of Cat6 be recorded as bought and derived
-    // to 18.9 c/ft, rather than someone dividing on a calculator, typing 19,
-    // and the box price being lost.
-    //
-    // Does NOT touch materialMultiplier. See the note at the top of the file.
-    if (action === "cost") {
-      const {
-        contractorMaterialId,
-        unitCostCents,
-        packagePriceCents,
-        packageQuantity,
-        packageUnit,
-        confidence,
-      } = body as {
-        contractorMaterialId: string;
-        unitCostCents?: number;
-        packagePriceCents?: number;
-        packageQuantity?: number;
-        packageUnit?: string;
-        confidence?: "CONFIRMED" | "ASSUMED";
-      };
-
-      if (!contractorMaterialId) {
-        return NextResponse.json(
-          { error: "contractorMaterialId is required — a role has no cost, only a contractor does" },
-          { status: 400 }
-        );
-      }
-
-      const hasPackage =
-        typeof packagePriceCents === "number" && typeof packageQuantity === "number";
-
-      if (!hasPackage && (typeof unitCostCents !== "number" || unitCostCents < 0)) {
-        return NextResponse.json({ error: "Cost must be zero or more" }, { status: 400 });
-      }
-
-      // How many of THIS contractor's services hold the role, independent of
-      // whether the cost moved — preserves the existing response contract.
-      const cm = await db.contractorMaterial.findUnique({
-        where: { id: contractorMaterialId },
-        select: { canonicalMaterialId: true, contractorId: true },
-      });
-      if (!cm) {
-        return NextResponse.json({ error: "Unknown material" }, { status: 404 });
-      }
-      const using = await db.serviceMaterial.findMany({
-        where: {
-          canonicalMaterialId: cm.canonicalMaterialId,
-          service: { contractorId: cm.contractorId },
-        },
-        select: { serviceId: true },
-        distinct: ["serviceId"],
-      });
-
-      const result = await setContractorMaterialCost(
-        db,
-        {
-          contractorMaterialId,
-          ...(hasPackage
-            ? {
-                basis: {
-                  packagePriceCents: packagePriceCents as number,
-                  packageQuantity: packageQuantity as number,
-                },
-              }
-            : { unitCostCents: unitCostCents as number }),
-          packageUnit,
-          confidence,
-        },
-        { reason: "admin edit", actor: "admin" }
-      );
-
-      return NextResponse.json({
-        ok: true,
-        affectedServices: using.length,
-        changed: result.changed,
-        beforeCents: result.beforeCents,
-        afterCents: result.afterCents,
-        servicesMoved: result.affected.filter((a) => a.changed).length,
-        movedServices: result.affected
-          .filter((a) => a.changed)
-          .map((a) => ({ slug: a.slug, beforeCents: a.beforeCents, afterCents: a.afterCents })),
-        // A cost edit can make a service pricable again, or reveal that
-        // another role is still missing. Worth surfacing rather than leaving
-        // the admin to guess why a service is still not live.
-        stillUnresolved: result.affected
-          .filter((a) => !a.resolved)
-          .map((a) => ({ slug: a.slug, missingKeys: a.missingKeys })),
-      });
-    }
-
-    // ---- preview a package conversion before committing it -------------
-    //
-    // Read-only. Shows what a package resolves to per unit, and how far the
-    // rounded integer sits from the invoice, before anything is saved. A
-    // 1000 ft box at $189.00 stores as 19 c/ft and back-computes to $190.00 —
-    // better shown at entry than discovered a year later.
-    if (action === "preview-package") {
-      const { packagePriceCents, packageQuantity } = body as {
-        packagePriceCents: number;
-        packageQuantity: number;
-      };
-      const derived = deriveUnitCost({ packagePriceCents, packageQuantity });
-      const implied = impliedPackagePriceCents(derived.unitCostCents, packageQuantity);
-      return NextResponse.json({
-        ok: true,
-        ...derived,
-        impliedPackagePriceCents: implied,
-        roundingDriftCents: implied - packagePriceCents,
-      });
-    }
-
-    // ---- add a new part to the catalog ---------------------------------
-    //
-    // The key is a CANONICAL ROLE, not a product. WIRE_12_2 names the job the
-    // material does; the Southwire roll that fills it belongs on a supplier
-    // link. A key naming a brand, a model or an item number defeats the
-    // separation the whole supplier layer rests on. See
-    // docs/MATERIAL-SUPPLIER-CATALOG.md.
-    if (action === "create") {
-      const {
-        key,
-        name,
-        unit,
-        unitCostCents,
-        packagePriceCents,
-        packageQuantity,
-        packageUnit,
-        confidence,
-      } = body as {
-        key: string;
-        name: string;
-        unit?: string;
-        unitCostCents?: number;
-        packagePriceCents?: number;
-        packageQuantity?: number;
-        packageUnit?: string;
-        confidence?: "CONFIRMED" | "ASSUMED";
-      };
-      if (!key || !name) {
-        return NextResponse.json({ error: "A key and a name are required" }, { status: 400 });
-      }
-
-      const hasPackage =
-        typeof packagePriceCents === "number" && typeof packageQuantity === "number";
-      const flat = Math.max(unitCostCents || 0, 0);
-      const derived = hasPackage
-        ? deriveUnitCost({
-            packagePriceCents: packagePriceCents as number,
-            packageQuantity: packageQuantity as number,
-          })
-        : { unitCostCents: flat, unitCostMilliCents: flat * 1000 };
-
-      // contractorId comes from the enclosing tenant context; the guard also
-      // stamps it on the create half of the upsert below.
-
-      // Two rows, two layers. The ROLE is platform knowledge and may already
-      // exist — another contractor could have introduced it — so it is
-      // upserted rather than created. The COST is this contractor's alone.
-      //
-      // The key is a CANONICAL ROLE, not a product. WIRE_12_2 names the job
-      // the material does; the Southwire roll that fills it belongs on a
-      // supplier link. A key naming a brand, model or item number defeats the
-      // separation the template library rests on.
-      const canonical = await db.canonicalMaterial.upsert({
-        where: { key: key.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_") },
-        update: {},
-        create: {
-          key: key.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_"),
-          name: name.trim(),
-          unit: unit?.trim() || "each",
-        },
-      });
-
-      const material = await db.contractorMaterial.upsert({
-        where: {
-          contractorId_canonicalMaterialId: {
+          update: {
+            unitCostCents: derived.unitCostCents,
+            unitCostMilliCents: derived.unitCostMilliCents,
+          },
+          create: {
             contractorId,
             canonicalMaterialId: canonical.id,
+            unitCostCents: derived.unitCostCents,
+            unitCostMilliCents: derived.unitCostMilliCents,
+            ...(packagePriceCents !== undefined && packageQuantity !== undefined
+              ? {
+                  packagePriceCents,
+                  packageQuantity,
+                  packageUnit: packageUnit ?? unit ?? "each",
+                }
+              : {}),
+            costSource: "CUSTOM",
+            costConfidence: confidence ?? "CONFIRMED",
+            costStatus: "OK",
+            costUpdatedAt: new Date(),
           },
-        },
-        update: {
-          unitCostCents: derived.unitCostCents,
-          unitCostMilliCents: derived.unitCostMilliCents,
-        },
-        create: {
-          contractorId,
-          canonicalMaterialId: canonical.id,
-          unitCostCents: derived.unitCostCents,
-          unitCostMilliCents: derived.unitCostMilliCents,
-          ...(hasPackage
-            ? {
-                packagePriceCents,
-                packageQuantity,
-                packageUnit: packageUnit?.trim() || unit?.trim() || "each",
-              }
-            : {}),
-          costSource: "CUSTOM",
-          costConfidence: confidence ?? "CONFIRMED",
-          costStatus: "OK",
-          costUpdatedAt: new Date(),
-        },
-      });
-      /**
-       * A COST ARRIVING MUST REACH THE SERVICES WAITING ON IT.
-       *
-       * Writing ContractorMaterial and returning left every service that needed
-       * this role still marked unresolved: the blocker is cached on Service and
-       * nothing recomputed it. The contractor entered the cost they were asked
-       * for, the blocker stayed, and there was no in-product way to clear it.
-       *
-       * lib/materialCost.ts already pairs the write with the recompute in
-       * setContractorMaterialCost. This route predates that and upserts
-       * directly, so it calls the same shared recompute rather than growing its
-       * own idea of what a cost change means.
-       */
-      const affected = await recomputeServicesUsingRole({
-        db, canonicalMaterialId: canonical.id, contractorId,
-      });
-      return NextResponse.json({
-        ok: true, material, canonicalMaterial: canonical, recomputed: affected.length,
-      });
-    }
+        });
 
-    return NextResponse.json({ error: `Unknown action: ${String(action)}` }, { status: 400 });
-  } catch (err) {
-    // Bad cost data is the caller's mistake, not a server fault. A package
-    // quantity of zero fails closed rather than becoming a free material, and
-    // the admin should be told why.
-    if (err instanceof MaterialCostError) {
-      return NextResponse.json({ error: err.message }, { status: 400 });
+        const affected = await recomputeServicesUsingRole({
+          db,
+          canonicalMaterialId: canonical.id,
+          contractorId,
+        });
+        return NextResponse.json({
+          ok: true,
+          material,
+          canonicalMaterial: canonical,
+          recomputed: affected.length,
+        });
+      }
+
+      return NextResponse.json({ error: "Unknown materials action." }, { status: 400 });
+    } catch (err) {
+      // MaterialCostError is intentionally safe for the contractor to see: it
+      // describes invalid cost input, not database or infrastructure details.
+      if (err instanceof MaterialCostError) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+      console.error("[materials]", action, err);
+      return NextResponse.json(
+        { error: "Price2Book could not update materials. Nothing was intentionally published; try again." },
+        { status: 500 },
+      );
     }
-    const message = err instanceof Error ? err.message : "Unknown database error";
-    console.error("[materials]", action, err);
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
   });
 }
