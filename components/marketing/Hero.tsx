@@ -103,7 +103,7 @@ export default function Hero() {
               ) : null}
 
               {SHOTS.homePrice ? (
-                <div className="mt-4 overflow-hidden rounded-[10px] border border-p2b-line bg-white shadow-[0_4px_14px_rgba(16,24,40,.10),0_30px_62px_-22px_rgba(16,24,40,.34)] lg:absolute lg:-bottom-1 lg:left-0 lg:mt-0 lg:w-[62%]">
+                <div className="mt-4 overflow-hidden rounded-[10px] border border-p2b-line bg-white shadow-[0_4px_14px_rgba(16,24,40,.10),0_30px_62px_-22px_rgba(16,24,40,.34)] lg:absolute lg:-bottom-1 lg:left-0 lg:mt-0 lg:w-3/5">
                   <div className="flex items-center gap-2.5 border-b border-p2b-line bg-p2b-canvas-alt px-3 py-2">
                     <span className="flex gap-1.5" aria-hidden="true">
                       <span className="h-2 w-2 rounded-full bg-p2b-line-dash" />
