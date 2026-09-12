@@ -151,10 +151,24 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         />
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-navy">
-        <input type="checkbox" checked={active} onChange={(e) => changed(() => setActive(e.target.checked))} />
-        Visible on the site (uncheck to hide from category/browse pages without deleting it)
-      </label>
+      <div className={`rounded-card border p-4 ${active ? "border-success/20 bg-success/[0.05]" : "border-cardline bg-warmwhite/60"}`}>
+        <label className="flex items-start gap-3 text-sm text-navy">
+          <input
+            type="checkbox"
+            checked={active}
+            onChange={(e) => changed(() => setActive(e.target.checked))}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="font-semibold">{active ? "Live on storefront" : "Hidden from storefront"}</span>
+            <span className="mt-1 block text-xs leading-relaxed text-slate">
+              {active
+                ? "Customers can reach this service through the storefront. Turning it off takes it down without deleting its setup."
+                : "This service stays configured in Price2Book, but customers cannot book it until you make it live again."}
+            </span>
+          </span>
+        </label>
+      </div>
 
       {service.hasTree && (
         <p className="rounded-card bg-warmwhite p-3 text-xs text-slate">
@@ -172,7 +186,7 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
                 <li key={p.id ?? p.slug ?? i}>
                   {p.id ? (
                     <a href={`/dashboard/services/${p.id}`} className="font-medium text-electric underline">
-                      Activate {p.label} first
+                      Make {p.label} live first
                     </a>
                   ) : (
                     <span className="text-navy">{p.label} — nothing to open yet</span>
