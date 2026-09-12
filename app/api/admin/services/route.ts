@@ -1,17 +1,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 import { availableTrades } from "@/lib/templateProvisioning";
 
 const BOOKING_TYPES = new Set(["INSTANT", "ADJUSTED", "REMOTE_QUOTE"]);
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export async function POST(req: Request) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+function optionalText(value: unknown, label: string): string | null | NextResponse {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") {
+    return NextResponse.json({ error: `${label} must be text.` }, { status: 400 });
   }
+  return value.trim() || null;
+}
 
+function isResponse(value: unknown): value is NextResponse {
+  return value instanceof NextResponse;
+}
+
+export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -22,14 +29,17 @@ export async function POST(req: Request) {
   // No price is accepted at creation. A service is created unpriced and priced
   // through its pricing route's publish action, which derives the figure and
   // stamps the approval. See app/api/admin/services/[serviceId]/pricing.
-  const categoryId = typeof body.categoryId === "string" ? body.categoryId : "";
+  const categoryId = typeof body.categoryId === "string" ? body.categoryId.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const slug = typeof body.slug === "string" ? body.slug.trim() : "";
   const bookingType = typeof body.bookingType === "string" ? body.bookingType : "";
   const tradeKey = typeof body.tradeKey === "string" ? body.tradeKey.trim() : "";
-  const shortDescription = typeof body.shortDescription === "string" ? body.shortDescription.trim() : null;
-  const startingPriceLabel = typeof body.startingPriceLabel === "string" ? body.startingPriceLabel.trim() : null;
-  const icon = typeof body.icon === "string" ? body.icon.trim() : null;
+  const shortDescription = optionalText(body.shortDescription, "Description");
+  if (isResponse(shortDescription)) return shortDescription;
+  const startingPriceLabel = optionalText(body.startingPriceLabel, "Starting price label");
+  if (isResponse(startingPriceLabel)) return startingPriceLabel;
+  const icon = optionalText(body.icon, "Icon");
+  if (isResponse(icon)) return icon;
 
   if (!categoryId || !name || !slug || !bookingType) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -52,7 +62,7 @@ export async function POST(req: Request) {
     );
   }
 
-  return withAdminContractor(async (db, ctx) => {
+  return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
 
     const existing = await db.service.findFirst({ where: { slug } });
@@ -111,10 +121,10 @@ export async function POST(req: Request) {
         contractorId,
         name,
         slug,
-        shortDescription: shortDescription || null,
+        shortDescription,
         bookingType,
-        startingPriceLabel: startingPriceLabel || null,
-        icon: icon || null,
+        startingPriceLabel,
+        icon,
         tradeKey,
         active: false,
       },
