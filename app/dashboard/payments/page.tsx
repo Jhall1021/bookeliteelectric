@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { withAdminContractor } from "@/lib/adminContext";
 import { connectReadiness } from "@/lib/stripeConnect";
+import StripeConnectionActions from "./StripeConnectionActions";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,10 @@ export default async function PaymentsPage() {
                 </span>
               </div>
             )}
+          </div>
+
+          <div className="border-b border-cardline px-5 py-4 sm:px-6">
+            <StripeConnectionActions connected={Boolean(c.stripeAccountId)} ready={readiness.ready} />
           </div>
 
           <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-3">
