@@ -49,22 +49,29 @@ export default function ReorderList({
   async function save() {
     setSaving(true);
     setError(null);
-    const res = await fetch("/api/admin/reorder", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, ids: order.map((o) => o.id) }),
-    });
-    setSaving(false);
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/admin/reorder", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, ids: order.map((o) => o.id) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          typeof data.error === "string"
+            ? data.error
+            : "Could not save the order. Your unsaved order is still shown here."
+        );
+        return;
+      }
       setDirty(false);
       router.refresh();
-    } else {
-      let detail = `${res.status} ${res.statusText}`;
-      try {
-        const d = await res.json();
-        if (d?.error) detail = d.error;
-      } catch {}
-      setError(detail);
+    } catch {
+      setError(
+        "Could not reach Price2Book. Your unsaved order is still shown here; try saving again when the connection returns."
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -75,8 +82,9 @@ export default function ReorderList({
           <div key={item.id} className="flex items-center gap-3 border-b border-cardline p-3.5 last:border-b-0 sm:p-4">
             <div className="flex shrink-0 flex-col overflow-hidden rounded-pill border border-cardline bg-warmwhite/70">
               <button
+                type="button"
                 onClick={() => move(i, -1)}
-                disabled={i === 0}
+                disabled={i === 0 || saving}
                 aria-label={`Move ${item.label} up`}
                 className="flex h-8 w-9 items-center justify-center text-[10px] leading-none text-slate transition hover:bg-white hover:text-electric disabled:cursor-not-allowed disabled:opacity-25"
               >
@@ -84,8 +92,9 @@ export default function ReorderList({
               </button>
               <div className="h-px bg-cardline" />
               <button
+                type="button"
                 onClick={() => move(i, 1)}
-                disabled={i === order.length - 1}
+                disabled={i === order.length - 1 || saving}
                 aria-label={`Move ${item.label} down`}
                 className="flex h-8 w-9 items-center justify-center text-[10px] leading-none text-slate transition hover:bg-white hover:text-electric disabled:cursor-not-allowed disabled:opacity-25"
               >
@@ -99,7 +108,7 @@ export default function ReorderList({
         ))}
       </div>
 
-      {error && <p className="mt-3 rounded-card border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="mt-3 rounded-card border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       {/* Only appears once something has moved — nothing to save otherwise,
           and a permanently-visible button invites pointless writes. */}
@@ -108,9 +117,11 @@ export default function ReorderList({
           <p className="text-xs font-medium text-navy">You have unsaved ordering changes.</p>
           <div className="flex flex-wrap items-center gap-2">
             <button
+              type="button"
               onClick={() => {
                 setOrder(items);
                 setDirty(false);
+                setError(null);
               }}
               disabled={saving}
               className="rounded-pill border border-cardline bg-white px-4 py-2 text-sm font-semibold text-slate transition hover:border-electric hover:text-navy disabled:opacity-50"
@@ -118,6 +129,7 @@ export default function ReorderList({
               Undo
             </button>
             <button
+              type="button"
               onClick={save}
               disabled={saving}
               className="rounded-pill bg-electric px-5 py-2 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
