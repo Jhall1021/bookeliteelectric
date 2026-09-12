@@ -212,10 +212,14 @@ export function SidebarShell({
             </div>
           </header>
 
-          {/* Each admin route already owns its content measure and spacing.
-              The shell supplies navigation, chrome and the application theme;
-              it deliberately does not add a second layer of page padding. */}
-          <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+          {/* One shared content rhythm for both staff and contractor surfaces.
+              Feature pages still own their internal grids, but no page has to
+              reinvent the outer measure, gutters or vertical breathing room. */}
+          <main className="min-h-[calc(100vh-4rem)]">
+            <div className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-10 xl:py-9">
+              {children}
+            </div>
+          </main>
         </div>
       </div>
 
