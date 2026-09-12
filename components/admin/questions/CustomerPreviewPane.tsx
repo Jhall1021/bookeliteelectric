@@ -50,8 +50,6 @@ export default function CustomerPreviewPane({ serviceId, dirty }: { serviceId: s
     void step({});
   }
 
-  // Useful the instant this pane appears — the first saved question, not an
-  // empty card asking to be clicked first.
   useEffect(() => {
     void step({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,93 +63,140 @@ export default function CustomerPreviewPane({ serviceId, dirty }: { serviceId: s
   }
 
   return (
-    <div className="rounded-card border border-cardline bg-white p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate">Test question flow</h3>
-        <Badge tone="neutral">Saved version</Badge>
+    <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
+      <div className="bg-navy px-4 py-4 text-white">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">Saved flow test</p>
+            <h3 className="mt-0.5 text-sm font-semibold">Walk through the customer choices</h3>
+          </div>
+          <Badge tone="neutral">Saved</Badge>
+        </div>
+        <p className="mt-2 text-xs leading-5 text-white/65">
+          Uses the live routing and pricing rules. It tests outcomes, not the homeowner page design.
+        </p>
       </div>
-      <div className="mt-1 flex items-center justify-between gap-2">
-        <p className="text-xs text-slate">Tests routing and pricing — not a preview of the homeowner's screen.</p>
+
+      <div className="p-4">
+        {dirty && (
+          <div className="mb-3 rounded-card border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+            <strong className="font-semibold">You have unsaved edits.</strong> Save them before testing the updated flow.
+          </div>
+        )}
+
         {history.length > 0 && (
-          <button type="button" onClick={restart} className="shrink-0 text-xs font-medium text-electric hover:underline">
-            Restart
-          </button>
+          <div className="mb-4 rounded-card bg-warmwhite p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate">Path so far</span>
+              <button type="button" onClick={restart} className="text-xs font-semibold text-electric hover:underline">
+                Start over
+              </button>
+            </div>
+            <ol className="mt-2 space-y-2 text-xs text-slate">
+              {history.map((h, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-bold text-slate ring-1 ring-cardline">
+                    {i + 1}
+                  </span>
+                  <span className="min-w-0 leading-5">
+                    <span className="block font-medium text-navy">{h.prompt}</span>
+                    <span>{h.chosenLabel}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {loading && (
+          <div className="rounded-card border border-dashed border-cardline p-4 text-center text-sm text-slate">
+            Checking saved flow…
+          </div>
+        )}
+        {error && <p className="rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+
+        {!loading && outcome?.status === "ASK" && (
+          <div>
+            <div className="mb-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-electric">Next question</p>
+              <p className="mt-1 text-base font-semibold leading-6 text-navy">{outcome.question.prompt}</p>
+              {outcome.question.helpText && (
+                <p className="mt-1 text-xs leading-5 text-slate">{outcome.question.helpText}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              {outcome.question.options.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => choose(outcome.question, opt.value, opt.label)}
+                  className="group flex w-full items-center justify-between gap-3 rounded-card border border-cardline bg-white px-3.5 py-3 text-left text-sm font-medium text-navy transition hover:border-electric hover:bg-electric/5"
+                >
+                  <span>{opt.label}</span>
+                  <span aria-hidden="true" className="text-base text-slate transition group-hover:translate-x-0.5 group-hover:text-electric">›</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!loading && outcome?.status === "PRICED" && (
+          <div className="rounded-card border border-emerald-200 bg-emerald-50/60 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Priced outcome</p>
+            <div className="mt-1 font-display text-3xl font-bold text-success">
+              ${(outcome.priceCents / 100).toFixed(2)}
+            </div>
+            {outcome.disclaimers.map((d, i) => (
+              <p key={i} className="mt-2 text-xs leading-5 text-slate">{d}</p>
+            ))}
+            {outcome.photoLabels.length > 0 && (
+              <p className="mt-2 text-xs leading-5 text-slate">Photos requested: {outcome.photoLabels.join(", ")}</p>
+            )}
+            <button type="button" onClick={restart} className="mt-3 text-xs font-semibold text-electric hover:underline">
+              Test another path
+            </button>
+          </div>
+        )}
+
+        {!loading && outcome?.status === "REVIEW" && (
+          <div className="rounded-card border border-cardline bg-warmwhite p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate">Review outcome</p>
+            <p className="mt-1 text-sm font-semibold text-navy">Sent to contractor review</p>
+            <p className="mt-1 text-xs leading-5 text-slate">{outcome.reason}</p>
+            {outcome.floorPriceCents !== null && (
+              <p className="mt-2 text-xs font-medium text-navy">Starting from ${(outcome.floorPriceCents / 100).toFixed(2)}</p>
+            )}
+            <button type="button" onClick={restart} className="mt-3 text-xs font-semibold text-electric hover:underline">
+              Test another path
+            </button>
+          </div>
+        )}
+
+        {!loading && outcome?.status === "REROUTE" && (
+          <div className={`rounded-card border p-4 ${outcome.unresolved ? "border-red-200 bg-red-50 text-red-700" : "border-electric/20 bg-electric/5 text-navy"}`}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">
+              {outcome.unresolved ? "Unresolved route" : "Reroute outcome"}
+            </p>
+            <p className="mt-1 text-sm font-semibold">
+              {outcome.unresolved
+                ? `Dead end: ${outcome.targetServiceName}`
+                : `Opens “${outcome.targetServiceName}”`}
+            </p>
+            <button type="button" onClick={restart} className="mt-3 text-xs font-semibold text-electric hover:underline">
+              Test another path
+            </button>
+          </div>
+        )}
+
+        {!loading && outcome?.status === "INVALID" && (
+          <div>
+            <p className="rounded-card bg-red-50 p-3 text-sm text-red-700">{outcome.reason}</p>
+            <button type="button" onClick={restart} className="mt-3 text-xs font-semibold text-electric hover:underline">
+              Start over
+            </button>
+          </div>
         )}
       </div>
-
-      {dirty && (
-        <p className="mt-2 rounded-card bg-amber-50 p-2 text-xs text-amber-800">
-          Unsaved changes below aren&rsquo;t reflected here yet — this always tests the saved version. Save to test them.
-        </p>
-      )}
-
-      {history.length > 0 && (
-        <ul className="mt-3 space-y-1 border-b border-cardline pb-3 text-xs text-slate">
-          {history.map((h, i) => (
-            <li key={i}>
-              <span className="text-navy">{h.prompt}</span> → {h.chosenLabel}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {loading && <p className="mt-3 text-sm text-slate">Loading…</p>}
-      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
-
-      {outcome?.status === "ASK" && (
-        <div className="mt-3">
-          <p className="text-sm font-medium text-navy">{outcome.question.prompt}</p>
-          {outcome.question.helpText && <p className="mt-0.5 text-xs text-slate">{outcome.question.helpText}</p>}
-          <div className="mt-2 space-y-1.5">
-            {outcome.question.options.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => choose(outcome.question, opt.value, opt.label)}
-                className="block w-full rounded-card border border-cardline px-3 py-2 text-left text-sm text-navy hover:border-electric"
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {outcome?.status === "PRICED" && (
-        <div className="mt-3">
-          <div className="font-display text-2xl font-bold text-success">
-            ${(outcome.priceCents / 100).toFixed(2)}
-          </div>
-          {outcome.disclaimers.map((d, i) => (
-            <p key={i} className="mt-1 text-xs text-slate">{d}</p>
-          ))}
-          {outcome.photoLabels.length > 0 && (
-            <p className="mt-1 text-xs text-slate">Photos requested: {outcome.photoLabels.join(", ")}</p>
-          )}
-        </div>
-      )}
-
-      {outcome?.status === "REVIEW" && (
-        <div className="mt-3">
-          <p className="text-sm font-medium text-navy">Sent to review</p>
-          <p className="mt-1 text-xs text-slate">{outcome.reason}</p>
-          {outcome.floorPriceCents !== null && (
-            <p className="mt-1 text-xs text-slate">Starting from ${(outcome.floorPriceCents / 100).toFixed(2)}</p>
-          )}
-        </div>
-      )}
-
-      {outcome?.status === "REROUTE" && (
-        <div className={`mt-3 rounded-card p-2.5 text-sm ${outcome.unresolved ? "bg-red-50 text-red-700" : "bg-electric/5 text-navy"}`}>
-          {outcome.unresolved
-            ? `Dead end: ${outcome.targetServiceName}`
-            : `Opens "${outcome.targetServiceName}"`}
-        </div>
-      )}
-
-      {outcome?.status === "INVALID" && (
-        <p className="mt-3 rounded-card bg-red-50 p-2.5 text-sm text-red-700">{outcome.reason}</p>
-      )}
     </div>
   );
 }
