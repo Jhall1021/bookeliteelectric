@@ -45,35 +45,55 @@ export default function PreWorkDepositPanel(p: Props) {
 
   const field = "mt-1 w-full rounded-card border border-cardline px-3 py-2 text-sm focus:border-electric";
   const depositDollars = deposit.trim() === "" ? null : Number(deposit);
+  const visitMinutes = minutes.trim() === "" ? null : Number(minutes);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true); setError(null); setSaved(false);
+    setError(null);
+    setSaved(false);
 
     if (depositDollars !== null && (!Number.isFinite(depositDollars) || depositDollars < 0)) {
-      setBusy(false);
       setError("Enter the deposit as an amount of money, or leave it blank for none.");
       return;
     }
 
-    const res = await fetch(`/api/admin/services/${p.serviceId}/pre-work`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        requiresPreWorkVisit: requiresVisit,
-        preWorkVisitMinutes: minutes.trim() === "" ? "" : Number(minutes),
-        // Dollars in the UI, cents on the wire.
-        depositCents: depositDollars === null ? "" : Math.round(depositDollars * 100),
-        depositCreditsToJob: credits,
-        ctaLabel: cta,
-        preWorkCustomerNote: note,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) { setError(data.error ?? "Could not save."); return; }
-    setSaved(true);
-    router.refresh();
+    if (requiresVisit && (visitMinutes === null || !Number.isInteger(visitMinutes) || visitMinutes <= 0)) {
+      setError("Enter how long the required site visit takes before saving.");
+      return;
+    }
+
+    if (visitMinutes !== null && (!Number.isInteger(visitMinutes) || visitMinutes < 0)) {
+      setError("Visit length must be a whole number of minutes.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/services/${p.serviceId}/pre-work`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requiresPreWorkVisit: requiresVisit,
+          preWorkVisitMinutes: visitMinutes === null ? "" : visitMinutes,
+          // Dollars in the UI, cents on the wire.
+          depositCents: depositDollars === null ? "" : Math.round(depositDollars * 100),
+          depositCreditsToJob: credits,
+          ctaLabel: cta,
+          preWorkCustomerNote: note,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Could not save site visit and deposit settings. Nothing was changed.");
+        return;
+      }
+      setSaved(true);
+      router.refresh();
+    } catch {
+      setError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -86,7 +106,7 @@ export default function PreWorkDepositPanel(p: Props) {
       <label className="mt-5 flex items-start gap-3">
         <input
           type="checkbox" checked={requiresVisit}
-          onChange={(e) => setRequiresVisit(e.target.checked)}
+          onChange={(e) => { setRequiresVisit(e.target.checked); setSaved(false); setError(null); }}
           className="mt-1"
         />
         <span className="text-sm">
@@ -102,8 +122,8 @@ export default function PreWorkDepositPanel(p: Props) {
           <label className="text-sm font-medium text-navy">How long is that visit?</label>
           <div className="flex items-center gap-2">
             <input
-              type="number" min="0" step="5" value={minutes}
-              onChange={(e) => setMinutes(e.target.value)}
+              type="number" min="1" step="5" value={minutes}
+              onChange={(e) => { setMinutes(e.target.value); setSaved(false); setError(null); }}
               placeholder="30"
               className={`${field} max-w-[8rem]`}
             />
@@ -121,14 +141,14 @@ export default function PreWorkDepositPanel(p: Props) {
           <span className="mt-1 text-sm text-slate">$</span>
           <input
             type="number" min="0" step="0.01" value={deposit}
-            onChange={(e) => setDeposit(e.target.value)}
+            onChange={(e) => { setDeposit(e.target.value); setSaved(false); setError(null); }}
             placeholder="Leave blank for no deposit"
             className={`${field} max-w-[10rem]`}
           />
         </div>
         {depositDollars !== null && depositDollars > 0 && (
           <label className="mt-3 flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={credits} onChange={(e) => setCredits(e.target.checked)} />
+            <input type="checkbox" checked={credits} onChange={(e) => { setCredits(e.target.checked); setSaved(false); setError(null); }} />
             <span className="text-slate">Counts toward the total, rather than being an extra fee</span>
           </label>
         )}
@@ -146,7 +166,7 @@ export default function PreWorkDepositPanel(p: Props) {
           <span className="font-normal text-slate">(optional)</span>
         </label>
         <input
-          type="text" value={cta} onChange={(e) => setCta(e.target.value)}
+          type="text" value={cta} onChange={(e) => { setCta(e.target.value); setSaved(false); setError(null); }}
           placeholder="Add to My Visit"
           className={field}
         />
@@ -162,7 +182,7 @@ export default function PreWorkDepositPanel(p: Props) {
             <span className="font-normal text-slate">(optional)</span>
           </label>
           <textarea
-            value={note} onChange={(e) => setNote(e.target.value)} rows={4}
+            value={note} onChange={(e) => { setNote(e.target.value); setSaved(false); setError(null); }} rows={4}
             placeholder="Once booked, we'll schedule a brief on-site visit to..."
             className={field}
           />
@@ -178,7 +198,7 @@ export default function PreWorkDepositPanel(p: Props) {
         </div>
       )}
 
-      {error && <div className="mt-4 rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {saved && <div className="mt-4 text-sm text-success">Saved.</div>}
 
       <button
