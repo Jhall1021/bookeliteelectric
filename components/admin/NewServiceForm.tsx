@@ -35,9 +35,6 @@ export default function NewServiceForm({
 }) {
   const router = useRouter();
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
-  // A single available trade is PRESELECTED, not assumed — what gets stored is
-  // still an explicit choice, and the select is still shown. G2's rule is that
-  // trade is never inferred, including from "there is only one".
   const [tradeKey, setTradeKey] = useState(trades.length === 1 ? trades[0] : "");
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -51,35 +48,60 @@ export default function NewServiceForm({
 
   function handleNameChange(value: string) {
     setName(value);
+    setError(null);
     if (!slugTouched) setSlug(slugify(value));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const cleanName = name.trim();
+    const cleanSlug = slug.trim();
+    if (!tradeKey) {
+      setError("Choose a trade before creating the service.");
+      return;
+    }
+    if (!categoryId) {
+      setError("Choose a category before creating the service.");
+      return;
+    }
+    if (!cleanName) {
+      setError("Enter a service name before creating the service.");
+      return;
+    }
+    if (!cleanSlug) {
+      setError("Enter a URL slug before creating the service.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
-    const res = await fetch("/api/admin/services", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        categoryId,
-        name,
-        slug,
-        shortDescription: description || null,
-        bookingType,
-        tradeKey,
-        startingPriceLabel: startingLabel || null,
-        icon: icon || null,
-      }),
-    });
+    try {
+      const res = await fetch("/api/admin/services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoryId,
+          name: cleanName,
+          slug: cleanSlug,
+          shortDescription: description.trim() || null,
+          bookingType,
+          tradeKey,
+          startingPriceLabel: startingLabel.trim() || null,
+          icon: icon || null,
+        }),
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      router.push(`/dashboard/services/${data.id}`);
-    } else {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Something went wrong creating this service.");
+      if (!res.ok) {
+        setError(data.error ?? "Could not create this service. Nothing was added.");
+        setSaving(false);
+        return;
+      }
+
+      router.push(`/dashboard/services/${data.id}`);
+    } catch {
+      setError("Could not reach Price2Book. Check your connection and try again; nothing was added.");
       setSaving(false);
     }
   }
@@ -91,7 +113,7 @@ export default function NewServiceForm({
         <select
           required
           value={tradeKey}
-          onChange={(e) => setTradeKey(e.target.value)}
+          onChange={(e) => { setTradeKey(e.target.value); setError(null); }}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         >
           <option value="" disabled>Choose a trade</option>
@@ -100,8 +122,7 @@ export default function NewServiceForm({
           ))}
         </select>
         <p className="mt-1 text-xs text-slate">
-          Which catalog this service belongs to. It decides where &ldquo;it stopped
-          working&rdquo; sends a homeowner, so it cannot be changed by guesswork later.
+          Which catalog this service belongs to. It decides where &ldquo;it stopped working&rdquo; sends a homeowner, so it cannot be changed by guesswork later.
         </p>
       </div>
 
@@ -109,7 +130,7 @@ export default function NewServiceForm({
         <label className="text-sm font-medium text-navy">Category</label>
         <select
           value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
+          onChange={(e) => { setCategoryId(e.target.value); setError(null); }}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         >
           {categories.map((c) => (
@@ -135,7 +156,7 @@ export default function NewServiceForm({
         <input
           required
           value={slug}
-          onChange={(e) => { setSlug(slugify(e.target.value)); setSlugTouched(true); }}
+          onChange={(e) => { setSlug(slugify(e.target.value)); setSlugTouched(true); setError(null); }}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm font-mono focus:border-electric"
         />
       </div>
@@ -144,7 +165,7 @@ export default function NewServiceForm({
         <label className="text-sm font-medium text-navy">Description (shown to customers)</label>
         <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => { setDescription(e.target.value); setError(null); }}
           rows={3}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         />
@@ -154,7 +175,7 @@ export default function NewServiceForm({
         <label className="text-sm font-medium text-navy">Booking type</label>
         <select
           value={bookingType}
-          onChange={(e) => setBookingType(e.target.value)}
+          onChange={(e) => { setBookingType(e.target.value); setError(null); }}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         >
           {BOOKING_TYPES.map((b) => (
@@ -163,14 +184,9 @@ export default function NewServiceForm({
         </select>
       </div>
 
-      {/* No price fields here on purpose. A new service is created unpriced,
-          then priced on its Pricing tab from crew hours and material cost and
-          published as an explicit approval. Typing a price at creation was the
-          shortest path from somebody's guess to a homeowner's invoice. */}
-      <p className="rounded-card bg-warmwhite p-3 text-xs text-slate">
-        You&rsquo;ll set the price after creating this service, on its Pricing tab — it&rsquo;s
-        worked out from your crew hours and material costs, and you approve it before
-        customers see it.
+      <p className="rounded-card border border-electric/15 bg-electric/5 p-3 text-xs leading-5 text-slate">
+        <span className="font-semibold text-navy">New services start hidden.</span>{" "}
+        After creation, set up the pricing, materials and customer flow, then make the service live when Price2Book says it is ready. Creating a service never publishes it to customers automatically.
       </p>
 
       <div>
@@ -179,7 +195,7 @@ export default function NewServiceForm({
         </label>
         <input
           value={startingLabel}
-          onChange={(e) => setStartingLabel(e.target.value)}
+          onChange={(e) => { setStartingLabel(e.target.value); setError(null); }}
           placeholder="e.g. From $795, or leave blank for Custom Quote"
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         />
@@ -189,7 +205,7 @@ export default function NewServiceForm({
         <label className="text-sm font-medium text-navy">Icon</label>
         <select
           value={icon}
-          onChange={(e) => setIcon(e.target.value)}
+          onChange={(e) => { setIcon(e.target.value); setError(null); }}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         >
           <option value="">— use category's default icon —</option>
@@ -199,7 +215,7 @@ export default function NewServiceForm({
         </select>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       <button
         type="submit"
