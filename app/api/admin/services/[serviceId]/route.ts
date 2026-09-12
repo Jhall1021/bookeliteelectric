@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 import { activationRefusal } from "@/lib/serviceActivation";
 
 function optionalText(
@@ -22,10 +21,6 @@ function optionalText(
 }
 
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -49,7 +44,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   const startingLabelValue = optionalText(startingPriceLabel, "Starting price label");
   if (!startingLabelValue.ok) return startingLabelValue.response;
 
-  return withAdminContractor(async (db, ctx) => {
+  return withAdminRoute(async (db, ctx) => {
     const service = await db.service.findUnique({
       where: { id: params.serviceId },
       select: {
