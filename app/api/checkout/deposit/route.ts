@@ -54,7 +54,7 @@ export async function GET(req: Request) {
       select: {
         computedPriceCents: true,
         estimatedMinutes: true,
-        service: { select: { slug: true, depositRule: true, depositCreditsToJob: true } },
+        service: { select: { slug: true, depositRule: true } },
       },
     });
 
@@ -96,7 +96,9 @@ export async function GET(req: Request) {
     const depositDueCents = deposit.amountCents;
 
     // The whole financial picture, whether or not a deposit is due — the
-    // homeowner is owed the total and the tax either way.
+    // homeowner is owed the total and the tax either way. A captured deposit
+    // is always payment against this total, so there is no separate credit
+    // policy to expose to the browser.
     const money = {
       subtotalCents,
       salesTaxRatePpm: tax.ratePpm,
@@ -116,7 +118,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ...money,
-      creditsToJob: lineItems.every((li) => li.service.depositCreditsToJob),
       ready: readiness.ready && Boolean(publishableKey),
       stripeAccountId: readiness.ready ? contractor.stripeAccountId : null,
       publishableKey: readiness.ready ? publishableKey : null,
