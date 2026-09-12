@@ -3,6 +3,24 @@ import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { withAdminContractor } from "@/lib/adminContext";
 import { activationRefusal } from "@/lib/serviceActivation";
 
+function optionalText(
+  value: unknown,
+  fieldLabel: string
+): { ok: true; value: string | null | undefined } | { ok: false; response: NextResponse } {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (value === null) return { ok: true, value: null };
+  if (typeof value !== "string") {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: `${fieldLabel} must be text or null.` },
+        { status: 400 }
+      ),
+    };
+  }
+  return { ok: true, value: value.trim() || null };
+}
+
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -24,10 +42,23 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Visibility must be true or false." }, { status: 400 });
   }
 
+  const descriptionValue = optionalText(shortDescription, "Description");
+  if (!descriptionValue.ok) return descriptionValue.response;
+  const disclaimerValue = optionalText(disclaimer, "Disclaimer");
+  if (!disclaimerValue.ok) return disclaimerValue.response;
+  const startingLabelValue = optionalText(startingPriceLabel, "Starting price label");
+  if (!startingLabelValue.ok) return startingLabelValue.response;
+
   return withAdminContractor(async (db, ctx) => {
     const service = await db.service.findUnique({
       where: { id: params.serviceId },
-      select: { id: true, active: true },
+      select: {
+        id: true,
+        active: true,
+        shortDescription: true,
+        disclaimer: true,
+        startingPriceLabel: true,
+      },
     });
     if (!service) return NextResponse.json({ error: "Unknown service" }, { status: 404 });
 
@@ -57,9 +88,12 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       where: { id: params.serviceId },
       data: {
         name: name.trim(),
-        shortDescription: typeof shortDescription === "string" ? shortDescription.trim() || null : null,
-        disclaimer: typeof disclaimer === "string" ? disclaimer.trim() || null : null,
-        startingPriceLabel: typeof startingPriceLabel === "string" ? startingPriceLabel.trim() || null : null,
+        shortDescription:
+          descriptionValue.value === undefined ? service.shortDescription : descriptionValue.value,
+        disclaimer:
+          disclaimerValue.value === undefined ? service.disclaimer : disclaimerValue.value,
+        startingPriceLabel:
+          startingLabelValue.value === undefined ? service.startingPriceLabel : startingLabelValue.value,
         active: wantsActive,
       },
     });
