@@ -94,7 +94,7 @@ export default async function PaymentsPage() {
         {policyMissingAmount && (
           <div className="mt-5 rounded-card border border-p2b-amber-ink/30 bg-p2b-amber-tint px-4 py-3 text-sm leading-relaxed text-p2b-amber-ink">
             <p className="font-semibold text-navy">Your deposit rules can require a deposit, but no company deposit amount is set.</p>
-            <p className="mt-1">Checkout will collect $0 when those rules match until you set the amount under Tax &amp; Deposits.</p>
+            <p className="mt-1">Checkout will not collect a deposit until you set the amount under Tax &amp; Deposits. Price2Book does not invent an amount or block the homeowner over a missing contractor setting.</p>
             <Link href="/dashboard/billing" className="mt-2 inline-flex font-semibold text-electric hover:underline">Set deposit amount</Link>
           </div>
         )}
