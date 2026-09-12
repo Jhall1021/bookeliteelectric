@@ -1,17 +1,11 @@
 /**
- * Pre-work visit and deposit configuration for one service.
+ * Pre-work visit and per-service deposit configuration.
  *
- * Beside the pricing and materials routes rather than inside the general
- * service PATCH, for the same reason those are separate: they are different
- * decisions with different consequences. This one decides whether a homeowner
- * is asked for money at booking.
- *
- * WHAT THIS IS NOT
- *
- * It is not a price. `depositCents` is contractor configuration — like crew
- * hours — not a derived, approved, customer-facing price, so it does not go
- * through the publish/approval boundary and does not touch `basePrice` or
- * `publishedPriceApprovedAt`.
+ * Deposit AMOUNT is contractor-wide. Checkout takes one deposit for one
+ * booking, so this service can only say how it participates in that company
+ * policy: always require it, never require it, or use the company rules.
+ * `Service.depositCents` is retained in the schema for migration history but
+ * is not a live checkout input and is deliberately not written here.
  */
 
 import { NextResponse } from "next/server";
@@ -20,6 +14,8 @@ import { withAdminRoute } from "@/lib/adminContext";
 type OptionalValue<T> =
   | { ok: true; value: T | null | undefined }
   | { ok: false; error: string };
+
+type DepositRuleValue = "USE_COMPANY_POLICY" | "ALWAYS_REQUIRE" | "NEVER_REQUIRE";
 
 /** Omitted preserves the current value; null/empty explicitly clears it. */
 function optionalInt(v: unknown, label: string): OptionalValue<number> {
@@ -49,6 +45,16 @@ function optionalBoolean(v: unknown, label: string):
   return { ok: true, value: v };
 }
 
+function optionalDepositRule(v: unknown):
+  | { ok: true; value: DepositRuleValue | undefined }
+  | { ok: false; error: string } {
+  if (v === undefined) return { ok: true, value: undefined };
+  if (v === "USE_COMPANY_POLICY" || v === "ALWAYS_REQUIRE" || v === "NEVER_REQUIRE") {
+    return { ok: true, value: v };
+  }
+  return { ok: false, error: "Choose a valid deposit rule." };
+}
+
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
   let parsed: unknown;
   try {
@@ -62,8 +68,8 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   }
   const body = parsed as Record<string, unknown>;
 
-  const deposit = optionalInt(body.depositCents, "Deposit");
-  if (!deposit.ok) return NextResponse.json({ error: deposit.error }, { status: 400 });
+  const depositRule = optionalDepositRule(body.depositRule);
+  if (!depositRule.ok) return NextResponse.json({ error: depositRule.error }, { status: 400 });
 
   const visitMinutes = optionalInt(body.preWorkVisitMinutes, "Visit length");
   if (!visitMinutes.ok) return NextResponse.json({ error: visitMinutes.error }, { status: 400 });
@@ -88,7 +94,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
         id: true,
         requiresPreWorkVisit: true,
         preWorkVisitMinutes: true,
-        depositCents: true,
+        depositRule: true,
         depositCreditsToJob: true,
         ctaLabel: true,
         preWorkCustomerNote: true,
@@ -112,7 +118,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       data: {
         requiresPreWorkVisit: nextRequiresVisit,
         preWorkVisitMinutes: nextVisitMinutes,
-        depositCents: deposit.value === undefined ? service.depositCents : deposit.value,
+        depositRule: depositRule.value ?? service.depositRule,
         depositCreditsToJob:
           creditsToJob.value === undefined ? service.depositCreditsToJob : creditsToJob.value,
         ctaLabel: cta.value === undefined ? service.ctaLabel : cta.value,
