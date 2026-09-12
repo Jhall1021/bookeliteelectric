@@ -54,14 +54,8 @@ import { withAdminRoute } from "@/lib/adminContext";
 
 /** Recompute the cached total and return it, for the JSON response. */
 async function totalFor(db: PrismaClient, serviceId: string): Promise<number> {
-  // The shared helpers stay dependency-injected: they operate on the database
-  // capability they are handed. Tenant context belongs at the request
-  // boundary, not inside a helper.
   const result = await recomputeServiceMaterialCost(db, serviceId);
   if (result) return result.afterCents;
-  // No itemized rows left. The recompute deliberately leaves a non-itemized
-  // service's flat allowance alone rather than zeroing it, so read back what
-  // the service actually holds instead of asserting zero.
   const svc = await db.service.findUnique({
     where: { id: serviceId },
     select: { materialCostCents: true },
@@ -69,10 +63,6 @@ async function totalFor(db: PrismaClient, serviceId: string): Promise<number> {
   return svc?.materialCostCents ?? 0;
 }
 
-/**
- * The three actions that change a RECIPE: recompute, then clear the legacy
- * multiplier because itemizing has happened. Cost edits do not come here.
- */
 async function afterRecipeChange(db: PrismaClient, serviceId: string) {
   const totalCents = await totalFor(db, serviceId);
   const clearedMultiplier = await clearLegacyMultiplierOnItemize(db, serviceId);
@@ -128,16 +118,6 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const serviceId = searchParams.get("serviceId");
 
-  // The catalog is this contractor's costed roles, not a global material
-  // list. Two contractors filling the same role each see their own figure.
-
-  // GUARD-ADOPTED (ADR-007a). Everything below is this contractor's, on the
-  // guarded client.
-  //
-  // ADR-007: the catalog roots at ContractorMaterial, the tenant-owned model,
-  // and includes the canonical role from there. Rooting at CanonicalMaterial
-  // and nesting contractorMaterials would be the platform-parent shape the
-  // live harness proved the guard cannot see.
   return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
     const catalog = await db.contractorMaterial.findMany({
@@ -164,7 +144,6 @@ export async function GET(req: Request) {
     });
 
     const catalogOut = catalog.map((c) => ({
-      /** The CONTRACTOR material's id — what a cost edit targets. */
       id: c.id,
       canonicalMaterialId: c.canonicalMaterialId,
       key: c.canonicalMaterial.key,
@@ -188,9 +167,6 @@ export async function GET(req: Request) {
       include: { canonicalMaterial: true },
     });
 
-    // A recipe line whose role this contractor hasn't costed is reported as
-    // unpriced rather than shown at zero. A dash-priced row that still sums
-    // into a total is how a job gets underquoted.
     const costs = new Map(catalog.map((c) => [c.canonicalMaterialId, c]));
 
     return NextResponse.json({
@@ -207,7 +183,6 @@ export async function GET(req: Request) {
           quantity: i.quantity,
           unitCostCents: cost?.unitCostCents ?? null,
           lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null,
-          /** True when this contractor has no cost for the role. */
           unpriced: !cost,
           costSource: cost?.costSource ?? null,
           costConfidence: cost?.costConfidence ?? null,
@@ -238,12 +213,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "A materials action is required." }, { status: 400 });
   }
 
-  // GUARD-ADOPTED (ADR-007a). One context for the whole handler; every action
-  // below reads and writes through the guarded client.
   return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
     try {
-      // ---- add a material to a service ----------------------------------
       if (action === "add") {
         const serviceId = requiredString(body.serviceId, "serviceId");
         if (isResponse(serviceId)) return serviceId;
@@ -254,12 +226,20 @@ export async function POST(req: Request) {
           : numberValue(body.quantity, "Quantity", { greaterThan: 0 });
         if (isResponse(quantity)) return quantity;
 
+        // Resolve both sides before attempting the nested write. A foreign or
+        // missing service is deliberately indistinguishable here and returns
+        // the same 404 instead of falling through to a Prisma exception/500.
+        const service = await db.service.findUnique({ where: { id: serviceId }, select: { id: true } });
+        if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
+        const canonicalMaterial = await db.canonicalMaterial.findUnique({
+          where: { id: canonicalMaterialId },
+          select: { id: true },
+        });
+        if (!canonicalMaterial) {
+          return NextResponse.json({ error: "Material role not found" }, { status: 404 });
+        }
+
         const count = await db.serviceMaterial.count({ where: { serviceId } });
-        // ADR-010: ServiceMaterial is DERIVED-owned, so upsert() would throw —
-        // there is no contractorId to stamp on the create half and the guard
-        // refuses to invent one. Split into a scoped update and, failing that, a
-        // nested create through the already-scoped Service, which makes
-        // ownership structural rather than asserted.
         const existingLine = await db.serviceMaterial.findFirst({
           where: { serviceId, canonicalMaterialId },
           select: { id: true },
@@ -283,7 +263,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, totalCents });
       }
 
-      // ---- change how much of it a service uses --------------------------
       if (action === "quantity") {
         const id = requiredString(body.id, "Material line id");
         if (isResponse(id)) return id;
@@ -292,15 +271,11 @@ export async function POST(req: Request) {
 
         const row = await db.serviceMaterial.findUnique({ where: { id } });
         if (!row) return NextResponse.json({ error: "Material line not found" }, { status: 404 });
-        await db.serviceMaterial.update({
-          where: { id },
-          data: { quantity },
-        });
+        await db.serviceMaterial.update({ where: { id }, data: { quantity } });
         const { totalCents } = await afterRecipeChange(db, row.serviceId);
         return NextResponse.json({ ok: true, totalCents });
       }
 
-      // ---- take a material off a service ---------------------------------
       if (action === "remove") {
         const id = requiredString(body.id, "Material line id");
         if (isResponse(id)) return id;
@@ -311,8 +286,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, totalCents });
       }
 
-      // ---- change a material's cost, everywhere --------------------------
-      // Does NOT touch materialMultiplier. See the note at the top of the file.
       if (action === "cost") {
         const contractorMaterialId = requiredString(body.contractorMaterialId, "contractorMaterialId");
         if (isResponse(contractorMaterialId)) return contractorMaterialId;
@@ -324,10 +297,7 @@ export async function POST(req: Request) {
         const hasPackagePrice = body.packagePriceCents !== undefined && body.packagePriceCents !== null;
         const hasPackageQuantity = body.packageQuantity !== undefined && body.packageQuantity !== null;
         if (hasPackagePrice !== hasPackageQuantity) {
-          return NextResponse.json(
-            { error: "Package price and package quantity must be provided together." },
-            { status: 400 },
-          );
+          return NextResponse.json({ error: "Package price and package quantity must be provided together." }, { status: 400 });
         }
 
         let packagePriceCents: number | undefined;
@@ -347,15 +317,11 @@ export async function POST(req: Request) {
           unitCostCents = parsedUnit;
         }
 
-        // How many of THIS contractor's services hold the role, independent of
-        // whether the cost moved — preserves the existing response contract.
         const cm = await db.contractorMaterial.findUnique({
           where: { id: contractorMaterialId },
           select: { canonicalMaterialId: true, contractorId: true },
         });
-        if (!cm) {
-          return NextResponse.json({ error: "Unknown material" }, { status: 404 });
-        }
+        if (!cm) return NextResponse.json({ error: "Unknown material" }, { status: 404 });
         const using = await db.serviceMaterial.findMany({
           where: {
             canonicalMaterialId: cm.canonicalMaterialId,
@@ -394,7 +360,6 @@ export async function POST(req: Request) {
         });
       }
 
-      // ---- preview a package conversion before committing it -------------
       if (action === "preview-package") {
         const packagePriceCents = numberValue(body.packagePriceCents, "Package price", { min: 0, integer: true });
         if (isResponse(packagePriceCents)) return packagePriceCents;
@@ -411,8 +376,6 @@ export async function POST(req: Request) {
         });
       }
 
-      // ---- add a new part to the catalog ---------------------------------
-      // The key is a CANONICAL ROLE, not a product.
       if (action === "create") {
         const keyInput = requiredString(body.key, "Key");
         if (isResponse(keyInput)) return keyInput;
@@ -426,17 +389,12 @@ export async function POST(req: Request) {
         if (isResponse(confidence)) return confidence;
 
         const key = keyInput.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-        if (!key) {
-          return NextResponse.json({ error: "Key must contain at least one letter or number." }, { status: 400 });
-        }
+        if (!key) return NextResponse.json({ error: "Key must contain at least one letter or number." }, { status: 400 });
 
         const hasPackagePrice = body.packagePriceCents !== undefined && body.packagePriceCents !== null;
         const hasPackageQuantity = body.packageQuantity !== undefined && body.packageQuantity !== null;
         if (hasPackagePrice !== hasPackageQuantity) {
-          return NextResponse.json(
-            { error: "Package price and package quantity must be provided together." },
-            { status: 400 },
-          );
+          return NextResponse.json({ error: "Package price and package quantity must be provided together." }, { status: 400 });
         }
 
         let packagePriceCents: number | undefined;
@@ -460,20 +418,13 @@ export async function POST(req: Request) {
         const canonical = await db.canonicalMaterial.upsert({
           where: { key },
           update: {},
-          create: {
-            key,
-            name,
-            unit: unit ?? "each",
-          },
+          create: { key, name, unit: unit ?? "each" },
         });
 
         const packageCost = packagePriceCents !== undefined && packageQuantity !== undefined;
         const material = await db.contractorMaterial.upsert({
           where: {
-            contractorId_canonicalMaterialId: {
-              contractorId,
-              canonicalMaterialId: canonical.id,
-            },
+            contractorId_canonicalMaterialId: { contractorId, canonicalMaterialId: canonical.id },
           },
           update: {
             unitCostCents: derived.unitCostCents,
@@ -491,13 +442,7 @@ export async function POST(req: Request) {
             canonicalMaterialId: canonical.id,
             unitCostCents: derived.unitCostCents,
             unitCostMilliCents: derived.unitCostMilliCents,
-            ...(packageCost
-              ? {
-                  packagePriceCents,
-                  packageQuantity,
-                  packageUnit: packageUnit ?? unit ?? "each",
-                }
-              : {}),
+            ...(packageCost ? { packagePriceCents, packageQuantity, packageUnit: packageUnit ?? unit ?? "each" } : {}),
             costSource: "CUSTOM",
             costConfidence: confidence ?? "CONFIRMED",
             costStatus: "OK",
@@ -505,23 +450,12 @@ export async function POST(req: Request) {
           },
         });
 
-        const affected = await recomputeServicesUsingRole({
-          db,
-          canonicalMaterialId: canonical.id,
-          contractorId,
-        });
-        return NextResponse.json({
-          ok: true,
-          material,
-          canonicalMaterial: canonical,
-          recomputed: affected.length,
-        });
+        const affected = await recomputeServicesUsingRole({ db, canonicalMaterialId: canonical.id, contractorId });
+        return NextResponse.json({ ok: true, material, canonicalMaterial: canonical, recomputed: affected.length });
       }
 
       return NextResponse.json({ error: "Unknown materials action." }, { status: 400 });
     } catch (err) {
-      // MaterialCostError is intentionally safe for the contractor to see: it
-      // describes invalid cost input, not database or infrastructure details.
       if (err instanceof MaterialCostError) {
         return NextResponse.json({ error: err.message }, { status: 400 });
       }
