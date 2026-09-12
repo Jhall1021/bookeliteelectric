@@ -18,17 +18,34 @@ export default function SetupStepperNav({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function go(key: string) {
+    if (pending || key === current) return;
+
     setPending(true);
+    setError(null);
     try {
-      await fetch("/api/admin/setup/progress", {
+      const res = await fetch("/api/admin/setup/progress", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentStage: key }),
       });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(
+          typeof data.error === "string"
+            ? data.error
+            : "Price2Book couldn't save your setup progress. Try again before leaving this step."
+        );
+        return;
+      }
+
       router.push(`/dashboard/setup?stage=${key}`);
       router.refresh();
+    } catch {
+      setError("Price2Book couldn't save your setup progress. Check your connection and try again.");
     } finally {
       setPending(false);
     }
@@ -65,6 +82,11 @@ export default function SetupStepperNav({
       </div>
 
       <div className="border-t border-cardline bg-white px-4 py-3 sm:px-5">
+        {error && (
+          <p role="alert" className="mb-3 rounded-card border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </p>
+        )}
         <div className="mb-2 text-center text-xs text-slate sm:hidden">
           {pending ? "Saving your place…" : nextKey ? "Continue when this step looks right." : "You’re at the final step."}
         </div>
