@@ -56,30 +56,64 @@ export default function BillingPolicyForm({ settings }: { settings: Settings }) 
     setError(null);
   }
 
+  function validate(): string | null {
+    const number = (value: string) => value.trim() === "" ? null : Number(value);
+    const taxRate = number(rate);
+    const deposit = number(amount);
+    const subtotal = number(threshold);
+    const hoursReserved = number(duration);
+
+    if (taxOn && (taxRate === null || !Number.isFinite(taxRate) || taxRate <= 0)) {
+      return "Enter the tax rate you charge before turning sales tax on.";
+    }
+    if (deposit !== null && (!Number.isFinite(deposit) || deposit < 0)) {
+      return "Deposit amount must be a valid dollar amount of zero or more.";
+    }
+    if (subtotal !== null && (!Number.isFinite(subtotal) || subtotal < 0)) {
+      return "Deposit subtotal threshold must be a valid dollar amount of zero or more.";
+    }
+    if (hoursReserved !== null && (!Number.isFinite(hoursReserved) || hoursReserved <= 0)) {
+      return "Deposit duration threshold must be greater than zero hours, or left blank to turn the rule off.";
+    }
+    return null;
+  }
+
   async function save() {
     if (!dirty) return;
-    setState("saving");
-    setError(null);
-    const res = await fetch("/api/admin/setup/billing-policy", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        salesTaxEnabled: taxOn,
-        salesTaxRatePercent: rate === "" ? null : rate,
-        depositAmountDollars: amount === "" ? null : amount,
-        depositOnEveryBooking: everyJob,
-        depositSubtotalThresholdDollars: threshold === "" ? null : threshold,
-        depositDurationThresholdHours: duration === "" ? null : duration,
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(json.error ?? "Could not save that.");
+    const problem = validate();
+    if (problem) {
+      setError(problem);
       setState("idle");
       return;
     }
-    setState("saved");
-    router.refresh();
+
+    setState("saving");
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/setup/billing-policy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          salesTaxEnabled: taxOn,
+          salesTaxRatePercent: rate === "" ? null : rate,
+          depositAmountDollars: amount === "" ? null : amount,
+          depositOnEveryBooking: everyJob,
+          depositSubtotalThresholdDollars: threshold === "" ? null : threshold,
+          depositDurationThresholdHours: duration === "" ? null : duration,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(json.error ?? "Could not save tax and deposit rules. Nothing was changed.");
+        setState("idle");
+        return;
+      }
+      setState("saved");
+      router.refresh();
+    } catch {
+      setError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+      setState("idle");
+    }
   }
 
   const field = "w-full rounded-card border border-cardline bg-white px-3.5 py-2.5 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10";
