@@ -17,32 +17,65 @@ export default function BusinessPanel({
     supportEmail: profile.supportEmail ?? "", licenseNumber: profile.licenseNumber ?? "",
     countryCode: profile.countryCode ?? "US",
   });
-  const [busy, setBusy] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [creatingStorefront, setCreatingStorefront] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [storefrontError, setStorefrontError] = useState<string | null>(null);
 
   const field = "mt-1.5 w-full rounded-card border border-cardline bg-white px-3.5 py-2.5 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10";
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true); setError(null); setSaved(false);
-    const res = await fetch("/api/admin/business-profile", {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-    });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) { setError(data.message ?? data.error ?? "Could not save."); return; }
-    setSaved(true);
-    router.refresh();
+    if (savingProfile) return;
+
+    setSavingProfile(true);
+    setProfileError(null);
+    setSaved(false);
+    try {
+      const res = await fetch("/api/admin/business-profile", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setProfileError(
+          typeof data.message === "string" ? data.message
+            : typeof data.error === "string" ? data.error
+            : "Could not save your business details. Nothing was changed."
+        );
+        return;
+      }
+      setSaved(true);
+      router.refresh();
+    } catch {
+      setProfileError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   async function createStorefront() {
-    setBusy(true); setError(null);
-    const res = await fetch("/api/admin/setup/storefront", { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok) { setError(data.message ?? data.error ?? "Could not create your storefront."); return; }
-    router.refresh();
+    if (creatingStorefront) return;
+
+    setCreatingStorefront(true);
+    setStorefrontError(null);
+    try {
+      const res = await fetch("/api/admin/setup/storefront", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStorefrontError(
+          typeof data.message === "string" ? data.message
+            : typeof data.error === "string" ? data.error
+            : "Could not create your booking destination."
+        );
+        return;
+      }
+      router.refresh();
+    } catch {
+      setStorefrontError("Could not reach Price2Book. Check your connection and try creating the booking destination again.");
+    } finally {
+      setCreatingStorefront(false);
+    }
   }
 
   return (
@@ -72,23 +105,27 @@ export default function BusinessPanel({
                 <label className="text-sm font-semibold text-navy">{label}</label>
                 <p className="mt-0.5 text-xs text-slate">{helper}</p>
                 <input
-                  type={type} value={form[key]} disabled={busy}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  type={type} value={form[key]} disabled={savingProfile}
+                  onChange={(e) => {
+                    setForm({ ...form, [key]: e.target.value });
+                    setSaved(false);
+                    setProfileError(null);
+                  }}
                   className={field}
                 />
               </div>
             ))}
           </div>
 
-          {error && <div className="mt-5 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+          {profileError && <div role="alert" className="mt-5 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{profileError}</div>}
           {saved && <div className="mt-5 rounded-card border border-success/20 bg-success/5 p-3 text-sm font-medium text-success">Business details saved.</div>}
 
           <div className="mt-6 flex justify-end border-t border-cardline pt-5">
             <button
-              type="submit" disabled={busy}
+              type="submit" disabled={savingProfile}
               className="rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
             >
-              {busy ? "Saving..." : "Save business details"}
+              {savingProfile ? "Saving..." : "Save business details"}
             </button>
           </div>
         </div>
@@ -128,11 +165,16 @@ export default function BusinessPanel({
                 We&rsquo;ll create the hosted address Price2Book needs behind the scenes. You can still embed the experience on your own website afterward.
               </p>
               <button
-                type="button" onClick={createStorefront} disabled={busy}
+                type="button" onClick={() => void createStorefront()} disabled={creatingStorefront}
                 className="mt-4 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50"
               >
-                {busy ? "Creating..." : "Create booking destination"}
+                {creatingStorefront ? "Creating..." : "Create booking destination"}
               </button>
+              {storefrontError && (
+                <div role="alert" className="mt-4 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {storefrontError}
+                </div>
+              )}
             </div>
           )}
         </div>
