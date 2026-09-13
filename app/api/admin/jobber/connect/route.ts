@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { resolveAdminContractor } from "@/lib/adminContext";
 import { JOBBER_AUTH_URL, jobberRedirectUri } from "@/lib/jobber";
+import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 
@@ -34,6 +35,26 @@ export async function GET() {
   }
 
   const { contractorId } = await resolveAdminContractor();
+
+  // Re-authorizing over an existing connection is unsafe because the OAuth
+  // credentials may belong to a DIFFERENT Jobber account while the cached crew
+  // list still belongs to the old one. The dashboard's Disconnect action is the
+  // one sanctioned account-switch path: it deletes the connection and its crew
+  // cache atomically, so a newly connected account starts with zero booking
+  // capacity until its own roster is synced and explicitly enabled.
+  //
+  // The UI already hides Connect while connected, but this guard is the rule;
+  // a copied/direct URL must not be able to bypass the lifecycle.
+  const existingConnection = await prisma.jobberConnection.findUnique({
+    where: { contractorId },
+    select: { id: true },
+  });
+  if (existingConnection) {
+    return NextResponse.redirect(
+      new URL("/dashboard/jobber?error=already_connected", redirectUri)
+    );
+  }
+
   const state = randomUUID();
   cookies().set("jobber_oauth_state", `${state}:${contractorId}`, {
     httpOnly: true,
