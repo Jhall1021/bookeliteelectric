@@ -51,7 +51,6 @@ function page(
 async function main() {
   console.log("\nJOBBER USER PAGINATION — complete roster or no reconciliation\n");
 
-  // A normal two-page roster proves we do not silently stop at the first 50.
   const requestedCursors: Array<string | null> = [];
   const pages = new Map<string, JobberUserPage>([
     ["FIRST", page([{ id: "usr-1", name: "Alex" }], true, "cursor-1")],
@@ -86,7 +85,7 @@ async function main() {
 
   let repeatCall = 0;
   await rejects(
-    "3. a repeated cursor cannot loop or certify a partial roster",
+    "3. an immediately repeated cursor cannot certify a partial roster",
     () => fetchAllJobberUsers("contractor-fixture", {
       requestPage: async () => {
         repeatCall += 1;
@@ -98,9 +97,23 @@ async function main() {
     /pagination did not advance/i
   );
 
+  let cycleCall = 0;
+  await rejects(
+    "4. a longer cursor cycle is rejected before it can loop",
+    () => fetchAllJobberUsers("contractor-fixture", {
+      requestPage: async () => {
+        cycleCall += 1;
+        if (cycleCall === 1) return page([{ id: "usr-1", name: "Alex" }], true, "cursor-a");
+        if (cycleCall === 2) return page([{ id: "usr-2", name: "Jordan" }], true, "cursor-b");
+        return page([{ id: "usr-3", name: "Casey" }], true, "cursor-a");
+      },
+    }),
+    /pagination did not advance/i
+  );
+
   let duplicateCall = 0;
   await rejects(
-    "4. duplicate user IDs across pages are rejected",
+    "5. duplicate user IDs across pages are rejected",
     () => fetchAllJobberUsers("contractor-fixture", {
       requestPage: async () => {
         duplicateCall += 1;
@@ -113,7 +126,7 @@ async function main() {
   );
 
   await rejects(
-    "5. an incomplete provider record cannot enter the roster",
+    "6. an incomplete provider record cannot enter the roster",
     () => fetchAllJobberUsers("contractor-fixture", {
       requestPage: async () => ({
         nodes: [{ id: "", name: { full: "Alex" } }],
@@ -125,7 +138,7 @@ async function main() {
 
   let endlessPage = 0;
   await rejects(
-    "6. an implausibly deep roster stops instead of reconciling partial data",
+    "7. an implausibly deep roster stops instead of reconciling partial data",
     () => fetchAllJobberUsers("contractor-fixture", {
       requestPage: async () => {
         endlessPage += 1;
@@ -136,7 +149,7 @@ async function main() {
         );
       },
     }),
-    /exceeded 1000 users/i
+    /safety limit/i
   );
 
   console.log();
