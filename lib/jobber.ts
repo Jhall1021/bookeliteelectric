@@ -580,7 +580,7 @@ async function fetchJobberVisitsForDay(contractorId: string, dateISO: string): P
   // still more after that, refusing availability is safer than looping forever
   // or quietly declaring an incomplete calendar verified.
   for (let page = 0; page < 100; page += 1) {
-    const result = await jobberGraphQL<JobberVisitPage>(
+    const result: JobberVisitPage = await jobberGraphQL<JobberVisitPage>(
       contractorId,
       VISITS_FOR_DAY_QUERY,
       { dateAfter: dayStart, dateBefore: dayEnd, pageAfter }
@@ -602,13 +602,13 @@ async function fetchJobberVisitsForDay(contractorId: string, dateISO: string): P
         startAt: visit.startAt,
         endAt: visit.endAt,
         allDay: visit.allDay,
-        assignedUserIds: visit.assignedUsers.nodes.map((u) => u.id),
+        assignedUserIds: visit.assignedUsers.nodes.map((u: { id: string }) => u.id),
       });
     }
 
     if (!result.visits.pageInfo.hasNextPage) return visits;
 
-    const nextCursor = result.visits.pageInfo.endCursor;
+    const nextCursor: string | null = result.visits.pageInfo.endCursor;
     if (!nextCursor || nextCursor === pageAfter || seenCursors.has(nextCursor)) {
       throw new Error("Jobber visit pagination did not advance; availability cannot be verified completely.");
     }
