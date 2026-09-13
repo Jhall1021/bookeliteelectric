@@ -29,20 +29,6 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Guided Setup — one route, a stage rail, one panel at a time.
- *
- * It orchestrates. Every rule belongs to the system that already owns it, and
- * every "fix" is a link to the surface that already does that job. Guided
- * Setup writes exactly three kinds of fact: the contractor's own details,
- * which services they offer, and who owns their calendar. It cannot price
- * anything, approve anything or put anything on a storefront.
- *
- * Pricing, scheduling and payments appear as locked stages so the contractor
- * can see the whole journey. Locked here means the rail will not open them —
- * they have no panel and no writer in this slice.
- */
-
 const OPEN_STAGES = [
   "business", "trade", "services", "pricing-foundation",
   "scheduling", "payments", "launch",
@@ -74,33 +60,17 @@ export default async function SetupPage({
       select: { hostedSlug: true, publicId: true, embedOrigins: true },
     });
 
-    // Same launch-stage exception as the stepper below: its own narrow
-    // status can read "ready" while canLaunch is false, and this count
-    // must never claim more stages are done than actually are.
     const complete = r.stages.filter(
       (s) => (OPEN_STAGES as readonly string[]).includes(s.key)
         && (s.key === "launch" ? r.canLaunch : s.status === "ready")
     ).length;
 
-    // The compact stepper's own visual state — layered ON TOP of the
-    // readiness engine's status, never a second opinion about it. A stage
-    // you haven't reached yet stays neutral ("upcoming") even if it already
-    // has findings, the same way an untouched Scheduling stage always will
-    // (no calendar authority declared is a blocker from the moment a
-    // contractor is created); a stage you've already passed shows
-    // "attention" instead, because by then it's something you moved past
-    // rather than something you simply haven't gotten to.
     const currentIndex = (OPEN_STAGES as readonly string[]).indexOf(current);
     const steps: Step[] = r.stages
       .filter((s) => (OPEN_STAGES as readonly string[]).includes(s.key))
       .map((s) => {
         const index = (OPEN_STAGES as readonly string[]).indexOf(s.key);
         if (s.key === current) return { key: s.key, title: s.title, state: "active" as const };
-        // "launch" is a narrow stage — it only asks "is there something to
-        // sell" — so it can read "ready" while other stages still block a
-        // real launch. `canLaunch` (blockers.length === 0, everywhere) is
-        // what "launch is actually complete" already means; this stage's
-        // own dot must never claim more than that.
         const ready = s.key === "launch" ? r.canLaunch : s.status === "ready";
         if (ready) return { key: s.key, title: s.title, state: "complete" as const };
         return { key: s.key, title: s.title, state: index < currentIndex ? ("attention" as const) : ("upcoming" as const) };
@@ -114,10 +84,6 @@ export default async function SetupPage({
     let launchable: Launchable[] = [];
 
     const stage = r.stages.find((s) => s.key === current)!;
-    // Computed once, read by both the batch-review data fetch below and the
-    // panel's own render — the readiness engine already grouped these by
-    // role rather than by service, and this must not re-derive that grouping
-    // a second way.
     const roleFindings = stage.findings.filter((f) => f.code === "MATERIAL_COST_UNRESOLVED");
 
     if (current === "scheduling") {
@@ -147,20 +113,16 @@ export default async function SetupPage({
         }),
       ]);
 
-      // Same stored facts as lib/depositPolicy.ts and onboardingReadiness.ts.
-      // The legacy per-service depositCents field is intentionally not read:
-      // checkout collects one company deposit per booking, with service-level
-      // ALWAYS / COMPANY / NEVER precedence.
       const companyRuleEnabled =
         cc.depositOnEveryBooking ||
         cc.depositSubtotalThresholdCents !== null ||
         cc.depositDurationThresholdMinutes !== null;
-      depositing = rows.flatMap((svc) => {
+      depositing = rows.flatMap<{ name: string; source: "always" | "company" }>((svc) => {
         if (svc.depositRule === "ALWAYS_REQUIRE") {
-          return [{ name: svc.name, source: "always" as const }];
+          return [{ name: svc.name, source: "always" }];
         }
         if (svc.depositRule === "USE_COMPANY_POLICY" && companyRuleEnabled) {
-          return [{ name: svc.name, source: "company" as const }];
+          return [{ name: svc.name, source: "company" }];
         }
         return [];
       });
@@ -171,45 +133,14 @@ export default async function SetupPage({
     }
 
     if (current === "launch") {
-      // A service is launchable when its OWN requirements are met. The
-      // per-service activation route re-checks the same things when the
-      // contractor actually presses the button, so this list is a preview of
-      // that answer rather than a second opinion.
       const offeredRows = await db.service.findMany({
         where: { contractorId: ctx.contractorId, offered: true },
         orderBy: { name: "asc" },
       });
       const promises = await catalogPromises(db, ctx.contractorId);
-
-      // ORDERED SO THE CONTRACTOR NEVER LEARNS THE ORDERING RULE.
-      //
-      // Several services hand a homeowner off — "it stopped working" goes to
-      // the diagnostic — and activation refuses while the destination is not
-      // live. That is the correct refusal, but a contractor ticking every box
-      // at once should not have to discover that troubleshooting had to go
-      // first. Prerequisites are launched before the services that need them.
-      //
-      // Ordering ONLY. Every service still goes through the same per-service
-      // route and the same activationRefusal; nothing here decides that any
-      // service may go live.
-      // PER TRADE — G2.
-      //
-      // This was a single `.find()` over every offered row, which picked the
-      // first TROUBLESHOOT_ONLY service in the catalog. On a contractor selling
-      // two trades that is a coin toss, and the loser is a service ordered
-      // behind another trade's diagnostic — which activation then refuses,
-      // producing exactly the ordering deadlock this block exists to prevent.
-      //
-      // Indexed by trade, and a service's prerequisite is the diagnostic of ITS
-      // OWN trade. A service with no trade established gets none: it cannot
-      // resolve a destination anyway, and inventing one here would order it
-      // behind a service that will not help it.
       const diagnosticIdByTrade = new Map<string, string>();
       for (const s of offeredRows) {
         if (s.bookingType !== "TROUBLESHOOT_ONLY" || !s.tradeKey) continue;
-        // First by name order, and only when unambiguous. Two diagnostics in one
-        // trade is a catalog defect the shared authority refuses; ordering must
-        // not paper over it by picking one.
         if (diagnosticIdByTrade.has(s.tradeKey)) diagnosticIdByTrade.set(s.tradeKey, "");
         else diagnosticIdByTrade.set(s.tradeKey, s.id);
       }
@@ -224,7 +155,7 @@ export default async function SetupPage({
       const ordered: typeof offeredRows = [];
       const placed = new Set<string>();
       const place = (svc: (typeof offeredRows)[number], seen: Set<string>) => {
-        if (placed.has(svc.id) || seen.has(svc.id)) return; // cycles: leave order be
+        if (placed.has(svc.id) || seen.has(svc.id)) return;
         seen.add(svc.id);
         for (const depId of prerequisiteOf(svc.id)) {
           const dep = offeredRows.find((r) => r.id === depId);
@@ -250,7 +181,6 @@ export default async function SetupPage({
       });
     }
 
-    // ── panel data ───────────────────────────────────────────────────────
     let selection: Awaited<ReturnType<typeof catalogPromises>> | null = null;
     let services: {
       id: string; name: string; categoryName: string | null;
@@ -300,8 +230,6 @@ export default async function SetupPage({
       });
       enrolled = enrolment?.tradeKey ?? null;
       if (enrolled) {
-        // The SAME source the installer reads, so the preview cannot promise a
-        // different catalog than the install delivers.
         const pre = await preflight(db, ctx.contractorId, templateVersionSource(prisma, enrolled));
         if (pre.ok) preview = pre.preview; else previewError = pre.message;
       }
@@ -315,14 +243,6 @@ export default async function SetupPage({
           roundingIncrementCents: true, defaultPermitAdminCents: true,
         },
       });
-      // Independent of `settings` below — "has the contractor chosen
-      // anything to sell" is a fact about the SERVICES stage, not about
-      // whether a crew-hour rate has been entered yet. roleFindings (the
-      // readiness engine's own MATERIAL_COST_UNRESOLVED findings) is
-      // ALREADY scoped to offered services only (lib/onboardingReadiness.ts's
-      // offeredServices()), so it reads 0 both when nothing is offered and
-      // when everything offered is costed — this is the signal that tells
-      // those two states apart.
       offeredCount = await db.service.count({
         where: { contractorId: ctx.contractorId, offered: true },
       });
@@ -348,9 +268,6 @@ export default async function SetupPage({
         });
       }
 
-      // Batch-review data: one row per unresolved canonical role, its
-      // affected services (already grouped by the readiness engine, not
-      // re-derived here) and the current Material Baseline offer, if any.
       const roleKeys = roleFindings.map((f) => f.materialKey).filter((k): k is string => !!k);
       if (roleKeys.length > 0) {
         const canonicalMaterials = await db.canonicalMaterial.findMany({
@@ -376,16 +293,7 @@ export default async function SetupPage({
           .filter((r): r is BaselineRow => r !== null);
       }
 
-      // Labor calibration — FLAT_RATE only. A T&M contractor's field labor
-      // hours never feed their price (that's estimateLowCrewHours /
-      // estimateHighCrewHours, resolved through its own existing
-      // review-and-approve path — see lib/timeAndMaterials.ts); offering
-      // this wizard to them would ask for an answer that goes nowhere.
       if (c.pricingStrategy === "FLAT_RATE") {
-        // Eligibility resolved entirely server-side — see
-        // lib/laborWizard.ts's header. The panel never sees the rest of
-        // this contractor's catalog; a service that isn't in `eligible` or
-        // `customized` for a task simply cannot be checked for it.
         const resolved = await resolveTaskEligibility(db, ctx.contractorId, ELECTRICAL_LABOR_TASKS);
         laborTasks = resolved.map((r) => ({
           key: r.task.key,
@@ -419,14 +327,6 @@ export default async function SetupPage({
       </li>
     );
 
-    // MATERIAL_COST_UNRESOLVED is excluded here on this one stage — it is
-    // the same finding the batch-review panel above already lists,
-    // interactively, with something to actually do about it. Left in, a
-    // contractor would see every unresolved role twice: once as a real
-    // accept/override/skip, and once more as dead prose pointing at
-    // /dashboard/services, which this panel has superseded. Every other
-    // stage is unaffected — this code only groups MATERIAL_COST_UNRESOLVED
-    // under "pricing-foundation" in the first place.
     const blockersFirst = stage.findings
       .filter((f) => !(current === "pricing-foundation" && f.code === "MATERIAL_COST_UNRESOLVED"))
       .sort((a, b) => (a.severity === "blocker" ? 0 : 1) - (b.severity === "blocker" ? 0 : 1));
@@ -434,8 +334,6 @@ export default async function SetupPage({
     return (
       <div className="mx-auto max-w-4xl">
         <h1 className="font-display text-2xl font-bold text-navy">Set up your storefront</h1>
-        {/* Stage completion and real counts, not a percentage — a meter that
-            says 60% tells a contractor nothing about whether anyone can book. */}
         <p className="mt-1 text-sm text-slate">
           {complete} of {OPEN_STAGES.length} setup stages complete ·{" "}
           {r.canLaunch ? (
@@ -505,17 +403,6 @@ export default async function SetupPage({
               <div className="mt-4">
                 <PricingFoundationPanel
                   settings={rateSettings}
-                  // Material findings are handled interactively by the batch
-                  // panel below, not re-listed here — that list is the one
-                  // and only interactive material list. This panel's own
-                  // status text still needs to know whether any exist,
-                  // though: `offeredCount` and `unresolvedRoleCount` (the
-                  // real, non-hardcoded count) are what tell "nothing chosen
-                  // yet" apart from "chosen and fully costed" apart from
-                  // "chosen, N still need review" — see PricingFoundationPanel's
-                  // own comment for why collapsing those into one boolean
-                  // (or one hardcoded `[]`) said "everything is costed" while
-                  // the batch panel below still listed real unresolved roles.
                   offeredCount={offeredCount}
                   unresolvedRoleCount={roleFindings.length}
                   policyFindings={stage.findings.filter((f) => f.code === "POLICY_UNRESOLVED")}
@@ -529,10 +416,6 @@ export default async function SetupPage({
               </div>
             )}
 
-            {/* The embed is the recommended way to use Price2Book, and until
-                now a contractor could not switch it on without an API call.
-                It sits with the storefront address because that is where the
-                question "where do my customers find this" is answered. */}
             {current === "business" && site && (
               <EmbedOriginsControl origins={site.embedOrigins} publicId={site.publicId}
                                    embedOrigin={platformOrigin()} />
@@ -543,9 +426,6 @@ export default async function SetupPage({
                 <SchedulingAuthorityControl
                   authority={c.schedulingAuthority as "NATIVE" | "EXTERNAL" | null}
                 />
-                {/* Only when Price2Book keeps the calendar. An external
-                    provider answers this from its own schedule, and asking
-                    twice would invite two different answers. */}
                 {c.schedulingAuthority === "NATIVE" && (
                   <NativeCapacityControl concurrentJobs={c.nativeConcurrentJobs} />
                 )}
@@ -564,13 +444,6 @@ export default async function SetupPage({
               </div>
             )}
 
-            {/* THE LAST STAGE HAD NO PANEL.
-                Both of these were imported, given their data, and never
-                rendered — so Review & launch showed a contractor "Nothing
-                outstanding here" and no way to put anything live, which is a
-                dead end at the exact moment the setup exists to reach. The
-                launch list still activates one service at a time through the
-                per-service route; nothing about the wiring changes that. */}
             {current === "launch" && (
               <div className="mt-4">
                 <LaunchPanel
