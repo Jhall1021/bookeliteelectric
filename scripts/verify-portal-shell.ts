@@ -47,8 +47,8 @@ function boundary() {
   // Whitespace-normalised: JSX copy wraps, and a sentence split across two
   // source lines is the same sentence to a reader.
   const page = readFileSync("app/dashboard/page.tsx", "utf8").replace(/\s+/g, " ");
-  ok(/traces back to something you control/.test(page),
-    "the overview states the control-panel headline");
+  ok(/Pricing and booking happen here\. Your existing system can keep the rest\./.test(page),
+    "the overview explicitly states Price2Book's focused product boundary");
   ok(/Customers, invoices, payroll, dispatch and reporting/.test(page),
     "…and names what stays in the contractor's existing software");
 }
