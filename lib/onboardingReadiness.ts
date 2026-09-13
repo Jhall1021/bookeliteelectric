@@ -28,7 +28,7 @@ import { suggestPrimaryPrice } from "./pricing";
 import { servicesOnHold } from "./materialHolds";
 import { loadServiceForResolution, loadPricingSettings } from "./routeResolver";
 import { validateEstimateBounds } from "./pricingReadiness";
-import { mapWithConcurrency } from "./concurrency";
+import { mapWithConcurrency, allWithConcurrency } from "./concurrency";
 import { loadCatalogForResolution, type ResolvedCatalog } from "./catalogResolution";
 
 /**
@@ -69,6 +69,15 @@ import { loadCatalogForResolution, type ResolvedCatalog } from "./catalogResolut
  * docs on this fix for the method.
  */
 const SERVICE_PROMISE_CONCURRENCY = 5;
+
+/**
+ * How many of assessOnboarding's independent catalog-level reads run at once.
+ * Thirteen reads awaited one after another cost ~935ms of pure round trips on a
+ * 79-service catalog once the per-service trees were no longer the bottleneck.
+ * Bounded at the same five as SERVICE_PROMISE_CONCURRENCY, so one readiness
+ * assessment never holds more than five connections for these reads.
+ */
+const READINESS_READ_CONCURRENCY = 5;
 
 export type Severity = "blocker" | "warning";
 
@@ -275,9 +284,42 @@ export async function assessOnboarding(
   };
   const notes: string[] = [];
 
+  // INDEPENDENT READS, AT MOST READINESS_READ_CONCURRENCY AT ONCE. Each was
+  // awaited one after another below, every one is keyed by contractorId alone,
+  // and none depends on another's result — so they are fetched together here
+  // and consumed at their ORIGINAL positions, which keeps every finding in the
+  // same order. A missing pricing row is captured, not thrown, and still
+  // becomes its finding in section 3.
+  const [c, site, readServices, readEnrolment, settingsRead, readOffered, readPolicyValues,
+         readNoAddOn, readLiveCount, readConnection, readHours, readArea, readCrews] = await allWithConcurrency(
+    READINESS_READ_CONCURRENCY,
+    [
+      () => db.contractor.findUniqueOrThrow({ where: { id: contractorId } }),
+      () => db.contractorSite.findFirst({ where: { contractorId, active: true } }),
+      () => db.service.findMany({ where: { contractorId }, select: { id: true, slug: true, templateVersionId: true, active: true } }),
+      () => db.contractorTrade.findFirst({ where: { contractorId }, orderBy: { enrolledAt: "asc" } }),
+      () => loadPricingSettings(db as never, contractorId).then(
+        (v) => ({ ok: true as const, v: v as unknown }),
+        () => ({ ok: false as const, v: null as unknown }),
+      ),
+      () => offeredServices(db, contractorId),
+      () => db.contractorPolicyValue.findMany({ where: { contractorId }, select: { key: true, prompt: true } }),
+      () => servicesWithoutAddOnPrice(db, contractorId),
+      () => db.service.count({ where: { contractorId, active: true } }),
+      () => db.jobberConnection.findFirst({ where: { contractorId } }),
+      () => db.businessHours.findFirst({ where: { contractorId } }),
+      () => db.serviceArea.findFirst({ where: { contractorId, active: true } }),
+      () => db.jobberCrewMember.count({ where: { contractorId, eligibleForWebsiteBookings: true } }),
+    ] as const,
+  );
+  // The two reads that need pricing settings first: material holds, and the
+  // catalog's trees unless the caller already loaded them for this request.
+  const [readHeld, catalog] = await allWithConcurrency(2, [
+    () => (settingsRead.ok ? servicesOnHold(db, contractorId) : Promise.resolve([])),
+    () => Promise.resolve(opts.catalog ?? (settingsRead.ok ? loadCatalogForResolution(db, contractorId) : undefined)),
+  ] as const);
+
   // ── 1. Business ────────────────────────────────────────────────────────
-  const c = await db.contractor.findUniqueOrThrow({ where: { id: contractorId } });
-  const site = await db.contractorSite.findFirst({ where: { contractorId, active: true } });
 
   const IN_SETUP = "/dashboard/setup";
   if (!c.name?.trim()) findings.business.push(b("BUSINESS_NAME_MISSING", "Your business name is empty — the storefront cannot render without it.", { href: IN_SETUP }));
@@ -291,13 +333,8 @@ export async function assessOnboarding(
   if (!c.logoUrl) findings.business.push(w("BRANDING_DEFAULTS", "No logo uploaded — your storefront uses defaults.", { href: "/dashboard/design" }));
 
   // ── 2. Trade & template ────────────────────────────────────────────────
-  const services = await db.service.findMany({
-    where: { contractorId },
-    select: { id: true, slug: true, templateVersionId: true, active: true },
-  });
-  const enrolment = await db.contractorTrade.findFirst({
-    where: { contractorId }, orderBy: { enrolledAt: "asc" },
-  });
+  const services = readServices;
+  const enrolment = readEnrolment;
 
   // Enrolment is what lets a contractor INSTALL a catalog — it is not a
   // condition of being ready. Elite has 79 services, a live storefront and no
@@ -321,14 +358,11 @@ export async function assessOnboarding(
 
   // ── 3. Pricing foundation ──────────────────────────────────────────────
   let settings: unknown = null;
-  try {
-    settings = await loadPricingSettings(db as never, contractorId);
-  } catch {
+  if (settingsRead.ok) {
+    settings = settingsRead.v;
+  } else {
     findings["pricing-foundation"].push(b("PRICING_SETTINGS_MISSING", "Your labor rate and minimum have not been set. Nothing can be priced until they are.", { href: "/dashboard/pricing-settings" }));
   }
-  // The whole catalog's trees in one contractor-wide read, shared by every
-  // service promise below — unless the caller already loaded it for this request.
-  const catalog = opts.catalog ?? (settings ? await loadCatalogForResolution(db, contractorId) : undefined);
   const st = settings as { crewHourRateCents?: number; primaryMinimumCents?: number } | null;
   // STRATEGY-AWARE, from here down. `assessOnboarding` re-derived its own
   // FLAT_RATE-shaped idea of "priced" instead of calling lib/pricingReadiness.ts's
@@ -353,7 +387,7 @@ export async function assessOnboarding(
     findings["pricing-foundation"].push(w("MINIMUM_UNSET", "No service-call minimum. Short jobs will price at labor alone.", { href: "/dashboard/pricing-settings" }));
   }
 
-  const offered = await offeredServices(db, contractorId);
+  const offered = readOffered;
   const intended = offered.map((svc) => ({
     svc,
     reason: svc.active ? "offered and live" : "offered, not yet live",
@@ -375,7 +409,7 @@ export async function assessOnboarding(
       "Choose your services first — there's nothing to cost until you do.", { href: "/dashboard/services" }));
   }
 
-  const held = settings ? await servicesOnHold(db, contractorId) : [];
+  const held = readHeld;
   for (const h of held) {
     const match = intended.find((i) => i.svc.slug === h.slug);
     if (!match) continue;
@@ -413,9 +447,7 @@ export async function assessOnboarding(
   // no surface for deciding a policy existed at all. The prompt is written in
   // the contractor's language and is already stored on the row.
   const policyPrompts = new Map(
-    (await db.contractorPolicyValue.findMany({
-      where: { contractorId }, select: { key: true, prompt: true },
-    })).map((v) => [v.key, v.prompt])
+    readPolicyValues.map((v) => [v.key, v.prompt])
   );
   for (const [key, slugs] of [...policyToServices].sort()) {
     const ask = policyPrompts.get(key);
@@ -619,8 +651,8 @@ export async function assessOnboarding(
   // copy offering something the cart will refuse — so the storefront goes
   // quiet on its own (lib/sameVisit) and this says why, once, rather than
   // per service.
-  const noAddOn = await servicesWithoutAddOnPrice(db, contractorId);
-  const liveCount = await db.service.count({ where: { contractorId, active: true } });
+  const noAddOn = readNoAddOn;
+  const liveCount = readLiveCount;
   if (liveCount >= 2 && noAddOn.length === liveCount) {
     findings.services.push(w("SAME_VISIT_UNAVAILABLE",
       `None of your live services has an add-on price, so a homeowner can only ` +
@@ -642,12 +674,10 @@ export async function assessOnboarding(
   // intend to connect one and not have yet. Guessing either way is how
   // availability nobody verified reaches a homeowner.
   const mode = c.schedulingAuthority; // "NATIVE" | "EXTERNAL" | null
-  const connection = await db.jobberConnection.findFirst({ where: { contractorId } });
-  const hours = await db.businessHours.findFirst({ where: { contractorId } });
-  const area = await db.serviceArea.findFirst({ where: { contractorId, active: true } });
-  const crews = await db.jobberCrewMember.count({
-    where: { contractorId, eligibleForWebsiteBookings: true },
-  });
+  const connection = readConnection;
+  const hours = readHours;
+  const area = readArea;
+  const crews = readCrews;
 
   // A WARNING, not a blocker — checked rather than assumed. `loadBusinessHours`
   // falls back to DEFAULT_BUSINESS_HOURS when no row exists, so a homeowner can
