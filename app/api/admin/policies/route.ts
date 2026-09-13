@@ -1,3 +1,4 @@
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { withAdminContractor } from "@/lib/adminContext";
@@ -53,6 +54,11 @@ export async function PATCH(req: Request) {
 
   return withAdminContractor(async (db, ctx) => {
     const result = await resolvePolicy(db, ctx.contractorId, key, { boundaries, choice, measurement });
+    // Only the first-service pilot's own decisions, so this is not a general policy log.
+    if (key.startsWith("surface_")) {
+      pilotLog("setup_write", { contractorId: ctx.contractorId, step: "material_setup",
+        outcome: result.ok ? "ok" : "refused", status: result.ok ? 200 : 400, code: result.ok ? null : result.refusal.code });
+    }
     if (!result.ok) {
       const status = result.refusal.code === "UNKNOWN_POLICY" ? 404 : 400;
       return NextResponse.json({ error: result.refusal.message, code: result.refusal.code }, { status });

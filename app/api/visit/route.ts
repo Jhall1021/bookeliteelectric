@@ -1,3 +1,4 @@
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { resolveRouteWithDerivedPricing, derivedPlacementPrices } from "@/lib/electrical/resolveWithDerivedPricing";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -159,6 +160,8 @@ export async function POST(req: Request) {
         // A physical conclusion (INVALID, REROUTE…) — let the normal path below
         // report it rather than dressing it up as a price review.
       } else {
+        pilotLog("homeowner_price", { contractorId: site.contractorId, serviceId, step: "visit", outcome: "REVIEW",
+          code: verdict?.derivedRefusalCode ?? null });
         return NextResponse.json(
           {
             error: "REVIEW_REQUIRED",
@@ -199,6 +202,12 @@ export async function POST(req: Request) {
   // derived service reaches a price. The pure resolver returns a pending
   // sentinel for those, which would book as review.
   const resolved = await resolveRouteWithDerivedPricing(db, service, answers, isPrimary, settings);
+  if ((service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+    pilotLog("homeowner_price", { contractorId: site.contractorId, serviceId, step: "visit",
+      outcome: resolved.status === "PRICED" ? "PRICED" : "REVIEW",
+      code: resolved.derivedRefusalCode ?? (resolved.status === "PRICED" ? null : resolved.status),
+      totalCents: resolved.status === "PRICED" ? resolved.priceCents : null });
+  }
 
   if (resolved.status === "INVALID") {
     // Loud in the logs, vague to the customer — the reason names internal

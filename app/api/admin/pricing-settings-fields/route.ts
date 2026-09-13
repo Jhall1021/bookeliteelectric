@@ -10,6 +10,7 @@
  * `{value: 0}` sets a deliberate zero, `action: "clear"` returns a field to
  * undecided. There is no way to express "undecided" by sending a number.
  */
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { withAdminContractor } from "@/lib/adminContext";
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   return withAdminContractor(async (db, ctx) => {
     const r = await writePricingSettingsField(db, ctx, body);
+    pilotLog("setup_write", { contractorId: ctx.contractorId, step: "pricing", outcome: r.ok ? "ok" : "refused", status: r.ok ? 200 : r.status });
     return r.ok
       ? NextResponse.json({ ok: true, ...r.data })
       : NextResponse.json({ error: r.error }, { status: r.status });

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PlatformContractorNotFoundError } from "@/lib/platformContext";
 import { platformOnboardingContractor, noticeText } from "@/lib/platformOnboarding";
+import { platformPilotDiagnostic } from "@/lib/platformPilot";
 import { attachOwnerAction, inviteOwnerAction, revokeInvitationAction, enrolTradeAction, installTemplateAction, launchAction, retireAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,10 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
   const notice = noticeText(searchParams?.notice);
   const c = s.facts.contractor;
   const id = c.id;
+  // First-service pilot support view. Read-only, over the wizard's own
+  // readiness. Keyed by the id the status read above already authorized, so
+  // `params` still has exactly one use.
+  const pilot = await platformPilotDiagnostic(id);
   const retired = s.progress === "retired";
   const ownerDone = s.owners.length > 0 || retired;
   const tradeDone = s.facts.trades.length > 0;
@@ -218,6 +223,44 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
           {s.progress === "launched" && <p className="mt-2 text-sm text-slate">Live: every offered service passed its guard.</p>}
         </Step>
       </ol>
+
+      <section className="mt-10 rounded-card border border-cardline bg-white p-5 shadow-card">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="font-display text-lg font-bold text-navy">First-service pilot</h2>
+          <span className={`rounded-pill px-2.5 py-0.5 text-xs font-semibold ${pilot.status === "Live" ? "bg-emerald-50 text-emerald-800" : pilot.status === "Price needs review" ? "bg-amber-50 text-amber-800" : "bg-slate/10 text-navy"}`}>{pilot.status}</span>
+        </div>
+        <p className="mt-1 text-sm text-slate">Read-only. Next for the contractor: {pilot.nextAction}</p>
+        <ul className="mt-4 grid gap-1 text-sm sm:grid-cols-2">
+          {pilot.checks.map((ch) => (
+            <li key={ch.label} className="flex items-start gap-2">
+              <span className={ch.ok ? "text-emerald-700" : "text-red-700"}>{ch.ok ? "✓" : "✗"}</span>
+              <span className="text-navy">{ch.label}{ch.detail ? <span className="block text-xs text-slate">{ch.detail}</span> : null}</span>
+            </li>
+          ))}
+        </ul>
+        {pilot.missing.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-xs uppercase tracking-wide text-slate">Still needed</h3>
+            <p className="mt-1 text-sm text-navy">{pilot.missing.slice(0, 12).join(" · ")}{pilot.missing.length > 12 ? ` · and ${pilot.missing.length - 12} more` : ""}</p>
+          </div>
+        )}
+        <div className="mt-4">
+          <h3 className="text-xs uppercase tracking-wide text-slate">History</h3>
+          <dl className="mt-1 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+            <div><dt className="inline text-slate">Last setup activity: </dt><dd className="inline text-navy">{pilot.audit.lastSetupActivityAt ? pilot.audit.lastSetupActivityAt.toLocaleString("en-US") : "none"}</dd></div>
+            <div><dt className="inline text-slate">Price approved: </dt><dd className="inline text-navy">{pilot.audit.approvedAt ? `${pilot.audit.approvedAt.toLocaleString("en-US")} at $${Math.round((pilot.audit.approvedTotalCents ?? 0) / 100)}` : "not yet"}</dd></div>
+            <div><dt className="inline text-slate">Current proposed price: </dt><dd className="inline text-navy">{pilot.audit.currentProposedCents !== null ? `$${Math.round(pilot.audit.currentProposedCents / 100)}` : "not computable yet"}</dd></div>
+            <div><dt className="inline text-slate">Changes since approval: </dt><dd className="inline text-navy">{pilot.audit.costChangesSinceApproval} cost · {pilot.audit.laborChangesSinceApproval} labor{pilot.audit.pricingChangesSinceApproval ? " · pricing" : ""}</dd></div>
+            <div><dt className="inline text-slate">Live: </dt><dd className="inline text-navy">{pilot.audit.active ? "yes" : "no"}</dd></div>
+            <div><dt className="inline text-slate">Homeowner request right now: </dt><dd className="inline text-navy">{pilot.audit.storefrontVerdict === "PRICED" ? "fixed price" : pilot.audit.storefrontVerdict === "REVIEW" ? "review" : "not available"}</dd></div>
+            <div><dt className="inline text-slate">Priced bookings: </dt><dd className="inline text-navy">{pilot.audit.pricedBookings}{pilot.audit.lastPricedBookingAt ? `, last ${pilot.audit.lastPricedBookingAt.toLocaleString("en-US")}` : ""}</dd></div>
+          </dl>
+        </div>
+        <details className="mt-4 text-xs text-slate">
+          <summary className="cursor-pointer">Pilot limitations</summary>
+          <ul className="mt-1 list-disc pl-5">{pilot.limitations.map((l) => <li key={l}>{l}</li>)}</ul>
+        </details>
+      </section>
 
       {!retired && (
         <section className="mt-10 rounded-card border border-red-200 bg-white p-5 shadow-card">

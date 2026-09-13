@@ -61,6 +61,13 @@ const SURFACE_POLICY: Policy = {
   "./actions": ONBOARDING_ACTIONS,
   "../actions": ONBOARDING_ACTIONS,
   "@/components/platform/ContractorTable": ["ContractorTable"],
+  // First-service onboarding pilot — ONE read-only request-bound read for
+  // the contractor onboarding page. lib/platformPilot.ts opens the contractor
+  // through withPlatformContractorFor exactly as the read model does, and the
+  // diagnostic it returns reuses the wizard's own readiness (no second engine,
+  // no writes). Kept out of lib/platformOnboarding, whose authorities are the
+  // reviewed command set policed by verify-platform-onboarding.
+  "@/lib/platformPilot": ["platformPilotDiagnostic"],
   // Presentational, like ContractorTable: renders from a plain count,
   // queries nothing. Shown on Overview, Contractors and the onboarding
   // index so a hidden verifier fixture is never mistaken for silence.

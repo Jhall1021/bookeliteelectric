@@ -16,6 +16,7 @@
  * request body — a client-supplied figure is exactly the kind of number that
  * should not be able to reach an approval record.
  */
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { withAdminContractor } from "@/lib/adminContext";
@@ -70,11 +71,13 @@ export async function POST(req: Request) {
     });
 
     if (proposal.kind !== "PRICED") {
+      pilotLog("price_approval", { contractorId: ctx.contractorId, serviceId: service.id, step: "approval", outcome: "refused", status: 409, code: proposal.code });
       return NextResponse.json(
         { error: "NOT_READY_TO_APPROVE", message: proposal.reason, detail: proposal.detail ?? [] },
         { status: 409 });
     }
     if (body.expectedFingerprint && body.expectedFingerprint !== basisFingerprint) {
+      pilotLog("price_approval", { contractorId: ctx.contractorId, serviceId: service.id, step: "approval", outcome: "refused", status: 409, code: "PRICE_CHANGED" });
       return NextResponse.json(
         { error: "PRICE_CHANGED", message: "Your costs changed while this was open. Review the updated price and approve again." },
         { status: 409 });
@@ -94,6 +97,7 @@ export async function POST(req: Request) {
       create: { contractorId: ctx.contractorId, serviceId: service.id, ...data },
       select: { approvedTotalCents: true, approvedAt: true },
     });
+    pilotLog("price_approval", { contractorId: ctx.contractorId, serviceId: service.id, step: "approval", outcome: "ok", totalCents: row.approvedTotalCents });
     return NextResponse.json({ ok: true, approved: true, ...row });
   });
 }

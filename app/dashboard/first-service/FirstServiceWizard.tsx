@@ -358,7 +358,10 @@ function PartsTable({ parts, ready, onNext }: { parts: WizardPart[]; ready: bool
         <button className={primaryBtn} disabled={busy} onClick={save}>{busy ? "Saving…" : "Save prices"}</button>
         {allPriced && ready && <button className={quietBtn} onClick={onNext}>Next: labor</button>}
       </div>
-      <p className="mt-4 text-xs text-slate">You can change these any time in Materials &amp; Costs — a price you update there applies to every service that uses that part.</p>
+      {/* Truthful about a screen that does not exist yet. The old line said
+          "you can change these any time in Materials & Costs", which sent a
+          contractor looking for a page they could not find. */}
+      <p className="mt-4 text-xs text-slate">Your material prices and product choices will be kept in <strong>Materials &amp; Costs</strong> once that screen is available — one price per part, used by every service that needs it. Until then, update them here.</p>
     </section>
   );
 }
@@ -672,7 +675,8 @@ function Success({ data, onEdit }: { data: Ready; onEdit: () => void }) {
           <Link href="/dashboard/setup" className={quietBtn}>Finish setting up my catalog</Link>
           <Link href="/dashboard" className={primaryBtn}>Go to dashboard</Link>
         </div>
-        <button className="mt-4 text-xs text-slate underline" onClick={onEdit}>Review this service&rsquo;s setup</button>
+        <p className="mt-4 text-xs text-slate">When your material prices change, update them here for now — they will move to Materials &amp; Costs once that screen is available. Any change sends the price back to you for review before homeowners see it.</p>
+        <button className="mt-2 text-xs text-slate underline" onClick={onEdit}>Review this service&rsquo;s setup</button>
       </div>
     </div>
   );

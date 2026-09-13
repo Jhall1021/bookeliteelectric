@@ -1,3 +1,4 @@
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
@@ -67,6 +68,11 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   if (wantsActive) {
     // The shared decision, so the route and the tests exercise the same code.
     const refusal = await activationRefusal(db, contractorId, params.serviceId);
+    const method = await db.service.findFirst({ where: { id: params.serviceId }, select: { pricingMethod: true } });
+    if (method?.pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+      pilotLog("activation", { contractorId, serviceId: params.serviceId, step: "activation",
+        outcome: refusal ? "refused" : "ok", status: refusal ? 409 : 200, code: refusal?.code ?? null });
+    }
     if (refusal) {
       if (refusal.code === "UNKNOWN_SERVICE") {
         return NextResponse.json({ error: "Unknown service" }, { status: 404 });

@@ -1,3 +1,4 @@
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -211,6 +212,7 @@ export async function POST(req: Request) {
     // This upserts the same one-row-per-role record `cost` edits later.
     if (action === "set-cost-by-role") {
       const r = await writeMaterialCost(db, { contractorId }, body as never);
+      pilotLog("setup_write", { contractorId, step: "materials", outcome: r.ok ? "ok" : "refused", status: r.ok ? 200 : r.status });
       return r.ok
         ? NextResponse.json({ ok: true, ...r.data })
         : NextResponse.json({ error: r.error }, { status: r.status });

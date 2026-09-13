@@ -20,6 +20,7 @@
  * choose its own contractor would be a way around the guard.
  */
 import type { PrismaClient } from "@prisma/client";
+import { overrideUnresolvedMaterialCost, setContractorMaterialCost } from "../materialCost";
 
 export type Ctx = { contractorId: string; userId?: string | null };
 
@@ -290,22 +291,41 @@ export async function writeMaterialCost(
     where: { key: roleKey }, select: { id: true, unit: true, name: true } });
   if (!role) return bad(404, `Unknown canonical material role ${roleKey}`);
 
-  const row = await db.contractorMaterial.upsert({
-    where: { contractorId_canonicalMaterialId: {
-      contractorId: ctx.contractorId, canonicalMaterialId: role.id } },
-    update: {
-      packagePriceCents, packageQuantity, packageUnit: packageUnit ?? role.unit,
-      unitCostCents: Math.round(packagePriceCents / packageQuantity),
-      costSource: "CUSTOM", costUpdatedAt: new Date(),
-    },
-    create: {
-      contractorId: ctx.contractorId, canonicalMaterialId: role.id,
-      packagePriceCents, packageQuantity, packageUnit: packageUnit ?? role.unit,
-      unitCostCents: Math.round(packagePriceCents / packageQuantity),
-      costSource: "CUSTOM", costUpdatedAt: new Date(),
-    },
-    select: { id: true, unitCostCents: true, packageQuantity: true,
-              packageUnit: true, packagePriceCents: true },
+  // THROUGH THE EXISTING SINGLE COST PATH — not a direct upsert.
+  //
+  // The first version wrote ContractorMaterial directly. That skipped
+  // everything setContractorMaterialCost exists to keep together: the
+  // MaterialCostEvent that records when and why a cost moved, and the
+  // recompute of every service using the role. For a controlled pilot the
+  // missing event mattered most — without it nobody could say afterwards WHEN
+  // a price approval went stale. A role with no row yet resolves through
+  // overrideUnresolvedMaterialCost, which creates, recomputes and records in
+  // one transaction; an existing row goes through setContractorMaterialCost.
+  const basis = { packagePriceCents, packageQuantity };
+  const unit = packageUnit ?? role.unit;
+  const provenance = { reason: "first-service onboarding", actor: ctx.userId ?? "contractor" };
+  const existing = await db.contractorMaterial.findFirst({
+    where: { contractorId: ctx.contractorId, canonicalMaterialId: role.id }, select: { id: true } });
+
+  if (!existing) {
+    const r = await overrideUnresolvedMaterialCost(db, {
+      contractorId: ctx.contractorId, canonicalMaterialId: role.id, basis, packageUnit: unit,
+    }, provenance);
+    if (!r.ok) {
+      // Someone resolved it between the read and the write — fall through to
+      // an ordinary edit of the row that now exists, never a silent drop.
+      const now = await db.contractorMaterial.findFirst({
+        where: { contractorId: ctx.contractorId, canonicalMaterialId: role.id }, select: { id: true } });
+      if (!now) return bad(409, "That material changed while saving — please try again.");
+      await setContractorMaterialCost(db, { contractorMaterialId: now.id, basis, packageUnit: unit }, provenance);
+    }
+  } else {
+    await setContractorMaterialCost(db, { contractorMaterialId: existing.id, basis, packageUnit: unit }, provenance);
+  }
+
+  const row = await db.contractorMaterial.findFirstOrThrow({
+    where: { contractorId: ctx.contractorId, canonicalMaterialId: role.id },
+    select: { id: true, unitCostCents: true, packageQuantity: true, packageUnit: true, packagePriceCents: true },
   });
   return { ok: true, data: { roleKey, name: role.name, ...row } };
 }

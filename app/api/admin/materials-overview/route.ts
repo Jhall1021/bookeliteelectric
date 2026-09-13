@@ -73,18 +73,34 @@ export async function GET(req: Request) {
         if (aom.canonicalMaterialId) add(aom.canonicalMaterialId, aom.answerOption.question.service.name);
       }
       // The recipe path: role → canonical component → answer option → service.
-      for (const ccm of await db.canonicalComponentMaterial.findMany({
-        select: {
-          canonicalMaterialId: true,
-          canonicalComponent: {
-            select: { options: {
-              where: { answerOption: { question: { service: { contractorId } } } },
-              select: { answerOption: { select: { question: { select: { service: { select: { name: true } } } } } } },
-            } } },
-        } })) {
-        for (const ao of ccm.canonicalComponent.options) {
-          add(ccm.canonicalMaterialId, ao.answerOption.question.service.name);
-        }
+      //
+      // ROOTED AT THE TENANT SIDE. The first version started from
+      // CanonicalComponentMaterial (a shared, platform model) and traversed
+      // into contractors' answer options, filtering by contractorId inside
+      // the traversal. The tenant guard cannot scope a query whose root is a
+      // platform model, so that filter was the only thing keeping other
+      // contractors' services out — exactly the ADR-007 shape
+      // audit-platform-tenant-relations refuses. Now the tenant-derived
+      // AnswerOptionComponent rows are read first (guard-scoped), and the
+      // platform recipe table is read on its own, joined in memory.
+      const usedComponents = await db.answerOptionComponent.findMany({
+        where: { canonicalComponentId: { not: null }, answerOption: { question: { service: { contractorId } } } },
+        select: { canonicalComponentId: true,
+                  answerOption: { select: { question: { select: { service: { select: { name: true } } } } } } },
+      });
+      const servicesByComponent = new Map<string, Set<string>>();
+      for (const uc of usedComponents) {
+        if (!uc.canonicalComponentId) continue;
+        const set = servicesByComponent.get(uc.canonicalComponentId) ?? new Set<string>();
+        set.add(uc.answerOption.question.service.name);
+        servicesByComponent.set(uc.canonicalComponentId, set);
+      }
+      const recipeLines = await db.canonicalComponentMaterial.findMany({
+        where: { canonicalComponentId: { in: [...servicesByComponent.keys()] } },
+        select: { canonicalMaterialId: true, canonicalComponentId: true },
+      });
+      for (const line of recipeLines) {
+        for (const name of servicesByComponent.get(line.canonicalComponentId) ?? []) add(line.canonicalMaterialId, name);
       }
     }
 
