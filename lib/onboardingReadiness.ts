@@ -29,6 +29,7 @@ import { servicesOnHold } from "./materialHolds";
 import { loadServiceForResolution, loadPricingSettings } from "./routeResolver";
 import { validateEstimateBounds } from "./pricingReadiness";
 import { mapWithConcurrency } from "./concurrency";
+import { loadCatalogForResolution, type ResolvedCatalog } from "./catalogResolution";
 
 /**
  * How many offered services' promises are resolved at once, per contractor.
@@ -204,9 +205,16 @@ async function offeredServices(db: PrismaClient, contractorId: string) {
 export async function promiseFor(
   db: PrismaClient,
   svc: { id: string; bookingType: string },
-  settings: unknown
+  settings: unknown,
+  catalog?: ResolvedCatalog,
 ) {
-  const full = settings ? await loadServiceForResolution(db as never, svc.id) : null;
+  // A request-local catalog, when the caller has one, instead of reading this
+  // service's tree again. Without one — the activation guard calls this per
+  // service — it loads exactly as it always has. A service missing from the
+  // catalog is loaded the same way rather than treated as empty.
+  const full = settings
+    ? (catalog?.get(svc.id) ?? (await loadServiceForResolution(db as never, svc.id)))
+    : null;
   // The booking type survives a missing pricing configuration. Losing it told
   // every quote-only service it owed an approved price.
   return pricePromiseOf(
@@ -228,16 +236,20 @@ export type CatalogPromise = {
 /** Per-service promises for a whole catalog, for the selection screen. */
 export async function catalogPromises(
   db: PrismaClient,
-  contractorId: string
+  contractorId: string,
+  opts: { catalog?: ResolvedCatalog } = {},
 ): Promise<Map<string, CatalogPromise>> {
   let settings: unknown = null;
   try { settings = await loadPricingSettings(db as never, contractorId); } catch { settings = null; }
+  // One contractor-wide read instead of one tree per service. Only when there
+  // are settings: without them no promise reads a tree at all.
+  const catalog = opts.catalog ?? (settings ? await loadCatalogForResolution(db, contractorId) : undefined);
   const services = await db.service.findMany({
     where: { contractorId }, select: { id: true, bookingType: true },
   });
   const out = new Map<string, CatalogPromise>();
   for (const s of services) {
-    const p = await promiseFor(db, s as { id: string; bookingType: string }, settings);
+    const p = await promiseFor(db, s as { id: string; bookingType: string }, settings, catalog);
     out.set(s.id, {
       promisesFixedPrice: p.promisesFixedPrice,
       handoffTargets: p.handoffTargets,
@@ -254,7 +266,8 @@ function lowerFirst(s: string): string {
 
 export async function assessOnboarding(
   db: PrismaClient,
-  contractorId: string
+  contractorId: string,
+  opts: { catalog?: ResolvedCatalog } = {},
 ): Promise<OnboardingReadiness> {
   const findings: Record<StageKey, Finding[]> = {
     business: [], trade: [], "pricing-foundation": [],
@@ -313,6 +326,9 @@ export async function assessOnboarding(
   } catch {
     findings["pricing-foundation"].push(b("PRICING_SETTINGS_MISSING", "Your labor rate and minimum have not been set. Nothing can be priced until they are.", { href: "/dashboard/pricing-settings" }));
   }
+  // The whole catalog's trees in one contractor-wide read, shared by every
+  // service promise below — unless the caller already loaded it for this request.
+  const catalog = opts.catalog ?? (settings ? await loadCatalogForResolution(db, contractorId) : undefined);
   const st = settings as { crewHourRateCents?: number; primaryMinimumCents?: number } | null;
   // STRATEGY-AWARE, from here down. `assessOnboarding` re-derived its own
   // FLAT_RATE-shaped idea of "priced" instead of calling lib/pricingReadiness.ts's
@@ -487,7 +503,7 @@ export async function assessOnboarding(
     const slug = svc.slug as string;
     const name = svc.name as string;
     const promise = await promiseFor(
-      db, { id: svc.id as string, bookingType: svc.bookingType as string }, settings
+      db, { id: svc.id as string, bookingType: svc.bookingType as string }, settings, catalog
     );
 
     if (promise.routes.dead > 0) {

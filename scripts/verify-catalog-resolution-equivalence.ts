@@ -21,6 +21,10 @@
  *   PATHS     every answer path's full resolveRoute result, as the primary
  *             service and as a same-visit add-on: routing, price, review,
  *             reroute destination, material resolution.
+ *   READINESS assessOnboarding and catalogPromises given per-service trees,
+ *             given the bulk catalog, and given no catalog (the default
+ *             path, which loads one): stages, blockers, warnings, canLaunch,
+ *             intended services and every catalog promise, in order.
  *
  * Each comparison has a negative control proving it fails on a real
  * difference. READ ONLY.
@@ -33,6 +37,7 @@ import { withTenant } from "../lib/tenantContext";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { loadCatalogForResolution } from "../lib/catalogResolution";
 import { pricePromiseOf } from "../lib/activationOutcome";
+import { assessOnboarding, catalogPromises, type OnboardingReadiness } from "../lib/onboardingReadiness";
 import { mapWithConcurrency } from "../lib/concurrency";
 import type { ResolvedServiceTree } from "../lib/serviceTreeQuery";
 
@@ -147,8 +152,9 @@ async function main() {
     ok(`every named contractor exists`, missing.length === 0, missing.join(", "));
   }
 
-  const totals = { services: 0, idSets: 0, trees: 0, maps: 0, promises: 0, paths: 0, pathsCompared: 0, capped: 0, noSettings: 0 };
-  const diffs: Record<string, string[]> = { idSets: [], trees: [], maps: [], promises: [], paths: [] };
+  const totals = { services: 0, idSets: 0, trees: 0, maps: 0, promises: 0, paths: 0, pathsCompared: 0, capped: 0, noSettings: 0, readiness: 0, catalogPromises: 0, contractors: 0 };
+  const diffs: Record<string, string[]> = { idSets: [], trees: [], maps: [], promises: [], paths: [], readiness: [], catalogPromises: [] };
+  const readinessBox: { sample: OnboardingReadiness | null } = { sample: null };
   type Sample = { per: ResolvedServiceTree; bulk: ResolvedServiceTree; settings: unknown };
   const found: { sample: Sample | null } = { sample: null };
 
@@ -179,7 +185,23 @@ async function main() {
         if (pa.results === pb.results && pa.paths === pb.paths) totals.paths++; else diffs.paths.push(`${c.slug}/${a.slug}`);
         if (!found.sample && a.questions.some((q) => q.options.length > 1)) found.sample = { per: a, bulk: b, settings };
       }
-      console.log(`    ${c.slug.padEnd(28)} ${String(ids.length).padStart(3)} services${settings ? "" : "  (no pricing settings: trees and maps only)"}`);
+      // Readiness and catalog promises, three ways, compared strictly in order.
+      totals.contractors++;
+      const perCatalog = new Map([...per].filter((e): e is [string, ResolvedServiceTree] => e[1] !== null));
+      const [rPer, rBulk, rDefault] = [
+        await assessOnboarding(guarded, c.id, { catalog: perCatalog }),
+        await assessOnboarding(guarded, c.id, { catalog: bulk }),
+        await assessOnboarding(guarded, c.id),
+      ];
+      if (ser(rPer) === ser(rBulk) && ser(rBulk) === ser(rDefault)) totals.readiness++; else diffs.readiness.push(c.slug);
+      if (!readinessBox.sample && rBulk.warnings.length + rBulk.blockers.length > 0) readinessBox.sample = rBulk;
+      const [pPer, pBulk, pDefault] = [
+        await catalogPromises(guarded, c.id, { catalog: perCatalog }),
+        await catalogPromises(guarded, c.id, { catalog: bulk }),
+        await catalogPromises(guarded, c.id),
+      ];
+      if (ser(pPer) === ser(pBulk) && ser(pBulk) === ser(pDefault)) totals.catalogPromises++; else diffs.catalogPromises.push(c.slug);
+      console.log(`    ${c.slug.padEnd(28)} ${String(ids.length).padStart(3)} services  ${rBulk.blockers.length}B/${rBulk.warnings.length}W canLaunch=${rBulk.canLaunch}${settings ? "" : "  (no pricing settings)"}`);
     });
   }
   const n = totals.services;
@@ -189,6 +211,10 @@ async function main() {
   ok(`price promises identical for ${totals.promises}/${n} services`, diffs.promises.length === 0, diffs.promises.slice(0, 5).join(", "));
   ok(`every answer path resolves identically, primary and same-visit (${totals.pathsCompared} paths; ${totals.capped} service(s) at the ${PATH_CAP}-path cap)`,
     diffs.paths.length === 0, diffs.paths.slice(0, 5).join(", "));
+  ok(`readiness identical from per-service trees, the bulk catalog and the default path for ${totals.readiness}/${totals.contractors} contractors`,
+    diffs.readiness.length === 0, diffs.readiness.join(", "));
+  ok(`catalog promises identical, in order, the same three ways for ${totals.catalogPromises}/${totals.contractors} contractors`,
+    diffs.catalogPromises.length === 0, diffs.catalogPromises.join(", "));
 
   console.log("\n  NEGATIVE CONTROLS");
   const sample = found.sample;
@@ -210,6 +236,13 @@ async function main() {
       const rerouted = { ...bulk, questions: bulk.questions.map((x, i) => (i === q ? { ...x, options: [{ ...opt, routeAction: "REVIEW" as never, nextQuestionId: null }, ...x.options.slice(1)] } : x)) } as ResolvedServiceTree;
       ok(`the path comparison fails when an answer routes somewhere else`, pathResults(per, settings).results !== pathResults(rerouted, settings).results);
     }
+  }
+
+  const readinessSample = readinessBox.sample;
+  if (readinessSample) {
+    const f = readinessSample.warnings[0] ?? readinessSample.blockers[0];
+    const dropped = { ...readinessSample, warnings: readinessSample.warnings.filter((w) => w !== f), blockers: readinessSample.blockers.filter((b) => b !== f) };
+    ok(`the readiness comparison fails when a single finding goes missing`, ser(readinessSample) !== ser(dropped));
   }
 
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);
