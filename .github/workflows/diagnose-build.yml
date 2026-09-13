@@ -27,9 +27,6 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Strict TypeScript compile
-        continue-on-error: true
         run: npx tsc --noEmit
-      - name: Diagnostic compile past implicit-any blocker
-        run: npx tsc --noEmit --noImplicitAny false
       - name: Fast verifier
         run: npm run verify:fast
