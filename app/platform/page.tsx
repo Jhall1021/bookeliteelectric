@@ -76,7 +76,8 @@ export default async function PlatformOverviewPage() {
             {inProgress.length > 0 ? (
               <ul className="mt-5 divide-y divide-cardline rounded-card border border-cardline bg-white">
                 {inProgress.map((r) => {
-                  const pct = r.readable ? Math.round((r.stagesReady / r.stagesTotal) * 100) : 0;
+                  if (!r.readable) return null;
+                  const pct = Math.round((r.stagesReady / r.stagesTotal) * 100);
                   return (
                     <li key={r.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 flex-1">
