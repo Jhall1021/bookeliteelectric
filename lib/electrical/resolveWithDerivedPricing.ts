@@ -11,75 +11,148 @@
  * compatibility story: this function is a no-op for every service that exists
  * today, and a service only reaches the derived path by carrying the pricing
  * method that says so.
+ *
+ * EVERY CUSTOMER-FACING CALL SITE MUST USE THIS, NOT resolveRoute. The first
+ * authenticated HTTP pass found /api/visit and /api/quotes still calling the
+ * pure resolver, which for a derived service returns the pending sentinel — so
+ * the earlier "homeowner receives PRICED" proof held for the library and not
+ * for the route a homeowner actually hits.
  */
 import type { PrismaClient } from "@prisma/client";
 import { DERIVED_PRICING_PENDING, resolveRoute } from "../routeResolver";
 import { loadAndPriceDerivedScope } from "./loadDerivedScope";
+import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-type Loaded = any;
-type Verdict = any;
+type Resolved = ReturnType<typeof resolveRoute>;
+
+export type DerivedVerdict = Resolved & {
+  /** Present on a derived PRICED verdict — recorded on the booked line. */
+  derivedBasisFingerprint?: string;
+  derivedMaterialCostCents?: number;
+  /** Present on a derived REVIEW verdict — the specific readiness refusal. */
+  derivedRefusalCode?: string;
+};
+
+const num = (v: string | undefined): number => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 ? n : 0;
+};
+
+/**
+ * Route geometry from the homeowner's own answers.
+ *
+ * Derived here so no call site has to know which questions carry route
+ * length. Only the surface raceway takeoff exists today; a derived service
+ * whose route is not a surface route produces an incomplete takeoff and
+ * therefore REVIEW — the fail-closed outcome, not a guess.
+ */
+export function routeShapeFromAnswers(answers: Record<string, string>) {
+  return {
+    routeFeet: num(answers[SURFACE_KEYS.feet]),
+    turnCount:
+      num(answers[SURFACE_KEYS.inside]) +
+      num(answers[SURFACE_KEYS.outside]) +
+      num(answers[SURFACE_KEYS.flat]),
+  };
+}
 
 export async function resolveRouteWithDerivedPricing(
   db: PrismaClient,
-  service: Loaded,
+  service: Parameters<typeof resolveRoute>[0],
   answers: Record<string, string>,
   isPrimary: boolean,
-  settings: unknown,
-  routeShape: { routeFeet: number; turnCount: number },
-): Promise<Verdict> {
-  const resolved = resolveRoute(service, answers, isPrimary, settings as never) as Verdict;
+  settings: Parameters<typeof resolveRoute>[3],
+  routeShape?: { routeFeet: number; turnCount: number },
+): Promise<DerivedVerdict> {
+  const resolved = resolveRoute(service, answers, isPrimary, settings) as DerivedVerdict;
 
-  if (service.pricingMethod !== "DERIVED_RESOLVED_SCOPE") return resolved;
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const svc = service as any;
+  if (svc.pricingMethod !== "DERIVED_RESOLVED_SCOPE") return resolved;
 
   // Anything that is not the sentinel is a verdict the pure resolver reached on
-  // its own — INVALID for a broken tree, REVIEW for an unapproved component,
-  // PHOTO_REVIEW. Those are physical and routing conclusions and they stand.
-  if (resolved?.status !== "REVIEW" || resolved.reason !== DERIVED_PRICING_PENDING) {
+  // its own — INVALID for a broken tree, REROUTE, PHOTO_REVIEW. Those are
+  // physical and routing conclusions and they stand.
+  if (resolved.status !== "REVIEW" || (resolved as any).reason !== DERIVED_PRICING_PENDING) {
     return resolved;
   }
 
-  const components = (resolved.config?.components ?? []) as { key: string; quantity: number }[];
+  const r = resolved as any;
+  const components = (r.config?.components ?? []) as { key: string; quantity: number }[];
+  const shape = routeShape ?? routeShapeFromAnswers(answers);
 
   const priced = await loadAndPriceDerivedScope(db, {
-    contractorId: service.contractorId,
-    serviceId: service.id,
+    contractorId: svc.contractorId,
+    serviceId: svc.id,
     components,
-    routeFeet: routeShape.routeFeet,
-    turnCount: routeShape.turnCount,
+    routeFeet: shape.routeFeet,
+    turnCount: shape.turnCount,
     context: {
       isPrimary,
-      isPrimaryEligible: service.isPrimaryEligible ?? true,
-      servicePermitAdminEstablished: service.permitAdminCents !== null,
+      isPrimaryEligible: svc.isPrimaryEligible ?? true,
+      servicePermitAdminEstablished: svc.permitAdminCents !== null && svc.permitAdminCents !== undefined,
     },
     service: {
-      materialMultiplier: service.materialMultiplier ?? null,
-      permitAdminCents: service.permitAdminCents ?? null,
-      otherDirectCostCents: service.otherDirectCostCents ?? null,
-      isPrimaryEligible: service.isPrimaryEligible ?? true,
+      materialMultiplier: svc.materialMultiplier ?? null,
+      permitAdminCents: svc.permitAdminCents ?? null,
+      otherDirectCostCents: svc.otherDirectCostCents ?? null,
+      isPrimaryEligible: svc.isPrimaryEligible ?? true,
     },
   });
 
   if (priced.kind === "PRICED") {
     return {
-      ...resolved,
       status: "PRICED",
       priceCents: priced.totalCents,
-      reason: undefined,
-      floorPriceCents: undefined,
-      // Carried so a booking can record WHICH economics produced this price.
+      isPrimary,
+      config: r.config,
+      photoLabels: r.photoLabels ?? [],
+      photoSafetyNotes: r.photoSafetyNotes ?? [],
+      disclaimers: r.disclaimers ?? [],
+      consumed: r.consumed ?? [],
       derivedBasisFingerprint: priced.basisFingerprint,
       derivedMaterialCostCents: priced.materialCostCents,
-    };
+    } as unknown as DerivedVerdict;
   }
 
   // Fails closed with the specific reason, never a fallback price. No legacy
   // base, no V1 component increments, no zero.
   return {
-    ...resolved,
+    ...r,
     status: "REVIEW",
     reason: priced.reason,
-    derivedRefusalCode: priced.code,
     floorPriceCents: null,
+    derivedRefusalCode: priced.code,
+  } as DerivedVerdict;
+}
+
+/**
+ * The standalone and add-on prices a derived service would carry on a visit.
+ *
+ * Visit composition (lib/visitPrimary) chooses the primary service from each
+ * candidate's PUBLISHED base and add-on prices. A derived service publishes
+ * neither, so it was rejected as "neither a standalone nor an add-on price"
+ * and could never be placed on a visit at all — found by the first
+ * authenticated HTTP pass, which got PRIMARY_UNRESOLVABLE before pricing began.
+ *
+ * It does have both prices; they are computed rather than published. The
+ * standalone price is the primary context (service-call minimum applies) and
+ * the add-on price is the While-We're-There context (it never does). Each is
+ * null when it cannot be computed right now — incomplete setup, stale
+ * approval — which leaves the existing composition rules to refuse, exactly as
+ * they do for a service with no published price. Nothing here invents a price.
+ */
+export async function derivedPlacementPrices(
+  db: PrismaClient,
+  service: Parameters<typeof resolveRoute>[0],
+  answers: Record<string, string>,
+  settings: Parameters<typeof resolveRoute>[3],
+): Promise<{ basePrice: number | null; whileWeThereBasePrice: number | null }> {
+  const standalone = await resolveRouteWithDerivedPricing(db, service, answers, true, settings);
+  const addOn = await resolveRouteWithDerivedPricing(db, service, answers, false, settings);
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  return {
+    basePrice: standalone.status === "PRICED" ? (standalone as any).priceCents : null,
+    whileWeThereBasePrice: addOn.status === "PRICED" ? (addOn as any).priceCents : null,
   };
 }

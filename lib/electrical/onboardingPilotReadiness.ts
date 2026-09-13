@@ -13,9 +13,10 @@
  * labor they cleared yesterday.
  */
 import type { PrismaClient } from "@prisma/client";
-import { loadAndPriceDerivedScope } from "./loadDerivedScope";
+import { loadAndPriceDerivedScope, proposeDerivedScope } from "./loadDerivedScope";
 import { requiredFields, type PricingContext } from "../pricingSettingsState";
 import type { DerivedScopeRefusalCode } from "./derivedScopePricing";
+import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
 
 export type PilotStepKey =
   | "CATALOG" | "MATERIALS" | "LABOR" | "PRICING_SETTINGS" | "REVIEW" | "APPROVE" | "ACTIVATE";
@@ -35,12 +36,13 @@ export type PilotReadiness = {
   /** The first step not done — where the wizard resumes. Null when finished. */
   resumeAt: PilotStepKey | null;
   /** Present once economics can be computed at all. */
-  proposed: {
-    totalCents: number | null;
-    laborCents: number;
-    materialCents: number;
-    materialCostCents: number;
-    minimumApplied: boolean;
+  /**
+   * The price approving now would produce, as the rows a contractor reads.
+   * Every row comes from the engine's own breakdown and they reconcile exactly
+   * to `totalCents`; a row that contributes nothing is zero so the page can
+   * leave it out rather than print "$0.00 permit".
+   */
+  proposed: ProposalRows & {
     refusal: DerivedScopeRefusalCode | null;
     refusalReason: string | null;
   } | null;
@@ -52,6 +54,69 @@ export const PILOT_SERVICE_SLUG = "new-120v-outlet";
 
 /** The straight surface route the pilot proves. */
 export const PILOT_ROUTE = { feet: 31, inside: 0, outside: 0, flat: 0 };
+
+/**
+ * The straight pilot route, answered exactly as a homeowner would.
+ *
+ * `below_above_access` precedes the install method and only "no_access"
+ * reaches it — omitting it made the route INVALID, which read downstream as a
+ * missing product. One definition, shared by the page, the readiness route
+ * and the suites, so they cannot drift onto different routes.
+ */
+export const PILOT_ANSWERS: Record<string, string> = {
+  outlet_load_type: "everyday", outlet_power_source: "tap_existing",
+  below_above_access: "no_access", outlet_install_method: "surface",
+  [SURFACE_KEYS.feet]: String(PILOT_ROUTE.feet), [SURFACE_KEYS.inside]: "0",
+  [SURFACE_KEYS.outside]: "0", [SURFACE_KEYS.flat]: "0",
+  [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear",
+};
+
+
+export type ProposalRows = {
+  totalCents: number | null;
+  laborHours: number;
+  crewHourRateCents: number | null;
+  /** Hours x rate, BEFORE any service-call minimum. */
+  laborCents: number;
+  /** What the minimum added on top of labor. Zero when it did not apply. */
+  minimumAdjustmentCents: number;
+  minimumApplied: boolean;
+  /** What the contractor actually pays for materials, package-rounded. */
+  materialCostCents: number;
+  /** The progressive markup the engine applied to that cost. */
+  materialMarkupCents: number;
+  permitCents: number;
+  /** What rounding up to the contractor's increment added. */
+  roundingCents: number;
+};
+
+/** Split the engine's breakdown into rows that add up, and nothing invented. */
+export function proposalRows(
+  proposal: import("./derivedScopePricing").DerivedScopeResult,
+  crewHourRateCents: number | null,
+): ProposalRows {
+  if (proposal.kind !== "PRICED") {
+    return { totalCents: null, laborHours: 0, crewHourRateCents, laborCents: 0,
+             minimumAdjustmentCents: 0, minimumApplied: false, materialCostCents: 0,
+             materialMarkupCents: 0, permitCents: 0, roundingCents: 0 };
+  }
+  const b = proposal.breakdown;
+  const rawLabor = crewHourRateCents === null ? b.laborCents : b.actualTechHours * crewHourRateCents;
+  const flooredLabor = b.laborCents;
+  const subtotal = flooredLabor + b.materialCents + b.permitCents + b.otherCents;
+  return {
+    totalCents: proposal.totalCents,
+    laborHours: proposal.laborHours,
+    crewHourRateCents,
+    laborCents: Math.round(rawLabor),
+    minimumAdjustmentCents: b.minimumApplied ? Math.round(flooredLabor - rawLabor) : 0,
+    minimumApplied: b.minimumApplied,
+    materialCostCents: proposal.materialCostCents,
+    materialMarkupCents: b.materialCents - proposal.materialCostCents,
+    permitCents: b.permitCents,
+    roundingCents: Math.round(proposal.totalCents - subtotal),
+  };
+}
 
 export async function loadPilotReadiness(
   db: PrismaClient,
@@ -74,11 +139,15 @@ export async function loadPilotReadiness(
     };
   }
 
-  const priced = await loadAndPriceDerivedScope(db, {
+  const scopeArgs = {
     contractorId, serviceId: service.id, components: args.components,
     routeFeet: PILOT_ROUTE.feet, turnCount: 0,
     context: args.context, service: args.service,
-  });
+  };
+  const priced = await loadAndPriceDerivedScope(db, scopeArgs);
+  // What approving now would produce — so the review step can show the price
+  // BEFORE it is approved, and a stale approval can show the new figure.
+  const { proposal } = await proposeDerivedScope(db, scopeArgs);
 
   // Each step asks the rows it owns, so a step can go BACK to not-done when a
   // contractor withdraws something. That is the behaviour a step counter
@@ -108,7 +177,7 @@ export async function loadPilotReadiness(
       done: settingsOutstanding.length === 0,
       outstanding: settingsOutstanding },
     { key: "REVIEW", title: "Review your price",
-      done: priced.kind === "PRICED" || approvalBlocked, outstanding: [] },
+      done: proposal.kind === "PRICED", outstanding: [] },
     { key: "APPROVE", title: "Approve this price", done: priced.kind === "PRICED",
       outstanding: approvalBlocked && priced.kind === "REVIEW" ? [priced.reason] : [] },
     { key: "ACTIVATE", title: "Go live", done: service.active && priced.kind === "PRICED",
@@ -121,11 +190,7 @@ export async function loadPilotReadiness(
     steps,
     resumeAt: steps.find((s) => !s.done)?.key ?? null,
     proposed: {
-      totalCents: priced.kind === "PRICED" ? priced.totalCents : null,
-      laborCents: priced.kind === "PRICED" ? Math.round(priced.breakdown.laborCents) : 0,
-      materialCents: priced.kind === "PRICED" ? priced.breakdown.materialCents : 0,
-      materialCostCents: priced.kind === "PRICED" ? priced.materialCostCents : 0,
-      minimumApplied: priced.kind === "PRICED" ? priced.breakdown.minimumApplied : false,
+      ...proposalRows(proposal, settingsRow?.crewHourRateCents ?? null),
       refusal: priced.kind === "REVIEW" ? priced.code : null,
       refusalReason: priced.kind === "REVIEW" ? priced.reason : null,
     },

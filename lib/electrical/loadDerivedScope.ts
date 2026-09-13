@@ -159,3 +159,43 @@ export async function loadAndPriceDerivedScope(
   // "approve these economics" needs to know WHICH economics it is offering.
   return { ...result, basisFingerprint: currentBasisFingerprint };
 }
+
+/**
+ * The price THESE economics would produce if the contractor approved them now.
+ *
+ * Two callers need this and neither can use the real verdict, which refuses
+ * with DERIVED_PRICING_NOT_APPROVED before computing anything:
+ *
+ *   - the review step, which must SHOW the price being approved. Showing
+ *     nothing until after approval asks a contractor to approve a blank.
+ *   - the approval endpoint, which must refuse to approve an incomplete basis.
+ *     The first authenticated HTTP pass approved one — takeoff incomplete,
+ *     approval stored, service activated, every route in review.
+ *
+ * It evaluates the real calculation with an approval that matches the current
+ * basis, so every OTHER readiness refusal still stands. It writes nothing and
+ * authorises nothing; the customer path never calls it.
+ */
+export async function proposeDerivedScope(
+  db: PrismaClient,
+  args: Parameters<typeof loadAndPriceDerivedScope>[1],
+): Promise<{ proposal: DerivedScopeResult; basisFingerprint: string }> {
+  const takeoff = await loadSurfaceTakeoff(db, args.contractorId, {
+    components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
+  const basis = await loadDerivedPricingBasis(db, args.contractorId, args.components.map((c) => c.key));
+  const basisFingerprint = fingerprintBasis(basis);
+  const laborByKey = new Map(basis.componentLabor.map((c) => [c.componentKey, c.addFieldLaborHours]));
+  const proposal = priceDerivedScope({
+    components: args.components.map((c) => ({
+      key: c.key, quantity: c.quantity,
+      addFieldLaborHours: laborByKey.has(c.key) ? (laborByKey.get(c.key) as number | null) : null,
+    })),
+    takeoff,
+    settingsRow: basis.settings,
+    context: args.context,
+    service: args.service,
+    approval: { approvedBasisFingerprint: basisFingerprint },
+    currentBasisFingerprint: basisFingerprint,
+  });
+  return { proposal, basisFingerprint };
+}

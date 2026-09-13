@@ -8,7 +8,7 @@ import { policiesFor, resolvePolicy } from "@/lib/policyResolution";
  *
  * GET  — every policy this contractor owes an answer to, with the services
  *        waiting on each one.
- * PATCH— record one decision. { key, boundaries?: number[], choice?: string }
+ * PATCH— record one decision. { key, boundaries?: number[], choice?: string, measurement?: number }
  *
  * Deliberately NOT a route that clears `unresolvedPolicyKeys`. It goes through
  * lib/policyResolution, which rewrites the customer-visible band labels the
@@ -49,9 +49,10 @@ export async function PATCH(req: Request) {
         .filter((n) => Number.isFinite(n))
     : undefined;
   const choice = typeof body.choice === "string" ? body.choice : undefined;
+  const measurement = typeof body.measurement === "number" ? body.measurement : undefined;
 
   return withAdminContractor(async (db, ctx) => {
-    const result = await resolvePolicy(db, ctx.contractorId, key, { boundaries, choice });
+    const result = await resolvePolicy(db, ctx.contractorId, key, { boundaries, choice, measurement });
     if (!result.ok) {
       const status = result.refusal.code === "UNKNOWN_POLICY" ? 404 : 400;
       return NextResponse.json({ error: result.refusal.message, code: result.refusal.code }, { status });

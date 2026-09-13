@@ -111,7 +111,7 @@ async function components(contractorId: string) {
   let settings: unknown = null;
   try { settings = await loadPricingSettings(prisma, contractorId); } catch { settings = null; }
   const r = await resolveRouteWithDerivedPricing(
-    prisma, loaded as never, ANSWERS, true, settings, { routeFeet: FEET, turnCount: 0 });
+    prisma, loaded as never, ANSWERS, true, settings as never, { routeFeet: FEET, turnCount: 0 });
   /* eslint-disable @typescript-eslint/no-explicit-any */
   return { svcId: svc.id, loaded, settings,
            comps: ((r as any)?.config?.components ?? []) as { key: string; quantity: number }[],
@@ -264,8 +264,7 @@ async function main() {
   const stepH = await components(c.id);
   const rH = await loadPilotReadiness(prisma, c.id, { components: stepH.comps, context: CTX, service: SVC_ECON });
   ok(rH.proposed?.totalCents !== null, "H  a proposed price now exists", JSON.stringify(rH.proposed));
-  console.log(`       labor ${rH.proposed?.laborCents}c + materials ${rH.proposed?.materialCents}c ` +
-              `(cost ${rH.proposed?.materialCostCents}c) -> ${rH.proposed?.totalCents}c`);
+  console.log(`       labor ${rH.proposed?.laborCents}c + minimum ${rH.proposed?.minimumAdjustmentCents}c + materials ${rH.proposed?.materialCostCents}c + markup ${rH.proposed?.materialMarkupCents}c + rounding ${rH.proposed?.roundingCents}c -> ${rH.proposed?.totalCents}c`);
   ok(rH.resumeAt === "ACTIVATE", `H  resume = ACTIVATE`, String(rH.resumeAt));
 
   console.log("\n  I  ACTIVATION — THE REAL SUPPORTED PATH\n");

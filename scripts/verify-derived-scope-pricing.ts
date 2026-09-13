@@ -324,8 +324,16 @@ async function main() {
   // exercised without a running server. These assertions follow the logic
   // rather than the file it used to be in.
   const actionsSrc = readFileSync("lib/admin/onboardingActions.ts", "utf8");
-  ok(/contractorId: ctx\.contractorId/.test(actionsSrc) && /contractorMaterial: \{ contractorId: ctx\.contractorId \}/.test(actionsSrc),
-    "M  product selection checks BOTH the material's and the link's owner");
+  // The link is now reached THROUGH the contractor's own material (the guard
+  // refuses MaterialSupplierLink as a query root), which checks both owners
+  // structurally: the material by contractorId, the link by membership of
+  // that material's supplierLinks. The cross-tenant 403/404 is proven over
+  // real HTTP in verify-onboarding-http-smoke section 4.
+  const selectFn = actionsSrc.slice(actionsSrc.indexOf("export async function selectMaterialProduct"), actionsSrc.indexOf("// ── material system"));
+  ok(/where: \{ id: material\.id, contractorId: ctx\.contractorId \}/.test(selectFn)
+     && /supplierLinks: \{\s*where: \{ id: body\.supplierLinkId \}/.test(selectFn)
+     && !/db\.materialSupplierLink\.find/.test(selectFn),
+    "M  product selection reaches the link only through this contractor's own material");
   for (const f of ["app/api/admin/component-labor/route.ts", "app/api/admin/pricing-settings-fields/route.ts",
                    "app/api/admin/material-system/route.ts", "app/api/admin/materials-overview/route.ts",
                    "app/api/admin/derived-pricing-approval/route.ts"]) {

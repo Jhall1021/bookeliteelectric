@@ -170,13 +170,24 @@ export async function selectMaterialProduct(
   }
   if (!body.supplierLinkId) return bad(400, "supplierLinkId required");
 
-  // BOTH owners checked: the link must belong to this contractor AND to this
-  // material. Either alone lets the wrong product through.
-  const link = await db.materialSupplierLink.findFirst({
-    where: { id: body.supplierLinkId, contractorMaterialId: material.id,
-             contractorMaterial: { contractorId: ctx.contractorId } },
-    select: { id: true, productName: true, packageQuantity: true, packageUnit: true, packagePriceCents: true },
+  // ROOTED AT THE TENANT-OWNED MATERIAL, not at the link.
+  //
+  // MaterialSupplierLink has no contractorId column, so the guard refuses it
+  // as a query root — correctly, since it cannot isolate it. The first
+  // authenticated HTTP pass hit exactly that: a 500 for every selection. The
+  // link is reached THROUGH this contractor's own ContractorMaterial instead,
+  // which is the ADR-007 shape the materials route already uses. Both owners
+  // are then checked structurally: only a link attached to this material,
+  // which belongs to this contractor, can be found at all. A foreign link is
+  // simply not in the list.
+  const owned = await db.contractorMaterial.findFirst({
+    where: { id: material.id, contractorId: ctx.contractorId },
+    select: { supplierLinks: {
+      where: { id: body.supplierLinkId },
+      select: { id: true, productName: true, packageQuantity: true, packageUnit: true, packagePriceCents: true },
+    } },
   });
+  const link = owned?.supplierLinks[0] ?? null;
   if (!link) return bad(403, "That supplier link does not belong to this contractor's material.");
 
   await db.contractorMaterial.update({

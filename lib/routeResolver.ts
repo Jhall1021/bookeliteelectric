@@ -84,6 +84,13 @@ export type ResolvedRoute =
       floorPriceCents: number | null;
       isPrimary: boolean;
       config: JobConfiguration;
+      /**
+       * Set only on the derived-pricing sentinel, so a derived PRICED verdict
+       * can carry the same disclaimers and consumed answers a legacy one does.
+       * Optional: no existing REVIEW path sets or reads them.
+       */
+      disclaimers?: string[];
+      consumed?: { key: string; value: string; label: string }[];
     }
   | {
       status: "REROUTE";
@@ -872,6 +879,12 @@ export function resolveRoute(
       floorPriceCents: null,
       isPrimary,
       config,
+      // Carried so the derived verdict keeps what a legacy PRICED verdict
+      // keeps. Without these a derived price reached the homeowner WITHOUT the
+      // branch disclaimers the walk collected — a quieter defect than a wrong
+      // price, and not one any number-checking suite would notice.
+      disclaimers: service.disclaimer ? [service.disclaimer, ...disclaimers] : disclaimers,
+      consumed,
     };
   }
 

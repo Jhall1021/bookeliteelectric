@@ -94,13 +94,54 @@ export async function resolvePolicy(
   db: PrismaClient,
   contractorId: string,
   key: string,
-  answer: { boundaries?: number[]; choice?: string }
+  answer: { boundaries?: number[]; choice?: string; measurement?: number }
 ): Promise<ResolveResult> {
   const value = await db.contractorPolicyValue.findFirst({
     where: { contractorId, key },
   });
   if (!value) {
     return { ok: false, refusal: { code: "UNKNOWN_POLICY", message: `No policy "${key}" for this contractor.` } };
+  }
+
+  /**
+   * MEASUREMENT — one number, written to `measurement`, where the takeoff
+   * reads it.
+   *
+   * These arrived with Routing V2 and fell into the `boundaryCount === 0`
+   * branch below, which stores FREE TEXT in `choice`. A slack allowance of
+   * 0.5 would have been saved as the string "0.5" in a column nothing reads,
+   * reported as resolved, and left the takeoff permanently incomplete. Zero is
+   * a real answer here and is accepted; absence is not.
+   */
+  if (value.type === "MEASUREMENT") {
+    const m = answer.measurement;
+    if (typeof m !== "number" || !Number.isFinite(m) || m < 0) {
+      return { ok: false, refusal: { code: "MEASUREMENT_REQUIRED",
+        message: "Enter a number, 0 or more. Enter 0 if you deliberately allow nothing extra." } };
+    }
+    await db.contractorPolicyValue.update({
+      where: { id: value.id }, data: { measurement: m, resolvedAt: new Date() } });
+    return { ok: true, key, optionsRelabeled: 0, servicesCleared: 0 };
+  }
+
+  /**
+   * MATERIAL_SPECIFICATION — one of the template's own choices, and nothing
+   * else. Without this check "banana" is a valid conductor gauge.
+   */
+  if (value.type === "MATERIAL_SPECIFICATION") {
+    const choice = (answer.choice ?? "").trim();
+    const def = await db.templatePolicyDefinition.findFirst({
+      where: { key }, orderBy: { templateVersion: { version: "desc" } }, select: { choices: true } });
+    const allowed = def?.choices ?? [];
+    if (!choice || !allowed.includes(choice)) {
+      return { ok: false, refusal: { code: "CHOICE_NOT_OFFERED",
+        message: allowed.length
+          ? `Choose one of: ${allowed.join(", ")}.`
+          : "This decision has no choices defined." } };
+    }
+    await db.contractorPolicyValue.update({
+      where: { id: value.id }, data: { choice, resolvedAt: new Date() } });
+    return { ok: true, key, optionsRelabeled: 0, servicesCleared: 0 };
   }
 
   // SUPPLY_ARRANGEMENT has no boundaries — it is a choice, and the question is

@@ -13,6 +13,7 @@ import {
   MaterialCostError,
 } from "@/lib/materialCost";
 import { withAdminContractor } from "@/lib/adminContext";
+import { writeMaterialCost } from "@/lib/admin/onboardingActions";
 
 /**
  * A service's material list, and the shared catalog behind it.
@@ -201,6 +202,20 @@ export async function POST(req: Request) {
   return withAdminContractor(async (db, ctx) => {
   const contractorId = ctx.contractorId;
   try {
+    // ---- set a cost by canonical ROLE, for guided onboarding ----------
+    //
+    // Lives on THIS route, deliberately: it stays the single place a
+    // contractor's material cost is written. A fresh contractor has no
+    // ContractorMaterial rows at all — installCatalog creates none — so the
+    // `cost` action below, which needs a row id, cannot be the first write.
+    // This upserts the same one-row-per-role record `cost` edits later.
+    if (action === "set-cost-by-role") {
+      const r = await writeMaterialCost(db, { contractorId }, body as never);
+      return r.ok
+        ? NextResponse.json({ ok: true, ...r.data })
+        : NextResponse.json({ error: r.error }, { status: r.status });
+    }
+
     // ---- add a material to a service ----------------------------------
     if (action === "add") {
       const { serviceId, canonicalMaterialId, quantity } = body as {

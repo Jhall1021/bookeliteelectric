@@ -1,3 +1,4 @@
+import { resolveRouteWithDerivedPricing, derivedPlacementPrices } from "@/lib/electrical/resolveWithDerivedPricing";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
       isPrimary: true,
       answersSnapshot: true,
       computedPriceCents: true,
-      service: { select: { slug: true, basePrice: true, whileWeThereBasePrice: true } },
+      service: { select: { slug: true, basePrice: true, whileWeThereBasePrice: true, pricingMethod: true } },
     },
     orderBy: { id: "asc" },
   });
@@ -109,6 +110,67 @@ export async function POST(req: Request) {
       isPrimary: false,
     },
   ];
+
+  // A derived service publishes no prices, so composition gets its COMPUTED
+  // standalone and add-on prices instead — or null when they cannot be
+  // computed, which the existing rules already refuse. Legacy candidates are
+  // untouched.
+  const hasDerived =
+    (service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE" ||
+    existing.some((li) => li.service.pricingMethod === "DERIVED_RESOLVED_SCOPE");
+  if (hasDerived) {
+    let placementSettings: Parameters<typeof resolveRouteWithDerivedPricing>[4] | null = null;
+    try { placementSettings = await loadPricingSettings(db, site.contractorId); } catch { placementSettings = null; }
+    for (const cand of candidates) {
+      const isNew = cand.ref === NEW;
+      const li = isNew ? null : existing.find((e) => e.id === cand.ref);
+      const method = isNew
+        ? (service as { pricingMethod?: string }).pricingMethod
+        : li?.service.pricingMethod;
+      if (method !== "DERIVED_RESOLVED_SCOPE") continue;
+      if (!placementSettings) { cand.basePrice = null; cand.whileWeThereBasePrice = null; continue; }
+      const svcForPlacement = isNew ? service : await loadServiceForResolution(db, li!.serviceId);
+      if (!svcForPlacement) { cand.basePrice = null; cand.whileWeThereBasePrice = null; continue; }
+      const answersForPlacement = isNew
+        ? ((answersSnapshot ?? {}) as Record<string, string>)
+        : ((li!.answersSnapshot ?? {}) as Record<string, string>);
+      const prices = await derivedPlacementPrices(db, svcForPlacement, answersForPlacement, placementSettings);
+      cand.basePrice = prices.basePrice;
+      cand.whileWeThereBasePrice = prices.whileWeThereBasePrice;
+    }
+
+    // THE NEW DERIVED LINE CANNOT BE PRICED RIGHT NOW — say so as a review.
+    //
+    // Without this, a derived service with a stale approval or incomplete setup
+    // fell through to composition with no prices and came back as
+    // PRIMARY_UNRESOLVABLE: "we can't combine those services". True that
+    // nothing was booked, wrong about why, and it skipped the quote path a
+    // homeowner should be offered. Found by the authenticated HTTP pass after a
+    // cost change. The verdict here carries the real reason.
+    const newCand = candidates.find((c) => c.ref === NEW);
+    if (
+      (service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE" &&
+      newCand && newCand.basePrice === null && newCand.whileWeThereBasePrice === null
+    ) {
+      const verdict = placementSettings
+        ? await resolveRouteWithDerivedPricing(db, service, (answersSnapshot ?? {}) as Record<string, string>, true, placementSettings)
+        : null;
+      if (verdict && verdict.status !== "REVIEW") {
+        // A physical conclusion (INVALID, REROUTE…) — let the normal path below
+        // report it rather than dressing it up as a price review.
+      } else {
+        return NextResponse.json(
+          {
+            error: "REVIEW_REQUIRED",
+            reason: verdict && "reason" in verdict ? verdict.reason : "This job needs a quick review before it can be priced",
+            photoLabels: verdict && "photoLabels" in verdict ? verdict.photoLabels : [],
+            floorPriceCents: null,
+          },
+          { status: 409 }
+        );
+      }
+    }
+  }
 
   const chosen = selectPrimary(candidates);
   if (!chosen.ok) {
@@ -133,7 +195,10 @@ export async function POST(req: Request) {
   // for whichever pricing settings exist.
   const settings = await loadPricingSettings(db, site.contractorId);
   const answers: Record<string, string> = answersSnapshot ?? {};
-  const resolved = resolveRoute(service, answers, isPrimary, settings);
+  // Derived-aware: a pass-through for every legacy service, and the ONLY way a
+  // derived service reaches a price. The pure resolver returns a pending
+  // sentinel for those, which would book as review.
+  const resolved = await resolveRouteWithDerivedPricing(db, service, answers, isPrimary, settings);
 
   if (resolved.status === "INVALID") {
     // Loud in the logs, vague to the customer — the reason names internal
@@ -208,7 +273,7 @@ export async function POST(req: Request) {
         continue;
       }
       const liAnswers = (li.answersSnapshot ?? {}) as Record<string, string>;
-      const r = resolveRoute(svc, liAnswers, change.shouldBePrimary, settings);
+      const r = await resolveRouteWithDerivedPricing(db, svc, liAnswers, change.shouldBePrimary, settings);
 
       if (r.status === "PRICED") {
         repricings.push({
@@ -270,6 +335,14 @@ export async function POST(req: Request) {
         estimatedMinutes: resolved.config.estimatedMinutes,
         resolvedCrewHours: resolved.config.fieldLaborHours,
         resolvedCrewCount: resolved.config.techCount,
+        // WHY THIS CUSTOMER GOT THIS PRICE. Null for a legacy line, whose
+        // price is the published base plus approved increments and needs no
+        // basis. For a derived line, the approved economics it was computed
+        // under and the package-aware material cost actually used — immutable
+        // with the rest of the snapshot, so a cost edited next month changes
+        // no booked price and still leaves this one explainable.
+        resolvedEconomicBasis: resolved.derivedBasisFingerprint ?? null,
+        resolvedMaterialCostCents: resolved.derivedMaterialCostCents ?? null,
         resolvedAccessClass: resolved.config.accessClass,
         resolvedComponentKeys: resolved.config.components.map((c) => c.key),
       },
@@ -430,7 +503,7 @@ export async function DELETE(req: Request) {
 
       if (service && settings) {
         const answers = (newAnchor.answersSnapshot ?? {}) as Record<string, string>;
-        const resolved = resolveRoute(service, answers, true, settings);
+        const resolved = await resolveRouteWithDerivedPricing(db, service, answers, true, settings);
 
         if (resolved.status === "PRICED") {
           pricingAdjusted = true;
