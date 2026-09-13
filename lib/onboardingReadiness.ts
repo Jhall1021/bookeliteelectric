@@ -29,7 +29,7 @@ import { servicesOnHold } from "./materialHolds";
 import { loadServiceForResolution, loadPricingSettings } from "./routeResolver";
 import { validateEstimateBounds } from "./pricingReadiness";
 import { mapWithConcurrency, allWithConcurrency } from "./concurrency";
-import { loadCatalogForResolution, type ResolvedCatalog } from "./catalogResolution";
+import { loadCatalogForResolution, CATALOG_LOAD_CONCURRENCY, type ResolvedCatalog } from "./catalogResolution";
 
 /**
  * How many offered services' promises are resolved at once, per contractor.
@@ -71,13 +71,19 @@ import { loadCatalogForResolution, type ResolvedCatalog } from "./catalogResolut
 const SERVICE_PROMISE_CONCURRENCY = 5;
 
 /**
- * How many of assessOnboarding's independent catalog-level reads run at once.
+ * The most statements one assessOnboarding runs at once for its reads.
  * Thirteen reads awaited one after another cost ~935ms of pure round trips on a
  * 79-service catalog once the per-service trees were no longer the bottleneck.
  * Bounded at the same five as SERVICE_PROMISE_CONCURRENCY, so one readiness
  * assessment never holds more than five connections for these reads.
+ *
+ * Every read task issues one statement at a time except the catalog load,
+ * which issues up to CATALOG_LOAD_CONCURRENCY. So the tasks run at most
+ * READINESS_READ_CONCURRENCY - CATALOG_LOAD_CONCURRENCY + 1 at once: with the
+ * catalog among them, (4 - 1) + 2 = 5 statements.
  */
 const READINESS_READ_CONCURRENCY = 5;
+const READINESS_TASK_CONCURRENCY = READINESS_READ_CONCURRENCY - CATALOG_LOAD_CONCURRENCY + 1;
 
 export type Severity = "blocker" | "warning";
 
@@ -284,24 +290,38 @@ export async function assessOnboarding(
   };
   const notes: string[] = [];
 
-  // INDEPENDENT READS, AT MOST READINESS_READ_CONCURRENCY AT ONCE. Each was
-  // awaited one after another below, every one is keyed by contractorId alone,
-  // and none depends on another's result — so they are fetched together here
-  // and consumed at their ORIGINAL positions, which keeps every finding in the
-  // same order. A missing pricing row is captured, not thrown, and still
-  // becomes its finding in section 3.
-  const [c, site, readServices, readEnrolment, settingsRead, readOffered, readPolicyValues,
+  // INDEPENDENT READS, AT MOST READINESS_READ_CONCURRENCY STATEMENTS AT ONCE.
+  // Each was awaited one after another below, every one is keyed by
+  // contractorId alone, and they are consumed at their ORIGINAL positions,
+  // which keeps every finding in the same order. A missing pricing row is
+  // captured, not thrown, and still becomes its finding in section 3.
+  //
+  // Two reads depend on pricing settings: material holds, and the catalog's
+  // trees (unless the caller already has them). They wait for that one read
+  // and no other, so the catalog — the longest chain here — starts as soon as
+  // settings are known instead of after every other read. Without settings,
+  // neither runs, as before.
+  type SettingsRead = { ok: true; v: unknown } | { ok: false; v: null };
+  let settingsPending: Promise<SettingsRead> | undefined;
+  const readSettings = () =>
+    (settingsPending ??= loadPricingSettings(db as never, contractorId).then(
+      (v): SettingsRead => ({ ok: true, v }),
+      (): SettingsRead => ({ ok: false, v: null }),
+    ));
+  const loadCatalog = opts.loadCatalog ?? (() => loadCatalogForResolution(db, contractorId));
+  const [settingsRead, catalog, readHeld, c, site, readServices, readEnrolment, readOffered, readPolicyValues,
          readNoAddOn, readLiveCount, readConnection, readHours, readArea, readCrews] = await allWithConcurrency(
-    READINESS_READ_CONCURRENCY,
+    READINESS_TASK_CONCURRENCY,
     [
+      readSettings,
+      async (): Promise<ResolvedCatalog | undefined> =>
+        opts.catalog ?? ((await readSettings()).ok ? loadCatalog() : undefined),
+      async (): Promise<Awaited<ReturnType<typeof servicesOnHold>>> =>
+        ((await readSettings()).ok ? servicesOnHold(db, contractorId) : []),
       () => db.contractor.findUniqueOrThrow({ where: { id: contractorId } }),
       () => db.contractorSite.findFirst({ where: { contractorId, active: true } }),
       () => db.service.findMany({ where: { contractorId }, select: { id: true, slug: true, templateVersionId: true, active: true } }),
       () => db.contractorTrade.findFirst({ where: { contractorId }, orderBy: { enrolledAt: "asc" } }),
-      () => loadPricingSettings(db as never, contractorId).then(
-        (v) => ({ ok: true as const, v: v as unknown }),
-        () => ({ ok: false as const, v: null as unknown }),
-      ),
       () => offeredServices(db, contractorId),
       () => db.contractorPolicyValue.findMany({ where: { contractorId }, select: { key: true, prompt: true } }),
       () => servicesWithoutAddOnPrice(db, contractorId),
@@ -312,12 +332,6 @@ export async function assessOnboarding(
       () => db.jobberCrewMember.count({ where: { contractorId, eligibleForWebsiteBookings: true } }),
     ] as const,
   );
-  // The two reads that need pricing settings first: material holds, and the
-  // catalog's trees unless the caller already loaded them for this request.
-  const [readHeld, catalog] = await allWithConcurrency(2, [
-    () => (settingsRead.ok ? servicesOnHold(db, contractorId) : Promise.resolve([])),
-    () => Promise.resolve(opts.catalog ?? (settingsRead.ok ? (opts.loadCatalog ?? (() => loadCatalogForResolution(db, contractorId)))() : undefined)),
-  ] as const);
 
   // ── 1. Business ────────────────────────────────────────────────────────
 

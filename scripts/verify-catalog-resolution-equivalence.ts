@@ -25,6 +25,7 @@
  *             given the bulk catalog, and given no catalog (the default
  *             path, which loads one): stages, blockers, warnings, canLaunch,
  *             intended services and every catalog promise, in order.
+ *   BOUND     one assessOnboarding never has more than five reads in flight.
  *
  * Each comparison has a negative control proving it fails on a real
  * difference. READ ONLY.
@@ -43,6 +44,20 @@ import type { ResolvedServiceTree } from "../lib/serviceTreeQuery";
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
+
+/** Reads in flight on one client, and the most seen at once since the last reset. */
+const inFlight = { now: 0, peak: 0 };
+const counted = withTenantGuard(new PrismaClient()).$extends({
+  query: {
+    $allModels: {
+      async $allOperations({ args, query }) {
+        inFlight.peak = Math.max(inFlight.peak, ++inFlight.now);
+        try { return await query(args); } finally { inFlight.now--; }
+      },
+    },
+  },
+}) as unknown as PrismaClient;
+const READINESS_READ_LIMIT = 5;
 let pass = 0, fail = 0;
 const ok = (label: string, c: boolean, detail = "") => {
   c ? pass++ : fail++;
@@ -152,8 +167,8 @@ async function main() {
     ok(`every named contractor exists`, missing.length === 0, missing.join(", "));
   }
 
-  const totals = { services: 0, idSets: 0, trees: 0, maps: 0, promises: 0, paths: 0, pathsCompared: 0, capped: 0, noSettings: 0, readiness: 0, catalogPromises: 0, contractors: 0, sharedOnce: 0 };
-  const diffs: Record<string, string[]> = { idSets: [], trees: [], maps: [], promises: [], paths: [], readiness: [], catalogPromises: [] };
+  const totals = { services: 0, idSets: 0, trees: 0, maps: 0, promises: 0, paths: 0, pathsCompared: 0, capped: 0, noSettings: 0, readiness: 0, catalogPromises: 0, contractors: 0, sharedOnce: 0, bounded: 0, peak: 0 };
+  const diffs: Record<string, string[]> = { idSets: [], trees: [], maps: [], promises: [], paths: [], readiness: [], catalogPromises: [], bounded: [] };
   const readinessBox: { sample: OnboardingReadiness | null } = { sample: null };
   type Sample = { per: ResolvedServiceTree; bulk: ResolvedServiceTree; settings: unknown };
   const found: { sample: Sample | null } = { sample: null };
@@ -209,6 +224,11 @@ async function main() {
         await catalogPromises(guarded, c.id),
       ];
       if (ser(pPer) === ser(pBulk) && ser(pBulk) === ser(pDefault) && ser(pDefault) === ser(pShared)) totals.catalogPromises++; else diffs.catalogPromises.push(c.slug);
+      // The concurrency bound, on the path that loads the catalog itself.
+      inFlight.peak = 0;
+      const rCounted = await assessOnboarding(counted, c.id);
+      totals.peak = Math.max(totals.peak, inFlight.peak);
+      if (inFlight.peak <= READINESS_READ_LIMIT && ser(rCounted) === ser(rDefault)) totals.bounded++; else diffs.bounded.push(`${c.slug}: ${inFlight.peak} at once`);
       console.log(`    ${c.slug.padEnd(28)} ${String(ids.length).padStart(3)} services  ${rBulk.blockers.length}B/${rBulk.warnings.length}W canLaunch=${rBulk.canLaunch}${settings ? "" : "  (no pricing settings)"}`);
     });
   }
@@ -225,6 +245,8 @@ async function main() {
     diffs.readiness.length === 0, diffs.readiness.join(", "));
   ok(`catalog promises identical, in order, the same four ways for ${totals.catalogPromises}/${totals.contractors} contractors`,
     diffs.catalogPromises.length === 0, diffs.catalogPromises.join(", "));
+  ok(`readiness never has more than ${READINESS_READ_LIMIT} reads in flight (most seen: ${totals.peak}) for ${totals.bounded}/${totals.contractors} contractors`,
+    diffs.bounded.length === 0, diffs.bounded.join(", "));
 
   console.log("\n  NEGATIVE CONTROLS");
   const sample = found.sample;
@@ -248,6 +270,14 @@ async function main() {
     }
   }
 
+  inFlight.peak = 0;
+  if (contractors[0]) {
+    const id = contractors[0].id;
+    await withTenant({ contractorId: id, source: "test" }, () =>
+      Promise.all(Array.from({ length: READINESS_READ_LIMIT + 1 }, () => counted.service.findFirst({ where: { contractorId: id }, select: { id: true } }))));
+  }
+  ok(`the bound check fails when ${READINESS_READ_LIMIT + 1} reads run at once`, inFlight.peak > READINESS_READ_LIMIT, `saw ${inFlight.peak}`);
+
   const readinessSample = readinessBox.sample;
   if (readinessSample) {
     const f = readinessSample.warnings[0] ?? readinessSample.blockers[0];
@@ -256,7 +286,7 @@ async function main() {
   }
 
   console.log(`\n  ${pass} passed, ${fail} failed.\n`);
-  await raw.$disconnect(); await guarded.$disconnect();
+  await raw.$disconnect(); await guarded.$disconnect(); await counted.$disconnect();
   process.exit(fail === 0 ? 0 : 1);
 }
 

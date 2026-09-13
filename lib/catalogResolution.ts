@@ -38,8 +38,13 @@ import { mapWithConcurrency } from "./concurrency";
 
 export type ResolvedCatalog = ReadonlyMap<string, ResolvedServiceTree>;
 
-/** At most this many troubleshooting lookups at once — one per routing trade. */
-const TROUBLESHOOTING_LOOKUP_CONCURRENCY = 5;
+/**
+ * The most statements this loader runs at once: the contractor's component
+ * figures beside their material costs, then the troubleshooting lookups (one
+ * per routing trade) at most this many at a time. Exported so a caller running
+ * the load beside its own reads can keep the total bounded.
+ */
+export const CATALOG_LOAD_CONCURRENCY = 2;
 
 const materialRoleIdsOf = (service: ServiceTree): string[] => [
   ...new Set(
@@ -76,7 +81,7 @@ export async function loadCatalogForResolution(db: PrismaClient, contractorId: s
 
   // One troubleshooting lookup per trade that actually routes there.
   const trades = [...new Set(services.filter(routesToTroubleshooting).map((s) => s.tradeKey).filter((t): t is string => !!t))];
-  const lookups = await mapWithConcurrency(trades, TROUBLESHOOTING_LOOKUP_CONCURRENCY, (t) =>
+  const lookups = await mapWithConcurrency(trades, CATALOG_LOAD_CONCURRENCY, (t) =>
     findTroubleshootingService(db, contractorId, t),
   );
   const troubleshooting = new Map(trades.map((t, i) => [t, lookups[i]]));
