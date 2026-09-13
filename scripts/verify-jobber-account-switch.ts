@@ -6,8 +6,9 @@
  * belongs to the old one. This verifier proves the server lifecycle, not the UI:
  *
  *   1. /connect refuses to start OAuth while a connection already exists.
- *   2. /disconnect clears both the connection and cached crew in one transaction.
- *   3. Both operations are scoped to the authenticated contractor.
+ *   2. /callback creates the connection once; it never overwrites one.
+ *   3. /disconnect clears both the connection and cached crew in one transaction.
+ *   4. All ownership comes from the authenticated contractor context.
  *
  * No database, Jobber credentials, network, or environment are required.
  */
@@ -31,6 +32,7 @@ function main() {
   console.log("\nJOBBER ACCOUNT SWITCH — disconnect before reconnect\n");
 
   const connect = source("app/api/admin/jobber/connect/route.ts");
+  const callback = source("app/api/admin/jobber/callback/route.ts");
   const disconnect = source("app/api/admin/jobber/disconnect/route.ts");
 
   ok(
@@ -49,19 +51,38 @@ function main() {
   );
 
   ok(
-    "4. disconnect runs under the tenant-scoped admin route",
+    "4. callback re-resolves the authenticated contractor",
+    /resolveAdminContractor\(\)/.test(callback)
+  );
+  ok(
+    "5. callback writes a new Jobber connection with create, not upsert",
+    /jobberConnection\.create\(/.test(callback) &&
+      !/jobberConnection\.upsert\(/.test(callback) &&
+      !/saveJobberTokens\(/.test(callback)
+  );
+  ok(
+    "6. a concurrent callback losing the unique race becomes already_connected",
+    /isUniqueViolation\(err\)/.test(callback) && /already_connected/.test(callback)
+  );
+  ok(
+    "7. callback stamps the authenticated contractor on the new connection",
+    /data:\s*\{[\s\S]*contractorId[\s\S]*accessToken/.test(callback)
+  );
+
+  ok(
+    "8. disconnect runs under the tenant-scoped admin route",
     /withAdminRoute\(/.test(disconnect)
   );
   ok(
-    "5. disconnect deletes cached crew for the authenticated contractor",
+    "9. disconnect deletes cached crew for the authenticated contractor",
     /jobberCrewMember\.deleteMany\(\{\s*where:\s*\{\s*contractorId:\s*ctx\.contractorId\s*\}/.test(disconnect)
   );
   ok(
-    "6. disconnect deletes the Jobber connection for the authenticated contractor",
+    "10. disconnect deletes the Jobber connection for the authenticated contractor",
     /jobberConnection\.deleteMany\(\{\s*where:\s*\{\s*contractorId:\s*ctx\.contractorId\s*\}/.test(disconnect)
   );
   ok(
-    "7. crew and credentials are cleared in the same database transaction",
+    "11. crew and credentials are cleared in the same database transaction",
     /db\.\$transaction\(\[([\s\S]*?)jobberCrewMember\.deleteMany([\s\S]*?)jobberConnection\.deleteMany([\s\S]*?)\]\)/.test(disconnect)
   );
 
@@ -69,7 +90,7 @@ function main() {
   console.log(
     failures
       ? `  ${failures} check(s) failed.\n`
-      : "  Jobber account changes must clear old connection-bound crew before OAuth can restart.\n"
+      : "  The first successful OAuth callback wins; changing accounts requires a full disconnect.\n"
   );
   if (failures) process.exit(1);
 }
