@@ -14,7 +14,7 @@ import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
   reconcile, adjustedAmountDueCents, netPaidCents,
-  preWorkProjectConflict, depositDueCentsFor,
+  preWorkProjectConflict,
   type LedgerEvent, type LedgerAdjustment,
 } from "../lib/paymentLedger";
 import { DERIVED_TENANT_MODELS } from "../lib/tenantGuard";
@@ -37,19 +37,6 @@ const $ = (c: number) => `$${(c / 100).toFixed(2)}`;
 async function main() {
   console.log(`\nPAYMENT LEDGER — DORMANT\n`);
 
-  // ── 1-3: the historical migration told the truth ───────────────────────
-  //
-  // SCOPED TO HISTORY, 31 August. These read every booking in the table and
-  // asserted things only ever true of the twenty-four that predate the
-  // ledger — most sharply that depositDueCents is null everywhere. Checkout
-  // has evaluated a deposit on every booking it writes since Release #3, so
-  // the first homeowner to book through a second contractor's storefront
-  // failed this, correctly recording that no deposit was due.
-  //
-  // The boundary is a date rather than "rows with a null deposit", which
-  // would make the claim circular — it would be asserting the thing it
-  // selected on. Everything after it is a live booking and is the
-  // reconciliation section's business, not the migration's.
   const LEDGER_SHIPPED = new Date("2026-08-25T00:00:00Z");
   const all = await prisma.booking.findMany({
     select: { id: true, paymentState: true, depositDueCents: true, totalCents: true, paymentModel: true, createdAt: true },
@@ -68,17 +55,12 @@ async function main() {
   ok(`3. every totalCents is a real published amount`,
     all.every((b) => b.totalCents > 0), "none zeroed or rewritten");
 
-  // The other half of the same distinction: a booking taken since the ledger
-  // shipped must have ASKED. "None was due" and "nobody looked" are the two
-  // states this column exists to tell apart, so a null here would be the
-  // migration's ambiguity reappearing on new business.
   ok(`   and all ${since.length} booking(s) since carry an evaluated deposit`,
     since.every((b) => b.depositDueCents !== null),
     "a live booking must have asked what was due, even if the answer was nothing");
 
-  // ── 4: reconciliation, seven cases ─────────────────────────────────────
   console.log(`\n  RECONCILIATION\n`);
-  const TOTAL = 308500; // a 200A service upgrade
+  const TOTAL = 308500;
 
   const cases: { name: string; adj: LedgerAdjustment[]; ev: LedgerEvent[]; due: number; paid: number; rem: number }[] = [
     { name: "untouched booking", adj: [], ev: [], due: TOTAL, paid: 0, rem: TOTAL },
@@ -92,7 +74,6 @@ async function main() {
     { name: "partial refund after full payment", adj: [],
       ev: [{ kind: "CAPTURE", amountCents: TOTAL }, { kind: "REFUND", amountCents: 50000 }],
       due: TOTAL, paid: TOTAL - 50000, rem: 50000 },
-    // The case the wrong formula got backwards.
     { name: "cancellation: credit + refund -> nothing owed",
       adj: [{ kind: "CREDIT", amountCents: TOTAL }],
       ev: [{ kind: "CAPTURE", amountCents: 24900 }, { kind: "REFUND", amountCents: 24900 }],
@@ -110,15 +91,12 @@ async function main() {
       `due ${$(r.adjustedDueCents)} paid ${$(r.netPaidCents)} remaining ${$(r.remainingCents)}`);
   }
 
-  // Full refund with no credit still owes — because a refund alone is not a
-  // cancellation. That asymmetry is the point of two ledgers.
   const refundOnly = reconcile(TOTAL, [],
     [{ kind: "CAPTURE", amountCents: TOTAL }, { kind: "REFUND", amountCents: TOTAL }]);
   ok(`   full refund WITHOUT a credit still shows the full amount owed`,
     refundOnly.remainingCents === TOTAL,
     "a refund is cash movement; only an approved credit changes the obligation");
 
-  // ── 5-6: append-only, and idempotent, enforced by the database ─────────
   console.log(`\n  THE LEDGERS DEFEND THEMSELVES\n`);
   const probeBooking = bookings[0];
   const ev = await prisma.paymentEvent.create({
@@ -157,8 +135,6 @@ async function main() {
     ok(`6. a duplicate Stripe event id is rejected structurally`, dupBlocked,
       "a replayed webhook must fail on insert, not add a second capture");
   } finally {
-    // The trigger blocks deletes, so the probe rows are removed by dropping
-    // the trigger for exactly the length of the cleanup and restoring it.
     await prisma.$executeRawUnsafe(`ALTER TABLE payment_events DISABLE TRIGGER payment_events_append_only`);
     await prisma.$executeRawUnsafe(`ALTER TABLE booking_adjustments DISABLE TRIGGER booking_adjustments_append_only`);
     await prisma.paymentEvent.deleteMany({ where: { note: { contains: "probe" } } });
@@ -167,7 +143,6 @@ async function main() {
     await prisma.$executeRawUnsafe(`ALTER TABLE booking_adjustments ENABLE TRIGGER booking_adjustments_append_only`);
   }
 
-  // ── 7: tenancy ─────────────────────────────────────────────────────────
   console.log();
   for (const m of ["PaymentEvent", "BookingAdjustment"]) {
     const path = DERIVED_TENANT_MODELS.get(m);
@@ -176,7 +151,6 @@ async function main() {
       "an unclassified financial model would let one contractor read another's payments");
   }
 
-  // ── 8: one pre-work project per booking ────────────────────────────────
   console.log();
   const two = preWorkProjectConflict([
     { slug: "200a-service-upgrade", requiresPreWorkVisit: true },
@@ -188,24 +162,15 @@ async function main() {
       { slug: "200a-service-upgrade", requiresPreWorkVisit: true },
       { slug: "replace-standard-outlet", requiresPreWorkVisit: false },
     ]).conflict);
-  ok(`   the checkout route enforces it`,
-    readFileSync("app/api/checkout/route.ts", "utf8").includes("preWorkProjectConflict"));
+  const checkoutSource = readFileSync("app/api/checkout/route.ts", "utf8");
+  ok(`   the checkout route enforces it`, checkoutSource.includes("preWorkProjectConflict"));
+  ok(`   checkout uses the canonical deposit policy`, checkoutSource.includes("decideDeposit"),
+    "legacy per-service deposit summing must not return");
 
-  // The deposit snapshot: evaluated-zero is not never-evaluated.
-  ok(`   a visit with no deposit service evaluates to 0, not null`,
-    depositDueCentsFor([{ depositCents: null }, { depositCents: null }]) === 0);
-
-  // ── 9-13: nothing else moved ───────────────────────────────────────────
   console.log();
   const c = await prisma.contractor.findUniqueOrThrow({
     where: { slug: "elite-electric" }, select: { id: true },
   });
-  // RETIRED, 31 August: "both pre-work services remain unpublished". They are
-  // published now, deliberately, through the pricing lifecycle — so that check
-  // had become an assertion that the release had not happened. What has to
-  // stay true is that a service asking a homeowner for a deposit is COHERENT:
-  // a real price somebody approved, a real deposit, and a visit whose length
-  // is known before anyone is asked to pay for it.
   const preWork = await prisma.service.findMany({
     where: { contractorId: c.id, requiresPreWorkVisit: true },
     select: {
@@ -227,18 +192,6 @@ async function main() {
     preWork.every((s) => s.whileWeThereBasePrice === null),
     preWork.filter((s) => s.whileWeThereBasePrice !== null).map((s) => s.slug).join(", "));
 
-  // RESCOPED, 29 August. This asserted that NO file could move money, which
-  // was true while the ledger was the newest payment code and became false the
-  // moment Release #3 added a gateway that captures deposits.
-  //
-  // The enduring claim is the one this release actually makes: THE LEDGER does
-  // not move money. It records what moved. That should stay true however much
-  // payment code exists elsewhere, and it is the property that lets the ledger
-  // be trusted as a record rather than suspected as an actor.
-  //
-  // Third time this codebase has preserved an invariant rather than its
-  // original wording — see the retired "Release #2 has not landed early" check
-  // and the rescoped onboarding one.
   const LEDGER_SURFACE = ["lib/paymentLedger.ts", "lib/depositRecording.ts"];
   const MONEY = /\b(paymentIntents|charges\.create|refunds\.create|setupIntents|\.capture\(|transfers|payouts)\b/;
   const movingInLedger = LEDGER_SURFACE.filter((f) => MONEY.test(readFileSync(f, "utf8")));
@@ -248,8 +201,8 @@ async function main() {
     !LEDGER_SURFACE.some((f) => /paymentGateway|from "stripe"/.test(readFileSync(f, "utf8"))));
 
   ok(`9. checkout still refuses unpriced lines and still writes one transaction`,
-    /unpriced\.length > 0/.test(readFileSync("app/api/checkout/route.ts", "utf8")) &&
-    /prisma\.\$transaction/.test(readFileSync("app/api/checkout/route.ts", "utf8")));
+    /unpriced\.length > 0/.test(checkoutSource) &&
+    /prisma\.\$transaction/.test(checkoutSource));
 
   console.log();
   if (fail) { console.log(`  ${fail} check(s) failed.\n`); process.exit(1); }
