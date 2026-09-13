@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCodeForTokens, jobberRedirectUri, saveJobberTokens } from "@/lib/jobber";
+import { exchangeCodeForTokens, jobberRedirectUri } from "@/lib/jobber";
 import { resolveAdminContractor } from "@/lib/adminContext";
+import { prisma } from "@/lib/prisma";
 
 function jobberPage(path: string): URL {
   // Never derive a post-OAuth redirect from the callback request's Host header.
@@ -9,6 +10,10 @@ function jobberPage(path: string): URL {
   // every success/refusal lands back inside the Price2Book app we registered
   // with Jobber rather than on an origin supplied by the inbound request.
   return new URL(path, jobberRedirectUri());
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
 }
 
 export async function GET(req: Request) {
@@ -41,7 +46,28 @@ export async function GET(req: Request) {
     }
 
     const tokens = await exchangeCodeForTokens(code);
-    await saveJobberTokens(tokens, contractorId);
+
+    // CREATE, never upsert. Two OAuth tabs can legitimately start while the
+    // contractor is disconnected. If both later return, whichever callback
+    // creates the contractor's unique JobberConnection first wins. The other
+    // callback must not overwrite those credentials with a second account.
+    // Switching accounts is only allowed through Disconnect, which clears the
+    // connection-bound crew cache before another OAuth flow can begin.
+    try {
+      await prisma.jobberConnection.create({
+        data: {
+          contractorId,
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        },
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        return NextResponse.redirect(jobberPage("/dashboard/jobber?error=already_connected"));
+      }
+      throw err;
+    }
   } catch (err) {
     console.error("Jobber OAuth exchange failed:", err);
     return NextResponse.redirect(jobberPage("/dashboard/jobber?error=exchange_failed"));
