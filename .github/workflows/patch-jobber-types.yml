@@ -1,0 +1,52 @@
+name: Patch Jobber pagination types
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Apply Jobber pagination type annotations'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply exact annotations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('lib/jobber.ts')
+          text = p.read_text()
+          replacements = [
+              (
+                  '    const result = await jobberGraphQL<JobberVisitPage>(\n',
+                  '    const result: JobberVisitPage = await jobberGraphQL<JobberVisitPage>(\n',
+              ),
+              (
+                  '        assignedUserIds: visit.assignedUsers.nodes.map((u) => u.id),\n',
+                  '        assignedUserIds: visit.assignedUsers.nodes.map((u: { id: string }) => u.id),\n',
+              ),
+              (
+                  '    const nextCursor = result.visits.pageInfo.endCursor;\n',
+                  '    const nextCursor: string | null = result.visits.pageInfo.endCursor;\n',
+              ),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one match, found {count}: {old!r}')
+              text = text.replace(old, new, 1)
+          p.write_text(text)
+          PY
+          git diff --check
+          git diff -- lib/jobber.ts
+      - name: Commit patch
+        run: |
+          git config user.name 'Jhall1021'
+          git config user.email 'josh@econscvs.com'
+          git add lib/jobber.ts
+          git commit -m 'Apply Jobber pagination type annotations'
+          git push
