@@ -172,10 +172,56 @@ async function main() {
       !codes(noDeposit, "blocker").some((c) => c.startsWith("STRIPE_")),
       codes(noDeposit, "blocker").join(", "));
 
+    // WHAT "ASKS FOR A DEPOSIT" MEANS CHANGED, AND THIS CHECK HAD NOT.
+    //
+    // It used to set Service.depositCents and expect a Stripe blocker. Since
+    // 68643ed readiness answers from the canonical deposit authority checkout
+    // uses — Service.depositRule plus the company's deposit rules and amount —
+    // and depositCents is retained legacy data nobody reads. So the old setup
+    // no longer asked for a deposit at all, the blocker correctly did not
+    // appear, and the check failed on a correct engine. Exercised below through
+    // the real authority, both ways it can apply, with the legacy field
+    // checked for staying inert.
+    const requiresStripe = (r: OnboardingReadiness) => codes(r, "blocker").includes("STRIPE_NOT_CONNECTED");
+    const depositBlockers = (r: OnboardingReadiness) =>
+      codes(r, "blocker").filter((c) => c.startsWith("STRIPE_") || c === "DEPOSIT_AMOUNT_MISSING");
+    const before = await raw.service.findUniqueOrThrow({ where: { id: svc.id }, select: { depositCents: true, depositRule: true } });
+
     await raw.service.update({ where: { id: svc.id }, data: { depositCents: 24900 } });
+    const legacyOnly = await assess(probe.id);
+    ok(`10.  legacy Service.depositCents alone does NOT ask for a deposit`,
+      depositBlockers(legacyOnly).length === 0, depositBlockers(legacyOnly).join(", "));
+    await raw.service.update({ where: { id: svc.id }, data: { depositCents: before.depositCents } });
+
+    // Company authority: a company rule applies to USE_COMPANY_POLICY services.
+    await raw.contractor.update({ where: { id: probe.id }, data: { depositOnEveryBooking: true } });
+    const ruleNoAmount = await assess(probe.id);
+    ok(`10a. a company deposit rule with no amount blocks on DEPOSIT_AMOUNT_MISSING, before Stripe`,
+      codes(ruleNoAmount, "blocker").includes("DEPOSIT_AMOUNT_MISSING") && !requiresStripe(ruleNoAmount),
+      depositBlockers(ruleNoAmount).join(", "));
+    await raw.contractor.update({ where: { id: probe.id }, data: { depositAmountCents: 24900 } });
     const withDeposit = await assess(probe.id);
-    ok(`10.  and DOES once a service actually asks for one`,
-      codes(withDeposit, "blocker").includes("STRIPE_NOT_CONNECTED"));
+    ok(`10b.  and DOES require Stripe once the company rule can collect an amount`,
+      requiresStripe(withDeposit), depositBlockers(withDeposit).join(", "));
+
+    // Service authority: ALWAYS_REQUIRE applies with no company rule at all.
+    await raw.contractor.update({ where: { id: probe.id }, data: { depositOnEveryBooking: false } });
+    await raw.service.update({ where: { id: svc.id }, data: { depositRule: "ALWAYS_REQUIRE" } });
+    const alwaysRequire = await assess(probe.id);
+    ok(`10c.  and DOES for a service that ALWAYS_REQUIREs one, with no company rule`,
+      requiresStripe(alwaysRequire), depositBlockers(alwaysRequire).join(", "));
+
+    // NEGATIVE CONTROL — the check must fail on the violation it exists for:
+    // a deposit that can apply, with no Stripe blocker raised.
+    const violation: OnboardingReadiness = {
+      ...alwaysRequire,
+      blockers: alwaysRequire.blockers.filter((f) => f.code !== "STRIPE_NOT_CONNECTED"),
+    };
+    ok(`10d. negative control: the deposit check FAILS when that Stripe blocker is missing`,
+      !requiresStripe(violation));
+
+    await raw.service.update({ where: { id: svc.id }, data: { depositRule: before.depositRule } });
+    await raw.contractor.update({ where: { id: probe.id }, data: { depositAmountCents: null } });
 
     // Zero crew: legitimate standalone, a configuration failure with Jobber.
     const standalone = await assess(probe.id);
@@ -345,10 +391,93 @@ async function main() {
   );
   ok(`24. no Guided Setup write path can stamp a price approval`,
     !routes.some((r) => /publishedPriceApprovedAt|basePrice/.test(r)));
-  // The earlier form matched `select: { active: true }`, which reads rather
-  // than writes — a check that would have failed for looking at the field.
+  // SERVICE WRITES ONLY. The first form matched `select: { active: true }`,
+  // which reads. The second matched any `data: { … active … }`, which made
+  // setup/storefront's ContractorSite reactivation — a storefront SITE coming
+  // back, not a service going live — fail the check on a legitimate route.
+  // A setup route puts a service on the storefront by writing Service.active to
+  // anything other than false, or by calling the activation entry point.
+  //
+  // READ AS STRUCTURE, NOT AS A PATTERN. A regex allowing one level of nested
+  // braces let `data: { contractorCategory: { connect: { id } }, active: true }`
+  // through — its own negative control caught that. So the write's arguments
+  // are scanned for balanced braces and only TOP-LEVEL keys of data / create /
+  // update count: an `active` nested inside a relation belongs to the related
+  // model, not the service. Data passed by variable name is beyond any source
+  // scan; the activation guard is the runtime authority for that.
+  const closeOf = (src: string, open: number): number => {
+    let depth = 0; let quote: string | null = null;
+    for (let i = open; i < src.length; i++) {
+      const ch = src[i];
+      if (quote) { if (ch === "\\") i++; else if (ch === quote) quote = null; continue; }
+      if (ch === "'" || ch === '"' || ch === "`") { quote = ch; continue; }
+      if (ch === "(" || ch === "{" || ch === "[") depth++;
+      else if (ch === ")" || ch === "}" || ch === "]") { depth--; if (depth === 0) return i; }
+    }
+    return -1;
+  };
+  const topLevel = (body: string): Map<string, string> => {
+    const out = new Map<string, string>(); let depth = 0; let quote: string | null = null; let start = 0;
+    const take = (part: string) => {
+      const t = part.trim(); if (!t || t.startsWith("...")) return;
+      const colon = t.search(/:/);
+      if (colon === -1) out.set(t, t); else out.set(t.slice(0, colon).trim(), t.slice(colon + 1).trim());
+    };
+    for (let i = 0; i < body.length; i++) {
+      const ch = body[i];
+      if (quote) { if (ch === "\\") i++; else if (ch === quote) quote = null; continue; }
+      if (ch === "'" || ch === '"' || ch === "`") { quote = ch; continue; }
+      if ("({[".includes(ch)) depth++; else if (")}]".includes(ch)) depth--;
+      else if (ch === "," && depth === 0) { take(body.slice(start, i)); start = i + 1; }
+    }
+    take(body.slice(start));
+    return out;
+  };
+  const objectBody = (text: string): string | null => {
+    const open = text.indexOf("{"); if (open === -1 || text.slice(0, open).trim() !== "") return null;
+    const close = closeOf(text, open); return close === -1 ? null : text.slice(open + 1, close);
+  };
+  const writesServiceActive = (src: string): boolean => {
+    for (const m of src.matchAll(/\.service\.(?:update|updateMany|upsert|create|createMany)\s*\(/g)) {
+      const open = m.index! + m[0].length - 1; const close = closeOf(src, open);
+      const args = objectBody(src.slice(open + 1, close).trim()); if (args === null) continue;
+      const argKeys = topLevel(args);
+      for (const k of ["data", "create", "update"]) {
+        const v = argKeys.get(k); const body = v === undefined ? null : objectBody(v);
+        if (body === null) continue;
+        const fields = topLevel(body);
+        if (fields.has("active") && fields.get("active") !== "false") return true;
+      }
+    }
+    return false;
+  };
+  const putsServiceLive = (src: string) => writesServiceActive(src) || /\bactivateService\s*\(/.test(src);
   ok(`25.  or put a service on the storefront`,
-    !routes.some((r) => /data:\s*\{[^}]*\bactive\b/.test(r)));
+    !routes.some(putsServiceLive),
+    WRITE_PATHS.filter((_, i) => putsServiceLive(routes[i])).join(", "));
+
+  // NEGATIVE CONTROLS — narrowing must not blind it. Each of these puts a
+  // service live and must be caught; each of the next set must not be.
+  const LIVE = [
+    `await db.service.update({ where: { id }, data: { active: true } });`,
+    `await tx.service.updateMany({ where: { contractorId }, data: { offered: true, active: true } });`,
+    `await db.service.update({ where: { id }, data: { active } });`,
+    `await db.service.update({ where: { id }, data: { contractorCategory: { connect: { id: c } }, active: true } });`,
+    `await db.service.upsert({ where: { id }, create: { slug, active: true }, update: {} });`,
+    `const result = await activateService(db, contractorId, serviceId);`,
+  ];
+  const NOT_LIVE = [
+    `const site = await db.contractorSite.update({ where: { id: existing.id }, data: { active: true } });`,
+    `const site = await db.contractorSite.create({ data: { contractorId, hostedSlug, active: true } });`,
+    `await db.service.update({ where: { id }, data: { active: false } });`,
+    `const s = await db.service.findUnique({ where: { id }, select: { id: true, active: true } });`,
+    `await db.service.update({ where: { id: service.id }, data: { offered } });`,
+    `await db.service.update({ where: { id }, data: { contractorCategory: { update: { active: true } } } });`,
+  ];
+  ok(`25a. negative control: it still catches every way a route could put a service live`,
+    LIVE.every(putsServiceLive), LIVE.filter((x) => !putsServiceLive(x)).join(" | "));
+  ok(`25b.  and does not mistake storefront-site activation, deactivation or a read for it`,
+    NOT_LIVE.every((x) => !putsServiceLive(x)), NOT_LIVE.filter(putsServiceLive).join(" | "));
 
   // ── slice three: business profile, storefront, destinations ───────────
   await raw.contractor.update({
