@@ -55,6 +55,12 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       return { ok: true, value };
     };
 
+    type ParsedNumber = ReturnType<typeof optionalNumber>;
+    const parsedValue = (parsed: ParsedNumber): number | null => {
+      if (!parsed.ok) throw new Error("Pricing input was read before validation completed.");
+      return parsed.value;
+    };
+
     const fieldLaborHours = optionalNumber("fieldLaborHours", { min: 0 });
     const wwtLaborHours = optionalNumber("wwtLaborHours", { min: 0 });
     const materialCostCents = optionalNumber("materialCostCents", { min: 0, integer: true });
@@ -91,14 +97,14 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     }
 
     const overrides = {
-      fieldLaborHours: fieldLaborHours.value,
-      wwtLaborHours: wwtLaborHours.value,
-      materialCostCents: materialCostCents.value,
-      materialMultiplier: materialMultiplier.value,
-      permitAdminCents: permitAdminCents.value,
-      otherDirectCostCents: otherDirectCostCents.value,
-      estimatedMinutes: estimatedMinutes.value,
-      requiresTechCount: requiresTechCount.value ?? service.requiresTechCount,
+      fieldLaborHours: parsedValue(fieldLaborHours),
+      wwtLaborHours: parsedValue(wwtLaborHours),
+      materialCostCents: parsedValue(materialCostCents),
+      materialMultiplier: parsedValue(materialMultiplier),
+      permitAdminCents: parsedValue(permitAdminCents),
+      otherDirectCostCents: parsedValue(otherDirectCostCents),
+      estimatedMinutes: parsedValue(estimatedMinutes),
+      requiresTechCount: parsedValue(requiresTechCount) ?? service.requiresTechCount,
       isPrimaryEligible: body.isPrimaryEligible,
       estimatedMinutesReviewed: body.estimatedMinutesReviewed,
       photoState: body.photoState as "NONE" | "PREPARATION" | "REVIEW_REQUIRED",
