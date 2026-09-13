@@ -136,9 +136,24 @@ async function main() {
     /invalid user record/i
   );
 
+  await rejects(
+    "7. an oversized final page is rejected before it can be certified complete",
+    () => fetchAllJobberUsers("contractor-fixture", {
+      requestPage: async () => page(
+        Array.from({ length: 51 }, (_, index) => ({
+          id: `usr-${index + 1}`,
+          name: `User ${index + 1}`,
+        })),
+        false,
+        null
+      ),
+    }),
+    /more users than the requested page size/i
+  );
+
   let endlessPage = 0;
   await rejects(
-    "7. an implausibly deep roster stops instead of reconciling partial data",
+    "8. an implausibly deep roster stops instead of reconciling partial data",
     () => fetchAllJobberUsers("contractor-fixture", {
       requestPage: async () => {
         endlessPage += 1;
