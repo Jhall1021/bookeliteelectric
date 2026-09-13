@@ -7,6 +7,7 @@ import { describeServicePricing } from "@/lib/servicePricingSummary";
 import ServicesCatalogClient, {
   type CategoryGroup, type ServiceRow, type ReviewItem,
 } from "@/components/admin/ServicesCatalogClient";
+import { requestCatalog } from "@/lib/catalogResolution";
 
 const PRICE_DRIFT_CODES = new Set(["PRICE_DRIFTED"]);
 const PRICE_UNAPPROVED_CODES = new Set(["PRICE_NOT_APPROVED", "SUGGESTED_NOT_APPROVED"]);
@@ -19,6 +20,9 @@ export default async function AdminServicesPage() {
   return withAdminContractor(async (db, ctx) => {
     const contractorId = ctx.contractorId;
 
+    // ONE catalog for both readers, loaded once for this request. The render
+    // writes nothing, so the trees cannot change between the two uses.
+    const loadCatalog = requestCatalog(db, contractorId);
     const [contractor, categories, readiness, promises] = await Promise.all([
       db.contractor.findUniqueOrThrow({ where: { id: contractorId }, select: { pricingStrategy: true } }),
       db.contractorCategory.findMany({
@@ -41,8 +45,8 @@ export default async function AdminServicesPage() {
           },
         },
       }),
-      assessOnboarding(db, contractorId),
-      catalogPromises(db, contractorId),
+      assessOnboarding(db, contractorId, { loadCatalog }),
+      catalogPromises(db, contractorId, { loadCatalog }),
     ]);
 
     const findingsBySlug = new Map<string, Finding[]>();

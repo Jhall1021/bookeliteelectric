@@ -246,13 +246,13 @@ export type CatalogPromise = {
 export async function catalogPromises(
   db: PrismaClient,
   contractorId: string,
-  opts: { catalog?: ResolvedCatalog } = {},
+  opts: { catalog?: ResolvedCatalog; loadCatalog?: () => Promise<ResolvedCatalog> } = {},
 ): Promise<Map<string, CatalogPromise>> {
   let settings: unknown = null;
   try { settings = await loadPricingSettings(db as never, contractorId); } catch { settings = null; }
   // One contractor-wide read instead of one tree per service. Only when there
   // are settings: without them no promise reads a tree at all.
-  const catalog = opts.catalog ?? (settings ? await loadCatalogForResolution(db, contractorId) : undefined);
+  const catalog = opts.catalog ?? (settings ? await (opts.loadCatalog ?? (() => loadCatalogForResolution(db, contractorId)))() : undefined);
   const services = await db.service.findMany({
     where: { contractorId }, select: { id: true, bookingType: true },
   });
@@ -276,7 +276,7 @@ function lowerFirst(s: string): string {
 export async function assessOnboarding(
   db: PrismaClient,
   contractorId: string,
-  opts: { catalog?: ResolvedCatalog } = {},
+  opts: { catalog?: ResolvedCatalog; loadCatalog?: () => Promise<ResolvedCatalog> } = {},
 ): Promise<OnboardingReadiness> {
   const findings: Record<StageKey, Finding[]> = {
     business: [], trade: [], "pricing-foundation": [],
@@ -316,7 +316,7 @@ export async function assessOnboarding(
   // catalog's trees unless the caller already loaded them for this request.
   const [readHeld, catalog] = await allWithConcurrency(2, [
     () => (settingsRead.ok ? servicesOnHold(db, contractorId) : Promise.resolve([])),
-    () => Promise.resolve(opts.catalog ?? (settingsRead.ok ? loadCatalogForResolution(db, contractorId) : undefined)),
+    () => Promise.resolve(opts.catalog ?? (settingsRead.ok ? (opts.loadCatalog ?? (() => loadCatalogForResolution(db, contractorId)))() : undefined)),
   ] as const);
 
   // ── 1. Business ────────────────────────────────────────────────────────

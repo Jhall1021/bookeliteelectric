@@ -109,3 +109,17 @@ export async function loadCatalogForResolution(db: PrismaClient, contractorId: s
   }
   return out;
 }
+
+/**
+ * One request's catalog: loaded at most once, and only if a reader asks for it.
+ *
+ * A page that runs both assessOnboarding and catalogPromises passes the same
+ * loader to each. Whichever needs the trees first starts the one read; the
+ * other reuses it, even when both run at once. A contractor with no pricing
+ * settings needs no trees, so neither reader asks and nothing is read — as
+ * before. The loader belongs to the request and is dropped with it.
+ */
+export function requestCatalog(db: PrismaClient, contractorId: string): () => Promise<ResolvedCatalog> {
+  let pending: Promise<ResolvedCatalog> | null = null;
+  return () => (pending ??= loadCatalogForResolution(db, contractorId));
+}

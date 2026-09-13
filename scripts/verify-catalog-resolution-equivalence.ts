@@ -35,7 +35,7 @@ import { join } from "node:path";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
-import { loadCatalogForResolution } from "../lib/catalogResolution";
+import { loadCatalogForResolution, type ResolvedCatalog } from "../lib/catalogResolution";
 import { pricePromiseOf } from "../lib/activationOutcome";
 import { assessOnboarding, catalogPromises, type OnboardingReadiness } from "../lib/onboardingReadiness";
 import { mapWithConcurrency } from "../lib/concurrency";
@@ -152,7 +152,7 @@ async function main() {
     ok(`every named contractor exists`, missing.length === 0, missing.join(", "));
   }
 
-  const totals = { services: 0, idSets: 0, trees: 0, maps: 0, promises: 0, paths: 0, pathsCompared: 0, capped: 0, noSettings: 0, readiness: 0, catalogPromises: 0, contractors: 0 };
+  const totals = { services: 0, idSets: 0, trees: 0, maps: 0, promises: 0, paths: 0, pathsCompared: 0, capped: 0, noSettings: 0, readiness: 0, catalogPromises: 0, contractors: 0, sharedOnce: 0 };
   const diffs: Record<string, string[]> = { idSets: [], trees: [], maps: [], promises: [], paths: [], readiness: [], catalogPromises: [] };
   const readinessBox: { sample: OnboardingReadiness | null } = { sample: null };
   type Sample = { per: ResolvedServiceTree; bulk: ResolvedServiceTree; settings: unknown };
@@ -193,14 +193,22 @@ async function main() {
         await assessOnboarding(guarded, c.id, { catalog: bulk }),
         await assessOnboarding(guarded, c.id),
       ];
-      if (ser(rPer) === ser(rBulk) && ser(rBulk) === ser(rDefault)) totals.readiness++; else diffs.readiness.push(c.slug);
+      // The request loader the pages use: both readers at once, one read between them.
+      let reads = 0; let pending: Promise<ResolvedCatalog> | null = null;
+      const loadCatalog = () => (pending ??= (reads++, loadCatalogForResolution(guarded, c.id)));
+      const [rShared, pShared] = await Promise.all([
+        assessOnboarding(guarded, c.id, { loadCatalog }),
+        catalogPromises(guarded, c.id, { loadCatalog }),
+      ]);
+      if (reads === (settings ? 1 : 0)) totals.sharedOnce++; else diffs.readiness.push(`${c.slug}: ${reads} catalog reads for one request`);
+      if (ser(rPer) === ser(rBulk) && ser(rBulk) === ser(rDefault) && ser(rDefault) === ser(rShared)) totals.readiness++; else diffs.readiness.push(c.slug);
       if (!readinessBox.sample && rBulk.warnings.length + rBulk.blockers.length > 0) readinessBox.sample = rBulk;
       const [pPer, pBulk, pDefault] = [
         await catalogPromises(guarded, c.id, { catalog: perCatalog }),
         await catalogPromises(guarded, c.id, { catalog: bulk }),
         await catalogPromises(guarded, c.id),
       ];
-      if (ser(pPer) === ser(pBulk) && ser(pBulk) === ser(pDefault)) totals.catalogPromises++; else diffs.catalogPromises.push(c.slug);
+      if (ser(pPer) === ser(pBulk) && ser(pBulk) === ser(pDefault) && ser(pDefault) === ser(pShared)) totals.catalogPromises++; else diffs.catalogPromises.push(c.slug);
       console.log(`    ${c.slug.padEnd(28)} ${String(ids.length).padStart(3)} services  ${rBulk.blockers.length}B/${rBulk.warnings.length}W canLaunch=${rBulk.canLaunch}${settings ? "" : "  (no pricing settings)"}`);
     });
   }
@@ -211,9 +219,11 @@ async function main() {
   ok(`price promises identical for ${totals.promises}/${n} services`, diffs.promises.length === 0, diffs.promises.slice(0, 5).join(", "));
   ok(`every answer path resolves identically, primary and same-visit (${totals.pathsCompared} paths; ${totals.capped} service(s) at the ${PATH_CAP}-path cap)`,
     diffs.paths.length === 0, diffs.paths.slice(0, 5).join(", "));
-  ok(`readiness identical from per-service trees, the bulk catalog and the default path for ${totals.readiness}/${totals.contractors} contractors`,
+  ok(`one request's shared loader reads the catalog once (none without pricing settings) for ${totals.sharedOnce}/${totals.contractors} contractors`,
+    totals.sharedOnce === totals.contractors);
+  ok(`readiness identical from per-service trees, the bulk catalog, the default path and the shared request loader for ${totals.readiness}/${totals.contractors} contractors`,
     diffs.readiness.length === 0, diffs.readiness.join(", "));
-  ok(`catalog promises identical, in order, the same three ways for ${totals.catalogPromises}/${totals.contractors} contractors`,
+  ok(`catalog promises identical, in order, the same four ways for ${totals.catalogPromises}/${totals.contractors} contractors`,
     diffs.catalogPromises.length === 0, diffs.catalogPromises.join(", "));
 
   console.log("\n  NEGATIVE CONTROLS");

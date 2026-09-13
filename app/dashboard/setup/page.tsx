@@ -26,6 +26,7 @@ import { suggestPrimaryPrice, formatBreakdown } from "@/lib/pricing";
 import { loadPricingSettings } from "@/lib/routeResolver";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { requestCatalog } from "@/lib/catalogResolution";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,11 @@ export default async function SetupPage({
   searchParams,
 }: { searchParams?: { stage?: string } }) {
   return withAdminContractor(async (db, ctx) => {
-    const r = await assessOnboarding(db, ctx.contractorId);
+    // ONE catalog for readiness and every catalogPromises below, loaded once
+    // for this request and only if a stage needs the trees. The render writes
+    // nothing, so they cannot change between uses.
+    const loadCatalog = requestCatalog(db, ctx.contractorId);
+    const r = await assessOnboarding(db, ctx.contractorId, { loadCatalog });
 
     const onboarding = await db.contractorOnboarding.findUnique({
       where: { contractorId: ctx.contractorId },
@@ -137,7 +142,7 @@ export default async function SetupPage({
         where: { contractorId: ctx.contractorId, offered: true },
         orderBy: { name: "asc" },
       });
-      const promises = await catalogPromises(db, ctx.contractorId);
+      const promises = await catalogPromises(db, ctx.contractorId, { loadCatalog });
       const diagnosticIdByTrade = new Map<string, string>();
       for (const s of offeredRows) {
         if (s.bookingType !== "TROUBLESHOOT_ONLY" || !s.tradeKey) continue;
@@ -201,7 +206,7 @@ export default async function SetupPage({
     let laborTasks: WizardTaskInfo[] = [];
 
     if (current === "services") {
-      selection = await catalogPromises(db, ctx.contractorId);
+      selection = await catalogPromises(db, ctx.contractorId, { loadCatalog });
       const rows = await db.service.findMany({
         where: { contractorId: ctx.contractorId },
         select: {
@@ -253,7 +258,7 @@ export default async function SetupPage({
           where: { contractorId: ctx.contractorId, offered: true },
           orderBy: { name: "asc" },
         });
-        const promises = await catalogPromises(db, ctx.contractorId);
+        const promises = await catalogPromises(db, ctx.contractorId, { loadCatalog });
         pricing = offeredRows.map((svc) => {
           const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
           const b = promisesFixedPrice ? suggestPrimaryPrice(svc as never, settings as never) : null;
