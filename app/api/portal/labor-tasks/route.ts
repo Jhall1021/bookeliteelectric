@@ -87,32 +87,73 @@ export async function PATCH(req: Request) {
     } catch {
       return NextResponse.json({ error: "Expected JSON." }, { status: 400 });
     }
-    const { acceptances } = (body ?? {}) as { acceptances?: unknown };
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+    }
+
+    const { acceptances } = body as { acceptances?: unknown };
     const valid =
       Array.isArray(acceptances) &&
       acceptances.length > 0 &&
       acceptances.every(
         (a) =>
-          a && typeof a === "object" &&
+          a && typeof a === "object" && !Array.isArray(a) &&
           typeof (a as { taskKey?: unknown }).taskKey === "string" &&
+          (a as { taskKey: string }).taskKey.trim().length > 0 &&
           typeof (a as { minutes?: unknown }).minutes === "number" &&
           Number.isFinite((a as { minutes: number }).minutes) &&
           (a as { minutes: number }).minutes > 0 &&
           Array.isArray((a as { serviceIds?: unknown }).serviceIds) &&
-          (a as { serviceIds: unknown[] }).serviceIds.every((id) => typeof id === "string")
+          (a as { serviceIds: unknown[] }).serviceIds.length > 0 &&
+          (a as { serviceIds: unknown[] }).serviceIds.every((id) => typeof id === "string" && id.length > 0)
       );
     if (!valid) {
       return NextResponse.json(
-        { error: "acceptances must be a non-empty array of { taskKey: string, minutes: number > 0, serviceIds: string[] }." },
+        { error: "acceptances must be a non-empty array of { taskKey: string, minutes: number > 0, serviceIds: non-empty string[] }." },
         { status: 400 }
       );
     }
-    const rows = acceptances as { taskKey: string; minutes: number; serviceIds: string[] }[];
+    const rows = (acceptances as { taskKey: string; minutes: number; serviceIds: string[] }[])
+      .map((row) => ({ ...row, taskKey: row.taskKey.trim() }));
 
     const knownKeys = new Set(ELECTRICAL_LABOR_TASKS.map((t) => t.key));
-    const unknownKeys = rows.map((r) => r.taskKey).filter((k) => !knownKeys.has(k));
+    const unknownKeys = [...new Set(rows.map((r) => r.taskKey).filter((k) => !knownKeys.has(k)))];
     if (unknownKeys.length > 0) {
       return NextResponse.json({ error: `Unknown task key(s): ${unknownKeys.join(", ")}` }, { status: 400 });
+    }
+
+    // One task may produce only one proposal in a submission, and one service
+    // may receive only one fieldLaborHours value. Without these checks a
+    // malformed/stale client could submit the same task twice or place the
+    // same service in multiple rows; the transaction would then overwrite
+    // fieldLaborHours in array order, making the final value depend on payload
+    // ordering rather than an explicit contractor choice.
+    const seenTasks = new Set<string>();
+    const duplicateTasks = new Set<string>();
+    const seenServices = new Set<string>();
+    const duplicateServices = new Set<string>();
+    for (const row of rows) {
+      if (seenTasks.has(row.taskKey)) duplicateTasks.add(row.taskKey);
+      seenTasks.add(row.taskKey);
+
+      const withinRow = new Set<string>();
+      for (const id of row.serviceIds) {
+        if (withinRow.has(id) || seenServices.has(id)) duplicateServices.add(id);
+        withinRow.add(id);
+        seenServices.add(id);
+      }
+    }
+    if (duplicateTasks.size > 0) {
+      return NextResponse.json(
+        { error: `Each labor task may be submitted once. Duplicate task key(s): ${[...duplicateTasks].join(", ")}` },
+        { status: 400 }
+      );
+    }
+    if (duplicateServices.size > 0) {
+      return NextResponse.json(
+        { error: `Each service may receive one labor-time proposal per submission. Duplicate service id(s): ${[...duplicateServices].join(", ")}` },
+        { status: 400 }
+      );
     }
 
     const results: { taskKey: string; servicesUpdated: number }[] = [];

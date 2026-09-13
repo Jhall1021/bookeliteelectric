@@ -2,7 +2,14 @@ import Link from "next/link";
 import { withAdminContractor } from "@/lib/adminContext";
 import { findDefinition } from "@/lib/theme/definition";
 import { resolveStorefrontTheme, readBrandInputs } from "@/lib/theme/resolve";
-import { assessOnboarding, SETUP_SUMMARY_GROUPS, summaryGroupStatus, type GroupStatus, type OnboardingReadiness, type Finding } from "@/lib/onboardingReadiness";
+import {
+  assessOnboarding,
+  SETUP_SUMMARY_GROUPS,
+  summaryGroupStatus,
+  type GroupStatus,
+  type OnboardingReadiness,
+  type Finding,
+} from "@/lib/onboardingReadiness";
 import { actionLabelFor } from "@/lib/setupActionLabels";
 import { findingSummary, groupHeadline } from "@/lib/setupFindingSummary";
 import { prisma } from "@/lib/prisma";
@@ -11,380 +18,423 @@ import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/Button";
 import { ServiceIcon } from "@/components/ui/ServiceIcon";
 import { ServiceStatusBadge } from "@/components/ui/ServiceStatusBadge";
-import { ServicesIllustration, PricingIllustration, BookingIllustration, EmptyCalendarIllustration } from "@/components/ui/illustrations";
+import { BookingIllustration, EmptyCalendarIllustration } from "@/components/ui/illustrations";
 import { CheckCircleIcon, AlertTriangleIcon, ArrowRightIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
-/**
- * The contractor control panel.
- *
- * Its organising idea is the handoff's headline, and the page states it rather
- * than implying it:
- *
- *   "Everything your customer sees traces back to something you control."
- *
- * Built around the next useful action rather than a wall of equal tiles, and
- * not a CRM: there is no Customers card, no Invoices card and no Reports
- * card, because those belong to the software the contractor already runs
- * and Price2Book does not replace it.
- *
- * The counts are real reads, not decoration. A dashboard whose numbers are
- * placeholder is worse than one with none: it teaches the contractor not to
- * trust the screen.
- */
 export default async function PortalOverviewPage() {
   const data = await withAdminContractor(async (db, ctx) => {
     const QUOTE_ONLY = { bookingType: "REMOTE_QUOTE" as const };
-    const [priced, quoteOnly, needsPrice, hidden, awaitingReview, themeRow, onboarding, readiness, offered, offeredTotal, costedOffered, bookingsTotal] = await Promise.all([
+    const [
+      priced,
+      quoteOnly,
+      needsPrice,
+      hidden,
+      awaitingReview,
+      themeRow,
+      onboarding,
+      readiness,
+      offered,
+      offeredTotal,
+      costedOffered,
+      bookingsTotal,
+    ] = await Promise.all([
       db.service.count({ where: { active: true, publishedPriceApprovedAt: { not: null } } }),
       db.service.count({ where: { active: true, ...QUOTE_ONLY } }),
       db.service.count({ where: { active: true, publishedPriceApprovedAt: null, NOT: QUOTE_ONLY } }),
       db.service.count({ where: { active: false } }),
-      // Both pre-price states count as "waiting on you": a homeowner cannot
-      // tell the difference between submitted and in review, and neither can act.
       db.quote.count({ where: { status: { in: ["SUBMITTED", "IN_REVIEW"] } } }),
       db.contractor.findUniqueOrThrow({
         where: { id: ctx.contractorId },
-        select: { name: true, logoUrl: true, brandColors: true, themeFamily: true, themeVariant: true, themeVersion: true,
-                  pricingStrategy: true, sites: { where: { active: true }, select: { hostedSlug: true }, take: 1 } },
+        select: {
+          name: true,
+          logoUrl: true,
+          brandColors: true,
+          themeFamily: true,
+          themeVariant: true,
+          themeVersion: true,
+          pricingStrategy: true,
+          sites: { where: { active: true }, select: { hostedSlug: true }, take: 1 },
+        },
       }),
-      db.contractorOnboarding.findUnique({ where: { contractorId: ctx.contractorId }, select: { completedAt: true, currentStage: true } }),
+      db.contractorOnboarding.findUnique({
+        where: { contractorId: ctx.contractorId },
+        select: { completedAt: true, currentStage: true },
+      }),
       assessOnboarding(db, ctx.contractorId),
-      // Capped to 8 — this is a PREVIEW list for the four tiles the card
-      // renders, never the count. A contractor with more than 8 selected
-      // services would otherwise see "20 of 8" and a negative remaining
-      // count, since `offered.length` could never exceed the cap.
       db.service.findMany({
         where: { offered: true },
-        select: { id: true, slug: true, name: true, templateKey: true, active: true, publishedPriceApprovedAt: true, basePrice: true },
-        orderBy: { name: "asc" }, take: 8,
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          templateKey: true,
+          active: true,
+          publishedPriceApprovedAt: true,
+          basePrice: true,
+        },
+        orderBy: { name: "asc" },
+        take: 8,
       }),
-      // The REAL total, uncapped — every count and percentage on this page
-      // (Material costs, the Services checklist blurb, "N need review")
-      // must divide against this, not against the length of the preview list.
       db.service.count({ where: { offered: true } }),
-      // A same-shape count, not a second rule: "costed" is exactly the flag
-      // the launch check and the material-baseline panel already trust.
       db.service.count({ where: { offered: true, materialCostResolved: true } }),
       db.booking.count(),
     ]);
-    return { priced, quoteOnly, needsPrice, hidden, awaitingReview, themeRow, onboarding, readiness, offered, offeredTotal, costedOffered, bookingsTotal, userId: ctx.userId };
+
+    return {
+      priced,
+      quoteOnly,
+      needsPrice,
+      hidden,
+      awaitingReview,
+      themeRow,
+      onboarding,
+      readiness,
+      offered,
+      offeredTotal,
+      costedOffered,
+      bookingsTotal,
+      userId: ctx.userId,
+    };
   });
 
-  // Person, not business — "Welcome back, Joshua" reads for the human at the
-  // keyboard. User is cross-tenant identity, read the same way
-  // resolveAdminContractor() itself reads it: bare, by primary key.
   const person = await prisma.user.findUnique({ where: { id: data.userId }, select: { name: true } });
   const firstName = person?.name?.trim().split(/\s+/)[0] || null;
 
   const design = findDefinition(
-    data.themeRow.themeFamily, data.themeRow.themeVariant, data.themeRow.themeVersion);
+    data.themeRow.themeFamily,
+    data.themeRow.themeVariant,
+    data.themeRow.themeVersion,
+  );
   const site = data.themeRow.sites[0] ?? null;
   const total = data.priced + data.quoteOnly + data.needsPrice + data.hidden;
   const liveServices = data.priced + data.quoteOnly;
   const launched = site !== null && liveServices > 0;
-
-  // A schematic preview, not a screenshot: resolveStorefrontTheme is a pure,
-  // in-memory computation over the SAME brand inputs the real storefront
-  // resolves — no iframe, no render service, no per-request cost beyond the
-  // contractor row already fetched above.
   const previewTheme = resolveStorefrontTheme(
     readBrandInputs(data.themeRow.brandColors),
-    { family: data.themeRow.themeFamily, variant: data.themeRow.themeVariant, version: data.themeRow.themeVersion }
+    { family: data.themeRow.themeFamily, variant: data.themeRow.themeVariant, version: data.themeRow.themeVersion },
   );
 
-  // Setup is unfinished exactly when there's no completion timestamp — never
-  // inferred from readiness alone, since a launched contractor can still
-  // pick up new warnings without that meaning "go back through setup".
   const setupUnfinished = data.onboarding?.completedAt == null;
   const resumeStage = data.readiness.stages.find((s) => s.status !== "ready")?.key
-    ?? data.onboarding?.currentStage ?? "business";
-
-  // The five-group summary is the ONE shared definition (lib/onboardingReadiness.ts)
-  // Guided Setup's own seven stages are grouped under — never a second,
-  // hand-rolled list that could silently drift from it.
+    ?? data.onboarding?.currentStage
+    ?? "business";
   const groupStatus = SETUP_SUMMARY_GROUPS.map((g) => summaryGroupStatus(g, data.readiness));
   const stepsComplete = groupStatus.filter((s) => s === "ready").length;
-  // The first not-yet-ready group is "where you are" — everything after it
-  // is simply not reached yet (a neutral number, not a warning), and
-  // everything before it is ready by construction (resumeStage is the
-  // FIRST non-ready stage anywhere in the readiness engine's own order).
-  const currentGroupIndex = SETUP_SUMMARY_GROUPS.findIndex((g) => (g.stages as string[]).includes(resumeStage));
+  const currentGroupIndex = SETUP_SUMMARY_GROUPS.findIndex((g) =>
+    (g.stages as string[]).includes(resumeStage));
 
-  // Material costs — a real, comparable proportion (costed OFFERED
-  // services / offered services), never roles compared against services.
-  // Shares its "nothing chosen yet" / "fully costed" split with the
-  // PricingFoundationPanel banner, so the two can never disagree. This is
-  // ONLY material-cost coverage — it says nothing about labor rate, price
-  // approval, or pricing being finished, and the card's own copy is
-  // written not to imply otherwise.
-  // Services whose "Live" badge must NOT read as trouble-free — a service
-  // can be active and still carry a real blocker (see Finding.serviceActive's
-  // own comment). Checked by slug so the badge and "Your next steps" always
-  // agree about which services still need something.
-  const blockedSlugs = new Set(data.readiness.blockers.map((f) => f.serviceSlug).filter((s): s is string => !!s));
-  // Reuses `liveServices` (already a real, un-truncated count) rather than
-  // `data.offered`, which is capped to 8 rows for the services card and
-  // would silently under-report on a larger catalog.
+  const blockedSlugs = new Set(
+    data.readiness.blockers.map((f) => f.serviceSlug).filter((s): s is string => !!s),
+  );
   const anyOfferedLive = liveServices > 0;
-  // The REAL total — never `data.offered.length`, which is capped to 8 for
-  // the preview tiles and would otherwise cap every count/percentage this
-  // page derives (Material costs, "N need review", the Services blurb) at 8
-  // regardless of how many services are actually selected.
   const offeredCount = data.offeredTotal;
   const pricingReady = offeredCount > 0 && data.costedOffered === offeredCount;
   const pricingPct = offeredCount === 0 ? 0 : Math.round((data.costedOffered / offeredCount) * 100);
-
-  // Next steps — the real blockers, in the order the readiness engine
-  // already returns them, each with the href it already carries.
-  // MATERIAL_COST_UNRESOLVED is excluded for the same reason
-  // app/dashboard/setup/page.tsx's own findings list excludes it: its
-  // message names a raw canonical-material key and a raw service slug
-  // (`onboardingReadiness.ts` writes it for a batch-review panel to parse
-  // back apart, not for prose), and the Material costs card above
-  // already surfaces the same fact in plain language with a real count.
-  //
-  // GROUPED BY SERVICE. Two blockers on the same service (a dead route AND
-  // an unapproved price) used to render as two nearly-identical rows, both
-  // naming the same slug. A Map keyed by serviceSlug — falling back to a
-  // per-index key so a business-level finding never merges with anything —
-  // preserves the engine's own order (first occurrence wins the slot) while
-  // collapsing same-service findings into one task with the rest available
-  // in a disclosure.
   const nextStepGroups = groupFindingsByService(
-    data.readiness.blockers.filter((f) => f.code !== "MATERIAL_COST_UNRESOLVED")
+    data.readiness.blockers.filter((f) => f.code !== "MATERIAL_COST_UNRESOLVED"),
   ).slice(0, 3);
 
   return (
-    <div>
-      <header>
-        <h1 className="font-display text-2xl font-bold text-navy">
-          {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
-        </h1>
-        <p className="mt-1 text-sm text-slate">
-          Everything your customer sees traces back to something you control.
-        </p>
+    <div className="mx-auto max-w-7xl">
+      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-electric">Overview</p>
+          <h1 className="mt-1 font-display text-3xl font-extrabold tracking-[-0.035em] text-navy sm:text-[34px]">
+            {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate">
+            See what customers can book, what still needs your attention, and what is happening next.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={launched ? "success" : "neutral"}>{launched ? "Storefront live" : "Not launched"}</Badge>
+          <LinkButton href="/dashboard/services" variant="secondary" size="sm">Manage services</LinkButton>
+          {site && (
+            <a
+              href={`/${site.hostedSlug}`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white transition hover:bg-electric-hover"
+            >
+              View storefront ↗
+            </a>
+          )}
+        </div>
       </header>
 
+      <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Business snapshot">
+        <SnapshotCard label="Live services" value={liveServices} helper={liveServices === 1 ? "service customers can use" : "services customers can use"} />
+        <SnapshotCard label="Selected services" value={offeredCount} helper={total > 0 ? `of ${total} in your catalog` : "in your catalog"} />
+        <SnapshotCard label="Bookings" value={data.bookingsTotal} helper="total booked through Price2Book" />
+        <SnapshotCard label="Photo reviews" value={data.awaitingReview} helper={data.awaitingReview > 0 ? "waiting on you" : "nothing waiting"} attention={data.awaitingReview > 0} />
+      </section>
+
       {setupUnfinished && (
-        <Card className="mt-5 p-5">
-          <CardHeader
-            title="Get set up and start taking bookings"
-            description={`Complete these steps to get ${data.themeRow.name} ready for customers.`}
-          />
-
-          <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_2fr]">
-            <ul className="space-y-3">
-              {SETUP_SUMMARY_GROUPS.map((g, i) => (
-                <li key={g.key} className="flex items-start gap-3">
-                  <GroupStatusIcon index={i} currentIndex={currentGroupIndex} status={groupStatus[i]} isLaunch={g.key === "launch"} />
-                  <div>
-                    <p className="text-sm font-semibold text-navy">{g.label}</p>
-                    <p className="text-xs text-slate">{groupBlurb(g.key, groupStatus[i], data.readiness, offeredCount, anyOfferedLive)}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            {/* One composition: the journey, then its own primary action and
-                progress directly beneath it — not a separate row stretched
-                under the (taller) checklist column, which is what left a
-                gap of empty space here before. */}
-            <div className="flex flex-col">
-              {/* Desktop journey. */}
-              <div className="hidden lg:flex lg:items-start lg:justify-between lg:gap-2">
-                <JourneyStep illustration={ServicesIllustration} caption="Choose your services" sub="Select the services you want to offer." />
-                <DottedConnector />
-                <JourneyStep illustration={PricingIllustration} caption="Set your pricing" sub="Add material costs and your labor rate." />
-                <DottedConnector />
-                <JourneyStep illustration={BookingIllustration} caption="Open for bookings" sub="Launch your storefront and start taking requests." />
-              </div>
-              {/* Compact mobile treatment — small, in a row, no desktop-sized gap. */}
-              <div className="flex items-center justify-center gap-6 lg:hidden">
-                <ServicesIllustration className="h-12 w-12" />
-                <PricingIllustration className="h-12 w-12" />
-                <BookingIllustration className="h-12 w-12" />
-              </div>
-
-              <div className="mt-5 flex flex-col gap-3 border-t border-cardline pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <LinkButton href={`/dashboard/setup?stage=${resumeStage}`} variant="primary">
-                  Continue setup
-                </LinkButton>
-                <div className="w-full sm:w-56">
-                  <div className="h-2 overflow-hidden rounded-pill bg-cardline">
-                    <div className="h-full rounded-pill bg-electric" style={{ width: `${(stepsComplete / SETUP_SUMMARY_GROUPS.length) * 100}%` }} />
-                  </div>
-                  <p className="mt-1.5 text-right text-xs text-slate">{stepsComplete} of {SETUP_SUMMARY_GROUPS.length} steps complete</p>
+        <Card className="mt-6 overflow-hidden" padding="none">
+          <div className="grid lg:grid-cols-[1.1fr_1fr]">
+            <div className="p-5 sm:p-6 lg:p-7">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-electric">Guided setup</p>
+                  <h2 className="mt-1 font-display text-xl font-extrabold tracking-[-0.025em] text-navy">
+                    Finish getting {data.themeRow.name} ready to book
+                  </h2>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate">
+                    Work through the remaining decisions. Price2Book saves your place as you go.
+                  </p>
+                </div>
+                <div className="hidden rounded-pill bg-electric/10 px-3 py-1.5 text-xs font-bold text-electric sm:block">
+                  {stepsComplete}/{SETUP_SUMMARY_GROUPS.length} complete
                 </div>
               </div>
+
+              <div className="mt-5 h-2 overflow-hidden rounded-pill bg-cardline">
+                <div
+                  className="h-full rounded-pill bg-electric transition-all"
+                  style={{ width: `${(stepsComplete / SETUP_SUMMARY_GROUPS.length) * 100}%` }}
+                />
+              </div>
+
+              <div className="mt-5">
+                <LinkButton href={`/dashboard/setup?stage=${resumeStage}`} variant="primary">
+                  Continue setup <ArrowRightIcon className="h-4 w-4" />
+                </LinkButton>
+              </div>
+            </div>
+
+            <div className="border-t border-cardline bg-warmwhite/70 p-5 sm:p-6 lg:border-l lg:border-t-0 lg:p-7">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate">Your setup path</p>
+              <ul className="space-y-3">
+                {SETUP_SUMMARY_GROUPS.map((g, i) => (
+                  <li key={g.key} className={`flex items-start gap-3 rounded-card px-2 py-1.5 ${i === currentGroupIndex ? "bg-white shadow-sm" : ""}`}>
+                    <GroupStatusIcon index={i} currentIndex={currentGroupIndex} status={groupStatus[i]} isLaunch={g.key === "launch"} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-navy">{g.label}</p>
+                      <p className="mt-0.5 text-xs leading-5 text-slate">
+                        {groupBlurb(g.key, groupStatus[i], data.readiness, offeredCount, anyOfferedLive)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </Card>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="p-5">
-          <CardHeader title="Your services" action={<Link href="/dashboard/services" className="text-sm font-medium text-electric hover:underline">Manage services</Link>} />
-          <p className="mt-1 text-sm text-slate">{offeredCount} selected of {total} in your catalog</p>
-          {offeredCount > 0 ? (
-            <ul className="mt-4 grid grid-cols-2 gap-3">
-              {data.offered.slice(0, 4).map((s) => (
-                <li key={s.id} className="flex flex-col items-center gap-1.5 rounded-card border border-cardline p-3 text-center">
-                  <ServiceIcon templateKey={s.templateKey} className="h-10 w-10" />
-                  <span className="text-xs font-medium text-navy">{s.name}</span>
-                  <ServiceStatusBadge
-                    active={s.active} approved={s.publishedPriceApprovedAt !== null} priced={s.basePrice !== null}
-                    needsAttention={blockedSlugs.has(s.slug)}
-                  />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-4 text-sm text-slate">Choose the services you offer to get started.</p>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.8fr)]">
+        <div className="space-y-6">
+          {nextStepGroups.length > 0 && (
+            <Card>
+              <CardHeader
+                title="Needs your attention"
+                description="These are the next things keeping a customer from getting all the way through."
+                action={<Link href={`/dashboard/setup?stage=${resumeStage}`} className="text-sm font-semibold text-electric hover:underline">View setup</Link>}
+              />
+              <ul className="mt-4 space-y-2">
+                {nextStepGroups.map((group, i) => {
+                  const primary = group[0];
+                  return (
+                    <li key={i} className="rounded-card border border-cardline bg-warmwhite/50 p-3.5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-p2b-amber-bg">
+                            <AlertTriangleIcon className="h-4 w-4 text-p2b-amber-ink" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-navy">
+                              {group.length === 1 ? findingSummary(primary) : groupHeadline(group)}
+                            </p>
+                            {group.length > 1 && (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-xs font-medium text-slate">See what is affected</summary>
+                                <ul className="mt-1.5 space-y-1 text-xs text-slate">
+                                  {group.map((f, j) => <li key={j}>{findingSummary(f)}</li>)}
+                                </ul>
+                              </details>
+                            )}
+                          </div>
+                        </div>
+                        {primary.href && (
+                          <LinkButton href={primary.href} variant="secondary" size="sm" className="shrink-0">
+                            {actionLabelFor(primary.code)} <ArrowRightIcon className="h-3.5 w-3.5" />
+                          </LinkButton>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
           )}
-        </Card>
 
-        <Card className="p-5">
-          {/* This card measures MATERIAL-cost coverage only — the same
-              costed/offered count Guided Setup's own material-status
-              banner trusts. It says nothing about labor rate, price
-              approval, or full pricing being finished, so the copy never
-              claims more than that one fact. */}
-          <CardHeader title="Material costs" action={<Link href="/dashboard/pricing-settings" className="text-sm font-medium text-electric hover:underline">View pricing</Link>} />
-          {offeredCount === 0 ? (
-            <>
-              <div className="mt-3"><Badge tone="neutral">Nothing chosen yet</Badge></div>
-              <p className="mt-3 text-sm text-slate">Choose your services first.</p>
-            </>
-          ) : (
-            <>
-              <div className="mt-3 h-2 overflow-hidden rounded-pill bg-cardline">
-                <div className={`h-full rounded-pill ${pricingReady ? "bg-success" : "bg-electric"}`} style={{ width: `${pricingPct}%` }} />
-              </div>
-              <p className="mt-1.5 text-sm text-navy">Materials costed for {data.costedOffered} of {offeredCount} selected services.</p>
-              {pricingReady ? (
-                <p className="mt-2 text-sm text-success">Every service you offer has its materials costed.</p>
-              ) : (
-                <>
-                  <div className="mt-2"><Badge tone="attention">{offeredCount - data.costedOffered} need{offeredCount - data.costedOffered === 1 ? "s" : ""} review</Badge></div>
-                  <Link href="/dashboard/setup?stage=pricing-foundation" className="mt-2 inline-block text-sm font-medium text-electric hover:underline">
-                    Review material costs →
-                  </Link>
-                </>
-              )}
-            </>
-          )}
-        </Card>
-
-        <StorefrontCard
-          site={site} launched={launched} designLabel={design?.label ?? "Original layout"}
-          businessName={data.themeRow.name} logoUrl={data.themeRow.logoUrl} accentChannels={previewTheme.colors.accent}
-        />
-      </div>
-
-      {nextStepGroups.length > 0 && (
-        <Card className="mt-6 p-5">
-          <CardHeader title="Your next steps" description="Keep going to get ready for launch." action={<Link href={`/dashboard/setup?stage=${resumeStage}`} className="text-sm font-medium text-electric hover:underline">View all steps →</Link>} />
-          <ul className="mt-3 divide-y divide-cardline">
-            {nextStepGroups.map((group, i) => {
-              const primary = group[0];
-              return (
-                <li key={i} className="py-2.5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-p2b-amber-ink" />
-                      <p className="text-sm text-slate">
-                        {group.length === 1 ? findingSummary(primary) : groupHeadline(group)}
-                      </p>
+          <Card>
+            <CardHeader
+              title="Your services"
+              description={`${offeredCount} selected${total > 0 ? ` of ${total} in your catalog` : ""}.`}
+              action={<Link href="/dashboard/services" className="text-sm font-semibold text-electric hover:underline">Manage services</Link>}
+            />
+            {offeredCount > 0 ? (
+              <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+                {data.offered.slice(0, 6).map((s) => (
+                  <li key={s.id} className="flex items-center gap-3 rounded-card border border-cardline bg-white p-3 transition hover:border-electric/30">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-card bg-warmwhite">
+                      <ServiceIcon templateKey={s.templateKey} className="h-8 w-8" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-navy">{s.name}</p>
+                      <div className="mt-1">
+                        <ServiceStatusBadge
+                          active={s.active}
+                          approved={s.publishedPriceApprovedAt !== null}
+                          priced={s.basePrice !== null}
+                          needsAttention={blockedSlugs.has(s.slug)}
+                        />
+                      </div>
                     </div>
-                    {primary.href && (
-                      <LinkButton href={primary.href} variant="secondary" size="sm" className="shrink-0">
-                        {actionLabelFor(primary.code)} <ArrowRightIcon className="h-3.5 w-3.5" />
-                      </LinkButton>
-                    )}
+                    <ArrowRightIcon className="h-4 w-4 shrink-0 text-slate/50" />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-4 rounded-card border border-dashed border-cardline bg-warmwhite/50 p-5 text-center">
+                <p className="text-sm font-semibold text-navy">Choose the services you want customers to book</p>
+                <p className="mt-1 text-xs text-slate">You can start with only a few repetitive calls and add more later.</p>
+                <Link href="/dashboard/setup?stage=services" className="mt-3 inline-block text-sm font-semibold text-electric hover:underline">Choose services →</Link>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Bookings"
+              description={data.bookingsTotal > 0 ? `${data.bookingsTotal} booking${data.bookingsTotal === 1 ? "" : "s"} through Price2Book so far.` : "Your booked work will collect here."}
+              action={<Link href="/dashboard/bookings" className="text-sm font-semibold text-electric hover:underline">View bookings</Link>}
+            />
+            {data.bookingsTotal > 0 ? (
+              <div className="mt-4 flex items-center justify-between rounded-card bg-warmwhite p-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate">Total bookings</p>
+                  <p className="mt-1 font-display text-3xl font-extrabold text-navy">{data.bookingsTotal}</p>
+                </div>
+                <BookingIllustration className="h-16 w-16" />
+              </div>
+            ) : (
+              <div className="mt-3 flex items-center gap-4 rounded-card bg-warmwhite/60 p-4">
+                <EmptyCalendarIllustration className="h-16 w-16 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-navy">No bookings yet</p>
+                  <p className="mt-1 text-xs leading-5 text-slate">
+                    {launched ? "Your first customer booking will show up here automatically." : "Finish setup and launch at least one service to start taking bookings."}
+                  </p>
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <aside className="space-y-6">
+          <StorefrontCard
+            site={site}
+            launched={launched}
+            designLabel={design?.label ?? "Original layout"}
+            businessName={data.themeRow.name}
+            logoUrl={data.themeRow.logoUrl}
+            accentChannels={previewTheme.colors.accent}
+          />
+
+          <Card>
+            <CardHeader
+              title="Material costs"
+              action={<Link href="/dashboard/pricing-settings" className="text-sm font-semibold text-electric hover:underline">Open pricing</Link>}
+            />
+            {offeredCount === 0 ? (
+              <div className="mt-4">
+                <Badge tone="neutral">Choose services first</Badge>
+                <p className="mt-3 text-sm leading-6 text-slate">Once you choose what you offer, Price2Book will show which material costs still need your review.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="font-display text-3xl font-extrabold text-navy">{pricingPct}%</p>
+                    <p className="mt-1 text-xs text-slate">material coverage</p>
                   </div>
-                  {/* Technical detail stays available rather than deleted —
-                      just tucked behind a disclosure instead of repeated as
-                      its own near-identical row for every finding. */}
-                  {group.length > 1 && (
-                    <details className="ml-7 mt-1.5">
-                      <summary className="cursor-pointer text-xs font-medium text-slate">What's affected</summary>
-                      <ul className="mt-1 space-y-1 text-xs text-slate">
-                        {group.map((f, j) => <li key={j}>{findingSummary(f)}</li>)}
-                      </ul>
-                    </details>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      )}
+                  <Badge tone={pricingReady ? "success" : "attention"}>
+                    {pricingReady ? "Ready" : `${offeredCount - data.costedOffered} to review`}
+                  </Badge>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-pill bg-cardline">
+                  <div className={`h-full rounded-pill ${pricingReady ? "bg-success" : "bg-electric"}`} style={{ width: `${pricingPct}%` }} />
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate">
+                  Materials costed for <span className="font-semibold text-navy">{data.costedOffered} of {offeredCount}</span> selected services.
+                </p>
+                {!pricingReady && (
+                  <Link href="/dashboard/setup?stage=pricing-foundation" className="mt-3 inline-block text-sm font-semibold text-electric hover:underline">Review material costs →</Link>
+                )}
+              </>
+            )}
+          </Card>
 
-      <Card className="mt-6 p-5">
-        <CardHeader title="Bookings" action={<Link href="/dashboard/bookings" className="text-sm font-medium text-electric hover:underline">View calendar →</Link>} />
-        {data.bookingsTotal > 0 ? (
-          <p className="mt-3 text-sm text-slate">
-            <span className="font-semibold text-navy">{data.bookingsTotal}</span> booking{data.bookingsTotal === 1 ? "" : "s"} total.
-          </p>
-        ) : (
-          <div className="mt-2 flex items-center gap-4">
-            <EmptyCalendarIllustration className="h-16 w-16 shrink-0" />
-            {/* "After launch" is only true before the storefront is live —
-                once it is (see StorefrontCard's own `launched`), a real
-                homeowner could book at any moment, so saying "after launch"
-                here too would contradict the "Live" badge above it. */}
-            <p className="text-sm text-slate">
-              {launched
-                ? "Your bookings will appear here once a homeowner books."
-                : "Your bookings will appear here after launch."}
-            </p>
+          <div className="rounded-card border border-cardline bg-navy p-5 text-white shadow-card">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/50">Price2Book stays focused</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-white">Pricing and booking happen here. Your existing system can keep the rest.</p>
+            <p className="mt-2 text-xs leading-5 text-white/60">Customers, invoices, payroll, dispatch and reporting do not need to move.</p>
           </div>
-        )}
-      </Card>
-
-      {/* Stated, not merely implied. The narrow boundary is the sharpest thing
-          this product has, and a dashboard is exactly where it erodes. */}
-      <p className="mt-10 max-w-2xl border-t border-cardline pt-6 text-sm text-slate">
-        Price2Book is pricing and booking software. Customers, invoices, payroll, dispatch and
-        reporting stay in the system you already run — we hand the booked work across and get
-        out of the way.
-      </p>
+        </aside>
+      </div>
     </div>
   );
 }
 
-/**
- * Ordinary, unfinished setup should not look alarming — most contractors sit
- * in exactly that state for most of onboarding. A neutral numbered marker
- * says "you haven't gotten here yet"; a blue marker says "you are here."
- * Red is reserved for the one place a real problem stands between a
- * contractor and going live: Review & launch, still blocked. Every other
- * group's underlying readiness/launch restriction is unchanged by this —
- * only which icon represents the same status changes.
- */
+function SnapshotCard({
+  label,
+  value,
+  helper,
+  attention = false,
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  attention?: boolean;
+}) {
+  return (
+    <div className="rounded-card border border-cardline bg-white p-4 shadow-sm sm:p-5">
+      <p className="text-xs font-semibold text-slate">{label}</p>
+      <div className="mt-2 flex items-end justify-between gap-2">
+        <p className={`font-display text-2xl font-extrabold tracking-[-0.03em] ${attention ? "text-p2b-amber-ink" : "text-navy"}`}>{value}</p>
+        {attention && <span className="mb-1 h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />}
+      </div>
+      <p className="mt-1 text-[11px] leading-4 text-slate">{helper}</p>
+    </div>
+  );
+}
+
 function GroupStatusIcon({
-  index, currentIndex, status, isLaunch,
-}: { index: number; currentIndex: number; status: GroupStatus; isLaunch: boolean }) {
+  index,
+  currentIndex,
+  status,
+  isLaunch,
+}: {
+  index: number;
+  currentIndex: number;
+  status: GroupStatus;
+  isLaunch: boolean;
+}) {
   if (status === "ready") return <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-success" />;
   if (status === "not-applicable") return <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-cardline" />;
   if (isLaunch && status === "blocked") return <AlertTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />;
   const isCurrent = index === currentIndex;
   return (
-    <span
-      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
-        isCurrent ? "bg-electric text-white" : "bg-cardline text-slate"
-      }`}
-    >
+    <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${isCurrent ? "bg-electric text-white" : "bg-cardline text-slate"}`}>
       {index + 1}
     </span>
   );
 }
 
-/** Findings for the same service collapse into one task; everything else
- *  (business/scheduling-level findings) stays its own row. First occurrence
- *  wins the slot, so the engine's own ordering survives the grouping. */
 function groupFindingsByService(findings: Finding[]): Finding[][] {
   const groups = new Map<string, Finding[]>();
   findings.forEach((f, i) => {
@@ -396,14 +446,12 @@ function groupFindingsByService(findings: Finding[]): Finding[][] {
   return [...groups.values()];
 }
 
-/**
- * What's actually left for one summary group — derived from its real
- * findings, never a fixed sentence that can't tell "nothing chosen" from
- * "chosen, but not yet ready to sell." Reading the live findings is what
- * keeps this from ever telling a contractor to do something they already did.
- */
 function groupBlurb(
-  key: string, status: GroupStatus, readiness: OnboardingReadiness, offeredCount: number, anyOfferedLive: boolean
+  key: string,
+  status: GroupStatus,
+  readiness: OnboardingReadiness,
+  offeredCount: number,
+  anyOfferedLive: boolean,
 ): string {
   if (status === "ready") return "Complete";
   if (key === "services") {
@@ -411,9 +459,6 @@ function groupBlurb(
     const n = readiness.stages
       .filter((s) => s.key === "trade" || s.key === "services")
       .reduce((sum, s) => sum + s.findings.length, 0);
-    // "Before they're ready to sell" is only true when nothing is live yet.
-    // At least one already-selling service with an open finding is a live
-    // service that needs attention, not one still waiting to launch.
     return anyOfferedLive
       ? `${offeredCount} selected — ${n} issue${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} attention`
       : `${offeredCount} selected — ${n} issue${n === 1 ? "" : "s"} to resolve before ${n === 1 ? "it's" : "they're"} ready to sell`;
@@ -435,34 +480,13 @@ function groupBlurb(
   return STATIC[key] ?? "Review this section";
 }
 
-function JourneyStep({
-  illustration: Illustration, caption, sub,
-}: { illustration: React.ComponentType<{ className?: string }>; caption: string; sub: string }) {
-  return (
-    <div className="flex w-32 shrink-0 flex-col items-center text-center">
-      <Illustration className="h-28 w-28" />
-      {/* Text lives outside the SVG — responsive, selectable, and read by a screen reader, unlike text baked into artwork. */}
-      <p className="mt-1 text-sm font-semibold text-navy">{caption}</p>
-      <p className="mt-0.5 text-xs text-slate">{sub}</p>
-    </div>
-  );
-}
-
-function DottedConnector() {
-  return (
-    <div className="mt-14 hidden flex-1 border-t-2 border-dotted border-cardline sm:block" aria-hidden="true" />
-  );
-}
-
-/**
- * A schematic preview — the contractor's real name, logo and resolved
- * accent color, laid out like a storefront card. Explicitly labeled
- * "Preview" so it is never mistaken for a screenshot of the real page: no
- * iframe is loaded and nothing is rendered server-side beyond the pure
- * color computation already done above.
- */
 function StorefrontCard({
-  site, launched, designLabel, businessName, logoUrl, accentChannels,
+  site,
+  launched,
+  designLabel,
+  businessName,
+  logoUrl,
+  accentChannels,
 }: {
   site: { hostedSlug: string } | null;
   launched: boolean;
@@ -472,59 +496,63 @@ function StorefrontCard({
   accentChannels: string;
 }) {
   return (
-    <Card className="p-5">
+    <Card>
       <CardHeader
         title="Your storefront"
+        description={launched ? "What customers can reach right now." : "Preview the booking experience before you launch."}
         action={site && (
-          <a href={`/${site.hostedSlug}`} target="_blank" rel="noopener" className="text-sm font-medium text-electric hover:underline">
-            Preview storefront ↗
+          <a href={`/${site.hostedSlug}`} target="_blank" rel="noopener" className="text-sm font-semibold text-electric hover:underline">
+            Open ↗
           </a>
         )}
       />
       {site ? (
         <>
           <div
-            className="relative mt-3 overflow-hidden rounded-card border border-cardline"
+            className="relative mt-4 overflow-hidden rounded-card border border-cardline bg-white shadow-sm"
             style={{ "--preview-accent": accentChannels } as React.CSSProperties}
           >
-            <div className="flex items-center gap-1.5 border-b border-cardline bg-warmwhite px-2 py-1.5">
-              <span className="h-2 w-2 rounded-full bg-cardline" /><span className="h-2 w-2 rounded-full bg-cardline" /><span className="h-2 w-2 rounded-full bg-cardline" />
-              <span className="ml-2 truncate text-[10px] text-slate">price2book.com/{site.hostedSlug}</span>
+            <div className="flex items-center gap-1.5 border-b border-cardline bg-warmwhite px-2.5 py-2">
+              <span className="h-2 w-2 rounded-full bg-cardline" />
+              <span className="h-2 w-2 rounded-full bg-cardline" />
+              <span className="h-2 w-2 rounded-full bg-cardline" />
+              <span className="ml-1 min-w-0 truncate text-[10px] text-slate">price2book.com/{site.hostedSlug}</span>
             </div>
-            <div className="flex items-center gap-2 p-3">
-              {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="" className="h-6 w-6 shrink-0 rounded object-contain" />
-              ) : (
-                <span className="h-6 w-6 shrink-0 rounded bg-[rgb(var(--preview-accent))]" />
-              )}
-              <span className="truncate text-xs font-semibold text-navy">{businessName}</span>
-              <span className="ml-auto shrink-0 rounded-pill bg-[rgb(var(--preview-accent))] px-2 py-1 text-[10px] font-semibold text-white">
-                Book a Service
-              </span>
+            <div className="p-4">
+              <div className="flex items-center gap-2">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="" className="h-8 w-8 shrink-0 rounded object-contain" />
+                ) : (
+                  <span className="h-8 w-8 shrink-0 rounded-card bg-[rgb(var(--preview-accent))]" />
+                )}
+                <span className="truncate text-sm font-semibold text-navy">{businessName}</span>
+              </div>
+              <div className="mt-4 rounded-card bg-warmwhite p-3">
+                <div className="h-2 w-3/4 rounded-pill bg-cardline" />
+                <div className="mt-2 h-2 w-1/2 rounded-pill bg-cardline" />
+                <span className="mt-4 inline-flex rounded-pill bg-[rgb(var(--preview-accent))] px-3 py-1.5 text-[10px] font-semibold text-white">Book a Service</span>
+              </div>
             </div>
-            <span className="absolute right-2 top-2 rounded-pill bg-navy/80 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white">
-              Preview
-            </span>
+            <span className="absolute right-2 top-2 rounded-pill bg-navy/80 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white">Preview</span>
           </div>
-          <p className="mt-2 text-xs text-slate">{designLabel}</p>
-          <p className="mt-2 text-xs text-slate">
-            Works as a hosted page or{" "}
-            <Link href="/dashboard/setup?stage=business" className="font-medium text-electric hover:underline">embedded on your own site</Link>.
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-slate">{designLabel}</p>
+            <Badge tone={launched ? "success" : "neutral"}>{launched ? "Live" : "Not launched"}</Badge>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate">
+            Best used on your own website. The hosted page remains available as a fallback.
           </p>
+          <Link href="/dashboard/design" className="mt-3 inline-block text-sm font-semibold text-electric hover:underline">Customize storefront →</Link>
         </>
       ) : (
-        <div className="mt-2 flex flex-col items-center gap-3 py-2 text-center">
+        <div className="mt-4 flex flex-col items-center rounded-card bg-warmwhite/60 px-4 py-6 text-center">
           <BookingIllustration className="h-16 w-16" />
-          <p className="text-sm text-slate">You don&rsquo;t have a Price2Book storefront yet.</p>
-          <LinkButton href="/dashboard/setup?stage=business" variant="secondary" size="sm">
-            Set up booking page
-          </LinkButton>
+          <p className="mt-2 text-sm font-semibold text-navy">Your booking page is not set up yet</p>
+          <p className="mt-1 text-xs leading-5 text-slate">Create it now, then decide whether to embed it on your website.</p>
+          <LinkButton href="/dashboard/setup?stage=business" variant="secondary" size="sm" className="mt-3">Set up booking page</LinkButton>
         </div>
       )}
-      <div className="mt-3">
-        <Badge tone={launched ? "success" : "neutral"}>{launched ? "Live" : "Not launched"}</Badge>
-      </div>
     </Card>
   );
 }

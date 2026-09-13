@@ -11,52 +11,117 @@ import { validateRatePpm } from "@/lib/salesTax";
  * likewise theirs: which jobs, and how much.
  */
 export async function PATCH(req: Request) {
-  let body: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    body = await req.json();
+    parsed = await req.json();
   } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as Record<string, unknown>;
 
   // A blank box means "no rule", which is a real answer and distinct from
-  // zero: a $0 threshold would fire on every booking.
+  // zero: a $0 threshold would fire on every booking. Dollar values must be
+  // exact to the cent; silently rounding a contractor-entered half-cent would
+  // mutate a payment rule they never actually chose.
   const optionalCents = (v: unknown): number | null | undefined => {
     if (v === undefined) return undefined;
     if (v === null || v === "") return null;
-    const n = Math.round(Number(v) * 100);
-    return Number.isFinite(n) && n >= 0 ? n : undefined;
+    if (typeof v !== "number" && typeof v !== "string") return undefined;
+    if (typeof v === "string" && v.trim() === "") return null;
+    const numeric = Number(v);
+    if (!Number.isFinite(numeric) || numeric < 0) return undefined;
+    const scaled = numeric * 100;
+    const rounded = Math.round(scaled);
+    if (Math.abs(scaled - rounded) > 1e-7 || !Number.isSafeInteger(rounded)) return undefined;
+    return rounded;
   };
   const optionalMinutes = (v: unknown): number | null | undefined => {
     if (v === undefined) return undefined;
     if (v === null || v === "") return null;
-    const n = Math.round(Number(v) * 60);
-    return Number.isFinite(n) && n > 0 ? n : undefined;
+    if (typeof v !== "number" && typeof v !== "string") return undefined;
+    if (typeof v === "string" && v.trim() === "") return null;
+    const numeric = Number(v);
+    if (!Number.isFinite(numeric) || numeric <= 0) return undefined;
+    const scaled = numeric * 60;
+    const rounded = Math.round(scaled);
+    // Minutes are stored as integers. Do not silently turn, for example,
+    // 1.333 hours into 80 minutes when that is not the value the contractor
+    // entered. The UI can accept fractional hours, but only when they resolve
+    // exactly to a whole minute.
+    if (Math.abs(scaled - rounded) > 1e-7 || !Number.isSafeInteger(rounded) || rounded <= 0) {
+      return undefined;
+    }
+    return rounded;
+  };
+  const optionalBoolean = (v: unknown, label: string): boolean | NextResponse => {
+    if (typeof v === "boolean") return v;
+    return NextResponse.json({ error: `${label} must be true or false.` }, { status: 400 });
   };
 
   const data: Record<string, unknown> = {};
 
-  if (body.salesTaxEnabled !== undefined) data.salesTaxEnabled = body.salesTaxEnabled === true;
+  if (body.salesTaxEnabled !== undefined) {
+    const enabled = optionalBoolean(body.salesTaxEnabled, "Sales tax setting");
+    if (enabled instanceof NextResponse) return enabled;
+    data.salesTaxEnabled = enabled;
+  }
   if (body.salesTaxRatePercent !== undefined) {
     if (body.salesTaxRatePercent === null || body.salesTaxRatePercent === "") {
       data.salesTaxRatePpm = null;
     } else {
+      if (typeof body.salesTaxRatePercent !== "number" && typeof body.salesTaxRatePercent !== "string") {
+        return NextResponse.json({ error: "Enter a tax rate, like 6.625." }, { status: 400 });
+      }
+      const numeric = Number(body.salesTaxRatePercent);
       // Percent in, parts per million stored — 6.625 becomes 66_250, and the
-      // arithmetic downstream never touches a float.
-      const ppm = Math.round(Number(body.salesTaxRatePercent) * 10_000);
-      const problem = Number.isFinite(ppm) ? validateRatePpm(ppm) : "Enter a tax rate, like 6.625.";
+      // arithmetic downstream never touches a float. Reject precision the
+      // integer representation cannot preserve rather than quietly rounding
+      // the contractor's chosen rate.
+      const scaled = numeric * 10_000;
+      const ppm = Math.round(scaled);
+      const exact = Math.abs(scaled - ppm) <= 1e-7;
+      const problem = Number.isFinite(numeric) && exact && Number.isSafeInteger(ppm)
+        ? validateRatePpm(ppm)
+        : "Enter a valid tax rate with no more than four decimal places, like 6.625.";
       if (problem) return NextResponse.json({ error: problem }, { status: 400 });
       data.salesTaxRatePpm = ppm;
     }
   }
 
   const amount = optionalCents(body.depositAmountDollars);
-  if (amount !== undefined) data.depositAmountCents = amount;
-  if (body.depositOnEveryBooking !== undefined) {
-    data.depositOnEveryBooking = body.depositOnEveryBooking === true;
+  if (body.depositAmountDollars !== undefined && amount === undefined) {
+    return NextResponse.json(
+      { error: "Deposit amount must be a valid dollar amount with no more than two decimal places." },
+      { status: 400 }
+    );
   }
+  if (amount !== undefined) data.depositAmountCents = amount;
+
+  if (body.depositOnEveryBooking !== undefined) {
+    const everyBooking = optionalBoolean(body.depositOnEveryBooking, "Deposit-on-every-booking setting");
+    if (everyBooking instanceof NextResponse) return everyBooking;
+    data.depositOnEveryBooking = everyBooking;
+  }
+
   const threshold = optionalCents(body.depositSubtotalThresholdDollars);
+  if (body.depositSubtotalThresholdDollars !== undefined && threshold === undefined) {
+    return NextResponse.json(
+      { error: "Deposit subtotal threshold must be a valid dollar amount with no more than two decimal places." },
+      { status: 400 }
+    );
+  }
   if (threshold !== undefined) data.depositSubtotalThresholdCents = threshold;
+
   const duration = optionalMinutes(body.depositDurationThresholdHours);
+  if (body.depositDurationThresholdHours !== undefined && duration === undefined) {
+    return NextResponse.json(
+      { error: "Deposit duration threshold must be greater than zero and resolve to a whole minute, or be left blank to turn the rule off." },
+      { status: 400 }
+    );
+  }
   if (duration !== undefined) data.depositDurationThresholdMinutes = duration;
 
   if (Object.keys(data).length === 0) {

@@ -43,16 +43,31 @@ export default function ServiceSelectionList({ services }: { services: Selectabl
   const offeredCount = services.filter((s) => s.offered).length;
 
   async function toggle(s: SelectableService, offered: boolean) {
-    setBusy(s.id); setError(null);
-    const res = await fetch(`/api/admin/services/${s.id}/offered`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ offered }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setBusy(null);
-    if (!res.ok) { setError(data.message ?? data.error ?? "Could not save."); return; }
-    router.refresh();
+    if (busy !== null || s.offered === offered) return;
+
+    setBusy(s.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/services/${s.id}/offered`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offered }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message ?? data.error ?? `Could not ${offered ? "select" : "deselect"} ${s.name}. Nothing was changed.`);
+        return;
+      }
+      router.refresh();
+    } catch {
+      // A lost browser response does not prove the PATCH failed. Refresh the
+      // server-rendered list so Service.offered remains the authority and the
+      // contractor never has to guess whether the checkbox was saved.
+      setError(`Price2Book lost the result while saving ${s.name}. The list is being refreshed to confirm its current selection.`);
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -63,7 +78,7 @@ export default function ServiceSelectionList({ services }: { services: Selectabl
         storefront.
       </p>
 
-      {error && <div className="mt-3 rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-3 rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       <div className="mt-4 space-y-5">
         {Object.entries(byCategory).map(([category, items]) => (
@@ -77,7 +92,7 @@ export default function ServiceSelectionList({ services }: { services: Selectabl
                       type="checkbox"
                       checked={s.offered}
                       disabled={busy !== null}
-                      onChange={(e) => toggle(s, e.target.checked)}
+                      onChange={(e) => void toggle(s, e.target.checked)}
                     />
                     <span className="text-navy">{s.name}</span>
                     <span className="ml-auto flex items-center gap-3 text-xs">

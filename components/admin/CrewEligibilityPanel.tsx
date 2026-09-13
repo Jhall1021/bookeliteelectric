@@ -8,62 +8,148 @@ type CrewMember = { id: string; name: string; eligibleForWebsiteBookings: boolea
 export default function CrewEligibilityPanel({ crewMembers }: { crewMembers: CrewMember[] }) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const eligibleCount = crewMembers.filter((member) => member.eligibleForWebsiteBookings).length;
 
   async function handleSync() {
+    if (syncing || updatingId !== null) return;
     setSyncing(true);
     setError(null);
-    const res = await fetch("/api/admin/jobber/crews/sync", { method: "POST" });
-    setSyncing(false);
-    if (res.ok) {
-      router.refresh();
-    } else {
+    setNotice(null);
+    try {
+      const res = await fetch("/api/admin/jobber/crews/sync", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Sync failed.");
+      if (res.ok) {
+        const removed = typeof data.removed === "number" ? data.removed : 0;
+        setNotice(
+          removed > 0
+            ? `Crew refreshed. ${removed} user${removed === 1 ? "" : "s"} no longer returned by Jobber ${removed === 1 ? "was" : "were"} removed from booking capacity.`
+            : "Crew refreshed from Jobber. Existing eligibility choices were preserved."
+        );
+        router.refresh();
+        return;
+      }
+      setError(typeof data.error === "string" ? data.error : "Could not sync Jobber users. No confirmed roster change was returned.");
+    } catch {
+      // Sync can update the local roster before the browser receives its response.
+      // Treat a dropped response as uncertain and refresh before offering another sync.
+      setError("Price2Book lost the response while syncing Jobber users. Refreshing the saved roster now — confirm it before syncing again.");
+      router.refresh();
+    } finally {
+      setSyncing(false);
     }
   }
 
   async function handleToggle(id: string, current: boolean) {
-    await fetch(`/api/admin/jobber/crews/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eligibleForWebsiteBookings: !current }),
-    });
-    router.refresh();
+    if (syncing || updatingId !== null) return;
+    setUpdatingId(id);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/jobber/crews/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eligibleForWebsiteBookings: !current }),
+      });
+
+      if (res.ok) {
+        router.refresh();
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      setError(typeof data.error === "string" ? data.error : "Could not confirm the crew eligibility change.");
+    } catch {
+      // The PATCH may have committed even if its response was lost. Re-render from
+      // server state rather than encouraging a blind second toggle.
+      setError("Price2Book lost the response while updating crew eligibility. Refreshing the saved setting now — confirm it before trying again.");
+      router.refresh();
+    } finally {
+      setUpdatingId(null);
+    }
   }
 
   return (
-    <div className="mt-6 max-w-xl">
-      <button
-        onClick={handleSync}
-        disabled={syncing}
-        className="rounded-pill border border-electric px-5 py-2 text-sm font-semibold text-electric transition hover:bg-electric/5 disabled:opacity-50"
-      >
-        {syncing ? "Syncing..." : "Sync From Jobber"}
-      </button>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    <div className="mt-6 space-y-4">
+      <div className="flex flex-col gap-3 rounded-card border border-cardline bg-warmwhite/55 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-navy">
+            {eligibleCount} of {crewMembers.length} synced user{crewMembers.length === 1 ? "" : "s"} count toward booking capacity
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-slate">
+            Syncing refreshes the authoritative Jobber roster. Existing eligibility choices stay in place for people still returned by Jobber; users no longer in that account are removed from Price2Book capacity.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleSync}
+          disabled={syncing || updatingId !== null}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-pill border border-electric px-5 py-2.5 text-sm font-semibold text-electric transition hover:bg-electric/5 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {syncing ? "Syncing…" : "Sync from Jobber"}
+        </button>
+      </div>
+
+      {notice && (
+        <p role="status" className="rounded-card border border-success/20 bg-success/[0.06] px-4 py-3 text-sm text-success">
+          {notice}
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" className="rounded-card border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </p>
+      )}
 
       {crewMembers.length === 0 ? (
-        <p className="mt-4 text-sm text-slate">
-          No crew members synced yet — click "Sync From Jobber" to pull your team list.
-        </p>
+        <div className="rounded-card border border-dashed border-cardline bg-white px-5 py-10 text-center">
+          <p className="text-sm font-semibold text-navy">No Jobber users have been synced yet.</p>
+          <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-slate">
+            Sync your team list first, then choose which people should count when Price2Book checks whether a customer-facing arrival window has capacity.
+          </p>
+        </div>
       ) : (
-        <div className="mt-4 divide-y divide-cardline rounded-card border border-cardline bg-white">
-          {crewMembers.map((c) => (
-            <label key={c.id} className="flex items-center justify-between p-4 text-sm">
-              <span className="text-navy">{c.name}</span>
-              <span className="flex items-center gap-2">
-                <span className="text-xs text-slate">
-                  {c.eligibleForWebsiteBookings ? "Eligible" : "Not eligible"}
-                </span>
-                <input
-                  type="checkbox"
-                  checked={c.eligibleForWebsiteBookings}
-                  onChange={() => handleToggle(c.id, c.eligibleForWebsiteBookings)}
-                />
-              </span>
-            </label>
-          ))}
+        <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-sm">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-cardline bg-warmwhite/45 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate sm:px-5">
+            <span>Jobber user</span>
+            <span>Website bookings</span>
+          </div>
+          <div className="divide-y divide-cardline">
+            {crewMembers.map((c) => {
+              const updating = updatingId === c.id;
+              return (
+                <label key={c.id} className="flex min-h-16 items-center justify-between gap-4 px-4 py-3 sm:px-5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-navy">{c.name}</p>
+                    <p className="mt-0.5 text-xs text-slate">
+                      {c.eligibleForWebsiteBookings
+                        ? "Counts toward bookable Jobber capacity."
+                        : "Ignored when Price2Book checks website capacity."}
+                    </p>
+                  </div>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className={`hidden rounded-pill px-2.5 py-1 text-[11px] font-semibold sm:inline-flex ${
+                      c.eligibleForWebsiteBookings ? "bg-success/10 text-success" : "bg-warmwhite text-slate"
+                    }`}>
+                      {updating ? "Updating…" : c.eligibleForWebsiteBookings ? "Eligible" : "Not eligible"}
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 accent-[#2452D9]"
+                      checked={c.eligibleForWebsiteBookings}
+                      disabled={syncing || updatingId !== null}
+                      aria-label={`${c.eligibleForWebsiteBookings ? "Remove" : "Add"} ${c.name} ${c.eligibleForWebsiteBookings ? "from" : "to"} website booking capacity`}
+                      onChange={() => handleToggle(c.id, c.eligibleForWebsiteBookings)}
+                    />
+                  </span>
+                </label>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

@@ -681,14 +681,33 @@ export async function assessOnboarding(
 
   // ── 6. Payments ────────────────────────────────────────────────────────
   //
-  // Checked against the services actually intended, not globally. A contractor
-  // who takes no deposits needs no Stripe, and blocking them would be wrong.
-  const depositing = intended.filter((i) => ((i.svc.depositCents as number | null) ?? 0) > 0);
-  if (depositing.length > 0) {
+  // The checkout authority is lib/depositPolicy.ts: one contractor-level
+  // amount per booking, with per-service ALWAYS / COMPANY / NEVER overrides.
+  // Readiness must answer the same question from the same stored facts rather
+  // than looking at Service.depositCents, which is retained only as legacy data
+  // and is not read by checkout anymore.
+  const companyDepositRuleEnabled =
+    c.depositOnEveryBooking ||
+    c.depositSubtotalThresholdCents !== null ||
+    c.depositDurationThresholdMinutes !== null;
+  const alwaysDeposit = intended.filter((i) => i.svc.depositRule === "ALWAYS_REQUIRE");
+  const companyPolicyServices = intended.filter((i) => i.svc.depositRule === "USE_COMPANY_POLICY");
+  const depositCanApply =
+    alwaysDeposit.length > 0 ||
+    (companyDepositRuleEnabled && companyPolicyServices.length > 0);
+  const depositAmountConfigured = (c.depositAmountCents ?? 0) > 0;
+
+  if (depositCanApply && !depositAmountConfigured) {
+    findings.payments.push(b(
+      "DEPOSIT_AMOUNT_MISSING",
+      "Your deposit rules can require a deposit, but no company deposit amount is set.",
+      { href: "/dashboard/billing" }
+    ));
+  } else if (depositCanApply) {
     const readiness = connectReadiness(c);
     if (!c.stripeAccountId) {
       findings.payments.push(b("STRIPE_NOT_CONNECTED",
-        `${depositing.length} service(s) ask for a deposit, but Stripe is not connected.`,
+        "Your current deposit rules can collect money at booking, but Stripe is not connected.",
         { href: "/dashboard/payments" }));
     } else if (!readiness.ready) {
       findings.payments.push(b("STRIPE_NOT_READY",
@@ -703,9 +722,14 @@ export async function assessOnboarding(
       "Nothing is ready to sell yet. Choose the work you offer, then price it.", { href: IN_SETUP }));
   }
   for (const i of intended) {
-    if (i.svc.requiresPreWorkVisit && ((i.svc.depositCents as number | null) ?? 0) === 0) {
-      findings.launch.push(w("PRE_WORK_WITHOUT_DEPOSIT",
-        `${i.svc.name} needs a site visit before installation but takes no deposit.`,
+    if (!i.svc.requiresPreWorkVisit) continue;
+    const rule = i.svc.depositRule as string;
+    const guaranteedDeposit =
+      depositAmountConfigured &&
+      (rule === "ALWAYS_REQUIRE" || (rule === "USE_COMPANY_POLICY" && c.depositOnEveryBooking));
+    if (!guaranteedDeposit) {
+      findings.launch.push(w("PRE_WORK_WITHOUT_GUARANTEED_DEPOSIT",
+        `${i.svc.name} needs a site visit before installation but its current deposit policy does not guarantee a deposit at booking.`,
         {
           serviceSlug: i.svc.slug as string,
           serviceName: i.svc.name as string,

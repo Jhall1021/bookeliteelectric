@@ -32,7 +32,11 @@ export type BusinessProfileRequest =
       /** `undefined` = not mentioned. `null` = withdraw the enrolment. */
       tradeKey: string | null | undefined;
     }
-  | { ok: false; error: "NAME_REQUIRED" | "COUNTRY_UNSUPPORTED" | "NOTHING_TO_CHANGE"; message: string };
+  | {
+      ok: false;
+      error: "NAME_REQUIRED" | "COUNTRY_UNSUPPORTED" | "NOTHING_TO_CHANGE" | "INVALID_FIELD_TYPE";
+      message: string;
+    };
 
 /** Trimmed; empty becomes null, which is distinct from "not sent". */
 function optionalText(v: unknown): string | null | undefined {
@@ -42,7 +46,27 @@ function optionalText(v: unknown): string | null | undefined {
   return t === "" ? null : t;
 }
 
+const TEXT_FIELDS = [
+  "name", "countryCode", "legalName", "phone", "supportEmail",
+  "licenseNumber", "licenseLabel", "tradeKey",
+] as const;
+
 export function readBusinessProfileRequest(body: Record<string, unknown>): BusinessProfileRequest {
+  // If a caller mentions one of these fields, it must be text. The previous
+  // parser silently treated numbers/objects/booleans as if the field had not
+  // been sent at all. That is dangerous for a PATCH request because a partly
+  // malformed body could still save its other fields and look successful.
+  for (const field of TEXT_FIELDS) {
+    const value = body[field];
+    if (value !== undefined && typeof value !== "string") {
+      return {
+        ok: false,
+        error: "INVALID_FIELD_TYPE",
+        message: `${field} must be text.`,
+      };
+    }
+  }
+
   const name = optionalText(body.name);
   if (name === null) {
     return {

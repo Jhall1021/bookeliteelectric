@@ -12,10 +12,14 @@ import { withAdminRoute } from "@/lib/adminContext";
 const VALID = ["NATIVE", "EXTERNAL"] as const;
 
 export async function PATCH(req: Request) {
-  let body: { authority?: unknown };
-  try { body = await req.json(); } catch {
+  let parsed: unknown;
+  try { parsed = await req.json(); } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as { authority?: unknown };
   if (typeof body.authority !== "string" || !VALID.includes(body.authority as (typeof VALID)[number])) {
     return NextResponse.json(
       { error: `authority must be one of ${VALID.join(", ")}.` },

@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
 
 import { suggestPrimaryPrice, suggestWwtPrice, type PricingSettings } from "@/lib/pricing";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 
 /**
  * Preview what the model says, against what's published.
@@ -32,88 +30,88 @@ import { withAdminContractor } from "@/lib/adminContext";
  * disagree, using the CURRENT model.
  */
 export async function POST() {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
   // GUARD-ADOPTED (ADR-007a). Swept every active service with no contractor
   // condition, so a second contractor's catalog would have appeared in this
   // contractor's recalculation report.
-  return withAdminContractor(async (db, ctx) => {
-  const contractorId = ctx.contractorId;
+  return withAdminRoute(async (db, ctx) => {
+    const contractorId = ctx.contractorId;
 
-  // ADR-007a: PricingSettings carries contractorId and is tenant-scoped. This
-  // read used `where: { id: "default" }` — the pre-tenant singleton row — so
-  // with two contractors every admin surface would have read the same
-  // settings regardless of who was asking. Keyed by contractor now, on the
-  // guarded client.
-  const settings = (await db.pricingSettings.findUnique({
-    where: { contractorId },
-  })) as PricingSettings | null;
-  if (!settings) {
-    return NextResponse.json(
-      { error: "Pricing settings haven't been configured yet" },
-      { status: 400 }
-    );
-  }
-
-  const services = await db.service.findMany({
-    where: { active: true, fieldLaborHours: { not: null } },
-    orderBy: { name: "asc" },
-    select: {
-      slug: true, name: true, basePrice: true, whileWeThereBasePrice: true,
-      fieldLaborHours: true, wwtLaborHours: true, requiresTechCount: true,
-      materialCostCents: true, materialMultiplier: true,
-      permitAdminCents: true, otherDirectCostCents: true, isPrimaryEligible: true,
-    },
-  });
-
-  const differences = [];
-
-  for (const svc of services) {
-    const inputs = {
-      fieldLaborHours: svc.fieldLaborHours,
-      wwtLaborHours: svc.wwtLaborHours,
-      requiresTechCount: svc.requiresTechCount,
-      materialCostCents: svc.materialCostCents,
-      materialMultiplier: svc.materialMultiplier,
-      permitAdminCents: svc.permitAdminCents,
-      otherDirectCostCents: svc.otherDirectCostCents,
-      isPrimaryEligible: svc.isPrimaryEligible,
-    };
-
-    const primary = suggestPrimaryPrice(inputs, settings).totalCents;
-    const wwt = svc.wwtLaborHours === null ? null : suggestWwtPrice(inputs, settings).totalCents;
-
-    // $5 is the rounding increment, so anything inside it is agreement.
-    const primaryOff = primary !== null && svc.basePrice !== null
-      && Math.abs(primary - svc.basePrice) > 500;
-    const wwtOff = wwt !== null && svc.whileWeThereBasePrice !== null
-      && Math.abs(wwt - svc.whileWeThereBasePrice) > 500;
-
-    if (primaryOff || wwtOff) {
-      differences.push({
-        slug: svc.slug,
-        name: svc.name.trim(),
-        publishedPrimary: svc.basePrice,
-        modelPrimary: primary,
-        publishedAddOn: svc.whileWeThereBasePrice,
-        modelAddOn: wwt,
-      });
+    // ADR-007a: PricingSettings carries contractorId and is tenant-scoped. This
+    // read used `where: { id: "default" }` — the pre-tenant singleton row — so
+    // with two contractors every admin surface would have read the same
+    // settings regardless of who was asking. Keyed by contractor now, on the
+    // guarded client.
+    const settings = (await db.pricingSettings.findUnique({
+      where: { contractorId },
+    })) as PricingSettings | null;
+    if (!settings) {
+      return NextResponse.json(
+        { error: "Pricing settings haven't been configured yet" },
+        { status: 400 }
+      );
     }
-  }
 
-  return NextResponse.json({
-    ok: true,
-    readOnly: true,
-    checked: services.length,
-    differences,
-    message:
-      differences.length === 0
-        ? `All ${services.length} model-priced services match. Nothing to reconcile.`
-        : `${differences.length} of ${services.length} differ from the model. ` +
-          `Nothing was changed — publish individually from each service, or ` +
-          `raise a reconciliation migration for a batch.`,
-  });
+    const services = await db.service.findMany({
+      where: { active: true, fieldLaborHours: { not: null } },
+      orderBy: { name: "asc" },
+      select: {
+        slug: true, name: true, basePrice: true, whileWeThereBasePrice: true,
+        fieldLaborHours: true, wwtLaborHours: true, requiresTechCount: true,
+        materialCostCents: true, materialMultiplier: true,
+        permitAdminCents: true, otherDirectCostCents: true, isPrimaryEligible: true,
+      },
+    });
+
+    const differences = [];
+    // Agreement follows this contractor's configured pricing precision. The
+    // old fixed $5 tolerance became wrong as soon as rounding was configurable:
+    // a contractor rounding to $10 could be told a $6 gap needed reconciliation,
+    // while a contractor rounding to $1 could have a $4 gap hidden from them.
+    const agreementToleranceCents = settings.roundingIncrementCents;
+
+    for (const svc of services) {
+      const inputs = {
+        fieldLaborHours: svc.fieldLaborHours,
+        wwtLaborHours: svc.wwtLaborHours,
+        requiresTechCount: svc.requiresTechCount,
+        materialCostCents: svc.materialCostCents,
+        materialMultiplier: svc.materialMultiplier,
+        permitAdminCents: svc.permitAdminCents,
+        otherDirectCostCents: svc.otherDirectCostCents,
+        isPrimaryEligible: svc.isPrimaryEligible,
+      };
+
+      const primary = suggestPrimaryPrice(inputs, settings).totalCents;
+      const wwt = svc.wwtLaborHours === null ? null : suggestWwtPrice(inputs, settings).totalCents;
+
+      const primaryOff = primary !== null && svc.basePrice !== null
+        && Math.abs(primary - svc.basePrice) > agreementToleranceCents;
+      const wwtOff = wwt !== null && svc.whileWeThereBasePrice !== null
+        && Math.abs(wwt - svc.whileWeThereBasePrice) > agreementToleranceCents;
+
+      if (primaryOff || wwtOff) {
+        differences.push({
+          slug: svc.slug,
+          name: svc.name.trim(),
+          publishedPrimary: svc.basePrice,
+          modelPrimary: primary,
+          publishedAddOn: svc.whileWeThereBasePrice,
+          modelAddOn: wwt,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      readOnly: true,
+      checked: services.length,
+      differences,
+      message:
+        differences.length === 0
+          ? `All ${services.length} model-priced services match. Nothing to reconcile.`
+          : `${differences.length} of ${services.length} differ from the model. ` +
+            `Nothing was changed — publish individually from each service, or ` +
+            `raise a reconciliation migration for a batch.`,
+    });
   });
 }

@@ -48,6 +48,7 @@ export default async function EditServicePage({ params }: { params: { serviceId:
     where: { id: contractorId },
     select: {
       pricingStrategy: true,
+      depositAmountCents: true,
       stripeAccountId: true, stripeMerchantConfigured: true, stripeCardPaymentsStatus: true,
       stripeOnboardingBlocked: true, stripeReadinessCheckedAt: true,
     },
@@ -153,8 +154,8 @@ export default async function EditServicePage({ params }: { params: { serviceId:
             serviceId={service.id}
             requiresPreWorkVisit={service.requiresPreWorkVisit}
             preWorkVisitMinutes={service.preWorkVisitMinutes}
-            depositCents={service.depositCents}
-            depositCreditsToJob={service.depositCreditsToJob}
+            depositRule={service.depositRule}
+            companyDepositAmountCents={contractor.depositAmountCents}
             ctaLabel={service.ctaLabel}
             preWorkCustomerNote={service.preWorkCustomerNote}
             stripeReady={connectReadiness(contractor).ready}

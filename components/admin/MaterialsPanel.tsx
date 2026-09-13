@@ -7,30 +7,32 @@ import { calculateMaterialSellCents, effectiveMaterialMarkup } from "@/lib/prici
 
 type CatalogEntry = {
   id: string;
+  canonicalMaterialId: string;
   key: string;
   name: string;
   unit: string;
   unitCostCents: number;
 };
 
-type Item = CatalogEntry & {
-  materialId: string;
+type Item = {
+  id: string;
+  canonicalMaterialId: string | null;
+  contractorMaterialId: string | null;
+  key: string | null;
+  name: string | null;
+  unit: string | null;
   quantity: number;
-  lineTotalCents: number;
+  unitCostCents: number | null;
+  lineTotalCents: number | null;
+  unpriced: boolean;
 };
 
 /**
  * What a service is actually made of.
  *
- * A service used to carry one materialCostCents — the exterior GFCI held
- * 5244, with the breakdown living only in a code comment. Nobody could see
- * what that covered, and a price rise on receptacles meant hunting through
- * seeds for which totals silently included one.
- *
- * Costs here are what Elite PAYS. The markup is applied downstream by the
- * progressive rule — 30% of the first $750, 20% above — applied ONCE to the
- * assembled total. Never per part: a job with six small items would otherwise
- * compound the markup six times.
+ * Costs shown here are contractor costs. The shared pricing rule applies the
+ * material markup downstream to the assembled package once; this screen never
+ * publishes a customer price by itself.
  */
 export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
   const router = useRouter();
@@ -45,16 +47,25 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
   const [newMaterial, setNewMaterial] = useState({ name: "", cost: "", unit: "each" });
 
   async function load() {
-    const res = await fetch(`/api/admin/materials?serviceId=${serviceId}`);
-    if (res.ok) {
-      const d = await res.json();
-      setItems(d.items ?? []);
-      setCatalog(d.catalog ?? []);
+    try {
+      const res = await fetch(`/api/admin/materials?serviceId=${serviceId}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Could not load materials.");
+        return;
+      }
+      setItems(data.items ?? []);
+      setCatalog(data.catalog ?? []);
+    } catch {
+      setError("Could not reach Price2Book to load materials. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceId]);
@@ -63,30 +74,33 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
     setBusy(true);
     setError(null);
     setNotice(null);
-    const res = await fetch("/api/admin/materials", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      let detail = `${res.status} ${res.statusText}`;
-      try {
-        const d = await res.json();
-        if (d?.error) detail = d.error;
-      } catch {}
-      setError(detail);
+    try {
+      const res = await fetch("/api/admin/materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === "string" ? data.error : "Could not save that material change. Nothing was changed.");
+        return null;
+      }
+      await load();
+      router.refresh();
+      return data;
+    } catch {
+      setError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
       return null;
+    } finally {
+      setBusy(false);
     }
-    const data = await res.json();
-    await load();
-    router.refresh();
-    return data;
   }
 
-  const directTotal = items.reduce((s, i) => s + i.lineTotalCents, 0);
-  const markup = directTotal > 0 ? effectiveMaterialMarkup(directTotal) : null;
-  const sellTotal = calculateMaterialSellCents(directTotal);
+  const resolvedItems = items.filter((i) => i.lineTotalCents !== null);
+  const directTotal = resolvedItems.reduce((sum, item) => sum + (item.lineTotalCents ?? 0), 0);
+  const hasUnpriced = items.some((i) => i.unpriced || i.lineTotalCents === null);
+  const markup = !hasUnpriced && directTotal > 0 ? effectiveMaterialMarkup(directTotal) : null;
+  const sellTotal = !hasUnpriced ? calculateMaterialSellCents(directTotal) : null;
 
   const field = "rounded-card border border-cardline px-3 py-2 text-sm focus:border-electric";
 
@@ -117,9 +131,11 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
           {items.map((i) => (
             <div key={i.id} className="flex items-center gap-3 p-3">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm text-navy">{i.name}</div>
-                <div className="text-xs text-slate">
-                  {formatCents(i.unitCostCents)} per {i.unit}
+                <div className="truncate text-sm text-navy">{i.name ?? i.key ?? "Material"}</div>
+                <div className={`text-xs ${i.unpriced ? "text-amber-700" : "text-slate"}`}>
+                  {i.unitCostCents === null
+                    ? "Cost not set for your company"
+                    : `${formatCents(i.unitCostCents)} per ${i.unit ?? "unit"}`}
                 </div>
               </div>
               <input
@@ -128,21 +144,24 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
                 min="0"
                 defaultValue={i.quantity}
                 onBlur={(e) => {
-                  const q = parseFloat(e.target.value);
-                  if (!Number.isNaN(q) && q !== i.quantity) {
-                    send({ action: "quantity", id: i.id, quantity: q });
+                  const q = Number(e.target.value);
+                  if (!Number.isFinite(q) || q < 0) {
+                    setError("Quantity must be zero or more.");
+                    e.target.value = String(i.quantity);
+                    return;
                   }
+                  if (q !== i.quantity) send({ action: "quantity", id: i.id, quantity: q });
                 }}
                 className={`${field} w-20 text-right`}
-                aria-label={`Quantity of ${i.name}`}
+                aria-label={`Quantity of ${i.name ?? "material"}`}
               />
               <div className="w-20 shrink-0 text-right text-sm font-medium text-navy">
-                {formatCents(i.lineTotalCents)}
+                {i.lineTotalCents === null ? "—" : formatCents(i.lineTotalCents)}
               </div>
               <button
                 onClick={() => send({ action: "remove", id: i.id })}
                 disabled={busy}
-                aria-label={`Remove ${i.name}`}
+                aria-label={`Remove ${i.name ?? "material"}`}
                 className="shrink-0 px-1 text-slate hover:text-red-600 disabled:opacity-40"
               >
                 ×
@@ -153,16 +172,13 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
           <div className="flex items-center justify-between bg-warmwhite p-3">
             <div className="text-sm text-slate">
               Direct cost
-              {markup && (
-                <span className="ml-2 text-xs">
-                  {/* Blended, because above $750 there isn't one rate. */}
-                  {(markup * 100 - 100).toFixed(0)}% markup
-                </span>
-              )}
+              {markup && <span className="ml-2 text-xs">{(markup * 100 - 100).toFixed(0)}% markup</span>}
             </div>
             <div className="text-right">
-              <div className="text-sm font-semibold text-navy">{formatCents(directTotal)}</div>
-              {markup !== null && (
+              <div className="text-sm font-semibold text-navy">
+                {hasUnpriced ? "Incomplete" : formatCents(directTotal)}
+              </div>
+              {sellTotal !== null && markup !== null && (
                 <div className="text-xs text-success">sells at {formatCents(sellTotal)}</div>
               )}
             </div>
@@ -170,16 +186,16 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
         </div>
       )}
 
-      {/* The $10 cliff warning lived here. It's gone because the cliff is:
-          markup is now continuous, so a package that costs more always sells
-          for more. Under the old bands a $9.99 package sold for $29.97 and a
-          $10.01 one for $13.01 — Elite's cost rising by two cents dropped the
-          customer's price by seventeen dollars. */}
-      {directTotal > 75000 && (
+      {hasUnpriced && (
+        <p className="mt-2 rounded-card border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          At least one part does not have a cost for your company. Price2Book will not treat this material package as fully priced until every item has a cost.
+        </p>
+      )}
+
+      {!hasUnpriced && directTotal > 75000 && sellTotal !== null && (
         <p className="mt-2 rounded-card border border-cardline bg-warmwhite p-3 text-xs text-slate">
           Above $750 the markup steps down to 20% on the excess, so this package
-          sells at {formatCents(sellTotal)} — a blended{" "}
-          {markup ? (markup * 100 - 100).toFixed(1) : "0"}%.
+          sells at {formatCents(sellTotal)} — a blended {markup ? (markup * 100 - 100).toFixed(1) : "0"}%.
         </p>
       )}
 
@@ -191,9 +207,9 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
         >
           <option value="">Add a part...</option>
           {catalog
-            .filter((c) => !items.some((i) => i.materialId === c.id))
+            .filter((c) => !items.some((i) => i.canonicalMaterialId === c.canonicalMaterialId))
             .map((c) => (
-              <option key={c.id} value={c.id}>
+              <option key={c.id} value={c.canonicalMaterialId}>
                 {c.name} — {formatCents(c.unitCostCents)}/{c.unit}
               </option>
             ))}
@@ -201,8 +217,8 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
         <button
           onClick={async () => {
             if (!adding) return;
-            await send({ action: "add", serviceId, materialId: adding, quantity: 1 });
-            setAdding("");
+            const saved = await send({ action: "add", serviceId, canonicalMaterialId: adding, quantity: 1 });
+            if (saved) setAdding("");
           }}
           disabled={busy || !adding}
           className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white hover:bg-electric-hover disabled:opacity-40"
@@ -245,23 +261,33 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
           </div>
           <button
             onClick={async () => {
-              const cost = Math.round(parseFloat(newMaterial.cost || "0") * 100);
+              const costDollars = Number(newMaterial.cost);
+              if (!newMaterial.name.trim()) {
+                setError("Enter a name for the new material.");
+                return;
+              }
+              if (newMaterial.cost.trim() === "" || !Number.isFinite(costDollars) || costDollars < 0) {
+                setError("Enter a valid material cost of zero or more.");
+                return;
+              }
+              if (!newMaterial.unit.trim()) {
+                setError("Enter the unit this material is bought by, such as each, ft, or box.");
+                return;
+              }
               const created = await send({
                 action: "create",
                 key: newMaterial.name,
                 name: newMaterial.name,
-                unitCostCents: cost,
+                unitCostCents: Math.round(costDollars * 100),
                 unit: newMaterial.unit,
               });
-              if (created?.material) {
-                await send({
-                  action: "add",
-                  serviceId,
-                  materialId: created.material.id,
-                  quantity: 1,
-                });
-                setNewMaterial({ name: "", cost: "", unit: "each" });
-                setCreating(false);
+              const canonicalMaterialId = created?.canonicalMaterial?.id;
+              if (canonicalMaterialId) {
+                const added = await send({ action: "add", serviceId, canonicalMaterialId, quantity: 1 });
+                if (added) {
+                  setNewMaterial({ name: "", cost: "", unit: "each" });
+                  setCreating(false);
+                }
               }
             }}
             disabled={busy || !newMaterial.name.trim()}
@@ -272,41 +298,42 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
         </div>
       )}
 
-      {items.length > 0 && (
+      {items.some((i) => i.contractorMaterialId) && (
         <details className="mt-4">
-          <summary className="cursor-pointer text-xs font-medium text-electric">
-            Change what a part costs
-          </summary>
+          <summary className="cursor-pointer text-xs font-medium text-electric">Change what a part costs</summary>
           <p className="mt-2 text-xs text-slate">
-            Costs are shared. Changing one here reprices every service using it — which is the
-            point, but it isn&rsquo;t only this service.
+            Costs are shared. Changing one here reprices every service using it — which is the point, but it isn&rsquo;t only this service.
           </p>
           <div className="mt-2 space-y-2">
-            {items.map((i) => (
+            {items.filter((i) => i.contractorMaterialId).map((i) => (
               <div key={`cost-${i.id}`} className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-xs text-navy">{i.name}</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-navy">{i.name ?? i.key ?? "Material"}</span>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
-                  defaultValue={(i.unitCostCents / 100).toFixed(2)}
+                  defaultValue={i.unitCostCents === null ? "" : (i.unitCostCents / 100).toFixed(2)}
                   onBlur={async (e) => {
-                    const c = Math.round(parseFloat(e.target.value) * 100);
-                    if (!Number.isNaN(c) && c !== i.unitCostCents) {
+                    const dollars = Number(e.target.value);
+                    if (!Number.isFinite(dollars) || dollars < 0) {
+                      setError("Material cost must be zero or more.");
+                      e.target.value = i.unitCostCents === null ? "" : (i.unitCostCents / 100).toFixed(2);
+                      return;
+                    }
+                    const cents = Math.round(dollars * 100);
+                    if (cents !== i.unitCostCents) {
                       const r = await send({
                         action: "cost",
-                        materialId: i.materialId,
-                        unitCostCents: c,
+                        contractorMaterialId: i.contractorMaterialId,
+                        unitCostCents: cents,
                       });
                       if (r?.affectedServices > 1) {
-                        setNotice(
-                          `${i.name} updated — ${r.affectedServices} services use it and were all repriced.`
-                        );
+                        setNotice(`${i.name ?? "Material"} updated — ${r.affectedServices} services use it and were all repriced.`);
                       }
                     }
                   }}
                   className={`${field} w-24 text-right`}
-                  aria-label={`Cost of ${i.name}`}
+                  aria-label={`Cost of ${i.name ?? "material"}`}
                 />
               </div>
             ))}
@@ -314,10 +341,8 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
         </details>
       )}
 
-      {notice && (
-        <p className="mt-4 rounded-card bg-electric/5 p-3 text-sm text-navy">{notice}</p>
-      )}
-      {error && <p className="mt-4 rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {notice && <p className="mt-4 rounded-card bg-electric/5 p-3 text-sm text-navy">{notice}</p>}
+      {error && <p role="alert" className="mt-4 rounded-card bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     </div>
   );
 }

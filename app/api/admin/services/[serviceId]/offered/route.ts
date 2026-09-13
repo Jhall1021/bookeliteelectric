@@ -17,12 +17,17 @@ import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
-  let body: { offered?: unknown };
-  try { body = await req.json(); } catch {
+  let parsed: unknown;
+  try { parsed = await req.json(); } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+
+  const body = parsed as Record<string, unknown>;
   if (typeof body.offered !== "boolean") {
-    return NextResponse.json({ error: "offered is required." }, { status: 400 });
+    return NextResponse.json({ error: "offered is required and must be true or false." }, { status: 400 });
   }
 
   return withAdminRoute(async (db) => {
@@ -48,7 +53,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
 
     await db.service.update({
       where: { id: service.id },
-      data: { offered: body.offered as boolean },
+      data: { offered: body.offered },
     });
     return NextResponse.json({ ok: true, slug: service.slug, offered: body.offered });
   });

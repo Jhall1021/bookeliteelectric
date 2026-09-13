@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { formatCents } from "@/lib/flow-types";
 import { validateEstimateBounds } from "@/lib/pricingReadiness";
 import type { PricingStrategy } from "@prisma/client";
@@ -62,6 +63,8 @@ export default function EstimateEditor(
     return c;
   }, [state, draft]);
 
+  const allSelected = state.length > 0 && selected.size === state.length;
+
   async function send(ids: string[], action: "save" | "approve") {
     setBusy(true); setError(null); setNote(null);
     try {
@@ -86,134 +89,158 @@ export default function EstimateEditor(
 
   if (strategy !== "TIME_AND_MATERIALS") {
     return (
-      <div>
-        <h1 className="font-display text-2xl font-bold text-navy">Estimated hours</h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate">
-          You price by fixed quote, so your services do not need estimated hour ranges. If you
-          switch to time and materials, anything you enter here will be waiting — switching
-          strategy never changes what you have configured for the other one.
-        </p>
+      <div className="mx-auto w-full max-w-5xl">
+        <Link href="/dashboard/settings" className="text-sm font-semibold text-electric hover:underline">← Settings</Link>
+        <div className="mt-4 rounded-card border border-cardline bg-white p-6 shadow-card sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Pricing setup</p>
+          <h1 className="mt-1 font-display text-2xl font-bold text-navy">Estimated hours</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate">
+            You price by fixed quote, so your services do not need estimated hour ranges. If you
+            switch to time and materials, anything you enter here will be waiting — switching
+            strategy never changes what you have configured for the other one.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <header>
-        <h1 className="font-display text-2xl font-bold text-navy">Estimated hours</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate">
-          You bill {crewHourRateCents ? <strong>{formatCents(crewHourRateCents)} per crew hour</strong> : "by the crew hour"}{" "}
-          plus materials. For each service, tell us the range of crew-hours it usually takes.
-          Homeowners see that range multiplied by your rate — so nothing is shown until you
-          approve it.
+    <div className="mx-auto w-full max-w-7xl pb-24">
+      <Link href="/dashboard/settings" className="text-sm font-semibold text-electric hover:underline">← Settings</Link>
+      <header className="mt-4 border-b border-cardline pb-6">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Time &amp; materials</p>
+        <h1 className="mt-1 font-display text-2xl font-bold text-navy">Estimated hours</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate">
+          You bill {crewHourRateCents ? <strong className="text-navy">{formatCents(crewHourRateCents)} per crew hour</strong> : "by the crew hour"}{" "}
+          plus materials. Set the normal crew-hour range for each service, then explicitly approve
+          the ranges you are ready to show customers.
         </p>
       </header>
 
-      <dl className="mt-6 flex flex-wrap gap-3 text-sm">
-        <Pill label="Ready" n={counts.ready} tone="good" />
-        <Pill label="Entered, not approved" n={counts.entered} tone="info" />
-        <Pill label="Needs estimate range" n={counts.needs} tone="warn" />
-        {counts.invalid > 0 && <Pill label="Invalid" n={counts.invalid} tone="bad" />}
-        {counts.other > 0 && <Pill label="Other unresolved requirement" n={counts.other} tone="warn" />}
-        <Pill label="Quote only" n={quoteOnlyCount} tone="muted" />
-      </dl>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Summary label="Ready" value={counts.ready} detail="Approved for customer estimates." tone="good" />
+        <Summary label="Entered" value={counts.entered} detail="Saved or changed, but not approved." tone="info" />
+        <Summary label="Needs attention" value={counts.needs + counts.invalid + counts.other} detail="Missing, invalid, or blocked ranges." tone="warn" />
+        <Summary label="Quote only" value={quoteOnlyCount} detail="No automatic estimate range needed." tone="muted" />
+      </div>
 
-      {selected.size > 0 && (
-        <div className="mt-5 flex flex-wrap items-center gap-3 rounded-card border border-electric bg-white px-4 py-3">
-          <span className="text-sm font-semibold text-navy">{selected.size} selected</span>
-          <button type="button" disabled={busy}
-                  onClick={() => setSelected(new Set(state.filter((r) => r.suggested && selected.has(r.id)).map((r) => {
-                    setDraft((d) => ({ ...d, [r.id]: { low: String(r.suggested!.low), high: String(r.suggested!.high) } }));
-                    return r.id;
-                  })))}
-                  className="rounded-pill border border-cardline px-4 py-1.5 text-sm font-semibold text-navy">
-            Fill with suggestions
-          </button>
-          <button type="button" disabled={busy} onClick={() => send([...selected], "save")}
-                  className="rounded-pill border border-cardline px-4 py-1.5 text-sm font-semibold text-navy">
-            Save
-          </button>
-          {/* Bulk approval stays an explicit act. It is offered because setting
-              fifty-six services one at a time is how onboarding dies — not
-              because approval is a formality. */}
-          <button type="button" disabled={busy} onClick={() => send([...selected], "approve")}
-                  className="rounded-pill bg-electric px-4 py-1.5 text-sm font-semibold text-white">
-            Approve for customer estimates
+      <div className="mt-6 rounded-card border border-electric/20 bg-electric/5 px-4 py-3 text-sm leading-6 text-slate">
+        <span className="font-semibold text-navy">Saving is not publishing.</span>{" "}
+        Save records your range. Only <strong className="text-navy">Approve for customer estimates</strong> makes that range available to homeowners.
+      </div>
+
+      {note && <div className="mt-4 rounded-card border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-success">{note}</div>}
+      {error && <div role="alert" className="mt-4 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+
+      <section className="mt-6 overflow-hidden rounded-card border border-cardline bg-white shadow-card">
+        <div className="flex flex-col gap-3 border-b border-cardline bg-warmwhite px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <h2 className="font-display text-lg font-bold text-navy">Service estimate ranges</h2>
+            <p className="mt-1 text-sm text-slate">Your existing labor baseline stays reference-only until you choose a range.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelected(allSelected ? new Set() : new Set(state.map((r) => r.id)))}
+            className="min-h-11 rounded-pill border border-cardline bg-white px-4 py-2 text-sm font-semibold text-navy transition hover:border-electric/40 hover:bg-electric/5"
+          >
+            {allSelected ? "Clear selection" : "Select all"}
           </button>
         </div>
-      )}
 
-      {note && <p className="mt-4 text-sm text-success">{note}</p>}
-      {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
-
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[52rem] text-sm">
-          <thead>
-            <tr className="border-b border-cardline text-left text-xs uppercase tracking-wide text-slate">
-              <th className="py-2 pr-3"><span className="sr-only">Select</span></th>
-              <th className="py-2 pr-3">Service</th>
-              <th className="py-2 pr-3">Your baseline</th>
-              <th className="py-2 pr-3">Suggested</th>
-              <th className="py-2 pr-3">Low</th>
-              <th className="py-2 pr-3">High</th>
-              <th className="py-2 pr-3">Customers see</th>
-              <th className="py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.map((r) => {
-              const st = status(r);
-              const d = draft[r.id];
-              const lo = parse(d.low), hi = parse(d.high);
-              const money = crewHourRateCents && lo !== null && hi !== null && validateEstimateBounds(lo, hi).length === 0
-                ? `${formatCents(Math.round(lo * crewHourRateCents))}–${formatCents(Math.round(hi * crewHourRateCents))}`
-                : "—";
-              return (
-                <tr key={r.id} className="border-b border-cardline align-middle">
-                  <td className="py-2 pr-3">
-                    <input type="checkbox" checked={selected.has(r.id)} aria-label={`Select ${r.name}`}
-                           onChange={(e) => setSelected((s) => {
-                             const n = new Set(s); e.target.checked ? n.add(r.id) : n.delete(r.id); return n; })} />
-                  </td>
-                  <td className="py-2 pr-3 font-medium text-navy">{r.name}</td>
-                  {/* What the contractor already told us, shown as reference —
-                      never silently promoted into the range. */}
-                  <td className="py-2 pr-3 text-slate">
-                    {r.baselineHours !== null ? `${r.baselineHours} hrs` : "—"}
-                  </td>
-                  <td className="py-2 pr-3 text-slate">
-                    {r.suggested ? (
-                      <button type="button"
-                              onClick={() => setDraft((x) => ({ ...x, [r.id]: {
-                                low: String(r.suggested!.low), high: String(r.suggested!.high) } }))}
-                              className="text-electric underline-offset-2 hover:underline">
-                        {r.suggested.low}–{r.suggested.high} hrs
-                      </button>
-                    ) : "—"}
-                  </td>
-                  <td className="py-2 pr-3">
-                    <input type="number" step="0.25" min="0" value={d.low} aria-label={`Low hours for ${r.name}`}
-                           onChange={(e) => setDraft((x) => ({ ...x, [r.id]: { ...x[r.id], low: e.target.value } }))}
-                           className="w-20 rounded border border-cardline px-2 py-1" />
-                  </td>
-                  <td className="py-2 pr-3">
-                    <input type="number" step="0.25" min="0" value={d.high} aria-label={`High hours for ${r.name}`}
-                           onChange={(e) => setDraft((x) => ({ ...x, [r.id]: { ...x[r.id], high: e.target.value } }))}
-                           className="w-20 rounded border border-cardline px-2 py-1" />
-                  </td>
-                  <td className="py-2 pr-3 text-slate">{r.approved ? money : "—"}</td>
-                  <td className="py-2">
-                    <Status tone={st.tone} label={st.label} />
-                    {r.blockers.length > 0 && (
-                      <div className="mt-1 text-xs text-slate">{r.blockers.join(" ")}</div>
-                    )}
-                  </td>
+        {state.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <p className="font-semibold text-navy">No services need estimated hours.</p>
+            <p className="mt-1 text-sm text-slate">Quote-only services are intentionally excluded from this workspace.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[58rem] text-sm">
+              <thead className="bg-white">
+                <tr className="border-b border-cardline text-left text-xs font-semibold uppercase tracking-wide text-slate">
+                  <th className="px-5 py-3"><span className="sr-only">Select</span></th>
+                  <th className="py-3 pr-4">Service</th>
+                  <th className="py-3 pr-4">Baseline</th>
+                  <th className="py-3 pr-4">Suggested</th>
+                  <th className="py-3 pr-4">Low</th>
+                  <th className="py-3 pr-4">High</th>
+                  <th className="py-3 pr-4">Customers see</th>
+                  <th className="py-3 pr-5">Status</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {state.map((r) => {
+                  const st = status(r);
+                  const d = draft[r.id];
+                  const lo = parse(d.low), hi = parse(d.high);
+                  const money = crewHourRateCents && lo !== null && hi !== null && validateEstimateBounds(lo, hi).length === 0
+                    ? `${formatCents(Math.round(lo * crewHourRateCents))}–${formatCents(Math.round(hi * crewHourRateCents))}`
+                    : "—";
+                  return (
+                    <tr key={r.id} className={`border-b border-cardline align-middle last:border-0 ${selected.has(r.id) ? "bg-electric/[0.035]" : ""}`}>
+                      <td className="px-5 py-4">
+                        <input type="checkbox" checked={selected.has(r.id)} aria-label={`Select ${r.name}`}
+                               className="h-4 w-4 accent-electric"
+                               onChange={(e) => setSelected((s) => {
+                                 const n = new Set(s); e.target.checked ? n.add(r.id) : n.delete(r.id); return n; })} />
+                      </td>
+                      <td className="py-4 pr-4 font-semibold text-navy">{r.name}</td>
+                      <td className="py-4 pr-4 text-slate">{r.baselineHours !== null ? `${r.baselineHours} hrs` : "—"}</td>
+                      <td className="py-4 pr-4 text-slate">
+                        {r.suggested ? (
+                          <button type="button"
+                                  onClick={() => setDraft((x) => ({ ...x, [r.id]: { low: String(r.suggested!.low), high: String(r.suggested!.high) } }))}
+                                  className="min-h-9 rounded-pill bg-electric/10 px-3 py-1.5 font-semibold text-electric transition hover:bg-electric/15">
+                            Use {r.suggested.low}–{r.suggested.high} hrs
+                          </button>
+                        ) : "—"}
+                      </td>
+                      <td className="py-4 pr-4">
+                        <input type="number" step="0.25" min="0" value={d.low} aria-label={`Low hours for ${r.name}`}
+                               onChange={(e) => setDraft((x) => ({ ...x, [r.id]: { ...x[r.id], low: e.target.value } }))}
+                               className="min-h-10 w-24 rounded-md border border-cardline bg-white px-3 py-2 text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10" />
+                      </td>
+                      <td className="py-4 pr-4">
+                        <input type="number" step="0.25" min="0" value={d.high} aria-label={`High hours for ${r.name}`}
+                               onChange={(e) => setDraft((x) => ({ ...x, [r.id]: { ...x[r.id], high: e.target.value } }))}
+                               className="min-h-10 w-24 rounded-md border border-cardline bg-white px-3 py-2 text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10" />
+                      </td>
+                      <td className="py-4 pr-4 font-medium text-navy">{r.approved ? money : "—"}</td>
+                      <td className="py-4 pr-5">
+                        <Status tone={st.tone} label={st.label} />
+                        {r.blockers.length > 0 && <div className="mt-1 max-w-xs text-xs leading-5 text-slate">{r.blockers.join(" ")}</div>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {selected.size > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-cardline bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(15,30,60,0.08)] backdrop-blur sm:left-auto sm:right-6 sm:bottom-6 sm:w-auto sm:rounded-card sm:border">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 sm:justify-end">
+            <span className="mr-1 text-sm font-semibold text-navy">{selected.size} selected</span>
+            <button type="button" disabled={busy}
+                    onClick={() => {
+                      state.filter((r) => r.suggested && selected.has(r.id)).forEach((r) =>
+                        setDraft((d) => ({ ...d, [r.id]: { low: String(r.suggested!.low), high: String(r.suggested!.high) } })));
+                    }}
+                    className="min-h-10 rounded-pill border border-cardline px-4 py-2 text-sm font-semibold text-navy disabled:opacity-50">
+              Fill suggestions
+            </button>
+            <button type="button" disabled={busy} onClick={() => send([...selected], "save")}
+                    className="min-h-10 rounded-pill border border-cardline px-4 py-2 text-sm font-semibold text-navy disabled:opacity-50">
+              {busy ? "Working…" : "Save"}
+            </button>
+            <button type="button" disabled={busy} onClick={() => send([...selected], "approve")}
+                    className="min-h-10 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
+              {busy ? "Working…" : "Approve for customer estimates"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -226,14 +253,19 @@ const TONE: Record<string, string> = {
   muted: "bg-cardline text-slate",
 };
 
-function Pill({ label, n, tone }: { label: string; n: number; tone: string }) {
+function Summary({ label, value, detail, tone }: { label: string; value: number; detail: string; tone: string }) {
   return (
-    <div className={`rounded-pill px-3 py-1 ${TONE[tone]}`}>
-      <span className="font-semibold">{n}</span> {label}
+    <div className="rounded-card border border-cardline bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate">{label}</p>
+        <span className={`h-2.5 w-2.5 rounded-full ${tone === "good" ? "bg-success" : tone === "info" ? "bg-electric" : tone === "warn" ? "bg-amber-500" : "bg-slate/40"}`} />
+      </div>
+      <p className="mt-1 font-display text-2xl font-bold text-navy">{value}</p>
+      <p className="mt-1 text-xs leading-5 text-slate">{detail}</p>
     </div>
   );
 }
 
 function Status({ tone, label }: { tone: string; label: string }) {
-  return <span className={`inline-block rounded-pill px-2 py-0.5 text-xs ${TONE[tone]}`}>{label}</span>;
+  return <span className={`inline-block rounded-pill px-2.5 py-1 text-xs font-semibold ${TONE[tone]}`}>{label}</span>;
 }

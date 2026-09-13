@@ -8,17 +8,13 @@ type ServiceData = {
   name: string;
   shortDescription: string | null;
   disclaimer: string | null;
-  basePrice: number | null; // cents
-  whileWeThereBasePrice: number | null; // cents
+  basePrice: number | null;
+  whileWeThereBasePrice: number | null;
   startingPriceLabel: string | null;
   active: boolean;
   bookingType: string;
   hasTree: boolean;
 };
-
-function centsToDollarsStr(cents: number | null): string {
-  return cents === null ? "" : (cents / 100).toFixed(2);
-}
 
 export default function ServiceEditForm({ service }: { service: ServiceData }) {
   const router = useRouter();
@@ -30,51 +26,62 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /**
-   * A refusal is not an error, and it has somewhere to send you.
-   *
-   * Activation refuses for reasons the contractor can act on — most often that
-   * an answer in this service's tree leads somewhere that isn't live yet. The
-   * platform already says which one; this holds onto it so the sentence can end
-   * in a link instead of a rule the contractor has to decode.
-   */
   const [blockedBy, setBlockedBy] = useState<
     { id: string | null; slug: string | null; label: string }[]
   >([]);
 
+  function changed(fn: () => void) {
+    fn();
+    setSaved(false);
+    setError(null);
+    setBlockedBy([]);
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Enter a service name before saving.");
+      return;
+    }
+
     setSaving(true);
     setSaved(false);
     setError(null);
     setBlockedBy([]);
 
-    const res = await fetch(`/api/admin/services/${service.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        shortDescription: description || null,
-        disclaimer: disclaimer || null,
-        startingPriceLabel: startingLabel || null,
-        active,
-      }),
-    });
+    try {
+      const res = await fetch(`/api/admin/services/${service.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmedName,
+          shortDescription: description || null,
+          disclaimer: disclaimer || null,
+          startingPriceLabel: startingLabel || null,
+          active,
+        }),
+      });
 
-    setSaving(false);
-    if (res.ok) {
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (!res.ok) {
+        const message = typeof data.message === "string"
+          ? data.message
+          : typeof data.error === "string"
+            ? data.error
+            : "Could not save this service. Nothing was changed.";
+        setError(message);
+        setBlockedBy(Array.isArray(data.prerequisites) ? data.prerequisites : []);
+        return;
+      }
+
       setSaved(true);
       router.refresh();
       setTimeout(() => setSaved(false), 2500);
-    } else {
-      // The response body was being discarded and replaced with "something went
-      // wrong". Nothing had gone wrong: the platform refused, deliberately, and
-      // had already written the reason and where to go. A 409 here is a
-      // decision, so it is reported as one.
-      const data = await res.json().catch(() => ({}) as Record<string, unknown>);
-      const message = typeof data.message === "string" ? data.message : null;
-      setError(message ?? "Something went wrong saving this service.");
-      setBlockedBy(Array.isArray(data.prerequisites) ? data.prerequisites : []);
+    } catch {
+      setError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -84,7 +91,7 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         <label className="text-sm font-medium text-navy">Service name</label>
         <input
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => changed(() => setName(e.target.value))}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         />
       </div>
@@ -93,19 +100,12 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         <label className="text-sm font-medium text-navy">Description (shown to customers)</label>
         <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => changed(() => setDescription(e.target.value))}
           rows={3}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         />
       </div>
 
-      {/* READ-ONLY, deliberately.
-          A price typed here used to go straight to the customer without ever
-          passing through the pricing engine or anyone's approval — the number
-          somebody typed simply became the number a homeowner paid. Prices now
-          have one way in: the Pricing tab derives one from crew hours and
-          material cost, and publishing it is an explicit act that gets
-          stamped. This shows what is published; it does not set it. */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium text-navy">Published base price</label>
@@ -133,7 +133,7 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         </label>
         <input
           value={startingLabel}
-          onChange={(e) => setStartingLabel(e.target.value)}
+          onChange={(e) => changed(() => setStartingLabel(e.target.value))}
           placeholder="Custom Quote"
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         />
@@ -145,16 +145,30 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
         </label>
         <textarea
           value={disclaimer}
-          onChange={(e) => setDisclaimer(e.target.value)}
+          onChange={(e) => changed(() => setDisclaimer(e.target.value))}
           rows={2}
           className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
         />
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-navy">
-        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-        Visible on the site (uncheck to hide from category/browse pages without deleting it)
-      </label>
+      <div className={`rounded-card border p-4 ${active ? "border-success/20 bg-success/[0.05]" : "border-cardline bg-warmwhite/60"}`}>
+        <label className="flex items-start gap-3 text-sm text-navy">
+          <input
+            type="checkbox"
+            checked={active}
+            onChange={(e) => changed(() => setActive(e.target.checked))}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="font-semibold">{active ? "Live on storefront" : "Hidden from storefront"}</span>
+            <span className="mt-1 block text-xs leading-relaxed text-slate">
+              {active
+                ? "Customers can reach this service through the storefront. Turning it off takes it down without deleting its setup."
+                : "This service stays configured in Price2Book, but customers cannot book it until you make it live again."}
+            </span>
+          </span>
+        </label>
+      </div>
 
       {service.hasTree && (
         <p className="rounded-card bg-warmwhite p-3 text-xs text-slate">
@@ -165,18 +179,16 @@ export default function ServiceEditForm({ service }: { service: ServiceData }) {
 
       {error && (
         <div className="space-y-2">
-          <p className="text-sm text-red-600">{error}</p>
+          <p role="alert" className="text-sm text-red-600">{error}</p>
           {blockedBy.length > 0 && (
             <ul className="space-y-1 text-sm">
               {blockedBy.map((p, i) => (
                 <li key={p.id ?? p.slug ?? i}>
                   {p.id ? (
                     <a href={`/dashboard/services/${p.id}`} className="font-medium text-electric underline">
-                      Activate {p.label} first
+                      Make {p.label} live first
                     </a>
                   ) : (
-                    // No row to send them to — a handoff target they don't own,
-                    // or a diagnostic they don't offer. Saying so beats a dead link.
                     <span className="text-navy">{p.label} — nothing to open yet</span>
                   )}
                 </li>

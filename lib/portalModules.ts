@@ -70,7 +70,7 @@ export const PORTAL_MODULES: PortalModule[] = [
   { href: "/dashboard/service-area", name: "Service Area", group: "availability",
     blurb: "The ZIP codes you serve, checked before anyone can book." },
   { href: "/dashboard/jobber/crews", name: "Crew Eligibility", group: "availability",
-    blurb: "Which crews can take which work." },
+    blurb: "Which synced Jobber users count toward customer-facing booking capacity." },
 
   { href: "/dashboard/design", name: "Storefront Design", group: "storefront",
     blurb: "Choose from six designs and see each one with your own logo and colors." },
@@ -90,6 +90,6 @@ export const PORTAL_MODULES: PortalModule[] = [
  * dashboard is exactly where it erodes — one plausible tile at a time.
  */
 export const OUT_OF_SCOPE = [
-  "Customers / CRM", "Invoicing and payments", "Payroll", "Dispatch and routing",
+  "Customers / CRM", "Invoicing and payment operations", "Payroll", "Dispatch and routing",
   "Time tracking", "Marketing campaigns", "Business reporting",
 ] as const;

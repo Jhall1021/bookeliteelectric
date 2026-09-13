@@ -63,6 +63,7 @@ export default function LaborWizardPanel({ tasks, hasCrewRate }: { tasks: Wizard
   // Populated once, when review is first reached — see enterReview().
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [busy, setBusy] = useState(false);
+  const [saveUncertain, setSaveUncertain] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -191,6 +192,8 @@ export default function LaborWizardPanel({ tasks, hasCrewRate }: { tasks: Wizard
   }
 
   async function acceptProposals() {
+    if (busy || saveUncertain) return;
+
     const rows = tasks
       .map((t) => proposals[t.key])
       .filter((p): p is Exclude<TaskProposal, { kind: "crew_mismatch" }> => !!p && p.kind !== "crew_mismatch")
@@ -211,24 +214,48 @@ export default function LaborWizardPanel({ tasks, hasCrewRate }: { tasks: Wizard
     }
     setBusy(true);
     setError(null);
+
+    let res: Response;
     try {
-      const res = await fetch("/api/portal/labor-tasks", {
+      res = await fetch("/api/portal/labor-tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ acceptances: rows }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not save these proposals.");
-      const totalServices = (data.results as { servicesUpdated: number }[]).reduce(
-        (sum, r) => sum + r.servicesUpdated, 0
-      );
-      setNote(`Saved. ${totalServices} service${totalServices === 1 ? "" : "s"} updated.`);
-      setStep({ name: "done" });
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
+    } catch {
+      // Once PATCH has left the browser, a lost response is ambiguous: the
+      // serializable transaction may have committed. Disable blind retries
+      // until fresh server state is loaded.
+      setSaveUncertain(true);
+      setError("Price2Book lost the response while saving. Reload the current values before trying again so these labor times are not submitted twice.");
       setBusy(false);
+      return;
     }
+
+    const data = await res.json().catch(() => null) as
+      | { error?: string; results?: { servicesUpdated: number }[] }
+      | null;
+
+    if (!res.ok) {
+      setError(data?.error ?? "Could not save these proposals. Nothing was changed.");
+      setBusy(false);
+      return;
+    }
+
+    if (!data || !Array.isArray(data.results)) {
+      // A successful HTTP response without the expected receipt still means
+      // the write may have committed. Make reconciliation explicit rather
+      // than inventing a success count or allowing another submission.
+      setSaveUncertain(true);
+      setError("The labor update may have saved, but Price2Book could not confirm the result. Reload the current values before trying again.");
+      setBusy(false);
+      return;
+    }
+
+    const totalServices = data.results.reduce((sum, r) => sum + r.servicesUpdated, 0);
+    setNote(`Saved. ${totalServices} service${totalServices === 1 ? "" : "s"} updated.`);
+    setStep({ name: "done" });
+    setBusy(false);
   }
 
   const taskByKey = (key: string) => tasks.find((t) => t.key === key)!;
@@ -258,6 +285,15 @@ export default function LaborWizardPanel({ tasks, hasCrewRate }: { tasks: Wizard
       <h2 className="font-display text-lg font-bold text-navy">Calibrate your labor times</h2>
 
       {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+      {saveUncertain && (
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-2 rounded-pill border border-cardline px-3 py-1.5 text-sm font-semibold text-navy"
+        >
+          Reload current values
+        </button>
+      )}
       {note && step.name === "done" && <p className="mt-3 text-sm text-success">{note}</p>}
 
       {step.name === "anchor-time" && (
@@ -479,10 +515,10 @@ export default function LaborWizardPanel({ tasks, hasCrewRate }: { tasks: Wizard
             })}
           </div>
           <button
-            type="button" disabled={busy || !hasSelection} onClick={acceptProposals}
+            type="button" disabled={busy || !hasSelection || saveUncertain} onClick={acceptProposals}
             className="mt-4 rounded-pill bg-electric px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Accept and save
+            {busy ? "Saving…" : "Accept and save"}
           </button>
           {!hasSelection && (
             <p className="mt-2 text-xs text-slate">

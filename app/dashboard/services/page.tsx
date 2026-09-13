@@ -26,10 +26,6 @@ export default async function AdminServicesPage() {
         include: {
           canonicalCategory: CANONICAL_CATEGORY_SELECT,
           services: {
-            // Was ordered by name, which put "200-Amp Service Upgrade" at the top
-            // of Panel Upgrades regardless of how rarely anyone books one. Name is
-            // the tiebreak now, so services added before ordering existed still
-            // sit somewhere predictable.
             orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
             select: {
               id: true, slug: true, name: true, templateKey: true,
@@ -45,10 +41,6 @@ export default async function AdminServicesPage() {
           },
         },
       }),
-      // The SAME readiness engine the dashboard uses — a services list that
-      // computed its own separate notion of "ready" was how this page and
-      // the dashboard's card came to quietly disagree about the same
-      // service's state.
       assessOnboarding(db, contractorId),
       catalogPromises(db, contractorId),
     ]);
@@ -63,9 +55,6 @@ export default async function AdminServicesPage() {
 
     const all = categories.flatMap((c) => c.services);
     const legacyMultiplierCount = all.filter((s) => s.materialMultiplier !== null).length;
-    // Matches the dashboard's own ServiceStatusBadge exactly — blockers only,
-    // never warnings, so the two surfaces can't quietly disagree about which
-    // services count as "needs attention".
     const blockedSlugs = new Set(readiness.blockers.map((f) => f.serviceSlug).filter((s): s is string => !!s));
 
     const categoryGroups: CategoryGroup[] = categories.map((cat) => ({
@@ -145,8 +134,8 @@ export default async function AdminServicesPage() {
           <div>
             <h1 className="font-display text-2xl font-bold text-navy">Services &amp; Pricing</h1>
             <p className="mt-1 text-sm text-slate">
-              Click any service to review its price, labor and questions. Changes apply
-              immediately once saved.
+              Click any service to review its details, labor, materials and customer questions.
+              Customer-facing prices change only when you explicitly publish or approve them.
             </p>
           </div>
           <Link

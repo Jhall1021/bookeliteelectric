@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatCents } from "@/lib/flow-types";
 
 /**
@@ -43,6 +44,7 @@ export type BaselineRow = {
 const money = (c: number) => formatCents(c);
 
 export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow[] }) {
+  const router = useRouter();
   const [visible, setVisible] = useState(rows);
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(rows.filter((r) => r.baseline).map((r) => r.canonicalMaterialId))
@@ -60,15 +62,27 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
 
   async function acceptSelected() {
     const rowsToAccept = visible.filter((r) => selected.has(r.canonicalMaterialId) && r.baseline);
-    if (rowsToAccept.length === 0) return;
+    if (rowsToAccept.length === 0 || busy) return;
     setBusy(true); setError(null); setNote(null);
     try {
       const res = await fetch("/api/portal/material-baselines", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "accept", baselineVersionIds: rowsToAccept.map((r) => r.baseline!.id) }),
       });
-      const data = await res.json() as { accepted: number; problems: { baselineVersionId: string; code: string }[] };
-      if (!res.ok) throw new Error((data as unknown as { error?: string }).error ?? "Could not accept the selected baselines.");
+      const data = await res.json().catch(() => null) as {
+        accepted?: number;
+        problems?: { baselineVersionId: string; code: string }[];
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        setError(data?.error ?? "Could not accept the selected starting costs. Nothing else was changed from this screen.");
+        return;
+      }
+      if (!data || typeof data.accepted !== "number" || !Array.isArray(data.problems)) {
+        setError("Price2Book saved a response we couldn't verify. Refresh this page before accepting these costs again.");
+        router.refresh();
+        return;
+      }
 
       // Each row is keyed here by ITS OWN baselineVersionId, not by position
       // — a problem only removes the row it actually names. Everything else
@@ -97,30 +111,39 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
           `Accepted ${data.accepted} of ${rowsToAccept.length}. ${parts.join("; ")}. Still shown below for you to act on.`
         );
       }
-    } catch (e) {
-      setError((e as Error).message);
+    } catch {
+      // This is a write. A lost browser response does not prove the write
+      // failed, so do not invite a blind retry against stale rows.
+      setError("Price2Book lost the response while saving. Refresh this page to confirm which costs were accepted before trying again.");
+      router.refresh();
     } finally { setBusy(false); }
   }
 
   async function submitOverride(row: BaselineRow) {
+    if (busy) return;
     const raw = overrideDraft[row.canonicalMaterialId];
     const dollars = Number(raw);
-    if (!raw || !Number.isFinite(dollars) || dollars < 0) {
-      setError(`Enter a cost of zero or more for ${row.name}.`);
+    const cents = Math.round(dollars * 100);
+    if (!raw || !Number.isFinite(dollars) || dollars < 0 || !Number.isSafeInteger(cents)) {
+      setError(`Enter a valid cost of zero or more for ${row.name}.`);
       return;
     }
     setBusy(true); setError(null); setNote(null);
     try {
       const res = await fetch("/api/portal/material-baselines", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "override", canonicalMaterialId: row.canonicalMaterialId, unitCostCents: Math.round(dollars * 100) }),
+        body: JSON.stringify({ action: "override", canonicalMaterialId: row.canonicalMaterialId, unitCostCents: cents }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not save that cost.");
+      const data = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) {
+        setError(data?.error ?? "Could not save that material cost.");
+        return;
+      }
       remove([row.canonicalMaterialId]);
       setNote(`Saved your own cost for ${row.name}.`);
-    } catch (e) {
-      setError((e as Error).message);
+    } catch {
+      setError(`Price2Book lost the response while saving ${row.name}. Refresh this page to confirm the current cost before trying again.`);
+      router.refresh();
     } finally { setBusy(false); }
   }
 
@@ -158,7 +181,7 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
                   <div>
                     <div className="flex items-center gap-2">
                       {r.baseline && (
-                        <input type="checkbox" checked={selected.has(r.canonicalMaterialId)}
+                        <input type="checkbox" checked={selected.has(r.canonicalMaterialId)} disabled={busy}
                                aria-label={`Include ${r.name} in the batch accept`}
                                onChange={(e) => setSelected((s) => {
                                  const n = new Set(s);
@@ -198,7 +221,8 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
                       <span className="text-sm text-slate">$</span>
                       <input type="number" step="0.01" min="0" placeholder="0.00"
                              value={overrideDraft[r.canonicalMaterialId] ?? ""}
-                             onChange={(e) => setOverrideDraft((d) => ({ ...d, [r.canonicalMaterialId]: e.target.value }))}
+                             disabled={busy}
+                             onChange={(e) => { setOverrideDraft((d) => ({ ...d, [r.canonicalMaterialId]: e.target.value })); setError(null); }}
                              className="w-24 rounded border border-cardline px-2 py-1 text-sm"
                              aria-label={`Your cost per ${r.unit} for ${r.name}`} />
                       {/* Always the CANONICAL unit, never the baseline's own
@@ -208,13 +232,13 @@ export default function MaterialBaselineBatchPanel({ rows }: { rows: BaselineRow
                           or bulk. */}
                       <span className="text-sm text-slate">per {r.unit}</span>
                       <button type="button" disabled={busy} onClick={() => submitOverride(r)}
-                              className="rounded-pill border border-cardline px-3 py-1 text-sm font-semibold text-navy">
+                              className="rounded-pill border border-cardline px-3 py-1 text-sm font-semibold text-navy disabled:opacity-50">
                         Save this cost instead
                       </button>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => setOverrideOpen((s) => new Set(s).add(r.canonicalMaterialId))}
-                            className="text-sm font-semibold text-electric underline-offset-2 hover:underline">
+                    <button type="button" disabled={busy} onClick={() => setOverrideOpen((s) => new Set(s).add(r.canonicalMaterialId))}
+                            className="text-sm font-semibold text-electric underline-offset-2 hover:underline disabled:opacity-50">
                       Enter your own cost instead
                     </button>
                   )}

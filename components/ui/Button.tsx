@@ -1,35 +1,26 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes } from "react";
 
-/**
- * The one button treatment for the staff and contractor admin surfaces.
- *
- * Neither surface had a `<Button>` before this — every call site wrote its
- * own Tailwind classes, which is how a page ends up with three different
- * blues for "primary". `buttonClasses` is exported so a `<Link>` that must
- * look like a button (routing, not submitting) can share the exact same
- * treatment as the real `<button>` below rather than a hand-copied twin
- * that drifts the next time this file changes.
- */
+/** One button language for both Price2Book admin surfaces. */
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md";
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-electric text-white hover:bg-electric-hover disabled:hover:bg-electric",
-  secondary: "border border-cardline bg-white text-navy hover:border-electric disabled:hover:border-cardline",
-  ghost: "text-navy hover:bg-warmwhite disabled:hover:bg-transparent",
-  danger: "border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:hover:bg-white",
+  primary: "bg-accent text-white shadow-sm hover:bg-accent-hover disabled:hover:bg-accent",
+  secondary: "border border-line bg-white text-ink shadow-sm hover:border-accent/35 hover:bg-canvas disabled:hover:border-line",
+  ghost: "text-ink-soft hover:bg-canvas hover:text-ink disabled:hover:bg-transparent",
+  danger: "border border-red-200 bg-white text-red-700 shadow-sm hover:bg-red-50 disabled:hover:bg-white",
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-xs",
-  md: "px-4 py-2 text-sm",
+  sm: "min-h-8 px-3 py-1.5 text-[12px]",
+  md: "min-h-10 px-4 py-2 text-[13px]",
 };
 
 export function buttonClasses(variant: ButtonVariant = "primary", size: ButtonSize = "md", className = ""): string {
   return [
-    "inline-flex items-center justify-center gap-2 rounded-pill font-semibold transition",
-    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric",
+    "inline-flex items-center justify-center gap-2 rounded-[10px] font-bold tracking-[-0.01em] transition-all duration-150",
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
     "disabled:cursor-not-allowed disabled:opacity-50",
     VARIANT[variant], SIZE[size], className,
   ].filter(Boolean).join(" ");
@@ -41,7 +32,6 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** Swaps the label and disables the button — the same convention as the platform's existing SubmitButton, kept for one consistent "this is working" cue across both surfaces. */
   pending?: boolean;
   pendingLabel?: string;
 }) {

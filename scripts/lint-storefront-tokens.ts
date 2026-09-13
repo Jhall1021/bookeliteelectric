@@ -15,11 +15,6 @@ import { sourceFiles } from "./_sourceFiles";
 const ROOTS = ["app", "components", "styles"];
 
 /**
- * The admin is Price2Book's own product surface, not a contractor storefront.
- * It should keep looking like Price2Book whoever is signed in, so it is
- * deliberately outside the theme system rather than lagging behind it.
- */
-/**
  * Directories this linter deliberately does not police.
  *
  * The admin was never themed. The MARKETING site is a stronger case: a
@@ -37,17 +32,18 @@ const SKIP_DIRS = [
 ];
 
 /**
- * Two files legitimately hold color literals.
+ * Files that legitimately hold color literals.
  *
- * lib/theme/tokens.ts is the definition site — the values have to live
- * somewhere. lib/email.ts renders HTML email, where custom properties are not
- * reliably supported; those colors are resolved server-side and inlined, and
- * making that theme-aware is its own piece of work.
+ * `styles/admin.css` is scoped under `.p2b-app` by the shared staff/contractor
+ * shell. It is Price2Book's own application palette, not a contractor theme;
+ * keeping this explicit exception narrow preserves the storefront guard on
+ * shared globals.css.
  */
 const ALLOWED = new Set([
   "lib/theme/tokens.ts", // the definition site — the values live somewhere
   "lib/email.ts", // HTML email; custom properties are not reliable in clients
   "tailwind.config.ts", // the mapping layer; its rgb() is a helper, not CSS
+  "styles/admin.css", // Price2Book-owned admin palette, scoped to .p2b-app
   // Rendered by next/og in the edge runtime, not by a browser: there is no
   // :root and no custom properties to resolve, so the platform's own colors
   // have to be written out. Both are Price2Book's marks, never a contractor's.

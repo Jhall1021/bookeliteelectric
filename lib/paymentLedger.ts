@@ -111,16 +111,3 @@ export function preWorkProjectConflict(
   const slugs = services.filter((s) => s.requiresPreWorkVisit).map((s) => s.slug).sort();
   return { conflict: slugs.length > 1, slugs };
 }
-
-/**
- * The deposit a booking requires, from the services actually on it.
- *
- * Returns 0 rather than null when nothing is due: this function is only called
- * when a booking IS being evaluated, and "evaluated, none due" is a different
- * fact from "never evaluated". Null belongs to bookings this system never saw.
- */
-export function depositDueCentsFor(
-  services: readonly { depositCents: number | null }[]
-): number {
-  return services.reduce((sum, s) => sum + (s.depositCents ?? 0), 0);
-}

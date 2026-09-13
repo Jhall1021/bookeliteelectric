@@ -10,8 +10,50 @@ type Settings = {
   defaultPermitAdminCents: number;
 };
 
+type SettingsImpact = {
+  affected: number;
+  judged: number;
+  raised: number;
+  lowered: number;
+  largestChangeCents: number;
+  examples: {
+    slug: string;
+    kind: "standalone" | "same-visit";
+    publishedCents: number;
+    modelCents: number;
+  }[];
+};
+
+type CompareResult = {
+  message: string;
+  differences?: {
+    slug: string;
+    name: string;
+    publishedPrimary: number | null;
+    modelPrimary: number | null;
+    publishedAddOn: number | null;
+    modelAddOn: number | null;
+  }[];
+};
+
 function toDollars(cents: number): string {
   return (cents / 100).toFixed(2);
+}
+
+function formatMoney(cents: number) {
+  return `${cents < 0 ? "−" : ""}$${(Math.abs(cents) / 100).toFixed(0)}`;
+}
+
+function dollarsToCents(value: string, label: string, allowZero: boolean): number {
+  const normalized = value.trim();
+  if (normalized === "") throw new Error(`${label} is required.`);
+  const dollars = Number(normalized);
+  if (!Number.isFinite(dollars) || dollars < 0 || (!allowZero && dollars === 0)) {
+    throw new Error(`${label} must be ${allowZero ? "zero or more" : "greater than zero"}.`);
+  }
+  const cents = Math.round(dollars * 100);
+  if (!Number.isSafeInteger(cents)) throw new Error(`${label} is too large.`);
+  return cents;
 }
 
 export default function PricingSettingsForm({ settings }: { settings: Settings | null }) {
@@ -23,158 +65,242 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
-
   const [recalculating, setRecalculating] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<CompareResult | null>(null);
+  const [pendingImpact, setPendingImpact] = useState<SettingsImpact | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
+
+  function payload() {
+    return {
+      crewHourRateCents: dollarsToCents(rate, "Crew-hour rate", true),
+      primaryMinimumCents: dollarsToCents(minimum, "Service-call minimum", true),
+      roundingIncrementCents: dollarsToCents(rounding, "Rounding increment", false),
+      defaultPermitAdminCents: dollarsToCents(permit, "Default permit / admin allowance", true),
+    };
+  }
+
+  function changed() {
+    setPendingImpact(null);
+    setSettingsSaved(false);
+    setSaveError(null);
+  }
+
+  async function saveSettings(acknowledgeImpact?: number) {
+    if (savingSettings) return;
+
+    let body: ReturnType<typeof payload>;
+    try {
+      body = payload();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Check the pricing values and try again.");
+      return;
+    }
+
+    setSavingSettings(true);
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/admin/pricing-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, ...(acknowledgeImpact !== undefined ? { acknowledgeImpact } : {}) }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setPendingImpact(null);
+        setSettingsSaved(true);
+        router.refresh();
+        setTimeout(() => setSettingsSaved(false), 2500);
+        return;
+      }
+
+      if (res.status === 409 && data.error === "IMPACT_CONFIRMATION_REQUIRED" && data.impact) {
+        setPendingImpact(data.impact as SettingsImpact);
+        return;
+      }
+
+      setSaveError(typeof data.error === "string" ? data.error : "Something went wrong saving settings. Nothing was changed.");
+    } catch {
+      setSaveError("Could not reach Price2Book. Check your connection and try again; nothing was changed.");
+    } finally {
+      setSavingSettings(false);
+    }
+  }
 
   async function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
-    setSavingSettings(true);
-    setError(null);
-
-    const res = await fetch("/api/admin/pricing-settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        crewHourRateCents: Math.round(parseFloat(rate) * 100),
-        primaryMinimumCents: Math.round(parseFloat(minimum) * 100),
-        roundingIncrementCents: Math.round(parseFloat(rounding) * 100),
-        defaultPermitAdminCents: Math.round(parseFloat(permit) * 100),
-      }),
-    });
-
-    setSavingSettings(false);
-    if (res.ok) {
-      setSettingsSaved(true);
-      router.refresh();
-      setTimeout(() => setSettingsSaved(false), 2500);
-    } else {
-      setError("Something went wrong saving settings.");
-    }
+    setPendingImpact(null);
+    await saveSettings();
   }
 
   async function handleRecalculate() {
+    if (recalculating) return;
     setRecalculating(true);
-    setError(null);
+    setCompareError(null);
+    try {
+      const res = await fetch("/api/admin/pricing-settings/recalculate", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
 
-    const res = await fetch("/api/admin/pricing-settings/recalculate", { method: "POST" });
-    setRecalculating(false);
-
-    if (res.ok) {
-      const data = await res.json();
-      setResult(data);
-      router.refresh();
-    } else {
-      setError("Recalculation failed — no prices were changed.");
+      if (res.ok) {
+        setResult(data as CompareResult);
+        router.refresh();
+      } else {
+        setCompareError(typeof data.error === "string" ? data.error : "Comparison failed — no prices were changed.");
+      }
+    } catch {
+      setCompareError("Could not reach Price2Book. Try the comparison again when your connection is available.");
+    } finally {
+      setRecalculating(false);
     }
   }
 
+  const inputClass = "mt-2 w-full rounded-card border border-cardline bg-white px-4 py-3 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10";
+
   return (
-    <div className="mt-6 max-w-xl space-y-8">
-      <form onSubmit={handleSaveSettings} className="space-y-4 rounded-card border border-cardline bg-white p-6 shadow-card">
-        <div>
-          {/* Was "productive tech-hour", which read as a per-person rate and
-              produced a second-technician charge on the TV tier twice. One
-              crew is one van: a lead and a helper, both already inside this
-              number. */}
-          <label className="text-sm font-medium text-navy">Crew-hour rate ($ per hour, per van)</label>
-          <input
-            type="number" step="0.01" min="0" required
-            value={rate} onChange={(e) => setRate(e.target.value)}
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-navy">Service-call minimum ($)</label>
-          <input
-            type="number" step="0.01" min="0" required
-            value={minimum} onChange={(e) => setMinimum(e.target.value)}
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
-          />
-          <p className="mt-1 text-xs text-slate">
-            The first service on a visit never prices below this, whatever its
-            duration. Set independently of the rate — lowering the rate does
-            not lower this floor. Never applies to same-visit add-ons.
+    <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:items-start">
+      <form onSubmit={handleSaveSettings} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
+        <div className="border-b border-cardline bg-warmwhite px-6 py-5">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Company-wide model</p>
+          <h2 className="mt-1 font-display text-lg font-bold text-navy">Your pricing foundation</h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate">
+            These values describe how your company prices labor. They support the model; they do not publish a customer-facing price on their own.
           </p>
         </div>
-        <div>
-          <label className="text-sm font-medium text-navy">Rounding increment ($)</label>
-          <input
-            type="number" step="0.01" min="0.01" required
-            value={rounding} onChange={(e) => setRounding(e.target.value)}
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
-          />
+
+        <div className="grid gap-5 p-6 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="text-sm font-semibold text-navy">Crew-hour rate</label>
+            <p className="mt-1 text-xs leading-5 text-slate">
+              One van, per hour. If a lead and helper normally work together, both are already represented in this number.
+            </p>
+            <div className="relative max-w-sm">
+              <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
+              <input type="number" step="0.01" min="0" required value={rate}
+                onChange={(e) => { setRate(e.target.value); changed(); }}
+                className={`${inputClass} pl-8`} />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-navy">Service-call minimum</label>
+            <p className="mt-1 text-xs leading-5 text-slate">The floor for the first service on a visit. Same-visit add-ons are not forced up to this minimum.</p>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
+              <input type="number" step="0.01" min="0" required value={minimum}
+                onChange={(e) => { setMinimum(e.target.value); changed(); }}
+                className={`${inputClass} pl-8`} />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-navy">Rounding increment</label>
+            <p className="mt-1 text-xs leading-5 text-slate">The increment the model uses when it rounds a calculated price.</p>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
+              <input type="number" step="0.01" min="0.01" required value={rounding}
+                onChange={(e) => { setRounding(e.target.value); changed(); }}
+                className={`${inputClass} pl-8`} />
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-sm font-semibold text-navy">Default permit / admin allowance</label>
+            <p className="mt-1 text-xs leading-5 text-slate">Used only when an individual service does not already have its own permit or administrative cost.</p>
+            <div className="relative max-w-sm">
+              <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
+              <input type="number" step="0.01" min="0" required value={permit}
+                onChange={(e) => { setPermit(e.target.value); changed(); }}
+                className={`${inputClass} pl-8`} />
+            </div>
+          </div>
         </div>
-        <div>
-          <label className="text-sm font-medium text-navy">Default permit/admin allowance ($)</label>
-          <input
-            type="number" step="0.01" min="0" required
-            value={permit} onChange={(e) => setPermit(e.target.value)}
-            className="mt-1 w-full rounded-card border border-cardline px-4 py-2.5 text-sm focus:border-electric"
-          />
-          <p className="mt-1 text-xs text-slate">Used when a service has no of its own permit/admin cost on file.</p>
-        </div>
 
-        <button
-          type="submit"
-          disabled={savingSettings}
-          className="w-full rounded-pill border border-electric py-3 text-sm font-semibold text-electric transition hover:bg-electric/5 disabled:opacity-50"
-        >
-          {savingSettings ? "Saving..." : settingsSaved ? "✓ Settings Saved" : "Save Settings (doesn't change prices yet)"}
-        </button>
-      </form>
+        {saveError && (
+          <div role="alert" className="mx-6 mb-6 rounded-card border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {saveError}
+          </div>
+        )}
 
-      {/* Was "Recalculate All Prices", a red button that rewrote every
-          published price from the legacy workbook fields. It would have
-          reverted the whole August reconciliation in one click. Now it
-          reports and writes nothing. */}
-      <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-        <h2 className="font-display text-base font-bold text-navy">Check Prices Against the Model</h2>
-        <p className="mt-1 text-sm text-slate">
-          Shows where a published price differs from what its crew-hours and materials
-          produce. Changes nothing — publishing happens one service at a time, so a
-          settings change can never quietly reprice the catalog.
-        </p>
-
-        <button
-          onClick={handleRecalculate}
-          disabled={recalculating}
-          className="mt-4 rounded-pill border border-electric px-6 py-2.5 text-sm font-semibold text-electric transition hover:bg-electric/5 disabled:opacity-50"
-        >
-          {recalculating ? "Checking..." : "Check for Differences"}
-        </button>
-
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-
-        {result && (
-          <div className="mt-5">
-            <p className="text-sm font-semibold text-navy">{result.message}</p>
-            {result.differences?.length > 0 && (
-              <div className="mt-2 max-h-64 overflow-y-auto rounded-card border border-cardline">
-                {result.differences.map((d: any) => (
-                  <div key={d.slug} className="border-b border-cardline px-3 py-2 text-xs last:border-0">
-                    <div className="font-medium text-navy">{d.name}</div>
-                    <div className="mt-0.5 text-slate">
-                      {d.publishedPrimary !== null && d.modelPrimary !== null && (
-                        <span>
-                          standalone ${(d.publishedPrimary / 100).toFixed(0)} vs model $
-                          {(d.modelPrimary / 100).toFixed(0)}
-                        </span>
-                      )}
-                      {d.publishedAddOn !== null && d.modelAddOn !== null && (
-                        <span className="ml-3">
-                          same-visit ${(d.publishedAddOn / 100).toFixed(0)} vs model $
-                          {(d.modelAddOn / 100).toFixed(0)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+        {pendingImpact && (
+          <div className="mx-6 mb-6 rounded-card border border-amber-300 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-navy">Review the model impact before saving</p>
+            <p className="mt-1 text-sm leading-6 text-slate">
+              These inputs would leave <strong className="text-navy">{pendingImpact.affected}</strong> of {pendingImpact.judged} published price points outside the current model tolerance. No customer price will change from this save.
+            </p>
+            <div className="mt-3 grid gap-2 text-xs text-slate sm:grid-cols-3">
+              <div className="rounded-md bg-white px-3 py-2"><strong className="block text-navy">{pendingImpact.raised}</strong> model prices higher</div>
+              <div className="rounded-md bg-white px-3 py-2"><strong className="block text-navy">{pendingImpact.lowered}</strong> model prices lower</div>
+              <div className="rounded-md bg-white px-3 py-2"><strong className="block text-navy">{formatMoney(pendingImpact.largestChangeCents)}</strong> largest gap</div>
+            </div>
+            {pendingImpact.examples.length > 0 && (
+              <div className="mt-3 space-y-1 text-xs text-slate">
+                {pendingImpact.examples.map((example) => (
+                  <p key={`${example.slug}-${example.kind}`}>
+                    <span className="font-medium text-navy">{example.slug}</span> · {example.kind === "standalone" ? "standalone" : "same visit"}: {formatMoney(example.publishedCents)} published → {formatMoney(example.modelCents)} model
+                  </p>
                 ))}
               </div>
             )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" disabled={savingSettings}
+                onClick={() => void saveSettings(pendingImpact.affected)}
+                className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
+                {savingSettings ? "Saving…" : `Save and acknowledge ${pendingImpact.affected} differences`}
+              </button>
+              <button type="button" disabled={savingSettings} onClick={() => setPendingImpact(null)}
+                className="rounded-pill border border-cardline bg-white px-5 py-2.5 text-sm font-semibold text-navy disabled:opacity-50">
+                Cancel
+              </button>
+            </div>
           </div>
         )}
+
+        <div className="flex flex-col gap-3 border-t border-cardline bg-warmwhite px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate">Saving updates model inputs only. Published customer prices remain unchanged.</p>
+          <button type="submit" disabled={savingSettings || Boolean(pendingImpact)}
+            className="rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
+            {savingSettings ? "Saving..." : settingsSaved ? "✓ Saved" : "Save pricing settings"}
+          </button>
+        </div>
+      </form>
+
+      <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
+        <div className="border-b border-cardline px-5 py-5">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate">Read-only check</p>
+          <h2 className="mt-1 font-display text-lg font-bold text-navy">Compare to the model</h2>
+          <p className="mt-2 text-sm leading-6 text-slate">See where a published price differs from the current labor-and-material model. This check writes nothing.</p>
+        </div>
+
+        <div className="p-5">
+          <button onClick={() => void handleRecalculate()} disabled={recalculating}
+            className="w-full rounded-pill border border-electric px-5 py-2.5 text-sm font-semibold text-electric transition hover:bg-electric/5 disabled:opacity-50">
+            {recalculating ? "Checking..." : "Check for differences"}
+          </button>
+
+          {compareError && <p role="alert" className="mt-3 rounded-card bg-red-50 px-3 py-2 text-sm text-red-700">{compareError}</p>}
+
+          {result && (
+            <div className="mt-5">
+              <p className="text-sm font-semibold text-navy">{result.message}</p>
+              {result.differences && result.differences.length > 0 ? (
+                <div className="mt-3 max-h-80 overflow-y-auto rounded-card border border-cardline">
+                  {result.differences.map((d) => (
+                    <div key={d.slug} className="border-b border-cardline px-4 py-3 text-xs last:border-0">
+                      <div className="font-semibold text-navy">{d.name}</div>
+                      <div className="mt-1 space-y-1 text-slate">
+                        {d.publishedPrimary !== null && d.modelPrimary !== null && <p>Standalone: {formatMoney(d.publishedPrimary)} published · {formatMoney(d.modelPrimary)} model</p>}
+                        {d.publishedAddOn !== null && d.modelAddOn !== null && <p>Same visit: {formatMoney(d.publishedAddOn)} published · {formatMoney(d.modelAddOn)} model</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-slate">No service-by-service changes are made from this screen.</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

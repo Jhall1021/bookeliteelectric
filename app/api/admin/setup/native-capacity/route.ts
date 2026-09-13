@@ -14,10 +14,14 @@ import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 
 export async function PATCH(req: Request) {
-  let body: { concurrentJobs?: unknown };
-  try { body = await req.json(); } catch {
+  let parsed: unknown;
+  try { parsed = await req.json(); } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as { concurrentJobs?: unknown };
 
   // A blank box is "not answered" and clears the value, which readiness then
   // blocks on. Zero is refused rather than stored: a contractor who can run no
@@ -33,10 +37,23 @@ export async function PATCH(req: Request) {
     });
   }
 
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1 || n > 100) {
+  // Forms may send a numeric string, but booleans/objects must not be allowed
+  // through JavaScript's Number() coercion (Number(true) === 1). Capacity is a
+  // deliberate operating decision, not something malformed JSON can invent.
+  if (
+    (typeof raw !== "number" && typeof raw !== "string") ||
+    (typeof raw === "string" && raw.trim() === "")
+  ) {
     return NextResponse.json(
-      { error: "Tell us a whole number of jobs, at least 1." },
+      { error: "Tell us a whole number of jobs between 1 and 100." },
+      { status: 400 }
+    );
+  }
+
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < 1 || n > 100) {
+    return NextResponse.json(
+      { error: "Tell us a whole number of jobs between 1 and 100." },
       { status: 400 }
     );
   }

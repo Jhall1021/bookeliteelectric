@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 import { previewStep } from "@/lib/adminQuestionPreview";
 
 /**
@@ -24,12 +24,30 @@ export async function POST(req: Request, { params }: { params: { serviceId: stri
   } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
-  const answers = (body as { answers?: unknown })?.answers;
+
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+
+  const answers = (body as { answers?: unknown }).answers;
   if (answers !== undefined && (typeof answers !== "object" || answers === null || Array.isArray(answers))) {
     return NextResponse.json({ error: "answers must be an object of question key -> answer value" }, { status: 400 });
   }
 
-  return withAdminContractor(async (db, ctx) => {
+  const normalizedAnswers: Record<string, string> = {};
+  if (answers) {
+    for (const [key, value] of Object.entries(answers)) {
+      if (typeof value !== "string") {
+        return NextResponse.json(
+          { error: `Answer for ${key} must be text.` },
+          { status: 400 }
+        );
+      }
+      normalizedAnswers[key] = value;
+    }
+  }
+
+  return withAdminRoute(async (db, ctx) => {
     // Scoped by the guard — a service belonging to another contractor
     // resolves the same way a nonexistent one does, via loadServiceForResolution's
     // own contractor-owner check.
@@ -41,7 +59,7 @@ export async function POST(req: Request, { params }: { params: { serviceId: stri
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
 
-    const outcome = await previewStep(db, params.serviceId, (answers as Record<string, string>) ?? {});
+    const outcome = await previewStep(db, params.serviceId, normalizedAnswers);
     return NextResponse.json(outcome);
   });
 }

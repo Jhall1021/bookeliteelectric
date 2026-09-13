@@ -47,28 +47,52 @@ export default async function ServiceAreaPage() {
   );
 
   const totalSelected = areas[0]?.active ? areas[0].zipCodes.length : 0;
+  const selectedCounties = counties.filter((c) => c.selected > 0).length;
 
   return (
-    <div>
-      <h1 className="font-display text-2xl font-bold text-navy">Service Area</h1>
-      <p className="mt-1 text-sm text-slate">
-        Where you&rsquo;ll travel. Checkout turns away any booking whose ZIP code
-        isn&rsquo;t selected here.
-      </p>
-
-      {/* Worth saying plainly: this page can stop the business taking work.
-          Checkout used to accept any ZIP because it created an empty service
-          area on the fly to satisfy its own check. Now the list is real, which
-          also makes an empty one a closed door. */}
-      {totalSelected === 0 && zips.length > 0 && (
-        <p className="mt-4 rounded-card border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>Nothing selected.</strong> Nobody can book online until at least one
-          county is ticked — checkout fails closed rather than accepting bookings from
-          anywhere.
+    <div className="mx-auto w-full max-w-5xl">
+      <header className="border-b border-cardline pb-6">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Booking coverage</p>
+        <h1 className="mt-1 font-display text-2xl font-bold text-navy">Service Area</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate">
+          Choose where you are willing to take online bookings. Price2Book checks the customer&rsquo;s ZIP code at checkout and only allows work inside this area.
         </p>
+      </header>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-card border border-cardline bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate">Selected ZIP codes</p>
+          <p className="mt-1 font-display text-2xl font-bold text-navy">{totalSelected}</p>
+          <p className="mt-1 text-xs text-slate">ZIP codes currently accepted at checkout.</p>
+        </div>
+        <div className="rounded-card border border-cardline bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate">Counties covered</p>
+          <p className="mt-1 font-display text-2xl font-bold text-navy">{selectedCounties}</p>
+          <p className="mt-1 text-xs text-slate">Counties with at least one selected ZIP code.</p>
+        </div>
+        <div className="rounded-card border border-cardline bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate">Checkout rule</p>
+          <p className="mt-1 text-sm font-semibold text-navy">Outside area = no booking</p>
+          <p className="mt-1 text-xs leading-5 text-slate">Price2Book fails closed instead of quietly accepting work outside your territory.</p>
+        </div>
+      </div>
+
+      {totalSelected === 0 && zips.length > 0 && (
+        <div className="mt-6 rounded-card border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Your online service area is empty.</p>
+          <p className="mt-1 leading-6">Nobody can complete a booking until at least one county or ZIP code is selected below.</p>
+        </div>
       )}
 
-      <ServiceAreaForm areas={areas} counties={counties} referenceLoaded={zips.length} />
+      <section className="mt-6 overflow-hidden rounded-card border border-cardline bg-white shadow-card">
+        <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
+          <h2 className="font-display text-lg font-bold text-navy">Coverage by county</h2>
+          <p className="mt-1 text-sm text-slate">Select the counties you serve, then fine-tune individual ZIP codes when needed.</p>
+        </div>
+        <div className="p-5 sm:p-6">
+          <ServiceAreaForm areas={areas} counties={counties} referenceLoaded={zips.length} />
+        </div>
+      </section>
     </div>
   );
 }

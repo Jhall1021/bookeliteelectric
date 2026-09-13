@@ -81,6 +81,10 @@ export default {
           "navy-soft": "#8FA0B8",
           // Review / caution states inside Guided Pricing examples.
           "amber-tint": "#FDF3E4",
+          // Compatibility alias for contractor-admin attention states that
+          // predate the marketing token rename. Keep both names on the same
+          // value so bg-p2b-amber-bg cannot silently compile to no CSS.
+          "amber-bg": "#FDF3E4",
           "amber-ink": "#8A5A12",
           // Error states on platform forms.
           "error-line": "#E7C9C9",

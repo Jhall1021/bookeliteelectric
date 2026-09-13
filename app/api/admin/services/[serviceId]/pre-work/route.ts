@@ -1,88 +1,126 @@
 /**
- * Pre-work visit and deposit configuration for one service.
+ * Pre-work visit and per-service deposit configuration.
  *
- * Beside the pricing and materials routes rather than inside the general
- * service PATCH, for the same reason those are separate: they are different
- * decisions with different consequences. This one decides whether a homeowner
- * is asked for money at booking.
+ * Deposit AMOUNT is contractor-wide. Checkout takes one deposit for one
+ * booking, so this service can only say how it participates in that company
+ * policy: always require it, never require it, or use the company rules.
+ * `Service.depositCents` is retained in the schema for migration history but
+ * is not a live checkout input and is deliberately not written here.
  *
- * WHAT THIS IS NOT
- *
- * It is not a price. `depositCents` is contractor configuration — like crew
- * hours — not a derived, approved, customer-facing price, so it does not go
- * through the publish/approval boundary and does not touch `basePrice` or
- * `publishedPriceApprovedAt`.
- *
- * NO NEW POLICY IS INVENTED HERE.
- *
- * The fields already existed and already had meanings. A deposit and a
- * pre-work visit stay independent: a service may require a visit without
- * taking a deposit, and the checkout path already refuses a deposit when the
- * contractor's Stripe is not ready. Adding a rule tying them together would
- * be deciding something nobody asked for.
+ * A captured deposit is always payment against the booking balance. There is
+ * no per-service switch for whether money already paid counts toward the job.
  */
 
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { withAdminContractor } from "@/lib/adminContext";
+import { withAdminRoute } from "@/lib/adminContext";
 
-/** Empty means "not set", which stays distinct from zero. */
-function optionalInt(v: unknown): number | null | undefined {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return undefined;
-  return n;
+type OptionalValue<T> =
+  | { ok: true; value: T | null | undefined }
+  | { ok: false; error: string };
+
+type DepositRuleValue = "USE_COMPANY_POLICY" | "ALWAYS_REQUIRE" | "NEVER_REQUIRE";
+
+/** Omitted preserves the current value; null/empty explicitly clears it. */
+function optionalInt(v: unknown, label: string): OptionalValue<number> {
+  if (v === undefined) return { ok: true, value: undefined };
+  if (v === null || v === "") return { ok: true, value: null };
+  if (typeof v !== "number" || !Number.isFinite(v) || !Number.isSafeInteger(v) || v < 0) {
+    return { ok: false, error: `${label} must be a non-negative whole number, or empty.` };
+  }
+  return { ok: true, value: v };
 }
 
-function optionalText(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  const t = v.trim();
-  return t === "" ? null : t;
+function optionalText(v: unknown, label: string): OptionalValue<string> {
+  if (v === undefined) return { ok: true, value: undefined };
+  if (v === null) return { ok: true, value: null };
+  if (typeof v !== "string") {
+    return { ok: false, error: `${label} must be text or null.` };
+  }
+  const text = v.trim();
+  return { ok: true, value: text === "" ? null : text };
+}
+
+function optionalBoolean(v: unknown, label: string):
+  | { ok: true; value: boolean | undefined }
+  | { ok: false; error: string } {
+  if (v === undefined) return { ok: true, value: undefined };
+  if (typeof v !== "boolean") return { ok: false, error: `${label} must be true or false.` };
+  return { ok: true, value: v };
+}
+
+function optionalDepositRule(v: unknown):
+  | { ok: true; value: DepositRuleValue | undefined }
+  | { ok: false; error: string } {
+  if (v === undefined) return { ok: true, value: undefined };
+  if (v === "USE_COMPANY_POLICY" || v === "ALWAYS_REQUIRE" || v === "NEVER_REQUIRE") {
+    return { ok: true, value: v };
+  }
+  return { ok: false, error: "Choose a valid deposit rule." };
 }
 
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
-  if (!(await isAdminAuthenticated())) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  let body: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    body = await req.json();
+    parsed = await req.json();
   } catch {
     return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 });
   }
 
-  // GUARD-ADOPTED (ADR-007a). Scoped by the guard, so a service id from
-  // another contractor resolves to nothing and takes the 404 below.
-  return withAdminContractor(async (db) => {
-    const service = await db.service.findUnique({ where: { id: params.serviceId } });
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
+  }
+  const body = parsed as Record<string, unknown>;
+
+  const depositRule = optionalDepositRule(body.depositRule);
+  if (!depositRule.ok) return NextResponse.json({ error: depositRule.error }, { status: 400 });
+
+  const visitMinutes = optionalInt(body.preWorkVisitMinutes, "Visit length");
+  if (!visitMinutes.ok) return NextResponse.json({ error: visitMinutes.error }, { status: 400 });
+
+  const requiresVisit = optionalBoolean(body.requiresPreWorkVisit, "Site visit requirement");
+  if (!requiresVisit.ok) return NextResponse.json({ error: requiresVisit.error }, { status: 400 });
+
+  const cta = optionalText(body.ctaLabel, "Booking button label");
+  if (!cta.ok) return NextResponse.json({ error: cta.error }, { status: 400 });
+
+  const customerNote = optionalText(body.preWorkCustomerNote, "Customer note");
+  if (!customerNote.ok) return NextResponse.json({ error: customerNote.error }, { status: 400 });
+
+  return withAdminRoute(async (db) => {
+    // Guarded: a service id from another contractor resolves to nothing here.
+    const service = await db.service.findUnique({
+      where: { id: params.serviceId },
+      select: {
+        id: true,
+        requiresPreWorkVisit: true,
+        preWorkVisitMinutes: true,
+        depositRule: true,
+        ctaLabel: true,
+        preWorkCustomerNote: true,
+      },
+    });
     if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
 
-    const depositCents = optionalInt(body.depositCents);
-    if (depositCents === undefined) {
-      return NextResponse.json(
-        { error: "The deposit must be a whole amount of money, or empty for none." },
-        { status: 400 }
-      );
-    }
+    const nextRequiresVisit = requiresVisit.value ?? service.requiresPreWorkVisit;
+    const nextVisitMinutes =
+      visitMinutes.value === undefined ? service.preWorkVisitMinutes : visitMinutes.value;
 
-    const preWorkVisitMinutes = optionalInt(body.preWorkVisitMinutes);
-    if (preWorkVisitMinutes === undefined) {
+    if (nextRequiresVisit && (!nextVisitMinutes || nextVisitMinutes <= 0)) {
       return NextResponse.json(
-        { error: "The visit length must be a whole number of minutes, or empty." },
+        { error: "Enter how long the required site visit takes before saving." },
         { status: 400 }
       );
     }
 
     await db.service.update({
-      where: { id: params.serviceId },
+      where: { id: service.id },
       data: {
-        requiresPreWorkVisit: body.requiresPreWorkVisit === true,
-        preWorkVisitMinutes,
-        depositCents,
-        depositCreditsToJob: body.depositCreditsToJob !== false,
-        ctaLabel: optionalText(body.ctaLabel),
-        preWorkCustomerNote: optionalText(body.preWorkCustomerNote),
+        requiresPreWorkVisit: nextRequiresVisit,
+        preWorkVisitMinutes: nextVisitMinutes,
+        depositRule: depositRule.value ?? service.depositRule,
+        ctaLabel: cta.value === undefined ? service.ctaLabel : cta.value,
+        preWorkCustomerNote:
+          customerNote.value === undefined ? service.preWorkCustomerNote : customerNote.value,
       },
     });
 

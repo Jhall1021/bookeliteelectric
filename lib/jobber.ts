@@ -459,8 +459,16 @@ export async function fetchJobberUsers(contractorId: string): Promise<{ id: stri
 }
 
 const VISITS_FOR_DAY_QUERY = `
-  query VisitsForDay($after: ISO8601DateTime!, $before: ISO8601DateTime!) {
-    visits(filter: { startAt: { after: $after, before: $before } }, first: 100) {
+  query VisitsForDay(
+    $dateAfter: ISO8601DateTime!
+    $dateBefore: ISO8601DateTime!
+    $pageAfter: String
+  ) {
+    visits(
+      filter: { startAt: { after: $dateAfter, before: $dateBefore } }
+      first: 100
+      after: $pageAfter
+    ) {
       nodes {
         id
         startAt
@@ -468,13 +476,36 @@ const VISITS_FOR_DAY_QUERY = `
         allDay
         assignedUsers(first: 10) {
           nodes { id }
+          pageInfo { hasNextPage }
         }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
 `;
 
 type JobberVisit = { id: string; startAt: string | null; endAt: string | null; allDay: boolean; assignedUserIds: string[] };
+
+type JobberVisitNode = {
+  id: string;
+  startAt: string | null;
+  endAt: string | null;
+  allDay: boolean;
+  assignedUsers: {
+    nodes: { id: string }[];
+    pageInfo: { hasNextPage: boolean };
+  };
+};
+
+type JobberVisitPage = {
+  visits: {
+    nodes: JobberVisitNode[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+};
 
 // Pulls every real Jobber visit scheduled anywhere in the given calendar
 // day — deliberately broad (whole day, not just the candidate window) so
@@ -540,19 +571,52 @@ async function fetchJobberVisitsForDay(contractorId: string, dateISO: string): P
   const dayStart = zonedWallTimeToUtc(dateISO, 0, 0).toISOString();
   const dayEnd = zonedWallTimeToUtc(dateISO, 23, 59).toISOString();
 
-  const result = await jobberGraphQL<{ visits: { nodes: { id: string; startAt: string | null; endAt: string | null; allDay: boolean; assignedUsers: { nodes: { id: string }[] } }[] } }>(
-    contractorId,
-    VISITS_FOR_DAY_QUERY,
-    { after: dayStart, before: dayEnd }
-  );
+  const visits: JobberVisit[] = [];
+  const seenCursors = new Set<string>();
+  let pageAfter: string | null = null;
 
-  return result.visits.nodes.map((v) => ({
-    id: v.id,
-    startAt: v.startAt,
-    endAt: v.endAt,
-    allDay: v.allDay,
-    assignedUserIds: v.assignedUsers.nodes.map((u) => u.id),
-  }));
+  // 100 pages means more than 10,000 visits in one day. That is already far
+  // beyond a plausible contractor calendar; if Jobber ever claims there are
+  // still more after that, refusing availability is safer than looping forever
+  // or quietly declaring an incomplete calendar verified.
+  for (let page = 0; page < 100; page += 1) {
+    const result = await jobberGraphQL<JobberVisitPage>(
+      contractorId,
+      VISITS_FOR_DAY_QUERY,
+      { dateAfter: dayStart, dateBefore: dayEnd, pageAfter }
+    );
+
+    for (const visit of result.visits.nodes) {
+      // We only need IDs, but we need ALL of them. A visit with more than ten
+      // assigned users is unusual; treating the first ten as complete could
+      // make an eligible technician look free when they are actually assigned.
+      // Fail closed until this nested connection is explicitly paginated.
+      if (visit.assignedUsers.pageInfo.hasNextPage) {
+        throw new Error(
+          `Jobber visit ${visit.id} has more than 10 assigned users; availability cannot be verified completely.`
+        );
+      }
+
+      visits.push({
+        id: visit.id,
+        startAt: visit.startAt,
+        endAt: visit.endAt,
+        allDay: visit.allDay,
+        assignedUserIds: visit.assignedUsers.nodes.map((u) => u.id),
+      });
+    }
+
+    if (!result.visits.pageInfo.hasNextPage) return visits;
+
+    const nextCursor = result.visits.pageInfo.endCursor;
+    if (!nextCursor || nextCursor === pageAfter || seenCursors.has(nextCursor)) {
+      throw new Error("Jobber visit pagination did not advance; availability cannot be verified completely.");
+    }
+    seenCursors.add(nextCursor);
+    pageAfter = nextCursor;
+  }
+
+  throw new Error("Jobber returned more than 10,000 visits for one day; availability cannot be verified completely.");
 }
 
 function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {

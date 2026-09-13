@@ -1,30 +1,77 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { exchangeCodeForTokens, saveJobberTokens } from "@/lib/jobber";
+import { exchangeCodeForTokens, jobberRedirectUri } from "@/lib/jobber";
 import { resolveAdminContractor } from "@/lib/adminContext";
+import { prisma } from "@/lib/prisma";
+
+function jobberPage(path: string): URL {
+  // Never derive a post-OAuth redirect from the callback request's Host header.
+  // jobberRedirectUri() is built from the configured contractor-app origin, so
+  // every success/refusal lands back inside the Price2Book app we registered
+  // with Jobber rather than on an origin supplied by the inbound request.
+  return new URL(path, jobberRedirectUri());
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const expectedState = cookies().get("jobber_oauth_state")?.value;
+  const stateCookie = cookies().get("jobber_oauth_state")?.value;
 
-  if (!code || !state || state !== expectedState) {
-    return NextResponse.redirect(new URL("/dashboard/jobber?error=invalid_state", url.origin));
+  // The cookie carries BOTH the random CSRF state and the contractor that
+  // initiated OAuth. State proves this callback belongs to a flow we started;
+  // the contractor id proves it is still being completed for the same business.
+  const separator = stateCookie?.indexOf(":") ?? -1;
+  const expectedState = separator > 0 ? stateCookie!.slice(0, separator) : null;
+  const initiatingContractorId = separator > 0 ? stateCookie!.slice(separator + 1) : null;
+
+  if (!code || !state || !expectedState || !initiatingContractorId || state !== expectedState) {
+    cookies().delete("jobber_oauth_state");
+    return NextResponse.redirect(jobberPage("/dashboard/jobber?error=invalid_state"));
   }
+
+  // Consume the state before any external call. A failed token exchange is
+  // retried by starting a NEW OAuth attempt, never by replaying this callback.
+  cookies().delete("jobber_oauth_state");
 
   try {
-    // Whose Jobber account this is: the admin who started the flow. Not
-    // inferred from the tokens and not defaulted — an OAuth callback that
-    // guessed an owner would attach one contractor's integration to another.
     const { contractorId } = await resolveAdminContractor();
+    if (contractorId !== initiatingContractorId) {
+      console.error("Jobber OAuth contractor context changed before callback completion.");
+      return NextResponse.redirect(jobberPage("/dashboard/jobber?error=contractor_changed"));
+    }
+
     const tokens = await exchangeCodeForTokens(code);
-    await saveJobberTokens(tokens, contractorId);
+
+    // CREATE, never upsert. Two OAuth tabs can legitimately start while the
+    // contractor is disconnected. If both later return, whichever callback
+    // creates the contractor's unique JobberConnection first wins. The other
+    // callback must not overwrite those credentials with a second account.
+    // Switching accounts is only allowed through Disconnect, which clears the
+    // connection-bound crew cache before another OAuth flow can begin.
+    try {
+      await prisma.jobberConnection.create({
+        data: {
+          contractorId,
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        },
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        return NextResponse.redirect(jobberPage("/dashboard/jobber?error=already_connected"));
+      }
+      throw err;
+    }
   } catch (err) {
     console.error("Jobber OAuth exchange failed:", err);
-    return NextResponse.redirect(new URL("/dashboard/jobber?error=exchange_failed", url.origin));
+    return NextResponse.redirect(jobberPage("/dashboard/jobber?error=exchange_failed"));
   }
 
-  cookies().delete("jobber_oauth_state");
-  return NextResponse.redirect(new URL("/dashboard/jobber?connected=1", url.origin));
+  return NextResponse.redirect(jobberPage("/dashboard/jobber?connected=1"));
 }
