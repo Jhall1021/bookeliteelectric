@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { BookingType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withAdminRoute } from "@/lib/adminContext";
 import { availableTrades } from "@/lib/templateProvisioning";
 
-const BOOKING_TYPES = new Set(["INSTANT", "ADJUSTED", "REMOTE_QUOTE"]);
+const BOOKING_TYPES = new Set<BookingType>(["INSTANT", "ADJUSTED", "REMOTE_QUOTE"]);
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function isBookingType(value: string): value is BookingType {
+  return BOOKING_TYPES.has(value as BookingType);
+}
 
 function optionalText(value: unknown, label: string): string | null | NextResponse {
   if (value === undefined || value === null || value === "") return null;
@@ -50,7 +55,7 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (!BOOKING_TYPES.has(bookingType)) {
+  if (!isBookingType(bookingType)) {
     return NextResponse.json({ error: "Choose a valid booking type." }, { status: 400 });
   }
 
