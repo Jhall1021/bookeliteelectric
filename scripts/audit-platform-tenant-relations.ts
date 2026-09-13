@@ -97,7 +97,7 @@ const REVIEWED_SAFE: Record<string, Exception> = {
   "app/api/admin/services/[serviceId]/tree/route.ts:options":
     "Question.options beneath a Service root.",
   "app/api/services/[slug]/route.ts:options": "Question.options beneath a Service root.",
-  "lib/routeResolver.ts:options": "Question.options beneath a Service root.",
+  "lib/serviceTreeQuery.ts:options": "Question.options beneath a Service root: RESOLUTION_TREE_INCLUDE, shared by loadServiceForResolution and loadCatalogForResolution, both rooted at tenant-owned Service.",
   "app/api/quotes/route.ts:photos": {
     reason:
       "Nested create beneath tx.quote.create. Quote is tenant-owned (derived " +
