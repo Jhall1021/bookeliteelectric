@@ -12,6 +12,8 @@ const JOBBER_ERROR_MESSAGES: Record<string, string> = {
     "Jobber is not configured for this Price2Book environment yet. Nothing was connected.",
   exchange_failed:
     "Jobber did not complete the connection. Start again; no contractor connection was changed.",
+  already_connected:
+    "Jobber is already connected. To connect a different Jobber account, disconnect this one first so its synced crew settings are cleared safely.",
 };
 
 function jobberErrorMessage(error?: string): string | null {
