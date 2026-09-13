@@ -29,6 +29,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   if (typeof body.offered !== "boolean") {
     return NextResponse.json({ error: "offered is required and must be true or false." }, { status: 400 });
   }
+  const offered = body.offered;
 
   return withAdminRoute(async (db) => {
     // Guarded: a service id from another contractor resolves to nothing here,
@@ -41,7 +42,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
 
     // Deselecting something already live would take it off the storefront by a
     // side door. Deactivate it through the normal path first.
-    if (body.offered === false && service.active) {
+    if (offered === false && service.active) {
       return NextResponse.json(
         {
           error: "SERVICE_IS_LIVE",
@@ -53,8 +54,8 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
 
     await db.service.update({
       where: { id: service.id },
-      data: { offered: body.offered },
+      data: { offered },
     });
-    return NextResponse.json({ ok: true, slug: service.slug, offered: body.offered });
+    return NextResponse.json({ ok: true, slug: service.slug, offered });
   });
 }
