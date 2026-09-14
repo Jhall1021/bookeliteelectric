@@ -69,11 +69,11 @@ position.
 
 `scripts/repair-duplicate-question-order.ts` ran the full step on rehearsal on
 14 Sep 2026, against one disposable contractor with production-shaped ties
-injected, which was removed afterwards. After the forward-only change, 23 of 23 checks passed:
+injected, which was removed afterwards. With the forward-only and identity checks, 25 of 25 checks passed:
 
 - report mode writes nothing
 - the capture records exactly the tied services
-- apply refuses without the host named, and with a different host named
+- apply refuses without the host named, with a different host named, without `--expect-identity`, and with the wrong identity; the capture records the identity it was taken on
 - apply commits in one transaction, leaves no ties anywhere, and keeps the captured served order
 - `verify-question-order` passes afterwards
 - rollback refuses without `--acknowledge-nondeterministic-order`; with it, it restores the captured positions and refuses a second time
@@ -132,7 +132,7 @@ npx tsx scripts/repair-duplicate-question-order.ts --capture release-question-or
 
 # 3. apply — the host printed in step 2's header, typed deliberately
 P2B_REPAIR_ALLOWED_HOST=<host printed above> \
-  npx tsx scripts/repair-duplicate-question-order.ts --apply --snapshot release-question-order.json
+  npx tsx scripts/repair-duplicate-question-order.ts --apply --snapshot release-question-order.json --expect-identity price2book-production
 
 # 4. confirm — no ties; the three services still served in the captured order
 npx tsx scripts/repair-duplicate-question-order.ts
@@ -143,8 +143,9 @@ git diff --stat components/marketing/heroFlow.ts    # one position, 7 -> 8, noth
 npx tsx scripts/capture-hero-flow.ts --check
 ```
 
-Step 3 re-reads the served order and re-derives the plan inside its
-transaction. It refuses unless both equal the capture exactly. After applying,
+Step 3 first re-reads the identity marker inside its transaction. The marker
+must be `price2book-production`, stamped for the connected endpoint. It then
+re-reads the served order and re-derives the plan in the same transaction. It refuses unless both equal the capture exactly. After applying,
 still inside the same transaction, it requires no ties anywhere, and each
 service in the captured order under both `order asc` and `QUESTION_ORDER`.
 Otherwise the whole step rolls back.
@@ -156,7 +157,7 @@ positions whose served order is not reproducible:
 
 ```bash
 P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts \
-  --rollback --snapshot release-question-order.json --acknowledge-nondeterministic-order
+  --rollback --snapshot release-question-order.json --acknowledge-nondeterministic-order --expect-identity price2book-production
 ```
 
 Record the capture file, the step 3 and 4 output, and the hero diff as evidence

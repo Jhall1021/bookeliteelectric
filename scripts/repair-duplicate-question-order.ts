@@ -4,9 +4,9 @@
  *
  *   npx tsx scripts/repair-duplicate-question-order.ts                         # report, read-only
  *   npx tsx scripts/repair-duplicate-question-order.ts --capture <release.json> # report + write the plan, read-only
- *   P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts --apply --snapshot <release.json>
+ *   P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts --apply --snapshot <release.json> --expect-identity <key>
  *   # exceptional recovery only — see below:
- *   P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts --rollback --snapshot <release.json> --acknowledge-nondeterministic-order
+ *   P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts --rollback --snapshot <release.json> --acknowledge-nondeterministic-order --expect-identity <key>
  *
  * The connection string comes from the environment (DATABASE_URL), never from
  * an argument, so it does not appear in a process listing.
@@ -26,7 +26,9 @@
  * ONE CONTROLLED STEP.
  *   --capture   read-only. Records, per tied service, the served order with
  *               every question's current position, and the exact plan.
- *   --apply     one transaction. Re-reads the served order and re-derives the
+ *   --apply     one transaction. Re-reads the database identity marker (it must
+ *               carry --expect-identity and be stamped for the connected
+ *               endpoint, as it was at capture), re-reads the served order and re-derives the
  *               plan; refuses unless both equal the capture exactly, so nothing
  *               that changed since the capture is repaired blind. Applies the
  *               plan, then — still inside the transaction — requires no ties
@@ -58,7 +60,19 @@ import { QUESTION_ORDER } from "../lib/serviceTreeQuery";
 type Tx = Prisma.TransactionClient;
 type PlannedRow = { id: string; key: string; from: number; to: number };
 type ServicePlan = { serviceId: string; served: { id: string; key: string; order: number }[]; plan: PlannedRow[] };
-export type ReleaseCapture = { host: string; capturedAt: string; services: Record<string, ServicePlan> };
+export type ReleaseCapture = { host: string; identity: { key: string; endpoint: string }; capturedAt: string; services: Record<string, ServicePlan> };
+
+/** The endpoint id a host belongs to: `ep-xxx-1234` from `ep-xxx-1234-pooler.region.aws.neon.tech`. */
+const endpointOf = (host: string) => host.split(".")[0].replace(/-pooler$/, "");
+
+/** The identity marker, read inside the caller's transaction. Refuses unless it names this endpoint (and `expected`, if given). */
+async function identityIn(tx: Tx, host: string, expected?: string) {
+  const id = await tx.databaseIdentity.findUnique({ where: { id: "singleton" } });
+  if (!id) throw new Error("REFUSED: this database carries no identity marker.");
+  if (id.neonEndpoint !== endpointOf(host)) throw new Error(`REFUSED: the identity marker was stamped for ${id.neonEndpoint}, not the connected ${endpointOf(host)}.`);
+  if (expected !== undefined && id.key !== expected) throw new Error(`REFUSED: this database is ${id.key}, not ${expected}.`);
+  return { key: id.key, endpoint: id.neonEndpoint };
+}
 
 const SERVED_READS = 5;
 
@@ -132,14 +146,15 @@ async function main() {
 
   try {
     if (!APPLY && !ROLLBACK) {
-      const services = await prisma.$transaction(async (tx) => {
+      const { identity, services } = await prisma.$transaction(async (tx) => {
         await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
-        return derive(tx);
+        return { identity: await identityIn(tx, host), services: await derive(tx) };
       }, { timeout: 60_000 });
+      console.log(`  identity: ${identity.key} (${identity.endpoint})\n`);
       print(services);
       const out = arg("capture");
       if (out) {
-        const capture: ReleaseCapture = { host, capturedAt: new Date().toISOString(), services };
+        const capture: ReleaseCapture = { host, identity, capturedAt: new Date().toISOString(), services };
         writeFileSync(out, JSON.stringify(capture, null, 2));
         console.log(`\n  captured ${Object.keys(services).length} service(s) -> ${out}`);
       }
@@ -155,9 +170,14 @@ async function main() {
     }
     const capture: ReleaseCapture = JSON.parse(readFileSync(file, "utf8"));
     if (capture.host !== host) throw new Error(`REFUSED: the capture was taken on ${capture.host}, not this database.`);
+    const expectIdentity = arg("expect-identity");
+    if (!expectIdentity) throw new Error("REFUSED: --apply and --rollback need --expect-identity <key>, the identity marker this database must carry.");
+    if (capture.identity?.key !== expectIdentity) throw new Error(`REFUSED: the capture was taken on ${capture.identity?.key ?? "an unidentified database"}, not ${expectIdentity}.`);
 
     if (APPLY) {
       await prisma.$transaction(async (tx) => {
+        // Immediately before writing, inside the transaction: identity, then rows, then plan.
+        await identityIn(tx, host, expectIdentity);
         const now = await derive(tx);
         if (!same(Object.keys(now).sort(), Object.keys(capture.services).sort())) throw new Error("REFUSED: the set of tied services has changed since the capture.");
         for (const [label, s] of Object.entries(capture.services)) {
@@ -183,6 +203,7 @@ async function main() {
     }
 
     await prisma.$transaction(async (tx) => {
+      await identityIn(tx, host, expectIdentity);
       let rows = 0;
       for (const [label, s] of Object.entries(capture.services)) {
         for (const p of s.plan) {
