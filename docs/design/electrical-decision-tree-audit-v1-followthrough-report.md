@@ -1,258 +1,268 @@
-# Electrical Decision Tree Audit V1 — follow-through report
+# Electrical Decision Tree Audit V1 — follow-through report (corrected)
+
+**Status: locally implemented, partially verified.** Nothing in this branch has been
+applied to any database, the canonical template, or any contractor's live catalog.
+Every claim below is labeled by exactly what kind of evidence supports it —
+code-confirmed by reading, DB-free unit-tested, or genuinely unverified — and none of
+those labels is a substitute for the others.
 
 Branch `audit/electrical-followthrough-v1`, forked from `origin/main` at `64dcf36`, in
 an isolated worktree (`/private/tmp/p2b-audit-followthrough-wt`) with its own `npm ci`
-and generated Prisma client. **Not pushed anywhere.** No deployment was triggered — see
-"Deployment-guard state" at the end.
+and generated Prisma client. **Not pushed anywhere** — see §8.
 
-Five commits, in order:
+This supersedes the earlier five/six-commit version of this same report: this pass
+added a correction round (referenced-service pricing hardening, dedicated switch-leg
+proof, a pure-function extraction proving B.4, and a real regression found and fixed
+in B.16/B.18), bringing the branch to **11 commits**.
 
-| SHA | Commit |
-|---|---|
-| `ab1944c` | `docs: reconcile Electrical Decision Tree Audit V1 against origin/main` |
-| `cb8821a` | `fix: price referenced-service add-ons server-side, stop double-charging switch-leg work` |
-| `9ec5e6f` | `fix: trade-scope the direct troubleshooting entry, stop discarding reroute context` |
-| `d841fdf` | `fix: remove four non-consequential mandatory questions, reword one trade-judgment prompt` |
-| `2fef53e` | `docs: structural proposals for review — not implemented` |
+## Final commit list (full SHAs)
 
-Full detail in each commit message and in
-[the reconciliation doc](electrical-decision-tree-audit-v1-reconciliation.md) and
-[the structural proposals doc](electrical-decision-tree-audit-v1-structural-proposals.md).
-This report is the summary the directive asked for; it doesn't repeat everything those
-two documents already say in full.
+| # | SHA | Commit |
+|---|---|---|
+| 1 | `ab1944c5c2db68b519ed1e212ceab68e2afbde0e` | docs: reconcile Electrical Decision Tree Audit V1 against origin/main |
+| 2 | `cb8821a85f92c14fe88240db0ab7bde9164cd8fd` | fix: price referenced-service add-ons server-side, stop double-charging switch-leg work |
+| 3 | `9ec5e6f17a4d5b9aa203b74d936c81d3f383d3ad` | fix: trade-scope the direct troubleshooting entry, stop discarding reroute context |
+| 4 | `d841fdfc0930ff58bc3b63ea9f38fb9a1eb4f78e` | fix: remove four non-consequential mandatory questions, reword one trade-judgment prompt |
+| 5 | `2fef53eb97a2252626b3f914a818a2f65752331b` | docs: structural proposals for review — not implemented |
+| 6 | `6c0debecec509cb914a940a542bc44012a0a2d04` | docs: follow-through summary report (the version this document replaces) |
+| 7 | `81d4ccbc83121a04007a683728c1f46cae59badd` | fix: harden referenced-service pricing against masking, cross-tenant, and display/charge drift |
+| 8 | `9a5dfc142f99ecbff1e2ac3b87a30064fb1f08f1` | test: prove the switch-leg fix's composed graph, not just its definition count |
+| 9 | `4b6c341b79e221723b8567d7ae5b1428171772dd` | refactor: extract the reroute handoff into pure functions, and prove B.4 without a browser |
+| 10 | `79329f7468e90855982fc4af962c9dcb1df1978c` | fix: correct B.16 (drop the mandatory garage_type question) and a real regression it caused |
+| 11 | `1e72b529dbb51ef15d19c7a6678e2938329d97db` | docs: catalog rollout plan — not applied |
+
+Full reasoning for every item lives in the commit messages themselves and in the four
+companion docs: [reconciliation](electrical-decision-tree-audit-v1-reconciliation.md),
+[structural proposals](electrical-decision-tree-audit-v1-structural-proposals.md),
+[rollout plan](electrical-decision-tree-audit-v1-rollout-plan.md). This report
+synthesizes; it doesn't repeat everything those already say.
 
 ---
 
-## 1. Findings: confirmed, superseded, or still uncertain
+## 1. What changed, precisely distinguished
+
+Every fix below is a **code and/or seed-definition change on this local branch only**.
+None of the four categories below should be conflated with any other:
+
+| | Status |
+|---|---|
+| **Runtime behavior changed by deployed code** | **None.** Nothing in this branch is deployed anywhere — not to a Preview, not to production. `lib/pricing.ts`, `lib/routeResolver.ts`, `lib/serviceTreeQuery.ts`, `app/api/services/[slug]/route.ts`, `lib/troubleshooting.ts`, `app/api/troubleshooting/route.ts`, `app/[site]/troubleshooting/page.tsx`, `components/guided-flow/*.tsx`, and `lib/rerouteHandoff.ts` are all changed on disk, in commits, on an unpushed branch. No running system's behavior has changed. |
+| **Seed definitions changed but not applied** | `prisma/seed-questions.ts` (B.2, B.16), `prisma/seed-device-and-finish-modules.ts` (B.17), `prisma/seed-dedicated-circuit.ts` (B.18), `prisma/seed-appliance-services.ts` (B.18, B.19). Each defines what Elite's catalog *would become* the next time someone with database access runs the specific function — see the rollout plan for exactly which, and why running the whole file isn't recommended for `seed-questions.ts` specifically. |
+| **Canonical template** | **Unchanged.** No `extract-template-catalog.ts` run. A contractor provisioned today, from `origin/main`, inherits none of these fixes. |
+| **Existing contractor catalogs (BrightPath, etc.)** | **Unchanged.** No `template-update.ts` run. Whatever BrightPath's live trees look like today, this branch hasn't touched them, directly or indirectly. |
+
+**B.1's pricing hardening and B.4's handoff extraction are pure code changes** (no seed
+files involved) — they'd take effect the moment this branch's code is deployed, with no
+seed step required. They are still **not deployed**, per the table above.
+
+---
+
+## 2. Findings: confirmed, superseded, refined, or still uncertain
 
 ### Confirmed against current `origin/main` and fixed (this branch)
 
-| Finding | What changed |
+| Finding | What changed | Note |
+|---|---|---|
+| **B.1** — TV mount add-ons priced at $0 | Refined during correction: the first fix (commit 2) routed the resolved price through `approvedComponentPriceCents`, which had its own masking gap for answers with no components (every mount option today). Commit 7 gives the reference its own `referencedServicePriceCents` field, composing additively with components, checked for same-contractor ownership, and matched to the display DTO so it can no longer show a price the server would refuse. | See §3 — do not read commit 2 in isolation as the fix; commit 7 is. |
+| **B.2** — switch-leg double-charge | Unchanged from the original diagnosis. Fixed by removing `switched_source`. Given its own dedicated, DB-free graph proof in commit 8, independent of B.1's tests. | |
+| **B.3** — hardcoded diagnostic slug | Fixed: resolves every enrolled trade via `findTroubleshootingDestinations()`. | |
+| **B.4** — rerouted symptom reached nowhere | Fixed via the existing handoff mechanism, extended with a `customerNote` field; the parsing/construction logic was extracted to pure functions in commit 9 specifically so it could be unit-tested. | |
+| **B.5** — inconsistent troubleshooting explanation | Fixed: real `Service.disclaimer` shown, answer label always shown regardless of per-answer disclaimer presence. | |
+| **B.16** — `240v-garage-outlet` pseudo-question | **Reversed during correction.** The first pass (commit 4) added a mandatory `garage_type` question — commit 10 removes it again: no traced consumer requires garage type before review, so making it mandatory only added a click. The service is now a genuine 0-question REMOTE_QUOTE; garage detail is collectible as an existing optional note at the review screen it already lands on. | Read commit 10 as authoritative, not commit 4. |
+| **B.17** — `replace-standard-outlet` double question | Fixed via `SUPERSEDED_KEYS`. Unchanged since first implemented. | |
+| **B.18** — non-consequential mandatory questions | Fixed for both `dedicated_panel_location` and `soundbar_cable`/`soundbar_conceal`. **The soundbar half's UI wiring was corrected during review**: the first pass gated the optional note on `flow.slug === "soundbar-installation"`, which `scripts/verify-theme-structure.ts` correctly rejects as a customer-facing component branching on contractor/service identity — the same class of defect as B.3's original bug. Commit 10 makes the note universal (varying only by the structural `bookingType` field) rather than special-cased. | Read commit 10 as authoritative for the soundbar UI change, not commit 4. |
+| **B.19** — dishwasher wording | Fixed; verified this pass that the unchanged answer labels ("No, there's no power there" / "I'm not sure") remain coherent with the reworded prompt, and that both the no-power reroute and the unsure review path are untouched and still safe (§5). | |
+
+### Confirmed, proposal only (not implemented)
+
+B.7, B.12, B.13, B.14, B.15, and the five-unapplied-trees item — unchanged from the
+prior version of this report; see the structural-proposals doc.
+
+### Refined this pass
+
+- **`dedicated-120v-circuit-outlet` does not provably cover `new-240v-appliance-circuit`'s
+  full scope** (checked explicitly, not assumed — see structural proposals §3).
+
+### Still uncertain — traced further this pass, precisely where it stopped
+
+**The "4 unsure→CONTINUE answers" claim.** A proper multi-line-aware source search
+(not a single grep pass) across every `prisma/*.ts` file found **48 distinct
+"unsure"-style answer labels in source**, breaking down as 40 `PHOTO_REVIEW`, 5
+`REROUTE_TROUBLESHOOTING`, 1 confirmed `CONTINUE`
+(`level-2-ev-charger`'s `panel_capacity`, a one-off — this service is not looped
+across other slugs, so it contributes exactly one row live), and 2 whose routeAction
+is computed dynamically (`...proceed`, a spread of a variable) rather than a literal
+string, requiring individual tracing:
+
+- `prisma/seed-conditional-disclaimers.ts`'s `device_on_exterior_wall` question's
+  "I'm not sure" answer, applied to exactly two services
+  (`EXTERIOR_WALL_SERVICES = [new-120v-outlet, dedicated-120v-circuit-outlet]`). For
+  `new-120v-outlet`, this is **confirmed CONTINUE** — this matches the original
+  audit's own Group A table, which read this exact answer's live behavior directly
+  ("'I'm not sure' → same CONTINUE, contingency disclaimer attached"). That makes
+  **2 confirmed CONTINUE cases** (the EV charger one-off, plus this one).
+- Whether the same question ALSO resolves to CONTINUE for
+  `dedicated-120v-circuit-outlet` is **genuinely unresolved from source alone** — it
+  depends on `resolvedDestination`, computed at seed-run time from whatever question
+  currently follows the access branch in that service's *live* tree, which requires
+  either a database read or a full simulation of every seed file that could have run
+  before it in an unknown historical order. Group D's own detailed table for this
+  service didn't show this question at all, which may mean it isn't live for this
+  service (the function has an explicit early-exit when "accessible answers go to
+  more than one place"), or may mean Group D's pass didn't trace
+  `seed-conditional-disclaimers.ts` specifically for it.
+
+**Net result: 2 of the reported 4 are confirmed with source-level evidence (one
+cross-checked against a prior direct read of live behavior); the other 2 remain
+genuinely unavailable without a database query.** This is offered as the honest
+completion of the trace, not a guess at the remaining two — per the instruction, the
+unrelated `outlet_load_type` catch-all (`routeAction: PHOTO_REVIEW`, confirmed by
+direct reading) is explicitly NOT counted as one of the four.
+
+**$249 vs. $250 (B.22)** and the **56-vs-47 discrepancy (B.23)** — unchanged, still
+need one database query each.
+
+---
+
+## 3. Referenced-service pricing: what was reviewed and hardened
+
+Full detail in commit 7; summary of what each reviewed boundary now does:
+
+| Boundary | Behavior |
 |---|---|
-| **B.1** — TV mount add-ons priced at $0 | Sharper than originally reported: the storefront DTO already priced these correctly for *display*; only the authoritative resolver was missing it — a display/charge mismatch, not a uniform $0. Fixed in `lib/serviceTreeQuery.ts` + `lib/routeResolver.ts`. |
-| **B.2** — switch-leg double-charge on `new-ceiling-light`/`new-ceiling-fan` | Confirmed unchanged from the audited branch (byte-identical seed file). Fixed by removing `switched_source`, mirroring the shipped `recessed-lighting` fix without importing its unrelated per-light-quantity rebuild. |
-| **B.3** — hardcoded diagnostic slug on direct-entry `/troubleshooting` | Confirmed unchanged (`app/[site]/troubleshooting/page.tsx` byte-identical to the audited branch). Fixed: resolves every enrolled trade via a new `findTroubleshootingDestinations()`, branching on 0/1/N eligible destinations. |
-| **B.4** — rerouted symptom reached the technician nowhere | Confirmed unchanged. Fixed by reusing the existing `REROUTE_HANDOFF_KEY` sessionStorage mechanism with a `customerNote` field, surfaced as an editable field on `PriceConfirmationCard`. |
-| **B.5** — inconsistent explanation between the two troubleshooting landing paths | Confirmed unchanged. Fixed: the mid-flow reroute screen now shows the destination's real `Service.disclaimer` (not a hardcoded "60 minutes") and always shows the answer's own label, not just its optional disclaimer. |
-| **B.16** — `240v-garage-outlet`'s single-button pseudo-question | Confirmed unchanged. Fixed: replaced with a real `garage_type` question (shared key with `level-2-ev-charger`), preserving structured intake rather than deleting it. |
-| **B.17** — `replace-standard-outlet` asked its safety question twice | Confirmed unchanged. Fixed via the existing `SUPERSEDED_KEYS` mechanism in `seed-device-and-finish-modules.ts`. |
-| **B.18** — non-consequential mandatory questions (`dedicated_panel_location`, `soundbar_cable`/`soundbar_conceal`) | Confirmed unchanged. Fixed: removed from the mandatory chain; facts preserved via an existing note field (dedicated-circuit, no new UI needed) or a newly-generalized one (soundbar, reusing B.4's mechanism). |
-| **B.19** — `dishwasher-electrical`'s "suitable power" wording | Confirmed unchanged. Reworded to match `garbage-disposal-install`'s already-correct observable-fact phrasing; routing untouched. |
+| Same-contractor ownership | Checked explicitly (`contractorId` compared) in both the resolver and the display DTO — defense in depth. The write-time path was read, not assumed: both known writers (the admin tree editor's guarded client, and template provisioning's `contractorId`-scoped lookup by slug) were confirmed incapable of writing a cross-tenant reference. |
+| Missing/null/invalid/cross-tenant reference | All four fail to REVIEW, identically — never priced at zero, never trusted. |
+| Valid $0 vs. missing | Distinguished correctly (strict `null` check, not a falsiness check) — an approved no-charge referenced price prices at the anchor exactly. |
+| Reference masking a component, or vice versa | Neither can mask the other — `referencedServicePriceCents` composes additively with component approval in `applyBranch`, not as an override. |
+| Ordinary modifiers/components | Neither dropped nor double-counted — proven by a case with all three (reference + component + `priceModifierCents`) present on one answer summing correctly. |
+| Primary/WWT | The resolver picks the referenced service's own `basePrice` or `whileWeThereBasePrice` matching `isPrimary`, exactly like the anchor price. The **display DTO stays primary-only**, documented as a deliberate, narrow limitation: it can't know add-on status before the client's own separate `/api/visit` read, which is true of every other per-option delta in the preview layer already — not a new gap this fix introduces. The actual charge is always correct regardless. |
+| Add-on-only vs. standalone eligibility | Proven separate: an inactive (`active: false`) referenced service — exactly Elite's own mount rows — still resolves its price normally, since nothing in the pricing path reads `active` at all. |
+| Units | `Service.basePrice`/`whileWeThereBasePrice` confirmed cents throughout every consumer read this session (the display formatter, `scripts/republish-legacy-approved-prices.ts`'s own `money()` helper, this fix's own code). **One unresolved concern surfaced, not fixed:** `prisma/seed.ts`'s bootstrap literals for `elite-tilt-mount`/`elite-articulating-mount` (`basePrice: 125`, `basePrice: 200`) read as $1.25/$2.00 if ever interpreted as cents on a fresh database — `scripts/republish-legacy-approved-prices.ts`'s own existence (re-approving, not re-deriving, five legacy prices including these two) suggests the *current* database value is already a real, correct, separately-set figure and the seed literal is a stale bootstrap artifact rather than live truth, but this session had no database access to confirm which is actually true today. **Flagged as a concrete, specific gate for whoever has DB access:** `SELECT "basePrice", "whileWeThereBasePrice" FROM "Service" WHERE slug IN ('elite-tilt-mount','elite-articulating-mount')` before trusting either figure. |
 
-### Confirmed, proposal only (not implemented — see the structural-proposals doc)
-
-B.7 (200A/panel template drift), B.12 (Garage Door Opener Outlet duplicate), B.13 (four
-retired dedicated-circuit stubs live in the template), B.14 (inactive mounts standalone),
-B.15 (ceiling/switch-wall access merge), and the "publish five unapplied trees" item
-(covers B.11 plus the generator-inlet/hot-tub findings). Each has a specific reason it
-isn't a mechanical fix — schema gaps, approval-trail gaps, or direct overlap with Routing
-V2's own planned rework. Full reasoning in the proposals doc, including one correction
-to the original audit: **`dedicated-120v-circuit-outlet` does NOT provably cover
-`new-240v-appliance-circuit`'s full scope** — its own tree caps priced-online amperage at
-20A/240V and routes "30A or more" to review, so the "generic 240V" service may be a
-legitimate narrower catch-all rather than a pure duplicate. This was checked explicitly
-per the directive rather than assumed.
-
-### Still uncertain (need a database, not a code read)
-
-- **B.6, B.8, B.9, B.10, B.20, B.21, B.22, B.23** — every finding whose confidence in the
-  original audit was already qualified as "high-confidence inference, not database-confirmed"
-  (mostly seed-orchestration drift claims about what Elite's *live* database actually
-  contains vs. what a fresh seed run would produce). None of these were re-verified this
-  session — doing so needs a real database query, which this session didn't have access
-  to. They are not superseded; they're exactly where the original audit left them.
-- **The "4 unsure-answers-continue" claim** (original audit's routing-totals table) —
-  per the evidence-label correction in the reconciliation doc, this was checked for one
-  specific answer (`outlet_load_type`'s "unsure," confirmed to terminate in
-  `PHOTO_REVIEW`, not `CONTINUE`) but the other three were not traced. Flagged, not
-  resolved.
-- **$249 vs. $250 (B.22)** and the **56-vs-47 REROUTE_TROUBLESHOOTING discrepancy
-  (B.23)** — both explicitly need one database query each; neither was run.
+The display DTO's silent fallback (`priceModifierCents: o.referencedService?.basePrice
+?? o.priceModifierCents`, which would show a confident price the server was about to
+refuse) is corrected: the DTO now returns the same undefined/number/null shape the
+resolver does, computed identically, sharing the same `applyBranch`/`answerPriceDelta`
+functions client and server both call.
 
 ---
 
-## 2. Changes and their resulting behavior
+## 4. Switch-leg (B.2): dedicated evidence, not borrowed from B.1
 
-Per fix, what a homeowner (or the technician's job sheet) actually experiences
-differently. All **code-confirmed by reading the changed logic and the DB-free
-regression** (§5) — **not** browser-observed (§6 explains why, and exactly what's
-blocked).
+Commit 8's `scripts/verify-lighting-control-rewire.ts` imports and runs the actual,
+shared `upsertQuestion`/`rewireTerminalsInto`/`findDanglingReferences`/
+`findUnreachableQuestions` from `prisma/_moduleHelpers.ts` against a minimal in-memory
+fake of the two Prisma models those functions touch — not a reimplementation of the
+rewiring logic, the real code. 18/18 assertions, covering: the existing-fixture path
+and the no-fixture path (the actually-double-charged one) both composing correctly
+with zero leftover flat modifier; the *unrelated* `attic_access` $100 surcharge
+surviving untouched (three terminals convert, not two — caught by the test's own
+first draft, which assumed two); the module's uncertainty branch reviewing; both
+required facts staying askable; zero dangling/unreachable questions via the real
+checks; and idempotency under a repeated module attach (no duplicate question, no
+re-widening, stable id across the re-run).
 
-- **TV mount add-ons (B.1):** choosing "add Elite Tilt Mount" or either mount option in
-  `tv-installation`/`tv-install-existing-location` now adds that mount's live
-  `basePrice` to the stored visit price, matching what the customer is shown. If the
-  referenced service is ever missing or unpriced, the route now goes to `REVIEW`
-  (`"'<label>' sells another service with no usable price"`) instead of silently
-  charging $0.
-- **Switch-leg pricing (B.2):** a customer choosing "no existing fixture to tap" on
-  `new-ceiling-light`/`new-ceiling-fan` is now priced once, by the Lighting Control
-  module's own components, instead of once by a flat legacy modifier and again by the
-  module.
-- **Direct troubleshooting entry (B.3):** `/troubleshooting` resolves the site's actual
-  enrolled trade(s) instead of assuming Elite's own slug. For every contractor today (V1
-  allows one trade at a time) this is behaviorally identical to before *when* the
-  contractor's diagnostic slug happens to be `electrical-troubleshooting` — the
-  difference is it no longer *depends* on that coincidence, and a differently-slugged or
-  non-Electrical contractor now gets their own real diagnostic instead of a broken page.
-- **Symptom context (B.4):** a customer rerouted from, say, "my breaker keeps tripping"
-  now arrives at the diagnostic booking screen with that fact already filled into an
-  editable "what should we tell the technician?" field, and it reaches the booked visit's
-  `answersSnapshot.customer_note` — where before it reached nowhere.
-- **Consistent explanation (B.5):** every troubleshooting reroute, not just the ones
-  whose specific answer had an authored disclaimer, now shows what the customer said and
-  the destination's real configured terms.
-- **240V Garage Outlet (B.16):** now asks one real, useful question (attached / detached
-  / outdoor) instead of a "Continue" button that collected nothing.
-- **Replace Standard Outlet (B.17):** resolves after one question instead of two, like
-  its eight structurally identical siblings.
-- **Dedicated circuit / soundbar (B.18):** both drop one and two mandatory-but-inert
-  screens respectively; both still let the customer tell the technician the same facts,
-  optionally, at the screen they already end on.
-- **Dishwasher wording (B.19):** the prompt now asks what's observable ("is one there
-  now, plugged in or wired in") instead of a suitability judgment; routing is unchanged.
+Explicitly not proven: that `seedNewCeilingLight()`'s own committed literals are
+typed correctly (covered by `tsc` and direct reading instead), or that the real seed
+produces this shape against a real database.
 
 ---
 
-## 3. Before/after walkthroughs and measured question counts
+## 5. Simplification batch corrections and verification
 
-**Measured, not estimated**, per the evidence-label correction — these are the actual
-question counts the changed seed files now define, confirmed by reading the code (not a
-live database walk, which needs credentials this session didn't have):
-
-| Service | Before | After | Note |
-|---|---|---|---|
-| `replace-standard-outlet` | 2 | 1 | matches its 8 siblings exactly |
-| `new-ceiling-light` (worst case, all questions reached) | 13 | 12 | `switched_source` removed; no other question touched |
-| `new-ceiling-fan` (worst case) | 13 | 12 | same |
-| `dedicated-120v-circuit-outlet` | 6 | 5 | `dedicated_panel_location` removed |
-| `soundbar-installation` | 6 | 4 | `soundbar_cable` + `soundbar_conceal` removed |
-| `240v-garage-outlet` | 1 (non-consequential) | 1 (real) | same count, now a genuine question |
-| `dishwasher-electrical` | 1 | 1 | wording only, no count change |
-
-**A walk-through, stated precisely (best case, existing switch): before** — attic access
-→ existing fixture → existing switch (*priced here, twice*) → lighting control (asks the
-same fact again) → dimmer. **After** — attic access → existing fixture → lighting
-control (prices it once) → dimmer. The original audit's "5-6 questions" estimate for
-this family was for a *further* rebuild merging the height/access module overlap (§B.15
-of the audit) — that part is proposed, not implemented (see the structural-proposals
-doc); this batch only removed the one duplicated, double-priced question.
+- **B.16**: reversed, see §2. GuidedFlowEngine no longer branches on
+  `flow.slug === "soundbar-installation"` anywhere (§ above) — the fix that made this
+  the correct choice for garage type is the same fix that closed the identity-branch
+  regression for soundbar.
+- **Dedicated-circuit optional note**: verified visible via the **existing**,
+  unconditional `note`/`onNoteChange` props on `PhotoReviewNotice`/`PricedPhotoReview`
+  (confirmed by reading both components directly this pass, not assumed) — no new UI
+  needed, and `addToVisit`'s existing `answersSnapshot.customer_note` construction is
+  unconditional on which terminal state produced the note, so submission was already
+  correct.
+- **Soundbar optional note**: verified visible via the corrected, universal
+  `PriceConfirmationCard` wiring (§2/§ regression above), and submitted the same way
+  via the same `addToVisit` code path.
+- **Dishwasher wording**: verified this pass — the unchanged answer labels remain
+  coherent with the reworded prompt, and the no-power/unsure routes (reroute to
+  dedicated circuit; photo review) are untouched, so absent/unknown power still has a
+  safe route. No code change was needed beyond the wording itself.
+- **The four "unsure→CONTINUE" trace**: completed as far as source analysis allows —
+  see §2.
 
 ---
 
-## 4. Pricing and context-persistence evidence
+## 6. Gates run, and what remains genuinely blocked
 
-`scripts/verify-referenced-service-pricing.ts` (new, committed in the pricing-fix
-commit), run twice — once immediately after the B.1 fix and again after every
-subsequent commit, to confirm nothing later disturbed it:
+**Local, credential-free database options were checked before writing off DB-backed
+gates, per the directive.** No Docker daemon is reachable on this machine; no local
+Postgres binary is installed (checked directly — `pg_ctl`/`initdb`/`postgres` all
+absent, no Homebrew Postgres formula installed). Homebrew itself is present and
+*could* install a local, disposable Postgres with zero shared credentials involved —
+that option was not exercised. Installing new software onto the actual host machine
+is a more persistent, real action than this branch's own worktree isolation, and
+wasn't something to decide unilaterally; **it's surfaced here as a live, available
+option for the next session or operator, not something this pass did or is
+recommending against.**
 
-```
-  ok   referenced price resolves and prices the mount once
-  ok   unresolved reference goes to REVIEW, not a $0 price
-  ok   REVIEW never reports a status of PRICED for the same input
-  ok   an ordinary (non-referencing) answer is unaffected by this fix
+The rejected `.env` read was **not retried in any form**, and Production was **not**
+substituted for it — read-only or otherwise.
 
-4 passed, 0 failed
-```
+**Every DB-free gate that exists in this repository was identified and run, not just
+this session's own three new verifiers.** `package.json`'s `verify:full` chain
+contains 77 scripts; 30 of them (by static check — no `PrismaClient` reference)
+don't require a database. All 30 were run individually this pass:
 
-This is a **DB-free unit test**, not an end-to-end proof: `resolveRoute` is a pure
-function given an already-loaded service tree, and the script constructs that tree
-synthetically rather than querying a real database. It proves the *logic* is correct; it
-does not prove the live database round-trips the same way, which needs the browser
-coverage in §6.
+- **29 passed on first run.**
+- **1 failed: `scripts/verify-theme-structure.ts`**, flagging the `flow.slug`
+  identity-branch regression described in §2/§5. Diagnosed, fixed, re-run: **15/15
+  passing.**
+- This session's own three new DB-free verifiers — `verify-referenced-service-pricing.ts`
+  (16/16), `verify-lighting-control-rewire.ts` (18/18), `verify-reroute-handoff.ts`
+  (11/11) — all re-run after every subsequent commit to confirm nothing regressed
+  them. 45/45 held throughout.
+- All three new verifiers are wired into `package.json`'s `verify:full` chain,
+  positioned next to their closest existing thematic sibling (documented in each
+  commit message).
+- `npx tsc --noEmit`: zero errors, re-run after every single commit in this branch
+  (11 runs, 11 clean).
+- **`npm run lint` was attempted and found unusable**: this repository has no
+  `.eslintrc*` or `eslint.config.*` at all, on this branch or on `origin/main` —
+  `next lint` prompts for interactive first-time setup. Not a pre-existing configured
+  gate; not force-configured here (that would be an unrequested, unscoped
+  infrastructure change).
+- **No seed script, `prisma db push`, `capture-*.ts --check`, or any of the ~47
+  `PrismaClient`-importing `verify:full` scripts were run** — all genuinely need
+  database access this session didn't have.
 
-**Context-persistence (B.4)** has no equivalent automated proof — it depends on
-`sessionStorage`, `useEffect` mount timing, and a real navigation between two pages,
-none of which are exercisable outside a browser. This is stated as an explicit gap, not
-implied to be covered by the pricing script above.
-
----
-
-## 5. Gate results
-
-- **`npx tsc --noEmit`** (full repository): **zero errors**, re-run after every commit in
-  this branch. This is the only repository-wide gate this session could run — see §6 for
-  why the rest of `npm run verify` (seed-execution assertions, `capture-trade-electrical.ts
-  --check`, every `PrismaClient`-backed `verify-*.ts` script) needs a database this
-  session never had.
-- **`scripts/verify-referenced-service-pricing.ts`**: 4/4, DB-free, described above. Not
-  yet added to `npm run verify`'s chain — that's a `package.json` edit, left as a
-  deliberate, separate decision per this repo's own parallel-session convention (append
-  new verifiers in one pass, not scattered across unrelated commits).
-- **No seed script was executed against any database.** Every seed-file change in this
-  branch is a corrected *definition* — what Elite's catalog would become the next time
-  someone with database access runs `prisma/seed-questions.ts`,
-  `prisma/seed-dedicated-circuit.ts`, `prisma/seed-appliance-services.ts`, or
-  `prisma/seed-device-and-finish-modules.ts` — not a change already reflected in any
-  live catalog.
-
----
-
-## 6. Browser coverage and explicit gaps
-
-**No browser session ran this pass.** Per the directive's constraint: the rejected
-action from the audit phase (copying `REHEARSAL_DATABASE_URL` out of the shared `.env`
-into an isolated environment) was **not retried in any form**. This branch's worktree
-has no `.env`/`.env.local` at all — a fresh `git worktree add` doesn't copy gitignored
-files, so any database-backed script fails immediately and loudly rather than silently
-reaching a real database. That's the correct, safe state to leave it in, not a
-workaround.
-
-No other already-authorized, credential-free environment was available either: this
-session did not check whether an existing Vercel Preview deployment for `origin/main`
-is reachable, because even a reachable one would show the **pre-fix** behavior (none of
-this branch's commits are pushed or deployed anywhere) — hitting it could only reproduce
-the *original* bugs, not verify the fixes, and the directive's own instruction ("match
-each browser claim to the code actually running," "the Routing V2 Preview cannot, by
-itself, reproduce defects confined to the older audited branch") argues against treating
-any deployed environment as a stand-in for code that only exists in this local branch.
-Production was not browsed, read-only or otherwise, per "do not... use Production as a
-substitute."
-
-**Exact action that remains blocked:** reading the shared `.env`'s
-`REHEARSAL_DATABASE_URL` value to configure an isolated dev server. **Stated reason it
-was rejected:** the session's auto-mode safety classifier flags `.env` as a shared
-resource. **Missing dependency:** either (a) someone with direct access supplies a
-rehearsal `DATABASE_URL` through a channel that isn't reading the shared credentials
-file (a fresh disposable Neon branch created and handed over by a human, for instance),
-or (b) the permission boundary is explicitly adjusted for this specific, narrow
-operation.
-
-**What's left unverified, concretely, once access exists** (the original list from the
-authorization, unchanged because none of it could run):
-
-1. TV-mount options and the stored visit price actually matching in a real cart.
-2. The two affected switch-leg routes on `new-ceiling-light`/`new-ceiling-fan`.
-3. `/troubleshooting` on a contractor whose diagnostic slug isn't
-   `electrical-troubleshooting` (or a renamed one), and on a hypothetical multi-trade
-   contractor for the N>1 branch (no real contractor can exercise this today — V1 allows
-   one trade enrollment at a time, noted in the reconciliation doc).
-4. The zero-eligible-trade fallback screen.
-5. The reroute context actually surviving a real page navigation and reaching a booked
-   visit's `answersSnapshot`.
-6. Back navigation and changed answers (the audit's own code-trace concluded this
-   already works correctly by design — `GuidedFlowEngine`'s history snapshots predate
-   any downstream answer — but this was never browser-confirmed, before or after this
-   session).
-7. Representative fixed-price / review / reroute paths generally.
-8. The four simplification-batch questions' new shape (`garage_type` on
-   `240v-garage-outlet`, the shortened dishwasher/outlet/dedicated-circuit/soundbar
-   flows).
-
-None of this was claimed as verified. Every claim in this report is labeled
-code-confirmed or DB-free-unit-tested, matching the directive's instruction not to
-"substitute direct API tests and call the UI verified."
+**What remains blocked, unchanged in substance from the prior version of this report**
+(§6 of that version, not repeated verbatim here): every browser-observable claim about
+the storefront — TV-mount checkout pricing in a real cart, the switch-leg routes in a
+live tree, `/troubleshooting` on a non-default-slugged contractor, the zero-eligible
+fallback, real sessionStorage/navigation persistence of the B.4 note, back-navigation,
+and the simplification batch's new screens. All of it needs either database access or
+a browser session against a running instance of this code, neither available this
+pass.
 
 ---
 
-## 7. Deployment-guard state
+## 7. Catalog rollout plan
 
-- This branch (`audit/electrical-followthrough-v1`) has **not been pushed** to `origin`
-  — confirmed (`git status --short --branch` shows local-only, 5 ahead of `origin/main`,
-  no upstream tracking beyond the fetch reference used to fork it).
-- No PR was opened, no CI ran, no Vercel build was triggered by this session.
-- `origin/main` carries no `vercel.json` deploy-guard entry (that mechanism exists only
-  on `feat/electrical-routing-v2`, per the reconciliation doc) — irrelevant here since
-  nothing was pushed regardless.
-- **Recommendation for next step, not a decision:** these five commits are ready for
-  review as-is (each is independently reviewable, in the order committed). Pushing and
-  opening a PR is a separate, explicit action this report is not taking on its own.
+See the [dedicated rollout-plan document](electrical-decision-tree-audit-v1-rollout-plan.md)
+— not summarized further here since it's short and entirely prescriptive (nothing in
+it was run).
+
+---
+
+## 8. Deployment-guard state
+
+- Branch `audit/electrical-followthrough-v1` has **not been pushed** to `origin` —
+  confirmed after every commit this pass (`git status --short --branch`
+  shows local-only, now 11 ahead of `origin/main`, no upstream tracking).
+- No PR opened, no CI run, no Vercel build triggered.
+- `origin/main` carries no `vercel.json` branch-deployment guard (that mechanism
+  exists only on `feat/electrical-routing-v2`) — moot regardless, since nothing was
+  pushed.
+- **Whether and how to push is addressed as its own decision, separate from this
+  report** — see the response accompanying this document for the specific guard
+  check performed before any push and its outcome.
