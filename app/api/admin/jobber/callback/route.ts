@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { exchangeCodeForTokens, jobberRedirectUri } from "@/lib/jobber";
 import { resolveAdminContractor } from "@/lib/adminContext";
-import { prisma } from "@/lib/prisma";
+import { withContractor } from "@/lib/tenantRoute";
 
 function jobberPage(path: string): URL {
   // Never derive a post-OAuth redirect from the callback request's Host header.
@@ -53,15 +53,20 @@ export async function GET(req: Request) {
     // callback must not overwrite those credentials with a second account.
     // Switching accounts is only allowed through Disconnect, which clears the
     // connection-bound crew cache before another OAuth flow can begin.
+    //
+    // On the guarded client, inside the membership-resolved contractor context;
+    // the guard stamps contractorId and a P2002 still propagates to the catch.
     try {
-      await prisma.jobberConnection.create({
-        data: {
-          contractorId,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        },
-      });
+      await withContractor(contractorId, "admin-session", (db) =>
+        db.jobberConnection.create({
+          data: {
+            contractorId,
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+          },
+        })
+      );
     } catch (err) {
       if (isUniqueViolation(err)) {
         return NextResponse.redirect(jobberPage("/dashboard/jobber?error=already_connected"));
