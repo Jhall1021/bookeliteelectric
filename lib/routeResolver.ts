@@ -396,12 +396,46 @@ export function resolveRoute(
       };
     }
 
+    // An answer that sells another catalog item (AnswerOption.referencedServiceId
+    // — e.g. "add Elite Tilt Mount" inside TV Installation) prices from that
+    // service's own live basePrice, not a frozen number on the answer itself —
+    // the storefront DTO (app/api/services/[slug]/route.ts) already does this
+    // for what the customer SEES. This is the same rule applied to what they're
+    // actually CHARGED, so the two can no longer disagree.
+    //
+    // Checked here, before applyBranch, rather than folded into
+    // approvedComponentPriceCents unconditionally: applyBranch only treats a
+    // null override as "unresolved, go to review" when the branch also
+    // declares components (§ awaitingComponentApproval). An answer that merely
+    // references another service and declares none — every mount option today
+    // — would have that null collapse to a plain 0, silently, which is the
+    // exact bug this closes. So a reference that fails to resolve is checked
+    // explicitly and sent to review here, the same way a REROUTE_SERVICE with
+    // no target is refused above rather than defaulting to a price nobody set.
+    if (option.referencedServiceId && option.referencedService?.basePrice == null) {
+      const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
+      return {
+        status: "REVIEW",
+        reason: `"${option.label}" sells another service with no usable price`,
+        photoLabels: [...new Set(photoLabels)],
+        photoSafetyNotes: [...new Set(photoSafetyNotes)],
+        // The floor excludes this branch's own (unknown) contribution —
+        // never a guess at what the mount would have added.
+        floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
+        isPrimary,
+        config,
+      };
+    }
+    const referencedPriceCents = option.referencedServiceId
+      ? option.referencedService!.basePrice
+      : option.approvedComponentPriceCents;
+
     // applyBranch returns the new configuration directly — it isn't wrapped.
     config = applyBranch(
       config,
       {
         priceModifierCents: option.priceModifierCents,
-        approvedComponentPriceCents: option.approvedComponentPriceCents,
+        approvedComponentPriceCents: referencedPriceCents,
         accessClassification: option.accessClassification,
         // G1. Absent on every row authored before scoped access, which the
         // column default resolves to PRIMARY — their existing meaning.

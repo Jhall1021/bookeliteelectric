@@ -611,11 +611,26 @@ async function seedRecessedLighting() {
 }
 
 async function seedNewCeilingLight() {
-  // Identical structure to Recessed Lighting — same attic-access →
-  // existing-fixture → existing-switch tree, applied to a new ceiling
-  // light fixture instead of a recessed can. Per client direction, this
-  // "existing switch in the room" question is standardized across every
-  // new light/fan installation tree.
+  // Attic-access → existing-fixture tree, applied to a new ceiling light
+  // fixture. This used to also ask "is there an existing switch in the
+  // room" (`switched_source`) and charge $150/$225 for it directly — but
+  // seed-lighting-control.ts's module runs after this seed and rewires
+  // every terminal RESOLVE_* answer here into its own `lighting_control`
+  // question, which prices the identical switch-leg work again through its
+  // own components (SWITCH_POWER_RUN_*, SWITCHLEG_*). That stacked both
+  // prices on one job. seed-recessed-lighting.ts diagnosed and fixed the
+  // same fault for recessed lighting (see its docstring, fault #3) as part
+  // of a larger rebuild that doesn't apply here — this service has no
+  // per-light quantity concept, so only the switch-leg half of that fix
+  // transfers.
+  //
+  // The fix: `existing_light_source`'s "No" answer now resolves bare
+  // (RESOLVE_INSTANT, no price), exactly like its "Yes" answer already did.
+  // `rewireTerminalsInto` picks up both and routes them into
+  // `lighting_control`, whose own "how would you like it controlled?"
+  // question — including its own "not sure" → photo review branch — fully
+  // replaces what `switched_source` asked, with real per-branch pricing
+  // instead of a flat guess.
   const service = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "new-ceiling-light"),
   });
@@ -642,16 +657,6 @@ async function seedNewCeilingLight() {
     },
   });
 
-  const qSwitchedSource = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: "switched_source",
-      prompt: "Is there an existing switch in the room we could use to control the new light?",
-      inputType: "SINGLE_SELECT",
-      order: 3,
-    },
-  });
-
   await prisma.answerOption.createMany({
     data: [
       { questionId: qAtticAccess.id, label: "Yes", value: "has_access", routeAction: "CONTINUE", nextQuestionId: qExistingLight.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
@@ -671,51 +676,23 @@ async function seedNewCeilingLight() {
   await prisma.answerOption.createMany({
     data: [
       { questionId: qExistingLight.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
-      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "CONTINUE", nextQuestionId: qSwitchedSource.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+      // Was CONTINUE -> switched_source, priced there. Now a bare terminal:
+      // seed-lighting-control.ts's rewireTerminalsInto sends this into
+      // `lighting_control` the same way it already does the "Yes" answer
+      // above, and that module prices the switch-leg work exactly once.
+      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], disclaimer: null },
     ],
   });
 
-  await prisma.answerOption.createMany({
-    data: [
-      {
-        questionId: qSwitchedSource.id,
-        label: "Yes",
-        value: "yes",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 15000, // +$150 to snake a wire from the existing switch up to the ceiling
-        order: 1,
-        requiredPhotoLabels: [],
-        disclaimer: null,
-      },
-      {
-        questionId: qSwitchedSource.id,
-        label: "No",
-        value: "no",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 22500, // +$150 wire run + $75 new switch (Replace Standard Switch WWT rate)
-        order: 2,
-        requiredPhotoLabels: [],
-        disclaimer: null,
-      },
-      {
-        questionId: qSwitchedSource.id,
-        label: "I'm not sure",
-        value: "unsure",
-        routeAction: "PHOTO_REVIEW",
-        order: 3,
-        requiredPhotoLabels: ["Room where the light is going, full view", "Ceiling area where the fixture will be installed"],
-      },
-    ],
-  });
-
-  console.log("  ✓ Install New Ceiling Light tree (same structure as Recessed Lighting)");
+  console.log("  ✓ Install New Ceiling Light tree (switch-leg pricing handled once, by the Lighting Control module)");
 }
 
 async function seedNewCeilingFan() {
-  // Same tree as Install New Ceiling Light and Recessed Lighting — attic
-  // access → existing fixture → existing switch — applied to a new ceiling
-  // fan. Base prices differ ($425 attic access / $525 no access, per
-  // client) but the wire-run and new-switch add-on logic is identical.
+  // Attic access → existing fixture, applied to a new ceiling fan. Base
+  // prices differ from New Ceiling Light ($425/$525 vs $395/$495, per
+  // client) but the tree shape — and the switch-leg double-charge this seed
+  // used to have — was identical. See seedNewCeilingLight's comment above
+  // for the full explanation; the fix is the same one, applied here too.
   const service = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "new-ceiling-fan"),
   });
@@ -742,16 +719,6 @@ async function seedNewCeilingFan() {
     },
   });
 
-  const qSwitchedSource = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: "switched_source",
-      prompt: "Is there an existing switch in the room we could use to control the new fan?",
-      inputType: "SINGLE_SELECT",
-      order: 3,
-    },
-  });
-
   await prisma.answerOption.createMany({
     data: [
       { questionId: qAtticAccess.id, label: "Yes", value: "has_access", routeAction: "CONTINUE", nextQuestionId: qExistingLight.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
@@ -771,44 +738,14 @@ async function seedNewCeilingFan() {
   await prisma.answerOption.createMany({
     data: [
       { questionId: qExistingLight.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
-      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "CONTINUE", nextQuestionId: qSwitchedSource.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+      // Was CONTINUE -> switched_source, priced there — see the comment on
+      // seedNewCeilingLight. Now a bare terminal, rewired into
+      // `lighting_control` exactly like the "Yes" answer above.
+      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], disclaimer: null },
     ],
   });
 
-  await prisma.answerOption.createMany({
-    data: [
-      {
-        questionId: qSwitchedSource.id,
-        label: "Yes",
-        value: "yes",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 15000, // +$150 to snake a wire from the existing switch up to the ceiling
-        order: 1,
-        requiredPhotoLabels: [],
-        disclaimer: null,
-      },
-      {
-        questionId: qSwitchedSource.id,
-        label: "No",
-        value: "no",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 22500, // +$150 wire run + $75 new switch (Replace Standard Switch WWT rate)
-        order: 2,
-        requiredPhotoLabels: [],
-        disclaimer: null,
-      },
-      {
-        questionId: qSwitchedSource.id,
-        label: "I'm not sure",
-        value: "unsure",
-        routeAction: "PHOTO_REVIEW",
-        order: 3,
-        requiredPhotoLabels: ["Room where the fan is going, full view", "Ceiling area where the fan will be installed"],
-      },
-    ],
-  });
-
-  console.log("  ✓ Install New Ceiling Fan tree (same structure as Recessed Lighting / New Ceiling Light)");
+  console.log("  ✓ Install New Ceiling Fan tree (switch-leg pricing handled once, by the Lighting Control module)");
 }
 
 async function seedApplianceInstallation() {
