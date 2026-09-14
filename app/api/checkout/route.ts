@@ -4,10 +4,11 @@ import { getOrCreateSessionId } from "@/lib/session";
 import {
   pushBookingToJobber,
   effectiveBusySpan,
-  windowToDateRange,
+  jobFitsWorkday,
 } from "@/lib/jobber";
 import {
   reserveWindow,
+  visitJobDurationMinutes,
   SchedulingUnavailableError,
   SchedulingNotConfiguredError,
 } from "@/lib/schedulingAvailability";
@@ -180,10 +181,8 @@ export async function POST(req: Request) {
   // Computed here, before the availability check below, since a job
   // longer than its arrival window needs to correctly block a crew's
   // calendar for its real length, not just the 3-hour window.
-  const hasCompleteEstimates = visit.lineItems.every((li) => li.estimatedMinutes !== null);
-  const estimatedDurationMinutes = hasCompleteEstimates
-    ? visit.lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0)
-    : null;
+  // The same reading the schedule page and /api/availability make.
+  const estimatedDurationMinutes = visitJobDurationMinutes(visit.lineItems);
 
   // Final, live availability check — right here, right before anything is
   // created. The schedule page only re-checks Jobber when a day tab is
@@ -204,17 +203,14 @@ export async function POST(req: Request) {
 
   // Would this job run past the end of the crew's day?
   //
-  // The schedule page already hides windows a job can't fit in, but that's
+  // The schedule page already withholds windows a job can't fit in, but that's
   // presentation — this is the rule. A stale tab, a bookmarked URL or a direct
   // POST would otherwise put a crew on site hours after they should have gone
-  // home, and nobody would find out until the day itself.
+  // home, and nobody would find out until the day itself. jobFitsWorkday is
+  // the rule the schedule page used, on every day, so a window it offered is
+  // never refused here for length.
   const businessHours = await loadBusinessHours(db, site.contractorId);
-  const [, workdayEnd] = windowToDateRange(
-    dateISO,
-    "8:00 AM",
-    toDisplay(toMinutes(businessHours.dayEnd))
-  );
-  if (windowEndDate.getTime() > workdayEnd.getTime()) {
+  if (!jobFitsWorkday(dateISO, { start: windowStart, end: windowEnd }, toDisplay(toMinutes(businessHours.dayEnd)), estimatedDurationMinutes)) {
     return NextResponse.json(
       {
         error: "WINDOW_TOO_LATE",

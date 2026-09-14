@@ -28,6 +28,8 @@ import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../
 import { PILOT_ANSWERS } from "../lib/electrical/onboardingPilotReadiness";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import { withContractor } from "../lib/tenantRoute";
+import { jobFitsWorkday } from "../lib/jobber";
+import { visitJobDurationMinutes, windowAvailabilityForDay } from "../lib/schedulingAvailability";
 import { buildPricedDerivedContractor, fixtureSlug, removeFixture } from "./_derivedStorefrontFixture";
 
 const prisma = new PrismaClient();
@@ -67,9 +69,34 @@ async function main() {
   ok(/resolvedCrewHours: resolved\.config\.fieldLaborHours,/.test(visit) && /resolvedCrewCount: resolved\.config\.techCount,/.test(visit)
     && /estimatedMinutes: resolved\.config\.estimatedMinutes,/.test(visit),
     "S  /api/visit already snapshots those config fields — it needed no change");
-  for (const f of ["app/api/checkout/route.ts", "app/[site]/checkout/schedule/page.tsx", "app/api/checkout/deposit/route.ts"]) {
-    ok(/li\.estimatedMinutes/.test(code(f)), `S  ${f} still sums line estimatedMinutes — unchanged consumer`);
+  ok(/li\.estimatedMinutes/.test(code("app/api/checkout/deposit/route.ts")), "S  the deposit route still sums line estimatedMinutes itself — deposit behavior untouched");
+
+  console.log("\n  A  ONE DURATION, ONE FIT RULE — FIRST DAY, LATER DAYS, CHECKOUT\n");
+  ok(visitJobDurationMinutes([]) === null && visitJobDurationMinutes([{ estimatedMinutes: 288 }]) === 288
+    && visitJobDurationMinutes([{ estimatedMinutes: 86 }, { estimatedMinutes: 288 }]) === 374
+    && visitJobDurationMinutes([{ estimatedMinutes: 86 }, { estimatedMinutes: null }]) === null,
+    "A  visit duration = sum of line minutes; null when empty or any line has none");
+  const availRoute = code("app/api/availability/[dateISO]/route.ts");
+  for (const f of ["app/api/checkout/route.ts", "app/[site]/checkout/schedule/page.tsx", "app/api/availability/[dateISO]/route.ts"]) {
+    const src = code(f);
+    ok(/visitJobDurationMinutes\(/.test(src) && !/li\.estimatedMinutes/.test(src), `A  ${f} reads the job length through visitJobDurationMinutes, not its own sum`);
   }
+  ok(/getSessionId\(\)/.test(availRoute) && /status: "OPEN"/.test(availRoute) && /windowAvailabilityForDay\([\s\S]*?estimatedDurationMinutes\)/.test(availRoute)
+    && !/searchParams|duration=|"duration"/.test(availRoute),
+    "A  /api/availability applies the OPEN visit's duration, read-only, and ignores anything the request says about length");
+  ok(!/searchParams\.set\("duration"/.test(code("components/checkout/ScheduleClient.tsx")), "A  the schedule client no longer sends a duration for the server to ignore");
+  const jobber = code("lib/jobber.ts"), scheduling = code("lib/schedulingAvailability.ts"), checkout = code("app/api/checkout/route.ts");
+  ok((jobber.match(/workdayEnd\.getTime\(\)/g) ?? []).length === 1 && !/workdayEnd/.test(scheduling) && !/workdayEnd/.test(checkout),
+    "A  the end-of-day comparison exists once — inside jobFitsWorkday");
+  ok(/jobFitsWorkday\(dateISO, w, dayEnd, estimatedDurationMinutes\)/.test(jobber) && /jobFitsWorkday\(dateISO, w, schedule\.dayEndDisplay, estimatedDurationMinutes\)/.test(scheduling)
+    && /if \(!jobFitsWorkday\(dateISO, \{ start: windowStart, end: windowEnd \}, toDisplay\(toMinutes\(businessHours\.dayEnd\)\), estimatedDurationMinutes\)\)[\s\S]{0,80}WINDOW_TOO_LATE/.test(checkout),
+    "A  Jobber availability, native availability and checkout's WINDOW_TOO_LATE all call it");
+  const DAY = "2030-06-05", END = "4:30 PM";
+  const W = [{ start: "8:00 AM", end: "11:00 AM" }, { start: "11:00 AM", end: "2:00 PM" }, { start: "2:00 PM", end: "4:30 PM" }];
+  ok(JSON.stringify(W.map((w) => jobFitsWorkday(DAY, w, END, 288))) === "[true,true,false]", "A  288 min: fits from 8:00 and 11:00, not from 2:00 (ends 6:48 PM)");
+  ok(JSON.stringify(W.map((w) => jobFitsWorkday(DAY, w, END, 86))) === "[true,true,true]" && JSON.stringify(W.map((w) => jobFitsWorkday(DAY, w, END, null))) === "[true,true,true]",
+    "A  86 min or no known length: 2:00 fits (ends 3:26 PM / window end)");
+  ok(jobFitsWorkday(DAY, W[2], END, 150) && !jobFitsWorkday(DAY, W[2], END, 151), "A  boundary: 2:00 + 150 min ends exactly 4:30 and fits; 151 does not");
   const depositUi = code("app/[site]/checkout/details/DepositPayment.tsx");
   ok(/import \{ loadStripe \} from "@stripe\/stripe-js\/pure";/.test(depositUi), "S  Stripe's loader comes from the pure entry (no load on import)");
   const { execFileSync } = await import("node:child_process");
@@ -115,6 +142,16 @@ async function main() {
       ok(plan.kind === "PLACED" && (plan.resolved as any).config.estimatedMinutes === v.config.estimatedMinutes && (plan.resolved as any).config.fieldLaborHours === v.config.fieldLaborHours,
         `D  ${feet} ft: /api/visit's plan receives the same duration it snapshots`);
     }
+
+    console.log("\n  N  NATIVE AVAILABILITY, SERVER-SIDE, NAMES WHY A WINDOW IS WITHHELD\n");
+    await prisma.contractor.update({ where: { id: f.contractorId }, data: { schedulingAuthority: "NATIVE", nativeConcurrentJobs: 1 } });
+    const sched = { windows: W, dayEndDisplay: END };
+    const long = await asSite((db) => windowAvailabilityForDay(db as never, f.contractorId, DAY, sched, 288));
+    ok(JSON.stringify(long.map((w) => [w.start, w.available, w.unavailableReason ?? null])) === JSON.stringify([["8:00 AM", true, null], ["11:00 AM", true, null], ["2:00 PM", false, "NOT_ENOUGH_TIME"]]),
+      "N  288 min on an empty day → 8:00 and 11:00 offered, 2:00 withheld as NOT_ENOUGH_TIME (not FULL)", JSON.stringify(long));
+    const none = await asSite((db) => windowAvailabilityForDay(db as never, f.contractorId, DAY, sched, null));
+    ok(none.every((w) => w.available && !w.unavailableReason), "N  no known length → every window offered", JSON.stringify(none));
+    ok(long.every((w) => w.available === jobFitsWorkday(DAY, w, END, 288)), "N  on an empty day, offered ⇔ checkout's rule accepts it — for every window");
 
     const turned: any = await asSite((db) => resolveRouteWithDerivedPricing(db, loaded as never, route("31", { [SURFACE_KEYS.inside]: "2" }), true, settings));
     const svc = await prisma.service.findUniqueOrThrow({ where: { id: f.serviceId }, select: { estimatedMinutes: true, fieldLaborHours: true } });

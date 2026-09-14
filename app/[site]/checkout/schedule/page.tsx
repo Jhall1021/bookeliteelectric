@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import {
   windowAvailabilityForDay,
+  visitJobDurationMinutes,
+  type ScheduleWindow,
   SchedulingUnavailableError,
   SchedulingNotConfiguredError,
 } from "@/lib/schedulingAvailability";
@@ -72,10 +74,8 @@ export default async function SchedulePage({ params }: { params: { site: string 
   const awaitingQuote = visit?.lineItems.some((li) => li.computedPriceCents === null) ?? false;
   if (awaitingQuote) redirect(`${base}/my-visit`);
 
-  const hasCompleteEstimates = !!visit && visit.lineItems.every((li) => li.estimatedMinutes !== null);
-  const estimatedDurationMinutes = hasCompleteEstimates
-    ? visit!.lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0)
-    : null;
+  // The same reading /api/availability makes for every later day.
+  const estimatedDurationMinutes = visit ? visitJobDurationMinutes(visit.lineItems) : null;
 
   // Only the first (default-selected) day is checked here, on the server,
   // for a fast initial render with no loading flicker. Every other day —
@@ -87,7 +87,7 @@ export default async function SchedulePage({ params }: { params: { site: string 
   // The server-rendered first day gets the same treatment as every later one:
   // if the calendar cannot be read, the page says so rather than shipping a
   // list of windows nobody verified.
-  let firstDayWindows: { start: string; end: string; available: boolean }[] = [];
+  let firstDayWindows: ScheduleWindow[] = [];
   let schedulingUnavailable = false;
   try {
     firstDayWindows = await withSite(site, (db) =>
@@ -115,7 +115,6 @@ export default async function SchedulePage({ params }: { params: { site: string 
     <ScheduleClient
       days={days}
       initialWindows={firstDayWindows}
-      estimatedDurationMinutes={estimatedDurationMinutes}
       initiallyUnavailable={schedulingUnavailable}
     />
   );

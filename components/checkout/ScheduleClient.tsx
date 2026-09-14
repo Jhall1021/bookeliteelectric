@@ -5,18 +5,16 @@ import { useRouter } from "next/navigation";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 import { useIdentity } from "@/components/theme/StorefrontContext";
 
-type Window = { start: string; end: string; available: boolean };
+type Window = { start: string; end: string; available: boolean; unavailableReason?: "NOT_ENOUGH_TIME" | "FULL" };
 type DayMeta = { date: string; dateISO: string };
 
 export default function ScheduleClient({
   days,
   initialWindows,
-  estimatedDurationMinutes,
   initiallyUnavailable = false,
 }: {
   days: DayMeta[];
   initialWindows: Window[];
-  estimatedDurationMinutes: number | null;
   /** The first day's availability could not be verified on the server. */
   initiallyUnavailable?: boolean;
 }) {
@@ -43,8 +41,10 @@ export default function ScheduleClient({
 
     // Fresh check against the real Jobber calendar every time — no
     // caching, no stale snapshot from whenever the page first loaded.
+    // No job length is sent: the route reads it from this visit on the server,
+    // the same way the first day was rendered. It used to be sent as
+    // ?duration= and ignored, so later days offered windows checkout refused.
     const url = new URL(`/api/availability/${days[i].dateISO}`, window.location.origin);
-    if (estimatedDurationMinutes) url.searchParams.set("duration", String(estimatedDurationMinutes));
     // useSiteFetch, not a bare fetch: /api/availability now resolves the
     // contractor from the storefront identifier, so a plain fetch 404s.
     const res = await siteFetch(url, { cache: "no-store" });
@@ -153,7 +153,11 @@ export default function ScheduleClient({
             >
               <div className="flex items-center justify-between">
                 <span>{w.start} – {w.end}</span>
-                {!w.available && <span className="text-xs">Fully booked</span>}
+                {!w.available && (
+                  <span className="text-xs">
+                    {w.unavailableReason === "NOT_ENOUGH_TIME" ? "Not enough time available" : "Fully booked"}
+                  </span>
+                )}
               </div>
             </button>
           ))}

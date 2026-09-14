@@ -17,8 +17,22 @@
  * Proves:
  *   D  the stored line carries crew-hours, crew count and estimatedMinutes
  *   W  native scheduling offers 8:00 and 11:00 and withholds 2:00 for this job
- *      (the same day, asked without a duration, offers 2:00 — the job did it)
- *   L  checkout refuses the 2:00 window with WINDOW_TOO_LATE and books nothing
+ *      on the server-rendered first day AND on every later day's tab (which
+ *      re-asks /api/availability), labelled "Not enough time available", never
+ *      "Fully booked"; every window offered is one checkout's rule accepts
+ *      (the same day, asked with no visit, offers 2:00 — the job did it)
+ *   L  checkout refuses the 2:00 window with WINDOW_TOO_LATE and books nothing,
+ *      through the form and as a direct POST for a later day
+ *   C  with 8:00 at capacity, a 288-min job sees 8:00 FULL and 2:00
+ *      NOT_ENOUGH_TIME, and a short job (31 ft, 86 min) sees 8:00 "Fully
+ *      booked" and 2:00 offered — it genuinely fits
+ *
+ * C's CAPACITY FIXTURE, AND THE DEFECT IT RECORDS: native capacity counts
+ * bookings whose ArrivalWindow.date EQUALS the day's UTC midnight, but checkout
+ * stores the schedule page's full timestamp for that day, so a booking made
+ * through the storefront is never counted (printed as a NOTE). Capacity is out
+ * of this change's scope, so the full window is a second booking stored under
+ * the date key capacity reads — it proves the label, not the capacity model.
  *   B  the booking made through the form snapshots the 288-minute duration
  *   N  that whole no-deposit checkout contacts no js.stripe.com, m.stripe.com
  *      or m.stripe.network
@@ -41,6 +55,9 @@ import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { liveEndpointOf, resetRefusal, PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 import { buildPricedDerivedContractor, fixtureSlug, removeFixture } from "./_derivedStorefrontFixture";
+import { jobFitsWorkday } from "../lib/jobber";
+import { windowAvailabilityForDay } from "../lib/schedulingAvailability";
+import { withContractor } from "../lib/tenantRoute";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -64,10 +81,38 @@ const SELECT: [RegExp, RegExp][] = [
   [/What is that wall surface/i, /^Drywall$/],
   [/Does anything sit in the way along that route/i, /^No — it.s a clear run along the wall/],
 ];
-const NUMBER: [RegExp, string][] = [
-  [/how many feet is that route/i, "200"], [/How many inside corners/i, "0"],
+const NUMBER = (feet: string): [RegExp, string][] => [
+  [/how many feet is that route/i, feet], [/How many inside corners/i, "0"],
   [/How many outside corners/i, "0"], [/turn a corner while staying on the same/i, "0"],
 ];
+const WINDOW_RE = /\d{1,2}:\d\d [AP]M – \d{1,2}:\d\d [AP]M/;
+const DAY_END = "4:30 PM";   // default business hours
+type Shown = Record<string, { enabled: boolean; badge: string }>;
+
+/** What the schedule screen currently offers: each window, whether it can be chosen, and its label. */
+async function readWindows(page: Page): Promise<Shown> {
+  const buttons = page.locator("main button").filter({ hasText: WINDOW_RE });
+  await buttons.first().waitFor({ timeout: 15000 });
+  const shown: Shown = {};
+  for (const b of await buttons.all()) {
+    const text = ((await b.textContent()) ?? "").trim();
+    const label = text.match(WINDOW_RE)![0];
+    shown[label] = { enabled: await b.isEnabled(), badge: text.slice(text.indexOf(label) + label.length).trim() };
+  }
+  return shown;
+}
+
+/** Click a day tab and wait for ITS availability answer, not a guess at timing. */
+async function openDay(page: Page, i: number): Promise<{ dateISO: string; label: string; body: any }> {
+  const tab = page.locator("main div.flex button").nth(i);
+  const [res] = await Promise.all([
+    page.waitForResponse((r) => /\/api\/availability\/\d{4}-\d\d-\d\d/.test(r.url()), { timeout: 30000 }),
+    tab.click(),
+  ]);
+  const body = await res.json().catch(() => null);
+  await page.getByText("Checking real-time availability...").waitFor({ state: "detached", timeout: 30000 }).catch(() => {});
+  return { dateISO: new URL(res.url()).pathname.split("/").pop()!, label: ((await tab.textContent()) ?? "").trim(), body };
+}
 
 async function startServer(): Promise<ChildProcess | null> {
   if (EXTERNAL) return null;
@@ -88,7 +133,7 @@ async function startServer(): Promise<ChildProcess | null> {
 }
 
 /** Service intro → terminal price card → Add to My Visit, as a homeowner. */
-async function priceAndAdd(page: Page, servicePath: string) {
+async function priceAndAdd(page: Page, servicePath: string, feet: string) {
   await page.goto(`${BASE}${servicePath}`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Check My Price/i }).click();
   for (let i = 0; i < 20; i++) {
@@ -100,7 +145,7 @@ async function priceAndAdd(page: Page, servicePath: string) {
     if (await add.count()) { await add.click(); await page.waitForURL(/my-visit/, { timeout: 60000 }); return "PRICED"; }
     const text = (await heading.textContent().catch(() => "")) ?? "";
     if (/price this remotely/i.test(text)) return "REVIEW";
-    const num = NUMBER.find(([re]) => re.test(text));
+    const num = NUMBER(feet).find(([re]) => re.test(text));
     const input = page.locator("textarea").first();
     if (num && await input.count()) { await input.fill(num[1]); await page.getByRole("button", { name: "Continue", exact: true }).click(); await page.waitForTimeout(300); continue; }
     const sel = SELECT.find(([re]) => re.test(text));
@@ -167,50 +212,61 @@ async function main() {
     const page = await ctx.newPage();
 
     console.log("  D  THE STORED LINE CARRIES THE DERIVED LABOR\n");
-    ok(await priceAndAdd(page, servicePath) === "PRICED", "D  200 ft straight route → priced → Add to My Visit");
+    ok(await priceAndAdd(page, servicePath, "200") === "PRICED", "D  200 ft straight route → priced → Add to My Visit");
     const line = await prisma.lineItem.findFirst({ where: { visit: { contractorId: f.contractorId }, serviceId: f.serviceId },
       select: { resolvedCrewHours: true, resolvedCrewCount: true, estimatedMinutes: true, computedPriceCents: true } });
     ok(!!line && Math.abs((line.resolvedCrewHours ?? -1) - 4.8) < 1e-9, `D  resolvedCrewHours = ${line?.resolvedCrewHours}`, JSON.stringify(line));
     ok(line?.resolvedCrewCount === 1, `D  resolvedCrewCount = ${line?.resolvedCrewCount}`);
     ok(line?.estimatedMinutes === 288, `D  estimatedMinutes = ${line?.estimatedMinutes} (4.8 h ÷ 1 crew × 60)`);
 
-    console.log("\n  W  NATIVE SCHEDULING WITHHOLDS THE WINDOW THE JOB CANNOT FINISH IN\n");
+    console.log("\n  W  NATIVE SCHEDULING WITHHOLDS THE WINDOW THE JOB CANNOT FINISH IN — EVERY DAY\n");
     await page.getByRole("button", { name: "Choose My Appointment Time" }).click();
     await page.waitForURL(/checkout\/schedule/, { timeout: 30000 });
     await page.getByRole("heading", { name: "Select an Arrival Window" }).waitFor({ timeout: 30000 });
-    const windowButtons = page.locator("main button").filter({ hasText: /\d{1,2}:\d\d [AP]M – \d{1,2}:\d\d [AP]M/ });
-    await windowButtons.first().waitFor({ timeout: 15000 });
-    const shown: Record<string, boolean> = {};
-    for (const b of await windowButtons.all()) shown[((await b.textContent()) ?? "").match(/\d{1,2}:\d\d [AP]M – \d{1,2}:\d\d [AP]M/)![0]] = await b.isEnabled();
-    ok(shown["8:00 AM – 11:00 AM"] === true && shown["11:00 AM – 2:00 PM"] === true, "W  8:00 AM and 11:00 AM are offered (288 min ends by 1:48 PM / 3:48 PM)", JSON.stringify(shown));
-    ok(shown["2:00 PM – 4:30 PM"] === false, "W  2:00 PM is not offered — 288 minutes would run to 6:48 PM, past 4:30 PM", JSON.stringify(shown));
+    const LATE = "2:00 PM – 4:30 PM", NOT_ENOUGH = "Not enough time available";
+    const first = await readWindows(page);
+    ok(first["8:00 AM – 11:00 AM"]?.enabled === true && first["11:00 AM – 2:00 PM"]?.enabled === true, "W  first day (server-rendered): 8:00 AM and 11:00 AM are offered (288 min ends 12:48 PM / 3:48 PM)", JSON.stringify(first));
+    ok(first[LATE]?.enabled === false, "W  first day: 2:00 PM is not offered — 288 minutes would run to 6:48 PM, past 4:30 PM", JSON.stringify(first));
+    ok(first[LATE]?.badge === NOT_ENOUGH, `W  first day: it reads "${first[LATE]?.badge}", not "Fully booked"`, JSON.stringify(first));
 
-    // OBSERVATION, NOT AN ASSERTION. The windows above are the server-rendered
-    // first day. Another day's tab re-asks GET /api/availability/[date] with
-    // ?duration=, and that route does not read the parameter — so a later day
-    // may offer 2:00 PM and checkout then refuses it (L). Pre-existing and
-    // outside this change's scope; recorded here so the report states it.
-    const dayTabs = page.locator("main div.flex button");
-    const dayTab = (await dayTabs.first().textContent())?.trim();
-    if (await dayTabs.count() > 1) {
-      await dayTabs.nth(1).click();
-      await page.getByText("Checking real-time availability...").waitFor({ state: "detached", timeout: 30000 }).catch(() => {});
-      const later = page.getByRole("button", { name: "2:00 PM – 4:30 PM" });
-      await later.waitFor({ timeout: 15000 }).catch(() => {});
-      console.log(`  NOTE second day tab (${(await dayTabs.nth(1).textContent())?.trim()}): 2:00 PM – 4:30 PM ${await later.count() && await later.isEnabled() ? "IS offered — the tab refetch ignores duration (recorded finding)" : "is not offered"}`);
-      await dayTabs.first().click();
-      await page.getByText("Checking real-time availability...").waitFor({ state: "detached", timeout: 30000 }).catch(() => {});
+    const tabCount = await page.locator("main div.flex button").count();
+    ok(tabCount >= 2, `W  the schedule offers ${tabCount} working days to move between`);
+    const days: { dateISO: string; label: string }[] = [];
+    const agreeWithCheckout: string[] = [];
+    let laterDayApi: any = null;
+    for (let i = 1; i < tabCount; i++) {
+      const day = await openDay(page, i);
+      days.push(day);
+      if (i === 1) laterDayApi = day.body;
+      const shown = await readWindows(page);
+      ok(shown["8:00 AM – 11:00 AM"]?.enabled === true && shown["11:00 AM – 2:00 PM"]?.enabled === true && shown[LATE]?.enabled === false && shown[LATE]?.badge === NOT_ENOUGH,
+        `W  later day ${day.label} (/api/availability/${day.dateISO}): 8:00 and 11:00 offered, 2:00 PM withheld as "${shown[LATE]?.badge}"`, JSON.stringify(shown));
+      for (const [label, w] of Object.entries(shown)) {
+        const [start, end] = label.split(" – ");
+        if (w.enabled && !jobFitsWorkday(day.dateISO, { start, end }, DAY_END, 288)) agreeWithCheckout.push(`${day.dateISO} ${label}`);
+      }
     }
+    ok(agreeWithCheckout.length === 0, "W  no later-day window offered is one checkout would refuse for length", agreeWithCheckout.join(", "));
+    ok((laterDayApi?.windows ?? []).find((w: any) => w.start === "2:00 PM")?.unavailableReason === "NOT_ENOUGH_TIME",
+      "W  the later-day API answer itself names NOT_ENOUGH_TIME — the server decided, not the browser", JSON.stringify(laterDayApi));
+
+    // Back to the first day, which is now answered by the API too.
+    const again = await openDay(page, 0);
+    const againShown = await readWindows(page);
+    ok(againShown[LATE]?.enabled === false && againShown[LATE]?.badge === NOT_ENOUGH, `W  first day re-asked through the tab (${again.label}): the same answer as the server render`, JSON.stringify(againShown));
+
+    // Control: the same later day asked with NO visit (no session) has no known job length.
+    const noVisit = await (await fetch(`${BASE}/api/availability/${days[0].dateISO}`, { headers: { "x-price2book-site": f.publicId } })).json();
+    const noVisitLate = (noVisit.windows ?? []).find((w: any) => w.start === "2:00 PM");
+    ok(noVisitLate?.available === true && !noVisitLate.unavailableReason, `W  control: ${days[0].label} asked with no visit offers 2:00 PM — the job's length is what withheld it`, JSON.stringify(noVisit));
+    ok(await prisma.booking.count({ where: { visit: { contractorId: f.contractorId } } }) === 0, "W  …and nothing was booked, so capacity did not withhold it");
+
     await page.getByRole("button", { name: "8:00 AM – 11:00 AM" }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.waitForURL(/checkout\/details/, { timeout: 30000 });
     const detailsUrl = page.url();
     const dateISO = new Date(new URL(detailsUrl).searchParams.get("date")!).toISOString().split("T")[0];
-    // Same day, same contractor, no bookings: asked with no duration, 2:00 is open.
-    const control = await (await fetch(`${BASE}/api/availability/${dateISO}`, { headers: { "x-price2book-site": f.publicId } })).json();
-    const ctlLate = (control.windows ?? []).find((w: any) => w.start === "2:00 PM");
-    ok(ctlLate?.available === true, `W  control: the same day (${dayTab?.trim()}) with no job length offers 2:00 PM — the duration is what withheld it`, JSON.stringify(control));
-    ok(await prisma.booking.count({ where: { visit: { contractorId: f.contractorId } } }) === 0, "W  …and nothing was booked, so capacity did not withhold it");
+    ok(dateISO === again.dateISO, `W  the chosen day is the first working day, ${dateISO}`);
 
     console.log("\n  L  CHECKOUT REFUSES THE LATE WINDOW\n");
     const late = new URL(detailsUrl); late.searchParams.set("windowStart", "2:00 PM"); late.searchParams.set("windowEnd", "4:30 PM");
@@ -222,6 +278,13 @@ async function main() {
     ]);
     const lateBody = await lateRes.json().catch(() => null);
     ok(lateRes.status() === 409 && lateBody?.error === "WINDOW_TOO_LATE", `L  POST /api/checkout for 2:00 PM → ${lateRes.status()} ${lateBody?.error}`, JSON.stringify(lateBody));
+    // Checkout is authoritative on its own: a direct POST, not through any screen, for a later day's late window.
+    const laterDate = new Date(`${days[0].dateISO}T12:00:00Z`).toISOString();
+    const direct = await page.request.post(`${BASE}/api/checkout`, { headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
+      data: { name: "Duration Proof (TEST)", email: "duration-proof@example.invalid", phone: "6095550100", address: "1 Rehearsal Way", zipCode: ZIP,
+              date: laterDate, windowStart: "2:00 PM", windowEnd: "4:30 PM" } });
+    const directBody = await direct.json().catch(() => null);
+    ok(direct.status() === 409 && directBody?.error === "WINDOW_TOO_LATE", `L  direct POST /api/checkout for ${days[0].label} 2:00 PM → ${direct.status()} ${directBody?.error}`, JSON.stringify(directBody));
     ok(await prisma.booking.count({ where: { visit: { contractorId: f.contractorId } } }) === 0
       && await prisma.customer.count({ where: { contractorId: f.contractorId } }) === 0, "L  …no booking and no customer were created");
 
@@ -249,6 +312,40 @@ async function main() {
       ok(hits.length === 0, `N  ${host}: ${hits.length} requests across the storefront, schedule, both details loads and confirmation`, hits.join(" "));
     }
     await ctx.close();
+
+    console.log("\n  C  A FULL WINDOW STILL SAYS FULL; A SHORT JOB STILL GETS THE AFTERNOON\n");
+    // The 8:00 AM booking above filled that window (one job per window).
+    const asSite = <T>(fn: (db: never) => Promise<T>) => withContractor(f.contractorId, "site-identifier", (db) => fn(db as never));
+    const sched = { windows: [{ start: "8:00 AM", end: "11:00 AM" }, { start: "11:00 AM", end: "2:00 PM" }, { start: "2:00 PM", end: DAY_END }], dayEndDisplay: DAY_END };
+    const real = await prisma.booking.findUniqueOrThrow({ where: { id: bookBody.bookingId },
+      select: { customerId: true, address: true, zipCode: true, totalCents: true, paymentModel: true, visit: { select: { status: true } },
+                arrivalWindow: { select: { date: true, serviceAreaId: true, capacityTotal: true } } } });
+    const afterReal = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, 86));
+    console.log(`  NOTE pre-existing native-capacity defect: the storefront booking's ArrivalWindow.date is ${real.arrivalWindow.date.toISOString()}; capacity looks for ${new Date(dateISO).toISOString()}; 8:00 AM with a one-job capacity and that booking → ${afterReal[0].available ? "STILL OFFERED" : "full"}`);
+    // Capacity fixture: a second job in 8:00 AM, under the date key native capacity counts.
+    const fxVisit = await prisma.visit.create({ data: { contractorId: f.contractorId, sessionId: `capacity-fixture-${randomBytes(8).toString("hex")}`, status: real.visit.status } });
+    const fxWindow = await prisma.arrivalWindow.create({ data: { date: new Date(dateISO), startTime: "8:00 AM", endTime: "11:00 AM", serviceAreaId: real.arrivalWindow.serviceAreaId, capacityTotal: real.arrivalWindow.capacityTotal } });
+    await prisma.booking.create({ data: { visitId: fxVisit.id, customerId: real.customerId, address: real.address, zipCode: real.zipCode,
+      arrivalWindowId: fxWindow.id, totalCents: real.totalCents, paymentModel: real.paymentModel } });
+    const serverLong = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, 288));
+    ok(JSON.stringify(serverLong.map((w) => [w.start, w.available, w.unavailableReason ?? null])) === JSON.stringify([["8:00 AM", false, "FULL"], ["11:00 AM", true, null], ["2:00 PM", false, "NOT_ENOUGH_TIME"]]),
+      "C  server: on the booked day a 288-min job sees 8:00 FULL, 11:00 offered, 2:00 NOT_ENOUGH_TIME — two reasons, told apart", JSON.stringify(serverLong));
+
+    const cctx = await browser.newContext();
+    const cpage = await cctx.newPage();
+    ok(await priceAndAdd(cpage, servicePath, "31") === "PRICED", "C  a second homeowner prices a 31 ft straight route → Add to My Visit");
+    const shortLine = await prisma.lineItem.findFirst({ where: { visit: { contractorId: f.contractorId, status: "OPEN" }, serviceId: f.serviceId }, select: { estimatedMinutes: true } });
+    ok(shortLine?.estimatedMinutes === 86, `C  …its line carries ${shortLine?.estimatedMinutes} minutes`);
+    await cpage.getByRole("button", { name: "Choose My Appointment Time" }).click();
+    await cpage.getByRole("heading", { name: "Select an Arrival Window" }).waitFor({ timeout: 30000 });
+    const booked = await readWindows(cpage);
+    ok(booked["8:00 AM – 11:00 AM"]?.enabled === false && booked["8:00 AM – 11:00 AM"]?.badge === "Fully booked",
+      `C  ${again.label} 8:00 AM, at capacity, reads "${booked["8:00 AM – 11:00 AM"]?.badge}"`, JSON.stringify(booked));
+    ok(booked[LATE]?.enabled === true && booked["11:00 AM – 2:00 PM"]?.enabled === true, "C  …and a job that genuinely fits is offered 2:00 PM (86 min ends 3:26 PM)", JSON.stringify(booked));
+    await openDay(cpage, 1);
+    const shortLater = await readWindows(cpage);
+    ok(Object.values(shortLater).every((w) => w.enabled), `C  ${days[0].label}: every window offered to the short job`, JSON.stringify(shortLater));
+    await cctx.close();
 
     console.log("\n  P  A DEPOSIT STILL LOADS STRIPE.JS (test boundary — see header)\n");
     const pctx = await browser.newContext();
