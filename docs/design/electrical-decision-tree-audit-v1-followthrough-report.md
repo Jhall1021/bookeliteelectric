@@ -1,19 +1,28 @@
-# Electrical Decision Tree Audit V1 — follow-through report (corrected)
+# Electrical Decision Tree Audit V1 — follow-through report (corrected again, final)
 
-**Status: locally implemented, partially verified.** Nothing in this branch has been
-applied to any database, the canonical template, or any contractor's live catalog.
-Every claim below is labeled by exactly what kind of evidence supports it —
-code-confirmed by reading, DB-free unit-tested, or genuinely unverified — and none of
-those labels is a substitute for the others.
+**Status: pushed, in review as a draft PR. Nothing has been applied to any database,
+the canonical template, or any contractor's live catalog.** Every claim below is
+labeled by exactly what kind of evidence supports it — code-confirmed by reading,
+DB-free unit-tested, or genuinely unverified — and none of those labels is a
+substitute for the others.
 
-Branch `audit/electrical-followthrough-v1`, forked from `origin/main` at `64dcf36`, in
-an isolated worktree (`/private/tmp/p2b-audit-followthrough-wt`) with its own `npm ci`
-and generated Prisma client. **Not pushed anywhere** — see §8.
+Branch `audit/electrical-followthrough-v1`, forked from `origin/main` at `64dcf36`,
+developed in an isolated worktree (`/private/tmp/p2b-audit-followthrough-wt`) with its
+own `npm ci` and generated Prisma client. **Open as draft PR
+[#56](https://github.com/Jhall1021/bookeliteelectric/pull/56).** See §8 — this section
+of the prior report ("Not pushed anywhere") was itself stale by the time it was read;
+the branch had already been pushed and the PR opened before this pass started.
 
-This supersedes the earlier five/six-commit version of this same report: this pass
-added a correction round (referenced-service pricing hardening, dedicated switch-leg
-proof, a pure-function extraction proving B.4, and a real regression found and fixed
-in B.16/B.18), bringing the branch to **11 commits**.
+This is the second correction to this report. The first correction round (referenced-
+service pricing hardening, dedicated switch-leg proof, a pure-function extraction
+proving B.4, and a real regression found and fixed in B.16/B.18) brought the branch to
+11 commits and was itself committed as `d88d26f`. Two more commits followed it before
+this pass began — a Vercel deployment guard (`07b2af8`, bringing the pushed branch to
+**13 commits**, confirmed against `origin/audit/electrical-followthrough-v1`) — and the
+report was never updated past 11, which is the defect this revision corrects, alongside
+three new pieces of work landed in this pass: closing the WWT display/charge mismatch
+(§3a), correcting the rollout plan's assumptions about which seed functions are
+actually narrow (§7, rewritten), and resolving the mount price-unit contract (§3b).
 
 ## Final commit list (full SHAs)
 
@@ -24,15 +33,22 @@ in B.16/B.18), bringing the branch to **11 commits**.
 | 3 | `9ec5e6f17a4d5b9aa203b74d936c81d3f383d3ad` | fix: trade-scope the direct troubleshooting entry, stop discarding reroute context |
 | 4 | `d841fdfc0930ff58bc3b63ea9f38fb9a1eb4f78e` | fix: remove four non-consequential mandatory questions, reword one trade-judgment prompt |
 | 5 | `2fef53eb97a2252626b3f914a818a2f65752331b` | docs: structural proposals for review — not implemented |
-| 6 | `6c0debecec509cb914a940a542bc44012a0a2d04` | docs: follow-through summary report (the version this document replaces) |
+| 6 | `6c0debecec509cb914a940a542bc44012a0a2d04` | docs: follow-through summary report (superseded twice over — first by `d88d26f`, now by this commit) |
 | 7 | `81d4ccbc83121a04007a683728c1f46cae59badd` | fix: harden referenced-service pricing against masking, cross-tenant, and display/charge drift |
 | 8 | `9a5dfc142f99ecbff1e2ac3b87a30064fb1f08f1` | test: prove the switch-leg fix's composed graph, not just its definition count |
 | 9 | `4b6c341b79e221723b8567d7ae5b1428171772dd` | refactor: extract the reroute handoff into pure functions, and prove B.4 without a browser |
 | 10 | `79329f7468e90855982fc4af962c9dcb1df1978c` | fix: correct B.16 (drop the mandatory garage_type question) and a real regression it caused |
 | 11 | `1e72b529dbb51ef15d19c7a6678e2938329d97db` | docs: catalog rollout plan — not applied |
+| 12 | `d88d26ff4818cd3762e319aae28b1aecb3d99fce` | docs: correct the completion record — 11 commits, full SHAs, distinguished impact |
+| 13 | `07b2af8bf06247845131dce18a46ca8a1b4eedc5` | chore: disable Vercel deployment for this branch before any push |
+| 14 | `5ef27acd8262bf06fe2278acefdd98dda42fc2a2` | fix: close the WWT display/charge mismatch on referenced-service pricing |
+| 15 | `2703b38609f39863f758cf41a741ac67ea80f512` | fix: narrow the rollout mechanism — split multi-service seed functions, guard every seed file's main(), add a dry-run rollout runner |
+| 16 | `bbb4b5f96f35fe0876940e4908f428b483491d96` | test: resolve the TV-mount price-unit contract by tracing the seed literal through the real writer and formatter |
+| 17 | *(this commit)* | docs: correct the completion record again — 13→16 commits, WWT fix, rollout-plan correction, price-unit resolution |
 
-Full reasoning for every item lives in the commit messages themselves and in the four
-companion docs: [reconciliation](electrical-decision-tree-audit-v1-reconciliation.md),
+Full reasoning for every item lives in the commit messages
+themselves and in the companion docs:
+[reconciliation](electrical-decision-tree-audit-v1-reconciliation.md),
 [structural proposals](electrical-decision-tree-audit-v1-structural-proposals.md),
 [rollout plan](electrical-decision-tree-audit-v1-rollout-plan.md). This report
 synthesizes; it doesn't repeat everything those already say.
@@ -46,8 +62,8 @@ None of the four categories below should be conflated with any other:
 
 | | Status |
 |---|---|
-| **Runtime behavior changed by deployed code** | **None.** Nothing in this branch is deployed anywhere — not to a Preview, not to production. `lib/pricing.ts`, `lib/routeResolver.ts`, `lib/serviceTreeQuery.ts`, `app/api/services/[slug]/route.ts`, `lib/troubleshooting.ts`, `app/api/troubleshooting/route.ts`, `app/[site]/troubleshooting/page.tsx`, `components/guided-flow/*.tsx`, and `lib/rerouteHandoff.ts` are all changed on disk, in commits, on an unpushed branch. No running system's behavior has changed. |
-| **Seed definitions changed but not applied** | `prisma/seed-questions.ts` (B.2, B.16), `prisma/seed-device-and-finish-modules.ts` (B.17), `prisma/seed-dedicated-circuit.ts` (B.18), `prisma/seed-appliance-services.ts` (B.18, B.19). Each defines what Elite's catalog *would become* the next time someone with database access runs the specific function — see the rollout plan for exactly which, and why running the whole file isn't recommended for `seed-questions.ts` specifically. |
+| **Runtime behavior changed by deployed code** | **None.** Nothing in this branch is deployed anywhere — not to a Preview, not to production, and pushing a branch does not by itself trigger one (see §8). `lib/pricing.ts`, `lib/flow-types.ts`, `lib/routeResolver.ts`, `lib/serviceTreeQuery.ts`, `app/api/services/[slug]/route.ts`, `lib/troubleshooting.ts`, `app/api/troubleshooting/route.ts`, `app/[site]/troubleshooting/page.tsx`, `components/guided-flow/*.tsx`, `components/marketing/HeroWalkthrough.tsx`, and `lib/rerouteHandoff.ts` are all changed on disk and in commits on this branch. No running system's behavior has changed. |
+| **Seed definitions changed but not applied** | `prisma/seed-questions.ts` (B.2, B.16), `prisma/seed-device-and-finish-modules.ts` (B.17), `prisma/seed-dedicated-circuit.ts` (B.18), `prisma/seed-appliance-services.ts` (B.18, B.19), `prisma/seed.ts` (no fix — see §3b, only an export + an import-safety guard). Each defines what Elite's catalog *would become* the next time someone with database access runs the specific, narrow function — see the [rewritten rollout plan](electrical-decision-tree-audit-v1-rollout-plan.md) (§7) for exactly which function, exactly which service(s) it touches, and the dry-run/customized-tree-check runner (`scripts/rollout-electrical-tree-fixes.ts`) built to apply them one at a time. Every seed file's `main()` is now guarded behind `import.meta.url`, so importing any of these narrow functions cannot also execute the file's full sweep. |
 | **Canonical template** | **Unchanged.** No `extract-template-catalog.ts` run. A contractor provisioned today, from `origin/main`, inherits none of these fixes. |
 | **Existing contractor catalogs (BrightPath, etc.)** | **Unchanged.** No `template-update.ts` run. Whatever BrightPath's live trees look like today, this branch hasn't touched them, directly or indirectly. |
 
@@ -63,7 +79,7 @@ seed step required. They are still **not deployed**, per the table above.
 
 | Finding | What changed | Note |
 |---|---|---|
-| **B.1** — TV mount add-ons priced at $0 | Refined during correction: the first fix (commit 2) routed the resolved price through `approvedComponentPriceCents`, which had its own masking gap for answers with no components (every mount option today). Commit 7 gives the reference its own `referencedServicePriceCents` field, composing additively with components, checked for same-contractor ownership, and matched to the display DTO so it can no longer show a price the server would refuse. | See §3 — do not read commit 2 in isolation as the fix; commit 7 is. |
+| **B.1** — TV mount add-ons priced at $0 | Refined twice: the first fix (commit 2) routed the resolved price through `approvedComponentPriceCents`, which had its own masking gap for answers with no components (every mount option today). Commit 7 gives the reference its own `referencedServicePriceCents` field, composing additively with components, checked for same-contractor ownership, and matched to the display DTO. **Commit 14 (this pass) closes a remaining gap direct review found in commit 7's own display DTO**: it only ever read the referenced service's primary `basePrice`, so a while-we're-there visit could display one price and be charged another whenever a service's primary and WWT prices differ. See §3a. | Read commit 14 as the current, authoritative state — commits 2 and 7 alone are superseded, not wrong-then-right in one step. |
 | **B.2** — switch-leg double-charge | Unchanged from the original diagnosis. Fixed by removing `switched_source`. Given its own dedicated, DB-free graph proof in commit 8, independent of B.1's tests. | |
 | **B.3** — hardcoded diagnostic slug | Fixed: resolves every enrolled trade via `findTroubleshootingDestinations()`. | |
 | **B.4** — rerouted symptom reached nowhere | Fixed via the existing handoff mechanism, extended with a `customerNote` field; the parsing/construction logic was extracted to pure functions in commit 9 specifically so it could be unit-tested. | |
@@ -137,13 +153,112 @@ Full detail in commit 7; summary of what each reviewed boundary now does:
 | Ordinary modifiers/components | Neither dropped nor double-counted — proven by a case with all three (reference + component + `priceModifierCents`) present on one answer summing correctly. |
 | Primary/WWT | The resolver picks the referenced service's own `basePrice` or `whileWeThereBasePrice` matching `isPrimary`, exactly like the anchor price. The **display DTO stays primary-only**, documented as a deliberate, narrow limitation: it can't know add-on status before the client's own separate `/api/visit` read, which is true of every other per-option delta in the preview layer already — not a new gap this fix introduces. The actual charge is always correct regardless. |
 | Add-on-only vs. standalone eligibility | Proven separate: an inactive (`active: false`) referenced service — exactly Elite's own mount rows — still resolves its price normally, since nothing in the pricing path reads `active` at all. |
-| Units | `Service.basePrice`/`whileWeThereBasePrice` confirmed cents throughout every consumer read this session (the display formatter, `scripts/republish-legacy-approved-prices.ts`'s own `money()` helper, this fix's own code). **One unresolved concern surfaced, not fixed:** `prisma/seed.ts`'s bootstrap literals for `elite-tilt-mount`/`elite-articulating-mount` (`basePrice: 125`, `basePrice: 200`) read as $1.25/$2.00 if ever interpreted as cents on a fresh database — `scripts/republish-legacy-approved-prices.ts`'s own existence (re-approving, not re-deriving, five legacy prices including these two) suggests the *current* database value is already a real, correct, separately-set figure and the seed literal is a stale bootstrap artifact rather than live truth, but this session had no database access to confirm which is actually true today. **Flagged as a concrete, specific gate for whoever has DB access:** `SELECT "basePrice", "whileWeThereBasePrice" FROM "Service" WHERE slug IN ('elite-tilt-mount','elite-articulating-mount')` before trusting either figure. |
+| Units | `Service.basePrice`/`whileWeThereBasePrice` confirmed cents throughout every consumer read this session (the display formatter, `scripts/republish-legacy-approved-prices.ts`'s own `money()` helper, this fix's own code). **The seed-literal unit question flagged in the prior report is now resolved by tracing, not by inference — see §3b.** The current live database value for either mount remains explicitly unverified; §3b does not claim otherwise. |
 
 The display DTO's silent fallback (`priceModifierCents: o.referencedService?.basePrice
 ?? o.priceModifierCents`, which would show a confident price the server was about to
 refuse) is corrected: the DTO now returns the same undefined/number/null shape the
 resolver does, computed identically, sharing the same `applyBranch`/`answerPriceDelta`
 functions client and server both call.
+
+---
+
+## 3a. Closing the WWT display/charge mismatch (this pass)
+
+Direct review on PR #56 found a gap commit 7 left open: `app/api/services/[slug]/route.ts`
+only ever computed one `referencedServicePriceCents` from the referenced service's
+primary `basePrice`, and `GuidedFlowEngine.tsx`'s `evaluate()` passed that single value
+into `applyBranch()` even on a while-we're-there (add-on) visit — while
+`lib/routeResolver.ts`, the server-authoritative resolver, already correctly chose
+`whileWeThereBasePrice` for an add-on. The displayed option adjustment and the terminal
+price the client showed could therefore disagree with what the server would actually
+charge, for any referenced service whose primary and WWT prices differ. The task's own
+framing was exact: "identical current mount prices must not conceal this gap" — both of
+Elite's own mounts happen to have matching primary/WWT prices today, which is exactly
+why this needed a fixture with deliberately different ones, not a click-through.
+
+**Fixed** by giving the DTO two independently-computed anchors instead of one:
+
+- `lib/flow-types.ts`'s `AnswerOptionDTO` now carries `referencedServicePrimaryCents` and
+  `referencedServiceAddOnCents` in place of the single field.
+- `app/api/services/[slug]/route.ts` computes both from the referenced service's
+  `basePrice` and `whileWeThereBasePrice`, each independently tenant-checked.
+- `lib/pricing.ts` gained `resolveReferencedServicePriceCents(option, isAddOn)` — the
+  ONE place either client call site resolves the two-anchor DTO shape down to the single
+  value `applyBranch()`/`answerPriceDelta()` consume, so the resolution logic exists once,
+  not duplicated per caller.
+- `GuidedFlowEngine.tsx`'s `evaluate()` and `QuestionStep.tsx`'s live price preview both
+  now call `resolveReferencedServicePriceCents(option, isAddOn)` before handing the
+  option to `applyBranch`/`answerPriceDelta` — `QuestionStep` gained a required `isAddOn`
+  prop for this, which required updating its one other caller,
+  `components/marketing/HeroWalkthrough.tsx` (a marketing demo, not a real customer
+  flow), to pass `isAddOn={false}`.
+- `lib/routeResolver.ts` needed no change — it already picked correctly; this fix brings
+  the client's display path in line with the resolver it was previously disagreeing with.
+
+**Proven** by expanding `scripts/verify-referenced-service-pricing.ts` (16 → 26
+assertions, all passing) with a fixture using **deliberately different** primary
+($125.00) and add-on ($90.00) prices specifically so identical mount prices couldn't
+mask the bug: `resolveReferencedServicePriceCents` picks correctly in both directions;
+the full `applyBranch`/`answerPriceDelta` chain reflects the difference end-to-end, not
+just the helper in isolation; a `null` WWT price resolves to `null` for an add-on visit
+without silently falling back to the primary figure, forcing review through the real
+engine rather than pricing at zero or at the wrong anchor; a valid `$0` add-on price is
+distinguished from a missing one via a strict `null` check; and a non-referencing option
+is unaffected by `isAddOn` in either direction. `npx tsc --noEmit` clean throughout.
+
+**Not proven this pass:** the actual rendered UI showing the correct add-on price in a
+live guided flow — no browser or database access this session; see §6.
+
+## 3b. Resolving the mount price-unit contract (this pass)
+
+The prior report flagged, but did not resolve, whether `prisma/seed.ts`'s bootstrap
+literals for `elite-tilt-mount` (`basePrice: 125`) and `elite-articulating-mount`
+(`basePrice: 200`) meant $125.00/$200.00, or something else if ever read as
+already-cents. Per this pass's explicit instruction, this was resolved by **tracing the
+literal through the actual code that writes and displays a price** — not by inferring
+from `scripts/republish-legacy-approved-prices.ts`'s existence (the prior report's own
+reasoning, now recognized as an inference rather than a trace) and not by multiplying
+the stored figure blindly.
+
+The trace, each step read directly from the file, not paraphrased from memory:
+
+1. `prisma/seed.ts`'s `SeedService` type documents `basePrice?: number; // dollars`.
+2. Its create-time writer (only reached the first time a service row is created — an
+   existing row's `update: {}` leaves `basePrice` untouched on every later run) applies
+   `basePrice: svc.basePrice ? c(svc.basePrice) : null`, where `c = (dollars) =>
+   Math.round(dollars * 100)`.
+3. `lib/flow-types.ts`'s `formatCents(cents)` — the function `lib/servicePricingSummary.ts`
+   actually renders every customer-facing price through — divides by 100 back to dollars.
+
+`c` and the `CATALOG` literal array were exported from `prisma/seed.ts` (additive,
+behavior-free) specifically so a fixture could import and run the real functions against
+the real literal, rather than re-typing either. Doing this required also adding the
+`import.meta.url` guard `prisma/seed.ts` was missing — until this pass, importing it for
+any reason (including just for `c`) would have executed its full 13-category catalog
+seed as a side effect, the same class of hazard corrected across the other four seed
+files in §7. This is now fixed for a fifth file, as a direct consequence of making it
+importable at all.
+
+`scripts/verify-mount-price-unit-contract.ts` (new, DB-free, 14/14 assertions) proves,
+for both mounts: the literal reads as documented (dollars); `c(125)` writes `12500`
+cents, not `125` cents (ruling out "already cents") and not `125 * 1` (ruling out
+treating the dollar literal as if it needed no conversion at all); and
+`formatCents(12500)` round-trips back to `"$125"` — the same figure the literal started
+as, proving the two conversions are exact inverses for these values, not merely
+consistent by coincidence.
+
+**What this does not prove, and does not claim to:** what `elite-tilt-mount` and
+`elite-articulating-mount`'s `basePrice`/`whileWeThereBasePrice` columns actually hold in
+any real database today. `prisma/seed.ts`'s `update: {}` means this literal has only
+ever been written once, if at all, whenever these two rows were first created — since
+then, `scripts/complete-mount-labor-inputs.ts`, a contractor's own price approval
+through the pricing screen, or `scripts/republish-legacy-approved-prices.ts` could each
+have changed it. **The current stored values remain explicitly unverified.** The gate
+named in the prior report stands unchanged: `SELECT "basePrice",
+"whileWeThereBasePrice" FROM "Service" WHERE slug IN ('elite-tilt-mount',
+'elite-articulating-mount')`, against the correct tenant-scoped database, before
+trusting either figure.
 
 ---
 
@@ -217,15 +332,19 @@ don't require a database. All 30 were run individually this pass:
 - **1 failed: `scripts/verify-theme-structure.ts`**, flagging the `flow.slug`
   identity-branch regression described in §2/§5. Diagnosed, fixed, re-run: **15/15
   passing.**
-- This session's own three new DB-free verifiers — `verify-referenced-service-pricing.ts`
-  (16/16), `verify-lighting-control-rewire.ts` (18/18), `verify-reroute-handoff.ts`
-  (11/11) — all re-run after every subsequent commit to confirm nothing regressed
-  them. 45/45 held throughout.
-- All three new verifiers are wired into `package.json`'s `verify:full` chain,
-  positioned next to their closest existing thematic sibling (documented in each
-  commit message).
-- `npx tsc --noEmit`: zero errors, re-run after every single commit in this branch
-  (11 runs, 11 clean).
+- This session's DB-free verifiers, re-run after every subsequent commit to confirm
+  nothing regressed them: `verify-referenced-service-pricing.ts` (originally 16/16,
+  expanded this pass to **26/26** for the WWT fix in §3a),
+  `verify-lighting-control-rewire.ts` (18/18), `verify-reroute-handoff.ts` (11/11), and
+  the new `verify-mount-price-unit-contract.ts` from §3b (**14/14**, new this pass).
+  **69/69 held across all four, this pass's final run.**
+- All four are wired into `package.json`'s `verify:full` chain, each positioned next to
+  its closest existing thematic sibling (`verify-mount-price-unit-contract.ts` added
+  this pass, directly after `verify-referenced-service-pricing.ts`).
+- `npx tsc --noEmit`: zero errors, re-run after every single commit in this branch and
+  after this pass's seed-file refactors (split `seedEvGarage`, split
+  `seed-dedicated-circuit.ts`, narrowed `seedApplianceElectrical`, exported `c`/`CATALOG`
+  from `prisma/seed.ts`) — clean every time.
 - **`npm run lint` was attempted and found unusable**: this repository has no
   `.eslintrc*` or `eslint.config.*` at all, on this branch or on `origin/main` —
   `next lint` prompts for interactive first-time setup. Not a pre-existing configured
@@ -246,23 +365,59 @@ pass.
 
 ---
 
-## 7. Catalog rollout plan
+## 7. Catalog rollout plan (corrected this pass)
 
-See the [dedicated rollout-plan document](electrical-decision-tree-audit-v1-rollout-plan.md)
-— not summarized further here since it's short and entirely prescriptive (nothing in
-it was run).
+See the [rollout-plan document](electrical-decision-tree-audit-v1-rollout-plan.md) —
+**rewritten this pass** after direct review found two of its "safe to run wholesale"
+claims wrong: `seed-device-and-finish-modules.ts`'s `main()` touches 13 services for a
+fix (B.17) that only concerns one, and `seed-dedicated-circuit.ts`'s `main()` bundled
+the B.18 tree fix with a tenant-unscoped retirement `updateMany` — retirement work
+explicitly excluded from this task. The corrected plan:
+
+- Narrows every entry point: `seedDeviceModule("replace-standard-outlet")` instead of
+  the whole file; `seedDedicatedCircuit()` (tree only) instead of `main()`, with
+  retirement split into its own `retireDedicatedCircuitAmperageServices(contractorId)`
+  that this rollout does not call; `seedApplianceElectrical("dishwasher-electrical")`
+  instead of rebuilding `garbage-disposal-install` too; `seedGarage240vOutlet()`
+  instead of `seedEvGarage()`, which also rebuilt two unrelated EV services.
+- Guards every seed file's `main()` behind `import.meta.url`, so a narrow import can no
+  longer execute the whole file's side effects — five files now, including
+  `prisma/seed.ts` (see §3b).
+- Adds `scripts/rollout-electrical-tree-fixes.ts`, a new runner containing no seed logic
+  of its own — it only calls the narrow functions above. Defaults to a dry run
+  (prints the current live tree for the named target's services, no writes). A
+  `--dump-baseline` / `--apply` pair implements the customized-tree check this task
+  asked for: `--apply` refuses if the live tree has drifted from a captured baseline
+  snapshot since it was taken (an admin could have changed wording, pricing, or routing
+  on the same service after the fix was authored), printing the diff rather than
+  silently overwriting it; `--force` bypasses this for a reviewed, deliberate override.
+- **No baseline has been captured against any real database, and `--apply` cannot
+  currently succeed for any target.** This script has never been run against a
+  database — nothing in it has executed.
+
+This document does not authorize running any of it. **No seed, retirement, extraction,
+or catalog update is authorized here or by the rollout-plan document.**
 
 ---
 
 ## 8. Deployment-guard state
 
-- Branch `audit/electrical-followthrough-v1` has **not been pushed** to `origin` —
-  confirmed after every commit this pass (`git status --short --branch`
-  shows local-only, now 11 ahead of `origin/main`, no upstream tracking).
-- No PR opened, no CI run, no Vercel build triggered.
-- `origin/main` carries no `vercel.json` branch-deployment guard (that mechanism
-  exists only on `feat/electrical-routing-v2`) — moot regardless, since nothing was
-  pushed.
-- **Whether and how to push is addressed as its own decision, separate from this
-  report** — see the response accompanying this document for the specific guard
-  check performed before any push and its outcome.
+- Branch `audit/electrical-followthrough-v1` **is pushed** to `origin` and open as
+  **draft PR [#56](https://github.com/Jhall1021/bookeliteelectric/pull/56)** — the prior
+  version of this report's "not pushed anywhere" was itself stale, corrected here as
+  part of the same defect this revision fixes (§ intro).
+- `vercel.json` on this branch sets `git.deploymentEnabled["audit/electrical-followthrough-v1"]: false`
+  (commit `07b2af8`, #13) — confirmed still present and unmodified as of this pass's
+  final commit. This is what makes it safe for the branch to be pushed at all: pushing
+  a branch does not by itself start a build, but Vercel's own Git integration would
+  otherwise attempt one on every push, and this guard is what stops it specifically for
+  this branch name.
+- Whether the guard is actually being honored by Vercel (i.e., no build was actually
+  triggered by any of this pass's pushes) could not be independently confirmed this
+  session — `gh` is not authenticated (`gh auth status` fails, "not logged into any
+  GitHub hosts"), and no Vercel dashboard/API access was available. This is a real,
+  named gap, not assumed-fine: the mechanism is the same one already proven working on
+  `feat/electrical-routing-v2`, but that is evidence the mechanism *can* work, not a
+  observation that it *did* here.
+- No merge, no data change, no seed, no template extraction, and no explicit deploy
+  command were performed at any point this session.
