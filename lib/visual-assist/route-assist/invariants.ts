@@ -17,6 +17,7 @@ import {
   ROUTE_ASSIST_MODES,
   ROUTE_COMPLEXITIES,
   ROUTE_OBSTACLES,
+  ROUTE_PHYSICAL_TURNS,
   ROUTE_POINT_KINDS,
   ROUTE_SURFACES,
   ROUTE_TURN_DIRECTIONS,
@@ -134,6 +135,7 @@ const ALL_TAXONOMIES: readonly (readonly string[])[] = [
   ROUTE_POINT_KINDS,
   ROUTE_OBSTACLES,
   ROUTE_TURN_DIRECTIONS,
+  ROUTE_PHYSICAL_TURNS,
   ROUTE_COMPLEXITIES,
   ROUTE_ASSIST_INCOMPLETE_REASONS,
   ROUTE_ASSIST_CONFIRMATION_DECISIONS,
@@ -182,5 +184,20 @@ export function accessOpeningRangeIsValid(result: RouteAssistResult): boolean {
 /** An unconfirmed route can never look already-cleared to whatever reads `needsContractorReview` next. */
 export function confirmationInvariantHolds(result: RouteAssistResult): boolean {
   if (result.customerConfirmedRoute === false) return result.needsContractorReview === true;
+  return true;
+}
+
+/**
+ * Ordered Geometry V1 physical-turn evidence is surface-route evidence and may
+ * live only on an interior waypoint. SOURCE/DESTINATION are endpoints, not
+ * fittings; concealed/unsure captures must not smuggle surface-fitting claims
+ * into a different routing mode.
+ */
+export function physicalTurnEvidenceIsValid(result: RouteAssistResult): boolean {
+  for (const point of result.points) {
+    if (point.physicalTurn == null) continue;
+    if (result.mode !== "SURFACE") return false;
+    if (point.kind !== "WAYPOINT") return false;
+  }
   return true;
 }
