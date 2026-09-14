@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
   BOUNDARY_LINE, CUSTOMER_URL, EMBED_STATUS, ESTIMATE_TRIPS, EVERYWHERE, JOURNEY, JOURNEY_NOTE,
-  JOURNEY_STRIP, PRICING_MODES, PRODUCT_TOUR, SETUP_PROGRESSION, START_SMALL, TRADES,
+  PRICING_MODES, PRODUCT_TOUR, SETUP_PROGRESSION, START_SMALL, TRADES,
   TRADE_SIGNAL, WHAT_IT_DOES,
 } from "./content";
 import { SHOTS } from "./shots";
@@ -189,29 +189,6 @@ export function WhatItDoes() {
   );
 }
 
-/** The system as a customer walks it, in one line. */
-export function JourneyStrip() {
-  return (
-    <section className="border-t border-p2b-line bg-p2b-canvas-alt py-12 lg:py-[56px]">
-      <div className={SHELL}>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
-          {JOURNEY_STRIP.steps.map((step, i) => (
-            <div key={step} className="flex items-center gap-3">
-              <span className="rounded-sm border border-p2b-line bg-white px-4 py-2.5 text-[15px] font-medium text-p2b-ink lg:text-base">
-                {step}
-              </span>
-              {i < JOURNEY_STRIP.steps.length - 1 && <Arrow />}
-            </div>
-          ))}
-        </div>
-        <p className="mt-6 text-[20px] font-bold tracking-[-0.015em] text-p2b-ink lg:text-[24px]">
-          {JOURNEY_STRIP.close}
-        </p>
-      </div>
-    </section>
-  );
-}
-
 /**
  * Show prices. Send estimates. Or do both.
  *
@@ -342,57 +319,6 @@ export function Adoption() {
               See how Price2Book fits your business →
             </Link>
           </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
- * One product-proof band, where three sections used to be.
- *
- * Pillars summarized the mechanisms, then Guided Pricing and While We're
- * There™ each got a full section repeating the summary with evidence. That
- * made sense when the homepage was the only place the argument could be made.
- * It stopped making sense the moment those pages shipped, and the homepage
- * kept carrying them anyway.
- *
- * THE DEEP PROOF DELIBERATELY IS NOT HERE. The 97-answers-and-none-priced
- * count belongs to /product/guided-pricing; the real price pair belongs to
- * /product/while-were-there; duration and capacity belong to
- * /product/online-booking. Those pages exist precisely so this band can sell
- * the idea and hand off the explanation.
- */
-export function ProductProof() {
-  return (
-    <section className="border-t border-p2b-line py-14 lg:py-[72px]">
-      <div className={SHELL}>
-        <h2 className="max-w-[24ch] text-[28px] font-bold leading-[1.14] tracking-[-0.022em] lg:text-[38px]">
-          Built for the work between the phone call and the truck roll.
-        </h2>
-        {/* The approved Pillars line. The section it titled is gone; the
-            sentence is too good to lose, and it says what the three blocks
-            below do in one breath. */}
-        <p className="mt-4 max-w-[70ch] text-[17px] leading-[1.6] text-p2b-ink-warm">
-          Give customers a price. Give them a time. Make the visit worth more.
-        </p>
-        <div className="mt-9 grid gap-5 lg:grid-cols-3">
-          {[
-            { name: "Guided Pricing", href: "/product/guided-pricing", cta: "Learn about Guided Pricing",
-              line: "Price clear work. Route the rest correctly." },
-            { name: "While We’re There™", href: "/product/while-were-there", cta: "See While We’re There",
-              line: "Price additional work for the visit you’re already making." },
-            { name: "Online Booking", href: "/product/online-booking", cta: "See Online Booking",
-              line: "Show the appointment times that actually fit the work." },
-          ].map((f) => (
-            <div key={f.name} className="flex flex-col rounded-[3px] border border-p2b-line bg-white px-6 py-6">
-              <div className="text-[17px] font-semibold text-p2b-ink lg:text-[18px]">{f.name}</div>
-              <p className="mt-3 flex-1 text-[16px] leading-[1.5] text-p2b-ink-warm">{f.line}</p>
-              <Link href={f.href} className="mt-5 inline-flex text-[15px] font-semibold text-p2b-accent">
-                {f.cta} →
-              </Link>
-            </div>
-          ))}
         </div>
       </div>
     </section>
@@ -611,6 +537,14 @@ export function Everywhere() {
             </div>
             <p className="mt-1.5 text-[15px] leading-[1.55] text-p2b-muted">{EVERYWHERE.direction}</p>
           </div>
+          {/* The embed status left the hero on 14 September 2026 and sits here,
+              beside the "add Price2Book to your website" line it qualifies. */}
+          <p className="mt-5 text-[13px] leading-[1.55] text-p2b-muted">
+            <span className="mr-2 rounded bg-p2b-accent-tint-strong px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.06em] text-p2b-accent">
+              {EMBED_STATUS.label}
+            </span>
+            {EMBED_STATUS.line}
+          </p>
         </div>
 
         <div className="lg:col-span-7">

@@ -1,8 +1,8 @@
 import Hero from "@/components/marketing/Hero";
 import EarlyAccess from "@/components/marketing/EarlyAccess";
 import {
-  Adoption, DemoCta, EstimateTrips, Everywhere, JourneyStrip, NotYourCRM, PricingModes,
-  ProductProof, ProductTour, TradeSignal, WhatItDoes,
+  Adoption, DemoCta, EstimateTrips, Everywhere, NotYourCRM, PricingModes, ProductTour,
+  TradeSignal, WhatItDoes,
 } from "@/components/marketing/Sections";
 
 /**
@@ -15,20 +15,25 @@ import {
  * well. Someone who read all of it understood the product. Someone who
  * skimmed — which is everyone — did not.
  *
- * SO THE FIRST THIRD NOW ANSWERS THREE QUESTIONS IN ORDER:
+ * SCANABILITY PASS — owner, 14 September 2026. The first screen and first
+ * section now answer what a busy contractor decides on:
  *
- *   what is this?     the hero says the category before the slogan
- *   what do I get?    six benefit tiles, skimmable in one pass
- *   is it real?       both sides of the product, in real screenshots
- *   how does it flow? the system as a customer walks it, in one line
+ *   what is this?            the hero: the benefit, one sentence on how it
+ *                            works, the four capabilities
+ *   do I have to go all in?  the hero, before any screenshot: start with a
+ *                            handful of services, keep your software
+ *   what do I get?           six benefit tiles
+ *   is it for my trade?      the trade signal, right after the tiles
+ *   is it real?              both sides of the product, in real screenshots
  *
- * The tiles moved ABOVE the screenshots on 2 September. Proof is worth
- * nothing to someone who does not yet know what is being proved — the screens
- * answer "is this real", and that is the second question, not the first.
+ * The page also got shorter. JourneyStrip (the customer's sequence in one
+ * line) and ProductProof (the three mechanism cards) repeated what the hero,
+ * the tiles, the product pages and the demo CTA already say, so both left the
+ * homepage — and, being used nowhere else, the codebase.
  *
  * Everything after that is the argument a contractor reads once they care:
- * how services can be handled, why estimate trips shrink, the mechanisms,
- * distribution, the boundary, and the ask.
+ * how services can be handled, why estimate trips shrink, distribution, the
+ * boundary, adoption in detail, and the ask.
  *
  * THE ANIMATION DID NOT DIE, IT MOVED. The hero walkthrough is captured from
  * live data and drift-checked, and it is still what /demo is built around. It
@@ -46,27 +51,23 @@ export const dynamic = "force-dynamic";
 export default function HomePage() {
   return (
     <main>
-      {/* 1–4. What it is, that it is real, what it does, how it flows. */}
+      {/* 1–3. What it is, what it does, and which trades it is for. */}
       <Hero />
       <WhatItDoes />
+      <TradeSignal />
+
+      {/* 4. That it is real — both sides of the product. */}
       <ProductTour />
-      <JourneyStrip />
 
       {/* 5–6. How each service can be handled, and why that pays. */}
       <PricingModes />
       <EstimateTrips />
 
-      {/* 7. The mechanisms, named — the Product pages explain them. */}
-      <ProductProof />
-
-      {/* 8–9. Where the pricing page lives, and what Price2Book is not. */}
+      {/* 7–8. Where the pricing page lives, and what Price2Book is not. */}
       <Everywhere />
       <NotYourCRM />
 
-      {/* 10–12. Breadth and adoption sit AFTER the product is understood —
-          "ten services or your whole catalog" is a second question, and the
-          page used to ask it before answering the first. */}
-      <TradeSignal />
+      {/* 9–11. Adoption in detail, the demo, and the ask. */}
       <Adoption />
       <DemoCta />
       <EarlyAccess />
