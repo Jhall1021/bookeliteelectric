@@ -18,6 +18,8 @@
  *   7  the T&M pilot UI data never carries fixed-price-promising copy
  *   8  a null or unknown strategy fails safe
  *   9  the derived fixed total cannot reach a visit line for a T&M contractor
+ *   A  eligibility is the authority: it reads no copy, and editing the pilot
+ *      copy — its metadata or its words — cannot make a strategy eligible
  *
  * A bounded pilot constraint, not a rule that Price2Book is fixed-price only.
  *
@@ -36,7 +38,8 @@ import { loadPilotDiagnostic } from "../lib/electrical/pilotDiagnostic";
 import { loadFirstServiceWizard } from "../lib/electrical/firstServiceWizardData";
 import { readFirstServiceReadiness } from "../lib/electrical/firstServiceReadiness";
 import { decideDerivedPricingApproval } from "../lib/electrical/derivedPricingApproval";
-import { pilotEligibility, loadPilotEligibility, PILOT_SUPPORTED_STRATEGIES } from "../lib/electrical/pilotEligibility";
+import { pilotEligibility, loadPilotEligibility, PILOT_SUPPORTED_STRATEGIES, PILOT_STRATEGY_SUPPORT } from "../lib/electrical/pilotEligibility";
+import { pilotRefusalBody } from "../lib/electrical/pilotRefusal";
 import { resolveRouteWithDerivedPricing, derivedPlacementPrices } from "../lib/electrical/resolveWithDerivedPricing";
 import { loadPilotReadiness, PILOT_ANSWERS } from "../lib/electrical/onboardingPilotReadiness";
 import { resetPilotContractor } from "../lib/electrical/pilotReset";
@@ -64,6 +67,7 @@ const PROMISES: RegExp[] = [
   /\bat your price\b/i, /\bprice you approved\b/i, /\bbook it at\b/i, /\binstant (customer )?price\b/i,
   /\bhomeowners get a fixed\b/i, /"fixed price"/i,
 ];
+let tamperedDbCheck = false;
 const promisesIn = (text: string) => PROMISES.filter((re) => re.test(text)).map(String);
 const copyText = (c: PilotSetupCopy) => Object.values(c).filter((v) => typeof v === "string").join("\n");
 
@@ -114,10 +118,54 @@ async function main() {
   const tm = pilotEligibility("TIME_AND_MATERIALS");
   ok(!tm.eligible && tm.code === "PILOT_STRATEGY_NOT_SUPPORTED" && tm.strategy === "TIME_AND_MATERIALS",
     "U  TIME_AND_MATERIALS is refused with PILOT_STRATEGY_NOT_SUPPORTED, naming the strategy", JSON.stringify(tm));
-  ok(!tm.eligible && tm.supportStatus === "Not available for time-and-materials pricing",
-    "U  …with the staff state \"Not available for time-and-materials pricing\"");
-  ok(!tm.eligible && /fixed-price services/.test(tm.message) && /Time-and-materials setup will be supported separately/.test(tm.message),
-    "U  …and a bounded contractor message that does not call T&M unsupported by Price2Book", !tm.eligible ? tm.message : "");
+  const tmWords = pilotSetupCopy(tm);
+  ok(tmWords.supportStatus === "Not available for time-and-materials pricing",
+    "U  …phrased downstream as the staff state \"Not available for time-and-materials pricing\"");
+  ok(/fixed-price services/.test(tmWords.unavailableMessage) && /Time-and-materials setup will be supported separately/.test(tmWords.unavailableMessage),
+    "U  …and a bounded contractor message that does not call T&M unsupported by Price2Book", tmWords.unavailableMessage);
+  ok(!tm.eligible && JSON.stringify(pilotRefusalBody(tm)) === JSON.stringify({ error: "PILOT_STRATEGY_NOT_SUPPORTED", message: tmWords.unavailableMessage, pricingStrategy: "TIME_AND_MATERIALS" }),
+    "U  the server refusal body carries the same code, words and strategy");
+
+  console.log("\n  A  ELIGIBILITY IS THE AUTHORITY — COPY IS DOWNSTREAM ONLY\n");
+  const eligSrc = readFileSync("lib/electrical/pilotEligibility.ts", "utf8");
+  const eligCode = eligSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const eligImports = eligCode.match(/^import .*$/gm) ?? [];
+  ok(eligImports.length === 1 && /^import type \{ PricingStrategy, PrismaClient \} from "@prisma\/client";$/.test(eligImports[0]),
+    "A  pilotEligibility.ts imports only Prisma TYPES — no copy module, nothing presentational", eligImports.join(" | "));
+  ok(!/copy|Copy|message|label|Label|supportStatus|available|promises/.test(eligCode),
+    "A  …and its code names no copy, message, label or copy-metadata field");
+  ok(JSON.stringify(PILOT_STRATEGY_SUPPORT) === JSON.stringify({ FLAT_RATE: "SUPPORTED", TIME_AND_MATERIALS: "NOT_SUPPORTED" }),
+    "A  the canonical definition: FLAT_RATE supported, TIME_AND_MATERIALS not", JSON.stringify(PILOT_STRATEGY_SUPPORT));
+  ok(/import \{ pilotEligibility, type PilotEligibility \} from "\.\/electrical\/pilotEligibility"/.test(readFileSync("lib/pricingCopy.ts", "utf8")),
+    "A  lib/pricingCopy.ts consumes the eligibility decision (the dependency points copy -> eligibility)");
+
+  // Tamper with the copy the way an edit to the wording table would: claim the
+  // T&M and unknown copy are available and promise a fixed price.
+  const tmCopy = pilotSetupCopy("TIME_AND_MATERIALS") as Record<string, unknown>;
+  const unknownCopy = pilotSetupCopy(null) as Record<string, unknown>;
+  const savedTm = { ...tmCopy }, savedUnknown = { ...unknownCopy };
+  const agreeNow = () => Object.keys(PILOT_STRATEGY_SUPPORT).every((st) => {
+    const e = pilotEligibility(st); const c = pilotSetupCopy(st);
+    return c.available === e.eligible && c.promisesFixedPrice === e.eligible;
+  });
+  try {
+    Object.assign(tmCopy, { available: true, promisesFixedPrice: true, strategyLabel: "Flat rate", supportStatus: "", unavailableMessage: "" });
+    Object.assign(unknownCopy, { available: true, strategyLabel: "Flat rate" });
+    const tmAfter = pilotEligibility("TIME_AND_MATERIALS");
+    ok(!tmAfter.eligible && tmAfter.code === "PILOT_STRATEGY_NOT_SUPPORTED",
+      "A  copy tampered to say T&M is available and promises a fixed price: T&M is STILL refused", JSON.stringify(tmAfter));
+    ok(!pilotEligibility(null).eligible && !pilotEligibility("whatever").eligible, "A  …and unknown strategies are still refused");
+    ok(pilotSetupCopy("TIME_AND_MATERIALS").promisesFixedPrice === false,
+      "A  …and a refused contractor is still never handed copy that promises a fixed price (downstream fail-safe)");
+    ok(agreeNow() === false, "A  …and the copy/eligibility agreement check DETECTS the disagreement (it would fail the suite)");
+    tamperedDbCheck = true;
+  } finally {
+    for (const k of Object.keys(tmCopy)) delete tmCopy[k];
+    Object.assign(tmCopy, savedTm);
+    for (const k of Object.keys(unknownCopy)) delete unknownCopy[k];
+    Object.assign(unknownCopy, savedUnknown);
+  }
+  ok(agreeNow(), "A  restored: copy and eligibility agree again");
   for (const bad of [null, undefined, "", "flat_rate", "FLAT RATE", "HOURLY", "constructor", "__proto__", 42, {}, ["FLAT_RATE"]]) {
     const e = pilotEligibility(bad);
     const c = pilotSetupCopy(bad);
@@ -152,12 +200,16 @@ async function main() {
     ["lib/electrical/derivedPricingApproval.ts", "approval"],
     ["lib/serviceActivation.ts", "activation"],
     ["lib/electrical/resolveWithDerivedPricing.ts", "homeowner pricing (visit, quotes, diagnostic)"],
-    ["lib/electrical/pilotDiagnostic.ts", "staff diagnostic"],
   ] as const) {
     const t = src(file);
     ok(/loadPilotEligibility\(/.test(t) && !/pricingStrategy\s*[!=]==|"TIME_AND_MATERIALS"|"FLAT_RATE"/.test(t),
       `S  ${what} uses the shared eligibility decision and no strategy check of its own`);
   }
+  const diagSrc = src("lib/electrical/pilotDiagnostic.ts");
+  ok(/const w = await loadFirstServiceWizard\(db, contractorId\);/.test(diagSrc) && /if \(!w\.pilotAvailable\) \{/.test(diagSrc)
+    && diagSrc.indexOf("if (!w.pilotAvailable)") < diagSrc.indexOf("if (!w.catalogInstalled)")
+    && !/pricingStrategy\s*[!=]==|"TIME_AND_MATERIALS"|"FLAT_RATE"/.test(diagSrc),
+    "S  staff diagnostic takes the decision from the wizard loader, checks it before every other state, and has no strategy check of its own");
   ok(/from "\.\.\/pricingCopy"/.test(src("lib/electrical/firstServiceWizardData.ts")) && /pilotSetupCopy\(/.test(src("lib/electrical/firstServiceWizardData.ts")),
     "S  the wizard's copy comes from pilotSetupCopy in lib/pricingCopy");
   ok(/w\.copy\.homeownerPricedCheck/.test(src("lib/electrical/pilotDiagnostic.ts")) && /w\.copy\.homeownerPricedOutcome/.test(src("lib/electrical/pilotDiagnostic.ts")),
@@ -252,6 +304,22 @@ async function main() {
     ok(refusedApproval.status === 409 && refusedApproval.body.error === "PILOT_STRATEGY_NOT_SUPPORTED"
       && refusedApproval.body.pricingStrategy === "TIME_AND_MATERIALS" && typeof refusedApproval.body.message === "string",
       "3  the SERVER refuses approval: 409 PILOT_STRATEGY_NOT_SUPPORTED, with message and strategy", JSON.stringify(refusedApproval));
+    {
+      // The same tamper, against the server doors on the real database.
+      const c = pilotSetupCopy("TIME_AND_MATERIALS") as Record<string, unknown>;
+      const saved = { ...c };
+      try {
+        Object.assign(c, { available: true, promisesFixedPrice: true, strategyLabel: "Flat rate" });
+        const e = await loadPilotEligibility(prisma, cid);
+        const again = await as(cid, (db) => decideDerivedPricingApproval(db, { contractorId: cid, userId: null }, { action: "approve", serviceId: svc.id }));
+        const enterAgain = await as(cid, (db) => readFirstServiceReadiness(db, cid));
+        ok(tamperedDbCheck && !e.eligible && again.status === 409 && again.body.error === "PILOT_STRATEGY_NOT_SUPPORTED" && enterAgain.status === 409,
+          "A  with the copy tampered, the T&M contractor is still refused at the eligibility check, approval and entry", JSON.stringify({ e, again: again.status, enter: enterAgain.status }));
+      } finally {
+        for (const k of Object.keys(c)) delete c[k];
+        Object.assign(c, saved);
+      }
+    }
     const approvalAfter = await prisma.contractorDerivedPricingApproval.findUniqueOrThrow({
       where: { contractorId_serviceId: { contractorId: cid, serviceId: svc.id } }, select: { approvedAt: true, approvedTotalCents: true } });
     ok(approvalAfter.approvedAt.getTime() === approvalBefore.approvedAt.getTime(), "3  …and the approval record was not touched");

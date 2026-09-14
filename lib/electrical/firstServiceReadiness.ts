@@ -16,7 +16,8 @@ import type { PrismaClient } from "@prisma/client";
 import { loadPilotReadiness, PILOT_SERVICE_SLUG, PILOT_ANSWERS } from "./onboardingPilotReadiness";
 import { loadDerivedPricingBasis } from "./loadDerivedScope";
 import { fingerprintBasis } from "./derivedPricingBasis";
-import { loadPilotEligibility, pilotRefusalBody } from "./pilotEligibility";
+import { loadPilotEligibility } from "./pilotEligibility";
+import { pilotRefusalBody } from "./pilotRefusal";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../routeResolver";
 
 export async function readFirstServiceReadiness(

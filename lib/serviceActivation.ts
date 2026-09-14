@@ -18,6 +18,7 @@ import { findTroubleshootingService, tradeOfService } from "./troubleshooting";
 import { loadPricingSettings } from "./routeResolver";
 import { assessActivationMaterialReadiness } from "./materialResolution";
 import { loadPilotEligibility } from "./electrical/pilotEligibility";
+import { pilotRefusalMessage } from "./electrical/pilotRefusal";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
@@ -110,7 +111,7 @@ export async function activationRefusal(
     // Legacy services never reach this branch; their activation is unchanged.
     const eligibility = await loadPilotEligibility(db, contractorId);
     if (!eligibility.eligible) {
-      return { code: eligibility.code, message: eligibility.message };
+      return { code: eligibility.code, message: pilotRefusalMessage(eligibility) };
     }
     const approval = await db.contractorDerivedPricingApproval.findUnique({
       where: { contractorId_serviceId: { contractorId, serviceId: service.id } },

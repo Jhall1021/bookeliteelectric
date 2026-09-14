@@ -160,7 +160,7 @@ const partRank = (key: string) => {
 
 export async function loadFirstServiceWizard(db: PrismaClient, contractorId: string): Promise<WizardData> {
   const eligibility = await loadPilotEligibility(db, contractorId);
-  const copy = pilotSetupCopy(eligibility.strategy);
+  const copy = pilotSetupCopy(eligibility);
   const service = await db.service.findFirst({
     where: { contractorId, slug: PILOT_SERVICE_SLUG },
     select: { id: true, name: true, active: true, isPrimaryEligible: true,
@@ -170,7 +170,7 @@ export async function loadFirstServiceWizard(db: PrismaClient, contractorId: str
     return {
       pilotAvailable: false,
       catalogInstalled: !!service,
-      unavailable: { code: eligibility.code, title: copy.unavailableTitle, message: eligibility.message },
+      unavailable: { code: eligibility.code, title: copy.unavailableTitle, message: copy.unavailableMessage },
       copy,
     };
   }

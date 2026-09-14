@@ -20,6 +20,7 @@
  * materials, and the final invoice.
  */
 import type { PricingStrategy } from "@prisma/client";
+import { pilotEligibility, type PilotEligibility } from "./electrical/pilotEligibility";
 
 export type PricingCopy = {
   strategy: PricingStrategy;
@@ -295,8 +296,12 @@ export const FLAT_RATE_ASSUMPTIONS: readonly RegExp[] = [
  * guided setup is not available for it yet and promises nothing.
  *
  * A bounded pilot constraint, not a statement about what Price2Book supports.
- * lib/electrical/pilotEligibility.ts is the one place that decides who may use
- * the pilot, and it refuses anyone whose copy here is not `available`.
+ *
+ * COPY IS DOWNSTREAM OF ELIGIBILITY. lib/electrical/pilotEligibility.ts alone
+ * decides who may use the pilot and never reads anything here; this file
+ * chooses words FOR its result. Nothing written below can admit a contractor.
+ * `available` and `promisesFixedPrice` are descriptions of the copy, asserted
+ * against the decision by verify-pilot-strategy-eligibility — not inputs to it.
  */
 export type PilotSetupCopy = {
   /** True only where the pilot's fixed-price promise is one the engine keeps. */
@@ -394,23 +399,29 @@ const PILOT_UNKNOWN_STRATEGY: PilotSetupCopy = {
 };
 
 /** Keyed by the canonical enum, so a new strategy is a compile error here, not a silent flat-rate promise. */
-const PILOT_SETUP_COPY: Record<PricingStrategy, PilotSetupCopy> = {
+const PILOT_SETUP_COPY: Readonly<Record<PricingStrategy, PilotSetupCopy>> = {
   FLAT_RATE: PILOT_FLAT_RATE,
   TIME_AND_MATERIALS: PILOT_TIME_AND_MATERIALS,
 };
 
 /**
- * The pilot's wording for this contractor. NO FALLBACK TO FLAT RATE: null,
- * undefined, or any value that is not a key of the enum gets the unknown-model
- * wording, which promises nothing.
+ * The pilot's wording for an eligibility result (or a raw strategy, classified
+ * by pilotEligibility first). NO FALLBACK TO FLAT RATE: an unknown strategy
+ * gets the unknown-model wording, which promises nothing.
+ *
+ * The decision selects the copy, never the reverse — and a refused contractor
+ * is never handed copy that promises a fixed price, even if the table above
+ * were edited to say so.
  */
-export function pilotSetupCopy(strategy: unknown): PilotSetupCopy {
-  return isKnownPricingStrategy(strategy) ? PILOT_SETUP_COPY[strategy] : PILOT_UNKNOWN_STRATEGY;
+export function pilotSetupCopy(input: PilotEligibility | unknown): PilotSetupCopy {
+  const e = isEligibilityResult(input) ? input : pilotEligibility(input);
+  if (!e.eligible && (e.code === "PILOT_STRATEGY_UNKNOWN" || e.strategy === null)) return PILOT_UNKNOWN_STRATEGY;
+  const copy = PILOT_SETUP_COPY[e.strategy as PricingStrategy];
+  return !e.eligible && copy.promisesFixedPrice ? PILOT_UNKNOWN_STRATEGY : copy;
 }
 
-/** A value of the canonical enum — not merely a string that looks like one. */
-export function isKnownPricingStrategy(v: unknown): v is PricingStrategy {
-  return typeof v === "string" && Object.prototype.hasOwnProperty.call(PILOT_SETUP_COPY, v);
+function isEligibilityResult(v: unknown): v is PilotEligibility {
+  return typeof v === "object" && v !== null && "eligible" in v && typeof (v as { eligible: unknown }).eligible === "boolean";
 }
 
 /** `{service}` filled in. The copy is plain data so it can cross to a client component. */

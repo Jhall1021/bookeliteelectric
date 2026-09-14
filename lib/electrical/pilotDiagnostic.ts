@@ -15,7 +15,6 @@ import { resolveRouteWithDerivedPricing } from "./resolveWithDerivedPricing";
 import { loadServiceForResolution, loadPricingSettings } from "../routeResolver";
 import { FIELD_PROMPT, type PricingSettingsField } from "../pricingSettingsState";
 import { PILOT_LIMITATIONS } from "./pilotScope";
-import { loadPilotEligibility } from "./pilotEligibility";
 
 export type PilotSupportStatus =
   // A contractor this fixed-price pilot does not support. Checked before every
@@ -89,8 +88,6 @@ export async function loadPilotDiagnostic(db: PrismaClient, contractorId: string
   // what the storefront does now (review: the resolver refuses a derived price
   // for them), and whether any priced booking was ever recorded.
   if (!w.pilotAvailable) {
-    const eligibility = await loadPilotEligibility(db, contractorId);
-    const ineligible = eligibility.eligible ? null : eligibility;
     const svc = await db.service.findFirst({
       where: { contractorId, slug: PILOT_SERVICE_SLUG }, select: { id: true, active: true } });
     const store = svc ? await storefrontNow(db, contractorId, svc.id) : { verdict: "NOT_AVAILABLE" as const, reason: null };
@@ -98,12 +95,12 @@ export async function loadPilotDiagnostic(db: PrismaClient, contractorId: string
       where: { contractorId_serviceId: { contractorId, serviceId: svc.id } },
       select: { approvedAt: true, approvedTotalCents: true } }) : null;
     const booked = svc ? await db.lineItem.count({ where: { serviceId: svc.id, resolvedEconomicBasis: { not: null } } }) : 0;
-    const status = (ineligible?.supportStatus ?? "Not available for this pricing model") as PilotSupportStatus;
+    const status = (w.copy.supportStatus || "Not available for this pricing model") as PilotSupportStatus;
     return {
       status,
-      nextAction: ineligible?.supportNextAction ?? w.unavailable.message,
+      nextAction: w.copy.supportNextAction || w.unavailable.message,
       checks: [
-        { label: "Pricing model supported by this pilot", ok: false, detail: ineligible?.strategyLabel ?? null },
+        { label: "Pricing model supported by this pilot", ok: false, detail: w.copy.strategyLabel },
         { label: "Catalog installed", ok: w.catalogInstalled, detail: null },
         { label: w.copy.homeownerPricedCheck, ok: false, detail: store.reason },
       ],

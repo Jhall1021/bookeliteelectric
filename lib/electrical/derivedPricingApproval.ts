@@ -28,7 +28,8 @@ import { pilotLog } from "./pilotLog";
 import { proposeDerivedScope } from "./loadDerivedScope";
 import { PILOT_ANSWERS } from "./onboardingPilotReadiness";
 import { routeShapeFromAnswers } from "./resolveWithDerivedPricing";
-import { loadPilotEligibility, pilotRefusalBody } from "./pilotEligibility";
+import { loadPilotEligibility } from "./pilotEligibility";
+import { pilotRefusalBody } from "./pilotRefusal";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../routeResolver";
 
 export type ApprovalRequest = { action?: "approve" | "withdraw"; serviceId?: string; expectedFingerprint?: string };

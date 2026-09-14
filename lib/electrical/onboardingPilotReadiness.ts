@@ -138,13 +138,12 @@ export async function loadPilotReadiness(
   if (!eligibility.eligible) {
     return {
       serviceId: null, serviceName: "New 120V Outlet",
-      steps: [{ key: "ELIGIBILITY", title: pilotSetupCopy(eligibility.strategy).unavailableTitle
-                  || pilotSetupCopy(null).unavailableTitle,
-                done: false, outstanding: [eligibility.message] }],
+      steps: [{ key: "ELIGIBILITY", title: pilotSetupCopy(eligibility).unavailableTitle,
+                done: false, outstanding: [pilotSetupCopy(eligibility).unavailableMessage] }],
       resumeAt: "ELIGIBILITY", proposed: null, live: false, eligibility,
     };
   }
-  const copy = pilotSetupCopy(eligibility.strategy);
+  const copy = pilotSetupCopy(eligibility);
 
   const service = await db.service.findFirst({
     where: { contractorId, slug: PILOT_SERVICE_SLUG },
