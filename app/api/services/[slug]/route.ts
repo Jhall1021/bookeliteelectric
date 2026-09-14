@@ -16,6 +16,7 @@ import {
   canonicalComponentIdsIn,
 } from "@/lib/contractorComponents";
 import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/serviceCopy";
+import { QUESTION_ORDER } from "@/lib/serviceTreeQuery";
 
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
@@ -49,7 +50,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         },
       },
       questions: {
-        orderBy: { order: "asc" },
+        orderBy: QUESTION_ORDER,
         include: {
           conditionalHelp: {
             orderBy: { order: "asc" },

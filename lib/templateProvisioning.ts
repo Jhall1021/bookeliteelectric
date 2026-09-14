@@ -24,6 +24,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { assessMaterialReadiness } from "./materialResolution";
+import { QUESTION_ORDER } from "./serviceTreeQuery";
 
 /** One service as the platform defines it, before any contractor economics. */
 export type CanonicalService = Record<string, unknown>;
@@ -141,7 +142,7 @@ export function templateVersionSource(
         include: {
           materials: { include: { canonicalMaterial: { select: { key: true } } } },
           questions: {
-            orderBy: { order: "asc" },
+            orderBy: QUESTION_ORDER,
             include: {
               options: {
                 orderBy: { order: "asc" },

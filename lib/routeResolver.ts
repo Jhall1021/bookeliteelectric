@@ -55,6 +55,7 @@ import {
   type JobConfiguration,
   type PricingSettings,
 } from "./pricing";
+import { QUESTION_ORDER } from "./serviceTreeQuery";
 
 export type ResolvedRoute =
   | {
@@ -145,7 +146,7 @@ export async function loadServiceForResolution(db: PrismaClient, serviceId: stri
     where: { id: serviceId },
     include: {
       questions: {
-        orderBy: { order: "asc" },
+        orderBy: QUESTION_ORDER,
         include: {
           options: {
             orderBy: { order: "asc" },

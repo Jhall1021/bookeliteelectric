@@ -1,0 +1,203 @@
+# Question-order repair — one controlled production step
+
+**Status: EXECUTED on 14 Sep 2026.** Each production step ran only after its
+own explicit approval, given in conversation. The record is in §7. The rest of
+this document is the procedure as prepared and approved.
+
+It makes `Question.order` unique within each service on production, and
+re-captures the homepage hero from production in the same step. Nobody's
+question sequence changes.
+
+**The repair is forward-only once its transaction commits.** Code that predates
+the id tiebreak serves unique positions in exactly the same order. **If an
+application deployment is rolled back, leave the repaired positions in place.**
+Do not restore the duplicate positions as part of a code rollback; §3 shows
+that doing so cannot reliably restore the order that was served before.
+
+---
+
+## 1. What production holds — read-only audit, 14 Sep 2026
+
+The audit was run inside a `READ ONLY` transaction; Postgres refused a write
+probe in that session. The identity marker was checked: `price2book-production`,
+stamped for endpoint `ep-shy-butterfly-ay5t03di`, matching the connection.
+
+It scanned 9 contractors, 304 services and 658 questions. Three services have
+two questions at one position, all on `elite-electric`, all active and offered.
+**None is tied at its starting position.**
+
+| service | positions | tied at | lowest | served today (`order asc`, 5 reads, stable) |
+|---|---|---|---|---|
+| `recessed-lighting` | 0 1 2 3 3 4 5 6 7 8 10 11 | 3 | 0 | … `fixture_finish_ack@3` → `recessed_light_count@3` … |
+| `swap-out-customer-supplied-non-smart-switch` | 0 1 1 | 1 | 0 | `switch_multi_location@1` → `smart_switch_model@1` |
+| `new-120v-outlet` | 1 2 6 7 7 16 17 | 7 | 1 | `finished_space_both_sides@7` → `device_on_exterior_wall@7` |
+
+**Sequencing finding.** On `recessed-lighting`, production serves
+`fixture_finish_ack` before `recessed_light_count`. The new `id` tiebreak
+(`QUESTION_ORDER`) would put them the other way round. So code that orders by
+`QUESTION_ORDER` must not reach production while this tie exists. **The data
+repair goes first.** Once positions are unique, the old rule and the new rule
+serve the same order.
+
+### The plan the audit derives
+
+Walking the served order, each question keeps its position unless it would not
+be strictly greater than the one before it:
+
+| service | changes |
+|---|---|
+| `recessed-lighting` | `recessed_light_count` 3→4, `lighting_control` 4→5, `switch_near_power` 5→6, `lighting_dimmer_upgrade` 6→7, `below_above_access` 7→8, `finished_space_both_sides` 8→9 |
+| `swap-out-customer-supplied-non-smart-switch` | `smart_switch_model` 1→2 |
+| `new-120v-outlet` | `device_on_exterior_wall` 7→8 |
+
+That is 8 rows. The rehearsal branch was repaired earlier from its own snapshot,
+and it already holds exactly these positions for all three services.
+
+## 2. Why the hero is part of the same step
+
+`components/marketing/heroFlow.ts` was captured from production and embeds each
+question's stored position. `new-120v-outlet`'s fifth question is committed at
+position 7. After the repair it is 8. Rehearsal, already repaired, reports
+`primary.dto.questions.4.order: committed 7 — live 8`, which is why
+`capture-hero-flow --check` is red there.
+
+The fixture must come from production, so it is re-captured from production
+immediately after the repair, and the resulting diff must be exactly that one
+position.
+
+## 3. Rehearsed
+
+`scripts/repair-duplicate-question-order.ts` ran the full step on rehearsal on
+14 Sep 2026, against one disposable contractor with production-shaped ties
+injected, which was removed afterwards. With the forward-only and identity checks, 25 of 25 checks passed:
+
+- report mode writes nothing
+- the capture records exactly the tied services
+- apply refuses without the host named, with a different host named, without `--expect-identity`, and with the wrong identity; the capture records the identity it was taken on
+- apply commits in one transaction, leaves no ties anywhere, and keeps the captured served order
+- `verify-question-order` passes afterwards
+- rollback refuses without `--acknowledge-nondeterministic-order`; with it, it restores the captured positions and refuses a second time
+- apply refuses when any position changed since the capture
+- a tie at a starting position is refused in report and capture modes
+
+**Learned there: restoring the positions does not restore the order.**
+Postgres returns tied rows in physical order, and an UPDATE moves rows. After
+the old positions were restored, the order served among the reintroduced ties
+could differ from what was served before the repair. That is why the repair is
+forward-only. Never re-apply an old capture after a restore; take a new one.
+The tool refuses a stale capture anyway.
+
+## 4. Preflight (report all nine; wait for approval)
+
+1. Neon project: Price2Book `bitter-bird-20565072`.
+2. Target branch: production, endpoint `ep-shy-butterfly-ay5t03di`, identity `price2book-production`.
+3. Parent branch: none; no branch is created.
+4. Operation: `UPDATE "Question" SET "order"` on the 8 rows in §1, in one transaction. Then a read-only hero capture.
+5. Read-only or mutating: **mutating** (8 rows); the capture steps are read-only.
+6. Can it affect production data: yes, the positions of 8 questions on 3 Elite services. No price, route, answer or service row is touched.
+7. Why rehearsal is insufficient: the rows to repair are production's own, and so is the served order to preserve. Rehearsal was repaired from its own snapshot and has been dress-rehearsed (§3).
+8. Expected result: the plan in §1 exactly; zero ties; the served order unchanged for all three services under both ordering rules; a hero fixture diff of exactly `questions[4].order 7 → 8`.
+9. Rollback plan: **none for the data; the repair is forward-only.** An application rollback leaves the unique positions in place, and old code serves them in the same order. A failed check inside step 3 rolls its own transaction back before commit, so nothing changes. `--rollback` exists only for an exceptional recovery that is explicitly authorized. It requires `--acknowledge-nondeterministic-order`, because it reintroduces ties whose served order cannot be reproduced (§3).
+
+## 5. Where this sits in the release
+
+*As prepared. The owner then moved the production repair and hero re-capture
+(steps 6–8) ahead of the baseline merge, so the baseline branch could reach a
+zero-failure `verify:full`. That was safe because the repair is forward-only
+and the code already serving production orders unique positions identically.
+§7 records the order that actually happened.*
+
+1. The baseline-repair branch gets one uninterrupted green `verify:full`.
+2. That repair is reviewed and merged on its own.
+3. The performance branch is rebased onto the repaired `main`.
+4. The complete verification and the performance measurements are re-run.
+5. The performance draft PR is opened.
+6. **Before production deployment:** re-capture the production question-order snapshot (§6, step 2).
+7. Apply the snapshot-backed repair in one transaction, and verify the exact resulting order (§6, steps 3–4).
+8. Re-capture the affected homepage hero data from production (§6, step 5).
+9. Deploy the performance code.
+10. Verify production routing, page performance and release identity.
+
+Steps 6–10 each need their own approval.
+
+## 6. The step
+
+Run it from a clean checkout of the reviewed commit carrying this document.
+Connection strings come from the environment, **never from arguments**, so they
+never appear in a process listing.
+
+```bash
+# 0. environment: production DATABASE_URL from the main checkout's .env
+set -a; . "/Users/eliteconstruction/Library/Mobile Documents/com~apple~CloudDocs/bookelite/.env"; set +a
+
+# 1. identity — must print ok for price2book-production on ep-shy-butterfly-ay5t03di
+npx tsx scripts/verify-database-identity.ts --expect price2book-production
+
+# 2. capture (read-only) — the output must match §1 exactly; stop otherwise
+npx tsx scripts/repair-duplicate-question-order.ts --capture release-question-order.json
+
+# 3. apply — the host printed in step 2's header, typed deliberately
+P2B_REPAIR_ALLOWED_HOST=<host printed above> \
+  npx tsx scripts/repair-duplicate-question-order.ts --apply --snapshot release-question-order.json --expect-identity price2book-production
+
+# 4. confirm — no ties; the three services still served in the captured order
+npx tsx scripts/repair-duplicate-question-order.ts
+
+# 5. hero, from production (the capture script is read-only by construction)
+npx tsx scripts/capture-hero-flow.ts
+git diff --stat components/marketing/heroFlow.ts    # one position, 7 -> 8, nothing else
+npx tsx scripts/capture-hero-flow.ts --check
+```
+
+Step 3 first re-reads the identity marker inside its transaction. The marker
+must be `price2book-production`, stamped for the connected endpoint. It then
+re-reads the served order and re-derives the plan in the same transaction. It refuses unless both equal the capture exactly. After applying,
+still inside the same transaction, it requires no ties anywhere, and each
+service in the captured order under both `order asc` and `QUESTION_ORDER`.
+Otherwise the whole step rolls back.
+
+### Exceptional recovery (not part of any code rollback)
+
+Only with an explicit authorization for this recovery. It brings back tied
+positions whose served order is not reproducible:
+
+```bash
+P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts \
+  --rollback --snapshot release-question-order.json --acknowledge-nondeterministic-order --expect-identity price2book-production
+```
+
+Record the capture file, the step 3 and 4 output, and the hero diff as evidence
+alongside this document. Commit the re-captured fixture on its own and merge it
+before rebasing any branch that relies on a green `capture-hero-flow --check`.
+
+## 7. Record of execution — 14 Sep 2026
+
+Every step ran only after its own approval. The connection string was supplied
+only through the environment.
+
+| step | UTC | what happened |
+|---|---|---|
+| served code | — | Production served `24aa500` (`dpl_HW5N7FqsHuS5r1Epr9HvCPd9R976`). Its question readers and resolver are byte-identical to the `main` that the checks ran against. |
+| capture (read-only) | 12:00:05 | The session was opened with `default_transaction_read_only=on`; a write probe was refused. Identity `price2book-production` on `ep-shy-butterfly-ay5t03di`. The same 3 services and 8 planned rows as §1. Snapshot sha256 `71aca68ea717e7fe47e0e8ab941e528a9a1ecf34016a7fe7cf23c931e876ab23`. |
+| proof (read-only) | 12:00:10 | With the served code: no tie at a starting position; the question sequence and starting question identical under both ordering rules; every routing outcome identical before and after the planned positions. That was every enumerated path (2,813 / 12 / 25) plus a covering path for every reachable answer, primary and same-visit. The results were saved as the baseline. |
+| apply | 12:12:29 | The snapshot hash was verified before running. One transaction re-read identity, rows and plan immediately before writing. **Exactly 8 rows changed across 3 services**; the tool exited 0. Rollback was not invoked. |
+| read-back (read-only) | 12:12:51–12:12:54 | 0 duplicate positions across production (658 questions, 304 services). All 8 planned positions held and every other position unchanged. Identical question sequences and starting questions. Every routing outcome identical to the saved baseline. Identity re-confirmed. |
+| hero (read-only) | 13:14:12–13:14:59 | The drift check reported exactly one difference, `primary.dto.questions.4.order` 7 → 8. The hero was re-captured and a deep comparison found that one leaf only. The check passes against production. Committed as `a97c6d2`. |
+| baseline merge | — | PR #52, merge commit `52ad487`, after an uninterrupted 71/71 `verify:full`. Nothing was promoted; production still serves `24aa500`. |
+
+Positions after the repair:
+
+| service | question | before → after |
+|---|---|---|
+| recessed-lighting | `recessed_light_count` | 3 → 4 |
+| recessed-lighting | `lighting_control` | 4 → 5 |
+| recessed-lighting | `switch_near_power` | 5 → 6 |
+| recessed-lighting | `lighting_dimmer_upgrade` | 6 → 7 |
+| recessed-lighting | `below_above_access` | 7 → 8 |
+| recessed-lighting | `finished_space_both_sides` | 8 → 9 |
+| swap-out-customer-supplied-non-smart-switch | `smart_switch_model` | 1 → 2 |
+| new-120v-outlet | `device_on_exterior_wall` | 7 → 8 |
+
+Production now holds no tied positions. So the id tiebreak this branch adds
+changes no order on production, and it keeps any future tie deterministic,
+while `verify-question-order` rejects one being introduced.

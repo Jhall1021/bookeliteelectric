@@ -10,6 +10,7 @@ import { categoryName, requireContractorCategory } from "@/lib/categories";
 import { withAdminContractor } from "@/lib/adminContext";
 import { assessOnboarding } from "@/lib/onboardingReadiness";
 import { findTroubleshootingService } from "@/lib/troubleshooting";
+import { QUESTION_ORDER } from "@/lib/serviceTreeQuery";
 
 export default async function EditServicePage({ params }: { params: { serviceId: string } }) {
   // GUARD-ADOPTED (ADR-007a). Took a service id from the URL unscoped; the
@@ -26,7 +27,7 @@ export default async function EditServicePage({ params }: { params: { serviceId:
         },
       },
       questions: {
-        orderBy: { order: "asc" },
+        orderBy: QUESTION_ORDER,
         include: {
           options: {
             orderBy: { order: "asc" },
