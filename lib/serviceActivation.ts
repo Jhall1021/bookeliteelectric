@@ -17,11 +17,13 @@ import { promiseFor } from "./onboardingReadiness";
 import { findTroubleshootingService, tradeOfService } from "./troubleshooting";
 import { loadPricingSettings } from "./routeResolver";
 import { assessActivationMaterialReadiness } from "./materialResolution";
+import { loadPilotEligibility } from "./electrical/pilotEligibility";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
       | "POLICY_UNRESOLVED" | "DEPENDENCY_UNAVAILABLE"
-      | "DERIVED_PRICING_NOT_APPROVED";
+      | "DERIVED_PRICING_NOT_APPROVED"
+      | "PILOT_STRATEGY_NOT_SUPPORTED" | "PILOT_STRATEGY_UNKNOWN";
   message: string;
   unresolvedMaterialKeys?: string[];
   unresolvedPolicyKeys?: string[];
@@ -101,6 +103,15 @@ export async function activationRefusal(
    * and silently deactivating a service because a cost moved would be worse.
    */
   if (service.pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+    // Derived pricing is the Stage 1A fixed-price pilot's pricing method, and
+    // only a contractor that pilot supports may take it live — checked here,
+    // independently of approval, so an approval recorded before a strategy
+    // change (or written around the approval route) still cannot activate.
+    // Legacy services never reach this branch; their activation is unchanged.
+    const eligibility = await loadPilotEligibility(db, contractorId);
+    if (!eligibility.eligible) {
+      return { code: eligibility.code, message: eligibility.message };
+    }
     const approval = await db.contractorDerivedPricingApproval.findUnique({
       where: { contractorId_serviceId: { contractorId, serviceId: service.id } },
       select: { id: true },

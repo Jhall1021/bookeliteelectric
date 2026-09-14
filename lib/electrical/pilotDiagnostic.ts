@@ -15,8 +15,13 @@ import { resolveRouteWithDerivedPricing } from "./resolveWithDerivedPricing";
 import { loadServiceForResolution, loadPricingSettings } from "../routeResolver";
 import { FIELD_PROMPT, type PricingSettingsField } from "../pricingSettingsState";
 import { PILOT_LIMITATIONS } from "./pilotScope";
+import { loadPilotEligibility } from "./pilotEligibility";
 
 export type PilotSupportStatus =
+  // A contractor this fixed-price pilot does not support. Checked before every
+  // other state, so none of the states below can be reached for them.
+  | "Not available for time-and-materials pricing"
+  | "Not available for this pricing model"
   | "Catalog not installed"
   | "Materials incomplete"
   | "Labor incomplete"
@@ -50,14 +55,73 @@ export type PilotDiagnostic = {
     lastPricedBookingAt: Date | null;
     storefrontVerdict: "PRICED" | "REVIEW" | "NOT_AVAILABLE";
     storefrontReason: string | null;
+    /** The verdict in words that are true for this contractor's pricing model. */
+    storefrontOutcome: string;
   };
 };
 
 const max = (...ds: (Date | null | undefined)[]) =>
   ds.filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
+/** The storefront, asked exactly as a homeowner's request asks it. */
+async function storefrontNow(db: PrismaClient, contractorId: string, serviceId: string) {
+  const loaded = await loadServiceForResolution(db, serviceId);
+  let settings: unknown = null;
+  try { settings = await loadPricingSettings(db, contractorId); } catch { settings = null; }
+  if (!loaded || !settings) {
+    return { verdict: "NOT_AVAILABLE" as const, reason: "Pricing setup is not complete, so no price can be worked out yet." };
+  }
+  const v = await resolveRouteWithDerivedPricing(db, loaded, PILOT_ANSWERS, true, settings as never);
+  return v.status === "PRICED"
+    ? { verdict: "PRICED" as const, reason: null }
+    : { verdict: "REVIEW" as const, reason: "reason" in v ? (v.reason as string) : null };
+}
+
+const outcomeWords = (verdict: "PRICED" | "REVIEW" | "NOT_AVAILABLE", pricedWords: string) =>
+  verdict === "PRICED" ? pricedWords : verdict === "REVIEW" ? "review" : "not available";
+
 export async function loadPilotDiagnostic(db: PrismaClient, contractorId: string): Promise<PilotDiagnostic> {
   const w = await loadFirstServiceWizard(db, contractorId);
+
+  // ── not a contractor this pilot supports: a readiness OUTCOME, not a label ──
+  // The status, next step and checks come from the one eligibility decision.
+  // What is still reported is fact — whether a pilot service exists, is live,
+  // what the storefront does now (review: the resolver refuses a derived price
+  // for them), and whether any priced booking was ever recorded.
+  if (!w.pilotAvailable) {
+    const eligibility = await loadPilotEligibility(db, contractorId);
+    const ineligible = eligibility.eligible ? null : eligibility;
+    const svc = await db.service.findFirst({
+      where: { contractorId, slug: PILOT_SERVICE_SLUG }, select: { id: true, active: true } });
+    const store = svc ? await storefrontNow(db, contractorId, svc.id) : { verdict: "NOT_AVAILABLE" as const, reason: null };
+    const approval = svc ? await db.contractorDerivedPricingApproval.findUnique({
+      where: { contractorId_serviceId: { contractorId, serviceId: svc.id } },
+      select: { approvedAt: true, approvedTotalCents: true } }) : null;
+    const booked = svc ? await db.lineItem.count({ where: { serviceId: svc.id, resolvedEconomicBasis: { not: null } } }) : 0;
+    const status = (ineligible?.supportStatus ?? "Not available for this pricing model") as PilotSupportStatus;
+    return {
+      status,
+      nextAction: ineligible?.supportNextAction ?? w.unavailable.message,
+      checks: [
+        { label: "Pricing model supported by this pilot", ok: false, detail: ineligible?.strategyLabel ?? null },
+        { label: "Catalog installed", ok: w.catalogInstalled, detail: null },
+        { label: w.copy.homeownerPricedCheck, ok: false, detail: store.reason },
+      ],
+      missing: [],
+      limitations: PILOT_LIMITATIONS,
+      audit: {
+        lastSetupActivityAt: null,
+        approvedAt: approval?.approvedAt ?? null,
+        approvedTotalCents: approval?.approvedTotalCents ?? null,
+        currentProposedCents: null,
+        costChangesSinceApproval: 0, laborChangesSinceApproval: 0, pricingChangesSinceApproval: false,
+        active: svc?.active ?? false,
+        pricedBookings: booked, lastPricedBookingAt: null,
+        storefrontVerdict: store.verdict, storefrontReason: store.reason,
+        storefrontOutcome: outcomeWords(store.verdict, w.copy.homeownerPricedOutcome),
+      },
+    };
+  }
 
   if (!w.catalogInstalled) {
     return {
@@ -68,7 +132,8 @@ export async function loadPilotDiagnostic(db: PrismaClient, contractorId: string
       limitations: PILOT_LIMITATIONS,
       audit: { lastSetupActivityAt: null, approvedAt: null, approvedTotalCents: null, currentProposedCents: null,
         costChangesSinceApproval: 0, laborChangesSinceApproval: 0, pricingChangesSinceApproval: false,
-        active: false, pricedBookings: 0, lastPricedBookingAt: null, storefrontVerdict: "NOT_AVAILABLE", storefrontReason: null },
+        active: false, pricedBookings: 0, lastPricedBookingAt: null, storefrontVerdict: "NOT_AVAILABLE", storefrontReason: null,
+        storefrontOutcome: outcomeWords("NOT_AVAILABLE", w.copy.homeownerPricedOutcome) },
     };
   }
 
@@ -93,19 +158,9 @@ export async function loadPilotDiagnostic(db: PrismaClient, contractorId: string
   const pricingOk = done("PRICING_SETTINGS");
   const approvedCurrent = done("APPROVE");
 
-  // The storefront, asked exactly as a homeowner's request asks it.
-  let storefrontVerdict: "PRICED" | "REVIEW" | "NOT_AVAILABLE" = "NOT_AVAILABLE";
-  let storefrontReason: string | null = null;
-  const loaded = await loadServiceForResolution(db, w.serviceId);
-  let settings: unknown = null;
-  try { settings = await loadPricingSettings(db, contractorId); } catch { settings = null; }
-  if (loaded && settings) {
-    const v = await resolveRouteWithDerivedPricing(db, loaded, PILOT_ANSWERS, true, settings as never);
-    storefrontVerdict = v.status === "PRICED" ? "PRICED" : "REVIEW";
-    storefrontReason = v.status === "PRICED" ? null : ("reason" in v ? (v.reason as string) : null);
-  } else {
-    storefrontReason = "Pricing setup is not complete, so no price can be worked out yet.";
-  }
+  const store = await storefrontNow(db, contractorId, w.serviceId);
+  const storefrontVerdict = store.verdict;
+  const storefrontReason = store.reason;
 
   // ── durable audit, from records that already exist ──
   const approval = await db.contractorDerivedPricingApproval.findUnique({
@@ -136,7 +191,7 @@ export async function loadPilotDiagnostic(db: PrismaClient, contractorId: string
     { label: "Price approved and current", ok: approvedCurrent,
       detail: w.needsReapproval ? "Costs changed after approval" : approval ? null : "Not approved yet" },
     { label: "Service live", ok: service.active, detail: null },
-    { label: "Homeowners get a fixed price", ok: storefrontVerdict === "PRICED", detail: storefrontReason },
+    { label: w.copy.homeownerPricedCheck, ok: storefrontVerdict === "PRICED", detail: storefrontReason },
   ];
 
   let status: PilotSupportStatus;
@@ -166,6 +221,7 @@ export async function loadPilotDiagnostic(db: PrismaClient, contractorId: string
       lastPricedBookingAt: lastBooked?.visit.createdAt ?? null,
       storefrontVerdict,
       storefrontReason,
+      storefrontOutcome: outcomeWords(storefrontVerdict, w.copy.homeownerPricedOutcome),
     },
   };
 }

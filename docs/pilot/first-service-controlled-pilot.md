@@ -10,11 +10,13 @@ Status: prepared, **not deployed**. Nothing here has touched production.
 | Service | New 120V Outlet (`new-120v-outlet`, priced from the contractor's own costs) |
 | Route | Straight surface-mounted run, no corners |
 | Booking | That one service added to a visit |
+| Contractor pricing | **Fixed price (`FLAT_RATE`) only** — a bounded pilot constraint, not a Price2Book rule |
 
 Defined once in `lib/electrical/pilotScope.ts` (`PILOT_SCOPE`, `PILOT_LIMITATIONS`) and read by the staff view, the CLI and the verifier.
 
 ## 2. Limitations (accepted, not to be fixed during the pilot)
 
+0. **Fixed-price contractors only.** The pilot proves the fixed-price path: configure costs and labor → approve a calculated customer price → homeowner sees that price → books at it. Derived pricing produces a fixed total, which a time-and-materials storefront never shows (it renders a labor range). So one decision, `lib/electrical/pilotEligibility.ts`, refuses a non-`FLAT_RATE` contractor at every door — wizard entry and the readiness API (`PILOT_STRATEGY_NOT_SUPPORTED` / `PILOT_STRATEGY_UNKNOWN`), derived-price approval (409), pilot activation, and homeowner pricing (REVIEW, so `/api/visit` cannot record the fixed total). Staff see `Not available for time-and-materials pricing`. Copy is `pilotSetupCopy()` in `lib/pricingCopy.ts`, keyed by `PricingStrategy`, with no flat-rate fallback. Time-and-materials onboarding is its own design, later.
 1. **Runs that turn corners go to review.** Leg lengths and offcut reuse are unknown; the homeowner is offered a quote review, never a guessed price. The contractor is told this on the review step.
 2. **Mixed visits.** Adding this service to a visit is proven. Other visit edits that combine it with other services (e.g. removing a primary, repricing lines) fail closed rather than reprice.
 3. **Account and business setup** happen in the existing flows before the wizard.
@@ -90,6 +92,10 @@ A designated rehearsal contractor (`rv2-pilot-rehearsal-<name>`), created with: 
 | Material setup incomplete (e.g. grounding cleared) | REVIEW | `Materials incomplete` |
 | Pricing decision cleared | no price | `Pricing setup incomplete` |
 | Cost changed after approval | REVIEW (`DERIVED_PRICING_APPROVAL_STALE`); service stays live | `Price needs review`, old vs new price shown |
+
+## 9b. Pilot regression gate
+
+`npm run verify:pilot` — the pilot/relevant regression set, in one place so it cannot quietly shrink. It includes `lint-storefront-identity` (strict, no pilot exception) and `verify-pilot-strategy-eligibility`. DB-driving: run against the rehearsal branch, never alongside another DB-driving chain.
 
 ## 10. Known baseline reds (pre-existing, unchanged, not part of this pilot)
 

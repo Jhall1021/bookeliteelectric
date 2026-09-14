@@ -21,6 +21,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { DERIVED_PRICING_PENDING, resolveRoute } from "../routeResolver";
 import { loadAndPriceDerivedScope } from "./loadDerivedScope";
+import { loadPilotEligibility } from "./pilotEligibility";
 import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
 
 type Resolved = ReturnType<typeof resolveRoute>;
@@ -78,6 +79,25 @@ export async function resolveRouteWithDerivedPricing(
   }
 
   const r = resolved as any;
+
+  // FIXED-PRICE PILOT ONLY. Derived pricing produces a fixed total; for a
+  // contractor this pilot does not support (time and materials, or a strategy
+  // that cannot be read), no derived price is computed at all — so /api/visit
+  // and /api/quotes cannot record one, and nothing downstream can mistake it
+  // for what that contractor's storefront offers. Fails closed to REVIEW with
+  // the named code. The homeowner-facing reason stays neutral: the limitation
+  // is the pilot's, not something to explain to a customer.
+  const eligibility = await loadPilotEligibility(db, svc.contractorId);
+  if (!eligibility.eligible) {
+    return {
+      ...r,
+      status: "REVIEW",
+      reason: "This job needs a quick review before it can be priced",
+      floorPriceCents: null,
+      derivedRefusalCode: eligibility.code,
+    } as DerivedVerdict;
+  }
+
   const components = (r.config?.components ?? []) as { key: string; quantity: number }[];
   const shape = routeShape ?? routeShapeFromAnswers(answers);
 

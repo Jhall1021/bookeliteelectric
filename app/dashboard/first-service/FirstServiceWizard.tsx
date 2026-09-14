@@ -15,8 +15,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { WizardData, WizardLabor, WizardPart } from "@/lib/electrical/firstServiceWizardData";
+import { fillPilotCopy, type PilotSetupCopy } from "@/lib/pricingCopy";
 
-type Ready = Extract<WizardData, { catalogInstalled: true }>;
+type Ready = Extract<WizardData, { pilotAvailable: true; catalogInstalled: true }>;
+type Unavailable = Extract<WizardData, { pilotAvailable: false }>;
 type StepKey = "MATERIALS" | "LABOR" | "PRICING_SETTINGS" | "APPROVE" | "ACTIVATE";
 
 const money = (c: number | null | undefined) =>
@@ -48,12 +50,33 @@ const input = `mt-1 w-28 ${field}`;
 const primaryBtn = "rounded-md bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-40";
 const quietBtn = "rounded-md border border-slate/30 px-3 py-1.5 text-sm text-navy";
 
+/**
+ * Every promise below comes from pilotSetupCopy() for THIS contractor's pricing
+ * strategy (lib/pricingCopy.ts). A contractor the fixed-price pilot does not
+ * support is stopped at the first branch: the loader sends them no steps and
+ * no fixed-price copy, and the server refuses approval and activation anyway.
+ */
 export default function FirstServiceWizard({ data }: { data: WizardData }) {
-  if (!data.catalogInstalled) return <InstallCatalog />;
+  if (!data.pilotAvailable) return <NotAvailable data={data} />;
+  if (!data.catalogInstalled) return <InstallCatalog copy={data.copy} />;
   return <Wizard data={data} />;
 }
 
-function InstallCatalog() {
+function NotAvailable({ data }: { data: Unavailable }) {
+  return (
+    <div className="max-w-2xl">
+      <h1 className="font-display text-2xl font-bold text-navy">{data.unavailable.title}</h1>
+      <div className={`${card} mt-6`}>
+        <p className="text-sm text-navy">{data.unavailable.message}</p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link href="/dashboard" className={primaryBtn}>Go to dashboard</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InstallCatalog({ copy }: { copy: PilotSetupCopy }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,8 +84,7 @@ function InstallCatalog() {
     <div className="max-w-2xl">
       <h1 className="font-display text-2xl font-bold text-navy">Let&rsquo;s get your first service ready</h1>
       <p className="mt-2 text-sm text-slate">
-        We&rsquo;ll set up one service from start to finish so homeowners can book it at your price.
-        First, add the Electrical services to your account.
+        {copy.catalogIntro} First, add the Electrical services to your account.
       </p>
       <div className={`${card} mt-6`}>
         <p className="text-sm text-navy">This adds our Electrical service list to your account. Nothing goes live and no prices are set.</p>
@@ -102,7 +124,7 @@ function Wizard({ data }: { data: Ready }) {
 
   const titles: Record<StepKey, string> = {
     MATERIALS: "Materials", LABOR: "Labor", PRICING_SETTINGS: "Your pricing",
-    APPROVE: "Review your price", ACTIVATE: "Go live",
+    APPROVE: data.copy.reviewStepTitle, ACTIVATE: "Go live",
   };
   const summaries: Record<StepKey, string> = {
     MATERIALS: `${data.parts.filter((p) => p.configured).length} parts priced`,
@@ -116,7 +138,9 @@ function Wizard({ data }: { data: Ready }) {
     <div className="max-w-3xl">
       <h1 className="font-display text-2xl font-bold text-navy">Let&rsquo;s get your first service ready</h1>
       <p className="mt-1 text-sm text-slate">
-        We&rsquo;ll set up <strong className="text-navy">{data.serviceName}</strong> so homeowners can book it at your price.
+        {data.copy.wizardIntro.split("{service}").map((part, i) => (
+          <span key={i}>{i > 0 && <strong className="text-navy">{data.serviceName}</strong>}{part}</span>
+        ))}{" "}
         Everything saves as you go — you can stop and come back.
       </p>
       <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate">{completed} of {order.length} steps done</p>
@@ -572,7 +596,7 @@ function ReviewStep({ data, onNext }: { data: Ready; onNext: () => void }) {
   if (!p) {
     return (
       <p className="text-sm text-slate">
-        Your price appears here once your materials, labor and pricing are complete.
+        {data.copy.reviewEmpty}
       </p>
     );
   }
@@ -637,12 +661,12 @@ function GoLiveStep({ data, onDone }: { data: Ready; onDone: () => void }) {
 
   if (data.active) {
     return data.needsReapproval
-      ? <p className="text-sm text-navy">Live · <strong>Price needs review.</strong> Homeowners can still ask for this job, but they&rsquo;ll get a quick quote review instead of a fixed price until you approve the updated price.</p>
+      ? <p className="text-sm text-navy">Live · <strong>{data.copy.liveNeedsReviewLead}</strong> {data.copy.liveNeedsReviewBody}</p>
       : <p className="text-sm text-emerald-700">{data.serviceName} is live.</p>;
   }
   return (
     <div>
-      <p className="text-sm text-navy">Make {data.serviceName} bookable on your storefront at the price you approved.</p>
+      <p className="text-sm text-navy">{fillPilotCopy(data.copy.goLiveBody, data.serviceName)}</p>
       {msg && <p className="mt-3 text-sm text-red-700">{msg}</p>}
       <button className={`${primaryBtn} mt-4`} disabled={!approved || busy} onClick={async () => {
         setBusy(true); setMsg(null);
@@ -652,7 +676,7 @@ function GoLiveStep({ data, onDone }: { data: Ready; onDone: () => void }) {
         onDone();
         router.refresh();
       }}>{busy ? "Going live…" : `Make ${data.serviceName} bookable`}</button>
-      {!approved && <p className="mt-2 text-xs text-slate">Approve your price first.</p>}
+      {!approved && <p className="mt-2 text-xs text-slate">{data.copy.approveFirst}</p>}
     </div>
   );
 }

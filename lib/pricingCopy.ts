@@ -275,3 +275,145 @@ export const FLAT_RATE_ASSUMPTIONS: readonly RegExp[] = [
   /\bskip the estimate\b/i,
   /\bflat[- ]rate pricing\b/i,
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The first-service onboarding pilot (Stage 1A).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * What the first-service pilot may say to a contractor, and to the staff
+ * supporting them, given how that contractor prices.
+ *
+ * A SEPARATE ACCESSOR ON PURPOSE. `pricingCopy()` above falls back to flat
+ * rate for a null strategy, which is the schema default and correct for the
+ * storefront. The pilot must not inherit that: its wording promises that a
+ * homeowner books at a price the contractor approved, and the engine behind it
+ * (derived resolved-scope pricing) produces exactly that fixed total — which a
+ * time-and-materials storefront never shows, because it presents a labor range
+ * instead. So only FLAT_RATE gets the pilot's promise; every other strategy,
+ * and anything that is not a strategy at all, gets wording that says this
+ * guided setup is not available for it yet and promises nothing.
+ *
+ * A bounded pilot constraint, not a statement about what Price2Book supports.
+ * lib/electrical/pilotEligibility.ts is the one place that decides who may use
+ * the pilot, and it refuses anyone whose copy here is not `available`.
+ */
+export type PilotSetupCopy = {
+  /** True only where the pilot's fixed-price promise is one the engine keeps. */
+  available: boolean;
+  /** Whether any string below promises the homeowner a fixed price. */
+  promisesFixedPrice: boolean;
+
+  // --- shown when the pilot is NOT available -----------------------------
+  unavailableTitle: string;
+  unavailableMessage: string;
+  /** The staff readiness state, word for word. */
+  supportStatus: string;
+  supportNextAction: string;
+  /** How the contractor's pricing model is named to staff. */
+  strategyLabel: string;
+
+  // --- the wizard, where the pilot is available ---------------------------
+  /** Under "Let's get your first service ready", before the catalog exists. */
+  catalogIntro: string;
+  /** The same promise once the service exists. `{service}` is its name. */
+  wizardIntro: string;
+  reviewStepTitle: string;
+  approveStepTitle: string;
+  reviewEmpty: string;
+  goLiveBody: string;
+  approveFirst: string;
+  liveNeedsReviewLead: string;
+  liveNeedsReviewBody: string;
+
+  // --- the staff diagnostic -----------------------------------------------
+  homeownerPricedCheck: string;
+  homeownerPricedOutcome: string;
+};
+
+const PILOT_NOT_AVAILABLE_BASE = {
+  available: false,
+  promisesFixedPrice: false,
+  unavailableTitle: "Guided setup isn't available for your pricing yet",
+  catalogIntro: "",
+  wizardIntro: "",
+  reviewStepTitle: "",
+  approveStepTitle: "",
+  reviewEmpty: "",
+  goLiveBody: "",
+  approveFirst: "",
+  liveNeedsReviewLead: "",
+  liveNeedsReviewBody: "",
+  homeownerPricedCheck: "Homeowner pricing through this pilot",
+  homeownerPricedOutcome: "not offered through this pilot",
+} as const;
+
+const PILOT_FLAT_RATE: PilotSetupCopy = {
+  available: true,
+  promisesFixedPrice: true,
+  unavailableTitle: "",
+  unavailableMessage: "",
+  supportStatus: "",
+  supportNextAction: "",
+  strategyLabel: "Flat rate",
+  catalogIntro:
+    "We’ll set up one service from start to finish so homeowners can book it at your price.",
+  wizardIntro:
+    "We’ll set up {service} so homeowners can book it at your price.",
+  reviewStepTitle: "Review your price",
+  approveStepTitle: "Approve this price",
+  reviewEmpty: "Your price appears here once your materials, labor and pricing are complete.",
+  goLiveBody: "Make {service} bookable on your storefront at the price you approved.",
+  approveFirst: "Approve your price first.",
+  liveNeedsReviewLead: "Price needs review.",
+  liveNeedsReviewBody:
+    "Homeowners can still ask for this job, but they’ll get a quick quote review instead of a fixed price until you approve the updated price.",
+  homeownerPricedCheck: "Homeowners get a fixed price",
+  homeownerPricedOutcome: "fixed price",
+};
+
+const PILOT_TIME_AND_MATERIALS: PilotSetupCopy = {
+  ...PILOT_NOT_AVAILABLE_BASE,
+  unavailableMessage:
+    "This guided setup is currently available for fixed-price services. Time-and-materials setup will be supported separately.",
+  supportStatus: "Not available for time-and-materials pricing",
+  supportNextAction:
+    "This guided setup covers fixed-price services only. Time-and-materials setup is handled outside this pilot.",
+  strategyLabel: "Time and materials",
+};
+
+/** Not a strategy this code knows. Promises nothing and names nothing. */
+const PILOT_UNKNOWN_STRATEGY: PilotSetupCopy = {
+  ...PILOT_NOT_AVAILABLE_BASE,
+  unavailableMessage:
+    "This guided setup is currently available for fixed-price services, and we couldn’t confirm how you price. Contact support to continue.",
+  supportStatus: "Not available for this pricing model",
+  supportNextAction:
+    "The contractor's pricing model could not be read as one this pilot supports. Check their pricing setup before continuing.",
+  strategyLabel: "Unknown",
+};
+
+/** Keyed by the canonical enum, so a new strategy is a compile error here, not a silent flat-rate promise. */
+const PILOT_SETUP_COPY: Record<PricingStrategy, PilotSetupCopy> = {
+  FLAT_RATE: PILOT_FLAT_RATE,
+  TIME_AND_MATERIALS: PILOT_TIME_AND_MATERIALS,
+};
+
+/**
+ * The pilot's wording for this contractor. NO FALLBACK TO FLAT RATE: null,
+ * undefined, or any value that is not a key of the enum gets the unknown-model
+ * wording, which promises nothing.
+ */
+export function pilotSetupCopy(strategy: unknown): PilotSetupCopy {
+  return isKnownPricingStrategy(strategy) ? PILOT_SETUP_COPY[strategy] : PILOT_UNKNOWN_STRATEGY;
+}
+
+/** A value of the canonical enum — not merely a string that looks like one. */
+export function isKnownPricingStrategy(v: unknown): v is PricingStrategy {
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(PILOT_SETUP_COPY, v);
+}
+
+/** `{service}` filled in. The copy is plain data so it can cross to a client component. */
+export function fillPilotCopy(template: string, serviceName: string): string {
+  return template.split("{service}").join(serviceName);
+}

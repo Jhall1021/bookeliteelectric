@@ -17,9 +17,11 @@ import { loadAndPriceDerivedScope, proposeDerivedScope } from "./loadDerivedScop
 import { requiredFields, type PricingContext } from "../pricingSettingsState";
 import type { DerivedScopeRefusalCode } from "./derivedScopePricing";
 import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
+import { loadPilotEligibility, type PilotEligibility } from "./pilotEligibility";
+import { pilotSetupCopy } from "../pricingCopy";
 
 export type PilotStepKey =
-  | "CATALOG" | "MATERIALS" | "LABOR" | "PRICING_SETTINGS" | "REVIEW" | "APPROVE" | "ACTIVATE";
+  | "ELIGIBILITY" | "CATALOG" | "MATERIALS" | "LABOR" | "PRICING_SETTINGS" | "REVIEW" | "APPROVE" | "ACTIVATE";
 
 export type PilotStep = {
   key: PilotStepKey;
@@ -48,6 +50,13 @@ export type PilotReadiness = {
   } | null;
   /** True only when the customer flow would genuinely return a price. */
   live: boolean;
+  /**
+   * Whether this contractor may use the fixed-price pilot at all. When not,
+   * the ONLY step is ELIGIBILITY, never done: no proposal, no approval step,
+   * not live — the pilot readiness model cannot report "ready to approve",
+   * "ready to activate" or "live" for a contractor it does not support.
+   */
+  eligibility: PilotEligibility;
 };
 
 export const PILOT_SERVICE_SLUG = "new-120v-outlet";
@@ -125,6 +134,18 @@ export async function loadPilotReadiness(
           service: { materialMultiplier: number | null; permitAdminCents: number | null;
                      otherDirectCostCents: number | null; isPrimaryEligible: boolean } },
 ): Promise<PilotReadiness> {
+  const eligibility = await loadPilotEligibility(db, contractorId);
+  if (!eligibility.eligible) {
+    return {
+      serviceId: null, serviceName: "New 120V Outlet",
+      steps: [{ key: "ELIGIBILITY", title: pilotSetupCopy(eligibility.strategy).unavailableTitle
+                  || pilotSetupCopy(null).unavailableTitle,
+                done: false, outstanding: [eligibility.message] }],
+      resumeAt: "ELIGIBILITY", proposed: null, live: false, eligibility,
+    };
+  }
+  const copy = pilotSetupCopy(eligibility.strategy);
+
   const service = await db.service.findFirst({
     where: { contractorId, slug: PILOT_SERVICE_SLUG },
     select: { id: true, name: true, active: true, pricingMethod: true },
@@ -135,7 +156,7 @@ export async function loadPilotReadiness(
       serviceId: null, serviceName: "New 120V Outlet",
       steps: [{ key: "CATALOG", title: "Install your Electrical catalog", done: false,
                 outstanding: ["Your services have not been set up yet."] }],
-      resumeAt: "CATALOG", proposed: null, live: false,
+      resumeAt: "CATALOG", proposed: null, live: false, eligibility,
     };
   }
 
@@ -176,9 +197,9 @@ export async function loadPilotReadiness(
     { key: "PRICING_SETTINGS", title: "Set your pricing basics",
       done: settingsOutstanding.length === 0,
       outstanding: settingsOutstanding },
-    { key: "REVIEW", title: "Review your price",
+    { key: "REVIEW", title: copy.reviewStepTitle,
       done: proposal.kind === "PRICED", outstanding: [] },
-    { key: "APPROVE", title: "Approve this price", done: priced.kind === "PRICED",
+    { key: "APPROVE", title: copy.approveStepTitle, done: priced.kind === "PRICED",
       outstanding: approvalBlocked && priced.kind === "REVIEW" ? [priced.reason] : [] },
     { key: "ACTIVATE", title: "Go live", done: service.active && priced.kind === "PRICED",
       outstanding: service.active ? [] : ["This service is not live yet."] },
@@ -195,5 +216,6 @@ export async function loadPilotReadiness(
       refusalReason: priced.kind === "REVIEW" ? priced.reason : null,
     },
     live: service.active && priced.kind === "PRICED",
+    eligibility,
   };
 }

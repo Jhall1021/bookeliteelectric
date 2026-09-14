@@ -222,10 +222,14 @@ async function main() {
   console.info = orig;
   ok(lines.length === 1 && lines[0].startsWith("[onboarding-pilot] "), "E  one tagged line per event");
   ok(!/example\.com|sessionId|answers|surface_route_feet/.test(lines[0]), "E  extra fields (email, answers, session) are dropped by the allowlist", lines[0]);
-  for (const f of ["app/api/admin/derived-pricing-approval/route.ts", "app/api/admin/services/[serviceId]/route.ts", "app/api/visit/route.ts",
+  // The approval decision (and its events) moved out of the route into
+  // lib/electrical/derivedPricingApproval.ts; the route is a thin door to it.
+  ok(/decideDerivedPricingApproval\(/.test(readFileSync("app/api/admin/derived-pricing-approval/route.ts", "utf8")),
+    "E  admin/derived-pricing-approval/route.ts delegates to the approval decision");
+  for (const f of ["lib/electrical/derivedPricingApproval.ts", "app/api/admin/services/[serviceId]/route.ts", "app/api/visit/route.ts",
                    "app/api/admin/component-labor/route.ts", "app/api/admin/materials/route.ts", "app/api/admin/pricing-settings-fields/route.ts",
                    "app/api/admin/material-system/route.ts", "app/api/admin/policies/route.ts"]) {
-    ok(/pilotLog\(/.test(readFileSync(f, "utf8")), `E  ${f.replace("app/api/", "")} emits pilot events`);
+    ok(/pilotLog\(/.test(readFileSync(f, "utf8")), `E  ${f.replace("app/api/", "").replace("lib/electrical/", "")} emits pilot events`);
   }
 
   console.log("\n  F  RESET — BOUNDED, REPEATABLE, REFUSES BOOKINGS\n");

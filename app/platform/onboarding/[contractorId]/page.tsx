@@ -252,7 +252,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
             <div><dt className="inline text-slate">Current proposed price: </dt><dd className="inline text-navy">{pilot.audit.currentProposedCents !== null ? `$${Math.round(pilot.audit.currentProposedCents / 100)}` : "not computable yet"}</dd></div>
             <div><dt className="inline text-slate">Changes since approval: </dt><dd className="inline text-navy">{pilot.audit.costChangesSinceApproval} cost · {pilot.audit.laborChangesSinceApproval} labor{pilot.audit.pricingChangesSinceApproval ? " · pricing" : ""}</dd></div>
             <div><dt className="inline text-slate">Live: </dt><dd className="inline text-navy">{pilot.audit.active ? "yes" : "no"}</dd></div>
-            <div><dt className="inline text-slate">Homeowner request right now: </dt><dd className="inline text-navy">{pilot.audit.storefrontVerdict === "PRICED" ? "fixed price" : pilot.audit.storefrontVerdict === "REVIEW" ? "review" : "not available"}</dd></div>
+            <div><dt className="inline text-slate">Homeowner request right now: </dt><dd className="inline text-navy">{pilot.audit.storefrontOutcome}</dd></div>
             <div><dt className="inline text-slate">Priced bookings: </dt><dd className="inline text-navy">{pilot.audit.pricedBookings}{pilot.audit.lastPricedBookingAt ? `, last ${pilot.audit.lastPricedBookingAt.toLocaleString("en-US")}` : ""}</dd></div>
           </dl>
         </div>

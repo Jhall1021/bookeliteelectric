@@ -22,6 +22,8 @@ import {
 } from "./onboardingPilotReadiness";
 import { POLICY_KEYS, SURFACE_RACEWAY_SYSTEM_KEY } from "./surfaceSystemConfiguration";
 import { SURFACE_ROLES } from "./surfaceRacewayTakeoff";
+import { loadPilotEligibility } from "./pilotEligibility";
+import { pilotSetupCopy, type PilotSetupCopy } from "../pricingCopy";
 
 export type PartGroup = "Raceway parts" | "Outlet box" | "Wire";
 
@@ -53,9 +55,23 @@ export type WizardLabor = {
   reference: LaborReference;
 };
 
+/**
+ * Three shapes. `pilotAvailable: false` is checked FIRST: a contractor this
+ * fixed-price pilot does not support gets the bounded explanation and nothing
+ * else — no parts, labor, proposal, approval token or step list travels to the
+ * page, so no step can be reached and no fixed-price copy is ever sent.
+ */
 export type WizardData =
-  | { catalogInstalled: false }
   | {
+      pilotAvailable: false;
+      catalogInstalled: boolean;
+      unavailable: { code: string; title: string; message: string };
+      copy: PilotSetupCopy;
+    }
+  | { pilotAvailable: true; catalogInstalled: false; copy: PilotSetupCopy }
+  | {
+      pilotAvailable: true;
+      copy: PilotSetupCopy;
       catalogInstalled: true;
       serviceId: string;
       serviceName: string;
@@ -143,12 +159,22 @@ const partRank = (key: string) => {
 };
 
 export async function loadFirstServiceWizard(db: PrismaClient, contractorId: string): Promise<WizardData> {
+  const eligibility = await loadPilotEligibility(db, contractorId);
+  const copy = pilotSetupCopy(eligibility.strategy);
   const service = await db.service.findFirst({
     where: { contractorId, slug: PILOT_SERVICE_SLUG },
     select: { id: true, name: true, active: true, isPrimaryEligible: true,
               materialMultiplier: true, permitAdminCents: true, otherDirectCostCents: true },
   });
-  if (!service) return { catalogInstalled: false };
+  if (!eligibility.eligible) {
+    return {
+      pilotAvailable: false,
+      catalogInstalled: !!service,
+      unavailable: { code: eligibility.code, title: copy.unavailableTitle, message: eligibility.message },
+      copy,
+    };
+  }
+  if (!service) return { pilotAvailable: true, catalogInstalled: false, copy };
 
   const loaded = await loadServiceForResolution(db, service.id);
   let settings: unknown = null;
@@ -277,6 +303,8 @@ export async function loadFirstServiceWizard(db: PrismaClient, contractorId: str
   });
 
   return {
+    pilotAvailable: true,
+    copy,
     catalogInstalled: true,
     serviceId: service.id,
     serviceName: service.name,

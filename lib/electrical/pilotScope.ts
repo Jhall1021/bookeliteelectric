@@ -23,6 +23,7 @@ export const PILOT_SCOPE = {
 } as const;
 
 export const PILOT_LIMITATIONS = [
+  "Fixed-price contractors only for now. Time-and-materials setup will be supported separately.",
   "Runs that turn corners go to review instead of an instant price.",
   "Changing a visit that combines this service with other services may refuse rather than reprice; adding it to a visit is supported.",
   "Account and business setup happen in the existing flows before the wizard starts.",
