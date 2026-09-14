@@ -99,6 +99,24 @@ export function requestAccess(source: string, fileName = "file.tsx"): RequestAcc
   const headerLocals = localsFrom(sf, "next/headers", "headers"), cookieLocals = localsFrom(sf, "next/headers", "cookies");
   const REQ_PROPS = new Set(["params", "searchParams"]);
   const propKind = (m: string): RequestAccess["kind"] => m === "searchParams" ? "searchParams-prop" : "params-prop";
+  // A module-private function DECLARATION whose name is referenced only as the
+  // callee of direct calls cannot be handed a framework-supplied argument:
+  // everything it receives comes from a call site in this file, and that
+  // caller is audited itself (its props or FormData escaping is refused THERE).
+  // So its first parameter is not presumed to be props. Exported, default,
+  // re-exported, stored, passed, JSX-referenced or `new`-ed functions — and
+  // every arrow or function expression — keep the presumption.
+  const directCallOnly = (fn: ts.Node): boolean => {
+    if (!ts.isFunctionDeclaration(fn) || !fn.name || !fn.body) return false;
+    if (ts.getCombinedModifierFlags(fn) & (ts.ModifierFlags.Export | ts.ModifierFlags.Default)) return false;
+    const self = fn.name; let only = true;
+    const scan = (m: ts.Node) => {
+      if (ts.isIdentifier(m) && m.text === self.text && m !== self) { const eff = transparentParent(m); if (!(ts.isCallExpression(eff.parent) && eff.parent.expression === eff)) only = false; }
+      ts.forEachChild(m, scan);
+    };
+    scan(sf);
+    return only;
+  };
   const visit = (n: ts.Node) => {
     if (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isMethodDeclaration(n)) {
       // EVERY parameter, not only the first: a route handler receives its
@@ -122,8 +140,10 @@ export function requestAccess(source: string, fileName = "file.tsx"): RequestAcc
             // destructure and computed reads of params/searchParams count for any
             // argument; an argument escaping whole counts for the props argument
             // (index 0) or any argument whose type names params/searchParams.
-            const isPropsLike = index === 0 || /\b(params|searchParams)\b/.test(t);
-            for (const u of bindingUses(sf, name)) {
+            const isPropsLike = (index === 0 && !directCallOnly(n)) || /\b(params|searchParams)\b/.test(t);
+            // Uses of THIS parameter only: a same-named binding elsewhere in the
+            // file is a different variable. Aliases are still followed file-wide.
+            for (const u of bindingUses(sf, name, n)) {
               if ((u.kind === "member" || u.kind === "destructure") && (REQ_PROPS.has(u.member) || u.member === "<computed>" || u.member === "<rest>")) out.push({ kind: propKind(u.member), detail: u.text, line: u.line });
               else if (isPropsLike && (u.kind === "spread" || u.kind === "return" || u.kind === "arg-of")) out.push({ kind: "params-prop", detail: `argument escapes: ${u.text}`, line: u.line });
             }
@@ -212,22 +232,27 @@ export type BindingUse =
  * file (an alias of an alias is an alias), which over-approximates — on a
  * read-only surface an over-approximation refuses, never admits.
  */
-export function bindingUses(sf: ts.SourceFile, root: string): BindingUse[] {
+export function bindingUses(sf: ts.SourceFile, root: string, scope?: ts.Node): BindingUse[] {
   const aliases = new Set([root]);
+  // With a scope (the function declaring `root` as a parameter), an identifier
+  // spelled `root` outside that function cannot be the parameter and is
+  // skipped. Alias names are never scope-limited, so a parameter copied to an
+  // outer variable is still followed wherever that variable is used.
+  const counts = (id: ts.Identifier) => id.text !== root || !scope || (id.getStart(sf) >= scope.getStart(sf) && id.end <= scope.end);
   // close the alias set: any `const q = <alias>` or `q = <alias>` adds q
   let grew = true;
   while (grew) {
     grew = false;
     const scan = (n: ts.Node) => {
-      if (ts.isVariableDeclaration(n) && n.initializer) { const init = unwrapExpr(n.initializer); if (ts.isIdentifier(init) && aliases.has(init.text) && ts.isIdentifier(n.name) && !aliases.has(n.name.text)) { aliases.add(n.name.text); grew = true; } }
-      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken) { const r = unwrapExpr(n.right); if (ts.isIdentifier(r) && aliases.has(r.text) && ts.isIdentifier(n.left) && !aliases.has(n.left.text)) { aliases.add(n.left.text); grew = true; } }
+      if (ts.isVariableDeclaration(n) && n.initializer) { const init = unwrapExpr(n.initializer); if (ts.isIdentifier(init) && aliases.has(init.text) && counts(init) && ts.isIdentifier(n.name) && !aliases.has(n.name.text)) { aliases.add(n.name.text); grew = true; } }
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken) { const r = unwrapExpr(n.right); if (ts.isIdentifier(r) && aliases.has(r.text) && counts(r) && ts.isIdentifier(n.left) && !aliases.has(n.left.text)) { aliases.add(n.left.text); grew = true; } }
       ts.forEachChild(n, scan);
     };
     scan(sf);
   }
   const out: BindingUse[] = [];
   const visit = (n: ts.Node) => {
-    if (ts.isIdentifier(n) && aliases.has(n.text)) {
+    if (ts.isIdentifier(n) && aliases.has(n.text) && counts(n)) {
       const parent = n.parent;
       // Name positions are not value uses: a declaration's name, a property
       // key, a member access's property, a type member's name.

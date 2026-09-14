@@ -306,7 +306,7 @@ async function main() {
 
   // ── 7. no other door ──────────────────────────────────────────────────
   const platformFiles = [
-    "lib/platformContext.ts", "lib/platformReadModel.ts", "lib/platformOnboarding.ts", "scripts/bootstrap-platform-admin.ts",
+    "lib/platformContext.ts", "lib/platformReadModel.ts", "lib/platformOnboarding.ts", "lib/platformOnboardingCommands.ts", "lib/platformCapabilities.ts", "scripts/bootstrap-platform-admin.ts",
     ...sourceFiles(["components/platform"]),
     ...sourceFiles(["app/platform", "app/api/platform"]),
   ];

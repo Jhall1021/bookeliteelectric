@@ -54,10 +54,20 @@ const SURFACE_POLICY: Policy = {
   "next/cache": ["revalidatePath"],
   "@/lib/platformContext": ["NotAuthenticatedError", "NotPlatformStaffError", "PlatformContractorNotFoundError", "resolvePlatformActor", "withPlatformRoute"],
   "@/lib/platformReadModel": ["platformOverview", "platformContractor", "attentionFor", "attentionSummary", "STUCK_AFTER_DAYS"],
-  // The founder onboarding wizard: request-bound commands and reads from the
-  // ONE platform module that may write, plus its notice formatter. The
-  // commands are policed by scripts/verify-platform-onboarding.ts.
-  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "platformBeginContractor", "platformAttachOwner", "platformInviteOwner", "platformRevokeInvitation", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "platformRetireContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
+  // The founder onboarding wizard's READS and notice formatter. Its raw
+  // request-bound commands are no longer reachable from a surface: since
+  // 12 Sep (docs/design/platform-staff-access.md) every mutation enters
+  // through the capability-guarded facade below, which
+  // scripts/verify-platform-capabilities.ts proves repeats the capability
+  // decision before delegating.
+  "@/lib/platformOnboarding": ["platformOnboardingIndex", "platformOnboardingContractor", "noticeText", "SLUG_INPUT_PATTERN", "SLUG_MAX"],
+  // The ONLY mutation door a surface may import — and only the wizard's
+  // actions file may import it (asserted in section 5).
+  "@/lib/platformOnboardingCommands": ["platformBeginContractor", "platformAttachOwner", "platformInviteOwner", "platformRevokeInvitation", "platformEnrolTrade", "platformInstallTemplate", "platformLaunchContractor", "platformRetireContractor"],
+  // Pure capability decisions over an actor's role: no client, no request, no
+  // write. The shell requires PLATFORM_READ; pages and actions ask
+  // hasPlatformCapability. The role-matrix itself and its labels stay out.
+  "@/lib/platformCapabilities": ["hasPlatformCapability", "requirePlatformCapability", "PlatformCapabilityError"],
   "./actions": ONBOARDING_ACTIONS,
   "../actions": ONBOARDING_ACTIONS,
   "@/components/platform/ContractorTable": ["ContractorTable"],
@@ -498,7 +508,11 @@ async function main() {
   }
   const ccAccess = access.find(({ f }) => f === CC)?.a ?? [];
   ok(`   the Control Center reads only \`params\``, ccAccess.length === 1 && ccAccess[0].kind === "params-prop");
-  ok(`   it 404s an unknown contractor and shows a "read-only" mark`, /PlatformContractorNotFoundError/.test(cc) && /notFound\(\)/.test(cc) && /read-only/.test(cc));
+  // The mark is rendered text (its case is presentation): a JSX text node
+  // that begins "read-only", in any case — not a comment, class or string.
+  const READ_ONLY_MARK = />\s*read-only\b/i;
+  ok(`   it 404s an unknown contractor and shows a "read-only" mark`, /PlatformContractorNotFoundError/.test(cc) && /notFound\(\)/.test(cc) && READ_ONLY_MARK.test(cc));
+  ok(`   mutant: with the mark's text removed the check refuses, even if "read-only" survives in a class name`, !READ_ONLY_MARK.test(cc.replace(/>(\s*)read-only · /i, ">$1").replace(/className="/, 'className="read-only ')));
   const layout = strip("app/platform/layout.tsx");
   ok(`   the shell links the views and still gates on the actor`, /\/platform\/contractors/.test(layout) && /\/platform\/attention/.test(layout) && /\/platform\/onboarding/.test(layout) && /resolvePlatformActor\(\)/.test(layout));
   ok(`   no lifecycle, status or billing is invented anywhere`, [rm, ...surfaces.map(strip)].every((s) => !/TRIAL|PAST_DUE|SUSPENDED|CANCELED|lifecycle:|stripeCustomerId|subscription/.test(s)));
@@ -511,6 +525,8 @@ async function main() {
   const policed = sourceFiles(["app/platform", "app/api/platform", "components/platform"]);
   const violations = policed.flatMap((f) => importViolations(readFileSync(f, "utf8"), SURFACE_POLICY, f).map((v) => `${f} -> ${v}`));
   ok(`5. every platform surface — pages, components AND api routes — imports only from the allowlist (module and symbol)`, violations.length === 0, violations.join("; "));
+  const commandImporters = policed.filter((f) => importViolations(readFileSync(f, "utf8"), { }, f).some((v) => v.startsWith("@/lib/platformOnboardingCommands:")));
+  ok(`   only the wizard's actions import the mutation facade`, commandImporters.length === 1 && commandImporters[0] === "app/platform/onboarding/actions.ts", commandImporters.join(", "));
   ok(`   the policed set covers ${policed.length} files including the api routes`, policed.some((f) => f.startsWith("app/api/platform/")) && policed.length >= 6);
   const rmViolations = importViolations(readFileSync("lib/platformReadModel.ts", "utf8"), READ_MODEL_POLICY, "lib/platformReadModel.ts");
   ok(`   and so does the read model`, rmViolations.length === 0, rmViolations.join("; "));
@@ -530,6 +546,9 @@ async function main() {
     ["a wildcard re-export", refused(attention + '\nexport * from "@/lib/unapproved-module";\n')],
     ["a namespaced wildcard re-export", refused(attention + '\nexport * as helpers from "@/lib/unapproved-module";\n')],
     ["a named re-export even from an allowed module", refused(attention + '\nexport { platformOverview } from "@/lib/platformReadModel";\n')],
+    ["a surface importing a raw onboarding mutation, bypassing the capability facade", refused(attention + '\nimport { platformLaunchContractor } from "@/lib/platformOnboarding";\n')],
+    ["an unlisted symbol from the capability module", refused(attention + '\nimport { platformCapabilitiesForRole } from "@/lib/platformCapabilities";\n')],
+    ["a namespace import of the mutation facade", refused(attention + '\nimport * as commands from "@/lib/platformOnboardingCommands";\n')],
     ["the read model importing a writer", refused(readFileSync("lib/platformReadModel.ts", "utf8") + '\nimport { setTradeEnrolment as s } from "./tradeEnrolment";\n', READ_MODEL_POLICY)],
   ];
   for (const [name, caught] of mutants) ok(`   mutant: ${name} is refused`, caught);
@@ -585,6 +604,26 @@ async function main() {
   ok(`   mutant: an aliased props argument is seen`, requestAccess("export default function Page(props) { const q = props; return q.params.x; }").some((a) => a.kind === "params-prop"));
   ok(`   mutant: a rest-destructured props parameter is seen`, requestAccess("export default function Page({ ...rest }) { return rest.params.x; }").some((a) => a.kind === "params-prop"));
   ok(`   mutant: props escaping into a helper is seen`, requestAccess("export default function Page(props) { return helper(props); }").some((a) => /escape/.test(a.detail)));
+  // Scope and reachability (12 Sep false positive): a parameter is its own
+  // function's, and a private function only ever called directly cannot be
+  // handed a framework argument except through an audited caller.
+  ok(`   mutant: props passed to a private helper are still seen at the page`, requestAccess("export default function Page(props) { return can(props); }\nfunction can(x) { return check(x); }").some((a) => /escape/.test(a.detail)));
+  ok(`   mutant: a helper that is exported, re-exported, stored, passed or rendered keeps the props presumption`, [
+    "export function can(x) { return check(x); }",
+    "export default function can(x) { return check(x); }",
+    "function can(x) { return check(x); }\nexport { can };",
+    "function can(x) { return check(x); }\nexport default can;",
+    "function can(x) { return check(x); }\nexport const act = can;",
+    "function can(x) { return check(x); }\nexport default wrap(can);",
+    "function Can(x) { return check(x); }\nexport default function Page() { return <Can />; }",
+    "const can = (x) => check(x);\nexport async function a() { can(1); }",
+  ].every((src) => requestAccess(src).some((a) => /escape/.test(a.detail))));
+  ok(`   mutant: a private helper reading .params is seen`, requestAccess("function h(p) { return p.params.x; }\nexport default function Page() { return h(1); }").some((a) => a.kind === "params-prop"));
+  ok(`   mutant: a server action handing its FormData to a private helper is seen`, requestAccess('function backTo(id) { go("/p/" + id); }\nexport async function a(formData) { backTo(formData); }').some((a) => /escape/.test(a.detail)));
+  ok(`   mutant: a props parameter copied to an outer variable is still followed`, requestAccess("let leaked;\nexport default function Page(props) { leaked = props; }\nexport function other() { return helper(leaked); }").some((a) => /escape/.test(a.detail)));
+  ok(`   while a same-named local in another function is not the parameter, and a private capability helper is clean`,
+    requestAccess('function backTo(id) { go("/p/" + id); }\nexport async function a(formData) { const id = String(formData.get("x")); backTo(id); }').length === 0
+    && requestAccess('function can(c) { return has(role, c); }\nexport async function a(formData) { if (can("X")) return; }').length === 0);
   ok(`   while a page that never reads props is clean`, requestAccess("export default async function Page() { const o = await platformOverview(); return o.total; }").length === 0);
   // Review round 6: casts, escapes, second-argument route context, computed destructure keys.
   const dirStrayOf = (src: string, root: string) => usesOf(src, root).filter((u) => !((u.kind === "member" && DIRECTORY_MODELS.has(u.member)) || (u.kind === "arg-of" && DIRECTORY_SINKS.has(u.callee) && u.index === 0)));
