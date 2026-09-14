@@ -55,7 +55,7 @@ import {
   type JobConfiguration,
   type PricingSettings,
 } from "./pricing";
-import { QUESTION_ORDER } from "./serviceTreeQuery";
+import { RESOLUTION_TREE_INCLUDE } from "./serviceTreeQuery";
 
 export type ResolvedRoute =
   | {
@@ -144,39 +144,7 @@ export async function loadServiceForResolution(db: PrismaClient, serviceId: stri
 
   const service = await db.service.findUnique({
     where: { id: serviceId },
-    include: {
-      questions: {
-        orderBy: QUESTION_ORDER,
-        include: {
-          options: {
-            orderBy: { order: "asc" },
-            include: {
-              // Canonical roles only — platform data under a tenant-owned
-              // root, which is safe. The contractor's figures arrive
-              // separately, from their own tenant-rooted query.
-              components: {
-                include: {
-                  // v1.1 §3.1 — what the component physically consumes. Platform
-                  // data under a tenant-owned root, like canonicalComponent
-                  // itself; the COST comes from the contractor's own query.
-                  canonicalComponent: { include: { materials: { include: { canonicalMaterial: true } } } },
-                },
-              },
-              photoGroups: { include: { photoGroup: true } },
-              // ADR-009: the contractor's policy statement, not the shared
-              // pre-split text. Service-rooted, so this traversal is safe.
-              conditionalDisclaimers: {
-                include: {
-                  contractorDisclaimer: {
-                    include: { canonicalDisclaimer: true },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+    include: RESOLUTION_TREE_INCLUDE,
   });
   if (!service) return null;
 
