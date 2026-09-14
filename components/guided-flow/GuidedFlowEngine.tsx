@@ -31,7 +31,16 @@ type TerminalState =
   | { kind: "question"; question: QuestionDTO }
   | { kind: "resolved"; priceCents: number; disclaimer: string | null; addedCrewHours: number }
   | { kind: "reroute"; serviceId: string; reason: string }
-  | { kind: "troubleshooting"; note?: string | null }
+  | {
+      kind: "troubleshooting";
+      /** What the customer told THIS service, in their own words — always
+       *  available, unlike the answer's own disclaimer. */
+      originServiceName: string;
+      answerLabel: string;
+      /** The answer's own disclaimer, when the seed author wrote one. Shown
+       *  ALONGSIDE answerLabel, never instead of it — B.5. */
+      note?: string | null;
+    }
   | {
       kind: "photo_review";
       labels: string[];
@@ -93,9 +102,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
    * refused — the button fails closed rather than guessing a URL.
    */
   const [troubleshooting, setTroubleshooting] = useState<{
+    id: string;
     /** Relative to the storefront root. Built by the server, not from parts. */
     path: string;
     basePrice: number | null;
+    /** The contractor's own configured terms — never a duration or figure
+     *  this component invents. See lib/troubleshooting.ts. */
+    disclaimer: string | null;
   } | null>(null);
   // Stored under a reserved key in answersSnapshot rather than its own column
   // — it's part of the record of what the customer told us, same as any
@@ -154,21 +167,33 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       // session can't leak into an unrelated flow. Reuse is right for the
       // reroute that created it and wrong for anything else.
       let carried: Record<string, string> = {};
+      let carriedNote = "";
       try {
         const raw = sessionStorage.getItem(REROUTE_HANDOFF_KEY);
         if (raw) {
           sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
           const payload = JSON.parse(raw);
-          if (payload?.targetServiceId === data.id && payload.answers) {
-            // Only keys this service actually asks about. A shared key like
-            // ceiling height transfers; one that happens to collide does not
-            // silently answer a question the customer never saw.
-            const keys = new Set(data.questions.map((q: QuestionDTO) => q.key));
-            carried = Object.fromEntries(
-              Object.entries(payload.answers as Record<string, string>).filter(([k]) =>
-                keys.has(k)
-              )
-            );
+          if (payload?.targetServiceId === data.id) {
+            if (payload.answers) {
+              // Only keys this service actually asks about. A shared key like
+              // ceiling height transfers; one that happens to collide does not
+              // silently answer a question the customer never saw.
+              const keys = new Set(data.questions.map((q: QuestionDTO) => q.key));
+              carried = Object.fromEntries(
+                Object.entries(payload.answers as Record<string, string>).filter(([k]) =>
+                  keys.has(k)
+                )
+              );
+            }
+            // Intake context (B.4), not an answer to any question this tree
+            // asks — deliberately NOT filtered against `keys` the way
+            // `answers` is above. A troubleshooting reroute carries this
+            // instead of `answers`: the destination's own questions (it may
+            // have none) are a separate concern from what the customer
+            // already told the ORIGINATING service.
+            if (typeof payload.customerNote === "string" && payload.customerNote.trim()) {
+              carriedNote = payload.customerNote;
+            }
           }
         }
       } catch {
@@ -183,6 +208,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       // nothing), just extended by one more fallback.
       const hasCarried = Object.keys(carried).length > 0;
       setAnswers(hasCarried ? carried : (session?.consumedAnswers ?? {}));
+      if (carriedNote) setCustomerNote(carriedNote);
       setLoading(false);
     });
   }, [serviceSlug]);
@@ -322,13 +348,20 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
                    addedCrewHours: nextConfig.addedCrewHours },
         };
       case "REROUTE_TROUBLESHOOTING":
-        // Carry the answer's disclaimer through — that's where the "we'll start at
-      // the device and only charge for the swap if that's all it is" promise
-      // lives, and it's useless if the customer never sees it.
-      return {
+        // originServiceName + answerLabel are ALWAYS available and carry the
+        // one piece of context that matters ("what did the customer say"),
+        // independent of whether this specific answer has its own authored
+        // disclaimer — B.4/B.5. option.disclaimer, when present, is
+        // additional framing on top, not a substitute for it.
+        return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "troubleshooting", note: option.disclaimer },
+          state: {
+            kind: "troubleshooting",
+            originServiceName: flow!.name,
+            answerLabel: option.label,
+            note: option.disclaimer,
+          },
         };
       case "PHOTO_REVIEW":
         // Two very different outcomes share this route action. When the photos
@@ -503,8 +536,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         .then((r) => (r.ok ? r.json() : null))
         .then((t) =>
           setTroubleshooting(
-            t && typeof t.path === "string"
-              ? { path: t.path, basePrice: t.basePrice ?? null }
+            t && typeof t.id === "string" && typeof t.path === "string"
+              ? { id: t.id, path: t.path, basePrice: t.basePrice ?? null, disclaimer: t.disclaimer ?? null }
               : null
           )
         )
@@ -697,6 +730,14 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         <EstimateRangeCard serviceName={flow.name} estimate={estimate} disclaimer={state.disclaimer} />
       );
     }
+    // The diagnostic service has no questions of its own, so this is the
+    // ONLY screen a homeowner sees before booking it — direct entry and a
+    // troubleshooting reroute both land here. When a reroute pre-filled
+    // customerNote (B.4), show it as an editable field so the homeowner can
+    // see what will reach the technician and correct it, rather than
+    // silently sending it. Every other resolved service is unaffected: the
+    // props are omitted, so PriceConfirmationCard renders exactly as before.
+    const isDiagnosticVisit = flow.bookingType === "TROUBLESHOOT_ONLY";
     return withBack(
       <PriceConfirmationCard
         serviceName={flow.name}
@@ -704,6 +745,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         priceCents={state.priceCents}
         disclaimer={state.disclaimer}
         onAddToVisit={handleAddToVisit}
+        {...(isDiagnosticVisit
+          ? { note: customerNote, onNoteChange: setCustomerNote, noteLabel: "What should we tell the technician?" }
+          : {})}
       />
     );
   }
@@ -719,22 +763,52 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "troubleshooting") {
+    // B.4: what will reach the technician, in the same words the destination
+    // flow will pre-fill into its own editable note. Built here, once, from
+    // context that's always available — not gated on this specific answer
+    // having its own authored disclaimer (B.5).
+    const intakeNote =
+      `From ${state.originServiceName}: "${state.answerLabel}."` +
+      (state.note ? ` ${state.note}` : "");
+
+    function bookTroubleshooting() {
+      if (!troubleshooting) return;
+      try {
+        sessionStorage.setItem(
+          REROUTE_HANDOFF_KEY,
+          JSON.stringify({ targetServiceId: troubleshooting!.id, customerNote: intakeNote })
+        );
+      } catch {
+        // Private browsing, or storage full. The customer starts the
+        // diagnostic with an empty note instead of a pre-filled one — worth
+        // swallowing, not worth blocking the booking over.
+      }
+      router.push(`${base}/${troubleshooting.path}`);
+    }
+
     return withBack(
       <div className="rounded-card border border-cardline bg-white p-8 text-center shadow-card">
         <h2 className="font-display text-xl font-bold text-navy">
           This sounds like a troubleshooting job
         </h2>
-        {state.note && (
-          <p className="mx-auto mt-4 max-w-lg rounded-card bg-warmwhite p-4 text-left text-sm text-slate">
-            {state.note}
+        <p className="mx-auto mt-4 max-w-lg rounded-card bg-warmwhite p-4 text-left text-sm text-slate">
+          {intakeNote}
+        </p>
+        <p className="mt-2 text-slate">
+          Based on your answer, we&rsquo;d rather diagnose the issue first than have you book the
+          wrong repair.
+          {troubleshooting?.basePrice != null
+            ? ` Our diagnostic visit is ${formatCents(troubleshooting.basePrice)}.`
+            : ""}
+        </p>
+        {/* The contractor's own configured terms — never a duration this
+            component invents (B.5). Same text a direct visitor to the
+            diagnostic service sees via its own PriceConfirmationCard. */}
+        {troubleshooting?.disclaimer && (
+          <p className="mx-auto mt-2 max-w-lg text-left text-xs text-slate">
+            {troubleshooting.disclaimer}
           </p>
         )}
-        <p className="mt-2 text-slate">
-          Based on your answer, we'd rather diagnose the issue first than have you book the
-          wrong repair. Our diagnostic visit
-          {troubleshooting?.basePrice != null ? ` is ${formatCents(troubleshooting.basePrice)},` : ""} includes
-          the visit and the first 60 minutes of diagnostic time.
-        </p>
         {/*
           No button until the server has said where it goes. A "Book
           Troubleshooting" button built from a guessed URL is worse than no
@@ -743,7 +817,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         */}
         {troubleshooting ? (
           <button
-            onClick={() => router.push(`${base}/${troubleshooting.path}`)}
+            onClick={bookTroubleshooting}
             className="mt-6 rounded-pill bg-electric px-7 py-3 font-semibold text-white hover:bg-electric-hover"
           >
             {troubleshooting.basePrice != null

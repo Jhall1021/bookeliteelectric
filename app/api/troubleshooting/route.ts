@@ -88,6 +88,9 @@ export async function GET(req: Request) {
     id: found.service.id,
     name: found.service.name,
     basePrice: found.service.basePrice,
+    // The contractor's own configured terms for this visit — never a figure
+    // or duration the storefront invents. Null just means none is set.
+    disclaimer: found.service.disclaimer,
     path: `services/${found.service.categorySlug ?? "services"}/${found.service.slug}`,
   });
 }
