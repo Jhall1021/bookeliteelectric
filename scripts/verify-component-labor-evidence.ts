@@ -13,7 +13,7 @@
  * derived value is allowed to be absent.
  */
 import { PrismaClient } from "@prisma/client";
-import { REHEARSAL_FIXTURE_SLUGS } from "../prisma/_serviceTargets";
+import { NOT_A_REHEARSAL_CONTRACTOR } from "../prisma/_serviceTargets";
 import { readFileSync } from "node:fs";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { eliteService } from "../prisma/_serviceTargets";
@@ -85,7 +85,7 @@ async function main() {
 
   // The deliberate zeros are deliberate in their SOURCE, not merely in the data.
   const deliberate = await prisma.contractorComponent.findMany({
-    where: { addFieldLaborHours: 0, contractor: { slug: { notIn: REHEARSAL_FIXTURE_SLUGS } } },
+    where: { addFieldLaborHours: 0, contractor: NOT_A_REHEARSAL_CONTRACTOR },
     select: { canonicalComponent: { select: { key: true } } } });
   const seeds = ["prisma/seed-dedicated-circuit.ts", "prisma/seed-lighting-control.ts",
                  "prisma/seed-exterior-gfci-routing.ts", "prisma/seed-new-outlet.ts"]
@@ -99,7 +99,7 @@ async function main() {
   const v2Keys = ROUTING_V2_COMPONENTS.map((c) => c.key);
   const v2Rows = await prisma.contractorComponent.findMany({
     where: { canonicalComponent: { key: { in: v2Keys } },
-             contractor: { slug: { notIn: REHEARSAL_FIXTURE_SLUGS } } },
+             contractor: NOT_A_REHEARSAL_CONTRACTOR },
     select: { addFieldLaborHours: true, canonicalComponent: { select: { key: true } } } });
   ok(v2Rows.every((r) => r.addFieldLaborHours === null),
     "D  every Routing V2 component reads null — their seeds never mentioned labor",

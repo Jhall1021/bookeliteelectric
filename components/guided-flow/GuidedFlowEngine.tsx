@@ -7,9 +7,9 @@ import { formatCents } from "@/lib/flow-types";
 import {
   startDisplayConfiguration,
   applyBranch,
-  customerPrice,
   type JobConfiguration,
 } from "@/lib/pricing";
+import { flowPriceSource } from "@/lib/guidedFlowPricing";
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
@@ -44,7 +44,16 @@ type TerminalState =
     }
   // Price already settled; the photos are prep for the technician, not a
   // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
-  | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null };
+  | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null }
+  // DERIVED_RESOLVED_SCOPE only: the tree reached a terminal answer and the
+  // SERVER is now asked for the price (lib/guidedFlowPricing.ts). `then` is
+  // what a PRICED answer becomes; the answers asked about travel with it.
+  | {
+      kind: "server_pricing";
+      answers: Record<string, string>;
+      then: { kind: "resolved"; disclaimer: string | null }
+        | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; disclaimer: string | null };
+    };
 
 /**
  * Interprets a Service's Question/AnswerOption tree at runtime. This is the
@@ -283,9 +292,17 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // increments — never from the calculated configuration. A service whose
     // field hours aren't established still sells at its published price;
     // only the internal suggestion is withheld (handoff §5/§31).
+    //
+    // A DERIVED service is priced by the server instead: no published anchor
+    // exists, and none is inferred. It walks the same tree and asks at the
+    // terminal answer — see lib/guidedFlowPricing.ts.
     const anchor = isAddOn ? flow!.whileWeThereBasePrice : flow!.basePrice;
-    const priced = customerPrice(nextConfig, anchor ?? null);
-    const total = priced.totalCents ?? 0;
+    const priceSource = flowPriceSource(flow!.pricingMethod, nextConfig, anchor ?? null);
+    const serverPriced = priceSource.source === "SERVER";
+    const total = priceSource.source === "PUBLISHED" ? priceSource.totalCents
+      : priceSource.source === "PUBLISHED_REVIEW" ? priceSource.floorCents : 0;
+    const serverPricing = (then: Extract<TerminalState, { kind: "server_pricing" }>["then"]): TerminalState =>
+      ({ kind: "server_pricing", answers: ans, then });
 
     const fallbackPhotos = [
       "Photo of the area where the work is needed",
@@ -295,7 +312,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // A branch selecting components with no approved customer price can't be
     // booked at a number we invented. Checked before the route action, so it
     // overrides an otherwise instant-resolving answer.
-    if (priced.mustReview) {
+    if (priceSource.source === "PUBLISHED_REVIEW") {
       return {
         kind: "terminal",
         config: nextConfig,
@@ -318,8 +335,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "resolved", priceCents: total, disclaimer: option.disclaimer,
-                   addedCrewHours: nextConfig.addedCrewHours },
+          state: serverPriced
+            ? serverPricing({ kind: "resolved", disclaimer: option.disclaimer })
+            : { kind: "resolved", priceCents: total, disclaimer: option.disclaimer,
+                addedCrewHours: nextConfig.addedCrewHours },
         };
       case "REROUTE_TROUBLESHOOTING":
         // Carry the answer's disclaimer through — that's where the "we'll start at
@@ -335,6 +354,14 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         // don't block booking, the answer has already determined the price, so
         // resolve it and collect the photos as preparation instead.
         if (!option.photosBlockBooking) {
+          if (serverPriced) {
+            return {
+              kind: "terminal",
+              config: nextConfig,
+              state: serverPricing({ kind: "priced_photo_review", labels: option.requiredPhotoLabels,
+                                     safetyNotes: option.photoSafetyNotes, disclaimer: option.disclaimer }),
+            };
+          }
           return {
             kind: "terminal",
             config: nextConfig,
@@ -354,7 +381,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             kind: "photo_review",
             labels: option.requiredPhotoLabels,
             safetyNotes: option.photoSafetyNotes,
-            floorPriceCents: total,
+            // No client-side floor for a server-priced service.
+            floorPriceCents: serverPriced ? null : total,
           },
         };
       case "REMOTE_QUOTE":
@@ -365,7 +393,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             kind: "photo_review",
             labels: option.requiredPhotoLabels,
             safetyNotes: option.photoSafetyNotes,
-            floorPriceCents: total,
+            floorPriceCents: serverPriced ? null : total,
           },
         };
       case "REROUTE_SERVICE":
@@ -396,8 +424,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "resolved", priceCents: total, disclaimer: null,
-                   addedCrewHours: nextConfig.addedCrewHours },
+          state: serverPriced
+            ? serverPricing({ kind: "resolved", disclaimer: null })
+            : { kind: "resolved", priceCents: total, disclaimer: null,
+                addedCrewHours: nextConfig.addedCrewHours },
         };
     }
   }
@@ -542,7 +572,22 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // Don't navigate on a failed add — that would drop the customer on an
     // empty visit page with no idea their photos went nowhere. The queue is
     // untouched too, so a retry resumes rather than skipping a service.
-    if (!res.ok) throw new Error("Could not add this to your visit");
+    if (!res.ok) {
+      // A server-priced service re-plans on write. If its economics or approval
+      // changed after the price was shown, the server refuses to store it and
+      // the homeowner sees a review — never the stale figure.
+      if (flow.pricingMethod === "DERIVED_RESOLVED_SCOPE" && res.status === 409) {
+        const body = await res.json().catch(() => null);
+        if (body?.error === "REVIEW_REQUIRED") {
+          setState({ kind: "photo_review", blocking: true, floorPriceCents: null,
+                     message: "We need to take a quick look at this one before confirming the price.",
+                     labels: Array.isArray(body.photoLabels) && body.photoLabels.length > 0 ? body.photoLabels
+                       : ["Photo of the area where the work is needed", "A wider photo of the room"] });
+          return;
+        }
+      }
+      throw new Error("Could not add this to your visit");
+    }
 
     // Mark the session COMPLETED only now — after the write it describes
     // has actually succeeded, never before (docs/design/
@@ -582,6 +627,44 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     if (!flow || state?.kind !== "resolved") return;
     await addToVisit(state.priceCents);
   }
+
+  // DERIVED_RESOLVED_SCOPE: the terminal answer was reached, so ask the server.
+  // The request names the service and the answers; the storefront identifier
+  // decides the tenant. Read-only on the server — nothing is added to a visit.
+  // Anything but a clean PRICED answer is a review, never a number.
+  useEffect(() => {
+    if (!flow || state?.kind !== "server_pricing") return;
+    const pending = state;
+    let cancelled = false;
+    const toReview = (message: string, labels: string[] = []) =>
+      setState({ kind: "photo_review", blocking: true, message, floorPriceCents: null,
+                 labels: labels.length > 0 ? labels : ["Photo of the area where the work is needed", "A wider photo of the room"] });
+    siteFetch("/api/price-evaluation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ serviceId: flow.id, answers: pending.answers }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((ev) => {
+        if (cancelled) return;
+        if (ev?.outcome === "PRICED" && typeof ev.priceCents === "number") {
+          if (pending.then.kind === "priced_photo_review") {
+            setState({ kind: "priced_photo_review", labels: pending.then.labels, safetyNotes: pending.then.safetyNotes,
+                       priceCents: ev.priceCents, disclaimer: pending.then.disclaimer });
+          } else {
+            setState({ kind: "resolved", priceCents: ev.priceCents, disclaimer: pending.then.disclaimer, addedCrewHours: 0 });
+          }
+        } else if (ev?.outcome === "REROUTE" && typeof ev.targetServiceId === "string") {
+          setState({ kind: "reroute", serviceId: ev.targetServiceId, reason: "" });
+        } else {
+          toReview(typeof ev?.message === "string" ? ev.message : "We need to take a quick look at this one before confirming the price.",
+                   Array.isArray(ev?.photoLabels) ? ev.photoLabels : []);
+        }
+      })
+      .catch(() => { if (!cancelled) toReview("We need to take a quick look at this one before confirming the price."); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, flow]);
 
   if (loading || !flow || !state) {
     return <div className="py-16 text-center text-slate">Loading...</div>;
@@ -705,6 +788,14 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         disclaimer={state.disclaimer}
         onAddToVisit={handleAddToVisit}
       />
+    );
+  }
+
+  if (state.kind === "server_pricing") {
+    return withBack(
+      <div role="status" aria-live="polite" className="rounded-card border border-cardline bg-white p-8 text-center shadow-card">
+        <p className="font-display text-lg font-semibold text-navy">Checking whether we can price this online…</p>
+      </div>
     );
   }
 

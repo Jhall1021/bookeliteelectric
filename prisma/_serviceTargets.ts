@@ -27,6 +27,7 @@
 
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { eliteContractorId } from "./_componentHelpers";
+import { PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -161,3 +162,16 @@ export const REHEARSAL_FIXTURE_SLUGS = [
   "rv2-lifecycle-derived-pricing",
   "rv2-onboarding-pilot",
 ];
+
+/**
+ * The same narrowing, as a contractor filter — the named fixtures above AND
+ * every controlled-pilot rehearsal contractor (`rv2-pilot-rehearsal-*`,
+ * lib/electrical/pilotScope.ts). A rehearsal contractor onboarded through the
+ * real application holds the contractor's own labor and costs by design — the
+ * Stage 1A rehearsal recorded "no extra time" (0) through the wizard — and is no
+ * more a counter-example to what provisioning produces than the fixtures are.
+ */
+export const NOT_A_REHEARSAL_CONTRACTOR = {
+  slug: { notIn: REHEARSAL_FIXTURE_SLUGS },
+  NOT: { slug: { startsWith: PILOT_REHEARSAL_PREFIX } },
+};

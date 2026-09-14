@@ -219,10 +219,17 @@ async function main() {
     "S  the wizard renders copy from data and stops an unavailable contractor at its first branch");
   ok(/storefrontOutcome/.test(src("app/platform/onboarding/[contractorId]/page.tsx")) && !/"fixed price"/.test(src("app/platform/onboarding/[contractorId]/page.tsx")),
     "S  the staff page shows the diagnostic's strategy-true outcome, not a hardcoded one");
+  // The placement + pricing plan moved into lib/visitLinePlanning.ts so the
+  // storefront's read-only price evaluation and this write share it.
   const visitSrc = src("app/api/visit/route.ts");
-  ok(/newCand\.basePrice === null && newCand\.whileWeThereBasePrice === null/.test(visitSrc) && /error: "REVIEW_REQUIRED"/.test(visitSrc)
-    && /computedPriceCents: resolved\.priceCents/.test(visitSrc) && /const resolved = await resolveRouteWithDerivedPricing\(/.test(visitSrc),
-    "S  /api/visit: a new derived line with no computable price returns REVIEW_REQUIRED, and a stored price only ever comes from resolveRouteWithDerivedPricing");
+  const planSrc = src("lib/visitLinePlanning.ts");
+  ok(/newCand\.basePrice === null && newCand\.whileWeThereBasePrice === null/.test(planSrc)
+    && /return \{ kind: "REVIEW_BEFORE_PLACEMENT", verdict \};/.test(planSrc)
+    && /const resolved = await resolveRouteWithDerivedPricing\(/.test(planSrc)
+    && /const plan = await planNewLine\(db,/.test(visitSrc)
+    && /plan\.kind === "REVIEW_BEFORE_PLACEMENT"[\s\S]{0,400}error: "REVIEW_REQUIRED"/.test(visitSrc)
+    && /computedPriceCents: resolved\.priceCents/.test(visitSrc) && /const \{ candidates, isPrimary, settings, answers, resolved \} = plan;/.test(visitSrc),
+    "S  /api/visit: a new derived line with no computable price returns REVIEW_REQUIRED, and a stored price only ever comes from resolveRouteWithDerivedPricing (via the shared plan)");
   ok(/resolveRouteWithDerivedPricing\(/.test(src("app/api/quotes/route.ts")), "S  /api/quotes prices through the same guarded resolver");
 
   await remove(FIXED_SLUG);

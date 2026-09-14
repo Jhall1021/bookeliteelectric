@@ -1,5 +1,5 @@
 import { pilotLog } from "@/lib/electrical/pilotLog";
-import { resolveRouteWithDerivedPricing, derivedPlacementPrices } from "@/lib/electrical/resolveWithDerivedPricing";
+import { resolveRouteWithDerivedPricing } from "@/lib/electrical/resolveWithDerivedPricing";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
@@ -12,6 +12,7 @@ import {
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { findOpenVisit, findOrCreateOpenVisit } from "@/lib/openVisit";
 import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
+import { planNewLine, NEW_LINE } from "@/lib/visitLinePlanning";
 import { categorySlug, requireContractorCategory } from "@/lib/categories";
 import { sameVisitAvailable } from "@/lib/sameVisit";
 
@@ -93,94 +94,31 @@ export async function POST(req: Request) {
     orderBy: { id: "asc" },
   });
 
-  const NEW = Symbol("new-line");
-  const candidates = [
-    ...existing.map((li) => ({
-      ref: li.id as string | symbol,
-      slug: li.service.slug,
-      basePrice: li.service.basePrice,
-      whileWeThereBasePrice: li.service.whileWeThereBasePrice,
-      isPrimary: li.isPrimary,
-    })),
-    {
-      ref: NEW as string | symbol,
-      slug: service.slug,
-      basePrice: service.basePrice,
-      whileWeThereBasePrice: service.whileWeThereBasePrice,
-      // Not on the visit yet, so it holds no flag to preserve.
-      isPrimary: false,
-    },
-  ];
+  // Placement, derived placement prices, primary selection and pricing — the
+  // same read-only plan POST /api/price-evaluation shows the homeowner before
+  // this write, so the displayed and stored price cannot diverge by code.
+  const plan = await planNewLine(db, { contractorId: site.contractorId, service, answersSnapshot, existing });
 
-  // A derived service publishes no prices, so composition gets its COMPUTED
-  // standalone and add-on prices instead — or null when they cannot be
-  // computed, which the existing rules already refuse. Legacy candidates are
-  // untouched.
-  const hasDerived =
-    (service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE" ||
-    existing.some((li) => li.service.pricingMethod === "DERIVED_RESOLVED_SCOPE");
-  if (hasDerived) {
-    let placementSettings: Parameters<typeof resolveRouteWithDerivedPricing>[4] | null = null;
-    try { placementSettings = await loadPricingSettings(db, site.contractorId); } catch { placementSettings = null; }
-    for (const cand of candidates) {
-      const isNew = cand.ref === NEW;
-      const li = isNew ? null : existing.find((e) => e.id === cand.ref);
-      const method = isNew
-        ? (service as { pricingMethod?: string }).pricingMethod
-        : li?.service.pricingMethod;
-      if (method !== "DERIVED_RESOLVED_SCOPE") continue;
-      if (!placementSettings) { cand.basePrice = null; cand.whileWeThereBasePrice = null; continue; }
-      const svcForPlacement = isNew ? service : await loadServiceForResolution(db, li!.serviceId);
-      if (!svcForPlacement) { cand.basePrice = null; cand.whileWeThereBasePrice = null; continue; }
-      const answersForPlacement = isNew
-        ? ((answersSnapshot ?? {}) as Record<string, string>)
-        : ((li!.answersSnapshot ?? {}) as Record<string, string>);
-      const prices = await derivedPlacementPrices(db, svcForPlacement, answersForPlacement, placementSettings);
-      cand.basePrice = prices.basePrice;
-      cand.whileWeThereBasePrice = prices.whileWeThereBasePrice;
-    }
-
-    // THE NEW DERIVED LINE CANNOT BE PRICED RIGHT NOW — say so as a review.
-    //
-    // Without this, a derived service with a stale approval or incomplete setup
-    // fell through to composition with no prices and came back as
-    // PRIMARY_UNRESOLVABLE: "we can't combine those services". True that
-    // nothing was booked, wrong about why, and it skipped the quote path a
-    // homeowner should be offered. Found by the authenticated HTTP pass after a
-    // cost change. The verdict here carries the real reason.
-    const newCand = candidates.find((c) => c.ref === NEW);
-    if (
-      (service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE" &&
-      newCand && newCand.basePrice === null && newCand.whileWeThereBasePrice === null
-    ) {
-      const verdict = placementSettings
-        ? await resolveRouteWithDerivedPricing(db, service, (answersSnapshot ?? {}) as Record<string, string>, true, placementSettings)
-        : null;
-      if (verdict && verdict.status !== "REVIEW") {
-        // A physical conclusion (INVALID, REROUTE…) — let the normal path below
-        // report it rather than dressing it up as a price review.
-      } else {
-        pilotLog("homeowner_price", { contractorId: site.contractorId, serviceId, step: "visit", outcome: "REVIEW",
-          code: verdict?.derivedRefusalCode ?? null });
-        return NextResponse.json(
-          {
-            error: "REVIEW_REQUIRED",
-            reason: verdict && "reason" in verdict ? verdict.reason : "This job needs a quick review before it can be priced",
-            photoLabels: verdict && "photoLabels" in verdict ? verdict.photoLabels : [],
-            floorPriceCents: null,
-          },
-          { status: 409 }
-        );
-      }
-    }
+  if (plan.kind === "REVIEW_BEFORE_PLACEMENT") {
+    const verdict = plan.verdict;
+    pilotLog("homeowner_price", { contractorId: site.contractorId, serviceId, step: "visit", outcome: "REVIEW",
+      code: verdict?.derivedRefusalCode ?? null });
+    return NextResponse.json(
+      {
+        error: "REVIEW_REQUIRED",
+        reason: verdict && "reason" in verdict ? verdict.reason : "This job needs a quick review before it can be priced",
+        photoLabels: verdict && "photoLabels" in verdict ? verdict.photoLabels : [],
+        floorPriceCents: null,
+      },
+      { status: 409 }
+    );
   }
 
-  const chosen = selectPrimary(candidates);
-  if (!chosen.ok) {
+  if (plan.kind === "UNRESOLVABLE") {
     // No valid arrangement — usually two services that both lack an add-on
     // price. A catalog gap rather than a customer problem, so it reads as a
     // system fault and nothing is written.
-    console.error(`[visit] cannot place ${service.slug} on visit ${visit.id}: ${chosen.conflict}`);
+    console.error(`[visit] cannot place ${service.slug} on visit ${visit.id}: ${plan.conflict}`);
     return NextResponse.json(
       {
         error: "PRIMARY_UNRESOLVABLE",
@@ -191,17 +129,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const isPrimary = chosen.primary.ref === NEW;
-
-  // The service being added names its own contractor, so no ambient context
-  // is needed here. Throws for a service with no owner rather than reaching
-  // for whichever pricing settings exist.
-  const settings = await loadPricingSettings(db, site.contractorId);
-  const answers: Record<string, string> = answersSnapshot ?? {};
-  // Derived-aware: a pass-through for every legacy service, and the ONLY way a
-  // derived service reaches a price. The pure resolver returns a pending
-  // sentinel for those, which would book as review.
-  const resolved = await resolveRouteWithDerivedPricing(db, service, answers, isPrimary, settings);
+  const { candidates, isPrimary, settings, answers, resolved } = plan;
+  const NEW = NEW_LINE;
   if ((service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE") {
     pilotLog("homeowner_price", { contractorId: site.contractorId, serviceId, step: "visit",
       outcome: resolved.status === "PRICED" ? "PRICED" : "REVIEW",

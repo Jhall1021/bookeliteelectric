@@ -150,6 +150,13 @@ export type ServiceFlowDTO = {
   bookingType: "INSTANT" | "ADJUSTED" | "REMOTE_QUOTE" | "TROUBLESHOOT_ONLY";
   basePrice: number | null; // cents
   whileWeThereBasePrice: number | null;
+  /**
+   * Where this service's customer price comes from. DERIVED_RESOLVED_SCOPE
+   * services publish no base price by design and are priced by the server
+   * (POST /api/price-evaluation) — see lib/guidedFlowPricing.ts. A label, not
+   * economics.
+   */
+  pricingMethod: "LEGACY_PUBLISHED" | "DERIVED_RESOLVED_SCOPE";
   startingPriceLabel: string | null;
   /** Overrides the booking button's wording. See Service.ctaLabel. */
   ctaLabel: string | null;

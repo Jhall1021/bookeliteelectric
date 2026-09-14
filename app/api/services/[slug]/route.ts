@@ -160,6 +160,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     bookingType: service.bookingType,
     basePrice: service.basePrice,
     whileWeThereBasePrice: service.whileWeThereBasePrice,
+    pricingMethod: service.pricingMethod,
     startingPriceLabel: service.startingPriceLabel,
     ctaLabel: service.ctaLabel,
     // Cross-references resolved against THIS contractor's live catalog: copy

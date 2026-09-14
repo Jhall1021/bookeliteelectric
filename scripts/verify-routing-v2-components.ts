@@ -14,7 +14,7 @@
  *      supplies real figures through calibration.
  */
 import { PrismaClient } from "@prisma/client";
-import { REHEARSAL_FIXTURE_SLUGS } from "../prisma/_serviceTargets";
+import { NOT_A_REHEARSAL_CONTRACTOR } from "../prisma/_serviceTargets";
 import { ROUTING_V2_COMPONENTS } from "../prisma/seed-routing-v2-components";
 
 const prisma = new PrismaClient();
@@ -56,9 +56,9 @@ async function main() {
   const priced = await prisma.contractorComponent.findMany({
     // Scoped away from rehearsal fixtures: this asserts what PROVISIONING
     // produces, and a fixture holding a deliberate configuration is not a
-    // counter-example to that. See REHEARSAL_FIXTURE_SLUGS.
+    // counter-example to that. See REHEARSAL_FIXTURE_SLUGS / NOT_A_REHEARSAL_CONTRACTOR.
     where: { canonicalComponent: { key: { in: keys } },
-             contractor: { slug: { notIn: REHEARSAL_FIXTURE_SLUGS } } },
+             contractor: NOT_A_REHEARSAL_CONTRACTOR },
     select: { approvedPriceCents: true, addFieldLaborHours: true, addMaterialCostCents: true,
               addScheduleMinutes: true, canonicalComponent: { select: { key: true } } },
   });

@@ -97,6 +97,10 @@ A designated rehearsal contractor (`rv2-pilot-rehearsal-<name>`), created with: 
 
 `npm run verify:pilot` — the pilot/relevant regression set, in one place so it cannot quietly shrink. It includes `lint-storefront-identity` (strict, no pilot exception) and `verify-pilot-strategy-eligibility`. DB-driving: run against the rehearsal branch, never alongside another DB-driving chain.
 
+It also drives the HOMEOWNER STOREFRONT, because Stage 1A's deployed rehearsal found the defect every earlier suite missed by POSTing `/api/visit` directly: the guided flow priced a derived service in the browser from a published base price it does not have, and sent every homeowner to photo review on the first answer. `verify-storefront-derived-pricing` covers the price-source decision, the no-economics-in-the-browser and no-writes boundaries, and the server outcomes; `verify-storefront-derived-pricing-browser` (last, needs `npx next build` first — it runs `next start` locally) walks the real pages from "Check My Price" to the price card, Add to My Visit, stale and turned-route reviews, and an unchanged published-price service.
+
+For a `DERIVED_RESOLVED_SCOPE` service the browser navigates the question tree and the SERVER prices the terminal answer: `POST /api/price-evaluation` (read-only; tenant from the storefront identifier) and `POST /api/visit` both consume `planNewLine` (`lib/visitLinePlanning.ts`), so the displayed and stored price come from one implementation, and a price that goes stale in between is refused at write time.
+
 ## 10. Known baseline reds (pre-existing, unchanged, not part of this pilot)
 
 Each was run at commit `9d8df05` in a separate worktree and fails identically there.
