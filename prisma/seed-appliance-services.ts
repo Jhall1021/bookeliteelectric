@@ -248,8 +248,9 @@ async function seedSoundbar() {
 
       // B.18 — was CONTINUE -> soundbar_cable (removed); resolves directly
       // now. Cable possession/type and concealment preference are still
-      // collected, via the optional note on the resulting PriceConfirmationCard
-      // (GuidedFlowEngine, gated on this service's slug) rather than two more
+      // collectible, via the optional note every resolved service's
+      // PriceConfirmationCard now offers (GuidedFlowEngine — a generic
+      // field, not special-cased to this service) rather than two more
       // mandatory screens whose answers never changed the price or the route.
       { questionId: q4.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: CUSTOMER_SUPPLIED },
       { questionId: q4.id, label: "No", value: "no", routeAction: "REROUTE_SERVICE", rerouteServiceId: outlet?.id ?? null, order: 2, requiredPhotoLabels: [] },

@@ -1163,63 +1163,37 @@ async function seedEvGarage() {
   });
   console.log("  ✓ Garage Door Opener Outlet (EV & Garage) tree — same logic as New 120V Outlet");
 
-  // 240V Garage Outlet — lighter tailored-photo-review treatment, same
-  // pattern as the smart-home/panels remote-quote jobs.
+  // 240V Garage Outlet — always a remote quote, same as its Generator/Pool
+  // siblings that have no tree at all.
   //
-  // B.16 — this used to be a single "Continue" button dressed up as a
-  // question, with no consequence beyond reaching the same photo request
-  // either way: it inflated the service's question count without collecting
-  // anything. Every answer here still ends in PHOTO_REVIEW — this is
-  // genuinely always a remote-quote job — but "always reviewed" isn't a
-  // reason to ask nothing first: attached vs. detached vs. outdoor changes
-  // the run and the equipment, same distinction level-2-ev-charger's own
-  // `garage_type` question above already draws for the identical real-world
-  // fact. Sharing that key is deliberate, not incidental: a customer who's
-  // already answered it for the charger in this visit isn't asked again.
+  // B.16, corrected on review. The original single "Continue" button
+  // (dressed up as a question with no consequence — every path landed on
+  // the identical photo request) was first replaced with a mandatory
+  // `garage_type` question. That traded one problem for another: nothing
+  // in this codebase actually CONSUMES garage type as a gate before review
+  // — no traced consumer requires it to be collected up front, so making it
+  // mandatory only made the screen "consequential" in the sense of adding a
+  // click, not in the sense of the fact being load-bearing anywhere. This
+  // service is now a genuine 0-question REMOTE_QUOTE, matching the shape
+  // its siblings already have (electric-fireplace-circuit,
+  // sump-pump-dedicated-circuit, generator-inlet-interlock, etc.) —
+  // GuidedFlowEngine's existing generic REMOTE_QUOTE path
+  // (startQuestions(), no service-specific code needed) sends the customer
+  // straight to photo review with its own already-clear copy, instead of
+  // through a screen whose only purpose was to not say "0 questions."
+  //
+  // Garage configuration is still genuinely useful to the office, per the
+  // original review comment — it's just not gated on. PhotoReviewNotice
+  // already offers a free-text note on this exact screen
+  // (components/guided-flow/PhotoReviewNotice.tsx), unconditionally, for
+  // every service that lands there. A homeowner who wants to mention
+  // "detached garage, it's a longer run" can, optionally, in their own
+  // words — structured intake is available, not removed, just not forced.
   const garage240 = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "240v-garage-outlet"),
   });
   await clearServiceTree(garage240.id);
-
-  const qGarage240Type = await prisma.question.create({
-    data: {
-      serviceId: garage240.id,
-      key: "garage_type",
-      prompt: "Is this for an attached or detached garage, or an outdoor location like a driveway?",
-      helpText: "This tells us what kind of run to plan for before we quote it.",
-      inputType: "SINGLE_SELECT",
-      order: 1,
-    },
-  });
-  await prisma.answerOption.createMany({
-    data: [
-      {
-        questionId: qGarage240Type.id,
-        label: "Attached garage",
-        value: "attached",
-        routeAction: "PHOTO_REVIEW",
-        order: 1,
-        requiredPhotoLabels: ["Panel with the door open", "Where the outlet is needed in the garage"],
-      },
-      {
-        questionId: qGarage240Type.id,
-        label: "Detached garage",
-        value: "detached_confirm",
-        routeAction: "PHOTO_REVIEW",
-        order: 2,
-        requiredPhotoLabels: ["Panel with the door open", "Where the outlet is needed in the garage"],
-      },
-      {
-        questionId: qGarage240Type.id,
-        label: "Outdoor / driveway",
-        value: "outdoor",
-        routeAction: "PHOTO_REVIEW",
-        order: 3,
-        requiredPhotoLabels: ["Panel with the door open", "Where the outlet is needed in the garage"],
-      },
-    ],
-  });
-  console.log("  ✓ 240V Garage Outlet tree (real garage-configuration intake, still tailored photo request)");
+  console.log("  ✓ 240V Garage Outlet — 0 questions, remote quote (garage detail is an optional note at review, not a gate)");
 }
 
 async function main() {

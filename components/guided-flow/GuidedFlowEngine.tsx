@@ -729,16 +729,23 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // see what will reach the technician and correct it, rather than
     // silently sending it.
     //
-    // soundbar-installation (B.18) resolves here too, having just dropped two
-    // questions (cable type/possession, wall concealment) whose every answer
-    // continued identically with no price or routing effect — real job-prep
-    // facts, not pricing decisions, and this is where they're offered
-    // instead: optional, not gating the flow.
+    // Offered on EVERY resolved service, not special-cased by slug — an
+    // earlier version of this gated the note on
+    // `flow.slug === "soundbar-installation"` (B.18), which
+    // scripts/verify-theme-structure.ts correctly rejects: no customer-
+    // facing component may branch on a specific contractor's specific
+    // service identity, full stop, the same rule B.3's hardcoded
+    // troubleshooting slug violated. `bookingType` is a structural,
+    // platform-level field (the same kind of check TROUBLESHOOT_ONLY
+    // already makes throughout this codebase), not an identity check, so
+    // varying only the LABEL by booking type is fine; the field itself is
+    // universal.
     //
-    // Every OTHER resolved service is unaffected: the props are omitted, so
-    // PriceConfirmationCard renders exactly as it always did.
-    const offersOptionalNote =
-      flow.bookingType === "TROUBLESHOOT_ONLY" || flow.slug === "soundbar-installation";
+    // Soundbar (B.18) still gets its job-prep facts (cable type/possession,
+    // wall concealment — real information, just never a pricing decision)
+    // through this same generic field, worded generically; so does every
+    // other resolved service, for free, which is a small net UX
+    // improvement rather than a workaround.
     return withBack(
       <PriceConfirmationCard
         serviceName={flow.name}
@@ -746,16 +753,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         priceCents={state.priceCents}
         disclaimer={state.disclaimer}
         onAddToVisit={handleAddToVisit}
-        {...(offersOptionalNote
-          ? {
-              note: customerNote,
-              onNoteChange: setCustomerNote,
-              noteLabel:
-                flow.bookingType === "TROUBLESHOOT_ONLY"
-                  ? "What should we tell the technician?"
-                  : "Anything the technician should know? (e.g. which cable you have, or whether to hide it in the wall)",
-            }
-          : {})}
+        note={customerNote}
+        onNoteChange={setCustomerNote}
+        noteLabel={
+          flow.bookingType === "TROUBLESHOOT_ONLY"
+            ? "What should we tell the technician?"
+            : "Anything the technician should know before the visit? (optional)"
+        }
       />
     );
   }
