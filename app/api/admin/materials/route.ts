@@ -87,19 +87,19 @@ function optionalString(value: unknown, label: string): string | undefined | Nex
 function numberValue(
   value: unknown,
   label: string,
-  options: { min?: number; greaterThan?: number; integer?: boolean } = {},
+  bounds: { min?: number; greaterThan?: number; integer?: boolean } = {},
 ): number | NextResponse {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return NextResponse.json({ error: `${label} must be a valid number.` }, { status: 400 });
   }
-  if (options.integer && !Number.isSafeInteger(value)) {
+  if (bounds.integer && !Number.isSafeInteger(value)) {
     return NextResponse.json({ error: `${label} must be a safe whole number.` }, { status: 400 });
   }
-  if (options.min !== undefined && value < options.min) {
-    return NextResponse.json({ error: `${label} must be ${options.min} or greater.` }, { status: 400 });
+  if (bounds.min !== undefined && value < bounds.min) {
+    return NextResponse.json({ error: `${label} must be ${bounds.min} or greater.` }, { status: 400 });
   }
-  if (options.greaterThan !== undefined && value <= options.greaterThan) {
-    return NextResponse.json({ error: `${label} must be greater than ${options.greaterThan}.` }, { status: 400 });
+  if (bounds.greaterThan !== undefined && value <= bounds.greaterThan) {
+    return NextResponse.json({ error: `${label} must be greater than ${bounds.greaterThan}.` }, { status: 400 });
   }
   return value;
 }
