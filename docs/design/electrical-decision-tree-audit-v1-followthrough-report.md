@@ -1,9 +1,11 @@
-# Electrical Decision Tree Audit V1 — follow-through report (corrected again, final)
+# Electrical Decision Tree Audit V1 — follow-through report (third correction, final)
 
-**Status: pushed, in review as a draft PR. Nothing has been applied to any database,
-the canonical template, or any contractor's live catalog.** Every claim below is
-labeled by exactly what kind of evidence supports it — code-confirmed by reading,
-DB-free unit-tested, or genuinely unverified — and none of those labels is a
+**Status: pushed, in review as a draft PR. Nothing has been applied to any real
+database, the canonical template, or any contractor's live catalog — every claim in
+§9 was proven against a disposable, task-owned local Postgres cluster, since torn
+down.** Every claim below is labeled by exactly what kind of evidence supports it —
+code-confirmed by reading, DB-free unit-tested, browser-and-database rehearsed against
+a disposable local cluster, or genuinely unverified — and none of those labels is a
 substitute for the others.
 
 Branch `audit/electrical-followthrough-v1`, forked from `origin/main` at `64dcf36`,
@@ -19,10 +21,20 @@ proving B.4, and a real regression found and fixed in B.16/B.18) brought the bra
 11 commits and was itself committed as `d88d26f`. Two more commits followed it before
 this pass began — a Vercel deployment guard (`07b2af8`, bringing the pushed branch to
 **13 commits**, confirmed against `origin/audit/electrical-followthrough-v1`) — and the
-report was never updated past 11, which is the defect this revision corrects, alongside
-three new pieces of work landed in this pass: closing the WWT display/charge mismatch
-(§3a), correcting the rollout plan's assumptions about which seed functions are
-actually narrow (§7, rewritten), and resolving the mount price-unit contract (§3b).
+report was never updated past 11, which is the defect that correction round fixed,
+alongside three new pieces of work: closing the WWT display/charge mismatch (§3a),
+correcting the rollout plan's assumptions about which seed functions are actually
+narrow (§7), and resolving the mount price-unit contract (§3b).
+
+**This is a third pass**, prompted by independent review confirming the PR at 13
+commits and identifying the rollout runner added in the second pass as unsafe to ever
+run `--apply` with. Two things happened in this pass: the runner was withdrawn outright
+rather than patched (§7, revised again), and — for the first time on this branch — the
+pricing, module-composition, and troubleshooting claims throughout this report were
+tested against a real, running instance of the app and a real (disposable, local,
+throwaway) database, not just DB-free fixtures and code reading (§9, new). That
+rehearsal found one genuine defect in this branch's own WWT fix's surrounding UI state
+management, not caught by the DB-free fixture — see §9.5.
 
 ## Final commit list (full SHAs)
 
@@ -44,7 +56,9 @@ actually narrow (§7, rewritten), and resolving the mount price-unit contract (�
 | 14 | `5ef27acd8262bf06fe2278acefdd98dda42fc2a2` | fix: close the WWT display/charge mismatch on referenced-service pricing |
 | 15 | `2703b38609f39863f758cf41a741ac67ea80f512` | fix: narrow the rollout mechanism — split multi-service seed functions, guard every seed file's main(), add a dry-run rollout runner |
 | 16 | `bbb4b5f96f35fe0876940e4908f428b483491d96` | test: resolve the TV-mount price-unit contract by tracing the seed literal through the real writer and formatter |
-| 17 | *(this commit)* | docs: correct the completion record again — 13→16 commits, WWT fix, rollout-plan correction, price-unit resolution |
+| 17 | `1605169698a46c800e8d98cd805b7c1090f1398f` | docs: correct the completion record again — 13→16 commits, WWT fix, rollout-plan correction, price-unit resolution |
+| 18 | `94928ad8bc99eb15d5e8e1acf04b983079c4731e` | fix: withdraw the rollout runner — unsafe on five grounds, not repairable by tightening flags |
+| 19 | *(this commit)* | docs: record the database/browser rehearsal — one real defect found, gate results, corrected identity |
 
 Full reasoning for every item lives in the commit messages
 themselves and in the companion docs:
@@ -63,7 +77,7 @@ None of the four categories below should be conflated with any other:
 | | Status |
 |---|---|
 | **Runtime behavior changed by deployed code** | **None.** Nothing in this branch is deployed anywhere — not to a Preview, not to production, and pushing a branch does not by itself trigger one (see §8). `lib/pricing.ts`, `lib/flow-types.ts`, `lib/routeResolver.ts`, `lib/serviceTreeQuery.ts`, `app/api/services/[slug]/route.ts`, `lib/troubleshooting.ts`, `app/api/troubleshooting/route.ts`, `app/[site]/troubleshooting/page.tsx`, `components/guided-flow/*.tsx`, `components/marketing/HeroWalkthrough.tsx`, and `lib/rerouteHandoff.ts` are all changed on disk and in commits on this branch. No running system's behavior has changed. |
-| **Seed definitions changed but not applied** | `prisma/seed-questions.ts` (B.2, B.16), `prisma/seed-device-and-finish-modules.ts` (B.17), `prisma/seed-dedicated-circuit.ts` (B.18), `prisma/seed-appliance-services.ts` (B.18, B.19), `prisma/seed.ts` (no fix — see §3b, only an export + an import-safety guard). Each defines what Elite's catalog *would become* the next time someone with database access runs the specific, narrow function — see the [rewritten rollout plan](electrical-decision-tree-audit-v1-rollout-plan.md) (§7) for exactly which function, exactly which service(s) it touches, and the dry-run/customized-tree-check runner (`scripts/rollout-electrical-tree-fixes.ts`) built to apply them one at a time. Every seed file's `main()` is now guarded behind `import.meta.url`, so importing any of these narrow functions cannot also execute the file's full sweep. |
+| **Seed definitions changed but not applied** | `prisma/seed-questions.ts` (B.2, B.16), `prisma/seed-device-and-finish-modules.ts` (B.17), `prisma/seed-dedicated-circuit.ts` (B.18), `prisma/seed-appliance-services.ts` (B.18, B.19), `prisma/seed.ts` (no fix — see §3b, only an export + an import-safety guard). Each defines what Elite's catalog *would become* the next time someone with database access runs the specific, narrow function — see the [rollout plan](electrical-decision-tree-audit-v1-rollout-plan.md) (§7) for exactly which function, exactly which service(s) it touches, and which three of them are unsafe to call standalone on an already-composed catalog. **No rollout tooling exists in this repository** — an earlier runner was built and then withdrawn after review found it unsafe; see §7. Every seed file's `main()` is now guarded behind `import.meta.url`, so importing any of these narrow functions cannot also execute the file's full sweep. |
 | **Canonical template** | **Unchanged.** No `extract-template-catalog.ts` run. A contractor provisioned today, from `origin/main`, inherits none of these fixes. |
 | **Existing contractor catalogs (BrightPath, etc.)** | **Unchanged.** No `template-update.ts` run. Whatever BrightPath's live trees look like today, this branch hasn't touched them, directly or indirectly. |
 
@@ -351,17 +365,16 @@ don't require a database. All 30 were run individually this pass:
   gate; not force-configured here (that would be an unrequested, unscoped
   infrastructure change).
 - **No seed script, `prisma db push`, `capture-*.ts --check`, or any of the ~47
-  `PrismaClient`-importing `verify:full` scripts were run** — all genuinely need
-  database access this session didn't have.
+  `PrismaClient`-importing `verify:full` scripts were run** — all genuinely needed
+  database access this session didn't have at the time.
 
-**What remains blocked, unchanged in substance from the prior version of this report**
-(§6 of that version, not repeated verbatim here): every browser-observable claim about
-the storefront — TV-mount checkout pricing in a real cart, the switch-leg routes in a
-live tree, `/troubleshooting` on a non-default-slugged contractor, the zero-eligible
-fallback, real sessionStorage/navigation persistence of the B.4 note, back-navigation,
-and the simplification batch's new screens. All of it needs either database access or
-a browser session against a running instance of this code, neither available this
-pass.
+**Superseded by §9.** Every item this paragraph used to list as blocked — TV-mount
+pricing in a real cart, the switch-leg routes in a live tree, `/troubleshooting` on a
+renamed service, the zero/one/N-eligible-destination fallbacks, real navigation
+persistence of the B.4 note, back-navigation, and direct inspection of the
+simplification batch's trees — was reached in a later pass against a disposable local
+database and a real browser session; see §9 for what was proven, what broke, and what
+still wasn't reached (§9.7).
 
 ---
 
@@ -383,17 +396,25 @@ explicitly excluded from this task. The corrected plan:
 - Guards every seed file's `main()` behind `import.meta.url`, so a narrow import can no
   longer execute the whole file's side effects — five files now, including
   `prisma/seed.ts` (see §3b).
-- Adds `scripts/rollout-electrical-tree-fixes.ts`, a new runner containing no seed logic
-  of its own — it only calls the narrow functions above. Defaults to a dry run
-  (prints the current live tree for the named target's services, no writes). A
-  `--dump-baseline` / `--apply` pair implements the customized-tree check this task
-  asked for: `--apply` refuses if the live tree has drifted from a captured baseline
-  snapshot since it was taken (an admin could have changed wording, pricing, or routing
-  on the same service after the fix was authored), printing the diff rather than
-  silently overwriting it; `--force` bypasses this for a reviewed, deliberate override.
-- **No baseline has been captured against any real database, and `--apply` cannot
-  currently succeed for any target.** This script has never been run against a
-  database — nothing in it has executed.
+- **A runner (`scripts/rollout-electrical-tree-fixes.ts`) was built in an earlier pass,
+  then withdrawn — not repaired — after direct review found it unsafe on five separate
+  grounds**: it snapshotted by slug with no `contractorId` filter; its diff checked only
+  the question/answer tree while several target functions also write service-level
+  scalar fields it never looked at; the drift check and the actual write were two
+  unsynchronized operations with no transaction or precondition between them; three of
+  its seven targets (`new-ceiling-light`, `new-ceiling-fan`,
+  `dedicated-120v-circuit-outlet`) call `clearServiceTree()` and would silently strip
+  tree-modifying modules (`seed-height-access.ts`, `seed-lighting-control.ts`,
+  `seed-fixture-finish-ack.ts`, `seed-conditional-disclaimers.ts`) already attached on
+  any normally-seeded database — confirmed by reading `seed-all.ts`'s own header
+  comment ("re-running one earlier seed on its own afterward can orphan what was
+  inserted after it — which has happened four times") and each module file's target
+  list directly; and its dry-run path described a transactional before/after preview it
+  never actually performed. The file has been deleted from this branch. **No rollout
+  tooling of any kind exists here now** — the [rollout plan](electrical-decision-tree-audit-v1-rollout-plan.md)
+  is back to a table of narrow entry points for a human with database access to call by
+  hand, one at a time, with the three module-composition risks above read and
+  understood first.
 
 This document does not authorize running any of it. **No seed, retirement, extraction,
 or catalog update is authorized here or by the rollout-plan document.**
@@ -421,3 +442,292 @@ or catalog update is authorized here or by the rollout-plan document.**
   observation that it *did* here.
 - No merge, no data change, no seed, no template extraction, and no explicit deploy
   command were performed at any point this session.
+
+---
+
+## 9. Database/browser rehearsal (this pass) — real app, real database, disposable and torn down
+
+Independent review authorized installing a local PostgreSQL dependency for a
+task-owned, disposable rehearsal, since no verification up to this point had run
+against an actual database or an actual browser. This section records what that
+rehearsal proved, what it found broken, and what it could not reach — against a
+cluster that no longer exists.
+
+### 9.1 Environment
+
+- PostgreSQL 16 installed via Homebrew; the DEFAULT Homebrew-managed cluster
+  (`/opt/homebrew/var/postgresql@16`) was never started or touched.
+- A separate, task-owned cluster was `initdb`'d from scratch under this session's own
+  scratchpad directory and started by hand — `postgres -h 127.0.0.1 -p 5544`, never
+  `brew services`, never a background/login service. Stopped with `pg_ctl stop` at the
+  end of this pass; its data directory is gone.
+- `.env` (gitignored, never committed) pointed `DATABASE_URL` at
+  `postgresql://rehearsal_admin@127.0.0.1:5544/p2b_rehearsal` only. Confirmed no
+  fallback to a shared or Production database exists: no `REHEARSAL_DATABASE_URL` or
+  `DATABASE_URL` was present anywhere in the shell environment before this was set, and
+  `scripts/_env.ts`'s own contract ("never overwrites something already in the
+  environment") was checked against that fact, not assumed.
+- External integrations were never configured — no Stripe key, no Jobber connection, no
+  R2/upload credentials, no SMTP — matching this repo's own `.env.example` pattern of
+  shipping those blank for local dev. Nothing in this rehearsal sent a real email,
+  moved a real payment, uploaded a real file, or completed an OAuth flow.
+- The database was bootstrapped via this repo's own real mechanisms, run in order, not
+  hand-crafted: `prisma db push`, a from-scratch Elite `Contractor` + `ContractorSite`
+  row (this repo's seed chain assumes Elite already exists; provisioning one from
+  nothing has no dedicated script, so this used the same shape
+  `scripts/onboard-contractor-two.ts` uses for BrightPath), then `npm run db:seed:all`
+  (22 documented steps), `prisma/migrate-material-split-2026-08-24.ts --apply`,
+  `prisma/backfill-disclaimer-split-2026-08-27.ts` (refused — see 9.6), and
+  `prisma/seed-appliance-services.ts` directly (genuinely absent from `seed-all.ts`'s
+  own `STEPS` list — see 9.6). Final catalog: 66 services, 110 questions, 408 answer
+  options, tree integrity clean (`prisma/repair-trees.ts`: 0 dangling, 0 unreachable).
+- Every test used synthetic values (a deliberately-diverged mount WWT price, a renamed
+  troubleshooting service, a second synthetic trade) — never an attempt to reproduce or
+  guess a real Elite figure.
+
+### 9.2 Primary/WWT mount pricing — proven, including through a mechanism this task didn't anticipate
+
+Set `elite-articulating-mount` to primary $200.00 / WWT $90.00 (deliberately
+different, so identical mount prices can't mask anything) and drove the real storefront
+through both a fresh (primary) visit and a same-visit (WWT) add-on, via
+`tv-installation` and `tv-install-existing-location`'s real guided flows:
+
+- **Primary context** (no prior line item): "add Elite Full-Motion Mount" displayed
+  **+$200**; terminal price **$700** ($500 base + $200 mount); stored
+  `line_items.computedPriceCents = 70000`, `isPrimary = true`.
+- **WWT context** (visit already had a line item): the same mount displayed **+$90**;
+  terminal price **$315** ($225 WWT base + $90 mount); stored
+  `computedPriceCents = 31500`.
+- **Missing WWT price**: set `elite-tilt-mount.whileWeThereBasePrice = NULL`. In WWT
+  context it displayed **"We'll confirm your price after a quick look"** (not $0, not a
+  silent fallback to the $125 primary figure) and the flow terminated in a genuine
+  `PHOTO_REVIEW` state requiring photos before any price — the real engine forcing
+  review, not a simulated one.
+- **Valid $0 WWT price**: set the same field to `0` (not null). Displayed **"No extra
+  charge"** and resolved **instantly** to $225 (no mount charge, no review) — proving
+  the strict-null distinction from the DB-free fixture holds in the real engine too.
+
+**An unanticipated, stronger proof of reconciliation:** adding a second service
+triggered `lib/visitPrimary.ts`'s existing, DB-free-tested, order-independent
+"smallest standalone-to-add-on gap" reconciliation — which **swapped** which of the two
+booked services was primary (mid-visit, automatically, in the customer's favor) and
+correctly **re-resolved each line item's mount price to match its new primary/add-on
+status**: the service demoted to add-on dropped from $700 to $465 (its mount
+recalculated at $90), and the one promoted to primary rose from $315 to $515 (its mount
+recalculated at $200). This is a more stringent test than a single flow's own terminal
+screen — the referenced-service pricing fix holds up under a reconciliation event this
+task did not ask for but the app performs automatically.
+
+### 9.3 Ceiling-light switch-leg — charged once, via the fully-composed tree
+
+Walked `new-ceiling-light`'s real, fully-composed tree (base tree +
+`seed-height-access.ts` + `seed-lighting-control.ts` + `seed-fixture-finish-ack.ts`, all
+genuinely attached, not a stripped-down base seed) through: 8ft fixture height, normal
+floor below, accessible attic, no existing fixture nearby, "a wall switch here controls
+an outlet, use it for the new light instead" (the exact switch-leg rewiring scenario
+B.2 fixed), standard switch. Stored line item:
+`resolvedComponentKeys: ["CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE"]` — **exactly
+one** component, `answersSnapshot` containing no `switched_source` key anywhere (the
+removed duplicate question), `computedPriceCents: 47000` ($375 WWT base + $95 switch-leg
+component, this visit already having a line item). The double-charge B.2 fixed cannot
+happen against the real, composed catalog.
+
+### 9.4 Troubleshooting — renamed services, 0/1/N eligible destinations
+
+- **0 eligible** (no `ContractorTrade` enrolled — this rehearsal's actual starting
+  state): `/troubleshooting` rendered **"Let's figure it out. Give us a call and we'll
+  get a diagnostic visit on the books."** — the documented zero-destination fallback.
+- **1 eligible**: enrolled Elite in `electrical`, then **renamed and re-slugged** the
+  diagnostic service (`electrical-troubleshooting` → `ask-us-anything-diagnostic`,
+  `Electrical Troubleshooting` → `Ask Us Anything (Diagnostic Visit)`) to prove
+  identification is genuinely by `BookingType` + `Service.tradeKey`, not name or slug.
+  `/troubleshooting` rendered the renamed service directly, correct price, no trade
+  picker.
+- **N (2) eligible**: added a synthetic `plumbing-troubleshooting` service and enrolled
+  Elite in `plumbing` (a rehearsal-only fixture, removed afterward — Elite is not
+  really a plumbing contractor). `/troubleshooting` rendered
+  `TroubleshootingTradePicker` with **"Electrical" / "Plumbing"** buttons; choosing
+  "Electrical" resolved to the same renamed service.
+- **REROUTE_TROUBLESHOOTING with a renamed destination**: from
+  `single-pole-breaker-replacement`, answering "It keeps tripping" rendered **"This
+  sounds like a troubleshooting job. From Single-Pole Breaker Replacement: 'It keeps
+  tripping.' [the answer's own disclaimer text]"**, correctly priced the renamed
+  destination at $250, and booking it stored
+  `line_items.answersSnapshot.customer_note` containing that exact note text — the
+  full `buildTroubleshootingNote` handoff, surviving a real client-side navigation
+  between two different guided flows, landing in the actual stored booking. (Not
+  separately tested: a customer editing the note's text before submitting — this
+  rehearsal only confirmed the auto-attached note's content and persistence.)
+- A stale `GuidedFlowSession` was found to resume straight to a service's last terminal
+  state on reload, including a terminal state computed before `Service.tradeKey` was
+  set — not a defect (the answer was correct once the underlying data was set and a
+  fresh session was used), but worth naming: **this rehearsal's own session-resume
+  behavior needed a deliberate reset between tests**, which is itself circumstantial
+  evidence that resumed sessions may not always re-derive routing fresh — not traced
+  further, since it never affected a real customer's own data, only repeated manual
+  testing against the same fixture.
+
+### 9.5 Back navigation — server price is correct; the client's own display is not (real defect found)
+
+Fresh `tv-installation` session, WWT context: chose "add Elite Full-Motion Mount"
+(displayed +$90), continued two more questions to a `PHOTO_REVIEW` terminal (drywall,
+above-fireplace: yes). Used "← Back" three times to return to the mount question,
+switched to **"Yes, I have a mount"** (no charge), answered the remaining questions
+fresh (above-fireplace: no this time), and reached "Here's Your Price!" showing
+**$465** — $375 base **plus the $90 mount charge from the abandoned answer**, which
+should have been removed.
+
+**The actual stored price was correct**: `line_items.computedPriceCents = 37500`
+($375.00, matching `has_mount: "has_mount"`, `resolvedComponentKeys: []`) —
+`answersSnapshot` held only the final answers, with no trace of the abandoned mount
+choice. **So this is a client-display defect, not a charging defect**: the customer
+would have been shown $465 immediately before clicking "Add to My Visit," then charged
+$375 — the wrong number shown, not the wrong number charged, in this direction.
+
+**Located, not just observed**: `components/guided-flow/GuidedFlowEngine.tsx`'s
+`goBack()` (~line 245) restores `state` and `answers` from the history stack that
+`pushHistory()` populates with `{state, config, answers}`, but **never restores
+`config`** — no `setConfig(previous.config)` call exists in `goBack()`, confirmed by
+listing every `setConfig` call site in the file (lines 166, 475, 486, 504, 550; `goBack`
+is not among them). Answering a question always folds onto whatever `config` currently
+holds (`evaluate(option, config ?? ..., newAnswers)`, line 524) — so after a `goBack()`
+to an earlier question, `config` is left over from the abandoned deeper path, and a
+new, non-charging answer to the same question does not remove what the old one added.
+
+This is **pre-existing in this branch's own §3a code**, not something the WWT fix
+introduced structurally, but it is the exact class of bug §3a's own task description
+warned about ("terminal totals... reconcile") and this rehearsal's own back-navigation
+test surfaced it directly. **Not fixed in this pass** — fixing it was not one of this
+pass's two authorized steps, and a fix belongs in its own reviewed change, most likely
+`setConfig(previous.config)` added to `goBack()`, verified against a test that (unlike
+the existing DB-free fixture) exercises back-navigation specifically.
+
+### 9.6 Gates run against the live database, and what they found
+
+`scripts/verify-database-identity.ts` required stamping before anything else would
+run — stamped `key=local-rehearsal-electrical-followthrough`,
+`project=local-disposable-not-neon`, explicitly never resembling a real Neon project.
+
+**Passed, unmodified, against the real database:** `verify-visit-primary.ts`,
+`verify-unresolved-guards.ts`, `verify-publication-guard.ts`, `verify-material-cost.ts`,
+`verify-material-cost-atomicity.ts`, `audit-platform-tenant-relations.ts`,
+`verify-disclaimer-integrity.ts`, `verify-tenant-context-retention.ts`,
+`audit-guard-adoption.ts`, `audit-unguarded-tenant-access.ts`,
+`audit-storefront-navigation.ts`, `verify-storefront-surfaces.ts`,
+`audit-tenant-migration-order.ts`, `verify-booking-tenancy.ts`,
+`verify-cross-tenant-resource-access.ts`, `verify-platform-capabilities.ts`,
+`verify-release-control.ts`, `verify-release-provenance.ts`,
+`verify-release-hardening.ts`, `verify-checkout-atomicity.ts`,
+`verify-tenant-indexes.ts`, both `lint-*` scripts, `verify-theme-contrast.ts`,
+`verify-theme-structure.ts`, `lint-storefront-identity.ts`, `verify-portal-shell.ts`,
+`verify-origins.ts`, `verify-legacy-redirect-scope.ts`,
+`verify-marketing-homepage.ts`, `verify-component-recipes.ts`,
+`verify-component-retirement.ts`, `verify-reroute-handoff.ts`,
+`verify-lighting-control-rewire.ts`, `verify-catalog-resolution-equivalence.ts`,
+`verify-referenced-service-pricing.ts`, `verify-mount-price-unit-contract.ts`,
+`verify-material-cost-holds.ts`, `verify-permit-policy.ts`,
+`verify-recompute-by-role.ts`, `verify-us-spelling.ts`.
+
+**`audit-price-writers.ts` did its job correctly**: it flagged this session's own
+throwaway rehearsal-bootstrap script (`scripts/_rehearsal-second-trade.ts`, never
+committed) for setting a `basePrice` outside the admin flow. The script was deleted —
+its purpose was already served — and the gate passed clean on re-run. Reported here as
+confirmation the gate works, not as a defect.
+
+**`verify-category-integrity.ts` failed once, for a rehearsal-only reason**: the
+synthetic `plumbing-troubleshooting` fixture had no `ContractorCategory`, exactly the
+structural gap the gate exists to catch. Fixed by removing the fixture once its test
+was done, not by patching around the gate.
+
+**Failures traced to precise, named, pre-existing environment gaps — not run past, not
+patched around:**
+
+- **`prisma/backfill-disclaimer-split-2026-08-27.ts` refuses on any database**, including
+  this one: its own source shows the migration was NEUTRALISED on 28 August 2026 — the
+  query it needs can no longer even be expressed after a later schema change removed
+  the back-relations it walked (`legacy` is a hardcoded `[]`). There is no other script
+  or admin path anywhere in this codebase that creates `CanonicalDisclaimer`/
+  `ContractorDisclaimer` rows from nothing. Consequence: the five conditional
+  disclaimers `seed-conditional-disclaimers.ts` defines (exterior-wall contingency,
+  finished-ceiling tap warning, etc.) cannot attach on a from-scratch database, and the
+  `device_on_exterior_wall` question it inserts into `new-120v-outlet` and
+  `dedicated-120v-circuit-outlet` never got created in this rehearsal. This is a real,
+  reportable gap in the codebase's own tooling, unrelated to anything in this PR.
+- **`prisma/backfill-service-trade-2026-09-02.ts` correctly refused to run wholesale**:
+  its exact-identity-set safety check found this rehearsal's from-scratch catalog
+  doesn't match the exact 154-service set reviewed on 2 September 2026 in production
+  (14 real Elite services this rehearsal's seed chain never creates at all — admin-authored
+  services with no seed script — plus this session's own rehearsal-only additions/
+  renames). Correct behavior, not a bug — but it meant only one service
+  (`single-pole-breaker-replacement`, stamped directly for the one reroute test in
+  §9.4) carries a `tradeKey` in this rehearsal, which is exactly why
+  **`verify-troubleshooting-route.ts` failed**: "3 < 35" REROUTE_TROUBLESHOOTING
+  options resolved, because the other 32 originate from services this rehearsal never
+  tagged with a trade.
+- **`verify-public-pricing.ts` (103 unapproved), `verify-pricing-settings-impact.ts`
+  (71/89), and `verify-pricing-boundary.ts` (crashes on a specific named legacy
+  service)** all trace to the same root cause: this rehearsal's catalog has published
+  `basePrice`/`whileWeThereBasePrice` figures (from the bootstrap seed) but none of the
+  real-world approval history — `scripts/republish-legacy-approved-prices.ts`'s five
+  named re-approvals, `scripts/reconcile-2026-08-23.ts`, and every other named migration
+  `audit-price-writers.ts`'s own allowlist documents — was replayed here. These three
+  gates check that published prices are backed by an actual approval; a from-scratch
+  database that skipped the approval history will fail them by construction, not by
+  regression.
+- **`verify-question-order.ts` found a real, pre-existing defect, unrelated to this
+  PR**: `fan-replacing-light` has two questions (`ceiling_access`, from
+  `seed-content-fixes.ts`, and `lighting_control`, from `seed-lighting-control.ts`) both
+  at `order: 2`. Both files are unmodified by this branch. `seed-content-fixes.ts` runs
+  after `seed-lighting-control.ts` in `seed-all.ts`'s documented order and evidently
+  inserts without checking what `seed-lighting-control.ts` already placed there — this
+  will reproduce on any fresh database that runs the full documented chain, not just
+  this one. The gate itself names its own fix: `scripts/repair-duplicate-question-order.ts`.
+  **Not fixed here** — out of scope for this task, flagged for separate attention.
+- **`verify-platform-onboarding.ts` crashed** (`TypeError` at
+  `lib/platformOnboarding.ts:585`, reading `.trim()` of `undefined`) and
+  **`verify-policy-resolution.ts` crashed** (`NO_PUBLISHED_TEMPLATE`) — both need
+  platform-onboarding/canonical-template fixtures this rehearsal never built (no
+  `TemplateVersion` was ever published here; `extract-template-catalog.ts` was never
+  run, correctly, per the rollout plan). Unrelated to Electrical decision trees.
+- **`verify-contractor-invitations.ts`**: one concurrency-race sub-case ("8c:
+  acceptance racing an explicit revoke") failed; **`verify-platform-read-model.ts`**:
+  one concurrency-bound sub-case ("peak 2... at most 2 in flight") failed. Both are
+  timing-sensitive tests exercising platform-admin subsystems this PR does not touch;
+  neither was traced to a root cause given time constraints, and neither is claimed as
+  either confirmed-real or confirmed-a-fluke — reported as observed, unresolved,
+  unrelated to this PR's scope.
+- **Not run at all**: every Stripe, Jobber, tax/deposit, scheduling-availability, and
+  HVAC-template gate (`verify-stripe-connect.ts`, `verify-jobber-*.ts`,
+  `verify-tax-and-deposit.ts`, `verify-payment-ledger.ts`, `verify-deposit-flow.ts`,
+  `verify-scheduling-availability.ts`, `verify-hvac-template.ts`, and others) — each
+  needs an external integration this rehearsal deliberately never configured, per the
+  explicit instruction to keep external integrations disabled.
+
+**Net: of the gates actually run against the live database, every failure traces to
+either (a) this rehearsal's own throwaway fixtures, cleaned up once identified, (b) a
+precisely-named pre-existing environment/data gap unrelated to this PR, or (c) one
+already-known concurrency test needing further investigation this pass didn't have
+time for. Zero gate failures were altered, skipped, or worked around to force a pass —
+each is reported as found.**
+
+### 9.7 What this rehearsal did not reach
+
+Real checkout/payment (Stripe deliberately not configured, so no completed `Booking`
+exists in this rehearsal — this is also why `verify-platform-authority.ts`'s "Elite's
+real booking id is invisible" sub-check had nothing to probe and failed for that
+reason, not a cross-tenant leak); real email/SMS delivery; a customer editing an
+auto-attached troubleshooting note before submitting (§9.4); the simplified outlet
+flow's own full guided walkthrough in the browser (verified by direct database
+inspection of its tree — 1 question, no `outlet_condition` — and, separately, that
+`seedDeviceModule()` is non-destructive by construction, but not clicked through);
+mobile viewport / dark-mode rendering of any of the above.
+
+### 9.8 Teardown
+
+The dev server (`electrical-followthrough-rehearsal`, port 3610) and the disposable
+Postgres cluster (port 5544) were both stopped at the end of this pass.
+`pg_ctl ... stop` returned "server stopped"; the cluster's data directory was created
+fresh for this rehearsal and is not needed again. No process from this rehearsal is
+still running. `.claude/launch.json`'s rehearsal entry and the `.env` pointing at the
+now-stopped cluster remain in the untracked, gitignored local environment — neither is
+part of this commit or this branch.
