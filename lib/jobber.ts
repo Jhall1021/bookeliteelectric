@@ -1,6 +1,7 @@
 import { appOrigin } from "./origins";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { SCHEDULING_TIME_ZONE, serviceDateFromStored } from "./serviceDate";
 
 const TOKEN_URL = "https://api.getjobber.com/api/oauth/token";
 export const JOBBER_AUTH_URL = "https://api.getjobber.com/api/oauth/authorize";
@@ -325,7 +326,7 @@ export async function pushBookingToJobber(
     .map((li) => `${li.isPrimary ? "" : "+ "}${li.service.name}`)
     .join("\n");
 
-  const dateStr = booking.arrivalWindow.date.toISOString().split("T")[0];
+  const dateStr = serviceDateFromStored(booking.arrivalWindow.date);
 
   // scheduling.startTime/endTime are wall-clock ISO8601Time (no date, no
   // timezone) — Jobber interprets these against the account's own
@@ -606,7 +607,7 @@ export async function countAvailableCrewsForWindow(
 // AM" was silently being treated as 8am UTC (4am Eastern), which meant
 // real Eastern-time Jobber visits weren't lining up with the windows
 // being checked against them at all.
-const SERVICE_AREA_TIMEZONE = "America/New_York";
+const SERVICE_AREA_TIMEZONE = SCHEDULING_TIME_ZONE;
 
 function getTimeZoneOffsetMinutes(date: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat("en-US", {

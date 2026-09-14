@@ -1,6 +1,7 @@
 import { formatCents } from "@/lib/flow-types";
 import PushToJobberButton from "@/components/admin/PushToJobberButton";
 import { withAdminContractor } from "@/lib/adminContext";
+import { formatServiceDate, serviceDateFromStored } from "@/lib/serviceDate";
 
 export default async function AdminBookingsPage() {
   // Guarded. Booking derives its owner through Visit (ADR-011). Unscoped,
@@ -38,7 +39,7 @@ export default async function AdminBookingsPage() {
           </div>
           <div className="text-right">
             <div className="text-sm font-semibold text-navy">
-              {new Date(b.arrivalWindow.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+              {formatServiceDate(serviceDateFromStored(new Date(b.arrivalWindow.date)), { weekday: "short", month: "short", day: "numeric" })}
             </div>
             <div className="text-xs text-slate">
               {b.arrivalWindow.startTime} – {b.arrivalWindow.endTime}

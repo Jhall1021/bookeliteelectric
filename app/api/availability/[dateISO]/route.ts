@@ -8,6 +8,7 @@ import {
 } from "@/lib/schedulingAvailability";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { getSessionId } from "@/lib/session";
+import { isServiceDate } from "@/lib/serviceDate";
 
 // Deliberately un-cached — always hits Jobber fresh. This is what makes
 // clicking a day tab actually reflect whatever's really on the calendar
@@ -24,6 +25,11 @@ export async function GET(req: Request, { params }: { params: { dateISO: string 
     site = await requireSiteFromRequest(req);
   } catch {
     return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
+  }
+
+  // A service date, exactly. Anything else is not a day that can be scheduled.
+  if (!isServiceDate(params.dateISO)) {
+    return NextResponse.json({ error: "INVALID_SERVICE_DATE" }, { status: 400 });
   }
 
   return withSite(site, async (db) => {

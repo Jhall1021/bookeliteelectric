@@ -18,6 +18,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { serviceDateToStored } from "./serviceDate";
 
 /** Native scheduling with no declared capacity. Never guess a number. */
 export class NativeCapacityUnconfiguredError extends Error {
@@ -65,7 +66,8 @@ async function bookedPerWindow(
     where: {
       visit: { contractorId },
       status: { not: "CANCELED" },
-      arrivalWindow: { date: new Date(dateISO) },
+      // The canonical stored service date — the value checkout writes.
+      arrivalWindow: { date: serviceDateToStored(dateISO) },
     },
     select: { arrivalWindow: { select: { startTime: true, endTime: true } } },
   });

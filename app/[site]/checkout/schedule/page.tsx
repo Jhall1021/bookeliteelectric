@@ -18,6 +18,7 @@ import ScheduleClient from "@/components/checkout/ScheduleClient";
 import { redirect } from "next/navigation";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
 import { storefrontBaseFor } from "@/lib/storefrontSurface";
+import { formatServiceDate } from "@/lib/serviceDate";
 
 // Same reasoning as the API route — never statically cache this page.
 // The whole point is a live check every time someone actually looks.
@@ -37,9 +38,11 @@ export default async function SchedulePage({ params }: { params: { site: string 
   const businessHours = await withSite(site, (db) =>
     loadBusinessHours(db, site.contractorId)
   );
-  const days = nextWorkingDays(5, businessHours).map((d) => ({
-    date: d.toISOString(),
-    dateISO: d.toISOString().split("T")[0],
+  // Service dates (lib/serviceDate), labelled here so the browser's time zone
+  // cannot relabel a tab as a different day than the one it schedules.
+  const days = nextWorkingDays(5, businessHours).map((dateISO) => ({
+    dateISO,
+    label: formatServiceDate(dateISO, { weekday: "short", month: "short", day: "numeric" }),
   }));
 
   // The customer's current cart already has estimatedMinutes snapshotted

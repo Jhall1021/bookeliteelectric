@@ -6,7 +6,8 @@ import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 import { useIdentity } from "@/components/theme/StorefrontContext";
 
 type Window = { start: string; end: string; available: boolean; unavailableReason?: "NOT_ENOUGH_TIME" | "FULL" };
-type DayMeta = { date: string; dateISO: string };
+/** dateISO is the service date (YYYY-MM-DD); label is rendered on the server. */
+type DayMeta = { dateISO: string; label: string };
 
 export default function ScheduleClient({
   days,
@@ -71,7 +72,7 @@ export default function ScheduleClient({
     if (selectedWindow === null) return;
     const win = windows[selectedWindow];
     const params = new URLSearchParams({
-      date: currentDay.date,
+      date: currentDay.dateISO,
       windowStart: win.start,
       windowEnd: win.end,
     });
@@ -92,7 +93,7 @@ export default function ScheduleClient({
               selectedDay === i ? "border-electric bg-electric text-white" : "border-cardline bg-white text-navy"
             }`}
           >
-            {new Date(d.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+            {d.label}
           </button>
         ))}
       </div>

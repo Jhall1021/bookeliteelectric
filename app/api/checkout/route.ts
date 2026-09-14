@@ -12,6 +12,7 @@ import {
   SchedulingUnavailableError,
   SchedulingNotConfiguredError,
 } from "@/lib/schedulingAvailability";
+import { isServiceDate, serviceDateToStored } from "@/lib/serviceDate";
 import { loadBusinessHours, toDisplay, toMinutes } from "@/lib/businessHours";
 import { preWorkProjectConflict } from "@/lib/paymentLedger";
 import { applySalesTax } from "@/lib/salesTax";
@@ -195,7 +196,17 @@ export async function POST(req: Request) {
   // be committed, and it's what stops a booking from being created at all
   // for a window that's no longer really open — rather than creating it
   // anyway and only discovering the conflict later trying to push to Jobber.
-  const dateISO = new Date(date).toISOString().split("T")[0];
+  // THE SERVICE DATE (lib/serviceDate): the YYYY-MM-DD day the schedule page
+  // offered. Refused if it is anything else — before anything is written. This
+  // was `new Date(date).toISOString()` of a timestamp, and the timestamp itself
+  // was stored on the ArrivalWindow, so native capacity never saw the booking.
+  if (!isServiceDate(date)) {
+    return NextResponse.json(
+      { error: "INVALID_SERVICE_DATE", message: "That appointment date isn't valid. Please pick your arrival window again." },
+      { status: 400 }
+    );
+  }
+  const dateISO = date;
   // Guarded: crew members are contractor-owned (ADR-011). This decides
   // whether a window is bookable, so another contractor's crew calendar must
   // never be able to open or close a slot on this one.
@@ -365,17 +376,19 @@ export async function POST(req: Request) {
     // owner from — before pass three, serviceAreaId was a bare scalar and a
     // Booking could point at another contractor's window.
     //
-    // Still racy: there is no unique on (date, startTime, endTime,
-    // serviceAreaId), so two concurrent checkouts can create duplicate
-    // windows and split the capacity counter. That constraint is a contract
-    // change and ships with the destructive step, not here.
+    // Keyed on the CANONICAL service date, the value native capacity counts
+    // by. @@unique([date, startTime, endTime, serviceAreaId]) makes one row per
+    // service-date window; a concurrent create loses with P2002 and the retry
+    // below finds the winner's row. (Keyed on a page-load timestamp, every
+    // booking made its own row and the constraint deduplicated nothing.)
+    const storedServiceDate = serviceDateToStored(dateISO);
     let arrivalWindow = await tx.arrivalWindow.findFirst({
-      where: { date: new Date(date), startTime: windowStart, endTime: windowEnd, serviceAreaId: serviceArea.id },
+      where: { date: storedServiceDate, startTime: windowStart, endTime: windowEnd, serviceAreaId: serviceArea.id },
     });
     if (!arrivalWindow) {
       arrivalWindow = await tx.arrivalWindow.create({
         data: {
-          date: new Date(date),
+          date: storedServiceDate,
           startTime: windowStart,
           endTime: windowEnd,
           serviceAreaId: serviceArea.id,

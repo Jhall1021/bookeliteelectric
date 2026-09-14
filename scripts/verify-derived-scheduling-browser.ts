@@ -23,16 +23,13 @@
  *      (the same day, asked with no visit, offers 2:00 — the job did it)
  *   L  checkout refuses the 2:00 window with WINDOW_TOO_LATE and books nothing,
  *      through the form and as a direct POST for a later day
- *   C  with 8:00 at capacity, a 288-min job sees 8:00 FULL and 2:00
- *      NOT_ENOUGH_TIME, and a short job (31 ft, 86 min) sees 8:00 "Fully
- *      booked" and 2:00 offered — it genuinely fits
- *
- * C's CAPACITY FIXTURE, AND THE DEFECT IT RECORDS: native capacity counts
- * bookings whose ArrivalWindow.date EQUALS the day's UTC midnight, but checkout
- * stores the schedule page's full timestamp for that day, so a booking made
- * through the storefront is never counted (printed as a NOTE). Capacity is out
- * of this change's scope, so the full window is a second booking stored under
- * the date key capacity reads — it proves the label, not the capacity model.
+ *   C  THE REAL BOOKING CONSUMES CAPACITY (one job per window): its
+ *      ArrivalWindow carries the canonical service date; that day's 8:00 is
+ *      FULL on the server and "Fully booked" on screen, first day and via the
+ *      API; a second homeowner's attempt is refused through the form and as a
+ *      direct POST; no duplicate ArrivalWindow row exists; with room for two,
+ *      the second real booking joins the SAME row. A short job (31 ft, 86 min)
+ *      is still offered 2:00 — it genuinely fits.
  *   B  the booking made through the form snapshots the 288-minute duration
  *   N  that whole no-deposit checkout contacts no js.stripe.com, m.stripe.com
  *      or m.stripe.network
@@ -57,6 +54,7 @@ import { liveEndpointOf, resetRefusal, PILOT_REHEARSAL_PREFIX } from "../lib/ele
 import { buildPricedDerivedContractor, fixtureSlug, removeFixture } from "./_derivedStorefrontFixture";
 import { jobFitsWorkday } from "../lib/jobber";
 import { windowAvailabilityForDay } from "../lib/schedulingAvailability";
+import { isServiceDate, serviceDateToStored } from "../lib/serviceDate";
 import { withContractor } from "../lib/tenantRoute";
 
 const prisma = new PrismaClient();
@@ -265,8 +263,8 @@ async function main() {
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.waitForURL(/checkout\/details/, { timeout: 30000 });
     const detailsUrl = page.url();
-    const dateISO = new Date(new URL(detailsUrl).searchParams.get("date")!).toISOString().split("T")[0];
-    ok(dateISO === again.dateISO, `W  the chosen day is the first working day, ${dateISO}`);
+    const dateISO = new URL(detailsUrl).searchParams.get("date")!;
+    ok(isServiceDate(dateISO) && dateISO === again.dateISO, `W  the chosen day travels to checkout as the service date itself, ${dateISO}`);
 
     console.log("\n  L  CHECKOUT REFUSES THE LATE WINDOW\n");
     const late = new URL(detailsUrl); late.searchParams.set("windowStart", "2:00 PM"); late.searchParams.set("windowEnd", "4:30 PM");
@@ -279,12 +277,16 @@ async function main() {
     const lateBody = await lateRes.json().catch(() => null);
     ok(lateRes.status() === 409 && lateBody?.error === "WINDOW_TOO_LATE", `L  POST /api/checkout for 2:00 PM → ${lateRes.status()} ${lateBody?.error}`, JSON.stringify(lateBody));
     // Checkout is authoritative on its own: a direct POST, not through any screen, for a later day's late window.
-    const laterDate = new Date(`${days[0].dateISO}T12:00:00Z`).toISOString();
     const direct = await page.request.post(`${BASE}/api/checkout`, { headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
       data: { name: "Duration Proof (TEST)", email: "duration-proof@example.invalid", phone: "6095550100", address: "1 Rehearsal Way", zipCode: ZIP,
-              date: laterDate, windowStart: "2:00 PM", windowEnd: "4:30 PM" } });
+              date: days[0].dateISO, windowStart: "2:00 PM", windowEnd: "4:30 PM" } });
     const directBody = await direct.json().catch(() => null);
     ok(direct.status() === 409 && directBody?.error === "WINDOW_TOO_LATE", `L  direct POST /api/checkout for ${days[0].label} 2:00 PM → ${direct.status()} ${directBody?.error}`, JSON.stringify(directBody));
+    // A timestamp is not a service date: refused before anything is written (a stale pre-fix tab, or a hand-built request).
+    const stamp = await page.request.post(`${BASE}/api/checkout`, { headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
+      data: { name: "Duration Proof (TEST)", email: "duration-proof@example.invalid", phone: "6095550100", address: "1 Rehearsal Way", zipCode: ZIP,
+              date: `${dateISO}T21:24:21.606Z`, windowStart: "8:00 AM", windowEnd: "11:00 AM" } });
+    ok(stamp.status() === 400 && (await stamp.json().catch(() => null))?.error === "INVALID_SERVICE_DATE", `L  a timestamp instead of a service date → ${stamp.status()} INVALID_SERVICE_DATE`);
     ok(await prisma.booking.count({ where: { visit: { contractorId: f.contractorId } } }) === 0
       && await prisma.customer.count({ where: { contractorId: f.contractorId } }) === 0, "L  …no booking and no customer were created");
 
@@ -313,23 +315,18 @@ async function main() {
     }
     await ctx.close();
 
-    console.log("\n  C  A FULL WINDOW STILL SAYS FULL; A SHORT JOB STILL GETS THE AFTERNOON\n");
-    // The 8:00 AM booking above filled that window (one job per window).
+    console.log("\n  C  A REAL STOREFRONT BOOKING CONSUMES NATIVE CAPACITY\n");
     const asSite = <T>(fn: (db: never) => Promise<T>) => withContractor(f.contractorId, "site-identifier", (db) => fn(db as never));
     const sched = { windows: [{ start: "8:00 AM", end: "11:00 AM" }, { start: "11:00 AM", end: "2:00 PM" }, { start: "2:00 PM", end: DAY_END }], dayEndDisplay: DAY_END };
-    const real = await prisma.booking.findUniqueOrThrow({ where: { id: bookBody.bookingId },
-      select: { customerId: true, address: true, zipCode: true, totalCents: true, paymentModel: true, visit: { select: { status: true } },
-                arrivalWindow: { select: { date: true, serviceAreaId: true, capacityTotal: true } } } });
-    const afterReal = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, 86));
-    console.log(`  NOTE pre-existing native-capacity defect: the storefront booking's ArrivalWindow.date is ${real.arrivalWindow.date.toISOString()}; capacity looks for ${new Date(dateISO).toISOString()}; 8:00 AM with a one-job capacity and that booking → ${afterReal[0].available ? "STILL OFFERED" : "full"}`);
-    // Capacity fixture: a second job in 8:00 AM, under the date key native capacity counts.
-    const fxVisit = await prisma.visit.create({ data: { contractorId: f.contractorId, sessionId: `capacity-fixture-${randomBytes(8).toString("hex")}`, status: real.visit.status } });
-    const fxWindow = await prisma.arrivalWindow.create({ data: { date: new Date(dateISO), startTime: "8:00 AM", endTime: "11:00 AM", serviceAreaId: real.arrivalWindow.serviceAreaId, capacityTotal: real.arrivalWindow.capacityTotal } });
-    await prisma.booking.create({ data: { visitId: fxVisit.id, customerId: real.customerId, address: real.address, zipCode: real.zipCode,
-      arrivalWindowId: fxWindow.id, totalCents: real.totalCents, paymentModel: real.paymentModel } });
+    const realWindow = await prisma.booking.findUniqueOrThrow({ where: { id: bookBody.bookingId }, select: { arrivalWindow: { select: { id: true, date: true, serviceAreaId: true } } } });
+    ok(realWindow.arrivalWindow.date.toISOString() === serviceDateToStored(dateISO).toISOString(),
+      `C  the checkout-created ArrivalWindow stores the canonical service date ${realWindow.arrivalWindow.date.toISOString()} for ${dateISO}`);
+    const eightAm = { serviceAreaId: realWindow.arrivalWindow.serviceAreaId, date: serviceDateToStored(dateISO), startTime: "8:00 AM", endTime: "11:00 AM" };
     const serverLong = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, 288));
     ok(JSON.stringify(serverLong.map((w) => [w.start, w.available, w.unavailableReason ?? null])) === JSON.stringify([["8:00 AM", false, "FULL"], ["11:00 AM", true, null], ["2:00 PM", false, "NOT_ENOUGH_TIME"]]),
-      "C  server: on the booked day a 288-min job sees 8:00 FULL, 11:00 offered, 2:00 NOT_ENOUGH_TIME — two reasons, told apart", JSON.stringify(serverLong));
+      "C  server: that day, a 288-min job sees 8:00 FULL (the real booking), 11:00 offered, 2:00 NOT_ENOUGH_TIME", JSON.stringify(serverLong));
+    const serverNone = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, null));
+    ok(serverNone[0].unavailableReason === "FULL" && serverNone[1].available && serverNone[2].available, "C  server: with no job length, only 8:00 is unavailable — FULL", JSON.stringify(serverNone));
 
     const cctx = await browser.newContext();
     const cpage = await cctx.newPage();
@@ -340,11 +337,47 @@ async function main() {
     await cpage.getByRole("heading", { name: "Select an Arrival Window" }).waitFor({ timeout: 30000 });
     const booked = await readWindows(cpage);
     ok(booked["8:00 AM – 11:00 AM"]?.enabled === false && booked["8:00 AM – 11:00 AM"]?.badge === "Fully booked",
-      `C  ${again.label} 8:00 AM, at capacity, reads "${booked["8:00 AM – 11:00 AM"]?.badge}"`, JSON.stringify(booked));
-    ok(booked[LATE]?.enabled === true && booked["11:00 AM – 2:00 PM"]?.enabled === true, "C  …and a job that genuinely fits is offered 2:00 PM (86 min ends 3:26 PM)", JSON.stringify(booked));
+      `C  first day (server-rendered) ${again.label} 8:00 AM reads "${booked["8:00 AM – 11:00 AM"]?.badge}"`, JSON.stringify(booked));
+    ok(booked[LATE]?.enabled === true && booked["11:00 AM – 2:00 PM"]?.enabled === true, "C  …while 11:00 and 2:00 PM are offered to a job that genuinely fits (86 min ends 3:26 PM)", JSON.stringify(booked));
     await openDay(cpage, 1);
     const shortLater = await readWindows(cpage);
-    ok(Object.values(shortLater).every((w) => w.enabled), `C  ${days[0].label}: every window offered to the short job`, JSON.stringify(shortLater));
+    ok(Object.values(shortLater).every((w) => w.enabled), `C  later day ${days[0].label}: nothing booked there, every window offered`, JSON.stringify(shortLater));
+    await openDay(cpage, 0);
+    const bookedViaApi = await readWindows(cpage);
+    ok(bookedViaApi["8:00 AM – 11:00 AM"]?.enabled === false && bookedViaApi["8:00 AM – 11:00 AM"]?.badge === "Fully booked", "C  the same day re-asked through its tab (/api/availability) is still \"Fully booked\"", JSON.stringify(bookedViaApi));
+
+    const fullUrl = `${BASE}/${SLUG}/checkout/details?${new URLSearchParams({ date: dateISO, windowStart: "8:00 AM", windowEnd: "11:00 AM" })}`;
+    await cpage.goto(fullUrl, { waitUntil: "networkidle" });
+    await fillDetails(cpage, "capacity-proof@example.invalid");
+    const [takenRes] = await Promise.all([
+      cpage.waitForResponse((r) => r.url().endsWith("/api/checkout") && r.request().method() === "POST", { timeout: 60000 }),
+      cpage.getByRole("button", { name: "Confirm Appointment" }).click(),
+    ]);
+    const takenBody = await takenRes.json().catch(() => null);
+    ok(takenRes.status() === 409 && /just taken/.test(takenBody?.error ?? ""), `C  the second homeowner submitting the full 8:00 AM window → ${takenRes.status()} "${takenBody?.error}"`, JSON.stringify(takenBody));
+    const takenDirect = await cpage.request.post(`${BASE}/api/checkout`, { headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
+      data: { name: "Capacity Proof (TEST)", email: "capacity-proof@example.invalid", phone: "6095550101", address: "2 Rehearsal Way", zipCode: ZIP, date: dateISO, windowStart: "8:00 AM", windowEnd: "11:00 AM" } });
+    ok(takenDirect.status() === 409, `C  …and a direct POST for it → ${takenDirect.status()}`, await takenDirect.text());
+    ok(await prisma.booking.count({ where: { visit: { contractorId: f.contractorId } } }) === 1 && await prisma.customer.count({ where: { contractorId: f.contractorId } }) === 1,
+      "C  still one booking and one customer — the refusals wrote nothing");
+    ok(await prisma.arrivalWindow.count({ where: eightAm }) === 1 && await prisma.arrivalWindow.count({ where: { serviceArea: { contractorId: f.contractorId } } }) === 1,
+      "C  exactly one ArrivalWindow row exists for the contractor — no duplicate for that service-date window");
+
+    // Room for two (fixture setting): the second real booking must JOIN the row, not make another.
+    await prisma.contractor.update({ where: { id: f.contractorId }, data: { nativeConcurrentJobs: 2 } });
+    await cpage.goto(fullUrl, { waitUntil: "networkidle" });
+    await fillDetails(cpage, "capacity-proof@example.invalid");
+    const [secondRes] = await Promise.all([
+      cpage.waitForResponse((r) => r.url().endsWith("/api/checkout") && r.request().method() === "POST", { timeout: 60000 }),
+      cpage.getByRole("button", { name: "Confirm Appointment" }).click(),
+    ]);
+    const secondBody = await secondRes.json().catch(() => null);
+    ok(secondRes.status() === 200 && !!secondBody?.bookingId, `C  with room for two, the second homeowner books 8:00 AM`, JSON.stringify(secondBody));
+    const rows = await prisma.arrivalWindow.findMany({ where: eightAm, select: { id: true, _count: { select: { bookings: true } } } });
+    ok(rows.length === 1 && rows[0].id === realWindow.arrivalWindow.id && rows[0]._count.bookings === 2,
+      "C  both real bookings share the ONE ArrivalWindow row for that service date and window", JSON.stringify(rows));
+    const serverTwo = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, null));
+    ok(serverTwo[0].unavailableReason === "FULL", "C  two bookings in a two-job window → FULL again, counted from the real rows", JSON.stringify(serverTwo));
     await cctx.close();
 
     console.log("\n  P  A DEPOSIT STILL LOADS STRIPE.JS (test boundary — see header)\n");
