@@ -16,6 +16,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 import {
   eliteContractorId,
   upsertComponent,
@@ -109,6 +110,10 @@ const EQUIPMENT_PHOTOS = [
  * The four amperage-specific services are retired rather than deleted. They're
  * reroute targets and may appear on past bookings; deleting them would break
  * that history. Inactive removes them from browsing while the records survive.
+ *
+ * Retirement is a separate, explicitly tenant-scoped operation (see
+ * retireDedicatedCircuitAmperageServices below) — it is NOT part of
+ * seedDedicatedCircuit, and importing this module never runs it.
  */
 const RETIRED = [
   "sump-pump-dedicated-circuit",
@@ -117,7 +122,23 @@ const RETIRED = [
   "new-240v-appliance-circuit",
 ];
 
-async function main() {
+/**
+ * Retires the four legacy amperage-specific services (inactive, not deleted)
+ * for one named contractor. Requires an explicit contractorId — unlike the
+ * seed-era serviceSlugKey() convention, this write is a slug-only
+ * updateMany with no natural tenant filter, so the scope has to be supplied
+ * by the caller rather than assumed.
+ */
+export async function retireDedicatedCircuitAmperageServices(
+  contractorId: string
+) {
+  return prisma.service.updateMany({
+    where: { slug: { in: RETIRED }, contractorId },
+    data: { active: false },
+  });
+}
+
+export async function seedDedicatedCircuit() {
   const contractorId = await eliteContractorId(prisma);
   for (const c of CIRCUIT_COMPONENTS) {
     await upsertComponent(prisma, contractorId, c);
@@ -379,23 +400,26 @@ async function main() {
     ],
   });
 
-  const retired = await prisma.service.updateMany({
-    where: { slug: { in: RETIRED } },
-    data: { active: false },
-  });
-
   console.log(`  ✓ Dedicated Circuit & Outlet — 6 questions, moved to Dedicated Circuits`);
-  console.log(`  ✓ ${retired.count} amperage-specific services retired (inactive, not deleted)`);
   console.log(`  ✓ 20A upcharge $15 · 240V upcharge $15 · 30A+ routes to remote quote`);
   console.log("  ✓ bookingType REMOTE_QUOTE -> ADJUSTED");
   console.log("  ✓ pricing composition set: 2.5 units + $68 material @ 2.5x = $795.00");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+async function main() {
+  const contractorId = await eliteContractorId(prisma);
+  await seedDedicatedCircuit();
+  const retired = await retireDedicatedCircuitAmperageServices(contractorId);
+  console.log(`  ✓ ${retired.count} amperage-specific services retired (inactive, not deleted)`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

@@ -8,6 +8,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
@@ -610,7 +611,7 @@ async function seedRecessedLighting() {
   console.log("  ✓ Recessed Lighting tree (attic access → existing source → switched source, with disclaimer support)");
 }
 
-async function seedNewCeilingLight() {
+export async function seedNewCeilingLight() {
   // Attic-access → existing-fixture tree, applied to a new ceiling light
   // fixture. This used to also ask "is there an existing switch in the
   // room" (`switched_source`) and charge $150/$225 for it directly — but
@@ -687,7 +688,7 @@ async function seedNewCeilingLight() {
   console.log("  ✓ Install New Ceiling Light tree (switch-leg pricing handled once, by the Lighting Control module)");
 }
 
-async function seedNewCeilingFan() {
+export async function seedNewCeilingFan() {
   // Attic access → existing fixture, applied to a new ceiling fan. Base
   // prices differ from New Ceiling Light ($425/$525 vs $395/$495, per
   // client) but the tree shape — and the switch-leg double-charge this seed
@@ -1036,7 +1037,18 @@ async function seedPanelsTroubleshooting() {
   ]);
 }
 
-async function seedEvGarage() {
+/**
+ * Thin wrapper preserving the original combined entry point — kept for
+ * main()'s whole-category run. B.16 only ever needed the third of these
+ * three services; call seedGarage240vOutlet() directly for that, not this.
+ */
+export async function seedEvGarage() {
+  await seedLevel2EvCharger();
+  await seedGarageDoorOpenerOutlet();
+  await seedGarage240vOutlet();
+}
+
+export async function seedLevel2EvCharger() {
   // Level 2 EV Charger — the most variable job in this category. All
   // answers ultimately still route to photo review (no fixed price was
   // ever given for the different scenarios), but given the value of this
@@ -1105,7 +1117,9 @@ async function seedEvGarage() {
     ],
   });
   console.log("  ✓ Level 2 EV Charger tree (distance → capacity → location, tailored intake)");
+}
 
+export async function seedGarageDoorOpenerOutlet() {
   // Garage Door Opener Outlet — identical logic to the New 120V Outlet
   // service (same job, same pricing tiers), just listed here too for
   // discoverability in this category.
@@ -1162,7 +1176,9 @@ async function seedEvGarage() {
     ],
   });
   console.log("  ✓ Garage Door Opener Outlet (EV & Garage) tree — same logic as New 120V Outlet");
+}
 
+export async function seedGarage240vOutlet() {
   // 240V Garage Outlet — always a remote quote, same as its Generator/Pool
   // siblings that have no tree at all.
   //
@@ -1213,11 +1229,17 @@ async function main() {
   console.log("Done.");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Guarded: importing this file (e.g. to reach one exported function, per the
+// audit follow-through's rollout plan) must not run every seed in it. Only
+// running it directly (`npx tsx prisma/seed-questions.ts`) does — identical
+// behavior to before this guard existed for that one, sanctioned entry point.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

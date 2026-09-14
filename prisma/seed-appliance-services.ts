@@ -17,6 +17,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 import { findCategory, categoryAttachment } from "./_categoryHelpers";
 import { eliteContractorId } from "./_componentHelpers";
 import { serviceSlugKey } from "./_serviceKey";
@@ -178,7 +179,7 @@ async function seedRangeHood() {
 // ---------------------------------------------------------------------------
 // Customer-Supplied Soundbar Installation — §21
 // ---------------------------------------------------------------------------
-async function seedSoundbar() {
+export async function seedSoundbar() {
   const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "soundbar-installation") });
   if (!service) {
     console.log("  – soundbar-installation not in the catalog, skipped");
@@ -272,10 +273,16 @@ async function seedSoundbar() {
 // ---------------------------------------------------------------------------
 // Dishwasher + Garbage Disposal — §16, §17. Electrical only.
 // ---------------------------------------------------------------------------
-async function seedApplianceElectrical() {
+/**
+ * @param onlySlug Restrict to one job's slug (e.g. "dishwasher-electrical"
+ *   for B.19) instead of rebuilding both. Without it this rewrites
+ *   garbage-disposal-install too, unchanged but not what a narrow fix
+ *   should touch.
+ */
+export async function seedApplianceElectrical(onlySlug?: string) {
   const dedicated = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "dedicated-120v-circuit-outlet") });
 
-  const jobs = [
+  const allJobs = [
     {
       slug: "dishwasher-electrical",
       // "Replacement" implied Elite installs the appliance. It doesn't — this
@@ -308,6 +315,8 @@ async function seedApplianceElectrical() {
       yes: "Yes, there's one there now and the switch works",
     },
   ];
+
+  const jobs = onlySlug ? allJobs.filter((j) => j.slug === onlySlug) : allJobs;
 
   for (const j of jobs) {
     const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, j.slug) });
@@ -361,11 +370,17 @@ Photo requirements come from the reusable groups, so the panel safety
 instruction is applied automatically wherever a panel photo is requested.`);
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Guarded: importing this file for seedSoundbar or seedApplianceElectrical
+// alone must not also run main()'s full sweep (which includes
+// seedRangeHood, untouched by and unrelated to those two fixes). Only
+// running it directly still does, unchanged.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

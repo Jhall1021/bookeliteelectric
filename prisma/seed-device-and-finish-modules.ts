@@ -30,6 +30,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 import { upsertQuestion } from "./_moduleHelpers";
 import { serviceSlugKey } from "./_serviceKey";
 
@@ -87,7 +88,15 @@ const SUPERSEDED_KEYS = [
   "outlet_condition",
 ];
 
-async function seedDeviceModule(slug: string) {
+/**
+ * Exported so a narrow caller can apply this module to ONE service — e.g.
+ * `replace-standard-outlet` for B.17 — without re-running it against all 13
+ * DEVICE_SERVICES the way `main()` below does. Idempotent either way (this
+ * function's own behavior is unchanged), but a narrow caller should still
+ * prefer calling this directly over importing the whole file for `main()`'s
+ * side effects.
+ */
+export async function seedDeviceModule(slug: string) {
   const service = await prisma.service.findUnique({
     where: await serviceSlugKey(prisma, slug),
     include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
@@ -330,11 +339,16 @@ attachFinishAck() is exported for the trees that need it; the acknowledgement
 wording lives here so it can't drift between services.`);
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Guarded: importing this file for seedDeviceModule (a narrow, single-service
+// call) must not also run main()'s full 13-service sweep. Only running it
+// directly still does, unchanged.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
