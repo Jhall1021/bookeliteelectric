@@ -16,14 +16,16 @@
  */
 
 import { PrismaClient, BookingType } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 import { upsertCategory, categoryAttachment } from "./_categoryHelpers";
 import { eliteContractorId } from "./_componentHelpers";
 import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
-// cents helper
-const c = (dollars: number) => Math.round(dollars * 100);
+// cents helper — exported so a DB-free fixture can trace a literal's
+// dollar-to-cents conversion through the real function, not a re-typed copy.
+export const c = (dollars: number) => Math.round(dollars * 100);
 
 type SeedService = {
   slug: string;
@@ -60,7 +62,9 @@ type SeedCategory = {
 
 // Full 13-category structure (Section 4 of the master doc is authoritative;
 // Section 3's 6-category nav list is outdated per client direction).
-const CATALOG: SeedCategory[] = [
+// Exported so a DB-free fixture can trace a specific service's literal
+// through the real create-time mapping below, without re-typing it.
+export const CATALOG: SeedCategory[] = [
   {
     slug: "outlets-switches",
     name: "Outlets & Switches",
@@ -295,11 +299,17 @@ async function main() {
   console.log("Seed complete.");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Guarded: `c` and `CATALOG` are now exported so a DB-free fixture can trace
+// a literal's dollar-to-cents conversion through the real code. Importing
+// this file for those must not also run the full 13-category catalog seed —
+// only `npx prisma db seed` / `npx tsx prisma/seed.ts` still does.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
