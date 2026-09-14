@@ -152,6 +152,23 @@ function hrefsIn(file: string): { text: string; line: number }[] {
   visit(sf); return out;
 }
 
+/** Where a page puts every `.href` / `.path` value it reads: "code" (the text of a <code>), "key", "test" (a conditional's condition), or "OTHER". */
+function pathValueUses(src: string, file: string): string[] {
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const out: string[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isPropertyAccessExpression(n) && (n.name.text === "href" || n.name.text === "path")) {
+      const p = n.parent;
+      const where = ts.isJsxExpression(p) && ts.isJsxElement(p.parent) && p.parent.openingElement.tagName.getText(sf) === "code" ? "code"
+        : ts.isJsxExpression(p) && ts.isJsxAttribute(p.parent) && p.parent.name.getText(sf) === "key" ? "key"
+        : ts.isConditionalExpression(p) && p.condition === n ? "test" : "OTHER";
+      out.push(`${where}:${n.getText(sf)}@${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf); return out;
+}
+
 function outcomeOfRetry(r: Awaited<ReturnType<typeof launchContractorFor>>, id: string) { return "outcomes" in r ? r.outcomes.find((o) => o.serviceId === id)?.outcome : undefined; }
 
 /** The body text of one top-level exported function declaration. */
@@ -438,7 +455,22 @@ async function main() {
   const actions = readFileSync("app/platform/onboarding/actions.ts", "utf8");
   ok(`   the actions never pass their FormData onward — fields are read in place`, requestAccess(actions, "app/platform/onboarding/actions.ts").length === 0 && usesOf(actions, "formData", "app/platform/onboarding/actions.ts").every((u) => u.kind === "member" && u.member === "get"));
   ok(`   every redirect carries the id the COMMAND returned, or the form's id only back to the same page`, /backTo\(r\.contractorId/.test(actions) && !/redirect\(`\/platform\/onboarding\/\$\{field/.test(actions));
-  ok(`   launch and retire each demand an explicit confirmation, and retire also the slug typed back`, (actions.match(/confirm"\)+ !== "yes"/g) ?? []).length === 2 && /CONFIRMATION_REQUIRED/.test(actions) && /platformRetireContractor\(str\(formData\.get\("contractorId"\)\), str\(formData\.get\("confirmSlug"\)\)\)/.test(actions));
+  // Since e6884ab each action reads its id into a local first, so the command
+  // takes `contractorId`, not the inline read. The rule, at greater strength than
+  // the old spelling-pinned regex: inside launchAction and retireAction
+  // specifically, the id is read, THEN the confirmation is demanded, THEN the one
+  // command call is made — with exactly these arguments.
+  const READ_ID = `const contractorId = str(formData.get("contractorId"));`;
+  const CONFIRM = `if (str(formData.get("confirm")) !== "yes") backTo(contractorId, "CONFIRMATION_REQUIRED");`;
+  const gated = (body: string, command: string) => { const r = body.indexOf(READ_ID), c = body.indexOf(CONFIRM), k = body.indexOf(`${command}(`); return r >= 0 && c > r && k > c && k === body.lastIndexOf(`${command}(`); };
+  const launchBody = fnBody(actions, "launchAction"), retireBody = fnBody(actions, "retireAction");
+  ok(`   launch and retire each demand an explicit confirmation before their one command call, and retire also the slug typed back`,
+    (actions.match(/confirm"\)+ !== "yes"/g) ?? []).length === 2 && /CONFIRMATION_REQUIRED/.test(actions)
+    && gated(launchBody, "platformLaunchContractor") && gated(retireBody, "platformRetireContractor")
+    && JSON.stringify(callsTo(actions, "platformLaunchContractor").map((c) => c.args)) === JSON.stringify([["contractorId"]])
+    && JSON.stringify(callsTo(actions, "platformRetireContractor").map((c) => c.args)) === JSON.stringify([["contractorId", 'str(formData.get("confirmSlug"))']]));
+  ok(`   mutant: a confirmation moved after the command, or removed, is refused`,
+    !gated(retireBody.replace(CONFIRM, "") + CONFIRM, "platformRetireContractor") && !gated(launchBody.replace(CONFIRM, ""), "platformLaunchContractor"));
   // ── 10. the wizard never navigates the operator into an unscoped dashboard ──
   //
   // /dashboard/* resolves its contractor from the signed-in user's membership
@@ -451,7 +483,21 @@ async function main() {
   const hrefs = pages.flatMap((f) => hrefsIn(f).map((h) => ({ f, ...h })));
   const badHrefs = hrefs.filter((h) => !h.text.startsWith("/platform/"));
   ok(`10. every href the wizard renders is a literal under /platform — none dynamic, none to /dashboard (${hrefs.length} hrefs checked)`, hrefs.length >= 4 && badHrefs.length === 0, badHrefs.map((h) => `${h.f}:${h.line} ${h.text}`).join("; "));
-  ok(`   the readiness findings' own dashboard hrefs are shown as text, never rendered as links`, /owner&rsquo;s dashboard: <code>\{b\.href\}<\/code>/.test(readFileSync("app/platform/onboarding/[contractorId]/page.tsx", "utf8")) && !/href=\{b\.href\}|href=\{w\.path\}|href=\{l\.href\}/.test(readFileSync("app/platform/onboarding/[contractorId]/page.tsx", "utf8")));
+  // Since 7bae399 the page no longer wraps the value in "owner's dashboard:" copy,
+  // so the rule is enforced by syntax tree instead of by copy: every `.href` or
+  // `.path` value on the page appears only as a <code> text child, a React key,
+  // or a conditional's test — never as an attribute, spread or anything else.
+  const detailPage = "app/platform/onboarding/[contractorId]/page.tsx";
+  const detailSrc = readFileSync(detailPage, "utf8");
+  const pathUses = pathValueUses(detailSrc, detailPage);
+  ok(`   the readiness findings' own dashboard hrefs are shown as text, never rendered as links`,
+    pathUses.some((u) => u.startsWith("code:b.href@")) && pathUses.some((u) => u.startsWith("code:w.path@")) && pathUses.every((u) => !u.startsWith("OTHER:"))
+    && !/href=\{b\.href\}|href=\{w\.path\}|href=\{l\.href\}/.test(detailSrc),
+    pathUses.join(", "));
+  const pathMutant = (src: string) => pathValueUses(`export default function P({ b, w }: any) { return ${src}; }`, "mutant.tsx").some((u) => u.startsWith("OTHER:"));
+  ok(`   mutant: a link to the value — plain, spaced, spread, or nested inside <code> — is refused, while <code>{b.href}</code> is not`,
+    pathMutant(`<a href={b.href}>x</a>`) && pathMutant(`<a href={ w.path }>x</a>`) && pathMutant(`<a {...{ href: b.href }}>x</a>`)
+    && pathMutant(`<code><a href={b.href}>{b.href}</a></code>`) && !pathMutant(`<code>{b.href}</code>`));
   ok(`   mutant: a dynamic href would be caught`, (() => { const probe = "mutant.tsx"; const src = 'export default function P({ s }: { s: { href: string } }) { return <a href={s.href}>x</a>; }'; const sf = ts.createSourceFile(probe, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); let dyn = 0; const v = (n: ts.Node) => { if (ts.isJsxAttribute(n) && ts.isIdentifier(n.name) && n.name.text === "href" && n.initializer && ts.isJsxExpression(n.initializer) && n.initializer.expression && !ts.isStringLiteral(n.initializer.expression)) dyn++; ts.forEachChild(n, v); }; v(sf); return dyn === 1; })());
 
   // ── 11. one slug authority ─────────────────────────────────────────────

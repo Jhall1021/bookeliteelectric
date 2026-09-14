@@ -40,17 +40,17 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     // collapse to null, because null is a real instruction to clear a value.
     const optionalNumber = (
       key: string,
-      options: { min?: number; integer?: boolean } = {},
+      bounds: { min?: number; integer?: boolean } = {},
     ): { ok: true; value: number | null } | { ok: false; error: string } => {
       const raw = body[key];
       if (raw === null || raw === undefined || raw === "") return { ok: true, value: null };
       const value = Number(raw);
       if (!Number.isFinite(value)) return { ok: false, error: `${key} must be a valid number.` };
-      if (options.integer && !Number.isInteger(value)) {
+      if (bounds.integer && !Number.isInteger(value)) {
         return { ok: false, error: `${key} must be a whole number.` };
       }
-      if (options.min !== undefined && value < options.min) {
-        return { ok: false, error: `${key} must be ${options.min} or greater.` };
+      if (bounds.min !== undefined && value < bounds.min) {
+        return { ok: false, error: `${key} must be ${bounds.min} or greater.` };
       }
       return { ok: true, value };
     };

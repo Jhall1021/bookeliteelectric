@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 import { resolveAdminContractor } from "@/lib/adminContext";
 import { JOBBER_AUTH_URL, jobberRedirectUri } from "@/lib/jobber";
-import { prisma } from "@/lib/prisma";
+import { withContractor } from "@/lib/tenantRoute";
 import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 
@@ -45,10 +45,15 @@ export async function GET() {
   //
   // The UI already hides Connect while connected, but this guard is the rule;
   // a copied/direct URL must not be able to bypass the lifecycle.
-  const existingConnection = await prisma.jobberConnection.findUnique({
-    where: { contractorId },
-    select: { id: true },
-  });
+  //
+  // On the guarded client: the contractor came from the signed-in membership,
+  // so the tenant is known and the guard scopes this rather than the filter.
+  const existingConnection = await withContractor(contractorId, "admin-session", (db) =>
+    db.jobberConnection.findUnique({
+      where: { contractorId },
+      select: { id: true },
+    })
+  );
   if (existingConnection) {
     return NextResponse.redirect(
       new URL("/dashboard/jobber?error=already_connected", redirectUri)

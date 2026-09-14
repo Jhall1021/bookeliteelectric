@@ -127,10 +127,16 @@ const REVIEWED_SAFE: Record<string, Exception> = {
   "lib/jobber.ts:visits": {
     reason:
       "Jobber's GraphQL response type, not Prisma. `visits` here is a field on " +
-      "Jobber's own schema inside a jobberGraphQL<...> type argument; it has no " +
-      "relation to Contractor.visits. Anchored to the call so that a real Prisma " +
-      "read of Contractor.visits in this file would still be flagged.",
-    mustMatch: /jobberGraphQL</,
+      "Jobber's own schema, declared in `type JobberVisitPage` — the type argument " +
+      "of jobberGraphQL<JobberVisitPage> (named rather than inline since 41a75d5, " +
+      "which left the old /jobberGraphQL</ anchor out of range). It has no relation " +
+      "to Contractor.visits. Anchored to the START of the flagged context and to the " +
+      "GraphQL connection shape on the two lines after it — `nodes: JobberVisitNode[];` " +
+      "and a typed `pageInfo` — which no Prisma include/select can contain, so a real " +
+      "Contractor.visits traversal in this file, including one on the line " +
+      "immediately before, is still flagged.",
+    mustMatch:
+      /^[ \t]*visits: \{\n[ \t]*nodes: JobberVisitNode\[\];\n[ \t]*pageInfo: \{ hasNextPage: boolean; endCursor: string \| null \};/,
   },
   "lib/r2.ts:credentials": {
     reason:

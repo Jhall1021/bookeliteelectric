@@ -403,7 +403,7 @@ export const HERO_FLOW = {
           "helpText": "A wall with the outdoors on the other side, rather than another room. It changes how we get the wire there.",
           "inputType": "SINGLE_SELECT",
           "conditionalHelp": [],
-          "order": 7,
+          "order": 8,
           "options": [
             {
               "id": "cmt7bgnbg000dzz5whqmkxfku",

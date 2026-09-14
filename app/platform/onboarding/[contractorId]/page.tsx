@@ -241,7 +241,7 @@ export default async function ContractorOnboardingPage({ params, searchParams }:
             <form action={launchAction} className="mt-4 rounded-card border border-navy/15 bg-navy/[0.035] p-4">
               <input type="hidden" name="contractorId" value={id} />
               <label className="flex items-start gap-3 text-sm leading-relaxed text-navy">
-                <input type="checkbox" name="confirm" value="yes" required className="mt-0.5 h-4 w-4 shrink-0 accent-[#0F1E3C]" />
+                <input type="checkbox" name="confirm" value="yes" required className="mt-0.5 h-4 w-4 shrink-0 accent-navy" />
                 <span>I confirm: put every offered service live that its own activation guard allows{s.launch.live > 0 ? " (services already live are left as they are)" : ""}.</span>
               </label>
               <button type="submit" className="mt-4 w-full rounded-pill bg-navy px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-navy/90 sm:w-auto">{s.launch.live > 0 ? `Retry launch (${s.launch.pending} not yet live)` : "Launch contractor"}</button>

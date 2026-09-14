@@ -103,6 +103,11 @@ const ADOPTED_FILES: string[] = [
   "app/dashboard/business-hours/page.tsx",
   "app/api/admin/business-hours/route.ts",
   "app/api/admin/jobber/disconnect/route.ts",
+  // Jobber OAuth start and completion. Both run inside an authenticated admin
+  // request with a membership-resolved contractor, so neither belongs under
+  // lib/jobber.ts's "outside any request context" classification.
+  "app/api/admin/jobber/connect/route.ts",
+  "app/api/admin/jobber/callback/route.ts",
   "app/api/admin/pricing-settings/route.ts",
   "app/api/admin/service-area/route.ts",
 ];
