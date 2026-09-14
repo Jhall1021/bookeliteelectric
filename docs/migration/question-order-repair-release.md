@@ -1,8 +1,8 @@
 # Question-order repair — one controlled production step
 
-**Status: PREPARED, NOT EXECUTED.** Nothing in this document has been run
-against production except the read-only audit in §1. Every production step
-below needs its own explicit approval, given in conversation, before it runs.
+**Status: EXECUTED on 14 Sep 2026.** Each production step ran only after its
+own explicit approval, given in conversation. The record is in §7. The rest of
+this document is the procedure as prepared and approved.
 
 It makes `Question.order` unique within each service on production, and
 re-captures the homepage hero from production in the same step. Nobody's
@@ -101,6 +101,12 @@ The tool refuses a stale capture anyway.
 
 ## 5. Where this sits in the release
 
+*As prepared. The owner then moved the production repair and hero re-capture
+(steps 6–8) ahead of the baseline merge, so the baseline branch could reach a
+zero-failure `verify:full`. That was safe because the repair is forward-only
+and the code already serving production orders unique positions identically.
+§7 records the order that actually happened.*
+
 1. The baseline-repair branch gets one uninterrupted green `verify:full`.
 2. That repair is reviewed and merged on its own.
 3. The performance branch is rebased onto the repaired `main`.
@@ -163,3 +169,35 @@ P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.t
 Record the capture file, the step 3 and 4 output, and the hero diff as evidence
 alongside this document. Commit the re-captured fixture on its own and merge it
 before rebasing any branch that relies on a green `capture-hero-flow --check`.
+
+## 7. Record of execution — 14 Sep 2026
+
+Every step ran only after its own approval. The connection string was supplied
+only through the environment.
+
+| step | UTC | what happened |
+|---|---|---|
+| served code | — | Production served `24aa500` (`dpl_HW5N7FqsHuS5r1Epr9HvCPd9R976`). Its question readers and resolver are byte-identical to the `main` that the checks ran against. |
+| capture (read-only) | 12:00:05 | The session was opened with `default_transaction_read_only=on`; a write probe was refused. Identity `price2book-production` on `ep-shy-butterfly-ay5t03di`. The same 3 services and 8 planned rows as §1. Snapshot sha256 `71aca68ea717e7fe47e0e8ab941e528a9a1ecf34016a7fe7cf23c931e876ab23`. |
+| proof (read-only) | 12:00:10 | With the served code: no tie at a starting position; the question sequence and starting question identical under both ordering rules; every routing outcome identical before and after the planned positions. That was every enumerated path (2,813 / 12 / 25) plus a covering path for every reachable answer, primary and same-visit. The results were saved as the baseline. |
+| apply | 12:12:29 | The snapshot hash was verified before running. One transaction re-read identity, rows and plan immediately before writing. **Exactly 8 rows changed across 3 services**; the tool exited 0. Rollback was not invoked. |
+| read-back (read-only) | 12:12:51–12:12:54 | 0 duplicate positions across production (658 questions, 304 services). All 8 planned positions held and every other position unchanged. Identical question sequences and starting questions. Every routing outcome identical to the saved baseline. Identity re-confirmed. |
+| hero (read-only) | 13:14:12–13:14:59 | The drift check reported exactly one difference, `primary.dto.questions.4.order` 7 → 8. The hero was re-captured and a deep comparison found that one leaf only. The check passes against production. Committed as `a97c6d2`. |
+| baseline merge | — | PR #52, merge commit `52ad487`, after an uninterrupted 71/71 `verify:full`. Nothing was promoted; production still serves `24aa500`. |
+
+Positions after the repair:
+
+| service | question | before → after |
+|---|---|---|
+| recessed-lighting | `recessed_light_count` | 3 → 4 |
+| recessed-lighting | `lighting_control` | 4 → 5 |
+| recessed-lighting | `switch_near_power` | 5 → 6 |
+| recessed-lighting | `lighting_dimmer_upgrade` | 6 → 7 |
+| recessed-lighting | `below_above_access` | 7 → 8 |
+| recessed-lighting | `finished_space_both_sides` | 8 → 9 |
+| swap-out-customer-supplied-non-smart-switch | `smart_switch_model` | 1 → 2 |
+| new-120v-outlet | `device_on_exterior_wall` | 7 → 8 |
+
+Production now holds no tied positions. So the id tiebreak this branch adds
+changes no order on production, and it keeps any future tie deterministic,
+while `verify-question-order` rejects one being introduced.
