@@ -34,27 +34,40 @@ export const HERO = {
   /**
    * THE FIRST SCREEN SELLS THE PROBLEM, NOT THE PRODUCT — owner, 2 September.
    *
-   * "Your pricing. Your schedule." is a fine brand line and a poor opening
-   * argument: it names what a contractor already owns rather than what is
-   * costing them. It survives as the payoff and as the page title, which is
-   * where a tagline belongs, and the headline now leads with the day the
-   * contractor is actually having.
+   * SCANABILITY PASS — owner, 14 September 2026. The headline is now the
+   * benefit a contractor feels ("Book routine service jobs without the phone
+   * call."), and the old supporting headline — "Stop spending your day
+   * answering routine service calls." — said the same thing again directly
+   * underneath it. It is gone, along with the long body paragraph, and one
+   * sentence now carries the complete outcome: the questions, the approved
+   * price or a Guided Estimate, and a time that fits.
+   *
+   * "Your services. Your pricing rules. Your schedule." remains the payoff and
+   * the page title.
    */
   eyebrow: "Customer-guided pricing, estimates & booking",
-  headline: "Stop spending your day answering routine service calls.",
-  body:
-    "Price2Book lets customers choose a service, answer the questions you normally ask, and either get your approved price and book on the spot\u2014or send you a Guided Estimate with the details and photos you need to quote it remotely.",
+  headline: "Book routine service jobs without the phone call.",
+  explanation:
+    "Customers answer your questions, receive your approved price—or send a Guided Estimate—and book a time that fits.",
   /**
-   * Four outcomes, scannable in one pass. Each is a benefit a contractor
-   * feels, not a feature name — the feature names live two sections down,
-   * where a reader who wants them has already decided to care.
+   * The four capabilities, as names a contractor can scan in one pass. Each is
+   * shipped and each has a product page; nothing unshipped belongs in this list.
    */
-  proof: [
-    "Book routine work without the phone call",
-    "Quote more jobs without an estimate trip",
-    "Add more work with While We\u2019re There\u2122 pricing",
-    "Only offer appointment times that fit the job",
+  capabilities: [
+    "Instant Pricing",
+    "Guided Estimates",
+    "While We\u2019re There\u2122",
+    "Smart Scheduling",
   ],
+  /**
+   * SELECTIVE ADOPTION, ON THE FIRST SCREEN. A contractor's first objection is
+   * "do I have to put my whole business on this?" The answer used to arrive
+   * eleven sections down; it now sits beside the calls to action, before any
+   * screenshot. /how-it-fits is still its canonical home.
+   */
+  adoption: "Start with a handful of repetitive services—or your entire catalog.",
+  adoptionSupport: "Works alongside the software you already use.",
+  adoptionEmphasis: "No new CRM required.",
   payoff: "Your services. Your pricing rules. Your schedule.",
   /**
    * CTA ORDER CHANGED. "Request Early Access" led, which asks a stranger to
@@ -64,8 +77,6 @@ export const HERO = {
   primaryCta: "See How It Works",
   secondaryCta: "Request Early Access",
   tertiaryCta: "Try the Homeowner Demo",
-  support: "Works alongside your existing business software.",
-  supportEmphasis: "No new CRM required.",
   footnote: "Built for residential service contractors. Built first with a working residential electrical contractor.",
 } as const;
 
@@ -694,25 +705,6 @@ export const WHAT_IT_DOES: ReadonlyArray<{
     href: "/product/online-booking",
   },
 ];
-
-/**
- * The system in one line, as a customer walks it.
- *
- * Deliberately the CUSTOMER's sequence rather than the product's modules: a
- * contractor understands "answers the questions, gets a price, books a time"
- * immediately, and has to be taught "Guided Pricing, RouteAction, visit
- * composition". The nouns come later, on the pages that own them.
- */
-export const JOURNEY_STRIP = {
-  steps: [
-    "Customer finds you",
-    "Answers your questions",
-    "Gets a price — or sends a Guided Estimate",
-    "Adds more work",
-    "Books a time that fits",
-  ],
-  close: "That is Price2Book.",
-} as const;
 
 /**
  * The product tour — both sides of it.

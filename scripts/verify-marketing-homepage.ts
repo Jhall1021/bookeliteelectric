@@ -96,9 +96,21 @@ const REQUIRED_COPY = [
   // decision recorded here rather than the entry quietly deleted when it went
   // red — same treatment the removed demo headline got above.
   "Your services. Your pricing rules. Your schedule.",
-  "Stop spending your day answering routine service calls.",
+  // SCANABILITY PASS, owner, 14 September 2026. "Stop spending your day
+  // answering routine service calls." was the supporting headline and repeated
+  // the phone-call benefit directly under the headline; the owner replaced it
+  // with one sentence carrying the whole outcome. The headline, that sentence
+  // and the selective-adoption pair are asserted in its place.
+  "Book routine service jobs without the phone call.",
+  "Customers answer your questions, receive your approved price\u2014or send a Guided Estimate\u2014and book a time that fits.",
+  "Start with a handful of repetitive services\u2014or your entire catalog.",
+  "Works alongside the software you already use.",
   "Request Early Access",
-  "Give customers a price. Give them a time. Make the visit worth more.",
+  // "Give customers a price. Give them a time. Make the visit worth more." was
+  // asserted here until the same pass: it lived only in the ProductProof band,
+  // which the owner removed from the homepage because the hero, the tiles, the
+  // product pages and the demo already make that argument. Removed
+  // deliberately, with the decision recorded, rather than quietly dropped.
   // "Four steps, and none of them is a phone call." was asserted here until
   // the owner approved removing that section — the demo performs those steps
   // instead of listing them. Removed deliberately, with the decision recorded,
@@ -569,18 +581,59 @@ async function statics() {
     "PriceSight is not in the product menu",
     "it has not shipped — SITEMAP.md holds it out of navigation");
 
-  console.log("\n  THE HERO SELLS THE PROBLEM, AND SHOWS BOTH SIDES");
+  console.log("\n  THE HERO: THE BENEFIT, THE OUTCOME, FOUR CAPABILITIES, SELECTIVE ADOPTION");
   const heroSrc = read("components/marketing/Hero.tsx");
-  for (const line of content.HERO.proof as readonly string[]) {
-    ok(line.length > 0, `proof point: ${line}`);
-  }
-  ok((content.HERO.proof as readonly string[]).length === 4,
-    "four proof points, not a list that grew");
+  ok(content.HERO.headline === "Book routine service jobs without the phone call.",
+    "the headline is the contractor's benefit", `headline = ${content.HERO.headline}`);
+  ok(/\{HERO\.headline\}/.test(heroSrc.slice(heroSrc.indexOf("<h1"), heroSrc.indexOf("</h1>"))),
+    "…and it is the page's h1");
+  ok(content.HERO.explanation === "Customers answer your questions, receive your approved price\u2014or send a Guided Estimate\u2014and book a time that fits.",
+    "one sentence carries the whole outcome", `explanation = ${content.HERO.explanation}`);
+  // The phone-call benefit is said once. The old supporting headline repeated
+  // it directly underneath; nothing in the hero's copy may say it again.
+  const heroCopy = [content.HERO.explanation, content.HERO.adoption, content.HERO.adoptionSupport,
+    content.HERO.adoptionEmphasis, content.HERO.payoff].join(" ").toLowerCase();
+  ok(!/phone call|routine service calls/.test(heroCopy),
+    "the phone-call benefit is not repeated under the headline");
+  ok(JSON.stringify(content.HERO.capabilities) === JSON.stringify(["Instant Pricing", "Guided Estimates", "While We\u2019re There\u2122", "Smart Scheduling"]),
+    "four capabilities, named exactly, in order", JSON.stringify(content.HERO.capabilities));
+  ok(!(content.HERO.capabilities as readonly string[]).some((c) => /pricesight|route assist|visual assist/i.test(c)),
+    "…and none of them is unshipped");
+  ok(/HERO\.capabilities\.map/.test(heroSrc), "…and the hero renders them");
+  ok(content.HERO.adoption === "Start with a handful of repetitive services\u2014or your entire catalog." &&
+    `${content.HERO.adoptionSupport} ${content.HERO.adoptionEmphasis}` === "Works alongside the software you already use. No new CRM required.",
+    "the selective-adoption pair is the approved wording");
+  // Source order is render order: the left column renders before the
+  // screenshots on a phone and beside them on a desktop.
+  const adoptionAt = heroSrc.search(/\{(?:\w+\()?HERO\.adoption\)?\}/);
+  const firstShotAt = Math.min(...["SHOTS.adminServices", "SHOTS.homePrice"].map((k) => heroSrc.indexOf(k)).filter((i) => i >= 0));
+  ok(adoptionAt >= 0 && adoptionAt < firstShotAt,
+    "the selective-adoption message renders before any screenshot",
+    `adoption at ${adoptionAt}, first screenshot at ${firstShotAt}`);
+  // THE EMBED STATUS LEFT THE HERO — and did not leave the site. It is
+  // rendered beside the homepage's "add Price2Book to your website" line and on
+  // /how-it-fits, where the question of what fits is actually asked.
+  ok(!/EMBED_STATUS/.test(heroSrc), "the hero no longer carries the unfinished embed status");
+  ok(/\{EMBED_STATUS\.line\}/.test(read("app/(marketing)/how-it-fits/page.tsx")),
+    "…/how-it-fits renders it");
+  const everywhereSrc = (() => { const sec = read("components/marketing/Sections.tsx"); const i = sec.indexOf("export function Everywhere"); return i >= 0 ? sec.slice(i) : ""; })();
+  ok(/\{EMBED_STATUS\.line\}/.test(everywhereSrc), "…and so does the homepage section that mentions your website");
   // The composition has to show the CONTRACTOR too. A hero that shows only
   // the customer's screen is the narrow story this pass replaced.
   ok(/SHOTS\.homePrice/.test(heroSrc) && /SHOTS\.adminServices/.test(heroSrc),
     "the hero shows a customer screen AND a control screen",
     "one price card makes Price2Book look like a page that shows a price");
+
+  console.log("\n  THE HOMEPAGE ORDER");
+  const homeSrc = read("app/(marketing)/page.tsx");
+  const mainBody = homeSrc.slice(homeSrc.indexOf("<main>"), homeSrc.indexOf("</main>"));
+  const order = [...mainBody.matchAll(/<([A-Z][A-Za-z]+)\s*\/>/g)].map((m) => m[1]);
+  const EXPECTED_ORDER = ["Hero", "WhatItDoes", "TradeSignal", "ProductTour", "PricingModes", "EstimateTrips",
+    "Everywhere", "NotYourCRM", "Adoption", "DemoCta", "EarlyAccess"];
+  ok(JSON.stringify(order) === JSON.stringify(EXPECTED_ORDER),
+    "the homepage renders the approved order, TradeSignal straight after the tiles", order.join(" → "));
+  ok(!/JourneyStrip|ProductProof/.test(homeSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "")),
+    "JourneyStrip and ProductProof are not on the homepage");
   ok(/See How It Works/.test(content.HERO.primaryCta),
     "the primary CTA is understanding, not commitment");
 
@@ -796,8 +849,10 @@ async function live(host: string) {
   ok(home.status === 200, `/ answers 200`, `status ${home.status}`);
   if (home.status !== 200) return;
 
-  ok(home.text.includes("Stop spending your day answering routine service calls."),
+  ok(home.text.includes("Book routine service jobs without the phone call."),
     "the approved headline is served");
+  ok(home.text.includes("Start with a handful of repetitive services"),
+    "…and so is the selective-adoption message");
   ok(home.text.includes("Your services. Your pricing rules. Your schedule."),
     "…and the brand line survives as the payoff");
   ok(home.text.includes("Request Early Access"), "the primary CTA is served");

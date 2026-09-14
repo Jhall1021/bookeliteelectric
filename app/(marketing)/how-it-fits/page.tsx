@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  ESTIMATE_TRIPS, PRICING_MODES, SETUP_PROGRESSION, START_SMALL,
+  EMBED_STATUS, ESTIMATE_TRIPS, PRICING_MODES, SETUP_PROGRESSION, START_SMALL,
 } from "@/components/marketing/content";
 
 /**
@@ -300,6 +300,19 @@ export default function HowItFitsPage() {
                 Booked work is handed to the system you already run. If you don’t run one, the
                 Price2Book scheduler is built in — that is a choice, not a migration.
               </p>
+            </div>
+            {/* Your website, stated as it is today. The same status the
+                homepage shows beside its pricing-link section. */}
+            <div className="mt-4 rounded-[3px] border border-p2b-line bg-white px-7 py-6">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-p2b-muted-soft">
+                  Your website
+                </span>
+                <span className="rounded bg-p2b-accent-tint-strong px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.06em] text-p2b-accent">
+                  {EMBED_STATUS.label}
+                </span>
+              </div>
+              <p className="mt-3 text-[16px] leading-[1.6] text-p2b-ink-warm">{EMBED_STATUS.line}</p>
             </div>
           </div>
         </div>
