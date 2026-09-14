@@ -194,17 +194,31 @@ async function main() {
     await turned.page.context().close();
 
     console.log("\n  9  A PUBLISHED-PRICE SERVICE IS UNCHANGED\n");
+    // A NAMED service, not "the first unpriced published-price service": that
+    // query matches five in the installed catalog, unordered, and three of them
+    // (surface-mounted-*) open on a typed NUMBER question whose Continue stays
+    // disabled — the gate timed out whenever Postgres returned one of those.
+    // This is the service every earlier green run exercised. Every property the
+    // proof depends on is asserted in the query, so catalog drift fails here by
+    // name rather than as a click timeout.
+    const LEGACY_SLUG = "exterior-gfci-other-routing";
     const legacy = await prisma.service.findFirstOrThrow({
-      where: { contractorId: f.contractorId, contractorCategoryId: pilot.contractorCategoryId, pricingMethod: "LEGACY_PUBLISHED", basePrice: null, questions: { some: {} } },
-      select: { id: true, slug: true, name: true } });
+      where: { contractorId: f.contractorId, slug: LEGACY_SLUG, contractorCategoryId: pilot.contractorCategoryId, pricingMethod: "LEGACY_PUBLISHED", basePrice: null },
+      select: { id: true, slug: true, name: true,
+        questions: { orderBy: { order: "asc" }, take: 1, select: { inputType: true, options: { orderBy: { order: "asc" }, take: 1, select: { label: true } } } } } });
+    const firstQuestion = legacy.questions[0];
+    if (firstQuestion?.inputType !== "SINGLE_SELECT" || !firstQuestion.options[0]) {
+      throw new Error(`check 9 fixture drifted: ${LEGACY_SLUG} must open on a SINGLE_SELECT question, found ${firstQuestion?.inputType ?? "none"}`);
+    }
     await prisma.service.update({ where: { id: legacy.id }, data: { active: true } });   // fixture state: visible, still unpriced
     const lctx = await browser.newContext(); const lp = await lctx.newPage();
     let legacyEvaluations = 0;
     lp.on("request", (r) => { if (r.url().endsWith("/api/price-evaluation")) legacyEvaluations++; });
     await lp.goto(`${BASE}${servicePath(legacy.slug)}`, { waitUntil: "networkidle" });
     await lp.getByRole("button", { name: /Check My Price/i }).click();
-    await lp.locator("main button, button").filter({ hasNotText: /Back/ }).nth(0).waitFor({ timeout: 15000 });
-    const firstOption = lp.locator("button").filter({ hasNotText: /Back|Book Service/ }).first();
+    // The homeowner's first answer: the first authored option, by its label.
+    const firstOption = lp.getByRole("button", { name: firstQuestion.options[0].label, exact: true });
+    await firstOption.waitFor({ timeout: 15000 });
     await firstOption.click();
     await lp.waitForTimeout(1500);
     const ltext = await lp.locator("body").innerText();

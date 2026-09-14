@@ -53,7 +53,14 @@ export type DerivedScopeResult =
       /** The fingerprint this price was computed under, for the booking record. */
       basisFingerprint: string;
       materialCostCents: number;
+      /** Crew-hours the price was computed from — the contractor's own component labor. */
       laborHours: number;
+      /**
+       * The crew size those crew-hours were priced with. Carried with them so the
+       * scheduling duration comes from the SAME basis as the price
+       * (elapsedMinutesFromCrewHours) rather than a second estimate.
+       */
+      techCount: number;
     }
   | {
       kind: "REVIEW";
@@ -124,6 +131,11 @@ export function priceDerivedScope(input: DerivedScopeInput): DerivedScopeResult 
     0,
   );
 
+  // The crew the price assumes. Derived pricing has no crew-selection input yet,
+  // so this is the one-crew behavior compute() has always been given here —
+  // named, and returned with the hours, rather than re-assumed by a consumer.
+  const techCount = DERIVED_PRICING_TECH_COUNT;
+
   // ── 3. business decisions ─────────────────────────────────────────────────
   const settingsState = resolvePricingSettings(input.settingsRow, input.context);
   if (settingsState.kind === "MISSING") {
@@ -181,7 +193,7 @@ export function priceDerivedScope(input: DerivedScopeInput): DerivedScopeResult 
       fieldLaborHours: laborHours,
       materialCostCents,
       estimatedMinutes: null,
-      techCount: 1,
+      techCount,
       components: [],
       addedCrewHours: 0,
       approvedIncrementCents: 0,
@@ -207,7 +219,30 @@ export function priceDerivedScope(input: DerivedScopeInput): DerivedScopeResult 
     basisFingerprint: input.currentBasisFingerprint,
     materialCostCents,
     laborHours,
+    techCount,
   };
+}
+
+/** The crew size derived pricing prices with. No crew-selection logic exists yet. */
+export const DERIVED_PRICING_TECH_COUNT = 1;
+
+/**
+ * The elapsed on-site time a priced job's crew-hours represent, in whole minutes.
+ *
+ *   elapsed hours = crew-hours / crew count
+ *
+ * Integer minutes because every scheduling field (LineItem.estimatedMinutes,
+ * Booking.estimatedDurationMinutes) is an integer. There is no canonical
+ * crew-hours-to-schedule-minutes helper in this codebase to reuse — the only
+ * hours-to-minutes conversions round for DISPLAY labels — so the rule is the
+ * conservative one: a fractional minute rounds UP, because scheduling a job
+ * shorter than its own labor would under-allocate the crew's day. The
+ * tolerance keeps floating-point noise (4.8 h × 60 = 288.00000000000006) from
+ * adding a minute nobody's labor contains.
+ */
+export function elapsedMinutesFromCrewHours(crewHours: number, techCount: number): number {
+  if (!(crewHours >= 0) || !(techCount >= 1)) throw new Error(`elapsedMinutesFromCrewHours: invalid ${crewHours} / ${techCount}`);
+  return Math.ceil((crewHours / techCount) * 60 - 1e-6);
 }
 
 /** Re-exported so callers do not reach past this module for the requirement list. */

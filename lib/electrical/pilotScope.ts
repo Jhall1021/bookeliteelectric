@@ -24,7 +24,7 @@ export const PILOT_SCOPE = {
 
 export const PILOT_LIMITATIONS = [
   "Fixed-price contractors only for now. Time-and-materials setup will be supported separately.",
-  "Runs that turn corners go to review instead of an instant price.",
+  "Runs that turn corners go to review instead of an instant price: corner labor has not been calibrated by the contractor yet, and the exact raceway to buy for a turned run is not worked out yet.",
   "Changing a visit that combines this service with other services may refuse rather than reprice; adding it to a visit is supported.",
   "Account and business setup happen in the existing flows before the wizard starts.",
   "Material prices are entered in the wizard; the Materials & Costs screen for ongoing maintenance is not built yet.",

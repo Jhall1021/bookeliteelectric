@@ -21,6 +21,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { DERIVED_PRICING_PENDING, resolveRoute } from "../routeResolver";
 import { loadAndPriceDerivedScope } from "./loadDerivedScope";
+import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
 
@@ -125,7 +126,18 @@ export async function resolveRouteWithDerivedPricing(
       status: "PRICED",
       priceCents: priced.totalCents,
       isPrimary,
-      config: r.config,
+      // The labor that priced the job is the labor that schedules it. The pure
+      // resolver's config carries the SERVICE's legacy fieldLaborHours and
+      // estimatedMinutes (null for a derived service), which is how a booking
+      // priced from 1.42 known crew-hours stored no duration at all. Everything
+      // downstream (/api/visit's snapshot, checkout and schedule duration sums)
+      // already reads these three fields.
+      config: {
+        ...r.config,
+        fieldLaborHours: priced.laborHours,
+        techCount: priced.techCount,
+        estimatedMinutes: elapsedMinutesFromCrewHours(priced.laborHours, priced.techCount),
+      },
       photoLabels: r.photoLabels ?? [],
       photoSafetyNotes: r.photoSafetyNotes ?? [],
       disclaimers: r.disclaimers ?? [],

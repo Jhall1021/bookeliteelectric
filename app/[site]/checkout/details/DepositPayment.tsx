@@ -37,7 +37,14 @@
  */
 
 import { useEffect, useMemo, type MutableRefObject } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+// THE PURE ENTRY, NOT THE DEFAULT ONE. `@stripe/stripe-js`'s default entry
+// starts loading Stripe.js the moment this module is imported, and
+// CheckoutDetailsForm imports this module on every checkout — so every
+// homeowner with nothing to pay still fetched js.stripe.com and sent Stripe's
+// m.stripe.com / m.stripe.network signals. The pure entry fetches the script
+// only when loadStripe() is called, which happens only when the deposit block
+// below actually renders (stripeFor). Nothing else about payment changes.
+import { loadStripe } from "@stripe/stripe-js/pure";
 import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js";
 
 /**
