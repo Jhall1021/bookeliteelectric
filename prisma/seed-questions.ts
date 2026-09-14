@@ -1165,16 +1165,28 @@ async function seedEvGarage() {
 
   // 240V Garage Outlet — lighter tailored-photo-review treatment, same
   // pattern as the smart-home/panels remote-quote jobs.
+  //
+  // B.16 — this used to be a single "Continue" button dressed up as a
+  // question, with no consequence beyond reaching the same photo request
+  // either way: it inflated the service's question count without collecting
+  // anything. Every answer here still ends in PHOTO_REVIEW — this is
+  // genuinely always a remote-quote job — but "always reviewed" isn't a
+  // reason to ask nothing first: attached vs. detached vs. outdoor changes
+  // the run and the equipment, same distinction level-2-ev-charger's own
+  // `garage_type` question above already draws for the identical real-world
+  // fact. Sharing that key is deliberate, not incidental: a customer who's
+  // already answered it for the charger in this visit isn't asked again.
   const garage240 = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "240v-garage-outlet"),
   });
   await clearServiceTree(garage240.id);
 
-  const qReady = await prisma.question.create({
+  const qGarage240Type = await prisma.question.create({
     data: {
       serviceId: garage240.id,
-      key: "ready_for_review",
-      prompt: "Let's get you a price — we'll just need a couple of photos.",
+      key: "garage_type",
+      prompt: "Is this for an attached or detached garage, or an outdoor location like a driveway?",
+      helpText: "This tells us what kind of run to plan for before we quote it.",
       inputType: "SINGLE_SELECT",
       order: 1,
     },
@@ -1182,16 +1194,32 @@ async function seedEvGarage() {
   await prisma.answerOption.createMany({
     data: [
       {
-        questionId: qReady.id,
-        label: "Continue",
-        value: "continue",
+        questionId: qGarage240Type.id,
+        label: "Attached garage",
+        value: "attached",
         routeAction: "PHOTO_REVIEW",
         order: 1,
         requiredPhotoLabels: ["Panel with the door open", "Where the outlet is needed in the garage"],
       },
+      {
+        questionId: qGarage240Type.id,
+        label: "Detached garage",
+        value: "detached_confirm",
+        routeAction: "PHOTO_REVIEW",
+        order: 2,
+        requiredPhotoLabels: ["Panel with the door open", "Where the outlet is needed in the garage"],
+      },
+      {
+        questionId: qGarage240Type.id,
+        label: "Outdoor / driveway",
+        value: "outdoor",
+        routeAction: "PHOTO_REVIEW",
+        order: 3,
+        requiredPhotoLabels: ["Panel with the door open", "Where the outlet is needed in the garage"],
+      },
     ],
   });
-  console.log("  ✓ 240V Garage Outlet tree (tailored photo request)");
+  console.log("  ✓ 240V Garage Outlet tree (real garage-configuration intake, still tailored photo request)");
 }
 
 async function main() {

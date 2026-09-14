@@ -735,9 +735,18 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // troubleshooting reroute both land here. When a reroute pre-filled
     // customerNote (B.4), show it as an editable field so the homeowner can
     // see what will reach the technician and correct it, rather than
-    // silently sending it. Every other resolved service is unaffected: the
-    // props are omitted, so PriceConfirmationCard renders exactly as before.
-    const isDiagnosticVisit = flow.bookingType === "TROUBLESHOOT_ONLY";
+    // silently sending it.
+    //
+    // soundbar-installation (B.18) resolves here too, having just dropped two
+    // questions (cable type/possession, wall concealment) whose every answer
+    // continued identically with no price or routing effect — real job-prep
+    // facts, not pricing decisions, and this is where they're offered
+    // instead: optional, not gating the flow.
+    //
+    // Every OTHER resolved service is unaffected: the props are omitted, so
+    // PriceConfirmationCard renders exactly as it always did.
+    const offersOptionalNote =
+      flow.bookingType === "TROUBLESHOOT_ONLY" || flow.slug === "soundbar-installation";
     return withBack(
       <PriceConfirmationCard
         serviceName={flow.name}
@@ -745,8 +754,15 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         priceCents={state.priceCents}
         disclaimer={state.disclaimer}
         onAddToVisit={handleAddToVisit}
-        {...(isDiagnosticVisit
-          ? { note: customerNote, onNoteChange: setCustomerNote, noteLabel: "What should we tell the technician?" }
+        {...(offersOptionalNote
+          ? {
+              note: customerNote,
+              onNoteChange: setCustomerNote,
+              noteLabel:
+                flow.bookingType === "TROUBLESHOOT_ONLY"
+                  ? "What should we tell the technician?"
+                  : "Anything the technician should know? (e.g. which cable you have, or whether to hide it in the wall)",
+            }
           : {})}
       />
     );

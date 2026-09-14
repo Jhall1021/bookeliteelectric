@@ -74,6 +74,17 @@ const SUPERSEDED_KEYS = [
   "outlet_has_power",
   "switch_operates_normally",
   "switch_working_now",
+  // B.17 — replace-standard-outlet's own legacy question
+  // (prisma/seed-questions.ts's seedReplaceStandardOutlet). Every path that
+  // reaches it has already told this module "works, upgrading," "damaged,"
+  // or "intermittent" via DEVICE_KEY; its own three answers ("just needs to
+  // be swapped," "warm/sparking/burning," "no power") restate the same
+  // upgrade-vs-fault distinction a second time, and the two fault answers
+  // duplicate exactly the categories DEVICE_KEY already routes to
+  // Troubleshooting before a customer ever reaches this question — the one
+  // service among the module's 13 that still asked its safety-triage
+  // question twice.
+  "outlet_condition",
 ];
 
 async function seedDeviceModule(slug: string) {

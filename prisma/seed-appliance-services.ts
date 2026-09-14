@@ -220,8 +220,14 @@ async function seedSoundbar() {
   const q2 = await q("soundbar_location", "Where should the soundbar go?", 1);
   const q3 = await q("soundbar_wall", "What's the wall made of?", 2, "If you're not certain, say so — we'd rather look than guess.");
   const q4 = await q("soundbar_power", "Is there an outlet near where the soundbar will go?", 3);
-  const q5 = await q("soundbar_cable", "Do you have the cable to connect it to the TV?", 4, "HDMI or optical, whichever your soundbar uses.");
-  const q6 = await q("soundbar_conceal", "Would you like the cable hidden inside the wall?", 5, "Included either way — we just need to know before we start.");
+  // B.18 — soundbar_cable and soundbar_conceal (removed) each continued
+  // identically regardless of answer, with no price or routing effect: real
+  // job-prep facts (which cable to bring, whether to hide it) dressed as
+  // pricing-flow decisions. GuidedFlowEngine's PriceConfirmationCard now
+  // shows an optional note field for this service specifically, prompting
+  // for exactly this — the technician still gets told, the homeowner just
+  // isn't required to click through two more screens with only one real
+  // answer between them ("yes" either way) to get there.
 
   await prisma.answerOption.createMany({
     data: [
@@ -240,21 +246,14 @@ async function seedSoundbar() {
       { questionId: q3.id, label: "Tile or stone", value: "tile_stone", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: [] },
       { questionId: q3.id, label: "Something else, or I'm not sure", value: "other", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: [] },
 
-      { questionId: q4.id, label: "Yes", value: "yes", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      // B.18 — was CONTINUE -> soundbar_cable (removed); resolves directly
+      // now. Cable possession/type and concealment preference are still
+      // collected, via the optional note on the resulting PriceConfirmationCard
+      // (GuidedFlowEngine, gated on this service's slug) rather than two more
+      // mandatory screens whose answers never changed the price or the route.
+      { questionId: q4.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: CUSTOMER_SUPPLIED },
       { questionId: q4.id, label: "No", value: "no", routeAction: "REROUTE_SERVICE", rerouteServiceId: outlet?.id ?? null, order: 2, requiredPhotoLabels: [] },
       { questionId: q4.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: [] },
-
-      // No price effect. Recorded so the technician brings the right cable —
-      // and so an Elite-supplied cable can become a material add-on later.
-      { questionId: q5.id, label: "Yes, HDMI", value: "hdmi", routeAction: "CONTINUE", nextQuestionId: q6.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q5.id, label: "Yes, optical", value: "optical", routeAction: "CONTINUE", nextQuestionId: q6.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q5.id, label: "I have one but I'm not sure which", value: "unsure_type", routeAction: "CONTINUE", nextQuestionId: q6.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q5.id, label: "No, I don't have one", value: "none", routeAction: "CONTINUE", nextQuestionId: q6.id, order: 4, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-
-      // Concealment is included at no charge. Asked anyway so the technician
-      // arrives expecting to do it.
-      { questionId: q6.id, label: "Yes, hide it in the wall", value: "conceal", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: CUSTOMER_SUPPLIED },
-      { questionId: q6.id, label: "No, leave it outside the wall", value: "surface", routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: CUSTOMER_SUPPLIED },
     ],
   });
 
@@ -285,7 +284,16 @@ async function seedApplianceElectrical() {
         "Having a dishwasher swapped out? We'll disconnect the old one electrically and connect the new one. Electrical work only — no water lines, drain hose, or fitting the appliance itself.",
       disclaimer:
         "Electrical connection only. Water supply, drain hose, cabinet work, levelling and the physical installation aren't included, and we don't take responsibility for plumbing leaks.",
-      prompt: "Is there already suitable power at the dishwasher?",
+      // B.19 — "suitable power" asked the homeowner to certify electrical
+      // adequacy, a trade judgment, and not the same fact as the "yes" answer
+      // actually promises: an old dishwasher being plugged in doesn't mean
+      // the connection is suitable for a different one. Reworded to the same
+      // observable-presence question garbage-disposal already asks below —
+      // is one there now, plugged in or wired in. The unsure and no-power
+      // branches (photo review / dedicated-circuit reroute) are exactly
+      // where a genuine adequacy judgment belongs — the technician, on site
+      // — so nothing about the routing needed to change.
+      prompt: "Is there a dishwasher there now that's plugged in or wired in?",
       yes: "Yes, the old one is plugged in or wired in",
     },
     {
