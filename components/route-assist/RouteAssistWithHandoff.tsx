@@ -3,36 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { toDataURL as qrToDataURL } from "qrcode";
 import RouteAssistCapture from "./RouteAssistCapture";
+import RouteAssistPlacementCapture from "./RouteAssistPlacementCapture";
 import { useSiteFetch } from "@/components/site/SiteContext";
 import {
-  completeDeviceHandoff,
   completeVisualAssistTask,
   createDeviceHandoff,
   createVisualAssistTask,
   getDeviceHandoffStatus,
   listVisualAssistTasks,
 } from "@/lib/routeAssistHandoffClient";
-import type { RouteAssistDestinationType } from "@/lib/visual-assist/route-assist/taxonomy";
+import type { RouteAssistCaptureKind, RouteAssistDestinationType } from "@/lib/visual-assist/route-assist/taxonomy";
 import type { RouteAssistResult } from "@/lib/visual-assist/route-assist/types";
 
-/**
- * Desktop→phone entry point for Route Assist — docs/design/
- * guided-flow-session-v1.md's cross-device flow, wired to the real,
- * canonical GuidedFlowSession/Device Handoff API. Not a second persistence
- * format: this component's only job is creating a
- * GuidedFlowVisualAssistTask, optionally a DeviceHandoff pointing at it,
- * and completing the task with RouteAssistCapture's own already-verified
- * RouteAssistResult once the customer confirms — on WHICHEVER device ends
- * up doing the capture.
- *
- * The caller supplies an ALREADY-EXISTING `guidedFlowSessionId` — this
- * component does not create a GuidedFlowSession itself. Deciding WHEN a
- * service's flow reaches this point is a catalog/product question,
- * deliberately still unanswered (route-assist-v1.md §1.4,
- * guided-flow-session-v1.md §10) — this component is the piece that
- * activates once something else has already decided Route Assist is
- * needed.
- */
 type Props = {
   guidedFlowSessionId: string;
   destinationType: RouteAssistDestinationType;
@@ -40,22 +22,12 @@ type Props = {
   destinationHint: string;
   onUploadPhoto: (file: File) => Promise<string>;
   onComplete: (result: RouteAssistResult) => void;
-  /**
-   * Scopes task lookup/creation to ONE logical invocation on this session —
-   * e.g. one question in one guided flow. Without it, any ROUTE_ASSIST task
-   * on the session looks like "this" one, which is exactly right for the
-   * one caller that predates this (the dev fixture, one task per session)
-   * and exactly wrong once a real flow could plausibly have more than one
-   * invocation. Omitted, behavior is unchanged from before this field.
-   */
   taskKey?: string;
-  /**
-   * Skip the choice screen and start this step immediately on mount — for a
-   * caller that has already decided which path makes sense (e.g. a phone
-   * viewport shouldn't be asked to scan its own QR code). Omitted, the
-   * customer sees both options exactly as before.
-   */
   autoStart?: "capture-here" | "handoff";
+  captureKind?: RouteAssistCaptureKind;
+  placementHint?: string;
+  minPlacements?: number;
+  maxPlacements?: number;
 };
 
 type Step =
@@ -76,14 +48,15 @@ export default function RouteAssistWithHandoff({
   onComplete,
   taskKey,
   autoStart,
+  captureKind = "ROUTE",
+  placementHint,
+  minPlacements = 1,
+  maxPlacements = 1,
 }: Props) {
   const siteFetch = useSiteFetch();
   const [step, setStep] = useState<Step>({ kind: "choice" });
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Guards both React Strict Mode's double-invoke AND a genuine repeated
-  // click landing before the first request resolves — either would
-  // otherwise create two tasks/handoffs for one customer action.
   const startingRef = useRef(false);
 
   useEffect(() => {
@@ -92,29 +65,21 @@ export default function RouteAssistWithHandoff({
     };
   }, []);
 
-  // Resume, not just "was it already finished": a task for THIS invocation
-  // (taskKey-scoped, when given) that's still PENDING means a prior attempt
-  // was interrupted (reload, closed tab) — reusing it, rather than starting
-  // a fresh one, is what keeps a resume from ever creating a duplicate.
   useEffect(() => {
     listVisualAssistTasks(siteFetch, guidedFlowSessionId)
       .then((tasks) => {
-        const mine = tasks.find((t) => t.taskType === "ROUTE_ASSIST" && (taskKey === undefined || t.taskKey === taskKey));
+        const mine = tasks.find(
+          (task) => task.taskType === "ROUTE_ASSIST" && (taskKey === undefined || task.taskKey === taskKey)
+        );
         if (!mine) {
-          if (autoStart === "capture-here") startCaptureHere();
-          else if (autoStart === "handoff") startHandoff();
+          if (autoStart === "capture-here") void startCaptureHere();
+          else if (autoStart === "handoff") void startHandoff();
           return;
         }
         if (mine.status === "COMPLETED" && mine.result) {
           setStep({ kind: "handoff-completed", result: mine.result });
           return;
         }
-        // PENDING: reuse the existing task directly rather than create a
-        // second one. Same-device capture always resolves this correctly;
-        // it does mean a desktop resuming mid-QR-wait finishes via capture
-        // here instead of a regenerated QR — an acceptable trade for never
-        // duplicating a task, and the phone's own in-flight attempt (if
-        // any) still completes this exact task normally either way.
         startingRef.current = true;
         setStep({ kind: "capture-here", taskId: mine.id });
       })
@@ -123,10 +88,7 @@ export default function RouteAssistWithHandoff({
   }, [guidedFlowSessionId, taskKey]);
 
   async function persistAndComplete(taskId: string, result: RouteAssistResult) {
-    await completeVisualAssistTask(siteFetch, guidedFlowSessionId, taskId, result).catch(() => {
-      // Best effort — the customer still sees their result even if the
-      // write to the session failed; a returning device just won't see it.
-    });
+    await completeVisualAssistTask(siteFetch, guidedFlowSessionId, taskId, result).catch(() => {});
     onComplete(result);
   }
 
@@ -157,15 +119,15 @@ export default function RouteAssistWithHandoff({
         try {
           const status = await getDeviceHandoffStatus(siteFetch, handoff.id);
           if (status === "PHONE_CONNECTED") {
-            setStep((prev) =>
-              prev.kind === "handoff-waiting" || prev.kind === "handoff-connected"
+            setStep((previous) =>
+              previous.kind === "handoff-waiting" || previous.kind === "handoff-connected"
                 ? { kind: "handoff-connected", taskId: task.id, handoffId: handoff.id }
-                : prev
+                : previous
             );
           } else if (status === "TASK_COMPLETED") {
             if (pollRef.current) clearInterval(pollRef.current);
             const tasks = await listVisualAssistTasks(siteFetch, guidedFlowSessionId);
-            const done = tasks.find((t) => t.id === task.id);
+            const done = tasks.find((candidate) => candidate.id === task.id);
             if (done?.result) setStep({ kind: "handoff-completed", result: done.result });
           } else if (status === "HANDOFF_EXPIRED" || status === "HANDOFF_REVOKED") {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -174,8 +136,7 @@ export default function RouteAssistWithHandoff({
             setStep({ kind: "choice" });
           }
         } catch {
-          // A transient polling failure isn't shown to the customer — the
-          // next tick tries again.
+          // Transient polling failure; the next tick tries again.
         }
       }, POLL_INTERVAL_MS);
     } catch {
@@ -187,18 +148,20 @@ export default function RouteAssistWithHandoff({
   if (step.kind === "choice") {
     return (
       <div className="mx-auto flex max-w-md flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Show us the route</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          {captureKind === "PLACEMENT_LAYOUT" ? "Show us where you want it" : "Show us the route"}
+        </h2>
         <p className="text-sm text-slate-600">This step uses your camera.</p>
         <button
           type="button"
-          onClick={startCaptureHere}
+          onClick={() => void startCaptureHere()}
           className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white"
         >
           Open camera
         </button>
         <button
           type="button"
-          onClick={startHandoff}
+          onClick={() => void startHandoff()}
           className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-800"
         >
           Continue on your phone
@@ -209,13 +172,26 @@ export default function RouteAssistWithHandoff({
   }
 
   if (step.kind === "capture-here") {
+    if (captureKind === "PLACEMENT_LAYOUT") {
+      return (
+        <RouteAssistPlacementCapture
+          destinationType={destinationType}
+          sourceHint={sourceHint}
+          placementHint={placementHint ?? destinationHint}
+          minPlacements={minPlacements}
+          maxPlacements={maxPlacements}
+          onUploadPhoto={onUploadPhoto}
+          onComplete={(result) => void persistAndComplete(step.taskId, result)}
+        />
+      );
+    }
     return (
       <RouteAssistCapture
         destinationType={destinationType}
         sourceHint={sourceHint}
         destinationHint={destinationHint}
         onUploadPhoto={onUploadPhoto}
-        onComplete={(result) => persistAndComplete(step.taskId, result)}
+        onComplete={(result) => void persistAndComplete(step.taskId, result)}
       />
     );
   }
@@ -230,7 +206,7 @@ export default function RouteAssistWithHandoff({
           <>
             <p className="text-sm text-slate-600">Scan the QR code to continue.</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={(step as Extract<Step, { kind: "handoff-waiting" }>).qrDataUrl} alt="QR code to continue on your phone" width={280} height={280} />
+            <img src={step.qrDataUrl} alt="QR code to continue on your phone" width={280} height={280} />
           </>
         )}
         <p className="text-xs text-slate-500">Your quote will stay open here.</p>
@@ -238,10 +214,11 @@ export default function RouteAssistWithHandoff({
     );
   }
 
-  // handoff-completed
   return (
     <div className="mx-auto flex max-w-md flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-emerald-700">Route received ✓</p>
+      <p className="text-sm font-medium text-emerald-700">
+        {captureKind === "PLACEMENT_LAYOUT" ? "Layout received ✓" : "Route received ✓"}
+      </p>
       <button
         type="button"
         onClick={() => onComplete(step.result)}
