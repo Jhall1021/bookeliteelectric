@@ -8,6 +8,12 @@ It makes `Question.order` unique within each service on production, and
 re-captures the homepage hero from production in the same step. Nobody's
 question sequence changes.
 
+**The repair is forward-only once its transaction commits.** Code that predates
+the id tiebreak serves unique positions in exactly the same order. **If an
+application deployment is rolled back, leave the repaired positions in place.**
+Do not restore the duplicate positions as part of a code rollback; §3 shows
+that doing so cannot reliably restore the order that was served before.
+
 ---
 
 ## 1. What production holds — read-only audit, 14 Sep 2026
@@ -63,23 +69,23 @@ position.
 
 `scripts/repair-duplicate-question-order.ts` ran the full step on rehearsal on
 14 Sep 2026, against one disposable contractor with production-shaped ties
-injected, which was removed afterwards. 22 of 22 checks passed:
+injected, which was removed afterwards. After the forward-only change, 23 of 23 checks passed:
 
 - report mode writes nothing
 - the capture records exactly the tied services
 - apply refuses without the host named, and with a different host named
 - apply commits in one transaction, leaves no ties anywhere, and keeps the captured served order
 - `verify-question-order` passes afterwards
-- rollback restores the captured positions, and refuses a second time
+- rollback refuses without `--acknowledge-nondeterministic-order`; with it, it restores the captured positions and refuses a second time
 - apply refuses when any position changed since the capture
 - a tie at a starting position is refused in report and capture modes
 
-**Learned there: a rollback restores positions, not the order among ties.**
-Postgres returns tied rows in physical order, and an UPDATE moves rows, so
-after a rollback the order served among the reintroduced ties can differ from
-before the repair. Treat rollback as a last resort and prefer a forward fix.
-Never re-apply an old capture after a rollback; take a new one. The tool
-refuses a stale capture anyway.
+**Learned there: restoring the positions does not restore the order.**
+Postgres returns tied rows in physical order, and an UPDATE moves rows. After
+the old positions were restored, the order served among the reintroduced ties
+could differ from what was served before the repair. That is why the repair is
+forward-only. Never re-apply an old capture after a restore; take a new one.
+The tool refuses a stale capture anyway.
 
 ## 4. Preflight (report all nine; wait for approval)
 
@@ -91,9 +97,24 @@ refuses a stale capture anyway.
 6. Can it affect production data: yes, the positions of 8 questions on 3 Elite services. No price, route, answer or service row is touched.
 7. Why rehearsal is insufficient: the rows to repair are production's own, and so is the served order to preserve. Rehearsal was repaired from its own snapshot and has been dress-rehearsed (§3).
 8. Expected result: the plan in §1 exactly; zero ties; the served order unchanged for all three services under both ordering rules; a hero fixture diff of exactly `questions[4].order 7 → 8`.
-9. Rollback: `--rollback --snapshot` with the same capture file, in one transaction. It is subject to the limitation in §3.
+9. Rollback plan: **none for the data; the repair is forward-only.** An application rollback leaves the unique positions in place, and old code serves them in the same order. A failed check inside step 3 rolls its own transaction back before commit, so nothing changes. `--rollback` exists only for an exceptional recovery that is explicitly authorized. It requires `--acknowledge-nondeterministic-order`, because it reintroduces ties whose served order cannot be reproduced (§3).
 
-## 5. The step
+## 5. Where this sits in the release
+
+1. The baseline-repair branch gets one uninterrupted green `verify:full`.
+2. That repair is reviewed and merged on its own.
+3. The performance branch is rebased onto the repaired `main`.
+4. The complete verification and the performance measurements are re-run.
+5. The performance draft PR is opened.
+6. **Before production deployment:** re-capture the production question-order snapshot (§6, step 2).
+7. Apply the snapshot-backed repair in one transaction, and verify the exact resulting order (§6, steps 3–4).
+8. Re-capture the affected homepage hero data from production (§6, step 5).
+9. Deploy the performance code.
+10. Verify production routing, page performance and release identity.
+
+Steps 6–10 each need their own approval.
+
+## 6. The step
 
 Run it from a clean checkout of the reviewed commit carrying this document.
 Connection strings come from the environment, **never from arguments**, so they
@@ -127,6 +148,16 @@ transaction. It refuses unless both equal the capture exactly. After applying,
 still inside the same transaction, it requires no ties anywhere, and each
 service in the captured order under both `order asc` and `QUESTION_ORDER`.
 Otherwise the whole step rolls back.
+
+### Exceptional recovery (not part of any code rollback)
+
+Only with an explicit authorization for this recovery. It brings back tied
+positions whose served order is not reproducible:
+
+```bash
+P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts \
+  --rollback --snapshot release-question-order.json --acknowledge-nondeterministic-order
+```
 
 Record the capture file, the step 3 and 4 output, and the hero diff as evidence
 alongside this document. Commit the re-captured fixture on its own and merge it

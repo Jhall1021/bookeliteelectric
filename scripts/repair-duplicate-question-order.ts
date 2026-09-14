@@ -5,7 +5,8 @@
  *   npx tsx scripts/repair-duplicate-question-order.ts                         # report, read-only
  *   npx tsx scripts/repair-duplicate-question-order.ts --capture <release.json> # report + write the plan, read-only
  *   P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts --apply --snapshot <release.json>
- *   P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts --rollback --snapshot <release.json>
+ *   # exceptional recovery only — see below:
+ *   P2B_REPAIR_ALLOWED_HOST=<host> npx tsx scripts/repair-duplicate-question-order.ts --rollback --snapshot <release.json> --acknowledge-nondeterministic-order
  *
  * The connection string comes from the environment (DATABASE_URL), never from
  * an argument, so it does not appear in a process listing.
@@ -32,8 +33,18 @@
  *               anywhere and each repaired service to come back in the captured
  *               order under both the old rule and QUESTION_ORDER. Any failure
  *               rolls the whole step back.
- *   --rollback  one transaction. Restores the captured positions, refusing
+ *   --rollback  EXCEPTIONAL RECOVERY ONLY, never part of a code rollback.
+ *               One transaction. Restores the captured positions, refusing
  *               unless every planned row still holds exactly its planned value.
+ *
+ * THE REPAIR IS FORWARD-ONLY ONCE IT COMMITS. Code that predates
+ * QUESTION_ORDER serves unique positions in exactly the same order, so rolling
+ * back an application deployment leaves the repaired positions in place.
+ * Restoring the old positions brings the ties back, and Postgres returns tied
+ * rows in physical order, which an UPDATE changes — so it cannot reliably
+ * restore the order that was served before (shown on rehearsal). --rollback
+ * therefore also demands --acknowledge-nondeterministic-order, and should only
+ * run with an explicit authorization for that recovery.
  *
  * REFUSES rather than guesses: a tie at a service's starting position (which
  * question a customer starts on would be ambiguous — that needs a person), a
@@ -138,6 +149,10 @@ async function main() {
     if (process.env.P2B_REPAIR_ALLOWED_HOST !== host) throw new Error(`REFUSED: set P2B_REPAIR_ALLOWED_HOST to this database's host to name it deliberately.`);
     const file = arg("snapshot");
     if (!file) throw new Error("REFUSED: --apply and --rollback need --snapshot <release.json> from --capture.");
+    if (ROLLBACK && !process.argv.includes("--acknowledge-nondeterministic-order")) {
+      throw new Error("REFUSED: --rollback reintroduces tied positions, whose served order is not reproducible. " +
+        "The repair is forward-only; an application rollback leaves it in place. For an explicitly authorized recovery, add --acknowledge-nondeterministic-order.");
+    }
     const capture: ReleaseCapture = JSON.parse(readFileSync(file, "utf8"));
     if (capture.host !== host) throw new Error(`REFUSED: the capture was taken on ${capture.host}, not this database.`);
 
