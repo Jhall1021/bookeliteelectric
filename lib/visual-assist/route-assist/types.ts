@@ -20,6 +20,7 @@ import type {
   RouteAssistMode,
   RouteComplexity,
   RouteObstacle,
+  RoutePhysicalTurn,
   RoutePointKind,
   RouteSurface,
 } from "./taxonomy";
@@ -41,6 +42,19 @@ export type RoutePoint = {
   surface?: RouteSurface | null;
   /** Set only on a WAYPOINT the customer tagged as routing around this. */
   obstacle?: RouteObstacle | null;
+  /**
+   * Ordered Geometry V1: an explicitly observed PHYSICAL raceway turn at this
+   * waypoint. This is evidence, not a deduction from 2-D line direction.
+   *
+   * A room scan may populate it when the physical relationship is actually
+   * established; a contractor/customer may also explicitly confirm it later.
+   * Ordinary photo geometry must leave it null/undefined rather than promote a
+   * screen-space left/right bend into an inside/outside/flat fitting.
+   *
+   * Obstacle context is independent: a doorway/window waypoint may also carry
+   * a physical turn. One must never suppress the other.
+   */
+  physicalTurn?: RoutePhysicalTurn | null;
 };
 
 /**
