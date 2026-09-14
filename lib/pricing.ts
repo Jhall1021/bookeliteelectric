@@ -478,6 +478,27 @@ export type BranchContribution = {
   addScheduleMinutes?: number | null;
   priceModifierCents?: number;
   approvedComponentPriceCents?: number | null;
+  /**
+   * Set only when this answer sells another catalog item
+   * (AnswerOption.referencedServiceId) — e.g. "add Elite Tilt Mount" inside
+   * TV Installation.
+   *
+   *   a number   the referenced service's own live price (basePrice or
+   *              whileWeThereBasePrice, matching this visit's isPrimary the
+   *              same way the anchor price does) — ADDED on top of whatever
+   *              this answer's own components resolve to, never in place of
+   *              them, so a reference and a component recipe on the same
+   *              answer both count.
+   *   null       the reference could not be resolved — deleted, cross-tenant,
+   *              or never priced. Forces review REGARDLESS of what the
+   *              components below resolve to: a resolved component recipe
+   *              must not mask an unresolved reference, any more than the
+   *              reverse.
+   *   undefined  this answer isn't a reference at all. Every other answer in
+   *              the catalog. approvedComponentPriceCents/components behave
+   *              exactly as they did before this field existed.
+   */
+  referencedServicePriceCents?: number | null;
   components?: {
     quantity: number;
     /**
@@ -658,7 +679,7 @@ export function applyBranch(
   }
 
   const answerOverride = branch.approvedComponentPriceCents;
-  const approved =
+  const componentsApproved =
     answerOverride !== null && answerOverride !== undefined
       ? answerOverride
       : selected.length > 0
@@ -666,6 +687,18 @@ export function applyBranch(
           ? null
           : componentPriceCents
         : 0;
+
+  // A referenced service's price composes with the components above rather
+  // than replacing them — an answer could in principle both attach a
+  // component recipe AND sell a referenced item, and neither may mask the
+  // other being unresolved.
+  const refPrice = branch.referencedServicePriceCents;
+  const approved =
+    refPrice === undefined
+      ? componentsApproved
+      : refPrice === null || componentsApproved === null
+        ? null
+        : componentsApproved + refPrice;
 
   assertAccessEquivalence(accessClass, accessBySlot);
 
@@ -809,6 +842,14 @@ export function answerPriceDelta(
     return { cents: null, needsReview: true };
   }
 
+  // An unresolved reference (AnswerOption.referencedServiceId with no
+  // resolvable price) means this preview can't show a number either — same
+  // rule as applyBranch, checked first so it can't be masked by components
+  // that DID resolve.
+  if (branch.referencedServicePriceCents === null) {
+    return { cents: null, needsReview: true };
+  }
+
   const override = branch.approvedComponentPriceCents;
   let componentCents = 0;
   if (override !== null && override !== undefined) {
@@ -820,6 +861,7 @@ export function answerPriceDelta(
       componentCents += p * Math.max(sel.quantity, 1);
     }
   }
+  componentCents += branch.referencedServicePriceCents ?? 0;
 
   // When the selected components are per-unit — additional recessed lights,
   // say — surface the unit rate too. The customer shouldn't have to divide to

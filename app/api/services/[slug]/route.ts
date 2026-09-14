@@ -63,7 +63,10 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
           options: {
             orderBy: { order: "asc" },
             include: {
-              referencedService: { select: { basePrice: true } },
+              // contractorId travels for the tenant check below, never for
+              // display — defense in depth alongside the write-time guard in
+              // the admin tree editor and template provisioning.
+              referencedService: { select: { basePrice: true, contractorId: true } },
               // Components come down with the tree so the engine can
               // accumulate a configuration client-side without a round trip
               // per answer.
@@ -209,10 +212,29 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         id: o.id,
         label: o.label,
         value: o.value,
-        // Live lookup wins over the frozen seed-time number whenever this
-        // option references another service — this is what makes admin
-        // edits to e.g. Elite Tilt Mount's price actually show up here.
-        priceModifierCents: o.referencedService?.basePrice ?? o.priceModifierCents,
+        priceModifierCents: o.priceModifierCents,
+        // Live lookup, not the frozen seed-time number, whenever this option
+        // references another service — this is what makes admin edits to
+        // e.g. Elite Tilt Mount's price actually show up here. A SEPARATE
+        // field from priceModifierCents above (see BranchContribution in
+        // lib/pricing.ts): that one always applies at whatever it holds, so
+        // folding a missing/cross-tenant reference into it here would have
+        // the browser show a confident price the server (lib/routeResolver.ts,
+        // which resolves the identical field the identical way) would
+        // actually refuse — exactly the fallback this replaces.
+        //
+        // Primary price only, not While-We're-There-aware: this DTO doesn't
+        // yet know whether the visit it's about to join is an add-on (that's
+        // decided client-side, from a separate /api/visit read) — consistent
+        // with every other delta on this option, none of which vary by
+        // add-on status in preview either. The eventual CHARGE is still
+        // correct either way: lib/routeResolver.ts receives isPrimary
+        // explicitly at booking time and picks the matching figure there.
+        referencedServicePriceCents: !o.referencedServiceId
+          ? undefined
+          : o.referencedService && o.referencedService.contractorId === site.contractorId
+            ? o.referencedService.basePrice
+            : null,
         nextQuestionId: o.nextQuestionId,
         routeAction: o.routeAction,
         rerouteServiceId: o.rerouteServiceId,

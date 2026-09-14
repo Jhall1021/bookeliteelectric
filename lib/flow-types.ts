@@ -47,6 +47,18 @@ export type AnswerOptionDTO = {
   // Null = no approved customer price for this branch's components, so the
   // route goes to review. Zero is a valid approved no-charge value.
   approvedComponentPriceCents: number | null;
+  /**
+   * Set only when this answer sells another catalog item
+   * (AnswerOption.referencedServiceId). A number is that service's own live
+   * price (already resolved server-side, matching whatever the customer is
+   * actually charged — see lib/routeResolver.ts). null means the reference
+   * couldn't be resolved and this answer must review, never price at zero.
+   * Absent for every ordinary answer. See BranchContribution in lib/pricing.ts,
+   * which this is structurally compatible with by design — the same object
+   * is passed to applyBranch/answerPriceDelta on both the client and the
+   * server, so a customer is never shown a price the server would refuse.
+   */
+  referencedServicePriceCents?: number | null;
   /** Set when this answer answers a route-access question. */
   accessClassification: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
   /** WHICH access slot this answer establishes — G1. */

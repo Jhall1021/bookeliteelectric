@@ -55,9 +55,12 @@ export const RESOLUTION_TREE_INCLUDE = {
           // app/api/admin/services/[serviceId]/tree/route.ts), so this
           // relation can never point outside the tenant it's read from.
           //
-          // Only `basePrice` — never economics beyond what a customer is
-          // charged, and never a second tenant's row.
-          referencedService: { select: { basePrice: true } },
+          // basePrice/whileWeThereBasePrice — never economics beyond what a
+          // customer is charged. contractorId travels too, NOT to display,
+          // but so a caller can prove this row is the same tenant's rather
+          // than trusting the write-time guard alone (defense in depth: see
+          // lib/routeResolver.ts's tenant check on this field).
+          referencedService: { select: { basePrice: true, whileWeThereBasePrice: true, contractorId: true } },
           // Canonical roles only — platform data under a tenant-owned
           // root, which is safe. The contractor's figures arrive
           // separately, from their own tenant-rooted query.
