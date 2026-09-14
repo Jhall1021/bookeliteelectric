@@ -7,7 +7,62 @@ PR #56 found them not narrow enough — by which the seed-file fixes for B.2, B.
 B.17, B.18, and B.19 would reach Elite's own catalog, the canonical template, a fresh
 rehearsal contractor, and already-provisioned contractors.
 
-## Revision note
+## Second revision note — the runner in the previous version was withdrawn
+
+The previous version of this document shipped a working runner,
+`scripts/rollout-electrical-tree-fixes.ts`, with a `--apply`/`--force` path capable of
+actually writing to a database. Direct review on PR #56 found it unsafe on five
+separate grounds and it has been **removed from this branch entirely**, not patched:
+
+1. **Not tenant-scoped.** `snapshotService()` fetched `prisma.service.findFirst({
+   where: { slug } })` — by slug alone, no `contractorId` filter. On any database with
+   more than one contractor sharing a slug (which this codebase's own multi-tenant
+   model allows), it could snapshot or reason about the wrong contractor's service
+   entirely.
+2. **Checked too little to catch what the seeds can overwrite.** The snapshot captured
+   only the question/answer tree. Several of the target seed functions also write
+   service-level scalar fields — `seedDedicatedCircuit()` alone updates `name`,
+   `bookingType`, `estimatedMinutes`, `requiresTechCount`, `permitAdminCents`, and
+   `categoryId`. A live change to any of those between baseline capture and `--apply`
+   would go undetected by a tree-only diff, defeating the customized-tree check for
+   exactly the fields it didn't look at.
+3. **No atomicity between the check and the write.** The drift check and the actual
+   seed call were two separate operations against two separately-constructed
+   `PrismaClient` instances (the runner's own, and each seed file's module-level
+   client), with no transaction or optimistic-concurrency precondition tying them
+   together. A change landing in that window — small, but real under any concurrent
+   admin access — would be applied over silently, the exact failure mode the check was
+   supposed to prevent.
+4. **Ignorant of module composition.** `seedNewCeilingLight()`/`seedNewCeilingFan()`
+   each call `clearServiceTree()` and rebuild only the base tree. On any database
+   seeded the normal way, both services also carry the height/access module
+   (`seed-height-access.ts`), the switch-leg/distance-band module
+   (`seed-lighting-control.ts`), and the finish acknowledgement
+   (`seed-fixture-finish-ack.ts`) — all attached in a specific order *after* the base
+   tree, per `seed-all.ts`'s own header comment: **"Re-running one earlier seed on its
+   own afterward can orphan what was inserted after it — which has happened four
+   times."** Calling the narrow fix function alone, exactly what the runner did, would
+   strip all three modules from a fully-provisioned service.
+5. **Described a preview it didn't perform.** The dry-run path's own comments described
+   a "transactional before/after preview" that the code never actually ran — it threw
+   and rolled back before calling the target function at all, so what was printed was
+   never more than the current live tree plus a baseline diff, not a preview of the
+   seed's actual effect.
+
+None of these are fixable by tightening flags — they're structural, and a correct
+version would need a shared transaction-scoped Prisma client threaded through every
+seed function (a real refactor of four files), a full per-field snapshot per function
+rather than a generic tree walk, and either an explicit accompanying re-run of every
+module each target service composes with, or a hard refusal to touch any service that
+has modules attached at all. That is real design work, out of scope for this pass —
+listed here as **requirements for a future runner**, not as something to build under
+this task's authorization. **No such runner exists on this branch. No rollout
+mechanism in this repository can currently apply any of these fixes** — Step 1 below is
+back to being a table of narrow entry points for a human with database access to call
+one at a time, by hand, with the module-composition risk in point 4 read and understood
+before touching any service that isn't a bare, freshly-seeded tree.
+
+## First revision note
 
 The previous version of this document recommended running two of these files "wholesale,"
 calling them "single-purpose" and "single-service." Direct review on PR #56 found both
@@ -68,39 +123,28 @@ any database. The narrow, exported entry point for each, one service at a time:
 | B.18 (soundbar) | `prisma/seed-appliance-services.ts` | `seedSoundbar()` | `soundbar-installation` |
 | B.19 (dishwasher) | `prisma/seed-appliance-services.ts` | `seedApplianceElectrical("dishwasher-electrical")` | `dishwasher-electrical` only — `garbage-disposal-install` is no longer touched |
 
-**A new runner exists for exactly this table:**
-`scripts/rollout-electrical-tree-fixes.ts`. It imports only the seven narrow functions
-above — it contains no tree-building or pricing logic of its own — and defaults to a dry
-run:
+**No runner exists for this table.** Per the revision note above, applying any row
+means a person with database access reading that function's full body first —
+including whether the target service, on the database they're pointed at, has a
+tree-modifying module already attached — and, if it does, either re-running the exact
+sequence of module-attachment seeds that `seed-all.ts` documents (in that order, after
+the fix) or not touching that service this way at all. Checked directly against every
+module-seed file in this repository, not assumed, for these seven services:
 
-```
-npx tsx scripts/rollout-electrical-tree-fixes.ts --list
-npx tsx scripts/rollout-electrical-tree-fixes.ts --target b19-dishwasher
-```
+| Service | Tree-modifying module(s) attached, per current seed files | Risk from a bare `clearServiceTree()`-based rebuild |
+|---|---|---|
+| `new-ceiling-light`, `new-ceiling-fan` | `seed-height-access.ts`, `seed-lighting-control.ts`, `seed-fixture-finish-ack.ts`, `seed-conditional-disclaimers.ts` | **Real.** All four insert into or attach onto the tree these two functions rebuild from scratch. |
+| `dedicated-120v-circuit-outlet` | `seed-conditional-disclaimers.ts` — inserts a `device_on_exterior_wall` contingency question directly after `dedicated_route_access` | **Real.** Confirmed by reading `EXTERIOR_WALL_SERVICES` in that file; not the "not known to carry one" the first draft of this note assumed before checking. |
+| `240v-garage-outlet` | None found (only `seed-labor-hours.ts`, a non-tree scalar field) | None as far as this reading found — consistent with B.16 leaving it a genuine 0-question service. |
+| `replace-standard-outlet` | None in the tree sense; `seedDeviceModule()` itself uses `upsertQuestion` in place, never `clearServiceTree()` | None — this entry point was never destructive to begin with. |
+| `soundbar-installation`, `dishwasher-electrical` | None found (only `seed-labor-hours.ts`/`seed-pricing-inputs.ts`, non-tree scalar fields) | None as far as this reading found. |
 
-Dry run prints the **current live** question/answer tree for every service the named
-target touches (normalized: routing captured by question *key*, not the id it resolves
-to today, so it's comparable across environments). It performs no writes and calls no
-seed function.
-
-**Customized-tree check, before any `--apply` is possible:**
-
-```
-npx tsx scripts/rollout-electrical-tree-fixes.ts --target b19-dishwasher --dump-baseline
-```
-
-captures the current live tree for that target's service(s) to
-`prisma/_baselines/<slug>.json` — a snapshot of what it looked like right before the fix
-is applied. `--apply` refuses unless the live tree still matches that baseline exactly;
-if an admin changed wording, pricing, or routing on the same service after the baseline
-was captured, `--apply` prints the diff and stops rather than silently overwriting it
-via `clearServiceTree()`. `--force` bypasses this for an operator who has reviewed the
-diff and wants to proceed anyway.
-
-**No baseline exists yet for any service** — this repository has no database
-connection, so none has been captured, and `--apply` cannot currently succeed for any
-target. Capturing one, reviewing a dry run, and applying are three separate,
-human-reviewed steps; this plan does not compress them into one command.
+So three of the seven rows (`new-ceiling-light`, `new-ceiling-fan`,
+`dedicated-120v-circuit-outlet`) are unsafe to apply via their narrow function alone on
+any database where the normal module seeds have already run — which describes Elite's
+own live catalog, per the audit's own account of it. Applying those three correctly
+needs the module re-attachment step spelled out above, not just the narrow fix
+function; the other four rows are genuinely safe to call standalone as documented.
 
 **Every real run needs, immediately after, per the existing convention:**
 `npx tsx prisma/repair-trees.ts` (dangling/unreachable check — the same backstop
@@ -190,7 +234,9 @@ risk than adding one.
 
 ## What this plan does not do
 
-It does not run any of the commands above. It does not decide whether BrightPath (or any
+**It contains no runnable rollout tooling.** The runner from the prior revision was
+withdrawn (see the revision note above) rather than repaired, and nothing has replaced
+it. It does not run any of the commands above. It does not decide whether BrightPath (or any
 other contractor) should adopt any specific change — that's a per-contractor,
 per-service call for whoever operates this, informed by what `--status` reports, not a
 blanket "adopt everything this audit changed." It does not retire the four
