@@ -46,7 +46,11 @@ export async function seedRoutingV2Fixtures(db: PrismaClient = prisma) {
         slug: f.slug, name: f.name, categoryId: anchor.categoryId,
         contractorId: anchor.contractorId, contractorCategoryId: anchor.contractorCategoryId,
         tradeKey: anchor.tradeKey, bookingType: anchor.bookingType,
-        active: false, offered: false, basePrice: null, publishedPriceApprovedAt: null,
+        // No price field is written, not even null: the columns are nullable
+        // with no default, and pricing state belongs to the supported lifecycle.
+        // An existing fixture is left untouched (create-only above).
+        // audit-price-writers holds this file to zero price-field tokens.
+        active: false, offered: false,
         shortDescription: "Routing V2 verification fixture. Never offered to a customer.",
       }, select: { id: true } });
 

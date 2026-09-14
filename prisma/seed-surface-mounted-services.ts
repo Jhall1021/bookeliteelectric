@@ -79,10 +79,16 @@ export async function seedSurfaceMountedServices(db: PrismaClient = prisma) {
             contractorCategoryId: anchor.contractorCategoryId,
             tradeKey: anchor.tradeKey, bookingType: anchor.bookingType,
             // INACTIVE AND UNPRICED, deliberately. The route's components carry
-            // no approved economics, so a price cannot be computed anyway; this
-            // makes that state explicit rather than incidental.
-            active: false, offered: false, basePrice: null,
-            publishedPriceApprovedAt: null,
+            // no approved economics, so a price cannot be computed anyway.
+            //
+            // NO PRICE FIELD IS WRITTEN — not even null. The price columns are
+            // nullable with no default, so a new row is unpriced without this
+            // seed saying so, and pricing state belongs to the supported
+            // lifecycle (publishSuggestedPrice / derived approval), not a seed.
+            // The update branch above writes name and description only, so a
+            // rerun can never clear a price an existing service has earned.
+            // audit-price-writers holds this file to zero price-field tokens.
+            active: false, offered: false,
           },
           select: { id: true },
         });

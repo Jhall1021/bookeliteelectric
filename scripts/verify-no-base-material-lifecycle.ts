@@ -57,7 +57,9 @@ async function main() {
             categoryId: anchor.categoryId, contractorId: eliteId,
             contractorCategoryId: anchor.contractorCategoryId,
             tradeKey: anchor.tradeKey, bookingType: anchor.bookingType,
-            active: false, offered: false, basePrice: null,
+            // No price field: the columns are nullable with no default, and this
+            // verifier is about material state, never pricing state.
+            active: false, offered: false,
             shortDescription: "Rolled back by verify-no-base-material-lifecycle.",
             ...data,
           },
