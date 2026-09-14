@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
+import { REROUTE_HANDOFF_KEY, serializeHandoff } from "@/lib/rerouteHandoff";
 
 type Props = {
   serviceId: string;
@@ -11,8 +12,7 @@ type Props = {
   answers?: Record<string, string>;
 };
 
-/** Where a reroute leaves its answers for the target flow to pick up. */
-export const REROUTE_HANDOFF_KEY = "elite:reroute-handoff";
+export { REROUTE_HANDOFF_KEY };
 
 /**
  * The "no dead ends" rule in practice: when an answer shows the customer
@@ -63,7 +63,7 @@ export default function RerouteNotice({ serviceId, reason, answers }: Props) {
       try {
         sessionStorage.setItem(
           REROUTE_HANDOFF_KEY,
-          JSON.stringify({ targetServiceId: serviceId, answers })
+          serializeHandoff({ targetServiceId: serviceId, answers })
         );
       } catch {
         // Private browsing, or storage full. The customer answers a few

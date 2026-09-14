@@ -15,12 +15,18 @@ import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
 import EstimateRangeCard from "./EstimateRangeCard";
 import { estimateRange } from "@/lib/timeAndMaterials";
-import RerouteNotice, { REROUTE_HANDOFF_KEY } from "./RerouteNotice";
+import RerouteNotice from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
 import { advanceQueue, queuedServiceHref } from "@/lib/multiServiceQueue";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 import RouteAssistQuestionAssist from "@/components/route-assist/RouteAssistQuestionAssist";
+import {
+  REROUTE_HANDOFF_KEY,
+  serializeHandoff,
+  consumeHandoffForTarget,
+  buildTroubleshootingNote,
+} from "@/lib/rerouteHandoff";
 
 type Props = {
   serviceSlug: string;
@@ -166,36 +172,22 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       // the service it was meant for, so a stale one from earlier in the
       // session can't leak into an unrelated flow. Reuse is right for the
       // reroute that created it and wrong for anything else.
+      // Parsing/filtering is a pure function (lib/rerouteHandoff.ts, tested
+      // DB-free and DOM-free in scripts/verify-reroute-handoff.ts) — this is
+      // just the browser-API plumbing around it: read, clear (single-use,
+      // per the module docstring), hand the raw value to the pure function.
       let carried: Record<string, string> = {};
       let carriedNote = "";
       try {
         const raw = sessionStorage.getItem(REROUTE_HANDOFF_KEY);
-        if (raw) {
-          sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
-          const payload = JSON.parse(raw);
-          if (payload?.targetServiceId === data.id) {
-            if (payload.answers) {
-              // Only keys this service actually asks about. A shared key like
-              // ceiling height transfers; one that happens to collide does not
-              // silently answer a question the customer never saw.
-              const keys = new Set(data.questions.map((q: QuestionDTO) => q.key));
-              carried = Object.fromEntries(
-                Object.entries(payload.answers as Record<string, string>).filter(([k]) =>
-                  keys.has(k)
-                )
-              );
-            }
-            // Intake context (B.4), not an answer to any question this tree
-            // asks — deliberately NOT filtered against `keys` the way
-            // `answers` is above. A troubleshooting reroute carries this
-            // instead of `answers`: the destination's own questions (it may
-            // have none) are a separate concern from what the customer
-            // already told the ORIGINATING service.
-            if (typeof payload.customerNote === "string" && payload.customerNote.trim()) {
-              carriedNote = payload.customerNote;
-            }
-          }
-        }
+        sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
+        const consumed = consumeHandoffForTarget(
+          raw,
+          data.id,
+          data.questions.map((q: QuestionDTO) => q.key)
+        );
+        carried = consumed.answers;
+        carriedNote = consumed.customerNote;
       } catch {
         // Storage unavailable. The customer answers again — not ideal, not
         // broken.
@@ -782,17 +774,16 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // B.4: what will reach the technician, in the same words the destination
     // flow will pre-fill into its own editable note. Built here, once, from
     // context that's always available — not gated on this specific answer
-    // having its own authored disclaimer (B.5).
-    const intakeNote =
-      `From ${state.originServiceName}: "${state.answerLabel}."` +
-      (state.note ? ` ${state.note}` : "");
+    // having its own authored disclaimer (B.5). Pure function, tested
+    // DB-free/DOM-free — see lib/rerouteHandoff.ts.
+    const intakeNote = buildTroubleshootingNote(state.originServiceName, state.answerLabel, state.note);
 
     function bookTroubleshooting() {
       if (!troubleshooting) return;
       try {
         sessionStorage.setItem(
           REROUTE_HANDOFF_KEY,
-          JSON.stringify({ targetServiceId: troubleshooting!.id, customerNote: intakeNote })
+          serializeHandoff({ targetServiceId: troubleshooting!.id, customerNote: intakeNote })
         );
       } catch {
         // Private browsing, or storage full. The customer starts the
