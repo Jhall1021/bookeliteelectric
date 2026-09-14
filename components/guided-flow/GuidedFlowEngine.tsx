@@ -8,6 +8,7 @@ import {
   startDisplayConfiguration,
   applyBranch,
   customerPrice,
+  resolveReferencedServicePriceCents,
   type JobConfiguration,
 } from "@/lib/pricing";
 import ServiceIntro from "./ServiceIntro";
@@ -295,7 +296,17 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   ):
     | { kind: "continue"; config: JobConfiguration; nextQuestionId: string | null }
     | { kind: "terminal"; config: JobConfiguration; state: TerminalState } {
-    const nextConfig = applyBranch(cfg, option, ans);
+    // A referenced-service answer carries its primary AND add-on price
+    // separately (lib/flow-types.ts) precisely because `isAddOn` — decided
+    // here, from this visit's own state — determines which one applies.
+    // Passing `option` straight to applyBranch would silently use whichever
+    // shape happened to be on the DTO regardless of that; this resolves the
+    // one that matches, the same way the anchor price two lines down does.
+    const nextConfig = applyBranch(
+      cfg,
+      { ...option, referencedServicePriceCents: resolveReferencedServicePriceCents(option, isAddOn) },
+      ans
+    );
 
     // What the customer pays comes from the PUBLISHED price plus approved
     // increments — never from the calculated configuration. A service whose
@@ -687,6 +698,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           question={state.question}
           answers={answers}
           accessBySlot={config?.accessBySlot ?? {}}
+          isAddOn={isAddOn}
           onAnswer={(option) => handleAnswer(state.question, option)}
         />
         <RouteAssistQuestionAssist

@@ -66,7 +66,12 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
               // contractorId travels for the tenant check below, never for
               // display — defense in depth alongside the write-time guard in
               // the admin tree editor and template provisioning.
-              referencedService: { select: { basePrice: true, contractorId: true } },
+              // whileWeThereBasePrice travels alongside basePrice so this
+              // endpoint can supply both anchors — see
+              // referencedServicePrimaryCents/referencedServiceAddOnCents
+              // below; picking between them needs to know isAddOn, which
+              // this endpoint doesn't.
+              referencedService: { select: { basePrice: true, whileWeThereBasePrice: true, contractorId: true } },
               // Components come down with the tree so the engine can
               // accumulate a configuration client-side without a round trip
               // per answer.
@@ -216,24 +221,31 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         // Live lookup, not the frozen seed-time number, whenever this option
         // references another service — this is what makes admin edits to
         // e.g. Elite Tilt Mount's price actually show up here. A SEPARATE
-        // field from priceModifierCents above (see BranchContribution in
-        // lib/pricing.ts): that one always applies at whatever it holds, so
-        // folding a missing/cross-tenant reference into it here would have
-        // the browser show a confident price the server (lib/routeResolver.ts,
-        // which resolves the identical field the identical way) would
-        // actually refuse — exactly the fallback this replaces.
+        // pair of fields from priceModifierCents above (see
+        // BranchContribution in lib/pricing.ts): that one always applies at
+        // whatever it holds, so folding a missing/cross-tenant reference into
+        // it here would have the browser show a confident price the server
+        // (lib/routeResolver.ts, which resolves the identical fields the
+        // identical way) would actually refuse.
         //
-        // Primary price only, not While-We're-There-aware: this DTO doesn't
-        // yet know whether the visit it's about to join is an add-on (that's
-        // decided client-side, from a separate /api/visit read) — consistent
-        // with every other delta on this option, none of which vary by
-        // add-on status in preview either. The eventual CHARGE is still
-        // correct either way: lib/routeResolver.ts receives isPrimary
-        // explicitly at booking time and picks the matching figure there.
-        referencedServicePriceCents: !o.referencedServiceId
+        // BOTH primary and add-on prices travel — this DTO doesn't know
+        // which one a customer will need (isAddOn is decided client-side,
+        // from a separate /api/visit read), so it can't pick for them.
+        // lib/pricing.ts's resolveReferencedServicePriceCents is the ONE
+        // place either is chosen, client-side, once isAddOn is known — never
+        // read one of these two fields ad hoc and hand it to applyBranch.
+        // Each is independently null when unresolved (missing/cross-tenant
+        // reference, or the referenced service has no price recorded for
+        // that specific anchor) — never backfilled from the other.
+        referencedServicePrimaryCents: !o.referencedServiceId
           ? undefined
           : o.referencedService && o.referencedService.contractorId === site.contractorId
             ? o.referencedService.basePrice
+            : null,
+        referencedServiceAddOnCents: !o.referencedServiceId
+          ? undefined
+          : o.referencedService && o.referencedService.contractorId === site.contractorId
+            ? o.referencedService.whileWeThereBasePrice
             : null,
         nextQuestionId: o.nextQuestionId,
         routeAction: o.routeAction,

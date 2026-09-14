@@ -63,7 +63,13 @@ import {
   resolveRoute,
   type ResolvedRoute,
 } from "../lib/routeResolver";
-import { applyBranch, answerPriceDelta, startConfiguration, type BranchContribution } from "../lib/pricing";
+import {
+  applyBranch,
+  answerPriceDelta,
+  startConfiguration,
+  resolveReferencedServicePriceCents,
+  type BranchContribution,
+} from "../lib/pricing";
 import type { PricingSettings } from "../lib/pricing";
 
 let pass = 0;
@@ -338,6 +344,74 @@ function priceOf(route: ResolvedRoute): number | null {
   const previewUnresolved = answerPriceDelta(unresolved);
   ok("12d. the live per-option preview refuses a number for an unresolved reference — no stale fallback shown",
     previewUnresolved.cents === null && previewUnresolved.needsReview === true);
+}
+
+// ---- 13. The WWT display/charge fix — closing the gap the server-only fix left ----
+//
+// Correction round: commit 7 fixed resolveRoute (the SERVER) to pick
+// isPrimary ? basePrice : whileWeThereBasePrice. But GuidedFlowEngine passed
+// the DTO's raw (primary-only) field into applyBranch regardless of isAddOn,
+// and the DTO itself only ever supplied basePrice. Two Elite mounts happening
+// to publish IDENTICAL primary/WWT figures ($125/$125, $200/$200) meant this
+// never showed up in practice — the test fixtures below use DELIBERATELY
+// DIFFERENT primary/WWT values specifically so an implementation that quietly
+// ignores isAddOn (or one that accidentally tests against equal figures and
+// calls that proof) cannot pass silently.
+{
+  // A DTO-shaped option carrying genuinely different primary/add-on prices —
+  // exactly the shape app/api/services/[slug]/route.ts now sends.
+  const dto = { referencedServicePrimaryCents: 12500, referencedServiceAddOnCents: 9000 };
+
+  ok("13a. resolveReferencedServicePriceCents picks PRIMARY when the visit is not an add-on",
+    resolveReferencedServicePriceCents(dto, false) === 12500);
+  ok("13b. resolveReferencedServicePriceCents picks ADD-ON when the visit IS an add-on — the actual fix",
+    resolveReferencedServicePriceCents(dto, true) === 9000);
+
+  // End-to-end through the same functions QuestionStep/GuidedFlowEngine call,
+  // proving the PREVIEW and the RESOLVED price both flip with isAddOn — not
+  // just the standalone helper in isolation.
+  const primaryBranch: BranchContribution = { referencedServicePriceCents: resolveReferencedServicePriceCents(dto, false) };
+  const addOnBranch: BranchContribution = { referencedServicePriceCents: resolveReferencedServicePriceCents(dto, true) };
+  const cfg = startConfiguration({ fieldLaborHours: 2, materialCostCents: 0, estimatedMinutes: 60, requiresTechCount: 1 });
+  ok("13c. the resolved CONFIGURATION differs by isAddOn (server-matching, not just the helper)",
+    applyBranch(cfg, primaryBranch, {}).approvedIncrementCents === 12500 &&
+    applyBranch(cfg, addOnBranch, {}).approvedIncrementCents === 9000);
+  ok("13d. the live PREVIEW differs by isAddOn the same way — no stale primary-only badge on an add-on visit",
+    answerPriceDelta(primaryBranch).cents === 12500 && answerPriceDelta(addOnBranch).cents === 9000);
+
+  // Null WWT pricing: a real primary price, but this referenced service has
+  // never had a While-We're-There figure set (Service.whileWeThereBasePrice
+  // is nullable). Must review on an add-on visit, never fall back to the
+  // primary figure — falling back would be a DIFFERENT, quieter version of
+  // exactly the bug this whole mechanism exists to prevent.
+  const dtoNullWwt = { referencedServicePrimaryCents: 12500, referencedServiceAddOnCents: null };
+  ok("13e. null WWT pricing resolves to null for an add-on visit, not the primary figure",
+    resolveReferencedServicePriceCents(dtoNullWwt, true) === null);
+  ok("13f. ...and that null forces review through the real pricing engine",
+    applyBranch(cfg, { referencedServicePriceCents: resolveReferencedServicePriceCents(dtoNullWwt, true) }, {}).awaitingComponentApproval === true);
+  ok("13g. the SAME referenced service still prices normally on a primary (non-add-on) visit",
+    resolveReferencedServicePriceCents(dtoNullWwt, false) === 12500);
+
+  // Valid zero pricing, independently for each anchor — a strict-null check,
+  // not a falsiness check, so an approved $0 add-on price is never confused
+  // with "no add-on price set."
+  const dtoZeroAddOn = { referencedServicePrimaryCents: 12500, referencedServiceAddOnCents: 0 };
+  ok("13h. a valid $0 add-on price is distinguished from a missing one — resolves to 0, not null",
+    resolveReferencedServicePriceCents(dtoZeroAddOn, true) === 0);
+  ok("13i. ...and prices the anchor exactly, not a review, through the real pricing engine",
+    (() => {
+      const r = applyBranch(cfg, { referencedServicePriceCents: resolveReferencedServicePriceCents(dtoZeroAddOn, true) }, {});
+      return !r.awaitingComponentApproval && r.approvedIncrementCents === 0;
+    })());
+
+  // An option that isn't a reference at all (both fields absent) must be
+  // completely unaffected by isAddOn — resolveReferencedServicePriceCents
+  // returns undefined regardless, exactly as it did before this field paid
+  // any attention to add-on status.
+  const notAReference = {};
+  ok("13j. a non-referencing option is unaffected by isAddOn in either direction",
+    resolveReferencedServicePriceCents(notAReference, false) === undefined &&
+    resolveReferencedServicePriceCents(notAReference, true) === undefined);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

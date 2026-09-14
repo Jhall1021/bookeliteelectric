@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
-import { answerPriceDelta } from "@/lib/pricing";
+import { answerPriceDelta, resolveReferencedServicePriceCents } from "@/lib/pricing";
 import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
 
@@ -22,10 +22,20 @@ type Props = {
    * which before the customer picks it.
    */
   accessBySlot: AccessBySlot;
+  /**
+   * Whether this visit is an add-on (has an existing primary service already)
+   * — decides which of a referenced-service answer's two prices
+   * (`referencedServicePrimaryCents`/`referencedServiceAddOnCents`) this
+   * preview shows, the same way it decides which anchor price the resolved
+   * total uses. Without this, the live "+$125" badge next to a mount option
+   * could show the standalone price while the customer is actually booking
+   * an add-on visit the server would charge differently for.
+   */
+  isAddOn: boolean;
   onAnswer: (option: AnswerOptionDTO) => void;
 };
 
-export default function QuestionStep({ question, answers, accessBySlot, onAnswer }: Props) {
+export default function QuestionStep({ question, answers, accessBySlot, isAddOn, onAnswer }: Props) {
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
 
@@ -95,7 +105,11 @@ export default function QuestionStep({ question, answers, accessBySlot, onAnswer
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {question.options.map((option) => {
-          const delta = answerPriceDelta(option, answers, accessBySlot);
+          const delta = answerPriceDelta(
+            { ...option, referencedServicePriceCents: resolveReferencedServicePriceCents(option, isAddOn) },
+            answers,
+            accessBySlot
+          );
           // Only an answer that SETTLES something can promise a price. A
           // CONTINUE answer carrying no charge of its own says nothing —
           // what the customer pays still depends on later questions, so
