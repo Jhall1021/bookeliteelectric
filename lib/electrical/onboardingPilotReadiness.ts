@@ -71,9 +71,18 @@ export const PILOT_ROUTE = { feet: 31, inside: 0, outside: 0, flat: 0 };
  * reaches it — omitting it made the route INVALID, which read downstream as a
  * missing product. One definition, shared by the page, the readiness route
  * and the suites, so they cannot drift onto different routes.
+ *
+ * `purpose: "general_use"` — not `outlet_load_type: "everyday"`. The
+ * qualification question was redesigned in `prisma/seed-questions.ts`
+ * ("don't ask the customer to self-classify into a pricing tier they can't
+ * articulate") well after this constant was written, and this never followed
+ * the rename: a `new-120v-outlet` installed from a template extracted off a
+ * currently-seeded contractor has `purpose`/`general_use`, not
+ * `outlet_load_type`/`everyday`, and the old key was simply never read,
+ * leaving the route unqualified before it ever reached the install method.
  */
 export const PILOT_ANSWERS: Record<string, string> = {
-  outlet_load_type: "everyday", outlet_power_source: "tap_existing",
+  purpose: "general_use",
   below_above_access: "no_access", outlet_install_method: "surface",
   [SURFACE_KEYS.feet]: String(PILOT_ROUTE.feet), [SURFACE_KEYS.inside]: "0",
   [SURFACE_KEYS.outside]: "0", [SURFACE_KEYS.flat]: "0",
