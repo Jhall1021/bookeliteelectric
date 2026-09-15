@@ -1,4 +1,8 @@
-import { validateRouteAssistScanEvidenceV1, type RouteAssistScanEvidenceV1 } from "./scanEvidence";
+import {
+  validateRouteAssistScanEvidenceV1,
+  type RouteAssistScanEvidenceV1,
+  type RouteScanObservation,
+} from "./scanEvidence";
 import type { RouteAssistDestinationType, RouteAssistMode } from "./taxonomy";
 import type { RouteAssistCaptureArtifacts, RoutePoint, RouteSegment } from "./types";
 
@@ -96,6 +100,38 @@ function providerInputSnapshot(
   };
 }
 
+function observationSnapshot<T>(
+  observation: RouteScanObservation<T> | null | undefined,
+): RouteScanObservation<T> | null | undefined {
+  if (observation == null) return observation;
+  return { ...observation };
+}
+
+function providerEvidenceSnapshot(
+  evidence: RouteAssistScanEvidenceV1,
+): RouteAssistScanEvidenceV1 {
+  // The provider owns the object it returned and may retain that reference.
+  // Validate and expose only our detached snapshot so a later provider-side
+  // mutation cannot rewrite evidence that already crossed this authority gate.
+  return {
+    version: evidence.version,
+    sourcePointId: evidence.sourcePointId,
+    destinationPointId: evidence.destinationPointId,
+    segments: evidence.segments.map((segment) => ({
+      ...segment,
+      measuredLengthFt: observationSnapshot(segment.measuredLengthFt),
+      surface: observationSnapshot(segment.surface),
+      surfacePlaneId: observationSnapshot(segment.surfacePlaneId),
+      orientation: observationSnapshot(segment.orientation),
+    })),
+    transitions: evidence.transitions.map((transition) => ({
+      ...transition,
+      physicalTurn: observationSnapshot(transition.physicalTurn),
+      obstacleContext: observationSnapshot(transition.obstacleContext),
+    })),
+  };
+}
+
 /**
  * Run one provider and stop at validated evidence.
  *
@@ -115,9 +151,9 @@ export async function runRouteAssistScanProviderV1(
     };
   }
 
-  let evidence: RouteAssistScanEvidenceV1;
+  let providerEvidence: RouteAssistScanEvidenceV1;
   try {
-    evidence = await provider.analyze(providerInputSnapshot(input));
+    providerEvidence = await provider.analyze(providerInputSnapshot(input));
   } catch {
     return {
       providerKey: provider.providerKey,
@@ -126,6 +162,7 @@ export async function runRouteAssistScanProviderV1(
     };
   }
 
+  const evidence = providerEvidenceSnapshot(providerEvidence);
   const validation = validateRouteAssistScanEvidenceV1(
     [...input.points],
     [...input.segments],
