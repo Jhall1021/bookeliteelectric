@@ -30,7 +30,17 @@ import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
-const MATERIALS = [
+type MaterialSeed = {
+  key: string;
+  name: string;
+  unitCostCents: number;
+  unit: string;
+  notes?: string;
+  /** Omit for the (default) active role. `false` retires the canonical role. */
+  active?: boolean;
+};
+
+const MATERIALS: MaterialSeed[] = [
   // --- wire, priced per foot from the 250 ft roll costs ------------------
   { key: "WIRE_14_2", name: "14/2 NM-B cable", unitCostCents: 50, unit: "ft", notes: "$125 per 250 ft roll." },
   { key: "WIRE_12_2", name: "12/2 NM-B cable", unitCostCents: 72, unit: "ft", notes: "$180 per 250 ft roll. 44% over 14/2." },
@@ -399,10 +409,17 @@ async function main() {
     // Writing both from one seed is a transitional convenience. Once the
     // template library exists, canonical roles arrive with the template and
     // only the costs are the contractor's to enter.
+    // `active` was declared on every entry but never reached the database —
+    // update()/create() only forwarded name/unit/notes, so DUCT_CONNECTOR's
+    // `active: false` was silently dropped and the row stayed active in
+    // production. Fixed generically: any entry omitting `active` keeps the
+    // schema's own default (true) via `?? true`, so every pre-existing
+    // active role is unaffected; only an entry that explicitly declares
+    // `active: false` now actually retires.
     const canonical = await prisma.canonicalMaterial.upsert({
       where: { key: m.key },
-      update: { name: m.name, unit: m.unit, notes: m.notes ?? null },
-      create: { key: m.key, name: m.name, unit: m.unit, notes: m.notes ?? null },
+      update: { name: m.name, unit: m.unit, notes: m.notes ?? null, active: m.active ?? true },
+      create: { key: m.key, name: m.name, unit: m.unit, notes: m.notes ?? null, active: m.active ?? true },
     });
 
     // Whether a figure is quoted or assumed has lived in a notes string,
