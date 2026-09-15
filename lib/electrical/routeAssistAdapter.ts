@@ -37,6 +37,7 @@
  * the visual system can prove the specific condition.
  */
 
+import { exactPhysicalTurnCountsFromResult } from "../visual-assist/route-assist/orderedGeometry";
 import type { RouteAssistResult } from "../visual-assist/route-assist/types";
 
 /** Why a field produced no canonical fact. Every value is a decision. */
@@ -65,6 +66,12 @@ export type RoutingV2ObservedFacts = {
   installMethod: "surface" | "concealed" | null;
   /** Measured feet. Fractional physical scope is preserved, never rounded to a whole foot. */
   routeLengthFt: number | null;
+  /**
+   * Exact PHYSICAL raceway fitting counts. Null unless Ordered Geometry V1 has
+   * explicit physicalTurn evidence at every interior waypoint. The legacy
+   * image-space corner aggregates never populate these fields.
+   */
+  flatCorners: number | null;
   insideCorners: number | null;
   outsideCorners: number | null;
   /**
@@ -95,8 +102,18 @@ export const FIELD_CLASSIFICATION: Record<
 > = {
   mode: { classification: "MAPPED", reason: "install method — surface vs concealed" },
   estimatedTotalRouteLengthFt: { classification: "MAPPED", reason: "measured route length in feet" },
-  insideCornersCount: { classification: "MAPPED", reason: "inside-corner count" },
-  outsideCornersCount: { classification: "MAPPED", reason: "outside-corner count" },
+  insideCornersCount: {
+    classification: "UNMAPPED_INTENTIONALLY",
+    reason:
+      "Legacy 2-D image-space turn direction. Useful for the manual overlay/summary, but not physical fitting authority; " +
+      "Routing V2 corner quantities come only from explicit RoutePoint.physicalTurn evidence in ordered geometry.",
+  },
+  outsideCornersCount: {
+    classification: "UNMAPPED_INTENTIONALLY",
+    reason:
+      "Legacy 2-D image-space turn direction. Useful for the manual overlay/summary, but not physical fitting authority; " +
+      "Routing V2 corner quantities come only from explicit RoutePoint.physicalTurn evidence in ordered geometry.",
+  },
   suggestedAccessOpeningsMin: { classification: "MAPPED", reason: "access-opening observation (exact when min === max, else a range)" },
   suggestedAccessOpeningsMax: { classification: "MAPPED", reason: "access-opening observation (exact when min === max, else a range)" },
   drywallAccessAllowed: { classification: "MAPPED", reason: "whether the homeowner permits drywall access" },
@@ -125,15 +142,15 @@ export const FIELD_CLASSIFICATION: Record<
   },
   verticalTransitionsCount: {
     classification: "UNMAPPED_INTENTIONALLY",
-    reason: "Pending an ordered-route representation; a vertical run is a segment kind, not a count, once fittings are placed in sequence.",
+    reason: "Ordered geometry retains the segment sequence; no canonical Routing V2 primitive consumes this aggregate count today.",
   },
   wallToCeilingTransitionsCount: {
     classification: "UNMAPPED_INTENTIONALLY",
-    reason: "A wall-to-ceiling transition is a segment KIND, not a count, once fittings are placed in sequence. Pending the ordered-route representation.",
+    reason: "A wall-to-ceiling transition is a segment relationship, not a generic count to reinterpret as a raceway corner fitting.",
   },
   wallToFloorTransitionsCount: {
     classification: "UNMAPPED_INTENTIONALLY",
-    reason: "A wall-to-floor transition is likewise a segment kind awaiting the ordered-route representation; counting them tells a takeoff nothing about where they occur.",
+    reason: "A wall-to-floor transition is likewise a segment relationship and is not overloaded into a corner-fitting quantity.",
   },
   visibleObstacleDetoursCount: {
     classification: "UNMAPPED_INTENTIONALLY",
@@ -144,12 +161,12 @@ export const FIELD_CLASSIFICATION: Record<
     reason: "A CLASSIFICATION, not an observation. Routing V2 makes its own judgements from counts; importing someone else's grade would move a decision across the boundary.",
   },
   points: {
-    classification: "UNMAPPED_INTENTIONALLY",
-    reason: "Ordered geometry. Retained by Route Assist for a future takeoff that needs fittings placed in sequence; no consumer here yet.",
+    classification: "MAPPED",
+    reason: "Ordered Geometry V1 carries explicit RoutePoint.physicalTurn evidence used only when the full transition set is established.",
   },
   segments: {
-    classification: "UNMAPPED_INTENTIONALLY",
-    reason: "As points — the ordered representation is not designed yet and must not be guessed at.",
+    classification: "MAPPED",
+    reason: "Ordered Geometry V1 uses the persisted route graph to establish transition order and completeness; no pricing/material logic lives here.",
   },
   destinationType: {
     classification: "UNMAPPED_INTENTIONALLY",
@@ -170,12 +187,6 @@ function measuredFeet(n: number | null | undefined): { ok: true; value: number }
   if (n === null || n === undefined) return null;
   if (!Number.isFinite(n)) return { ok: false, reason: `${n} is not a finite number` };
   if (n < 0) return { ok: false, reason: `${n} is negative` };
-  return { ok: true, value: n };
-}
-
-function wholeCount(n: number | null | undefined): { ok: true; value: number } | { ok: false; reason: string } | null {
-  if (n === null || n === undefined) return null;
-  if (!Number.isInteger(n) || n < 0) return { ok: false, reason: `${n} is not a non-negative whole number` };
   return { ok: true, value: n };
 }
 
@@ -206,10 +217,6 @@ export function adaptRouteAssistResult(result: RouteAssistResult): RouteAssistAd
 
   const len = measuredFeet(result.estimatedTotalRouteLengthFt);
   if (len && !len.ok) invalid.push({ field: "estimatedTotalRouteLengthFt", reason: len.reason });
-  const inside = wholeCount(result.insideCornersCount);
-  if (inside && !inside.ok) invalid.push({ field: "insideCornersCount", reason: inside.reason });
-  const outside = wholeCount(result.outsideCornersCount);
-  if (outside && !outside.ok) invalid.push({ field: "outsideCornersCount", reason: outside.reason });
 
   const min = result.suggestedAccessOpeningsMin;
   const max = result.suggestedAccessOpeningsMax;
@@ -231,12 +238,15 @@ export function adaptRouteAssistResult(result: RouteAssistResult): RouteAssistAd
     }
   }
 
+  const exactTurns = result.mode === "SURFACE" ? exactPhysicalTurnCountsFromResult(result) : null;
+
   const mapped: RoutingV2ObservedFacts = {
     installMethod:
       result.mode === "SURFACE" ? "surface" : result.mode === "CONCEALED" ? "concealed" : null,
     routeLengthFt: len && len.ok ? len.value : null,
-    insideCorners: inside && inside.ok ? inside.value : null,
-    outsideCorners: outside && outside.ok ? outside.value : null,
+    flatCorners: exactTurns?.flat ?? null,
+    insideCorners: exactTurns?.inside ?? null,
+    outsideCorners: exactTurns?.outside ?? null,
     accessOpeningsExact,
     accessOpeningsRange,
     drywallAccessAllowed: result.drywallAccessAllowed ?? null,
