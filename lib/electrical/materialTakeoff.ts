@@ -174,9 +174,11 @@ export type ConductorFunctionRequirement = {
    *
    * A 240V circuit's two ungrounded (line) conductors are not two functions —
    * they are one function, pulled twice, of the same role. `count` is how that
-   * is stated: a positive whole number, multiplying `footPerConductor` for
-   * THIS entry only. Every caller before this field existed needed exactly
-   * one conductor per function, so `count: 1` reproduces every prior takeoff
+   * is stated: a positive SAFE INTEGER (Number.isSafeInteger — excludes NaN,
+   * +/-Infinity, and any magnitude beyond 2^53-1 as well as zero, negatives,
+   * and fractions), multiplying `footPerConductor` for THIS entry only.
+   * Every caller before this field existed needed exactly one conductor per
+   * function, so `count: 1` reproduces every prior takeoff
    * exactly — this is additive, not a behavior change for those callers.
    *
    * NOT a way to avoid naming a role per function — see the note below.
@@ -403,13 +405,16 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
       });
     }
 
-    // Every count must be a purchasable whole number. A fractional or
-    // non-positive count is not a conductor anyone can pull.
-    const invalidCounts = functions.filter((f) => !Number.isInteger(f.count) || f.count < 1);
+    // Every count must be a purchasable whole number. `Number.isSafeInteger`
+    // rather than `Number.isInteger`: it already excludes NaN and +/-Infinity
+    // the same way, and additionally excludes a magnitude beyond 2^53-1 that
+    // floating point can no longer represent exactly — a count that large is
+    // not a real conductor count, but Number.isInteger would accept it.
+    const invalidCounts = functions.filter((f) => !Number.isSafeInteger(f.count) || f.count < 1);
     for (const f of invalidCounts) {
       unresolved.push({
         code: "CONDUCTOR_COUNT_INVALID", role: f.role,
-        reason: `${f.function} conductor declares a count of ${f.count}, which is not a positive whole number. Conductors are discrete physical items pulled one at a time; a fractional or non-positive count cannot be purchased.`,
+        reason: `${f.function} conductor declares a count of ${f.count}, which is not a positive whole number a purchase can be built from. Conductors are discrete physical items pulled one at a time; a fractional, non-positive, non-finite, or unsafely large count cannot be purchased.`,
       });
     }
 

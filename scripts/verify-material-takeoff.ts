@@ -298,7 +298,7 @@ async function main() {
 
   // Invalid counts are refused, not coerced.
   const invalidCountTakeoffs: MaterialTakeoff[] = [];
-  for (const bad of [0, -1, 1.5]) {
+  for (const bad of [0, -1, 1.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 2]) {
     const invalid = mk({ components: straight, selections: [...selsFive, twoHotSel], turnCount: 0,
       extraDivisibility: twoHotDivisibility,
       conductors: { known: true, footPerConductor: 25, functions: [
