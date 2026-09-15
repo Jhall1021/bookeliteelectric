@@ -156,6 +156,52 @@ const V2_CONCEALED_FEET = "concealed_route_feet";
  */
 const V2_SURFACE_CAPTURE_TASK = V2_SURFACE_FEET;
 
+type SurfaceCaptureCopy = {
+  destinationType: RouteAssistDestinationType;
+  sourceHint: string;
+  destinationHint: string;
+};
+
+/**
+ * One shared surface-route primitive, parameterized only by the endpoint copy.
+ *
+ * `prisma/_surfaceRouteModule.ts` owns the physical route and exposes the same
+ * feet / inside-corner / outside-corner questions for OUTLET, SWITCH and
+ * FIXTURE_BOX endpoints. Route Assist mirrors that architecture here: one
+ * capture contract reused by every service that consumes the shared module,
+ * never cloned per-service routing logic.
+ *
+ * Flat turns are intentionally absent. Route Assist has explicit physical-turn
+ * evidence in its domain, but the current aggregate adapter does not yet expose
+ * an exact flat-turn count into Guided Flow. Until that is separately proven,
+ * the homeowner answers the canonical flat-corner question normally.
+ */
+function surfaceCaptureInvocations(copy: SurfaceCaptureCopy): Record<string, RouteAssistQuestionInvocation> {
+  const common = {
+    taskKey: V2_SURFACE_CAPTURE_TASK,
+    destinationType: copy.destinationType,
+    sourceHint: copy.sourceHint,
+    destinationHint: copy.destinationHint,
+  };
+  return {
+    [V2_SURFACE_FEET]: {
+      ...common,
+      actionLabel: "Not sure? Measure the route with your phone.",
+      resolveAnswerValue: measuredFeetFor("surface"),
+    },
+    [V2_SURFACE_INSIDE]: {
+      ...common,
+      actionLabel: "Count the inside corners with your phone.",
+      resolveAnswerValue: measuredCount("insideCorners"),
+    },
+    [V2_SURFACE_OUTSIDE]: {
+      ...common,
+      actionLabel: "Count the outside corners with your phone.",
+      resolveAnswerValue: measuredCount("outsideCorners"),
+    },
+  };
+}
+
 const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = {
   "new-120v-outlet": {
     /**
@@ -177,33 +223,12 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
       resolveAnswerValue: resolveOutletRunDistance,
     },
 
-    // ROUTING V2 — the authored NUMBER questions. Measured feet, unbanded.
-    // Surface facts share one capture task; each question resolves only its own
-    // fact from that result.
-    [V2_SURFACE_FEET]: {
-      taskKey: V2_SURFACE_CAPTURE_TASK,
+    ...surfaceCaptureInvocations({
       destinationType: "RECEPTACLE",
       sourceHint: "Tap the existing outlet you'd run the power from.",
       destinationHint: "Tap where you'd like the new outlet.",
-      actionLabel: "Not sure? Measure the route with your phone.",
-      resolveAnswerValue: measuredFeetFor("surface"),
-    },
-    [V2_SURFACE_INSIDE]: {
-      taskKey: V2_SURFACE_CAPTURE_TASK,
-      destinationType: "RECEPTACLE",
-      sourceHint: "Tap the existing outlet you'd run the power from.",
-      destinationHint: "Tap where you'd like the new outlet.",
-      actionLabel: "Count the inside corners with your phone.",
-      resolveAnswerValue: measuredCount("insideCorners"),
-    },
-    [V2_SURFACE_OUTSIDE]: {
-      taskKey: V2_SURFACE_CAPTURE_TASK,
-      destinationType: "RECEPTACLE",
-      sourceHint: "Tap the existing outlet you'd run the power from.",
-      destinationHint: "Tap where you'd like the new outlet.",
-      actionLabel: "Count the outside corners with your phone.",
-      resolveAnswerValue: measuredCount("outsideCorners"),
-    },
+    }),
+
     [V2_CONCEALED_FEET]: {
       taskKey: V2_CONCEALED_FEET,
       destinationType: "RECEPTACLE",
@@ -213,6 +238,24 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
       resolveAnswerValue: measuredFeetFor("concealed"),
     },
   },
+
+  // ROUTING V2 direct surface services. These are thin shells around the same
+  // attachSurfaceRouteModule used by the outlet route; only point B changes.
+  "surface-mounted-outlet": surfaceCaptureInvocations({
+    destinationType: "RECEPTACLE",
+    sourceHint: "Tap the existing power source you'd run from.",
+    destinationHint: "Tap where you'd like the new outlet.",
+  }),
+  "surface-mounted-switch": surfaceCaptureInvocations({
+    destinationType: "SWITCH",
+    sourceHint: "Tap the existing power source the switch wiring would start from.",
+    destinationHint: "Tap where you'd like the new switch.",
+  }),
+  "surface-mounted-fixture-box": surfaceCaptureInvocations({
+    destinationType: "SURFACE_BOX",
+    sourceHint: "Tap the existing power source the fixture wiring would start from.",
+    destinationHint: "Tap where you'd like the new surface-mounted fixture box.",
+  }),
 };
 
 /** `null` when this (service, question) pair has no Route Assist path — the only thing a caller needs to check. */
