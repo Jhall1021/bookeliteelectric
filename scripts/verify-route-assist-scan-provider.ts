@@ -76,13 +76,12 @@ function evidence(overrides: Partial<RouteAssistScanEvidenceV1> = {}): RouteAssi
 }
 
 async function run() {
-  let providerOwnedEvidence: RouteAssistScanEvidenceV1 | null = null;
+  const providerOwnedEvidence = evidence();
   const coherentProvider: RouteAssistScanProviderV1 = {
     providerKey: "fake.world.v1",
     async analyze(input) {
       // Try to mutate detached provider input. The caller's graph must survive.
       (input.points[0] as { id: string }).id = "provider-mutated";
-      providerOwnedEvidence = evidence();
       return providerOwnedEvidence;
     },
   };
@@ -96,12 +95,10 @@ async function run() {
   );
   check("provider cannot mutate caller route graph", baseInput.points[0].id === "a", String(baseInput.points[0].id));
 
-  if (providerOwnedEvidence) {
-    providerOwnedEvidence.segments[0].segmentId = "provider-mutated-after-validation";
-    if (providerOwnedEvidence.segments[0].measuredLengthFt) {
-      providerOwnedEvidence.segments[0].measuredLengthFt.value = 99;
-      providerOwnedEvidence.segments[0].measuredLengthFt.confidence = 1;
-    }
+  providerOwnedEvidence.segments[0].segmentId = "provider-mutated-after-validation";
+  if (providerOwnedEvidence.segments[0].measuredLengthFt) {
+    providerOwnedEvidence.segments[0].measuredLengthFt.value = 99;
+    providerOwnedEvidence.segments[0].measuredLengthFt.confidence = 1;
   }
   check(
     "provider cannot mutate validated evidence after the authority gate returns",
@@ -111,7 +108,16 @@ async function run() {
     JSON.stringify(coherent.evidence?.segments[0]),
   );
 
-  const pipeline = await collectRouteAssistScanCandidatesV1(coherentProvider, baseInput);
+  const pipeline = await collectRouteAssistScanCandidatesV1(
+    {
+      providerKey: coherentProvider.providerKey,
+      async analyze(input) {
+        (input.points[0] as { id: string }).id = "provider-mutated-again";
+        return evidence();
+      },
+    },
+    baseInput,
+  );
   check("automatic scan pipeline stops with reviewable candidates", pipeline.evidence !== null && pipeline.candidates !== null, JSON.stringify(pipeline.problems));
   check(
     "complete world-geometry route length stays exact and unrounded in candidate layer",
@@ -129,7 +135,15 @@ async function run() {
     JSON.stringify({ points: baseInput.points, segments: baseInput.segments }),
   );
 
-  const prepared = await prepareRouteAssistScanReviewV1(coherentProvider, baseInput);
+  const prepared = await prepareRouteAssistScanReviewV1(
+    {
+      providerKey: coherentProvider.providerKey,
+      async analyze() {
+        return evidence();
+      },
+    },
+    baseInput,
+  );
   check(
     "preview entry point prepares a review without accepting anything",
     prepared.review !== null && prepared.candidates !== null,
