@@ -29,6 +29,11 @@ export type RouteAssistCalibrationDecisionV1 =
   | { mode: "TRY_VISUAL_REFERENCE"; askHomeownerForScale: false }
   | { mode: "ASK_HOMEOWNER_FOR_SCALE"; askHomeownerForScale: true };
 
+export type RouteAssistAcquisitionPathV1 =
+  | { path: "WORLD_GEOMETRY"; measurementAuthority: "MEASURED"; requiresCamera: false; calibration: "NONE" }
+  | { path: "CALIBRATED_CAMERA"; measurementAuthority: "ESTIMATED"; requiresCamera: true; calibration: "VISUAL_OR_HOMEOWNER" }
+  | { path: "REVIEW_ONLY"; measurementAuthority: "NONE"; requiresCamera: false; calibration: "NONE" };
+
 /**
  * Conservative browser capability detector.
  *
@@ -72,6 +77,41 @@ export function withRouteAssistWorldGeometryV1(
     ...capability,
     tier: "WORLD_GEOMETRY",
     worldGeometryAvailable: true,
+  };
+}
+
+/**
+ * Select the acquisition path from proven capabilities, never device brand.
+ * A future RoomPlan, ARCore/WebXR, or other spatial adapter earns the measured
+ * path only by explicitly establishing calibrated world geometry. Ordinary
+ * browser camera/motion stays on the calibrated visual path.
+ */
+export function selectRouteAssistAcquisitionPathV1(
+  capability: RouteAssistCaptureCapabilityV1,
+): RouteAssistAcquisitionPathV1 {
+  if (capability.worldGeometryAvailable) {
+    return {
+      path: "WORLD_GEOMETRY",
+      measurementAuthority: "MEASURED",
+      requiresCamera: false,
+      calibration: "NONE",
+    };
+  }
+
+  if (capability.cameraAvailable) {
+    return {
+      path: "CALIBRATED_CAMERA",
+      measurementAuthority: "ESTIMATED",
+      requiresCamera: true,
+      calibration: "VISUAL_OR_HOMEOWNER",
+    };
+  }
+
+  return {
+    path: "REVIEW_ONLY",
+    measurementAuthority: "NONE",
+    requiresCamera: false,
+    calibration: "NONE",
   };
 }
 
