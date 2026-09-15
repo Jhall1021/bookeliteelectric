@@ -1,4 +1,4 @@
-import type { RouteAssistRoomScanCaptureV1 } from "@/components/route-assist/RouteAssistRoomScanCamera";
+import type { RouteAssistRoomScanCaptureV1, RouteAssistRoomScanDestinationAnchorV1 } from "@/components/route-assist/RouteAssistRoomScanCamera";
 import type { RoutePoint, RouteSegment } from "./types";
 
 export type RouteAssistRoomScanGraphV1 = {
@@ -7,35 +7,26 @@ export type RouteAssistRoomScanGraphV1 = {
   segments: RouteSegment[];
 };
 
-/**
- * Turn the homeowner's explicit source/destination taps into the smallest
- * possible existing Route Assist graph.
- *
- * This does NOT convert semantic overlay steps into canonical waypoints. Until
- * a physical provider establishes those waypoints, the graph contains exactly
- * the endpoints the homeowner actually tapped. That prevents a review drawing
- * from becoming hidden geometry authority.
- *
- * V1 RouteAssistResult is one A->B path. Multiple destinations are deliberately
- * composed as independent ordered legs by `multiOutletPlan.ts`; this helper is
- * therefore single-leg and fails closed when given zero or multiple B anchors.
- */
-export function roomScanCaptureToSingleLegGraphV1(
-  capture: RouteAssistRoomScanCaptureV1,
-): RouteAssistRoomScanGraphV1 | null {
-  if (capture.version !== 1 || !capture.sourceAnchor || capture.destinationAnchors.length !== 1) return null;
-  const source = capture.sourceAnchor;
-  const destination = capture.destinationAnchors[0];
-  if (
-    !source.imageId || !destination.imageId ||
-    !Number.isFinite(source.x) || !Number.isFinite(source.y) ||
-    !Number.isFinite(destination.x) || !Number.isFinite(destination.y) ||
-    source.x < 0 || source.x > 1 || source.y < 0 || source.y > 1 ||
-    destination.x < 0 || destination.x > 1 || destination.y < 0 || destination.y > 1
-  ) return null;
+function validAnchor(anchor: { imageId: string; x: number; y: number }): boolean {
+  return Boolean(
+    anchor.imageId &&
+    Number.isFinite(anchor.x) &&
+    Number.isFinite(anchor.y) &&
+    anchor.x >= 0 && anchor.x <= 1 &&
+    anchor.y >= 0 && anchor.y <= 1
+  );
+}
 
-  const sourceId = "room-scan-source";
-  const destinationId = "room-scan-destination";
+function independentLeg(
+  capture: RouteAssistRoomScanCaptureV1,
+  destination: RouteAssistRoomScanDestinationAnchorV1,
+  index: number,
+): RouteAssistRoomScanGraphV1 | null {
+  const source = capture.sourceAnchor;
+  if (!source || !validAnchor(source) || !validAnchor(destination)) return null;
+  const suffix = String(index + 1);
+  const sourceId = `room-scan-source-${suffix}`;
+  const destinationId = `room-scan-destination-${suffix}`;
   return {
     version: 1,
     points: [
@@ -43,7 +34,41 @@ export function roomScanCaptureToSingleLegGraphV1(
       { id: destinationId, kind: "DESTINATION", imageId: destination.imageId, x: destination.x, y: destination.y },
     ],
     segments: [
-      { id: "room-scan-route-1", fromPointId: sourceId, toPointId: destinationId },
+      { id: `room-scan-route-${suffix}`, fromPointId: sourceId, toPointId: destinationId },
     ],
   };
+}
+
+/**
+ * Turn homeowner endpoint taps into independent existing Route Assist paths.
+ *
+ * A RouteAssistResult is intentionally one SOURCE->DESTINATION path. A room
+ * scan with multiple destinations therefore becomes independent legs sharing
+ * only the homeowner's source intent. Shared-trunk reuse remains downstream in
+ * `multiOutletPlan.ts`; this helper does not invent branch topology from image
+ * coordinates or sweep order.
+ */
+export function roomScanCaptureToIndependentLegGraphsV1(
+  capture: RouteAssistRoomScanCaptureV1,
+): RouteAssistRoomScanGraphV1[] | null {
+  if (capture.version !== 1 || !capture.sourceAnchor || capture.destinationAnchors.length === 0) return null;
+  const graphs: RouteAssistRoomScanGraphV1[] = [];
+  for (let index = 0; index < capture.destinationAnchors.length; index++) {
+    const graph = independentLeg(capture, capture.destinationAnchors[index], index);
+    if (!graph) return null;
+    graphs.push(graph);
+  }
+  return graphs;
+}
+
+/**
+ * Single-destination convenience for today's guided-flow task contract.
+ * Multiple destinations fail closed here rather than forcing a branching graph
+ * into a schema that deliberately models one ordered path at a time.
+ */
+export function roomScanCaptureToSingleLegGraphV1(
+  capture: RouteAssistRoomScanCaptureV1,
+): RouteAssistRoomScanGraphV1 | null {
+  if (capture.destinationAnchors.length !== 1) return null;
+  return roomScanCaptureToIndependentLegGraphsV1(capture)?.[0] ?? null;
 }
