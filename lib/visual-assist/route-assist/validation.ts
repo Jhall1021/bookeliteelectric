@@ -47,10 +47,16 @@ function validSegment(value: unknown): boolean {
   if (typeof value.id !== "string" || value.id.length === 0) return false;
   if (typeof value.fromPointId !== "string" || value.fromPointId.length === 0) return false;
   if (typeof value.toPointId !== "string" || value.toPointId.length === 0) return false;
+  if (value.fromPointId === value.toPointId) return false;
   if (!optionalNullable(value.surface, (v): v is string => inList(v, ROUTE_SURFACES))) return false;
   if (!optionalNullable(value.estimatedLengthFt, finiteNonnegative)) return false;
   if (!(value.transitionAtEnd === undefined || value.transitionAtEnd === null || typeof value.transitionAtEnd === "boolean")) return false;
   return true;
+}
+
+function uniqueIds(values: unknown[]): boolean {
+  const ids = values.map((value) => isRecord(value) ? value.id : undefined);
+  return ids.every((id) => typeof id === "string") && new Set(ids).size === ids.length;
 }
 
 /** Fields derived deterministically from the submitted route graph/capture. */
@@ -86,6 +92,10 @@ const DERIVED_RESULT_FIELDS = [
  * when the graph derives two, or hide an orphaned segment and still become the
  * canonical first completion.
  *
+ * Point and segment ids are also part of the physical graph contract. Duplicate
+ * ids make evidence references ambiguous, and a self-loop is not a route leg,
+ * so both are refused before the graph reaches Ordered Geometry or scan reuse.
+ *
  * This remains observation validation only. It does not diagnose, price,
  * select a service, choose materials, or reinterpret the route for Routing V2.
  */
@@ -94,8 +104,8 @@ export function isRouteAssistResultPayload(value: unknown): value is RouteAssist
   if (!inList(value.mode, ROUTE_ASSIST_MODES)) return false;
   if (!inList(value.destinationType, ROUTE_ASSIST_DESTINATION_TYPES)) return false;
 
-  if (!Array.isArray(value.points) || !value.points.every(validPoint)) return false;
-  if (!Array.isArray(value.segments) || !value.segments.every(validSegment)) return false;
+  if (!Array.isArray(value.points) || !value.points.every(validPoint) || !uniqueIds(value.points)) return false;
+  if (!Array.isArray(value.segments) || !value.segments.every(validSegment) || !uniqueIds(value.segments)) return false;
 
   // A COMPLETED task is a route the customer actually confirmed. Adjusted and
   // retake states never call task completion; accepting one here would let an
