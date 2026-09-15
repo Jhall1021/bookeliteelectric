@@ -2464,10 +2464,30 @@ model GuidedFlowSession {
   visualAssistTasks GuidedFlowVisualAssistTask[]
   deviceHandoffs    DeviceHandoff[]
 
+  /// `lib/guidedFlowSession.ts`'s `buildActiveSessionKey(contractorId,
+  /// sessionId, serviceId)`, set ONLY while `status: "ACTIVE"` and cleared
+  /// to `null` the instant a session becomes COMPLETED or ABANDONED
+  /// (`completeSession`/`abandonSession`). Turns "at most one ACTIVE session
+  /// per contractor+session+service" from a contract-phase invariant
+  /// (previously enforced only by finding before creating inside one call,
+  /// which a concurrent second call could race — see that function's own
+  /// docstring for how this was proven to actually happen) into a real
+  /// database constraint: Postgres never treats two NULLs as equal, so
+  /// completed/abandoned history rows never collide with each other or with
+  /// a later ACTIVE session for the same triple, while two ACTIVE rows for
+  /// the same triple become impossible to create at all, not merely
+  /// unlikely. Migration applied so far ONLY to the disposable local
+  /// rehearsal database for this task — see
+  /// prisma/migrate-guided-flow-session-active-key.ts for the backfill this
+  /// needs on any database with existing rows, and do not `db push` this
+  /// schema against Neon without running that migration first.
+  activeSessionKey String? @unique
+
   /// The lookup every "find or create the active session for this
-  /// browser+service" call uses. NOT unique — "at most one ACTIVE session
-  /// per contractor+session+service" is a contract-phase invariant, same
-  /// reasoning as Visit's own index comment two models up.
+  /// browser+service" call uses for cross-referencing/history reads (e.g.
+  /// the diagnostic dump in scripts/verify-back-navigation-config-browser-
+  /// flow.ts). `activeSessionKey` above, not this index, is what now
+  /// enforces the at-most-one-ACTIVE invariant.
   @@index([contractorId, sessionId, serviceId, status])
   @@map("guided_flow_sessions")
 }
