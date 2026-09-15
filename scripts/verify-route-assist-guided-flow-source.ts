@@ -52,6 +52,22 @@ check(
   "grouped reuse still resolves through the central precedence policy",
   /decideRouteAssistGroupedReuse\(answerToProtect,\s*scanValue\)/.test(assist)
 );
+check(
+  "grouped auto-use is recorded per session/task/question",
+  /autoUseMarker\(guidedFlowSessionId,\s*invocation\.taskKey,\s*question\.key\)/.test(assist) &&
+    assist.includes("p2b:route-assist:auto-used:v1:"),
+  "the marker identity must distinguish each canonical question while sharing one capture task"
+);
+check(
+  "Back cannot immediately auto-reapply a scan that already answered this question",
+  /alreadyAutoUsed\(marker\)\s*\|\|\s*autoAttemptedRef\.current\s*===\s*marker/.test(assist),
+  "a previously auto-used grouped result must leave the restored question available for manual review/edit"
+);
+check(
+  "successful grouped auto-resolution marks the question before forwarding the answer",
+  /if\s*\(markAsAutoUsed\)[\s\S]{0,160}markAutoUsed\([\s\S]{0,180}onResolved\(resolved\)/.test(assist),
+  "mark first so a synchronous/fast rerender cannot auto-consume the same scan twice"
+);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
