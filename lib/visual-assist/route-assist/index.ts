@@ -91,3 +91,7 @@ export {
   type RouteAssistScanCandidateAcceptanceResult,
   type AcceptedRouteAssistScanGraphV1,
 } from "./scanCandidateAcceptance";
+export {
+  finalizeAcceptedScanRouteV1,
+  type FinalizeAcceptedScanRouteInputV1,
+} from "./finalizeAcceptedScanRoute";
