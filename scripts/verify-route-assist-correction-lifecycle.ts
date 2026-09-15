@@ -8,7 +8,7 @@ function check(name: string, fn: () => void) { fn(); passed += 1; console.log(`â
 
 const corrections: RouteAssistReviewCorrectionV1[] = [
   { correctionId: "pass", imageId: "frame-1", kind: "ROUTE_SHOULD_PASS_HERE", point: { x: 0.50, y: 0.40 }, createdAt: "2026-09-15T20:00:00.000Z" },
-  { correctionId: "avoid", imageId: "frame-1", kind: "ROUTE_SHOULD_AVOID_HERE", point: { x: 0.50, y: 0.80 }, createdAt: "2026-09-15T20:00:01.000Z" },
+  { correctionId: "avoid", imageId: "frame-1", kind: "ROUTE_SHOULD_AVOID_HERE", point: { x: 0.50, y: 0.42 }, createdAt: "2026-09-15T20:00:01.000Z" },
   { correctionId: "old-source", imageId: "frame-1", kind: "SOURCE_ANCHOR_WRONG", point: { x: 0.12, y: 0.62 }, createdAt: "2026-09-15T20:00:02.000Z" },
   { correctionId: "new-source", imageId: "frame-1", kind: "SOURCE_ANCHOR_WRONG", point: { x: 0.18, y: 0.60 }, createdAt: "2026-09-15T20:00:03.000Z" },
   { correctionId: "destination", imageId: "frame-1", kind: "DESTINATION_ANCHOR_WRONG", point: { x: 0.88, y: 0.60 }, createdAt: "2026-09-15T20:00:04.000Z" },
