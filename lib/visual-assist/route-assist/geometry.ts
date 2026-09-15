@@ -209,14 +209,20 @@ export function verticalWallSegments(route: OrderedRoute): number {
   return count;
 }
 
-/** Sum of every segment's `estimatedLengthFt`, or `null` if any leg is unset. */
+/**
+ * Sum every segment's `estimatedLengthFt`, preserving the exact accepted
+ * physical measurement. Returns `null` if any leg is unset.
+ *
+ * Rounding is presentation/pricing policy and must not happen in Route Assist's
+ * observable-fact layer. A scan that established 14.625 ft stays 14.625 ft.
+ */
 export function totalEstimatedLengthFt(route: OrderedRoute): number | null {
   let total = 0;
   for (const segment of route.segments) {
     if (segment.estimatedLengthFt == null) return null;
     total += segment.estimatedLengthFt;
   }
-  return Math.round(total * 10) / 10;
+  return total;
 }
 
 /**
