@@ -6,7 +6,8 @@ import {
 
 /**
  * Provider-neutral vocabulary for what an ordinary camera/CV provider may
- * visibly identify in the homeowner's ordered room sweep.
+ * visibly identify in the homeowner's ordered room sweep or explicitly
+ * authorized supplemental recapture images.
  *
  * These are scene labels and anchors only. They are not a second route taxonomy
  * and carry no material, fitting, labor, pricing, hidden-wiring, or Routing V2
@@ -69,7 +70,7 @@ export type RouteAssistVisibleDoorwayGroupV1 = {
 
 export type RouteAssistVisibleSceneSemanticsV1 = {
   version: 1;
-  /** Must preserve the durable capture order supplied to the provider. */
+  /** Must preserve the durable PRIMARY sweep order supplied to the provider. */
   captureImageIds: string[];
   objects: RouteAssistVisibleSceneObjectV1[];
   segmentObservations: RouteAssistVisibleSegmentObservationV1[];
@@ -85,13 +86,14 @@ function validBox(box: RouteAssistNormalizedImageBoxV1): boolean {
 
 /**
  * Fail closed before semantic CV output can be used by any route-review adapter.
- * Source/destination labels must point at existing graph points; segment labels
- * must point at existing graph segments. No new route nodes/segments can be
- * invented by the provider through this contract.
+ * Primary sweep order stays separate from authorized supplemental evidence.
+ * Supplemental images may support object/quality observations, but their array
+ * order carries no room adjacency or route-topology meaning.
  */
 export function validateRouteAssistVisibleSceneSemanticsV1(args: {
   semantics: RouteAssistVisibleSceneSemanticsV1;
   expectedCaptureImageIds: readonly string[];
+  authorizedSupplementalImageIds?: readonly string[];
   points: readonly RoutePoint[];
   segments: readonly RouteSegment[];
 }): string[] {
@@ -100,7 +102,10 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
   if (semantics.version !== 1) return ["visible scene semantics version must be 1"];
   if (semantics.captureImageIds.length !== args.expectedCaptureImageIds.length || semantics.captureImageIds.some((id, index) => id !== args.expectedCaptureImageIds[index])) problems.push("visible scene capture order does not match provider input");
 
-  const captureIds = new Set(args.expectedCaptureImageIds);
+  const primaryIds = new Set(args.expectedCaptureImageIds);
+  const supplementalIds = new Set(args.authorizedSupplementalImageIds ?? []);
+  for (const imageId of supplementalIds) if (primaryIds.has(imageId)) problems.push(`authorized supplemental image ${imageId} collides with primary sweep`);
+  const authorizedImageIds = new Set([...primaryIds, ...supplementalIds]);
   const pointIds = new Set(args.points.map((point) => point.id));
   const segmentIds = new Set(args.segments.map((segment) => segment.id));
   const objectIds = new Set<string>();
@@ -109,7 +114,7 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
   for (const object of semantics.objects) {
     if (!object.id || objectIds.has(object.id)) problems.push(`visible scene object has duplicate or empty id: ${object.id || "<empty>"}`); else objectIds.add(object.id);
     objectById.set(object.id, object);
-    if (!captureIds.has(object.imageId)) problems.push(`visible scene object ${object.id} references unknown image ${object.imageId}`);
+    if (!authorizedImageIds.has(object.imageId)) problems.push(`visible scene object ${object.id} references unknown image ${object.imageId}`);
     if (!validUnit(object.confidence)) problems.push(`visible scene object ${object.id} has invalid confidence`);
     if (!validBox(object.box)) problems.push(`visible scene object ${object.id} has invalid normalized box`);
     if ((object.kind === "SOURCE_RECEPTACLE" || object.kind === "DESTINATION_MARKER") && (!object.pointId || !pointIds.has(object.pointId))) problems.push(`visible scene object ${object.id} must anchor to an existing route point`);
@@ -118,7 +123,7 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
 
   for (const observation of semantics.segmentObservations) {
     if (!segmentIds.has(observation.segmentId)) problems.push(`visible segment observation references unknown segment ${observation.segmentId}`);
-    if (!captureIds.has(observation.imageId)) problems.push(`visible segment ${observation.segmentId} references unknown image ${observation.imageId}`);
+    if (!authorizedImageIds.has(observation.imageId)) problems.push(`visible segment ${observation.segmentId} references unknown image ${observation.imageId}`);
     if (!validUnit(observation.confidence)) problems.push(`visible segment ${observation.segmentId} has invalid confidence`);
     for (const objectId of observation.objectIds) if (!objectIds.has(objectId)) problems.push(`visible segment ${observation.segmentId} references unknown object ${objectId}`);
   }
@@ -142,7 +147,7 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
     if (!(ROUTE_ASSIST_VISIBLE_SCENE_QUALITY_ISSUES_V1 as readonly string[]).includes(issue.code)) problems.push(`visible scene quality issue has unknown code: ${String(issue.code)}`);
     if (qualityIssueCodes.has(issue.code)) problems.push(`visible scene quality issue is duplicated: ${issue.code}`); else qualityIssueCodes.add(issue.code);
     if (!Array.isArray(issue.imageIds)) problems.push(`visible scene quality issue ${issue.code} must carry imageIds`);
-    else if (issue.imageIds.some((imageId) => !captureIds.has(imageId))) problems.push(`visible scene quality issue ${issue.code} references unknown image`);
+    else if (issue.imageIds.some((imageId) => !authorizedImageIds.has(imageId))) problems.push(`visible scene quality issue ${issue.code} references unknown image`);
   }
 
   return problems;
