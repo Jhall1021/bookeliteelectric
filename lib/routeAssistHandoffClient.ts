@@ -125,7 +125,8 @@ export async function getDeviceHandoffStatus(fetchFn: FetchFn, handoffId: string
 }
 
 export async function completeDeviceHandoff(fetchFn: FetchFn, handoffId: string): Promise<void> {
-  await fetchFn(`/api/device-handoffs/${handoffId}/complete`, { method: "POST" });
+  const res = await fetchFn(`/api/device-handoffs/${handoffId}/complete`, { method: "POST" });
+  await asJson<{ id?: string; status?: string }>(res);
 }
 
 export type ResolvedHandoff = {
