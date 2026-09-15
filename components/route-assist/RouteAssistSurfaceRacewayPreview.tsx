@@ -17,6 +17,12 @@ const DEMO_ROUTE: RouteAssistProjectionPointV1[] = [
   { id: "destination-baseboard", x: 11, y: 5 }, { id: "destination", x: 11, y: 3 },
 ];
 
+const CANVAS = "rgb(var(--t-canvas))";
+const SURFACE = "rgb(var(--t-surface))";
+const LINE = "rgb(var(--t-line))";
+const ACCENT = "rgb(var(--t-accent))";
+const INK = "rgb(var(--t-ink))";
+
 export default function RouteAssistSurfaceRacewayPreview({ destinationKind, routeGraph, sceneOverlay, orderedRoutePoints }: Props) {
   const hasLight = destinationKind === "LIGHT_FIXTURE";
   const destinationLabel = destinationKind === "OUTLET" ? "New outlet" : "New switch";
@@ -25,10 +31,6 @@ export default function RouteAssistSurfaceRacewayPreview({ destinationKind, rout
   const reviewedPoints = scenePoints ?? graphPoints ?? orderedRoutePoints ?? null;
   const usingReviewedGeometry = Boolean(reviewedPoints?.length);
   const usingScene = Boolean(sceneOverlay);
-
-  // Scene overlays use the original normalized image coordinates directly so
-  // the route stays registered to the captured image. Blank/demo views may be
-  // normalized to fill the schematic viewport.
   const scenePolyline = scenePoints?.map((point) => `${point.x * 400},${point.y * 300}`).join(" ") ?? null;
   const projection = usingScene ? null : projectOrderedRouteToViewportV1({ points: reviewedPoints ?? DEMO_ROUTE, viewportWidth: 400, viewportHeight: 300, padding: 38 });
 
@@ -37,12 +39,12 @@ export default function RouteAssistSurfaceRacewayPreview({ destinationKind, rout
       <div className="relative aspect-[4/3] w-full bg-slate-100">
         {sceneOverlay && <img src={sceneOverlay.imageUrl} alt="Captured room used for Route Assist review" className="absolute inset-0 h-full w-full object-fill" />}
         <svg viewBox="0 0 400 300" className="absolute inset-0 h-full w-full" role="img" aria-label="Proposed surface raceway route">
-          {!usingScene && <rect x="0" y="0" width="400" height="300" fill="#f5f1e9" />}
-          {!usingReviewedGeometry && <><line x1="0" y1="244" x2="400" y2="244" stroke="#c8bba9" strokeWidth="12" /><rect x="168" y="92" width="104" height="152" fill="#e7ded1" stroke="#b6a58f" strokeWidth="4" /></>}
-          {scenePolyline && <polyline points={scenePolyline} fill="none" stroke="#2452D9" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />}
-          {scenePoints?.map((point, index) => <circle key={point.id} cx={point.x * 400} cy={point.y * 300} r={index === 0 || index === scenePoints.length - 1 ? 7 : 4} fill={index === 0 ? "#0F1E3C" : "#2452D9"} />)}
-          {projection && <><polyline points={projection.polylinePoints} fill="none" stroke="#2452D9" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />{projection.points.map((point, index) => <circle key={point.id} cx={point.x} cy={point.y} r={index === 0 || index === projection.points.length - 1 ? 7 : 4} fill={index === 0 ? "#0F1E3C" : "#2452D9"} />)}</>}
-          {hasLight && !usingReviewedGeometry && <circle cx="220" cy="42" r="15" fill="white" stroke="#2452D9" strokeWidth="3" />}
+          {!usingScene && <rect x="0" y="0" width="400" height="300" fill={CANVAS} />}
+          {!usingReviewedGeometry && <><line x1="0" y1="244" x2="400" y2="244" stroke={LINE} strokeWidth="12" /><rect x="168" y="92" width="104" height="152" fill={SURFACE} stroke={LINE} strokeWidth="4" /></>}
+          {scenePolyline && <polyline points={scenePolyline} fill="none" stroke={ACCENT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />}
+          {scenePoints?.map((point, index) => <circle key={point.id} cx={point.x * 400} cy={point.y * 300} r={index === 0 || index === scenePoints.length - 1 ? 7 : 4} fill={index === 0 ? INK : ACCENT} />)}
+          {projection && <><polyline points={projection.polylinePoints} fill="none" stroke={ACCENT} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />{projection.points.map((point, index) => <circle key={point.id} cx={point.x} cy={point.y} r={index === 0 || index === projection.points.length - 1 ? 7 : 4} fill={index === 0 ? INK : ACCENT} />)}</>}
+          {hasLight && !usingReviewedGeometry && <circle cx="220" cy="42" r="15" fill={SURFACE} stroke={ACCENT} strokeWidth="3" />}
         </svg>
         <div className="absolute left-3 top-3 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-navy shadow-sm">Existing outlet to starter box</div>
         <div className="absolute bottom-3 right-3 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-electric shadow-sm">{destinationLabel}{hasLight ? " to light" : ""}</div>
