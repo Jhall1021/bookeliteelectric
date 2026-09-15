@@ -69,6 +69,7 @@ function semanticsSnapshot(value: RouteAssistVisibleSceneSemanticsV1): RouteAssi
     objects: value.objects.map((object) => ({ ...object, box: { ...object.box } })),
     segmentObservations: value.segmentObservations.map((observation) => ({ ...observation, objectIds: [...observation.objectIds] })),
     doorwayGroups: value.doorwayGroups?.map((group) => ({ ...group })),
+    qualityIssues: value.qualityIssues?.map((issue) => ({ ...issue, imageIds: [...issue.imageIds] })),
   };
 }
 
