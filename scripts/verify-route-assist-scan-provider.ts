@@ -201,6 +201,28 @@ async function run() {
     JSON.stringify(concealedExposed.problems),
   );
 
+  const malformedProvider = await runRouteAssistScanProviderV1(
+    {
+      providerKey: "fake.malformed.v1",
+      async analyze() {
+        return {
+          version: 1,
+          sourcePointId: "a",
+          destinationPointId: "b",
+          segments: null,
+          transitions: [],
+        } as unknown as RouteAssistScanEvidenceV1;
+      },
+    },
+    baseInput,
+  );
+  check(
+    "malformed provider output fails closed instead of throwing",
+    malformedProvider.evidence === null &&
+      malformedProvider.problems[0] === "scan provider returned malformed evidence",
+    JSON.stringify(malformedProvider),
+  );
+
   const providerFailure = await runRouteAssistScanProviderV1(
     {
       providerKey: "fake.failure.v1",
