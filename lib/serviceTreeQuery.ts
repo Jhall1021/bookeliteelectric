@@ -7,6 +7,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import type { OwnComponentMap } from "./contractorComponents";
+import type { CapabilityFacts } from "./capabilities";
 
 /**
  * The one ordering rule for a service's questions: position, then id.
@@ -100,4 +101,12 @@ export type ResolvedServiceTree = ServiceTree & {
   ownMaterialCosts: Map<string, number>;
   troubleshootingServiceId: string | null;
   troubleshootingProblem: string | null;
+  /// Routing V2's contractor-owned capability facts (lib/capabilities.ts),
+  /// loaded alongside the rest of this tree by loadServiceForResolution so
+  /// resolveRoute never reaches for the database mid-walk. Declared here,
+  /// not just inferred at the call site, so every consumer of a resolved
+  /// tree — the catalog loader, onboarding readiness, this type's own
+  /// equivalence verifier — sees the same shape loadServiceForResolution
+  /// actually returns.
+  capabilities: CapabilityFacts;
 };
