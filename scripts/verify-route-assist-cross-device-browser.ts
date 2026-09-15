@@ -20,11 +20,12 @@
  * separate browser context (the phone) resolves that QR's actual URL and
  * joins the SAME GuidedFlowSession; after choosing surface mode and opening a
  * photo, the phone sees the RECEPTACLE source hint recovered from the grouped
- * task key; it completes A/waypoint/B and confirms; the desktop — polling, no
- * manual refresh — detects completion; and, checked directly against the
- * database rather than inferred from the UI, exactly one GuidedFlowSession,
- * one grouped GuidedFlowVisualAssistTask and one canonical RouteAssistResult
- * exist.
+ * task key; it completes A/waypoint/B and confirms; the phone can continue to
+ * the canonical storefront service URL and re-open the SAME active
+ * GuidedFlowSession; the desktop — polling, no manual refresh — detects
+ * completion; and, checked directly against the database rather than inferred
+ * from the UI, exactly one GuidedFlowSession, one grouped
+ * GuidedFlowVisualAssistTask and one canonical RouteAssistResult exist.
  *
  * UPLOAD SUBSTITUTION — see docs/design/route-assist-v1.md's cross-device
  * proof note. This development sandbox cannot complete a TLS connection to
@@ -156,7 +157,23 @@ async function main() {
   const realHandoffUrl = new URL(handoffBody.url);
   const token = realHandoffUrl.pathname.split("/").pop();
   const fixtureHandoffUrl = `${BASE}/elite-electric/dev-fixtures/route-assist-handoff/${token}`;
+  const resolveResponsePromise = phone.waitForResponse((r) =>
+    r.url().includes("/api/device-handoffs/resolve?") && r.request().method() === "GET"
+  );
   await phone.goto(fixtureHandoffUrl);
+  const resolveResponse = await resolveResponsePromise;
+  const resolvedHandoff = await resolveResponse.json();
+  check(
+    "handoff resolve exposes the authorised session identity",
+    typeof resolvedHandoff?.guidedFlowSessionId === "string" && resolvedHandoff.guidedFlowSessionId.length > 0,
+    JSON.stringify(resolvedHandoff)
+  );
+  check(
+    "handoff resolve carries a canonical storefront continuation path",
+    typeof resolvedHandoff?.continuationPath === "string" &&
+      resolvedHandoff.continuationPath.endsWith(`/${SERVICE_SLUG}`),
+    String(resolvedHandoff?.continuationPath)
+  );
   await phone.waitForSelector('[data-testid="mode-SURFACE"]', { timeout: 15000 });
   const phoneText = await phone.locator("main").innerText().catch(() => "");
   check("phone lands directly on the capture step (not an error page)", !phoneText.includes("isn't valid"), phoneText.slice(0, 240));
@@ -166,7 +183,26 @@ async function main() {
   const phoneResult = await phone.locator("main").innerText();
   check("phone reaches 'Route added'", phoneResult.includes("Route added"), phoneResult.slice(0, 200));
 
-  console.log("\n4. Desktop detects canonical completion via polling — no manual refresh");
+  console.log("\n4. Phone continues into the canonical service flow on the SAME session");
+  const resumeResponsePromise = phone.waitForResponse((r) =>
+    r.url().includes("/api/guided-flow-sessions") && r.request().method() === "POST"
+  );
+  await phone.click('button:has-text("Continue on this phone")');
+  const resumeResponse = await resumeResponsePromise;
+  const resumedSession = await resumeResponse.json();
+  await phone.waitForURL((url) => url.pathname.endsWith(`/${SERVICE_SLUG}`), { timeout: 15000 });
+  check(
+    "phone navigates to the authorised continuation path",
+    phone.url().includes(`/elite-electric/${resolvedHandoff.continuationPath}`),
+    phone.url()
+  );
+  check(
+    "canonical service page resumes the exact same GuidedFlowSession",
+    resumedSession?.id === resolvedHandoff?.guidedFlowSessionId,
+    `${String(resumedSession?.id)} vs ${String(resolvedHandoff?.guidedFlowSessionId)}`
+  );
+
+  console.log("\n5. Desktop detects canonical completion via polling — no manual refresh");
   await desktop.waitForSelector("text=Route received", { timeout: 20000 });
   const desktopText = await desktop.locator("main").innerText();
   check("desktop shows 'Route received' without a reload", desktopText.includes("Route received"));
@@ -182,7 +218,7 @@ async function main() {
 
   await browser.close();
 
-  console.log("\n5. Exactly one grouped task and one canonical result — checked in the database");
+  console.log("\n6. Exactly one grouped task and one canonical result — checked in the database");
   const prisma = new PrismaClient();
   const sessions = await prisma.guidedFlowSession.findMany({
     where: { serviceSlug: SERVICE_SLUG },
@@ -195,6 +231,11 @@ async function main() {
   const session = sessions[0];
   check("a GuidedFlowSession exists", !!session);
   if (session) {
+    check(
+      "database session is the same session the phone resumed",
+      session.id === resolvedHandoff?.guidedFlowSessionId,
+      `${session.id} vs ${String(resolvedHandoff?.guidedFlowSessionId)}`
+    );
     const routeTasks = session.visualAssistTasks.filter((t) => t.taskType === "ROUTE_ASSIST");
     check("exactly one ROUTE_ASSIST task on it", routeTasks.length === 1);
     const task = routeTasks[0];
