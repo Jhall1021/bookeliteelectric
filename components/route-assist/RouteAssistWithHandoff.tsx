@@ -41,12 +41,9 @@ type Props = {
   onUploadPhoto: (file: File) => Promise<string>;
   onComplete: (result: RouteAssistResult) => void;
   /**
-   * Scopes task lookup/creation to ONE logical invocation on this session —
-   * e.g. one question in one guided flow. Without it, any ROUTE_ASSIST task
-   * on the session looks like "this" one, which is exactly right for the
-   * one caller that predates this (the dev fixture, one task per session)
-   * and exactly wrong once a real flow could plausibly have more than one
-   * invocation. Omitted, behavior is unchanged from before this field.
+   * Scopes task lookup/creation to ONE logical capture invocation on this
+   * session. Grouped Route Assist questions deliberately share the same key so
+   * they reuse one physical scan instead of creating one task per question.
    */
   taskKey?: string;
   /**
@@ -122,12 +119,43 @@ export default function RouteAssistWithHandoff({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guidedFlowSessionId, taskKey]);
 
+  /**
+   * Persist completion, then continue only from the server's canonical result.
+   *
+   * Desktop and phone can finish the same task concurrently. The API atomically
+   * lets the first valid completion win and returns that persisted winner to
+   * every caller. A losing device must never advance Guided Flow with its local
+   * losing result.
+   *
+   * If the PATCH response is lost after the server wrote it, one read-back can
+   * still recover the canonical row. If neither write nor read can be confirmed,
+   * stop here rather than creating local/server disagreement in the quote.
+   */
   async function persistAndComplete(taskId: string, result: RouteAssistResult) {
-    await completeVisualAssistTask(siteFetch, guidedFlowSessionId, taskId, result).catch(() => {
-      // Best effort — the customer still sees their result even if the
-      // write to the session failed; a returning device just won't see it.
-    });
-    onComplete(result);
+    setError(null);
+    try {
+      const completion = await completeVisualAssistTask(siteFetch, guidedFlowSessionId, taskId, result);
+      if (completion.status === "COMPLETED" && completion.result) {
+        onComplete(completion.result);
+        return;
+      }
+    } catch {
+      // Could be a lost response after a successful write. Read the canonical
+      // task once before treating persistence as failed.
+    }
+
+    try {
+      const tasks = await listVisualAssistTasks(siteFetch, guidedFlowSessionId);
+      const current = tasks.find((task) => task.id === taskId && task.status === "COMPLETED" && task.result);
+      if (current?.result) {
+        onComplete(current.result);
+        return;
+      }
+    } catch {
+      // Fall through to a visible retry state.
+    }
+
+    setError("We couldn't save this route yet. Please try confirming it again.");
   }
 
   async function startCaptureHere() {
@@ -210,13 +238,16 @@ export default function RouteAssistWithHandoff({
 
   if (step.kind === "capture-here") {
     return (
-      <RouteAssistCapture
-        destinationType={destinationType}
-        sourceHint={sourceHint}
-        destinationHint={destinationHint}
-        onUploadPhoto={onUploadPhoto}
-        onComplete={(result) => persistAndComplete(step.taskId, result)}
-      />
+      <div>
+        <RouteAssistCapture
+          destinationType={destinationType}
+          sourceHint={sourceHint}
+          destinationHint={destinationHint}
+          onUploadPhoto={onUploadPhoto}
+          onComplete={(result) => persistAndComplete(step.taskId, result)}
+        />
+        {error && <p className="mx-auto mt-3 max-w-md text-center text-sm text-red-600">{error}</p>}
+      </div>
     );
   }
 
@@ -238,7 +269,7 @@ export default function RouteAssistWithHandoff({
     );
   }
 
-  // handoff-completed
+  // handoff-completed — this result came back from the canonical persisted task.
   return (
     <div className="mx-auto flex max-w-md flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-emerald-700">Route received ✓</p>
