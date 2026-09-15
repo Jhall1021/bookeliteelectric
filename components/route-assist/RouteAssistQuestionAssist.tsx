@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import RouteAssistWithHandoff from "./RouteAssistWithHandoff";
 import { getRouteAssistInvocation } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
+import { decideRouteAssistGroupedReuse } from "@/lib/visual-assist/route-assist/groupedReuse";
 import {
   getGuidedFlowAnswerSnapshot,
   listVisualAssistTasks,
@@ -199,13 +200,12 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
         if (!completed?.result) return;
 
         const scanValue = invocation.resolveAnswerValue(completed.result);
-        if (scanValue === null) {
+        const decision = decideRouteAssistGroupedReuse(persistedAnswers[question.key], scanValue);
+        if (decision.kind === "SCAN_UNAVAILABLE") {
           setUnusable(true);
           return;
         }
-
-        const persisted = persistedAnswers[question.key];
-        if (persisted !== undefined && persisted !== scanValue) {
+        if (decision.kind === "PRESERVE_PERSISTED") {
           // Newer/more specific customer intent wins. Mark this question as
           // consumed for the old capture so a remount in this tab does not keep
           // attempting to replace the manual answer.
