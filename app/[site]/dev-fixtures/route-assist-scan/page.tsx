@@ -146,13 +146,14 @@ export default function RouteAssistScanPreviewPage() {
   }
 
   function applySelectedFacts() {
-    if (!prepared?.candidates) return;
+    if (!prepared?.candidates || !prepared.review) return;
     setError(null);
     const applied = applyRouteAssistScanReviewSelectionV1(
       [...POINTS],
       [...SEGMENTS],
       prepared.candidates,
       selected,
+      prepared.review.fingerprint,
     );
     if (!applied.ok) {
       setError(applied.problems.join("; "));
