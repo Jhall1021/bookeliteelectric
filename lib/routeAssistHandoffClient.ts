@@ -106,6 +106,7 @@ export type ResolvedHandoff = {
   serviceSlug: string;
   taskType: string;
   taskId: string | null;
+  taskKey: string | null;
   handoffId: string;
 };
 
