@@ -30,11 +30,15 @@ async function main() {
   check("fixture identifies itself as development-only", initial.includes("Development fixture"), initial.slice(0, 300));
   check("fixture states pricing/materials/production are untouched", initial.includes("Nothing below changes pricing, materials, or production data."));
 
-  console.log("\n2. Run fake scan and inspect review state");
+  console.log("\n2. Run fake scan and inspect reusable review state");
   await page.click('button:has-text("Run fake room scan")');
-  await page.waitForSelector('text=Review what the scan observed');
+  await page.waitForSelector('[data-testid="route-assist-scan-review"]');
 
-  const checkboxes = page.locator('input[type="checkbox"]');
+  const review = page.locator('[data-testid="route-assist-scan-review"]');
+  const fingerprint = await review.getAttribute("data-review-fingerprint");
+  check("displayed scan review carries a freshness fingerprint", !!fingerprint, String(fingerprint));
+
+  const checkboxes = review.locator('input[type="checkbox"]');
   const checkboxCount = await checkboxes.count();
   check("scan produced reviewable facts", checkboxCount >= 5, String(checkboxCount));
 
@@ -44,7 +48,7 @@ async function main() {
   }
   check("no scan fact is accepted by default", checkedInitially === 0, String(checkedInitially));
 
-  const reviewText = await page.locator("main").innerText();
+  const reviewText = await review.innerText();
   check("review displays exact unrounded 14.625 ft total", reviewText.includes("14.625 ft"), reviewText.slice(0, 800));
 
   console.log("\n3. Explicitly accept every applicable fact");
@@ -58,7 +62,7 @@ async function main() {
   }
   check("at least the two lengths, two surfaces and one physical turn are applicable", enabledCount >= 5, String(enabledCount));
 
-  await page.click('button:has-text("Apply selected facts to preview route")');
+  await review.locator('button:has-text("Apply selected facts to route")').click();
   await page.waitForSelector('text=Accepted Route Assist graph');
   const acceptedText = await page.locator("main").innerText();
   check("accepted graph still shows exact scan review total", acceptedText.includes("14.625 ft"), acceptedText.slice(-1200));
