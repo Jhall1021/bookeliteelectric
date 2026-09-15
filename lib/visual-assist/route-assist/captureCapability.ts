@@ -24,6 +24,11 @@ export type RouteAssistCaptureCapabilityV1 = {
   worldGeometryAvailable: boolean;
 };
 
+export type RouteAssistCalibrationDecisionV1 =
+  | { mode: "WORLD_GEOMETRY"; askHomeownerForScale: false }
+  | { mode: "TRY_VISUAL_REFERENCE"; askHomeownerForScale: false }
+  | { mode: "ASK_HOMEOWNER_FOR_SCALE"; askHomeownerForScale: true };
+
 /**
  * Conservative browser capability detector.
  *
@@ -68,4 +73,30 @@ export function withRouteAssistWorldGeometryV1(
     tier: "WORLD_GEOMETRY",
     worldGeometryAvailable: true,
   };
+}
+
+/**
+ * Decide whether the homeowner should ever see a manual scale question.
+ *
+ * World geometry wins and suppresses calibration entirely. On ordinary phones,
+ * Route Assist first attempts an automatic visual reference; only after that
+ * attempt fails should the homeowner be asked for a simple known dimension.
+ *
+ * `visualReferenceUsable` must represent an actual known/confirmed reference,
+ * never an appearance-only assumption such as "this looks like an 8 ft ceiling".
+ */
+export function decideRouteAssistCalibrationV1(args: {
+  capability: RouteAssistCaptureCapabilityV1;
+  visualReferenceAttempted: boolean;
+  visualReferenceUsable: boolean;
+}): RouteAssistCalibrationDecisionV1 {
+  if (args.capability.worldGeometryAvailable) {
+    return { mode: "WORLD_GEOMETRY", askHomeownerForScale: false };
+  }
+
+  if (!args.visualReferenceAttempted || args.visualReferenceUsable) {
+    return { mode: "TRY_VISUAL_REFERENCE", askHomeownerForScale: false };
+  }
+
+  return { mode: "ASK_HOMEOWNER_FOR_SCALE", askHomeownerForScale: true };
 }
