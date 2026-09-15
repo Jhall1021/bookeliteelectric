@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import RouteAssistScanReview, {
+  type RouteAssistScanReviewSelectionV1,
+} from "@/components/route-assist/RouteAssistScanReview";
 import {
   applyConfirmation,
   applyRouteAssistScanReviewSelectionV1,
@@ -100,24 +103,8 @@ const FAKE_WORLD_PROVIDER: RouteAssistScanProviderV1 = {
   },
 };
 
-function itemLabel(kind: string, routeId: string, value: unknown): string {
-  switch (kind) {
-    case "MEASURED_LENGTH":
-      return `${routeId}: ${String(value)} ft measured route`;
-    case "SURFACE":
-      return `${routeId}: ${String(value).toLowerCase()} surface`;
-    case "PHYSICAL_TURN":
-      return `${routeId}: ${String(value).toLowerCase()} physical turn`;
-    case "OBSTACLE":
-      return `${routeId}: ${String(value).toLowerCase()} obstacle`;
-    default:
-      return `${routeId}: ${String(value)}`;
-  }
-}
-
 export default function RouteAssistScanPreviewPage() {
   const [prepared, setPrepared] = useState<RouteAssistScanReviewPipelineV1 | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
   const [acceptedGraph, setAcceptedGraph] = useState<AcceptedRouteAssistScanGraphV1 | null>(null);
   const [draftResult, setDraftResult] = useState<RouteAssistResult | null>(null);
   const [confirmedResult, setConfirmedResult] = useState<RouteAssistResult | null>(null);
@@ -127,7 +114,6 @@ export default function RouteAssistScanPreviewPage() {
   async function runScan() {
     setRunning(true);
     setError(null);
-    setSelected([]);
     setAcceptedGraph(null);
     setDraftResult(null);
     setConfirmedResult(null);
@@ -139,21 +125,15 @@ export default function RouteAssistScanPreviewPage() {
     setRunning(false);
   }
 
-  function toggle(id: string) {
-    setSelected((current) =>
-      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
-    );
-  }
-
-  function applySelectedFacts() {
-    if (!prepared?.candidates || !prepared.review) return;
+  function applySelectedFacts(selection: RouteAssistScanReviewSelectionV1) {
+    if (!prepared?.candidates) return;
     setError(null);
     const applied = applyRouteAssistScanReviewSelectionV1(
       [...POINTS],
       [...SEGMENTS],
       prepared.candidates,
-      selected,
-      prepared.review.fingerprint,
+      selection.acceptedReviewItemIds,
+      selection.reviewFingerprint,
     );
     if (!applied.ok) {
       setError(applied.problems.join("; "));
@@ -210,67 +190,14 @@ export default function RouteAssistScanPreviewPage() {
         )}
 
         {prepared?.review && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Review what the scan observed</h2>
-                <p className="mt-1 text-sm text-slate-500">Nothing is selected automatically.</p>
-              </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2 text-right">
-                <div className="text-xs text-slate-500">Complete measured route</div>
-                <div className="font-semibold text-slate-900">
-                  {prepared.review.completeMeasuredRouteLengthFt ?? "—"} ft
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {prepared.review.items.map((item) => (
-                <label
-                  key={item.id}
-                  className={`flex items-start gap-3 rounded-xl border p-4 ${
-                    item.canApplyToRouteGraph ? "border-slate-200" : "border-amber-200 bg-amber-50"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={selected.includes(item.id)}
-                    disabled={!item.canApplyToRouteGraph}
-                    onChange={() => toggle(item.id)}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-slate-900">
-                      {itemLabel(item.kind, item.routeId, item.value)}
-                    </span>
-                    <span className="mt-1 block text-xs text-slate-500">
-                      Evidence: {item.basis} · provider confidence {Math.round(item.confidence * 100)}%
-                    </span>
-                    {!item.canApplyToRouteGraph && (
-                      <span className="mt-1 block text-xs font-medium text-amber-700">
-                        Visible evidence only — no Route Assist V1 graph mapping.
-                      </span>
-                    )}
-                  </span>
-                </label>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={applySelectedFacts}
-              className="mt-5 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
-            >
-              Apply selected facts to preview route
-            </button>
-          </section>
+          <RouteAssistScanReview review={prepared.review} onApply={applySelectedFacts} />
         )}
 
         {acceptedGraph && draftResult && (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Accepted Route Assist graph</h2>
             <p className="mt-1 text-sm text-slate-500">
-              The graph is still unconfirmed. Route Assist now preserves the accepted physical measurement exactly; later pricing/binding policy may apply its own precision rules.
+              The graph is still unconfirmed. Route Assist preserves the accepted physical measurement exactly; later pricing/binding policy may apply its own precision rules.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4">
