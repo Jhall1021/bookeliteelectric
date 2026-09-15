@@ -42,9 +42,13 @@ const scripts = [
 ] as const;
 
 for (const script of scripts) {
-  const result = spawnSync(process.execPath, ["--import", "tsx", `scripts/${script}`], {
+  // Use the tsx CLI rather than `node --import tsx`: several focused proof
+  // scripts intentionally use top-level await, which the CLI runs as ESM but
+  // Node's loader path may transform as CJS in some build environments.
+  const result = spawnSync("npx", ["tsx", `scripts/${script}`], {
     stdio: "inherit",
     env: process.env,
+    shell: process.platform === "win32",
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
