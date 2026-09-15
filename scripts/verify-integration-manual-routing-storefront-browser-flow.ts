@@ -44,18 +44,22 @@
  *      `/photo/i` text match, which also matches ordinary help copy
  *      elsewhere on this same screen family and would pass even if the
  *      route had priced normally and happened to mention a photo.
- *   F. A COST CHANGE BETWEEN DISPLAYING A PRICE AND ADDING IT TO THE VISIT
- *      — a price is shown, a material cost changes server-side (no reload,
- *      exactly like a customer who takes a minute to decide), and clicking
- *      "Add to My Visit" against that now-stale number must be REFUSED
- *      (REVIEW_REQUIRED) with NO LineItem created — the server always
- *      independently re-resolves from the answers, never trusts a price the
- *      client displayed or sent. Then the office reapproves the new
- *      economics, a reload shows the corrected (different) price, and
- *      booking THAT succeeds — a real Booking-path LineItem stored at the
- *      new price, not the stale one. Both halves the integration instruction
- *      asked for: the flow cannot book at a stale price, and it can still
- *      reach a genuine booking once the staleness is actually resolved.
+ *   F. A COST CHANGE BETWEEN DISPLAYING A PRICE AND ADDING IT TO THE VISIT,
+ *      CARRIED ALL THE WAY TO A REAL BOOKING — a price is shown, a material
+ *      cost changes server-side (no reload, exactly like a customer who
+ *      takes a minute to decide), and clicking "Add to My Visit" against
+ *      that now-stale number must be REFUSED (REVIEW_REQUIRED) with NO
+ *      LineItem created — the server always independently re-resolves from
+ *      the answers, never trusts a price the client displayed or sent. Then
+ *      the office reapproves the new economics, a reload shows the
+ *      corrected (different) price, and this run continues through NATIVE
+ *      scheduling and a no-deposit checkout — not just Add to My Visit — to
+ *      a real Booking row, whose totalCents is checked against the
+ *      reapproved price directly. Finally, the economics change ONE MORE
+ *      TIME, now that the job is booked, and both the Booking and the
+ *      LineItem it was built from are re-read to confirm neither moved —
+ *      the stored price is a snapshot taken at booking time, never
+ *      re-derived on a later read.
  *
  * Stale-approval -> REVIEW is ALSO proven at the server/pricing-function
  * level by scripts/verify-routing-precision-provisioning.ts's own "changed
@@ -78,6 +82,7 @@ import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
 const SLUG = fixtureSlug("manual-storefront");
+const ZIP = "08201";
 
 let fail = 0;
 const ok = (label: string, cond: boolean, detail = "") => {
@@ -119,14 +124,80 @@ async function walkStraightRoute(page: Page, feet: string) {
   await answerChoice(page, "Is anything in the way?", "No — it's a clear run along the wall");
 }
 
+/**
+ * From "my visit" (a LineItem already added) through NATIVE scheduling and a
+ * no-deposit checkout to a real Booking — the same lifecycle
+ * scripts/verify-derived-scheduling-browser.ts already proves in isolation,
+ * driven here so block F can inspect the actual Booking row, not just the
+ * cart-stage LineItem. Assumes the current page is already on /my-visit.
+ */
+async function bookNativeAppointment(page: Page, email: string): Promise<string> {
+  await page.getByRole("button", { name: "Choose My Appointment Time" }).click();
+  await page.waitForURL(/checkout\/schedule/, { timeout: 30000 });
+  await page.getByRole("heading", { name: "Select an Arrival Window" }).waitFor({ timeout: 30000 });
+  const windowButton = page.locator("main button").filter({ hasText: /\d{1,2}:\d\d [AP]M – \d{1,2}:\d\d [AP]M/ }).first();
+  await windowButton.waitFor({ timeout: 15000 });
+  await windowButton.click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.waitForURL(/checkout\/details/, { timeout: 30000 });
+
+  // The details form's inputs carry no associated labels, so they are
+  // filled in order — the same layout verify-derived-scheduling-browser.ts
+  // already documents (name, email, phone, address, zip).
+  const inputs = page.locator("form input");
+  await inputs.first().waitFor({ timeout: 15000 });
+  const values = ["Booking Proof (TEST)", email, "6095550100", "1 Rehearsal Way", ZIP];
+  for (let i = 0; i < values.length; i++) await inputs.nth(i).fill(values[i]);
+
+  const [checkoutRes] = await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith("/api/checkout") && r.request().method() === "POST", { timeout: 60000 }),
+    page.getByRole("button", { name: "Confirm Appointment" }).click(),
+  ]);
+  const body = await checkoutRes.json().catch(() => null);
+  if (checkoutRes.status() !== 200 || typeof body?.bookingId !== "string") {
+    throw new Error(`checkout did not book: ${checkoutRes.status()} ${JSON.stringify(body)}`);
+  }
+  await page.waitForURL(/checkout\/confirmation\//, { timeout: 60000 }).catch(() => {});
+  return body.bookingId as string;
+}
+
+/**
+ * resetPilotContractor (which removeFixture below calls) REFUSES a
+ * contractor with any real Booking — deleting a booking is deliberately not
+ * something a reset ever decides on its own
+ * (lib/electrical/pilotReset.ts). Block F now makes a real one, so it must
+ * be torn down explicitly first — the same shape
+ * scripts/verify-derived-scheduling-browser.ts already uses for the
+ * identical reason.
+ */
+async function removeBooked(contractorId: string) {
+  const where = { booking: { visit: { contractorId } } };
+  await prisma.paymentEvent.deleteMany({ where });
+  await prisma.bookingAdjustment.deleteMany({ where });
+  await prisma.booking.deleteMany({ where: { visit: { contractorId } } });
+  await prisma.customer.deleteMany({ where: { contractorId } });
+  await prisma.arrivalWindow.deleteMany({ where: { serviceArea: { contractorId } } });
+  await prisma.serviceArea.deleteMany({ where: { contractorId } });
+}
+
 async function main() {
   console.log(`\nINTEGRATION — manual Routing V2 completion through the real storefront\n`);
   console.log(`  ${BASE}  ·  contractor ${SLUG}\n`);
 
   await removeFixture(prisma, SLUG).catch(() => {});
   const browser = await chromium.launch();
+  let contractorId: string | undefined;
   try {
     const fixture = await buildPricedDerivedContractor(prisma, SLUG);
+    contractorId = fixture.contractorId;
+    // Native scheduling + a service area covering ZIP — needed only so
+    // block F can carry its booking all the way through
+    // "Choose My Appointment Time" to a real Booking row, the same setup
+    // scripts/verify-derived-scheduling-browser.ts uses for the identical
+    // step. Default business hours; nothing else in this suite touches
+    // scheduling.
+    await prisma.contractor.update({ where: { id: fixture.contractorId }, data: { schedulingAuthority: "NATIVE", nativeConcurrentJobs: 1 } });
+    await prisma.serviceArea.create({ data: { contractorId: fixture.contractorId, name: "rehearsal area", zipCodes: [ZIP], active: true } });
     const targetUrl = `${BASE}/${SLUG}/services/x/new-120v-outlet`;
     // Captured in block A/B/C, compared against in block D — the actual
     // "same input, same price" proof, not just an inequality against a
@@ -340,17 +411,48 @@ async function main() {
       const bookedLineItem = await prisma.lineItem.findFirst({
         where: { serviceId: fixture.serviceId },
         orderBy: { id: "desc" },
-        select: { computedPriceCents: true },
+        select: { id: true, computedPriceCents: true },
       });
       const afterReapprovalCents = Math.round(parseFloat(priceAfterReapproval.replace(/[$,]/g, "")) * 100);
-      ok("F. the completed booking stores the NEW (post-reapproval) price, not the stale pre-change one",
+      ok("F. the re-added LineItem stores the NEW (post-reapproval) price, not the stale pre-change one",
         bookedLineItem?.computedPriceCents === afterReapprovalCents,
         `displayed ${priceAfterReapproval} (${afterReapprovalCents}c), stored ${bookedLineItem?.computedPriceCents}c`);
+
+      // Continue all the way through NATIVE scheduling and a no-deposit
+      // checkout to a REAL Booking — the gap the review named: this block
+      // used to stop at the cart-stage LineItem and never actually booked.
+      const bookingId = await bookNativeAppointment(page, "booking-proof@example.invalid");
+      const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { totalCents: true } });
+      ok("F. checkout produced a real Booking row for the reapproved, correctly-priced attempt",
+        !!booking, `bookingId ${bookingId}`);
+      ok("F. the Booking's totalCents matches the reapproved price at the moment of booking",
+        booking?.totalCents === afterReapprovalCents,
+        `booking.totalCents ${booking?.totalCents}c, expected ${afterReapprovalCents}c`);
+
+      // THE SNAPSHOT PROOF the review specifically asked for: change the
+      // economics AGAIN, now that the job is already booked and paid for (no
+      // deposit due, but confirmed). A live re-derivation at this point
+      // would move a number the homeowner already agreed to out from under
+      // them after the fact — exactly what app/api/checkout/route.ts's own
+      // comment on totalCents says can never happen ("stays the ...
+      // homeowner is agreeing to"). Both the Booking row and the LineItem it
+      // was built from must hold still.
+      await changeChannelCost(fixture.contractorId, 9999);
+      await reapprove(prisma, fixture.contractorId, fixture.serviceId);
+      const bookingAfterLaterChange = await prisma.booking.findUnique({ where: { id: bookingId }, select: { totalCents: true } });
+      const lineItemAfterLaterChange = await prisma.lineItem.findUnique({ where: { id: bookedLineItem!.id }, select: { computedPriceCents: true } });
+      ok("F. a cost change made AFTER booking leaves the booked Booking.totalCents unchanged",
+        bookingAfterLaterChange?.totalCents === afterReapprovalCents,
+        `at booking: ${afterReapprovalCents}c, after a further cost change: ${bookingAfterLaterChange?.totalCents}c`);
+      ok("F. …and leaves the booked LineItem.computedPriceCents unchanged too — a snapshot, never re-derived live",
+        lineItemAfterLaterChange?.computedPriceCents === afterReapprovalCents,
+        `at booking: ${afterReapprovalCents}c, after a further cost change: ${lineItemAfterLaterChange?.computedPriceCents}c`);
 
       await ctx.close();
     }
   } finally {
     await browser.close();
+    if (contractorId) await removeBooked(contractorId).catch(() => {});
     await removeFixture(prisma, SLUG).catch(() => {});
   }
   ok("every fixture is gone at the end", (await prisma.contractor.findUnique({ where: { slug: SLUG } })) === null);
