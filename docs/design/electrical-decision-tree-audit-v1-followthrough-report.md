@@ -1,4 +1,4 @@
-# Electrical Decision Tree Audit V1 — follow-through report (fourth pass, final)
+# Electrical Decision Tree Audit V1 — follow-through report (fifth pass)
 
 **Status: pushed, in review as a draft PR. Nothing has been applied to any real
 database, the canonical template, or any contractor's live catalog — every claim in
@@ -36,17 +36,29 @@ rehearsal found one genuine defect in this branch's own WWT fix's surrounding UI
 management, not caught by the DB-free fixture (§9.5), and several rehearsal gaps
 still open when that pass's evidence was reviewed.
 
-**This fourth pass** closes those gaps: fixes the back-navigation defect §9.5 found
-(§9.5, now updated) and proves the fix with a durable, committed Playwright regression
-(§11); completes the rehearsal items the third pass left open — note-editing before
+**The fourth pass** closed those gaps: fixed the back-navigation defect §9.5 found
+(§9.5, now updated) and proved the fix with a durable, committed Playwright regression
+(§11); completed the rehearsal items the third pass left open — note-editing before
 submission (found to have no UI path at all, §9.4), a browser walkthrough of
 `replace-standard-outlet` and the fully-composed `new-ceiling-fan` switch-leg path
 (§9.7), and a genuine no-deposit checkout carried through to a real `Booking` (§9.8);
-re-examines every remaining gate failure with the distinctions the second pass's own
+re-examined every remaining gate failure with the distinctions the second pass's own
 report skipped — missing fixture vs. pre-existing defect vs. unresolved, and directly
 checked rather than assumed whether tax/scheduling/HVAC gates need live external
-integrations (§9.6, most did not); and commits the reproducible evidence itself, not
+integrations (§9.6, most did not); and committed the reproducible evidence itself, not
 just the claims about it (§11).
+
+**This fifth pass** is a focused session-and-note correction, prompted by review of
+that evidence: makes the note-editing gap §9.4 found actually reachable rather than
+leaving it as a named limitation (§12.1); closes the session-creation race the fourth
+pass's own regression stumbled into and fixed only by working around it in `next dev`
+(§12.2) — with an explicit, honest correction to that pass's "does not reproduce
+against a production build" language, which was true of the one trigger observed
+(React Strict Mode) but overstated as a general claim about production concurrency;
+hardens `persistAnswers` against a delayed-network Back-and-re-answer race the fix for
+the session-creation race made newly provable (§12.3); and replaces
+`bootstrap-rehearsal-contractor.ts`'s execution-only guard with an actual
+database-target check (§12.4).
 
 ## Final commit list (full SHAs)
 
@@ -73,7 +85,12 @@ just the claims about it (§11).
 | 19 | `b42492091209b65e165e85ac311776ac61db0e98` | docs: record the database/browser rehearsal — one real defect found, gate results, corrected identity |
 | 20 | `a3c71df05bbe5bf43c0ee34824bedaeaeec13ac2` | fix: goBack() must restore the full prior configuration, not just state and answers |
 | 21 | `02a4a9fca1da9aee43d62dc8478296615233a86f` | test: durable browser regression for back-navigation config restoration, plus a reusable rehearsal bootstrap |
-| 22 | *(this commit)* | docs: fourth-pass rehearsal — back-navigation fix proven, remaining gaps closed, gates re-examined precisely |
+| 22 | `61481d77e6afd51e9fd01fe18d328c2b7cb120d5` | docs: fourth-pass rehearsal — back-navigation fix proven, remaining gaps closed, gates re-examined precisely |
+| 23 | `403d48bed5f0fee7d08358c220db0b98efb25091` | fix: require an explicit disposable-database identity before the rehearsal bootstrap can mutate anything |
+| 24 | `ba7c364450af01e8b972916db77a9bc29ef4f151` | fix: close the session-creation race with a real database constraint, not just finding before creating |
+| 25 | `01f700d76fb52e7c3f2ade43b44777806af550c6` | fix: reachable diagnostic note on directBook services, and ordered/coalesced answer saves |
+| 26 | `1e9f1ed09d087e2b17333c486101b0f4dc1921a4` | fix: allow-list this pass's new fixture-price-writing regression scripts |
+| 27 | *(this commit)* | docs: fifth-pass — note reachable, session race closed under real concurrency, save ordering proven, rehearsal bootstrap guarded |
 
 Full reasoning for every item lives in the commit messages
 themselves and in the companion docs:
@@ -914,10 +931,12 @@ cross-tenant leak, just a missing fixture that no longer applies now that one ex
 Real payment capture (no deposit was required on the booking completed in §9.8, so the
 Stripe capture path specifically was never exercised); real email/SMS delivery (the one
 attempt in §9.8 failed by design, per the instruction to keep integrations
-unconfigured); a customer editing an auto-attached troubleshooting note before
-submission (§9.4 — found there is no UI path to reach the editable field at all for a
-zero-question `TROUBLESHOOT_ONLY` service, so this was not a matter of running out of
-time to test it); mobile viewport / dark-mode rendering of anything in this report.
+unconfigured); mobile viewport / dark-mode rendering of anything in this report.
+
+A customer editing an auto-attached troubleshooting note before submission was flagged
+here (fourth pass) as a defect this rehearsal found but did not have authorization to
+fix: there was no UI path to reach the editable field at all for a zero-question
+`TROUBLESHOOT_ONLY` service. **Fixed in the fifth pass — see §12.1.**
 
 ### 9.10 Teardown
 
@@ -957,6 +976,24 @@ file:
   push the schema, seed the catalog (including the one seed-all.ts omits and the one
   step that is expected to fail and why), bootstrap the contractor, stamp the database
   identity, start a dev server, and run the regression above.
+- **`scripts/verify-troubleshooting-note-directbook-browser-flow.ts`** (fifth pass) —
+  the durable Playwright regression for §12.1: direct entry, rerouted entry,
+  editing/removing the note, and its persistence through a real no-deposit checkout
+  into an actual `Booking`.
+- **`scripts/verify-concurrent-session-creation-browser-flow.ts`** (fifth pass) — true,
+  simultaneous `Promise.all` concurrency (not a browser, by design — see the file's own
+  header) proving §12.2's fix: N concurrent session-creation requests resolve to one
+  identity, and a later resume retains the answer.
+- **`scripts/verify-delayed-network-answer-save-browser-flow.ts`** (fifth pass) — the
+  durable Playwright regression for §12.3: `page.route()`-delayed PATCHes, a Back and
+  re-answer while one is in flight, no 409, and the correct final answer surviving a
+  reload taken after the last save is acknowledged.
+- **`prisma/_assertDisposableLocalDatabase.ts`** (fifth pass) — the shared
+  database-target guard for §12.4, used by `bootstrap-rehearsal-contractor.ts` and
+  `migrate-guided-flow-session-active-key.ts`.
+- **`prisma/migrate-guided-flow-session-active-key.ts`** (fifth pass) — the backfill
+  this pass's schema change needs on any database with existing rows (§12.2); run so
+  far only against the disposable local rehearsal database.
 
 **Kept out of git, by design**: the `.env` pointing at any disposable cluster (a
 connection string, even to localhost, is still a credential shape); `.claude/launch.json`
@@ -964,3 +1001,247 @@ entries (host-local tooling config); the Postgres data directory itself (synthet
 data, but a binary database file has no business in a text-diffed repository); any
 screenshot or page dump taken during debugging. Nothing this pass touched required
 committing a secret, and nothing was.
+
+## 12. Fifth pass — a focused session-and-note correction
+
+Prompted by review of the fourth pass's evidence, with its own stated limitations
+accepted. Scope: make the note-editing gap actually reachable; close the
+session-creation race the fourth pass's regression worked around rather than fixed;
+hardened answer-save ordering; a real database-target guard on the rehearsal
+bootstrap. All four are proven against the same disposable local Postgres cluster and
+a production build (`next build && next start`), same posture as every prior pass.
+Nothing in this pass touches the deployment guard, the withdrawn rollout runner, or
+any existing contractor's catalog.
+
+### 12.1 The diagnostic note is now reachable on directBook services
+
+**The gap** (named, not fixed, in the fourth pass — §9.4/§9.9): a zero-question
+`BookingType.TROUBLESHOOT_ONLY` service satisfies `GuidedFlowEngine.tsx`'s
+`directBook` check (`questions.length === 0 && bookingType !== "REMOTE_QUOTE" &&
+anchorPrice !== null`) and so renders only `ServiceIntro` — the `state.kind ===
+"resolved"` branch that hosts `PriceConfirmationCard`'s editable note field is never
+reached, because there is no question to resolve FROM. A homeowner who arrived
+directly had no way to add technician context at all; one arriving via a
+troubleshooting reroute (B.4) had their carried note silently applied and never shown.
+
+**Fixed, structurally**: `components/guided-flow/ServiceIntro.tsx` now accepts the
+same `note`/`onNoteChange`/`noteLabel` contract `PriceConfirmationCard` already had —
+a labeled, editable `<textarea>` rendered only when `directBook` is true AND the
+caller supplies `onNoteChange`. `components/guided-flow/GuidedFlowEngine.tsx` supplies
+it exactly when `flow.bookingType === "TROUBLESHOOT_ONLY"` — the SAME structural field
+the "resolved" branch's own note label already keys on (`§9.4`'s own comment on that
+code explicitly praises checking `bookingType` over a hardcoded slug; this reuses that
+precedent rather than inventing a second one). A `directBook` service that is not
+`TROUBLESHOOT_ONLY` receives no `onNoteChange` and renders exactly as before — the
+short, one-tap flow for the ~65 ordinary flat-price services is unchanged.
+
+Deliberately NOT fixed by routing these services through the full "resolved" screen:
+that would add a screen (and, for some services, functionally a mandatory extra step)
+to a flow whose entire point is that there is nothing left to ask — the instruction's
+own "prefer preserving the short flow rather than adding a mandatory question." The
+note is optional on this screen exactly as it is on `PriceConfirmationCard`.
+
+**Proven**, entirely through the real guided-flow UI, a real database, and a real
+booking — `scripts/verify-troubleshooting-note-directbook-browser-flow.ts`, 12
+assertions, two independent browser contexts (two distinct homeowners):
+
+- **Direct entry**: the field is present and starts empty; typed text can be edited
+  before booking; the stored `LineItem.answersSnapshot.customer_note` equals the final
+  edited text.
+- **Rerouted entry**: `lib/rerouteHandoff.ts`'s own sessionStorage payload is seeded
+  exactly as `RerouteNotice.bookTroubleshooting()` writes it; the field renders
+  pre-filled with the CARRIED text; the field is cleared entirely and re-typed
+  (removed, not merely appended to) before booking; the stored `LineItem` holds the
+  FINAL text, not the carried one. Carried through a real, no-deposit checkout
+  (schedule an arrival window, fill contact details, confirm) to an actual `Booking`
+  row, and the final edited text is read back from THAT booking's own visit's line
+  item — persistence proven all the way through, not just into the cart.
+
+4 consecutive runs, 12/12 clean each time.
+
+### 12.2 The session-creation race, closed with a real database constraint
+
+**Correction to the fourth pass's own claim.** That pass's regression header said the
+race "does not reproduce against a production build" and offered that as reassurance.
+That sentence was TRUE of the one trigger actually observed — React Strict Mode's
+development-only double effect invocation — and OVERSTATED as a claim about
+production. The underlying defect was never Strict-Mode-specific: `lib/
+guidedFlowSession.ts`'s `findOrCreateActiveSession` found the ACTIVE row for a
+(contractorId, sessionId, serviceId) triple, then created one if nothing was found —
+two statements with a race window between them, closable by ANY two independent
+concurrent callers (two tabs sharing one session cookie, a retried request after a
+slow network response, a Device Handoff join landing near the same instant as a page
+load), not only by a development-mode React behavior. The corrected, accurate
+statement is the one in this section's own title: observed under development Strict
+Mode; production concurrency had not actually been tested. It has been now — see the
+proof below.
+
+**Fixed**: `prisma/schema.prisma`'s `GuidedFlowSession` gained `activeSessionKey
+String? @unique` — `lib/guidedFlowSession.ts`'s `buildActiveSessionKey(contractorId,
+sessionId, serviceId)`, set ONLY while `status: "ACTIVE"` and cleared to `null` the
+instant a session becomes COMPLETED or ABANDONED. Postgres never treats two NULLs as
+equal, so this is a real partial-uniqueness constraint: two ACTIVE rows for the same
+triple are not merely unlikely, they are impossible to create at all.
+`findOrCreateActiveSession` is now idempotent BY that constraint, not by checking
+first — the same idiom `lib/depositRecording.ts`'s `recordCapture` already uses in
+this codebase ("idempotent by constraint, not by checking first"): a cheap
+`findUnique` short-circuits the common resume case, but the actual safety is a
+`create` wrapped in a `P2002` catch — whichever concurrent `create` Postgres commits
+first wins the row, and every loser fetches the winner by the same deterministic key,
+never inventing a second row. `completeSession`/`abandonSession` clear
+`activeSessionKey` back to `null` so history never blocks a later session for the same
+triple.
+
+**A real schema change, applied so far ONLY to the disposable local rehearsal
+database, per the instruction.** `prisma/migrate-guided-flow-session-active-key.ts` is
+the backfill any database with existing rows needs: it demotes any pre-existing
+duplicate ACTIVE rows for one triple to ABANDONED (keeping the most recently active),
+then backfills `activeSessionKey` on the survivor. Run against the disposable local
+database used throughout this rehearsal — it found and resolved the 2 duplicate ACTIVE
+groups the fourth pass's own rehearsal had already produced and left behind (`next
+dev`'s Strict Mode double-invoke, from before this fix existed). Idempotent — a second
+run reports zero changes. **Applying this schema change and backfill to Neon is a
+separate, later, explicitly-authorized step** (`production-neon-requires-explicit-
+approval`), not something this pass performs; `prisma db push` was run only against
+`postgresql://127.0.0.1:5544/p2b_rehearsal`.
+
+**Proven with genuine, simultaneous concurrency** —
+`scripts/verify-concurrent-session-creation-browser-flow.ts` — not a browser script
+despite the naming convention (true concurrency from `Promise.all` over raw `fetch` is
+a more honest test of a database race than hoping two browser tabs happen to collide):
+12 truly concurrent `POST /api/guided-flow-sessions` requests, same shared
+`x-price2book-visit` token (the embed entry point — `lib/session.ts`'s
+`tokenFromRequest`, header wins over cookie, used here so independent HTTP requests
+can share one anonymous identity with no browser or cookie jar at all), same
+`serviceSlug`, against the running production server. All 12 resolve to the SAME
+session id; the database holds exactly one ACTIVE row for the triple, not twelve; an
+answer saved against that session succeeds; a LATER, independent call — the same shape
+a reload's mount effect makes — resumes the SAME row with the answer still on it, not
+a thirteenth row. 4 consecutive runs, 8/8 clean each time.
+
+**Coordination check, per the instruction not to change scan behavior or shared
+session code without it**: every caller of `findOrCreateActiveSession`,
+`completeSession`, and `abandonSession` was enumerated (`grep` across `app/` and
+`lib/`) — only `app/api/guided-flow-sessions/route.ts` and
+`app/api/guided-flow-sessions/[id]/complete/route.ts` call them. Device Handoff
+(`app/api/device-handoffs/*`) and Route Assist's visual-assist-task routes
+(`app/api/guided-flow-sessions/[id]/visual-assist-tasks/*`) reference an existing
+`GuidedFlowSession` by its `id` only — a foreign key untouched by this change — and
+never call any of the three modified functions. Re-run and passing clean after this
+change: `scripts/verify-guided-flow-session-persistence.ts` (12/12),
+`scripts/verify-guided-flow-cross-device.ts` (16/16, including the exact
+"stale desktop write rejected with 409, phone's advanced state survives" scenario the
+cross-device concurrency contract depends on, and the Route Assist visual-assist-task
+round trip), and `scripts/verify-anonymous-session-bootstrap.ts` (all scenarios,
+including the Device Handoff identity-overwrite sequence). Route Assist's own scan
+behavior was not touched by this change and is not exercised by it.
+
+### 12.3 Overlapping answer saves under a delayed network
+
+A second, narrower defect surfaced while diagnosing §12.2: `persistAnswers`
+(`components/guided-flow/GuidedFlowEngine.tsx`) fired one PATCH per call using
+whatever `expectedVersion` was in React state at that instant, with no ordering
+between calls. Two calls in quick succession — an answer, then a fast Back and
+re-answer — could both read the SAME not-yet-advanced version, so the second one
+(carrying the customer's actual final intent) was rejected with 409. Separately, the
+409 handler checked `body.version` at the top level, but the route nests it under
+`body.current.version` (`app/api/guided-flow-sessions/[id]/route.ts`) — the check
+never matched, the local version never resynced, and every SUBSEQUENT save would 409
+forever too, since nothing ever advanced it. The customer's final answer never reached
+the server; only a reload — which re-fetches from scratch — could show correct state
+again, by accident of what it found.
+
+**Fixed**: `persistAnswers` is now an ordered, coalesced save queue. At most one PATCH
+per tab is ever in flight (`savingRef`); a call while one is pending replaces the
+pending payload (`pendingSaveRef`) and waits its turn rather than firing a second,
+overlapping request; each queued save reads the version the PREVIOUS queued save
+actually resolved with (`sessionRef`, a ref kept in sync with the React state value,
+not the state value itself, which a closure could still read stale). A same-tab race
+can no longer manufacture its own 409. The `body.current.version` parsing bug is also
+fixed, so a 409 that DOES happen — a genuinely different writer, not this tab — now
+correctly resyncs the local version instead of silently doing nothing.
+
+**Honest, named limitation, not glossed over**: if a 409 happens anyway, this tab does
+NOT retry its own payload on top of what the other writer wrote — it resyncs and
+stops, matching the pre-existing "never overwrite what another device wrote" contract.
+That un-sent local edit is not lost from THIS tab's own screen, but it is not
+automatically retried either; it reaches the server only on the customer's next
+action. A reload of this same tab before that next action would show the other
+writer's state, not this tab's un-sent edit. This is a deliberate scope boundary —
+automatically merging or re-asserting one writer's state over another's is exactly the
+failure mode the existing rule exists to avoid — not an oversight.
+
+**Proven** with a genuinely delayed network, not a fast script hoping to race itself —
+`scripts/verify-delayed-network-answer-save-browser-flow.ts`: `page.route()`
+artificially delays every `PATCH /api/guided-flow-sessions/:id` by 2.5s. Answer Q1
+("paid"), then — while that PATCH is still artificially in flight — Back and
+re-answer Q1 differently ("customer_supplied"), then resolve Q2. Asserts: the terminal
+price reflects the FINAL answer, not the abandoned first one; no 409 is ever logged;
+the server's persisted `consumedAnswers` hold only the final answers once acknowledged;
+and — verifying reload after the latest save is acknowledged, per the instruction — a
+reload taken only after that resolves at the correct final price with no re-asked
+question. 3 consecutive runs, 5/5 clean each time. The settled-click regression
+(`scripts/verify-back-navigation-config-browser-flow.ts`) was kept as-is and re-run
+clean (17/17) after this change, alongside it rather than instead of it.
+
+### 12.4 A real database-target guard on the rehearsal bootstrap
+
+**The gap**: `prisma/bootstrap-rehearsal-contractor.ts`'s only safety check was
+`import.meta.url === pathToFileURL(process.argv[1]).href` — an execution guard (is
+this script the entrypoint, not an import), not a database-target guard. It said
+nothing about which database the connected Prisma client actually pointed at; a
+`DATABASE_URL` pointed anywhere would have been written to.
+
+**Fixed**: `prisma/_assertDisposableLocalDatabase.ts`, called before any mutation in
+both `bootstrap-rehearsal-contractor.ts` and the new
+`migrate-guided-flow-session-active-key.ts`, requires TWO independent facts, neither
+sufficient alone: `DATABASE_URL` resolves to a loopback host (`127.0.0.1` or
+`localhost`) — true regardless of what any table says — AND the connected database
+carries a `DatabaseIdentity` stamp (ADR-013, `scripts/verify-database-identity.ts`)
+whose `key` starts with `local-` — an operator's explicit, recorded decision that THIS
+database is a disposable rehearsal one, the same mechanism `--stamp` already writes,
+reused rather than duplicated. A bare loopback check alone would pass against a local
+Postgres somebody pointed at a restored production dump by mistake; a bare identity
+check alone would trust a stamp that could in principle be copied along with the data
+it exists to catch copies of.
+
+**Proven**: run with `DATABASE_URL` pointed at a fabricated non-loopback host — refuses
+immediately, with the reason, before any query. Run against the disposable local
+cluster, correctly stamped — proceeds, printing the confirmed identity key. Both
+`bootstrap-rehearsal-contractor.ts` and `migrate-guided-flow-session-active-key.ts`
+were run successfully against the disposable local database under this guard during
+this pass (the latter is what performed §12.2's backfill).
+
+### 12.5 Validation run this pass
+
+Full chain: `npx tsc --noEmit` clean; the five DB-free regressions
+(`verify-referenced-service-pricing`, `verify-lighting-control-rewire`,
+`verify-reroute-handoff`, `verify-mount-price-unit-contract`, `verify-visit-primary`)
+all passing; all four browser regressions (back-navigation, the new note-reachability,
+concurrent-session-creation, delayed-network-answer-save) passing multiple consecutive
+clean runs each against a production build; the three session/cross-device regressions
+in §12.2's coordination check passing; `npm run verify:full` run against the disposable
+local database.
+
+**`verify:full` is NOT green, and this is not claimed otherwise.** `audit-price-
+writers.ts` initially failed on this pass's own new fixture-price-writing scripts (plus
+one pre-existing gap: `verify-back-navigation-config-browser-flow.ts`, added in the
+fourth pass, had never actually been added to that gate's allow-list) — fixed by
+adding all five to `scripts/audit-price-writers.ts`'s allow-list with the same
+"THROWAWAY, created and destroyed by the test, no real price read or written"
+justification every other entry already carries; confirmed passing (0 flagged) after.
+Past that fix, the chain stops at the SAME wall the fourth pass's §9.6 already
+documented and this pass did not touch: `verify-platform-onboarding.ts` fails with "no
+published trade exists to onboard against" — no canonical `TemplateVersion` on this
+from-scratch database, a missing rehearsal fixture, not a regression. Individually
+re-run past that point to confirm nothing NEW broke: `verify-checkout-atomicity.ts`
+(14/14) and `verify-tenant-indexes.ts` both pass clean; `verify-scheduling-
+availability.ts` (no eligible crew), `verify-stripe-connect.ts` (1 failure, no Stripe
+connection on the rehearsal row), `verify-payment-ledger.ts` (crashes reading a
+pre-existing booking that cannot exist on a fresh database), and `verify-deposit-
+flow.ts` (missing DB trigger `payment_events_append_only`, not installed by `prisma db
+push`) all reproduce in EXACTLY the state §9.6 already documented — same missing
+fixtures, same root causes, nothing new. No required gate failure introduced by this
+pass; the pre-existing, missing-fixture gates from the fourth pass remain exactly as
+documented and are not fixed here, per the instruction not to broaden into unrelated
+platform subsystems.
