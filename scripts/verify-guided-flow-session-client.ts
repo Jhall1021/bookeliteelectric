@@ -67,7 +67,7 @@ async function sameKeyConflictCase() {
   );
   check("same-key conflict does not retry", calls === 1, String(calls));
   check("same-key conflict preserves server winner", out.answers.route === "16" && out.answers.phoneOnly === "yes", JSON.stringify(out));
-  check("same-key conflict is surfaced", out.conflicts.length === 1 && out.conflicts[0].key === "route", JSON.stringify(out.conflicts));
+  check("same-key conflict is surfaced", out.conflictKeys.length === 1 && out.conflictKeys[0] === "route", JSON.stringify(out.conflictKeys));
 }
 
 async function secondRaceCase() {
