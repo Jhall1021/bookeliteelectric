@@ -1,29 +1,38 @@
 /**
- * MATERIAL CATALOG — Phase 1C, Batch 2A (200a-service-upgrade,
- * electrical-panel-replacement).
+ * MATERIAL CATALOG — Phase 1C, Batch 2A. FINAL SCOPE: electrical-panel-
+ * replacement only. 200a-service-upgrade is deferred whole — its mast-
+ * conductor material requirement is physically known but not safely
+ * representable in the current canonical material model (one role = one
+ * purchased product; no field for "which of several correlated physical
+ * conductors"). No 200A CanonicalMaterial rows exist in this release.
  *
- * Proves, against a real database and the real provisioning path, that
- * electrical v4:
+ * Proves, against a real database and the real provisioning path:
  *
- *   1. installs both promoted services completely for a FRESH contractor;
- *   2. gives every universal structural line (panel, meter socket,
- *      weatherhead, mast fittings set, the one grounding-rod count that IS
- *      structural) a real, immediately resolved quantity;
- *   3. leaves every contractor-policy line unresolved — including the two
- *      breaker-count lines the extractor's own regex heuristic got wrong,
- *      corrected in scripts/finalize-batch-2a-recipes.ts;
- *   4. never leaks an Elite-specific figure (17, 3, 20, 25, 15) as a
- *      resolved quantity anywhere in a fresh install;
- *   5. never silently hard-codes a compatibility-selected product — the new
- *      service-mast roles carry no brand/SKU, matching every existing
- *      compatibility-sensitive role's own convention;
- *   6. never touches Elite's own ContractorMaterial costs;
- *   7. never touches a published/approved price;
- *   8. never introduces or touches a Route Assist / Routing V2 shared
- *      contract, checked against this branch's own diff, not against key
- *      existence;
- *   9. leaves Batch 1's v3 services completely unaffected;
- *  10. removes every fixture it creates.
+ *   0. this branch's diff touches zero Route Assist / Routing V2 / shared-
+ *      schema files (checked against the actual diff, not key existence);
+ *   1. a fresh contractor's folded electrical catalog (v1+v2+v3+v4) contains
+ *      exactly 78 distinct service keys, derived from the install itself —
+ *      not a hardcoded literal trusted on faith;
+ *   2. electrical-panel-replacement installs on that fresh contractor;
+ *   3. its recipe is EXACTLY 4 lines: PANEL_MAIN_BREAKER resolved x1,
+ *      BREAKER_SINGLE_POLE / BREAKER_DOUBLE_POLE / CONSUMABLES_MEDIUM
+ *      unresolved — nothing more, nothing less;
+ *   4. no grounding material (GROUND_ROD, GROUND_CLAMP, WIRE_GROUND_6)
+ *      landed, resolved or unresolved;
+ *   5. no service-entrance/riser/mast/meter material landed — this service
+ *      never carried any;
+ *   6. none of Elite's own figures (17, 3, 15, 25) leaked as a resolved
+ *      quantity;
+ *   7. all six Batch 1 v3 services land on the SAME fresh contractor, and
+ *      each one's installed materials are read directly off that contractor
+ *      and compared against prisma/template/electrical-v3-provenance.json —
+ *      not inferred from source-diff non-overlap;
+ *   8. Elite's own ContractorMaterial costs are untouched;
+ *   9. no fresh-install service carries an approved published price;
+ *  10. 200a-service-upgrade is untouched: still v1-sourced only, still zero
+ *      materials, no v4 override exists for it;
+ *  11. no 200A CanonicalMaterial role was created (74 roles, unchanged);
+ *  12. the fixture is fully torn down.
  *
  *   npx tsx scripts/verify-material-batch-2a.ts
  */
@@ -31,6 +40,7 @@ import { PrismaClient } from "@prisma/client";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
@@ -47,22 +57,21 @@ const PREFIX = "test-material-batch2a";
 const SLUG = `${PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
 const STALE_AFTER_MS = 60 * 60 * 1000;
 
-const SERVICES = [
-  {
-    key: "200a-service-upgrade",
-    structural: ["PANEL_200A_MAIN_BREAKER", "METER_SOCKET_200A", "GROUND_ROD", "SERVICE_ENTRANCE_CAP_200A", "SERVICE_MAST_FITTINGS_200A"],
-    policy: ["SERVICE_ENTRANCE_CABLE_200A", "BREAKER_SINGLE_POLE", "BREAKER_DOUBLE_POLE", "GROUND_CLAMP", "WIRE_GROUND_6", "CONSUMABLES_MEDIUM", "SERVICE_MAST_CONDUIT_200A"],
-    absent: [], // grounding electrode work is structural here, not absent
-  },
-  {
-    key: "electrical-panel-replacement",
-    structural: ["PANEL_MAIN_BREAKER"],
-    policy: ["BREAKER_SINGLE_POLE", "BREAKER_DOUBLE_POLE", "CONSUMABLES_MEDIUM"],
-    absent: ["GROUND_ROD", "GROUND_CLAMP", "WIRE_GROUND_6"], // existing-condition dependent — not represented either way
-  },
+const SERVICE_KEY = "electrical-panel-replacement";
+const EXPECTED_STRUCTURAL: Record<string, number> = { PANEL_MAIN_BREAKER: 1 };
+const EXPECTED_POLICY = ["BREAKER_SINGLE_POLE", "BREAKER_DOUBLE_POLE", "CONSUMABLES_MEDIUM"];
+const FORBIDDEN_ABSENT = [
+  "GROUND_ROD", "GROUND_CLAMP", "WIRE_GROUND_6",
+  "PANEL_200A_MAIN_BREAKER", "METER_SOCKET_200A", "SERVICE_ENTRANCE_CABLE_200A",
 ];
-const NEW_ROLE_KEYS = ["SERVICE_ENTRANCE_CAP_200A", "SERVICE_MAST_CONDUIT_200A", "SERVICE_MAST_FITTINGS_200A"];
-const FORBIDDEN_ELITE_QUANTITIES = [17, 3, 20, 25, 15];
+const FORBIDDEN_ELITE_QUANTITIES = [17, 3, 15, 25];
+const EXPECTED_FOLDED_COUNT = 78;
+const REMOVED_200A_ROLE_KEYS = [
+  "SERVICE_ENTRANCE_CAP_200A", "SERVICE_MAST_CONDUCTORS_200A",
+  "SERVICE_MAST_CONDUIT_200A", "SERVICE_MAST_CAP_FITTINGS_200A", "SERVICE_MAST_STRAPS_200A",
+];
+const V3_KEYS = ["new-video-doorbell-wiring", "generator-inlet-interlock", "240v-garage-outlet",
+  "240v-garage-outlet-14-30", "240v-garage-outlet-6-50", "240v-garage-outlet-14-50"];
 
 let fail = 0;
 const ok = (l: string, c: boolean, d?: string) => { if (!c) fail++; console.log(`  ${c ? "✓" : "✗"} ${l}${c || !d ? "" : `  (${d})`}`); };
@@ -83,7 +92,7 @@ async function sweepStale() {
 async function teardown() { await removeContractor(SLUG); }
 
 async function main() {
-  console.log(`\nMATERIAL RECIPE — BATCH 2A (200a-service-upgrade, electrical-panel-replacement)\n`);
+  console.log(`\nMATERIAL RECIPE — BATCH 2A (electrical-panel-replacement only; 200a-service-upgrade deferred)\n`);
   await teardown();
   await sweepStale();
 
@@ -96,98 +105,137 @@ async function main() {
   ok(`0. this branch's diff against origin/main touches zero Route Assist / Routing V2 / shared-schema files`,
     touchesRouteAssist.length === 0, JSON.stringify({ changedFiles, touchesRouteAssist }));
 
-  // ── 1. no compatibility-sensitive product hard-coded on the new roles ──
-  const newRoles = await raw.canonicalMaterial.findMany({ where: { key: { in: NEW_ROLE_KEYS } }, select: { key: true, notes: true } });
-  const anyBrand = newRoles.some((r) => /\b(square d|siemens|eaton|leviton|carlon|homeline|qo\b)\b/i.test(r.notes ?? ""));
-  ok(`1. none of the 3 new roles name a brand/SKU in their own notes`, !anyBrand && newRoles.length === 3, JSON.stringify(newRoles));
+  // ── 11. no 200A canonical role exists — this release created none ──
+  const stray200a = await raw.canonicalMaterial.count({ where: { key: { in: REMOVED_200A_ROLE_KEYS } } });
+  const totalRoles = await raw.canonicalMaterial.count();
+  ok(`11. no 200A mast/conductor CanonicalMaterial role exists (none proposed in this release)`, stray200a === 0, `found ${stray200a}`);
+  ok(`    canonical_materials count is unchanged at 74`, totalRoles === 74, `got ${totalRoles}`);
 
-  // ── 2. Elite's own ContractorMaterial costs untouched ──
-  const elite = await raw.contractor.findUniqueOrThrow({ where: { slug: ELITE_SLUG }, select: { id: true } });
-  const touchedRoles = new Set(SERVICES.flatMap((s) => [...s.structural, ...s.policy]));
-  const beforeCutoff = new Date();
-  const eliteMaterials = await raw.contractorMaterial.findMany({
-    where: { contractorId: elite.id, canonicalMaterial: { key: { in: [...touchedRoles] } } },
-    select: { canonicalMaterial: { select: { key: true } }, updatedAt: true },
+  // ── 10. 200a-service-upgrade untouched: v1-sourced only, zero materials, no v4 override ──
+  const v4For200a = await raw.templateService.findFirst({
+    where: { key: "200a-service-upgrade", templateVersion: { trade: "electrical", version: 4 } },
   });
-  ok(`2. Elite's ContractorMaterial rows exist for every touched role (nothing this batch does needs to create one)`,
-    true, `${eliteMaterials.length} rows found, informational`);
+  ok(`10. no v4 TemplateService override exists for 200a-service-upgrade`, v4For200a === null);
+  const v1For200a = await raw.templateService.findFirst({
+    where: { key: "200a-service-upgrade", templateVersion: { trade: "electrical", version: 1 } },
+    select: { id: true },
+  });
+  const v1Materials200a = v1For200a
+    ? await raw.templateServiceMaterial.count({ where: { templateServiceId: v1For200a.id } })
+    : -1;
+  ok(`    200a-service-upgrade's only source is v1, still carrying zero materials`, v1Materials200a === 0, `got ${v1Materials200a}`);
 
-  // ── 3. fresh contractor: full folded catalog installs completely ──
+  // ── 8. Elite's own ContractorMaterial costs untouched ──
+  const elite = await raw.contractor.findUniqueOrThrow({ where: { slug: ELITE_SLUG }, select: { id: true } });
+  const touchedRoles = [...Object.keys(EXPECTED_STRUCTURAL), ...EXPECTED_POLICY];
+  const eliteMaterialsBefore = await raw.contractorMaterial.findMany({
+    where: { contractorId: elite.id, canonicalMaterial: { key: { in: touchedRoles } } },
+    select: { canonicalMaterial: { select: { key: true } }, unitCostCents: true, updatedAt: true },
+  });
+
   const c = await raw.contractor.create({ data: { slug: SLUG, name: "Material batch 2A probe", active: false }, select: { id: true } });
   try {
+    // ── 1. fresh folded catalog contains exactly 78 distinct service keys ──
     const source = templateVersionSource(raw, "electrical");
     const pre = await withTenant({ contractorId: c.id, source: "test" }, () => preflight(guarded, c.id, source));
-    ok(`3. preflight passes for a brand-new contractor`, pre.ok, pre.ok ? "" : pre.code);
-    if (!pre.ok) throw new Error("preflight refused");
-
-    const includedKeys = new Set(pre.catalog.services.map((s) => (s as unknown as { key: string }).key));
-    ok(`   both Batch 2A service keys are present in the folded catalog (v1+v2+v4)`,
-      SERVICES.every((s) => includedKeys.has(s.key)), SERVICES.filter((s) => !includedKeys.has(s.key)).map((s) => s.key).join(", "));
+    if (!pre.ok) { ok(`preflight passes for a brand-new contractor`, false, pre.code); throw new Error("preflight refused"); }
+    const foldedKeys = new Set(pre.catalog.services.map((s) => (s as unknown as { key: string }).key));
+    ok(`1. the folded catalog contains exactly ${EXPECTED_FOLDED_COUNT} distinct electrical service keys`,
+      foldedKeys.size === EXPECTED_FOLDED_COUNT, `got ${foldedKeys.size}`);
+    ok(`   electrical-panel-replacement is present in the fold`, foldedKeys.has(SERVICE_KEY));
+    ok(`   200a-service-upgrade is present in the fold (from v1, unmodified)`, foldedKeys.has("200a-service-upgrade"));
 
     const result = await withTenant({ contractorId: c.id, source: "test" }, () => installCatalog(raw, c.id, pre.catalog));
     console.log(`     installed ${result.services} services, ${result.unresolvedMaterialRoles} unresolved role(s)`);
 
-    const services = await raw.service.findMany({
-      where: { contractorId: c.id, slug: { in: SERVICES.map((s) => s.key) } },
-      select: { id: true, slug: true, unresolvedMaterialKeys: true },
-    });
-    ok(`4. both promoted services actually landed on the fresh contractor`, services.length === 2, `${services.length} of 2`);
+    const installedCount = await raw.service.count({ where: { contractorId: c.id } });
+    ok(`   the installed fresh contractor also has exactly ${EXPECTED_FOLDED_COUNT} services`,
+      installedCount === EXPECTED_FOLDED_COUNT, `got ${installedCount}`);
 
-    for (const spec of SERVICES) {
-      const svc = services.find((s) => s.slug === spec.key);
-      if (!svc) { ok(`   ${spec.key} present`, false); continue; }
+    // ── 2-6. electrical-panel-replacement recipe ──
+    const svc = await raw.service.findFirst({
+      where: { contractorId: c.id, slug: SERVICE_KEY }, select: { id: true, unresolvedMaterialKeys: true },
+    });
+    ok(`2. electrical-panel-replacement landed on the fresh contractor`, !!svc);
+    if (svc) {
       const lines = await raw.serviceMaterial.findMany({
         where: { serviceId: svc.id }, select: { quantity: true, canonicalMaterial: { select: { key: true } } },
       });
       const byKey = new Map(lines.map((l) => [l.canonicalMaterial?.key, l.quantity]));
 
-      for (const structuralKey of spec.structural) {
-        ok(`   ${spec.key}: ${structuralKey} resolved with a real structural quantity`,
-          byKey.has(structuralKey) && (byKey.get(structuralKey) ?? 0) > 0, `got ${byKey.get(structuralKey)}`);
+      ok(`3a. recipe has exactly 1 resolved (structural) line`, lines.length === 1, `got ${lines.length}: ${JSON.stringify(lines.map(l=>l.canonicalMaterial?.key))}`);
+      for (const [key, qty] of Object.entries(EXPECTED_STRUCTURAL)) {
+        ok(`3b. ${key} resolved with quantity ${qty}`, byKey.get(key) === qty, `got ${byKey.get(key)}`);
       }
-      for (const policyKey of spec.policy) {
-        const hasLine = byKey.has(policyKey);
-        const isUnresolved = svc.unresolvedMaterialKeys.includes(policyKey);
-        ok(`   ${spec.key}: ${policyKey} has NO ServiceMaterial row — landed in unresolvedMaterialKeys instead`,
-          !hasLine && isUnresolved, `hasLine=${hasLine} unresolved=${isUnresolved}`);
+      for (const key of EXPECTED_POLICY) {
+        const hasLine = byKey.has(key);
+        const isUnresolved = svc.unresolvedMaterialKeys.includes(key);
+        ok(`3c. ${key} has no ServiceMaterial row and is in unresolvedMaterialKeys`, !hasLine && isUnresolved, `hasLine=${hasLine} unresolved=${isUnresolved}`);
       }
-      for (const absentKey of spec.absent) {
-        ok(`   ${spec.key}: ${absentKey} is genuinely absent — not resolved AND not even offered as unresolved`,
-          !byKey.has(absentKey) && !svc.unresolvedMaterialKeys.includes(absentKey));
+      // unresolvedMaterialKeys tracks COST resolution, not quantity: a brand-new
+      // contractor has zero seeded ContractorMaterial costs for any role — so
+      // PANEL_MAIN_BREAKER (quantity resolved, cost not) legitimately appears
+      // here too. installCatalog() "seeds zero economics" by design. The
+      // meaningful distinction is already proven per-key in 3b/3c: PANEL_MAIN_BREAKER
+      // has a ServiceMaterial row (quantity known); the 3 policy roles do not.
+
+      for (const forbidden of FORBIDDEN_ABSENT) {
+        ok(`4/5. ${forbidden} is genuinely absent — not resolved and not unresolved`,
+          !byKey.has(forbidden) && !svc.unresolvedMaterialKeys.includes(forbidden));
       }
 
-      const anyForbidden = lines.some((l) => FORBIDDEN_ELITE_QUANTITIES.includes(l.quantity));
-      ok(`   ${spec.key}: none of Elite's own counts/footage (17/3/20/25/15) leaked as a resolved quantity`,
-        !anyForbidden, JSON.stringify(lines.map((l) => [l.canonicalMaterial?.key, l.quantity])));
+      const anyForbiddenQty = lines.some((l) => FORBIDDEN_ELITE_QUANTITIES.includes(l.quantity ?? -1));
+      ok(`6. none of Elite's own counts (17/3/15/25) leaked as a resolved quantity`, !anyForbiddenQty,
+        JSON.stringify(lines.map((l) => [l.canonicalMaterial?.key, l.quantity])));
     }
 
-    // ── 5. no published price on a fresh install ──
+    // ── 9. no published price on a fresh install ──
     const anyPublished = await raw.service.count({
-      where: { contractorId: c.id, slug: { in: SERVICES.map((s) => s.key) }, publishedPriceApprovedAt: { not: null } },
+      where: { contractorId: c.id, slug: SERVICE_KEY, publishedPriceApprovedAt: { not: null } },
     });
-    ok(`5. a fresh install never carries an approved published price`, anyPublished === 0);
+    ok(`9. the fresh install of electrical-panel-replacement carries no approved published price`, anyPublished === 0);
 
-    // ── 6. Batch 1's v3 services are completely unaffected by this run ──
-    const v3Keys = ["new-video-doorbell-wiring", "generator-inlet-interlock", "240v-garage-outlet",
-      "240v-garage-outlet-14-30", "240v-garage-outlet-6-50", "240v-garage-outlet-14-50"];
+    // ── 7. Batch 1's six v3 services coexist, proved directly against install output ──
+    const provenance = JSON.parse(readFileSync(resolve(REPO_ROOT, "prisma/template/electrical-v3-provenance.json"), "utf8"));
     const v3Services = await raw.service.findMany({
-      where: { contractorId: c.id, slug: { in: v3Keys } }, select: { slug: true, id: true },
+      where: { contractorId: c.id, slug: { in: V3_KEYS } }, select: { slug: true, id: true },
     });
-    ok(`6. Batch 1's 6 v3 services also landed on the same fresh install, unaffected`, v3Services.length === 6, `${v3Services.length} of 6`);
-    if (v3Services.length === 6) {
-      const doorbell = v3Services.find((s) => s.slug === "new-video-doorbell-wiring")!;
-      const doorbellLines = await raw.serviceMaterial.findMany({
-        where: { serviceId: doorbell.id }, select: { canonicalMaterial: { select: { key: true } }, quantity: true },
+    ok(`7a. all six Batch 1 v3 services landed on the same fresh contractor`, v3Services.length === 6, `${v3Services.length} of 6`);
+
+    for (const entry of provenance.services as Array<{ key: string; structuralMaterials: { role: string; quantity: number }[]; policyMaterialRoles: string[] }>) {
+      const svc3 = v3Services.find((s) => s.slug === entry.key);
+      if (!svc3) { ok(`7b. ${entry.key} present`, false); continue; }
+      const lines3 = await raw.serviceMaterial.findMany({
+        where: { serviceId: svc3.id }, select: { quantity: true, canonicalMaterial: { select: { key: true } } },
       });
-      ok(`   ...and its own recipe (DOORBELL_TRANSFORMER x1) is exactly what Batch 1 left it as`,
-        doorbellLines.length === 1 && doorbellLines[0].canonicalMaterial?.key === "DOORBELL_TRANSFORMER" && doorbellLines[0].quantity === 1,
-        JSON.stringify(doorbellLines));
+      const byKey3 = new Map(lines3.map((l) => [l.canonicalMaterial?.key, l.quantity]));
+      const svcRow = await raw.service.findUniqueOrThrow({ where: { id: svc3.id }, select: { unresolvedMaterialKeys: true } });
+
+      const structuralOk = entry.structuralMaterials.every((m) => byKey3.get(m.role) === m.quantity);
+      ok(`7b. ${entry.key}: structural materials match provenance exactly`, structuralOk,
+        JSON.stringify({ expected: entry.structuralMaterials, got: lines3.map((l) => [l.canonicalMaterial?.key, l.quantity]) }));
+
+      const policyOk = entry.policyMaterialRoles.every((r) => !byKey3.has(r) && svcRow.unresolvedMaterialKeys.includes(r));
+      ok(`7c. ${entry.key}: policy materials match provenance exactly (unresolved, not resolved)`, policyOk,
+        JSON.stringify({ expected: entry.policyMaterialRoles, unresolvedGot: svcRow.unresolvedMaterialKeys }));
     }
+
+    // ── 8 (cont'd). Elite's costs still identical after this run ──
+    const eliteMaterialsAfter = await raw.contractorMaterial.findMany({
+      where: { contractorId: elite.id, canonicalMaterial: { key: { in: touchedRoles } } },
+      select: { canonicalMaterial: { select: { key: true } }, unitCostCents: true, updatedAt: true },
+    });
+    const beforeMap = new Map(eliteMaterialsBefore.map((m) => [m.canonicalMaterial?.key, m]));
+    const costsUnchanged = eliteMaterialsAfter.every((m) => {
+      const before = beforeMap.get(m.canonicalMaterial?.key);
+      return before && before.unitCostCents === m.unitCostCents && before.updatedAt.getTime() === m.updatedAt.getTime();
+    });
+    ok(`8. Elite's own ContractorMaterial costs/updatedAt are byte-identical before and after`, costsUnchanged);
   } finally {
     await teardown();
   }
   const residue = await raw.contractor.count({ where: { slug: SLUG } });
-  ok(`7. the fixture is gone at the end`, residue === 0);
+  ok(`12. the fixture is gone at the end`, residue === 0);
 
   await raw.$disconnect();
   await guarded.$disconnect();
