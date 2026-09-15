@@ -2,8 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import RouteAssistRoomScanCamera, { type RouteAssistRoomScanCaptureV1 } from "@/components/route-assist/RouteAssistRoomScanCamera";
 import RouteAssistSweepRouteReview from "@/components/route-assist/RouteAssistSweepRouteReview";
-import { routeAssistBrowserCapturePersisterV1 } from "@/lib/visual-assist/route-assist/browserCapturePersister";
-import { persistRouteAssistSweepCaptureV1, type RouteAssistSweepCaptureHandoffV1 } from "@/lib/visual-assist/route-assist/captureHandoff";
+import { persistRouteAssistSweepCaptureV1, type RouteAssistCaptureImagePersisterV1, type RouteAssistSweepCaptureHandoffV1 } from "@/lib/visual-assist/route-assist/captureHandoff";
 import { detectRouteAssistWebCaptureCapabilityV1, selectRouteAssistAcquisitionPathV1, type RouteAssistAcquisitionPathV1, type RouteAssistCaptureCapabilityV1 } from "@/lib/visual-assist/route-assist/captureCapability";
 import { buildFixtureCorrectionAwareOverlayV1 } from "@/lib/visual-assist/route-assist/fixtureRouteRevision";
 import { buildFixtureVisibleSceneSemanticsV1 } from "@/lib/visual-assist/route-assist/fixtureVisibleSceneProvider";
@@ -18,6 +17,23 @@ const POINTS: RoutePoint[] = [{ id: "fixture-source-point", x: .15, y: .64, imag
 const SEGMENTS: RouteSegment[] = [{ id: "fixture-route-segment", fromPointId: POINTS[0].id, toPointId: POINTS[1].id }];
 const OPTIONS: Array<{label:string;value:CeilingHeight}> = [{label:"8 ft",value:8},{label:"9 ft",value:9},{label:"10 ft",value:10},{label:"12 ft",value:12},{label:"Not sure",value:null}];
 
+/**
+ * Preview-only persistence. The public camera rehearsal must not depend on the
+ * production R2 upload path or credentials. Object URLs are kept only for the
+ * life of this browser page and never become provider-addressable mediaRefs.
+ */
+const previewCapturePersisterV1: RouteAssistCaptureImagePersisterV1 = {
+  async persist(frame) {
+    return {
+      imageId: frame.imageId,
+      imageUrl: frame.objectUrl,
+      mimeType: frame.mimeType,
+      width: frame.width,
+      height: frame.height,
+    };
+  },
+};
+
 function correctionInstruction(kind: RouteAssistReviewCorrectionKindV1): string {
   if (kind === "ROUTE_SHOULD_AVOID_HERE") return "Tap the area the proposed route should avoid. This is guidance only, not obstacle evidence.";
   if (kind === "SOURCE_ANCHOR_WRONG") return "Tap the actual existing outlet/source. Route Assist will ask the provider to re-identify the source; this does not move the canonical source point.";
@@ -28,7 +44,7 @@ function correctionInstruction(kind: RouteAssistReviewCorrectionKindV1): string 
 export default function RouteAssistCameraDemoPage(){
  const [capture,setCapture]=useState<RouteAssistRoomScanCaptureV1|null>(null); const [handoff,setHandoff]=useState<RouteAssistSweepCaptureHandoffV1|null>(null); const [state,setState]=useState<"IDLE"|"UPLOADING"|"READY"|"FAILED">("IDLE"); const [capability,setCapability]=useState<RouteAssistCaptureCapabilityV1|null>(null); const [acquisition,setAcquisition]=useState<RouteAssistAcquisitionPathV1|null>(null); const [needsScale,setNeedsScale]=useState(false); const [calibrationReady,setCalibrationReady]=useState(false); const [scaleDeclined,setScaleDeclined]=useState(false); const [reviewed,setReviewed]=useState<"PENDING"|"ACCEPTED"|"ADJUST">("PENDING"); const [corrections,setCorrections]=useState<RouteAssistReviewCorrectionV1[]>([]); const [correctionKind,setCorrectionKind]=useState<RouteAssistReviewCorrectionKindV1>("ROUTE_SHOULD_PASS_HERE"); const [correctionProblem,setCorrectionProblem]=useState<string|null>(null);
  useEffect(()=>{const c=detectRouteAssistWebCaptureCapabilityV1();setCapability(c);setAcquisition(selectRouteAssistAcquisitionPathV1(c));},[]);
- async function handleCapture(next:RouteAssistRoomScanCaptureV1){setCapture(next);setState("UPLOADING");setReviewed("PENDING");setCorrections([]);setCorrectionProblem(null);setCorrectionKind("ROUTE_SHOULD_PASS_HERE");setScaleDeclined(false);const persisted=await persistRouteAssistSweepCaptureV1({frames:next.sweepFrames,persister:routeAssistBrowserCapturePersisterV1});if(!persisted){setState("FAILED");return;}setHandoff(persisted);setState("READY");if(!capability||capability.worldGeometryAvailable){setCalibrationReady(true);return;}const auto=evaluateRouteAssistAutomaticCalibrationV1({capability,visualReferenceAttempted:true,references:[]});setNeedsScale(auto.decision.askHomeownerForScale);setCalibrationReady(!auto.decision.askHomeownerForScale);}
+ async function handleCapture(next:RouteAssistRoomScanCaptureV1){setCapture(next);setState("UPLOADING");setReviewed("PENDING");setCorrections([]);setCorrectionProblem(null);setCorrectionKind("ROUTE_SHOULD_PASS_HERE");setScaleDeclined(false);const persisted=await persistRouteAssistSweepCaptureV1({frames:next.sweepFrames,persister:previewCapturePersisterV1});if(!persisted){setState("FAILED");return;}setHandoff(persisted);setState("READY");if(!capability||capability.worldGeometryAvailable){setCalibrationReady(true);return;}const auto=evaluateRouteAssistAutomaticCalibrationV1({capability,visualReferenceAttempted:true,references:[]});setNeedsScale(auto.decision.askHomeownerForScale);setCalibrationReady(!auto.decision.askHomeownerForScale);}
  function answerScale(value:CeilingHeight){if(!capability)return;if(value===null){setScaleDeclined(true);setNeedsScale(false);setCalibrationReady(false);return;}const result=resolveRouteAssistHomeownerCalibrationV1({capability,ceilingHeightFt:value});setCalibrationReady(result.usableReferences.length>0);setNeedsScale(result.usableReferences.length===0);}
  const baselineOverlay=useMemo(()=>{if(!handoff)return null;const semantics=buildFixtureVisibleSceneSemanticsV1({captureImageIds:handoff.captureArtifacts.imageIds,sourcePointId:POINTS[0].id,destinationPointId:POINTS[1].id,segmentId:SEGMENTS[0].id});if(!semantics)return null;const proposal=proposeVisibleTrimHuggingRouteV1({semantics,expectedCaptureImageIds:handoff.captureArtifacts.imageIds,points:POINTS,segments:SEGMENTS});return buildVisibleTrimRouteOverlayV1({semantics,proposal});},[handoff]);
  const overlay=useMemo(()=>baselineOverlay ? buildFixtureCorrectionAwareOverlayV1({baseline:baselineOverlay,corrections}) : null,[baselineOverlay,corrections]);
@@ -38,7 +54,7 @@ export default function RouteAssistCameraDemoPage(){
  return <main className="min-h-screen bg-warmwhite px-4 py-6"><div className="mx-auto w-full max-w-md"><header className="mb-5"><p className="text-xs font-semibold uppercase tracking-[.18em] text-electric">Price2Book</p><h1 className="mt-1 text-2xl font-bold text-navy">Route Assist camera preview</h1><p className="mt-2 text-sm leading-6 text-slate">End-to-end ordinary-camera rehearsal: sweep, visible-scene evidence, trim route proposal, homeowner review and ordered correction intent.</p></header>
  {acquisition&&<div className="mb-4 rounded-xl border border-cardline bg-white p-3 text-xs text-slate"><strong className="text-navy">Capture path:</strong> {acquisition.path}</div>}
  {acquisition?.path==="CALIBRATED_CAMERA"&&<RouteAssistRoomScanCamera sourceLabel="Existing outlet" destinationLabels={["New outlet location"]} onScanComplete={handleCapture}/>} {acquisition?.path==="REVIEW_ONLY"&&<div className="rounded-xl bg-amber-50 p-4 text-sm">Camera evidence unavailable; contractor review required.</div>} {acquisition?.path==="WORLD_GEOMETRY"&&<div className="rounded-xl bg-blue-50 p-4 text-sm">Spatial provider path available; this browser fixture does not fake native geometry.</div>}
- {state==="UPLOADING"&&<div className="mt-4 rounded-xl border border-cardline bg-white p-4 text-sm">Saving all {capture?.sweepFrames.length??0} frames…</div>} {state==="FAILED"&&<div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm">Sweep persistence failed. No route facts were created.</div>}
+ {state==="UPLOADING"&&<div className="mt-4 rounded-xl border border-cardline bg-white p-4 text-sm">Preparing all {capture?.sweepFrames.length??0} frames for review…</div>} {state==="FAILED"&&<div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm">The preview could not prepare this sweep. No route facts were created. Please rescan.</div>}
  {state==="READY"&&handoff&&<div className="mt-4 rounded-xl border border-cardline bg-white p-3 text-xs"><strong>{handoff.persistedFrames.length} ordered frames ready for provider review.</strong></div>}
  {state==="READY"&&handoff&&needsScale&&!calibrationReady&&<section className="mt-4 rounded-2xl border border-cardline bg-white p-4"><h2 className="font-bold text-navy">About how high is your ceiling?</h2><p className="mt-1 text-sm text-slate">Only asked because trustworthy world geometry and automatic visual calibration are unavailable.</p><div className="mt-3 grid grid-cols-2 gap-2">{OPTIONS.map(o=><button key={o.label} onClick={()=>answerScale(o.value)} className="rounded-xl border border-cardline p-3 text-sm font-semibold">{o.label}</button>)}</div></section>}
  {scaleDeclined&&<div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950"><strong>Measurement unavailable.</strong><div className="mt-1 text-xs">“Not sure” ends calibration and routes this rehearsal to contractor review instead of asking repeatedly or guessing.</div></div>}
