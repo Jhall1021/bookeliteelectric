@@ -442,11 +442,73 @@ gfci-routing.ts`, `prisma/template/electrical-v3-provenance.json`,
 `scripts/verify-material-recipe-promotion-batch-1.ts`) overlap with anything
 this branch or this review round touched — no shared file carries logic
 from both sides. Everything else main added merges cleanly (new files,
-resolved automatically). **Not resolved here** — reconciling `verify:full`'s
-script list against main's own additions, and deciding whether/when this
-branch adopts the new `electrical v3` template delta, is real work for
-actual integration, which stays a later, separate step; this pass only
-confirms the conflict is small, mechanical, and isolated.
+resolved automatically). **Superseded by §0.21 below — this WAS resolved,
+in the next review round, once asked for.**
+
+### 0.18 (fifth pass) The booked fingerprint now matches its REAL authorizing approval, not just "a" fingerprint
+
+§0.15 proved the booked fingerprint differs from what the economics later
+became. It did not yet prove the booked fingerprint equals what the
+economics ACTUALLY WERE at the moment of booking — a subtly weaker claim.
+Block F now captures `ContractorDerivedPricingApproval.approvedBasisFingerprint`
+directly, at the exact moment the office's own reapproval produces it, and
+asserts the booked `LineItem.resolvedEconomicBasis` is EXACTLY that value —
+a real row match, not an inference from non-nullness. The material and
+component snapshots (`resolvedComponentKeys`, `resolvedMaterialCostCents`)
+are verified too: real, non-empty, and — like the price, the answers, and
+the fingerprint before them — unmoved by the later cost change.
+
+### 0.19 (fifth pass) The stale-price refusal, checked at both the wire and the screen
+
+Previously checked by status code alone (409), which a DIFFERENT validation
+failure could also produce. Block F now parses the actual response body and
+asserts `error: "REVIEW_REQUIRED"` specifically, and — the customer-visible
+half — waits for `PhotoReviewNotice`'s real heading ("We can price this
+remotely.") and confirms its body names the customer's own service by name.
+A correct API response the UI never surfaces would be invisible to the
+person the refusal exists to protect; both halves are now checked.
+
+### 0.20 (fifth pass) Executable rehearsal guards, and zero Route Assist calls verified directly
+
+Every browser-flow script this branch added or extended now carries the
+same executable guard `scripts/verify-derived-scheduling-browser.ts`
+already established — refusing to run against anything but a stamped,
+non-production database, checked in code, not left as a comment.
+`verify-cross-device-stale-queue-browser-flow.ts`'s contractor slug
+predates the `rv2-pilot-rehearsal-*` convention that guard's slug check
+requires, so it reuses just the underlying database-identity check
+directly rather than being renamed to fit a prefix that isn't otherwise
+meaningful to it.
+
+Separately: "manual completion, zero Route Assist interaction" was
+previously a claim about page errors, not about Route Assist itself — and
+the capture button DOES render on this exact route (`surface_route_feet`,
+`surface_inside_corner_count`, and `surface_outside_corner_count` are all
+registered in `lib/visual-assist/route-assist/guidedFlowInvocation.ts`'s
+own REGISTRY). Now watched directly: `lib/routeAssistHandoffClient.ts`'s
+only network surface (`/visual-assist-tasks`) sees zero requests across the
+whole manual walkthrough — the button was available and never opened, not
+absent.
+
+### 0.21 (fifth pass) `origin/main` reconciled — the conflict §0.17 found was resolved
+
+§0.17's conflict (`package.json`'s `verify:full`/`verify:fast` script
+lists) is now merged. `verify:full` is the UNION of both sides — every
+script either branch considered part of "full" now runs, including main's
+new `verify-material-recipe-promotion-batch-1.ts` and every script unique
+to this branch (none of which exist on `main` yet, since the WORK that
+introduced them — PR #56's own G2 troubleshooting-reroute pass and this
+integration's own additions — hasn't reached it independently of this
+branch). `verify:fast` is kept as main's own, more recently trimmed
+version, verbatim: it reflects a deliberate main-line speed decision
+unrelated to Routing V2, and none of this branch's additions belong in a
+fast pre-build gate regardless. `schema.prisma` needed no reconciliation —
+main never touched it in the commits since this branch forked, so this
+branch's own additions (Routing V2, PR #56's `activeSessionKey`) are
+completely untouched by the merge. Verified post-merge: `npx tsc --noEmit`
+clean, `npx prisma generate` clean, a fresh production build, and all
+three of this branch's own browser-flow suites (32/22/6 checks) still pass
+unchanged.
 
 ## 1. What was actually being combined
 
@@ -624,9 +686,9 @@ Two disposable Postgres databases in the same task-owned cluster
 | `scripts/verify-concurrent-session-creation-browser-flow.ts` | 8/8, 1 run | PR #56, re-run on the merged branch |
 | `scripts/verify-delayed-network-answer-save-browser-flow.ts` | 5/5, 1 run — same-tab overlapping saves | PR #56, re-run on the merged branch |
 | `scripts/verify-troubleshooting-note-directbook-browser-flow.ts` | 12/12, 1 run | PR #56, re-run on the merged branch |
-| `scripts/verify-cross-device-stale-queue-browser-flow.ts` (**extended §0.6**) | 5/5, **3 consecutive runs** — 2 checks now prove the conflict-notice gate and the next action | this branch |
-| `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` (**extended §0.7/§0.9-§0.10/§0.12-§0.15**) | **24/24, 3 consecutive runs**, against the real Elite-derived Routing V2 tree, including the large-appliance hand-off (block G) and the basis-fingerprint provenance proof | this branch — see §5 |
-| `scripts/verify-two-fresh-contractors-routing-v2-browser-flow.ts` (**new, §0.11, extended §0.16**) | **22/22, 3 consecutive runs** — two contractors, tenant isolation, cross-tenant access through the real API | this branch |
+| `scripts/verify-cross-device-stale-queue-browser-flow.ts` (**extended §0.6/§0.20**) | 6/6, **3 consecutive runs** — the conflict-notice gate, the next action, and an executable rehearsal guard | this branch |
+| `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` (**extended §0.7/§0.9-§0.10/§0.12-§0.15/§0.18-§0.20**) | **32/32, 3 consecutive runs**, against the real Elite-derived Routing V2 tree — hand-off (block G), exact-match provenance, exact refusal (wire and screen), zero Route Assist calls | this branch — see §5 |
+| `scripts/verify-two-fresh-contractors-routing-v2-browser-flow.ts` (**new, §0.11, extended §0.16/§0.20**) | **22/22, 3 consecutive runs** — two contractors, tenant isolation, cross-tenant access through the real API, executable rehearsal guard | this branch |
 
 ### 5. What the integration scripts prove that nothing else did
 
@@ -844,7 +906,7 @@ Also individually re-confirmed clean on this seeded database:
 `verify-category-integrity.ts`, `verify-disclaimer-integrity.ts`, and
 `verify-booking-tenancy.ts` (17/17).
 
-### Re-run in full after this review round (§0.13-§0.17) — same wall, nothing new broke
+### Re-run in full after this review round (§0.13-§0.21) — same wall, nothing new broke
 
 `npm run verify:full` was run again, start to finish, after every fix in
 this section of the report. It stops at the SAME first wall as before
@@ -852,9 +914,10 @@ this section of the report. It stops at the SAME first wall as before
 migration) — confirming none of this round's changes to
 `scripts/_derivedStorefrontFixture.ts` (which only ever touches throwaway
 fixture contractors, created and torn down inside each browser-flow
-script's own run) altered Elite's or BrightPath's persisted state. **The
-full suite remains failing overall — that is accurately reported here, not
-minimized.**
+script's own run), nor the `origin/main` merge (§0.21 — no shared file, and
+`schema.prisma` untouched by it), altered Elite's or BrightPath's persisted
+state. **The full suite remains failing overall — that is accurately
+reported here, not minimized.**
 
 **Separating what that means, plainly, because the two are easy to
 conflate:**
@@ -904,12 +967,15 @@ fixed. That is the accurate state of the gate, not a rounded-up one.
 
 1. **Branch integration itself is done here, not yet reviewed.** This branch
    is the candidate; it has not been reviewed or merged.
-2. **Schema adoption.** This branch's `schema.prisma` carries PR #56's
-   `GuidedFlowSession.activeSessionKey` (its own migration script,
-   `prisma/migrate-guided-flow-session-active-key.ts`, applied so far only to
-   disposable local databases) plus Routing V2's ~530-line schema addition.
-   Applying either to Neon is a separate, later, explicitly-authorized step —
-   not performed here, per `production-neon-requires-explicit-approval`.
+2. **Schema, template, and catalog adoption.** This branch's `schema.prisma`
+   carries PR #56's `GuidedFlowSession.activeSessionKey` (its own migration
+   script, `prisma/migrate-guided-flow-session-active-key.ts`, applied so
+   far only to disposable local databases) plus Routing V2's ~530-line
+   schema addition. Applying either to Neon, extracting a real template
+   from the real Elite catalog, and rolling Routing V2 out to new
+   contractors are all separate, later, explicitly-authorized steps — not
+   performed here, per `production-neon-requires-explicit-approval`. §10
+   now records the concrete sequence and the rollback plan for each.
 3. **Full storefront/booking rehearsal beyond what's proven here.** This
    pass's own new coverage is scoped to one Routing V2 service
    (`new-120v-outlet`, surface-mounted); the finished-wall and concealed-route
@@ -932,7 +998,13 @@ fixed. That is the accurate state of the gate, not a rounded-up one.
    closed the one remaining shortcut: the qualification gate's own
    large-appliance hand-off target is now launched through the same
    supported actions as the outlet itself, not flagged active, and walked
-   end to end.
+   end to end. §0.18-§0.20 finished the remaining assertions: the booked
+   fingerprint matches its real authorizing approval exactly (not just a
+   non-null value), the material/component snapshots are verified, the
+   stale-price refusal is checked at both the wire and the customer-visible
+   screen, every browser-flow script carries an executable rehearsal-target
+   guard, and zero Route Assist network calls are verified directly rather
+   than inferred.
 6. **`verify:full`, run to completion, surfaces a materially different,
    PRE-EXISTING wall — not a Routing V2 or this pass's own defect.** §6 has
    the full breakdown, now split explicitly into fixture deficiencies
@@ -946,14 +1018,20 @@ fixed. That is the accurate state of the gate, not a rounded-up one.
    100 services across two tenants by fiat is a materially larger
    undertaking than this bounded pass and is deliberately not attempted
    here.
-7. **`origin/main` has moved since this branch forked (PR #64, PR #65) —
-   inspected, not merged (§0.17).** GitHub's conflict report is real but
-   narrow: one file, `package.json`, one script-list line each branch
-   edited independently — mechanical, not semantic; none of the six files
-   main changed overlap with anything this branch touches. Reconciling that
-   line and deciding this branch's relationship to main's new `electrical
-   v3` template delta is real work for actual integration, not performed in
-   this bounded pass.
+7. **`origin/main` has moved since this branch forked — now reconciled
+   (§0.17, resolved in §0.21).** The one real conflict (`package.json`'s
+   `verify:full`/`verify:fast` script lists) is merged as a union for
+   `verify:full` and main's own trimmed version verbatim for `verify:fast`.
+   Verified post-merge: clean typecheck, clean `prisma generate`, a fresh
+   build, and all three of this branch's own browser-flow suites unchanged.
+   This branch's relationship to main's new `electrical v3` template delta
+   (whether/when to adopt it) remains a real, separate product decision —
+   not something a merge resolves on its own — and is part of §10.2's
+   adoption sequence, not attempted here.
+8. **A material-cost change stales every derived-priced service on that
+   contractor, not just the one being edited (§9).** Real, existing
+   product behavior, not a bug this pass introduced or fixed — documented
+   so it is a known workflow cost rather than a future surprise.
 
 **Not gated on Route Assist finishing** — per the integration instruction,
 Route Assist's own implementation state was not a blocker for any of the work
@@ -969,6 +1047,152 @@ local database, reading only that database's own rehearsal-seeded
 `elite-electric` fixture, never a real catalog or Neon. No change to any
 EXISTING contractor's catalog — Elite's own `Service` rows were only ever
 read from, never written to, by extraction; BrightPath is a new install, not
-a change to a prior one. `main` was never touched; PR #56, PR #62, and
-`feat/electrical-routing-v2` all remain exactly as they were. Deployment
-stays disabled for every branch named in `vercel.json`, this one included.
+a change to a prior one. `main` was never touched — this branch pulled
+main's commits in (§0.21), a one-way merge; nothing was pushed or written
+back to `main` itself. PR #56, PR #62, and `feat/electrical-routing-v2` all
+remain exactly as they were. Deployment stays disabled for every branch
+named in `vercel.json`, this one included.
+
+## 9. Known product behavior: a material-cost change stales EVERY derived-priced service on that contractor, not just the one being edited
+
+§0.14 fixed a bug in THIS PASS'S OWN test fixture (approving before
+configuring), but the underlying mechanism it ran into is real, existing
+product behavior worth documenting on its own, independent of any bug: the
+derived-pricing approval fingerprint
+(`lib/electrical/derivedPricingBasis.ts`) is computed from
+`lib/electrical/loadDerivedScope.ts`'s `loadDerivedPricingBasis`, which reads
+`contractorMaterial.findMany({ where: { contractorId } })` — every material
+cost row for the CONTRACTOR, not filtered to the roles the specific service
+being approved actually consumes.
+
+**The consequence a contractor will actually experience**: entering or
+changing a material cost for ANY service invalidates the approval
+fingerprint of EVERY `DERIVED_RESOLVED_SCOPE` service that contractor has
+already approved — even one that shares no component, no material, and no
+category with the service just edited. A contractor onboarding several
+Routing V2 services in sequence will find each EARLIER approval goes stale
+the moment they configure a LATER one, and will need to revisit and
+re-approve it before it can be booked again. This is not a data-loss risk —
+`resolveWithDerivedPricing`'s own refusal (`DERIVED_PRICING_APPROVAL_STALE`)
+fails closed to REVIEW rather than pricing at a mismatched basis, and every
+already-booked line stays exactly as priced (§0.7/§0.15/§0.18) — but it is a
+real workflow cost this reconciliation did not introduce and does not fix.
+
+**Not fixed here, deliberately.** Narrowing the fingerprint's scope to only
+the materials a given service's own recipe reaches is a real, well-scoped
+possible improvement, but it is a change to derived-pricing's own core
+logic — outside a branch-reconciliation pass, and a decision that deserves
+its own review rather than arriving as an incidental fix inside this one.
+Recorded here so it is a known, named behavior rather than something a
+future onboarding session rediscovers as a mystery. A contractor completing
+Routing V2 setup for multiple services in one sitting should approve each
+one, or re-approve in a final pass, only after ALL of that sitting's
+material costs are entered — configuring in that order avoids the
+churn entirely without requiring any code change.
+
+## 10. Schema, template, and catalog adoption — and the rollback plan
+
+This branch's own rehearsal has stayed local and disposable throughout
+(§4, §0.8, §0.10). Adopting any of it onto the real platform is later,
+separate, explicitly-authorized work — not performed here — but the shape
+of that work is concrete enough to write down now, so a future session
+starts from a plan rather than from scratch.
+
+### 10.1 Schema adoption
+
+This branch's `schema.prisma` carries two additions beyond `main`:
+PR #56's `GuidedFlowSession.activeSessionKey` unique constraint (backfilled
+by `prisma/migrate-guided-flow-session-active-key.ts` before the constraint
+can be added, since a unique index cannot land on top of existing
+duplicates) and Routing V2's ~530-line schema addition (the surface-raceway
+and derived-pricing model family, including the `LineItem` provenance
+fields §0.9/§0.12/§0.15/§0.18 exercised).
+
+1. **Rehearse on a Neon branch, never production directly** — per
+   `production-neon-requires-explicit-approval`, every step here needs
+   explicit, in-conversation authorization; none of it is self-granted from
+   a prior approval.
+2. Run `prisma/migrate-guided-flow-session-active-key.ts` FIRST, against
+   the branch, and confirm it reports the real production row count of
+   pre-existing duplicate active sessions per contractor (its own backfill
+   target) — a nonzero, unexpected count there is a stop-and-look signal,
+   not something to push through.
+3. Apply the schema migration itself; re-run this branch's own `verify:full`
+   against the branch to confirm the new tables/columns behave as this
+   report already proved locally, now against a real (copy-on-write)
+   production dataset shape.
+4. Both additions are purely additive (new tables, new nullable columns,
+   one new unique constraint on a backfilled column) — the existing
+   application code already deployed to production does not read or write
+   any of them, so applying the schema change alone, with no application
+   code change, is safe to do first and separately from anything else
+   below.
+5. Only after a clean branch rehearsal, apply to production in a scheduled,
+   authorized window.
+
+### 10.2 Template and catalog adoption
+
+Local, disposable-database-only extraction (§0.8, §0.10) is explicitly not
+the same operation as adopting Routing V2 into the REAL production catalog.
+Real adoption is a deliberate, later sequence:
+
+1. Migrate the REAL Elite tenant's `new-120v-outlet` onto the surface-raceway
+   tree (`prisma/seed-new-outlet-v2.ts`'s `migrateEliteOutletToV2`) — rehearsed
+   on a Neon branch first, exactly as §10.1 describes, since this writes to
+   Elite's own `Question`/`AnswerOption` rows.
+2. Extract for real: `scripts/extract-template-catalog.ts --from
+   elite-electric --apply --i-know-this-writes-to-production` (§0.9's new
+   guard is the one thing standing between an accidental run and a real
+   write — it must be typed out deliberately). A human reviews the refusal
+   report first, per the tool's own existing design (ADR-014) — nothing
+   about this pass changes that review requirement.
+3. **Extract as a NEW version, not overwriting the current one.** Every
+   local run in this pass used the default `--version 1`, which upserts
+   THAT version's rows in place — fine for a disposable database with
+   nothing depending on version continuity, but a real adoption should pass
+   `--version 2` (or whatever the next real number is) so the CURRENT
+   production template stays exactly as it is unless and until the new
+   version is deliberately what `templateVersionSource` resolves to. This
+   is what makes a bad extraction recoverable without a database restore —
+   the prior version simply keeps being current.
+4. Decide `new-120v-outlet`'s `pricingMethod` on the template deliberately
+   (`prisma/seed-routing-v2-pricing-method.ts`, or its real-catalog
+   equivalent) — per its own docstring, this changes what a contractor
+   provisioned FROM HERE ON receives, not any existing contractor's
+   service. Elite's own real service does not change pricing method by
+   this — no supported action retroactively promotes an EXISTING
+   contractor's service (§0.9's own finding).
+5. Roll out to new contractors deliberately, not silently — this is
+   `electrical-routing-v2-workstream`'s own "Stage 1B needs authorization"
+   boundary, unchanged by anything in this reconciliation.
+
+### 10.3 Rollback plan
+
+- **Code**: `vercel.json`'s per-branch `deploymentEnabled: false` is the
+  fastest lever and needs no data operation — it already covers this
+  branch and its three ancestors. The broader "controlled release" guard
+  (promote-only, receipt-bound, authorized in-conversation) is the
+  process-level control for an eventual real release; re-arming or
+  disarming it is a config change, not a migration.
+- **Template**: because §10.2 extracts as a NEW version rather than
+  overwriting, rolling back a bad extraction is choosing not to adopt the
+  new version — no data needs to be reverted. `templateVersionSource`
+  folds the latest SNAPSHOT plus any DELTAs; pinning `atVersion` to the
+  prior good version (the same mechanism `templateVersionSource`'s own
+  `atVersion` parameter already supports, used elsewhere in this codebase
+  for repairs and adoption testing) is the rollback action if a version
+  ever needs to be un-adopted after new contractors have already installed
+  from it.
+- **Schema**: both additions are purely additive (§10.1) — the safe
+  rollback for application code is a deployment rollback to the prior
+  release, which works cleanly against a schema that only ever ADDED
+  columns/tables the old code never reads. Dropping the new tables/columns
+  outright is a separate, deliberate, human-authorized action, never an
+  automatic consequence of a code rollback, per this repo's own standing
+  caution around irreversible database operations.
+- **Booking safety, independent of any of the above**: this whole
+  engagement's own snapshot proofs (§0.7, §0.12, §0.15, §0.18) mean a
+  rollback — of code, of a template version, or of the pricing engine
+  itself — cannot retroactively alter an already-booked price, its
+  answers, or its economic basis. Whatever is rolled back, existing
+  bookings hold exactly what they held before.
