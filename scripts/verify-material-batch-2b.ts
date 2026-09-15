@@ -16,21 +16,21 @@
  *      active=true. Retired via scripts/retire-contractor-material.ts,
  *      cost/notes preserved, nothing deleted.
  *
- * REHEARSAL-BRANCH CAVEAT — deliberately NOT re-checked here: this branch
- * (br-hidden-hall-ayvlh5bg) also carries the REJECTED electrical v5 DELTA
- * from the earlier (now-superseded) Batch 2B proposal. That v5 is not
- * production parity and must not be relied on. This verifier therefore
- * asserts NOTHING about template-version identity, DELTA count, or folded-
- * catalog size — only about the retirement's own effects, which are true
- * regardless of whether bathroom-fan-light-combo's fold source is v1 (the
- * real, intended state) or the stray v5 (both give zero materials for that
- * service, so the assertions below hold either way without depending on
- * which one is actually in effect). No destructive branch cleanup was
- * performed to resolve this divergence, per explicit instruction.
+ * REHEARSAL-BRANCH CAVEAT: the shared rehearsal branch (br-hidden-hall-
+ * ayvlh5bg) still carries the REJECTED electrical v5 DELTA from the earlier
+ * (now-superseded) Batch 2B proposal — not production parity, and no
+ * destructive branch cleanup was performed to fix that divergence. Checks
+ * 0b/0c below (no v5 exists, bathroom-fan-light-combo is v1-sourced) are
+ * true on production but will correctly FAIL if this script is ever re-run
+ * against that stale rehearsal branch — that is expected, not a bug in the
+ * check, and is exactly why v5 was never relied on for the production proof
+ * this file was actually used for.
  *
  * Proves:
  *   0. this branch's diff touches zero Route Assist / Routing V2 / shared-
  *      schema files;
+ *   0b/0c. no Electrical v5 exists; bathroom-fan-light-combo remains
+ *      v1-sourced with no v4/v5 override;
  *   1. DUCT_CONNECTOR's CanonicalMaterial row exists, active=false, notes
  *      and identity preserved (not deleted);
  *   2. Elite's ContractorMaterial row for it exists, active=false, historical
@@ -47,7 +47,10 @@
  *   9. no other canonical_materials or contractor_materials row changed —
  *      diffed directly against a pre-run snapshot;
  *  10. no published price anywhere changed;
- *  11. fixture teardown is complete.
+ *  11. fixture teardown is complete;
+ *  v3/v4. Batch 1's six v3 services and v4's electrical-panel-replacement
+ *      remain intact, checked directly against the canonical provenance
+ *      manifest on the same fresh install.
  *
  *   npx tsx scripts/verify-material-batch-2b.ts
  */
@@ -55,6 +58,7 @@ import { PrismaClient } from "@prisma/client";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
@@ -69,6 +73,9 @@ const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
 const ELITE_SLUG = "elite-electric";
 const RETIRED_KEY = "DUCT_CONNECTOR";
 const FAN_SERVICE_KEY = "bathroom-fan-light-combo";
+const PANEL_KEY = "electrical-panel-replacement";
+const V3_KEYS = ["new-video-doorbell-wiring", "generator-inlet-interlock", "240v-garage-outlet",
+  "240v-garage-outlet-14-30", "240v-garage-outlet-6-50", "240v-garage-outlet-14-50"];
 const PREFIX = "test-material-batch2b";
 const SLUG = `${PREFIX}-${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
 const STALE_AFTER_MS = 60 * 60 * 1000;
@@ -104,6 +111,21 @@ async function main() {
   const touchesRouteAssist = changedFiles.filter((f) => routeAssistPattern.test(f));
   ok(`0. this branch's diff against origin/main touches zero Route Assist / Routing V2 / shared-schema files`,
     touchesRouteAssist.length === 0, JSON.stringify({ changedFiles, touchesRouteAssist }));
+
+  // ── 0b. template-version state: v1-v4 only, no v5, bathroom-fan-light-combo v1-sourced ──
+  const versions = await raw.templateVersion.findMany({
+    where: { trade: "electrical" }, select: { version: true, kind: true }, orderBy: { version: "asc" },
+  });
+  ok(`0b. Electrical template versions are exactly v1-v4 — no v5 exists`,
+    versions.length === 4 && versions.every((v, i) => v.version === i + 1), JSON.stringify(versions));
+  const fanSource = await raw.templateService.findFirst({
+    where: { key: FAN_SERVICE_KEY, templateVersion: { trade: "electrical", version: 1 } }, select: { id: true },
+  });
+  const fanV4OrLater = await raw.templateService.findFirst({
+    where: { key: FAN_SERVICE_KEY, templateVersion: { trade: "electrical", version: { gte: 4 } } },
+  });
+  ok(`0c. bathroom-fan-light-combo's only source is v1 — no v4/v5 override exists for it`,
+    !!fanSource && !fanV4OrLater, JSON.stringify({ v1Source: !!fanSource, laterOverride: fanV4OrLater }));
 
   // ── 1/2. canonical + contractor rows: inactive, preserved, not deleted ──
   const canonical = await raw.canonicalMaterial.findUnique({ where: { key: RETIRED_KEY } });
@@ -171,6 +193,33 @@ async function main() {
     // ── 10. no published price on the fresh install ──
     const anyPublished = await raw.service.count({ where: { contractorId: c.id, publishedPriceApprovedAt: { not: null } } });
     ok(`10a. the fresh install carries no approved published price anywhere`, anyPublished === 0);
+
+    // ── v4 (electrical-panel-replacement) remains intact ──
+    const panelSvc = await raw.service.findFirst({ where: { contractorId: c.id, slug: PANEL_KEY }, select: { id: true, unresolvedMaterialKeys: true } });
+    ok(`v4a. electrical-panel-replacement landed on the fresh contractor`, !!panelSvc);
+    if (panelSvc) {
+      const panelLines = await raw.serviceMaterial.findMany({ where: { serviceId: panelSvc.id }, select: { quantity: true, canonicalMaterial: { select: { key: true } } } });
+      const byKeyPanel = new Map(panelLines.map((l) => [l.canonicalMaterial?.key, l.quantity]));
+      const panelOk = byKeyPanel.get("PANEL_MAIN_BREAKER") === 1 && panelLines.length === 1
+        && ["BREAKER_SINGLE_POLE", "BREAKER_DOUBLE_POLE", "CONSUMABLES_MEDIUM"].every((k) => panelSvc.unresolvedMaterialKeys.includes(k));
+      ok(`v4b. its recipe still exactly matches the approved v4 shape`, panelOk,
+        JSON.stringify({ lines: panelLines.map((l) => [l.canonicalMaterial?.key, l.quantity]), unresolved: panelSvc.unresolvedMaterialKeys }));
+    }
+
+    // ── v3 (Batch 1's six services) remain intact, checked directly against provenance ──
+    const v3Services = await raw.service.findMany({ where: { contractorId: c.id, slug: { in: V3_KEYS } }, select: { slug: true, id: true } });
+    ok(`v3a. all six Batch 1 v3 services landed on the fresh contractor`, v3Services.length === 6, `${v3Services.length} of 6`);
+    const provenance = JSON.parse(readFileSync(resolve(REPO_ROOT, "prisma/template/electrical-v3-provenance.json"), "utf8"));
+    for (const entry of provenance.services as Array<{ key: string; structuralMaterials: { role: string; quantity: number }[]; policyMaterialRoles: string[] }>) {
+      const svc3 = v3Services.find((s) => s.slug === entry.key);
+      if (!svc3) { ok(`v3b. ${entry.key} present`, false); continue; }
+      const lines3 = await raw.serviceMaterial.findMany({ where: { serviceId: svc3.id }, select: { quantity: true, canonicalMaterial: { select: { key: true } } } });
+      const byKey3 = new Map(lines3.map((l) => [l.canonicalMaterial?.key, l.quantity]));
+      const svc3Row = await raw.service.findUniqueOrThrow({ where: { id: svc3.id }, select: { unresolvedMaterialKeys: true } });
+      const structuralOk = entry.structuralMaterials.every((m) => byKey3.get(m.role) === m.quantity);
+      const policyOk = entry.policyMaterialRoles.every((r) => !byKey3.has(r) && svc3Row.unresolvedMaterialKeys.includes(r));
+      ok(`v3b. ${entry.key}: recipe matches provenance exactly`, structuralOk && policyOk, JSON.stringify({ structuralOk, policyOk }));
+    }
   } finally {
     await teardown();
   }
