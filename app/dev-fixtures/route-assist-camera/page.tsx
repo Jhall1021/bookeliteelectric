@@ -12,7 +12,7 @@ import { evaluateRouteAssistAutomaticCalibrationV1, resolveRouteAssistHomeownerC
 import type { RoutePoint, RouteSegment } from "@/lib/visual-assist/route-assist/types";
 
 type CeilingHeight = 8 | 9 | 10 | 12 | null;
-const POINTS: RoutePoint[] = [{ id: "fixture-source-point", x: .15, y: .64, imageId: "fixture-graph" }, { id: "fixture-destination-point", x: .78, y: .59, imageId: "fixture-graph" }];
+const POINTS: RoutePoint[] = [{ id: "fixture-source-point", x: .15, y: .64, imageId: "fixture-graph", kind: "SOURCE" }, { id: "fixture-destination-point", x: .78, y: .59, imageId: "fixture-graph", kind: "DESTINATION" }];
 const SEGMENTS: RouteSegment[] = [{ id: "fixture-route-segment", fromPointId: POINTS[0].id, toPointId: POINTS[1].id }];
 const OPTIONS: Array<{label:string;value:CeilingHeight}> = [{label:"8 ft",value:8},{label:"9 ft",value:9},{label:"10 ft",value:10},{label:"12 ft",value:12},{label:"Not sure",value:null}];
 
