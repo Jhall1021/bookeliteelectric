@@ -37,11 +37,11 @@ function evidence(lengthA: number | null, lengthB: number | null, basisB: "WORLD
     segments: [
       {
         segmentId: "segment-a",
-        measuredLengthFt: { value: lengthA, confidence: 0.92, visibility: lengthA === null ? "UNCLEAR" : "CLEAR", basis: "WORLD_GEOMETRY" },
+        measuredLengthFt: { value: lengthA, confidence: 0.92, visibility: lengthA === null ? "PARTIAL" : "CLEAR", basis: "WORLD_GEOMETRY" },
       },
       {
         segmentId: "segment-b",
-        measuredLengthFt: { value: lengthB, confidence: 0.99, visibility: lengthB === null ? "UNCLEAR" : "CLEAR", basis: basisB },
+        measuredLengthFt: { value: lengthB, confidence: 0.99, visibility: lengthB === null ? "PARTIAL" : "CLEAR", basis: basisB },
       },
     ],
     transitions: [],
