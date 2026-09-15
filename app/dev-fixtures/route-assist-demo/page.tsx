@@ -19,7 +19,9 @@ import {
 type Point = { x: number; y: number };
 type DemoStep = "SETUP" | "SCANNING" | "REVIEW" | "CONFIRM" | "DONE";
 
-const DOORWAY_TURN: Point = { x: 0.52, y: 0.58 };
+const DOOR_LEFT_X = 0.44;
+const DOOR_RIGHT_X = 0.66;
+const DOOR_HEADER_Y = 0.18;
 
 const DEMO_PROVIDER: RouteAssistScanProviderV1 = {
   providerKey: "demo.world-geometry.v1",
@@ -32,50 +34,47 @@ const DEMO_PROVIDER: RouteAssistScanProviderV1 = {
       segments: [
         {
           segmentId: "leg-1",
-          measuredLengthFt: {
-            value: 5.125,
-            confidence: 0.92,
-            visibility: "CLEAR",
-            basis: "WORLD_GEOMETRY",
-          },
-          surface: {
-            value: "WALL",
-            confidence: 0.94,
-            visibility: "CLEAR",
-            basis: "VISIBLE_SCENE",
-          },
+          measuredLengthFt: { value: 3.125, confidence: 0.92, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
+          surface: { value: "WALL", confidence: 0.94, visibility: "CLEAR", basis: "VISIBLE_SCENE" },
         },
         {
           segmentId: "leg-2",
-          measuredLengthFt: {
-            value: 9.5,
-            confidence: 0.9,
-            visibility: "CLEAR",
-            basis: "WORLD_GEOMETRY",
-          },
-          surface: {
-            value: "WALL",
-            confidence: 0.93,
-            visibility: "CLEAR",
-            basis: "VISIBLE_SCENE",
-          },
+          measuredLengthFt: { value: 2, confidence: 0.91, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
+          surface: { value: "WALL", confidence: 0.94, visibility: "CLEAR", basis: "VISIBLE_SCENE" },
+        },
+        {
+          segmentId: "leg-3",
+          measuredLengthFt: { value: 4, confidence: 0.93, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
+          surface: { value: "WALL", confidence: 0.95, visibility: "CLEAR", basis: "VISIBLE_SCENE" },
+        },
+        {
+          segmentId: "leg-4",
+          measuredLengthFt: { value: 2, confidence: 0.91, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
+          surface: { value: "WALL", confidence: 0.94, visibility: "CLEAR", basis: "VISIBLE_SCENE" },
+        },
+        {
+          segmentId: "leg-5",
+          measuredLengthFt: { value: 3.5, confidence: 0.9, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
+          surface: { value: "WALL", confidence: 0.93, visibility: "CLEAR", basis: "VISIBLE_SCENE" },
         },
       ],
       transitions: [
         {
-          pointId: "doorway-turn",
-          physicalTurn: {
-            value: "FLAT",
-            confidence: 0.89,
-            visibility: "CLEAR",
-            basis: "WORLD_GEOMETRY",
-          },
-          obstacleContext: {
-            value: "DOORWAY",
-            confidence: 0.96,
-            visibility: "CLEAR",
-            basis: "VISIBLE_SCENE",
-          },
+          pointId: "door-left-bottom",
+          physicalTurn: { value: "FLAT", confidence: 0.91, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
+        },
+        {
+          pointId: "door-left-top",
+          physicalTurn: { value: "FLAT", confidence: 0.92, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
+          obstacleContext: { value: "DOORWAY", confidence: 0.96, visibility: "CLEAR", basis: "VISIBLE_SCENE" },
+        },
+        {
+          pointId: "door-right-top",
+          physicalTurn: { value: "FLAT", confidence: 0.92, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
+        },
+        {
+          pointId: "door-right-bottom",
+          physicalTurn: { value: "FLAT", confidence: 0.91, visibility: "CLEAR", basis: "WORLD_GEOMETRY" },
         },
       ],
     };
@@ -85,11 +84,7 @@ const DEMO_PROVIDER: RouteAssistScanProviderV1 = {
 function StepDot({ active, done, label }: { active: boolean; done: boolean; label: string }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
-      <div
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-          done ? "bg-emerald-600 text-white" : active ? "bg-electric text-white" : "bg-slate-200 text-slate-500"
-        }`}
-      >
+      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${done ? "bg-emerald-600 text-white" : active ? "bg-electric text-white" : "bg-slate-200 text-slate-500"}`}>
         {done ? "✓" : ""}
       </div>
       <span className={`truncate text-xs font-medium ${active ? "text-navy" : "text-slate-500"}`}>{label}</span>
@@ -100,9 +95,7 @@ function StepDot({ active, done, label }: { active: boolean; done: boolean; labe
 function Marker({ point, label, tone }: { point: Point; label: string; tone: "source" | "destination" }) {
   return (
     <div
-      className={`pointer-events-none absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-white text-sm font-bold text-white shadow-lg ${
-        tone === "source" ? "bg-electric" : "bg-emerald-600"
-      }`}
+      className={`pointer-events-none absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-4 border-white text-sm font-bold text-white shadow-lg ${tone === "source" ? "bg-electric" : "bg-emerald-600"}`}
       style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
     >
       {label}
@@ -110,22 +103,26 @@ function Marker({ point, label, tone }: { point: Point; label: string; tone: "so
   );
 }
 
-function RoomView({
-  source,
-  destination,
-  showRoute,
-  interactive,
-  onTap,
-}: {
+function bypassPoints(source: Point, destination: Point): Point[] {
+  return [
+    source,
+    { x: DOOR_LEFT_X, y: source.y },
+    { x: DOOR_LEFT_X, y: DOOR_HEADER_Y },
+    { x: DOOR_RIGHT_X, y: DOOR_HEADER_Y },
+    { x: DOOR_RIGHT_X, y: destination.y },
+    destination,
+  ];
+}
+
+function RoomView({ source, destination, showRoute, interactive, onTap }: {
   source: Point | null;
   destination: Point | null;
   showRoute: boolean;
   interactive: boolean;
   onTap?: (event: MouseEvent<HTMLDivElement>) => void;
 }) {
-  const routePoints = source && destination
-    ? `${source.x * 100},${source.y * 100} ${DOORWAY_TURN.x * 100},${DOORWAY_TURN.y * 100} ${destination.x * 100},${destination.y * 100}`
-    : "";
+  const route = source && destination ? bypassPoints(source, destination) : [];
+  const routePoints = route.map((point) => `${point.x * 100},${point.y * 100}`).join(" ");
 
   return (
     <div
@@ -140,15 +137,10 @@ function RoomView({
 
       {source && destination && showRoute && (
         <svg className="pointer-events-none absolute inset-0 h-full w-full text-electric" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <polyline
-            points={routePoints}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx={DOORWAY_TURN.x * 100} cy={DOORWAY_TURN.y * 100} r="2.1" fill="currentColor" />
+          <polyline points={routePoints} fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          {route.slice(1, -1).map((point, index) => (
+            <circle key={index} cx={point.x * 100} cy={point.y * 100} r="1.8" fill="currentColor" />
+          ))}
         </svg>
       )}
 
@@ -156,14 +148,10 @@ function RoomView({
       {destination && <Marker point={destination} label="B" tone="destination" />}
 
       {interactive && !source && (
-        <div className="pointer-events-none absolute inset-x-5 bottom-4 rounded-xl bg-white/95 px-4 py-3 text-center text-sm font-medium text-navy shadow-sm">
-          Tap the existing outlet to place A
-        </div>
+        <div className="pointer-events-none absolute inset-x-5 bottom-4 rounded-xl bg-white/95 px-4 py-3 text-center text-sm font-medium text-navy shadow-sm">Tap the existing outlet to place A</div>
       )}
       {interactive && source && !destination && (
-        <div className="pointer-events-none absolute inset-x-5 bottom-4 rounded-xl bg-white/95 px-4 py-3 text-center text-sm font-medium text-navy shadow-sm">
-          Now tap where you want the new outlet to place B
-        </div>
+        <div className="pointer-events-none absolute inset-x-5 bottom-4 rounded-xl bg-white/95 px-4 py-3 text-center text-sm font-medium text-navy shadow-sm">Now tap where you want the new outlet to place B</div>
       )}
     </div>
   );
@@ -180,19 +168,26 @@ export default function RouteAssistDemoPage() {
 
   const scanInput = useMemo<RouteAssistScanProviderInputV1 | null>(() => {
     if (!source || !destination) return null;
+    const route = bypassPoints(source, destination);
     return {
       version: 1,
       mode: "SURFACE",
       destinationType: "RECEPTACLE",
       captureKind: "ORDINARY_ROOM_SCAN",
       points: [
-        { id: "source", x: source.x, y: source.y, imageId: "demo-room", kind: "SOURCE" },
-        { id: "doorway-turn", x: DOORWAY_TURN.x, y: DOORWAY_TURN.y, imageId: "demo-room", kind: "WAYPOINT" },
-        { id: "destination", x: destination.x, y: destination.y, imageId: "demo-room", kind: "DESTINATION" },
+        { id: "source", x: route[0].x, y: route[0].y, imageId: "demo-room", kind: "SOURCE" },
+        { id: "door-left-bottom", x: route[1].x, y: route[1].y, imageId: "demo-room", kind: "WAYPOINT" },
+        { id: "door-left-top", x: route[2].x, y: route[2].y, imageId: "demo-room", kind: "WAYPOINT" },
+        { id: "door-right-top", x: route[3].x, y: route[3].y, imageId: "demo-room", kind: "WAYPOINT" },
+        { id: "door-right-bottom", x: route[4].x, y: route[4].y, imageId: "demo-room", kind: "WAYPOINT" },
+        { id: "destination", x: route[5].x, y: route[5].y, imageId: "demo-room", kind: "DESTINATION" },
       ],
       segments: [
-        { id: "leg-1", fromPointId: "source", toPointId: "doorway-turn" },
-        { id: "leg-2", fromPointId: "doorway-turn", toPointId: "destination" },
+        { id: "leg-1", fromPointId: "source", toPointId: "door-left-bottom" },
+        { id: "leg-2", fromPointId: "door-left-bottom", toPointId: "door-left-top" },
+        { id: "leg-3", fromPointId: "door-left-top", toPointId: "door-right-top" },
+        { id: "leg-4", fromPointId: "door-right-top", toPointId: "door-right-bottom" },
+        { id: "leg-5", fromPointId: "door-right-bottom", toPointId: "destination" },
       ],
       captureArtifacts: { imageIds: ["demo-room"], overlayImageIds: [] },
     };
@@ -290,9 +285,7 @@ export default function RouteAssistDemoPage() {
             </div>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-electric">Demo</span>
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate">
-            Show us the route for your new outlet. You’ll review what Route Assist observed before anything is used.
-          </p>
+          <p className="mt-2 text-sm leading-6 text-slate">Show us the route for your new outlet. You’ll review what Route Assist observed before anything is used.</p>
         </header>
 
         <div className="mb-6 flex gap-2 rounded-2xl border border-cardline bg-white p-4 shadow-sm">
@@ -301,27 +294,15 @@ export default function RouteAssistDemoPage() {
           <StepDot active={step === "CONFIRM"} done={step === "DONE"} label="Confirm" />
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
-        )}
+        {error && <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
         {(step === "SETUP" || step === "SCANNING") && (
           <section className="rounded-2xl border border-cardline bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-navy">
-              {!source ? "Tap your existing outlet" : !destination ? "Tap where you want the new outlet" : "Ready to scan the route"}
-            </h2>
-            <p className="mt-1 text-sm text-slate">
-              Place A first, then B. Route Assist will use the room scan to trace the route between them.
-            </p>
+            <h2 className="text-lg font-semibold text-navy">{!source ? "Tap your existing outlet" : !destination ? "Tap where you want the new outlet" : "Ready to scan the route"}</h2>
+            <p className="mt-1 text-sm text-slate">Place A first, then B. Route Assist will use the room scan to trace the route between them.</p>
 
             <div className="mt-5">
-              <RoomView
-                source={source}
-                destination={destination}
-                showRoute={step === "SCANNING"}
-                interactive={step === "SETUP" && !destination}
-                onTap={handleRoomTap}
-              />
+              <RoomView source={source} destination={destination} showRoute={false} interactive={step === "SETUP" && !destination} onTap={handleRoomTap} />
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
@@ -330,17 +311,10 @@ export default function RouteAssistDemoPage() {
             </div>
 
             {source && destination && step === "SETUP" && (
-              <button type="button" onClick={resetPoints} className="mt-3 w-full text-xs font-semibold text-slate underline underline-offset-4">
-                Reset A and B
-              </button>
+              <button type="button" onClick={resetPoints} className="mt-3 w-full text-xs font-semibold text-slate underline underline-offset-4">Reset A and B</button>
             )}
 
-            <button
-              type="button"
-              onClick={startScan}
-              disabled={step === "SCANNING" || !scanInput}
-              className="mt-5 w-full rounded-xl bg-electric px-5 py-3.5 text-sm font-semibold text-white shadow-sm disabled:opacity-40"
-            >
+            <button type="button" onClick={startScan} disabled={step === "SCANNING" || !scanInput} className="mt-5 w-full rounded-xl bg-electric px-5 py-3.5 text-sm font-semibold text-white shadow-sm disabled:opacity-40">
               {step === "SCANNING" ? "Scanning room…" : "Scan route between A and B"}
             </button>
             <p className="mt-3 text-center text-xs text-slate-light">Demo scan uses simulated calibrated room geometry.</p>
@@ -361,22 +335,12 @@ export default function RouteAssistDemoPage() {
           <section className="rounded-2xl border border-cardline bg-white p-5 shadow-sm" data-testid="route-assist-demo-confirm">
             <p className="text-xs font-semibold uppercase tracking-wide text-electric">Route ready</p>
             <h2 className="mt-1 text-xl font-semibold text-navy">Does this route look right?</h2>
-            <div className="mt-4">
-              <RoomView source={source} destination={destination} showRoute interactive={false} />
-            </div>
+            <div className="mt-4"><RoomView source={source} destination={destination} showRoute interactive={false} /></div>
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-slate-50 p-4">
-                <div className="text-xs text-slate">Measured route</div>
-                <div className="mt-1 text-xl font-bold text-navy">{draft.estimatedTotalRouteLengthFt} ft</div>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-4">
-                <div className="text-xs text-slate">Physical turns</div>
-                <div className="mt-1 text-xl font-bold text-navy">1</div>
-              </div>
+              <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate">Measured route</div><div className="mt-1 text-xl font-bold text-navy">{draft.estimatedTotalRouteLengthFt} ft</div></div>
+              <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate">Physical turns</div><div className="mt-1 text-xl font-bold text-navy">4</div></div>
             </div>
-            <p className="mt-4 text-sm leading-6 text-slate">
-              You can rescan if anything looks wrong. Nothing is priced from this route until you confirm it.
-            </p>
+            <p className="mt-4 text-sm leading-6 text-slate">The surface route goes up and around the doorway. You can rescan if anything looks wrong. Nothing is priced from this route until you confirm it.</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button type="button" onClick={resetPoints} className="rounded-xl border border-cardline px-4 py-3 text-sm font-semibold text-slate">Rescan</button>
               <button type="button" onClick={confirmRoute} className="rounded-xl bg-electric px-4 py-3 text-sm font-semibold text-white">Confirm route</button>
@@ -394,9 +358,7 @@ export default function RouteAssistDemoPage() {
               <div className="mt-2 flex justify-between"><span>Flat turns</span><strong className="text-navy">{String(mapped.flatCorners)}</strong></div>
               <div className="mt-2 flex justify-between"><span>Installation</span><strong className="text-navy">Surface route</strong></div>
             </div>
-            <button type="button" onClick={resetPoints} className="mt-4 w-full rounded-xl border border-emerald-300 bg-white px-4 py-3 text-sm font-semibold text-emerald-900">
-              Try another route
-            </button>
+            <button type="button" onClick={resetPoints} className="mt-4 w-full rounded-xl border border-emerald-300 bg-white px-4 py-3 text-sm font-semibold text-emerald-900">Try another route</button>
             <p className="mt-4 text-xs leading-5 text-emerald-800">Demo only: no pricing, materials, booking, or production data is changed.</p>
           </section>
         )}
