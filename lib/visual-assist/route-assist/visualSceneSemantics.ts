@@ -46,12 +46,30 @@ export type RouteAssistVisibleSegmentObservationV1 = {
   confidence: number;
 };
 
+/**
+ * Explicit provider-local doorway grouping for review-only routing.
+ *
+ * Left/right are physical doorway sides in one coherent scene reconstruction,
+ * not inferred by comparing image-space x coordinates from unrelated frames.
+ * entrySide describes which casing the proposed source->destination traversal
+ * reaches first. UNRESOLVED must fail closed in the trim-route proposal.
+ */
+export type RouteAssistVisibleDoorwayGroupV1 = {
+  id: string;
+  doorwayObjectId: string;
+  leftCasingObjectId: string;
+  topCasingObjectId: string;
+  rightCasingObjectId: string;
+  entrySide: "LEFT" | "RIGHT" | "UNRESOLVED";
+};
+
 export type RouteAssistVisibleSceneSemanticsV1 = {
   version: 1;
   /** Must preserve the durable capture order supplied to the provider. */
   captureImageIds: string[];
   objects: RouteAssistVisibleSceneObjectV1[];
   segmentObservations: RouteAssistVisibleSegmentObservationV1[];
+  doorwayGroups?: RouteAssistVisibleDoorwayGroupV1[];
 };
 
 function validUnit(value: number): boolean { return Number.isFinite(value) && value >= 0 && value <= 1; }
@@ -80,9 +98,11 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
   const pointIds = new Set(args.points.map((point) => point.id));
   const segmentIds = new Set(args.segments.map((segment) => segment.id));
   const objectIds = new Set<string>();
+  const objectById = new Map<string, RouteAssistVisibleSceneObjectV1>();
 
   for (const object of semantics.objects) {
     if (!object.id || objectIds.has(object.id)) problems.push(`visible scene object has duplicate or empty id: ${object.id || "<empty>"}`); else objectIds.add(object.id);
+    objectById.set(object.id, object);
     if (!captureIds.has(object.imageId)) problems.push(`visible scene object ${object.id} references unknown image ${object.imageId}`);
     if (!validUnit(object.confidence)) problems.push(`visible scene object ${object.id} has invalid confidence`);
     if (!validBox(object.box)) problems.push(`visible scene object ${object.id} has invalid normalized box`);
@@ -95,6 +115,20 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
     if (!captureIds.has(observation.imageId)) problems.push(`visible segment ${observation.segmentId} references unknown image ${observation.imageId}`);
     if (!validUnit(observation.confidence)) problems.push(`visible segment ${observation.segmentId} has invalid confidence`);
     for (const objectId of observation.objectIds) if (!objectIds.has(objectId)) problems.push(`visible segment ${observation.segmentId} references unknown object ${objectId}`);
+  }
+
+  const doorwayGroupIds = new Set<string>();
+  for (const group of semantics.doorwayGroups ?? []) {
+    if (!group.id || doorwayGroupIds.has(group.id)) problems.push(`visible doorway group has duplicate or empty id: ${group.id || "<empty>"}`); else doorwayGroupIds.add(group.id);
+    const doorway = objectById.get(group.doorwayObjectId);
+    const left = objectById.get(group.leftCasingObjectId);
+    const top = objectById.get(group.topCasingObjectId);
+    const right = objectById.get(group.rightCasingObjectId);
+    if (doorway?.kind !== "DOORWAY") problems.push(`doorway group ${group.id} must reference a DOORWAY object`);
+    if (left?.kind !== "DOOR_SIDE_CASING") problems.push(`doorway group ${group.id} left casing must reference a DOOR_SIDE_CASING object`);
+    if (top?.kind !== "DOOR_TOP_CASING") problems.push(`doorway group ${group.id} top casing must reference a DOOR_TOP_CASING object`);
+    if (right?.kind !== "DOOR_SIDE_CASING") problems.push(`doorway group ${group.id} right casing must reference a DOOR_SIDE_CASING object`);
+    if (new Set([group.doorwayObjectId, group.leftCasingObjectId, group.topCasingObjectId, group.rightCasingObjectId]).size !== 4) problems.push(`doorway group ${group.id} must reference four distinct scene objects`);
   }
   return problems;
 }
