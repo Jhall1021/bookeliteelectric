@@ -6,6 +6,7 @@ export type RouteAssistVisibleOverlayPathV1 = {
   imageId: string;
   points: RouteAssistVisibleOverlayPointV1[];
   stepKinds: RouteAssistVisibleTrimRouteStepV1["kind"][];
+  evidenceRole: "PRIMARY_SWEEP" | "SUPPLEMENTAL_RECAPTURE";
 };
 export type RouteAssistVisibleTrimRouteOverlayV1 = {
   version: 1;
@@ -32,33 +33,45 @@ function trimAnchor(object: RouteAssistVisibleSceneObjectV1, kind: RouteAssistVi
  * stitched metric panorama, so this adapter never draws a fake line between
  * coordinates from different images.
  *
- * The output is presentation only. It does not mutate the route graph or create
- * footage, turns, fittings, materials, labor, pricing, or accepted facts.
+ * Supplemental recapture frames may display local review anchors, but their
+ * order is presentation-only and never treated as route adjacency/topology.
  */
 export function buildVisibleTrimRouteOverlayV1(args: {
   semantics: RouteAssistVisibleSceneSemanticsV1;
   proposal: RouteAssistVisibleTrimRouteProposalV1;
+  authorizedSupplementalImageIds?: readonly string[];
 }): RouteAssistVisibleTrimRouteOverlayV1 | null {
   if (args.proposal.status !== "REVIEW_REQUIRED" || args.proposal.problems.length) return null;
   const objects = new Map(args.semantics.objects.map((object) => [object.id, object]));
-  const captureIds = new Set(args.semantics.captureImageIds);
+  const primaryIds = new Set(args.semantics.captureImageIds);
+  const supplementalIds = new Set(args.authorizedSupplementalImageIds ?? []);
+  const authorizedIds = new Set([...primaryIds, ...supplementalIds]);
   const grouped = new Map<string, RouteAssistVisibleTrimRouteStepV1[]>();
 
   for (const step of args.proposal.steps) {
     const object = objects.get(step.objectId);
-    if (!object || object.imageId !== step.imageId || !captureIds.has(step.imageId)) return null;
+    if (!object || object.imageId !== step.imageId || !authorizedIds.has(step.imageId)) return null;
     const existing = grouped.get(step.imageId) ?? [];
     existing.push(step);
     grouped.set(step.imageId, existing);
   }
 
+  const orderedImageIds = [
+    ...args.semantics.captureImageIds,
+    ...[...supplementalIds].sort((a, b) => a.localeCompare(b)),
+  ];
   const paths: RouteAssistVisibleOverlayPathV1[] = [];
-  for (const imageId of args.semantics.captureImageIds) {
+  for (const imageId of orderedImageIds) {
     const steps = grouped.get(imageId);
     if (!steps?.length) continue;
     const points = steps.map((step) => trimAnchor(objects.get(step.objectId)!, step.kind));
     if (points.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y) || point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1)) return null;
-    paths.push({ imageId, points, stepKinds: steps.map((step) => step.kind) });
+    paths.push({
+      imageId,
+      points,
+      stepKinds: steps.map((step) => step.kind),
+      evidenceRole: primaryIds.has(imageId) ? "PRIMARY_SWEEP" : "SUPPLEMENTAL_RECAPTURE",
+    });
   }
   if (!paths.length) return null;
   return { version: 1, paths, requiresHomeownerReview: true };
