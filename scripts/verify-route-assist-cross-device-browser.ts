@@ -1,28 +1,29 @@
 /**
  * The full cross-device Route Assist proof, at the UI level — item 9 of
- * the brief, driven through the REAL pages a customer would use, not just
+ * the brief, driven through the REAL handoff/capture components, not just
  * the HTTP API (that's scripts/verify-guided-flow-cross-device.ts, a
  * different, narrower concern that proves the mechanism generically).
  * Two independent Playwright browser CONTEXTS (separate cookie jars =
  * separate devices) against a real running dev server and a real service.
  *
  *   npx tsx scripts/verify-route-assist-cross-device-browser.ts \
- *     --base http://localhost:3427 --service replace-gfci-outlet
+ *     --base http://localhost:3427 --service new-120v-outlet
  *
- * `?mode=handoff` on app/elite-electric/dev-fixtures/route-assist stands in for "a
- * service's question tree reached the point where it requests Route
- * Assist" — there is still no real catalog/tree hook for that
- * (docs/design/guided-flow-session-v1.md §10), so this fixture is the
- * legitimate way to exercise the real GuidedFlowSession + Device Handoff +
- * RouteAssistWithHandoff code path without inventing one.
+ * `?mode=handoff` on app/elite-electric/dev-fixtures/route-assist stands in for
+ * "a service's Guided Flow question opened Route Assist." The fixture now
+ * supplies the SAME grouped surface capture task identity used by the real
+ * invocation registry (`surface_route_capture_v1`), so this proof exercises
+ * task-key persistence and phone capture-context restoration rather than the
+ * old null-key compatibility fallback.
  *
  * Proves, in order: desktop reaches the step and gets a QR; a genuinely
  * separate browser context (the phone) resolves that QR's actual URL and
- * joins the SAME GuidedFlowSession; the phone completes A, a waypoint, B,
- * and confirms; the desktop — polling, no manual refresh — detects
- * completion; and, checked directly against the database rather than
- * inferred from the UI, exactly one GuidedFlowSession, one
- * GuidedFlowVisualAssistTask and one RouteAssistResult exist.
+ * joins the SAME GuidedFlowSession; the phone recovers the RECEPTACLE context
+ * from the persisted grouped task key, completes A/waypoint/B and confirms;
+ * the desktop — polling, no manual refresh — detects completion; and, checked
+ * directly against the database rather than inferred from the UI, exactly one
+ * GuidedFlowSession, one grouped GuidedFlowVisualAssistTask and one canonical
+ * RouteAssistResult exist.
  *
  * UPLOAD SUBSTITUTION — see docs/design/route-assist-v1.md's cross-device
  * proof note. This development sandbox cannot complete a TLS connection to
@@ -44,7 +45,8 @@ const arg = (n: string) => {
   return i >= 0 ? process.argv[i + 1] : undefined;
 };
 const BASE = arg("base") ?? "http://localhost:3000";
-const SERVICE_SLUG = arg("service") ?? "replace-gfci-outlet";
+const SERVICE_SLUG = arg("service") ?? "new-120v-outlet";
+const SURFACE_CAPTURE_TASK_KEY = "surface_route_capture_v1";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail?: string) {
@@ -101,8 +103,8 @@ async function placeAndConfirmRoute(page: Page) {
   await page.click('button:has-text("Looks right — review route")');
   await page.waitForSelector("text=Does this look right?");
   await page.click('button:has-text("Looks right")');
-  // The confirm click's handler is async (completes the Visual Assist task,
-  // then the Device Handoff, before flipping to the "done" state) — wait
+  // The confirm click's handler is async (completes the canonical Visual Assist
+  // task, then the Device Handoff, before flipping to the "done" state) — wait
   // for it rather than reading the DOM mid-transition.
   await page.waitForSelector("text=Route added");
 }
@@ -117,16 +119,19 @@ async function main() {
     console.error(`  FAIL — desktop uncaught page error: ${e.message}`);
   });
 
-  console.log("\n1. Desktop reaches the Route Assist step and requests a handoff");
+  console.log("\n1. Desktop reaches the grouped Route Assist step and requests a handoff");
   const handoffResponsePromise = desktop.waitForResponse((r) => r.url().includes("/api/device-handoffs") && r.request().method() === "POST");
-  await desktop.goto(`${BASE}/elite-electric/dev-fixtures/route-assist?mode=handoff&service=${SERVICE_SLUG}`);
+  await desktop.goto(
+    `${BASE}/elite-electric/dev-fixtures/route-assist?mode=handoff&service=${encodeURIComponent(SERVICE_SLUG)}` +
+      `&taskKey=${encodeURIComponent(SURFACE_CAPTURE_TASK_KEY)}`
+  );
   await desktop.click('button:has-text("Continue on your phone")');
   const handoffResponse = await handoffResponsePromise;
   const handoffBody = await handoffResponse.json();
   check("desktop created a Device Handoff", !!handoffBody?.url, JSON.stringify(handoffBody));
   await desktop.waitForSelector('img[alt="QR code to continue on your phone"]');
 
-  console.log("\n2. A genuinely separate device (its own cookie jar) resolves the QR's real URL");
+  console.log("\n2. Separate phone resolves the QR and restores grouped capture context");
   const phoneCtx = await browser.newContext();
   const phone = await phoneCtx.newPage();
   phone.on("pageerror", (e) => {
@@ -140,16 +145,21 @@ async function main() {
   const token = realHandoffUrl.pathname.split("/").pop();
   const fixtureHandoffUrl = `${BASE}/elite-electric/dev-fixtures/route-assist-handoff/${token}`;
   await phone.goto(fixtureHandoffUrl);
-  await phone.waitForSelector('[data-testid="mode-SURFACE"], text=Tap the existing receptacle', { timeout: 15000 }).catch(() => {});
+  await phone.waitForSelector('[data-testid="mode-SURFACE"]', { timeout: 15000 });
   const phoneText = await phone.locator("main").innerText().catch(() => "");
-  check("phone lands directly on the capture step (not an error page)", !phoneText.includes("isn't valid"), phoneText.slice(0, 200));
+  check("phone lands directly on the capture step (not an error page)", !phoneText.includes("isn't valid"), phoneText.slice(0, 240));
+  check(
+    "phone restored receptacle capture context from grouped task identity",
+    /new outlet|receptacle/i.test(phoneText),
+    phoneText.slice(0, 400)
+  );
 
   console.log("\n3. Phone captures A, a waypoint, B, and confirms");
   await placeAndConfirmRoute(phone);
   const phoneResult = await phone.locator("main").innerText();
   check("phone reaches 'Route added'", phoneResult.includes("Route added"), phoneResult.slice(0, 200));
 
-  console.log("\n4. Desktop detects completion via polling — no manual refresh");
+  console.log("\n4. Desktop detects canonical completion via polling — no manual refresh");
   await desktop.waitForSelector("text=Route received", { timeout: 20000 });
   const desktopText = await desktop.locator("main").innerText();
   check("desktop shows 'Route received' without a reload", desktopText.includes("Route received"));
@@ -157,15 +167,15 @@ async function main() {
   await desktop.click('button:has-text("Continue")');
   await desktop.waitForSelector('[data-testid="route-assist-result"]');
   const desktopResultText = await desktop.locator('[data-testid="route-assist-result"]').innerText();
-  // HandoffLanding.tsx hardcodes destinationType="OTHER" regardless of the
-  // task/session's real destination — a known, documented simplification
-  // (not this proof's concern; not changed here), so the canonical result
-  // genuinely says "Other", not "Receptacle".
-  check("desktop's final result carries the canonical destination (Other, per HandoffLanding's known simplification)", desktopResultText.includes("Other"), desktopResultText);
+  check(
+    "desktop's final canonical result preserves the registry endpoint (Receptacle)",
+    desktopResultText.includes("Receptacle"),
+    desktopResultText
+  );
 
   await browser.close();
 
-  console.log("\n5. Exactly one session, one task, one result — checked directly against the database");
+  console.log("\n5. Exactly one grouped task and one canonical result — checked in the database");
   const prisma = new PrismaClient();
   const sessions = await prisma.guidedFlowSession.findMany({
     where: { serviceSlug: SERVICE_SLUG },
@@ -178,9 +188,11 @@ async function main() {
   const session = sessions[0];
   check("a GuidedFlowSession exists", !!session);
   if (session) {
-    check("exactly one ROUTE_ASSIST task on it", session.visualAssistTasks.filter((t) => t.taskType === "ROUTE_ASSIST").length === 1);
-    const task = session.visualAssistTasks.find((t) => t.taskType === "ROUTE_ASSIST");
-    check("that task is COMPLETED with a result", task?.status === "COMPLETED" && !!task?.result);
+    const routeTasks = session.visualAssistTasks.filter((t) => t.taskType === "ROUTE_ASSIST");
+    check("exactly one ROUTE_ASSIST task on it", routeTasks.length === 1);
+    const task = routeTasks[0];
+    check("task kept the grouped capture identity", task?.taskKey === SURFACE_CAPTURE_TASK_KEY, String(task?.taskKey));
+    check("that grouped task is COMPLETED with a result", task?.status === "COMPLETED" && !!task?.result);
     check("exactly one DeviceHandoff on it", session.deviceHandoffs.length === 1);
     check("the handoff is COMPLETED", session.deviceHandoffs[0]?.status === "COMPLETED");
   }
