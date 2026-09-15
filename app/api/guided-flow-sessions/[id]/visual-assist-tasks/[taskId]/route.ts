@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrCreateSessionId } from "@/lib/session";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { loadSession } from "@/lib/guidedFlowSession";
+import { isRouteAssistResultPayload } from "@/lib/visual-assist/route-assist/validation";
 
 // PATCH body: { result } — marks the task COMPLETED with its canonical
 // result. Whichever device finishes the task calls this; every device
@@ -40,8 +41,16 @@ export async function PATCH(
       return NextResponse.json({ error: "Missing or invalid result" }, { status: 400 });
     }
 
+    // A generic Visual Assist task may legitimately persist another result
+    // shape, but ROUTE_ASSIST has a real domain contract. Validate that contract
+    // BEFORE the atomic PENDING -> COMPLETED write so malformed JSON cannot win
+    // the race and lock out a later legitimate phone/desktop completion.
+    if (task.taskType === "ROUTE_ASSIST" && !isRouteAssistResultPayload(body.result)) {
+      return NextResponse.json({ error: "Invalid Route Assist result" }, { status: 400 });
+    }
+
     /**
-     * FIRST ACCEPTED COMPLETION WINS.
+     * FIRST VALID COMPLETION WINS.
      *
      * Desktop and phone can both legitimately finish the same canonical task.
      * A read-then-update sequence lets both readers observe PENDING and makes
