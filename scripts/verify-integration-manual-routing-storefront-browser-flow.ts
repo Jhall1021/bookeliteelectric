@@ -259,6 +259,77 @@ async function main() {
       await ctx.close();
     }
 
+    // ── G. The qualification gate's large-appliance hand-off actually goes
+    // somewhere LIVE and BOOKABLE — the outlet's own launch depends on it
+    // (activateService's DEPENDENCY_UNAVAILABLE check, satisfied through
+    // real configuration/publish/activation, not a flag flip — see
+    // _derivedStorefrontFixture.ts), so the launch proof is incomplete
+    // without actually walking the hand-off itself ─────────────────────────
+    {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      page.setDefaultTimeout(30000);
+
+      await page.goto(targetUrl);
+      await page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      await answerChoice(page, "What will this outlet power?", "A specific large appliance");
+
+      await page.getByRole("heading", { name: "Based on your answer, you actually need a different service", exact: true }).waitFor();
+      const continueButton = page.getByRole("button", { name: /Continue to/ });
+      await continueButton.waitFor();
+      ok("G. the hand-off names the real dependency by name, not a generic redirect",
+        /Dedicated Circuit/i.test((await continueButton.textContent()) ?? ""),
+        `got "${await continueButton.textContent()}"`);
+      await continueButton.click();
+
+      // Lands on the dependency's OWN intro — proving the target page is
+      // real and live, not a dead link a customer would bounce off of.
+      await page.waitForURL(/dedicated-120v-circuit-outlet/, { timeout: 15000 });
+      await page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      // Fridge/freezer has a well-known amperage, so its own tree skips
+      // asking (real branching this test discovered, not a defect) and goes
+      // straight to route access.
+      await answerChoice(page, "What will this dedicated circuit power?", "Refrigerator or freezer");
+      await answerChoice(page, "Can we reach the wiring path through an unfinished basement, a basement with a removable drop ceiling, or an accessible attic?", "Yes — unfinished basement");
+      // The label reads "30 feet or less" because that's the boundary this
+      // fixture's own panel_circuit_run.breakpoints policy resolved to
+      // ([30, 60]) — the band question rewrites its own option labels from
+      // the decided policy, not a fixed number.
+      await answerChoice(page, "About how far will the wire travel from the electrical panel to the new outlet?", "30 feet or less");
+      await answerChoice(page, "One quick note about access openings", "I understand");
+      // A known appliance, an accessible route and a short distance is
+      // enough certainty to price this one instantly — real branching this
+      // test discovered, not the terminal PHOTO_REVIEW every path was
+      // assumed to share. Lands on PricedPhotoReview specifically: a real,
+      // locked-in price ($485) plus non-blocking prep photos for the
+      // technician (AnswerOption.photosBlockBooking = false) — any of the
+      // three real terminal screens this tree can reach is a genuine,
+      // fully-functional outcome; anything else means the dependency isn't
+      // actually live. Polled rather than raced: three concurrent
+      // `waitFor()` calls against a DOM that is still transitioning between
+      // render states is exactly the shape that produces a spurious
+      // "element detached" rejection racing ahead of the real, later
+      // resolution.
+      let landedOn: "PRICED" | "REVIEW" | "PRICED_WITH_PHOTOS" | "NEITHER" = "NEITHER";
+      for (let i = 0; i < 30 && landedOn === "NEITHER"; i++) {
+        const body = await page.innerText("body").catch(() => "");
+        if (body.includes("Here's Your Price!")) landedOn = "PRICED";
+        else if (body.includes("We can price this remotely.")) landedOn = "REVIEW";
+        else if (body.includes("One last thing before you schedule")) landedOn = "PRICED_WITH_PHOTOS";
+        else await page.waitForTimeout(1000);
+      }
+      ok("G. the dependency completes a full path to its own real terminal state — a live, published, activated service, walked end to end, not just a page that loads",
+        landedOn === "PRICED" || landedOn === "REVIEW" || landedOn === "PRICED_WITH_PHOTOS", `got ${landedOn}`);
+      if (landedOn === "PRICED" || landedOn === "PRICED_WITH_PHOTOS") {
+        const dependencyPrice = await priceText(page);
+        ok("G. …and it's a real calculated number, not a placeholder",
+          /^\$[0-9,]+(\.[0-9]{2})?$/.test(dependencyPrice) && dependencyPrice !== "$0",
+          `got ${dependencyPrice}`);
+      }
+
+      await ctx.close();
+    }
+
     // ── D. Back three questions to feet itself, re-answer with a DIFFERENT
     // footage, and confirm the price follows the new figure ──────────────
     {
@@ -437,21 +508,29 @@ async function main() {
       const bookedLineItem = await prisma.lineItem.findFirst({
         where: { serviceId: fixture.serviceId },
         orderBy: { id: "desc" },
-        select: { id: true, computedPriceCents: true, answersSnapshot: true },
+        select: { id: true, computedPriceCents: true, answersSnapshot: true, resolvedEconomicBasis: true },
       });
       const afterReapprovalCents = Math.round(parseFloat(priceAfterReapproval.replace(/[$,]/g, "")) * 100);
       ok("F. the re-added LineItem stores the NEW (post-reapproval) price, not the stale pre-change one",
         bookedLineItem?.computedPriceCents === afterReapprovalCents,
         `displayed ${priceAfterReapproval} (${afterReapprovalCents}c), stored ${bookedLineItem?.computedPriceCents}c`);
       // The economic PROVENANCE of this booking — not just the price it
-      // settled on, but the customer's own answers that produced it — is
-      // what makes the price accountable rather than an unexplained number.
-      // Captured here, before any further economics change, so the
-      // provenance check below is a real before/after comparison.
+      // settled on, but the customer's own answers that produced it, AND
+      // WHICH economic basis justified that price
+      // (lib/electrical/derivedPricingBasis.ts's fingerprint over every
+      // price-relevant contractor input — LineItem.resolvedEconomicBasis).
+      // A stored price alone is a number; the fingerprint is what makes it
+      // accountable to a SPECIFIC, identifiable set of costs, not just "the
+      // costs at some point". Captured here, before any further economics
+      // change, so both checks below are real before/after comparisons.
       const bookedAnswersAtBooking = JSON.stringify(bookedLineItem?.answersSnapshot);
+      const basisAtBooking = bookedLineItem?.resolvedEconomicBasis ?? null;
       ok("F. the booked LineItem records the actual answers that produced its price (SURFACE_KEYS.feet = 20.5)",
         (bookedLineItem?.answersSnapshot as Record<string, unknown> | null)?.[SURFACE_KEYS.feet] === "20.5",
         `got ${bookedAnswersAtBooking}`);
+      ok("F. the booked LineItem records WHICH economic basis produced its price — a real fingerprint, not null",
+        typeof basisAtBooking === "string" && basisAtBooking.length > 0,
+        `got ${JSON.stringify(basisAtBooking)}`);
 
       // Continue all the way through NATIVE scheduling and a no-deposit
       // checkout to a REAL Booking — the gap the review named: this block
@@ -475,7 +554,7 @@ async function main() {
       await changeChannelCost(fixture.contractorId, 9999);
       await reapprove(prisma, fixture.contractorId, fixture.serviceId);
       const bookingAfterLaterChange = await prisma.booking.findUnique({ where: { id: bookingId }, select: { totalCents: true } });
-      const lineItemAfterLaterChange = await prisma.lineItem.findUnique({ where: { id: bookedLineItem!.id }, select: { computedPriceCents: true, answersSnapshot: true } });
+      const lineItemAfterLaterChange = await prisma.lineItem.findUnique({ where: { id: bookedLineItem!.id }, select: { computedPriceCents: true, answersSnapshot: true, resolvedEconomicBasis: true } });
       ok("F. a cost change made AFTER booking leaves the booked Booking.totalCents unchanged",
         bookingAfterLaterChange?.totalCents === afterReapprovalCents,
         `at booking: ${afterReapprovalCents}c, after a further cost change: ${bookingAfterLaterChange?.totalCents}c`);
@@ -490,6 +569,23 @@ async function main() {
       ok("F. …and the booked LineItem's answersSnapshot is untouched too — the provenance, not just the price, is frozen",
         JSON.stringify(lineItemAfterLaterChange?.answersSnapshot) === bookedAnswersAtBooking,
         `at booking: ${bookedAnswersAtBooking}, after a further cost change: ${JSON.stringify(lineItemAfterLaterChange?.answersSnapshot)}`);
+
+      // NOT JUST "IT DIDN'T CHANGE" — the booked basis fingerprint must
+      // demonstrably DIFFER from the contractor's CURRENT approval (proving
+      // the economics genuinely moved, so an unchanged booked value is a
+      // real snapshot of a now-stale basis, not a coincidence), while the
+      // booked row itself stays pinned to what actually justified this
+      // customer's price.
+      const currentApproval = await prisma.contractorDerivedPricingApproval.findFirst({
+        where: { contractorId: fixture.contractorId, serviceId: fixture.serviceId },
+        select: { approvedBasisFingerprint: true },
+      });
+      ok("F. the contractor's CURRENT approval basis has genuinely moved since booking (the later cost change was real, not cosmetic)",
+        typeof currentApproval?.approvedBasisFingerprint === "string" && currentApproval.approvedBasisFingerprint !== basisAtBooking,
+        `at booking: ${basisAtBooking}, current approval: ${currentApproval?.approvedBasisFingerprint}`);
+      ok("F. …while the booked LineItem's own resolvedEconomicBasis stays pinned to the ORIGINAL basis — the provenance a homeowner or auditor would trace is never silently rewritten to match a later approval",
+        lineItemAfterLaterChange?.resolvedEconomicBasis === basisAtBooking,
+        `at booking: ${basisAtBooking}, after a further cost change: ${lineItemAfterLaterChange?.resolvedEconomicBasis}`);
 
       await ctx.close();
     }
