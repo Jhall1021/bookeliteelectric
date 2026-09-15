@@ -9,17 +9,16 @@ import type { RouteAssistDestinationType } from "@/lib/visual-assist/route-assis
 import { useSiteFetch } from "@/components/site/SiteContext";
 
 /**
- * A test fixture, not a product route — Route Assist isn't wired into any
- * real booking tree yet (docs/design/route-assist-v1.md §1.4). This page
- * exists so `RouteAssistCapture` (and, with `?mode=handoff`,
+ * A test fixture, not a product route. This page exists so
+ * `RouteAssistCapture` (and, with `?mode=handoff`,
  * `RouteAssistWithHandoff`'s real cross-device flow) can be driven by a
- * human or a script without waiting on that integration.
+ * human or a script without coupling the proof to a production storefront.
  *
  *   ?case=surface-receptacle | surface-switch | surface-ceiling-light | concealed
- *   ?mode=handoff&service=<slug>   — exercises the real GuidedFlowSession +
- *                                    Device Handoff path against a real
- *                                    service, instead of the plain
- *                                    single-device capture above.
+ *   ?mode=handoff&service=<slug>&taskKey=<capture-key>
+ *       — exercises the real GuidedFlowSession + Device Handoff path against a
+ *         real service and, when supplied, the same grouped capture identity a
+ *         Guided Flow question would persist.
  */
 
 const CASES: Record<string, { destinationType: RouteAssistDestinationType; sourceHint: string; destinationHint: string }> = {
@@ -49,7 +48,7 @@ async function fakeUpload(file: File): Promise<string> {
   return URL.createObjectURL(file);
 }
 
-function HandoffFixture({ serviceSlug }: { serviceSlug: string }) {
+function HandoffFixture({ serviceSlug, taskKey }: { serviceSlug: string; taskKey?: string }) {
   const siteFetch = useSiteFetch();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [result, setResult] = useState<RouteAssistResult | null>(null);
@@ -87,6 +86,7 @@ function HandoffFixture({ serviceSlug }: { serviceSlug: string }) {
   return (
     <RouteAssistWithHandoff
       guidedFlowSessionId={sessionId}
+      taskKey={taskKey}
       destinationType="RECEPTACLE"
       sourceHint="Tap the existing receptacle we'd start from."
       destinationHint="Tap where you'd like the new receptacle."
@@ -99,7 +99,7 @@ function HandoffFixture({ serviceSlug }: { serviceSlug: string }) {
 export default function RouteAssistFixturePage({
   searchParams,
 }: {
-  searchParams: { case?: string; mode?: string; service?: string };
+  searchParams: { case?: string; mode?: string; service?: string; taskKey?: string };
 }) {
   const caseKey = searchParams.case && CASES[searchParams.case] ? searchParams.case : "surface-receptacle";
   const config = CASES[caseKey];
@@ -109,7 +109,10 @@ export default function RouteAssistFixturePage({
     return (
       <main className="min-h-screen bg-slate-100 p-6" data-testid="route-assist-fixture" data-mode="handoff">
         <h1 className="mb-4 text-center text-xl font-bold">Route Assist fixture — cross-device handoff</h1>
-        <HandoffFixture serviceSlug={searchParams.service ?? "replace-gfci-outlet"} />
+        <HandoffFixture
+          serviceSlug={searchParams.service ?? "replace-gfci-outlet"}
+          taskKey={searchParams.taskKey}
+        />
       </main>
     );
   }
