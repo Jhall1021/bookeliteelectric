@@ -1,8 +1,7 @@
 import {
-  reconcileGuidedFlowAnswerConflict,
-  type GuidedFlowAnswerConflict,
+  reconcileGuidedFlowAnswers,
   type GuidedFlowAnswerMap,
-} from "./guidedFlowAnswerConflict";
+} from "./guidedFlowAnswerReconcile";
 
 export type GuidedFlowSessionRef = {
   id: string;
@@ -13,8 +12,9 @@ export type GuidedFlowPersistResult = {
   session: GuidedFlowSessionRef;
   /** Canonical server answers, plus any still-safe local edits not yet persisted. */
   answers: GuidedFlowAnswerMap;
-  conflicts: GuidedFlowAnswerConflict[];
-  /** True only when `answers` still contains a safe local edit the server has not accepted yet. */
+  /** Same-key conflicts where server/current remains canonical. */
+  conflictKeys: string[];
+  /** True only when `answers` still contains safe local edits not yet accepted by the server. */
   pendingLocalChanges: boolean;
   persisted: boolean;
 };
@@ -52,14 +52,21 @@ async function patch(
   });
 }
 
+function sameAnswers(a: GuidedFlowAnswerMap, b: GuidedFlowAnswerMap): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) if (a[key] !== b[key]) return false;
+  return true;
+}
+
 /**
  * Persist one Guided Flow answer snapshot with a bounded conflict-safe retry.
  *
  * The caller supplies `baseAnswers`: the canonical snapshot corresponding to
  * `session.version`, not merely whatever happens to be rendered now. If the
- * first write is stale, the server's current snapshot is three-way reconciled
- * against base + attempted. Only non-conflicting local edits are applied to
- * current, and THAT merged payload may be retried once at the new version.
+ * first write is stale, the server's current snapshot is reconciled through the
+ * canonical three-way helper. Only a clean MERGED result may be retried, and
+ * then only when it actually contains a safe local edit absent from the server.
+ * A same-key CONFLICT is returned immediately with the server value canonical.
  * The original stale full snapshot is never blindly replayed.
  */
 export async function persistGuidedFlowAnswers(
@@ -77,7 +84,7 @@ export async function persistGuidedFlowAnswers(
     return {
       session: { id: session.id, version },
       answers: firstBody?.consumedAnswers ?? attemptedAnswers,
-      conflicts: [],
+      conflictKeys: [],
       pendingLocalChanges: false,
       persisted: true,
     };
@@ -92,28 +99,38 @@ export async function persistGuidedFlowAnswers(
     throw new Error("Guided Flow stale write returned no current session");
   }
   const currentAnswers = current.consumedAnswers ?? {};
-  const reconciliation = reconcileGuidedFlowAnswerConflict(baseAnswers, attemptedAnswers, currentAnswers);
+  const reconciliation = reconcileGuidedFlowAnswers(baseAnswers, attemptedAnswers, currentAnswers);
 
-  if (!reconciliation.hasLocalChangesToPersist) {
+  if (reconciliation.kind === "CONFLICT") {
     return {
       session: { id: session.id, version: current.version },
-      answers: reconciliation.merged,
-      conflicts: reconciliation.conflicts,
+      answers: reconciliation.answers,
+      conflictKeys: reconciliation.conflictKeys,
       pendingLocalChanges: false,
       persisted: false,
     };
   }
 
-  // One bounded retry of the RECONCILED payload, never the stale original.
-  const second = await patch(fetchFn, session.id, current.version, reconciliation.merged);
+  if (sameAnswers(reconciliation.answers, currentAnswers)) {
+    return {
+      session: { id: session.id, version: current.version },
+      answers: reconciliation.answers,
+      conflictKeys: [],
+      pendingLocalChanges: false,
+      persisted: false,
+    };
+  }
+
+  // One bounded retry of the reconciled payload, never the stale original.
+  const second = await patch(fetchFn, session.id, current.version, reconciliation.answers);
   const secondBody = await json(second) as SessionBody & ConflictBody | null;
   if (second.ok) {
     const version = secondBody?.version;
     if (typeof version !== "number") throw new Error("Guided Flow reconciled write returned no version");
     return {
       session: { id: session.id, version },
-      answers: secondBody?.consumedAnswers ?? reconciliation.merged,
-      conflicts: reconciliation.conflicts,
+      answers: secondBody?.consumedAnswers ?? reconciliation.answers,
+      conflictKeys: [],
       pendingLocalChanges: false,
       persisted: true,
     };
@@ -124,24 +141,33 @@ export async function persistGuidedFlowAnswers(
   }
 
   // Another device moved again during our one retry. Reconcile once more for
-  // the caller's LOCAL state but stop here—no retry loop. A later user action
-  // may persist any still-safe edit against this newest version.
+  // local display state but stop here—no retry loop.
   const latest = secondBody?.current;
   if (!latest || typeof latest.version !== "number") {
     throw new Error("Guided Flow second stale write returned no current session");
   }
   const latestAnswers = latest.consumedAnswers ?? {};
-  const secondReconciliation = reconcileGuidedFlowAnswerConflict(
+  const secondReconciliation = reconcileGuidedFlowAnswers(
     currentAnswers,
-    reconciliation.merged,
+    reconciliation.answers,
     latestAnswers
   );
 
+  if (secondReconciliation.kind === "CONFLICT") {
+    return {
+      session: { id: session.id, version: latest.version },
+      answers: secondReconciliation.answers,
+      conflictKeys: secondReconciliation.conflictKeys,
+      pendingLocalChanges: false,
+      persisted: false,
+    };
+  }
+
   return {
     session: { id: session.id, version: latest.version },
-    answers: secondReconciliation.merged,
-    conflicts: [...reconciliation.conflicts, ...secondReconciliation.conflicts],
-    pendingLocalChanges: secondReconciliation.hasLocalChangesToPersist,
+    answers: secondReconciliation.answers,
+    conflictKeys: [],
+    pendingLocalChanges: !sameAnswers(secondReconciliation.answers, latestAnswers),
     persisted: false,
   };
 }
