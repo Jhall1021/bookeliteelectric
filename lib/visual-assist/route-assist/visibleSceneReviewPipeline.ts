@@ -27,12 +27,17 @@ function failed(providerKey: string, problem: string): RouteAssistVisibleSceneRe
   return { providerKey, semantics: null, proposal: null, overlay: null, recaptureIssues: [], problems: [problem] };
 }
 
+function supplementalImageIds(input: Omit<RouteAssistVisibleSceneProviderInputV1, "captureArtifacts">): string[] {
+  return (input.supplementalCaptureSets ?? []).flatMap((set) => set.supplementalImageIds);
+}
+
 /**
  * Persisted browser sweep -> structural readiness -> semantic CV -> provider
  * quality review -> review-only trim proposal -> frame-local overlay.
  *
- * Stops before acceptance and before any canonical Routing V2 binding. The
- * resulting overlay is presentation/review evidence only.
+ * Stops before acceptance and before any canonical Routing V2 binding. Primary
+ * sweep ordering remains authoritative; targeted supplemental images are
+ * unordered supporting evidence only.
  */
 export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
   handoff: RouteAssistSweepCaptureHandoffV1;
@@ -101,9 +106,11 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
     };
   }
 
+  const supplements = supplementalImageIds(args.providerInput);
   const proposal = proposeVisibleTrimHuggingRouteV1({
     semantics: providerRun.semantics,
     expectedCaptureImageIds: frameIds,
+    authorizedSupplementalImageIds: supplements,
     points: args.providerInput.points,
     segments: args.providerInput.segments,
   });
@@ -121,6 +128,7 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
   const overlay = buildVisibleTrimRouteOverlayV1({
     semantics: providerRun.semantics,
     proposal,
+    authorizedSupplementalImageIds: supplements,
   });
   if (!overlay) {
     return {
