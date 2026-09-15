@@ -88,14 +88,9 @@ if (accepted.ok) {
   });
   check("accepted graph still flows through the existing Route Assist result builder", !isRouteAssistIncomplete(outcome));
   if (!isRouteAssistIncomplete(outcome)) {
-    // Evidence preserves the exact 5.125 / 9.5 legs. The current Phase-1
-    // Route Assist aggregate intentionally remains one decimal (geometry.ts),
-    // so do not silently change canonical precision from this proof. The
-    // separate fractional-transport verifier proves downstream plumbing can
-    // carry 14.625 once the explicit precision/schema gate is opened.
     check(
-      "current result aggregation remains at its established tenth-foot precision",
-      outcome.estimatedTotalRouteLengthFt === 14.6,
+      "accepted scan keeps the exact 14.625 ft physical aggregate",
+      outcome.estimatedTotalRouteLengthFt === 14.625,
       String(outcome.estimatedTotalRouteLengthFt)
     );
 
