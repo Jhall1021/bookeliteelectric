@@ -4,10 +4,28 @@ import { useEffect, useRef, useState } from "react";
 
 type ScanState = "READY" | "SCANNING" | "COMPLETE";
 
+/**
+ * Browser-camera capture receipt only. This is deliberately NOT scan evidence:
+ * metric geometry, planes, surfaces, obstacles and physical turns belong to a
+ * calibrated scan-provider adapter and must cross the existing evidence gate.
+ */
+export type RouteAssistRoomScanCaptureV1 = {
+  version: 1;
+  captureKind: "ORDINARY_ROOM_SCAN";
+  capturedAt: string;
+  sourceLabel: string;
+  destinationLabels: string[];
+  camera: {
+    facingMode: "environment";
+    width: number | null;
+    height: number | null;
+  };
+};
+
 type Props = {
   sourceLabel: string;
   destinationLabels: string[];
-  onScanComplete: () => void;
+  onScanComplete: (capture: RouteAssistRoomScanCaptureV1) => void;
   onBack?: () => void;
 };
 
@@ -49,11 +67,25 @@ export default function RouteAssistRoomScanCamera({
   }
 
   function finishScan() {
+    const video = videoRef.current;
+    const capture: RouteAssistRoomScanCaptureV1 = {
+      version: 1,
+      captureKind: "ORDINARY_ROOM_SCAN",
+      capturedAt: new Date().toISOString(),
+      sourceLabel,
+      destinationLabels: [...destinationLabels],
+      camera: {
+        facingMode: "environment",
+        width: video?.videoWidth || null,
+        height: video?.videoHeight || null,
+      },
+    };
+
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
+    if (video) video.srcObject = null;
     setState("COMPLETE");
-    onScanComplete();
+    onScanComplete(capture);
   }
 
   const destinationCopy =
