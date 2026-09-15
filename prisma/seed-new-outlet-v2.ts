@@ -111,12 +111,18 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
   // their historical meaning stay exactly as they were. Options are cleared so
   // no legacy component can be emitted even if a path were somehow found, and
   // the graph verifier proves unreachability rather than trusting this comment.
-  for (const key of RETIRED_OUTLET_QUESTIONS) {
+  //
+  // Each gets its OWN sentinel order (900, 901, ...), not one shared value —
+  // scripts/verify-question-order.ts enforces that no two of a service's
+  // questions share a position, retired or not, and a single reused 900
+  // violated that the moment more than one question retired at once. Nothing
+  // reads a retired question's order for meaning; it only has to be unique.
+  for (const [i, key] of RETIRED_OUTLET_QUESTIONS.entries()) {
     const q = await db.question.findFirst({ where: { serviceId: svc.id, key }, select: { id: true } });
     if (!q) continue;
     await db.answerOptionComponent.deleteMany({ where: { answerOption: { questionId: q.id } } });
     await db.answerOption.deleteMany({ where: { questionId: q.id } });
-    await db.question.update({ where: { id: q.id }, data: { order: 900 } });
+    await db.question.update({ where: { id: q.id }, data: { order: 900 + i } });
   }
 
   /**
