@@ -136,6 +136,22 @@ function measuredCount(pick: "insideCorners" | "outsideCorners") {
 }
 
 /**
+ * A persisted capture belongs to the endpoint the invocation opened for.
+ *
+ * Task rows are session-scoped and the UI supplies the expected destination,
+ * but the JSON result crosses an HTTP boundary. A valid RECEPTACLE result must
+ * not silently satisfy a SWITCH or SURFACE_BOX invocation merely because its
+ * route geometry is otherwise usable. Endpoint mismatch is a configuration or
+ * payload problem, so fail closed to the ordinary question.
+ */
+function forDestination(
+  expected: RouteAssistDestinationType,
+  resolve: (result: RouteAssistResult) => string | null,
+): (result: RouteAssistResult) => string | null {
+  return (result) => result.destinationType === expected ? resolve(result) : null;
+}
+
+/**
  * Routing V2 answer keys, as authored in prisma/_surfaceRouteModule.ts,
  * prisma/_concealedRouteModules.ts and prisma/_finishedWallModule.ts.
  *
@@ -187,17 +203,17 @@ function surfaceCaptureInvocations(copy: SurfaceCaptureCopy): Record<string, Rou
     [V2_SURFACE_FEET]: {
       ...common,
       actionLabel: "Not sure? Measure the route with your phone.",
-      resolveAnswerValue: measuredFeetFor("surface"),
+      resolveAnswerValue: forDestination(copy.destinationType, measuredFeetFor("surface")),
     },
     [V2_SURFACE_INSIDE]: {
       ...common,
       actionLabel: "Count the inside corners with your phone.",
-      resolveAnswerValue: measuredCount("insideCorners"),
+      resolveAnswerValue: forDestination(copy.destinationType, measuredCount("insideCorners")),
     },
     [V2_SURFACE_OUTSIDE]: {
       ...common,
       actionLabel: "Count the outside corners with your phone.",
-      resolveAnswerValue: measuredCount("outsideCorners"),
+      resolveAnswerValue: forDestination(copy.destinationType, measuredCount("outsideCorners")),
     },
   };
 }
@@ -220,7 +236,7 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
       sourceHint: "Tap the existing outlet or panel you'd run the power from.",
       destinationHint: "Tap where you'd like the new outlet.",
       actionLabel: "Not sure? Measure the route with your phone.",
-      resolveAnswerValue: resolveOutletRunDistance,
+      resolveAnswerValue: forDestination("RECEPTACLE", resolveOutletRunDistance),
     },
 
     ...surfaceCaptureInvocations({
@@ -235,7 +251,7 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
       sourceHint: "Tap the existing outlet you'd run the power from.",
       destinationHint: "Tap where you'd like the new outlet.",
       actionLabel: "Not sure? Measure the route with your phone.",
-      resolveAnswerValue: measuredFeetFor("concealed"),
+      resolveAnswerValue: forDestination("RECEPTACLE", measuredFeetFor("concealed")),
     },
   },
 
