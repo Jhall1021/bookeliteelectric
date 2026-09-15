@@ -65,6 +65,14 @@ export {
   type CompleteMeasuredRouteLengthCandidateV1,
 } from "./scanCandidates";
 export {
+  buildRouteAssistScanReviewV1,
+  buildRouteAssistScanAcceptanceFromReviewV1,
+  type RouteAssistScanReviewItemKindV1,
+  type RouteAssistScanReviewItemV1,
+  type RouteAssistScanReviewV1,
+  type RouteAssistScanReviewAcceptanceBuild,
+} from "./scanReview";
+export {
   applyAcceptedRouteAssistScanCandidatesV1,
   type RouteAssistScanCandidateAcceptanceV1,
   type RouteAssistScanCandidateAcceptanceResult,
