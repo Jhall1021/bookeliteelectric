@@ -118,11 +118,11 @@ export default function RouteAssistRoomScanCamera({
           {state === "SCANNING" && (
             <>
               <div className="pointer-events-none absolute inset-x-4 top-4 rounded-xl bg-black/55 px-4 py-3 text-sm leading-5 text-white backdrop-blur-sm">
-                Slowly move across the wall and keep the selected locations visible when possible.
+                Slowly move across the wall and keep the selected locations, baseboard, door/window trim, and other route boundaries visible when possible.
               </div>
               <div className="pointer-events-none absolute left-1/2 top-1/2 h-36 w-56 -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-white/70" />
               <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-xl bg-black/55 px-4 py-3 text-center text-xs text-white/90 backdrop-blur-sm">
-                Route Assist is capturing observable room geometry. It will not infer hidden wiring.
+                Route Assist is capturing room scan media for geometry analysis. It will not infer hidden wiring.
               </div>
             </>
           )}
@@ -160,7 +160,7 @@ export default function RouteAssistRoomScanCamera({
 
           {state === "COMPLETE" && (
             <div className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-900">
-              Room scan captured. Route Assist can now analyze the observable geometry for review.
+              Room scan captured. Route Assist can now send the capture to the geometry provider and prepare a proposed route for review.
             </div>
           )}
 
