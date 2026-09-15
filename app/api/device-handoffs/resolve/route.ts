@@ -40,6 +40,25 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "This link isn't valid or has expired." }, { status: 404 });
     }
 
+    // The phone may continue into the ordinary Guided Flow after it completes
+    // this task. Resolve that canonical storefront path from the exact service
+    // the authorised session already names; the client must never guess a
+    // category from a service slug or copy contractor routing metadata into the
+    // handoff row.
+    const service = await db.service.findFirst({
+      where: { id: session.serviceId },
+      select: {
+        slug: true,
+        contractorCategory: {
+          select: { canonicalCategory: { select: { slug: true } } },
+        },
+      },
+    });
+    const categorySlug = service?.contractorCategory?.canonicalCategory.slug ?? null;
+    if (!service || service.slug !== session.serviceSlug || !categorySlug) {
+      return NextResponse.json({ error: "This link isn't valid or has expired." }, { status: 404 });
+    }
+
     // A handoff that points at a visual-assist task carries only the task id in
     // its own row. Resolve the existing task's opaque key here so the phone can
     // reconstruct the SAME declarative invocation the desktop used. No Route
@@ -70,6 +89,9 @@ export async function GET(req: Request) {
     return NextResponse.json({
       guidedFlowSessionId: session.id,
       serviceSlug: session.serviceSlug,
+      // Relative to this storefront's base. HandoffLanding prefixes the
+      // current site path; no tenant/category identity is reconstructed there.
+      continuationPath: `services/${categorySlug}/${session.serviceSlug}`,
       taskType: resolved.handoff.taskType,
       taskId: resolved.handoff.taskId,
       taskKey: task?.taskKey ?? null,
