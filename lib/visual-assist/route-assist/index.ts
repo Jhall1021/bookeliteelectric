@@ -53,7 +53,9 @@ export {
 } from "./scanProvider";
 export {
   collectRouteAssistScanCandidatesV1,
+  prepareRouteAssistScanReviewV1,
   type RouteAssistScanCandidatePipelineV1,
+  type RouteAssistScanReviewPipelineV1,
 } from "./scanPipeline";
 export {
   extractRouteAssistScanCandidatesV1,
