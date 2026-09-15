@@ -1,0 +1,115 @@
+{
+  "_purpose": "Non-executable audit record of Material Catalog Phase 1C, Batch 1 — the first canonical electrical template recipe promotion. Checked in for provenance; nothing here is read by application code or any script. Do not re-derive this by re-running the extractor; if templateVersion below stops matching the live database, this file is stale and needs a new one, not an edit.",
+
+  "templateVersion": {
+    "id": "cmu2rh7er0000enlw77ln61f9",
+    "trade": "electrical",
+    "version": 3,
+    "kind": "DELTA",
+    "publishedAt": "2026-09-15T14:22:44.931Z",
+    "foldsOnto": "SNAPSHOT v1 (75 services) + DELTA v2 (new-120v-outlet), both unmodified by this batch"
+  },
+
+  "services": [
+    {
+      "key": "new-video-doorbell-wiring",
+      "structuralMaterials": [{ "role": "DOORBELL_TRANSFORMER", "quantity": 1 }],
+      "policyMaterialRoles": ["WIRE_BELL_18_2", "CONSUMABLES_SMALL"]
+    },
+    {
+      "key": "generator-inlet-interlock",
+      "structuralMaterials": [
+        { "role": "GENERATOR_INLET_BOX_30A", "quantity": 1 },
+        { "role": "INTERLOCK_KIT", "quantity": 1 },
+        { "role": "BREAKER_DOUBLE_POLE_30A", "quantity": 1 }
+      ],
+      "policyMaterialRoles": ["WIRE_10_3", "CONSUMABLES_MEDIUM"]
+    },
+    {
+      "key": "240v-garage-outlet",
+      "note": "public 'from' outcome — 30A/3-prong (6-30), the cheapest of the four configurations",
+      "structuralMaterials": [
+        { "role": "RECEPTACLE_6_30", "quantity": 1 },
+        { "role": "BREAKER_DOUBLE_POLE_30A", "quantity": 1 },
+        { "role": "BOX_SURFACE_4S", "quantity": 1 },
+        { "role": "COVER_RAISED_4S", "quantity": 1 }
+      ],
+      "policyMaterialRoles": ["WIRE_10_2", "CONSUMABLES_MEDIUM"]
+    },
+    {
+      "key": "240v-garage-outlet-14-30",
+      "note": "30A/4-prong (14-30) sibling",
+      "structuralMaterials": [
+        { "role": "RECEPTACLE_14_30", "quantity": 1 },
+        { "role": "BREAKER_DOUBLE_POLE_30A", "quantity": 1 },
+        { "role": "BOX_SURFACE_4S", "quantity": 1 },
+        { "role": "COVER_RAISED_4S", "quantity": 1 }
+      ],
+      "policyMaterialRoles": ["WIRE_10_3", "CONSUMABLES_MEDIUM"]
+    },
+    {
+      "key": "240v-garage-outlet-6-50",
+      "note": "50A/3-prong (6-50) sibling",
+      "structuralMaterials": [
+        { "role": "RECEPTACLE_6_50", "quantity": 1 },
+        { "role": "BREAKER_DOUBLE_POLE_50A", "quantity": 1 },
+        { "role": "BOX_SURFACE_4S", "quantity": 1 },
+        { "role": "COVER_RAISED_4S", "quantity": 1 }
+      ],
+      "policyMaterialRoles": ["WIRE_6_2", "CONSUMABLES_MEDIUM"]
+    },
+    {
+      "key": "240v-garage-outlet-14-50",
+      "note": "50A/4-prong (14-50) sibling",
+      "structuralMaterials": [
+        { "role": "RECEPTACLE_14_50", "quantity": 1 },
+        { "role": "BREAKER_DOUBLE_POLE_50A", "quantity": 1 },
+        { "role": "BOX_SURFACE_4S", "quantity": 1 },
+        { "role": "COVER_RAISED_4S", "quantity": 1 }
+      ],
+      "policyMaterialRoles": ["WIRE_6_3", "CONSUMABLES_MEDIUM"]
+    }
+  ],
+
+  "garageRerouteMesh": {
+    "_meaning": "Each edge is one TemplateAnswerOption's rerouteServiceKey, read directly from the database at manifest-write time (2026-09-15) — not reconstructed.",
+    "edges": [
+      { "from": "240v-garage-outlet", "question": "garage_prongs_30", "answer": "p4", "to": "240v-garage-outlet-14-30" },
+      { "from": "240v-garage-outlet", "question": "garage_prongs_50", "answer": "p3", "to": "240v-garage-outlet-6-50" },
+      { "from": "240v-garage-outlet", "question": "garage_prongs_50", "answer": "p4", "to": "240v-garage-outlet-14-50" },
+      { "from": "240v-garage-outlet-14-30", "question": "garage_prongs_30", "answer": "p3", "to": "240v-garage-outlet" },
+      { "from": "240v-garage-outlet-14-30", "question": "garage_prongs_50", "answer": "p3", "to": "240v-garage-outlet-6-50" },
+      { "from": "240v-garage-outlet-14-30", "question": "garage_prongs_50", "answer": "p4", "to": "240v-garage-outlet-14-50" },
+      { "from": "240v-garage-outlet-14-50", "question": "garage_prongs_30", "answer": "p3", "to": "240v-garage-outlet" },
+      { "from": "240v-garage-outlet-14-50", "question": "garage_prongs_30", "answer": "p4", "to": "240v-garage-outlet-14-30" },
+      { "from": "240v-garage-outlet-14-50", "question": "garage_prongs_50", "answer": "p3", "to": "240v-garage-outlet-6-50" },
+      { "from": "240v-garage-outlet-6-50", "question": "garage_prongs_30", "answer": "p3", "to": "240v-garage-outlet" },
+      { "from": "240v-garage-outlet-6-50", "question": "garage_prongs_30", "answer": "p4", "to": "240v-garage-outlet-14-30" },
+      { "from": "240v-garage-outlet-6-50", "question": "garage_prongs_50", "answer": "p4", "to": "240v-garage-outlet-14-50" }
+    ],
+    "alsoNote": "new-video-doorbell-wiring / doorbell_existing / has_working reroutes to video-doorbell-existing-wiring (pre-existing v1 service, unaffected by this batch)."
+  },
+
+  "extractionMechanism": {
+    "tool": "scripts/extract-template-service.ts (ADR-014)",
+    "invocation": "npx tsx scripts/extract-template-service.ts --service <slug> --version 3 --apply, run once per service, six times total",
+    "notInvoked": "scripts/extract-template-catalog.ts (full-catalog extraction) — never run in this batch",
+    "sourceOfTruth": "Elite's own live tenant Service/ServiceMaterial rows at extraction time — economics (basePrice, wwtBasePrice, labor hours, minutes, materialCostCents) dropped by the tool itself; contractor-policy quantities (quantityIsPolicy material lines) dropped from the fixed template and left for each contractor to set"
+  },
+
+  "provenance": {
+    "sourceBranch": "feat/material-recipe-promotion-batch-1",
+    "batch1Commit": "f3cd11f9f3589f140b19e915356c921987baa097",
+    "closeoutCommit": "the commit that adds this file — see its own git log entry, not repeated here to avoid a self-referential value this file can't contain before it exists",
+    "verifiedExternally": "Live DB identity confirmed on Neon branch br-quiet-salad-ay74c7cx, stamped price2book-production, prior to this closeout"
+  },
+
+  "adoptionStatus": {
+    "asOfCloseout": "Zero contractor Service rows carry v3 provenance — v3 has not retrofitted any existing contractor's catalog. Per ADR-014/lib/templateProvisioning.ts, an installed catalog is copied, contractor-owned structure; a new DELTA folds into FRESH provisioning only. An existing contractor (Elite included) requires an explicit, separate adoption action to receive v3 — none has been taken."
+  },
+
+  "governance": {
+    "productionDataRelease": "Writing a TemplateVersion/TemplateService/TemplateServiceMaterial row via --apply is a PRODUCTION DATA RELEASE — it changes what every future contractor's catalog contains from that point forward, the same way availableTrades() reads published SNAPSHOTs to drive the live Guided Setup trade picker for trades. It is not a schema migration and not a Vercel deploy, but it is a live, consequential, user-facing change to production data and must be treated with the same care as one.",
+    "ruleGoingForward": "branch -> verify/review -> controlled production template mutation. A template extraction/promotion runs on a dedicated branch, is verified (a fresh-contractor provisioning proof plus the full verify:full gate), and is reviewed BEFORE its --apply step touches production. Stated as a rule going forward precisely because this batch did not follow it: v3's --apply against production ran before the branch existed in git at all, let alone before review — the extraction happened first, the commit and the review came after. That sequencing gap is what this rule exists to close, not an example of it already being honored. No template DELTA/SNAPSHOT write should happen directly against production outside branch -> verify/review -> apply from here on."
+  }
+}

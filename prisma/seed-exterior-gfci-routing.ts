@@ -1,6 +1,26 @@
 /**
  * Exterior GFCI — Other Routing.
  *
+ * SUPERSEDED, KEPT AS HISTORICAL EVIDENCE ONLY — Material Catalog Phase 1C,
+ * 2026-09-15. This is the ORIGIN of `exterior-gfci-other-routing`'s
+ * access-and-distance matrix, written when the service had no tree at all
+ * (see below). The canonical template layer (`TemplateService` /
+ * `TemplateServiceMaterial`, `electrical` trade, folded v1+v2) has since
+ * grown a more sophisticated branching design for this exact service — real
+ * `EXT_GFCI_RUN_ACCESSIBLE_10_20` / `EXT_GFCI_RUN_FINISHED_10_20` /
+ * `EXT_GFCI_RUN_ACCESSIBLE_UNDER_10` / `EXT_GFCI_RUN_FINISHED_UNDER_10`
+ * components, not this file's flat `WIRE_12_2 x 15` line.
+ *
+ * DO NOT re-run this against the template layer and do not treat it as the
+ * canonical source of truth for `exterior-gfci-other-routing` — the current
+ * template's branching design is newer and more sophisticated, per the
+ * Phase 1C canonical-recipe-promotion audit. This file only ever wrote to
+ * Elite's own tenant `Service`/`ServiceMaterial` rows, never to the template
+ * layer, so re-running it cannot corrupt the template either way — but a
+ * reader tracing "why does exterior-gfci-other-routing look the way it does"
+ * should follow the current template rows and its `EXT_GFCI_RUN_*` component
+ * recipes, not this script's flat WIRE_12_2 assumption.
+ *
  *   npx tsx prisma/seed-exterior-gfci-routing.ts
  *
  * This service had no tree at all. It's the destination for "there's no

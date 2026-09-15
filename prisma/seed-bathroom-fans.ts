@@ -1,6 +1,24 @@
 /**
  * Bathroom exhaust fans — item 6.
  *
+ * DEFERRED FROM PROMOTION — Material Catalog Phase 1C, 2026-09-15.
+ * `bathroom-fan-light-combo` was evaluated for canonical template promotion
+ * alongside the other Phase 1C candidates and held back on one conflict:
+ * `DUCT_CONNECTOR` (used below, `OWNER_MATERIALS`) is marked `Retired — was
+ * an assumption, never a quoted cost` in `canonical_materials` today, but
+ * this file's own comment (see `OWNER_MATERIALS` below) gives a real,
+ * specific physical justification for a duct-connection role — duct
+ * connector, clamp, wire nuts, foil tape, ~$15 — bundled loosely under this
+ * one line and `CONSUMABLES_SMALL`. Neither side settles the other: the
+ * retirement doesn't say the physical need was wrong, only that the cost
+ * was never confirmed; this file's reasoning doesn't establish that the
+ * retirement should be reversed. Per the Phase 1C instruction not to
+ * silently un-retire a role merely because an old seed used it, this
+ * service is left unpromoted rather than guessed at either way. Resolving
+ * it needs one of: (A) confirm the role stays retired and this recipe
+ * drops the line entirely, or (B) the physical need is real and gets a
+ * properly defined, non-retired replacement role. Not decided here.
+ *
  *   npx tsx prisma/seed-bathroom-fans.ts
  *
  * Two services existed: Replace Bathroom Exhaust Fan at $525 and Bathroom
