@@ -205,7 +205,7 @@ export default function RouteAssistMultiOutletDemoPage() {
               className="mt-5 w-full rounded-xl bg-electric px-5 py-3.5 text-sm font-semibold text-white shadow-sm"
               data-testid="route-assist-continue-to-scan"
             >
-              Continue to scan {legs.length} {legs.length === 1 ? "route" : "routes"}
+              Continue
             </button>
           )}
 
