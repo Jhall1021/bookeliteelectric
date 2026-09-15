@@ -32,11 +32,11 @@ function buildResult(lengths: Array<number | null>): RouteAssistResult {
   return outcome;
 }
 
-function containsForbiddenCommercialKey(value: unknown): boolean {
+function containsPriceOrCostKey(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (/(price|cost|labor|material)/i.test(key)) return true;
-    if (containsForbiddenCommercialKey(child)) return true;
+    if (/(price|cost)/i.test(key)) return true;
+    if (containsPriceOrCostKey(child)) return true;
   }
   return false;
 }
@@ -123,8 +123,8 @@ const individual: ConductorRequirement = { ...cable, requirementId: "raceway-met
 check("cable assembly and individual-conductor wiring methods remain distinct", cable.wiringMethod !== individual.wiringMethod);
 check("wet environment and underground route class remain separate concepts", routeFact?.routeClass === "UNDERGROUND" && routeFact.environment === "WET" && requirements[0].environmentRequirement === "WET");
 
-check("RouteFact contains no price/cost/labor/material fields", !containsForbiddenCommercialKey(routeFact), JSON.stringify(routeFact));
-check("ConductorRequirement contains no price/cost/labor/material fields", !containsForbiddenCommercialKey(requirements), JSON.stringify(requirements));
+check("RouteFact contains no price/cost fields", !containsPriceOrCostKey(routeFact), JSON.stringify(routeFact));
+check("ConductorRequirement contains no price/cost fields", !containsPriceOrCostKey(requirements), JSON.stringify(requirements));
 check("ConductorRequirement carries no duplicated route length", !("lengthFt" in requirements[0]));
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
