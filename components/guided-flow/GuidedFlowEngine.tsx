@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { AnswerOptionDTO, QuestionDTO, ServiceFlowDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
@@ -138,6 +138,20 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // saved across a reload," never to a broken booking. `version` is the
   // optimistic-concurrency token every write must present back.
   const [guidedFlowSession, setGuidedFlowSession] = useState<{ id: string; version: number } | null>(null);
+  // Mirrors `guidedFlowSession` synchronously — `persistAnswers`'s save
+  // queue below reads/writes this instead of the React state value so a
+  // queued save always sees the version the immediately-prior queued save
+  // actually resolved with, not a value captured in a stale closure or
+  // still waiting on React's next render. `setSession` keeps both in sync;
+  // nothing else should call `setGuidedFlowSession` directly.
+  const sessionRef = useRef<{ id: string; version: number } | null>(null);
+  function setSession(next: { id: string; version: number } | null) {
+    sessionRef.current = next;
+    setGuidedFlowSession(next);
+  }
+  // The save queue's own state — see persistAnswers below.
+  const pendingSaveRef = useRef<Record<string, string> | null>(null);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     setLoading(true);
@@ -166,7 +180,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       setConfig(startDisplayConfiguration(data));
       setState({ kind: "intro" });
       setHistory([]);
-      setGuidedFlowSession(session ? { id: session.id, version: session.version } : null);
+      setSession(session ? { id: session.id, version: session.version } : null);
       // Answers carried over from a reroute, if this is where one landed.
       //
       // Consumed once and cleared immediately: the payload is tagged with
@@ -206,32 +220,83 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     });
   }, [serviceSlug]);
 
-  // Fire-and-forget mirror of `answers` to the server. Never blocks the UI
-  // and never retried on failure — the NEXT answer's write carries the
-  // latest state anyway, so a single dropped request just means one fewer
-  // point a second device could have resumed from, not lost data. A 409
-  // (another device already moved the session forward) is read back so this
-  // tab's local version catches up; it does not overwrite what the other
-  // device wrote, matching docs/design/guided-flow-session-v1.md §5 — this
-  // is the CLIENT side of that same rule, not a second implementation of it.
+  // Ordered, coalesced mirror of `answers` to the server —
+  // docs/design/guided-flow-session-v1.md §5. Never blocks the UI. Two
+  // properties, both load-bearing:
+  //
+  // ORDERED: at most one PATCH for this session is ever in flight from this
+  // tab at a time (`savingRef`). Calling this again while one is already
+  // pending — Back, then re-answering, before a slow network has returned
+  // the first save — does not fire a second, overlapping request; it just
+  // records the newest payload (`pendingSaveRef`) and waits its turn. This
+  // is what makes a same-tab 409 against this tab's OWN prior write
+  // structurally impossible: the `expectedVersion` a queued save sends is
+  // always the version the PREVIOUS queued save actually resolved with
+  // (`sessionRef.current`, updated synchronously, not the React state value
+  // — a closure captured before that update could still read the old one).
+  // Previously, two answers in quick succession could each fire their own
+  // PATCH with the SAME stale version, guaranteeing exactly this collision.
+  //
+  // COALESCED: if further calls arrive while a save is in flight, only the
+  // LAST payload survives to be sent next — an intermediate answer already
+  // superseded before its own turn never makes a wasted trip, and the
+  // customer's final, latest intent is what is guaranteed to eventually
+  // reach the server, not every intermediate one.
+  //
+  // A 409 that still happens after all of the above can only mean a
+  // DIFFERENT writer moved this session forward — another tab, or another
+  // device via Device Handoff, since this tab's own writes can no longer
+  // race themselves. Per docs/design/guided-flow-session-v1.md §5, this tab
+  // must not blindly overwrite that: the previous version of this function
+  // claimed to resync on a 409 but never actually did, since the PATCH
+  // route's 409 body nests the current state under `current` (`current.
+  // version`), not at the top level `version` this code checked for — a
+  // real, separate bug, fixed here. On a genuine 409 this tab's local
+  // version resyncs to what the OTHER writer wrote; it does NOT retry this
+  // tab's own payload on top of it. HONESTLY-STATED REMAINING LIMITATION:
+  // that un-sent local edit is not lost from THIS tab's own screen (the
+  // customer keeps seeing their own in-progress answers/note), but it is
+  // not automatically retried either — it reaches the server only if the
+  // customer's next action calls persistAnswers again. If nothing else
+  // does, a reload of this same tab would show the other writer's state,
+  // not this tab's un-sent edit. Automatically merging or re-asserting one
+  // writer's state over another's is exactly the failure mode this rule
+  // exists to avoid, so this stays a known limitation rather than a
+  // guessed-at fix.
   function persistAnswers(newAnswers: Record<string, string>) {
-    if (!guidedFlowSession) return;
-    siteFetch(`/api/guided-flow-sessions/${guidedFlowSession.id}`, {
+    pendingSaveRef.current = newAnswers;
+    runQueuedSave();
+  }
+
+  function runQueuedSave() {
+    if (savingRef.current) return; // the in-flight save picks this up in its `finally` below
+    const session = sessionRef.current;
+    const payload = pendingSaveRef.current;
+    if (!session || payload === null) return;
+    pendingSaveRef.current = null;
+    savingRef.current = true;
+    siteFetch(`/api/guided-flow-sessions/${session.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expectedVersion: guidedFlowSession.version, consumedAnswers: newAnswers }),
+      body: JSON.stringify({ expectedVersion: session.version, consumedAnswers: payload }),
     })
-      .then((r) => r.json())
-      .then((body) => {
-        if (typeof body?.version === "number") {
-          setGuidedFlowSession({ id: guidedFlowSession.id, version: body.version });
+      .then(async (r) => {
+        const body = await r.json().catch(() => null);
+        if (r.ok && typeof body?.version === "number") {
+          setSession({ id: session.id, version: body.version });
+        } else if (r.status === 409 && typeof body?.current?.version === "number") {
+          setSession({ id: session.id, version: body.current.version });
         }
       })
       .catch(() => {
-        // Network failure — the next answer tries again with the same
-        // (now further-behind) expectedVersion and will itself 409 if
-        // something else moved the session on. Never surfaced to the
-        // customer; booking doesn't depend on this succeeding.
+        // Network failure — nothing to resync. The next queued or future
+        // save still carries the latest local answers, using the last
+        // known-good version, matching the original fire-and-forget
+        // tolerance: booking never depends on this succeeding.
+      })
+      .finally(() => {
+        savingRef.current = false;
+        if (pendingSaveRef.current !== null) runQueuedSave();
       });
   }
 
@@ -600,16 +665,21 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // effort: a failure here means bookkeeping alone is stale, not that
     // the booking itself is in doubt — the LineItem the response names is
     // the real record either way.
-    if (guidedFlowSession) {
+    // Read from the ref, not the `guidedFlowSession` closure value — a
+    // queued save (persistAnswers) can resolve and advance the version
+    // after this render but before this click, and completing against a
+    // version this tab already knows is stale would 409 for no reason.
+    const sessionForComplete = sessionRef.current;
+    if (sessionForComplete) {
       const lineItemId = await res
         .clone()
         .json()
         .then((b) => (typeof b?.lineItemId === "string" ? b.lineItemId : null))
         .catch(() => null);
-      siteFetch(`/api/guided-flow-sessions/${guidedFlowSession.id}/complete`, {
+      siteFetch(`/api/guided-flow-sessions/${sessionForComplete.id}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expectedVersion: guidedFlowSession.version, lineItemId }),
+        body: JSON.stringify({ expectedVersion: sessionForComplete.version, lineItemId }),
       }).catch(() => {});
     }
 
@@ -700,6 +770,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         disclaimer={flow.disclaimer}
         isAddOn={isAddOn}
         standalonePrice={flow.basePrice}
+        // Structural, not a hardcoded slug — same field the "resolved" branch
+        // below already keys its own note label on. A directBook service that
+        // isn't TROUBLESHOOT_ONLY gets no onNoteChange, so ServiceIntro renders
+        // exactly as it did before this field existed.
+        note={customerNote}
+        onNoteChange={flow.bookingType === "TROUBLESHOOT_ONLY" ? setCustomerNote : undefined}
+        noteLabel="What should we tell the technician?"
         onContinue={directBook ? () => addToVisit(anchorPrice ?? 0) : startQuestions}
       />
     );
