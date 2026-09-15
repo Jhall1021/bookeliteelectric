@@ -52,7 +52,7 @@ export function buildRouteAssistVisualScaleEstimateV1(args: {
   const hasCalibration = references.length > 0;
   const value = validEstimate && hasCalibration ? args.estimatedLengthFt : null;
   const confidence = validEstimate && hasCalibration ? args.confidence : 0;
-  return { version: 1, estimatedLengthFt: value, confidence, referenceIds: references.map((reference) => reference.id), observation: { value, confidence, visibility: value === null ? "UNCLEAR" : "CLEAR", basis: "VISIBLE_SCENE" }, needsHomeownerCalibration: !hasCalibration };
+  return { version: 1, estimatedLengthFt: value, confidence, referenceIds: references.map((reference) => reference.id), observation: { value, confidence, visibility: value === null ? "NOT_VISIBLE" : "CLEAR", basis: "VISIBLE_SCENE" }, needsHomeownerCalibration: !hasCalibration };
 }
 
 export function homeownerCeilingHeightReferenceV1(heightFt: 8 | 9 | 10 | 12 | null): RouteAssistVisualScaleReferenceV1 | null {
