@@ -24,10 +24,14 @@ import { adaptRouteAssistResult } from "../../electrical/routeAssistAdapter";
 
 export type RouteAssistQuestionInvocation = {
   /**
-   * Stable per-question key for the `GuidedFlowVisualAssistTask` this
-   * invocation creates. Scopes "is there already a task for THIS
-   * question" so a reload, resume, or repeated click never creates a
-   * duplicate — see RouteAssistWithHandoff's taskKey-scoped lookup.
+   * Stable CAPTURE identity for the `GuidedFlowVisualAssistTask` this
+   * invocation consumes. Multiple question entries may deliberately share one
+   * taskKey when the SAME confirmed scan observes all of those facts. They
+   * still resolve independently through their own resolveAnswerValue below —
+   * sharing a capture never means sharing an answer.
+   *
+   * Scopes "is there already a task for THIS capture" so a reload, resume,
+   * repeated click, or later question never creates a duplicate scan.
    */
   taskKey: string;
   destinationType: RouteAssistDestinationType;
@@ -145,6 +149,13 @@ const V2_SURFACE_INSIDE = "surface_inside_corner_count";
 const V2_SURFACE_OUTSIDE = "surface_outside_corner_count";
 const V2_CONCEALED_FEET = "concealed_route_feet";
 
+/**
+ * One surface scan produces one canonical result. Use the first surface route
+ * question's stable key as that task identity so the phone handoff can recover
+ * capture context through the same registry without a second persisted config.
+ */
+const V2_SURFACE_CAPTURE_TASK = V2_SURFACE_FEET;
+
 const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = {
   "new-120v-outlet": {
     /**
@@ -167,8 +178,10 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
     },
 
     // ROUTING V2 — the authored NUMBER questions. Measured feet, unbanded.
+    // Surface facts share one capture task; each question resolves only its own
+    // fact from that result.
     [V2_SURFACE_FEET]: {
-      taskKey: V2_SURFACE_FEET,
+      taskKey: V2_SURFACE_CAPTURE_TASK,
       destinationType: "RECEPTACLE",
       sourceHint: "Tap the existing outlet you'd run the power from.",
       destinationHint: "Tap where you'd like the new outlet.",
@@ -176,7 +189,7 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
       resolveAnswerValue: measuredFeetFor("surface"),
     },
     [V2_SURFACE_INSIDE]: {
-      taskKey: V2_SURFACE_INSIDE,
+      taskKey: V2_SURFACE_CAPTURE_TASK,
       destinationType: "RECEPTACLE",
       sourceHint: "Tap the existing outlet you'd run the power from.",
       destinationHint: "Tap where you'd like the new outlet.",
@@ -184,7 +197,7 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
       resolveAnswerValue: measuredCount("insideCorners"),
     },
     [V2_SURFACE_OUTSIDE]: {
-      taskKey: V2_SURFACE_OUTSIDE,
+      taskKey: V2_SURFACE_CAPTURE_TASK,
       destinationType: "RECEPTACLE",
       sourceHint: "Tap the existing outlet you'd run the power from.",
       destinationHint: "Tap where you'd like the new outlet.",
