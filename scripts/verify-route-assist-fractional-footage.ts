@@ -15,6 +15,12 @@ function check(label: string, condition: boolean, detail = "") {
   }
 }
 
+/**
+ * Synthetic trusted-domain probe. This intentionally does NOT claim to be a
+ * valid persisted completion: current capture aggregation is still tenth-foot
+ * precision. Its job is only to prove the downstream adapter/registry does not
+ * round a future canonical fractional measurement once the precision gate opens.
+ */
 function capture(overrides: Partial<RouteAssistResult> = {}): RouteAssistResult {
   return {
     mode: "SURFACE",
@@ -53,7 +59,7 @@ check(
   JSON.stringify(fractional.mapped.routeLengthFt),
 );
 check(
-  "fractional footage is not marked invalid",
+  "fractional footage is not marked invalid by the downstream adapter",
   fractional.invalid.length === 0,
   JSON.stringify(fractional.invalid),
 );
@@ -81,11 +87,21 @@ check(
   JSON.stringify(negative.invalid),
 );
 
-const fractionalCorner = adaptRouteAssistResult(capture({ insideCornersCount: 1.5 }));
+// Legacy image-space corner aggregates are deliberately outside the canonical
+// fitting-count contract now. Even a malformed synthetic value cannot become a
+// Routing V2 fitting quantity through this adapter; task-boundary validation
+// separately rejects malformed persisted aggregate counts.
+const legacyCornerProbe = adaptRouteAssistResult(capture({ insideCornersCount: 1.5 }));
 check(
-  "corner counts remain whole-number facts",
-  fractionalCorner.invalid.some((x) => x.field === "insideCornersCount"),
-  JSON.stringify(fractionalCorner.invalid),
+  "legacy image-space corner aggregates stay explicitly unmapped",
+  legacyCornerProbe.unmapped.some((x) => x.field === "insideCornersCount")
+);
+check(
+  "legacy corner aggregates cannot fabricate a physical fitting count",
+  legacyCornerProbe.mapped.insideCorners === null &&
+    legacyCornerProbe.mapped.outsideCorners === null &&
+    legacyCornerProbe.mapped.flatCorners === null,
+  JSON.stringify(legacyCornerProbe.mapped),
 );
 
 if (fail > 0) {
