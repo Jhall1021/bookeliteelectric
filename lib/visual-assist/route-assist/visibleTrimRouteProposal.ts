@@ -20,7 +20,7 @@ export type RouteAssistVisibleTrimRouteProposalV1 = {
 
 function byCaptureOrder(captureImageIds: string[], objects: RouteAssistVisibleSceneObjectV1[]): RouteAssistVisibleSceneObjectV1[] {
   const order = new Map(captureImageIds.map((id, index) => [id, index]));
-  return [...objects].sort((a, b) => (order.get(a.imageId) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.imageId) ?? Number.MAX_SAFE_INTEGER) || a.box.x - b.box.x || a.id.localeCompare(b.id));
+  return [...objects].sort((a, b) => (order.get(a.imageId) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.imageId) ?? Number.MAX_SAFE_INTEGER) || a.id.localeCompare(b.id));
 }
 
 /**
@@ -28,9 +28,10 @@ function byCaptureOrder(captureImageIds: string[], objects: RouteAssistVisibleSc
  * scene semantics. This is not a graph mutation and does not establish footage,
  * physical turns, fittings, material quantities, labor, or price.
  *
- * A doorway bypass is proposed only when the sweep visibly contains a doorway,
- * both side casings, and the top casing. Missing pieces fail closed rather than
- * inventing the up/across/down geometry.
+ * A doorway bypass is proposed only when semantic CV supplies one coherent
+ * doorway group with explicit physical left/right casing identities and an
+ * entry side. Image x-coordinates and temporal sweep order are never treated as
+ * a shared room coordinate system. Missing/ambiguous grouping fails closed.
  */
 export function proposeVisibleTrimHuggingRouteV1(args: {
   semantics: RouteAssistVisibleSceneSemanticsV1;
@@ -52,20 +53,24 @@ export function proposeVisibleTrimHuggingRouteV1(args: {
   if (!baseboards.length) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["no visible baseboard or trim continuity between source and destination"] };
 
   const doorway = between.find((object) => object.kind === "DOORWAY");
-  const sides = between.filter((object) => object.kind === "DOOR_SIDE_CASING");
-  const top = between.find((object) => object.kind === "DOOR_TOP_CASING");
   const steps: RouteAssistVisibleTrimRouteStepV1[] = [{ kind: "SOURCE", objectId: source.id, imageId: source.imageId }];
   const boundaries: RouteAssistTrimBoundaryV1[] = ["BASEBOARD"];
   steps.push({ kind: "BASEBOARD", objectId: baseboards[0].id, imageId: baseboards[0].imageId });
 
   if (doorway) {
-    if (sides.length < 2 || !top) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["doorway is visible but complete side/top casing evidence is missing"] };
-    const sideOrdered = [...sides].sort((a, b) => a.box.x - b.box.x);
-    const movingRight = destinationIndex >= sourceIndex;
-    const first = movingRight ? sideOrdered[0] : sideOrdered[sideOrdered.length - 1];
-    const second = movingRight ? sideOrdered[sideOrdered.length - 1] : sideOrdered[0];
+    const groups = (args.semantics.doorwayGroups ?? []).filter((group) => group.doorwayObjectId === doorway.id);
+    if (groups.length !== 1) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["doorway is visible but does not have exactly one coherent doorway group"] };
+    const group = groups[0];
+    if (group.entrySide === "UNRESOLVED") return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["doorway entry side is unresolved"] };
+
+    const byId = new Map(args.semantics.objects.map((object) => [object.id, object]));
+    const left = byId.get(group.leftCasingObjectId)!;
+    const top = byId.get(group.topCasingObjectId)!;
+    const right = byId.get(group.rightCasingObjectId)!;
+    const first = group.entrySide === "LEFT" ? left : right;
+    const second = group.entrySide === "LEFT" ? right : left;
     steps.push({ kind: "DOOR_SIDE_UP", objectId: first.id, imageId: first.imageId }, { kind: "DOOR_TOP", objectId: top.id, imageId: top.imageId }, { kind: "DOOR_SIDE_DOWN", objectId: second.id, imageId: second.imageId });
-    boundaries.push(movingRight ? "DOOR_CASING_LEFT" : "DOOR_CASING_RIGHT", "DOOR_CASING_TOP", movingRight ? "DOOR_CASING_RIGHT" : "DOOR_CASING_LEFT", "BASEBOARD");
+    boundaries.push(group.entrySide === "LEFT" ? "DOOR_CASING_LEFT" : "DOOR_CASING_RIGHT", "DOOR_CASING_TOP", group.entrySide === "LEFT" ? "DOOR_CASING_RIGHT" : "DOOR_CASING_LEFT", "BASEBOARD");
     if (!isTrimHuggingDoorwayBypassV1(boundaries)) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["doorway evidence does not form a trim-hugging bypass"] };
     const afterDoor = baseboards[baseboards.length - 1]; if (afterDoor.id !== baseboards[0].id) steps.push({ kind: "BASEBOARD", objectId: afterDoor.id, imageId: afterDoor.imageId });
   }
