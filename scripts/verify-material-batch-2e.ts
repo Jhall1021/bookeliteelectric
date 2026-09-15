@@ -16,16 +16,14 @@
  * customer-supplied-smart-switch, swap-out-customer-supplied-non-smart-
  * switch), already the established canonical treatment, not a new decision.
  *
- * REHEARSAL VERSION NUMBER: this verifier targets whichever TemplateVersion
- * number DELTA_VERSION below names. On the shared rehearsal branch
- * (br-hidden-hall-ayvlh5bg) that is v6, deliberately NOT v5 — that branch
- * still carries the REJECTED v5 (bathroom-fan-light-combo) from Batch 2B's
- * superseded first proposal, and this batch does not touch or rely on it.
- * Production has no v5 at all; the real production write for this batch
- * will be v5, and DELTA_VERSION must be changed to 5 before running this
- * verifier there. This is a rehearsal-numbering artifact only — the 13
- * services' content and every other assertion here is unaffected by which
- * integer the DELTA lands on.
+ * VERSION NUMBER: DELTA_VERSION is 5 here — this is the PRODUCTION run.
+ * Rehearsal (against br-hidden-hall-ayvlh5bg) used v6 instead, deliberately,
+ * because that shared branch still carries the REJECTED v5
+ * (bathroom-fan-light-combo) from Batch 2B's superseded first proposal.
+ * Production never had that stray v5 — its own v5 is this batch's real,
+ * approved DELTA. Checks 0b/0e/0f below assert directly that production's
+ * v5 contains exactly the 13 approved keys and none of the rejected/frozen/
+ * Tier-2 ones — this verifier does not accept rehearsal-only v6 semantics.
  *
  * Proves:
  *   0. branch diff touches zero Route Assist / Routing V2 / shared-schema files;
@@ -68,8 +66,11 @@ const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
 
 const ELITE_SLUG = "elite-electric";
-const DELTA_VERSION = 6; // rehearsal only — set to 5 for the production run, see header
+const DELTA_VERSION = 5; // PRODUCTION run — production has no v5, this batch's own DELTA
 const EXPECTED_FOLDED_COUNT = 78;
+const TIER2_UNTOUCHED_KEYS = ["whole-house-surge-protection", "under-cabinet-led-lighting", "replace-bathroom-exhaust-fan"];
+const FORBIDDEN_V5_KEYS = ["bathroom-fan-light-combo", "hot-tub-spa-electrical", "200a-service-upgrade",
+  ...TIER2_UNTOUCHED_KEYS];
 const BATCH_2E_SERVICES = [
   "otr-microwave-install", "replace-interior-light-fixture", "replace-exterior-light-fixture",
   "replace-motion-flood-light", "video-doorbell-existing-wiring", "tv-install-existing-location",
@@ -117,11 +118,44 @@ async function main() {
   ok(`0. this branch's diff against origin/main touches zero Route Assist / Routing V2 / shared-schema files`,
     touchesRouteAssist.length === 0, JSON.stringify({ changedFiles, touchesRouteAssist }));
 
+  // ── 0b. production version identity: exactly v1-v5, v5 is a DELTA, no v6 ──
+  const versions = await raw.templateVersion.findMany({
+    where: { trade: "electrical" }, select: { version: true, kind: true }, orderBy: { version: "asc" },
+  });
+  ok(`0b. Electrical template versions are exactly v1-v5 — no v6, no gap`,
+    versions.length === 5 && versions.every((v, i) => v.version === i + 1), JSON.stringify(versions));
+  ok(`0c. v${DELTA_VERSION} is a DELTA`, versions.find((v) => v.version === DELTA_VERSION)?.kind === "DELTA");
+
+  // ── 0d. v5's key set is exactly the 13 approved keys — nothing rejected/frozen/tier-2 snuck in ──
+  const v5Keys = (await raw.templateService.findMany({
+    where: { key: { in: [...BATCH_2E_SERVICES, ...FORBIDDEN_V5_KEYS] }, templateVersion: { trade: "electrical", version: DELTA_VERSION } },
+    select: { key: true },
+  })).map((r) => r.key);
+  const v5KeySet = new Set(v5Keys);
+  ok(`0e. v${DELTA_VERSION} contains exactly the 13 approved service keys, nothing more`,
+    v5Keys.length === 13 && BATCH_2E_SERVICES.every((k) => v5KeySet.has(k)), JSON.stringify(v5Keys));
+  ok(`0f. no rejected/frozen/Tier-2 key appears in v${DELTA_VERSION} (bathroom-fan-light-combo, spa, 200A, surge, under-cabinet, bath-fan-elite)`,
+    FORBIDDEN_V5_KEYS.every((k) => !v5KeySet.has(k)), JSON.stringify(FORBIDDEN_V5_KEYS.filter((k) => v5KeySet.has(k))));
+
+  // ── 13. Tier-2 cleanup services untouched — no override at this DELTA version ──
+  for (const key of TIER2_UNTOUCHED_KEYS) {
+    const override = await raw.templateService.findFirst({ where: { key, templateVersion: { trade: "electrical", version: DELTA_VERSION } } });
+    ok(`13. ${key} (Tier-2, out of scope) has no override at v${DELTA_VERSION}`, override === null);
+  }
+
   // ── 7. DUCT_CONNECTOR retirement intact ──
   const ductConnector = await raw.canonicalMaterial.findUnique({ where: { key: RETIRED_KEY } });
   ok(`7a. DUCT_CONNECTOR canonical row is still inactive`, ductConnector?.active === false, JSON.stringify(ductConnector));
   const ductRefs = ductConnector ? await raw.serviceMaterial.count({ where: { canonicalMaterialId: ductConnector.id } }) : -1;
   ok(`7b. no live ServiceMaterial anywhere still references DUCT_CONNECTOR`, ductRefs === 0, `got ${ductRefs}`);
+  const eliteDuctRow = ductConnector
+    ? await raw.contractorMaterial.findFirst({
+        where: { canonicalMaterialId: ductConnector.id, contractor: { slug: ELITE_SLUG } },
+        select: { active: true, unitCostCents: true, notes: true },
+      })
+    : null;
+  ok(`7d. Elite's own ContractorMaterial row for DUCT_CONNECTOR remains inactive`, eliteDuctRow?.active === false, JSON.stringify(eliteDuctRow));
+  ok(`7e. its historical $8.00 cost (800 cents) remains preserved`, eliteDuctRow?.unitCostCents === 800);
 
   // ── 8. frozen services untouched ──
   for (const key of FROZEN_KEYS) {
@@ -138,11 +172,14 @@ async function main() {
 
   // ── 9/10 (pre-check). Elite's own state, captured before the install probe ──
   const elite = await raw.contractor.findUniqueOrThrow({ where: { slug: ELITE_SLUG }, select: { id: true } });
-  const eliteBefore = new Map<string, { materialCostCents: number | null; materials: number }>();
+  const eliteBefore = new Map<string, { materialCostCents: number | null; materials: number; publishedAt: number | null }>();
   for (const key of BATCH_2E_SERVICES) {
-    const svc = await raw.service.findFirstOrThrow({ where: { contractorId: elite.id, slug: key }, select: { id: true, materialCostCents: true } });
+    const svc = await raw.service.findFirstOrThrow({
+      where: { contractorId: elite.id, slug: key },
+      select: { id: true, materialCostCents: true, publishedPriceApprovedAt: true },
+    });
     const matCount = await raw.serviceMaterial.count({ where: { serviceId: svc.id } });
-    eliteBefore.set(key, { materialCostCents: svc.materialCostCents, materials: matCount });
+    eliteBefore.set(key, { materialCostCents: svc.materialCostCents, materials: matCount, publishedAt: svc.publishedPriceApprovedAt?.getTime() ?? null });
   }
   const eliteConsumablesSmallBefore = await raw.contractorMaterial.findFirst({
     where: { contractorId: elite.id, canonicalMaterial: { key: "CONSUMABLES_SMALL" } },
@@ -224,13 +261,17 @@ async function main() {
 
   let allEliteUnchanged = true;
   for (const key of BATCH_2E_SERVICES) {
-    const svc = await raw.service.findFirstOrThrow({ where: { contractorId: elite.id, slug: key }, select: { id: true, materialCostCents: true } });
+    const svc = await raw.service.findFirstOrThrow({
+      where: { contractorId: elite.id, slug: key },
+      select: { id: true, materialCostCents: true, publishedPriceApprovedAt: true },
+    });
     const matCount = await raw.serviceMaterial.count({ where: { serviceId: svc.id } });
     const before = eliteBefore.get(key)!;
-    const unchanged = before.materialCostCents === svc.materialCostCents && before.materials === matCount;
+    const afterPublishedAt = svc.publishedPriceApprovedAt?.getTime() ?? null;
+    const unchanged = before.materialCostCents === svc.materialCostCents && before.materials === matCount && before.publishedAt === afterPublishedAt;
     if (!unchanged) allEliteUnchanged = false;
-    ok(`10. ${key}: Elite's own live service is unchanged (materialCostCents, material row count)`, unchanged,
-      JSON.stringify({ before, after: { materialCostCents: svc.materialCostCents, materials: matCount } }));
+    ok(`10/16. ${key}: Elite's own live service is unchanged (materialCostCents, material row count, publishedPriceApprovedAt)`, unchanged,
+      JSON.stringify({ before, after: { materialCostCents: svc.materialCostCents, materials: matCount, publishedAt: afterPublishedAt } }));
   }
   ok(`12. no existing contractor catalog was retrofitted (12 = summary of the 13 checks above)`, allEliteUnchanged);
 
