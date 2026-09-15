@@ -5,6 +5,8 @@ import type { RouteAssistPersistedSweepFrameV1 } from "@/lib/visual-assist/route
 import type { RouteAssistVisibleTrimRouteOverlayV1 } from "@/lib/visual-assist/route-assist/visibleTrimRouteOverlay";
 
 type Props = { frames: RouteAssistPersistedSweepFrameV1[]; overlay: RouteAssistVisibleTrimRouteOverlayV1 };
+const ACCENT = "rgb(var(--t-accent))";
+const INK = "rgb(var(--t-ink))";
 
 export default function RouteAssistSweepRouteReview({ frames, overlay }: Props) {
   const ordered = useMemo(() => [...frames].sort((a, b) => a.sequence - b.sequence), [frames]);
@@ -23,8 +25,8 @@ export default function RouteAssistSweepRouteReview({ frames, overlay }: Props) 
     <div className="relative w-full bg-slate-100" style={{ aspectRatio: `${width} / ${height}` }}>
       <img src={frame.imageUrl} alt={`Route review view ${safeIndex + 1}`} className="absolute inset-0 h-full w-full object-fill" />
       <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" role="img" aria-label="Proposed route over captured room view">
-        {path.points.length > 1 && <polyline points={polyline} fill="none" stroke="#2452D9" strokeWidth={Math.max(4, Math.min(width, height) * 0.012)} strokeLinecap="round" strokeLinejoin="round" />}
-        {path.points.map((point, pointIndex) => <circle key={`${frame.imageId}-${pointIndex}`} cx={point.x * width} cy={point.y * height} r={(pointIndex === 0 || pointIndex === path.points.length - 1 ? 0.018 : 0.011) * Math.min(width, height)} fill={pointIndex === 0 ? "#0F1E3C" : "#2452D9"} />)}
+        {path.points.length > 1 && <polyline points={polyline} fill="none" stroke={ACCENT} strokeWidth={Math.max(4, Math.min(width, height) * 0.012)} strokeLinecap="round" strokeLinejoin="round" />}
+        {path.points.map((point, pointIndex) => <circle key={`${frame.imageId}-${pointIndex}`} cx={point.x * width} cy={point.y * height} r={(pointIndex === 0 || pointIndex === path.points.length - 1 ? 0.018 : 0.011) * Math.min(width, height)} fill={pointIndex === 0 ? INK : ACCENT} />)}
       </svg>
       <div className="absolute left-3 top-3 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-navy shadow-sm">View {safeIndex + 1} of {reviewFrames.length}</div>
     </div>
