@@ -10,33 +10,51 @@ function check(label: string, condition: boolean, detail = "") {
 console.log("\nROUTE ASSIST ROOM-SCAN PREVIEW SOURCE CONTRACT\n");
 
 const source = readFileSync("app/[site]/dev-fixtures/route-assist-scan/page.tsx", "utf8");
+const review = readFileSync("components/route-assist/RouteAssistScanReview.tsx", "utf8");
 
 check(
   "preview uses the provider-to-review pipeline",
   source.includes("prepareRouteAssistScanReviewV1(FAKE_WORLD_PROVIDER, INPUT)"),
 );
 check(
-  "preview applies only explicit review selections",
-  source.includes("applyRouteAssistScanReviewSelectionV1") &&
-    source.includes("selected,"),
+  "preview renders the reusable Route Assist scan review panel",
+  source.includes("<RouteAssistScanReview") &&
+    source.includes("review={prepared.review}") &&
+    source.includes("onApply={applySelectedFacts}"),
+);
+check(
+  "preview applies only explicit review IDs from the reusable panel",
+  source.includes("selection.acceptedReviewItemIds") &&
+    source.includes("applyRouteAssistScanReviewSelectionV1"),
 );
 check(
   "review selection is bound to the exact values the customer reviewed",
-  source.includes("prepared.review.fingerprint") &&
-    /applyRouteAssistScanReviewSelectionV1\([\s\S]{0,260}selected,[\s\S]{0,120}prepared\.review\.fingerprint/.test(source),
-  "an old checkbox selection must not apply values from a later re-scan that reused the same route IDs",
+  source.includes("selection.reviewFingerprint") &&
+    /applyRouteAssistScanReviewSelectionV1\([\s\S]{0,300}selection\.acceptedReviewItemIds,[\s\S]{0,100}selection\.reviewFingerprint/.test(source),
+  "the UI may send IDs and the displayed-review fingerprint only; canonical values are rebuilt in the domain layer",
 );
 check(
-  "review checkboxes begin from an empty selection",
-  source.includes('useState<string[]>([])') && source.includes("setSelected([])"),
+  "reusable review checkboxes begin from an empty selection",
+  review.includes('useState<string[]>([])'),
+);
+check(
+  "a changed scan-review fingerprint clears all old checkbox approvals",
+  /useEffect\(\(\)\s*=>\s*\{\s*setSelected\(\[\]\);\s*\},\s*\[review\.fingerprint\]\)/.test(review),
+  "a re-scan must never visually carry approvals from an older review forward",
 );
 check(
   "non-mappable evidence is disabled rather than silently accepted",
-  source.includes("disabled={!item.canApplyToRouteGraph}"),
+  review.includes("disabled={disabled || !item.canApplyToRouteGraph}"),
 );
 check(
   "provider confidence is displayed as evidence only",
-  source.includes("provider confidence") && source.includes("item.confidence"),
+  review.includes("provider confidence") && review.includes("item.confidence"),
+);
+check(
+  "review panel emits IDs plus fingerprint, not provider values",
+  review.includes("acceptedReviewItemIds: [...selected]") &&
+    review.includes("reviewFingerprint: review.fingerprint") &&
+    !/onApply\([\s\S]{0,120}\bvalue\b/.test(review),
 );
 check(
   "preview uses the normal Route Assist result builder after graph acceptance",
@@ -53,7 +71,7 @@ check(
 );
 check(
   "preview states that Route Assist preserves exact physical measurement",
-  source.includes("Route Assist now preserves the accepted physical measurement exactly") &&
+  source.includes("Route Assist preserves the accepted physical measurement exactly") &&
     source.includes("RouteAssistResult total"),
 );
 check(
