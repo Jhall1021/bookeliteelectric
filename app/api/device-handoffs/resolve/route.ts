@@ -40,6 +40,22 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "This link isn't valid or has expired." }, { status: 404 });
     }
 
+    // A handoff that points at a visual-assist task carries only the task id in
+    // its own row. Resolve the existing task's opaque key here so the phone can
+    // reconstruct the SAME declarative invocation the desktop used. No Route
+    // Assist capture configuration is copied into DeviceHandoff.
+    const task = resolved.handoff.taskId
+      ? await db.guidedFlowVisualAssistTask.findUnique({ where: { id: resolved.handoff.taskId } })
+      : null;
+    if (
+      resolved.handoff.taskId &&
+      (!task ||
+        task.guidedFlowSessionId !== session.id ||
+        task.taskType !== resolved.handoff.taskType)
+    ) {
+      return NextResponse.json({ error: "This link isn't valid or has expired." }, { status: 404 });
+    }
+
     await connectHandoff(db, resolved.handoff.id);
 
     // Join this browser into the SAME anonymous homeowner identity the
@@ -56,6 +72,7 @@ export async function GET(req: Request) {
       serviceSlug: session.serviceSlug,
       taskType: resolved.handoff.taskType,
       taskId: resolved.handoff.taskId,
+      taskKey: task?.taskKey ?? null,
       handoffId: resolved.handoff.id,
     });
   });
