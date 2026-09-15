@@ -52,6 +52,10 @@ export {
   type RouteAssistScanProviderRunV1,
 } from "./scanProvider";
 export {
+  collectRouteAssistScanCandidatesV1,
+  type RouteAssistScanCandidatePipelineV1,
+} from "./scanPipeline";
+export {
   extractRouteAssistScanCandidatesV1,
   type RouteAssistScanCandidateExtraction,
   type RouteAssistScanCandidatesV1,
