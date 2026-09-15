@@ -21,6 +21,13 @@
  * only contractor and silently extracted a throwaway proof contractor's
  * catalog back into the template the moment one existed. Extraction reads
  * across a tenant boundary by nature, so it names the tenant out loud.
+ *
+ * `--apply` REFUSES PRODUCTION, BY IDENTITY AND NOT BY NAME — the same check
+ * scripts/publish-plumbing-template.ts already uses for the identical class
+ * of decision: a batch write that replaces WHATEVER a live TemplateVersion
+ * currently offers every future install of the extracted trade. That is not
+ * a thing a verification or rehearsal run should be able to do by accident.
+ * `--i-know-this-writes-to-production` is the only way past it.
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
@@ -31,6 +38,7 @@ import {
   type Refusal, type RefusalKind, type WordingEntry,
 } from "./_extractCore";
 import { boundariesUsed } from "../lib/policyBands";
+import { probe } from "./_lineage";
 
 loadEnv();
 const prisma = new PrismaClient();
@@ -129,6 +137,7 @@ async function buildOne(slug: string) {
     stats.questions++;
     return {
       key: q.key, prompt, helpText, inputType: q.inputType, order: qi,
+      numberMin: q.numberMin, numberMax: q.numberMax, numberAllowsDecimal: q.numberAllowsDecimal,
       options: q.options.map((o, oi) => {
         stats.options++;
         if (o.priceModifierCents) stats.economicsExcluded++;
@@ -154,6 +163,8 @@ async function buildOne(slug: string) {
 
         return {
           value: o.value, routeAction: o.routeAction, order: oi,
+          numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
+          requiresCapabilityKey: o.requiresCapabilityKey,
           labelPattern: pattern ?? null,
           policyKey: pattern ? band!.policyKey : null,
           // While unresolved the label IS the pattern. Deliberately not
@@ -168,7 +179,7 @@ async function buildOne(slug: string) {
           requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
           illustrationUrls: o.illustrationUrls,
           components: o.components.filter(c => c.canonicalComponentId).map(c => ({
-            canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity,
+            canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey,
             conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue })),
           disclaimers: o.conditionalDisclaimers.filter(d => d.contractorDisclaimer)
             .map(d => ({ canonicalDisclaimerId: d.contractorDisclaimer!.canonicalDisclaimerId })),
@@ -209,6 +220,13 @@ async function buildOne(slug: string) {
     canonicalCategoryId: svc.contractorCategory.canonicalCategoryId,
     bookingType: svc.bookingType, photoState: svc.photoState,
     isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
+    // Which pricing engine a service resolves through — LEGACY_PUBLISHED vs.
+    // DERIVED_RESOLVED_SCOPE — is as much a structural fact about it as its
+    // bookingType, and was silently dropped here: every extraction wrote the
+    // schema default regardless of what the source actually was. A service
+    // whose source has already moved to DERIVED_RESOLVED_SCOPE re-extracting
+    // as LEGACY_PUBLISHED would silently regress every future install of it.
+    pricingMethod: svc.pricingMethod,
     icon: svc.icon, questions, materials,
   };
 }
@@ -236,6 +254,26 @@ async function writePolicies(tvId: string) {
   return ids;
 }
 
+/**
+ * Is this the production DATABASE, or merely something carrying its marker?
+ *
+ * Same distinction scripts/publish-plumbing-template.ts already draws, reused
+ * rather than re-derived: a Neon branch is copy-on-write and inherits
+ * production's `price2book-production` marker verbatim, so the marker KEY
+ * alone cannot tell a branch from the original. The marker records the
+ * endpoint it was stamped FOR; matching that against the endpoint actually
+ * connected is what tells them apart.
+ */
+async function isProductionItself(url: string): Promise<{ verdict: boolean; detail: string }> {
+  const p = await probe(url);
+  if (!p.markerKey) return { verdict: false, detail: `unmarked database at ${p.endpoint}` };
+  const original = p.markerEndpoint === p.endpoint;
+  return {
+    verdict: original && p.markerKey === "price2book-production",
+    detail: `${p.markerKey}${original ? " (the original)" : ` (branch; stamped for ${p.markerEndpoint})`} at ${p.endpoint}`,
+  };
+}
+
 async function write(tvId: string, e: Extracted, policyIds: Map<string, string>) {
   await prisma.templateService.deleteMany({ where: { templateVersionId: tvId, key: e.key } });
   const ts = await prisma.templateService.create({
@@ -243,6 +281,7 @@ async function write(tvId: string, e: Extracted, policyIds: Map<string, string>)
       shortDescription: e.shortDescription, icon: e.icon,
       canonicalCategoryId: e.canonicalCategoryId, bookingType: e.bookingType, photoState: e.photoState,
       isPrimaryEligible: e.isPrimaryEligible, requiresTechCount: e.requiresTechCount,
+      pricingMethod: e.pricingMethod,
       materials: { create: e.materials },
       policies: { create: e.servicePolicies.map((k) => ({ templatePolicyDefinitionId: policyIds.get(k)! })) } },
   });
@@ -250,8 +289,11 @@ async function write(tvId: string, e: Extracted, policyIds: Map<string, string>)
     await prisma.templateQuestion.create({
       data: { templateServiceId: ts.id, key: q.key, prompt: q.prompt!, helpText: q.helpText,
         inputType: q.inputType, order: q.order,
+        numberMin: q.numberMin, numberMax: q.numberMax, numberAllowsDecimal: q.numberAllowsDecimal,
         options: { create: q.options.map(o => ({
           value: o.value, label: o.label!, routeAction: o.routeAction, order: o.order,
+          numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
+          requiresCapabilityKey: o.requiresCapabilityKey,
           labelPattern: o.labelPattern,
           templatePolicyDefinitionId: o.policyKey ? policyIds.get(o.policyKey) ?? null : null,
           nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
@@ -350,6 +392,15 @@ async function main() {
   console.log(`  Full refusal list: /tmp/extraction-refusals.json\n`);
 
   if (!apply) { console.log(`  Report only — nothing written.\n`); await prisma.$disconnect(); return; }
+
+  const productionCheck = await isProductionItself(process.env.DATABASE_URL ?? "");
+  if (productionCheck.verdict && !process.argv.includes("--i-know-this-writes-to-production")) {
+    console.error(`\n  REFUSED: ${productionCheck.detail} looks like production.`);
+    console.error(`  This would replace what every future contractor installing "${TRADE}" receives.`);
+    console.error(`  Pass --i-know-this-writes-to-production to do this deliberately.\n`);
+    await prisma.$disconnect();
+    process.exit(2);
+  }
 
   const tv = await prisma.templateVersion.upsert({
     where: { trade_version: { trade: TRADE, version } }, update: {},

@@ -10,9 +10,20 @@ type Props = {
   priceCents: number;
   disclaimer: string | null;
   onAddToVisit: () => void;
+  /**
+   * Optional, editable context to carry to the technician — B.4. Both
+   * props must be supplied together; when they are, a labeled, editable
+   * field renders above the button. Omit both for every ordinary resolved
+   * service (the vast majority): visually and behaviorally unchanged.
+   */
+  note?: string;
+  onNoteChange?: (value: string) => void;
+  noteLabel?: string;
 };
 
-export default function PriceConfirmationCard({ serviceName, ctaLabel, priceCents, disclaimer, onAddToVisit }: Props) {
+export default function PriceConfirmationCard({
+  serviceName, ctaLabel, priceCents, disclaimer, onAddToVisit, note, onNoteChange, noteLabel,
+}: Props) {
   const pcopy = usePricingCopy();
   return (
     <div className="ray-accent rounded-card border border-cardline bg-white p-8 text-center shadow-card">
@@ -29,6 +40,20 @@ export default function PriceConfirmationCard({ serviceName, ctaLabel, priceCent
         <div className="mt-4 rounded-card border border-amber-300 bg-amber-50 p-3 text-left text-xs text-amber-900">
           {disclaimer}
         </div>
+      )}
+
+      {onNoteChange && (
+        <label className="mt-4 block text-left">
+          <span className="text-xs font-medium text-slate">
+            {noteLabel ?? "What should we tell the technician?"}
+          </span>
+          <textarea
+            value={note ?? ""}
+            onChange={(e) => onNoteChange(e.target.value)}
+            rows={3}
+            className="mt-1 w-full rounded-card border border-cardline p-2 text-sm text-ink"
+          />
+        </label>
       )}
 
       <button

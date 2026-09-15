@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import {
   windowAvailabilityForDay,
+  visitJobDurationMinutes,
+  type ScheduleWindow,
   SchedulingUnavailableError,
   SchedulingNotConfiguredError,
 } from "@/lib/schedulingAvailability";
@@ -16,6 +18,7 @@ import ScheduleClient from "@/components/checkout/ScheduleClient";
 import { redirect } from "next/navigation";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
 import { storefrontBaseFor } from "@/lib/storefrontSurface";
+import { formatServiceDate } from "@/lib/serviceDate";
 
 // Same reasoning as the API route — never statically cache this page.
 // The whole point is a live check every time someone actually looks.
@@ -35,9 +38,11 @@ export default async function SchedulePage({ params }: { params: { site: string 
   const businessHours = await withSite(site, (db) =>
     loadBusinessHours(db, site.contractorId)
   );
-  const days = nextWorkingDays(5, businessHours).map((d) => ({
-    date: d.toISOString(),
-    dateISO: d.toISOString().split("T")[0],
+  // Service dates (lib/serviceDate), labelled here so the browser's time zone
+  // cannot relabel a tab as a different day than the one it schedules.
+  const days = nextWorkingDays(5, businessHours).map((dateISO) => ({
+    dateISO,
+    label: formatServiceDate(dateISO, { weekday: "short", month: "short", day: "numeric" }),
   }));
 
   // The customer's current cart already has estimatedMinutes snapshotted
@@ -72,10 +77,8 @@ export default async function SchedulePage({ params }: { params: { site: string 
   const awaitingQuote = visit?.lineItems.some((li) => li.computedPriceCents === null) ?? false;
   if (awaitingQuote) redirect(`${base}/my-visit`);
 
-  const hasCompleteEstimates = !!visit && visit.lineItems.every((li) => li.estimatedMinutes !== null);
-  const estimatedDurationMinutes = hasCompleteEstimates
-    ? visit!.lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0)
-    : null;
+  // The same reading /api/availability makes for every later day.
+  const estimatedDurationMinutes = visit ? visitJobDurationMinutes(visit.lineItems) : null;
 
   // Only the first (default-selected) day is checked here, on the server,
   // for a fast initial render with no loading flicker. Every other day —
@@ -87,7 +90,7 @@ export default async function SchedulePage({ params }: { params: { site: string 
   // The server-rendered first day gets the same treatment as every later one:
   // if the calendar cannot be read, the page says so rather than shipping a
   // list of windows nobody verified.
-  let firstDayWindows: { start: string; end: string; available: boolean }[] = [];
+  let firstDayWindows: ScheduleWindow[] = [];
   let schedulingUnavailable = false;
   try {
     firstDayWindows = await withSite(site, (db) =>
@@ -115,7 +118,6 @@ export default async function SchedulePage({ params }: { params: { site: string 
     <ScheduleClient
       days={days}
       initialWindows={firstDayWindows}
-      estimatedDurationMinutes={estimatedDurationMinutes}
       initiallyUnavailable={schedulingUnavailable}
     />
   );

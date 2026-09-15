@@ -392,6 +392,115 @@ export async function clearLegacyMultiplierOnItemize(
   return true;
 }
 
+export type NoBaseMaterialResult = {
+  serviceId: string;
+  slug: string;
+  /** ServiceMaterial rows removed by the assertion. */
+  rowsRemoved: number;
+  beforeCents: number | null;
+  afterCents: number;
+  clearedMultiplier: boolean;
+  resolved: boolean;
+  unresolvedKeys: string[];
+};
+
+/**
+ * Assert that a service has NO unconditional base material — deliberately.
+ *
+ * "No material" has to be ASSERTED, not implied by absence. `seed-materials.ts`
+ * learned that the hard way: deleting an assembly leaves the flat
+ * `materialCostCents` sitting there, and the bathroom fan kept $11 of retired
+ * duct connector that the model went on quietly pricing. That seed grew a
+ * `NO_MATERIAL` list to state it explicitly. This is that operation, extracted
+ * so there is one implementation rather than a second copy — the mistake this
+ * file's header was written about.
+ *
+ * WHY ZERO ROWS CANNOT MEAN THIS ON ITS OWN
+ *
+ * Two completely different services have no ServiceMaterial rows:
+ *
+ *   ASSERTED      this service genuinely consumes no unconditional material.
+ *                 Its economics, if any, live somewhere else — per-component
+ *                 under Routing V2, or with the customer under a supply policy.
+ *
+ *   UNCONFIGURED  a provisioned contractor has not entered their costs yet.
+ *                 BrightPath's whole catalog looks like this on day one, by
+ *                 design, and it MUST keep failing closed.
+ *
+ * A global rule reading "zero rows means resolved" would collapse the two and
+ * hand every unconfigured contractor a free pass to price. So the difference is
+ * not inferred from the row count — it is carried by the deliberate act of
+ * calling this function for one named service, with a reason. That is why
+ * `why` is required and why there is no bulk variant.
+ *
+ * The RESULT is still derived, never hand-written: readiness is asked the same
+ * way every other caller asks it, after the rows are gone. This function states
+ * a fact about the recipe; `assessMaterialReadiness` decides what that fact
+ * means, exactly as it does everywhere else.
+ *
+ * `materialCostCents` becomes 0 rather than null. Null is "nobody has said";
+ * zero is "somebody said none", and this is the function where somebody says
+ * it. Pricing coerces both to 0 today — the distinction is for the humans and
+ * the readiness surfaces, which is precisely where the bathroom fan went wrong.
+ *
+ * SCOPE. One service, by id. It does not touch canonical materials, the
+ * contractor's own costs, or `unresolvedPolicyKeys` — a policy the contractor
+ * still owes an answer to is a different blocker and stays where it is.
+ */
+export async function assertNoBaseMaterial(
+  db: Db,
+  serviceId: string,
+  why: string
+): Promise<NoBaseMaterialResult> {
+  if (!why || !why.trim()) {
+    throw new MaterialCostError(
+      `assertNoBaseMaterial requires a reason. An unexplained "no material" is ` +
+        `indistinguishable from an assembly somebody forgot to write.`
+    );
+  }
+
+  const service = await db.service.findUnique({
+    where: { id: serviceId },
+    select: {
+      id: true, slug: true, contractorId: true,
+      materialCostCents: true, materialMultiplier: true,
+    },
+  });
+  if (!service) throw new MaterialCostError(`No service ${serviceId}.`);
+  if (!service.contractorId) {
+    throw new MaterialCostError(
+      `${service.slug} has no contractor; its material state cannot be resolved.`
+    );
+  }
+
+  const rowsRemoved = await db.serviceMaterial.count({ where: { serviceId } });
+  await db.serviceMaterial.deleteMany({ where: { serviceId } });
+
+  // Derived, not asserted. Asked after the rows are gone, of the same authority
+  // activation and the recompute ask.
+  const readiness = await assessMaterialReadiness(db, serviceId, service.contractorId);
+  const resolved = readiness.ready;
+  const unresolvedKeys = readiness.ready ? [] : readiness.missing.map((m) => m.key);
+
+  await db.service.update({
+    where: { id: serviceId },
+    data: {
+      materialCostCents: 0,
+      materialMultiplier: null,
+      materialMultiplierReason: null,
+      materialCostResolved: resolved,
+      unresolvedMaterialKeys: unresolvedKeys,
+    },
+  });
+
+  return {
+    serviceId, slug: service.slug, rowsRemoved,
+    beforeCents: service.materialCostCents, afterCents: 0,
+    clearedMultiplier: service.materialMultiplier !== null,
+    resolved, unresolvedKeys,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // The single entry point for changing a cost
 // ---------------------------------------------------------------------------

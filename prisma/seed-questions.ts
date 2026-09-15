@@ -8,6 +8,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
@@ -610,12 +611,27 @@ async function seedRecessedLighting() {
   console.log("  ✓ Recessed Lighting tree (attic access → existing source → switched source, with disclaimer support)");
 }
 
-async function seedNewCeilingLight() {
-  // Identical structure to Recessed Lighting — same attic-access →
-  // existing-fixture → existing-switch tree, applied to a new ceiling
-  // light fixture instead of a recessed can. Per client direction, this
-  // "existing switch in the room" question is standardized across every
-  // new light/fan installation tree.
+export async function seedNewCeilingLight() {
+  // Attic-access → existing-fixture tree, applied to a new ceiling light
+  // fixture. This used to also ask "is there an existing switch in the
+  // room" (`switched_source`) and charge $150/$225 for it directly — but
+  // seed-lighting-control.ts's module runs after this seed and rewires
+  // every terminal RESOLVE_* answer here into its own `lighting_control`
+  // question, which prices the identical switch-leg work again through its
+  // own components (SWITCH_POWER_RUN_*, SWITCHLEG_*). That stacked both
+  // prices on one job. seed-recessed-lighting.ts diagnosed and fixed the
+  // same fault for recessed lighting (see its docstring, fault #3) as part
+  // of a larger rebuild that doesn't apply here — this service has no
+  // per-light quantity concept, so only the switch-leg half of that fix
+  // transfers.
+  //
+  // The fix: `existing_light_source`'s "No" answer now resolves bare
+  // (RESOLVE_INSTANT, no price), exactly like its "Yes" answer already did.
+  // `rewireTerminalsInto` picks up both and routes them into
+  // `lighting_control`, whose own "how would you like it controlled?"
+  // question — including its own "not sure" → photo review branch — fully
+  // replaces what `switched_source` asked, with real per-branch pricing
+  // instead of a flat guess.
   const service = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "new-ceiling-light"),
   });
@@ -642,16 +658,6 @@ async function seedNewCeilingLight() {
     },
   });
 
-  const qSwitchedSource = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: "switched_source",
-      prompt: "Is there an existing switch in the room we could use to control the new light?",
-      inputType: "SINGLE_SELECT",
-      order: 3,
-    },
-  });
-
   await prisma.answerOption.createMany({
     data: [
       { questionId: qAtticAccess.id, label: "Yes", value: "has_access", routeAction: "CONTINUE", nextQuestionId: qExistingLight.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
@@ -671,51 +677,23 @@ async function seedNewCeilingLight() {
   await prisma.answerOption.createMany({
     data: [
       { questionId: qExistingLight.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
-      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "CONTINUE", nextQuestionId: qSwitchedSource.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+      // Was CONTINUE -> switched_source, priced there. Now a bare terminal:
+      // seed-lighting-control.ts's rewireTerminalsInto sends this into
+      // `lighting_control` the same way it already does the "Yes" answer
+      // above, and that module prices the switch-leg work exactly once.
+      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], disclaimer: null },
     ],
   });
 
-  await prisma.answerOption.createMany({
-    data: [
-      {
-        questionId: qSwitchedSource.id,
-        label: "Yes",
-        value: "yes",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 15000, // +$150 to snake a wire from the existing switch up to the ceiling
-        order: 1,
-        requiredPhotoLabels: [],
-        disclaimer: null,
-      },
-      {
-        questionId: qSwitchedSource.id,
-        label: "No",
-        value: "no",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 22500, // +$150 wire run + $75 new switch (Replace Standard Switch WWT rate)
-        order: 2,
-        requiredPhotoLabels: [],
-        disclaimer: null,
-      },
-      {
-        questionId: qSwitchedSource.id,
-        label: "I'm not sure",
-        value: "unsure",
-        routeAction: "PHOTO_REVIEW",
-        order: 3,
-        requiredPhotoLabels: ["Room where the light is going, full view", "Ceiling area where the fixture will be installed"],
-      },
-    ],
-  });
-
-  console.log("  ✓ Install New Ceiling Light tree (same structure as Recessed Lighting)");
+  console.log("  ✓ Install New Ceiling Light tree (switch-leg pricing handled once, by the Lighting Control module)");
 }
 
-async function seedNewCeilingFan() {
-  // Same tree as Install New Ceiling Light and Recessed Lighting — attic
-  // access → existing fixture → existing switch — applied to a new ceiling
-  // fan. Base prices differ ($425 attic access / $525 no access, per
-  // client) but the wire-run and new-switch add-on logic is identical.
+export async function seedNewCeilingFan() {
+  // Attic access → existing fixture, applied to a new ceiling fan. Base
+  // prices differ from New Ceiling Light ($425/$525 vs $395/$495, per
+  // client) but the tree shape — and the switch-leg double-charge this seed
+  // used to have — was identical. See seedNewCeilingLight's comment above
+  // for the full explanation; the fix is the same one, applied here too.
   const service = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "new-ceiling-fan"),
   });
@@ -742,16 +720,6 @@ async function seedNewCeilingFan() {
     },
   });
 
-  const qSwitchedSource = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: "switched_source",
-      prompt: "Is there an existing switch in the room we could use to control the new fan?",
-      inputType: "SINGLE_SELECT",
-      order: 3,
-    },
-  });
-
   await prisma.answerOption.createMany({
     data: [
       { questionId: qAtticAccess.id, label: "Yes", value: "has_access", routeAction: "CONTINUE", nextQuestionId: qExistingLight.id, order: 1, requiredPhotoLabels: [], disclaimer: null },
@@ -771,44 +739,14 @@ async function seedNewCeilingFan() {
   await prisma.answerOption.createMany({
     data: [
       { questionId: qExistingLight.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
-      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "CONTINUE", nextQuestionId: qSwitchedSource.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
+      // Was CONTINUE -> switched_source, priced there — see the comment on
+      // seedNewCeilingLight. Now a bare terminal, rewired into
+      // `lighting_control` exactly like the "Yes" answer above.
+      { questionId: qExistingLight.id, label: "No", value: "no", routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], disclaimer: null },
     ],
   });
 
-  await prisma.answerOption.createMany({
-    data: [
-      {
-        questionId: qSwitchedSource.id,
-        label: "Yes",
-        value: "yes",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 15000, // +$150 to snake a wire from the existing switch up to the ceiling
-        order: 1,
-        requiredPhotoLabels: [],
-        disclaimer: null,
-      },
-      {
-        questionId: qSwitchedSource.id,
-        label: "No",
-        value: "no",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 22500, // +$150 wire run + $75 new switch (Replace Standard Switch WWT rate)
-        order: 2,
-        requiredPhotoLabels: [],
-        disclaimer: null,
-      },
-      {
-        questionId: qSwitchedSource.id,
-        label: "I'm not sure",
-        value: "unsure",
-        routeAction: "PHOTO_REVIEW",
-        order: 3,
-        requiredPhotoLabels: ["Room where the fan is going, full view", "Ceiling area where the fan will be installed"],
-      },
-    ],
-  });
-
-  console.log("  ✓ Install New Ceiling Fan tree (same structure as Recessed Lighting / New Ceiling Light)");
+  console.log("  ✓ Install New Ceiling Fan tree (switch-leg pricing handled once, by the Lighting Control module)");
 }
 
 async function seedApplianceInstallation() {
@@ -1099,7 +1037,18 @@ async function seedPanelsTroubleshooting() {
   ]);
 }
 
-async function seedEvGarage() {
+/**
+ * Thin wrapper preserving the original combined entry point — kept for
+ * main()'s whole-category run. B.16 only ever needed the third of these
+ * three services; call seedGarage240vOutlet() directly for that, not this.
+ */
+export async function seedEvGarage() {
+  await seedLevel2EvCharger();
+  await seedGarageDoorOpenerOutlet();
+  await seedGarage240vOutlet();
+}
+
+export async function seedLevel2EvCharger() {
   // Level 2 EV Charger — the most variable job in this category. All
   // answers ultimately still route to photo review (no fixed price was
   // ever given for the different scenarios), but given the value of this
@@ -1168,7 +1117,9 @@ async function seedEvGarage() {
     ],
   });
   console.log("  ✓ Level 2 EV Charger tree (distance → capacity → location, tailored intake)");
+}
 
+export async function seedGarageDoorOpenerOutlet() {
   // Garage Door Opener Outlet — identical logic to the New 120V Outlet
   // service (same job, same pricing tiers), just listed here too for
   // discoverability in this category.
@@ -1225,36 +1176,40 @@ async function seedEvGarage() {
     ],
   });
   console.log("  ✓ Garage Door Opener Outlet (EV & Garage) tree — same logic as New 120V Outlet");
+}
 
-  // 240V Garage Outlet — lighter tailored-photo-review treatment, same
-  // pattern as the smart-home/panels remote-quote jobs.
+export async function seedGarage240vOutlet() {
+  // 240V Garage Outlet — always a remote quote, same as its Generator/Pool
+  // siblings that have no tree at all.
+  //
+  // B.16, corrected on review. The original single "Continue" button
+  // (dressed up as a question with no consequence — every path landed on
+  // the identical photo request) was first replaced with a mandatory
+  // `garage_type` question. That traded one problem for another: nothing
+  // in this codebase actually CONSUMES garage type as a gate before review
+  // — no traced consumer requires it to be collected up front, so making it
+  // mandatory only made the screen "consequential" in the sense of adding a
+  // click, not in the sense of the fact being load-bearing anywhere. This
+  // service is now a genuine 0-question REMOTE_QUOTE, matching the shape
+  // its siblings already have (electric-fireplace-circuit,
+  // sump-pump-dedicated-circuit, generator-inlet-interlock, etc.) —
+  // GuidedFlowEngine's existing generic REMOTE_QUOTE path
+  // (startQuestions(), no service-specific code needed) sends the customer
+  // straight to photo review with its own already-clear copy, instead of
+  // through a screen whose only purpose was to not say "0 questions."
+  //
+  // Garage configuration is still genuinely useful to the office, per the
+  // original review comment — it's just not gated on. PhotoReviewNotice
+  // already offers a free-text note on this exact screen
+  // (components/guided-flow/PhotoReviewNotice.tsx), unconditionally, for
+  // every service that lands there. A homeowner who wants to mention
+  // "detached garage, it's a longer run" can, optionally, in their own
+  // words — structured intake is available, not removed, just not forced.
   const garage240 = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "240v-garage-outlet"),
   });
   await clearServiceTree(garage240.id);
-
-  const qReady = await prisma.question.create({
-    data: {
-      serviceId: garage240.id,
-      key: "ready_for_review",
-      prompt: "Let's get you a price — we'll just need a couple of photos.",
-      inputType: "SINGLE_SELECT",
-      order: 1,
-    },
-  });
-  await prisma.answerOption.createMany({
-    data: [
-      {
-        questionId: qReady.id,
-        label: "Continue",
-        value: "continue",
-        routeAction: "PHOTO_REVIEW",
-        order: 1,
-        requiredPhotoLabels: ["Panel with the door open", "Where the outlet is needed in the garage"],
-      },
-    ],
-  });
-  console.log("  ✓ 240V Garage Outlet tree (tailored photo request)");
+  console.log("  ✓ 240V Garage Outlet — 0 questions, remote quote (garage detail is an optional note at review, not a gate)");
 }
 
 async function main() {
@@ -1274,11 +1229,17 @@ async function main() {
   console.log("Done.");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Guarded: importing this file (e.g. to reach one exported function, per the
+// audit follow-through's rollout plan) must not run every seed in it. Only
+// running it directly (`npx tsx prisma/seed-questions.ts`) does — identical
+// behavior to before this guard existed for that one, sanctioned entry point.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

@@ -24,7 +24,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { recomputeServiceMaterialCost, clearLegacyMultiplierOnItemize } from "../lib/materialCost";
+import { recomputeServiceMaterialCost, clearLegacyMultiplierOnItemize, assertNoBaseMaterial } from "../lib/materialCost";
 import { calculateMaterialSellCents } from "../lib/pricing";
 import { serviceSlugKey } from "./_serviceKey";
 
@@ -531,14 +531,16 @@ async function main() {
   for (const n of NO_MATERIAL) {
     const svc = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, n.slug) });
     if (!svc) continue;
-    await prisma.serviceMaterial.deleteMany({ where: { serviceId: svc.id } });
-    if (svc.materialCostCents) {
-      await prisma.service.update({
-        where: { id: svc.id },
-        data: { materialCostCents: 0, materialMultiplier: null, materialMultiplierReason: null },
-      });
-      console.log(`  ✓ ${n.slug} — cleared $${(svc.materialCostCents / 100).toFixed(2)} of stale material`);
-    }
+    // ONE implementation, two callers. This loop WAS the "no material"
+    // assertion; lib/materialCost.ts owns it now, so the Routing V2 migration
+    // performs the same act on Elite's outlet rather than a second copy of it —
+    // and the readiness flags are derived here too, which this version never did.
+    const r = await assertNoBaseMaterial(prisma, svc.id, n.why);
+    console.log(
+      `  ✓ ${n.slug} — no base material asserted` +
+        (r.beforeCents ? ` (cleared $${(r.beforeCents / 100).toFixed(2)} stale)` : "") +
+        (r.rowsRemoved ? `, ${r.rowsRemoved} row(s) removed` : "")
+    );
   }
 
   console.log(`

@@ -55,16 +55,32 @@ export const ROUTE_OBSTACLES = ["DOORWAY", "WINDOW"] as const;
 export type RouteObstacle = (typeof ROUTE_OBSTACLES)[number];
 
 /**
- * A turn's direction, read off the customer's own polyline.
+ * A LEGACY 2-D turn direction read from the customer-drawn polyline.
  *
- * Pure geometry over pixel coordinates — a cross-product sign — not a
- * judgment about the room. "Inside" vs "outside" corner is a real, visible,
- * countable fact about a drawn path, the same way "how many times did the
- * line change direction" is, and the brief asks for both counts separately
- * (§7 `insideCornersCount` / `outsideCornersCount`).
+ * IMPORTANT: this is not physical raceway fitting authority. A cross-product
+ * in image space can tell which way the drawn line turns on the screen, but it
+ * cannot prove whether the physical route uses an inside corner, an outside
+ * corner, or a flat corner. Existing V1 aggregate logic still uses this type
+ * for compatibility; new ordered geometry must use `RoutePhysicalTurn` below.
  */
 export const ROUTE_TURN_DIRECTIONS = ["INSIDE", "OUTSIDE"] as const;
 export type RouteTurnDirection = (typeof ROUTE_TURN_DIRECTIONS)[number];
+
+/**
+ * A physical, observable surface-route turn at a waypoint.
+ *
+ * This value may be set only when the capture/scan or an explicit human
+ * observation establishes the physical fitting geometry. It must NEVER be
+ * inferred merely from the left/right direction of a 2-D image-space line.
+ * Absence is represented by null/undefined on the point, which means
+ * "unknown / not established" rather than a guessed fitting.
+ *
+ * `SURFACE_CHANGE` is intentionally not part of this vocabulary. A change
+ * from WALL to CEILING/FLOOR is derived from the adjacent segment surfaces
+ * and remains a separate physical fact from a raceway corner fitting.
+ */
+export const ROUTE_PHYSICAL_TURNS = ["FLAT", "INSIDE", "OUTSIDE"] as const;
+export type RoutePhysicalTurn = (typeof ROUTE_PHYSICAL_TURNS)[number];
 
 /**
  * The only four words this system may use for concealed-route difficulty.

@@ -141,7 +141,16 @@ export default async function EditServicePage({ params }: { params: { serviceId:
             photoState={service.photoState}
             legacyPrimaryUnits={service.primaryLaborUnits}
             settings={
-              settings
+              // This panel SUGGESTS a price, so it needs decisions actually
+              // made — the same reasoning app/dashboard/setup/page.tsx's own
+              // rateSettings guard states: each of the four columns is
+              // nullable (prisma/schema.prisma, PricingSettings), so a
+              // truthy row alone does not mean every rate has been decided.
+              settings &&
+              settings.crewHourRateCents !== null &&
+              settings.primaryMinimumCents !== null &&
+              settings.roundingIncrementCents !== null &&
+              settings.defaultPermitAdminCents !== null
                 ? {
                     crewHourRateCents: settings.crewHourRateCents,
                     primaryMinimumCents: settings.primaryMinimumCents,

@@ -1,6 +1,7 @@
 import { formatCents } from "@/lib/flow-types";
 import PushToJobberButton from "@/components/admin/PushToJobberButton";
 import { withAdminContractor } from "@/lib/adminContext";
+import { formatServiceDate, serviceDateFromStored } from "@/lib/serviceDate";
 
 export default async function AdminBookingsPage() {
   const bookings = await withAdminContractor((db) =>
@@ -24,7 +25,10 @@ export default async function AdminBookingsPage() {
   function BookingCard({ b, muted = false }: { b: (typeof bookings)[number]; muted?: boolean }) {
     const primaryService = b.visit.lineItems.find((li) => li.isPrimary)?.service.name ?? b.visit.lineItems[0]?.service.name ?? "Service visit";
     const addOnCount = Math.max(0, b.visit.lineItems.length - 1);
-    const dateLabel = new Date(b.arrivalWindow.date).toLocaleDateString("en-US", {
+    // serviceDateFromStored, not a raw `new Date(...).toLocaleDateString()` —
+    // a stored ArrivalWindow date is a calendar day, and formatting it
+    // straight through Date's own timezone handling can shift it by one.
+    const dateLabel = formatServiceDate(serviceDateFromStored(new Date(b.arrivalWindow.date)), {
       weekday: "short",
       month: "short",
       day: "numeric",

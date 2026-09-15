@@ -16,6 +16,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 import {
   eliteContractorId,
   upsertComponent,
@@ -109,6 +110,10 @@ const EQUIPMENT_PHOTOS = [
  * The four amperage-specific services are retired rather than deleted. They're
  * reroute targets and may appear on past bookings; deleting them would break
  * that history. Inactive removes them from browsing while the records survive.
+ *
+ * Retirement is a separate, explicitly tenant-scoped operation (see
+ * retireDedicatedCircuitAmperageServices below) — it is NOT part of
+ * seedDedicatedCircuit, and importing this module never runs it.
  */
 const RETIRED = [
   "sump-pump-dedicated-circuit",
@@ -117,7 +122,23 @@ const RETIRED = [
   "new-240v-appliance-circuit",
 ];
 
-async function main() {
+/**
+ * Retires the four legacy amperage-specific services (inactive, not deleted)
+ * for one named contractor. Requires an explicit contractorId — unlike the
+ * seed-era serviceSlugKey() convention, this write is a slug-only
+ * updateMany with no natural tenant filter, so the scope has to be supplied
+ * by the caller rather than assumed.
+ */
+export async function retireDedicatedCircuitAmperageServices(
+  contractorId: string
+) {
+  return prisma.service.updateMany({
+    where: { slug: { in: RETIRED }, contractorId },
+    data: { active: false },
+  });
+}
+
+export async function seedDedicatedCircuit() {
   const contractorId = await eliteContractorId(prisma);
   for (const c of CIRCUIT_COMPONENTS) {
     await upsertComponent(prisma, contractorId, c);
@@ -232,17 +253,6 @@ async function main() {
     },
   });
 
-  const q4 = await prisma.question.create({
-    data: {
-      serviceId: service.id,
-      key: "dedicated_panel_location",
-      prompt: "Where is your electrical panel?",
-      helpText: "This helps us arrive prepared. It won't change your price.",
-      inputType: "SINGLE_SELECT",
-      order: 5,
-    },
-  });
-
   const q5 = await prisma.question.create({
     data: {
       serviceId: service.id,
@@ -251,7 +261,17 @@ async function main() {
       helpText:
         "Even with an accessible basement or attic path, we may need to make a small opening in drywall or plaster directly above, below, or beside your electrical panel and/or at the new outlet, so the cable can enter the finished wall. Patching, spackling, sanding, painting, wallpaper and trim are not included unless we've put it in writing.",
       inputType: "SINGLE_SELECT",
-      order: 6,
+      // B.18 — was 6, behind the now-removed dedicated_panel_location (Q5).
+      // Every one of that question's six answers continued identically with
+      // no price or routing effect ("It won't change your price," its own
+      // helpText said so) — a real fact worth having, but dispatch metadata,
+      // not a pricing decision. It's still collected: PricedPhotoReview and
+      // PhotoReviewNotice, what every path through this service ends on,
+      // already carry a free-text note field wired to the same
+      // answersSnapshot.customer_note the technician's job sheet reads — an
+      // existing, supported "optional details" step this didn't need a new
+      // one to use.
+      order: 5,
     },
   });
 
@@ -338,24 +358,12 @@ async function main() {
   // key or invalidating historical answers.
   await prisma.answerOption.createMany({
     data: [
-      { questionId: q3.id, label: "25 feet or less", value: "under_25", routeAction: "CONTINUE", nextQuestionId: q4.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: q3.id, label: "26 to 50 feet", value: "25_to_50", routeAction: "CONTINUE", nextQuestionId: q4.id, order: 2, requiredPhotoLabels: [] },
+      // B.18 — was CONTINUE -> dedicated_panel_location (removed above);
+      // now hands off directly to the finish acknowledgement.
+      { questionId: q3.id, label: "25 feet or less", value: "under_25", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 1, requiredPhotoLabels: [] },
+      { questionId: q3.id, label: "26 to 50 feet", value: "25_to_50", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 2, requiredPhotoLabels: [] },
       { questionId: q3.id, label: "More than 50 feet", value: "over_50", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
       { questionId: q3.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: REVIEW_PHOTOS },
-    ],
-  });
-
-  // ---- Q4: panel location ----------------------------------------------
-  // Preparation information only — none of these disqualify the instant
-  // price, per the spec.
-  await prisma.answerOption.createMany({
-    data: [
-      { questionId: q4.id, label: "Unfinished basement", value: "unfinished_basement", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: q4.id, label: "Finished basement or utility room", value: "finished_basement", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 2, requiredPhotoLabels: [] },
-      { questionId: q4.id, label: "Garage", value: "garage", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 3, requiredPhotoLabels: [] },
-      { questionId: q4.id, label: "On a finished interior wall", value: "interior_finished_wall", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 4, requiredPhotoLabels: [] },
-      { questionId: q4.id, label: "Outside the house", value: "exterior", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 5, requiredPhotoLabels: [] },
-      { questionId: q4.id, label: "Somewhere else, or I'm not sure", value: "other_unsure", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 6, requiredPhotoLabels: [] },
     ],
   });
 
@@ -392,23 +400,26 @@ async function main() {
     ],
   });
 
-  const retired = await prisma.service.updateMany({
-    where: { slug: { in: RETIRED } },
-    data: { active: false },
-  });
-
   console.log(`  ✓ Dedicated Circuit & Outlet — 6 questions, moved to Dedicated Circuits`);
-  console.log(`  ✓ ${retired.count} amperage-specific services retired (inactive, not deleted)`);
   console.log(`  ✓ 20A upcharge $15 · 240V upcharge $15 · 30A+ routes to remote quote`);
   console.log("  ✓ bookingType REMOTE_QUOTE -> ADJUSTED");
   console.log("  ✓ pricing composition set: 2.5 units + $68 material @ 2.5x = $795.00");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+async function main() {
+  const contractorId = await eliteContractorId(prisma);
+  await seedDedicatedCircuit();
+  const retired = await retireDedicatedCircuitAmperageServices(contractorId);
+  console.log(`  ✓ ${retired.count} amperage-specific services retired (inactive, not deleted)`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

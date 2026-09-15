@@ -21,6 +21,11 @@
 import { PrismaClient } from "@prisma/client";
 import { eliteContractorId } from "../prisma/_componentHelpers";
 
+/** Undecided renders as "not set" — never as $0.00, which is a decision. */
+const fmtCents = (c: number | null): string =>
+  c === null || c === undefined ? "not set" : `$${(c / 100).toFixed(2)}`;
+
+
 const prisma = new PrismaClient();
 
 /** What the catalog was priced at, and what it reconciles against. */
@@ -40,9 +45,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`      crew-hour rate     $${(now.crewHourRateCents / 100).toFixed(2)}  ->  $${(RATE_CENTS / 100).toFixed(2)}`);
-  console.log(`      service-call min   $${(now.primaryMinimumCents / 100).toFixed(2)}  ->  $${(MINIMUM_CENTS / 100).toFixed(2)}`);
-  console.log(`      rounding           $${(now.roundingIncrementCents / 100).toFixed(2)}  (unchanged)`);
+  console.log(`      crew-hour rate     ${fmtCents(now.crewHourRateCents)}  ->  $${(RATE_CENTS / 100).toFixed(2)}`);
+  console.log(`      service-call min   ${fmtCents(now.primaryMinimumCents)}  ->  $${(MINIMUM_CENTS / 100).toFixed(2)}`);
+  console.log(`      rounding           ${fmtCents(now.roundingIncrementCents)}  (unchanged)`);
   console.log();
 
   if (now.crewHourRateCents === RATE_CENTS && now.primaryMinimumCents === MINIMUM_CENTS) {

@@ -30,19 +30,49 @@
  * texts across the catalog name Elite by name. A copy that trusted field
  * types would have shipped both to every future contractor.
  *
- *   --service <slug>   which Elite service to extract
+ *   --contractor <slug> whose copy to extract from — REQUIRED, no default
+ *   --service <slug>   which service to extract
  *   --version <n>      template version to write into (created if absent)
  *   --apply            write; otherwise report only
+ *   --i-know-this-overwrites-a-published-version   required to write into a
+ *                      version that already carries a TemplateService for
+ *                      this exact key — see OVERWRITE REFUSAL below.
+ *
+ * OVERWRITE REFUSAL — a published version is immutable by default.
+ *
+ * `templateVersionSource` resolves whatever the latest SNAPSHOT-plus-DELTAs
+ * says the instant a version is written — there is no staging step, proven
+ * in this branch's own rehearsal (§0.22). That makes re-running this tool
+ * against an ALREADY-PUBLISHED version for the SAME service key a silent
+ * rewrite of content a fresh contractor may already have installed from,
+ * with no record that anything changed. This tool now refuses that by
+ * default — matching the insert-only convention this codebase already
+ * applies to `MaterialBaselineVersion` for the identical reason — and
+ * requires `--i-know-this-overwrites-a-published-version` typed out
+ * deliberately to proceed anyway. A correction belongs in a NEW version
+ * number (see the rollback plan, §10.3): the prior version stays exactly as
+ * it was, and `templateVersionSource` picks up the later, corrected DELTA
+ * for the same key automatically.
  */
 import { PrismaClient } from "@prisma/client";
 import { readFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
+import { serviceFor } from "../prisma/_serviceTargets";
+import { loadPolicies } from "./_extractCore";
 
 loadEnv();
 const prisma = new PrismaClient();
 
 const TRADE = "electrical";
+/**
+ * Band definitions, shared with extract-template-catalog.ts rather than
+ * re-authored: a question banded there must mean the same thing here, and
+ * a second manifest would drift the moment one tool's copy was edited alone.
+ */
+const POLICIES = loadPolicies();
+/** Policy keys this extraction actually reaches — written once, at apply time. */
+const usedPolicies = new Set<string>();
 const arg = (n: string) => {
   const i = process.argv.indexOf(`--${n}`);
   return i >= 0 ? process.argv[i + 1] : undefined;
@@ -161,8 +191,32 @@ async function main() {
   const apply = process.argv.includes("--apply");
   if (!slug) { console.error("  --service <slug> is required"); process.exit(1); }
 
-  const svc = await prisma.service.findFirstOrThrow({
-    where: { slug },
+  /**
+   * WHOSE COPY. Four contractors own a service called `new-120v-outlet`, and
+   * this took whichever one Postgres returned first.
+   *
+   * A dry run of the Routing V2 extraction proved it: it walked BrightPath's
+   * restored V1 tree, reported no economics and no materials — because
+   * BrightPath has neither — and would have written the retired access x
+   * distance-band model into the canonical template as the product deliverable.
+   * The output looked clean. It was clean, about the wrong tenant.
+   *
+   * `--contractor` has no default on purpose. This writes the thing every
+   * future contractor receives; the source must be named out loud.
+   */
+  const contractorSlug = arg("contractor");
+  if (!contractorSlug) {
+    console.error("  --contractor <slug> is required — a slug alone does not identify a service");
+    process.exit(1);
+  }
+  const owner = await prisma.contractor.findUnique({
+    where: { slug: contractorSlug }, select: { id: true, slug: true },
+  });
+  if (!owner) { console.error(`  No contractor "${contractorSlug}".`); process.exit(1); }
+  const target = await serviceFor(prisma, owner.id, slug);
+
+  const svc = await prisma.service.findUniqueOrThrow({
+    where: { id: target.id },
     include: {
       contractorCategory: { select: { canonicalCategoryId: true } },
       materials: { include: { canonicalMaterial: { select: { key: true } } } },
@@ -178,7 +232,7 @@ async function main() {
   });
 
   SERVICE_KEY = svc.slug;
-  console.log(`\nEXTRACT  ${svc.name}  (${svc.slug})  ->  ${TRADE} v${version}`);
+  console.log(`\nEXTRACT  ${svc.name}  (${owner.slug}/${svc.slug})  ->  ${TRADE} v${version}`);
   console.log(`  ${apply ? "APPLY" : "DRY RUN"}\n`);
 
   // Everything on the Service that is economics, recorded and dropped.
@@ -210,22 +264,77 @@ async function main() {
   const rerouteKey = (id: string) => rerouteSlugs.get(id) ?? id;
 
 
-  const questions = svc.questions.map((q, qi) => ({
+  /**
+   * RETIRED QUESTIONS DO NOT BECOME TEMPLATE QUESTIONS.
+   *
+   * Routing V2 retires the V1 access x distance-band questions by emptying
+   * their options rather than deleting the rows, so a tenant's existing answers
+   * still resolve against the question they were given for. That is a promise
+   * to a contractor who HAS history.
+   *
+   * A template is a starting point and has none. Carrying a question with no
+   * options into it would hand every future contractor four permanently dead
+   * rows on day one, and `findUnreachableQuestions` would report them forever
+   * as a defect nobody introduced.
+   *
+   * An option-less question is therefore dropped here, and the live rows it came
+   * from are untouched.
+   */
+  const retired = svc.questions.filter((q) => q.options.length === 0);
+  if (retired.length) {
+    console.log(`\n  RETIRED — present on the source tenant, not carried into the template:`);
+    for (const q of retired) console.log(`    ${q.key}`);
+  }
+  const liveQuestions = svc.questions.filter((q) => q.options.length > 0);
+
+  const questions = liveQuestions.map((q, qi) => ({
     key: q.key,
     prompt: resolveCopy(q.key, "prompt", q.prompt),
     helpText: q.helpText ? resolveCopy(q.key, "helpText", q.helpText) : null,
     inputType: q.inputType,
+    // ROUTING V2 — part of the executable pricing contract, not presentation.
+    numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin,
+    numberMax: q.numberMax,
     order: qi,
     options: q.options.map((o, oi) => {
       const where = `${q.key}/${o.value}`;
       if (o.priceModifierCents) findings.push({ where, kind: "economics", detail: `priceModifierCents ${o.priceModifierCents} dropped` });
       if (o.overrideEstimatedMinutes !== null) findings.push({ where, kind: "economics", detail: `overrideEstimatedMinutes ${o.overrideEstimatedMinutes} dropped` });
+      // A band option's wording is a contractor decision, not missing copy —
+      // same rule extract-template-catalog.ts already applies. The template
+      // carries the SHAPE ("{b1} to {b2} feet") and leaves the numbers to the
+      // contractor; the label IS the pattern, deliberately not customer-ready,
+      // which is what keeps a service carrying one from publishing until a
+      // contractor resolves it. Checked BEFORE resolveCopy: a banded option's
+      // live wording is Elite's own already-resolved numbers ("10 to 20
+      // feet"), and running that through resolveCopy would authored-override
+      // or pass through a number that is specifically not template content.
+      const band = POLICIES.questions[q.key];
+      const pattern = band?.patterns[o.value];
+      if (pattern) {
+        usedPolicies.add(band!.policyKey);
+        findings.push({ where, kind: "policy", detail: `banded: "${o.label}" -> pattern "${pattern}" (policy ${band!.policyKey})` });
+      }
       return {
         value: o.value,
         routeAction: o.routeAction,
-        label: resolveCopy(`${q.key}/${o.value}`, "label", o.label),
+        // ROUTING V2 numeric routing — part of the executable contract.
+        numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast,
+        numberAtMost: o.numberAtMost,
+        // ROUTING V2 capability gate. TEMPLATE side of the split: the template
+        // states what a route REQUIRES; ContractorCapability states what a
+        // contractor OFFERS. Requiring drywall restoration is trade knowledge
+        // about the work; declaring you do it is that contractor's business.
+        //
+        // Dropping this silently handed a provisioned contractor finished-wall
+        // routes with no gate at all — restoration offered by someone who never
+        // said they do it.
+        requiresCapabilityKey: o.requiresCapabilityKey,
+        label: pattern ?? resolveCopy(`${q.key}/${o.value}`, "label", o.label),
+        labelPattern: pattern ?? null,
+        policyKey: pattern ? band!.policyKey : null,
         order: oi,
-        nextQuestionKey: o.nextQuestionId ? svc.questions.find((x) => x.id === o.nextQuestionId)?.key ?? null : null,
+        nextQuestionKey: o.nextQuestionId ? liveQuestions.find((x) => x.id === o.nextQuestionId)?.key ?? null : null,
         rerouteServiceKey: o.rerouteServiceId
           ? rerouteKey(o.rerouteServiceId) : null,
         referencedServiceKey: o.referencedService?.slug ?? null,
@@ -235,6 +344,8 @@ async function main() {
         components: o.components.filter((c) => c.canonicalComponentId).map((c) => ({
           canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity,
           conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+          // ROUTING V2 — see AnswerOptionComponent.quantityAnswerKey.
+          quantityAnswerKey: c.quantityAnswerKey,
         })),
         // A QuestionDisclaimer may point at the deprecated ConditionalDisclaimer
         // instead of a ContractorDisclaimer; only the canonical-backed ones can
@@ -259,48 +370,137 @@ async function main() {
     return { canonicalMaterialId: m.canonicalMaterialId!, quantity: isAllowance ? null : m.quantity, quantityIsPolicy: isAllowance, order: i };
   });
 
+  // Policies this service needs that no question introduces — the same
+  // service-level manifest entry extract-template-catalog.ts reads.
+  const servicePolicies = POLICIES.servicePolicies[svc.slug] ?? [];
+  for (const k of servicePolicies) usedPolicies.add(k);
+
   console.log("\n  FINDINGS");
   for (const f of findings) console.log(`    ${f.kind.padEnd(10)} ${f.where}\n        ${f.detail}`);
   if (!findings.length) console.log("    (none — suspicious for a real service; check the classification)");
 
   if (!apply) { console.log(`\n  Dry run — nothing written.\n`); await prisma.$disconnect(); return; }
 
-  const tv = await prisma.templateVersion.upsert({
-    where: { trade_version: { trade: TRADE, version } },
-    // A DELTA: this extracts ONE service into a version, which is changes
-    // onto an earlier catalog rather than a catalog. Installing it as one
-    // would give a contractor a single-service business.
-    update: {}, create: { trade: TRADE, version, kind: "DELTA", notes: `extracted from ${slug}` },
-  });
-  await prisma.templateService.deleteMany({ where: { templateVersionId: tv.id, key: svc.slug } });
-  const ts = await prisma.templateService.create({
-    data: {
-      templateVersionId: tv.id, key: svc.slug, slug: svc.slug, name: svc.name,
-      shortDescription: svc.shortDescription, icon: svc.icon,
-      canonicalCategoryId: svc.contractorCategory!.canonicalCategoryId,
-      bookingType: svc.bookingType, photoState: svc.photoState,
-      isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
-      materials: { create: materials },
-    },
-  });
-  for (const q of questions) {
-    await prisma.templateQuestion.create({
+  const overwriteConfirmed = process.argv.includes("--i-know-this-overwrites-a-published-version");
+  const existingVersion = await prisma.templateVersion.findUnique({ where: { trade_version: { trade: TRADE, version } } });
+  if (existingVersion) {
+    const existingService = await prisma.templateService.findUnique({
+      where: { templateVersionId_key: { templateVersionId: existingVersion.id, key: svc.slug } },
+      select: { id: true },
+    });
+    if (existingService && !overwriteConfirmed) {
+      console.error(
+        `\n  REFUSED: ${TRADE} v${version} already publishes "${svc.slug}". A published version is\n` +
+        `  immutable by default — templateVersionSource resolves whatever is written the instant\n` +
+        `  it lands, with no staging step, so overwriting it silently rewrites what a contractor\n` +
+        `  may already have installed from.\n\n` +
+        `  Publish the correction as a NEW version instead (--version ${version + 1} or higher) —\n` +
+        `  templateVersionSource picks up the later DELTA for this same key automatically, and\n` +
+        `  the old version stays exactly as it was, which is what makes the correction recoverable.\n\n` +
+        `  If this overwrite is genuinely intended, pass --i-know-this-overwrites-a-published-version.\n`
+      );
+      await prisma.$disconnect();
+      process.exit(1);
+    }
+    if (existingService) {
+      console.log(`\n  OVERWRITING ${TRADE} v${version}'s existing "${svc.slug}" — confirmed with --i-know-this-overwrites-a-published-version.\n`);
+    }
+  }
+
+  /**
+   * ATOMIC PUBLICATION.
+   *
+   * Every write below used to run as its own round trip: upsert the version,
+   * delete the old copy of this service, create the new one, then one
+   * `templateQuestion.create` per question — sixteen or more separate
+   * statements for a real service. `templateVersionSource` reads whatever
+   * rows exist with no notion of "still being written", so a crash, a
+   * killed process or a lost connection between any two of those statements
+   * left a TemplateService with some questions and not others — a tree with
+   * options that route to a `nextQuestionKey` that was never created — fully
+   * visible to `installCatalog` and to any fresh contractor provisioning
+   * from this version in that window. `$transaction` makes the whole
+   * publication one all-or-nothing unit: either every question and option
+   * this service needs exists, or the deleteMany above the old copy never
+   * committed either and the previous, complete copy of this service is
+   * still what a contractor receives.
+   */
+  await prisma.$transaction(async (tx) => {
+    const tv = await tx.templateVersion.upsert({
+      where: { trade_version: { trade: TRADE, version } },
+      // A DELTA: this extracts ONE service into a version, which is changes
+      // onto an earlier catalog rather than a catalog. Installing it as one
+      // would give a contractor a single-service business.
+      update: {}, create: { trade: TRADE, version, kind: "DELTA", notes: `extracted from ${slug}` },
+    });
+
+    /**
+     * POLICY DEFINITIONS — written before the service, same order
+     * extract-template-catalog.ts already uses and for the same reason: an
+     * answer option referencing one cannot be created until it exists.
+     * Silently omitted here until now, which meant a banded question this
+     * tool extracted lost its band shape and its options' unresolved-pattern
+     * behavior entirely — the contractor lost the fact that a number was
+     * theirs to set, not the template's.
+     */
+    const policyIds = new Map<string, string>();
+    for (const key of [...usedPolicies].sort()) {
+      const def = POLICIES.definitions[key];
+      if (!def) throw new Error(`Policy "${key}" is referenced but not defined in ${`prisma/template/electrical.policies.json`}.`);
+      const row = await tx.templatePolicyDefinition.upsert({
+        where: { templateVersionId_key: { templateVersionId: tv.id, key } },
+        update: { type: def.type, unit: def.unit ?? null, boundaryCount: def.boundaryCount, prompt: def.prompt },
+        create: { templateVersionId: tv.id, key, type: def.type, unit: def.unit ?? null,
+                  boundaryCount: def.boundaryCount, prompt: def.prompt },
+      });
+      policyIds.set(key, row.id);
+    }
+
+    await tx.templateService.deleteMany({ where: { templateVersionId: tv.id, key: svc.slug } });
+    const ts = await tx.templateService.create({
       data: {
-        templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
-        inputType: q.inputType, order: q.order,
-        options: { create: q.options.map((o) => ({
-          value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
-          nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
-          referencedServiceKey: o.referencedServiceKey,
-          requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
-          illustrationUrls: o.illustrationUrls,
-          components: { create: o.components },
-          disclaimers: { create: o.disclaimers },
-          photoGroups: { create: o.photoGroups },
-        })) },
+        templateVersionId: tv.id, key: svc.slug, slug: svc.slug, name: svc.name,
+        shortDescription: svc.shortDescription, icon: svc.icon,
+        canonicalCategoryId: svc.contractorCategory!.canonicalCategoryId,
+        bookingType: svc.bookingType, photoState: svc.photoState,
+        isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
+        // Which pricing engine a service resolves through — LEGACY_PUBLISHED
+        // vs. DERIVED_RESOLVED_SCOPE — is as structural a fact as bookingType,
+        // and was silently dropped here: every extraction through this tool
+        // wrote the schema default regardless of what the source actually
+        // was. A service whose source has moved to DERIVED_RESOLVED_SCOPE
+        // re-extracting as LEGACY_PUBLISHED would silently regress every
+        // future install of it — the exact defect §0.9 already found and
+        // fixed in extract-template-catalog.ts, present here too until now.
+        pricingMethod: svc.pricingMethod,
+        materials: { create: materials },
+        policies: { create: servicePolicies.map((k) => ({ templatePolicyDefinitionId: policyIds.get(k)! })) },
       },
     });
-  }
+    for (const q of questions) {
+      await tx.templateQuestion.create({
+        data: {
+          templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
+          inputType: q.inputType, numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin, numberMax: q.numberMax,
+          order: q.order,
+          options: { create: q.options.map((o) => ({
+            value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
+            numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+            requiresCapabilityKey: o.requiresCapabilityKey,
+            labelPattern: o.labelPattern,
+            templatePolicyDefinitionId: o.policyKey ? policyIds.get(o.policyKey) ?? null : null,
+            nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
+            referencedServiceKey: o.referencedServiceKey,
+            requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
+            illustrationUrls: o.illustrationUrls,
+            components: { create: o.components },
+            disclaimers: { create: o.disclaimers },
+            photoGroups: { create: o.photoGroups },
+          })) },
+        },
+      });
+    }
+  });
   console.log(`\n  Extracted into ${TRADE} v${version}: ${questions.length} questions, ` +
               `${questions.flatMap((q) => q.options).length} options, ${materials.length} materials.\n`);
   await prisma.$disconnect();

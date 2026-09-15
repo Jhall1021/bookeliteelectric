@@ -16,6 +16,39 @@
  *
  * Where the contractor has already changed the same thing, the change is
  * reported as a CONFLICT and adoption keeps theirs.
+ *
+ * ROUTING V2 FIDELITY. A question or option this tool adopts must be a real,
+ * routable member of the live tree, not a label with nowhere to go. Carried
+ * now, having silently been dropped before:
+ *
+ *   routing links        nextQuestionKey/rerouteServiceKey/referencedServiceKey
+ *                         — without these an adopted option CONTINUEs into a
+ *                         dead end regardless of what the template says it
+ *                         should do next.
+ *   numeric constraints   numberMin/numberMax/numberAllowsDecimal on the
+ *                         question, numberAtLeast/numberAtMost/
+ *                         numberAtLeastExclusive and requiresCapabilityKey
+ *                         on the option — Routing V2's numeric routing and
+ *                         capability gate are part of the executable
+ *                         contract, not presentation, exactly as
+ *                         extract-template-service.ts already documents.
+ *   component bindings    AnswerOptionComponent rows (canonical component,
+ *                         quantity, condition, quantityAnswerKey) — without
+ *                         these an adopted option prices nothing and takes
+ *                         off no material, however correct its label reads.
+ *
+ * A routing link resolves against THIS contractor's own live tree at adopt
+ * time (by templateKey first, falling back to slug — a tenant that IS a
+ * template's own source, like Elite, carries no templateKey at all). A link
+ * that cannot be resolved yet — its target has not been adopted in an
+ * earlier `--adopt` call — is left null and reported, never guessed at: this
+ * tool applies one change at a time by design, and a multi-question addition
+ * may need to be adopted in dependency order.
+ *
+ * STILL NOT CARRIED, NAMED RATHER THAN SILENTLY DROPPED: materials
+ * (AnswerOptionMaterial), disclaimers, photo groups, and policy-banded
+ * label patterns. None of these were named in this correction; carrying
+ * them is real further work on this same tool, left for a later pass.
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
@@ -29,6 +62,9 @@ type Change =
   | { kind: "question-added"; key: string; prompt: string }
   | { kind: "option-added"; questionKey: string; value: string; label: string }
   | { kind: "wording-changed"; questionKey: string; from: string; to: string; conflict: boolean };
+
+/** Every field an adopted question/option needs to be a real, routable member of the tree. */
+const TEMPLATE_QUESTION_INCLUDE = { options: { include: { components: true } } } as const;
 
 async function detect(contractorSlug: string, serviceKey: string) {
   const c = await prisma.contractor.findUniqueOrThrow({ where: { slug: contractorSlug }, select: { id: true } });
@@ -48,7 +84,7 @@ async function detect(contractorSlug: string, serviceKey: string) {
   const newest = await prisma.templateService.findFirst({
     where: { key: serviceKey, templateVersion: { trade: from.trade } },
     orderBy: { templateVersion: { version: "desc" } },
-    include: { templateVersion: true, questions: { include: { options: true } } },
+    include: { templateVersion: true, questions: { include: TEMPLATE_QUESTION_INCLUDE } },
   });
   if (!newest) return { svc, from, latest: from, changes: [] as Change[] };
   const latest = newest.templateVersion;
@@ -103,8 +139,59 @@ async function main() {
 
   const newer = await prisma.templateService.findFirstOrThrow({
     where: { templateVersionId: latest.id, key: serviceKey },
-    include: { questions: { include: { options: true } } },
+    include: { questions: { include: TEMPLATE_QUESTION_INCLUDE } },
   });
+
+  /**
+   * Resolve a template routing key to a LIVE id under this same contractor.
+   *
+   * Tried by templateKey first — the normal case for a contractor who
+   * installed from a template, where the live row's own templateKey records
+   * which template concept it came from. Falls back to slug, which is what
+   * makes this resolve at all for a tenant that IS a template's own source
+   * (Elite carries templateKey: null on services v1 was extracted from,
+   * matching its slug 1:1 since nothing has remapped it).
+   *
+   * A target that resolves to neither is not a bug in this function — it
+   * means the target has not been adopted yet. Reported by the caller,
+   * never guessed at.
+   */
+  async function resolveServiceId(key: string): Promise<string | null> {
+    const byTemplateKey = await prisma.service.findFirst({ where: { contractorId: svc.contractorId, templateKey: key }, select: { id: true } });
+    if (byTemplateKey) return byTemplateKey.id;
+    const bySlug = await prisma.service.findFirst({ where: { contractorId: svc.contractorId, slug: key }, select: { id: true } });
+    return bySlug?.id ?? null;
+  }
+  async function resolveQuestionId(key: string): Promise<string | null> {
+    const q = await prisma.question.findFirst({ where: { serviceId: svc.id, templateKey: key }, select: { id: true } });
+    if (q) return q.id;
+    const byKey = await prisma.question.findFirst({ where: { serviceId: svc.id, key }, select: { id: true } });
+    return byKey?.id ?? null;
+  }
+
+  /** One TemplateAnswerOption's live-writable shape — shared by both create paths below. */
+  async function liveOptionData(o: (typeof newer.questions)[number]["options"][number]) {
+    const [nextQuestionId, rerouteServiceId, referencedServiceId] = await Promise.all([
+      o.nextQuestionKey ? resolveQuestionId(o.nextQuestionKey) : Promise.resolve(null),
+      o.rerouteServiceKey ? resolveServiceId(o.rerouteServiceKey) : Promise.resolve(null),
+      o.referencedServiceKey ? resolveServiceId(o.referencedServiceKey) : Promise.resolve(null),
+    ]);
+    for (const [want, got, label] of [
+      [o.nextQuestionKey, nextQuestionId, "nextQuestionKey"],
+      [o.rerouteServiceKey, rerouteServiceId, "rerouteServiceKey"],
+      [o.referencedServiceKey, referencedServiceId, "referencedServiceKey"],
+    ] as const) {
+      if (want && !got) console.log(`      ! ${label} "${want}" does not resolve on this contractor's live tree yet — written as null. Adopt its target first; this specific row will need a manual follow-up fix once it exists, since re-running --adopt on an already-applied change has nothing left to detect.`);
+    }
+    return {
+      value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
+      requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
+      illustrationUrls: o.illustrationUrls,
+      numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
+      requiresCapabilityKey: o.requiresCapabilityKey,
+      nextQuestionId, rerouteServiceId, referencedServiceId,
+    };
+  }
 
   let applied = 0;
   for (const ch of changes) {
@@ -120,13 +207,19 @@ async function main() {
       const tq = newer.questions.find((q) => q.key === ch.key)!;
       const q = await prisma.question.create({
         data: { serviceId: svc.id, key: tq.key, prompt: tq.prompt, helpText: tq.helpText,
-                inputType: tq.inputType, order: tq.order, templateVersionId: latest.id, templateKey: tq.key },
+                inputType: tq.inputType, order: tq.order,
+                numberAllowsDecimal: tq.numberAllowsDecimal, numberMin: tq.numberMin, numberMax: tq.numberMax,
+                templateVersionId: latest.id, templateKey: tq.key },
       });
       for (const o of tq.options) {
+        const data = await liveOptionData(o);
         await prisma.answerOption.create({
-          data: { questionId: q.id, value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
-                  requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
-                  illustrationUrls: o.illustrationUrls,
+          data: { ...data, questionId: q.id,
+                  components: { create: o.components.map((c) => ({
+                    canonicalComponentId: c.canonicalComponentId, quantity: c.quantity,
+                    conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+                    quantityAnswerKey: c.quantityAnswerKey,
+                  })) },
                   // No price modifier. Structure only.
                   templateVersionId: latest.id, templateKey: `${tq.key}/${o.value}` },
         });
@@ -137,10 +230,14 @@ async function main() {
       const tq = newer.questions.find((q) => q.key === ch.questionKey)!;
       const to = tq.options.find((o) => o.value === ch.value)!;
       const mine = await prisma.question.findFirstOrThrow({ where: { serviceId: svc.id, key: ch.questionKey } });
+      const data = await liveOptionData(to);
       await prisma.answerOption.create({
-        data: { questionId: mine.id, value: to.value, label: to.label, routeAction: to.routeAction, order: to.order,
-                requiredPhotoLabels: to.requiredPhotoLabels, photosBlockBooking: to.photosBlockBooking,
-                illustrationUrls: to.illustrationUrls,
+        data: { ...data, questionId: mine.id,
+                components: { create: to.components.map((c) => ({
+                  canonicalComponentId: c.canonicalComponentId, quantity: c.quantity,
+                  conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+                  quantityAnswerKey: c.quantityAnswerKey,
+                })) },
                 templateVersionId: latest.id, templateKey: `${ch.questionKey}/${to.value}` },
       });
       applied++;

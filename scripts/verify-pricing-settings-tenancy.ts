@@ -45,11 +45,25 @@ const settingsFor = (contractorId: string) =>
 async function main() {
   console.log("\nPRICING SETTINGS TENANCY\n");
 
-  const elite = await prisma.contractor.findFirstOrThrow({
-    where: { slug: { not: DUMMY_SLUG } },
+  // NAMED, not "whichever contractor is not the dummy".
+  //
+  // This was findFirst({ slug: { not: DUMMY_SLUG } }), which returned an
+  // ARBITRARY tenant — and quietly started returning a rehearsal fixture the
+  // moment one was added, so a suite about Elite's isolation was asserting
+  // about somebody else. Exactly the unscoped-lookup defect this workstream
+  // built _serviceTargets to prevent, sitting inside a tenancy proof.
+  const elite = await prisma.contractor.findUniqueOrThrow({
+    where: { slug: "elite-electric" },
     select: { id: true, name: true },
   });
   const eliteBefore = await settingsFor(elite.id);
+  // This suite is about TENANT ISOLATION, so it needs a fixture whose rate is
+  // actually set. An undecided rate is a different scenario and would make
+  // every comparison below vacuous, so it fails loudly instead of coercing.
+  if (eliteBefore?.crewHourRateCents == null) {
+    throw new Error("Elite has no crew-hour rate set; this tenancy proof needs one.");
+  }
+  const eliteRateBefore = eliteBefore.crewHourRateCents;
   if (!eliteBefore) {
     console.error("  Elite has no pricing settings — nothing to protect. Aborting.");
     process.exitCode = 1;
@@ -95,7 +109,7 @@ async function main() {
 
     await prisma.pricingSettings.update({
       where: { contractorId: elite.id },
-      data: { crewHourRateCents: eliteBefore.crewHourRateCents + 1 },
+      data: { crewHourRateCents: eliteRateBefore + 1 },
     });
     ok((await settingsFor(dummy.id))?.crewHourRateCents === DUMMY_RATE + 1000,
        "and an update to Elite does not move the probe's rate either");
@@ -124,7 +138,7 @@ async function main() {
     const headers = [...out.matchAll(/PRICE RECONCILIATION — (.+)/g)].map((m) => m[1].trim());
     ok(headers.includes(elite.name), `it reports for ${elite.name}`, `saw: ${headers.join(", ")}`);
     ok(headers.includes(dummy.name), `and separately for ${dummy.name}`, `saw: ${headers.join(", ")}`);
-    const eliteRateShown = `$${eliteBefore.crewHourRateCents / 100}`;
+    const eliteRateShown = `$${eliteRateBefore / 100}`;
     const dummyRateShown = `$${(DUMMY_RATE + 1000) / 100}`;
     ok(out.includes(`Crew-hour rate        ${eliteRateShown}`),
        `Elite's section quotes Elite's rate (${eliteRateShown})`);

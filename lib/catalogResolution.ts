@@ -35,6 +35,7 @@ import { RESOLUTION_TREE_INCLUDE, type ResolvedServiceTree, type ServiceTree } f
 import { loadOwnComponents, canonicalComponentIdsIn, type OwnComponent } from "./contractorComponents";
 import { findTroubleshootingService } from "./troubleshooting";
 import { mapWithConcurrency } from "./concurrency";
+import { loadCapabilityFacts } from "./capabilities";
 
 export type ResolvedCatalog = ReadonlyMap<string, ResolvedServiceTree>;
 
@@ -86,6 +87,12 @@ export async function loadCatalogForResolution(db: PrismaClient, contractorId: s
   );
   const troubleshooting = new Map(trades.map((t, i) => [t, lookups[i]]));
 
+  // Contractor-scoped, so one read serves every service in the catalog —
+  // loadServiceForResolution fetches the same facts per-call since it only
+  // ever resolves one service at a time; the bulk loader has no per-service
+  // reason to repeat that read.
+  const capabilities = await loadCapabilityFacts(db, contractorId);
+
   // Assemble each service exactly as loadServiceForResolution returns it.
   const out = new Map<string, ResolvedServiceTree>();
   for (const s of services) {
@@ -110,7 +117,7 @@ export async function loadCatalogForResolution(db: PrismaClient, contractorId: s
         else troubleshootingProblem = found.problem;
       }
     }
-    out.set(s.id, { ...s, ownComponents, ownMaterialCosts, troubleshootingServiceId, troubleshootingProblem });
+    out.set(s.id, { ...s, ownComponents, ownMaterialCosts, troubleshootingServiceId, troubleshootingProblem, capabilities });
   }
   return out;
 }

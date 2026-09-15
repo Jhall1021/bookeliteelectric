@@ -63,7 +63,15 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
           options: {
             orderBy: { order: "asc" },
             include: {
-              referencedService: { select: { basePrice: true } },
+              // contractorId travels for the tenant check below, never for
+              // display — defense in depth alongside the write-time guard in
+              // the admin tree editor and template provisioning.
+              // whileWeThereBasePrice travels alongside basePrice so this
+              // endpoint can supply both anchors — see
+              // referencedServicePrimaryCents/referencedServiceAddOnCents
+              // below; picking between them needs to know isAddOn, which
+              // this endpoint doesn't.
+              referencedService: { select: { basePrice: true, whileWeThereBasePrice: true, contractorId: true } },
               // Components come down with the tree so the engine can
               // accumulate a configuration client-side without a round trip
               // per answer.
@@ -161,6 +169,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     bookingType: service.bookingType,
     basePrice: service.basePrice,
     whileWeThereBasePrice: service.whileWeThereBasePrice,
+    pricingMethod: service.pricingMethod,
     startingPriceLabel: service.startingPriceLabel,
     ctaLabel: service.ctaLabel,
     // Cross-references resolved against THIS contractor's live catalog: copy
@@ -192,6 +201,10 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
       prompt: q.prompt,
       helpText: q.helpText,
       inputType: q.inputType,
+      // ROUTING V2 — the authored numeric contract, carried verbatim. The
+      // client must never re-derive these from labels or from option order.
+      numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin,
+      numberMax: q.numberMax,
       conditionalHelp: q.conditionalHelp
         .map((h) => ({
           h,
@@ -209,11 +222,39 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         id: o.id,
         label: o.label,
         value: o.value,
-        // Live lookup wins over the frozen seed-time number whenever this
-        // option references another service — this is what makes admin
-        // edits to e.g. Elite Tilt Mount's price actually show up here.
-        priceModifierCents: o.referencedService?.basePrice ?? o.priceModifierCents,
+        priceModifierCents: o.priceModifierCents,
+        // Live lookup, not the frozen seed-time number, whenever this option
+        // references another service — this is what makes admin edits to
+        // e.g. Elite Tilt Mount's price actually show up here. A SEPARATE
+        // pair of fields from priceModifierCents above (see
+        // BranchContribution in lib/pricing.ts): that one always applies at
+        // whatever it holds, so folding a missing/cross-tenant reference into
+        // it here would have the browser show a confident price the server
+        // (lib/routeResolver.ts, which resolves the identical fields the
+        // identical way) would actually refuse.
+        //
+        // BOTH primary and add-on prices travel — this DTO doesn't know
+        // which one a customer will need (isAddOn is decided client-side,
+        // from a separate /api/visit read), so it can't pick for them.
+        // lib/pricing.ts's resolveReferencedServicePriceCents is the ONE
+        // place either is chosen, client-side, once isAddOn is known — never
+        // read one of these two fields ad hoc and hand it to applyBranch.
+        // Each is independently null when unresolved (missing/cross-tenant
+        // reference, or the referenced service has no price recorded for
+        // that specific anchor) — never backfilled from the other.
+        referencedServicePrimaryCents: !o.referencedServiceId
+          ? undefined
+          : o.referencedService && o.referencedService.contractorId === site.contractorId
+            ? o.referencedService.basePrice
+            : null,
+        referencedServiceAddOnCents: !o.referencedServiceId
+          ? undefined
+          : o.referencedService && o.referencedService.contractorId === site.contractorId
+            ? o.referencedService.whileWeThereBasePrice
+            : null,
         nextQuestionId: o.nextQuestionId,
+        numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast,
+        numberAtMost: o.numberAtMost,
         routeAction: o.routeAction,
         rerouteServiceId: o.rerouteServiceId,
         // Groups expand first, then any loose labels specific to this answer.

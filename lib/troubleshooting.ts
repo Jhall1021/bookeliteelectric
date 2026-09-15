@@ -70,6 +70,9 @@ export type TroubleshootingService = {
   slug: string;
   name: string;
   basePrice: number | null;
+  /** The contractor's own configured terms for this visit — never hardcoded
+   *  by a caller. See Service.disclaimer. */
+  disclaimer: string | null;
   /** For building the storefront link. Null when the service has no category. */
   categorySlug: string | null;
 };
@@ -124,6 +127,7 @@ export async function findTroubleshootingService(
       slug: true,
       name: true,
       basePrice: true,
+      disclaimer: true,
       contractorCategory: {
         select: { canonicalCategory: { select: { slug: true } } },
       },
@@ -159,9 +163,45 @@ export async function findTroubleshootingService(
       slug: s.slug,
       name: s.name.trim(),
       basePrice: s.basePrice,
+      disclaimer: s.disclaimer,
       categorySlug: s.contractorCategory?.canonicalCategory?.slug ?? null,
     },
   };
+}
+
+/**
+ * Every trade this contractor is enrolled in, and whether each one has a
+ * resolvable diagnostic — for a DIRECT entry point (the storefront's
+ * "I don't know what's wrong" page), which has no originating service to
+ * read a trade from the way a mid-flow reroute does.
+ *
+ * Returns one row per `ContractorTrade`, in enrollment order, each carrying
+ * its own `findTroubleshootingService` verdict. The caller decides what
+ * "eligible" (`ok: true`) rows mean for its UI — one, ask nothing; several,
+ * ask which trade; none, there is no diagnostic to offer — this function
+ * only enumerates and resolves, it does not choose.
+ *
+ * V1 enrolls a contractor in exactly one trade at a time (see
+ * lib/tradeEnrolment.ts) — today this will almost always return a single
+ * row. It stays plural because the model (`ContractorTrade` is a relation,
+ * not a scalar) already allows more, and a caller that assumed "at most one"
+ * would silently pick a trade for a customer the day that constraint lifts.
+ */
+export async function findTroubleshootingDestinations(
+  db: PrismaClient,
+  contractorId: string
+): Promise<{ tradeKey: string; lookup: TroubleshootingLookup }[]> {
+  const enrolled = await db.contractorTrade.findMany({
+    where: { contractorId },
+    select: { tradeKey: true },
+    orderBy: { tradeKey: "asc" },
+  });
+  return Promise.all(
+    enrolled.map(async ({ tradeKey }) => ({
+      tradeKey,
+      lookup: await findTroubleshootingService(db, contractorId, tradeKey),
+    }))
+  );
 }
 
 
