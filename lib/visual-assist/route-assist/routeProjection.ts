@@ -26,8 +26,13 @@ export function projectOrderedRouteToViewportV1(args: { points: RouteAssistProje
   const width = args.viewportWidth ?? 400;
   const height = args.viewportHeight ?? 300;
   const padding = args.padding ?? 24;
-  const points = args.points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-  if (points.length < 2 || width <= padding * 2 || height <= padding * 2) return null;
+
+  // Never discard an invalid waypoint and then draw a line between the points
+  // on either side of it. That would silently change the reviewed route's
+  // topology. Rendering fails closed until every ordered point is usable.
+  if (args.points.length < 2 || args.points.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y))) return null;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(padding) || padding < 0 || width <= padding * 2 || height <= padding * 2) return null;
+  const points = args.points;
 
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
