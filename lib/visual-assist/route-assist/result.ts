@@ -25,16 +25,30 @@ import { incompleteResult } from "./uncertainty";
 import type { RouteAssistCaptureInput, RouteAssistOutcome, RouteAssistResult } from "./types";
 
 export function buildRouteAssistResult(input: RouteAssistCaptureInput): RouteAssistOutcome {
-  const source = input.points.find((p) => p.kind === "SOURCE");
-  const destination = input.points.find((p) => p.kind === "DESTINATION");
-  if (!source) return incompleteResult("SOURCE_NOT_CLEAR");
-  if (!destination) return incompleteResult("DESTINATION_NOT_CLEAR");
+  const sources = input.points.filter((p) => p.kind === "SOURCE");
+  const destinations = input.points.filter((p) => p.kind === "DESTINATION");
+  if (sources.length === 0) return incompleteResult("SOURCE_NOT_CLEAR");
+  if (destinations.length === 0) return incompleteResult("DESTINATION_NOT_CLEAR");
+  // More than one A or B is not a route to disambiguate by array order. The
+  // customer/scan has described multiple possible routes, so refuse rather
+  // than silently choosing the first source/destination that `.find()` sees.
+  if (sources.length !== 1 || destinations.length !== 1) {
+    return incompleteResult("MULTIPLE_POSSIBLE_ROUTES");
+  }
 
   const route = orderRoute(input.points, input.segments);
   // A branch, a dead end, or a disconnected graph isn't "the" route to
-  // guess at — refuse rather than pick a branch. See geometry.ts's
-  // orderRoute for exactly what disqualifies a graph.
-  if (!route) return incompleteResult("MULTIPLE_POSSIBLE_ROUTES");
+  // guess at — refuse rather than pick a branch. `orderRoute()` historically
+  // stopped as soon as it reached B, so also prove the A -> B walk consumed
+  // the entire persisted graph. Orphaned points/segments must not disappear
+  // from the physical facts simply because they sit outside the main walk.
+  if (
+    !route ||
+    route.points.length !== input.points.length ||
+    route.segments.length !== input.segments.length
+  ) {
+    return incompleteResult("MULTIPLE_POSSIBLE_ROUTES");
+  }
 
   const cornerList = corners(route);
   const insideCornersCount = cornerList.filter((c) => c.direction === "INSIDE").length;
