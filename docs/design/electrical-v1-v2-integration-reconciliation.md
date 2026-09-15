@@ -6,6 +6,99 @@ Branch `integration/electrical-v1-v2-reconciliation`, built in an isolated
 worktree with its own `npm ci`, on top of PR #56's tip and merged with PR #62's
 tip (which itself carries all of `feat/electrical-routing-v2`). PR #56, PR #62,
 and `feat/electrical-routing-v2` are all untouched — this branch only reads them.
+Reviewed as [draft PR #63](https://github.com/Jhall1021/bookeliteelectric/pull/63);
+§0 records the specific findings from that review and how each was closed.
+
+## 0. PR #63 review — findings closed
+
+A bounded release-readiness pass, not a new audit: five specific findings
+against the evidence in §§1-8 below, closed one at a time.
+
+### 0.1 The cross-device conflict was still open
+
+The delayed-network regression (§4) proved `persistAnswers`' save queue can no
+longer race ITSELF — every writer in that test was the same tab. It never
+proved anything about a genuinely independent second writer. Traced and
+fixed: on a 409, the in-flight request's own stale payload was correctly
+dropped, but the queue's `finally` block still auto-sent whatever was NEXT in
+line — including a payload built from this tab's own local state, in total
+ignorance of what the other writer had just written. Sending it, now that the
+version was resynced, would succeed and silently overwrite the other
+writer's newer answers. Fixed by dropping the pending queue on a genuine 409
+too, not just the failed request's own payload — a same-tab 409 can no
+longer happen at all (the ordering fix already guarantees that), so any 409
+reaching this branch is guaranteed to be a different writer.
+
+Proven with a genuinely independent second writer, not a second call from
+one page: `scripts/verify-cross-device-stale-queue-browser-flow.ts` — browser
+tab A (real `GuidedFlowEngine` code, an artificially delayed PATCH, a second
+answer queued behind it) against device B (an unthrottled raw `fetch` sharing
+tab A's session identity via the same cookie value the embed header
+`lib/session.ts`'s `tokenFromRequest` already treats as equivalent — no
+mocked network, no shared browser context). Confirmed the test actually
+catches the bug: reverted the fix, re-ran, watched device B's write get
+overwritten by tab A's stale queue exactly as predicted, restored the fix,
+confirmed it passes.
+
+### 0.2 Browser assertions were not reliable proof
+
+- **REVIEW detection** matched generic `/photo/i` text, which also appears in
+  ordinary help copy on the same screen family and would have passed even on
+  a route that priced normally. Now waits for `PhotoReviewNotice`'s own
+  specific, stable heading ("We can price this remotely.") racing against
+  the priced heading — proof of WHICH terminal state was reached.
+- **The Back test's promised same-input comparison never actually ran.** It
+  asserted the re-answered price differed from the abandoned figure's price
+  — true, but insufficient: that alone would not rule out a constant, wrong
+  number. Now captures a REFERENCE price for the same footage (20.5 ft) from
+  a wholly separate context that never touched Back, and asserts the
+  Back-and-re-answer price matches it exactly.
+
+### 0.3 Browser-level stale-price and booking proof
+
+New coverage in `scripts/verify-integration-manual-routing-storefront-
+browser-flow.ts` (block F): a price is displayed, a material cost changes
+server-side with no reload — exactly like a customer taking a minute to
+decide — and "Add to My Visit" is clicked against the now-stale number.
+Confirmed via the actual `/api/visit` network response that this is refused
+with 409 `REVIEW_REQUIRED` and creates no `LineItem`. Then the office
+reapproves the new economics, a reload shows the corrected (different)
+price, and THAT booking succeeds with the new price stored — both halves:
+the flow cannot book at a stale price, and it still reaches a genuine
+booking once the staleness is resolved.
+
+This investigation genuinely suspected a real pricing-safety defect at one
+point — the first version of this check assumed the LineItem table started
+empty and failed when it found one row after the "refused" attempt.
+Diagnosed by capturing the raw `/api/visit` network response directly rather
+than guessing from navigation timing: the server had correctly returned 409
+the whole time, and the one row was from this SAME service's earlier,
+legitimate booking in block A/B/C above (a separate context, a separate
+visit). The assertion was wrong, not the product; fixed to compare
+before/after counts instead of against zero.
+
+### 0.4 The full gates needed a properly seeded disposable database
+
+§6 previously ran `verify:full` against an empty database and reported the
+first missing-fixture wall it hit. Per the clarified scope — local fixture
+setup was always allowed; the restriction is on real catalogs and
+production — a THIRD disposable database was built with the full catalog
+seed chain (`npm run db:seed:all` plus Routing V2's own seed scripts) and one
+genuine Elite booking completed through the browser. `verify:full` went from
+failing on its first required step to clearing roughly 900 lines of
+assertions before its next genuine wall. §6 below is rewritten with the full
+result, not just the first failure.
+
+### 0.5 Wording correction
+
+"No segment geometry exists without a Route Assist scan to supply it" and "no
+Route Assist segment geometry" both overstated the actual requirement.
+Corrected throughout (`scripts/verify-integration-manual-routing-storefront-
+browser-flow.ts`, this report): pricing a turn requires the CANONICAL
+PHYSICAL FACT of ordered segment geometry, regardless of how that fact is
+ever supplied — a Route Assist scan is one way to supply it, not the only
+one the system requires. A manual answer of a plain corner COUNT simply
+does not carry that fact, which is what the test actually proves.
 
 ## 1. What was actually being combined
 
@@ -165,10 +258,10 @@ Two disposable Postgres databases in the same task-owned cluster
   a question **in place**; nothing in this rehearsal ran an extraction or
   re-provisioning step that could have handed out new ids to already-attached
   modules.
-- **`p2b_integration_verifyfull`** — a second, completely empty database,
-  used only for the `npm run verify:full` chain (§6), kept separate so its
-  own "requires an empty database" preconditions couldn't collide with the
-  fixture-driven scripts above.
+- **`p2b_integration_seeded`** — a THIRD disposable database, added in the
+  PR #63 review pass (§0.4): the full catalog seed chain plus Routing V2's
+  own seed scripts plus one genuine Elite booking, used for the properly
+  seeded `npm run verify:full` run in §6.
 
 ### Results
 
@@ -181,21 +274,24 @@ Two disposable Postgres databases in the same task-owned cluster
 | `scripts/verify-routing-precision-provisioning.ts` | **25/25** database provisioning and pricing assertions | PR #62, re-run unchanged — includes stale-approval→REVIEW and reapproval→PRICED restoration |
 | `scripts/verify-back-navigation-config-browser-flow.ts` | 17/17, 1 run | PR #56, re-run on the merged branch |
 | `scripts/verify-concurrent-session-creation-browser-flow.ts` | 8/8, 1 run | PR #56, re-run on the merged branch |
-| `scripts/verify-delayed-network-answer-save-browser-flow.ts` | 5/5, 1 run — **the flagged queued-save/cross-device conflict** | PR #56, re-run on the merged branch |
+| `scripts/verify-delayed-network-answer-save-browser-flow.ts` | 5/5, 1 run — same-tab overlapping saves | PR #56, re-run on the merged branch |
 | `scripts/verify-troubleshooting-note-directbook-browser-flow.ts` | 12/12, 1 run | PR #56, re-run on the merged branch |
-| `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` (**new**) | 7/7, **3 consecutive runs** | this branch — see §5 |
+| `scripts/verify-cross-device-stale-queue-browser-flow.ts` (**new, §0.1**) | 5/5, 1 run — genuinely independent 2nd writer | this branch |
+| `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` (**new, extended §0.2/§0.3**) | 12/12, **3 consecutive runs** | this branch — see §5 |
 
-### 5. What the new integration script proves that nothing else did
+### 5. What the integration scripts prove that nothing else did
 
 Every PR #62 suite above proves Routing V2's own logic is intact; every PR #56
 suite proves the session/note/Back fixes are intact. None of them drive the
 **real storefront** (`GuidedFlowEngine.tsx` + `QuestionStep.tsx`) against a
-**real Routing V2 service** — which is exactly the integration point this
-branch's merge hand-resolved. `scripts/verify-integration-manual-routing-
-storefront-browser-flow.ts` builds one real, approved, active
-`DERIVED_RESOLVED_SCOPE` outlet service (via PR #62's own
-`buildPricedDerivedContractor` — the same helper `verify-routing-precision-
-provisioning.ts` uses) and drives it through a real browser:
+**real Routing V2 service**, and none of PR #56's own regressions ever
+exercised a genuinely independent second writer — which are exactly the two
+gaps this branch's own integration scripts close.
+`scripts/verify-integration-manual-routing-storefront-browser-flow.ts`
+builds one real, approved, active `DERIVED_RESOLVED_SCOPE` outlet service
+(via PR #62's own `buildPricedDerivedContractor` — the same helper
+`verify-routing-precision-provisioning.ts` uses) and drives it through a
+real browser:
 
 - **Manual completion, no Route Assist** — every answer typed into a plain
   textarea or clicked as a plain button; zero interaction with Route Assist's
@@ -206,43 +302,115 @@ provisioning.ts` uses) and drives it through a real browser:
 - **Displayed vs. stored price** — the number shown before "Add to My Visit"
   is read back from the real `LineItem.computedPriceCents` afterward and
   matches exactly.
-- **Back / re-answer on a NUMBER question** — six Back clicks from the price
-  screen to the feet question itself, re-typed with a different footage
-  (14.625 → 20.5), walked forward again: the price changes with it, and the
-  server's own persisted `consumedAnswers` hold only the final 20.5, not the
-  abandoned 14.625. `goBack()`'s fix had only ever been proven against
-  multi-choice questions before this.
-- **Turned-route review** — one flat corner instead of zero, otherwise
-  identical: lands on `PHOTO_REVIEW`, not a guessed price, matching the
-  function-level proof that a physical turn needs Route Assist's segment
-  geometry to price with certainty.
+- **Back / re-answer on a NUMBER question, with the promised same-input
+  comparison (§0.2)** — six Back clicks from the price screen to the feet
+  question itself, re-typed with a different footage (14.625 → 20.5), walked
+  forward again: the price both differs from the abandoned figure's, AND
+  matches — exactly — a reference price for that same 20.5 ft captured in a
+  wholly separate context that never touched Back at all. The server's own
+  persisted `consumedAnswers` hold only the final 20.5, not the abandoned
+  14.625. `goBack()`'s fix had only ever been proven against multi-choice
+  questions before this.
+- **Turned-route review, asserted by heading not by generic text (§0.2)** —
+  one flat corner instead of zero, otherwise identical: lands on
+  `PHOTO_REVIEW`, not a guessed price. Pricing a turn requires the canonical
+  physical fact of ordered segment geometry, regardless of how that fact is
+  ever supplied — a Route Assist scan is one way to supply it, not the only
+  one — and a manual corner COUNT does not carry it. Asserted against
+  `PhotoReviewNotice`'s own specific heading, not a generic `/photo/i` match.
+- **A cost change between displaying a price and adding it to the visit,
+  new in the PR #63 review pass (§0.3)** — a price is shown, a material cost
+  changes server-side with no reload, and clicking "Add to My Visit" against
+  the now-stale number is confirmed (via the real network response) refused
+  with 409 `REVIEW_REQUIRED` and creates no `LineItem`. The office reapproves
+  the new economics, a reload shows the corrected price, and THAT booking
+  succeeds with the new price stored.
 
-Stale-approval and reapproval are **not** re-proven through the browser here
-— `verify-routing-precision-provisioning.ts`'s own "changed economics
-invalidate prior approval" / "reapproval restores fixed pricing" checks
-already cover that at the function level, and duplicating it through a second
-UI path would have tested the same server decision twice for no new signal.
+Stale-approval → REVIEW and reapproval → PRICED restoration are proven at
+BOTH levels now: `verify-routing-precision-provisioning.ts`'s own "changed
+economics invalidate prior approval" / "reapproval restores fixed pricing"
+at the function level, and block F above through the actual storefront UI
+and the real `/api/visit` network response — the gap named in the PR #63
+review.
 
-## 6. `npm run verify:full` — not claimed green, and why
+## 6. `npm run verify:full` — properly seeded, and precisely where it still stops
 
-Run against the second, empty disposable database. Stops on
-`verify-material-cost-atomicity.ts`: `No CanonicalMaterial found` (key
-`WIRE_12_2`). **Confirmed as a missing rehearsal fixture, not a regression**:
-neither PR #56 nor PR #62 ever touched this file, and it depends on catalog
-seed data (`seed-all.ts` / a published `TemplateVersion`) that a genuinely
-empty database has never had — the identical class of gap the electrical
-decision-tree audit's own fourth-pass report documented for
-`verify-platform-onboarding.ts` on a from-scratch database. Seeding a full
-catalog to push further was explicitly out of scope for this pass ("no live
-template extraction, no existing-catalog update").
+**Revised in the PR #63 review pass (§0.4).** The first version of this
+section ran against a genuinely empty database and reported the very first
+missing-fixture wall — `verify-material-cost-atomicity.ts`, `No
+CanonicalMaterial found` — without seeding anything, on the assumption that
+seeding was out of scope. That assumption was corrected: local fixture
+setup was always allowed, and only real catalogs and production are
+restricted. This section is the result of actually doing that.
 
-Spot-checked past that point instead, individually, on the same empty
-database: `verify-tenant-indexes.ts`, `verify-checkout-atomicity.ts` (14/14),
+**A third disposable database (`p2b_integration_seeded`)** was built with:
+
+1. The Elite contractor row bootstrapped directly (the historical
+   `migrate-material-split` step refuses on an empty database — this is the
+   same one-line `contractor.upsert` this repo's own rehearsal-bootstrap doc
+   already documents).
+2. `npm run db:seed:all` (22 steps; fails at `seed-conditional-disclaimers.ts`
+   with `No CanonicalDisclaimer found` — the same pre-existing, documented
+   gap: `backfill-disclaimer-split-2026-08-27.ts` has been neutralized since
+   28 Aug 2026 and there is no other path to create one from nothing).
+3. The remaining seed-all steps run directly: `seed-content-fixes.ts`,
+   `seed-labor-hours.ts`, `seed-dedicated-circuit-labor.ts`,
+   `repair-trees.ts` (0 dangling, 0 unreachable), `seed-appliance-services.ts`.
+4. Routing V2's own seed scripts, in dependency order (components before
+   component-materials — the first attempt ran them in the wrong order and
+   surfaced exactly that): `seed-routing-v2-material-roles.ts`,
+   `seed-routing-v2-components.ts`, `seed-routing-v2-component-materials.ts`,
+   `seed-surface-mounted-services.ts`, `seed-routing-v2-fixtures.ts`.
+   `seed-routing-v2-policies.ts` and `seed-routing-v2-pricing-method.ts`
+   both require a published `TemplateVersion` and were NOT run — see below.
+5. `prisma/bootstrap-rehearsal-contractor.ts` (scheduling, business hours,
+   service area zip) — the same script §7's own guard covers.
+6. **One genuine Elite booking**, completed through an actual browser
+   session (`replace-standard-outlet`, one question answered, a real
+   scheduled arrival window, real checkout details) — needed because
+   `verify-platform-authority.ts`'s "Elite's real booking id is invisible"
+   check has nothing to probe on a database with zero bookings, exactly as
+   the fourth-pass followthrough report already documented for this same
+   check.
+
+**Result: `npm run verify:full` cleared roughly 900 lines of assertions —
+essentially the entire tenant-isolation, platform-authority, guard-adoption,
+and pricing-integrity portion of the chain — before its next wall**, up from
+failing on the very first required step. Two walls found past that point,
+both traced to their root cause rather than left as a bare failure:
+
+- **`verify-platform-read-model.ts`**: a concurrency-bounding check
+  ("entries are bounded... 2 contractors, at most 2 in flight when asked for
+  2") that needs a SECOND real, persisted tenant to exist alongside Elite.
+  Attempted via this repo's own `scripts/onboard-contractor-two.ts --commit`
+  (the standing tool for exactly this — "NOT A FIXTURE... this one
+  persists," per its own header) and traced to the actual root cause:
+  `Error: NO_PUBLISHED_TEMPLATE: No published SNAPSHOT catalog for trade
+  "electrical".` Onboarding any second contractor through the supported
+  `installCatalog` lifecycle requires a published `TemplateVersion` —
+  the SAME thing `seed-routing-v2-policies.ts` above needed and didn't get,
+  and the identical root gap that has blocked full-catalog verification
+  across every prior pass of this whole engagement. Creating one requires
+  either extracting from a real catalog (explicitly restricted this pass) or
+  hand-authoring one from scratch (a materially larger undertaking than a
+  bounded release-readiness pass). The partial, failed second-tenant row was
+  cleaned up rather than left in a half-onboarded state.
+- **The four gates already individually diagnosed in the electrical
+  decision-tree audit's own fourth-pass report** — re-run individually on
+  THIS properly seeded database to confirm nothing had changed:
+  `verify-scheduling-availability.ts` (no eligible crew), `verify-stripe-
+  connect.ts` (1 failure, no Stripe connection on the rehearsal row),
+  `verify-payment-ledger.ts` (crashes reading a pre-existing booking that
+  cannot exist on a fresh database), `verify-deposit-flow.ts` (missing DB
+  trigger `payment_events_append_only`, not installed by `prisma db push`)
+  — all reproduce in EXACTLY the same state as before seeding. More seed
+  data did not change any of these; they are infrastructure/fixture gaps
+  orthogonal to catalog completeness.
+
+Also individually re-confirmed clean on this seeded database:
+`verify-tenant-indexes.ts`, `verify-checkout-atomicity.ts` (14/14),
 `verify-category-integrity.ts`, `verify-disclaimer-integrity.ts`, and
-`verify-booking-tenancy.ts` (17/17) all pass clean — every one of them a
-schema/structural check that needs no catalog data.
-`verify-cross-tenant-resource-access.ts` hits the identical missing-fixture
-class (`No Contractor found`) for the same reason.
+`verify-booking-tenancy.ts` (17/17).
 
 ## 7. Remaining release blockers
 
@@ -260,10 +428,20 @@ class (`No Contractor found`) for the same reason.
    modules, and the rest of Elite's real catalog, are proven at the function
    level (§4) but not yet walked through the browser the way this pass did
    for the surface-mounted path.
-4. **`verify:full`'s missing-fixture wall** (§6) — needs a catalog-seeded
-   rehearsal database (the same bootstrap sequence
-   `docs/design/electrical-decision-tree-audit-v1-rehearsal-bootstrap.md`
-   already documents) before a genuinely complete gate run is possible.
+4. **`verify:full`'s remaining wall is now precisely identified, not just
+   observed** (§6, revised in the PR #63 review pass): a properly seeded
+   disposable database clears essentially the whole tenant-isolation,
+   platform-authority, and pricing-integrity portion of the chain, then
+   stops on `verify-platform-read-model.ts`'s 2-contractor concurrency
+   check. That check needs a second real, persisted tenant, which needs
+   `onboard-contractor-two.ts --commit` to succeed, which needs a published
+   `TemplateVersion` for the electrical trade. **No published TemplateVersion
+   exists in this environment**, and creating one requires either extracting
+   from a real catalog (`extract-template-catalog.ts` — explicitly
+   restricted this pass) or hand-authoring one from scratch. This is the
+   same root gap this whole engagement has repeatedly identified under
+   different symptoms (missing fixtures, second-tenant onboarding failures);
+   it is not new, and it is not a regression from this integration.
 
 **Not gated on Route Assist finishing** — per the integration instruction,
 Route Assist's own implementation state was not a blocker for any of the work
