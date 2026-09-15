@@ -52,8 +52,9 @@ check(
   source.includes("adaptRouteAssistResult(confirmedResult).mapped"),
 );
 check(
-  "preview explicitly shows the precision-gate distinction",
-  source.includes("Scan review total") && source.includes("Current RouteAssistResult total"),
+  "preview states that Route Assist preserves exact physical measurement",
+  source.includes("Route Assist now preserves the accepted physical measurement exactly") &&
+    source.includes("RouteAssistResult total"),
 );
 check(
   "fixture copy declares that production pricing/materials are untouched",
