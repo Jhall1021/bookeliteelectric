@@ -56,7 +56,11 @@ export function buildRouteAssistRouteMeasurementReviewV1(args: {
   }
 
   const visual = args.visualScale ?? null;
-  if (visual?.estimatedLengthFt !== null && visual.estimatedLengthFt !== undefined) {
+  if (
+    visual &&
+    visual.estimatedLengthFt !== null &&
+    visual.estimatedLengthFt !== undefined
+  ) {
     return {
       version: 1,
       method: "VISUAL_SCALE",
