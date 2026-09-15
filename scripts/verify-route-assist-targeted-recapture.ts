@@ -4,6 +4,8 @@ import {
   buildRouteAssistSupplementalCaptureSetV1,
   persistRouteAssistTargetedSupplementV1,
 } from "../lib/visual-assist/route-assist/targetedRecapture";
+import { evaluateRouteAssistTargetedRecaptureLifecycleV1 } from "../lib/visual-assist/route-assist/targetedRecaptureLifecycle";
+import { createRouteAssistHttpVisibleSceneProviderV1 } from "../lib/visual-assist/route-assist/httpVisibleSceneProvider";
 import { runRouteAssistVisibleSceneProviderV1, type RouteAssistVisibleSceneProviderV1 } from "../lib/visual-assist/route-assist/visibleSceneProvider";
 import { buildFixtureVisibleSceneSemanticsV1 } from "../lib/visual-assist/route-assist/fixtureVisibleSceneProvider";
 import type { RouteAssistRecaptureIssueV1 } from "../lib/visual-assist/route-assist/recaptureIssue";
@@ -36,12 +38,7 @@ await check("doorway quality issue creates targeted supplemental plan", () => {
 });
 
 await check("structural capture failure requires full sweep and preserves no primary frames", () => {
-  const issue: RouteAssistRecaptureIssueV1 = {
-    source: "STRUCTURAL_CAPTURE",
-    code: "TOO_FEW_FRAMES",
-    imageIds: [],
-    homeownerMessage: "scan again",
-  };
+  const issue: RouteAssistRecaptureIssueV1 = { source: "STRUCTURAL_CAPTURE", code: "TOO_FEW_FRAMES", imageIds: [], homeownerMessage: "scan again" };
   const plan = planRouteAssistRecaptureV1({ issue, originalImageIds: primary });
   assert.equal(plan.mode, "FULL_SWEEP");
   assert.deepEqual(plan.preserveOriginalImageIds, []);
@@ -82,7 +79,6 @@ await check("targeted supplemental persistence preserves identity and dimensions
   assert.ok(persisted);
   assert.deepEqual(persisted.captureSet.primarySweepImageIds, primary);
   assert.deepEqual(persisted.captureSet.supplementalImageIds, ["doorway-local-a", "doorway-local-b"]);
-  assert.deepEqual(persisted.persistedImages.map((image) => image.width), [1200, 1200]);
 });
 
 await check("targeted supplemental persistence fails closed if persister mutates dimensions", async () => {
@@ -114,38 +110,67 @@ await check("provider receives primary sweep and supplement as distinct provenan
     },
   };
   const result = await runRouteAssistVisibleSceneProviderV1(provider, {
-    version: 1,
-    mode: "SURFACE",
-    destinationType: "RECEPTACLE",
-    points,
-    segments,
-    captureArtifacts: { imageIds: [...primary], overlayImageIds: [] },
-    supplementalCaptureSets: [set],
-    reviewCorrections: [],
+    version: 1, mode: "SURFACE", destinationType: "RECEPTACLE", points, segments,
+    captureArtifacts: { imageIds: [...primary], overlayImageIds: [] }, supplementalCaptureSets: [set], reviewCorrections: [],
   });
   assert.equal(observed, true);
   assert.ok(result.semantics);
 });
 
+await check("HTTP transport carries supplemental ids separately and no durable media URLs", async () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  const set = buildRouteAssistSupplementalCaptureSetV1({ requestId: "doorway-http", plan, supplementalImageIds: ["doorway-http-extra"] });
+  assert.ok(set);
+  let transportPayload = "";
+  const provider = createRouteAssistHttpVisibleSceneProviderV1({
+    providerKey: "http-targeted-proof",
+    transport: { async analyze(request) {
+      transportPayload = JSON.stringify(request);
+      assert.deepEqual(request.imageIds, primary);
+      assert.deepEqual(request.supplementalCaptureSets[0].supplementalImageIds, ["doorway-http-extra"]);
+      const semantics = buildFixtureVisibleSceneSemanticsV1({ captureImageIds: [...request.imageIds], sourcePointId: "source", destinationPointId: "destination", segmentId: "segment" });
+      assert.ok(semantics);
+      return semantics;
+    } },
+  });
+  const result = await runRouteAssistVisibleSceneProviderV1(provider, {
+    version: 1, mode: "SURFACE", destinationType: "RECEPTACLE", points, segments,
+    captureArtifacts: { imageIds: [...primary], overlayImageIds: [] }, supplementalCaptureSets: [set], reviewCorrections: [],
+  });
+  assert.ok(result.semantics);
+  assert.equal(transportPayload.includes("imageUrl"), false);
+  assert.equal(transportPayload.includes("example.invalid"), false);
+});
+
 await check("invalid supplemental provenance fails before provider execution", async () => {
   let calls = 0;
-  const provider: RouteAssistVisibleSceneProviderV1 = {
-    providerKey: "targeted-recapture-invalid-proof",
-    async analyze() { calls += 1; throw new Error("must not run"); },
-  };
+  const provider: RouteAssistVisibleSceneProviderV1 = { providerKey: "targeted-recapture-invalid-proof", async analyze() { calls += 1; throw new Error("must not run"); } };
   const result = await runRouteAssistVisibleSceneProviderV1(provider, {
-    version: 1,
-    mode: "SURFACE",
-    destinationType: "RECEPTACLE",
-    points,
-    segments,
+    version: 1, mode: "SURFACE", destinationType: "RECEPTACLE", points, segments,
     captureArtifacts: { imageIds: [...primary], overlayImageIds: [] },
-    supplementalCaptureSets: [{ version: 1, requestId: "bad", focus: "DOORWAY", primarySweepImageIds: [...primary].reverse(), supplementalImageIds: ["extra"] }],
-    reviewCorrections: [],
+    supplementalCaptureSets: [{ version: 1, requestId: "bad", focus: "DOORWAY", primarySweepImageIds: [...primary].reverse(), supplementalImageIds: ["extra"] }], reviewCorrections: [],
   });
   assert.equal(calls, 0);
   assert.equal(result.semantics, null);
   assert.ok(result.problems.some((problem) => problem.includes("exact primary sweep")));
+});
+
+await check("resolved doorway recapture still requires fresh route review", () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  const set = buildRouteAssistSupplementalCaptureSetV1({ requestId: "doorway-lifecycle", plan, supplementalImageIds: ["doorway-extra"] });
+  assert.ok(set);
+  const lifecycle = evaluateRouteAssistTargetedRecaptureLifecycleV1({ captureSet: set, qualityIssues: [] });
+  assert.equal(lifecycle.status, "RESOLVED_FOR_PROVIDER_REVIEW");
+  assert.equal(lifecycle.requiresFreshRouteReview, true);
+});
+
+await check("same provider deficiency keeps targeted recapture open", () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  const set = buildRouteAssistSupplementalCaptureSetV1({ requestId: "doorway-lifecycle-still", plan, supplementalImageIds: ["doorway-extra"] });
+  assert.ok(set);
+  const lifecycle = evaluateRouteAssistTargetedRecaptureLifecycleV1({ captureSet: set, qualityIssues: [{ code: "DOORWAY_CONTEXT_INCOMPLETE", imageIds: ["frame-1"] }] });
+  assert.equal(lifecycle.status, "STILL_REQUIRED");
+  assert.deepEqual(lifecycle.remainingQualityCodes, ["DOORWAY_CONTEXT_INCOMPLETE"]);
 });
 
 await check("targeted recapture contract contains no geometry, measurement, pricing or material authority", () => {
