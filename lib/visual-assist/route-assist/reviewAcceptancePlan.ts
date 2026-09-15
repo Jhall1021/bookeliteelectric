@@ -14,6 +14,10 @@ export type RouteAssistPhysicalFactReviewDecisionV1 =
   | "ACCEPTED"
   | "NOT_ACCEPTED";
 
+export type RouteAssistObstacleReviewDecisionV1 =
+  | "ACCEPTED"
+  | "NOT_ACCEPTED";
+
 export type RouteAssistReviewedAcceptancePlanV1 = {
   version: 1;
   status: "READY_FOR_EXPLICIT_SCAN_CANDIDATE_ACCEPTANCE" | "NOT_READY";
@@ -162,6 +166,64 @@ export function buildRouteAssistReviewedPhysicalFactAcceptancePlanV1(args: {
       surfaceSegmentIds: requestedSurfaces,
       physicalTurnPointIds: requestedTurns,
       routeObstaclePointIds: [],
+    },
+    reasons: [],
+    appliesGraphMutation: false,
+  };
+}
+
+/**
+ * Build a separate explicit acceptance request for visible route obstacles.
+ *
+ * Only DOORWAY/WINDOW map into the current Route Assist graph. This helper does
+ * not accept turns, surfaces or lengths, so obstacle context cannot be used as
+ * a shortcut for physical geometry or measurement.
+ */
+export function buildRouteAssistReviewedObstacleAcceptancePlanV1(args: {
+  candidates: RouteAssistScanCandidatesV1;
+  reviewDecision: RouteAssistObstacleReviewDecisionV1;
+  reviewedObstaclePointIds?: readonly string[];
+}): RouteAssistReviewedAcceptancePlanV1 {
+  if (args.reviewDecision !== "ACCEPTED") {
+    return {
+      version: 1,
+      status: "NOT_READY",
+      acceptance: null,
+      reasons: ["visible route obstacles have not been explicitly accepted"],
+      appliesGraphMutation: false,
+    };
+  }
+
+  const requestedObstacles = [...new Set(args.reviewedObstaclePointIds ?? [])];
+  const transitionById = new Map(args.candidates.transitions.map((candidate) => [candidate.pointId, candidate]));
+  const reasons: string[] = [];
+
+  for (const pointId of requestedObstacles) {
+    const obstacle = transitionById.get(pointId)?.obstacleContext;
+    if (!obstacle) reasons.push(`point ${pointId} has no reviewed obstacle candidate`);
+    else if (obstacle.value !== "DOORWAY" && obstacle.value !== "WINDOW") {
+      reasons.push(`point ${pointId} obstacle ${obstacle.value} has no current Route Assist graph mapping`);
+    }
+  }
+
+  if (reasons.length) {
+    return {
+      version: 1,
+      status: "NOT_READY",
+      acceptance: null,
+      reasons,
+      appliesGraphMutation: false,
+    };
+  }
+
+  return {
+    version: 1,
+    status: "READY_FOR_EXPLICIT_SCAN_CANDIDATE_ACCEPTANCE",
+    acceptance: {
+      measuredLengthSegmentIds: [],
+      surfaceSegmentIds: [],
+      physicalTurnPointIds: [],
+      routeObstaclePointIds: requestedObstacles,
     },
     reasons: [],
     appliesGraphMutation: false,
