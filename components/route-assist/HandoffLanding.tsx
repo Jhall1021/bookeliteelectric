@@ -33,6 +33,7 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
   const siteFetch = useSiteFetch();
   const [state, setState] = useState<State>({ kind: "resolving" });
   const [continueChoice, setContinueChoice] = useState<"phone" | "desktop" | null>(null);
+  const [completionError, setCompletionError] = useState<string | null>(null);
 
   useEffect(() => {
     resolveDeviceHandoff(siteFetch, token)
@@ -42,11 +43,32 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
   }, [token]);
 
   async function handleComplete(handoff: ResolvedHandoff, result: RouteAssistResult) {
-    if (handoff.taskId) {
-      await completeVisualAssistTask(siteFetch, handoff.guidedFlowSessionId, handoff.taskId, result).catch(() => {});
+    setCompletionError(null);
+    try {
+      if (handoff.taskId) {
+        const completion = await completeVisualAssistTask(
+          siteFetch,
+          handoff.guidedFlowSessionId,
+          handoff.taskId,
+          result
+        );
+        // The endpoint returns the persisted first-winner result to every
+        // caller. We do not need to use its value on the phone yet (the desktop
+        // reads the canonical task), but we DO require that a canonical result
+        // exists before declaring this handoff complete.
+        if (completion.status !== "COMPLETED" || !completion.result) {
+          throw new Error("Route Assist task did not complete");
+        }
+      }
+
+      await completeDeviceHandoff(siteFetch, handoff.handoffId);
+      setState({ kind: "done" });
+    } catch {
+      // Leave the capture visible so the homeowner can retry confirmation. Do
+      // not tell the desktop TASK_COMPLETED when canonical task persistence is
+      // uncertain — that would let the two devices disagree about the route.
+      setCompletionError("We couldn't save the route yet. Please try confirming it again.");
     }
-    await completeDeviceHandoff(siteFetch, handoff.handoffId).catch(() => {});
-    setState({ kind: "done" });
   }
 
   if (state.kind === "resolving") {
@@ -100,13 +122,18 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
     };
 
     return (
-      <RouteAssistCapture
-        destinationType={resolvedContext.destinationType}
-        sourceHint={resolvedContext.sourceHint}
-        destinationHint={resolvedContext.destinationHint}
-        onUploadPhoto={uploadPhoto}
-        onComplete={(result) => handleComplete(state.handoff, result)}
-      />
+      <div>
+        <RouteAssistCapture
+          destinationType={resolvedContext.destinationType}
+          sourceHint={resolvedContext.sourceHint}
+          destinationHint={resolvedContext.destinationHint}
+          onUploadPhoto={uploadPhoto}
+          onComplete={(result) => handleComplete(state.handoff, result)}
+        />
+        {completionError && (
+          <p className="mx-auto mt-3 max-w-md text-center text-sm text-red-600">{completionError}</p>
+        )}
+      </div>
     );
   }
 
