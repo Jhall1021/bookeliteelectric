@@ -21,3 +21,32 @@ export {
 } from "./geometry";
 export { classifyConcealedComplexity, suggestedAccessOpeningRange } from "./complexity";
 export { incompleteResult } from "./uncertainty";
+
+// Room-scan / ordered-geometry surfaces. These remain upstream of canonical
+// Routing V2 binding: evidence -> reviewable candidates, never evidence -> price.
+export {
+  buildOrderedRouteGeometryV1,
+  orderedGeometryFromResult,
+  type RouteAssistOrderedGeometryV1,
+  type OrderedRouteSegmentV1,
+  type OrderedRouteTransitionV1,
+} from "./orderedGeometry";
+export {
+  validateRouteAssistScanEvidenceV1,
+  alignRouteAssistScanEvidenceV1,
+  isClearWorldGeometryObservation,
+  type RouteAssistScanEvidenceV1,
+  type RouteScanObservation,
+  type RouteScanSegmentEvidenceV1,
+  type RouteScanTransitionEvidenceV1,
+  type RouteScanEvidenceValidation,
+} from "./scanEvidence";
+export {
+  extractRouteAssistScanCandidatesV1,
+  type RouteAssistScanCandidateExtraction,
+  type RouteAssistScanCandidatesV1,
+  type RouteScanCandidate,
+  type RouteScanSegmentCandidatesV1,
+  type RouteScanTransitionCandidatesV1,
+  type CompleteMeasuredRouteLengthCandidateV1,
+} from "./scanCandidates";
