@@ -23,8 +23,8 @@ export { classifyConcealedComplexity, suggestedAccessOpeningRange } from "./comp
 export { incompleteResult } from "./uncertainty";
 
 // Room-scan / ordered-geometry surfaces. These remain upstream of canonical
-// Routing V2 binding: evidence -> reviewable candidates -> explicit acceptance,
-// never evidence -> price.
+// Routing V2 binding: provider -> evidence -> reviewable candidates -> explicit
+// acceptance, never provider/evidence -> price.
 export {
   buildOrderedRouteGeometryV1,
   orderedGeometryFromResult,
@@ -44,6 +44,13 @@ export {
   type RouteScanTransitionEvidenceV1,
   type RouteScanEvidenceValidation,
 } from "./scanEvidence";
+export {
+  runRouteAssistScanProviderV1,
+  type RouteAssistScanCaptureKindV1,
+  type RouteAssistScanProviderInputV1,
+  type RouteAssistScanProviderV1,
+  type RouteAssistScanProviderRunV1,
+} from "./scanProvider";
 export {
   extractRouteAssistScanCandidatesV1,
   type RouteAssistScanCandidateExtraction,
