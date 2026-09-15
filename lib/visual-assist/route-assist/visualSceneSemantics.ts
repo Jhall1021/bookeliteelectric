@@ -1,4 +1,8 @@
 import type { RoutePoint, RouteSegment } from "./types";
+import {
+  ROUTE_ASSIST_VISIBLE_SCENE_QUALITY_ISSUES_V1,
+  type RouteAssistVisibleSceneQualityIssueV1,
+} from "./visibleSceneQuality";
 
 /**
  * Provider-neutral vocabulary for what an ordinary camera/CV provider may
@@ -70,6 +74,8 @@ export type RouteAssistVisibleSceneSemanticsV1 = {
   objects: RouteAssistVisibleSceneObjectV1[];
   segmentObservations: RouteAssistVisibleSegmentObservationV1[];
   doorwayGroups?: RouteAssistVisibleDoorwayGroupV1[];
+  /** Explicit provider evidence that the sweep needs targeted recapture/review. */
+  qualityIssues?: RouteAssistVisibleSceneQualityIssueV1[];
 };
 
 function validUnit(value: number): boolean { return Number.isFinite(value) && value >= 0 && value <= 1; }
@@ -130,5 +136,14 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
     if (right?.kind !== "DOOR_SIDE_CASING") problems.push(`doorway group ${group.id} right casing must reference a DOOR_SIDE_CASING object`);
     if (new Set([group.doorwayObjectId, group.leftCasingObjectId, group.topCasingObjectId, group.rightCasingObjectId]).size !== 4) problems.push(`doorway group ${group.id} must reference four distinct scene objects`);
   }
+
+  const qualityIssueCodes = new Set<string>();
+  for (const issue of semantics.qualityIssues ?? []) {
+    if (!(ROUTE_ASSIST_VISIBLE_SCENE_QUALITY_ISSUES_V1 as readonly string[]).includes(issue.code)) problems.push(`visible scene quality issue has unknown code: ${String(issue.code)}`);
+    if (qualityIssueCodes.has(issue.code)) problems.push(`visible scene quality issue is duplicated: ${issue.code}`); else qualityIssueCodes.add(issue.code);
+    if (!Array.isArray(issue.imageIds)) problems.push(`visible scene quality issue ${issue.code} must carry imageIds`);
+    else if (issue.imageIds.some((imageId) => !captureIds.has(imageId))) problems.push(`visible scene quality issue ${issue.code} references unknown image`);
+  }
+
   return problems;
 }
