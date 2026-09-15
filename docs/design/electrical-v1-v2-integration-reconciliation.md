@@ -100,6 +100,127 @@ ever supplied — a Route Assist scan is one way to supply it, not the only
 one the system requires. A manual answer of a plain corner COUNT simply
 does not carry that fact, which is what the test actually proves.
 
+### 0.6 (second pass) The cross-device fix only dropped the queue — the screen was still stale
+
+A second review of §0.1's fix found it incomplete: dropping the queued
+payload stops THIS tab from auto-sending a stale write, but the customer's
+own screen — `answers`, the question or price in `state`, the Back stack in
+`history` — was still built from the branch this tab was on before the 409.
+The very next click (answer a question, hit Back, add to visit) would merge
+that stale `answers` with one new field and persist the result: for every
+key the OTHER writer had just changed, this tab still held its own old
+value, so that merge would send it right back to the server and quietly
+overwrite a change that had already applied cleanly. Exactly the failure
+"drop the queue" was meant to prevent, one step later than the first fix
+was looking.
+
+Fixed in `components/guided-flow/GuidedFlowEngine.tsx`: a genuine 409 now
+fully resyncs `answers`, `history` (reset — every entry on it was pushed
+while looking at the abandoned branch) and `config`/`state` (recomputed via
+the same tree replay `startQuestions` already uses, fed the 409 body's own
+`current.consumedAnswers`), and gates the customer behind an explicit
+conflict notice ("We picked up an update to this visit from another
+device.") that must be dismissed before any further click reaches
+`handleAnswer`, `goBack`, or `addToVisit`.
+
+`scripts/verify-cross-device-stale-queue-browser-flow.ts` now proves both
+halves: the server's `consumedAnswers` are device B's, AND tab A's own next
+action — answering the question the RESYNCED tree actually asks — persists
+onto the resynced state (preserving device B's answer) rather than
+resubmitting anything stale. Confirmed the test catches a regression here
+too: reverted the fix, re-ran, watched the conflict notice never appear
+(tab A stayed on its stale screen indefinitely), restored the fix, confirmed
+it passes again.
+
+### 0.7 (second pass) The booking proof stopped at the cart, never reached a Booking
+
+§0.3's block F stopped at "Add to My Visit" and checked a `LineItem` — never
+completed checkout, never inspected a `Booking`. Extended
+`scripts/verify-integration-manual-routing-storefront-browser-flow.ts` to
+continue the SAME reapproved, correctly-priced attempt through real NATIVE
+scheduling and a no-deposit checkout (the same lifecycle
+`scripts/verify-derived-scheduling-browser.ts` already proves in isolation,
+driven here so this script can inspect the actual `Booking` row) — a genuine
+`bookingId`, a real `Booking.totalCents` checked directly against the
+reapproved price.
+
+Then, because the job is now booked, the economics are changed ONE MORE
+TIME and both the `Booking` and the `LineItem` it was built from are
+re-read: neither moved. `totalCents` on checkout is a sum taken once, at
+booking time, from each line's already-fixed `computedPriceCents`
+(`app/api/checkout/route.ts` — "Neither can move `totalCents`, which stays
+the... homeowner is agreeing to") — this is the browser-level proof that a
+homeowner who already booked and confirmed a price never sees it move under
+them because of a later cost change, matching what block F's first half
+already proved about a price that hadn't been booked yet.
+
+`resetPilotContractor` (which fixture teardown calls) refuses a contractor
+with any real `Booking` — deleting one is deliberately not something a
+reset ever decides on its own. The script now tears its own booking down
+first (`removeBooked`, the same shape
+`verify-derived-scheduling-browser.ts` already uses), before the normal
+fixture reset runs.
+
+### 0.8 (second pass) The second tenant is now real, and what extracting a local template actually required
+
+§0.4 left `verify:full` stopped on `verify-platform-read-model.ts`'s
+2-contractor concurrency check, traced to `onboard-contractor-two.ts
+--commit` failing with `NO_PUBLISHED_TEMPLATE` — no published `TemplateVersion`
+existed on the properly-seeded database (`p2b_integration_seeded`) for
+`installCatalog` to install from. The restriction named in this review round
+is on real catalogs and production, not on extracting and provisioning a
+template inside a disposable local database — so one was built there, from
+that same database's own `elite-electric` fixture (a local, rehearsal-seeded
+contractor, not the real one), entirely locally:
+
+1. `npx tsx scripts/extract-template-catalog.ts --from elite-electric`
+   (report only) — 74 of 74 services extract cleanly, zero blocking
+   refusals (only informational "not template content" categories:
+   contractor-owned material quantities and disclaimer text).
+2. `npx tsx scripts/extract-template-catalog.ts --from elite-electric --apply`
+   — writes a local `electrical v1 SNAPSHOT` `TemplateVersion` to
+   `p2b_integration_seeded` only.
+3. `prisma/seed-routing-v2-policies.ts` and `prisma/seed-routing-v2-pricing-
+   method.ts` — both previously blocked on the missing `TemplateVersion` —
+   now run clean against it.
+4. `npx tsx scripts/onboard-contractor-two.ts --commit` — **BrightPath
+   Electric onboarded successfully**: 4 live, approved services
+   (`electrical-troubleshooting`, `replace-interior-light-fixture`,
+   `replace-led-dimmer`, `replace-standard-outlet`), `canLaunch=true`,
+   `blockers=0`. BrightPath is the standing second tenant this whole
+   engagement has treated as permanent, not a pilot — it now exists on
+   `p2b_integration_seeded` the same way.
+5. `npx tsx scripts/verify-platform-read-model.ts` re-run alone: the
+   2-contractor concurrency check now passes — "entries are bounded: 3
+   contractors, at most 2 in flight when asked for 2" (the third is the
+   check's own throwaway fixture).
+
+**A real, separate finding surfaced while doing this, worth recording
+rather than working around:** `extract-template-catalog.ts` is a
+GENERIC, pre-Routing-V2 tool — it captures questions, answer options,
+wording and policy structure, but not Routing V2's own component/quantity-
+binding wiring. Provisioning a FRESH contractor's `new-120v-outlet` from a
+template built this way installs the plain LEGACY question chain (the one
+`elite-electric` itself still has in `p2b_integration_seeded` — it was never
+individually migrated onto the surface-raceway module there), not the
+surface-raceway module this whole integration branch's own storefront
+proof (§0.3/§0.7, block A-F) depends on. Confirmed directly: a fresh
+`buildPricedDerivedContractor` install against the template this pass wrote
+fails material-takeoff approval with `NO_CONTRACTOR_PRODUCT
+(SURFACE_RACEWAY_JOINT)`, even though every contractor material cost for
+that role is correctly written — the installed service simply never
+receives the surface-raceway component recipe surface-mounted routing
+depends on. **`p2b_integration` — the separate disposable database §4's
+Routing V2 storefront fixtures have always run against, with its own
+pre-existing, Routing-V2-aware `TemplateVersion` — is untouched by any of
+this and remains the correct, and only, database for those scripts.** All
+of §0.6/§0.7's re-verification above, and the original §0.1-§0.3 evidence,
+ran there specifically; `.env` was pointed back at `p2b_integration_seeded`
+only for the onboarding steps in this subsection, then returned to
+`p2b_integration` for everything else. Provisioning a SECOND Routing-V2-
+capable tenant remains unresolved and is out of this bounded pass's scope —
+see §7.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple
@@ -319,12 +440,19 @@ real browser:
   one — and a manual corner COUNT does not carry it. Asserted against
   `PhotoReviewNotice`'s own specific heading, not a generic `/photo/i` match.
 - **A cost change between displaying a price and adding it to the visit,
-  new in the PR #63 review pass (§0.3)** — a price is shown, a material cost
-  changes server-side with no reload, and clicking "Add to My Visit" against
-  the now-stale number is confirmed (via the real network response) refused
-  with 409 `REVIEW_REQUIRED` and creates no `LineItem`. The office reapproves
-  the new economics, a reload shows the corrected price, and THAT booking
-  succeeds with the new price stored.
+  carried all the way to a real Booking, and a snapshot proof after that
+  (§0.3, extended §0.7)** — a price is shown, a material cost changes
+  server-side with no reload, and clicking "Add to My Visit" against the
+  now-stale number is confirmed (via the real network response) refused
+  with 409 `REVIEW_REQUIRED` and creates no `LineItem`. The office
+  reapproves the new economics, a reload shows the corrected price, and
+  this run continues — through real NATIVE scheduling and a no-deposit
+  checkout, not just Add to My Visit — to a genuine `Booking` row, whose
+  `totalCents` is checked directly against the reapproved price. The
+  economics then change ONE MORE TIME, now that the job is booked, and both
+  the `Booking` and the `LineItem` it was built from are re-read to confirm
+  neither moved: the stored price is a snapshot taken at booking time, never
+  re-derived on a later read.
 
 Stale-approval → REVIEW and reapproval → PRICED restoration are proven at
 BOTH levels now: `verify-routing-precision-provisioning.ts`'s own "changed
@@ -376,25 +504,21 @@ restricted. This section is the result of actually doing that.
 **Result: `npm run verify:full` cleared roughly 900 lines of assertions —
 essentially the entire tenant-isolation, platform-authority, guard-adoption,
 and pricing-integrity portion of the chain — before its next wall**, up from
-failing on the very first required step. Two walls found past that point,
-both traced to their root cause rather than left as a bare failure:
+failing on the very first required step. Two walls found past that point:
 
-- **`verify-platform-read-model.ts`**: a concurrency-bounding check
-  ("entries are bounded... 2 contractors, at most 2 in flight when asked for
-  2") that needs a SECOND real, persisted tenant to exist alongside Elite.
-  Attempted via this repo's own `scripts/onboard-contractor-two.ts --commit`
-  (the standing tool for exactly this — "NOT A FIXTURE... this one
-  persists," per its own header) and traced to the actual root cause:
-  `Error: NO_PUBLISHED_TEMPLATE: No published SNAPSHOT catalog for trade
-  "electrical".` Onboarding any second contractor through the supported
-  `installCatalog` lifecycle requires a published `TemplateVersion` —
-  the SAME thing `seed-routing-v2-policies.ts` above needed and didn't get,
-  and the identical root gap that has blocked full-catalog verification
-  across every prior pass of this whole engagement. Creating one requires
-  either extracting from a real catalog (explicitly restricted this pass) or
-  hand-authoring one from scratch (a materially larger undertaking than a
-  bounded release-readiness pass). The partial, failed second-tenant row was
-  cleaned up rather than left in a half-onboarded state.
+- **`verify-platform-read-model.ts`'s 2-contractor concurrency check —
+  CLOSED in the PR #63 review pass, see §0.8.** It needs a SECOND real,
+  persisted tenant to exist alongside Elite; `scripts/onboard-contractor-
+  two.ts --commit` originally failed with `Error: NO_PUBLISHED_TEMPLATE: No
+  published SNAPSHOT catalog for trade "electrical"` — the same root gap
+  `seed-routing-v2-policies.ts` above needed and didn't get, and the one
+  this whole engagement has repeatedly hit under different symptoms. §0.8
+  built a local `TemplateVersion` (extracted from this same database's own
+  rehearsal-seeded Elite fixture — never a real catalog) so onboarding could
+  succeed; BrightPath is now a real, persisted second tenant here, and this
+  specific check passes alone re-run against it. What §0.8 also found:
+  Routing-V2-capable second-tenant provisioning is a materially DIFFERENT,
+  still-open gap — see §7 item 5.
 - **The four gates already individually diagnosed in the electrical
   decision-tree audit's own fourth-pass report** — re-run individually on
   THIS properly seeded database to confirm nothing had changed:
@@ -428,20 +552,29 @@ Also individually re-confirmed clean on this seeded database:
    modules, and the rest of Elite's real catalog, are proven at the function
    level (§4) but not yet walked through the browser the way this pass did
    for the surface-mounted path.
-4. **`verify:full`'s remaining wall is now precisely identified, not just
-   observed** (§6, revised in the PR #63 review pass): a properly seeded
-   disposable database clears essentially the whole tenant-isolation,
-   platform-authority, and pricing-integrity portion of the chain, then
-   stops on `verify-platform-read-model.ts`'s 2-contractor concurrency
-   check. That check needs a second real, persisted tenant, which needs
-   `onboard-contractor-two.ts --commit` to succeed, which needs a published
-   `TemplateVersion` for the electrical trade. **No published TemplateVersion
-   exists in this environment**, and creating one requires either extracting
-   from a real catalog (`extract-template-catalog.ts` — explicitly
-   restricted this pass) or hand-authoring one from scratch. This is the
-   same root gap this whole engagement has repeatedly identified under
-   different symptoms (missing fixtures, second-tenant onboarding failures);
-   it is not new, and it is not a regression from this integration.
+4. **`verify:full`'s 2-contractor concurrency wall is now closed** (§0.8,
+   §6). A local `TemplateVersion` extracted from the seeded database's own
+   `elite-electric` fixture (never a real catalog — see §0.8 for exactly
+   what "local only" meant here) let `onboard-contractor-two.ts --commit`
+   succeed: BrightPath is now a real, persisted second tenant on
+   `p2b_integration_seeded`, and `verify-platform-read-model.ts`'s
+   concurrency check passes alone. `verify:full` as a whole was not re-run
+   end to end after this — see §6 for exactly how far the properly-seeded
+   run got and what's still individually confirmed unchanged past that
+   point.
+5. **A Routing-V2-capable second tenant is still not established** — a
+   narrower, newly-precise version of the gap #4 used to name. BrightPath's
+   own services are the plain (non-Routing-V2) catalog `installCatalog`
+   installs from a generically-extracted template; §0.8 found that
+   provisioning a FRESH contractor's `new-120v-outlet` from that same
+   template installs the legacy question chain, not the surface-raceway
+   module this branch's own storefront proof depends on, because the
+   generic extraction tool predates Routing V2 and does not carry its
+   component/quantity-binding wiring. A second tenant that can actually
+   exercise Routing V2 pricing needs either a Routing-V2-aware extraction
+   (a real gap in the extraction tooling, not attempted here) or hand
+   authorship of that part of the template. Out of scope for this bounded
+   pass.
 
 **Not gated on Route Assist finishing** — per the integration instruction,
 Route Assist's own implementation state was not a blocker for any of the work
@@ -451,9 +584,12 @@ between Route Assist and Routing V2's own physical-fact projection.
 
 ## 8. What this pass did not do
 
-No deployment. No production migration. No live template extraction
-(`extract-template-catalog.ts` was never run). No change to any existing
-contractor's catalog — Elite's, BrightPath's, or any other. `main` was never
-touched; PR #56, PR #62, and `feat/electrical-routing-v2` all remain exactly
-as they were. Deployment stays disabled for every branch named in
-`vercel.json`, this one included.
+No deployment. No production migration. No LIVE template extraction — every
+`extract-template-catalog.ts` run in this pass (§0.8) targeted a disposable
+local database, reading only that database's own rehearsal-seeded
+`elite-electric` fixture, never a real catalog or Neon. No change to any
+EXISTING contractor's catalog — Elite's own `Service` rows were only ever
+read from, never written to, by extraction; BrightPath is a new install, not
+a change to a prior one. `main` was never touched; PR #56, PR #62, and
+`feat/electrical-routing-v2` all remain exactly as they were. Deployment
+stays disabled for every branch named in `vercel.json`, this one included.
