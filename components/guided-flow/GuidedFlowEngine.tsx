@@ -251,7 +251,21 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     const previous = history[history.length - 1];
     setState(previous.state);
     setAnswers(previous.answers);
+    // The full prior configuration, not just the two fields above. Without
+    // this, `config` keeps whatever the abandoned branch folded into it —
+    // re-answering the question this Back returned to then folds the NEW
+    // answer onto that stale base instead of the one this step actually had,
+    // and a component/price the customer just undid survives on a display
+    // that was never rebuilt to drop it.
+    setConfig(previous.config);
     setHistory(history.slice(0, -1));
+    // Mirror the trimmed answers to the session the same way every forward
+    // answer already does (persistAnswers, same expectedVersion contract) —
+    // otherwise the server's `consumedAnswers` still holds the abandoned
+    // branch's keys, and a reload before the customer finishes re-answering
+    // resumes from that stale, larger set instead of the trimmed one just
+    // shown here.
+    persistAnswers(previous.answers);
   }
 
   function startQuestions() {
