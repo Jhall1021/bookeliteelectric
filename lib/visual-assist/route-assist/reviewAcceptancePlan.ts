@@ -10,6 +10,10 @@ export type RouteAssistVisibleRouteReviewDecisionV1 =
   | "ADJUSTMENT_REQUESTED"
   | "RECAPTURE_REQUESTED";
 
+export type RouteAssistPhysicalFactReviewDecisionV1 =
+  | "ACCEPTED"
+  | "NOT_ACCEPTED";
+
 export type RouteAssistReviewedAcceptancePlanV1 = {
   version: 1;
   status: "READY_FOR_EXPLICIT_SCAN_CANDIDATE_ACCEPTANCE" | "NOT_READY";
@@ -91,6 +95,72 @@ export function buildRouteAssistReviewedAcceptancePlanV1(args: {
       measuredLengthSegmentIds: [...metricSegmentIds],
       surfaceSegmentIds: [],
       physicalTurnPointIds: [],
+      routeObstaclePointIds: [],
+    },
+    reasons: [],
+    appliesGraphMutation: false,
+  };
+}
+
+/**
+ * Build a separate explicit acceptance request for physical surface/turn facts.
+ *
+ * Only WORLD_GEOMETRY candidates are eligible. A VISIBLE_SCENE surface label
+ * stays evidence-only even when clear, because image semantics alone do not
+ * establish a physical plane. Obstacles are intentionally excluded here; a
+ * doorway/window semantic observation is not automatically a physical turn.
+ */
+export function buildRouteAssistReviewedPhysicalFactAcceptancePlanV1(args: {
+  candidates: RouteAssistScanCandidatesV1;
+  reviewDecision: RouteAssistPhysicalFactReviewDecisionV1;
+  reviewedSurfaceSegmentIds?: readonly string[];
+  reviewedPhysicalTurnPointIds?: readonly string[];
+}): RouteAssistReviewedAcceptancePlanV1 {
+  if (args.reviewDecision !== "ACCEPTED") {
+    return {
+      version: 1,
+      status: "NOT_READY",
+      acceptance: null,
+      reasons: ["physical route facts have not been explicitly accepted"],
+      appliesGraphMutation: false,
+    };
+  }
+
+  const requestedSurfaces = [...new Set(args.reviewedSurfaceSegmentIds ?? [])];
+  const requestedTurns = [...new Set(args.reviewedPhysicalTurnPointIds ?? [])];
+  const segmentById = new Map(args.candidates.segments.map((candidate) => [candidate.segmentId, candidate]));
+  const transitionById = new Map(args.candidates.transitions.map((candidate) => [candidate.pointId, candidate]));
+  const reasons: string[] = [];
+
+  for (const segmentId of requestedSurfaces) {
+    const surface = segmentById.get(segmentId)?.surface;
+    if (!surface) reasons.push(`segment ${segmentId} has no reviewed surface candidate`);
+    else if (surface.basis !== "WORLD_GEOMETRY") reasons.push(`segment ${segmentId} surface is not backed by world geometry`);
+  }
+
+  for (const pointId of requestedTurns) {
+    const turn = transitionById.get(pointId)?.physicalTurn;
+    if (!turn) reasons.push(`point ${pointId} has no reviewed physical-turn candidate`);
+    else if (turn.basis !== "WORLD_GEOMETRY") reasons.push(`point ${pointId} physical turn is not backed by world geometry`);
+  }
+
+  if (reasons.length) {
+    return {
+      version: 1,
+      status: "NOT_READY",
+      acceptance: null,
+      reasons,
+      appliesGraphMutation: false,
+    };
+  }
+
+  return {
+    version: 1,
+    status: "READY_FOR_EXPLICIT_SCAN_CANDIDATE_ACCEPTANCE",
+    acceptance: {
+      measuredLengthSegmentIds: [],
+      surfaceSegmentIds: requestedSurfaces,
+      physicalTurnPointIds: requestedTurns,
       routeObstaclePointIds: [],
     },
     reasons: [],
