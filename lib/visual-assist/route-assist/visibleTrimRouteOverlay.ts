@@ -6,7 +6,8 @@ export type RouteAssistVisibleOverlayPathV1 = {
   imageId: string;
   points: RouteAssistVisibleOverlayPointV1[];
   stepKinds: RouteAssistVisibleTrimRouteStepV1["kind"][];
-  evidenceRole: "PRIMARY_SWEEP" | "SUPPLEMENTAL_RECAPTURE";
+  /** Builder-populated provenance label; optional for older detached test fixtures. */
+  evidenceRole?: "PRIMARY_SWEEP" | "SUPPLEMENTAL_RECAPTURE";
 };
 export type RouteAssistVisibleTrimRouteOverlayV1 = {
   version: 1;
