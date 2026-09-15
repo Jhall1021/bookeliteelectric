@@ -56,12 +56,24 @@ export async function listVisualAssistTasks(
   return body.tasks;
 }
 
+export type VisualAssistTaskCompletion = {
+  id: string;
+  status: string;
+  /** True only for the request that performed PENDING -> COMPLETED. */
+  accepted: boolean;
+  /**
+   * The persisted first-winner result. A losing/retried caller MUST use this
+   * rather than the result it happened to submit locally.
+   */
+  result: RouteAssistResult | null;
+};
+
 export async function completeVisualAssistTask(
   fetchFn: FetchFn,
   guidedFlowSessionId: string,
   taskId: string,
   result: RouteAssistResult
-): Promise<{ id: string; status: string }> {
+): Promise<VisualAssistTaskCompletion> {
   const res = await fetchFn(`/api/guided-flow-sessions/${guidedFlowSessionId}/visual-assist-tasks/${taskId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
