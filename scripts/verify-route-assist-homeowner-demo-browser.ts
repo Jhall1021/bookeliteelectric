@@ -48,6 +48,7 @@ async function main() {
   const reviewText = await review.innerText();
   check("review shows exact 14.625 ft route", reviewText.includes("14.625 ft"), reviewText);
   check("review page draws the traced route", await page.locator('[data-testid="route-assist-demo-room"] svg polyline').count() === 1);
+  check("doorway bypass displays four bend markers", await page.locator('[data-testid="route-assist-demo-room"] svg circle').count() === 4);
 
   const checkboxes = review.locator('input[type="checkbox"]');
   const count = await checkboxes.count();
@@ -59,7 +60,7 @@ async function main() {
     if (await checkbox.isEnabled()) enabled++;
   }
   check("scan facts start unapproved", checked === 0, String(checked));
-  check("demo exposes applicable route facts for review", enabled >= 5, String(enabled));
+  check("demo exposes applicable route facts for review", enabled >= 10, String(enabled));
 
   console.log("\n4. Approve the applicable observations");
   for (let i = 0; i < count; i++) {
@@ -70,6 +71,7 @@ async function main() {
   await page.waitForSelector('[data-testid="route-assist-demo-confirm"]');
   const confirmation = await page.locator('[data-testid="route-assist-demo-confirm"]').innerText();
   check("confirmation preserves exact measured footage", confirmation.includes("14.625 ft"), confirmation);
+  check("confirmation reports four physical turns", confirmation.includes("Physical turns") && /Physical turns\s*4/.test(confirmation), confirmation);
   check("homeowner has a rescan escape before confirmation", confirmation.includes("Rescan"));
   check("confirmation keeps the traced route visible", await page.locator('[data-testid="route-assist-demo-confirm"] svg polyline').count() === 1);
 
@@ -79,7 +81,7 @@ async function main() {
   const done = await page.locator('[data-testid="route-assist-demo-done"]').innerText();
   check("demo reaches Route added state", done.includes("Route added"), done);
   check("final route stays 14.625 ft", done.includes("14.625 ft"), done);
-  check("final route exposes one flat turn", done.includes("Flat turns") && /Flat turns\s*1/.test(done), done);
+  check("final route exposes four flat turns", done.includes("Flat turns") && /Flat turns\s*4/.test(done), done);
   check("demo can be restarted", done.includes("Try another route"));
   check("demo still states no production pricing/material side effect", done.includes("no pricing, materials, booking, or production data is changed"), done);
 
