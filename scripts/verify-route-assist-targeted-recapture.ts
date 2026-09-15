@@ -1,0 +1,124 @@
+import assert from "node:assert/strict";
+import { planRouteAssistRecaptureV1, buildRouteAssistSupplementalCaptureSetV1 } from "../lib/visual-assist/route-assist/targetedRecapture";
+import { runRouteAssistVisibleSceneProviderV1, type RouteAssistVisibleSceneProviderV1 } from "../lib/visual-assist/route-assist/visibleSceneProvider";
+import { buildFixtureVisibleSceneSemanticsV1 } from "../lib/visual-assist/route-assist/fixtureVisibleSceneProvider";
+import type { RouteAssistRecaptureIssueV1 } from "../lib/visual-assist/route-assist/recaptureIssue";
+import type { RoutePoint, RouteSegment } from "../lib/visual-assist/route-assist/types";
+
+let passed = 0;
+async function check(name: string, fn: () => void | Promise<void>) { await fn(); passed += 1; console.log(`✓ ${name}`); }
+
+const primary = ["frame-0", "frame-1", "frame-2"];
+const points: RoutePoint[] = [
+  { id: "source", kind: "SOURCE", x: 0.1, y: 0.5, imageId: "graph" },
+  { id: "destination", kind: "DESTINATION", x: 0.9, y: 0.5, imageId: "graph" },
+];
+const segments: RouteSegment[] = [{ id: "segment", fromPointId: "source", toPointId: "destination" }];
+
+const doorwayIssue: RouteAssistRecaptureIssueV1 = {
+  source: "SEMANTIC_PROVIDER",
+  code: "DOORWAY_CONTEXT_INCOMPLETE",
+  imageIds: ["frame-1"],
+  homeownerMessage: "doorway needs another view",
+};
+
+await check("doorway quality issue creates targeted supplemental plan", () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  assert.equal(plan.mode, "TARGETED_SUPPLEMENT");
+  assert.equal(plan.focus, "DOORWAY");
+  assert.deepEqual(plan.preserveOriginalImageIds, primary);
+  assert.deepEqual(plan.targetImageIds, ["frame-1"]);
+  assert.equal(plan.requiresFreshProviderReview, true);
+});
+
+await check("structural capture failure requires full sweep and preserves no primary frames", () => {
+  const issue: RouteAssistRecaptureIssueV1 = {
+    source: "STRUCTURAL_CAPTURE",
+    code: "TOO_FEW_FRAMES",
+    imageIds: [],
+    homeownerMessage: "scan again",
+  };
+  const plan = planRouteAssistRecaptureV1({ issue, originalImageIds: primary });
+  assert.equal(plan.mode, "FULL_SWEEP");
+  assert.deepEqual(plan.preserveOriginalImageIds, []);
+});
+
+await check("supplemental capture set preserves original sweep separately", () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  const set = buildRouteAssistSupplementalCaptureSetV1({ requestId: "doorway-recapture-1", plan, supplementalImageIds: ["doorway-extra-a", "doorway-extra-b"] });
+  assert.ok(set);
+  assert.deepEqual(set.primarySweepImageIds, primary);
+  assert.deepEqual(set.supplementalImageIds, ["doorway-extra-a", "doorway-extra-b"]);
+  assert.equal(set.focus, "DOORWAY");
+});
+
+await check("supplemental evidence cannot collide with primary sweep identity", () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  assert.equal(buildRouteAssistSupplementalCaptureSetV1({ requestId: "bad", plan, supplementalImageIds: ["frame-1"] }), null);
+});
+
+await check("full-sweep plans cannot be converted into supplemental capture sets", () => {
+  const issue: RouteAssistRecaptureIssueV1 = { source: "STRUCTURAL_CAPTURE", code: "FRAME_TOO_SMALL", imageIds: ["frame-0"], homeownerMessage: "retake" };
+  const plan = planRouteAssistRecaptureV1({ issue, originalImageIds: primary });
+  assert.equal(buildRouteAssistSupplementalCaptureSetV1({ requestId: "not-allowed", plan, supplementalImageIds: ["new-0"] }), null);
+});
+
+await check("provider receives primary sweep and supplement as distinct provenance", async () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  const set = buildRouteAssistSupplementalCaptureSetV1({ requestId: "doorway-recapture-2", plan, supplementalImageIds: ["doorway-extra"] });
+  assert.ok(set);
+  let observed = false;
+  const provider: RouteAssistVisibleSceneProviderV1 = {
+    providerKey: "targeted-recapture-proof",
+    async analyze(input) {
+      observed = true;
+      assert.deepEqual(input.captureArtifacts.imageIds, primary);
+      assert.deepEqual(input.supplementalCaptureSets?.[0].primarySweepImageIds, primary);
+      assert.deepEqual(input.supplementalCaptureSets?.[0].supplementalImageIds, ["doorway-extra"]);
+      const semantics = buildFixtureVisibleSceneSemanticsV1({ captureImageIds: [...input.captureArtifacts.imageIds], sourcePointId: "source", destinationPointId: "destination", segmentId: "segment" });
+      assert.ok(semantics);
+      return semantics;
+    },
+  };
+  const result = await runRouteAssistVisibleSceneProviderV1(provider, {
+    version: 1,
+    mode: "SURFACE",
+    destinationType: "RECEPTACLE",
+    points,
+    segments,
+    captureArtifacts: { imageIds: [...primary], overlayImageIds: [] },
+    supplementalCaptureSets: [set],
+    reviewCorrections: [],
+  });
+  assert.equal(observed, true);
+  assert.ok(result.semantics);
+});
+
+await check("invalid supplemental provenance fails before provider execution", async () => {
+  let calls = 0;
+  const provider: RouteAssistVisibleSceneProviderV1 = {
+    providerKey: "targeted-recapture-invalid-proof",
+    async analyze() { calls += 1; throw new Error("must not run"); },
+  };
+  const result = await runRouteAssistVisibleSceneProviderV1(provider, {
+    version: 1,
+    mode: "SURFACE",
+    destinationType: "RECEPTACLE",
+    points,
+    segments,
+    captureArtifacts: { imageIds: [...primary], overlayImageIds: [] },
+    supplementalCaptureSets: [{ version: 1, requestId: "bad", focus: "DOORWAY", primarySweepImageIds: [...primary].reverse(), supplementalImageIds: ["extra"] }],
+    reviewCorrections: [],
+  });
+  assert.equal(calls, 0);
+  assert.equal(result.semantics, null);
+  assert.ok(result.problems.some((problem) => problem.includes("exact primary sweep")));
+});
+
+await check("targeted recapture contract contains no geometry, measurement, pricing or material authority", () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  const serialized = JSON.stringify(plan).toLowerCase();
+  for (const forbidden of ["lengthft", "footage", "price", "cost", "material", "labor", "routepoint", "routesegment", "obstacle"]) assert.equal(serialized.includes(forbidden), false);
+});
+
+console.log(`Route Assist targeted recapture verification: ${passed} passed, 0 failed.`);
