@@ -63,7 +63,10 @@ function Marker({ point, label, source = false }: { point: RouteAssistPlanPoint;
 }
 
 function visualPointsForLeg(leg: RouteAssistOutletLeg): RouteAssistPlanPoint[] {
-  if (leg.ordinal === 1 && leg.source.x < DOOR_LEFT_X && leg.destination.x > DOOR_RIGHT_X) {
+  const crossesLeftToRight = leg.source.x < DOOR_LEFT_X && leg.destination.x > DOOR_RIGHT_X;
+  const crossesRightToLeft = leg.source.x > DOOR_RIGHT_X && leg.destination.x < DOOR_LEFT_X;
+
+  if (crossesLeftToRight) {
     return [
       leg.source,
       { x: DOOR_LEFT_X, y: leg.source.y },
@@ -73,6 +76,18 @@ function visualPointsForLeg(leg: RouteAssistOutletLeg): RouteAssistPlanPoint[] {
       leg.destination,
     ];
   }
+
+  if (crossesRightToLeft) {
+    return [
+      leg.source,
+      { x: DOOR_RIGHT_X, y: leg.source.y },
+      { x: DOOR_RIGHT_X, y: DOOR_HEADER_Y },
+      { x: DOOR_LEFT_X, y: DOOR_HEADER_Y },
+      { x: DOOR_LEFT_X, y: leg.destination.y },
+      leg.destination,
+    ];
+  }
+
   return [leg.source, leg.destination];
 }
 
@@ -131,6 +146,7 @@ export default function RouteAssistMultiOutletDemoPage() {
   const [projectStep, setProjectStep] = useState<ProjectStep>("PLAN");
   const legs = useMemo(() => (source ? buildOrderedOutletLegs(source, targets) : []), [source, targets]);
   const sourceCopy = sourceInstruction(kind);
+  const hasDoorwayBypass = legs.some((leg) => visualPointsForLeg(leg).length > 2);
 
   function resetProject(nextKind: WorkKind = kind) {
     setKind(nextKind);
@@ -207,6 +223,7 @@ export default function RouteAssistMultiOutletDemoPage() {
               <div className="flex items-center justify-between"><span>Project</span><strong className="text-navy">New {WORK_KIND_LABEL[kind].toLowerCase()}{targets.length > 1 ? "s" : ""}</strong></div>
               {kind === "OUTLET" && targets.length > 1 && <div className="mt-2 flex items-center justify-between"><span>New outlet locations</span><strong className="text-navy">{targets.length}</strong></div>}
               <p className="mt-3 text-xs leading-5 text-slate-light">The route shown is based on the room scan and the locations you selected.</p>
+              {hasDoorwayBypass && <p className="mt-2 text-xs font-medium leading-5 text-navy">The route shown goes up and around the doorway before continuing to the next location.</p>}
             </div>
             <button type="button" onClick={() => setProjectStep("DONE")} className="mt-5 w-full rounded-xl bg-electric px-5 py-3.5 text-sm font-semibold text-white shadow-sm" data-testid="route-assist-confirm-project">Confirm route</button>
             <button type="button" onClick={() => setProjectStep("SCAN_ROOM")} className="mt-3 w-full text-xs font-semibold text-slate underline underline-offset-4">Rescan room</button>
@@ -225,6 +242,11 @@ export default function RouteAssistMultiOutletDemoPage() {
             <h1 className="mt-3 text-xl font-semibold text-emerald-950">Route confirmed</h1>
             <p className="mt-1 text-sm leading-6 text-emerald-900">Your {WORK_KIND_LABEL[kind].toLowerCase()} route is confirmed.</p>
             <div className="mt-4">{projectRoom(true)}</div>
+            {hasDoorwayBypass && (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-white/80 p-4 text-sm leading-6 text-emerald-950" data-testid="route-assist-confirmed-bypass-note">
+                <strong>Confirmed path:</strong> this route goes up and around the doorway before continuing to the next location.
+              </div>
+            )}
             <button type="button" onClick={() => resetProject()} className="mt-5 w-full rounded-xl border border-emerald-300 bg-white px-4 py-3 text-sm font-semibold text-emerald-900">Start over</button>
           </section>
         </div>
