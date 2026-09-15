@@ -28,5 +28,6 @@ export function buildFixtureVisibleSceneSemanticsV1(args: {
       { id: "fixture-destination", kind: "DESTINATION_MARKER", imageId: last, confidence: 0.99, box: { x: 0.72, y: 0.50, width: 0.10, height: 0.18 }, pointId: args.destinationPointId },
     ],
     segmentObservations: [{ segmentId: args.segmentId, imageId: middle, objectIds: ["fixture-doorway", "fixture-door-left", "fixture-door-top", "fixture-door-right"], confidence: 0.96 }],
+    doorwayGroups: [{ id: "fixture-doorway-group", doorwayObjectId: "fixture-doorway", leftCasingObjectId: "fixture-door-left", topCasingObjectId: "fixture-door-top", rightCasingObjectId: "fixture-door-right", entrySide: "LEFT" }],
   };
 }
