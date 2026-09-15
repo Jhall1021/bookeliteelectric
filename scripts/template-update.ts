@@ -117,8 +117,20 @@ const componentsEqual = (a: TemplateOption["components"], b: TemplateOption["com
   return na.length === nb.length && na.every((v, i) => v === nb[i]);
 };
 
-/** Every field of an option's ROUTABLE SHAPE — everything option-revised tracks. Label/order excluded on purpose: cosmetic, not structural. */
+/**
+ * Every field of an option's ROUTABLE SHAPE — everything option-revised
+ * tracks. Label/order excluded on purpose: cosmetic, not structural.
+ *
+ * `routeAction` belongs here and was missing: it decides whether an answer
+ * prices automatically at all (CONTINUE/RESOLVE_*) or forces a human look
+ * (REVIEW/REMOTE_QUOTE/REROUTE_TROUBLESHOOTING) — a template changing an
+ * option from CONTINUE to a review-triggering action is at least as
+ * structural as a changed routing target, and with `routeAction` absent
+ * from this comparison the change was invisible to `--status` entirely,
+ * never reported, never adoptable.
+ */
 const routableShapeEqual = (a: TemplateOption, b: TemplateOption): boolean =>
+  a.routeAction === b.routeAction &&
   a.nextQuestionKey === b.nextQuestionKey &&
   a.rerouteServiceKey === b.rerouteServiceKey &&
   a.referencedServiceKey === b.referencedServiceKey &&
@@ -200,7 +212,7 @@ async function resolveOptionLinks(contractorId: string, serviceId: string, o: Te
  */
 async function liveOptionMatchesFrom(
   contractorId: string, serviceId: string, fromOpt: TemplateOption,
-  live: { nextQuestionId: string | null; rerouteServiceId: string | null; referencedServiceId: string | null;
+  live: { routeAction: unknown; nextQuestionId: string | null; rerouteServiceId: string | null; referencedServiceId: string | null;
            numberAtLeast: number | null; numberAtMost: number | null; numberAtLeastExclusive: boolean;
            requiresCapabilityKey: string | null; components: TemplateOption["components"] },
 ): Promise<boolean> {
@@ -209,7 +221,8 @@ async function liveOptionMatchesFrom(
     fromOpt.rerouteServiceKey ? resolveServiceId(contractorId, fromOpt.rerouteServiceKey) : Promise.resolve(null),
     fromOpt.referencedServiceKey ? resolveServiceId(contractorId, fromOpt.referencedServiceKey) : Promise.resolve(null),
   ]);
-  return live.nextQuestionId === fromNextId
+  return live.routeAction === fromOpt.routeAction
+    && live.nextQuestionId === fromNextId
     && live.rerouteServiceId === fromRerouteId
     && live.referencedServiceId === fromReferencedId
     && live.numberAtLeast === fromOpt.numberAtLeast
@@ -272,6 +285,7 @@ async function detect(contractorSlug: string, serviceKey: string) {
       let conflict = true; // fail closed: no live row to compare against reads as "don't touch it"
       if (mineOpt) {
         conflict = !(await liveOptionMatchesFrom(svc.contractorId, svc.id, wasOpt, {
+          routeAction: mineOpt.routeAction,
           nextQuestionId: mineOpt.nextQuestionId, rerouteServiceId: mineOpt.rerouteServiceId, referencedServiceId: mineOpt.referencedServiceId,
           numberAtLeast: mineOpt.numberAtLeast, numberAtMost: mineOpt.numberAtMost, numberAtLeastExclusive: mineOpt.numberAtLeastExclusive,
           requiresCapabilityKey: mineOpt.requiresCapabilityKey, components: liveComponents(mineOpt.components),
@@ -395,10 +409,23 @@ async function main() {
         await prisma.$disconnect(); process.exit(1);
       }
       await prisma.$transaction(async (tx) => {
-        await tx.answerOptionComponent.deleteMany({ where: { answerOptionId: mine.id } });
+        // CANONICAL COMPONENTS ONLY. liveOptionMatchesFrom / componentsEqual
+        // above only ever compared canonical-linked rows (liveComponents()
+        // filters out anything with canonicalComponentId: null) — a
+        // contractor's own noncanonical component link (the legacy
+        // `componentId` field, pointing at JobComponent) is invisible to
+        // that check and was never part of what "conflict" or "safe to
+        // revise" meant here. Deleting EVERY component on the option,
+        // scoped only by answerOptionId, deleted those noncanonical links
+        // right along with the canonical ones the check actually
+        // inspected — a real contractor customization destroyed by a
+        // write whose own safety check had no way to see it. Scoped now to
+        // exactly what the check compared: canonical-linked rows only.
+        await tx.answerOptionComponent.deleteMany({ where: { answerOptionId: mine.id, canonicalComponentId: { not: null } } });
         await tx.answerOption.update({
           where: { id: mine.id },
           data: {
+            routeAction: data.routeAction,
             nextQuestionId: data.nextQuestionId, rerouteServiceId: data.rerouteServiceId, referencedServiceId: data.referencedServiceId,
             numberAtLeast: data.numberAtLeast, numberAtMost: data.numberAtMost, numberAtLeastExclusive: data.numberAtLeastExclusive,
             requiresCapabilityKey: data.requiresCapabilityKey,

@@ -1035,6 +1035,71 @@ three contractors, unchanged session counts) after each of the four
 rehearsals independently — nothing from this pass's rehearsal work
 persists; only the same three source files and this report are committed.
 
+### 0.27 (eleventh pass) Two real defects found by direct review of the tenth pass's own diff — a destructive delete outside the check's own scope, and a structural field invisible to detection entirely
+
+Both found by reading `template-update.ts`'s actual `option-revised` code
+against what its own safety check inspected, not by a new rehearsal
+inventing a new scenario — the code itself, once written, revealed both.
+
+**1. `option-revised` adoption could delete a contractor's own,
+unrelated component link.** `liveOptionMatchesFrom`'s conflict check (and
+`componentsEqual` generally) only ever compares CANONICAL component links
+— `liveComponents()` explicitly filters out any row with
+`canonicalComponentId: null`, because a noncanonical link (the deprecated
+`componentId` field, pointing at `JobComponent`) is not something a
+template can express or compare in the first place. But the WRITE for an
+adopted `option-revised` change did `answerOptionComponent.deleteMany({
+where: { answerOptionId: mine.id } })` — scoped only by the option, not by
+which kind of link — so it deleted every component row on the option,
+canonical and noncanonical alike, and only recreated the canonical ones
+from the template. A contractor's own noncanonical component link, which
+the safety check had no way to even see, was destroyed by a write the
+check had just certified as "no conflict." Fixed: the `deleteMany` is now
+scoped to `canonicalComponentId: { not: null }` — exactly what the
+comparison inspected, nothing more. Rehearsed: created a real
+`JobComponent` and a noncanonical `AnswerOptionComponent` link on Elite's
+live `purpose/general_use` option, then adopted an unrelated
+`option-revised` change (see below) that also added a new CANONICAL
+component to the same option. Confirmed by direct query afterward: both
+components exist on the option — the new canonical one from the template,
+and the original noncanonical one, completely untouched.
+
+**2. `routeAction` was invisible to `option-revised` entirely — not
+detected, not adoptable, not written.** `routableShapeEqual` and
+`liveOptionMatchesFrom` compared routing links, numeric bounds, capability
+gate and components, but never `routeAction` — the single field that
+decides whether an answer prices automatically (`CONTINUE`/`RESOLVE_*`) or
+forces a human look (`PHOTO_REVIEW`/`REMOTE_QUOTE`/
+`REROUTE_TROUBLESHOOTING`). A template revising an option from `CONTINUE`
+to a review-triggering action produced NO detected change at all — not
+reported by `--status`, not adoptable by any `--adopt` key, and even if it
+had somehow been reached, the `option-revised` write path never touched
+`routeAction` on the live row regardless. Fixed: `routeAction` is now
+compared in both `routableShapeEqual` (does the template consider this
+revised) and `liveOptionMatchesFrom` (has the contractor's live copy
+already drifted), and the adoption write now sets `routeAction` on the
+updated live option. Rehearsed: authored a version that changed
+`purpose/general_use`'s `routeAction` from `CONTINUE` to `PHOTO_REVIEW`
+(clearing its `nextQuestionKey` to match, since a review branch routes
+nowhere); `--status` now reports it as a real `option-revised` change;
+`--adopt` correctly wrote `routeAction: PHOTO_REVIEW` and
+`nextQuestionId: null` onto the live option, confirmed by direct query.
+
+Both rehearsed together against the same live option and the same
+adoption call, proving the two fixes compose correctly — the noncanonical
+link survives while the canonical component set and `routeAction` both
+update in the one write. All rehearsal state (the `JobComponent`, both
+component links, the routing field, the scratch template version, Elite's
+provenance stamp and pricing) was reverted afterward, confirmed by direct
+query.
+
+**Verification.** `npx tsc --noEmit` clean project-wide. All three
+browser-flow suites re-run clean against a fresh production build. The
+local disposable database confirmed back to its exact baseline (one
+`TemplateVersion`, three contractors, zero `JobComponent` rows) afterward
+— only `scripts/template-update.ts` and this report are committed in this
+pass.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple
