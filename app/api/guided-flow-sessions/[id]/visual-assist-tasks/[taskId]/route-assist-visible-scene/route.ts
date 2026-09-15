@@ -5,6 +5,7 @@ import { r2 } from "@/lib/r2";
 import { getOrCreateSessionId } from "@/lib/session";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { loadSession } from "@/lib/guidedFlowSession";
+import { analyzeRouteAssistVisibleSceneWithAiGatewayV1 } from "@/lib/visual-assist/route-assist/aiGatewayVisibleScene";
 import type { RouteAssistHttpVisibleSceneRequestV1 } from "@/lib/visual-assist/route-assist/httpVisibleSceneProvider";
 
 export type RouteAssistVisibleSceneMediaBindingV1 = {
@@ -34,11 +35,12 @@ function requiredImageIds(request: RouteAssistHttpVisibleSceneRequestV1): string
  * The browser supplies opaque imageId -> private mediaRef bindings. This route
  * repeats session/task ownership checks, validates every storage key belongs to
  * this exact task, creates short-lived signed GET URLs, and sends those URLs to
- * the configured semantic-CV service. Public image URLs never exist.
+ * semantic CV. Public image URLs never exist.
  *
- * The external service is deliberately provider-neutral. It must return the
- * RouteAssistVisibleSceneSemanticsV1 JSON contract; domain validation still
- * happens again in `runRouteAssistVisibleSceneProviderV1` on the client side.
+ * A separately configured provider remains supported. When none is configured,
+ * Price2Book uses Vercel AI Gateway with the deployment's short-lived OIDC
+ * identity. Either path must return the same provider-neutral visible-scene
+ * contract and neither path receives pricing or contractor economics.
  */
 export async function POST(
   req: Request,
@@ -94,17 +96,6 @@ export async function POST(
       return NextResponse.json({ error: "Route Assist media bindings are incomplete" }, { status: 400 });
     }
 
-    const providerUrl = process.env.ROUTE_ASSIST_VISIBLE_SCENE_PROVIDER_URL;
-    if (!providerUrl) {
-      return NextResponse.json({ error: "Route Assist semantic provider is unavailable" }, { status: 503 });
-    }
-    let parsedProviderUrl: URL;
-    try { parsedProviderUrl = new URL(providerUrl); }
-    catch { return NextResponse.json({ error: "Route Assist semantic provider is misconfigured" }, { status: 503 }); }
-    if (parsedProviderUrl.protocol !== "https:" && process.env.NODE_ENV === "production") {
-      return NextResponse.json({ error: "Route Assist semantic provider must use HTTPS" }, { status: 503 });
-    }
-
     const bucket = process.env.R2_ROUTE_ASSIST_BUCKET_NAME ?? process.env.R2_BUCKET_NAME;
     if (!bucket) return NextResponse.json({ error: "Route Assist media storage is unavailable" }, { status: 503 });
 
@@ -116,6 +107,24 @@ export async function POST(
         { expiresIn: 300 },
       ),
     })));
+
+    const providerUrl = process.env.ROUTE_ASSIST_VISIBLE_SCENE_PROVIDER_URL;
+    if (!providerUrl) {
+      try {
+        const semantics = await analyzeRouteAssistVisibleSceneWithAiGatewayV1({ request, media: signedMedia });
+        return NextResponse.json(semantics, { headers: { "Cache-Control": "no-store" } });
+      } catch (error) {
+        console.error("Route Assist built-in semantic provider failed", error instanceof Error ? error.message : error);
+        return NextResponse.json({ error: "Route Assist semantic provider failed" }, { status: 502 });
+      }
+    }
+
+    let parsedProviderUrl: URL;
+    try { parsedProviderUrl = new URL(providerUrl); }
+    catch { return NextResponse.json({ error: "Route Assist semantic provider is misconfigured" }, { status: 503 }); }
+    if (parsedProviderUrl.protocol !== "https:" && process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Route Assist semantic provider must use HTTPS" }, { status: 503 });
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
