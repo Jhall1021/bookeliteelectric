@@ -72,6 +72,30 @@ if (!("reason" in built)) {
   );
 }
 
+const floatNoiseProbe = buildRouteAssistResult({
+  mode: "SURFACE",
+  destinationType: "RECEPTACLE",
+  points: [
+    { id: "n-a", x: 0.1, y: 0.4, imageId: "img-noise", kind: "SOURCE" },
+    { id: "n-w", x: 0.5, y: 0.4, imageId: "img-noise", kind: "WAYPOINT" },
+    { id: "n-b", x: 0.9, y: 0.4, imageId: "img-noise", kind: "DESTINATION" },
+  ],
+  segments: [
+    { id: "n-s1", fromPointId: "n-a", toPointId: "n-w", estimatedLengthFt: 0.1 },
+    { id: "n-s2", fromPointId: "n-w", toPointId: "n-b", estimatedLengthFt: 0.2 },
+  ],
+  drywallAccessAllowed: null,
+  captureArtifacts: { imageIds: ["img-noise"], overlayImageIds: [] },
+});
+check("decimal-noise probe builds successfully", !("reason" in floatNoiseProbe), JSON.stringify(floatNoiseProbe));
+if (!("reason" in floatNoiseProbe)) {
+  check(
+    "0.1 + 0.2 is represented as the observed decimal 0.3, not binary float noise",
+    floatNoiseProbe.estimatedTotalRouteLengthFt === 0.3,
+    String(floatNoiseProbe.estimatedTotalRouteLengthFt),
+  );
+}
+
 const fractional = adaptRouteAssistResult(capture());
 check(
   "adapter preserves 14.625 ft exactly",
