@@ -6,6 +6,7 @@ import { getRouteAssistInvocation } from "@/lib/visual-assist/route-assist/guide
 import { listVisualAssistTasks } from "@/lib/routeAssistHandoffClient";
 import { uploadPhoto } from "@/lib/upload";
 import { selectNumericOption } from "@/lib/numericRouteRanges";
+import { useSiteFetch } from "@/components/site/SiteContext";
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import type { RouteAssistResult } from "@/lib/visual-assist/route-assist/types";
 
@@ -43,6 +44,7 @@ function isMobileViewport(): boolean {
 }
 
 export default function RouteAssistQuestionAssist({ serviceSlug, question, guidedFlowSessionId, onResolved }: Props) {
+  const siteFetch = useSiteFetch();
   const [open, setOpen] = useState(false);
   const [unusable, setUnusable] = useState(false);
   const consumedTaskRef = useRef<string | null>(null);
@@ -107,7 +109,7 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
     if (!invocation || !guidedFlowSessionId) return;
     let cancelled = false;
 
-    listVisualAssistTasks(fetch, guidedFlowSessionId)
+    listVisualAssistTasks(siteFetch, guidedFlowSessionId)
       .then((tasks) => {
         if (cancelled) return;
         const completed = tasks.find(
@@ -132,7 +134,7 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
     // `handleComplete` intentionally follows the currently rendered question;
     // question.key/taskKey are the dependencies that define that identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guidedFlowSessionId, serviceSlug, question.key, invocation?.taskKey]);
+  }, [guidedFlowSessionId, serviceSlug, question.key, invocation?.taskKey, siteFetch]);
 
   if (!invocation || !guidedFlowSessionId) return null;
 
