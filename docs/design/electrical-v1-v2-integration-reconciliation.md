@@ -324,6 +324,130 @@ BYTE-FOR-BYTE unchanged alongside the already-proven unchanged price. Both
 halves of what makes a booking accountable are frozen together, not just
 the number.
 
+### 0.13 (fourth pass) The activation shortcut removed — the dependency now launches for real
+
+§0.11's fixture builder correctly satisfied `activateService`'s
+`DEPENDENCY_UNAVAILABLE` check, but by writing `active: true` directly onto
+"Dedicated Circuit & Outlet" — a real shortcut, flagged as one at the time.
+Since the outlet's own qualification gate can genuinely hand a homeowner off
+to that service, a launch proof that skips actually launching it is
+incomplete. Removed; replaced with the same sequence a real contractor's own
+admin would use, in `scripts/_derivedStorefrontFixture.ts`:
+
+1. Decide its band question (`panel_circuit_run.breakpoints`, boundaries
+   `[30, 60]` — the same value `scripts/onboard-contractor-two.ts` already
+   uses for this exact policy key).
+2. Enter its material costs — the canonical per-unit reference figures
+   `prisma/seed-materials.ts` already documents for these keys
+   (`WIRE_14_2`, `BREAKER_SINGLE_POLE`, `WALL_PLATE`, `RECEPTACLE_STANDARD`,
+   `BOX_OLD_WORK`, `CONSUMABLES_MEDIUM`), not numbers invented for this
+   fixture.
+3. Enter crew-hours (`Service.fieldLaborHours` — the same panel edit
+   `onboard-contractor-two.ts`'s own comment documents), reusing Elite's own
+   2.5-hour figure for this service.
+4. Publish the derived suggestion (`lib/pricePublication.ts`'s
+   `publishSuggestedPrice` — the single authority; it computes the number,
+   never accepts one).
+5. Activate (`lib/serviceActivation.ts`'s `activateService`) — its own full
+   gate, not a flag flip.
+
+**Proven, not just configured** — `scripts/verify-integration-manual-
+routing-storefront-browser-flow.ts` gained a new block (G): a homeowner
+answers "a specific large appliance", is handed off by name ("Continue to
+Dedicated Circuit & Outlet"), lands on that service's own real intro (not a
+dead link), and completes a full path through it. Doing this surfaced two
+more real, previously-unknown facts about this exact service's tree,
+neither assumed going in:
+
+- A well-known appliance (refrigerator/freezer) has its amperage skip
+  straight from equipment to route access — a real branching shortcut in
+  the tree, not a defect.
+- A known appliance, an accessible route, and a short distance is enough
+  certainty to price INSTANTLY (`PricedPhotoReview`, a real locked-in
+  price with non-blocking prep photos), not the blocking review every
+  path was assumed to share going in.
+
+3 consecutive clean runs, 24/24 checks.
+
+### 0.14 (fourth pass) A real ordering bug this exact change surfaced — in the fixture, not the product
+
+Configuring the dependency's material costs AFTER already approving
+`new-120v-outlet` staled that approval — every straight route landed on
+REVIEW where it had always priced before. Traced to a genuine, worth-
+recording architectural fact: `lib/electrical/loadDerivedScope.ts`'s
+`loadDerivedPricingBasis` reads `contractorMaterial.findMany({ where: {
+contractorId } })` — every material cost row for the CONTRACTOR, not
+filtered to the roles the specific service being approved actually
+consumes. Writing a cost for an entirely unrelated role (the dependency's
+`WIRE_14_2`, never touched by the surface-raceway recipe) still changes the
+overall fingerprint `new-120v-outlet`'s prior approval was computed over.
+This is existing, deliberate product behavior (a contractor-wide, not
+per-service, invalidation scope — arguably conservative on purpose), not a
+bug to fix here; the bug was in this fixture's OWN sequencing. Fixed by
+configuring every contractor-wide economic input first and approving once,
+last — which is what a real contractor's own setup would do too; nobody
+approves a price mid-configuration.
+
+### 0.15 (fourth pass) Booked economic provenance, the stronger version — WHICH basis, not just "it held"
+
+§0.12 proved a booked price and its answers survive a later economics
+change unchanged. That is not yet provenance — an unchanged number could be
+coincidence. `LineItem.resolvedEconomicBasis` is the actual mechanism
+(`lib/electrical/derivedPricingBasis.ts`'s fingerprint over every
+price-relevant contractor input, stamped onto the line at booking time —
+see the schema's own "DERIVED PRICING PROVENANCE" comment). Block F now
+proves the REAL claim: after the later cost change and reapproval, the
+contractor's CURRENT `ContractorDerivedPricingApproval.approvedBasisFingerprint`
+is read directly and confirmed to have GENUINELY CHANGED from what was
+recorded at booking time (the economics really moved, not cosmetically),
+while the booked `LineItem.resolvedEconomicBasis` stays pinned to the
+ORIGINAL fingerprint — never silently rewritten to match the new approval.
+That is the actual provenance claim: this specific booking is traceable to
+a specific, now-superseded economic basis, not merely "a number that didn't
+move."
+
+### 0.16 (fourth pass) Cross-tenant access proven through the actual API, not a database count
+
+§0.11's isolation proof queried Prisma directly (`lineItem.count(...)`) —
+real, but one level removed from what a misconfigured or malicious client
+would actually hit. `scripts/verify-two-fresh-contractors-routing-v2-
+browser-flow.ts` now captures each tenant's real anonymous-session cookie
+(`elite_session_id`, `lib/sessionCookieConfig.ts`) after a genuine visit is
+added, and replays it against `GET /api/visit` — the actual customer-facing
+endpoint, not a helper — using the OTHER contractor's site header
+(`x-price2book-site`). `app/api/visit/route.ts` scopes its Visit lookup by
+BOTH the caller's site (`contractorId`) and its session id, so A's real
+session against B's site finds no Visit row at all (one exists for
+`(contractorId: A, sessionId: A)`, not `(contractorId: B, sessionId: A)`) —
+empty, not a leak of A's data and not a coincidental match of B's. Proven
+both directions, plus a same-tenant sanity check confirming the mechanism
+itself works (A's own session against A's own site correctly returns A's
+real visit, with the real total).
+
+### 0.17 (fourth pass) `origin/main` moved since this branch forked — inspected, not merged
+
+PR #64 (Guided Flow schema reconciliation provenance) and PR #65 (Material
+Catalog Phase 1C, first canonical recipe promotion batch — a new `electrical
+v3` `TemplateVersion` DELTA) landed on `main` after this branch's fork
+point. GitHub's conflict report is real but narrow: **exactly one file,
+`package.json`**, and inside it exactly the `verify:full`/`verify:fast`
+script-list lines — both branches independently edited the same lines (this
+branch added scripts as it went; main's own edits added/removed a different
+set, including a new `verify-material-recipe-promotion-batch-1.ts`). A
+mechanical, textual conflict, not a semantic one: `git diff --stat` against
+main confirms none of the six files main changed
+(`package.json`, `prisma/seed-bathroom-fans.ts`, `prisma/seed-exterior-
+gfci-routing.ts`, `prisma/template/electrical-v3-provenance.json`,
+`scripts/create-missing-guided-flow-schema.ts`,
+`scripts/verify-material-recipe-promotion-batch-1.ts`) overlap with anything
+this branch or this review round touched — no shared file carries logic
+from both sides. Everything else main added merges cleanly (new files,
+resolved automatically). **Not resolved here** — reconciling `verify:full`'s
+script list against main's own additions, and deciding whether/when this
+branch adopts the new `electrical v3` template delta, is real work for
+actual integration, which stays a later, separate step; this pass only
+confirms the conflict is small, mechanical, and isolated.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple
@@ -501,8 +625,8 @@ Two disposable Postgres databases in the same task-owned cluster
 | `scripts/verify-delayed-network-answer-save-browser-flow.ts` | 5/5, 1 run — same-tab overlapping saves | PR #56, re-run on the merged branch |
 | `scripts/verify-troubleshooting-note-directbook-browser-flow.ts` | 12/12, 1 run | PR #56, re-run on the merged branch |
 | `scripts/verify-cross-device-stale-queue-browser-flow.ts` (**extended §0.6**) | 5/5, **3 consecutive runs** — 2 checks now prove the conflict-notice gate and the next action | this branch |
-| `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` (**extended §0.7/§0.9-§0.10/§0.12**) | **18/18, 3 consecutive runs**, against the real Elite-derived Routing V2 tree | this branch — see §5 |
-| `scripts/verify-two-fresh-contractors-routing-v2-browser-flow.ts` (**new, §0.11**) | 16/16, **3 consecutive runs** — two contractors, tenant isolation | this branch |
+| `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` (**extended §0.7/§0.9-§0.10/§0.12-§0.15**) | **24/24, 3 consecutive runs**, against the real Elite-derived Routing V2 tree, including the large-appliance hand-off (block G) and the basis-fingerprint provenance proof | this branch — see §5 |
+| `scripts/verify-two-fresh-contractors-routing-v2-browser-flow.ts` (**new, §0.11, extended §0.16**) | **22/22, 3 consecutive runs** — two contractors, tenant isolation, cross-tenant access through the real API | this branch |
 
 ### 5. What the integration scripts prove that nothing else did
 
@@ -562,7 +686,20 @@ real browser:
   re-derived on a later read. The booked `LineItem.answersSnapshot` (§0.12)
   is captured and re-checked the same way — the customer's actual answers,
   not just the price they produced, survive that same later change
-  untouched.
+  untouched. The booked `LineItem.resolvedEconomicBasis` (§0.15) goes
+  further still: after the same later cost change, the contractor's CURRENT
+  approval fingerprint is read directly and confirmed to have genuinely
+  moved, while the booked row's own fingerprint stays pinned to the
+  ORIGINAL basis — proof of WHICH economics justified this price, not just
+  that the number happened to hold.
+- **The qualification gate's large-appliance hand-off, launched for real,
+  not flagged active (§0.13)** — a homeowner who answers "a specific large
+  appliance" is handed off by name to "Dedicated Circuit & Outlet",
+  configured/published/activated through the same supported actions as
+  `new-120v-outlet` itself, and completes a full path through it to one of
+  its own genuine terminal states (an instant price, or a photo-review) —
+  proof the dependency the outlet's own launch depends on is actually live,
+  not a raw flag flip standing in for it.
 
 Stale-approval → REVIEW and reapproval → PRICED restoration are proven at
 BOTH levels now: `verify-routing-precision-provisioning.ts`'s own "changed
@@ -707,6 +844,62 @@ Also individually re-confirmed clean on this seeded database:
 `verify-category-integrity.ts`, `verify-disclaimer-integrity.ts`, and
 `verify-booking-tenancy.ts` (17/17).
 
+### Re-run in full after this review round (§0.13-§0.17) — same wall, nothing new broke
+
+`npm run verify:full` was run again, start to finish, after every fix in
+this section of the report. It stops at the SAME first wall as before
+(`capture-hero-flow.ts --check`, §0's own consequence of the tree
+migration) — confirming none of this round's changes to
+`scripts/_derivedStorefrontFixture.ts` (which only ever touches throwaway
+fixture contractors, created and torn down inside each browser-flow
+script's own run) altered Elite's or BrightPath's persisted state. **The
+full suite remains failing overall — that is accurately reported here, not
+minimized.**
+
+**Separating what that means, plainly, because the two are easy to
+conflate:**
+
+- **FIXTURE DEFICIENCIES — gaps in how this disposable database happens to
+  be bootstrapped, not defects in the product.** Nothing here was bulk-
+  fixed to make a check pass, and none of it should be: doing so would mean
+  approving on the order of 100 services' pricing across two contractors by
+  fiat, which is not a thing this bounded pass — or any automated pass —
+  should decide on its own.
+  - ~103 seed-written, never-approved prices across Elite and BrightPath
+    (`verify-public-pricing.ts` and its three cascades).
+  - Elite's own `countryCode` was never set by the one-line bootstrap
+    upsert (`verify-onboarding-readiness.ts`'s `COUNTRY_MISSING`).
+  - Elite's own `new-120v-outlet` has no economics of its own now that it
+    carries the real tree (`capture-hero-flow.ts`'s wall — §0 above).
+  - No eligible crew, no Stripe connection, and a DB trigger `prisma db
+    push` doesn't install — all four already documented in the electrical
+    decision-tree audit's own fourth-pass report, reconfirmed unchanged
+    here.
+  - `fan-replacing-light`'s duplicate question order and the 9 British
+    spellings — both pre-existing, both unrelated to Routing V2 or this
+    engagement.
+- **DEMONSTRATED REGRESSIONS — real bugs this pass found and closed, not
+  left for a future pass:**
+  - Extraction silently dropping `pricingMethod` (§0.9) — a real, generic
+    tool defect, fixed in `scripts/extract-template-catalog.ts` and proven
+    with a live before/after flip.
+  - `new-120v-outlet`'s retired questions sharing one sentinel order
+    (§0.10) — a real bug in `prisma/seed-new-outlet-v2.ts`'s own migration,
+    fixed; confirmed absent from `verify-question-order.ts`'s failures
+    afterward.
+  - `PILOT_ANSWERS` referencing a qualification key `seed-questions.ts`
+    retired — a real, silent staleness in production code
+    (`lib/electrical/onboardingPilotReadiness.ts`), fixed.
+  - This review round's own two fixture-only issues (the activation
+    shortcut, §0.13; the approve-before-configure ordering bug, §0.14) —
+    real bugs, but in THIS PASS'S OWN test fixture, not the product; both
+    closed the same day they were introduced, before being reported as
+    done.
+
+Nothing in the FIXTURE DEFICIENCY list was touched to force a green run;
+everything in the DEMONSTRATED REGRESSION list was a genuine bug and is now
+fixed. That is the accurate state of the gate, not a rounded-up one.
+
 ## 7. Remaining release blockers
 
 1. **Branch integration itself is done here, not yet reviewed.** This branch
@@ -726,25 +919,41 @@ Also individually re-confirmed clean on this seeded database:
 4. **`verify:full`'s 2-contractor concurrency wall is closed** (§0.8, §6).
    BrightPath is a real, persisted second tenant on `p2b_integration_seeded`,
    and `verify-platform-read-model.ts`'s concurrency check passes alone.
-5. **Routing-V2-capable second-tenant provisioning is also closed** — the
-   gap this item previously named. §0.9 corrected the diagnosis (extraction
-   already carries component/quantity-binding wiring faithfully; the
-   template it was tested against still held a legacy source tree, on this
-   database, at the time) and §0.10-§0.11 completed it for real: Elite's own
-   source was migrated onto the surface-raceway tree, extraction re-run
-   against it, and TWO independent fresh contractors were proven to receive
-   a fully working Routing V2 tree through ordinary `installCatalog`,
-   including tenant isolation between them (§0.11).
-6. **`verify:full`, run to completion for the first time, surfaced a
-   materially different, PRE-EXISTING wall — not a Routing V2 or this pass's
-   own defect.** §6 has the full breakdown; in short, roughly 100 services
-   across Elite and BrightPath carry prices that were seed-written rather
-   than published through the real approval action, which cascades into
-   several pricing-consistency gates and into Elite's own
-   `verify-onboarding-readiness.ts` launchability. This is a `db:seed:all`
-   bootstrap-wide gap, orthogonal to Routing V2 specifically, and a
-   materially larger undertaking than this bounded pass (re-approving on
-   the order of 100 services across two tenants) — not attempted here.
+5. **Routing-V2-capable second-tenant provisioning is closed, including the
+   contractor's own launch dependency** — the gap this item previously
+   named. §0.9 corrected the diagnosis (extraction already carries
+   component/quantity-binding wiring faithfully; the template it was tested
+   against still held a legacy source tree, on this database, at the time)
+   and §0.10-§0.11 completed it for real: Elite's own source was migrated
+   onto the surface-raceway tree, extraction re-run against it, and TWO
+   independent fresh contractors were proven to receive a fully working
+   Routing V2 tree through ordinary `installCatalog`, including tenant
+   isolation between them (§0.11, and through the actual API — §0.16). §0.13
+   closed the one remaining shortcut: the qualification gate's own
+   large-appliance hand-off target is now launched through the same
+   supported actions as the outlet itself, not flagged active, and walked
+   end to end.
+6. **`verify:full`, run to completion, surfaces a materially different,
+   PRE-EXISTING wall — not a Routing V2 or this pass's own defect.** §6 has
+   the full breakdown, now split explicitly into fixture deficiencies
+   (seed-chain gaps, ~103 unapproved prices, a missing `countryCode`, no
+   crew/Stripe/DB-trigger — none of it touched to force a pass) versus
+   demonstrated regressions (extraction's `pricingMethod` loss, a duplicate
+   question order, a stale qualification key, this round's own two
+   fixture-ordering bugs — all found AND fixed, none left outstanding).
+   Re-run to completion after every fix in this pass stops at the identical
+   first wall, confirming nothing new broke. Re-approving on the order of
+   100 services across two tenants by fiat is a materially larger
+   undertaking than this bounded pass and is deliberately not attempted
+   here.
+7. **`origin/main` has moved since this branch forked (PR #64, PR #65) —
+   inspected, not merged (§0.17).** GitHub's conflict report is real but
+   narrow: one file, `package.json`, one script-list line each branch
+   edited independently — mechanical, not semantic; none of the six files
+   main changed overlap with anything this branch touches. Reconciling that
+   line and deciding this branch's relationship to main's new `electrical
+   v3` template delta is real work for actual integration, not performed in
+   this bounded pass.
 
 **Not gated on Route Assist finishing** — per the integration instruction,
 Route Assist's own implementation state was not a blocker for any of the work
