@@ -25,14 +25,6 @@ import type {
   RouteSurface,
 } from "./taxonomy";
 
-/**
- * A point the customer placed on a captured photo.
- *
- * `x`/`y` are normalized 0..1 image-space coordinates (not pixels), so a
- * point is meaningful regardless of the photo's stored resolution.
- * `imageId` lets a route span more than one photo (§9 Step 1 — "multiple
- * images if one angle cannot show the entire route").
- */
 export type RoutePoint = {
   id: string;
   x: number;
@@ -40,31 +32,10 @@ export type RoutePoint = {
   imageId: string;
   kind: RoutePointKind;
   surface?: RouteSurface | null;
-  /** Set only on a WAYPOINT the customer tagged as routing around this. */
   obstacle?: RouteObstacle | null;
-  /**
-   * Ordered Geometry V1: an explicitly observed PHYSICAL raceway turn at this
-   * waypoint. This is evidence, not a deduction from 2-D line direction.
-   *
-   * A room scan may populate it when the physical relationship is actually
-   * established; a contractor/customer may also explicitly confirm it later.
-   * Ordinary photo geometry must leave it null/undefined rather than promote a
-   * screen-space left/right bend into an inside/outside/flat fitting.
-   *
-   * Obstacle context is independent: a doorway/window waypoint may also carry
-   * a physical turn. One must never suppress the other.
-   */
   physicalTurn?: RoutePhysicalTurn | null;
 };
 
-/**
- * One leg of the route, between two points already in `points`.
- *
- * `transitionAtEnd: true` means the surface changes between this segment and
- * the next one sharing `toPointId` — e.g. this segment is WALL and the next
- * is CEILING. Left `null`/unset when there's no next segment (the last leg)
- * or the customer hasn't tagged either segment's surface.
- */
 export type RouteSegment = {
   id: string;
   fromPointId: string;
@@ -79,101 +50,63 @@ export type RouteSegment = {
 export type RouteAssistCaptureArtifacts = {
   imageIds: string[];
   overlayImageIds: string[];
+  /**
+   * Optional opaque private-storage identities for capture evidence. These are
+   * never public URLs and are meaningful only to server-side authorized media
+   * retrieval. Kept separately from imageIds because image identity is domain
+   * provenance while mediaRef is storage provenance.
+   */
+  mediaRefs?: string[];
 };
 
-/**
- * A completed, confirmable Route Assist result.
- *
- * `needsContractorReview` is always present and is never inferred by the
- * reader — see result.ts for the one function allowed to set it, and
- * invariants.ts #5 for the structural rule tying it to
- * `customerConfirmedRoute`.
- */
 export type RouteAssistResult = {
   mode: RouteAssistMode;
   destinationType: RouteAssistDestinationType;
-
   points: RoutePoint[];
   segments: RouteSegment[];
-
   customerConfirmedRoute: boolean;
-
   estimatedTotalRouteLengthFt: number | null;
-
   sameWall: boolean | null;
-
   wallTransitionsCount: number;
   insideCornersCount: number;
   outsideCornersCount: number;
-
   doorwayBypassesCount: number;
   windowBypassesCount: number;
-
   verticalTransitionsCount: number;
   wallToCeilingTransitionsCount: number;
   wallToFloorTransitionsCount: number;
-
-  /** Any waypoint with no `obstacle` tag but that is still a direction
-   * change not otherwise classified as a surface transition or an inside/
-   * outside corner — kept honest as its own bucket rather than folded into
-   * "corner," since a detour around something unnamed is a different fact
-   * than a corner. */
   visibleObstacleDetoursCount: number;
-
   concealedRouteComplexity: RouteComplexity | null;
-
   suggestedAccessOpeningsMin: number | null;
   suggestedAccessOpeningsMax: number | null;
-
   needsContractorReview: boolean;
-
   captureArtifacts: RouteAssistCaptureArtifacts;
-
   customerNotes: string | null;
-
-  /** §8: only meaningful when `mode` is CONCEALED. Carried onto the result
-   * (not just the capture input) because the contractor-facing summary
-   * (§13) states it directly. */
   drywallAccessAllowed: boolean | null;
 };
 
-/**
- * §22 of the brief. The only other thing `buildRouteAssistResult` can
- * return. Never partially filled in alongside a result — it's one or the
- * other.
- */
 export type RouteAssistIncomplete = {
   reason: RouteAssistIncompleteReason;
-  /** Homeowner-facing recovery copy — see uncertainty.ts. */
   recoveryPrompt: string;
-  /** Whether recovery is another photo or straight to contractor review. */
   recovery: "RETAKE_PHOTO" | "CONTRACTOR_REVIEW";
 };
 
 export type RouteAssistOutcome = RouteAssistResult | RouteAssistIncomplete;
 
-export function isRouteAssistIncomplete(
-  outcome: RouteAssistOutcome
-): outcome is RouteAssistIncomplete {
+export function isRouteAssistIncomplete(outcome: RouteAssistOutcome): outcome is RouteAssistIncomplete {
   return "reason" in outcome;
 }
 
-/**
- * What `buildRouteAssistResult` (result.ts) takes as input — the raw
- * customer-placed geometry plus the two questions asked up front (§8).
- */
 export type RouteAssistCaptureInput = {
   mode: RouteAssistMode;
   destinationType: RouteAssistDestinationType;
   points: RoutePoint[];
   segments: RouteSegment[];
-  /** §8: only meaningful when mode is CONCEALED. */
   drywallAccessAllowed: boolean | null;
   captureArtifacts: RouteAssistCaptureArtifacts;
   customerNotes?: string | null;
 };
 
-/** §11's confirmation step, recorded. Mirrors ../confirmation.ts's shape. */
 export type RouteAssistConfirmation = {
   decision: RouteAssistConfirmationDecision;
   decidedAt: string;
