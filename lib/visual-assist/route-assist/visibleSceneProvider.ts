@@ -77,6 +77,20 @@ function validateSupplementalCaptureSetsV1(input: RouteAssistVisibleSceneProvide
   return problems;
 }
 
+function canonicalSupplementalSets(
+  sets: readonly RouteAssistSupplementalCaptureSetV1[] | undefined,
+): RouteAssistSupplementalCaptureSetV1[] | undefined {
+  if (!sets) return undefined;
+  return sets
+    .map((set) => ({
+      ...set,
+      primarySweepImageIds: [...set.primarySweepImageIds],
+      // Supplemental evidence membership is meaningful; capture chronology is not.
+      supplementalImageIds: [...set.supplementalImageIds].sort((a, b) => a.localeCompare(b)),
+    }))
+    .sort((a, b) => a.requestId.localeCompare(b.requestId));
+}
+
 function inputSnapshot(input: RouteAssistVisibleSceneProviderInputV1): RouteAssistVisibleSceneProviderInputV1 {
   return {
     version: 1,
@@ -88,11 +102,7 @@ function inputSnapshot(input: RouteAssistVisibleSceneProviderInputV1): RouteAssi
       imageIds: [...input.captureArtifacts.imageIds],
       overlayImageIds: [...input.captureArtifacts.overlayImageIds],
     },
-    supplementalCaptureSets: input.supplementalCaptureSets?.map((set) => ({
-      ...set,
-      primarySweepImageIds: [...set.primarySweepImageIds],
-      supplementalImageIds: [...set.supplementalImageIds],
-    })),
+    supplementalCaptureSets: canonicalSupplementalSets(input.supplementalCaptureSets),
     reviewCorrections: input.reviewCorrections?.map((correction) => ({
       ...correction,
       point: { ...correction.point },
