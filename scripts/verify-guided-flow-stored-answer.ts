@@ -8,49 +8,43 @@ function check(label: string, condition: boolean, detail = "") {
   console.log(`  ${condition ? "ok  " : "FAIL"} ${label}${condition || !detail ? "" : `\n       ${detail}`}`);
 }
 
-function option(over: Partial<AnswerOptionDTO> & Pick<AnswerOptionDTO, "id" | "value">): AnswerOptionDTO {
+/**
+ * These verifier fixtures intentionally model only the fields consumed by
+ * optionForStoredGuidedFlowAnswer()/selectNumericOption(). Keeping the proof
+ * coupled to every display/pricing field on AnswerOptionDTO made an unrelated
+ * DTO addition capable of breaking the Next/Vercel build even though the
+ * replay contract itself had not changed.
+ */
+function option(over: {
+  id: string;
+  value: string;
+  numberAtLeast?: number | null;
+  numberAtMost?: number | null;
+}): AnswerOptionDTO {
   return {
     id: over.id,
-    label: over.label ?? over.value,
+    label: over.value,
     value: over.value,
-    priceModifierCents: 0,
-    nextQuestionId: null,
-    routeAction: "CONTINUE",
-    numberAtLeast: null,
-    numberAtMost: null,
-    rerouteServiceId: null,
-    requiredPhotoLabels: [],
-    illustrationUrls: [],
-    photoSafetyNotes: [],
-    disclaimer: null,
-    photosBlockBooking: false,
-    overrideEstimatedMinutes: null,
-    overrideTechCount: null,
-    overrideFieldLaborHours: null,
-    approvedComponentPriceCents: 0,
-    accessClassification: null,
-    accessSlot: "PRIMARY",
-    accessFinishedDisclaimer: null,
-    conditionalDisclaimers: [],
-    components: [],
-    ...over,
-  };
+    numberAtLeast: over.numberAtLeast ?? null,
+    numberAtMost: over.numberAtMost ?? null,
+  } as unknown as AnswerOptionDTO;
 }
 
-function question(over: Partial<QuestionDTO> & Pick<QuestionDTO, "key" | "inputType" | "options">): QuestionDTO {
+function question(over: {
+  key: string;
+  inputType: QuestionDTO["inputType"];
+  numberMin?: number | null;
+  numberMax?: number | null;
+  options: AnswerOptionDTO[];
+}): QuestionDTO {
   return {
     id: `q-${over.key}`,
     key: over.key,
-    prompt: over.key,
-    helpText: null,
     inputType: over.inputType,
-    numberMin: null,
-    numberMax: null,
-    conditionalHelp: [],
-    order: 1,
+    numberMin: over.numberMin ?? null,
+    numberMax: over.numberMax ?? null,
     options: over.options,
-    ...over,
-  };
+  } as unknown as QuestionDTO;
 }
 
 console.log("\nGUIDED FLOW STORED ANSWER REPLAY\n");
@@ -71,7 +65,7 @@ const freeNumber = question({
   inputType: "NUMBER",
   numberMin: 1,
   numberMax: 200,
-  options: [option({ id: "route-number", value: "__number__", routeAction: "CONTINUE" })],
+  options: [option({ id: "route-number", value: "__number__" })],
 });
 const decimal = optionForStoredGuidedFlowAnswer(freeNumber, "14.625");
 check("unranged NUMBER replay accepts the stored decimal", decimal?.id === "route-number");
@@ -87,8 +81,8 @@ const ranged = question({
   numberMin: 1,
   numberMax: 300,
   options: [
-    option({ id: "within", value: "within", numberAtLeast: 1, numberAtMost: 20, routeAction: "CONTINUE" }),
-    option({ id: "beyond", value: "beyond", numberAtLeast: 21, numberAtMost: 300, routeAction: "PHOTO_REVIEW" }),
+    option({ id: "within", value: "within", numberAtLeast: 1, numberAtMost: 20 }),
+    option({ id: "beyond", value: "beyond", numberAtLeast: 21, numberAtMost: 300 }),
   ],
 });
 const stored31 = optionForStoredGuidedFlowAnswer(ranged, "31");
