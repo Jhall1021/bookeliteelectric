@@ -37,6 +37,15 @@ export type RouteAssistScanReviewV1 = {
   destinationPointId: string;
   completeMeasuredRouteLengthFt: number | null;
   items: RouteAssistScanReviewItemV1[];
+  /**
+   * Deterministic value snapshot used only for stale-review detection.
+   *
+   * This is NOT a signature or trust token. The server/domain always rebuilds
+   * the review from canonical candidates and compares equality. Its purpose is
+   * to prove the customer selected IDs against the same values they actually
+   * saw, rather than against a later re-scan that reused the same route IDs.
+   */
+  fingerprint: string;
 };
 
 export type RouteAssistScanReviewAcceptanceBuild =
@@ -66,6 +75,33 @@ function pushCandidate<T extends RouteAssistScanReviewItemV1["value"]>(
   });
 }
 
+function reviewFingerprint(
+  sourcePointId: string,
+  destinationPointId: string,
+  completeMeasuredRouteLengthFt: number | null,
+  items: RouteAssistScanReviewItemV1[],
+): string {
+  // Exact canonical serialization is intentionally preferable to a small
+  // home-grown hash: equality detects every value/provenance change without
+  // introducing collision semantics. The review is already customer-visible,
+  // so this string contains no secret material.
+  return JSON.stringify({
+    version: 1,
+    sourcePointId,
+    destinationPointId,
+    completeMeasuredRouteLengthFt,
+    items: items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      routeId: item.routeId,
+      value: item.value,
+      confidence: item.confidence,
+      basis: item.basis,
+      canApplyToRouteGraph: item.canApplyToRouteGraph,
+    })),
+  });
+}
+
 export function buildRouteAssistScanReviewV1(
   candidates: RouteAssistScanCandidatesV1,
 ): RouteAssistScanReviewV1 {
@@ -90,12 +126,19 @@ export function buildRouteAssistScanReviewV1(
     }
   }
 
+  const completeMeasuredRouteLengthFt = candidates.completeMeasuredRouteLength?.valueFt ?? null;
   return {
     version: 1,
     sourcePointId: candidates.sourcePointId,
     destinationPointId: candidates.destinationPointId,
-    completeMeasuredRouteLengthFt: candidates.completeMeasuredRouteLength?.valueFt ?? null,
+    completeMeasuredRouteLengthFt,
     items,
+    fingerprint: reviewFingerprint(
+      candidates.sourcePointId,
+      candidates.destinationPointId,
+      completeMeasuredRouteLengthFt,
+      items,
+    ),
   };
 }
 
