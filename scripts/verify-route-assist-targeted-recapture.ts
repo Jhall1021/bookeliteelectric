@@ -210,7 +210,7 @@ await check("resolved supplemental evidence still requires fresh route review", 
   const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
   const set = buildRouteAssistSupplementalCaptureSetV1({ requestId: "lifecycle-resolved", plan, supplementalImageIds: ["doorway-extra"] });
   assert.ok(set);
-  const lifecycle = evaluateRouteAssistTargetedRecaptureLifecycleV1({ request: set, latestQualityIssues: [] });
+  const lifecycle = evaluateRouteAssistTargetedRecaptureLifecycleV1({ captureSet: set, qualityIssues: [] });
   assert.equal(lifecycle.status, "RESOLVED_FOR_PROVIDER_REVIEW");
   assert.equal(lifecycle.requiresFreshRouteReview, true);
 });
@@ -219,7 +219,7 @@ await check("matching provider quality issue keeps targeted request open", () =>
   const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
   const set = buildRouteAssistSupplementalCaptureSetV1({ requestId: "lifecycle-open", plan, supplementalImageIds: ["doorway-extra"] });
   assert.ok(set);
-  const lifecycle = evaluateRouteAssistTargetedRecaptureLifecycleV1({ request: set, latestQualityIssues: [{ code: "DOORWAY_CONTEXT_INCOMPLETE", imageIds: ["frame-1"] }] });
+  const lifecycle = evaluateRouteAssistTargetedRecaptureLifecycleV1({ captureSet: set, qualityIssues: [{ code: "DOORWAY_CONTEXT_INCOMPLETE", imageIds: ["frame-1"] }] });
   assert.equal(lifecycle.status, "STILL_REQUIRED");
 });
 
