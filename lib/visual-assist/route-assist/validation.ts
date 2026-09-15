@@ -7,7 +7,9 @@ import {
   ROUTE_POINT_KINDS,
   ROUTE_SURFACES,
 } from "./taxonomy";
-import type { RouteAssistResult } from "./types";
+import { applyConfirmation } from "./confirmation";
+import { buildRouteAssistResult } from "./result";
+import { isRouteAssistIncomplete, type RouteAssistResult } from "./types";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -51,14 +53,41 @@ function validSegment(value: unknown): boolean {
   return true;
 }
 
+/** Fields derived deterministically from the submitted route graph/capture. */
+const DERIVED_RESULT_FIELDS = [
+  "estimatedTotalRouteLengthFt",
+  "sameWall",
+  "wallTransitionsCount",
+  "insideCornersCount",
+  "outsideCornersCount",
+  "doorwayBypassesCount",
+  "windowBypassesCount",
+  "verticalTransitionsCount",
+  "wallToCeilingTransitionsCount",
+  "wallToFloorTransitionsCount",
+  "visibleObstacleDetoursCount",
+  "concealedRouteComplexity",
+  "suggestedAccessOpeningsMin",
+  "suggestedAccessOpeningsMax",
+  "needsContractorReview",
+] as const satisfies readonly (keyof RouteAssistResult)[];
+
 /**
  * Runtime boundary for persisted Route Assist completion.
  *
  * TypeScript only protects trusted callers at compile time; the PATCH endpoint
  * accepts JSON from a browser and therefore has to validate the shape before a
- * result is allowed to win the task's first-completion race. This deliberately
- * validates OBSERVABLE facts only. It does not diagnose, price, choose a route,
- * or reinterpret any value.
+ * result is allowed to win the task's first-completion race.
+ *
+ * Validation is deliberately stronger than a JSON schema. After structural
+ * checks pass, the server rebuilds the deterministic Route Assist result from
+ * the submitted points/segments and compares every derived physical aggregate.
+ * A payload cannot claim 12 ft while its legs total 18 ft, report zero turns
+ * when the graph derives two, or hide an orphaned segment and still become the
+ * canonical first completion.
+ *
+ * This remains observation validation only. It does not diagnose, price,
+ * select a service, choose materials, or reinterpret the route for Routing V2.
  */
 export function isRouteAssistResultPayload(value: unknown): value is RouteAssistResult {
   if (!isRecord(value)) return false;
@@ -115,6 +144,26 @@ export function isRouteAssistResultPayload(value: unknown): value is RouteAssist
   for (const point of value.points) {
     if (point.physicalTurn == null) continue;
     if (value.mode !== "SURFACE" || point.kind !== "WAYPOINT") return false;
+  }
+
+  const submitted = value as unknown as RouteAssistResult;
+  const rebuilt = buildRouteAssistResult({
+    mode: submitted.mode,
+    destinationType: submitted.destinationType,
+    points: submitted.points,
+    segments: submitted.segments,
+    drywallAccessAllowed: submitted.drywallAccessAllowed,
+    captureArtifacts: submitted.captureArtifacts,
+    customerNotes: submitted.customerNotes,
+  });
+  if (isRouteAssistIncomplete(rebuilt)) return false;
+
+  // Completion means the homeowner accepted THIS rebuilt route. Re-apply the
+  // same domain confirmation rule rather than trusting a client-supplied review
+  // flag. Complex/uncertain concealed routes correctly remain review-required.
+  const expected = applyConfirmation(rebuilt, "ACCEPTED");
+  for (const key of DERIVED_RESULT_FIELDS) {
+    if (submitted[key] !== expected[key]) return false;
   }
 
   return true;
