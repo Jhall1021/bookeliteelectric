@@ -1,5 +1,6 @@
 import type { RouteAssistSweepCaptureHandoffV1 } from "./captureHandoff";
 import { evaluateRouteAssistCaptureReadinessV1 } from "./captureReadiness";
+import { homeownerCopyForVisibleSceneQualityIssueV1 } from "./visibleSceneQuality";
 import { buildVisibleTrimRouteOverlayV1, type RouteAssistVisibleTrimRouteOverlayV1 } from "./visibleTrimRouteOverlay";
 import { proposeVisibleTrimHuggingRouteV1, type RouteAssistVisibleTrimRouteProposalV1 } from "./visibleTrimRouteProposal";
 import {
@@ -22,8 +23,8 @@ function failed(providerKey: string, problem: string): RouteAssistVisibleSceneRe
 }
 
 /**
- * Persisted browser sweep -> structural readiness -> semantic CV -> review-only
- * trim proposal -> frame-local overlay.
+ * Persisted browser sweep -> structural readiness -> semantic CV -> provider
+ * quality review -> review-only trim proposal -> frame-local overlay.
  *
  * Stops before acceptance and before any canonical Routing V2 binding. The
  * resulting overlay is presentation/review evidence only.
@@ -76,6 +77,17 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
       proposal: null,
       overlay: null,
       problems: providerRun.problems,
+    };
+  }
+
+  const qualityIssues = providerRun.semantics.qualityIssues ?? [];
+  if (qualityIssues.length) {
+    return {
+      providerKey: providerRun.providerKey,
+      semantics: providerRun.semantics,
+      proposal: null,
+      overlay: null,
+      problems: qualityIssues.map((issue) => `${issue.code}: ${homeownerCopyForVisibleSceneQualityIssueV1(issue)}`),
     };
   }
 
