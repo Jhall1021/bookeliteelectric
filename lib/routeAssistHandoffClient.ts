@@ -132,6 +132,8 @@ export async function completeDeviceHandoff(fetchFn: FetchFn, handoffId: string)
 export type ResolvedHandoff = {
   guidedFlowSessionId: string;
   serviceSlug: string;
+  /** Canonical path relative to the current storefront base. */
+  continuationPath: string;
   taskType: string;
   taskId: string | null;
   taskKey: string | null;
