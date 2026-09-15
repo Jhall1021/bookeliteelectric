@@ -63,7 +63,7 @@ export type InvalidField = { field: keyof RouteAssistResult; reason: string };
 export type RoutingV2ObservedFacts = {
   /** Maps to the install-method question. `null` when the capture was UNSURE. */
   installMethod: "surface" | "concealed" | null;
-  /** Whole feet. Routing V2 is integer-only, so a fraction is refused, not rounded. */
+  /** Measured feet. Fractional physical scope is preserved, never rounded to a whole foot. */
   routeLengthFt: number | null;
   insideCorners: number | null;
   outsideCorners: number | null;
@@ -94,7 +94,7 @@ export const FIELD_CLASSIFICATION: Record<
   { classification: FieldClassification; reason: string }
 > = {
   mode: { classification: "MAPPED", reason: "install method — surface vs concealed" },
-  estimatedTotalRouteLengthFt: { classification: "MAPPED", reason: "measured route length in whole feet" },
+  estimatedTotalRouteLengthFt: { classification: "MAPPED", reason: "measured route length in feet" },
   insideCornersCount: { classification: "MAPPED", reason: "inside-corner count" },
   outsideCornersCount: { classification: "MAPPED", reason: "outside-corner count" },
   suggestedAccessOpeningsMin: { classification: "MAPPED", reason: "access-opening observation (exact when min === max, else a range)" },
@@ -165,13 +165,10 @@ export const FIELD_CLASSIFICATION: Record<
   },
 };
 
-/** Integer-only, matching Routing V2's numeric contract exactly. */
-function wholeFeet(n: number | null | undefined): { ok: true; value: number } | { ok: false; reason: string } | null {
+/** A route measurement may be fractional; only counts are whole-number facts. */
+function measuredFeet(n: number | null | undefined): { ok: true; value: number } | { ok: false; reason: string } | null {
   if (n === null || n === undefined) return null;
   if (!Number.isFinite(n)) return { ok: false, reason: `${n} is not a finite number` };
-  if (!Number.isInteger(n)) {
-    return { ok: false, reason: `${n} is not a whole number — Routing V2 refuses fractions rather than rounding them into a different range` };
-  }
   if (n < 0) return { ok: false, reason: `${n} is negative` };
   return { ok: true, value: n };
 }
@@ -207,7 +204,7 @@ export function adaptRouteAssistResult(result: RouteAssistResult): RouteAssistAd
     }
   }
 
-  const len = wholeFeet(result.estimatedTotalRouteLengthFt);
+  const len = measuredFeet(result.estimatedTotalRouteLengthFt);
   if (len && !len.ok) invalid.push({ field: "estimatedTotalRouteLengthFt", reason: len.reason });
   const inside = wholeCount(result.insideCornersCount);
   if (inside && !inside.ok) invalid.push({ field: "insideCornersCount", reason: inside.reason });
