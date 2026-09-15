@@ -195,31 +195,134 @@ contractor, not the real one), entirely locally:
    contractors, at most 2 in flight when asked for 2" (the third is the
    check's own throwaway fixture).
 
-**A real, separate finding surfaced while doing this, worth recording
-rather than working around:** `extract-template-catalog.ts` is a
-GENERIC, pre-Routing-V2 tool — it captures questions, answer options,
-wording and policy structure, but not Routing V2's own component/quantity-
-binding wiring. Provisioning a FRESH contractor's `new-120v-outlet` from a
-template built this way installs the plain LEGACY question chain (the one
-`elite-electric` itself still has in `p2b_integration_seeded` — it was never
-individually migrated onto the surface-raceway module there), not the
-surface-raceway module this whole integration branch's own storefront
-proof (§0.3/§0.7, block A-F) depends on. Confirmed directly: a fresh
-`buildPricedDerivedContractor` install against the template this pass wrote
-fails material-takeoff approval with `NO_CONTRACTOR_PRODUCT
-(SURFACE_RACEWAY_JOINT)`, even though every contractor material cost for
-that role is correctly written — the installed service simply never
-receives the surface-raceway component recipe surface-mounted routing
-depends on. **`p2b_integration` — the separate disposable database §4's
-Routing V2 storefront fixtures have always run against, with its own
-pre-existing, Routing-V2-aware `TemplateVersion` — is untouched by any of
-this and remains the correct, and only, database for those scripts.** All
-of §0.6/§0.7's re-verification above, and the original §0.1-§0.3 evidence,
-ran there specifically; `.env` was pointed back at `p2b_integration_seeded`
-only for the onboarding steps in this subsection, then returned to
-`p2b_integration` for everything else. Provisioning a SECOND Routing-V2-
-capable tenant remains unresolved and is out of this bounded pass's scope —
-see §7.
+**A diagnosis in this subsection was WRONG, and §0.9 below corrects it.**
+The paragraph as first written here concluded that `extract-template-
+catalog.ts` drops Routing V2's component/quantity-binding wiring —
+disproven by review: the extraction source used for that test
+(`elite-electric` on `p2b_integration_seeded`) still carried the plain
+LEGACY `new-120v-outlet` tree at the time, because it had never been
+migrated onto the surface-raceway module on THAT database. Extracting a
+legacy tree and installing a legacy tree is extraction working correctly,
+not a defect in it — a fresh install failing `NO_CONTRACTOR_PRODUCT
+(SURFACE_RACEWAY_JOINT)` from a legacy source proves nothing was lost,
+because nothing Routing-V2-shaped was ever there to lose. The ACTUAL,
+confirmed omission — `extract-template-catalog.ts` silently writing the
+schema default `pricingMethod` regardless of what the source service
+actually has — is a real, narrow, and different bug, closed in §0.9.
+
+### 0.9 (third pass) The real extraction omission — `pricingMethod` — fixed and proven end to end
+
+Confirmed by direct code reading: `extract-template-catalog.ts`'s `buildOne`/
+`write` never read or wrote `pricingMethod` at all, so every extracted
+`TemplateService` silently got the schema default (`LEGACY_PUBLISHED`)
+regardless of what the source service actually had. This was invisible in
+every extraction run before this pass only because the default and the
+source's true value happened to coincide (nothing had ever extracted a
+service whose source pricingMethod differed from the default).
+
+Fixed in `scripts/extract-template-catalog.ts`: the source service's
+`pricingMethod` is now read (`svc.pricingMethod`) and carried through to the
+written `TemplateService`, the same way `bookingType`/`photoState`/every
+other structural field already was.
+
+**Proven live, not just by code reading** — a real before/after run: Elite's
+`new-120v-outlet` was temporarily flipped to `pricingMethod:
+DERIVED_RESOLVED_SCOPE` on the source, re-extracted, and the template's own
+copy was confirmed to now read `DERIVED_RESOLVED_SCOPE` too (previously it
+would have stayed `LEGACY_PUBLISHED` regardless). Elite's source was then
+reverted to its real value (`LEGACY_PUBLISHED` — no supported action ever
+promotes an EXISTING contractor's own service to `DERIVED_RESOLVED_SCOPE`;
+`prisma/seed-routing-v2-pricing-method.ts`'s own docstring is explicit that
+this is a template-level decision about what a contractor provisioned "from
+here on" receives, deliberately not retroactive) and the template
+re-extracted a final time to restore the correct, faithful end state.
+
+**`--apply` now also refuses production, by identity and not by name** — the
+same check `scripts/publish-plumbing-template.ts` already uses for the
+identical class of decision (a batch write that replaces what every future
+install of a trade receives). Nothing had ever protected this script against
+being pointed at Neon by accident; `--i-know-this-writes-to-production` is
+now the only way past the refusal.
+
+### 0.10 (third pass) Completing the source catalog: Elite's own tree, migrated, and a real bug found in doing it
+
+For extraction to produce anything Routing-V2-shaped, the SOURCE has to
+actually carry the surface-raceway tree — `p2b_integration_seeded`'s own
+`elite-electric` never had it; `db:seed:all`'s `seed-questions.ts` leaves
+`new-120v-outlet` on the plain legacy distance-band structure. Migrated with
+the existing, already-shipped tool built for exactly this:
+`npx tsx prisma/seed-new-outlet-v2.ts` (`migrateEliteOutletToV2`) — the
+surface-mounted, accessible-concealed and finished-wall modules are now
+genuinely wired above the qualification gate (`purpose` ->
+`below_above_access` -> `outlet_install_method`), on Elite's real service,
+not a fixture's.
+
+**A real, previously-undetected bug surfaced immediately**:
+`scripts/verify-question-order.ts` — never previously run against a database
+where this migration had executed — failed on `elite-electric/new-120v-
+outlet`: the migration's own retirement step
+(`RETIRED_OUTLET_QUESTIONS`) set every retired question to the SAME sentinel
+`order: 900`, violating the "no two of a service's questions share a
+position" invariant the moment more than one question retires at once (four
+always do). Fixed in `prisma/seed-new-outlet-v2.ts`: each retired question
+now gets its own sentinel (`900 + i`) — nothing reads a retired question's
+order for meaning, so uniqueness is all that was ever required. Re-ran the
+migration and `verify-question-order.ts` individually to confirm
+`new-120v-outlet` no longer appears in its failures (a second, unrelated,
+pre-existing duplicate on `elite-electric/fan-replacing-light` remains — see
+§6).
+
+Re-extracted with both fixes in place; `prisma/seed-routing-v2-policies.ts`
+and `prisma/seed-routing-v2-pricing-method.ts` re-run to restore the
+template's deliberate `new-120v-outlet` -> `DERIVED_RESOLVED_SCOPE` override
+on top of the now-faithful extraction.
+
+### 0.11 (third pass) Two fresh contractors, through supported installation, never repaired
+
+`scripts/verify-two-fresh-contractors-routing-v2-browser-flow.ts` (new):
+builds TWO independent contractors via the same supported
+`preflight`/`installCatalog` + wizard-action lifecycle
+`_derivedStorefrontFixture.ts` already uses (nothing hand-patched onto
+either's tree), each given its OWN, genuinely different material costs (a
+changed channel cost, the same `writeMaterialCost` action any contractor's
+admin would use) before either is driven through the browser. For EACH:
+
+- manual completion, zero Route Assist interaction, resolves to a real price
+- fractional footage (20.5 ft and 33.25 ft) prices correctly
+- a turned route (one flat corner) lands on REVIEW, not a guessed price
+- the displayed price matches the stored `LineItem.computedPriceCents`,
+  under THAT contractor's id and no other
+
+And tenant isolation specifically: A and B were approved at genuinely
+different totals; their straight-route prices differ; a cost change to A
+made AFTER B's price was already fetched leaves B's price unchanged on a
+fresh evaluation (no shared derived-pricing basis or approval across
+tenants); B's rows are never reachable under A's `contractorId`; each has
+its own `new-120v-outlet` Service row, not a shared one. 3 consecutive clean
+runs (16/16 checks each).
+
+**One real, unrelated gap this surfaced, fixed in the fixture builder, not
+in Routing V2's own tree**: `activateService` correctly refused
+`DEPENDENCY_UNAVAILABLE` — the qualification gate's "a specific large
+appliance" answer hands off to "Dedicated Circuit & Outlet"
+(`seed-questions.ts`'s own design), and that service was never live for a
+freshly installed contractor. Unrelated to Routing V2 and disproportionate
+to set up fully (its own economics, a legacy `ADJUSTED` service), so
+`_derivedStorefrontFixture.ts` now marks it `active: true` directly for the
+fixture contractor — the one fact the dependency check actually reads —
+with the reasoning recorded in the code rather than worked around silently.
+
+### 0.12 (third pass) Booked economic provenance: the ANSWERS survive too, not just the price
+
+§0.7 proved a booked price is a snapshot — unmoved by a later cost change.
+The other half: a price with no record of what it was priced FROM is
+unaccountable to an auditor or a homeowner disputing a charge. Block F now
+also captures the booked `LineItem.answersSnapshot` at booking time (the
+real `SURFACE_KEYS.feet: "20.5"` the customer actually answered), and
+re-reads it after the same later cost change §0.7 used — confirming it is
+BYTE-FOR-BYTE unchanged alongside the already-proven unchanged price. Both
+halves of what makes a booking accountable are frozen together, not just
+the number.
 
 ## 1. What was actually being combined
 
@@ -397,8 +500,9 @@ Two disposable Postgres databases in the same task-owned cluster
 | `scripts/verify-concurrent-session-creation-browser-flow.ts` | 8/8, 1 run | PR #56, re-run on the merged branch |
 | `scripts/verify-delayed-network-answer-save-browser-flow.ts` | 5/5, 1 run — same-tab overlapping saves | PR #56, re-run on the merged branch |
 | `scripts/verify-troubleshooting-note-directbook-browser-flow.ts` | 12/12, 1 run | PR #56, re-run on the merged branch |
-| `scripts/verify-cross-device-stale-queue-browser-flow.ts` (**new, §0.1**) | 5/5, 1 run — genuinely independent 2nd writer | this branch |
-| `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` (**new, extended §0.2/§0.3**) | 12/12, **3 consecutive runs** | this branch — see §5 |
+| `scripts/verify-cross-device-stale-queue-browser-flow.ts` (**extended §0.6**) | 5/5, **3 consecutive runs** — 2 checks now prove the conflict-notice gate and the next action | this branch |
+| `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` (**extended §0.7/§0.9-§0.10/§0.12**) | **18/18, 3 consecutive runs**, against the real Elite-derived Routing V2 tree | this branch — see §5 |
+| `scripts/verify-two-fresh-contractors-routing-v2-browser-flow.ts` (**new, §0.11**) | 16/16, **3 consecutive runs** — two contractors, tenant isolation | this branch |
 
 ### 5. What the integration scripts prove that nothing else did
 
@@ -424,9 +528,12 @@ real browser:
   is read back from the real `LineItem.computedPriceCents` afterward and
   matches exactly.
 - **Back / re-answer on a NUMBER question, with the promised same-input
-  comparison (§0.2)** — six Back clicks from the price screen to the feet
-  question itself, re-typed with a different footage (14.625 → 20.5), walked
-  forward again: the price both differs from the abandoned figure's, AND
+  comparison (§0.2)** — clicked Back from the price screen until the feet
+  question itself reappears (not a fixed count — §0.10 put a real
+  qualification gate above the route module, which a hardcoded click count
+  tied to one tree shape would have silently thrown off), re-typed with a
+  different footage (14.625 → 20.5), walked forward again: the price both
+  differs from the abandoned figure's, AND
   matches — exactly — a reference price for that same 20.5 ft captured in a
   wholly separate context that never touched Back at all. The server's own
   persisted `consumedAnswers` hold only the final 20.5, not the abandoned
@@ -452,7 +559,10 @@ real browser:
   economics then change ONE MORE TIME, now that the job is booked, and both
   the `Booking` and the `LineItem` it was built from are re-read to confirm
   neither moved: the stored price is a snapshot taken at booking time, never
-  re-derived on a later read.
+  re-derived on a later read. The booked `LineItem.answersSnapshot` (§0.12)
+  is captured and re-checked the same way — the customer's actual answers,
+  not just the price they produced, survive that same later change
+  untouched.
 
 Stale-approval → REVIEW and reapproval → PRICED restoration are proven at
 BOTH levels now: `verify-routing-precision-provisioning.ts`'s own "changed
@@ -501,35 +611,96 @@ restricted. This section is the result of actually doing that.
    the fourth-pass followthrough report already documented for this same
    check.
 
-**Result: `npm run verify:full` cleared roughly 900 lines of assertions —
-essentially the entire tenant-isolation, platform-authority, guard-adoption,
-and pricing-integrity portion of the chain — before its next wall**, up from
-failing on the very first required step. Two walls found past that point:
+**Result, first pass: `npm run verify:full` cleared roughly 900 lines of
+assertions before its next wall**, up from failing on the very first
+required step. That wall —
+`verify-platform-read-model.ts`'s 2-contractor concurrency check — is now
+**CLOSED** (§0.8/§0.10): BrightPath is a real, persisted second tenant on
+this database, onboarded once a local `TemplateVersion` existed to install
+from, and the check passes alone re-run against it.
 
-- **`verify-platform-read-model.ts`'s 2-contractor concurrency check —
-  CLOSED in the PR #63 review pass, see §0.8.** It needs a SECOND real,
-  persisted tenant to exist alongside Elite; `scripts/onboard-contractor-
-  two.ts --commit` originally failed with `Error: NO_PUBLISHED_TEMPLATE: No
-  published SNAPSHOT catalog for trade "electrical"` — the same root gap
-  `seed-routing-v2-policies.ts` above needed and didn't get, and the one
-  this whole engagement has repeatedly hit under different symptoms. §0.8
-  built a local `TemplateVersion` (extracted from this same database's own
-  rehearsal-seeded Elite fixture — never a real catalog) so onboarding could
-  succeed; BrightPath is now a real, persisted second tenant here, and this
-  specific check passes alone re-run against it. What §0.8 also found:
-  Routing-V2-capable second-tenant provisioning is a materially DIFFERENT,
-  still-open gap — see §7 item 5.
-- **The four gates already individually diagnosed in the electrical
-  decision-tree audit's own fourth-pass report** — re-run individually on
-  THIS properly seeded database to confirm nothing had changed:
-  `verify-scheduling-availability.ts` (no eligible crew), `verify-stripe-
-  connect.ts` (1 failure, no Stripe connection on the rehearsal row),
-  `verify-payment-ledger.ts` (crashes reading a pre-existing booking that
-  cannot exist on a fresh database), `verify-deposit-flow.ts` (missing DB
-  trigger `payment_events_append_only`, not installed by `prisma db push`)
-  — all reproduce in EXACTLY the same state as before seeding. More seed
-  data did not change any of these; they are infrastructure/fixture gaps
-  orthogonal to catalog completeness.
+**Result, second pass (this review round, §0.9-§0.12 in place): re-run in
+full, past that point, for the first time.** `npm run verify:full` was run
+to completion rather than piecemeal past the OLD wall; the individual
+scripts below were then continued past each NEW wall one at a time (the
+gate's own `&&` chain stops at the first failure) to map the rest. Every
+finding past this point is being reached for the FIRST TIME in this whole
+engagement — none of it was previously known to pass or fail.
+
+**Two findings are directly caused by this pass's own work, and are fixed:**
+
+- `verify-question-order.ts`: `elite-electric/new-120v-outlet` had two
+  questions at the same order — `migrateEliteOutletToV2`'s own retirement
+  step set every retired question to the same sentinel (§0.10). Fixed;
+  re-confirmed absent from this check's failures.
+- The wording/diagnosis correction in §0.9 (extraction preserves component
+  wiring; the real gap was `pricingMethod`) — not a `verify:full` finding,
+  but surfaced by the same investigation.
+
+**One finding is a direct, expected, honestly-reported CONSEQUENCE of
+migrating Elite's tree, not a defect**: `capture-hero-flow.ts --check`
+(marketing) now reports `new-120v-outlet has no path that reaches a price`.
+Elite's own copy of the service carries the real surface-raceway tree now,
+but — correctly, per §0.9's own finding that no supported action promotes
+an EXISTING contractor's service to `DERIVED_RESOLVED_SCOPE` — Elite was
+never given the contractor-specific material costs and approval that
+pricing depends on; only test fixtures built through
+`buildPricedDerivedContractor` receive that. The marketing hero capture
+correctly detects that its underlying real service can no longer produce a
+price on THIS database, and says so, exactly as designed. Re-capturing it
+against a real, priced Elite (or against Elite once it has real economics)
+is separate work, not something this pass's own scope reaches.
+
+**Everything past that is a newly-discovered, PRE-EXISTING gap in this
+database's `db:seed:all`-based bootstrap — none of it caused by Routing V2
+or this pass, all of it out of this bounded pass's scope, and all traced to
+one of two root causes:**
+
+- **Elite's and BrightPath's seed-written prices never went through the
+  real publish/approval action** (`verify-public-pricing.ts`: 103
+  service(s) across both contractors carry a price nobody approved;
+  cascades into `verify-pricing-boundary.ts`, `verify-referenced-service-
+  pricing.ts`, and `verify-material-baseline-pricing.ts` failing for the
+  identical reason, and into `verify-onboarding-readiness.ts`'s "a fully
+  configured contractor can launch" check failing because Elite itself
+  is `NOTHING_ACTIVATABLE` — nothing on it was ever activated through the
+  real lifecycle either. `verify-troubleshooting-route.ts`'s "Elite has no
+  resolvable diagnostic service" is the same root cause once more: the
+  diagnostic service was seeded, never activated.
+- **Elite's bootstrap row itself is incomplete**: `verify-onboarding-
+  readiness.ts` also names `COUNTRY_MISSING` — the one-line
+  `contractor.upsert` this whole database was bootstrapped from (§6, step
+  1) never set `countryCode`.
+
+**Confirmed UNCHANGED from the first pass** (re-run individually, same
+result as before any of this round's work): `verify-scheduling-
+availability.ts` (no eligible crew), `verify-stripe-connect.ts` (1
+failure — no real Stripe connection on the rehearsal row), `verify-payment-
+ledger.ts` and `verify-deposit-flow.ts` (missing DB trigger
+`payment_events_append_only`, not installed by `prisma db push`).
+
+**Confirmed passing, newly reached, otherwise unremarkable**:
+`verify-catalog-resolution-equivalence.ts` (21/21 — Elite's migrated tree
+and BrightPath's template-installed one resolve identically), `verify-
+mount-price-unit-contract.ts`, `verify-material-cost-holds.ts`, `verify-
+permit-policy.ts`, `verify-recompute-by-role.ts`, `verify-pre-work-
+visit.ts`, `verify-appointment-kinds.ts`, `verify-contractor-credentials.ts`,
+`verify-hvac-template.ts` (1395/1395), `verify-jobber-user-pagination.ts`,
+`verify-jobber-account-switch.ts`, `verify-storefront-price-promise.ts`,
+`verify-same-visit-promise.ts`, `verify-labor-wizard.ts`, `verify-trade-
+enrolment.ts`, `verify-template-installation.ts`, `verify-launch-
+behavior.ts`, `verify-activation-dependencies.ts`, and `verify-tax-and-
+deposit.ts`.
+
+**One PRE-EXISTING, unrelated defect, confirmed but not fixed (out of
+scope)**: `verify-question-order.ts` also names
+`elite-electric/fan-replacing-light` — two ACTIVE questions sharing one
+order, nothing to do with Routing V2 or this pass's own changes.
+
+**One newly-reached, unrelated static-content finding, confirmed but not
+fixed (out of scope, a repo-wide content lint)**: `verify-us-spelling.ts`
+fails on 9 British spellings across existing files
+("labour", "colour", "behaviour", "grey", "cancelled", and others).
 
 Also individually re-confirmed clean on this seeded database:
 `verify-tenant-indexes.ts`, `verify-checkout-atomicity.ts` (14/14),
@@ -552,29 +723,28 @@ Also individually re-confirmed clean on this seeded database:
    modules, and the rest of Elite's real catalog, are proven at the function
    level (§4) but not yet walked through the browser the way this pass did
    for the surface-mounted path.
-4. **`verify:full`'s 2-contractor concurrency wall is now closed** (§0.8,
-   §6). A local `TemplateVersion` extracted from the seeded database's own
-   `elite-electric` fixture (never a real catalog — see §0.8 for exactly
-   what "local only" meant here) let `onboard-contractor-two.ts --commit`
-   succeed: BrightPath is now a real, persisted second tenant on
-   `p2b_integration_seeded`, and `verify-platform-read-model.ts`'s
-   concurrency check passes alone. `verify:full` as a whole was not re-run
-   end to end after this — see §6 for exactly how far the properly-seeded
-   run got and what's still individually confirmed unchanged past that
-   point.
-5. **A Routing-V2-capable second tenant is still not established** — a
-   narrower, newly-precise version of the gap #4 used to name. BrightPath's
-   own services are the plain (non-Routing-V2) catalog `installCatalog`
-   installs from a generically-extracted template; §0.8 found that
-   provisioning a FRESH contractor's `new-120v-outlet` from that same
-   template installs the legacy question chain, not the surface-raceway
-   module this branch's own storefront proof depends on, because the
-   generic extraction tool predates Routing V2 and does not carry its
-   component/quantity-binding wiring. A second tenant that can actually
-   exercise Routing V2 pricing needs either a Routing-V2-aware extraction
-   (a real gap in the extraction tooling, not attempted here) or hand
-   authorship of that part of the template. Out of scope for this bounded
-   pass.
+4. **`verify:full`'s 2-contractor concurrency wall is closed** (§0.8, §6).
+   BrightPath is a real, persisted second tenant on `p2b_integration_seeded`,
+   and `verify-platform-read-model.ts`'s concurrency check passes alone.
+5. **Routing-V2-capable second-tenant provisioning is also closed** — the
+   gap this item previously named. §0.9 corrected the diagnosis (extraction
+   already carries component/quantity-binding wiring faithfully; the
+   template it was tested against still held a legacy source tree, on this
+   database, at the time) and §0.10-§0.11 completed it for real: Elite's own
+   source was migrated onto the surface-raceway tree, extraction re-run
+   against it, and TWO independent fresh contractors were proven to receive
+   a fully working Routing V2 tree through ordinary `installCatalog`,
+   including tenant isolation between them (§0.11).
+6. **`verify:full`, run to completion for the first time, surfaced a
+   materially different, PRE-EXISTING wall — not a Routing V2 or this pass's
+   own defect.** §6 has the full breakdown; in short, roughly 100 services
+   across Elite and BrightPath carry prices that were seed-written rather
+   than published through the real approval action, which cascades into
+   several pricing-consistency gates and into Elite's own
+   `verify-onboarding-readiness.ts` launchability. This is a `db:seed:all`
+   bootstrap-wide gap, orthogonal to Routing V2 specifically, and a
+   materially larger undertaking than this bounded pass (re-approving on
+   the order of 100 services across two tenants) — not attempted here.
 
 **Not gated on Route Assist finishing** — per the integration instruction,
 Route Assist's own implementation state was not a blocker for any of the work
