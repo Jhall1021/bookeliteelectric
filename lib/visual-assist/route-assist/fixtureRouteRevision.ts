@@ -52,14 +52,22 @@ function insertAvoidDetour(path: RouteAssistVisibleOverlayPathV1, point: { x: nu
   };
 }
 
+function replaceAnchor(path: RouteAssistVisibleOverlayPathV1, point: { x: number; y: number }, which: "SOURCE" | "DESTINATION"): RouteAssistVisibleOverlayPathV1 {
+  if (!path.points.length) return path;
+  const index = which === "SOURCE" ? 0 : path.points.length - 1;
+  const points = path.points.map((candidate, candidateIndex) => candidateIndex === index ? { ...point } : { ...candidate });
+  return { ...path, points, stepKinds: [...path.stepKinds] };
+}
+
 /**
  * Development-fixture-only presentation simulation for the correction loop.
  * PASS_HERE visibly bends through homeowner guidance; AVOID_HERE visibly bends
- * away from it. Neither operation represents provider evidence, accepted route
- * geometry, obstacle detection, or measurement.
+ * away from it. SOURCE/DESTINATION corrections move only the presentation
+ * anchor in that captured frame so the re-identification UX can be rehearsed.
  *
- * Production correction handling remains provider re-analysis followed by the
- * normal semantic validation and fresh homeowner review.
+ * None of these operations represents provider evidence, accepted Route Assist
+ * geometry, obstacle detection, or measurement. Production correction handling
+ * remains provider re-analysis followed by semantic validation and fresh review.
  */
 export function buildFixtureCorrectionAwareOverlayV1(args: {
   baseline: RouteAssistVisibleTrimRouteOverlayV1;
@@ -72,6 +80,8 @@ export function buildFixtureCorrectionAwareOverlayV1(args: {
       if (path.imageId !== correction.imageId) return path;
       if (correction.kind === "ROUTE_SHOULD_PASS_HERE") return insertPassPoint(path, correction.point!);
       if (correction.kind === "ROUTE_SHOULD_AVOID_HERE") return insertAvoidDetour(path, correction.point!);
+      if (correction.kind === "SOURCE_ANCHOR_WRONG") return replaceAnchor(path, correction.point!, "SOURCE");
+      if (correction.kind === "DESTINATION_ANCHOR_WRONG") return replaceAnchor(path, correction.point!, "DESTINATION");
       return path;
     });
   }
