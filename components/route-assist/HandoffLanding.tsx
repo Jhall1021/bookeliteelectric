@@ -9,7 +9,7 @@ import {
   resolveDeviceHandoff,
   type ResolvedHandoff,
 } from "@/lib/routeAssistHandoffClient";
-import { getRouteAssistInvocation } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
+import { getRouteAssistCaptureContextByTaskKey } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
 import type { RouteAssistResult } from "@/lib/visual-assist/route-assist/types";
 
 /**
@@ -70,23 +70,21 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
     }
 
     /**
-     * Real Guided Flow invocations always create the task with the registry's
-     * per-question taskKey. The phone resolves that SAME task, so reconstruct
-     * capture context from the SAME registry rather than hard-coding an outlet
-     * or generic destination here.
+     * Real Guided Flow invocations create the task with a CAPTURE taskKey.
+     * That key is intentionally independent of question identity: one surface
+     * scan can feed feet + inside + outside + flat questions. Reconstruct only
+     * capture context by searching every registry invocation that shares this
+     * task identity and fail closed if they disagree.
      *
-     * A non-null key that no longer resolves fails closed: opening a generic
-     * capture for the wrong service/question would persist a physically valid
-     * result with the wrong meaning. Null is retained only for the older dev
-     * fixture/legacy task shape that predates taskKey; it keeps that generic
-     * cross-device mechanism proof working without weakening keyed production
-     * handoffs.
+     * Null is retained only for the older dev fixture/legacy task shape that
+     * predates taskKey; it keeps that generic cross-device mechanism proof
+     * working without weakening keyed production handoffs.
      */
-    const invocation = state.handoff.taskKey
-      ? getRouteAssistInvocation(state.handoff.serviceSlug, state.handoff.taskKey)
+    const captureContext = state.handoff.taskKey
+      ? getRouteAssistCaptureContextByTaskKey(state.handoff.serviceSlug, state.handoff.taskKey)
       : null;
 
-    if (state.handoff.taskKey && !invocation) {
+    if (state.handoff.taskKey && !captureContext) {
       return (
         <div className="mx-auto mt-16 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
           <p className="text-sm font-medium text-slate-800">We couldn't restore this camera step.</p>
@@ -95,7 +93,7 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
       );
     }
 
-    const captureContext = invocation ?? {
+    const resolvedContext = captureContext ?? {
       destinationType: "OTHER" as const,
       sourceHint: "Tap the existing receptacle we'd start from.",
       destinationHint: "Tap where you'd like the new device.",
@@ -103,9 +101,9 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
 
     return (
       <RouteAssistCapture
-        destinationType={captureContext.destinationType}
-        sourceHint={captureContext.sourceHint}
-        destinationHint={captureContext.destinationHint}
+        destinationType={resolvedContext.destinationType}
+        sourceHint={resolvedContext.sourceHint}
+        destinationHint={resolvedContext.destinationHint}
         onUploadPhoto={uploadPhoto}
         onComplete={(result) => handleComplete(state.handoff, result)}
       />
