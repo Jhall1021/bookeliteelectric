@@ -2,14 +2,32 @@ import type { RouteAssistCaptureArtifacts } from "./types";
 
 export type RouteAssistLocalReviewFrameV1 = { imageId: string; objectUrl: string; mimeType: "image/jpeg"; width: number; height: number };
 export type RouteAssistLocalSweepFrameV1 = RouteAssistLocalReviewFrameV1 & { capturedAt: string; sequence: number };
-export type RouteAssistPersistedCaptureImageV1 = { imageId: string; imageUrl: string; mimeType: "image/jpeg"; width: number; height: number };
+/**
+ * `imageUrl` is a review surface only. It may be an ephemeral object URL and
+ * must never be assumed publicly readable or provider-addressable. `mediaRef`
+ * is the optional durable private-storage identity used by production Route
+ * Assist provider transports.
+ */
+export type RouteAssistPersistedCaptureImageV1 = { imageId: string; imageUrl: string; mediaRef?: string | null; mimeType: "image/jpeg"; width: number; height: number };
 export type RouteAssistPersistedSweepFrameV1 = RouteAssistPersistedCaptureImageV1 & { capturedAt: string; sequence: number };
 export type RouteAssistCaptureImagePersisterV1 = { persist(frame: RouteAssistLocalReviewFrameV1): Promise<RouteAssistPersistedCaptureImageV1> };
 export type RouteAssistCaptureHandoffV1 = { version: 1; persistedImage: RouteAssistPersistedCaptureImageV1; captureArtifacts: RouteAssistCaptureArtifacts };
 export type RouteAssistSweepCaptureHandoffV1 = { version: 1; persistedFrames: RouteAssistPersistedSweepFrameV1[]; reviewImage: RouteAssistPersistedCaptureImageV1; captureArtifacts: RouteAssistCaptureArtifacts };
 
 function validPersistedImage(frame: RouteAssistLocalReviewFrameV1, persisted: RouteAssistPersistedCaptureImageV1): boolean {
-  return Boolean(persisted.imageId && persisted.imageId === frame.imageId && persisted.imageUrl && persisted.mimeType === frame.mimeType && persisted.width === frame.width && persisted.height === frame.height && Number.isFinite(persisted.width) && persisted.width > 0 && Number.isFinite(persisted.height) && persisted.height > 0);
+  return Boolean(
+    persisted.imageId &&
+    persisted.imageId === frame.imageId &&
+    persisted.imageUrl &&
+    (persisted.mediaRef === undefined || persisted.mediaRef === null || persisted.mediaRef.length > 0) &&
+    persisted.mimeType === frame.mimeType &&
+    persisted.width === frame.width &&
+    persisted.height === frame.height &&
+    Number.isFinite(persisted.width) &&
+    persisted.width > 0 &&
+    Number.isFinite(persisted.height) &&
+    persisted.height > 0
+  );
 }
 
 export async function persistRouteAssistReviewFrameV1(args: { frame: RouteAssistLocalReviewFrameV1; persister: RouteAssistCaptureImagePersisterV1 }): Promise<RouteAssistCaptureHandoffV1 | null> {
@@ -49,5 +67,17 @@ export async function persistRouteAssistSweepCaptureV1(args: { frames: RouteAssi
 
   const reviewImage = persistedFrames[persistedFrames.length - 1];
   if (!reviewImage) return null;
-  return { version: 1, persistedFrames, reviewImage: { imageId: reviewImage.imageId, imageUrl: reviewImage.imageUrl, mimeType: reviewImage.mimeType, width: reviewImage.width, height: reviewImage.height }, captureArtifacts: { imageIds: persistedFrames.map((frame) => frame.imageId), overlayImageIds: [] } };
+  return {
+    version: 1,
+    persistedFrames,
+    reviewImage: {
+      imageId: reviewImage.imageId,
+      imageUrl: reviewImage.imageUrl,
+      mediaRef: reviewImage.mediaRef,
+      mimeType: reviewImage.mimeType,
+      width: reviewImage.width,
+      height: reviewImage.height,
+    },
+    captureArtifacts: { imageIds: persistedFrames.map((frame) => frame.imageId), overlayImageIds: [] },
+  };
 }
