@@ -1,4 +1,7 @@
-import { getRouteAssistInvocation } from "../lib/visual-assist/route-assist/guidedFlowInvocation";
+import {
+  getRouteAssistCaptureContextByTaskKey,
+  getRouteAssistInvocation,
+} from "../lib/visual-assist/route-assist/guidedFlowInvocation";
 import { isRouteAssistResultPayload } from "../lib/visual-assist/route-assist/validation";
 import { buildRouteAssistResult } from "../lib/visual-assist/route-assist/result";
 import { applyConfirmation } from "../lib/visual-assist/route-assist/confirmation";
@@ -68,9 +71,22 @@ check(
   `${feet?.taskKey} / ${inside?.taskKey} / ${outside?.taskKey} / ${flat?.taskKey}`
 );
 check(
-  "the shared task key is itself phone-recoverable through the registry",
-  !!feet && getRouteAssistInvocation(slug, feet.taskKey)?.destinationType === "RECEPTACLE",
+  "capture task identity is not borrowed from any canonical question key",
+  !!feet && ![
+    "surface_route_feet",
+    "surface_inside_corner_count",
+    "surface_outside_corner_count",
+    "surface_route_flat_corner_count",
+  ].includes(feet.taskKey),
   String(feet?.taskKey)
+);
+const phoneContext = feet ? getRouteAssistCaptureContextByTaskKey(slug, feet.taskKey) : null;
+check(
+  "the shared task key is phone-recoverable without pretending it is a question key",
+  phoneContext?.destinationType === "RECEPTACLE" &&
+    phoneContext.sourceHint === feet?.sourceHint &&
+    phoneContext.destinationHint === feet?.destinationHint,
+  JSON.stringify(phoneContext)
 );
 check(
   "concealed capture remains a distinct task",
@@ -166,6 +182,12 @@ for (const proof of endpointProofs) {
     `${proof.service} accepts its own endpoint result`,
     inv?.resolveAnswerValue(ownResult) === "14.6",
     String(inv?.resolveAnswerValue(ownResult))
+  );
+  const groupContext = inv ? getRouteAssistCaptureContextByTaskKey(proof.service, inv.taskKey) : null;
+  check(
+    `${proof.service} recovers the same endpoint from grouped task identity`,
+    groupContext?.destinationType === proof.destinationType,
+    JSON.stringify(groupContext)
   );
   const wrongDestination: RouteAssistDestinationType =
     proof.destinationType === "RECEPTACLE" ? "SWITCH" : "RECEPTACLE";
