@@ -1,4 +1,4 @@
-# Electrical Decision Tree Audit V1 — follow-through report (third correction, final)
+# Electrical Decision Tree Audit V1 — follow-through report (fourth pass, final)
 
 **Status: pushed, in review as a draft PR. Nothing has been applied to any real
 database, the canonical template, or any contractor's live catalog — every claim in
@@ -26,15 +26,27 @@ alongside three new pieces of work: closing the WWT display/charge mismatch (§3
 correcting the rollout plan's assumptions about which seed functions are actually
 narrow (§7), and resolving the mount price-unit contract (§3b).
 
-**This is a third pass**, prompted by independent review confirming the PR at 13
-commits and identifying the rollout runner added in the second pass as unsafe to ever
-run `--apply` with. Two things happened in this pass: the runner was withdrawn outright
-rather than patched (§7, revised again), and — for the first time on this branch — the
-pricing, module-composition, and troubleshooting claims throughout this report were
-tested against a real, running instance of the app and a real (disposable, local,
-throwaway) database, not just DB-free fixtures and code reading (§9, new). That
+**A third pass**, prompted by independent review confirming the PR at 13 commits and
+identifying the rollout runner added in the second pass as unsafe to ever run
+`--apply` with, withdrew that runner outright (§7) and — for the first time on this
+branch — ran the pricing, module-composition, and troubleshooting claims throughout
+this report against a real, running instance of the app and a real (disposable,
+local, throwaway) database, not just DB-free fixtures and code reading (§9). That
 rehearsal found one genuine defect in this branch's own WWT fix's surrounding UI state
-management, not caught by the DB-free fixture — see §9.5.
+management, not caught by the DB-free fixture (§9.5), and several rehearsal gaps
+still open when that pass's evidence was reviewed.
+
+**This fourth pass** closes those gaps: fixes the back-navigation defect §9.5 found
+(§9.5, now updated) and proves the fix with a durable, committed Playwright regression
+(§11); completes the rehearsal items the third pass left open — note-editing before
+submission (found to have no UI path at all, §9.4), a browser walkthrough of
+`replace-standard-outlet` and the fully-composed `new-ceiling-fan` switch-leg path
+(§9.7), and a genuine no-deposit checkout carried through to a real `Booking` (§9.8);
+re-examines every remaining gate failure with the distinctions the second pass's own
+report skipped — missing fixture vs. pre-existing defect vs. unresolved, and directly
+checked rather than assumed whether tax/scheduling/HVAC gates need live external
+integrations (§9.6, most did not); and commits the reproducible evidence itself, not
+just the claims about it (§11).
 
 ## Final commit list (full SHAs)
 
@@ -58,7 +70,10 @@ management, not caught by the DB-free fixture — see §9.5.
 | 16 | `bbb4b5f96f35fe0876940e4908f428b483491d96` | test: resolve the TV-mount price-unit contract by tracing the seed literal through the real writer and formatter |
 | 17 | `1605169698a46c800e8d98cd805b7c1090f1398f` | docs: correct the completion record again — 13→16 commits, WWT fix, rollout-plan correction, price-unit resolution |
 | 18 | `94928ad8bc99eb15d5e8e1acf04b983079c4731e` | fix: withdraw the rollout runner — unsafe on five grounds, not repairable by tightening flags |
-| 19 | *(this commit)* | docs: record the database/browser rehearsal — one real defect found, gate results, corrected identity |
+| 19 | `b42492091209b65e165e85ac311776ac61db0e98` | docs: record the database/browser rehearsal — one real defect found, gate results, corrected identity |
+| 20 | `a3c71df05bbe5bf43c0ee34824bedaeaeec13ac2` | fix: goBack() must restore the full prior configuration, not just state and answers |
+| 21 | `02a4a9fca1da9aee43d62dc8478296615233a86f` | test: durable browser regression for back-navigation config restoration, plus a reusable rehearsal bootstrap |
+| 22 | *(this commit)* | docs: fourth-pass rehearsal — back-navigation fix proven, remaining gaps closed, gates re-examined precisely |
 
 Full reasoning for every item lives in the commit messages
 themselves and in the companion docs:
@@ -484,6 +499,14 @@ cluster that no longer exists.
 - Every test used synthetic values (a deliberately-diverged mount WWT price, a renamed
   troubleshooting service, a second synthetic trade) — never an attempt to reproduce or
   guess a real Elite figure.
+- **This 66-service catalog is Elite's own legacy per-contractor tree, replayed
+  through its seed scripts — not the canonical template.** No `TemplateVersion` was
+  ever published in this rehearsal, and `extract-template-catalog.ts` was never run
+  (§7's rollout plan explicitly excludes it). Nothing in §9 proves anything about the
+  canonical `TemplateService`/`TemplateQuestion` model, a freshly-provisioned
+  contractor's inherited catalog, or template-adoption (`scripts/template-update.ts`)
+  — those remain exactly as unverified as before this rehearsal, and 66 is a fact
+  about Elite's own reconstructed catalog, not a claim about template coverage.
 
 ### 9.2 Primary/WWT mount pricing — proven, including through a mechanism this task didn't anticipate
 
@@ -552,12 +575,32 @@ happen against the real, composed catalog.
   `single-pole-breaker-replacement`, answering "It keeps tripping" rendered **"This
   sounds like a troubleshooting job. From Single-Pole Breaker Replacement: 'It keeps
   tripping.' [the answer's own disclaimer text]"**, correctly priced the renamed
-  destination at $250, and booking it stored
-  `line_items.answersSnapshot.customer_note` containing that exact note text — the
-  full `buildTroubleshootingNote` handoff, surviving a real client-side navigation
-  between two different guided flows, landing in the actual stored booking. (Not
-  separately tested: a customer editing the note's text before submitting — this
-  rehearsal only confirmed the auto-attached note's content and persistence.)
+  destination at $250, and adding it to the visit stored
+  `line_items.answersSnapshot.customer_note` (not a `Booking` — no booking existed yet
+  at this point) containing that exact note text — the full `buildTroubleshootingNote`
+  handoff, surviving a real client-side navigation between two different guided flows,
+  landing correctly in the stored visit line item.
+- **Editing the note before submission — a real defect found, precisely located.**
+  `ask-us-anything-diagnostic` (like the real `electrical-troubleshooting` it was
+  renamed from) has zero questions and a fixed price, so
+  `components/guided-flow/GuidedFlowEngine.tsx`'s render wires its intro through
+  `ServiceIntro`'s `directBook` shortcut (`onContinue={directBook ? () =>
+  addToVisit(anchorPrice ?? 0) : startQuestions}`, ~line 703) — clicking the intro's own
+  "Add to My Visit — $250" button calls `addToVisit()` **directly**, never reaching the
+  `state.kind === "resolved"` branch (~line 754) that renders `PriceConfirmationCard`
+  with the editable `note`/`onNoteChange` field the code's own comment there describes
+  as covering exactly this case ("the diagnostic service has no questions of its own, so
+  this is the ONLY screen a homeowner sees before booking it... show it as an editable
+  field... rather than silently sending it"). In this rehearsal, the reroute-carried note
+  reached the stored `answersSnapshot.customer_note` correctly (`addToVisit()` reads
+  `customerNote` from component state regardless of which code path called it), so the
+  right text was submitted — but the customer was **never shown or given a chance to
+  edit it**, contradicting the code's own stated design intent. Confirmed by contrast:
+  `replace-standard-outlet` (which has a real question) reaches `PriceConfirmationCard`
+  normally and *does* show the editable note field. This affects every real
+  zero-question `TROUBLESHOOT_ONLY` reroute destination, which describes Elite's actual
+  diagnostic service — not a rehearsal-fixture artifact. **Not fixed in this pass** —
+  outside the two authorized steps; flagged here as found.
 - A stale `GuidedFlowSession` was found to resume straight to a service's last terminal
   state on reload, including a terminal state computed before `Service.tradeKey` was
   set — not a defect (the answer was correct once the underlying data was set and a
@@ -594,13 +637,62 @@ holds (`evaluate(option, config ?? ..., newAnswers)`, line 524) — so after a `
 to an earlier question, `config` is left over from the abandoned deeper path, and a
 new, non-charging answer to the same question does not remove what the old one added.
 
-This is **pre-existing in this branch's own §3a code**, not something the WWT fix
+This was **pre-existing in this branch's own §3a code**, not something the WWT fix
 introduced structurally, but it is the exact class of bug §3a's own task description
 warned about ("terminal totals... reconcile") and this rehearsal's own back-navigation
-test surfaced it directly. **Not fixed in this pass** — fixing it was not one of this
-pass's two authorized steps, and a fix belongs in its own reviewed change, most likely
-`setConfig(previous.config)` added to `goBack()`, verified against a test that (unlike
-the existing DB-free fixture) exercises back-navigation specifically.
+test surfaced it directly.
+
+**Fixed in a fourth pass, authorized specifically for this**:
+`components/guided-flow/GuidedFlowEngine.tsx`'s `goBack()` now also calls
+`setConfig(previous.config)`, restoring the complete prior configuration from the same
+history entry `pushHistory()` already populates — not a hand-subtracted price, not a
+patch to only the displayed total. `goBack()` also now calls the existing
+`persistAnswers(previous.answers)` — the same function, same `expectedVersion`
+concurrency contract, every forward answer already uses — so the server's
+`GuidedFlowSession.consumedAnswers` is trimmed to match on Back, not just the client's
+local state; a reload before the customer finishes re-answering can no longer resume
+from a stale, larger answer set holding the abandoned branch's keys.
+
+Verified by manual re-reproduction of the exact scenario above (now $375 throughout,
+including after a reload mid-sequence) and by a new, durable Playwright regression —
+`scripts/verify-back-navigation-config-browser-flow.ts` — against a purpose-built
+throwaway fixture (a paid vs. customer-supplied mount choice, deliberately different
+primary/WWT referenced prices, a branch that can land in `PHOTO_REVIEW` or resolve
+instantly), covering every case named for this fix: paid→Back→supplied,
+supplied→Back→paid with no accumulation across repeated toggling, leaving a REVIEW
+branch for a supported priced branch, both primary and WWT contexts, and a reload
+while the session is still active. All 17 assertions passed, including the stored
+`line_items.computedPriceCents`/`isPrimary`/`answersSnapshot` in both contexts and the
+`lib/visitPrimary.ts` primary/add-on split landing exactly where the fixture's
+deliberately-different standalone/WWT gaps put it — accounted for separately, per the
+instruction, rather than asserted as if back-navigation could disturb it. See §11 for
+the full evidence file.
+
+**A second, separate defect surfaced while stabilizing this regression, unrelated to
+`goBack()`**: against `next dev`, the reload step (D) intermittently resumed to the
+FIRST question instead of the priced terminal. Traced to `lib/guidedFlowSession.ts`'s
+`findOrCreateActiveSession`, which finds the ACTIVE row before creating one — by its
+own docstring, enforced only "inside the same call," not across two concurrent ones.
+React Strict Mode double-invokes `GuidedFlowEngine.tsx`'s session-bootstrap effect on
+every mount in development, firing two concurrent `POST /api/guided-flow-sessions`;
+both can miss the existing row and both create one. Confirmed live: a diagnostic dump
+on failure caught two ACTIVE `GuidedFlowSession` rows for the same
+contractor+session+service with identical, same-millisecond `createdAt` — one holding
+the real answers, one empty — and `orderBy: { createdAt: "desc" }` has no tiebreaker
+between them, so a later reload's own double-invoke can resolve to the empty one.
+This is pre-existing in `findOrCreateActiveSession` itself (present on the base
+revision under the same conditions, nothing this pass touched) and does not reproduce
+in production: Strict Mode's double effect invocation is development-only and is
+stripped when `NODE_ENV=production`. Confirmed directly — 4 consecutive runs against
+`next dev` failed on step D, then 4 consecutive runs of the identical script against
+`next build && next start` passed 17/17 each. The regression and its rehearsal doc
+(§11) now say explicitly to run it against a production build; the diagnostic
+instrumentation (console/pageerror listeners, the session dump) stays in the script
+rather than being removed now that the cause is known, per this engagement's own
+"named rather than hidden" convention. Not fixed in this pass: fixing
+`findOrCreateActiveSession`'s cross-request atomicity is a change to session-identity
+resolution, not to Back navigation, and is out of this pass's scope — named here as a
+gap for a future pass rather than folded into this fix.
 
 ### 9.6 Gates run against the live database, and what they found
 
@@ -684,50 +776,191 @@ patched around:**
   this one. The gate itself names its own fix: `scripts/repair-duplicate-question-order.ts`.
   **Not fixed here** — out of scope for this task, flagged for separate attention.
 - **`verify-platform-onboarding.ts` crashed** (`TypeError` at
-  `lib/platformOnboarding.ts:585`, reading `.trim()` of `undefined`) and
-  **`verify-policy-resolution.ts` crashed** (`NO_PUBLISHED_TEMPLATE`) — both need
-  platform-onboarding/canonical-template fixtures this rehearsal never built (no
-  `TemplateVersion` was ever published here; `extract-template-catalog.ts` was never
-  run, correctly, per the rollout plan). Unrelated to Electrical decision trees.
-- **`verify-contractor-invitations.ts`**: one concurrency-race sub-case ("8c:
-  acceptance racing an explicit revoke") failed; **`verify-platform-read-model.ts`**:
-  one concurrency-bound sub-case ("peak 2... at most 2 in flight") failed. Both are
-  timing-sensitive tests exercising platform-admin subsystems this PR does not touch;
-  neither was traced to a root cause given time constraints, and neither is claimed as
-  either confirmed-real or confirmed-a-fluke — reported as observed, unresolved,
-  unrelated to this PR's scope.
-- **Not run at all**: every Stripe, Jobber, tax/deposit, scheduling-availability, and
-  HVAC-template gate (`verify-stripe-connect.ts`, `verify-jobber-*.ts`,
-  `verify-tax-and-deposit.ts`, `verify-payment-ledger.ts`, `verify-deposit-flow.ts`,
-  `verify-scheduling-availability.ts`, `verify-hvac-template.ts`, and others) — each
-  needs an external integration this rehearsal deliberately never configured, per the
-  explicit instruction to keep external integrations disabled.
+  `lib/platformOnboarding.ts:585`, `tradeKey.trim()` on `undefined`) and
+  **`verify-policy-resolution.ts` crashed** (`NO_PUBLISHED_TEMPLATE`) — traced to the
+  SAME missing fixture: no canonical `TemplateVersion` has ever been published in this
+  rehearsal (`extract-template-catalog.ts` was correctly never run, per the rollout
+  plan), so `verify-platform-onboarding.ts`'s own enrolment step has no real trade key
+  to read from the template catalog and passes `undefined` through. Missing fixture,
+  not a code defect; unrelated to Electrical decision trees.
+- **`verify-contractor-invitations.ts`**'s "8c: acceptance racing an explicit revoke"
+  and **`verify-platform-read-model.ts`**'s "peak 2... at most 2 in flight" bound each
+  failed once, on the FIRST full run. **Re-run three times each afterward: zero
+  failures, 100% clean, in both.** This is transient timing variance under this
+  session's environment (a resource-constrained sandbox running Postgres, `next dev`,
+  and Playwright/Prisma processes concurrently), not a reproduced defect — reported as
+  observed-once, not-reproduced, rather than either confirmed-real or dismissed as
+  unrelated.
+- **Corrected assumption, per direct instruction to check rather than assume**: tax,
+  scheduling, and HVAC-template gates do **not** categorically need live external
+  integrations — each was actually run, and most needed nothing but this database:
+  - `verify-tax-and-deposit.ts` — its own header states the boundary it checks
+    ("no Stripe Tax, no tax transaction"); needs only a database. **44/44 passed.**
+  - `verify-hvac-template.ts` — its own header: "PURE SOURCE. NO DATABASE." **All 1395
+    checks passed**, needing neither a database nor any integration.
+  - `verify-jobber-user-pagination.ts` and `verify-jobber-account-switch.ts` — both
+    exercise an **injected** fetch/OAuth seam (`lib/jobberUsers.ts`,
+    `lib/jobber.ts`'s `VisitFetcher`), never a live Jobber connection. **8/8 and
+    11/11 passed.**
+  - `verify-stripe-connect.ts` — proved "as a pure function... not against a live
+    Stripe account" per its own header; needs a database, not a live key. **All but
+    one check passed** — see below.
+  - `verify-payment-ledger.ts` and `verify-deposit-flow.ts` — `verify-deposit-flow.ts`'s
+    own header: "NO LIVE KEY IS USED and none is needed." Both need only a database —
+    see below for what each actually hit.
+  - `verify-scheduling-availability.ts` is the one gate here that genuinely stopped
+    itself on a missing fixture rather than running: **"No eligible crew — cannot
+    exercise the Jobber path,"** printed by the script itself rather than a crash — it
+    needs at least one `JobberCrewMember` row marked `eligibleForWebsiteBookings`,
+    which this rehearsal never created. A missing fixture, not an external-integration
+    requirement.
+- **`verify-stripe-connect.ts`'s one failure** ("readiness belongs to a contractor, not
+  to the platform") compares Elite's own Stripe-readiness fields against a throwaway
+  probe contractor's, expecting them to differ — they don't here because neither has
+  ever connected Stripe in this rehearsal (real production Elite has). A missing
+  fixture (Elite's own `stripeAccountId`/`stripeMerchantConfigured` were never set),
+  not a defect in the readiness rule itself, which every other check in the same run
+  confirmed correct.
+- **`verify-payment-ledger.ts` crashed** (`bookings[0]` undefined) because it filters
+  for bookings created *before* a fixed historical `LEDGER_SHIPPED` cutoff constant —
+  by construction, a database created today cannot contain a booking older than that
+  date. A missing fixture inherent to testing "legacy, pre-feature" data on a brand-new
+  database, not reproducible any other way without deliberately backdating a row.
+- **`verify-deposit-flow.ts` failed on a missing database trigger**
+  (`trigger "payment_events_append_only" for table "payment_events" does not exist`,
+  Postgres error 42704) — `prisma db push` (this rehearsal's only schema-application
+  step) creates tables and columns from `schema.prisma`, but this repository also
+  relies on at least one raw-SQL trigger applied through a separate mechanism that
+  `db push` alone does not run. A real, precisely-named environment-setup gap in this
+  bootstrap approach specifically — not a code defect, and not something a rehearsal
+  built purely from `schema.prisma` can currently avoid without locating and running
+  whichever script installs that trigger.
 
-**Net: of the gates actually run against the live database, every failure traces to
-either (a) this rehearsal's own throwaway fixtures, cleaned up once identified, (b) a
-precisely-named pre-existing environment/data gap unrelated to this PR, or (c) one
-already-known concurrency test needing further investigation this pass didn't have
-time for. Zero gate failures were altered, skipped, or worked around to force a pass —
-each is reported as found.**
+**Net: of every gate this pass identified as potentially runnable and then actually
+ran, every failure traces to one of: (a) this rehearsal's own throwaway fixtures,
+cleaned up once identified, (b) a precisely-named missing fixture or bootstrap gap
+(no canonical template published, no eligible crew, no Stripe connection on the
+rehearsal's own Elite row, no pre-ledger-era booking, a trigger `db push` doesn't
+install), (c) one real pre-existing catalog defect unrelated to this PR
+(`fan-replacing-light`'s question-order collision), or (d) two concurrency-timing
+checks that failed once and passed cleanly on three immediate re-runs each. Zero
+failures were altered, skipped, or worked around to force a pass, and the earlier
+assumption that tax/scheduling/HVAC gates categorically need live external
+integrations was checked directly and found wrong for all but one of them.
 
-### 9.7 What this rehearsal did not reach
+Not independently re-run against `origin/main` under equivalent conditions, given the
+time already spent standing up and tearing down this rehearsal once — everywhere a
+failure's cause is named above (a missing fixture, a specific unrelated file, a named
+trigger), that citation is the evidence, not an assumption that an unchanged file
+implies an unrelated result.
 
-Real checkout/payment (Stripe deliberately not configured, so no completed `Booking`
-exists in this rehearsal — this is also why `verify-platform-authority.ts`'s "Elite's
-real booking id is invisible" sub-check had nothing to probe and failed for that
-reason, not a cross-tenant leak); real email/SMS delivery; a customer editing an
-auto-attached troubleshooting note before submitting (§9.4); the simplified outlet
-flow's own full guided walkthrough in the browser (verified by direct database
-inspection of its tree — 1 question, no `outlet_condition` — and, separately, that
-`seedDeviceModule()` is non-destructive by construction, but not clicked through);
-mobile viewport / dark-mode rendering of any of the above.
+**`verify-question-order.ts` is a real, currently-enforced gate on `main` itself** —
+this branch neither introduced the `fan-replacing-light` collision nor fixes it; it is
+a pre-existing gate failure this branch inherits and passes through unresolved. Named
+here as the one required gate a release would still need to address, with its own fix
+already pointed at (`scripts/repair-duplicate-question-order.ts`) and explicitly out of
+this task's authorization to run.
 
-### 9.8 Teardown
+### 9.7 Simplified flows, browser-verified (this pass)
+
+Completing the gap the second pass left: **`replace-standard-outlet` (B.17)** clicked
+through the real UI — "Why are you replacing this?" is confirmed the ONLY question
+(no `outlet_condition` follow-up), "It works — I just want it replaced or upgraded"
+resolves instantly ($225 primary). **`new-ceiling-fan` (B.2) switch-leg**, walked
+through the fully-composed live tree exactly as `new-ceiling-light` was in the second
+pass (height-access → accessible attic → no existing fixture → "a wall switch here
+controls an outlet, use it for the new light instead"): stored line item —
+`resolvedComponentKeys: ["CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE"]`, exactly
+one component, `computedPriceCents: 53500` ($535), no `switched_source` key anywhere
+in `answersSnapshot`.
+
+### 9.8 A real, no-deposit checkout to an actual Booking
+
+Attempted first against the large multi-service visit accumulated over this rehearsal
+(2,410.00, six line items) and blocked — not by anything Stripe-related. In order,
+each condition hit and resolved, all against this disposable database only:
+
+1. **`SCHEDULING_NOT_CONFIGURED`** — Elite's rehearsal row had no
+   `schedulingAuthority` set. Set to `NATIVE` with `nativeConcurrentJobs = 2` (a
+   synthetic capacity figure), plus a `BusinessHours` row — neither existed because
+   this rehearsal's seed chain, correctly, never provisions them (that is real
+   contractor configuration, not catalog data).
+2. **`WE_DONT_COVER_THAT_ZIP`** — Elite's rehearsal `ServiceArea` had an empty
+   `zipCodes` array (seed.ts creates the row with `zipCodes: []` deliberately, per its
+   own comment). Added one synthetic zip.
+3. **`WINDOW_TOO_LATE`** — genuinely correct, not a bug: the accumulated six-service
+   visit's combined `estimatedMinutes` summed to 540 (9 hours), exceeding the entire
+   8:00–4:30 workday from ANY start time. Resolved by starting a **fresh, small visit**
+   (`replace-standard-outlet` alone, $225) rather than working around the check.
+
+With a small visit, a real arrival window, and synthetic customer details
+(`rehearsal-test@example.com`, a fabricated name/phone/address), checkout completed:
+**"You're All Set!"** — a genuine `Booking` row, `status: SCHEDULED`,
+`totalCents: 22500`, `depositDueCents: 0` (confirmed no deposit — no deposit policy
+was configured), `paymentState: LEGACY_UNTRACKED`. The confirmation-email attempt
+**failed and was logged, not silently swallowed or successfully sent**: `"Confirmation
+email failed for booking ...: RESEND_API_KEY is not configured — cannot send this
+contractor's email."` — exactly the required outcome (no real external notification,
+no bypassed guard, booking unaffected by the failure) reached by leaving the
+integration unconfigured rather than by any special handling.
+
+This also resolves a loose end from the second pass's gate run:
+`verify-platform-authority.ts`'s "Elite's real booking id is invisible" sub-check had
+nothing to probe because no `Booking` existed at that time — not evidence of a
+cross-tenant leak, just a missing fixture that no longer applies now that one exists.
+
+### 9.9 What this rehearsal still did not reach
+
+Real payment capture (no deposit was required on the booking completed in §9.8, so the
+Stripe capture path specifically was never exercised); real email/SMS delivery (the one
+attempt in §9.8 failed by design, per the instruction to keep integrations
+unconfigured); a customer editing an auto-attached troubleshooting note before
+submission (§9.4 — found there is no UI path to reach the editable field at all for a
+zero-question `TROUBLESHOOT_ONLY` service, so this was not a matter of running out of
+time to test it); mobile viewport / dark-mode rendering of anything in this report.
+
+### 9.10 Teardown
 
 The dev server (`electrical-followthrough-rehearsal`, port 3610) and the disposable
-Postgres cluster (port 5544) were both stopped at the end of this pass.
-`pg_ctl ... stop` returned "server stopped"; the cluster's data directory was created
-fresh for this rehearsal and is not needed again. No process from this rehearsal is
-still running. `.claude/launch.json`'s rehearsal entry and the `.env` pointing at the
-now-stopped cluster remain in the untracked, gitignored local environment — neither is
-part of this commit or this branch.
+Postgres cluster (port 5544) were both stopped at the end of this pass (`pg_ctl ...
+stop` returned "server stopped"; the dev server process was killed). **Correction to
+this report's own prior claim**: the cluster's data directory was NOT deleted — only
+the running `postgres` process was stopped, the same way it was between the second and
+third passes of this work. The directory lives under this session's own scratchpad
+(never inside the repository, never committed) and contains only synthetic data — a
+throwaway rehearsal contractor, a handful of Elite-catalog test bookings and line
+items under fabricated customer names, and the one real `Booking` from §9.8. No
+process from this rehearsal is left running. `.claude/launch.json`'s rehearsal entry
+and the `.env` pointing at the (now-stopped) cluster remain in the untracked,
+gitignored local environment — neither is part of this commit or this branch.
+
+---
+
+## 11. Reproducible evidence committed with this pass
+
+Everything needed to re-run this rehearsal from scratch — not just re-read this
+report — is committed to this branch, none of it a credential or a transient runtime
+file:
+
+- **`scripts/verify-back-navigation-config-browser-flow.ts`** — the durable
+  Playwright regression for the §9.5 fix. Builds and tears down its own throwaway
+  contractor; touches no shared fixture. Not part of `npm run verify` (needs a running
+  server), matching this repository's existing `*-browser-flow.ts` convention.
+- **`prisma/bootstrap-rehearsal-contractor.ts`** — the narrow, idempotent,
+  REHEARSAL-ONLY script that brings a from-scratch database's Elite row up to a
+  storefront/checkout-reachable state (contractor, site, category, scheduling
+  authority, business hours, one synthetic service-area zip). Guarded the same way
+  every other seed file in this branch now is; refuses to be anything but explicit
+  about what it does and does not do.
+- **`docs/design/electrical-decision-tree-audit-v1-rehearsal-bootstrap.md`** — the
+  full, copy-pasteable sequence: install Postgres, initialize a disposable cluster,
+  push the schema, seed the catalog (including the one seed-all.ts omits and the one
+  step that is expected to fail and why), bootstrap the contractor, stamp the database
+  identity, start a dev server, and run the regression above.
+
+**Kept out of git, by design**: the `.env` pointing at any disposable cluster (a
+connection string, even to localhost, is still a credential shape); `.claude/launch.json`
+entries (host-local tooling config); the Postgres data directory itself (synthetic
+data, but a binary database file has no business in a text-diffed repository); any
+screenshot or page dump taken during debugging. Nothing this pass touched required
+committing a secret, and nothing was.
