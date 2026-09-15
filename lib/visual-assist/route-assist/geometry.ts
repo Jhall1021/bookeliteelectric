@@ -209,36 +209,48 @@ export function verticalWallSegments(route: OrderedRoute): number {
   return count;
 }
 
-type DecimalParts = { units: bigint; scale: number };
+type DecimalParts = { digits: string; scale: number };
 
 function decimalParts(value: number): DecimalParts | null {
-  if (!Number.isFinite(value)) return null;
-  const match = value.toString().match(/^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i);
+  if (!Number.isFinite(value) || value < 0) return null;
+  const match = value.toString().match(/^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i);
   if (!match) return null;
 
-  const sign = match[1] === "-" ? -1n : 1n;
-  const whole = match[2];
-  const fraction = match[3] ?? "";
-  const exponent = Number(match[4] ?? "0");
-  let units = BigInt(`${whole}${fraction}` || "0") * sign;
+  const whole = match[1];
+  const fraction = match[2] ?? "";
+  const exponent = Number(match[3] ?? "0");
+  let digits = `${whole}${fraction}`.replace(/^0+(?=\d)/, "") || "0";
   let scale = fraction.length - exponent;
 
   if (scale < 0) {
-    units *= 10n ** BigInt(-scale);
+    digits += "0".repeat(-scale);
     scale = 0;
   }
-  return { units, scale };
+  return { digits, scale };
 }
 
-function decimalNumber(units: bigint, scale: number): number {
-  const negative = units < 0n;
-  const digits = (negative ? -units : units).toString();
-  if (scale === 0) return Number(`${negative ? "-" : ""}${digits}`);
+function addUnsignedIntegerStrings(left: string, right: string): string {
+  const width = Math.max(left.length, right.length);
+  const a = left.padStart(width, "0");
+  const b = right.padStart(width, "0");
+  let carry = 0;
+  let result = "";
 
-  const padded = digits.padStart(scale + 1, "0");
+  for (let i = width - 1; i >= 0; i--) {
+    const sum = Number(a[i]) + Number(b[i]) + carry;
+    result = String(sum % 10) + result;
+    carry = Math.floor(sum / 10);
+  }
+  if (carry) result = String(carry) + result;
+  return result.replace(/^0+(?=\d)/, "") || "0";
+}
+
+function decimalNumber(digits: string, scale: number): number {
+  const normalized = digits.replace(/^0+(?=\d)/, "") || "0";
+  if (scale === 0) return Number(normalized);
+  const padded = normalized.padStart(scale + 1, "0");
   const split = padded.length - scale;
-  const text = `${negative ? "-" : ""}${padded.slice(0, split)}.${padded.slice(split)}`;
-  return Number(text);
+  return Number(`${padded.slice(0, split)}.${padded.slice(split)}`);
 }
 
 /**
@@ -247,10 +259,12 @@ function decimalNumber(units: bigint, scale: number): number {
  *
  * This is NOT a business-precision rule: 14.625 remains 14.625, and no fixed
  * number of decimals is imposed. It only prevents values such as 0.1 + 0.2
- * from leaking out as 0.30000000000000004.
+ * from leaking out as 0.30000000000000004. Negative/non-finite lengths are
+ * invalid physical facts and produce NaN for the existing validation layer to
+ * reject rather than being normalized here.
  */
 function sumDecimalMeasurements(values: number[]): number {
-  let totalUnits = 0n;
+  let totalDigits = "0";
   let totalScale = 0;
 
   for (const value of values) {
@@ -258,16 +272,14 @@ function sumDecimalMeasurements(values: number[]): number {
     if (!part) return Number.NaN;
 
     if (part.scale > totalScale) {
-      totalUnits *= 10n ** BigInt(part.scale - totalScale);
+      totalDigits += "0".repeat(part.scale - totalScale);
       totalScale = part.scale;
     }
-    const units = part.scale < totalScale
-      ? part.units * (10n ** BigInt(totalScale - part.scale))
-      : part.units;
-    totalUnits += units;
+    const aligned = part.digits + "0".repeat(totalScale - part.scale);
+    totalDigits = addUnsignedIntegerStrings(totalDigits, aligned);
   }
 
-  return decimalNumber(totalUnits, totalScale);
+  return decimalNumber(totalDigits, totalScale);
 }
 
 /**
