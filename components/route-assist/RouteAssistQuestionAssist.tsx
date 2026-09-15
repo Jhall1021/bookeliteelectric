@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import RouteAssistWithHandoff from "./RouteAssistWithHandoff";
 import { getRouteAssistInvocation } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
+import { listVisualAssistTasks } from "@/lib/routeAssistHandoffClient";
 import { uploadPhoto } from "@/lib/upload";
 import { selectNumericOption } from "@/lib/numericRouteRanges";
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
@@ -44,16 +45,18 @@ function isMobileViewport(): boolean {
 export default function RouteAssistQuestionAssist({ serviceSlug, question, guidedFlowSessionId, onResolved }: Props) {
   const [open, setOpen] = useState(false);
   const [unusable, setUnusable] = useState(false);
+  const consumedTaskRef = useRef<string | null>(null);
 
   const invocation = getRouteAssistInvocation(serviceSlug, question.key);
-  if (!invocation || !guidedFlowSessionId) return null;
 
   function handleComplete(result: RouteAssistResult) {
     setOpen(false);
+    if (!invocation) return;
+
     // The task/result is already persisted by RouteAssistWithHandoff
     // regardless of what happens next — contractor context survives even
     // when nothing here can safely use it.
-    const value = invocation!.resolveAnswerValue(result);
+    const value = invocation.resolveAnswerValue(result);
     if (value === null) {
       setUnusable(true);
       return;
@@ -88,6 +91,50 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
     setUnusable(false);
     onResolved(option);
   }
+
+  // A completed capture can answer more than one later question when the
+  // registry deliberately gives those questions the same taskKey. Reuse that
+  // ONE persisted RouteAssistResult instead of asking the homeowner to reopen
+  // the camera. Each question still applies its own resolveAnswerValue, so
+  // sharing a capture never means sharing an answer or inventing a fact.
+  useEffect(() => {
+    consumedTaskRef.current = null;
+    setOpen(false);
+    setUnusable(false);
+  }, [serviceSlug, question.key, invocation?.taskKey]);
+
+  useEffect(() => {
+    if (!invocation || !guidedFlowSessionId) return;
+    let cancelled = false;
+
+    listVisualAssistTasks(fetch, guidedFlowSessionId)
+      .then((tasks) => {
+        if (cancelled) return;
+        const completed = tasks.find(
+          (t) =>
+            t.taskType === "ROUTE_ASSIST" &&
+            t.taskKey === invocation.taskKey &&
+            t.status === "COMPLETED" &&
+            !!t.result
+        );
+        if (!completed?.result || consumedTaskRef.current === completed.id) return;
+        consumedTaskRef.current = completed.id;
+        handleComplete(completed.result);
+      })
+      .catch(() => {
+        // Reuse is an optimization, never a dependency. If the task list can't
+        // be read, the ordinary question and explicit Route Assist button stay.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // `handleComplete` intentionally follows the currently rendered question;
+    // question.key/taskKey are the dependencies that define that identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guidedFlowSessionId, serviceSlug, question.key, invocation?.taskKey]);
+
+  if (!invocation || !guidedFlowSessionId) return null;
 
   if (!open) {
     return (
