@@ -18,29 +18,16 @@
  *     means price always needs review; that's a pricing-flow property, not
  *     a material-truth gap — the recipe itself is fully deterministic.
  *
- * REHEARSAL DATA CAVEAT: the rehearsal branch's own Elite tenant data for
- * whole-house-surge-protection is stale relative to production — it still
- * has generic BREAKER_DOUBLE_POLE, not BREAKER_DOUBLE_POLE_20A (confirmed
- * by direct query; production's dry run independently confirmed Elite's
- * PRODUCTION data already has the specific role). So a plain extraction on
- * rehearsal reproduces that staleness; after extracting, one explicit,
- * narrow, rehearsal-only correction was applied (swapping the
- * canonicalMaterialId on that one TemplateServiceMaterial row) to bring
- * rehearsal to the same target state production's own extraction will
- * produce directly. No such correction will be needed in production.
- *
- * REHEARSAL VERSION NUMBER: this verifier targets whichever TemplateVersion
- * DELTA_VERSION names — v7 on the shared rehearsal branch, since that
- * branch's v5 is the historical rejected bathroom-fan-light-combo override
- * (content-identical to v1's own empty recipe, confirmed by direct query —
- * benign but not accurate provenance) and v6 is Batch 2E's 13 services
- * (content matches real production v5). Checks here that touch
- * bathroom-fan-light-combo or the 13 Batch-2E services assert on INSTALLED
- * CONTENT, never on which version number sourced them, specifically to stay
- * correct despite that branch-only numbering divergence. Production has no
- * v6 or v7; the real production write for this batch will target
- * production's actual next version, verified fresh at write time — do not
- * assume it is 6 or 7 without re-checking production's own state first.
+ * PRODUCTION RUN. DELTA_VERSION=6 — production's real next version,
+ * re-verified fresh immediately before the write (production had v1-v5, no
+ * v6). Unlike the rehearsal branch, production's own Elite tenant data for
+ * whole-house-surge-protection was already correct
+ * (BREAKER_DOUBLE_POLE_20A) — the production dry run independently
+ * confirmed this, so no rehearsal-style correction step was needed here;
+ * a plain extraction produced the approved shape directly for both
+ * services. This verifier does not accept the rehearsal branch's v7
+ * numbering or its stray v5 (bathroom-fan-light-combo) as production
+ * truth.
  *
  * Proves:
  *   0. branch diff touches zero Route Assist / Routing V2 / shared-schema files;
@@ -88,13 +75,16 @@ const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
 
 const ELITE_SLUG = "elite-electric";
-const DELTA_VERSION = 7; // rehearsal only — production's real next version must be re-verified fresh
+const DELTA_VERSION = 6; // PRODUCTION run
 const EXPECTED_FOLDED_COUNT = 78;
 const SURGE_KEY = "whole-house-surge-protection";
 const FAN_KEY = "replace-bathroom-exhaust-fan";
 const FROZEN_KEYS = ["hot-tub-spa-electrical", "200a-service-upgrade"];
 const UNDER_CABINET_KEY = "under-cabinet-led-lighting";
 const FAN_COMBO_KEY = "bathroom-fan-light-combo";
+const FAN_WITH_LIGHT_KEY = "replace-bathroom-exhaust-fan-with-light";
+const APPROVED_V6_SERVICES = [SURGE_KEY, FAN_KEY];
+const FORBIDDEN_V6_KEYS = [FAN_COMBO_KEY, FAN_WITH_LIGHT_KEY, UNDER_CABINET_KEY, ...FROZEN_KEYS];
 const BATCH_2E_SERVICES = [
   "otr-microwave-install", "replace-interior-light-fixture", "replace-exterior-light-fixture",
   "replace-motion-flood-light", "video-doorbell-existing-wiring", "tv-install-existing-location",
@@ -140,6 +130,29 @@ async function main() {
   const touchesRouteAssist = changedFiles.filter((f) => routeAssistPattern.test(f));
   ok(`0. this branch's diff against origin/main touches zero Route Assist / Routing V2 / shared-schema files`,
     touchesRouteAssist.length === 0, JSON.stringify({ changedFiles, touchesRouteAssist }));
+
+  // ── 1b/2/3. production version identity: exactly v1-v6, v6 is DELTA, exact 2-key set ──
+  const versions = await raw.templateVersion.findMany({
+    where: { trade: "electrical" }, select: { version: true, kind: true }, orderBy: { version: "asc" },
+  });
+  ok(`1b. Electrical template versions are exactly v1-v6 — no v7, no gap`,
+    versions.length === 6 && versions.every((v, i) => v.version === i + 1), JSON.stringify(versions));
+  ok(`2c. v${DELTA_VERSION} is a DELTA`, versions.find((v) => v.version === DELTA_VERSION)?.kind === "DELTA");
+  const v6Keys = (await raw.templateService.findMany({
+    where: { key: { in: [...APPROVED_V6_SERVICES, ...FORBIDDEN_V6_KEYS] }, templateVersion: { trade: "electrical", version: DELTA_VERSION } },
+    select: { key: true },
+  })).map((r) => r.key);
+  const v6KeySet = new Set(v6Keys);
+  ok(`3a. v${DELTA_VERSION} contains exactly the 2 approved service keys, nothing more`,
+    v6Keys.length === 2 && APPROVED_V6_SERVICES.every((k) => v6KeySet.has(k)), JSON.stringify(v6Keys));
+  ok(`3b. no rejected/frozen key appears in v${DELTA_VERSION} (bathroom-fan-light-combo, fan-with-light, under-cabinet, spa, 200A)`,
+    FORBIDDEN_V6_KEYS.every((k) => !v6KeySet.has(k)), JSON.stringify(FORBIDDEN_V6_KEYS.filter((k) => v6KeySet.has(k))));
+
+  // ── 10. replace-bathroom-exhaust-fan-with-light untouched ──
+  const fanWithLightOverride = await raw.templateService.findFirst({
+    where: { key: FAN_WITH_LIGHT_KEY, templateVersion: { trade: "electrical", version: { gt: 1 } } },
+  });
+  ok(`10. replace-bathroom-exhaust-fan-with-light has no override beyond v1`, fanWithLightOverride === null);
 
   // ── 9. under-cabinet-led-lighting frozen — no override beyond v1, v1 recipe still empty ──
   const ucOverride = await raw.templateService.findFirst({
