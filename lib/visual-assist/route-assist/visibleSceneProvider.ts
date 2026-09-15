@@ -1,6 +1,10 @@
 import type { RouteAssistDestinationType, RouteAssistMode } from "./taxonomy";
 import type { RouteAssistCaptureArtifacts, RoutePoint, RouteSegment } from "./types";
 import {
+  validateRouteAssistReviewCorrectionsV1,
+  type RouteAssistReviewCorrectionV1,
+} from "./routeReviewCorrection";
+import {
   validateRouteAssistVisibleSceneSemanticsV1,
   type RouteAssistVisibleSceneSemanticsV1,
 } from "./visualSceneSemantics";
@@ -21,6 +25,8 @@ export type RouteAssistVisibleSceneProviderInputV1 = {
   points: readonly RoutePoint[];
   segments: readonly RouteSegment[];
   captureArtifacts: Readonly<RouteAssistCaptureArtifacts>;
+  /** Review intent only. A provider may use it to revise a proposal, but it is not evidence. */
+  reviewCorrections?: readonly RouteAssistReviewCorrectionV1[];
 };
 
 export type RouteAssistVisibleSceneProviderV1 = {
@@ -49,6 +55,10 @@ function inputSnapshot(input: RouteAssistVisibleSceneProviderInputV1): RouteAssi
       imageIds: [...input.captureArtifacts.imageIds],
       overlayImageIds: [...input.captureArtifacts.overlayImageIds],
     },
+    reviewCorrections: input.reviewCorrections?.map((correction) => ({
+      ...correction,
+      point: { ...correction.point },
+    })),
   };
 }
 
@@ -56,54 +66,31 @@ function semanticsSnapshot(value: RouteAssistVisibleSceneSemanticsV1): RouteAssi
   return {
     version: value.version,
     captureImageIds: [...value.captureImageIds],
-    objects: value.objects.map((object) => ({
-      ...object,
-      box: { ...object.box },
-    })),
-    segmentObservations: value.segmentObservations.map((observation) => ({
-      ...observation,
-      objectIds: [...observation.objectIds],
-    })),
+    objects: value.objects.map((object) => ({ ...object, box: { ...object.box } })),
+    segmentObservations: value.segmentObservations.map((observation) => ({ ...observation, objectIds: [...observation.objectIds] })),
   };
 }
 
-/**
- * Run semantic CV and stop at validated, detached visible-scene observations.
- * No confidence threshold here grants authority; confidence remains evidence.
- */
+/** Run semantic CV and stop at validated, detached visible-scene observations. */
 export async function runRouteAssistVisibleSceneProviderV1(
   provider: RouteAssistVisibleSceneProviderV1,
   input: RouteAssistVisibleSceneProviderInputV1,
 ): Promise<RouteAssistVisibleSceneProviderRunV1> {
-  if (!validProviderKey(provider.providerKey)) {
-    return {
-      providerKey: provider.providerKey,
-      semantics: null,
-      problems: ["providerKey must be a short opaque identifier"],
-    };
-  }
+  if (!validProviderKey(provider.providerKey)) return { providerKey: provider.providerKey, semantics: null, problems: ["providerKey must be a short opaque identifier"] };
+
+  const correctionProblems = validateRouteAssistReviewCorrectionsV1({
+    corrections: input.reviewCorrections ?? [],
+    captureImageIds: input.captureArtifacts.imageIds,
+  });
+  if (correctionProblems.length) return { providerKey: provider.providerKey, semantics: null, problems: correctionProblems };
 
   let providerSemantics: RouteAssistVisibleSceneSemanticsV1;
-  try {
-    providerSemantics = await provider.analyze(inputSnapshot(input));
-  } catch {
-    return {
-      providerKey: provider.providerKey,
-      semantics: null,
-      problems: ["visible scene provider failed without producing semantics"],
-    };
-  }
+  try { providerSemantics = await provider.analyze(inputSnapshot(input)); }
+  catch { return { providerKey: provider.providerKey, semantics: null, problems: ["visible scene provider failed without producing semantics"] }; }
 
   let semantics: RouteAssistVisibleSceneSemanticsV1;
-  try {
-    semantics = semanticsSnapshot(providerSemantics);
-  } catch {
-    return {
-      providerKey: provider.providerKey,
-      semantics: null,
-      problems: ["visible scene provider returned malformed semantics"],
-    };
-  }
+  try { semantics = semanticsSnapshot(providerSemantics); }
+  catch { return { providerKey: provider.providerKey, semantics: null, problems: ["visible scene provider returned malformed semantics"] }; }
 
   const problems = validateRouteAssistVisibleSceneSemanticsV1({
     semantics,
@@ -112,9 +99,5 @@ export async function runRouteAssistVisibleSceneProviderV1(
     segments: input.segments,
   });
 
-  return {
-    providerKey: provider.providerKey,
-    semantics: problems.length === 0 ? semantics : null,
-    problems,
-  };
+  return { providerKey: provider.providerKey, semantics: problems.length === 0 ? semantics : null, problems };
 }
