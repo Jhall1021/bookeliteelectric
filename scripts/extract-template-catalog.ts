@@ -169,7 +169,8 @@ async function buildOne(slug: string) {
           illustrationUrls: o.illustrationUrls,
           components: o.components.filter(c => c.canonicalComponentId).map(c => ({
             canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity,
-            conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue })),
+            conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+            quantityAnswerKey: c.quantityAnswerKey })),
           disclaimers: o.conditionalDisclaimers.filter(d => d.contractorDisclaimer)
             .map(d => ({ canonicalDisclaimerId: d.contractorDisclaimer!.canonicalDisclaimerId })),
           photoGroups: o.photoGroups.map(g => ({ photoGroupId: g.photoGroupId })),
@@ -375,5 +376,5 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(async (e) => { console.error(e); await prisma.$disconnect(); process.exit(1); });
+  main().catch(async (e) => { console.error(`\n  ${(e as Error).message}\n`); await prisma.$disconnect(); process.exit(1); });
 }
