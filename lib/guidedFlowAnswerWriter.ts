@@ -53,6 +53,41 @@ export class GuidedFlowAnswerWriter {
     };
   }
 
+  /**
+   * Queue one explicit homeowner answer against the canonical snapshot known at
+   * the moment of the click.
+   *
+   * Callers intentionally do NOT pass their full rendered answer map here.
+   * That map may contain history snapshots, unpersisted reroute carry-over, or
+   * another local answer whose request is still ahead of this one in the queue.
+   * Capturing only this explicit key/value edit lets enqueue() reconcile it
+   * against the canonical state established by earlier queued writes.
+   */
+  enqueueAnswerEdit(questionKey: string, value: string): Promise<GuidedFlowPersistResult> {
+    const base = this.snapshot().canonicalAnswers;
+    return this.enqueue({
+      localBaseAnswers: base,
+      attemptedAnswers: { ...base, [questionKey]: value },
+    });
+  }
+
+  /**
+   * Queue a whole local snapshot as intentional input relative to the current
+   * canonical server snapshot.
+   *
+   * This is for bounded bootstrap cases such as reroute carry-over, where a
+   * target service begins with answers the customer already supplied to the
+   * immediately preceding service. Ordinary question clicks should use
+   * enqueueAnswerEdit() so they never resend incidental UI history.
+   */
+  enqueueSnapshotIntent(answers: GuidedFlowAnswerMap): Promise<GuidedFlowPersistResult> {
+    const base = this.snapshot().canonicalAnswers;
+    return this.enqueue({
+      localBaseAnswers: base,
+      attemptedAnswers: { ...base, ...answers },
+    });
+  }
+
   enqueue(write: GuidedFlowQueuedWrite): Promise<GuidedFlowPersistResult> {
     const run = this.tail.then(async () => {
       const preflight = reconcileGuidedFlowAnswers(
