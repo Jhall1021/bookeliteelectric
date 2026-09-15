@@ -254,6 +254,8 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Stamps basePrice on a THROWAWAY target and its referenced mount (deliberately different, so a stale vs. final answer produce distinguishable totals) so the real guided flow has a real price to resolve to while proving persistAnswers' save queue survives a delayed, overlapping Back-and-re-answer with no data loss and no self-inflicted 409. The contractor and its services are created and destroyed by the test; no real contractor's price is read or written.",
   "scripts/verify-troubleshooting-note-directbook-browser-flow.ts":
     "Stamps basePrice on a THROWAWAY, questionless TROUBLESHOOT_ONLY service so it qualifies for directBook and reaches a real Booking through a real no-deposit checkout — proving the diagnostic note field is reachable and its final text survives into the stored visit and booking, not anything about pricing. The contractor and its service are created and destroyed by the test; no real contractor's price is read or written.",
+  "scripts/verify-cross-device-stale-queue-browser-flow.ts":
+    "Stamps basePrice on a THROWAWAY, two-question service purely so the real guided flow has a real service to answer while proving the save queue drops a stale payload on a genuine 409 from an independent second writer — not anything about pricing, and the price is never read back. The contractor and its service are created and destroyed by the test; no real contractor's price is read or written.",
 };
 
 /**
