@@ -16,34 +16,33 @@ export type RouteAssistSweepCaptureHandoffV1 = { version: 1; persistedFrames: Ro
 
 function validPersistedImage(frame: RouteAssistLocalReviewFrameV1, persisted: RouteAssistPersistedCaptureImageV1): boolean {
   return Boolean(
-    persisted.imageId &&
-    persisted.imageId === frame.imageId &&
-    persisted.imageUrl &&
+    persisted.imageId && persisted.imageId === frame.imageId && persisted.imageUrl &&
     (persisted.mediaRef === undefined || persisted.mediaRef === null || persisted.mediaRef.length > 0) &&
-    persisted.mimeType === frame.mimeType &&
-    persisted.width === frame.width &&
-    persisted.height === frame.height &&
-    Number.isFinite(persisted.width) &&
-    persisted.width > 0 &&
-    Number.isFinite(persisted.height) &&
-    persisted.height > 0
+    persisted.mimeType === frame.mimeType && persisted.width === frame.width && persisted.height === frame.height &&
+    Number.isFinite(persisted.width) && persisted.width > 0 && Number.isFinite(persisted.height) && persisted.height > 0
   );
+}
+
+function mediaRefs(images: readonly RouteAssistPersistedCaptureImageV1[]): string[] | undefined {
+  const values = images.flatMap((image) => image.mediaRef ? [image.mediaRef] : []);
+  return values.length ? values : undefined;
 }
 
 export async function persistRouteAssistReviewFrameV1(args: { frame: RouteAssistLocalReviewFrameV1; persister: RouteAssistCaptureImagePersisterV1 }): Promise<RouteAssistCaptureHandoffV1 | null> {
   let persisted: RouteAssistPersistedCaptureImageV1;
   try { persisted = await args.persister.persist({ ...args.frame }); } catch { return null; }
   if (!validPersistedImage(args.frame, persisted)) return null;
-  return { version: 1, persistedImage: { ...persisted }, captureArtifacts: { imageIds: [persisted.imageId], overlayImageIds: [] } };
+  return {
+    version: 1,
+    persistedImage: { ...persisted },
+    captureArtifacts: {
+      imageIds: [persisted.imageId],
+      overlayImageIds: [],
+      ...(persisted.mediaRef ? { mediaRefs: [persisted.mediaRef] } : {}),
+    },
+  };
 }
 
-/**
- * Persist an ordinary-camera room sweep as one ordered, durable capture set.
- * Sequence and timestamps are provenance only; they do not imply spatial
- * adjacency or geometry. The handoff fails closed on gaps, duplicates,
- * backwards time, or partial persistence so providers never receive an
- * ambiguous subset masquerading as the complete homeowner sweep.
- */
 export async function persistRouteAssistSweepCaptureV1(args: { frames: RouteAssistLocalSweepFrameV1[]; persister: RouteAssistCaptureImagePersisterV1 }): Promise<RouteAssistSweepCaptureHandoffV1 | null> {
   if (args.frames.length === 0) return null;
   const ordered = [...args.frames].sort((a, b) => a.sequence - b.sequence);
@@ -67,6 +66,7 @@ export async function persistRouteAssistSweepCaptureV1(args: { frames: RouteAssi
 
   const reviewImage = persistedFrames[persistedFrames.length - 1];
   if (!reviewImage) return null;
+  const refs = mediaRefs(persistedFrames);
   return {
     version: 1,
     persistedFrames,
@@ -78,6 +78,10 @@ export async function persistRouteAssistSweepCaptureV1(args: { frames: RouteAssi
       width: reviewImage.width,
       height: reviewImage.height,
     },
-    captureArtifacts: { imageIds: persistedFrames.map((frame) => frame.imageId), overlayImageIds: [] },
+    captureArtifacts: {
+      imageIds: persistedFrames.map((frame) => frame.imageId),
+      overlayImageIds: [],
+      ...(refs ? { mediaRefs: refs } : {}),
+    },
   };
 }
