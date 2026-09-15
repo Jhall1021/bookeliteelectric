@@ -18,7 +18,14 @@ import {
   adaptRouteAssistResult, FIELD_CLASSIFICATION,
 } from "../lib/electrical/routeAssistAdapter";
 import { getRouteAssistInvocation } from "../lib/visual-assist/route-assist/guidedFlowInvocation";
-import type { RouteAssistResult } from "../lib/visual-assist/route-assist/types";
+import { buildRouteAssistResult } from "../lib/visual-assist/route-assist/result";
+import { applyConfirmation } from "../lib/visual-assist/route-assist/confirmation";
+import {
+  isRouteAssistIncomplete,
+  type RouteAssistResult,
+  type RoutePoint,
+  type RouteSegment,
+} from "../lib/visual-assist/route-assist/types";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { eliteService } from "../prisma/_serviceTargets";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
@@ -33,34 +40,36 @@ const ok = (c: boolean, label: string, detail = "") => {
   console.log(`  ${c ? "ok  " : "FAIL"} ${label}${c ? "" : `\n         ${detail}`}`);
 };
 
-/** A capture with everything filled in, so no test relies on a default. */
+/**
+ * A real domain-built surface capture with two explicitly observed PHYSICAL
+ * inside turns. `over` is intentionally allowed to make synthetic boundary
+ * probes (fractional transport, alternate mode, malformed legacy aggregates)
+ * without pretending those probes are valid persisted task completions.
+ */
 function capture(over: Partial<RouteAssistResult> = {}): RouteAssistResult {
-  return {
+  const points: RoutePoint[] = [
+    { id: "A", x: 0.1, y: 0.6, imageId: "room", kind: "SOURCE" },
+    { id: "W1", x: 0.35, y: 0.6, imageId: "room", kind: "WAYPOINT", physicalTurn: "INSIDE" },
+    { id: "W2", x: 0.6, y: 0.35, imageId: "room", kind: "WAYPOINT", physicalTurn: "INSIDE" },
+    { id: "B", x: 0.9, y: 0.35, imageId: "room", kind: "DESTINATION" },
+  ];
+  const segments: RouteSegment[] = [
+    { id: "S1", fromPointId: "A", toPointId: "W1", surface: "WALL", estimatedLengthFt: 10 },
+    { id: "S2", fromPointId: "W1", toPointId: "W2", surface: "WALL", estimatedLengthFt: 10 },
+    { id: "S3", fromPointId: "W2", toPointId: "B", surface: "WALL", estimatedLengthFt: 11 },
+  ];
+  const built = buildRouteAssistResult({
     mode: "SURFACE",
     destinationType: "RECEPTACLE",
-    points: [], segments: [],
-    customerConfirmedRoute: true,
-    estimatedTotalRouteLengthFt: 31,
-    sameWall: null,
-    wallTransitionsCount: 0,
-    insideCornersCount: 2,
-    outsideCornersCount: 0,
-    doorwayBypassesCount: 0,
-    windowBypassesCount: 0,
-    verticalTransitionsCount: 0,
-    wallToCeilingTransitionsCount: 0,
-    wallToFloorTransitionsCount: 0,
-    visibleObstacleDetoursCount: 0,
-    concealedRouteComplexity: null,
-    suggestedAccessOpeningsMin: null,
-    suggestedAccessOpeningsMax: null,
-    needsContractorReview: false,
-    captureArtifacts: { images: [] } as unknown as RouteAssistResult["captureArtifacts"],
-    customerNotes: null,
+    points,
+    segments,
     drywallAccessAllowed: null,
-    ...over,
-  };
+    captureArtifacts: { imageIds: ["room"], overlayImageIds: [] },
+  });
+  if (isRouteAssistIncomplete(built)) throw new Error(`adapter fixture unexpectedly incomplete: ${built.reason}`);
+  return { ...applyConfirmation(built, "ACCEPTED"), ...over };
 }
+
 const answerFor = (q: string, r: RouteAssistResult) =>
   getRouteAssistInvocation(OUTLET_SLUG, q)?.resolveAnswerValue(r) ?? null;
 
@@ -82,12 +91,16 @@ async function main() {
   console.log(`         ${mapped.length} MAPPED, ${intentional.length} UNMAPPED_INTENTIONALLY`);
   ok(intentional.every((k) => (FIELD_CLASSIFICATION[k as keyof RouteAssistResult].reason ?? "").length > 30),
     "A  every deliberate omission carries a real reason, not a shrug");
+  ok(FIELD_CLASSIFICATION.insideCornersCount.classification === "UNMAPPED_INTENTIONALLY" &&
+     FIELD_CLASSIFICATION.outsideCornersCount.classification === "UNMAPPED_INTENTIONALLY",
+    "A  legacy image-space corner aggregates are explicitly non-authoritative");
 
   console.log("\n  B  REGISTRY KEYS MATCH THE AUTHORING MODULES\n");
   const src = readFileSync("lib/visual-assist/route-assist/guidedFlowInvocation.ts", "utf8");
   for (const [label, key] of [
     ["surface feet", SURFACE_KEYS.feet], ["surface inside", SURFACE_KEYS.inside],
-    ["surface outside", SURFACE_KEYS.outside], ["concealed feet", FINISHED_KEYS.feet],
+    ["surface outside", SURFACE_KEYS.outside], ["surface flat", SURFACE_KEYS.flat],
+    ["concealed feet", FINISHED_KEYS.feet],
   ] as const) {
     ok(src.includes(`"${key}"`), `B  registry binds the authored ${label} key (${key})`);
     ok(getRouteAssistInvocation(OUTLET_SLUG, key) !== null, `B  …and getRouteAssistInvocation resolves it`);
@@ -114,7 +127,7 @@ async function main() {
   }
   ok(/DEPRECATED|LEGACY/i.test(src), "C  …and it is marked legacy in the registry");
 
-  console.log("\n  D  V2 MEASUREMENTS ARRIVE UNBANDED\n");
+  console.log("\n  D  V2 MEASUREMENTS + PHYSICAL TURNS ARRIVE UNBANDED\n");
   for (const ft of [8, 20, 21, 45, 300]) {
     const a = answerFor(SURFACE_KEYS.feet, capture({ estimatedTotalRouteLengthFt: ft }));
     ok(a === String(ft), `D  surface ${ft} ft -> "${ft}" (not a band)`, String(a));
@@ -128,10 +141,27 @@ async function main() {
     ok(answerFor(ACCESSIBLE_KEYS.feet, capture({ mode, estimatedTotalRouteLengthFt: 50 })) === null,
       `D  an ordinary ${mode} capture cannot populate ${ACCESSIBLE_KEYS.feet}`);
   }
-  ok(answerFor(SURFACE_KEYS.inside, capture({ insideCornersCount: 2 })) === "2",
-    "D  inside corner count arrives");
-  ok(answerFor(SURFACE_KEYS.outside, capture({ outsideCornersCount: 0 })) === "0",
-    "D  outside corner count arrives, including zero");
+
+  ok(answerFor(SURFACE_KEYS.inside, capture()) === "2",
+    "D  two explicit PHYSICAL inside turns arrive as 2");
+  ok(answerFor(SURFACE_KEYS.outside, capture()) === "0",
+    "D  complete physical evidence establishes exact zero outside turns");
+  ok(answerFor(SURFACE_KEYS.flat, capture()) === "0",
+    "D  complete physical evidence establishes exact zero flat turns");
+
+  const legacyLie = capture({ insideCornersCount: 99, outsideCornersCount: 88 });
+  ok(answerFor(SURFACE_KEYS.inside, legacyLie) === "2" && answerFor(SURFACE_KEYS.outside, legacyLie) === "0",
+    "D  legacy 2-D corner aggregates cannot change physical fitting answers",
+    JSON.stringify(adaptRouteAssistResult(legacyLie).mapped));
+
+  const unresolved = capture({
+    points: capture().points.map((point) => point.id === "W1" ? { ...point, physicalTurn: null } : point),
+  });
+  ok(answerFor(SURFACE_KEYS.inside, unresolved) === null &&
+     answerFor(SURFACE_KEYS.outside, unresolved) === null &&
+     answerFor(SURFACE_KEYS.flat, unresolved) === null,
+    "D  one unresolved interior waypoint makes every exact fitting count unavailable");
+
   ok(answerFor(FINISHED_KEYS.feet, capture({ mode: "SURFACE", estimatedTotalRouteLengthFt: 18 })) === null,
     "D  a SURFACE capture may not answer a CONCEALED question");
   ok(answerFor(SURFACE_KEYS.feet, capture({ needsContractorReview: true })) === null,
@@ -139,7 +169,7 @@ async function main() {
   ok(answerFor(SURFACE_KEYS.feet, capture({ customerConfirmedRoute: false })) === null,
     "D  an unconfirmed route auto-answers nothing");
   ok(answerFor(SURFACE_KEYS.feet, capture({ estimatedTotalRouteLengthFt: 14.625 })) === "14.625",
-    "D  fractional physical scope is preserved exactly, not rounded to a whole foot");
+    "D  downstream binding preserves a future canonical 14.625 exactly — capture precision is a separate gate");
 
   console.log("\n  E  sameWall IS NEVER back_to_back\n");
   const sw = adaptRouteAssistResult(capture({ mode: "CONCEALED", sameWall: true }));
@@ -154,10 +184,10 @@ async function main() {
     "E  …and no code path relates the two");
 
   console.log("\n  F  ACCESS OPENINGS — EXACT AND UNCERTAIN ARE DIFFERENT FACTS\n");
-  const exact = adaptRouteAssistResult(capture({ suggestedAccessOpeningsMin: 3, suggestedAccessOpeningsMax: 3 }));
+  const exact = adaptRouteAssistResult(capture({ mode: "CONCEALED", suggestedAccessOpeningsMin: 3, suggestedAccessOpeningsMax: 3 }));
   ok(exact.mapped.accessOpeningsExact === 3 && exact.mapped.accessOpeningsRange === null,
     "F  min === max is preserved as an EXACT count", JSON.stringify(exact.mapped.accessOpeningsExact));
-  const range = adaptRouteAssistResult(capture({ suggestedAccessOpeningsMin: 2, suggestedAccessOpeningsMax: 4 }));
+  const range = adaptRouteAssistResult(capture({ mode: "CONCEALED", suggestedAccessOpeningsMin: 2, suggestedAccessOpeningsMax: 4 }));
   ok(range.mapped.accessOpeningsRange?.min === 2 && range.mapped.accessOpeningsRange?.max === 4,
     "F  a range is preserved AS a range", JSON.stringify(range.mapped.accessOpeningsRange));
   ok(range.mapped.accessOpeningsExact === null,
@@ -182,7 +212,8 @@ async function main() {
     verticalTransitionsCount: 1, visibleObstacleDetoursCount: 1, concealedRouteComplexity: "COMPLEX",
   }));
   for (const f of ["doorwayBypassesCount", "windowBypassesCount", "wallTransitionsCount",
-                   "verticalTransitionsCount", "visibleObstacleDetoursCount", "concealedRouteComplexity"]) {
+                   "verticalTransitionsCount", "visibleObstacleDetoursCount", "concealedRouteComplexity",
+                   "insideCornersCount", "outsideCornersCount"]) {
     ok(rich.unmapped.some((u) => u.field === f), `H  ${f} is reported unmapped, with a reason`);
   }
   ok(rich.invalid.length === 0, "H  …and none of them is treated as invalid", JSON.stringify(rich.invalid));
@@ -199,8 +230,7 @@ async function main() {
     [SURFACE_KEYS.feet]: answerFor(SURFACE_KEYS.feet, r) ?? "",
     [SURFACE_KEYS.inside]: answerFor(SURFACE_KEYS.inside, r) ?? "",
     [SURFACE_KEYS.outside]: answerFor(SURFACE_KEYS.outside, r) ?? "",
-    // Route Assist has no flat-turn observation yet, so the homeowner answers it.
-    [SURFACE_KEYS.flat]: "0",
+    [SURFACE_KEYS.flat]: answerFor(SURFACE_KEYS.flat, r) ?? "",
     [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear",
   });
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -208,10 +238,12 @@ async function main() {
   const r31 = resolveRoute(loaded, surfaceAnswers(capture()), true, settings);
   const q = (k: string) => comps(r31).find((c) => c.key === k)?.quantity;
   ok(q("SURFACE_ROUTE_FT") === 31 && q("SURFACE_ROUTE_INSIDE_CORNER") === 2,
-    "I  a 31 ft / 2-corner capture reaches the resolver as 31 and 2",
+    "I  a 31 ft / 2-physical-inside-turn capture reaches the resolver as 31 and 2",
     JSON.stringify(comps(r31)));
   ok(!comps(r31).some((c) => c.key === "SURFACE_ROUTE_OUTSIDE_CORNER"),
-    "I  …and a zero outside-corner count omits the component");
+    "I  …and an exact zero outside-turn count omits the component");
+  ok(!comps(r31).some((c) => c.key === "SURFACE_ROUTE_FLAT_CORNER"),
+    "I  …and an exact zero flat-turn count omits the component");
 
   for (const [ft, shouldBuild] of [[20, true], [21, false], [45, false]] as const) {
     const r = resolveRoute(loaded, {
