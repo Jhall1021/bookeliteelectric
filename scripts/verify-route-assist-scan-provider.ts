@@ -3,6 +3,7 @@ import {
   type RouteAssistScanProviderInputV1,
   type RouteAssistScanProviderV1,
 } from "../lib/visual-assist/route-assist/scanProvider";
+import { collectRouteAssistScanCandidatesV1 } from "../lib/visual-assist/route-assist/scanPipeline";
 import type { RouteAssistScanEvidenceV1 } from "../lib/visual-assist/route-assist/scanEvidence";
 
 let pass = 0;
@@ -90,6 +91,24 @@ async function run() {
   );
   check("provider cannot mutate caller route graph", baseInput.points[0].id === "a", String(baseInput.points[0].id));
 
+  const pipeline = await collectRouteAssistScanCandidatesV1(coherentProvider, baseInput);
+  check("automatic scan pipeline stops with reviewable candidates", pipeline.evidence !== null && pipeline.candidates !== null, JSON.stringify(pipeline.problems));
+  check(
+    "complete world-geometry route length stays exact and unrounded in candidate layer",
+    pipeline.candidates?.completeMeasuredRouteLength?.valueFt === 14.625,
+    JSON.stringify(pipeline.candidates?.completeMeasuredRouteLength),
+  );
+  check(
+    "low provider confidence remains present rather than being threshold-filtered",
+    pipeline.candidates?.segments[0].measuredLengthFt?.confidence === 0.01,
+    JSON.stringify(pipeline.candidates?.segments[0].measuredLengthFt),
+  );
+  check(
+    "pipeline does not mutate canonical Route Assist graph",
+    baseInput.segments.every((segment) => segment.estimatedLengthFt == null) && baseInput.points[1].physicalTurn == null,
+    JSON.stringify({ points: baseInput.points, segments: baseInput.segments }),
+  );
+
   const wrongGraph = await runRouteAssistScanProviderV1(
     {
       providerKey: "fake.bad-graph.v1",
@@ -104,13 +123,14 @@ async function run() {
   check("evidence outside the authoritative route graph is rejected", wrongGraph.evidence === null, JSON.stringify(wrongGraph.problems));
   check("graph mismatch explains the refusal", wrongGraph.problems.some((p) => p.includes("not present in the base route")), JSON.stringify(wrongGraph.problems));
 
-  const concealedOrdinary = await runRouteAssistScanProviderV1(
-    {
-      providerKey: "fake.concealed-room.v1",
-      async analyze() {
-        return evidence({ transitions: [] });
-      },
+  const concealedOrdinaryProvider: RouteAssistScanProviderV1 = {
+    providerKey: "fake.concealed-room.v1",
+    async analyze() {
+      return evidence({ transitions: [] });
     },
+  };
+  const concealedOrdinary = await runRouteAssistScanProviderV1(
+    concealedOrdinaryProvider,
     { ...baseInput, mode: "CONCEALED", captureKind: "ORDINARY_ROOM_SCAN" },
   );
   check("ordinary room scan cannot establish concealed footage", concealedOrdinary.evidence === null, JSON.stringify(concealedOrdinary.problems));
@@ -118,6 +138,15 @@ async function run() {
     "concealed-footage refusal is explicit",
     concealedOrdinary.problems.filter((p) => p.includes("cannot establish concealed-route footage")).length === 2,
     JSON.stringify(concealedOrdinary.problems),
+  );
+  const concealedOrdinaryPipeline = await collectRouteAssistScanCandidatesV1(
+    concealedOrdinaryProvider,
+    { ...baseInput, mode: "CONCEALED", captureKind: "ORDINARY_ROOM_SCAN" },
+  );
+  check(
+    "rejected concealed-room evidence cannot leak into candidates",
+    concealedOrdinaryPipeline.evidence === null && concealedOrdinaryPipeline.candidates === null,
+    JSON.stringify(concealedOrdinaryPipeline),
   );
 
   const concealedExposed = await runRouteAssistScanProviderV1(
