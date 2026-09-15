@@ -133,9 +133,15 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     setLoading(true);
     Promise.all([
       siteFetch(`/api/services/${serviceSlug}`).then((r) => r.json()),
+      // Tolerate a failure here rather than blocking the whole flow — worst
+      // case the customer is treated as a first-time booker, which is the
+      // old behavior, not a broken page.
       siteFetch("/api/visit")
         .then((r) => r.json())
         .catch(() => ({ lineItems: [] })),
+      // Same tolerance: a session that can't be created/resumed just means
+      // this visit isn't persisted mid-flow, not that the customer can't
+      // book. Never awaited by anything that would block the page.
       siteFetch("/api/guided-flow-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,6 +157,12 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       setState({ kind: "intro" });
       setHistory([]);
       setGuidedFlowSession(session ? { id: session.id, version: session.version } : null);
+      // Answers carried over from a reroute, if this is where one landed.
+      //
+      // Consumed once and cleared immediately: the payload is tagged with
+      // the service it was meant for, so a stale one from earlier in the
+      // session can't leak into an unrelated flow. Reuse is right for the
+      // reroute that created it and wrong for anything else.
       let carried: Record<string, string> = {};
       try {
         const raw = sessionStorage.getItem(REROUTE_HANDOFF_KEY);
@@ -158,6 +170,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
           const payload = JSON.parse(raw);
           if (payload?.targetServiceId === data.id && payload.answers) {
+            // Only keys this service actually asks about. A shared key like
+            // ceiling height transfers; one that happens to collide does not
+            // silently answer a question the customer never saw.
             const keys = new Set(data.questions.map((q: QuestionDTO) => q.key));
             carried = Object.fromEntries(
               Object.entries(payload.answers as Record<string, string>).filter(([k]) =>
@@ -167,14 +182,29 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           }
         }
       } catch {
-        // Storage unavailable. The customer answers again — not ideal, not broken.
+        // Storage unavailable. The customer answers again — not ideal, not
+        // broken.
       }
+      // Reroute-carry wins when both exist: it's the more specific, more
+      // recent intent ("this is what the customer just told the OTHER
+      // service"), and it's already scoped to keys this tree asks about.
+      // The resumed session fills in only when there's no reroute payload —
+      // same precedence a fresh visitor implicitly has today (reroute over
+      // nothing), just extended by one more fallback.
       const hasCarried = Object.keys(carried).length > 0;
       setAnswers(hasCarried ? carried : (session?.consumedAnswers ?? {}));
       setLoading(false);
     });
   }, [serviceSlug]);
 
+  // Fire-and-forget mirror of `answers` to the server. Never blocks the UI
+  // and never retried on failure — the NEXT answer's write carries the
+  // latest state anyway, so a single dropped request just means one fewer
+  // point a second device could have resumed from, not lost data. A 409
+  // (another device already moved the session forward) is read back so this
+  // tab's local version catches up; it does not overwrite what the other
+  // device wrote, matching docs/design/guided-flow-session-v1.md §5 — this
+  // is the CLIENT side of that same rule, not a second implementation of it.
   function persistAnswers(newAnswers: Record<string, string>) {
     if (!guidedFlowSession) return;
     siteFetch(`/api/guided-flow-sessions/${guidedFlowSession.id}`, {
@@ -188,15 +218,26 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           setGuidedFlowSession({ id: guidedFlowSession.id, version: body.version });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Network failure — the next answer tries again with the same
+        // (now further-behind) expectedVersion and will itself 409 if
+        // something else moved the session on. Never surfaced to the
+        // customer; booking doesn't depend on this succeeding.
+      });
   }
 
+  // Snapshot the CURRENT step before moving on. Called at the top of every
+  // transition so the stack always holds where the customer just was.
   function pushHistory() {
     if (!state) return;
     setHistory((h) => [...h, { state, config, answers }]);
   }
 
   function goBack() {
+    // Read straight from the current render rather than nesting these
+    // setters inside a setHistory updater — React invokes updaters twice
+    // under StrictMode, and an updater that triggers other state changes
+    // is exactly the kind of side effect that makes that visible.
     if (history.length === 0) return;
     const previous = history[history.length - 1];
     setState(previous.state);
@@ -210,13 +251,22 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     if (flow.questions.length > 0) {
       advanceFrom(flow.questions[0].id, config ?? startDisplayConfiguration(flow), answers);
     } else if (flow.bookingType === "REMOTE_QUOTE") {
+      // No tree seeded for this service yet, but it's explicitly a
+      // custom-quote job — route straight to photo review instead of
+      // falsely resolving at $0 just because basePrice is null.
       setState({
         kind: "photo_review",
         labels: ["Photo of the area where the work is needed", "Your electrical panel, door open if possible"],
       });
     } else {
+      // No qualifying questions at all, and it's a fixed-price service —
+      // resolves immediately. Service.disclaimer (not an AnswerOption
+      // disclaimer, since there's no branch here) still gets shown.
+      // The anchor is the published price — While We're There when this is an
+      // add-on, standalone otherwise.
       setState({
         kind: "resolved",
+        // A service with no tree adds nothing: the baseline band is the estimate.
         addedCrewHours: 0,
         priceCents: (isAddOn ? flow.whileWeThereBasePrice : flow.basePrice) ?? 0,
         disclaimer: flow.disclaimer,
@@ -224,14 +274,29 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     }
   }
 
+  /**
+   * Pure evaluation of one answer: fold it into the configuration and decide
+   * where the customer goes next. Separated from the click handler so it can
+   * also be driven by a previously-collected answer (§29) without a click.
+   */
   function evaluate(
     option: AnswerOptionDTO,
     cfg: JobConfiguration,
+    /** Needed for conditional components (§29). */
     ans: Record<string, string>
   ):
     | { kind: "continue"; config: JobConfiguration; nextQuestionId: string | null }
     | { kind: "terminal"; config: JobConfiguration; state: TerminalState } {
     const nextConfig = applyBranch(cfg, option, ans);
+
+    // What the customer pays comes from the PUBLISHED price plus approved
+    // increments — never from the calculated configuration. A service whose
+    // field hours aren't established still sells at its published price;
+    // only the internal suggestion is withheld (handoff §5/§31).
+    //
+    // A DERIVED service is priced by the server instead: no published anchor
+    // exists, and none is inferred. It walks the same tree and asks at the
+    // terminal answer — see lib/guidedFlowPricing.ts.
     const anchor = isAddOn ? flow!.whileWeThereBasePrice : flow!.basePrice;
     const priceSource = flowPriceSource(flow!.pricingMethod, nextConfig, anchor ?? null);
     const serverPriced = priceSource.source === "SERVER";
@@ -245,6 +310,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       "Your electrical panel, door open — leave the panel cover on",
     ];
 
+    // A branch selecting components with no approved customer price can't be
+    // booked at a number we invented. Checked before the route action, so it
+    // overrides an otherwise instant-resolving answer.
     if (priceSource.source === "PUBLISHED_REVIEW") {
       return {
         kind: "terminal",
@@ -253,6 +321,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           kind: "photo_review",
           labels: option.requiredPhotoLabels.length > 0 ? option.requiredPhotoLabels : fallbackPhotos,
           safetyNotes: option.photoSafetyNotes,
+          // Where the running total stood when we stopped. Only ever shown
+          // as a floor.
           floorPriceCents: total,
         },
       };
@@ -272,12 +342,18 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
                 addedCrewHours: nextConfig.addedCrewHours },
         };
       case "REROUTE_TROUBLESHOOTING":
-        return {
+        // Carry the answer's disclaimer through — that's where the "we'll start at
+      // the device and only charge for the swap if that's all it is" promise
+      // lives, and it's useless if the customer never sees it.
+      return {
           kind: "terminal",
           config: nextConfig,
           state: { kind: "troubleshooting", note: option.disclaimer },
         };
       case "PHOTO_REVIEW":
+        // Two very different outcomes share this route action. When the photos
+        // don't block booking, the answer has already determined the price, so
+        // resolve it and collect the photos as preparation instead.
         if (!option.photosBlockBooking) {
           if (serverPriced) {
             return {
@@ -306,6 +382,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             kind: "photo_review",
             labels: option.requiredPhotoLabels,
             safetyNotes: option.photoSafetyNotes,
+            // No client-side floor for a server-priced service.
             floorPriceCents: serverPriced ? null : total,
           },
         };
@@ -321,6 +398,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           },
         };
       case "REROUTE_SERVICE":
+        // A reroute with no target used to fall through to a PRICED job at the
+        // running total — the customer booked and paid for a service the tree
+        // had just decided they were not buying. The server calls that INVALID,
+        // so the storefront was the lenient one. Uncertain scope is a review,
+        // and our own missing data is uncertain scope.
         if (!option.rerouteServiceId) {
           return {
             kind: "terminal",
@@ -355,10 +437,15 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
    * Walk forward from a question, auto-answering any whose key the customer
    * has already answered (handoff §29).
    *
-   * Ordinary questions replay by exact option value. NUMBER questions replay
-   * through the same numeric selector used for fresh input and server routing,
-   * because the stored answer is the customer's number (for example 14.625),
-   * not the authored sentinel/range option value.
+   * This is what stops the Lighting Control module re-asking the attic/
+   * finished-space question that the Height/Access module already collected,
+   * and what makes answers carried through a REROUTE_SERVICE actually useful
+   * rather than merely preserved.
+   *
+   * Ordinary questions replay by Question.key + AnswerOption.value. NUMBER
+   * questions replay through the canonical numeric selector because their
+   * stored value is the actual customer/measurement number, not the authored
+   * __number__ sentinel or range option value.
    */
   function advanceFrom(
     questionId: string | null,
@@ -367,6 +454,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   ) {
     let config = cfg;
     let currentId = questionId;
+    // A tree can be miswired into a cycle; auto-advance would spin forever.
     const visited = new Set<string>();
 
     while (currentId) {
@@ -377,6 +465,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       const prior = ans[question.key];
       const priorOption = optionForStoredGuidedFlowAnswer(question, prior) ?? undefined;
 
+      // Nothing collected for this key yet — ask it.
       if (!priorOption) {
         setConfig(config);
         setState({ kind: "question", question });
@@ -394,6 +483,15 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       return;
     }
 
+    // Ran out of questions, or hit a cycle.
+    //
+    // This used to resolve to a price — "fail safe to a price rather than a
+    // dead end" — on the reasoning that a customer should always get an
+    // answer. That was wrong twice over: the server would reject the line
+    // anyway, so the price was a lie the customer saw first; and the
+    // `?? 0` meant a failed calculation could show them $0.
+    //
+    // A review IS an answer. It's just not a number.
     console.error(
       `[flow] ${flow?.slug}: route did not terminate — ` +
         `${visited.size} question(s) walked from ${questionId}. Sending to review.`
@@ -421,11 +519,17 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     const result = evaluate(option, config ?? startDisplayConfiguration(flow!), newAnswers);
 
     if (result.kind === "continue") {
+      // Skip straight past anything already answered.
       advanceFrom(result.nextQuestionId, result.config, newAnswers);
       return;
     }
 
     if (result.state.kind === "troubleshooting" && flow) {
+      // Fetched on demand rather than up front — most flows never reach it.
+      //
+      // Sends WHICH SERVICE is asking, not which trade it is — G2. The server
+      // reads that service's own tradeKey and scopes the lookup with it. The
+      // page identifies itself; it does not get to say what it means.
       siteFetch(`/api/troubleshooting?serviceId=${encodeURIComponent(flow.id)}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((t) =>
@@ -442,6 +546,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     setState(result.state);
   }
 
+  // Shared by the plain resolved path and the price-locked photo path — the
+  // only difference is whether any photos ride along.
   async function addToVisit(
     priceCents: number,
     photos?: { url: string; label: string }[]
@@ -452,13 +558,25 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         serviceId: flow.id,
+        // Only what the customer chose.
+        //
+        // computedPriceCents and isPrimary used to be sent from here. The
+        // server replays these answers against the current tree and decides
+        // both — a browser asserting its own price is a browser deciding what
+        // Elite charges.
         answersSnapshot: customerNote.trim()
           ? { ...answers, customer_note: customerNote.trim() }
           : answers,
         ...(photos && photos.length > 0 ? { photos } : {}),
       }),
     });
+    // Don't navigate on a failed add — that would drop the customer on an
+    // empty visit page with no idea their photos went nowhere. The queue is
+    // untouched too, so a retry resumes rather than skipping a service.
     if (!res.ok) {
+      // A server-priced service re-plans on write. If its economics or approval
+      // changed after the price was shown, the server refuses to store it and
+      // the homeowner sees a review — never the stale figure.
       if (flow.pricingMethod === "DERIVED_RESOLVED_SCOPE" && res.status === 409) {
         const body = await res.json().catch(() => null);
         if (body?.error === "REVIEW_REQUIRED") {
@@ -472,6 +590,12 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       throw new Error("Could not add this to your visit");
     }
 
+    // Mark the session COMPLETED only now — after the write it describes
+    // has actually succeeded, never before (docs/design/
+    // guided-flow-session-v1.md's completeSession doc comment). Best
+    // effort: a failure here means bookkeeping alone is stale, not that
+    // the booking itself is in doubt — the LineItem the response names is
+    // the real record either way.
     if (guidedFlowSession) {
       const lineItemId = await res
         .clone()
@@ -485,7 +609,18 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       }).catch(() => {});
     }
 
+    // If the service finder found more than one job in what the customer
+    // typed, the rest are waiting. Go to the next one instead of the visit
+    // page — being handed back a cart and asked to remember the second thing
+    // is how the second thing doesn't get booked.
+    //
+    // advanceQueue returns null for the ordinary single-service case, and
+    // also when this service isn't part of a run, so nothing changes for
+    // anyone who arrived here any other way.
     const next = advanceQueue(serviceSlug);
+    // BOTH destinations carry the storefront. "/my-visit" unscoped sent a
+    // homeowner who had just added a $215 fixture on one contractor's site to
+    // a different contractor's empty cart.
     router.push(next ? queuedServiceHref(next, base) : `${base}/my-visit`);
   }
 
@@ -494,6 +629,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     await addToVisit(state.priceCents);
   }
 
+  // DERIVED_RESOLVED_SCOPE: the terminal answer was reached, so ask the server.
+  // The request names the service and the answers; the storefront identifier
+  // decides the tenant. Read-only on the server — nothing is added to a visit.
+  // Anything but a clean PRICED answer is a review, never a number.
   useEffect(() => {
     if (!flow || state?.kind !== "server_pricing") return;
     const pending = state;
@@ -532,6 +671,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     return <div className="py-16 text-center text-slate">Loading...</div>;
   }
 
+  // Wrapping every step here means no child component needs to know about
+  // history — QuestionStep, PriceConfirmationCard and the photo screens are
+  // all rendered through this and stay unchanged.
   function withBack(content: ReactNode) {
     return (
       <div>
@@ -549,6 +691,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "intro") {
+    // A service qualifies for one-tap booking only if there is genuinely
+    // nothing left to determine: no questions to branch on, a real base
+    // price, and not a remote quote (which has no settled price by
+    // definition, however few questions it asks). Anything else keeps the
+    // "Get My Price" step.
     const anchorPrice = isAddOn ? flow.whileWeThereBasePrice : flow.basePrice;
 
     const directBook =
@@ -556,6 +703,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       flow.bookingType !== "REMOTE_QUOTE" &&
       anchorPrice !== null;
 
+    // Can a homeowner answer honestly and still NOT get a price here?
+    //
+    // Read off the tree rather than the service, so it stays true for whatever
+    // a contractor builds. A blocking photo review, a remote quote or a
+    // hand-off all end somewhere other than a number on this service — and a
+    // screen that promised "you'll see your exact price" would be lying on
+    // exactly those routes.
     const mayNotQualify = flow.questions.some((q) =>
       q.options.some(
         (o) =>
@@ -606,6 +760,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "resolved") {
+    // ADR-018 — the same resolved scope, read the other way. The band comes
+    // from the contractor's approved calibration and the increment from the
+    // components this route actually selected; nothing here is representative
+    // or illustrative.
     if (flow.timeAndMaterials) {
       const estimate = estimateRange(
         {
@@ -613,6 +771,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           estimateHighCrewHours: flow.timeAndMaterials.estimateHighCrewHours,
           estimateApproved: flow.timeAndMaterials.estimateApproved,
           addedCrewHours: state.addedCrewHours,
+          // Labor only in V1; materials are disclosed as additional rather
+          // than quoted at a figure the markup rule cannot produce per part.
           materialCostCents: null,
         },
         { crewHourRateCents: flow.timeAndMaterials.crewHourRateCents,
@@ -668,6 +828,12 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           {troubleshooting?.basePrice != null ? ` is ${formatCents(troubleshooting.basePrice)},` : ""} includes
           the visit and the first 60 minutes of diagnostic time.
         </p>
+        {/*
+          No button until the server has said where it goes. A "Book
+          Troubleshooting" button built from a guessed URL is worse than no
+          button: it looks like the hand-off worked and lands on a 404. The
+          same refusal the resolver makes, made visibly.
+        */}
         {troubleshooting ? (
           <button
             onClick={() => router.push(`${base}/${troubleshooting.path}`)}
