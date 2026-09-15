@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import RouteAssistRoomScanCamera from "@/components/route-assist/RouteAssistRoomScanCamera";
+import RouteAssistRoomScanCamera, {
+  type RouteAssistRoomScanCaptureV1,
+} from "@/components/route-assist/RouteAssistRoomScanCamera";
 
 type DemoKind = "OUTLET" | "SWITCH" | "LIGHT_FIXTURE";
 
@@ -23,11 +25,11 @@ function destinationLabels(kind: DemoKind): string[] {
 
 export default function RouteAssistCameraDemoPage() {
   const [kind, setKind] = useState<DemoKind>("OUTLET");
-  const [scanFinished, setScanFinished] = useState(false);
+  const [capture, setCapture] = useState<RouteAssistRoomScanCaptureV1 | null>(null);
 
   function chooseKind(next: DemoKind) {
     setKind(next);
-    setScanFinished(false);
+    setCapture(null);
   }
 
   return (
@@ -58,17 +60,23 @@ export default function RouteAssistCameraDemoPage() {
           key={kind}
           sourceLabel={sourceLabel(kind)}
           destinationLabels={destinationLabels(kind)}
-          onScanComplete={() => setScanFinished(true)}
+          onScanComplete={setCapture}
         />
 
-        {scanFinished && (
+        {capture && (
           <div className="mt-4 rounded-2xl border border-cardline bg-white p-4 text-sm leading-6 text-slate shadow-sm" data-testid="route-assist-camera-next-step">
-            <strong className="text-navy">Next:</strong> the calibrated scan provider converts observable geometry into Route Assist evidence, then the homeowner reviews the routed path before anything is accepted.
+            <strong className="text-navy">Capture handoff ready.</strong>
+            <div className="mt-2">
+              Ordinary room scan · {capture.camera.width ?? "?"} × {capture.camera.height ?? "?"} camera frame
+            </div>
+            <div className="mt-2 text-xs leading-5 text-slate-light">
+              This receipt carries capture context only. A calibrated scan provider must still produce observable geometry evidence, which remains review-only until explicitly accepted.
+            </div>
           </div>
         )}
 
         <p className="mt-4 text-center text-xs leading-5 text-slate-light">
-          Demo only: this camera shell does not yet submit scan frames or geometry to a provider.
+          Preview checkpoint: the camera now returns a typed capture receipt. It does not infer geometry, hidden wiring, materials, labor, or price.
         </p>
       </div>
     </main>
