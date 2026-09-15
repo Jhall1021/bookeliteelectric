@@ -94,6 +94,8 @@ async function walkStraightRoute(page: Page, feet: string) {
 type TenantResult = {
   contractorId: string;
   serviceId: string;
+  publicId: string;
+  sessionToken: string;
   approvedTotalCents: number | null;
   straightPriceDisplayed: string;
   straightPriceCents: number;
@@ -147,6 +149,15 @@ async function proveTenant(
     lineItem?.visit.contractorId === fixture.contractorId,
     `expected ${fixture.contractorId}, got ${lineItem?.visit.contractorId}`);
 
+  // The real anonymous-session identity this customer's browser is carrying
+  // — lib/sessionCookieConfig.ts's SESSION_COOKIE_NAME — captured before the
+  // context closes so main() can replay it against the OTHER contractor's
+  // site through the actual API, not just query the database directly.
+  const cookies = await ctx.cookies();
+  const sessionToken = cookies.find((c) => c.name === "elite_session_id")?.value ?? "";
+  ok(`${slug}: the customer's session cookie is real and captured for the cross-tenant API proof`,
+    sessionToken.length > 0, `cookies: ${cookies.map((c) => c.name).join(", ")}`);
+
   await ctx.close();
 
   // ── a turned route lands on REVIEW, not a guess ─────────────────────────
@@ -175,6 +186,8 @@ async function proveTenant(
   return {
     contractorId: fixture.contractorId,
     serviceId: fixture.serviceId,
+    publicId: fixture.publicId,
+    sessionToken,
     approvedTotalCents: reapproved,
     straightPriceDisplayed: displayed,
     straightPriceCents: displayedCents,
@@ -235,6 +248,41 @@ async function main() {
     const distinctServices = new Set([a.serviceId, b.serviceId]);
     ok("A and B are two genuinely separate contractors", distinctContractors.size === 2);
     ok("A and B each got their OWN new-120v-outlet Service row, not a shared one", distinctServices.size === 2);
+
+    // ── CROSS-TENANT ACCESS THROUGH THE ACTUAL API, not a database count ──
+    //
+    // GET /api/visit scopes its Visit lookup by BOTH the caller's site
+    // header (app/api/visit/route.ts's own `site.contractorId`) AND the
+    // caller's session id — so A's real customer identity, replayed against
+    // B's site, must find nothing: no Visit row exists for (contractorId:
+    // B, sessionId: A's token), because A's real visit was written under
+    // (contractorId: A, sessionId: A's token). This is the actual boundary
+    // a malicious or misconfigured client would hit, not an inference from
+    // row counts.
+    const asSite = (publicId: string, sessionToken: string) =>
+      fetch(`${BASE}/api/visit`, {
+        headers: { "x-price2book-site": publicId, "x-price2book-visit": sessionToken },
+      }).then((r) => r.json());
+
+    const aOwnVisit = await asSite(a.publicId, a.sessionToken);
+    ok("sanity: A's own session against A's own site sees A's real visit through the API",
+      Array.isArray(aOwnVisit.lineItems) && aOwnVisit.lineItems.length > 0 && aOwnVisit.totalCents === a.straightPriceCents,
+      `got ${JSON.stringify(aOwnVisit)}`);
+
+    const bOwnVisit = await asSite(b.publicId, b.sessionToken);
+    ok("sanity: B's own session against B's own site sees B's real visit through the API",
+      Array.isArray(bOwnVisit.lineItems) && bOwnVisit.lineItems.length > 0 && bOwnVisit.totalCents === b.straightPriceCents,
+      `got ${JSON.stringify(bOwnVisit)}`);
+
+    const aSessionAgainstBSite = await asSite(b.publicId, a.sessionToken);
+    ok("A's real session, replayed against B's site through the actual API, sees NOTHING of A's — not B's data either, just empty",
+      Array.isArray(aSessionAgainstBSite.lineItems) && aSessionAgainstBSite.lineItems.length === 0 && aSessionAgainstBSite.totalCents === 0,
+      `got ${JSON.stringify(aSessionAgainstBSite)}`);
+
+    const bSessionAgainstASite = await asSite(a.publicId, b.sessionToken);
+    ok("B's real session, replayed against A's site through the actual API, sees NOTHING of B's either — the isolation holds both directions",
+      Array.isArray(bSessionAgainstASite.lineItems) && bSessionAgainstASite.lineItems.length === 0 && bSessionAgainstASite.totalCents === 0,
+      `got ${JSON.stringify(bSessionAgainstASite)}`);
   } finally {
     await browser.close();
     await removeFixture(prisma, SLUG_A).catch(() => {});
