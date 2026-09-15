@@ -34,27 +34,30 @@ const handoff: RouteAssistSweepCaptureHandoffV1 = {
   captureArtifacts: { imageIds: ["frame-0", "frame-1", "frame-2"], overlayImageIds: [] },
 };
 
+function semantics(entrySide: "LEFT" | "RIGHT" | "UNRESOLVED" = "LEFT") {
+  return {
+    version: 1 as const,
+    captureImageIds: ["frame-0", "frame-1", "frame-2"],
+    objects: [
+      { id: "source-object", kind: "SOURCE_RECEPTACLE" as const, imageId: "frame-0", confidence: 0.99, box: { x: 0.08, y: 0.52, width: 0.1, height: 0.16 }, pointId: "source" },
+      { id: "base-a", kind: "BASEBOARD_OR_TRIM" as const, imageId: "frame-0", confidence: 0.98, box: { x: 0.1, y: 0.84, width: 0.8, height: 0.05 } },
+      { id: "doorway", kind: "DOORWAY" as const, imageId: "frame-1", confidence: 0.98, box: { x: 0.3, y: 0.18, width: 0.4, height: 0.7 } },
+      { id: "door-left", kind: "DOOR_SIDE_CASING" as const, imageId: "frame-1", confidence: 0.97, box: { x: 0.28, y: 0.18, width: 0.04, height: 0.7 } },
+      { id: "door-top", kind: "DOOR_TOP_CASING" as const, imageId: "frame-1", confidence: 0.97, box: { x: 0.28, y: 0.16, width: 0.46, height: 0.05 } },
+      { id: "door-right", kind: "DOOR_SIDE_CASING" as const, imageId: "frame-1", confidence: 0.97, box: { x: 0.72, y: 0.18, width: 0.04, height: 0.7 } },
+      { id: "base-b", kind: "BASEBOARD_OR_TRIM" as const, imageId: "frame-2", confidence: 0.98, box: { x: 0.08, y: 0.84, width: 0.8, height: 0.05 } },
+      { id: "destination-object", kind: "DESTINATION_MARKER" as const, imageId: "frame-2", confidence: 0.99, box: { x: 0.78, y: 0.52, width: 0.1, height: 0.16 }, pointId: "destination" },
+    ],
+    segmentObservations: [
+      { segmentId: "seg-a", imageId: "frame-1", objectIds: ["doorway", "door-left", "door-top", "door-right"], confidence: 0.96 },
+    ],
+    doorwayGroups: [{ id: "door-group", doorwayObjectId: "doorway", leftCasingObjectId: "door-left", topCasingObjectId: "door-top", rightCasingObjectId: "door-right", entrySide }],
+  };
+}
+
 const validProvider: RouteAssistVisibleSceneProviderV1 = {
   providerKey: "fixture.semantic-cv",
-  async analyze(input) {
-    return {
-      version: 1,
-      captureImageIds: [...input.captureArtifacts.imageIds],
-      objects: [
-        { id: "source-object", kind: "SOURCE_RECEPTACLE", imageId: "frame-0", confidence: 0.99, box: { x: 0.08, y: 0.52, width: 0.1, height: 0.16 }, pointId: "source" },
-        { id: "base-a", kind: "BASEBOARD_OR_TRIM", imageId: "frame-0", confidence: 0.98, box: { x: 0.1, y: 0.84, width: 0.8, height: 0.05 } },
-        { id: "doorway", kind: "DOORWAY", imageId: "frame-1", confidence: 0.98, box: { x: 0.3, y: 0.18, width: 0.4, height: 0.7 } },
-        { id: "door-left", kind: "DOOR_SIDE_CASING", imageId: "frame-1", confidence: 0.97, box: { x: 0.28, y: 0.18, width: 0.04, height: 0.7 } },
-        { id: "door-top", kind: "DOOR_TOP_CASING", imageId: "frame-1", confidence: 0.97, box: { x: 0.28, y: 0.16, width: 0.46, height: 0.05 } },
-        { id: "door-right", kind: "DOOR_SIDE_CASING", imageId: "frame-1", confidence: 0.97, box: { x: 0.72, y: 0.18, width: 0.04, height: 0.7 } },
-        { id: "base-b", kind: "BASEBOARD_OR_TRIM", imageId: "frame-2", confidence: 0.98, box: { x: 0.08, y: 0.84, width: 0.8, height: 0.05 } },
-        { id: "destination-object", kind: "DESTINATION_MARKER", imageId: "frame-2", confidence: 0.99, box: { x: 0.78, y: 0.52, width: 0.1, height: 0.16 }, pointId: "destination" },
-      ],
-      segmentObservations: [
-        { segmentId: "seg-a", imageId: "frame-1", objectIds: ["doorway", "door-left", "door-top", "door-right"], confidence: 0.96 },
-      ],
-    };
-  },
+  async analyze() { return semantics("LEFT"); },
 };
 
 async function main() {
@@ -66,6 +69,11 @@ async function main() {
   check("provider receives ordered capture identities only", result.semantics?.captureImageIds.join(",") === "frame-0,frame-1,frame-2");
   check("semantic pipeline creates no route measurements", !("lengthFt" in (result.semantics?.objects[0] ?? {})) && !("measuredLengthFt" in (result.proposal ?? {})));
   check("semantic pipeline keeps source anchored to existing graph point", result.semantics?.objects.find((o) => o.kind === "SOURCE_RECEPTACLE")?.pointId === "source");
+  check("doorway traversal uses explicit physical side identity", result.proposal?.trimBoundaries.join(",").includes("DOOR_CASING_LEFT,DOOR_CASING_TOP,DOOR_CASING_RIGHT") === true);
+
+  const unresolvedProvider: RouteAssistVisibleSceneProviderV1 = { providerKey: "fixture.unresolved-door", async analyze() { return semantics("UNRESOLVED"); } };
+  const unresolved = await preparePersistedSweepForVisibleSceneReviewV1({ handoff, provider: unresolvedProvider, providerInput: input });
+  check("unresolved doorway entry side fails closed", unresolved.proposal?.status === "INSUFFICIENT_VISIBLE_EVIDENCE" && unresolved.overlay === null && unresolved.problems.some((p) => p.includes("entry side")));
 
   const badOrder = { ...handoff, captureArtifacts: { imageIds: ["frame-1", "frame-0", "frame-2"], overlayImageIds: [] } };
   const orderFailure = await preparePersistedSweepForVisibleSceneReviewV1({ handoff: badOrder, provider: validProvider, providerInput: input });
@@ -73,9 +81,7 @@ async function main() {
 
   const badProvider: RouteAssistVisibleSceneProviderV1 = {
     providerKey: "fixture.bad-cv",
-    async analyze() {
-      return { version: 1, captureImageIds: ["unknown-frame"], objects: [], segmentObservations: [] };
-    },
+    async analyze() { return { version: 1, captureImageIds: ["unknown-frame"], objects: [], segmentObservations: [] }; },
   };
   const badResult = await preparePersistedSweepForVisibleSceneReviewV1({ handoff, provider: badProvider, providerInput: input });
   check("provider cannot introduce unknown capture identity", badResult.semantics === null && badResult.problems.some((p) => p.includes("capture order")));
