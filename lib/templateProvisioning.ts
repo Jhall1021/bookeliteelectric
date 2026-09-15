@@ -365,6 +365,10 @@ export async function installCatalog(
             photoState: (s as unknown as { photoState: never }).photoState,
             isPrimaryEligible: (s as unknown as { isPrimaryEligible: boolean }).isPrimaryEligible,
             requiresTechCount: (s as unknown as { requiresTechCount: number }).requiresTechCount,
+            // Carried from the template, never defaulted here. A Routing V2
+            // service arriving as LEGACY_PUBLISHED would be configured to price
+            // the one way its measured scope cannot be priced.
+            pricingMethod: (s as unknown as { pricingMethod: never }).pricingMethod,
             templateVersionId: fromVersionId, templateKey: s.key,
             // THE DURABLE TRADE IDENTITY — G2.
             //
@@ -443,8 +447,32 @@ export async function installCatalog(
 
         // Two passes: nextQuestionKey can point forward, and a key only
         // becomes an id once the row exists.
+        /**
+         * `unresolvedPolicyKeys` means one specific thing: ANSWER TEXT A
+         * HOMEOWNER WOULD READ cannot be written yet. Band policies
+         * interpolate their boundaries into option labels — an unresolved one
+         * literally renders "{b1} feet or less" on the storefront, which is
+         * why activation refuses on it.
+         *
+         * MEASUREMENT and MATERIAL_SPECIFICATION policies write no label. A
+         * termination slack allowance and a conductor specification are real
+         * decisions a contractor owes, and they gate PRICING through the
+         * derived-scope readiness contract — but they corrupt no homeowner
+         * text, so listing them here would refuse activation for a service
+         * whose storefront reads perfectly.
+         *
+         * The offcut policy makes that concrete: it is deliberately left
+         * unresolved, because it only decides turned-route piece counts and
+         * those stay in review by design. Counted here, it would block this
+         * service from ever going live for a reason that is working as
+         * intended.
+         */
+        const LABEL_WRITING_POLICY_TYPES = new Set([
+          "DISTANCE_BREAKPOINTS", "HEIGHT_BREAKPOINTS", "SUPPLY_ARRANGEMENT",
+        ]);
         const unresolvedPolicies = new Set<string>(
-          (s.policies as unknown as { templatePolicyDefinition: { key: string } }[])
+          (s.policies as unknown as { templatePolicyDefinition: { key: string; type: string } }[])
+            .filter((sp) => LABEL_WRITING_POLICY_TYPES.has(sp.templatePolicyDefinition.type))
             .map((sp) => sp.templatePolicyDefinition.key)
         );
         const qId = new Map<string, string>();
@@ -453,11 +481,15 @@ export async function installCatalog(
         for (const q of questions) {
           const qq = q as unknown as {
             key: string; prompt: string; helpText: string | null; inputType: never; order: number;
+            /// ROUTING V2 — an authored range is required for a bound NUMBER
+            /// question, so it must arrive with the question.
+            numberAllowsDecimal?: boolean; numberMin: number | null; numberMax: number | null;
           };
           const created = await t.question.create({
             data: {
               serviceId: svc.id, key: qq.key, prompt: qq.prompt, helpText: qq.helpText,
-              inputType: qq.inputType, order: qq.order,
+              inputType: qq.inputType, numberAllowsDecimal: qq.numberAllowsDecimal ?? false, numberMin: qq.numberMin, numberMax: qq.numberMax,
+              order: qq.order,
               templateVersionId: fromVersionId, templateKey: qq.key,
             },
             select: { id: true },
@@ -470,13 +502,28 @@ export async function installCatalog(
           for (const rawOpt of qq.options) {
             const o = rawOpt as unknown as {
               value: string; label: string; routeAction: never; order: number;
+              /// ROUTING V2 numeric routing — see AnswerOption.numberAtLeast.
+              /// An option whose range is lost stops matching, which turns a
+              /// sound tree into a gap and refuses every answer in that span.
+              numberAtLeastExclusive?: boolean; numberAtLeast: number | null; numberAtMost: number | null;
+              /// ROUTING V2 capability gate — what this route REQUIRES. The
+              /// contractor's ContractorCapability says what they OFFER, and
+              /// provisioning must never write that: a route being able to
+              /// require drywall restoration is not a claim that this
+              /// contractor does it.
+              requiresCapabilityKey: string | null;
               nextQuestionKey: string | null; rerouteServiceKey: string | null;
               referencedServiceKey: string | null; requiredPhotoLabels: string[];
               photosBlockBooking: boolean; illustrationUrls: string[];
               labelPattern: string | null;
               templatePolicyDefinition: { key: string } | null;
               components: { canonicalComponentId: string; quantity: number;
-                conditionAnswerKey: string | null; conditionAnswerValue: string | null }[];
+                conditionAnswerKey: string | null; conditionAnswerValue: string | null;
+                /// ROUTING V2. Listed explicitly because this copy is a field
+                /// list, not a spread — a binding dropped here degrades to
+                /// static quantity 1 and prices a 31-foot route as one foot,
+                /// with no error anywhere.
+                quantityAnswerKey: string | null }[];
               disclaimers: { canonicalDisclaimerId: string }[];
               materials: { canonicalMaterialId: string; quantity: number; order: number }[];
               photoGroups: { photoGroupId: string }[];
@@ -500,6 +547,8 @@ export async function installCatalog(
               data: {
                 questionId: qId.get(qq.key)!, value: o.value, label: o.label,
                 routeAction: o.routeAction, order: o.order,
+                numberAtLeastExclusive: o.numberAtLeastExclusive ?? false, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+                requiresCapabilityKey: o.requiresCapabilityKey,
                 nextQuestionId: o.nextQuestionKey ? qId.get(o.nextQuestionKey) ?? null : null,
                 rerouteServiceId: target?.id ?? null, referencedServiceId: ref?.id ?? null,
                 requiredPhotoLabels: o.requiredPhotoLabels,
@@ -541,7 +590,8 @@ export async function installCatalog(
               await t.answerOptionComponent.create({
                 data: {
                   answerOptionId: ao.id, canonicalComponentId: c.canonicalComponentId,
-                  quantity: c.quantity, conditionAnswerKey: c.conditionAnswerKey,
+                  quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey,
+                  conditionAnswerKey: c.conditionAnswerKey,
                   conditionAnswerValue: c.conditionAnswerValue,
                 },
               });

@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { Resend } from "resend";
 import { prisma } from "./prisma";
+import { resolveBaseUrl } from "./authBaseUrl";
 
 /**
  * Identity and sessions only.
@@ -193,37 +194,10 @@ export async function sendInvitationEmail(to: string, contractorName: string, ur
 const MAGIC_LINK_MINUTES = 15;
 
 /**
- * Where this deployment lives, resolved rather than pinned.
- *
- * A magic link must return to the deployment that ISSUED it. A single
- * BETTER_AUTH_URL environment variable cannot do that: set it to production
- * and every preview deployment mails links that land on production; set it per
- * environment and it silently rots the first time a variable is copied between
- * them. The failure is quiet either way — the mail sends, the link works, and
- * it signs you in to the wrong place.
- *
- * So Vercel's own deployment host wins when present. VERCEL_BRANCH_URL is
- * preferred over VERCEL_URL because it is the stable branch alias rather than
- * the per-commit URL, which changes on every push and would invalidate links
- * already in someone's inbox.
- *
- * An explicit BETTER_AUTH_URL still overrides everything, for a custom domain.
+ * Where this deployment lives — see lib/authBaseUrl.ts. Re-exported so every
+ * existing importer of `resolveBaseUrl` from ./auth keeps working unchanged.
  */
-export function resolveBaseUrl(): string | undefined {
-  if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL;
-
-  // On production the deployment must identify itself by its PRODUCTION
-  // domain, not by the git-main alias. VERCEL_URL is per-commit and
-  // VERCEL_BRANCH_URL is the branch alias; neither is the address a person
-  // types or that a magic link should return to.
-  if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  }
-
-  const host = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
-  if (host) return `https://${host}`;
-  return undefined; // local dev: Better Auth infers from the request
-}
+export { resolveBaseUrl };
 
 /**
  * Every host this deployment may legitimately be reached on.

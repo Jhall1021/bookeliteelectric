@@ -138,6 +138,18 @@ const REVIEWED_SAFE: Record<string, Exception> = {
     mustMatch:
       /^[ \t]*visits: \{\n[ \t]*nodes: JobberVisitNode\[\];\n[ \t]*pageInfo: \{ hasNextPage: boolean; endCursor: string \| null \};/,
   },
+  "app/api/admin/stripe/connect/route.ts:capabilities": {
+    reason:
+      "Stripe's own Accounts v2 request parameter — " +
+      "`configuration.merchant.capabilities.card_payments.requested` passed to " +
+      "stripe.v2.core.accounts.create — not Prisma. It began matching when " +
+      "Routing V2 added the unrelated Contractor.capabilities relation " +
+      "(ContractorCapability). Anchored to `card_payments`, a key a Prisma " +
+      "include/select of ContractorCapability (key, state, declaredAt…) can " +
+      "never contain, so a real Contractor.capabilities traversal added to " +
+      "this file later would still be flagged here.",
+    mustMatch: /card_payments/,
+  },
   "lib/r2.ts:credentials": {
     reason:
       "The AWS SDK v3 S3Client's own `credentials` option (accessKeyId + " +

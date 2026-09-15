@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jobberRedirectUri } from "@/lib/jobber";
+import { resolveBaseUrl } from "@/lib/authBaseUrl";
 
 export const dynamic = "force-dynamic";
 
@@ -52,11 +53,6 @@ export async function GET(req: Request) {
       : null;
   } catch { identity = null; }
 
-  const authBase = process.env.BETTER_AUTH_URL
-    ?? (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL
-          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-          : null);
-
   return NextResponse.json({
     deployment: {
       vercelEnv: process.env.VERCEL_ENV ?? null,
@@ -76,10 +72,12 @@ export async function GET(req: Request) {
         ? identity.key === process.env.EXPECTED_DATABASE_IDENTITY
         : null,
     },
-    // Where links and callbacks will actually land, resolved the same way the
-    // application resolves them rather than restated.
+    // Where links and callbacks will actually land, resolved BY the same
+    // function the auth instance uses rather than restated. The restated copy
+    // used `??`, so an empty BETTER_AUTH_URL reported "" while auth fell back
+    // to the Vercel host — this field could not prove the host it described.
     destinations: {
-      authBaseUrl: authBase,
+      authBaseUrl: resolveBaseUrl() ?? null,
       appOrigin: process.env.APP_ORIGIN ?? null,
       storefrontOrigin: process.env.STOREFRONT_ORIGIN ?? null,
       platformOrigin: process.env.PLATFORM_WEB_ORIGIN ?? null,

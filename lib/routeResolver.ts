@@ -36,6 +36,9 @@ import type { PrismaClient } from "@prisma/client";
 // they run on whatever client the caller hands them, guarded or not, and the
 // caller decides.
 import {
+  resolvePricingSettings, PricingSettingsIncompleteError, PricingSettingsMissingError,
+} from "./pricingSettingsState";
+import {
   loadOwnComponents,
   canonicalComponentIdsIn,
   type OwnComponentMap,
@@ -56,6 +59,8 @@ import {
   type PricingSettings,
 } from "./pricing";
 import { RESOLUTION_TREE_INCLUDE } from "./serviceTreeQuery";
+import { capabilityState, isCapabilityKey, loadCapabilityFacts, type CapabilityFacts } from "./capabilities";
+import { validateNumericAnswer, selectNumericOption, type NumericOptionChoice } from "./numericRouteRanges";
 
 export type ResolvedRoute =
   | {
@@ -80,6 +85,13 @@ export type ResolvedRoute =
       floorPriceCents: number | null;
       isPrimary: boolean;
       config: JobConfiguration;
+      /**
+       * Set only on the derived-pricing sentinel, so a derived PRICED verdict
+       * can carry the same disclaimers and consumed answers a legacy one does.
+       * Optional: no existing REVIEW path sets or reads them.
+       */
+      disclaimers?: string[];
+      consumed?: { key: string; value: string; label: string }[];
     }
   | {
       status: "REROUTE";
@@ -130,6 +142,8 @@ export type ResolvedRoute =
  * discarded after loading is not one.
  */
 export async function loadServiceForResolution(db: PrismaClient, serviceId: string) {
+  // Contractor-owned facts, loaded HERE so resolveRoute stays deterministic:
+  // routing receives resolved facts and never queries a database mid-walk.
   const owner = await db.service.findUnique({
     where: { id: serviceId },
     select: { slug: true, contractorId: true, tradeKey: true },
@@ -222,12 +236,20 @@ export async function loadServiceForResolution(db: PrismaClient, serviceId: stri
     }
   }
 
+  // Contractor-owned scope facts. Loaded HERE, with the rest of the
+  // contractor's data, so resolveRoute stays deterministic — routing receives
+  // resolved facts and never reaches for a database mid-walk.
+  const capabilities = service.contractorId
+    ? await loadCapabilityFacts(db, service.contractorId)
+    : ({} as CapabilityFacts);
+
   return {
     ...service,
     ownComponents,
     ownMaterialCosts,
     troubleshootingServiceId,
     troubleshootingProblem,
+    capabilities,
   };
 }
 
@@ -240,6 +262,111 @@ type LoadedService = NonNullable<Awaited<ReturnType<typeof loadServiceForResolut
  * by the client — it changes the price, so it's exactly the sort of thing a
  * browser shouldn't get to assert.
  */
+/**
+ * ROUTING V2 — what a NUMBER answer is allowed to mean as a component quantity.
+ *
+ * `null` binding: the authored static quantity, unchanged. Every row written
+ * before this field behaves exactly as it did.
+ *
+ * A populated binding FAILS CLOSED in every direction. It never falls back to
+ * the static quantity, because the fallback is the bug: a 31-foot route quietly
+ * priced as one foot is worse than a refusal, and it looks like a price.
+ *
+ * TWO KINDS OF FAULT, DELIBERATELY SEPARATED.
+ *
+ *   broken  — the TREE is wrong. The question does not exist on the walked
+ *             path, is not a NUMBER, or declares no authored range. No answer a
+ *             customer could give would fix it, so it must never price.
+ *   invalid — the ANSWER is wrong or missing. Review can resolve that.
+ *
+ * REACHABILITY IS STRUCTURAL, NOT ASSUMED. `visited` is the questions actually
+ * consumed on THIS path, in order, so a binding cannot reach a NUMBER question
+ * on an untaken branch, one that comes after the terminal, or one the walk
+ * simply never passed through. Service-wide existence is not sufficient: the
+ * answer map can carry values from a path the customer has since left.
+ *
+ * BOUNDS COME FROM THE QUESTION, NOT FROM HERE. A ceiling written into this
+ * function would be an electrical-route assumption compiled into a generic
+ * platform primitive; the same machinery has to serve counts of anything later.
+ *
+ * `omit` is the one non-error outcome that yields no component. Zero inside
+ * corners is an ordinary answer and must not become `INSIDE_CORNER × 0`
+ * (meaningless) or, through the shared `Math.max(q, 1)`, `× 1` (a charge for
+ * geometry that is not there).
+ */
+/**
+ * ROUTING V2 numeric option selection now lives in ./numericRouteRanges, a
+ * module with no imports at all, so the homeowner's client walk can apply the
+ * identical rule. Re-exported here because this was its address for every
+ * existing caller and a moved symbol is not a reason to churn them.
+ */
+export { selectNumericOption, type NumericOptionChoice };
+
+/**
+ * ROUTING V2 \u2014 what a NUMBER answer is allowed to mean as a component quantity.
+ */
+export type BoundQuantity =
+  | { kind: "quantity"; value: number }
+  | { kind: "omit" }
+  | { kind: "invalid"; reason: string }
+  | { kind: "broken"; reason: string };
+
+export type BoundQuestion = {
+  key: string;
+  inputType: string;
+  numberAllowsDecimal?: boolean;
+  numberMin: number | null;
+  numberMax: number | null;
+};
+
+export function resolveBoundQuantity(
+  binding: { quantity: number; quantityAnswerKey: string | null },
+  answers: Record<string, string>,
+  /** Questions CONSUMED on the current path, not every question on the service. */
+  visited: readonly BoundQuestion[],
+  componentKey: string
+): BoundQuantity {
+  if (binding.quantityAnswerKey === null || binding.quantityAnswerKey === undefined) {
+    return { kind: "quantity", value: binding.quantity };
+  }
+  const key = binding.quantityAnswerKey;
+
+  const q = visited.find((x) => x.key === key);
+  if (!q) {
+    return { kind: "broken", reason:
+      `component ${componentKey} binds its quantity to "${key}", which this path never asked` };
+  }
+  if (q.inputType !== "NUMBER") {
+    return { kind: "broken", reason:
+      `component ${componentKey} binds its quantity to "${key}", a ${q.inputType} question, not NUMBER` };
+  }
+  if (q.numberMin === null || q.numberMin === undefined || q.numberMax === null || q.numberMax === undefined) {
+    return { kind: "broken", reason:
+      `component ${componentKey} binds its quantity to "${key}", which declares no authored range` };
+  }
+
+  const raw = answers[key];
+  if (raw === undefined || raw === null || String(raw).trim() === "") {
+    return { kind: "invalid", reason: `"${key}" has no answer, so ${componentKey} has no quantity` };
+  }
+  const parsed = validateNumericAnswer(q, raw);
+  if (parsed.kind !== "number") return parsed;
+  const n = parsed.value;
+  // Zero is a real answer for an optional count and no answer at all for a
+  // measured scope. Which one it is comes from the question's authored minimum:
+  // a route whose minimum is 1 refuses zero above, before reaching here.
+  if (n === 0) return { kind: "omit" };
+  return { kind: "quantity", value: n };
+}
+
+/**
+ * The verdict a derived route carries out of the pure resolver.
+ *
+ * Deliberately not a price and not an INVALID: the physical route is valid and
+ * fully resolved, and only the money is computed elsewhere.
+ */
+export const DERIVED_PRICING_PENDING = "Derived pricing pending — resolve through resolveRouteWithDerivedPricing";
+
 export function resolveRoute(
   service: LoadedService,
   answers: Record<string, string>,
@@ -332,12 +459,26 @@ export function resolveRoute(
       return { status: "INVALID", reason: `No answer for "${current.key}"` };
     }
 
-    // TEXT and NUMBER questions carry the typed value, so the option is
-    // whichever one the question holds rather than a value match.
-    const isFreeText = current.inputType === "TEXT" || current.inputType === "NUMBER";
-    const option = isFreeText
-      ? current.options[0]
-      : current.options.find((o) => o.value === given);
+    // TEXT carries the typed value and has one option — unchanged.
+    //
+    // NUMBER may now ROUTE on that value. selectNumericOption keeps the old
+    // behaviour for any NUMBER question whose options carry no ranges, so
+    // nothing authored before this changes; a question that does carry them must
+    // have exactly one range containing the answer, decided by the ranges and
+    // never by option order.
+    let option;
+    if (current.inputType === "NUMBER") {
+      const choice = selectNumericOption(current, given);
+      // An authoring defect — a gap, an overlap, or a missing range. No answer
+      // the customer could give would fix it.
+      if (choice.kind === "broken") throw new Error(`${service.slug}: ${choice.reason}`);
+      if (choice.kind === "invalid") return { status: "INVALID", reason: `${service.slug}: ${choice.reason}` };
+      option = choice.option;
+    } else if (current.inputType === "TEXT") {
+      option = current.options[0];
+    } else {
+      option = current.options.find((o) => o.value === given);
+    }
 
     if (!option) {
       // The answer doesn't map to anything on this question. Usually means
@@ -346,6 +487,46 @@ export function resolveRoute(
         status: "INVALID",
         reason: `"${given}" is not a valid answer to "${current.key}" in ${service.slug}`,
       };
+    }
+
+    // ROUTING V2 — CAPABILITY GATE.
+    //
+    // The option says what SCOPE its outcome requires; the contractor's own
+    // record says whether they offer it. Only "declared" may resolve.
+    //
+    // The two non-declared states deliberately reach the SAME homeowner outcome
+    // and remain DIFFERENT facts: this is written from the three-state result
+    // rather than `if (!hasCapability)`, so "we never asked" cannot quietly
+    // become "they said no" for onboarding or reporting later.
+    //
+    // There is no third path where the route resolves and the restoration
+    // component is quietly dropped. Either the scope is offered and the recipe
+    // includes it, or the customer goes to review.
+    if (option.requiresCapabilityKey) {
+      // AN UNKNOWN KEY IS A BROKEN TREE, NOT AN UNDECLARED SCOPE.
+      //
+      // Absent a row, `capabilityState` answers "not-established" — correct for
+      // a real key nobody has answered for, and badly wrong for a typo. A
+      // misspelled key would send every customer to review forever and look
+      // exactly like a contractor who has not finished onboarding.
+      if (!isCapabilityKey(option.requiresCapabilityKey)) {
+        throw new Error(
+          `${service.slug}: "${current.key}" requires capability ` +
+          `"${option.requiresCapabilityKey}", which is not a known capability key`
+        );
+      }
+      const state = capabilityState(service.capabilities ?? {}, option.requiresCapabilityKey);
+      if (state !== "declared") {
+        return {
+          status: "REVIEW",
+          reason: "This route needs the office to confirm scope",
+          photoLabels: [...new Set(photoLabels)],
+          photoSafetyNotes: [...new Set(photoSafetyNotes)],
+          floorPriceCents: null,
+          isPrimary,
+          config,
+        } as ResolvedRoute;
+      }
     }
 
     consumed.push({ key: current.key, value: given, label: option.label });
@@ -429,6 +610,35 @@ export function resolveRoute(
           // never trusted, never silently free.
           null;
 
+    // ROUTING V2 — resolve bound quantities BEFORE the branch is applied.
+    //
+    // Done here rather than in pricing so pricing keeps receiving ordinary
+    // `{ component, quantity }` pairs and never learns a number came from a
+    // homeowner. One pipeline, one meaning of quantity.
+    // Reachability, structurally: only questions this walk actually consumed.
+    // `consumed` is appended as each answer is taken, so it holds this path and
+    // nothing else — an answer left over from an abandoned branch is invisible.
+    const visitedKeys = new Set(consumed.map((x) => x.key));
+    const visitedQuestions = service.questions.filter((x) => visitedKeys.has(x.key));
+    const boundQuantities = new Map<string, number>();
+    for (const c of option.components) {
+      const ckey = c.canonicalComponent?.key ?? "(unlinked)";
+      const bq = resolveBoundQuantity(
+        { quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey ?? null },
+        answers,
+        visitedQuestions,
+        ckey
+      );
+      // Same class as an unlinked canonical role: the TREE is wrong, and no
+      // answer the customer could give would make it right.
+      if (bq.kind === "broken") throw new Error(`${service.slug}: ${bq.reason}`);
+      // The answer is wrong or missing. Review can resolve that; a price cannot.
+      if (bq.kind === "invalid") return { status: "INVALID", reason: `${service.slug}: ${bq.reason}` };
+      // Absent, not zero — see the filter below.
+      if (bq.kind === "omit") continue;
+      boundQuantities.set(c.id, bq.value);
+    }
+
     // applyBranch returns the new configuration directly — it isn't wrapped.
     config = applyBranch(
       config,
@@ -446,7 +656,10 @@ export function resolveRoute(
         addFieldLaborHours: option.addFieldLaborHours,
         addMaterialCostCents: option.addMaterialCostCents,
         addScheduleMinutes: option.addScheduleMinutes,
-        components: option.components.map((c) => {
+        // A component whose bound quantity resolved to zero is ABSENT, not
+        // zero-quantity: no inside corners means no corner work, and a `× 0`
+        // line would be promoted to `× 1` by the shared pricing guard.
+        components: option.components.filter((c) => boundQuantities.has(c.id)).map((c) => {
           const canonical = c.canonicalComponent;
           // A recipe line pointing at nothing. Post-migration this cannot
           // happen — the migration reported zero unlinked — but a broken
@@ -485,7 +698,9 @@ export function resolveRoute(
             : null;
 
           return {
-            quantity: c.quantity,
+            // Resolved above: the authored static value, or the homeowner's
+            // number. Never zero, never negative — those never reach here.
+            quantity: boundQuantities.get(c.id)!,
             conditionAnswerKey: c.conditionAnswerKey,
             conditionAnswerValue: c.conditionAnswerValue,
             conditionAccessClass: c.conditionAccessClass,
@@ -506,7 +721,10 @@ export function resolveRoute(
                 : null,
               // Only reached when the price above is non-null, since a null
               // price stops the route before these are used.
-              addFieldLaborHours: own?.addFieldLaborHours ?? 0,
+              // NOT `?? 0`. A missing contractor row and an unestablished labor
+              // figure both mean "never asked", and coercing either to zero is the
+              // exact conflation this nullability was introduced to remove.
+              addFieldLaborHours: own ? own.addFieldLaborHours : null,
               addMaterialCostCents: own?.addMaterialCostCents ?? 0,
               addScheduleMinutes: own?.addScheduleMinutes ?? 0,
               addTechCount: own?.addTechCount ?? 0,
@@ -569,6 +787,21 @@ export function resolveRoute(
 
   // A selected component consumes material this contractor has never costed.
   // Same rule as a missing material on the service itself: no price.
+  // A selected component whose labor this contractor has never established.
+  // Same rule as an unapproved price or an uncosted material role: no price.
+  if (config.awaitingComponentLabor) {
+    const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
+    return {
+      status: "REVIEW",
+      reason: "A component on this route has no established labor time",
+      photoLabels: [...new Set(photoLabels)],
+      photoSafetyNotes: [...new Set(photoSafetyNotes)],
+      floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
+      isPrimary,
+      config,
+    };
+  }
+
   if (config.awaitingComponentMaterialCost) {
     return {
       status: "REVIEW",
@@ -581,8 +814,19 @@ export function resolveRoute(
     };
   }
 
+  /**
+   * LEGACY ONLY. `approvedPriceCents` is the legacy customer-price mechanism —
+   * published base plus approved per-unit increments — and an unapproved
+   * component genuinely makes that sum unquotable.
+   *
+   * A DERIVED scope never reads the field. Its components are cost and labor
+   * inputs, and requiring an approved unit price on them would refuse every
+   * derived route forever for missing a number it is defined not to use. The
+   * derived path has its own approval, over the economic basis, checked in
+   * priceDerivedScope — so this is scoped rather than relaxed.
+   */
   // Anything unresolved at this point becomes a review rather than a price.
-  if (config.awaitingComponentApproval) {
+  if (config.awaitingComponentApproval && service.pricingMethod !== "DERIVED_RESOLVED_SCOPE") {
     const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
     return {
       status: "REVIEW",
@@ -604,6 +848,37 @@ export function resolveRoute(
       floorPriceCents: base === null ? null : customerPrice(config, base).totalCents,
       isPrimary,
       config,
+    };
+  }
+
+  /**
+   * A DERIVED service stops here, holding its finished physical recipe.
+   *
+   * It has no published base price and never will — its price is computed per
+   * route from the approved economic basis, which needs database reads this
+   * function is deliberately not allowed to make. Falling through would hit
+   * the INVALID below and report "no published price", which is true and
+   * useless: the service is not misconfigured, it is priced somewhere else.
+   *
+   * `resolveRouteWithDerivedPricing` replaces this verdict. Nothing else may:
+   * a caller that forgets shows the sentinel reason rather than a price, which
+   * is the fail-closed direction.
+   */
+  if (service.pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+    return {
+      status: "REVIEW",
+      reason: DERIVED_PRICING_PENDING,
+      photoLabels: [...new Set(photoLabels)],
+      photoSafetyNotes: [...new Set(photoSafetyNotes)],
+      floorPriceCents: null,
+      isPrimary,
+      config,
+      // Carried so the derived verdict keeps what a legacy PRICED verdict
+      // keeps. Without these a derived price reached the homeowner WITHOUT the
+      // branch disclaimers the walk collected — a quieter defect than a wrong
+      // price, and not one any number-checking suite would notice.
+      disclaimers: service.disclaimer ? [service.disclaimer, ...disclaimers] : disclaimers,
+      consumed,
     };
   }
 
@@ -669,14 +944,21 @@ export async function loadPricingSettings(
   if (!contractorId) {
     throw new Error("loadPricingSettings called with no contractor — cannot price anything.");
   }
-  const s = await db.pricingSettings.findUnique({ where: { contractorId } });
-  if (!s) {
-    throw new Error(
-      `No pricing settings for contractor ${contractorId} — cannot price anything. ` +
-        `Onboarding must create them; they are not defaulted.`
-    );
-  }
-  return s;
+  const row = await db.pricingSettings.findUnique({ where: { contractorId } });
+  // TWO DIFFERENT PROBLEMS, TWO DIFFERENT ERRORS. A missing row is broken
+  // tenant state; a row with undecided fields is an ordinary setup step, and
+  // sending someone to debug onboarding for the second wastes their afternoon.
+  //
+  // This call site has no service in hand, so it asks for the strictest
+  // context — a primary, primary-eligible service with no permit figure of its
+  // own, which requires all four. Callers that know their context should use
+  // resolvePricingSettings directly and get a narrower requirement.
+  const state = resolvePricingSettings(row, {
+    isPrimary: true, isPrimaryEligible: true, servicePermitAdminEstablished: false,
+  });
+  if (state.kind === "MISSING") throw new PricingSettingsMissingError(contractorId);
+  if (state.kind === "INCOMPLETE") throw new PricingSettingsIncompleteError(contractorId, state.missing);
+  return state.settings;
 }
 
 /**

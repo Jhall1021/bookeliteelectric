@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
+import { selectNumericOption, isNumericUnknownOption } from "@/lib/numericRouteRanges";
 import { formatCents } from "@/lib/flow-types";
 import { answerPriceDelta, resolveReferencedServicePriceCents } from "@/lib/pricing";
 import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
@@ -54,8 +55,33 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   // the beginning but nothing rendered them, which is why the bathroom-fan
   // housing measurements and the smart-switch make/model both got deferred.
   if (question.inputType === "TEXT" || question.inputType === "NUMBER") {
-    const route = question.options[0];
-    const required = question.options.length > 0 && !route?.value?.startsWith("optional");
+    const typed = text.trim();
+
+    // Browser navigation and the server use the same numeric selector.
+    // Explicit decimal domains may use an open lower edge (over 20 feet).
+    // Bounded single-option questions validate too; only legacy unbounded
+    // dimensions preserve free text such as "8 x 8".
+    const choice =
+      question.inputType === "NUMBER" ? selectNumericOption(question, typed) : null;
+    const route =
+      question.inputType === "NUMBER"
+        ? choice?.kind === "option"
+          ? choice.option
+          : null
+        : question.options[0];
+
+    // Convenience, never authority. The server validates this answer again and
+    // refuses it independently; this only spares the customer a round trip.
+    const refusal =
+      question.inputType === "NUMBER" && typed.length > 0 && choice?.kind !== "option"
+        ? choice?.reason ?? null
+        : null;
+
+    // Read from the authored options, not from `route` — which is null until a
+    // NUMBER answer is valid.
+    const first = question.options.find(o => !isNumericUnknownOption(o));
+    const unknown = question.inputType === "NUMBER" ? question.options.find(isNumericUnknownOption) : undefined;
+    const required = question.options.length > 0 && !first?.value?.startsWith("optional");
     return (
       <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
         <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>
@@ -69,18 +95,35 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
+          aria-label={question.prompt}
+          inputMode={question.inputType === "NUMBER" && question.numberMin != null
+            ? question.numberAllowsDecimal ? "decimal" : "numeric" : undefined}
           rows={question.inputType === "NUMBER" ? 2 : 4}
           className="mt-4 w-full rounded-card border border-cardline px-4 py-3 text-sm focus:border-electric"
-          placeholder={question.inputType === "NUMBER" ? "e.g. 8 x 8" : "Type your answer here"}
+          placeholder={question.inputType === "NUMBER"
+            ? question.numberMin != null ? question.numberAllowsDecimal ? "e.g. 14.625" : "e.g. 2" : "e.g. 8 x 8"
+            : "Type your answer here"}
         />
 
+        {refusal && (
+          <p className="mt-2 text-sm text-rust" role="alert">
+            {refusal}
+          </p>
+        )}
+
         <button
-          onClick={() => route && onAnswer({ ...route, value: text.trim() || route.value })}
-          disabled={!route || (required && text.trim().length === 0)}
+          onClick={() => route && onAnswer({ ...route, value: typed || route.value })}
+          disabled={!route || (required && typed.length === 0)}
           className="mt-4 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40"
         >
           Continue
         </button>
+        {unknown && (
+          <button type="button" onClick={() => onAnswer(unknown)}
+            className="mt-2 w-full text-center text-sm text-slate hover:text-navy">
+            {unknown.label}
+          </button>
+        )}
         {!required && (
           <button
             onClick={() => route && onAnswer(route)}

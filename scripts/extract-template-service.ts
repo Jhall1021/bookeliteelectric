@@ -30,7 +30,8 @@
  * texts across the catalog name Elite by name. A copy that trusted field
  * types would have shipped both to every future contractor.
  *
- *   --service <slug>   which Elite service to extract
+ *   --contractor <slug> whose copy to extract from — REQUIRED, no default
+ *   --service <slug>   which service to extract
  *   --version <n>      template version to write into (created if absent)
  *   --apply            write; otherwise report only
  */
@@ -38,6 +39,7 @@ import { PrismaClient } from "@prisma/client";
 import { readFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
+import { serviceFor } from "../prisma/_serviceTargets";
 
 loadEnv();
 const prisma = new PrismaClient();
@@ -161,8 +163,32 @@ async function main() {
   const apply = process.argv.includes("--apply");
   if (!slug) { console.error("  --service <slug> is required"); process.exit(1); }
 
-  const svc = await prisma.service.findFirstOrThrow({
-    where: { slug },
+  /**
+   * WHOSE COPY. Four contractors own a service called `new-120v-outlet`, and
+   * this took whichever one Postgres returned first.
+   *
+   * A dry run of the Routing V2 extraction proved it: it walked BrightPath's
+   * restored V1 tree, reported no economics and no materials — because
+   * BrightPath has neither — and would have written the retired access x
+   * distance-band model into the canonical template as the product deliverable.
+   * The output looked clean. It was clean, about the wrong tenant.
+   *
+   * `--contractor` has no default on purpose. This writes the thing every
+   * future contractor receives; the source must be named out loud.
+   */
+  const contractorSlug = arg("contractor");
+  if (!contractorSlug) {
+    console.error("  --contractor <slug> is required — a slug alone does not identify a service");
+    process.exit(1);
+  }
+  const owner = await prisma.contractor.findUnique({
+    where: { slug: contractorSlug }, select: { id: true, slug: true },
+  });
+  if (!owner) { console.error(`  No contractor "${contractorSlug}".`); process.exit(1); }
+  const target = await serviceFor(prisma, owner.id, slug);
+
+  const svc = await prisma.service.findUniqueOrThrow({
+    where: { id: target.id },
     include: {
       contractorCategory: { select: { canonicalCategoryId: true } },
       materials: { include: { canonicalMaterial: { select: { key: true } } } },
@@ -178,7 +204,7 @@ async function main() {
   });
 
   SERVICE_KEY = svc.slug;
-  console.log(`\nEXTRACT  ${svc.name}  (${svc.slug})  ->  ${TRADE} v${version}`);
+  console.log(`\nEXTRACT  ${svc.name}  (${owner.slug}/${svc.slug})  ->  ${TRADE} v${version}`);
   console.log(`  ${apply ? "APPLY" : "DRY RUN"}\n`);
 
   // Everything on the Service that is economics, recorded and dropped.
@@ -210,11 +236,37 @@ async function main() {
   const rerouteKey = (id: string) => rerouteSlugs.get(id) ?? id;
 
 
-  const questions = svc.questions.map((q, qi) => ({
+  /**
+   * RETIRED QUESTIONS DO NOT BECOME TEMPLATE QUESTIONS.
+   *
+   * Routing V2 retires the V1 access x distance-band questions by emptying
+   * their options rather than deleting the rows, so a tenant's existing answers
+   * still resolve against the question they were given for. That is a promise
+   * to a contractor who HAS history.
+   *
+   * A template is a starting point and has none. Carrying a question with no
+   * options into it would hand every future contractor four permanently dead
+   * rows on day one, and `findUnreachableQuestions` would report them forever
+   * as a defect nobody introduced.
+   *
+   * An option-less question is therefore dropped here, and the live rows it came
+   * from are untouched.
+   */
+  const retired = svc.questions.filter((q) => q.options.length === 0);
+  if (retired.length) {
+    console.log(`\n  RETIRED — present on the source tenant, not carried into the template:`);
+    for (const q of retired) console.log(`    ${q.key}`);
+  }
+  const liveQuestions = svc.questions.filter((q) => q.options.length > 0);
+
+  const questions = liveQuestions.map((q, qi) => ({
     key: q.key,
     prompt: resolveCopy(q.key, "prompt", q.prompt),
     helpText: q.helpText ? resolveCopy(q.key, "helpText", q.helpText) : null,
     inputType: q.inputType,
+    // ROUTING V2 — part of the executable pricing contract, not presentation.
+    numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin,
+    numberMax: q.numberMax,
     order: qi,
     options: q.options.map((o, oi) => {
       const where = `${q.key}/${o.value}`;
@@ -223,9 +275,21 @@ async function main() {
       return {
         value: o.value,
         routeAction: o.routeAction,
+        // ROUTING V2 numeric routing — part of the executable contract.
+        numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast,
+        numberAtMost: o.numberAtMost,
+        // ROUTING V2 capability gate. TEMPLATE side of the split: the template
+        // states what a route REQUIRES; ContractorCapability states what a
+        // contractor OFFERS. Requiring drywall restoration is trade knowledge
+        // about the work; declaring you do it is that contractor's business.
+        //
+        // Dropping this silently handed a provisioned contractor finished-wall
+        // routes with no gate at all — restoration offered by someone who never
+        // said they do it.
+        requiresCapabilityKey: o.requiresCapabilityKey,
         label: resolveCopy(`${q.key}/${o.value}`, "label", o.label),
         order: oi,
-        nextQuestionKey: o.nextQuestionId ? svc.questions.find((x) => x.id === o.nextQuestionId)?.key ?? null : null,
+        nextQuestionKey: o.nextQuestionId ? liveQuestions.find((x) => x.id === o.nextQuestionId)?.key ?? null : null,
         rerouteServiceKey: o.rerouteServiceId
           ? rerouteKey(o.rerouteServiceId) : null,
         referencedServiceKey: o.referencedService?.slug ?? null,
@@ -235,6 +299,8 @@ async function main() {
         components: o.components.filter((c) => c.canonicalComponentId).map((c) => ({
           canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity,
           conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+          // ROUTING V2 — see AnswerOptionComponent.quantityAnswerKey.
+          quantityAnswerKey: c.quantityAnswerKey,
         })),
         // A QuestionDisclaimer may point at the deprecated ConditionalDisclaimer
         // instead of a ContractorDisclaimer; only the canonical-backed ones can
@@ -287,9 +353,12 @@ async function main() {
     await prisma.templateQuestion.create({
       data: {
         templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
-        inputType: q.inputType, order: q.order,
+        inputType: q.inputType, numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin, numberMax: q.numberMax,
+        order: q.order,
         options: { create: q.options.map((o) => ({
           value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
+          numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+          requiresCapabilityKey: o.requiresCapabilityKey,
           nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
           referencedServiceKey: o.referencedServiceKey,
           requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,

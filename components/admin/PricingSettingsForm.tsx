@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+// Nullable: a contractor who has not decided a field must see an EMPTY input,
+// not a confident 0. Showing zero would mean "I charge no service-call
+// minimum" — a real, different business decision they never made.
 type Settings = {
-  crewHourRateCents: number;
-  primaryMinimumCents: number;
-  roundingIncrementCents: number;
-  defaultPermitAdminCents: number;
+  crewHourRateCents: number | null;
+  primaryMinimumCents: number | null;
+  roundingIncrementCents: number | null;
+  defaultPermitAdminCents: number | null;
 };
 
 type SettingsImpact = {
@@ -36,7 +39,12 @@ type CompareResult = {
   }[];
 };
 
-function toDollars(cents: number): string {
+// Nullable-aware: `Settings`'s own fields are `number | null` above (a
+// contractor who hasn't decided a field must see an empty input, not a
+// confident 0), so whatever renders one has to handle that here rather than
+// at every call site.
+function toDollars(cents: number | null): string {
+  if (cents === null || cents === undefined) return "";
   return (cents / 100).toFixed(2);
 }
 

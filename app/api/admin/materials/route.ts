@@ -1,3 +1,4 @@
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 
 import type { PrismaClient } from "@prisma/client";
@@ -11,6 +12,7 @@ import {
   MaterialCostError,
 } from "@/lib/materialCost";
 import { withAdminRoute } from "@/lib/adminContext";
+import { writeMaterialCost } from "@/lib/admin/onboardingActions";
 
 /**
  * A service's material list, and the shared catalog behind it.
@@ -216,6 +218,21 @@ export async function POST(req: Request) {
   return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
     try {
+      // ---- set a cost by canonical ROLE, for guided onboarding ----------
+      //
+      // Lives on THIS route, deliberately: it stays the single place a
+      // contractor's material cost is written. A fresh contractor has no
+      // ContractorMaterial rows at all — installCatalog creates none — so the
+      // `cost` action below, which needs a row id, cannot be the first write.
+      // This upserts the same one-row-per-role record `cost` edits later.
+      if (action === "set-cost-by-role") {
+        const r = await writeMaterialCost(db, { contractorId }, body as never);
+        pilotLog("setup_write", { contractorId, step: "materials", outcome: r.ok ? "ok" : "refused", status: r.ok ? 200 : r.status });
+        return r.ok
+          ? NextResponse.json({ ok: true, ...r.data })
+          : NextResponse.json({ error: r.error }, { status: r.status });
+      }
+
       if (action === "add") {
         const serviceId = requiredString(body.serviceId, "serviceId");
         if (isResponse(serviceId)) return serviceId;

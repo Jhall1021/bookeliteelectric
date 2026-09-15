@@ -241,13 +241,34 @@ export default async function SetupPage({
     }
 
     if (current === "pricing-foundation") {
-      rateSettings = await db.pricingSettings.findUnique({
+      const rawRates = await db.pricingSettings.findUnique({
         where: { contractorId: ctx.contractorId },
         select: {
           crewHourRateCents: true, primaryMinimumCents: true,
           roundingIncrementCents: true, defaultPermitAdminCents: true,
         },
       });
+      // The setup step reads these to SUGGEST prices. An undecided field is
+      // not a zero, so a partially-configured contractor reads as unset here
+      // and is sent to finish the decisions rather than shown a figure. Each
+      // of the four columns is nullable in the schema (prisma/schema.prisma,
+      // PricingSettings) — the direct-assignment shortcut this block used to
+      // be would have widened `rateSettings`'s own type or silently passed a
+      // `null` through where a `number` was declared; guarding all four
+      // explicitly is what lets `rateSettings` stay non-optional numbers.
+      rateSettings =
+        rawRates &&
+        rawRates.crewHourRateCents !== null &&
+        rawRates.primaryMinimumCents !== null &&
+        rawRates.roundingIncrementCents !== null &&
+        rawRates.defaultPermitAdminCents !== null
+          ? {
+              crewHourRateCents: rawRates.crewHourRateCents,
+              primaryMinimumCents: rawRates.primaryMinimumCents,
+              roundingIncrementCents: rawRates.roundingIncrementCents,
+              defaultPermitAdminCents: rawRates.defaultPermitAdminCents,
+            }
+          : null;
       offeredCount = await db.service.count({
         where: { contractorId: ctx.contractorId, offered: true },
       });

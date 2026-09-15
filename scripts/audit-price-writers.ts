@@ -15,7 +15,7 @@
  * Report only.
  */
 
-import { readFileSync, readdirSync, statSync } from "fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { join, relative } from "path";
 
 const ROOT = process.cwd();
@@ -256,6 +256,92 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Stamps basePrice on a THROWAWAY, questionless TROUBLESHOOT_ONLY service so it qualifies for directBook and reaches a real Booking through a real no-deposit checkout — proving the diagnostic note field is reachable and its final text survives into the stored visit and booking, not anything about pricing. The contractor and its service are created and destroyed by the test; no real contractor's price is read or written.",
 };
 
+/**
+ * NOT PRICE WRITERS, AND HELD TO IT — the opposite of the allowed list.
+ *
+ * Each of these once wrote `basePrice: null` / `publishedPriceApprovedAt: null`
+ * into a service it had just created. That moved no price, but it was a price
+ * write in a file with no business writing one, and the fix was to stop, not to
+ * be excused: the columns are nullable with no default, and pricing state
+ * belongs to the supported lifecycle (publishSuggestedPrice, the derived-scope
+ * approval), never to a seed or a verifier.
+ *
+ * An allowed-list entry trusts a path. These are CHECKED instead, so the file
+ * cannot quietly become what the reason says it is not:
+ *   - no price-column token anywhere outside comments — not a write, not a
+ *     null, not a select (stricter than the write heuristic below, which a
+ *     spread or a distant `data:` can slip past);
+ *   - never on APPROVED_PUBLISHERS — excusing one reopens the question;
+ *   - nothing that makes a service live (`active: true`, `offered: true`) and
+ *     no bulk writer (`updateMany`, `upsert`) — a fixture writer turned into a
+ *     general tenant writer turns this red;
+ *   - plus each file's own structural claim, below.
+ * A renamed or deleted file fails too: coverage must move with the file, not
+ * lapse.
+ */
+const NOT_PRICE_WRITERS: Record<string, { why: string; mustMatch: [RegExp, string][] }> = {
+  "prisma/seed-surface-mounted-services.ts": {
+    why:
+      "Creates the three surface-mounted services inactive and unoffered under Elite's " +
+      "new-120v-outlet anchor. An EXISTING service is updated with name and description " +
+      "only, so a rerun cannot clear a price an existing service has earned. Writes no " +
+      "price column, not even null.",
+    mustMatch: [
+      [/data: \{ name: def\.name, shortDescription: def\.shortDescription \}/,
+        "the update branch writes name and shortDescription and nothing else"],
+      [/active: false, offered: false,/, "the create branch creates the service inactive and unoffered"],
+    ],
+  },
+  "prisma/seed-routing-v2-fixtures.ts": {
+    why:
+      "Creates the rv2-fixture-* proving-harness services inactive and unoffered under " +
+      "Elite. Create-only: an existing fixture is left untouched. Writes no price " +
+      "column, not even null.",
+    mustMatch: [
+      [/const svc = existing \?\? await db\.service\.create\(/, "create-only: an existing fixture is reused, never updated"],
+      [/slug: "rv2-fixture-/, "every fixture slug carries the rv2-fixture- prefix"],
+      [/active: false, offered: false,/, "fixtures are created inactive and unoffered"],
+    ],
+  },
+  "scripts/verify-no-base-material-lifecycle.ts": {
+    why:
+      "Verification only. Creates run-unique fixture services inside one transaction " +
+      "that always throws its ROLLBACK sentinel, and asserts afterwards that none " +
+      "persisted. It exercises material state, never pricing state, and writes no " +
+      "price column.",
+    mustMatch: [
+      [/await prisma\.\$transaction\(async \(tx\) => \{/, "fixtures are written inside a transaction"],
+      [/throw new Error\(ROLLBACK\);/, "the transaction always ends by throwing the rollback sentinel"],
+      [/slug: `\$\{RUN\}-\$\{suffix\}`/, "fixture slugs are run-unique"],
+      [/leaked === 0/, "it asserts nothing persisted"],
+    ],
+  },
+};
+
+function codeOnly(src: string): string {
+  // Comments removed; `//` preceded by `:` is a URL, not a comment.
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
+function checkNotPriceWriters(): string[] {
+  const failures: string[] = [];
+  for (const [file, rule] of Object.entries(NOT_PRICE_WRITERS)) {
+    if (!existsSync(join(ROOT, file))) { failures.push(`${file}: missing — move this entry with the file`); continue; }
+    if (APPROVED_PUBLISHERS[file]) failures.push(`${file}: is on APPROVED_PUBLISHERS — it must not be excused`);
+    const code = codeOnly(readFileSync(join(ROOT, file), "utf8"));
+    for (const field of WRITES) {
+      if (new RegExp(`\\b${field}\\b`).test(code)) failures.push(`${file}: names ${field}`);
+    }
+    if (/\bactive\s*:\s*true\b/.test(code)) failures.push(`${file}: sets active: true`);
+    if (/\boffered\s*:\s*true\b/.test(code)) failures.push(`${file}: sets offered: true`);
+    if (/\.(updateMany|upsert)\s*\(/.test(code)) failures.push(`${file}: contains a bulk writer (updateMany/upsert)`);
+    for (const [re, claim] of rule.mustMatch) {
+      if (!re.test(code)) failures.push(`${file}: no longer holds — ${claim}`);
+    }
+  }
+  return failures;
+}
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     if (["node_modules", ".next", ".git", "public"].includes(entry)) continue;
@@ -345,8 +431,19 @@ function main() {
     }
   }
 
+  const notWriterFailures = checkNotPriceWriters();
+  console.log(`${"─".repeat(74)}\nNOT PRICE WRITERS — checked, not trusted\n`);
+  for (const [f, rule] of Object.entries(NOT_PRICE_WRITERS)) {
+    const mine = notWriterFailures.filter((x) => x.startsWith(`${f}:`));
+    console.log(`  ${mine.length ? "FAIL" : "ok  "} ${f}`);
+    console.log(`      ${rule.why}`);
+    for (const m of mine) console.log(`      ✗ ${m.slice(f.length + 2)}`);
+  }
+  console.log();
+
   console.log(`${"─".repeat(74)}`);
   console.log(`\n  ${problems.length} file(s) can move a customer's price outside the admin.`);
+  if (notWriterFailures.length) console.log(`  ${notWriterFailures.length} NOT-PRICE-WRITER check(s) failed.`);
   console.log(`  A seed setting an owner-approved figure is fine — it just needs`);
   console.log(`  to be on the allowed list above, with the reason written down.`);
   console.log(`\n  Nothing was changed.\n`);
@@ -355,7 +452,7 @@ function main() {
   // 27 August, which made ADR-003's "enforced" a description of intent rather
   // than of behavior — an unsanctioned price writer would have printed a
   // warning into a log nobody reads and shipped.
-  process.exitCode = problems.length === 0 ? 0 : 1;
+  process.exitCode = problems.length === 0 && notWriterFailures.length === 0 ? 0 : 1;
 }
 
 main();

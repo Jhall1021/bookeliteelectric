@@ -1,3 +1,4 @@
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 import { policiesFor, resolvePolicy } from "@/lib/policyResolution";
@@ -7,7 +8,7 @@ import { policiesFor, resolvePolicy } from "@/lib/policyResolution";
  *
  * GET  — every policy this contractor owes an answer to, with the services
  *        waiting on each one.
- * PATCH— record one decision. { key, boundaries?: number[], choice?: string }
+ * PATCH— record one decision. { key, boundaries?: number[], choice?: string, measurement?: number }
  *
  * Deliberately NOT a route that clears `unresolvedPolicyKeys`. It goes through
  * lib/policyResolution, which rewrites the customer-visible band labels the
@@ -66,8 +67,20 @@ export async function PATCH(req: Request) {
     choice = body.choice.trim();
   }
 
+  // Routing V2's own measurement policy shape — a plain finite number, not a
+  // boundary list or a named choice. Same "reject rather than coerce" rule as
+  // boundaries/choice above: a non-numeric measurement is dropped, not zeroed.
+  const measurement = typeof body.measurement === "number" && Number.isFinite(body.measurement)
+    ? body.measurement
+    : undefined;
+
   return withAdminRoute(async (db, ctx) => {
-    const result = await resolvePolicy(db, ctx.contractorId, key, { boundaries, choice });
+    const result = await resolvePolicy(db, ctx.contractorId, key, { boundaries, choice, measurement });
+    // Only the first-service pilot's own decisions, so this is not a general policy log.
+    if (key.startsWith("surface_")) {
+      pilotLog("setup_write", { contractorId: ctx.contractorId, step: "material_setup",
+        outcome: result.ok ? "ok" : "refused", status: result.ok ? 200 : 400, code: result.ok ? null : result.refusal.code });
+    }
     if (!result.ok) {
       const status = result.refusal.code === "UNKNOWN_POLICY" ? 404 : 400;
       return NextResponse.json({ error: result.refusal.message, code: result.refusal.code }, { status });

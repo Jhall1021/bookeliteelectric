@@ -26,8 +26,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   getWindowAvailabilityForDay,
   SchedulingUnavailableError,
-  effectiveBusySpan,
-  windowToDateRange,
+  jobFitsWorkday,
 } from "./jobber";
 import {
   nativeWindowAvailability,
@@ -38,6 +37,34 @@ import {
 } from "./nativeScheduling";
 
 export type DaySchedule = { windows: WindowSlot[]; dayEndDisplay: string };
+
+/**
+ * Why a window cannot be booked, so the homeowner is told the true reason.
+ *
+ *   NOT_ENOUGH_TIME  this job, started at this window, would run past the end
+ *                    of the working day (jobFitsWorkday)
+ *   FULL             the job fits, but the calendar has no room
+ *
+ * A window withheld for length used to read "Fully booked", which says the
+ * contractor is busy when the real answer is that the day is too short.
+ */
+export type WindowUnavailableReason = "NOT_ENOUGH_TIME" | "FULL";
+export type ScheduleWindow = WindowAvailability & { unavailableReason?: WindowUnavailableReason };
+
+/**
+ * The job's length, from the visit's own lines: the sum of each line's
+ * snapshotted `estimatedMinutes` (for a derived service, its priced crew-hours
+ * over its crew — set when the line was resolved), or null when any line has
+ * none or there are no lines, so an incomplete total is never mistaken for a
+ * short job.
+ *
+ * The one reading of "how long is this visit" for the schedule page, the
+ * availability route and checkout. Nothing here prices or re-resolves.
+ */
+export function visitJobDurationMinutes(lineItems: { estimatedMinutes: number | null }[]): number | null {
+  if (lineItems.length === 0 || lineItems.some((li) => li.estimatedMinutes === null)) return null;
+  return lineItems.reduce((sum, li) => sum + (li.estimatedMinutes ?? 0), 0);
+}
 
 /**
  * A contractor whose scheduling is not set up cannot be scheduled against.
@@ -64,20 +91,15 @@ async function modeOf(db: PrismaClient, contractorId: string) {
 /**
  * Does the job still finish before the working day ends?
  *
- * Owned here rather than by either mode, because it is a fact about the day
- * and the job. It was already applied on every Jobber path including the
- * fail-open ones; native scheduling owes the homeowner the same answer.
+ * Owned by neither mode, because it is a fact about the day and the job — and
+ * by nobody here either: jobFitsWorkday is the same rule checkout enforces.
  */
 function fitsInTheDay(
   dateISO: string,
   schedule: DaySchedule,
   estimatedDurationMinutes?: number | null
 ) {
-  const [, workdayEnd] = windowToDateRange(dateISO, "8:00 AM", schedule.dayEndDisplay);
-  return (w: WindowSlot) => {
-    const [, end] = effectiveBusySpan(dateISO, w.start, w.end, estimatedDurationMinutes);
-    return end.getTime() <= workdayEnd.getTime();
-  };
+  return (w: WindowSlot) => jobFitsWorkday(dateISO, w, schedule.dayEndDisplay, estimatedDurationMinutes);
 }
 
 export async function windowAvailabilityForDay(
@@ -86,15 +108,20 @@ export async function windowAvailabilityForDay(
   dateISO: string,
   schedule: DaySchedule,
   estimatedDurationMinutes?: number | null
-): Promise<WindowAvailability[]> {
+): Promise<ScheduleWindow[]> {
+  const fits = fitsInTheDay(dateISO, schedule, estimatedDurationMinutes);
+  // Whichever authority answered, an unavailable window is named by the one
+  // fact that does not depend on it: a window the job cannot finish in is
+  // NOT_ENOUGH_TIME; any other refusal is the calendar's.
+  const withReasons = (windows: WindowAvailability[]): ScheduleWindow[] =>
+    windows.map((w) => (w.available ? w : { ...w, unavailableReason: fits(w) ? "FULL" : "NOT_ENOUGH_TIME" }));
   const mode = await modeOf(db, contractorId);
 
   if (mode === "NATIVE") {
     try {
-      return await nativeWindowAvailability(
-        db, contractorId, dateISO, schedule.windows,
-        fitsInTheDay(dateISO, schedule, estimatedDurationMinutes)
-      );
+      return withReasons(await nativeWindowAvailability(
+        db, contractorId, dateISO, schedule.windows, fits
+      ));
     } catch (err) {
       if (err instanceof NativeCapacityUnconfiguredError) {
         throw new SchedulingNotConfiguredError(contractorId,
@@ -128,10 +155,10 @@ export async function windowAvailabilityForDay(
       "External scheduling is selected but no crew is marked bookable from the website.");
   }
 
-  return getWindowAvailabilityForDay(
+  return withReasons(await getWindowAvailabilityForDay(
     contractorId, dateISO, eligible.map((c) => c.jobberUserId),
     estimatedDurationMinutes, schedule
-  );
+  ));
 }
 
 /**

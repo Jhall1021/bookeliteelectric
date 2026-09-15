@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { loadBusinessHours, generateArrivalWindows, toDisplay, toMinutes } from "@/lib/businessHours";
 import {
   windowAvailabilityForDay,
+  visitJobDurationMinutes,
   SchedulingUnavailableError,
   SchedulingNotConfiguredError,
 } from "@/lib/schedulingAvailability";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
+import { getSessionId } from "@/lib/session";
+import { isServiceDate } from "@/lib/serviceDate";
 
 // Deliberately un-cached — always hits Jobber fresh. This is what makes
 // clicking a day tab actually reflect whatever's really on the calendar
@@ -24,17 +27,43 @@ export async function GET(req: Request, { params }: { params: { dateISO: string 
     return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
   }
 
+  // A service date, exactly. Anything else is not a day that can be scheduled.
+  if (!isServiceDate(params.dateISO)) {
+    return NextResponse.json({ error: "INVALID_SERVICE_DATE" }, { status: 400 });
+  }
+
   return withSite(site, async (db) => {
     // The crew list is no longer read here. Who is authoritative about this
     // contractor's calendar is the scheduling authority's business, and
     // reading crews at the call site is what let a NATIVE contractor be
     // answered by Jobber's rules.
     const businessHours = await loadBusinessHours(db, site.contractorId);
+
+    // THE JOB'S LENGTH COMES FROM THE VISIT, NOT FROM THE REQUEST.
+    //
+    // The schedule page's first day applied the visit's duration on the server,
+    // but every later day came through here, and this route never read one:
+    // the client's `?duration=` was ignored, so a day tab offered windows the
+    // job could not finish in and checkout then refused them as
+    // WINDOW_TOO_LATE. The duration is read the same way the page and checkout
+    // read it — the open visit's snapshotted line minutes — so all three agree,
+    // and nothing a browser sends can shorten a job. Read-only: getSessionId
+    // never mints a session. No visit (or an incomplete estimate) means no
+    // duration, exactly as on the page.
+    const sessionId = getSessionId();
+    const visit = sessionId
+      ? await db.visit.findFirst({
+          where: { contractorId: site.contractorId, sessionId, status: "OPEN" },
+          select: { lineItems: { select: { estimatedMinutes: true } } },
+        })
+      : null;
+    const estimatedDurationMinutes = visit ? visitJobDurationMinutes(visit.lineItems) : null;
+
     try {
       const windows = await windowAvailabilityForDay(db, site.contractorId, params.dateISO, {
         windows: generateArrivalWindows(businessHours),
         dayEndDisplay: toDisplay(toMinutes(businessHours.dayEnd)),
-      });
+      }, estimatedDurationMinutes);
       return NextResponse.json({ windows });
     } catch (err) {
       if (err instanceof SchedulingNotConfiguredError) {

@@ -9,30 +9,66 @@
  *   DATABASE_URL="<a rehearsal branch, not production>" \
  *     npx tsx scripts/verify-guided-flow-session-persistence.ts
  *
- * It finds one existing contractor/service row to attach test data to, and
- * cleans up everything it creates (the final delete's cascade removes the
- * satellite rows too). It does not touch any other row.
+ * IT OWNS EVERY ROW IT TOUCHES.
+ *
+ * This used to attach to whatever `contractor.findFirst()` returned and give
+ * up if that contractor happened to have no services — which is exactly what
+ * happened: the first row back was a Stripe/invitation probe tenant with zero
+ * services, so the probe printed "nothing to verify" and exited 1 without
+ * exercising a single line of persistence. A test that can silently skip is
+ * worse than no test, because the red looks like a product failure and the
+ * green never happened.
+ *
+ * So it creates its own contractor, category and service under a run-scoped
+ * slug prefix, proves persistence against those, and deletes them. No ambient
+ * ordering, no dependence on what else lives in the database, and nothing
+ * belonging to anyone else is read or written.
  */
 import { PrismaClient } from "@prisma/client";
 
 async function main() {
   const p = new PrismaClient();
   let failures = 0;
+  let CHECKS = 0;
   const check = (name: string, cond: boolean) => {
+    CHECKS++;
     console.log(`  ${cond ? "ok" : "FAIL"} — ${name}`);
     if (!cond) failures++;
   };
 
-  const contractor = await p.contractor.findFirst({ select: { id: true } });
-  const service = await p.service.findFirst({
-    where: { contractorId: contractor?.id },
+  // Run-scoped so two concurrent runs cannot collide, and so anything left
+  // behind by a crash is obviously this script's and obviously disposable.
+  const RUN = `gfsverify-${process.pid.toString(36)}${Date.now().toString(36).slice(-5)}`;
+
+  const category = await p.serviceCategory.create({
+    data: { slug: `${RUN}-cat`, name: "GuidedFlowSession probe category" },
+  });
+  const contractor = await p.contractor.create({
+    data: { slug: RUN, name: "GuidedFlowSession probe (TEST — disposable)" },
+  });
+  const service = await p.service.create({
+    data: {
+      slug: `${RUN}-svc`,
+      name: "GuidedFlowSession probe service",
+      categoryId: category.id,
+      contractorId: contractor.id,
+      bookingType: "INSTANT",
+    },
     select: { id: true, slug: true, contractorId: true },
   });
-  if (!contractor || !service) {
-    console.log("No contractor/service row available to probe against — nothing to verify.");
-    await p.$disconnect();
-    process.exit(1);
-  }
+  console.log(`  fixture: contractor ${contractor.slug} / service ${service.slug}`);
+
+  const dropFixture = async () => {
+    await p.service.deleteMany({ where: { contractorId: contractor.id } });
+    await p.contractor.deleteMany({ where: { id: contractor.id } });
+    await p.serviceCategory.deleteMany({ where: { id: category.id } });
+  };
+
+  // CONTROL. If the fixture were ever not usable, every check below would be
+  // skipped and the run would still have to say so loudly rather than looking
+  // like a product failure. Asserting it here means "0 checks ran" is
+  // impossible to reach silently.
+  check("the probe owns a usable fixture — checks below actually run", !!service.id);
 
   console.log("\nPersistence — create, read back");
   const session = await p.guidedFlowSession.create({
@@ -107,9 +143,17 @@ async function main() {
   check("deleting the session cascade-deletes its device handoff", handoffAfter === null);
 
   const contractorStillThere = await p.contractor.findUnique({ where: { id: contractor.id } });
-  check("the contractor row this probe used is still intact — nothing else touched", !!contractorStillThere);
+  check("the probe's own contractor survived its session's cascade", !!contractorStillThere);
 
-  console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
+  console.log("\nFixture teardown");
+  await dropFixture();
+  check("the probe's contractor is gone", (await p.contractor.findUnique({ where: { id: contractor.id } })) === null);
+  check("the probe's service is gone", (await p.service.findUnique({ where: { id: service.id } })) === null);
+  check("the probe's category is gone", (await p.serviceCategory.findUnique({ where: { id: category.id } })) === null);
+  check("no probe row of any run is left behind",
+    (await p.contractor.count({ where: { slug: { startsWith: "gfsverify-" } } })) === 0);
+
+  console.log(`\n${failures === 0 ? `ALL ${CHECKS} CHECKS PASSED` : `${failures} CHECK(S) FAILED`}`);
   await p.$disconnect();
   process.exit(failures === 0 ? 0 : 1);
 }
