@@ -1,3 +1,4 @@
+import { adaptRouteAssistResult } from "../lib/electrical/routeAssistAdapter";
 import { applyAcceptedRouteAssistScanCandidatesV1 } from "../lib/visual-assist/route-assist/scanCandidateAcceptance";
 import { extractRouteAssistScanCandidatesV1 } from "../lib/visual-assist/route-assist/scanCandidates";
 import type { RouteAssistScanEvidenceV1 } from "../lib/visual-assist/route-assist/scanEvidence";
@@ -96,6 +97,16 @@ if (accepted.ok) {
       "current result aggregation remains at its established tenth-foot precision",
       outcome.estimatedTotalRouteLengthFt === 14.6,
       String(outcome.estimatedTotalRouteLengthFt)
+    );
+
+    const adapted = adaptRouteAssistResult(outcome);
+    check(
+      "accepted explicit physical-turn evidence reaches the canonical flat-corner fact",
+      adapted.invalid.length === 0 &&
+        adapted.mapped.flatCorners === 1 &&
+        adapted.mapped.insideCorners === 0 &&
+        adapted.mapped.outsideCorners === 0,
+      JSON.stringify(adapted)
     );
   }
 }
