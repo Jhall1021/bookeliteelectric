@@ -32,27 +32,28 @@
  *
  *   --contractor <slug> whose copy to extract from — REQUIRED, no default
  *   --service <slug>   which service to extract
- *   --version <n>      template version to write into (created if absent)
+ *   --version <n>      template version to write into — MUST NOT already
+ *                      exist; see OVERWRITE REFUSAL below.
  *   --apply            write; otherwise report only
- *   --i-know-this-overwrites-a-published-version   required to write into a
- *                      version that already carries a TemplateService for
- *                      this exact key — see OVERWRITE REFUSAL below.
  *
- * OVERWRITE REFUSAL — a published version is immutable by default.
+ * OVERWRITE REFUSAL — a published version is immutable, unconditionally.
  *
  * `templateVersionSource` resolves whatever the latest SNAPSHOT-plus-DELTAs
  * says the instant a version is written — there is no staging step, proven
- * in this branch's own rehearsal (§0.22). That makes re-running this tool
- * against an ALREADY-PUBLISHED version for the SAME service key a silent
- * rewrite of content a fresh contractor may already have installed from,
- * with no record that anything changed. This tool now refuses that by
- * default — matching the insert-only convention this codebase already
- * applies to `MaterialBaselineVersion` for the identical reason — and
- * requires `--i-know-this-overwrites-a-published-version` typed out
- * deliberately to proceed anyway. A correction belongs in a NEW version
- * number (see the rollback plan, §10.3): the prior version stays exactly as
- * it was, and `templateVersionSource` picks up the later, corrected DELTA
- * for the same key automatically.
+ * in this branch's own rehearsal (§0.22). A version, once it exists, is
+ * frozen: this tool refuses to write into ANY version that already exists,
+ * full stop — not "the same service key already there," not "unless a flag
+ * says otherwise." Adding a second service to an existing version is still
+ * changing what that version publishes after the fact, and a flag that
+ * could bypass the refusal is a flag that WILL be reached for under
+ * schedule pressure, which is exactly the failure this refusal exists to
+ * make impossible rather than merely inconvenient. There is no
+ * override — matching the insert-only convention this codebase already
+ * applies to `MaterialBaselineVersion` for the identical reason. Every new
+ * service and every correction takes the next unused version number. A
+ * correction belongs in a NEW version (see the rollback plan, §10.3): the
+ * prior version stays exactly as it was, and `templateVersionSource` picks
+ * up the later, corrected DELTA for the same key automatically.
  */
 import { PrismaClient } from "@prisma/client";
 import { readFileSync, existsSync } from "node:fs";
@@ -381,30 +382,24 @@ async function main() {
 
   if (!apply) { console.log(`\n  Dry run — nothing written.\n`); await prisma.$disconnect(); return; }
 
-  const overwriteConfirmed = process.argv.includes("--i-know-this-overwrites-a-published-version");
+  // A published version is immutable, unconditionally — no flag bypasses
+  // this. Refuses the instant the version exists at all, regardless of
+  // whether THIS service key is already in it: adding a second service to
+  // an existing version is still changing what a version publishes after
+  // some contractor may already have installed from it. Every new service
+  // and every correction takes the next unused version number instead.
   const existingVersion = await prisma.templateVersion.findUnique({ where: { trade_version: { trade: TRADE, version } } });
   if (existingVersion) {
-    const existingService = await prisma.templateService.findUnique({
-      where: { templateVersionId_key: { templateVersionId: existingVersion.id, key: svc.slug } },
-      select: { id: true },
-    });
-    if (existingService && !overwriteConfirmed) {
-      console.error(
-        `\n  REFUSED: ${TRADE} v${version} already publishes "${svc.slug}". A published version is\n` +
-        `  immutable by default — templateVersionSource resolves whatever is written the instant\n` +
-        `  it lands, with no staging step, so overwriting it silently rewrites what a contractor\n` +
-        `  may already have installed from.\n\n` +
-        `  Publish the correction as a NEW version instead (--version ${version + 1} or higher) —\n` +
-        `  templateVersionSource picks up the later DELTA for this same key automatically, and\n` +
-        `  the old version stays exactly as it was, which is what makes the correction recoverable.\n\n` +
-        `  If this overwrite is genuinely intended, pass --i-know-this-overwrites-a-published-version.\n`
-      );
-      await prisma.$disconnect();
-      process.exit(1);
-    }
-    if (existingService) {
-      console.log(`\n  OVERWRITING ${TRADE} v${version}'s existing "${svc.slug}" — confirmed with --i-know-this-overwrites-a-published-version.\n`);
-    }
+    console.error(
+      `\n  REFUSED: ${TRADE} v${version} already exists. A published version is immutable —\n` +
+      `  templateVersionSource resolves whatever is written the instant it lands, with no\n` +
+      `  staging step, so writing into an existing version — even to add a different service —\n` +
+      `  silently changes what a contractor may already have installed from.\n\n` +
+      `  Use the next unused version instead (--version ${version + 1} or higher). There is no\n` +
+      `  override: a correction is a NEW version, never a rewrite of one that already exists.\n`
+    );
+    await prisma.$disconnect();
+    process.exit(1);
   }
 
   /**

@@ -858,6 +858,88 @@ pass's rehearsal work persists; only
 `scripts/extract-template-service.ts`, `scripts/template-update.ts`, and
 this report are committed.
 
+### 0.25 (ninth pass) Three precise corrections to §0.24's own fixes — whole-adoption atomicity, absolute version immutability, whole-group blocking — plus the existing-tree revision this pass had not yet shown
+
+§0.24 closed three real gaps, but each fix still fell short of what it
+claimed. All three tightened here, with rehearsals aimed at exactly the
+case each one still allowed.
+
+**1. A missing routing link must block the WHOLE adoption, not just its
+own row.** §0.24's `template-update.ts` wrote an unresolved link as `null`
+and printed a warning — the question or option still landed, `applied`
+still incremented, the service was still marked unresolved-for-pricing as
+though the change had fully succeeded. A CONTINUE option with no
+`nextQuestionId` is a dead end a real customer can reach today. Fixed:
+every option a change would write is resolved FIRST, read-only, against
+the live tree; if anything is missing, the WHOLE change refuses — nothing
+is written, `applied` never increments, exit code 1 — and the write itself
+now runs inside `prisma.$transaction` for a multi-option question, so a
+later option's own database error can no longer leave earlier ones
+committed either. Rehearsed: a question with one resolvable and one
+unresolvable option refused entirely, confirmed by direct query that the
+question does not exist on the live tree AT ALL afterward — not even the
+resolvable option landed alone.
+
+**2. A published version must stay unchanged — no flag, no exception, not
+even for a different service.** §0.24 added an overwrite flag
+(`--i-know-this-overwrites-a-published-version`) and only refused when the
+SAME service key already existed in the target version, which meant
+adding a DIFFERENT service to an already-published version was still
+allowed — the version's content still changed after the fact from what a
+contractor may have already installed. Fixed: the flag is gone entirely,
+and `extract-template-service.ts` now refuses to write into ANY version
+that already exists, unconditionally, regardless of which service key is
+involved. Every new service and every correction takes the next unused
+version number — there is no way to make an existing version's content
+different from what it was. Rehearsed: a fresh version accepted its first
+service normally; the identical service extracted again into that same
+version refused; a genuinely DIFFERENT service extracted into that same
+already-existing version ALSO refused (this specific case was the actual
+gap — §0.24's version allowed it); a fresh, unused version number accepted
+the different service normally.
+
+**3. A live handoff or pending task on ANY row must block the WHOLE
+group, not just that one row.** §0.24 protected the specific row carrying
+a live dependent but still resolved the REST of its group normally —
+abandoning other, apparently-safe losers and backfilling a winner's key —
+and reported the run as fully successful (exit code 0) with the protected
+row noted only as a log line. A group is not safely resolved while any
+row in it is still live, and treating the rest of the group as done while
+one row waits for a human is a partial change presented as a completed
+one. Fixed: the live-dependent check now runs against EVERY row in a
+multi-row group, not just whichever rows recency would have picked as
+losers, and the moment any row in a group has a live handoff or pending
+task — or the group's answers diverge — the ENTIRE group is left
+untouched: no row abandoned, no key backfilled, for anyone in it. The
+script's own exit code now reflects this too: it exits 1 whenever any
+group was left blocked, not 0, so a caller checking only the exit code
+cannot mistake a partially-blocked run for a completed migration.
+Rehearsed: a group of three identical-answer rows where only the MIDDLE
+row carried a live handoff — the row recency would have picked as winner
+and the row recency would have picked as a "safe" loser were both left
+untouched alongside the one with the handoff, confirmed by direct query
+(all three still `ACTIVE`, all three still `null` keys), and the process
+exited 1.
+
+**The existing-tree revision this pass had not yet demonstrated.** Every
+prior adoption rehearsal in this report added a brand-new question — never
+revised something already live. Rehearsed here: a new OPTION, carrying a
+numeric range, a resolving `nextQuestionKey`, and a component binding, was
+adopted onto Elite's EXISTING, already-live `purpose` question — confirmed
+by direct query that the written option's `questionId` is the exact id of
+the pre-existing `purpose` question, not a new one, and that every field
+(numeric bounds, the resolved `nextQuestionId` matching the real live
+`below_above_access` question's id, and the component with its quantity)
+landed correctly on it.
+
+**Verification.** `npx tsc --noEmit` clean project-wide after all three
+fixes. All three browser-flow suites re-run clean against a fresh
+production build after every rehearsal in this pass. The local disposable
+database confirmed back to its exact baseline (one `TemplateVersion`,
+three contractors, unchanged session counts) after each rehearsal
+independently — nothing from this pass persists; only the same three
+source files and this report are committed.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple

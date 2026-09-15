@@ -39,11 +39,23 @@
  *
  * A routing link resolves against THIS contractor's own live tree at adopt
  * time (by templateKey first, falling back to slug — a tenant that IS a
- * template's own source, like Elite, carries no templateKey at all). A link
- * that cannot be resolved yet — its target has not been adopted in an
- * earlier `--adopt` call — is left null and reported, never guessed at: this
- * tool applies one change at a time by design, and a multi-question addition
- * may need to be adopted in dependency order.
+ * template's own source, like Elite, carries no templateKey at all).
+ *
+ * A LINK THAT CANNOT BE RESOLVED BLOCKS THE WHOLE ADOPTION, NOT JUST ITS
+ * OWN ROW. An earlier version of this tool wrote the row anyway with the
+ * unresolved link left `null` and printed a warning — which means the
+ * questions/options THAT DID resolve were already live, `applied` was
+ * already incremented, and the service was already marked unresolved-for-
+ * pricing as though the adoption had fully succeeded. A CONTINUE option
+ * with no `nextQuestionId` is a dead end a real customer can reach; a
+ * REROUTE option with no `rerouteServiceId` sends nobody anywhere. Every
+ * link every question and option in this ONE change needs is resolved
+ * FIRST, read-only; if anything is missing, NOTHING is written — the whole
+ * `--adopt` call refuses, by name, and the live tree is byte-for-byte what
+ * it was before the call. This tool applies one change at a time by
+ * design, so a multi-question addition may still need adopting in
+ * dependency order — but the ordering failure is now a clean refusal, not
+ * a half-wired tree.
  *
  * STILL NOT CARRIED, NAMED RATHER THAN SILENTLY DROPPED: materials
  * (AnswerOptionMaterial), disclaimers, photo groups, and policy-banded
@@ -169,8 +181,14 @@ async function main() {
     return byKey?.id ?? null;
   }
 
-  /** One TemplateAnswerOption's live-writable shape — shared by both create paths below. */
-  async function liveOptionData(o: (typeof newer.questions)[number]["options"][number]) {
+  type OptionTpl = (typeof newer.questions)[number]["options"][number];
+
+  /**
+   * Resolve one option's routing links against the live tree. Read-only —
+   * never writes, never guesses. Any link the template names that does not
+   * resolve is collected as a BLOCKING problem, not written as null.
+   */
+  async function resolveOptionLinks(o: OptionTpl, problems: string[]) {
     const [nextQuestionId, rerouteServiceId, referencedServiceId] = await Promise.all([
       o.nextQuestionKey ? resolveQuestionId(o.nextQuestionKey) : Promise.resolve(null),
       o.rerouteServiceKey ? resolveServiceId(o.rerouteServiceKey) : Promise.resolve(null),
@@ -181,7 +199,7 @@ async function main() {
       [o.rerouteServiceKey, rerouteServiceId, "rerouteServiceKey"],
       [o.referencedServiceKey, referencedServiceId, "referencedServiceKey"],
     ] as const) {
-      if (want && !got) console.log(`      ! ${label} "${want}" does not resolve on this contractor's live tree yet — written as null. Adopt its target first; this specific row will need a manual follow-up fix once it exists, since re-running --adopt on an already-applied change has nothing left to detect.`);
+      if (want && !got) problems.push(`${o.value}: ${label} "${want}" does not resolve on this contractor's live tree yet`);
     }
     return {
       value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
@@ -190,6 +208,11 @@ async function main() {
       numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
       requiresCapabilityKey: o.requiresCapabilityKey,
       nextQuestionId, rerouteServiceId, referencedServiceId,
+      components: o.components.map((c) => ({
+        canonicalComponentId: c.canonicalComponentId, quantity: c.quantity,
+        conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+        quantityAnswerKey: c.quantityAnswerKey,
+      })),
     };
   }
 
@@ -205,39 +228,51 @@ async function main() {
     }
     if (ch.kind === "question-added") {
       const tq = newer.questions.find((q) => q.key === ch.key)!;
-      const q = await prisma.question.create({
-        data: { serviceId: svc.id, key: tq.key, prompt: tq.prompt, helpText: tq.helpText,
-                inputType: tq.inputType, order: tq.order,
-                numberAllowsDecimal: tq.numberAllowsDecimal, numberMin: tq.numberMin, numberMax: tq.numberMax,
-                templateVersionId: latest.id, templateKey: tq.key },
-      });
-      for (const o of tq.options) {
-        const data = await liveOptionData(o);
-        await prisma.answerOption.create({
-          data: { ...data, questionId: q.id,
-                  components: { create: o.components.map((c) => ({
-                    canonicalComponentId: c.canonicalComponentId, quantity: c.quantity,
-                    conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
-                    quantityAnswerKey: c.quantityAnswerKey,
-                  })) },
-                  // No price modifier. Structure only.
-                  templateVersionId: latest.id, templateKey: `${tq.key}/${o.value}` },
-        });
+      // RESOLVE EVERY OPTION FIRST. If any option's routing links don't
+      // resolve, refuse the WHOLE question — never create the question with
+      // some options wired and others not.
+      const problems: string[] = [];
+      const resolved = await Promise.all(tq.options.map((o) => resolveOptionLinks(o, problems)));
+      if (problems.length > 0) {
+        console.error(`\n  REFUSED: "${adopt}" cannot be adopted — its own routing is incomplete on this contractor's live tree:`);
+        for (const p of problems) console.error(`    - ${p}`);
+        console.error(`\n  Nothing was written. Adopt the missing target(s) first, then retry this change.\n`);
+        await prisma.$disconnect(); process.exit(1);
       }
+      await prisma.$transaction(async (tx) => {
+        const q = await tx.question.create({
+          data: { serviceId: svc.id, key: tq.key, prompt: tq.prompt, helpText: tq.helpText,
+                  inputType: tq.inputType, order: tq.order,
+                  numberAllowsDecimal: tq.numberAllowsDecimal, numberMin: tq.numberMin, numberMax: tq.numberMax,
+                  templateVersionId: latest.id, templateKey: tq.key },
+        });
+        for (const [i, o] of tq.options.entries()) {
+          const { components, ...data } = resolved[i];
+          await tx.answerOption.create({
+            data: { ...data, questionId: q.id,
+                    components: { create: components },
+                    // No price modifier. Structure only.
+                    templateVersionId: latest.id, templateKey: `${tq.key}/${o.value}` },
+          });
+        }
+      });
       applied++;
     }
     if (ch.kind === "option-added") {
       const tq = newer.questions.find((q) => q.key === ch.questionKey)!;
       const to = tq.options.find((o) => o.value === ch.value)!;
       const mine = await prisma.question.findFirstOrThrow({ where: { serviceId: svc.id, key: ch.questionKey } });
-      const data = await liveOptionData(to);
+      const problems: string[] = [];
+      const { components, ...data } = await resolveOptionLinks(to, problems);
+      if (problems.length > 0) {
+        console.error(`\n  REFUSED: "${adopt}" cannot be adopted — its routing is incomplete on this contractor's live tree:`);
+        for (const p of problems) console.error(`    - ${p}`);
+        console.error(`\n  Nothing was written. Adopt the missing target(s) first, then retry this change.\n`);
+        await prisma.$disconnect(); process.exit(1);
+      }
       await prisma.answerOption.create({
         data: { ...data, questionId: mine.id,
-                components: { create: to.components.map((c) => ({
-                  canonicalComponentId: c.canonicalComponentId, quantity: c.quantity,
-                  conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
-                  quantityAnswerKey: c.quantityAnswerKey,
-                })) },
+                components: { create: components },
                 templateVersionId: latest.id, templateKey: `${ch.questionKey}/${to.value}` },
       });
       applied++;

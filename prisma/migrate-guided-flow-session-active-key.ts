@@ -20,47 +20,55 @@
  *   1. Loads every ACTIVE GuidedFlowSession, grouped by the same
  *      (contractorId, sessionId, serviceId) triple `buildActiveSessionKey`
  *      computes from.
- *   2. A group whose rows carry genuinely DIFFERENT `consumedAnswers` is
- *      AMBIGUOUS and is left completely untouched — no row abandoned, no
- *      key backfilled for anyone in it — reported by name for a human to
- *      resolve. This script has no product answer for which of two
- *      divergent customer answer sets is correct, and picking "most
- *      recent" and calling that a resolution would be discarding real
- *      customer progress under the appearance of a repair.
- *   3. For a group whose rows all carry IDENTICAL answers — a true
- *      duplicate, not a disagreement — the row already carrying the
+ *   2. A group is BLOCKED — left completely untouched, no row abandoned,
+ *      no key backfilled for ANYONE in the group, reported by name for a
+ *      human to resolve — the moment either of two things is true of it:
+ *      its rows carry genuinely DIFFERENT `consumedAnswers`, or ANY row in
+ *      it (not just whichever one recency would pick as the loser) still
+ *      has a live `DeviceHandoff` or a `PENDING` `GuidedFlowVisualAssistTask`
+ *      pointing at it. See WHY A GROUP IS BLOCKED, WHOLE, below for both.
+ *   3. For a group with NEITHER condition — every row agrees on answers
+ *      and none has a live dependent — the row already carrying the
  *      correct `activeSessionKey`, if one exists (see EXISTING-KEY
  *      SAFETY below), or otherwise the most recently active row, is kept;
- *      every other row is demoted to ABANDONED, UNLESS a given loser is
- *      unsafe to touch automatically (see below), in which case that one
- *      loser is left exactly as it is and reported by name.
+ *      every other row is demoted to ABANDONED.
  *   4. Backfills `activeSessionKey` on the one surviving ACTIVE row per
  *      resolved triple.
  *
- * A LOSER IS UNSAFE TO ABANDON AUTOMATICALLY WHEN IT IS NOT MERELY STALE.
+ * WHY A GROUP IS BLOCKED, WHOLE — not just the one row that looks unsafe.
  *
- * "Keep one, discard the rest" is correct for a loser that is genuinely
- * dead — nobody is still looking at it. Two things say a loser is NOT dead,
- * and neither is checked by simply comparing `lastActivityAt`:
+ * "Keep one, discard the rest" is correct only when EVERY row being
+ * discarded is genuinely dead — nobody is still looking at any of them.
+ * Two things say that is not true of the group, and neither is checked by
+ * comparing `lastActivityAt`:
+ *
+ *   DIFFERENT `consumedAnswers` across the group's rows — this script has
+ *   no product answer for which one is correct, and choosing "most
+ *   recent" and calling that a resolution discards real customer progress
+ *   under the appearance of a repair;
  *
  *   a LIVE DeviceHandoff (status AVAILABLE and not yet past its own
- *   `expiresAt`, or CONNECTED) pointing at the loser — a second device may
- *   be mid-handoff onto this exact session right now, and abandoning it out
- *   from under that handoff breaks the join for whoever is holding the
- *   token, silently;
+ *   `expiresAt`, or CONNECTED) or a PENDING GuidedFlowVisualAssistTask on
+ *   ANY row in the group — a second device may be mid-handoff onto
+ *   whichever row carries it right now, or a photo/scan result may still
+ *   be inbound for it, regardless of whether that row would have been the
+ *   "winner" or a "loser" under the recency rule.
  *
- *   a PENDING GuidedFlowVisualAssistTask on the loser — a photo/scan task
- *   this session is still waiting on; abandoning the session does not
- *   cancel the task, so a result that lands after the abandonment would
- *   write into a session nobody is reading from any more.
- *
- * Neither condition is decided by this script — it has no product answer
- * for "which of two genuinely concurrent, still-live sessions should win",
- * and inventing one here would be exactly the silent product decision this
- * codebase's own conventions (see e.g. `lib/electrical/materialTakeoff.ts`'s
- * refusal-over-guessing idiom) exist to prevent. A loser meeting either
- * condition is left untouched and reported by id and reason, for a human to
- * resolve; every other loser in the same group is still processed normally.
+ * AN EARLIER VERSION OF THIS SCRIPT ONLY PROTECTED THE ONE ROW, NOT THE
+ * GROUP. It resolved the rest of a group normally — abandoning other,
+ * genuinely safe-looking losers and backfilling the winner's key — even
+ * though one row in that same group still had a live handoff or task,
+ * and it reported the run as having succeeded (exit code 0) with the one
+ * row merely "left ACTIVE" as a footnote. A migration is not done while
+ * any row in a group is still live; resolving the rest of the group around
+ * it is a partial change to a group this script cannot fully account for,
+ * dressed up as progress. Neither condition is decided by this script — it
+ * has no product answer for "which of several genuinely live or
+ * disagreeing sessions should win", and inventing one here would be
+ * exactly the silent product decision this codebase's own conventions
+ * (see e.g. `lib/electrical/materialTakeoff.ts`'s refusal-over-guessing
+ * idiom) exist to prevent. The whole group is left exactly as found, and
+ * the script's own exit code says so — see EXIT CODE below.
  *
  * EXISTING-KEY SAFETY — the crash this script could previously cause.
  *
@@ -91,17 +99,19 @@
  *   abandons, which always nulls the key first, so no collision is
  *   possible regardless of which row is chosen as the loser.
  *
- * ANSWER DIVERGENCE, WHEN A GROUP IS OTHERWISE RESOLVED. Even within a
- * group whose rows all match, there is no merge semantics anywhere in this
- * codebase for two independently-progressed `consumedAnswers` payloads —
- * moot for a truly identical group, but recorded here because the
- * divergent case is handled entirely by step 2 above, never by resolving
- * and merely logging the difference.
+ * EXIT CODE. Exits 1 — not 0 — whenever any group was left blocked. A
+ * migration with human-review groups outstanding is not a completed
+ * migration, and a caller checking only the exit code (a script, a CI
+ * step, an operator who does not read the log) must be able to tell the
+ * difference between "fully resolved" and "resolved everything it safely
+ * could, N groups still need you." Zero is reserved for the case where
+ * every group was either already fine or safely resolved.
  *
  * Idempotent: a second run finds no duplicate groups and every
- * `activeSessionKey` already set, and reports zero changes — except any
- * AMBIGUOUS or UNSAFE group, which is reported again, unchanged, until a
- * human resolves it. That repetition is intended, not a bug.
+ * `activeSessionKey` already set, and reports zero changes and exits 0 —
+ * except any BLOCKED group, which is reported again, unchanged, and exits
+ * 1 again, until a human resolves it. That repetition is intended, not a
+ * bug.
  *
  * NEVER RUN THIS AGAINST A SHARED OR PRODUCTION DATABASE — see
  * prisma/_assertDisposableLocalDatabase.ts, enforced below, not just
@@ -144,32 +154,28 @@ async function main() {
   }
 
   /**
-   * The winner for a group whose rows all agree on answers: a row that
+   * The winner for a group with neither blocking condition: a row that
    * ALREADY carries the correct key (a real application-created row) if one
    * exists, otherwise the most recently active row (`rows[0]`, per the
-   * query's own `orderBy`). Computed once and reused by both the loser
-   * precomputation below and the resolution loop, so the two can never
-   * disagree about who the winner is — that disagreement is exactly how the
-   * existing-key crash happened before.
+   * query's own `orderBy`). See EXISTING-KEY SAFETY for why recency alone
+   * is not enough.
    */
   const winnerOf = (key: string, rows: typeof activeSessions) =>
     rows.find((r) => r.activeSessionKey === key) ?? rows[0];
 
-  // Every loser across every non-ambiguous group, checked for live
-  // dependents in ONE pass rather than one query per row — this table can
-  // carry thousands of sessions in a real production backfill. An AMBIGUOUS
-  // group (rows disagree on answers) contributes no losers at all: every row
-  // in it stays exactly as found.
-  const allLoserIds = [...groups.entries()].flatMap(([key, rows]) => {
-    if (rows.length > 1 && new Set(rows.map((r) => JSON.stringify(r.consumedAnswers))).size > 1) return [];
-    const winner = winnerOf(key, rows);
-    return rows.filter((r) => r.id !== winner.id).map((r) => r.id);
-  });
+  // Every row in every multi-row group, checked for live dependents in ONE
+  // pass rather than one query per row — this table can carry thousands of
+  // sessions in a real production backfill. EVERY row, not just whichever
+  // one recency would pick as a loser: a live dependent on the row recency
+  // would have picked as WINNER blocks the group exactly as much as one on
+  // a loser, and only checking losers is how the earlier version of this
+  // script missed that case entirely.
+  const allGroupRowIds = [...groups.values()].filter((rows) => rows.length > 1).flatMap((rows) => rows.map((r) => r.id));
 
   const now = new Date();
-  const liveHandoffs = allLoserIds.length === 0 ? [] : await prisma.deviceHandoff.findMany({
+  const liveHandoffs = allGroupRowIds.length === 0 ? [] : await prisma.deviceHandoff.findMany({
     where: {
-      guidedFlowSessionId: { in: allLoserIds },
+      guidedFlowSessionId: { in: allGroupRowIds },
       OR: [
         { status: "CONNECTED" },
         { status: "AVAILABLE", expiresAt: { gt: now } },
@@ -177,61 +183,59 @@ async function main() {
     },
     select: { guidedFlowSessionId: true, id: true, status: true },
   });
-  const pendingTasks = allLoserIds.length === 0 ? [] : await prisma.guidedFlowVisualAssistTask.findMany({
-    where: { guidedFlowSessionId: { in: allLoserIds }, status: "PENDING" },
+  const pendingTasks = allGroupRowIds.length === 0 ? [] : await prisma.guidedFlowVisualAssistTask.findMany({
+    where: { guidedFlowSessionId: { in: allGroupRowIds }, status: "PENDING" },
     select: { guidedFlowSessionId: true, id: true, taskType: true },
   });
-  const unsafeReason = new Map<string, string>();
+  const liveDependentReason = new Map<string, string>();
   for (const h of liveHandoffs) {
-    unsafeReason.set(h.guidedFlowSessionId,
+    liveDependentReason.set(h.guidedFlowSessionId,
       `a ${h.status} DeviceHandoff (${h.id}) still points at it — a second device may be mid-handoff onto this exact session right now`);
   }
   for (const t of pendingTasks) {
-    if (unsafeReason.has(t.guidedFlowSessionId)) continue; // one reason is enough to report
-    unsafeReason.set(t.guidedFlowSessionId,
+    if (liveDependentReason.has(t.guidedFlowSessionId)) continue; // one reason is enough to report
+    liveDependentReason.set(t.guidedFlowSessionId,
       `a PENDING GuidedFlowVisualAssistTask (${t.id}, ${t.taskType}) is still waiting on it`);
   }
 
   let abandonedCount = 0;
   let backfilledCount = 0;
-  let skippedUnsafeCount = 0;
-  let ambiguousGroupCount = 0;
+  let blockedGroupCount = 0;
 
   for (const [key, rows] of groups) {
     if (rows.length > 1) {
-      // A group is AMBIGUOUS the moment any two rows disagree on answers —
-      // checked across every pair, not just loser-vs-recency-winner, because
-      // recency says nothing about which answers are correct.
+      // A group is BLOCKED — as a whole, not row by row — the moment either
+      // condition is true of ANY row in it. Checked across every row, not
+      // just loser-vs-recency-winner: recency says nothing about which
+      // answers are correct, and a live dependent on the row recency would
+      // have picked as winner is just as blocking as one on a loser.
       const distinctAnswers = new Set(rows.map((r) => JSON.stringify(r.consumedAnswers)));
-      if (distinctAnswers.size > 1) {
-        ambiguousGroupCount++;
-        console.log(`  ⚠ AMBIGUOUS group (${key}) — ${rows.length} ACTIVE rows carry DIFFERENT answers. ` +
-          `Left completely untouched; no row abandoned, no key backfilled, for anyone in this group:`);
+      const liveRows = rows.filter((r) => liveDependentReason.has(r.id));
+      if (distinctAnswers.size > 1 || liveRows.length > 0) {
+        blockedGroupCount++;
+        const reasons = [
+          ...(distinctAnswers.size > 1 ? [`${rows.length} ACTIVE rows carry DIFFERENT answers`] : []),
+          ...liveRows.map((r) => `${r.id} still has ${liveDependentReason.get(r.id)}`),
+        ];
+        console.log(`  ⚠ BLOCKED group (${key}) — left completely untouched; no row abandoned, no key backfilled, for anyone in this group:`);
+        for (const reason of reasons) console.log(`      - ${reason}`);
         for (const r of rows) console.log(`      ${r.id} (lastActivityAt ${r.lastActivityAt.toISOString()}): ${JSON.stringify(r.consumedAnswers)}`);
-        continue; // the whole group, not just one row
+        continue; // the whole group, not just the row(s) that triggered it
       }
     }
 
-    // All rows in this group carry identical answers (or there is only
-    // one row). Same winner rule the precomputation above already used —
-    // see EXISTING-KEY SAFETY for why recency alone is not enough.
+    // Neither blocking condition holds: every row agrees on answers and
+    // none has a live dependent. Safe to resolve normally.
     const winner = winnerOf(key, rows);
     const losers = rows.filter((r) => r.id !== winner.id);
 
     for (const loser of losers) {
-      const unsafe = unsafeReason.get(loser.id);
-      if (unsafe) {
-        skippedUnsafeCount++;
-        console.log(`  ! duplicate ACTIVE session ${loser.id} (${key}) LEFT AS ACTIVE — unsafe to abandon automatically: ${unsafe}`);
-        continue;
-      }
-
       // The real application function, not a hand-rolled update — it always
       // nulls activeSessionKey, which is what makes the backfill below safe
       // regardless of which row this loser turns out to be.
       await abandonSession(prisma, loser.id);
       abandonedCount++;
-      console.log(`  · duplicate ACTIVE session ${loser.id} (${key}) -> ABANDONED, keeping ${winner.id} (identical answers)`);
+      console.log(`  · duplicate ACTIVE session ${loser.id} (${key}) -> ABANDONED, keeping ${winner.id} (identical answers, no live dependents)`);
     }
 
     if (winner.activeSessionKey !== key) {
@@ -246,17 +250,19 @@ async function main() {
   console.log(
     `\nDone. ${groups.size} distinct contractor+session+service triple(s) checked, ` +
     `${abandonedCount} duplicate ACTIVE session(s) resolved, ` +
-    `${skippedUnsafeCount} left ACTIVE as unsafe to touch automatically (see "!" lines above — these need a human decision), ` +
-    `${ambiguousGroupCount} group(s) left entirely untouched as ambiguous (see "⚠" lines above — these need a human decision), ` +
+    `${blockedGroupCount} group(s) left entirely untouched and BLOCKED (see "⚠" lines above — these need a human decision), ` +
     `${backfilledCount} activeSessionKey value(s) backfilled.\n`
   );
 
-  if (skippedUnsafeCount > 0 || ambiguousGroupCount > 0) {
+  if (blockedGroupCount > 0) {
     console.log(
-      `  NOT idempotent-clean: ${skippedUnsafeCount + ambiguousGroupCount} group(s)/session(s) remain ACTIVE duplicates on purpose.\n` +
-      `  Re-running this script will report them again until a human resolves the handoff, the\n` +
-      `  pending task, or the answer disagreement explicitly. This is the intended behavior, not a bug.\n`
+      `  INCOMPLETE: ${blockedGroupCount} group(s) still need a human decision before this migration is done.\n` +
+      `  Re-running this script will report them again, unchanged, until a human resolves the\n` +
+      `  handoff, the pending task, or the answer disagreement explicitly. Exiting 1, not 0 —\n` +
+      `  this run did everything it safely could, but it is not a completed migration.\n`
     );
+    await prisma.$disconnect();
+    process.exit(1);
   }
 }
 
