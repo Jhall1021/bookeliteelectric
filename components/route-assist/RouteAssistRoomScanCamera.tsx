@@ -8,6 +8,7 @@ export type RouteAssistRoomScanCaptureV1 = { version: 1; captureKind: "ORDINARY_
 type Props = { sourceLabel: string; destinationLabels: string[]; onScanComplete: (capture: RouteAssistRoomScanCaptureV1) => void; onBack?: () => void };
 const SWEEP_FRAME_INTERVAL_MS = 900;
 const MAX_SWEEP_FRAMES = 12;
+const MAX_SWEEP_FRAME_LONG_EDGE_PX = 1600;
 
 export default function RouteAssistRoomScanCamera({ sourceLabel, destinationLabels, onScanComplete, onBack }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -28,12 +29,18 @@ export default function RouteAssistRoomScanCamera({ sourceLabel, destinationLabe
 
   async function frameFromVideo(video: HTMLVideoElement, sequence: number): Promise<RouteAssistBrowserFrameV1 | null> {
     if (!video.videoWidth || !video.videoHeight) return null;
-    const canvas = document.createElement("canvas"); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const sourceWidth = video.videoWidth;
+    const sourceHeight = video.videoHeight;
+    const longEdge = Math.max(sourceWidth, sourceHeight);
+    const scale = longEdge > MAX_SWEEP_FRAME_LONG_EDGE_PX ? MAX_SWEEP_FRAME_LONG_EDGE_PX / longEdge : 1;
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
     const context = canvas.getContext("2d"); if (!context) return null;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.drawImage(video, 0, 0, width, height);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82)); if (!blob) return null;
     const objectUrl = URL.createObjectURL(blob);
-    return { imageId: `browser-sweep-${Date.now()}-${sequence}`, objectUrl, mimeType: "image/jpeg", width: canvas.width, height: canvas.height, capturedAt: new Date().toISOString(), sequence };
+    return { imageId: `browser-sweep-${Date.now()}-${sequence}`, objectUrl, mimeType: "image/jpeg", width, height, capturedAt: new Date().toISOString(), sequence };
   }
 
   async function sampleSweepFrameUnlocked() {
