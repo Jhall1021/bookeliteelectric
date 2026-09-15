@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RouteAssistRoomScanCamera, { type RouteAssistRoomScanCaptureV1 } from "@/components/route-assist/RouteAssistRoomScanCamera";
 import RouteAssistSurfaceRacewayPreview from "@/components/route-assist/RouteAssistSurfaceRacewayPreview";
 import { routeAssistBrowserCapturePersisterV1 } from "@/lib/visual-assist/route-assist/browserCapturePersister";
 import { persistRouteAssistReviewFrameV1, type RouteAssistCaptureHandoffV1 } from "@/lib/visual-assist/route-assist/captureHandoff";
+import { detectRouteAssistWebCaptureCapabilityV1, selectRouteAssistAcquisitionPathV1, type RouteAssistAcquisitionPathV1 } from "@/lib/visual-assist/route-assist/captureCapability";
 
 type DemoKind = "OUTLET" | "SWITCH" | "LIGHT_FIXTURE";
 type RouteReviewState = "PENDING" | "ACCEPTED" | "ADJUST";
@@ -26,6 +27,14 @@ export default function RouteAssistCameraDemoPage() {
   const [handoff, setHandoff] = useState<RouteAssistCaptureHandoffV1 | null>(null);
   const [handoffState, setHandoffState] = useState<HandoffState>("IDLE");
   const [reviewState, setReviewState] = useState<RouteReviewState>("PENDING");
+  const [acquisition, setAcquisition] = useState<RouteAssistAcquisitionPathV1 | null>(null);
+
+  useEffect(() => {
+    // Browser detection is deliberately conservative: it can select the
+    // calibrated-camera fallback, but it can never grant world-geometry
+    // authority. A native/spatial bridge will override this capability later.
+    setAcquisition(selectRouteAssistAcquisitionPathV1(detectRouteAssistWebCaptureCapabilityV1()));
+  }, []);
 
   function chooseKind(next: DemoKind) { setKind(next); setCapture(null); setHandoff(null); setHandoffState("IDLE"); setReviewState("PENDING"); }
   async function handleCapture(next: RouteAssistRoomScanCaptureV1) {
@@ -38,9 +47,12 @@ export default function RouteAssistCameraDemoPage() {
   }
 
   return <main className="min-h-screen bg-warmwhite px-4 py-6" data-testid="route-assist-camera-demo"><div className="mx-auto w-full max-w-md">
-    <header className="mb-5"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-electric">Price2Book</p><h1 className="mt-1 text-2xl font-bold text-navy">Route Assist camera preview</h1><p className="mt-2 text-sm leading-6 text-slate">This fixture previews phone capture, durable media handoff, and homeowner review without changing production pricing or guided flows.</p></header>
+    <header className="mb-5"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-electric">Price2Book</p><h1 className="mt-1 text-2xl font-bold text-navy">Route Assist camera preview</h1><p className="mt-2 text-sm leading-6 text-slate">This fixture previews automatic capture-path selection, durable media handoff, and homeowner review without changing production pricing or guided flows.</p></header>
+    {acquisition && <div className="mb-4 rounded-xl border border-cardline bg-white p-3 text-xs leading-5 text-slate" data-testid="route-assist-acquisition-path"><strong className="text-navy">Capture path:</strong> {acquisition.path === "WORLD_GEOMETRY" ? "Measured spatial geometry" : acquisition.path === "CALIBRATED_CAMERA" ? "Camera scan with calibration" : "Contractor review"}<div>Measurement authority: {acquisition.measurementAuthority.toLowerCase()}</div></div>}
     <div className="mb-4 grid grid-cols-3 gap-2" data-testid="route-assist-camera-kind">{(Object.keys(LABELS) as DemoKind[]).map((option) => <button key={option} type="button" onClick={() => chooseKind(option)} className={`rounded-xl border px-2 py-2.5 text-xs font-semibold ${kind === option ? "border-electric bg-blue-50 text-electric" : "border-cardline bg-white text-slate"}`}>{LABELS[option]}</button>)}</div>
-    <RouteAssistRoomScanCamera key={kind} sourceLabel="Existing outlet" destinationLabels={destinationLabels(kind)} onScanComplete={handleCapture} />
+    {acquisition?.path === "CALIBRATED_CAMERA" && <RouteAssistRoomScanCamera key={kind} sourceLabel="Existing outlet" destinationLabels={destinationLabels(kind)} onScanComplete={handleCapture} />}
+    {acquisition?.path === "REVIEW_ONLY" && <div className="rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950" data-testid="route-assist-review-only">This device cannot provide the camera evidence Route Assist needs. The job should continue to contractor review rather than inventing route geometry.</div>}
+    {acquisition?.path === "WORLD_GEOMETRY" && <div className="rounded-xl bg-blue-50 p-4 text-sm leading-6 text-navy" data-testid="route-assist-world-geometry">A calibrated spatial provider is available. Route Assist should launch that provider directly; homeowner scale calibration is not required.</div>}
 
     {capture && handoffState === "UPLOADING" && <div className="mt-4 rounded-xl border border-cardline bg-white p-4 text-sm text-slate" data-testid="route-assist-media-uploading"><strong className="text-navy">Saving room scan…</strong><div className="mt-1 text-xs">The captured frame is being persisted before geometry analysis or review.</div></div>}
     {capture && handoffState === "FAILED" && <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950" data-testid="route-assist-media-failed"><strong>Room scan could not be saved.</strong><div className="mt-1 text-xs">No geometry or route facts were created. Please capture the room again.</div></div>}
