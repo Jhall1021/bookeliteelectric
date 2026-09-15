@@ -1,6 +1,10 @@
 import type { RouteAssistSweepCaptureHandoffV1 } from "./captureHandoff";
 import { evaluateRouteAssistCaptureReadinessV1 } from "./captureReadiness";
-import { homeownerCopyForVisibleSceneQualityIssueV1 } from "./visibleSceneQuality";
+import {
+  recaptureIssueFromCaptureReadinessV1,
+  recaptureIssueFromVisibleSceneQualityV1,
+  type RouteAssistRecaptureIssueV1,
+} from "./recaptureIssue";
 import { buildVisibleTrimRouteOverlayV1, type RouteAssistVisibleTrimRouteOverlayV1 } from "./visibleTrimRouteOverlay";
 import { proposeVisibleTrimHuggingRouteV1, type RouteAssistVisibleTrimRouteProposalV1 } from "./visibleTrimRouteProposal";
 import {
@@ -15,11 +19,12 @@ export type RouteAssistVisibleSceneReviewPipelineV1 = {
   semantics: RouteAssistVisibleSceneSemanticsV1 | null;
   proposal: RouteAssistVisibleTrimRouteProposalV1 | null;
   overlay: RouteAssistVisibleTrimRouteOverlayV1 | null;
+  recaptureIssues: RouteAssistRecaptureIssueV1[];
   problems: string[];
 };
 
 function failed(providerKey: string, problem: string): RouteAssistVisibleSceneReviewPipelineV1 {
-  return { providerKey, semantics: null, proposal: null, overlay: null, problems: [problem] };
+  return { providerKey, semantics: null, proposal: null, overlay: null, recaptureIssues: [], problems: [problem] };
 }
 
 /**
@@ -54,12 +59,14 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
 
   const readiness = evaluateRouteAssistCaptureReadinessV1(args.handoff);
   if (readiness.status !== "READY_FOR_SEMANTIC_REVIEW") {
+    const recaptureIssues = readiness.problems.map(recaptureIssueFromCaptureReadinessV1);
     return {
       providerKey: args.provider.providerKey,
       semantics: null,
       proposal: null,
       overlay: null,
-      problems: readiness.problems.map((problem) => `${problem.code}: ${problem.message}`),
+      recaptureIssues,
+      problems: recaptureIssues.map((issue) => `${issue.code}: ${issue.homeownerMessage}`),
     };
   }
 
@@ -76,18 +83,21 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
       semantics: null,
       proposal: null,
       overlay: null,
+      recaptureIssues: [],
       problems: providerRun.problems,
     };
   }
 
   const qualityIssues = providerRun.semantics.qualityIssues ?? [];
   if (qualityIssues.length) {
+    const recaptureIssues = qualityIssues.map(recaptureIssueFromVisibleSceneQualityV1);
     return {
       providerKey: providerRun.providerKey,
       semantics: providerRun.semantics,
       proposal: null,
       overlay: null,
-      problems: qualityIssues.map((issue) => `${issue.code}: ${homeownerCopyForVisibleSceneQualityIssueV1(issue)}`),
+      recaptureIssues,
+      problems: recaptureIssues.map((issue) => `${issue.code}: ${issue.homeownerMessage}`),
     };
   }
 
@@ -103,6 +113,7 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
       semantics: providerRun.semantics,
       proposal,
       overlay: null,
+      recaptureIssues: [],
       problems: [...proposal.problems],
     };
   }
@@ -117,6 +128,7 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
       semantics: providerRun.semantics,
       proposal,
       overlay: null,
+      recaptureIssues: [],
       problems: ["visible trim route could not be projected onto captured frames"],
     };
   }
@@ -126,6 +138,7 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
     semantics: providerRun.semantics,
     proposal,
     overlay,
+    recaptureIssues: [],
     problems: [],
   };
 }
