@@ -136,3 +136,42 @@ export function orderedGeometryFromResult(
 ): RouteAssistOrderedGeometryV1 | null {
   return buildOrderedRouteGeometryV1(result.points, result.segments);
 }
+
+export type ExactPhysicalTurnCountsV1 = {
+  flat: number;
+  inside: number;
+  outside: number;
+};
+
+/**
+ * Exact raceway-fitting turn counts, but ONLY when the graph proves completeness.
+ *
+ * The legacy `insideCornersCount` / `outsideCornersCount` fields are derived
+ * from a 2-D image-space polyline. They are useful UI geometry, not physical
+ * fitting authority. This function ignores them completely and reads only the
+ * explicit `RoutePoint.physicalTurn` evidence carried by Ordered Geometry V1.
+ *
+ * A null physicalTurn means "not established", NOT "straight / no fitting".
+ * Therefore one unresolved interior waypoint makes the entire exact count null;
+ * counting only the known turns would silently understate material. Routes with
+ * helper/obstacle waypoints that are genuinely straight likewise remain
+ * unresolved until a future evidence vocabulary can explicitly prove "no turn".
+ *
+ * A route with no interior waypoints is complete by construction and therefore
+ * has exact zero counts for all three fitting types.
+ */
+export function exactPhysicalTurnCountsFromResult(
+  result: Pick<RouteAssistResult, "points" | "segments">
+): ExactPhysicalTurnCountsV1 | null {
+  const ordered = orderedGeometryFromResult(result);
+  if (!ordered) return null;
+  if (ordered.transitions.some((transition) => transition.physicalTurn === null)) return null;
+
+  const counts: ExactPhysicalTurnCountsV1 = { flat: 0, inside: 0, outside: 0 };
+  for (const transition of ordered.transitions) {
+    if (transition.physicalTurn === "FLAT") counts.flat++;
+    else if (transition.physicalTurn === "INSIDE") counts.inside++;
+    else if (transition.physicalTurn === "OUTSIDE") counts.outside++;
+  }
+  return counts;
+}
