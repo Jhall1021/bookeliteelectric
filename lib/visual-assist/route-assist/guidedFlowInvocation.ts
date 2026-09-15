@@ -49,6 +49,11 @@ export type RouteAssistQuestionInvocation = {
   resolveAnswerValue: (result: RouteAssistResult) => string | null;
 };
 
+export type RouteAssistCaptureContext = Pick<
+  RouteAssistQuestionInvocation,
+  "destinationType" | "sourceHint" | "destinationHint"
+>;
+
 /**
  * The exact three distance bands `outlet_run_distance` already has. A
  * result that isn't confirmed, or that Route Assist itself flagged for
@@ -177,11 +182,12 @@ const V2_SURFACE_FLAT = "surface_route_flat_corner_count";
 const V2_CONCEALED_FEET = "concealed_route_feet";
 
 /**
- * One surface scan produces one canonical result. Use the first surface route
- * question's stable key as that task identity so the phone handoff can recover
- * capture context through the same registry without a second persisted config.
+ * One surface scan produces one canonical result and therefore one persisted
+ * task. The task identity deliberately does NOT equal any question key: a
+ * capture is upstream of the four questions it may answer, not owned by the
+ * first one that happens to ask for it.
  */
-const V2_SURFACE_CAPTURE_TASK = V2_SURFACE_FEET;
+const V2_SURFACE_CAPTURE_TASK = "surface_route_capture_v1";
 
 type SurfaceCaptureCopy = {
   destinationType: RouteAssistDestinationType;
@@ -285,10 +291,42 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
   }),
 };
 
-/** `null` when this (service, question) pair has no Route Assist path — the only thing a caller needs to check. */
+/** `null` when this (service, question) pair has no Route Assist path. */
 export function getRouteAssistInvocation(
   serviceSlug: string,
   questionKey: string
 ): RouteAssistQuestionInvocation | null {
   return REGISTRY[serviceSlug]?.[questionKey] ?? null;
+}
+
+/**
+ * Recover only the capture context from a persisted task identity.
+ *
+ * This is intentionally NOT `getRouteAssistInvocation(serviceSlug, taskKey)`:
+ * grouped task keys need not be question keys. Every question sharing one task
+ * must agree on the capture context; disagreement is a registry defect and
+ * fails closed instead of arbitrarily choosing whichever question happened to
+ * be inserted first.
+ */
+export function getRouteAssistCaptureContextByTaskKey(
+  serviceSlug: string,
+  taskKey: string
+): RouteAssistCaptureContext | null {
+  const matches = Object.values(REGISTRY[serviceSlug] ?? {}).filter((invocation) => invocation.taskKey === taskKey);
+  if (matches.length === 0) return null;
+
+  const first = matches[0];
+  const coherent = matches.every(
+    (invocation) =>
+      invocation.destinationType === first.destinationType &&
+      invocation.sourceHint === first.sourceHint &&
+      invocation.destinationHint === first.destinationHint
+  );
+  if (!coherent) return null;
+
+  return {
+    destinationType: first.destinationType,
+    sourceHint: first.sourceHint,
+    destinationHint: first.destinationHint,
+  };
 }
