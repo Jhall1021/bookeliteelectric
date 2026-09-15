@@ -1,5 +1,6 @@
 import { getRouteAssistInvocation } from "../lib/visual-assist/route-assist/guidedFlowInvocation";
 import { isRouteAssistResultPayload } from "../lib/visual-assist/route-assist/validation";
+import type { RouteAssistDestinationType } from "../lib/visual-assist/route-assist/taxonomy";
 import type { RouteAssistResult } from "../lib/visual-assist/route-assist/types";
 
 let pass = 0;
@@ -83,6 +84,37 @@ check(
   outside?.resolveAnswerValue(valid) === "1",
   String(outside?.resolveAnswerValue(valid))
 );
+
+const endpointProofs: {
+  service: string;
+  destinationType: RouteAssistDestinationType;
+}[] = [
+  { service: "surface-mounted-outlet", destinationType: "RECEPTACLE" },
+  { service: "surface-mounted-switch", destinationType: "SWITCH" },
+  { service: "surface-mounted-fixture-box", destinationType: "SURFACE_BOX" },
+];
+
+for (const proof of endpointProofs) {
+  const inv = getRouteAssistInvocation(proof.service, "surface_route_feet");
+  check(`${proof.service} reuses the surface-route capture`, !!inv);
+  check(
+    `${proof.service} advertises the correct endpoint`,
+    inv?.destinationType === proof.destinationType,
+    String(inv?.destinationType)
+  );
+  check(
+    `${proof.service} accepts its own endpoint result`,
+    inv?.resolveAnswerValue(result({ destinationType: proof.destinationType })) === "14.625",
+    String(inv?.resolveAnswerValue(result({ destinationType: proof.destinationType })))
+  );
+  const wrongDestination: RouteAssistDestinationType =
+    proof.destinationType === "RECEPTACLE" ? "SWITCH" : "RECEPTACLE";
+  check(
+    `${proof.service} refuses a different endpoint's capture`,
+    inv?.resolveAnswerValue(result({ destinationType: wrongDestination })) === null,
+    String(inv?.resolveAnswerValue(result({ destinationType: wrongDestination })))
+  );
+}
 
 check(
   "unconfirmed result cannot complete a task",
