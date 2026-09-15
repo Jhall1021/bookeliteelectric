@@ -18,9 +18,11 @@ export type RouteAssistVisibleTrimRouteProposalV1 = {
   problems: string[];
 };
 
-function byCaptureOrder(captureImageIds: string[], objects: RouteAssistVisibleSceneObjectV1[]): RouteAssistVisibleSceneObjectV1[] {
+function byPrimaryCaptureOrder(captureImageIds: string[], objects: RouteAssistVisibleSceneObjectV1[]): RouteAssistVisibleSceneObjectV1[] {
   const order = new Map(captureImageIds.map((id, index) => [id, index]));
-  return [...objects].sort((a, b) => (order.get(a.imageId) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.imageId) ?? Number.MAX_SAFE_INTEGER) || a.id.localeCompare(b.id));
+  return objects
+    .filter((object) => order.has(object.imageId))
+    .sort((a, b) => order.get(a.imageId)! - order.get(b.imageId)! || a.id.localeCompare(b.id));
 }
 
 /**
@@ -28,24 +30,25 @@ function byCaptureOrder(captureImageIds: string[], objects: RouteAssistVisibleSc
  * scene semantics. This is not a graph mutation and does not establish footage,
  * physical turns, fittings, material quantities, labor, or price.
  *
- * A doorway bypass is proposed only when semantic CV supplies one coherent
- * doorway group with explicit physical left/right casing identities and an
- * entry side. Image x-coordinates and temporal sweep order are never treated as
- * a shared room coordinate system. Missing/ambiguous grouping fails closed.
+ * Source/destination/baseboard/doorway ordering comes ONLY from the primary
+ * ordered sweep. Supplemental recapture objects may complete a coherent doorway
+ * group (for example, a missing casing/top-trim view) but their image order is
+ * never used as route order or room adjacency.
  */
 export function proposeVisibleTrimHuggingRouteV1(args: {
   semantics: RouteAssistVisibleSceneSemanticsV1;
   expectedCaptureImageIds: readonly string[];
+  authorizedSupplementalImageIds?: readonly string[];
   points: readonly RoutePoint[];
   segments: readonly RouteSegment[];
 }): RouteAssistVisibleTrimRouteProposalV1 {
   const problems = validateRouteAssistVisibleSceneSemanticsV1(args);
   if (problems.length) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems };
 
-  const ordered = byCaptureOrder([...args.expectedCaptureImageIds], args.semantics.objects);
+  const ordered = byPrimaryCaptureOrder([...args.expectedCaptureImageIds], args.semantics.objects);
   const source = ordered.find((object) => object.kind === "SOURCE_RECEPTACLE");
   const destination = [...ordered].reverse().find((object) => object.kind === "DESTINATION_MARKER");
-  if (!source || !destination) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["visible source and destination anchors are both required"] };
+  if (!source || !destination) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["visible source and destination anchors are both required in the primary sweep"] };
 
   const sourceIndex = ordered.indexOf(source); const destinationIndex = ordered.indexOf(destination);
   const between = ordered.slice(Math.min(sourceIndex, destinationIndex), Math.max(sourceIndex, destinationIndex) + 1);
