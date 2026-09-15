@@ -78,10 +78,19 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    /**
+     * Return the CANONICAL row, not merely whether this request won.
+     *
+     * A losing desktop/phone must continue from the first winner's result. If
+     * we returned only `accepted: false`, the loser still has its own locally
+     * captured result in memory and could accidentally feed that losing value
+     * into Guided Flow while the database holds something different.
+     */
     return NextResponse.json({
       id: current.id,
       status: current.status,
       accepted: won.count === 1,
+      result: current.result,
     });
   });
 }
