@@ -175,13 +175,13 @@ export default function RouteAssistDemoPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FAFAF8] px-4 py-6" data-testid="route-assist-homeowner-demo">
+    <main className="min-h-screen bg-warmwhite px-4 py-6" data-testid="route-assist-homeowner-demo">
       <div className="mx-auto w-full max-w-md">
         <header className="mb-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">Price2Book</p>
-              <h1 className="mt-1 text-2xl font-bold text-[#0F1E3C]">Route Assist</h1>
+              <h1 className="mt-1 text-2xl font-bold text-navy">Route Assist</h1>
             </div>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Demo</span>
           </div>
@@ -221,7 +221,7 @@ export default function RouteAssistDemoPage() {
               type="button"
               onClick={startScan}
               disabled={step === "SCANNING"}
-              className="mt-5 w-full rounded-xl bg-[#2452D9] px-5 py-3.5 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+              className="mt-5 w-full rounded-xl bg-electric px-5 py-3.5 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
             >
               {step === "SCANNING" ? "Scanning room…" : "Scan route between A and B"}
             </button>
@@ -252,7 +252,7 @@ export default function RouteAssistDemoPage() {
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button type="button" onClick={() => setStep("SETUP")} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700">Rescan</button>
-              <button type="button" onClick={confirmRoute} className="rounded-xl bg-[#2452D9] px-4 py-3 text-sm font-semibold text-white">Confirm route</button>
+              <button type="button" onClick={confirmRoute} className="rounded-xl bg-electric px-4 py-3 text-sm font-semibold text-white">Confirm route</button>
             </div>
           </section>
         )}
