@@ -1,5 +1,6 @@
 import type { RouteAssistVisibleSceneProviderInputV1, RouteAssistVisibleSceneProviderV1 } from "./visibleSceneProvider";
 import type { RouteAssistReviewCorrectionV1 } from "./routeReviewCorrection";
+import type { RouteAssistSupplementalCaptureSetV1 } from "./targetedRecapture";
 import type { RouteAssistVisibleSceneSemanticsV1 } from "./visualSceneSemantics";
 
 export type RouteAssistHttpVisibleSceneRequestV1 = {
@@ -8,7 +9,10 @@ export type RouteAssistHttpVisibleSceneRequestV1 = {
   destinationType: RouteAssistVisibleSceneProviderInputV1["destinationType"];
   pointIds: string[];
   segmentIds: string[];
+  /** Ordered primary sweep image identities. */
   imageIds: string[];
+  /** Supplemental recapture evidence remains separately labeled; no sweep adjacency is implied. */
+  supplementalCaptureSets: RouteAssistSupplementalCaptureSetV1[];
   reviewCorrections: RouteAssistReviewCorrectionV1[];
 };
 
@@ -16,8 +20,9 @@ export type RouteAssistHttpVisibleSceneTransportV1 = {
   /**
    * Network/SDK seam only. Server-side transport resolves authorized imageIds
    * to media; durable storage URLs never become part of the domain contract.
-   * Homeowner corrections are review intent only and must not be treated as
-   * accepted geometry or measurement authority by the transport/provider.
+   * Homeowner corrections are review intent only and supplemental captures are
+   * additional evidence only; neither may be treated as accepted geometry or
+   * measurement authority by the transport/provider.
    */
   analyze(request: RouteAssistHttpVisibleSceneRequestV1): Promise<unknown>;
 };
@@ -44,6 +49,11 @@ export function createRouteAssistHttpVisibleSceneProviderV1(args: {
         pointIds: input.points.map((point) => point.id),
         segmentIds: input.segments.map((segment) => segment.id),
         imageIds: [...input.captureArtifacts.imageIds],
+        supplementalCaptureSets: (input.supplementalCaptureSets ?? []).map((set) => ({
+          ...set,
+          primarySweepImageIds: [...set.primarySweepImageIds],
+          supplementalImageIds: [...set.supplementalImageIds],
+        })),
         reviewCorrections: (input.reviewCorrections ?? []).map((correction) => ({ ...correction, point: { ...correction.point } })),
       });
       return semanticsShape(response);
