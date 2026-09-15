@@ -128,7 +128,21 @@ function serviceWithOneAnswer(option: Record<string, unknown>) {
   const ownComponents = new Map(
     rawComponents
       .filter((c) => c.ownApprovedPriceCents !== null)
-      .map((c) => [c.canonicalComponent.id, { approvedPriceCents: c.ownApprovedPriceCents }])
+      .map((c) => [
+        c.canonicalComponent.id,
+        {
+          approvedPriceCents: c.ownApprovedPriceCents,
+          // Routing V2's own contract (lib/pricing.ts: "NULL IS NOT ZERO")
+          // fails a route closed the instant a component's labor time is
+          // unestablished (undefined/null on the CONTRACTOR's own row, read
+          // via `own.addFieldLaborHours` in lib/routeResolver.ts) — same as
+          // an unapproved component price. Every test in this file expecting
+          // an instant resolution already assumed this component adds no
+          // EXTRA labor beyond the service's own fieldLaborHours; stated
+          // explicitly here rather than left implicit.
+          addFieldLaborHours: 0,
+        },
+      ])
   );
   return {
     slug: "test-tv-installation",
