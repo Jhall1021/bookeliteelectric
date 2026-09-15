@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npx tsx scripts/verify-route-assist-multi-outlet-plan.ts && npx tsx scripts/verify-route-assist-multi-outlet-demo-source.ts && npm run verify:route-assist && npm run build",
   "git": {
     "deploymentEnabled": {
       "feat/electrical-routing-v2": false
