@@ -9,15 +9,31 @@
  * save. This script drives exactly that scenario, with two writers that
  * are genuinely independent processes, not two calls from one page.
  *
- * THE BUG THIS PROVES CLOSED: `runQueuedSave`'s `finally` block used to send
- * whatever was next in `pendingSaveRef` unconditionally, including after a
- * 409 resync. A payload queued from this tab's OWN local state — built in
- * total ignorance of what the OTHER device had just written — would then be
- * sent with the now-correct version and SUCCEED, silently overwriting the
- * other device's newer answers with this tab's stale-relative-to-them ones.
- * The fix drops the pending queue on a genuine 409 instead of auto-sending
- * it; the next real user action builds a fresh payload on top of the
- * version this tab just learned about.
+ * THE BUG THIS PROVES CLOSED — two layers, both closed here:
+ *
+ *   1. `runQueuedSave`'s `finally` block used to send whatever was next in
+ *      `pendingSaveRef` unconditionally, including after a 409 resync. A
+ *      payload queued from this tab's OWN local state — built in total
+ *      ignorance of what the OTHER device had just written — would then be
+ *      sent with the now-correct version and SUCCEED, silently overwriting
+ *      the other device's newer answers. Fixed by dropping the pending
+ *      queue on a genuine 409 instead of auto-sending it.
+ *   2. Dropping the queue alone was still not enough (a gap the PR #63
+ *      review named directly): tab A's SCREEN — `answers`, the question or
+ *      price in `state`, the Back stack in `history` — was still built from
+ *      the branch tab A was on before the 409. The very next click would
+ *      merge that stale `answers` with one new field and persist it, still
+ *      carrying tab A's own old value for whatever key device B had just
+ *      changed — quietly overwriting a change that had already applied
+ *      cleanly. Fixed by fully resyncing `answers`/`config`/`state`/
+ *      `history` from the 409 body's `current.consumedAnswers` (the same
+ *      replay `startQuestions` already uses), gated behind an explicit
+ *      conflict notice the customer must acknowledge before anything else
+ *      can happen.
+ *
+ * This script proves BOTH: the server-side consumedAnswers is device B's,
+ * AND tab A's own next action — after the gate — builds on the resynced
+ * state rather than resubmitting anything stale.
  *
  * HOW THE SECOND WRITER IS REAL, NOT SIMULATED IN-PROCESS: "device B" is a
  * raw `fetch()` from this Node script, carrying the SAME `elite_session_id`
@@ -44,6 +60,13 @@
  *      Q2 payload rather than auto-sending it on the resynced version.
  *   5. The server's consumedAnswers must be device B's, exactly — not
  *      overwritten by tab A's queued (and by then stale) payload.
+ *   6. Tab A's own screen must be gated behind a conflict notice — not free
+ *      to act on the stale Q2 screen it was looking at before the 409.
+ *   7. Tab A's NEXT action, after acknowledging, must land on the question
+ *      the RESYNCED tree actually asks (Q2, since device B never answered
+ *      it) and must persist onto the resynced answers when submitted —
+ *      preserving device B's mount_choice rather than resending tab A's own
+ *      stale value for it.
  *
  * NOT PART OF `npm run verify`. Run against a PRODUCTION build, same
  * convention and same reason as this branch's other browser-flow scripts.
@@ -203,10 +226,16 @@ async function main() {
     ok("device B's own write succeeds (it raced tab A's delayed PATCH and won)",
       deviceBPatch.status === 200, `status ${deviceBPatch.status}: ${JSON.stringify(deviceBBody)}`);
 
-    // 4/5. Let tab A's delayed PATCH #1 (409, now stale) and its queued Q2
-    // (dropped by the fix, per the comment on persistAnswers) finish
-    // settling, then read what actually ended up on the server.
-    await page.waitForLoadState("networkidle");
+    // 4/5. Let tab A's delayed PATCH #1 (409, now stale) settle. The fix
+    // (see the comment on persistAnswers/runQueuedSave in
+    // GuidedFlowEngine.tsx) does more than drop tab A's queued Q2 payload:
+    // it fully resyncs tab A's own answers/config/state from what the
+    // server now holds, and gates any further click behind an explicit
+    // conflict notice — so this test can watch both that the drop happened
+    // AND that tab A's NEXT real action operates on the resynced state, not
+    // the abandoned one (the specific gap the PR #63 review named: "the
+    // screen still holds stale answers... the next customer action can
+    // submit those answers using the newly updated version").
     await page.waitForTimeout(PATCH_DELAY_MS + 1000);
 
     const finalSession = await prisma.guidedFlowSession.findUnique({
@@ -214,19 +243,51 @@ async function main() {
       select: { consumedAnswers: true, version: true },
     });
     const consumed = (finalSession?.consumedAnswers ?? {}) as Record<string, unknown>;
-    ok("the session's final consumedAnswers are device B's write, not overwritten by tab A's stale queued payload",
+    ok("the session's consumedAnswers are device B's write, not overwritten by tab A's stale queued payload",
       consumed.mount_choice === "supplied" && consumed.install_type === undefined,
       `got ${JSON.stringify(consumed)}`);
 
-    // Tab A's OWN screen is untouched by any of this — the customer keeps
-    // seeing their own in-progress answer (client state never learned about
-    // device B), matching the documented, honestly-stated limitation: the
-    // un-sent edit is not lost from THIS tab's own display, only from the
-    // server mirror.
-    ok("tab A's own screen still shows ITS answer, unaffected by the dropped queue or device B's write",
-      (await page.getByText("What kind of install is this?").count()) === 0 &&
-      (await page.locator("text=/^\\$[0-9,]+$/").count()) > 0,
-      "tab A should have moved on to its own resolved price screen");
+    // Tab A must not be left free to act on its old screen — it's gated
+    // behind an explicit conflict notice until the customer acknowledges
+    // the resync, not silently swapped out from under a click already in
+    // flight.
+    await page.getByText("We picked up an update to this visit from another device.").waitFor({ timeout: 15000 });
+    ok("tab A is gated behind a conflict notice rather than left free on its stale Q2 screen",
+      (await page.getByText("What kind of install is this?").count()) === 0,
+      "the resynced Q2 screen should not be visible until the notice is dismissed");
+
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    // THE NEXT ACTION, exactly what the review asked to see tested: after
+    // acknowledging, tab A must be looking at the question the RESYNCED
+    // tree actually asks next — Q2, because device B's answers only cover
+    // Q1 — not some leftover of tab A's own abandoned Q2 screen sitting on
+    // top of a stale mount_choice. Answering it must persist onto the
+    // resynced answers, preserving device B's mount_choice, not resending
+    // tab A's own stale "paid".
+    await page.waitForSelector("text=What kind of install is this?", { timeout: 15000 });
+    // The page.route() delay above applies to EVERY PATCH on this page, not
+    // just the first — so this next save is artificially delayed too. Wait
+    // for its actual response rather than a fixed timeout shorter than that
+    // delay (an earlier version of this test read the DB too soon and saw
+    // its own answer not yet written, which looked like the bug this test
+    // exists to catch but was really just a race in the test itself).
+    const nextSaveResponse = page.waitForResponse(
+      (r) => /\/api\/guided-flow-sessions\//.test(r.url()) && r.request().method() === "PATCH",
+      { timeout: PATCH_DELAY_MS + 15000 }
+    );
+    await page.getByRole("button", { name: "Standard install" }).click();
+    await nextSaveResponse;
+    await page.waitForLoadState("networkidle");
+
+    const afterNextAction = await prisma.guidedFlowSession.findUnique({
+      where: { id: bootstrap.id },
+      select: { consumedAnswers: true },
+    });
+    const consumedAfter = (afterNextAction?.consumedAnswers ?? {}) as Record<string, unknown>;
+    ok("tab A's NEXT action after the conflict persists onto the resynced answers — device B's mount_choice survives, tab A's own new install_type is added",
+      consumedAfter.mount_choice === "supplied" && consumedAfter.install_type === "standard",
+      `got ${JSON.stringify(consumedAfter)}`);
 
     await ctx.close();
   } finally {

@@ -162,6 +162,17 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // The save queue's own state — see persistAnswers below.
   const pendingSaveRef = useRef<Record<string, string> | null>(null);
   const savingRef = useRef(false);
+  // Set the moment a 409 reveals a DIFFERENT writer moved this session
+  // forward — see the 409 branch in runQueuedSave. Clearing the queue there
+  // stops this tab from ever auto-sending a stale payload, but the customer
+  // was still looking at a screen built from the answers that are now
+  // wrong: the question or price on screen, and `history`'s undo stack,
+  // both derived from a branch the OTHER writer's change may have replaced
+  // entirely. Rendering gates on this — see the top of the render section —
+  // so nothing the customer does next (answer a question, go Back, add to
+  // visit) can act on that stale screen. It only clears once the customer
+  // has seen the resynced state and explicitly continues.
+  const [conflictNotice, setConflictNotice] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -308,6 +319,28 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           // about the other writer's change, and auto-sending it now would
           // overwrite that change rather than merely fail to see it.
           pendingSaveRef.current = null;
+          // Clearing the queue stops THIS request's own follow-on, but the
+          // customer's screen — `answers`, the question or price in `state`,
+          // and the Back stack in `history` — is still built from the
+          // branch this tab was on before the other writer changed things.
+          // Left alone, the very next click (answer a question, hit Back,
+          // add to visit) would merge that STALE `answers` object with one
+          // new field and persist the result: for every key the other
+          // writer touched, this tab still holds its own old value, so
+          // that merge would send it right back to the server and quietly
+          // overwrite a change that had already applied cleanly. Resync
+          // fully — the same replay `startQuestions` already uses to
+          // rebuild config/state from a stored answer map, not something
+          // new — and require the customer to see it before doing anything
+          // else. `history` resets to empty: every entry on that stack was
+          // pushed while looking at the abandoned branch, so none of them
+          // are a valid "previous step" for the resynced one.
+          const resyncedAnswers: Record<string, string> = body.current.consumedAnswers ?? {};
+          setAnswers(resyncedAnswers);
+          setHistory([]);
+          if (typeof body.current.customerNote === "string") setCustomerNote(body.current.customerNote);
+          if (flow) advanceFrom(flow.questions[0]?.id ?? null, startDisplayConfiguration(flow), resyncedAnswers);
+          setConflictNotice(true);
         }
       })
       .catch(() => {
@@ -800,6 +833,34 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
   if (loading || !flow || !state) {
     return <div className="py-16 text-center text-slate">Loading...</div>;
+  }
+
+  // Gates EVERY step — question, resolved, review, whatever `state.kind`
+  // resynced to — behind one explicit acknowledgment. `conflictNotice` is
+  // set only by the 409 branch in runQueuedSave, after `answers`/`config`/
+  // `state`/`history` have already been rebuilt from what the server
+  // actually holds. The customer must see and dismiss this before any
+  // further click reaches handleAnswer, goBack, or addToVisit — otherwise
+  // the resync happening a render earlier than the customer noticed the
+  // screen changed underneath them would defeat the point of asking them
+  // to reorient first.
+  if (conflictNotice) {
+    return (
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-6 text-center">
+        <p className="font-medium text-slate-800">
+          We picked up an update to this visit from another device.
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          We&apos;ve refreshed your answers to match. Please review before continuing.
+        </p>
+        <button
+          onClick={() => setConflictNotice(false)}
+          className="mt-4 rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          Continue
+        </button>
+      </div>
+    );
   }
 
   // Wrapping every step here means no child component needs to know about
