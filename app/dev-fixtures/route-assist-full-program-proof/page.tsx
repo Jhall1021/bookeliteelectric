@@ -4,8 +4,8 @@ export const dynamic = "force-static";
 
 function runFullProgramVerification(): string {
   return execFileSync(
-    process.execPath,
-    ["--import", "tsx", "scripts/verify-route-assist-full-program.ts"],
+    "npx",
+    ["tsx", "scripts/verify-route-assist-full-program.ts"],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
 }
