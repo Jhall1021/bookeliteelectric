@@ -22,23 +22,47 @@
  *   C. DISPLAYED VS. STORED PRICE — the number GuidedFlowEngine shows before
  *      "Add to My Visit" is read back from the real LineItem.
  *      computedPriceCents afterward and must match exactly.
- *   D. BACK / RE-ANSWER ON A NUMBER QUESTION — goBack() on the merged branch
- *      previously only had multi-choice questions exercised
- *      (scripts/verify-back-navigation-config-browser-flow.ts). Back three
- *      questions to the feet question itself, re-type a DIFFERENT footage,
- *      and re-answer forward — the fractional pricing must move with it, not
- *      keep pricing the abandoned figure.
- *   E. TURNED-ROUTE REVIEW — the same tree, one flat corner instead of zero.
- *      No segment geometry exists without a Route Assist scan to supply it,
- *      so this must land on PHOTO_REVIEW, not a guessed price — proven here
- *      through the actual customer-facing screen, not just the resolver.
+ *   D. BACK / RE-ANSWER ON A NUMBER QUESTION, WITH THE PROMISED SAME-INPUT
+ *      COMPARISON — goBack() on the merged branch previously only had
+ *      multi-choice questions exercised
+ *      (scripts/verify-back-navigation-config-browser-flow.ts). Six Back
+ *      clicks from the price screen to the feet question itself, re-typed
+ *      with a DIFFERENT footage, re-answered forward: the price must both
+ *      (a) differ from the abandoned figure's price, AND (b) match — byte
+ *      for byte — the price block B/C got for that SAME footage answered
+ *      directly, from a wholly separate context that never touched Back at
+ *      all. (b) is the actual proof nothing from the abandoned branch
+ *      survived; (a) alone would not have ruled out a constant, wrong price.
+ *   E. TURNED-ROUTE REVIEW, ASSERTED BY HEADING NOT BY GENERIC TEXT — the
+ *      same tree, one flat corner instead of zero. Pricing a turn requires
+ *      the canonical physical fact of ordered segment geometry — regardless
+ *      of how that fact is ever supplied (a Route Assist scan is one way to
+ *      supply it, not the only conceivable one), a manual answer of a plain
+ *      corner COUNT does not carry it. Asserted by waiting for
+ *      PhotoReviewNotice's own specific heading ("We can price this
+ *      remotely.") racing against the priced heading — not a generic
+ *      `/photo/i` text match, which also matches ordinary help copy
+ *      elsewhere on this same screen family and would pass even if the
+ *      route had priced normally and happened to mention a photo.
+ *   F. A COST CHANGE BETWEEN DISPLAYING A PRICE AND ADDING IT TO THE VISIT
+ *      — a price is shown, a material cost changes server-side (no reload,
+ *      exactly like a customer who takes a minute to decide), and clicking
+ *      "Add to My Visit" against that now-stale number must be REFUSED
+ *      (REVIEW_REQUIRED) with NO LineItem created — the server always
+ *      independently re-resolves from the answers, never trusts a price the
+ *      client displayed or sent. Then the office reapproves the new
+ *      economics, a reload shows the corrected (different) price, and
+ *      booking THAT succeeds — a real Booking-path LineItem stored at the
+ *      new price, not the stale one. Both halves the integration instruction
+ *      asked for: the flow cannot book at a stale price, and it can still
+ *      reach a genuine booking once the staleness is actually resolved.
  *
- * Stale-approval -> REVIEW and reapproval -> PRICED restoration are proven
- * already, at the server/pricing-function level, by scripts/verify-routing-
- * precision-provisioning.ts ("changed economics invalidate prior approval" /
- * "reapproval restores fixed pricing") — not repeated here through a second
- * browser path; this script's own addition is the storefront UI layer those
- * checks don't touch.
+ * Stale-approval -> REVIEW is ALSO proven at the server/pricing-function
+ * level by scripts/verify-routing-precision-provisioning.ts's own "changed
+ * economics invalidate prior approval" / "reapproval restores fixed
+ * pricing" — block F above proves the SAME property through the storefront
+ * UI specifically, which that script never touches, per the specific gap
+ * named against this branch's prior evidence.
  *
  * NOT PART OF `npm run verify`. Needs a running server AND a disposable
  * local database matching scripts/verify-routing-precision-provisioning.ts's
@@ -48,7 +72,7 @@
  */
 import { chromium, type Page } from "playwright";
 import { PrismaClient } from "@prisma/client";
-import { buildPricedDerivedContractor, removeFixture, fixtureSlug } from "./_derivedStorefrontFixture";
+import { buildPricedDerivedContractor, removeFixture, fixtureSlug, changeChannelCost, reapprove } from "./_derivedStorefrontFixture";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 
 const prisma = new PrismaClient();
@@ -104,6 +128,10 @@ async function main() {
   try {
     const fixture = await buildPricedDerivedContractor(prisma, SLUG);
     const targetUrl = `${BASE}/${SLUG}/services/x/new-120v-outlet`;
+    // Captured in block A/B/C, compared against in block D — the actual
+    // "same input, same price" proof, not just an inequality against a
+    // different footage.
+    let referencePriceAt205: string | null = null;
 
     // ── A/B/C. Manual completion, straight route, displayed vs. stored ──
     {
@@ -118,6 +146,7 @@ async function main() {
       await walkStraightRoute(page, "20.5");
       await page.waitForSelector("text=Here's Your Price!");
       const displayed = await priceText(page);
+      referencePriceAt205 = displayed;
       ok("B. a straight route (all corners 0, clear, drywall) resolves to a real price, not REVIEW",
         /^\$[0-9,]+(\.[0-9]{2})?$/.test(displayed), `got ${displayed}`);
       ok("A. reached that price with zero Route Assist interaction — every answer was typed/clicked manually",
@@ -176,9 +205,18 @@ async function main() {
       ok("D. re-answering the feet question after Back changes the price (fractional footage actually re-priced)",
         priceAt205 !== priceAt14625, `14.625ft -> ${priceAt14625}; after Back, 20.5ft -> ${priceAt205}`);
 
-      // The 20.5ft price here should match the FIRST context's 20.5ft price
-      // exactly (same inputs, same contractor economics) — proving Back
-      // didn't leave any stale config/answer behind from the 14.625ft branch.
+      // THE PROMISED SAME-INPUT COMPARISON: not just "the price changed from
+      // the abandoned figure" — this 20.5ft-after-Back price must be
+      // IDENTICAL to block A/B/C's own 20.5ft price, captured from a
+      // completely separate context that never went through the 14.625ft
+      // branch or any Back click at all. Same contractor, same economics,
+      // same footage; only the path taken to answer it differs. Anything
+      // else would mean some residue of the abandoned 14.625ft branch (an
+      // extra component, a stale config field) survived into this figure.
+      ok("D. the SAME footage prices identically whether reached directly or via Back-and-re-answer",
+        referencePriceAt205 !== null && priceAt205 === referencePriceAt205,
+        `direct 20.5ft (block A/B/C) -> ${referencePriceAt205}; via Back-and-re-answer -> ${priceAt205}`);
+
       const sessionAnswers = await prisma.guidedFlowSession.findFirst({
         where: { serviceId: fixture.serviceId, status: "ACTIVE" },
         orderBy: { lastActivityAt: "desc" },
@@ -206,12 +244,108 @@ async function main() {
       await answerChoice(page, "What is the wall made of?", "Drywall");
       await answerChoice(page, "Is anything in the way?", "No — it's a clear run along the wall");
 
+      // Not a generic "photo" text match — that string also appears inside
+      // ordinary help copy elsewhere on this same screen family. The
+      // terminal PHOTO_REVIEW state renders exactly one component
+      // (PhotoReviewNotice) whose own heading is this specific, stable
+      // string ("We can price this remotely.") — unambiguous proof of
+      // WHICH terminal state was actually reached, not just that some text
+      // containing "photo" showed up somewhere on the page.
       const landedOnReview = await Promise.race([
-        page.waitForSelector("text=Here's Your Price!").then(() => "PRICED"),
-        page.waitForSelector("text=/take a quick look|photo/i").then(() => "REVIEW"),
+        page.getByRole("heading", { name: "Here's Your Price!", exact: true }).waitFor().then(() => "PRICED"),
+        page.getByRole("heading", { name: "We can price this remotely.", exact: true }).waitFor().then(() => "REVIEW"),
       ]).catch(() => "NEITHER");
-      ok("E. a turned route (one flat corner, no Route Assist segment geometry) lands on review, not a guessed price",
+      ok("E. a turned route (one flat corner — pricing a turn needs canonical segment geometry, which a manual corner COUNT never supplies) lands on review, not a guessed price",
         landedOnReview === "REVIEW", `got ${landedOnReview}`);
+
+      await ctx.close();
+    }
+
+    // ── F. A cost change between DISPLAYING a price and ADDING it to the
+    // visit must never book at the stale number — and the flow must still
+    // reach a real booking once the new economics are approved ──────────
+    {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      page.setDefaultTimeout(30000);
+
+      await page.goto(targetUrl);
+      await page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      await walkStraightRoute(page, "20.5");
+      await page.waitForSelector("text=Here's Your Price!");
+      const priceBeforeCostChange = await priceText(page);
+
+      // This SAME service, on this SAME contractor, was already booked once
+      // in block A/B/C above (a separate browser context, its own visit) —
+      // so the baseline is whatever that left behind, not zero. Captured
+      // HERE, right before the stale attempt, so "did the refused attempt
+      // create anything" is a real before/after comparison, not an assumed
+      // starting count.
+      const lineItemsBeforeStaleAttempt = await prisma.lineItem.count({ where: { serviceId: fixture.serviceId } });
+
+      // The office changes a material cost AFTER this price was already
+      // shown — no reload, no re-navigation; the screen keeps showing the
+      // number it fetched a moment ago, exactly like a real customer who
+      // takes a minute to decide. Same helper
+      // verify-routing-precision-provisioning.ts uses to prove this
+      // invalidates the prior approval at the function level; this proves
+      // what the STOREFRONT actually does about it.
+      await changeChannelCost(fixture.contractorId, 3457);
+
+      // Click "Add to My Visit" against the now-stale displayed price. The
+      // server independently re-resolves from the answers, not from
+      // anything the client sent or displayed
+      // (components/guided-flow/GuidedFlowEngine.tsx's own addToVisit sends
+      // serviceId + answersSnapshot, never a price) — so this must be
+      // REFUSED (409 REVIEW_REQUIRED, app/api/visit/route.ts), not booked
+      // at priceBeforeCostChange. Confirmed directly against the network
+      // response, not inferred from navigation timing alone.
+      const staleResponse = page.waitForResponse(
+        (r) => r.url().includes("/api/visit") && r.request().method() === "POST"
+      );
+      await page.getByRole("button", { name: /Add to My Visit/ }).click();
+      const staleResult = await staleResponse;
+      ok("F. the stale-priced Add to My Visit is refused with 409 REVIEW_REQUIRED, not booked",
+        staleResult.status() === 409, `got ${staleResult.status()}: ${await staleResult.text().catch(() => "")}`);
+
+      const lineItemsAfterStaleAttempt = await prisma.lineItem.count({ where: { serviceId: fixture.serviceId } });
+      ok("F. the refused, stale-priced attempt created NO new LineItem",
+        lineItemsAfterStaleAttempt === lineItemsBeforeStaleAttempt,
+        `before: ${lineItemsBeforeStaleAttempt}, after: ${lineItemsAfterStaleAttempt}`);
+
+      // The office re-approves the NEW economics — a real, supported action
+      // (the same decideDerivedPricingApproval path buildPricedDerivedContractor
+      // itself used to approve the original figure).
+      await reapprove(prisma, fixture.contractorId, fixture.serviceId);
+
+      // A reload always lands back on the intro screen first (same shape as
+      // scripts/verify-back-navigation-config-browser-flow.ts's own step D
+      // and scripts/verify-delayed-network-answer-save-browser-flow.ts) —
+      // "Check My Price" is what calls startQuestions() and re-fires the
+      // server_pricing evaluation from scratch, showing the CORRECTED price
+      // instead of the stale one.
+      await page.reload();
+      await page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      await page.waitForSelector("text=Here's Your Price!");
+      const priceAfterReapproval = await priceText(page);
+      ok("F. after reapproval, a fresh evaluation shows a DIFFERENT price than the stale one — the cost change is real, not cosmetic",
+        priceAfterReapproval !== priceBeforeCostChange,
+        `before cost change: ${priceBeforeCostChange}; after reapproval: ${priceAfterReapproval}`);
+
+      // NOW booking succeeds — proving the flow still reaches a genuine
+      // booking once the staleness is actually resolved, not merely that it
+      // correctly refuses to book forever.
+      await page.getByRole("button", { name: /Add to My Visit/ }).click();
+      await page.waitForURL(/\/my-visit/, { waitUntil: "commit" });
+      const bookedLineItem = await prisma.lineItem.findFirst({
+        where: { serviceId: fixture.serviceId },
+        orderBy: { id: "desc" },
+        select: { computedPriceCents: true },
+      });
+      const afterReapprovalCents = Math.round(parseFloat(priceAfterReapproval.replace(/[$,]/g, "")) * 100);
+      ok("F. the completed booking stores the NEW (post-reapproval) price, not the stale pre-change one",
+        bookedLineItem?.computedPriceCents === afterReapprovalCents,
+        `displayed ${priceAfterReapproval} (${afterReapprovalCents}c), stored ${bookedLineItem?.computedPriceCents}c`);
 
       await ctx.close();
     }
