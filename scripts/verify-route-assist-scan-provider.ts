@@ -3,7 +3,10 @@ import {
   type RouteAssistScanProviderInputV1,
   type RouteAssistScanProviderV1,
 } from "../lib/visual-assist/route-assist/scanProvider";
-import { collectRouteAssistScanCandidatesV1 } from "../lib/visual-assist/route-assist/scanPipeline";
+import {
+  collectRouteAssistScanCandidatesV1,
+  prepareRouteAssistScanReviewV1,
+} from "../lib/visual-assist/route-assist/scanPipeline";
 import type { RouteAssistScanEvidenceV1 } from "../lib/visual-assist/route-assist/scanEvidence";
 
 let pass = 0;
@@ -107,6 +110,23 @@ async function run() {
     "pipeline does not mutate canonical Route Assist graph",
     baseInput.segments.every((segment) => segment.estimatedLengthFt == null) && baseInput.points[1].physicalTurn == null,
     JSON.stringify({ points: baseInput.points, segments: baseInput.segments }),
+  );
+
+  const prepared = await prepareRouteAssistScanReviewV1(coherentProvider, baseInput);
+  check(
+    "preview entry point prepares a review without accepting anything",
+    prepared.review !== null && prepared.candidates !== null,
+    JSON.stringify(prepared.problems),
+  );
+  check(
+    "prepared review preserves exact total for display",
+    prepared.review?.completeMeasuredRouteLengthFt === 14.625,
+    JSON.stringify(prepared.review),
+  );
+  check(
+    "prepared review contains facts only; it has no accepted/default-selected state",
+    prepared.review?.items.every((item) => !("accepted" in item) && !("selected" in item)) === true,
+    JSON.stringify(prepared.review?.items),
   );
 
   const wrongGraph = await runRouteAssistScanProviderV1(
