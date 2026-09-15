@@ -1,5 +1,4 @@
 import type { RouteAssistCaptureReadinessProblemV1 } from "./captureReadiness";
-import { homeownerCopyForCaptureReadinessProblemV1 } from "./captureReadinessCopy";
 import {
   homeownerCopyForVisibleSceneQualityIssueV1,
   type RouteAssistVisibleSceneQualityIssueV1,
@@ -19,6 +18,16 @@ export type RouteAssistRecaptureIssueV1 =
       homeownerMessage: string;
     };
 
+function homeownerCopyForCaptureProblem(problem: RouteAssistCaptureReadinessProblemV1): string {
+  if (problem.code === "TOO_FEW_FRAMES" || problem.code === "INSUFFICIENT_TEMPORAL_COVERAGE") {
+    return "Move a little more slowly from the existing source toward the new location so Route Assist can capture enough of the visible path.";
+  }
+  if (problem.code === "FRAME_TOO_SMALL") {
+    return "Try the scan again with the normal rear camera and keep the visible wall, trim, source, and destination in view.";
+  }
+  return "Route Assist could not use this capture reliably. Please retake the room sweep instead of guessing.";
+}
+
 export function recaptureIssueFromCaptureReadinessV1(
   problem: RouteAssistCaptureReadinessProblemV1,
 ): RouteAssistRecaptureIssueV1 {
@@ -26,7 +35,7 @@ export function recaptureIssueFromCaptureReadinessV1(
     source: "STRUCTURAL_CAPTURE",
     code: problem.code,
     imageIds: problem.imageId ? [problem.imageId] : [],
-    homeownerMessage: homeownerCopyForCaptureReadinessProblemV1(problem),
+    homeownerMessage: homeownerCopyForCaptureProblem(problem),
   };
 }
 
