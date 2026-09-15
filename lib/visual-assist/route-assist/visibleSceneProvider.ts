@@ -10,15 +10,6 @@ import {
   type RouteAssistVisibleSceneSemanticsV1,
 } from "./visualSceneSemantics";
 
-/**
- * Provider boundary for ordinary-camera semantic CV.
- *
- * This is deliberately separate from metric/world-geometry scan evidence.
- * A semantic provider may identify visible source/destination anchors, trim,
- * doorways, windows and obstacles in captured images, but it cannot establish
- * footage, physical turns, hidden topology, material quantities, labor, price,
- * or a replacement Route Assist graph.
- */
 export type RouteAssistVisibleSceneProviderInputV1 = {
   version: 1;
   mode: RouteAssistMode;
@@ -26,10 +17,7 @@ export type RouteAssistVisibleSceneProviderInputV1 = {
   points: readonly RoutePoint[];
   segments: readonly RouteSegment[];
   captureArtifacts: Readonly<RouteAssistCaptureArtifacts>;
-  /**
-   * Additional targeted recapture evidence. Supplemental images are explicitly
-   * not part of captureArtifacts.imageIds and carry no sweep adjacency/order.
-   */
+  /** Additional recapture evidence. Supplemental images have no sweep adjacency/order. */
   supplementalCaptureSets?: readonly RouteAssistSupplementalCaptureSetV1[];
   /** Review intent only. A provider may use it to revise a proposal, but it is not evidence. */
   reviewCorrections?: readonly RouteAssistReviewCorrectionV1[];
@@ -39,16 +27,9 @@ export type RouteAssistVisibleSceneProviderV1 = {
   providerKey: string;
   analyze(input: RouteAssistVisibleSceneProviderInputV1): Promise<RouteAssistVisibleSceneSemanticsV1>;
 };
+export type RouteAssistVisibleSceneProviderRunV1 = { providerKey: string; semantics: RouteAssistVisibleSceneSemanticsV1 | null; problems: string[] };
 
-export type RouteAssistVisibleSceneProviderRunV1 = {
-  providerKey: string;
-  semantics: RouteAssistVisibleSceneSemanticsV1 | null;
-  problems: string[];
-};
-
-function validProviderKey(value: string): boolean {
-  return value.length > 0 && value.length <= 80 && /^[A-Za-z0-9._:-]+$/.test(value);
-}
+function validProviderKey(value: string): boolean { return value.length > 0 && value.length <= 80 && /^[A-Za-z0-9._:-]+$/.test(value); }
 
 function validateSupplementalCaptureSetsV1(input: RouteAssistVisibleSceneProviderInputV1): string[] {
   const problems: string[] = [];
@@ -60,12 +41,9 @@ function validateSupplementalCaptureSetsV1(input: RouteAssistVisibleSceneProvide
   for (const set of input.supplementalCaptureSets ?? []) {
     if (!set.requestId || requestIds.has(set.requestId)) problems.push(`supplemental capture set has duplicate or empty requestId: ${set.requestId || "<empty>"}`);
     else requestIds.add(set.requestId);
-
-    if (
-      set.primarySweepImageIds.length !== primaryIds.length ||
-      set.primarySweepImageIds.some((id, index) => id !== primaryIds[index])
-    ) problems.push(`supplemental capture set ${set.requestId || "<empty>"} does not reference the exact primary sweep`);
-
+    if (set.primarySweepImageIds.length !== primaryIds.length || set.primarySweepImageIds.some((id, index) => id !== primaryIds[index])) {
+      problems.push(`supplemental capture set ${set.requestId || "<empty>"} does not reference the exact primary sweep`);
+    }
     if (!set.supplementalImageIds.length) problems.push(`supplemental capture set ${set.requestId || "<empty>"} contains no supplemental images`);
     for (const imageId of set.supplementalImageIds) {
       if (!imageId) problems.push(`supplemental capture set ${set.requestId || "<empty>"} contains an empty image id`);
@@ -81,17 +59,10 @@ function supplementalImageIds(input: RouteAssistVisibleSceneProviderInputV1): st
   return (input.supplementalCaptureSets ?? []).flatMap((set) => set.supplementalImageIds);
 }
 
-function canonicalSupplementalSets(
-  sets: readonly RouteAssistSupplementalCaptureSetV1[] | undefined,
-): RouteAssistSupplementalCaptureSetV1[] | undefined {
+function canonicalSupplementalSets(sets: readonly RouteAssistSupplementalCaptureSetV1[] | undefined): RouteAssistSupplementalCaptureSetV1[] | undefined {
   if (!sets) return undefined;
   return sets
-    .map((set) => ({
-      ...set,
-      primarySweepImageIds: [...set.primarySweepImageIds],
-      // Supplemental evidence membership is meaningful; capture chronology is not.
-      supplementalImageIds: [...set.supplementalImageIds].sort((a, b) => a.localeCompare(b)),
-    }))
+    .map((set) => ({ ...set, primarySweepImageIds: [...set.primarySweepImageIds], supplementalImageIds: [...set.supplementalImageIds].sort((a, b) => a.localeCompare(b)) }))
     .sort((a, b) => a.requestId.localeCompare(b.requestId));
 }
 
@@ -102,15 +73,9 @@ function inputSnapshot(input: RouteAssistVisibleSceneProviderInputV1): RouteAssi
     destinationType: input.destinationType,
     points: input.points.map((point) => ({ ...point })),
     segments: input.segments.map((segment) => ({ ...segment })),
-    captureArtifacts: {
-      imageIds: [...input.captureArtifacts.imageIds],
-      overlayImageIds: [...input.captureArtifacts.overlayImageIds],
-    },
+    captureArtifacts: { imageIds: [...input.captureArtifacts.imageIds], overlayImageIds: [...input.captureArtifacts.overlayImageIds] },
     supplementalCaptureSets: canonicalSupplementalSets(input.supplementalCaptureSets),
-    reviewCorrections: input.reviewCorrections?.map((correction) => ({
-      ...correction,
-      point: { ...correction.point },
-    })),
+    reviewCorrections: input.reviewCorrections?.map((correction) => ({ ...correction, point: { ...correction.point } })),
   };
 }
 
@@ -132,14 +97,14 @@ export async function runRouteAssistVisibleSceneProviderV1(
 ): Promise<RouteAssistVisibleSceneProviderRunV1> {
   if (!validProviderKey(provider.providerKey)) return { providerKey: provider.providerKey, semantics: null, problems: ["providerKey must be a short opaque identifier"] };
 
-  const correctionProblems = validateRouteAssistReviewCorrectionsV1({
-    corrections: input.reviewCorrections ?? [],
-    captureImageIds: input.captureArtifacts.imageIds,
-  });
-  if (correctionProblems.length) return { providerKey: provider.providerKey, semantics: null, problems: correctionProblems };
-
   const supplementalProblems = validateSupplementalCaptureSetsV1(input);
   if (supplementalProblems.length) return { providerKey: provider.providerKey, semantics: null, problems: supplementalProblems };
+
+  const correctionProblems = validateRouteAssistReviewCorrectionsV1({
+    corrections: input.reviewCorrections ?? [],
+    captureImageIds: [...input.captureArtifacts.imageIds, ...supplementalImageIds(input)],
+  });
+  if (correctionProblems.length) return { providerKey: provider.providerKey, semantics: null, problems: correctionProblems };
 
   let providerSemantics: RouteAssistVisibleSceneSemanticsV1;
   try { providerSemantics = await provider.analyze(inputSnapshot(input)); }
@@ -156,6 +121,5 @@ export async function runRouteAssistVisibleSceneProviderV1(
     points: input.points,
     segments: input.segments,
   });
-
   return { providerKey: provider.providerKey, semantics: problems.length === 0 ? semantics : null, problems };
 }
