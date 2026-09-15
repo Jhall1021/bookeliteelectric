@@ -4,6 +4,7 @@ import {
   validateRouteAssistReviewCorrectionsV1,
   type RouteAssistReviewCorrectionV1,
 } from "./routeReviewCorrection";
+import type { RouteAssistSupplementalCaptureSetV1 } from "./targetedRecapture";
 import {
   validateRouteAssistVisibleSceneSemanticsV1,
   type RouteAssistVisibleSceneSemanticsV1,
@@ -25,6 +26,11 @@ export type RouteAssistVisibleSceneProviderInputV1 = {
   points: readonly RoutePoint[];
   segments: readonly RouteSegment[];
   captureArtifacts: Readonly<RouteAssistCaptureArtifacts>;
+  /**
+   * Additional targeted recapture evidence. Supplemental images are explicitly
+   * not part of captureArtifacts.imageIds and carry no sweep adjacency/order.
+   */
+  supplementalCaptureSets?: readonly RouteAssistSupplementalCaptureSetV1[];
   /** Review intent only. A provider may use it to revise a proposal, but it is not evidence. */
   reviewCorrections?: readonly RouteAssistReviewCorrectionV1[];
 };
@@ -44,6 +50,33 @@ function validProviderKey(value: string): boolean {
   return value.length > 0 && value.length <= 80 && /^[A-Za-z0-9._:-]+$/.test(value);
 }
 
+function validateSupplementalCaptureSetsV1(input: RouteAssistVisibleSceneProviderInputV1): string[] {
+  const problems: string[] = [];
+  const primaryIds = input.captureArtifacts.imageIds;
+  const primarySet = new Set(primaryIds);
+  const requestIds = new Set<string>();
+  const supplementalIds = new Set<string>();
+
+  for (const set of input.supplementalCaptureSets ?? []) {
+    if (!set.requestId || requestIds.has(set.requestId)) problems.push(`supplemental capture set has duplicate or empty requestId: ${set.requestId || "<empty>"}`);
+    else requestIds.add(set.requestId);
+
+    if (
+      set.primarySweepImageIds.length !== primaryIds.length ||
+      set.primarySweepImageIds.some((id, index) => id !== primaryIds[index])
+    ) problems.push(`supplemental capture set ${set.requestId || "<empty>"} does not reference the exact primary sweep`);
+
+    if (!set.supplementalImageIds.length) problems.push(`supplemental capture set ${set.requestId || "<empty>"} contains no supplemental images`);
+    for (const imageId of set.supplementalImageIds) {
+      if (!imageId) problems.push(`supplemental capture set ${set.requestId || "<empty>"} contains an empty image id`);
+      else if (primarySet.has(imageId)) problems.push(`supplemental image ${imageId} collides with a primary sweep image`);
+      else if (supplementalIds.has(imageId)) problems.push(`supplemental image ${imageId} is reused across recapture sets`);
+      else supplementalIds.add(imageId);
+    }
+  }
+  return problems;
+}
+
 function inputSnapshot(input: RouteAssistVisibleSceneProviderInputV1): RouteAssistVisibleSceneProviderInputV1 {
   return {
     version: 1,
@@ -55,6 +88,11 @@ function inputSnapshot(input: RouteAssistVisibleSceneProviderInputV1): RouteAssi
       imageIds: [...input.captureArtifacts.imageIds],
       overlayImageIds: [...input.captureArtifacts.overlayImageIds],
     },
+    supplementalCaptureSets: input.supplementalCaptureSets?.map((set) => ({
+      ...set,
+      primarySweepImageIds: [...set.primarySweepImageIds],
+      supplementalImageIds: [...set.supplementalImageIds],
+    })),
     reviewCorrections: input.reviewCorrections?.map((correction) => ({
       ...correction,
       point: { ...correction.point },
@@ -85,6 +123,9 @@ export async function runRouteAssistVisibleSceneProviderV1(
     captureImageIds: input.captureArtifacts.imageIds,
   });
   if (correctionProblems.length) return { providerKey: provider.providerKey, semantics: null, problems: correctionProblems };
+
+  const supplementalProblems = validateSupplementalCaptureSetsV1(input);
+  if (supplementalProblems.length) return { providerKey: provider.providerKey, semantics: null, problems: supplementalProblems };
 
   let providerSemantics: RouteAssistVisibleSceneSemanticsV1;
   try { providerSemantics = await provider.analyze(inputSnapshot(input)); }
