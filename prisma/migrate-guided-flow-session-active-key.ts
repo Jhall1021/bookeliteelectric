@@ -86,26 +86,63 @@
  *   row that ALREADY carries the correct key, falling back to recency only
  *   when no row in the group has one yet;
  *
- *   (2) abandoning a loser did not clear its `activeSessionKey` — but
- *   `lib/guidedFlowSession.ts`'s own `abandonSession` always does exactly
- *   that, and this script did not reuse it. If the row demoted to loser
- *   happened to be the one already holding the correct key, its key stayed
- *   attached to a now-ABANDONED row, and the very next line — backfilling
- *   the winner with that identical key — hit the `@unique` constraint and
- *   crashed with an unhandled `P2002`, ending the whole run and leaving
- *   every group processed before it migrated and every group after it
- *   untouched: a partially completed migration, not a failed one. This
- *   script now calls the real `abandonSession` for every loser it
- *   abandons, which always nulls the key first, so no collision is
- *   possible regardless of which row is chosen as the loser.
+ *   (2) abandoning a loser did not clear its `activeSessionKey`. If the row
+ *   demoted to loser happened to be the one already holding the correct
+ *   key, its key stayed attached to a now-ABANDONED row, and the very next
+ *   line — backfilling the winner with that identical key — hit the
+ *   `@unique` constraint and crashed with an unhandled `P2002`, ending the
+ *   whole run and leaving every group processed before it migrated and
+ *   every group after it untouched: a partially completed migration, not a
+ *   failed one. Every abandon below explicitly writes `activeSessionKey:
+ *   null` in the same statement — matching what `lib/guidedFlowSession.ts`'s
+ *   own `abandonSession` always does, though this script writes it directly
+ *   rather than calling that function, because the version-conditional
+ *   `updateMany` below (see PER-GROUP ATOMICITY below) needs its own
+ *   `where` clause that `abandonSession`'s signature does not expose — so no
+ *   collision is possible regardless of which row is chosen as the loser.
  *
- * EXIT CODE. Exits 1 — not 0 — whenever any group was left blocked. A
- * migration with human-review groups outstanding is not a completed
- * migration, and a caller checking only the exit code (a script, a CI
- * step, an operator who does not read the log) must be able to tell the
- * difference between "fully resolved" and "resolved everything it safely
- * could, N groups still need you." Zero is reserved for the case where
- * every group was either already fine or safely resolved.
+ * PER-GROUP ATOMICITY AND CONCURRENT-ACTIVITY SAFETY.
+ *
+ * A group's resolution used to be several separate statements: one
+ * `abandonSession` call per loser, then a separate `update` for the
+ * winner's key. Two ways that was still unsafe, neither exercised by an
+ * earlier rehearsal that only checked the OUTCOME of a clean run:
+ *
+ *   A MID-RUN ERROR (a dropped connection, the process killed) between two
+ *   of those statements left the group HALF migrated — some losers
+ *   abandoned, the winner never keyed, or vice versa — a state this script
+ *   had not written a group into before and would not necessarily recover
+ *   from cleanly on retry.
+ *
+ *   CONCURRENT ACTIVITY — a customer's own browser is still allowed to
+ *   write to any of these rows for the entire time this script is
+ *   deciding what to do with them. Every row was read once, at the top of
+ *   this run; if a real request updates a loser's answers (or the
+ *   winner's) between that read and this script's write, abandoning the
+ *   loser or repointing the winner would act on a decision made from data
+ *   that is no longer current — discarding a real, later answer nobody
+ *   ever saw when this script made its decision.
+ *
+ * Fixed with the same optimistic-concurrency field
+ * `lib/guidedFlowSession.ts`'s own `updateSessionAnswers` already uses:
+ * every write in a group's resolution is conditioned on the row's
+ * `version` still matching what this script read at the very top of the
+ * run, and the whole group's resolution — every loser's abandon and the
+ * winner's key backfill together — runs inside ONE `prisma.$transaction`.
+ * If any row's version has moved, that write's `updateMany` matches zero
+ * rows, the transaction throws and rolls back EVERYTHING for that group —
+ * no loser abandoned, no key backfilled, exactly as if the group had never
+ * been touched — and the group is reported as skipped for concurrent
+ * activity rather than silently resolved from stale data. Other groups in
+ * the same run are unaffected; each group's transaction is independent.
+ *
+ * EXIT CODE. Exits 1 — not 0 — whenever any group was left blocked OR
+ * skipped for concurrent activity. A migration with outstanding groups is
+ * not a completed migration, and a caller checking only the exit code (a
+ * script, a CI step, an operator who does not read the log) must be able
+ * to tell the difference between "fully resolved" and "resolved everything
+ * it safely could, N groups still need you." Zero is reserved for the case
+ * where every group was either already fine or safely resolved.
  *
  * Idempotent: a second run finds no duplicate groups and every
  * `activeSessionKey` already set, and reports zero changes and exits 0 —
@@ -123,7 +160,12 @@
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { assertDisposableLocalDatabase } from "./_assertDisposableLocalDatabase";
-import { buildActiveSessionKey, abandonSession } from "../lib/guidedFlowSession";
+import { buildActiveSessionKey } from "../lib/guidedFlowSession";
+
+/** Thrown inside a group's transaction when a row's version has moved since this run read it — never caught anywhere but the one place that reports it and lets the transaction roll back. */
+class ConcurrentActivityError extends Error {
+  constructor(public readonly sessionId: string) { super(`row ${sessionId} changed concurrently`); }
+}
 
 const prisma = new PrismaClient();
 
@@ -142,6 +184,7 @@ async function main() {
       lastActivityAt: true,
       activeSessionKey: true,
       consumedAnswers: true,
+      version: true,
     },
   });
 
@@ -201,6 +244,7 @@ async function main() {
   let abandonedCount = 0;
   let backfilledCount = 0;
   let blockedGroupCount = 0;
+  let concurrentActivityCount = 0;
 
   for (const [key, rows] of groups) {
     if (rows.length > 1) {
@@ -225,40 +269,61 @@ async function main() {
     }
 
     // Neither blocking condition holds: every row agrees on answers and
-    // none has a live dependent. Safe to resolve normally.
+    // none has a live dependent. Safe to resolve normally — but every write
+    // is conditioned on the version this run read at the top, and the whole
+    // group's resolution is one transaction. See PER-GROUP ATOMICITY AND
+    // CONCURRENT-ACTIVITY SAFETY above.
     const winner = winnerOf(key, rows);
     const losers = rows.filter((r) => r.id !== winner.id);
 
+    try {
+      await prisma.$transaction(async (tx) => {
+        for (const loser of losers) {
+          const result = await tx.guidedFlowSession.updateMany({
+            where: { id: loser.id, status: "ACTIVE", version: loser.version },
+            data: { status: "ABANDONED", activeSessionKey: null, version: { increment: 1 } },
+          });
+          if (result.count !== 1) throw new ConcurrentActivityError(loser.id);
+        }
+        if (winner.activeSessionKey !== key) {
+          const result = await tx.guidedFlowSession.updateMany({
+            where: { id: winner.id, version: winner.version },
+            data: { activeSessionKey: key, version: { increment: 1 } },
+          });
+          if (result.count !== 1) throw new ConcurrentActivityError(winner.id);
+        }
+      });
+    } catch (e) {
+      if (e instanceof ConcurrentActivityError) {
+        concurrentActivityCount++;
+        console.log(`  ⚠ SKIPPED group (${key}) — ${e.sessionId} changed concurrently since this run read it. ` +
+          `The whole group's transaction rolled back; nothing in it was touched. Re-run to pick up its current state.`);
+        continue;
+      }
+      throw e;
+    }
+
     for (const loser of losers) {
-      // The real application function, not a hand-rolled update — it always
-      // nulls activeSessionKey, which is what makes the backfill below safe
-      // regardless of which row this loser turns out to be.
-      await abandonSession(prisma, loser.id);
       abandonedCount++;
       console.log(`  · duplicate ACTIVE session ${loser.id} (${key}) -> ABANDONED, keeping ${winner.id} (identical answers, no live dependents)`);
     }
-
-    if (winner.activeSessionKey !== key) {
-      await prisma.guidedFlowSession.update({
-        where: { id: winner.id },
-        data: { activeSessionKey: key },
-      });
-      backfilledCount++;
-    }
+    if (winner.activeSessionKey !== key) backfilledCount++;
   }
 
   console.log(
     `\nDone. ${groups.size} distinct contractor+session+service triple(s) checked, ` +
     `${abandonedCount} duplicate ACTIVE session(s) resolved, ` +
     `${blockedGroupCount} group(s) left entirely untouched and BLOCKED (see "⚠" lines above — these need a human decision), ` +
+    `${concurrentActivityCount} group(s) skipped for concurrent activity (see "⚠" lines above — re-run to retry), ` +
     `${backfilledCount} activeSessionKey value(s) backfilled.\n`
   );
 
-  if (blockedGroupCount > 0) {
+  if (blockedGroupCount > 0 || concurrentActivityCount > 0) {
     console.log(
-      `  INCOMPLETE: ${blockedGroupCount} group(s) still need a human decision before this migration is done.\n` +
-      `  Re-running this script will report them again, unchanged, until a human resolves the\n` +
-      `  handoff, the pending task, or the answer disagreement explicitly. Exiting 1, not 0 —\n` +
+      `  INCOMPLETE: ${blockedGroupCount + concurrentActivityCount} group(s) still need attention before this\n` +
+      `  migration is done. Re-running this script will retry the concurrent-activity group(s)\n` +
+      `  automatically and report the blocked group(s) again, unchanged, until a human resolves\n` +
+      `  the handoff, the pending task, or the answer disagreement explicitly. Exiting 1, not 0 —\n` +
       `  this run did everything it safely could, but it is not a completed migration.\n`
     );
     await prisma.$disconnect();

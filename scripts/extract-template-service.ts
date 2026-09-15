@@ -416,86 +416,117 @@ async function main() {
    * visible to `installCatalog` and to any fresh contractor provisioning
    * from this version in that window. `$transaction` makes the whole
    * publication one all-or-nothing unit: either every question and option
-   * this service needs exists, or the deleteMany above the old copy never
-   * committed either and the previous, complete copy of this service is
-   * still what a contractor receives.
+   * this service needs exists, or none of it does.
+   *
+   * INSERT-ONLY, NOT UPSERT — the second-publisher race this closes.
+   *
+   * The pre-check above reads, then this transaction writes; between those
+   * two steps, nothing stops a SECOND process from running the identical
+   * pre-check, also finding no existing version, and racing this one into
+   * its own transaction. `upsert` masked exactly that race: whichever
+   * transaction's `upsert` commits second would find the row the first one
+   * just created and treat it as a normal "already exists, apply `update:
+   * {}`" case — a silent no-op on the version row that let the SECOND
+   * publisher's service/question/option writes proceed anyway, coexisting
+   * with or contradicting the first publisher's content in the version the
+   * refusal above was supposed to make unique. `create` has no such
+   * fallback: the second transaction's `create` hits the `trade`+`version`
+   * unique constraint, throws, and Prisma rolls back everything else in
+   * that same transaction — the second publisher fails completely, having
+   * changed nothing, which is what "insert-only" actually requires.
    */
-  await prisma.$transaction(async (tx) => {
-    const tv = await tx.templateVersion.upsert({
-      where: { trade_version: { trade: TRADE, version } },
-      // A DELTA: this extracts ONE service into a version, which is changes
-      // onto an earlier catalog rather than a catalog. Installing it as one
-      // would give a contractor a single-service business.
-      update: {}, create: { trade: TRADE, version, kind: "DELTA", notes: `extracted from ${slug}` },
-    });
-
-    /**
-     * POLICY DEFINITIONS — written before the service, same order
-     * extract-template-catalog.ts already uses and for the same reason: an
-     * answer option referencing one cannot be created until it exists.
-     * Silently omitted here until now, which meant a banded question this
-     * tool extracted lost its band shape and its options' unresolved-pattern
-     * behavior entirely — the contractor lost the fact that a number was
-     * theirs to set, not the template's.
-     */
-    const policyIds = new Map<string, string>();
-    for (const key of [...usedPolicies].sort()) {
-      const def = POLICIES.definitions[key];
-      if (!def) throw new Error(`Policy "${key}" is referenced but not defined in ${`prisma/template/electrical.policies.json`}.`);
-      const row = await tx.templatePolicyDefinition.upsert({
-        where: { templateVersionId_key: { templateVersionId: tv.id, key } },
-        update: { type: def.type, unit: def.unit ?? null, boundaryCount: def.boundaryCount, prompt: def.prompt },
-        create: { templateVersionId: tv.id, key, type: def.type, unit: def.unit ?? null,
-                  boundaryCount: def.boundaryCount, prompt: def.prompt },
+  try {
+    await prisma.$transaction(async (tx) => {
+      const tv = await tx.templateVersion.create({
+        // A DELTA: this extracts ONE service into a version, which is changes
+        // onto an earlier catalog rather than a catalog. Installing it as one
+        // would give a contractor a single-service business.
+        data: { trade: TRADE, version, kind: "DELTA", notes: `extracted from ${slug}` },
       });
-      policyIds.set(key, row.id);
-    }
 
-    await tx.templateService.deleteMany({ where: { templateVersionId: tv.id, key: svc.slug } });
-    const ts = await tx.templateService.create({
-      data: {
-        templateVersionId: tv.id, key: svc.slug, slug: svc.slug, name: svc.name,
-        shortDescription: svc.shortDescription, icon: svc.icon,
-        canonicalCategoryId: svc.contractorCategory!.canonicalCategoryId,
-        bookingType: svc.bookingType, photoState: svc.photoState,
-        isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
-        // Which pricing engine a service resolves through — LEGACY_PUBLISHED
-        // vs. DERIVED_RESOLVED_SCOPE — is as structural a fact as bookingType,
-        // and was silently dropped here: every extraction through this tool
-        // wrote the schema default regardless of what the source actually
-        // was. A service whose source has moved to DERIVED_RESOLVED_SCOPE
-        // re-extracting as LEGACY_PUBLISHED would silently regress every
-        // future install of it — the exact defect §0.9 already found and
-        // fixed in extract-template-catalog.ts, present here too until now.
-        pricingMethod: svc.pricingMethod,
-        materials: { create: materials },
-        policies: { create: servicePolicies.map((k) => ({ templatePolicyDefinitionId: policyIds.get(k)! })) },
-      },
-    });
-    for (const q of questions) {
-      await tx.templateQuestion.create({
+      /**
+       * POLICY DEFINITIONS — written before the service, same order
+       * extract-template-catalog.ts already uses and for the same reason: an
+       * answer option referencing one cannot be created until it exists.
+       * Silently omitted here until now, which meant a banded question this
+       * tool extracted lost its band shape and its options' unresolved-pattern
+       * behavior entirely — the contractor lost the fact that a number was
+       * theirs to set, not the template's.
+       */
+      const policyIds = new Map<string, string>();
+      for (const key of [...usedPolicies].sort()) {
+        const def = POLICIES.definitions[key];
+        if (!def) throw new Error(`Policy "${key}" is referenced but not defined in ${`prisma/template/electrical.policies.json`}.`);
+        const row = await tx.templatePolicyDefinition.upsert({
+          where: { templateVersionId_key: { templateVersionId: tv.id, key } },
+          update: { type: def.type, unit: def.unit ?? null, boundaryCount: def.boundaryCount, prompt: def.prompt },
+          create: { templateVersionId: tv.id, key, type: def.type, unit: def.unit ?? null,
+                    boundaryCount: def.boundaryCount, prompt: def.prompt },
+        });
+        policyIds.set(key, row.id);
+      }
+
+      // No deleteMany here: tv was just INSERTED by the create() above —
+      // never upserted — so no prior TemplateService can exist for it.
+      // Deleting nothing that could exist would be defensive code for an
+      // impossible case.
+      const ts = await tx.templateService.create({
         data: {
-          templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
-          inputType: q.inputType, numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin, numberMax: q.numberMax,
-          order: q.order,
-          options: { create: q.options.map((o) => ({
-            value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
-            numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
-            requiresCapabilityKey: o.requiresCapabilityKey,
-            labelPattern: o.labelPattern,
-            templatePolicyDefinitionId: o.policyKey ? policyIds.get(o.policyKey) ?? null : null,
-            nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
-            referencedServiceKey: o.referencedServiceKey,
-            requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
-            illustrationUrls: o.illustrationUrls,
-            components: { create: o.components },
-            disclaimers: { create: o.disclaimers },
-            photoGroups: { create: o.photoGroups },
-          })) },
+          templateVersionId: tv.id, key: svc.slug, slug: svc.slug, name: svc.name,
+          shortDescription: svc.shortDescription, icon: svc.icon,
+          canonicalCategoryId: svc.contractorCategory!.canonicalCategoryId,
+          bookingType: svc.bookingType, photoState: svc.photoState,
+          isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
+          // Which pricing engine a service resolves through — LEGACY_PUBLISHED
+          // vs. DERIVED_RESOLVED_SCOPE — is as structural a fact as bookingType,
+          // and was silently dropped here: every extraction through this tool
+          // wrote the schema default regardless of what the source actually
+          // was. A service whose source has moved to DERIVED_RESOLVED_SCOPE
+          // re-extracting as LEGACY_PUBLISHED would silently regress every
+          // future install of it — the exact defect §0.9 already found and
+          // fixed in extract-template-catalog.ts, present here too until now.
+          pricingMethod: svc.pricingMethod,
+          materials: { create: materials },
+          policies: { create: servicePolicies.map((k) => ({ templatePolicyDefinitionId: policyIds.get(k)! })) },
         },
       });
+      for (const q of questions) {
+        await tx.templateQuestion.create({
+          data: {
+            templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
+            inputType: q.inputType, numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin, numberMax: q.numberMax,
+            order: q.order,
+            options: { create: q.options.map((o) => ({
+              value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
+              numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+              requiresCapabilityKey: o.requiresCapabilityKey,
+              labelPattern: o.labelPattern,
+              templatePolicyDefinitionId: o.policyKey ? policyIds.get(o.policyKey) ?? null : null,
+              nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
+              referencedServiceKey: o.referencedServiceKey,
+              requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
+              illustrationUrls: o.illustrationUrls,
+              components: { create: o.components },
+              disclaimers: { create: o.disclaimers },
+              photoGroups: { create: o.photoGroups },
+            })) },
+          },
+        });
+      }
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2002") {
+      console.error(
+        `\n  REFUSED: another process published ${TRADE} v${version} concurrently, between this run's\n` +
+        `  own refusal check and its write. Insert-only creation caught the race: this run's\n` +
+        `  transaction failed and rolled back completely — nothing it would have written landed.\n\n` +
+        `  Use the next unused version instead (--version ${version + 1} or higher).\n`
+      );
+      await prisma.$disconnect();
+      process.exit(1);
     }
-  });
+    throw e;
+  }
   console.log(`\n  Extracted into ${TRADE} v${version}: ${questions.length} questions, ` +
               `${questions.flatMap((q) => q.options).length} options, ${materials.length} materials.\n`);
   await prisma.$disconnect();

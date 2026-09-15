@@ -940,6 +940,101 @@ three contractors, unchanged session counts) after each rehearsal
 independently — nothing from this pass persists; only the same three
 source files and this report are committed.
 
+### 0.26 (tenth pass) Four precise corrections — full atomicity, insert-only race safety, existing-option revision, and per-group session atomicity — each rehearsed against the exact failure named
+
+§0.25 closed three refusal gaps, but each refusal still ran ALONGSIDE a
+write it should have been INSIDE, or detected a case without yet proving
+the harder one. Four corrections, each rehearsed against the precise
+scenario it targets, not a simplified stand-in.
+
+**1. The tree write and the price-reset are now one transaction, proven
+by fault injection.** Every `--adopt` path in `template-update.ts` used to
+write its tree change, then separately clear the service's price/approval
+stamp as its OWN statement afterward — a crash between the two left a live
+tree with new, unpriced structure while the OLD price and approval stamp
+still stood. Fixed: `resetPricing(tx)` now runs inside the SAME
+`prisma.$transaction` as the tree write, for every change kind
+(question-added, option-added, option-revised, wording-changed). Rehearsed
+with a fault injected between the tree write and the price-reset inside
+one transaction: after the crash, direct query confirmed BOTH the adopted
+option and the service's price/approval fields were completely unchanged —
+the tree write itself rolled back along with the price-reset it was
+supposed to precede, not just the reset alone.
+
+**2. `extract-template-service.ts` no longer uses `upsert` — a genuine
+two-publisher race was reproduced and caught.** The pre-check refusal
+(read, then later write) left a real window: two processes racing past it
+simultaneously would both reach `upsert`, and the SECOND one's `update: {}`
+would silently no-op onto the version the FIRST one had just created,
+letting the second publisher's service/question/option writes land anyway
+inside a version the refusal was supposed to make unique. Fixed:
+`templateVersion.upsert` is now `templateVersion.create` — genuinely
+insert-only — with a `P2002`-specific catch reporting the race by name.
+Rehearsed by reproducing the exact race rather than a stand-in: a
+fault-injected copy with the pre-check skipped (simulating "already passed
+the check a moment before this process reads the same answer") was run
+against a version a real, unmodified run of the tool had already
+published — the transaction failed and rolled back completely, confirmed
+by direct query that only the first publisher's service exists under that
+version; nothing from the second attempt landed.
+
+**3. `option-revised` now detects and adopts a real existing-option
+change, not just new questions — including its own conflict path.** Every
+adoption rehearsal before this pass added something new; none revised
+something already live. Added detection that compares an EXISTING
+option's full routable shape (routing links, numeric bounds, capability
+gate, component set) between the version a contractor was provisioned
+from and the newest version, and separately checks whether the
+contractor's LIVE option still matches what they were originally given —
+if it has already drifted in ANY field, the whole revision is a CONFLICT,
+refused exactly like a wording conflict, never a partial per-field
+overlay. Rehearsed against Elite's real live tree: authored a version
+that revised the existing `purpose/general_use` option with a new
+component binding; `--status` correctly reported it as adoptable
+(distinct from FIVE genuinely pre-existing conflicts on OTHER options that
+this rehearsal did not manufacture — Elite's live tree had already
+diverged from the comparison baseline in real ways, and the detector
+correctly refused to touch any of them); `--adopt` correctly wrote the new
+component onto the EXISTING live option, confirmed by direct query; a
+second adoption attempt on one of the five real, unmanufactured conflicts
+was correctly SKIPPED, confirmed unchanged by direct query before and
+after.
+
+**4. Session-group resolution is now one transaction per group, guarded
+by the version each row was actually read at — a genuine concurrent write
+was reproduced and caught, not simulated by assertion.** Abandoning
+losers and backfilling a winner used to be separate statements; a mid-run
+error between them could leave a group half-migrated, and nothing
+protected against a real customer request updating one of the rows
+between this script's read and its write. Fixed: every write in a group's
+resolution is now conditioned on the row's `version` still matching what
+this run read at the top, and the whole group's resolution — every abandon
+and the backfill together — runs inside one transaction; a version
+mismatch throws, the transaction rolls back the ENTIRE group, and the
+group is reported as skipped for concurrent activity. Rehearsed with
+genuine concurrency, not a mocked mismatch: a fault-injected copy of the
+script with an 8-second delay inserted after its own read (rehearsal-only)
+was started, and a real concurrent writer — the identical
+`version: {increment:1}` pattern `updateSessionAnswers` uses in
+production — updated one row in the group while the delayed copy was
+still asleep. The delayed copy detected the mismatch, reported the group
+skipped, and exited 1; direct query confirmed the OTHER row in the same
+group — never touched by the concurrent writer at all — was also
+completely unchanged, proving the whole group rolled back together, not
+just the row that actually changed. A subsequent real (undelayed) run
+correctly reported the same group as BLOCKED rather than resolved, because
+the concurrent write had made the group's answers genuinely diverge — the
+correct outcome given what had actually happened to the data, not a
+residual bug.
+
+**Verification.** `npx tsc --noEmit` clean project-wide after all four
+fixes. All three browser-flow suites re-run clean against a fresh
+production build after every rehearsal in this pass. The local disposable
+database confirmed back to its exact baseline (one `TemplateVersion`,
+three contractors, unchanged session counts) after each of the four
+rehearsals independently — nothing from this pass's rehearsal work
+persists; only the same three source files and this report are committed.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple
