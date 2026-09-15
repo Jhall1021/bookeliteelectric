@@ -20,9 +20,9 @@ async function asJson<T>(res: Response): Promise<T> {
  * Browser persister for production Route Assist evidence.
  *
  * Bytes upload directly to R2 using a task-scoped signed PUT. The durable
- * identity is `mediaRef`; `imageUrl` intentionally remains the original local
- * object URL so the homeowner can review the exact captured frame without
- * making private evidence publicly readable.
+ * identity is `mediaRef`. A NEW local object URL is created from the persisted
+ * blob for review so the camera component may safely revoke its own capture URL
+ * when it unmounts without breaking the review screen.
  */
 export function createPrivateRouteAssistBrowserCapturePersisterV1(args: {
   fetchFn: FetchFn;
@@ -59,7 +59,7 @@ export function createPrivateRouteAssistBrowserCapturePersisterV1(args: {
 
       return {
         imageId: frame.imageId,
-        imageUrl: frame.objectUrl,
+        imageUrl: URL.createObjectURL(blob),
         mediaRef,
         mimeType: frame.mimeType,
         width: frame.width,
