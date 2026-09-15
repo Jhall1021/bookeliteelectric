@@ -1,4 +1,5 @@
 import type { RouteAssistSweepCaptureHandoffV1 } from "./captureHandoff";
+import { evaluateRouteAssistCaptureReadinessV1 } from "./captureReadiness";
 import { buildVisibleTrimRouteOverlayV1, type RouteAssistVisibleTrimRouteOverlayV1 } from "./visibleTrimRouteOverlay";
 import { proposeVisibleTrimHuggingRouteV1, type RouteAssistVisibleTrimRouteProposalV1 } from "./visibleTrimRouteProposal";
 import {
@@ -21,8 +22,8 @@ function failed(providerKey: string, problem: string): RouteAssistVisibleSceneRe
 }
 
 /**
- * Persisted browser sweep -> semantic CV -> review-only trim proposal ->
- * frame-local overlay.
+ * Persisted browser sweep -> structural readiness -> semantic CV -> review-only
+ * trim proposal -> frame-local overlay.
  *
  * Stops before acceptance and before any canonical Routing V2 binding. The
  * resulting overlay is presentation/review evidence only.
@@ -48,6 +49,17 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
   }
   if (args.handoff.reviewImage.imageId !== frameIds[frameIds.length - 1]) {
     return failed(args.provider.providerKey, "persisted sweep review image is not the final ordered frame");
+  }
+
+  const readiness = evaluateRouteAssistCaptureReadinessV1(args.handoff);
+  if (readiness.status !== "READY_FOR_SEMANTIC_REVIEW") {
+    return {
+      providerKey: args.provider.providerKey,
+      semantics: null,
+      proposal: null,
+      overlay: null,
+      problems: readiness.problems.map((problem) => `${problem.code}: ${problem.message}`),
+    };
   }
 
   const providerRun = await runRouteAssistVisibleSceneProviderV1(args.provider, {
