@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { planRouteAssistRecaptureV1, buildRouteAssistSupplementalCaptureSetV1 } from "../lib/visual-assist/route-assist/targetedRecapture";
+import {
+  planRouteAssistRecaptureV1,
+  buildRouteAssistSupplementalCaptureSetV1,
+  persistRouteAssistTargetedSupplementV1,
+} from "../lib/visual-assist/route-assist/targetedRecapture";
 import { runRouteAssistVisibleSceneProviderV1, type RouteAssistVisibleSceneProviderV1 } from "../lib/visual-assist/route-assist/visibleSceneProvider";
 import { buildFixtureVisibleSceneSemanticsV1 } from "../lib/visual-assist/route-assist/fixtureVisibleSceneProvider";
 import type { RouteAssistRecaptureIssueV1 } from "../lib/visual-assist/route-assist/recaptureIssue";
@@ -61,6 +65,35 @@ await check("full-sweep plans cannot be converted into supplemental capture sets
   const issue: RouteAssistRecaptureIssueV1 = { source: "STRUCTURAL_CAPTURE", code: "FRAME_TOO_SMALL", imageIds: ["frame-0"], homeownerMessage: "retake" };
   const plan = planRouteAssistRecaptureV1({ issue, originalImageIds: primary });
   assert.equal(buildRouteAssistSupplementalCaptureSetV1({ requestId: "not-allowed", plan, supplementalImageIds: ["new-0"] }), null);
+});
+
+await check("targeted supplemental persistence preserves identity and dimensions", async () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  const frames = [
+    { imageId: "doorway-local-a", objectUrl: "blob:a", mimeType: "image/jpeg" as const, width: 1200, height: 900 },
+    { imageId: "doorway-local-b", objectUrl: "blob:b", mimeType: "image/jpeg" as const, width: 1200, height: 900 },
+  ];
+  const persisted = await persistRouteAssistTargetedSupplementV1({
+    requestId: "doorway-persist-1",
+    plan,
+    frames,
+    persister: { async persist(frame) { return { imageId: frame.imageId, imageUrl: `https://example.invalid/${frame.imageId}.jpg`, mimeType: frame.mimeType, width: frame.width, height: frame.height }; } },
+  });
+  assert.ok(persisted);
+  assert.deepEqual(persisted.captureSet.primarySweepImageIds, primary);
+  assert.deepEqual(persisted.captureSet.supplementalImageIds, ["doorway-local-a", "doorway-local-b"]);
+  assert.deepEqual(persisted.persistedImages.map((image) => image.width), [1200, 1200]);
+});
+
+await check("targeted supplemental persistence fails closed if persister mutates dimensions", async () => {
+  const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
+  const persisted = await persistRouteAssistTargetedSupplementV1({
+    requestId: "doorway-persist-bad",
+    plan,
+    frames: [{ imageId: "doorway-local", objectUrl: "blob:a", mimeType: "image/jpeg", width: 1200, height: 900 }],
+    persister: { async persist(frame) { return { imageId: frame.imageId, imageUrl: "https://example.invalid/a.jpg", mimeType: frame.mimeType, width: 600, height: frame.height }; } },
+  });
+  assert.equal(persisted, null);
 });
 
 await check("provider receives primary sweep and supplement as distinct provenance", async () => {
