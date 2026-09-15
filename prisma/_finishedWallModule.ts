@@ -19,7 +19,7 @@
  * quantity and then judge it against a limit meant for runs along a wall.
  */
 import type { PrismaClient } from "@prisma/client";
-import { upsertQuestion } from "./_moduleHelpers";
+import { upsertQuestion, addNumericUnknownOption } from "./_moduleHelpers";
 import { componentIdByKey } from "./_componentHelpers";
 import type { SurfaceEndpoint } from "./_surfaceRouteModule";
 import { ENDPOINT_CORE } from "./_concealedRouteModules";
@@ -69,10 +69,10 @@ export async function attachFinishedWallModule(
 
   const qBaseboard = await upsertQuestion(prisma, serviceId, {
     key: FINISHED_KEYS.baseboard,
-    prompt: "Does a continuous baseboard run along that wall, and does it look removable?",
+    prompt: "Is the baseboard one removable run?",
     helpText:
-      "One unbroken run of skirting board, fixed with nails rather than glued or built in. " +
-      "If you're not sure, say so.",
+      "We need to lift and refit the trim. Look for one unbroken run with no built-in sections. " +
+      "You do not need to know how it is fastened; choose I’m not sure if removal is uncertain.",
     inputType: "SINGLE_SELECT", order: entryOrder + 5,
   });
 
@@ -95,9 +95,10 @@ export async function attachFinishedWallModule(
   // The measurement. Its DOMAIN is 1-300; its ROUTING splits at the envelope.
   const qFeet = await upsertQuestion(prisma, serviceId, {
     key: FINISHED_KEYS.feet,
-    prompt: "Roughly how far along the wall is it?",
-    helpText: "A close estimate is fine — the electrician measures on the day.",
+    prompt: "How far along the wall, in feet?",
+    helpText: "Measure along the proposed wall path. Decimals are fine. This does not measure wiring hidden inside the wall; choose I’m not sure if you cannot establish the distance.",
     inputType: "NUMBER",
+    numberAllowsDecimal: true,
     numberMin: CONCEALED_BOUNDS.min,
     numberMax: CONCEALED_BOUNDS.max,
     order: entryOrder + 1,
@@ -105,8 +106,8 @@ export async function attachFinishedWallModule(
 
   const qBackToBack = await upsertQuestion(prisma, serviceId, {
     key: FINISHED_KEYS.backToBack,
-    prompt: "Is the new spot directly opposite the existing one, through the same wall?",
-    helpText: "Straight through the wall, rather than along it.",
+    prompt: "Is the new spot straight through this wall?",
+    helpText: "The spots must face each other on opposite sides of the wall. Being on the same wall is not enough.",
     inputType: "SINGLE_SELECT", order: entryOrder,
   });
 
@@ -139,9 +140,11 @@ export async function attachFinishedWallModule(
         numberAtLeast: CONCEALED_BOUNDS.min, numberAtMost: CONCEALED_ENVELOPE_FT },
       { questionId: qFeet.id, label: "Beyond the supported range", value: "beyond",
         routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: REVIEW_PHOTOS,
-        numberAtLeast: CONCEALED_ENVELOPE_FT + 1, numberAtMost: CONCEALED_BOUNDS.max },
+        numberAtLeast: CONCEALED_ENVELOPE_FT, numberAtLeastExclusive: true, numberAtMost: CONCEALED_BOUNDS.max },
     ],
   });
+
+  await addNumericUnknownOption(prisma, qFeet.id);
 
   await prisma.answerOption.createMany({
     data: [
@@ -151,7 +154,7 @@ export async function attachFinishedWallModule(
       ...["plaster", "tile", "stone", "wallpaper", "wood_panel", "other", "unsure"].map((v, i) => ({
         questionId: qSurface.id,
         label: { plaster: "Plaster", tile: "Tile", stone: "Stone", wallpaper: "Wallpaper or a decorative finish",
-                 wood_panel: "Wood panelling", other: "Something else", unsure: "I'm not sure" }[v]!,
+                 wood_panel: "Wood paneling", other: "Something else", unsure: "I'm not sure" }[v]!,
         value: v, routeAction: "PHOTO_REVIEW" as const, photosBlockBooking: true,
         order: i + 2, requiredPhotoLabels: REVIEW_PHOTOS,
       })),

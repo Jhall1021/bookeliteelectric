@@ -51,14 +51,14 @@ const SELECT: [RegExp, RegExp][] = [
   [/How would you like it powered/i, /^From the nearest outlet/],
   [/Is there a basement/i, /^No$/],
   [/How would you like the wiring run/i, /^Surface-mounted channel on the wall/],
-  [/What is that wall surface/i, /^Drywall$/],
+  [/What is the wall made of/i, /^Drywall$/],
   // Typographic or straight apostrophe — whichever the catalog carries.
-  [/Does anything sit in the way along that route/i, /^No — it.s a clear run along the wall/],
+  [/Is anything in the way/i, /^No — it.s a clear run along the wall/],
 ];
 const straight = { feet: "31", inside: "0", outside: "0", flat: "0" };
 const NUMBER = (r: typeof straight): [RegExp, string][] => [
-  [/how many feet is that route/i, r.feet], [/How many inside corners/i, r.inside],
-  [/How many outside corners/i, r.outside], [/turn a corner while staying on the same/i, r.flat],
+  [/How long is the route, in feet/i, r.feet], [/How many inside corners/i, r.inside],
+  [/How many outside corners/i, r.outside], [/How many turns stay flat on the wall/i, r.flat],
 ];
 
 async function startServer(): Promise<ChildProcess | null> {

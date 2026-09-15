@@ -59,7 +59,7 @@ import {
   type PricingSettings,
 } from "./pricing";
 import { capabilityState, isCapabilityKey, loadCapabilityFacts, type CapabilityFacts } from "./capabilities";
-import { selectNumericOption, type NumericOptionChoice } from "./numericRouteRanges";
+import { validateNumericAnswer, selectNumericOption, type NumericOptionChoice } from "./numericRouteRanges";
 
 export type ResolvedRoute =
   | {
@@ -345,6 +345,7 @@ export type BoundQuantity =
 export type BoundQuestion = {
   key: string;
   inputType: string;
+  numberAllowsDecimal?: boolean;
   numberMin: number | null;
   numberMax: number | null;
 };
@@ -379,18 +380,9 @@ export function resolveBoundQuantity(
   if (raw === undefined || raw === null || String(raw).trim() === "") {
     return { kind: "invalid", reason: `"${key}" has no answer, so ${componentKey} has no quantity` };
   }
-  const text = String(raw).trim();
-  if (!/^\d+$/.test(text)) {
-    return { kind: "invalid", reason: `"${key}" is "${text}", which is not a whole number` };
-  }
-  const n = Number(text);
-  if (!Number.isSafeInteger(n)) {
-    return { kind: "invalid", reason: `"${key}" is "${text}", which is not a usable whole number` };
-  }
-  if (n < q.numberMin || n > q.numberMax) {
-    return { kind: "invalid", reason:
-      `"${key}" is ${n}, outside its authored range ${q.numberMin}\u2013${q.numberMax}` };
-  }
+  const parsed = validateNumericAnswer(q, raw);
+  if (parsed.kind !== "number") return parsed;
+  const n = parsed.value;
   // Zero is a real answer for an optional count and no answer at all for a
   // measured scope. Which one it is comes from the question's authored minimum:
   // a route whose minimum is 1 refuses zero above, before reaching here.

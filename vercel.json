@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "feat/electrical-routing-v2": false
+      "feat/electrical-routing-v2": false,
+      "audit/electrical-tree-finalization-v2": false
     }
   }
 }

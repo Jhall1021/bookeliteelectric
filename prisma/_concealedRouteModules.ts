@@ -15,7 +15,7 @@
  *     would price a quantity that is not part of the physical scope.
  */
 import type { PrismaClient } from "@prisma/client";
-import { upsertQuestion } from "./_moduleHelpers";
+import { upsertQuestion, addNumericUnknownOption } from "./_moduleHelpers";
 import { componentIdByKey } from "./_componentHelpers";
 import type { SurfaceEndpoint } from "./_surfaceRouteModule";
 
@@ -48,14 +48,15 @@ export async function attachAccessibleConcealedModule(
 
   const qFeet = await upsertQuestion(prisma, serviceId, {
     key: ACCESSIBLE_KEYS.feet,
-    prompt: "Roughly how far is that run through the open space?",
+    prompt: "How long is the accessible route, in feet?",
     helpText:
-      "From above or below, estimate the distance between the two spots. A close estimate is " +
-      "fine — the electrician measures on the day.",
+      "Use the actual path through the attic, unfinished basement or crawlspace, including its bends. " +
+      "A room measurement does not establish this hidden path. Decimals are fine; if you cannot safely observe it, choose I’m not sure.",
     // Explicit at the call site: these bounds are part of the pricing contract.
     // NO numeric ROUTING predicates on the option below — length does not change
     // this route's class, so there is nothing to branch on.
     inputType: "NUMBER",
+    numberAllowsDecimal: true,
     numberMin: ACCESSIBLE_BOUNDS.min,
     numberMax: ACCESSIBLE_BOUNDS.max,
     order: entryOrder,
@@ -68,6 +69,8 @@ export async function attachAccessibleConcealedModule(
       approvedComponentPriceCents: null,
     },
   });
+
+  await addNumericUnknownOption(prisma, qFeet.id);
 
   await prisma.answerOptionComponent.createMany({
     data: [
@@ -99,10 +102,10 @@ export async function attachBackToBackModule(
 
   const q = await upsertQuestion(prisma, serviceId, {
     key: BACK_TO_BACK_KEYS.confirm,
-    prompt: "Is the new spot directly opposite the existing one, on the other side of the same wall?",
+    prompt: "Is the new spot straight through this wall?",
     helpText:
-      "Stand at the existing outlet and look at the wall behind it. If the new spot is roughly " +
-      "straight through, that is what we mean.",
+      "The two spots must face each other on opposite sides of the same wall. " +
+      "Being on the same wall is not enough.",
     inputType: "SINGLE_SELECT",
     order: entryOrder,
   });

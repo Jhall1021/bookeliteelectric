@@ -265,7 +265,7 @@ async function main() {
     helpText: q.helpText ? resolveCopy(q.key, "helpText", q.helpText) : null,
     inputType: q.inputType,
     // ROUTING V2 — part of the executable pricing contract, not presentation.
-    numberMin: q.numberMin,
+    numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin,
     numberMax: q.numberMax,
     order: qi,
     options: q.options.map((o, oi) => {
@@ -276,7 +276,7 @@ async function main() {
         value: o.value,
         routeAction: o.routeAction,
         // ROUTING V2 numeric routing — part of the executable contract.
-        numberAtLeast: o.numberAtLeast,
+        numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast,
         numberAtMost: o.numberAtMost,
         // ROUTING V2 capability gate. TEMPLATE side of the split: the template
         // states what a route REQUIRES; ContractorCapability states what a
@@ -353,11 +353,11 @@ async function main() {
     await prisma.templateQuestion.create({
       data: {
         templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
-        inputType: q.inputType, numberMin: q.numberMin, numberMax: q.numberMax,
+        inputType: q.inputType, numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin, numberMax: q.numberMax,
         order: q.order,
         options: { create: q.options.map((o) => ({
           value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
-          numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+          numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
           requiresCapabilityKey: o.requiresCapabilityKey,
           nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
           referencedServiceKey: o.referencedServiceKey,

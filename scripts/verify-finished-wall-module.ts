@@ -65,7 +65,7 @@ async function main() {
   await setCapability(CID, DW, "declared");
 
   console.log("  A  THE ENVELOPE IS ROUTING, NOT VALIDATION\n");
-  for (const [feet, expect] of [["1", "in"], ["18", "in"], ["20", "in"],
+  for (const [feet, expect] of [["1", "in"], ["14.625", "in"], ["18", "in"], ["20", "in"], ["20.5", "out"],
                                 ["21", "out"], ["24", "out"], ["300", "out"]] as const) {
     const r = await walk(SLUG, facts(feet, "baseboard"));
     ok(expect === "in" ? built(r) : !built(r),

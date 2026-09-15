@@ -1,208 +1,154 @@
 /**
- * ROUTING V2 — static validation of a NUMBER question's authored ranges.
- *
- * The resolver fails closed at runtime on a gap or an overlap, but a customer
- * discovering an authoring defect by being refused a price is a poor way to
- * find out. This proves the ranges are sound before anyone walks the tree.
- *
- * Over the INTEGER DOMAIN numberMin..numberMax, the option ranges must:
- *   - stay inside the question's own range
- *   - not overlap
- *   - leave no gap
- *   - cover the domain completely
- *   - and give the same answer whatever order the options are in
- *
- * Generic: no knowledge of what the numbers measure.
- *
- * INTEGER DOMAIN ONLY. Adjacency is `prev.hi + 1`, which is what makes "no gap"
- * meaningful — between 20 and 21 there is nothing. That reasoning does not hold
- * for decimals, so this validator, like the resolver, is integer-only by
- * contract rather than by accident.
+ * Canonical numeric questions, shared by the browser and server.
+ * Existing questions default to whole numbers. Measured quantities explicitly
+ * opt into decimals; neither this module nor its callers round an answer.
+ * Bounds still belong to the authored question, not a service or camera.
  */
+export const NUMERIC_UNKNOWN = "__unknown__";
+
 export type RangeOption = {
   value: string;
   numberAtLeast: number | null;
   numberAtMost: number | null;
+  numberAtLeastExclusive?: boolean;
+  routeAction?: string;
+  photosBlockBooking?: boolean;
 };
-
-export type RangeProblem = { kind: string; detail: string };
-
-export function validateNumericRanges(q: {
+export type NumericQuestion = {
   key: string;
   numberMin: number | null;
   numberMax: number | null;
-  options: readonly RangeOption[];
-}): RangeProblem[] {
-  const routing = q.options.filter((o) => o.numberAtLeast !== null || o.numberAtMost !== null);
-  if (routing.length === 0) return [];   // not a numeric-routing question
-
-  const problems: RangeProblem[] = [];
-  if (q.numberMin === null || q.numberMax === null) {
-    problems.push({ kind: "NO_QUESTION_RANGE",
-      detail: `"${q.key}" routes on its number but declares no numberMin/numberMax` });
-    return problems;
-  }
-  const bare = q.options.filter((o) => o.numberAtLeast === null && o.numberAtMost === null);
-  if (bare.length > 0) {
-    problems.push({ kind: "MIXED_OPTIONS",
-      detail: `"${q.key}" has routing ranges AND option(s) with none: ${bare.map((o) => o.value).join(", ")}` });
-  }
-
-  // Normalise open ends to the question's domain so every range is comparable.
-  const spans = routing.map((o) => ({
-    value: o.value,
-    lo: o.numberAtLeast ?? q.numberMin!,
-    hi: o.numberAtMost ?? q.numberMax!,
-  }));
-  for (const s of spans) {
-    if (s.lo > s.hi) {
-      problems.push({ kind: "INVERTED", detail: `"${q.key}" option ${s.value} has ${s.lo} > ${s.hi}` });
-    }
-    if (s.lo < q.numberMin || s.hi > q.numberMax) {
-      problems.push({ kind: "OUT_OF_BOUNDS",
-        detail: `"${q.key}" option ${s.value} spans ${s.lo}-${s.hi}, outside the question's ${q.numberMin}-${q.numberMax}` });
-    }
-  }
-
-  // Overlap and coverage, decided by SORTING rather than by authored order —
-  // the whole point is that `order` must not affect the outcome.
-  const sorted = [...spans].sort((a, b) => a.lo - b.lo || a.hi - b.hi);
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1], cur = sorted[i];
-    if (cur.lo <= prev.hi) {
-      problems.push({ kind: "OVERLAP",
-        detail: `"${q.key}" options ${prev.value} (${prev.lo}-${prev.hi}) and ${cur.value} (${cur.lo}-${cur.hi}) overlap` });
-    } else if (cur.lo > prev.hi + 1) {
-      problems.push({ kind: "GAP",
-        detail: `"${q.key}" has no range covering ${prev.hi + 1}-${cur.lo - 1}` });
-    }
-  }
-  if (sorted.length > 0) {
-    if (sorted[0].lo > q.numberMin) {
-      problems.push({ kind: "GAP",
-        detail: `"${q.key}" has no range covering ${q.numberMin}-${sorted[0].lo - 1}` });
-    }
-    const last = sorted[sorted.length - 1];
-    if (last.hi < q.numberMax) {
-      problems.push({ kind: "GAP",
-        detail: `"${q.key}" has no range covering ${last.hi + 1}-${q.numberMax}` });
-    }
-  }
-  return problems;
-}
-
-// ---------------------------------------------------------------------------
-// RUNTIME SELECTION — the same rule, on both sides of the wire
-// ---------------------------------------------------------------------------
-//
-// This lives here rather than in routeResolver.ts because routeResolver imports
-// PrismaClient, and a "use client" component that imported it would pull the
-// database client into the browser bundle. So the homeowner's walk could not
-// share the rule, and it did not: QuestionStep took options[0] for every NUMBER
-// question, which meant a 45 ft answer continued down the 1-20 branch on the
-// client while resolveRoute sent the same answer to review.
-//
-// The function below was already pure and generic. Nothing about it changed in
-// moving it; what changed is that both sides can now reach it. One rule, two
-// callers -- the same reason the material recompute lives in one place.
-
-/**
- * ROUTING V2 — choose a NUMBER question's option by the VALUE of the answer.
- *
- * Two modes, and which one applies is a fact about the authored options rather
- * than a flag anyone has to remember to set:
- *
- *   no option carries a predicate  -> legacy behaviour, options[0], untouched.
- *                                     Every NUMBER question written before this
- *                                     existed keeps working exactly as it did.
- *   any option carries one         -> numeric routing. EXACTLY ONE option must
- *                                     contain the validated answer.
- *
- * ORDER MUST NEVER DECIDE. A gap and an overlap are both authoring defects, and
- * both fail closed. "First match wins" would let a range overlap resolve
- * silently by accident of `order`, which is not a fact about the physical world
- * and would make two identically-authored trees behave differently.
- *
- * Entirely generic. This function knows nothing about feet, walls, eligibility
- * or price; it validates a number against the question's authored range and
- * returns the one authored range containing it.
- *
- * INTEGER ROUTING, DELIBERATELY AND ONLY.
- *
- * The predicates are `Int?`, coverage is proven across the authored INTEGER
- * domain, and Routing V2 measures in whole units. So a decimal is REFUSED, not
- * rounded and not truncated: `18.5` against a 1-20 / 21-300 envelope has no
- * defensible answer, and silently making it 18 or 19 would decide a customer's
- * eligibility by a rounding rule nobody authored.
- *
- * This is a limit of the primitive, stated so nobody later reaches for it to
- * route a decimal-valued measurement and assumes semantics that were never
- * built. A decimal domain would need its own coverage model — adjacency is not
- * `prev.hi + 1` when values between them exist — and that is a different
- * feature, not a looser regex here.
- */
+  numberAllowsDecimal?: boolean;
+};
+export type RangeProblem = { kind: string; detail: string };
 export type NumericOptionChoice<T> =
   | { kind: "option"; option: T }
   | { kind: "invalid"; reason: string }
   | { kind: "broken"; reason: string };
 
-export function selectNumericOption<
-  T extends { value: string; numberAtLeast: number | null; numberAtMost: number | null }
->(
-  question: { key: string; numberMin: number | null; numberMax: number | null; options: readonly T[] },
-  raw: string
-): NumericOptionChoice<T> {
-  const routing = question.options.filter(
-    (o) => o.numberAtLeast !== null || o.numberAtMost !== null
-  );
-  if (routing.length === 0) {
-    const first = question.options[0];
-    if (!first) return { kind: "broken", reason: `"${question.key}" has no answer options` };
-    return { kind: "option", option: first };
-  }
+/** Unknown is an explicit authored review option, never zero or an estimate. */
+export function isNumericUnknownOption(option: RangeOption): boolean {
+  return option.value === NUMERIC_UNKNOWN;
+}
 
-  // In numeric-routing mode the question's own range is what "valid" means, so
-  // it has to exist before any option can be judged against it.
-  if (question.numberMin === null || question.numberMax === null) {
-    return { kind: "broken", reason:
-      `"${question.key}" routes on its number but declares no numberMin/numberMax` };
+export function validateNumericAnswer(q: NumericQuestion, raw: string):
+  | { kind: "number"; value: number }
+  | { kind: "invalid" | "broken"; reason: string } {
+  if (q.numberMin == null || q.numberMax == null ||
+      !Number.isSafeInteger(q.numberMin) || !Number.isSafeInteger(q.numberMax) ||
+      q.numberMin > q.numberMax) {
+    return { kind: "broken", reason: `"${q.key}" has no valid authored range` };
   }
-  const unbounded = question.options.filter(
-    (o) => o.numberAtLeast === null && o.numberAtMost === null
-  );
-  if (unbounded.length > 0) {
-    return { kind: "broken", reason:
-      `"${question.key}" mixes numeric routing with option(s) carrying no range: ` +
-      unbounded.map((o) => o.value).join(", ") };
-  }
-
   const text = String(raw ?? "").trim();
-  // Whole numbers only — see INTEGER ROUTING above. A decimal is refused rather
-  // than rounded, because rounding would silently pick a range for the customer.
-  if (!/^\d+$/.test(text)) {
-    return { kind: "invalid", reason: `"${question.key}" is "${text}", which is not a whole number` };
-  }
+  // Plain decimal notation only. No ranges, units, exponents, hex, Infinity,
+  // signs or approximate text may silently become an exact physical quantity.
+  const valid = q.numberAllowsDecimal ? /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(text) : /^\d+$/.test(text);
   const n = Number(text);
-  if (!Number.isSafeInteger(n)) {
-    return { kind: "invalid", reason: `"${question.key}" is "${text}", which is not a usable whole number` };
+  if (!valid || !Number.isFinite(n) || n > Number.MAX_SAFE_INTEGER ||
+      (!q.numberAllowsDecimal && !Number.isSafeInteger(n))) {
+    return { kind: "invalid", reason: q.numberAllowsDecimal
+      ? "Enter a number, such as 14.625, or choose I'm not sure."
+      : "Enter a whole number, or choose I'm not sure." };
   }
-  if (n < question.numberMin || n > question.numberMax) {
-    return { kind: "invalid", reason:
-      `"${question.key}" is ${n}, outside its authored range ${question.numberMin}\u2013${question.numberMax}` };
+  if (q.numberAllowsDecimal) {
+    const [whole, fraction = ""] = text.split(".");
+    const normalized = (whole.replace(/^0+/, "") || "0") + (fraction.replace(/0+$/, "") ? "." + fraction.replace(/0+$/, "") : "");
+    if (String(n) !== normalized) {
+      return { kind: "invalid", reason: "This measurement has more precision than we can preserve. Choose I'm not sure rather than rounding it." };
+    }
   }
+  if (n < q.numberMin || n > q.numberMax) {
+    return { kind: "invalid", reason: `Enter a number from ${q.numberMin} to ${q.numberMax}, or choose I'm not sure.` };
+  }
+  return { kind: "number", value: n };
+}
 
-  const matches = routing.filter(
-    (o) => (o.numberAtLeast === null || n >= o.numberAtLeast) &&
-           (o.numberAtMost === null || n <= o.numberAtMost)
-  );
-  if (matches.length === 0) {
-    return { kind: "broken", reason:
-      `"${question.key}" has no authored range containing ${n} \u2014 a gap in the tree` };
+/**
+ * Inclusive upper edges plus explicit open lower edges cover decimal domains
+ * without gaps: [1,20], (20,300]. Integer domains retain [1,20], [21,300].
+ * Option order never resolves a gap or overlap.
+ */
+export function validateNumericRanges(q: NumericQuestion & { options: readonly RangeOption[] }): RangeProblem[] {
+  const problems: RangeProblem[] = [];
+  const unknown = q.options.filter(isNumericUnknownOption);
+  if (unknown.length > 1 || unknown.some(o => o.routeAction !== "PHOTO_REVIEW" || o.photosBlockBooking !== true ||
+      o.numberAtLeast != null || o.numberAtMost != null || o.numberAtLeastExclusive)) {
+    problems.push({ kind: "INVALID_UNKNOWN", detail: `"${q.key}" must have at most one unbounded unknown review option` });
   }
-  if (matches.length > 1) {
-    return { kind: "broken", reason:
-      `"${question.key}" has ${matches.length} ranges containing ${n} (${matches.map((m) => m.value).join(", ")}) ` +
-      `\u2014 an overlap; option order must not decide this` };
+  const options = q.options.filter(o => !isNumericUnknownOption(o));
+  const routing = options.filter(o => o.numberAtLeast != null || o.numberAtMost != null || o.numberAtLeastExclusive);
+  if (!routing.length) {
+    if (unknown.length && options.length !== 1) {
+      problems.push({ kind: "MIXED_OPTIONS", detail: `"${q.key}" needs one numeric option beside its unknown option` });
+    }
+    return problems;
   }
-  return { kind: "option", option: matches[0] };
+  if (q.numberMin == null || q.numberMax == null) {
+    return [...problems, { kind: "NO_QUESTION_RANGE", detail: `"${q.key}" routes on its number but declares no numberMin/numberMax` }];
+  }
+  if (!Number.isSafeInteger(q.numberMin) || !Number.isSafeInteger(q.numberMax) || q.numberMin > q.numberMax) {
+    problems.push({ kind: "INVERTED", detail: `"${q.key}" has an invalid question domain` });
+  }
+  if (routing.length !== options.length) {
+    problems.push({ kind: "MIXED_OPTIONS", detail: `"${q.key}" mixes numeric ranges with unranged options` });
+  }
+  const spans = routing.map(o => ({
+    value: o.value, lo: o.numberAtLeast ?? q.numberMin!, hi: o.numberAtMost ?? q.numberMax!,
+    open: o.numberAtLeastExclusive === true,
+  }));
+  for (const [i,s] of spans.entries()) {
+    if (!Number.isSafeInteger(s.lo) || !Number.isSafeInteger(s.hi) || s.lo > s.hi || (s.open && s.lo === s.hi)) {
+      problems.push({ kind: "INVERTED", detail: `"${q.key}" option ${s.value} has an empty or invalid range` });
+    }
+    if (s.lo < q.numberMin || s.hi > q.numberMax || (s.open && routing[i].numberAtLeast == null)) {
+      problems.push({ kind: "OUT_OF_BOUNDS", detail: `"${q.key}" option ${s.value} has an invalid edge` });
+    }
+  }
+  const sorted = spans.sort((a,b) => a.lo - b.lo || Number(a.open) - Number(b.open) || a.hi - b.hi);
+  for (let i=1; i<sorted.length; i++) {
+    const prev=sorted[i-1], cur=sorted[i];
+    const low = cur.lo + (!q.numberAllowsDecimal && cur.open ? 1 : 0);
+    const overlaps = q.numberAllowsDecimal
+      ? cur.lo < prev.hi || (cur.lo === prev.hi && !cur.open)
+      : low <= prev.hi;
+    const gap = q.numberAllowsDecimal ? cur.lo > prev.hi : low > prev.hi + 1;
+    if (overlaps) problems.push({kind:"OVERLAP", detail:`"${q.key}" options ${prev.value} and ${cur.value} overlap`});
+    if (gap) problems.push({kind:"GAP", detail:`"${q.key}" has a gap between ${prev.value} and ${cur.value}`});
+  }
+  if (sorted.length && (sorted[0].lo > q.numberMin || (sorted[0].lo === q.numberMin && sorted[0].open))) {
+    problems.push({kind:"GAP", detail:`"${q.key}" does not cover its lower bound`});
+  }
+  if (sorted.length && sorted[sorted.length-1].hi < q.numberMax) {
+    problems.push({kind:"GAP", detail:`"${q.key}" does not cover its upper bound`});
+  }
+  return problems;
+}
+
+export function selectNumericOption<T extends RangeOption>(
+  question: NumericQuestion & { options: readonly T[] }, raw: string
+): NumericOptionChoice<T> {
+  const problems = validateNumericRanges(question);
+  if (problems.length) return {kind:"broken", reason:problems.map(p=>p.detail).join("; ")};
+  if (raw === NUMERIC_UNKNOWN) {
+    const option = question.options.find(isNumericUnknownOption);
+    return option ? {kind:"option",option} : {kind:"invalid",reason:"This question has no unknown option"};
+  }
+  const options = question.options.filter(o => !isNumericUnknownOption(o));
+  const routing = options.some(o => o.numberAtLeast != null || o.numberAtMost != null);
+  // Preserve unbounded legacy dimensions such as "8 x 8". Bounded NUMBER
+  // questions, including the single-option footage/count questions, validate
+  // before navigation so the browser cannot accept what the server refuses.
+  if (!routing && question.numberMin == null && question.numberMax == null && !question.numberAllowsDecimal) {
+    return options[0] ? {kind:"option",option:options[0]} : {kind:"broken",reason:`"${question.key}" has no answer options`};
+  }
+  const parsed = validateNumericAnswer(question, raw);
+  if (parsed.kind !== "number") return parsed;
+  if (!routing) {
+    return options.length === 1 ? {kind:"option",option:options[0]} : {kind:"broken",reason:`"${question.key}" needs one numeric option`};
+  }
+  const matches = options.filter(o =>
+    (o.numberAtLeast == null || (o.numberAtLeastExclusive ? parsed.value > o.numberAtLeast : parsed.value >= o.numberAtLeast)) &&
+    (o.numberAtMost == null || parsed.value <= o.numberAtMost));
+  if (matches.length !== 1) return {kind:"broken",reason:`"${question.key}" has ${matches.length} ranges containing ${parsed.value}`};
+  return {kind:"option",option:matches[0]};
 }

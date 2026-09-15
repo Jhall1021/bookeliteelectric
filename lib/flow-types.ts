@@ -24,6 +24,7 @@ export type AnswerOptionDTO = {
    * Both null on an option that carries no numeric predicate, which is every
    * option authored before numeric routing existed.
    */
+  numberAtLeastExclusive?: boolean;
   numberAtLeast: number | null;
   numberAtMost: number | null;
   rerouteServiceId: string | null;
@@ -116,6 +117,7 @@ export type QuestionDTO = {
    *
    * Null on every question that is not in numeric-routing mode.
    */
+  numberAllowsDecimal?: boolean;
   numberMin: number | null;
   numberMax: number | null;
   /**

@@ -35,9 +35,9 @@ export type DerivedVerdict = Resolved & {
   derivedRefusalCode?: string;
 };
 
-const num = (v: string | undefined): number => {
+const num = (v: string | undefined, measured = false): number => {
   const n = Number(v);
-  return Number.isInteger(n) && n >= 0 ? n : 0;
+  return Number.isFinite(n) && (measured || Number.isSafeInteger(n)) && n >= 0 ? n : 0;
 };
 
 /**
@@ -50,7 +50,7 @@ const num = (v: string | undefined): number => {
  */
 export function routeShapeFromAnswers(answers: Record<string, string>) {
   return {
-    routeFeet: num(answers[SURFACE_KEYS.feet]),
+    routeFeet: num(answers[SURFACE_KEYS.feet], true),
     turnCount:
       num(answers[SURFACE_KEYS.inside]) +
       num(answers[SURFACE_KEYS.outside]) +

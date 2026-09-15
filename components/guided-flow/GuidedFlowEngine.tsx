@@ -9,6 +9,7 @@ import {
   applyBranch,
   type JobConfiguration,
 } from "@/lib/pricing";
+import { optionForStoredGuidedFlowAnswer } from "@/lib/guidedFlowStoredAnswer";
 import { flowPriceSource } from "@/lib/guidedFlowPricing";
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
@@ -241,6 +242,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     const previous = history[history.length - 1];
     setState(previous.state);
     setAnswers(previous.answers);
+    setConfig(previous.config);
+    persistAnswers(previous.answers);
     setHistory(history.slice(0, -1));
   }
 
@@ -460,9 +463,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       visited.add(question.id);
 
       const prior = ans[question.key];
-      const priorOption = prior
-        ? question.options.find((o) => o.value === prior)
-        : undefined;
+      const priorOption = optionForStoredGuidedFlowAnswer(question, prior);
 
       // Nothing collected for this key yet — ask it.
       if (!priorOption) {
