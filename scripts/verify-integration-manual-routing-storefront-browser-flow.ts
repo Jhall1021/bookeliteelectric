@@ -78,6 +78,7 @@ import { chromium, type Page } from "playwright";
 import { PrismaClient } from "@prisma/client";
 import { buildPricedDerivedContractor, removeFixture, fixtureSlug, changeChannelCost, reapprove } from "./_derivedStorefrontFixture";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
+import { liveEndpointOf, resetRefusal } from "../lib/electrical/pilotScope";
 
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
@@ -203,6 +204,14 @@ async function main() {
   console.log(`\nINTEGRATION — manual Routing V2 completion through the real storefront\n`);
   console.log(`  ${BASE}  ·  contractor ${SLUG}\n`);
 
+  // EXECUTABLE, not just documented — this suite creates/prices/books real
+  // rows under a real contractor, and every prior "run on a disposable
+  // database only" instruction has been a paragraph in a comment. Same
+  // guard scripts/verify-derived-scheduling-browser.ts already uses.
+  const identity = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" }, select: { key: true, neonEndpoint: true } });
+  const guard = resetRefusal({ slug: SLUG, identity, liveEndpoint: liveEndpointOf(process.env.DATABASE_URL ?? "") });
+  if (guard) { console.log(`  STOP: ${guard.code} — this suite runs on a rehearsal database only.`); process.exit(2); }
+
   await removeFixture(prisma, SLUG).catch(() => {});
   const browser = await chromium.launch();
   let contractorId: string | undefined;
@@ -230,6 +239,16 @@ async function main() {
       page.setDefaultTimeout(30000);
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(String(e)));
+      // The optional "measure with your phone" button DOES render on this
+      // exact route — surface_route_feet/inside/outside corner counts are
+      // all registered in lib/visual-assist/route-assist/
+      // guidedFlowInvocation.ts's REGISTRY — so "zero Route Assist
+      // interaction" is a claim about never CALLING it, not about it being
+      // absent. lib/routeAssistHandoffClient.ts's only network surface is
+      // /api/guided-flow-sessions/:id/visual-assist-tasks; watched directly
+      // rather than inferred from "the button was never clicked".
+      const routeAssistCalls: string[] = [];
+      page.on("request", (r) => { if (r.url().includes("/visual-assist-tasks")) routeAssistCalls.push(r.url()); });
 
       await page.goto(targetUrl);
       await page.getByRole("button", { name: /Check My Price|Start/ }).click();
@@ -242,6 +261,8 @@ async function main() {
         /^\$[0-9,]+(\.[0-9]{2})?$/.test(displayed), `got ${displayed}`);
       ok("A. reached that price with zero Route Assist interaction — every answer was typed/clicked manually",
         errors.length === 0, errors.join("; "));
+      ok("A. …and zero Route Assist NETWORK calls, verified directly — its own capture button renders on this exact route (feet/inside/outside corners are all registered) but was never opened",
+        routeAssistCalls.length === 0, `calls: ${routeAssistCalls.join(", ")}`);
 
       await page.getByRole("button", { name: /Add to My Visit/ }).click();
       await page.waitForURL(/\/my-visit/, { waitUntil: "commit" });
@@ -473,18 +494,46 @@ async function main() {
       );
       await page.getByRole("button", { name: /Add to My Visit/ }).click();
       const staleResult = await staleResponse;
-      ok("F. the stale-priced Add to My Visit is refused with 409 REVIEW_REQUIRED, not booked",
+      ok("F. the stale-priced Add to My Visit is refused with 409, not booked",
         staleResult.status() === 409, `got ${staleResult.status()}: ${await staleResult.text().catch(() => "")}`);
+      // THE EXACT RESPONSE, not just the status code — a 409 for the WRONG
+      // reason (a different validation failure, say) would still read as
+      // "refused" on status alone. `error: "REVIEW_REQUIRED"` is the
+      // specific code GuidedFlowEngine.tsx's own addToVisit branches on
+      // (components/guided-flow/GuidedFlowEngine.tsx) to route the customer
+      // to a review screen rather than a generic failure.
+      const staleBody = await staleResult.json().catch(() => null);
+      ok("F. …and the response body names the SPECIFIC reason — REVIEW_REQUIRED, not a generic failure",
+        staleBody?.error === "REVIEW_REQUIRED", `got ${JSON.stringify(staleBody)}`);
 
       const lineItemsAfterStaleAttempt = await prisma.lineItem.count({ where: { serviceId: fixture.serviceId } });
       ok("F. the refused, stale-priced attempt created NO new LineItem",
         lineItemsAfterStaleAttempt === lineItemsBeforeStaleAttempt,
         `before: ${lineItemsBeforeStaleAttempt}, after: ${lineItemsAfterStaleAttempt}`);
 
+      // THE CUSTOMER-VISIBLE SIDE OF THE REFUSAL — a correct API response the
+      // UI never surfaces is invisible to the one person the refusal is
+      // supposed to protect. GuidedFlowEngine.tsx's addToVisit routes a
+      // REVIEW_REQUIRED 409 to PhotoReviewNotice, whose own heading and body
+      // are fixed, real customer copy — not a generic error banner, and not
+      // the same screen as an ordinary failed request.
+      await page.getByRole("heading", { name: "We can price this remotely.", exact: true }).waitFor({ timeout: 15000 });
+      const refusalBody = await page.innerText("body").catch(() => "");
+      ok("F. …and the customer sees a real, specific refusal message naming this service, not a generic error",
+        refusalBody.includes("mean we need a few photos to confirm the price") && refusalBody.includes("New 120V Outlet"),
+        `body: ${refusalBody.slice(0, 300)}`);
+
       // The office re-approves the NEW economics — a real, supported action
       // (the same decideDerivedPricingApproval path buildPricedDerivedContractor
       // itself used to approve the original figure).
       await reapprove(prisma, fixture.contractorId, fixture.serviceId);
+      // WHICH approval actually authorized what's about to be booked —
+      // captured now, at the moment it was made, so the provenance check
+      // below is a real match against a specific row, not an inference.
+      const approvalAtReapproval = await prisma.contractorDerivedPricingApproval.findUnique({
+        where: { contractorId_serviceId: { contractorId: fixture.contractorId, serviceId: fixture.serviceId } },
+        select: { approvedBasisFingerprint: true },
+      });
 
       // A reload always lands back on the intro screen first (same shape as
       // scripts/verify-back-navigation-config-browser-flow.ts's own step D
@@ -508,7 +557,10 @@ async function main() {
       const bookedLineItem = await prisma.lineItem.findFirst({
         where: { serviceId: fixture.serviceId },
         orderBy: { id: "desc" },
-        select: { id: true, computedPriceCents: true, answersSnapshot: true, resolvedEconomicBasis: true },
+        select: {
+          id: true, computedPriceCents: true, answersSnapshot: true, resolvedEconomicBasis: true,
+          resolvedComponentKeys: true, resolvedMaterialCostCents: true,
+        },
       });
       const afterReapprovalCents = Math.round(parseFloat(priceAfterReapproval.replace(/[$,]/g, "")) * 100);
       ok("F. the re-added LineItem stores the NEW (post-reapproval) price, not the stale pre-change one",
@@ -531,6 +583,26 @@ async function main() {
       ok("F. the booked LineItem records WHICH economic basis produced its price — a real fingerprint, not null",
         typeof basisAtBooking === "string" && basisAtBooking.length > 0,
         `got ${JSON.stringify(basisAtBooking)}`);
+      // THE MATCH ITSELF — not just "a fingerprint exists", but that it is
+      // EXACTLY the one the office's own reapproval actually produced,
+      // captured the moment that approval was made. A snapshot that merely
+      // looks like a fingerprint but doesn't match the real approval row
+      // would be worse than none — it would look like provenance without
+      // being it.
+      ok("F. the booked fingerprint EXACTLY matches the approval that actually authorized it — not just any non-null value",
+        basisAtBooking !== null && basisAtBooking === approvalAtReapproval?.approvedBasisFingerprint,
+        `booked: ${basisAtBooking}, approval that authorized it: ${approvalAtReapproval?.approvedBasisFingerprint}`);
+      // THE MATERIAL/COMPONENT SNAPSHOTS — the fingerprint says WHICH basis;
+      // these say WHAT was actually resolved under it: which components
+      // priced this route, and what the material cost was, package-aware —
+      // the other half of "why this customer received this price".
+      ok("F. the booked LineItem records the real components that priced this route, not an empty snapshot",
+        Array.isArray(bookedLineItem?.resolvedComponentKeys) && bookedLineItem.resolvedComponentKeys.length > 0
+          && bookedLineItem.resolvedComponentKeys.includes("SURFACE_ROUTE_FT"),
+        `got ${JSON.stringify(bookedLineItem?.resolvedComponentKeys)}`);
+      ok("F. the booked LineItem records a real, positive resolved material cost, not null or zero",
+        typeof bookedLineItem?.resolvedMaterialCostCents === "number" && bookedLineItem.resolvedMaterialCostCents > 0,
+        `got ${bookedLineItem?.resolvedMaterialCostCents}`);
 
       // Continue all the way through NATIVE scheduling and a no-deposit
       // checkout to a REAL Booking — the gap the review named: this block
@@ -554,7 +626,13 @@ async function main() {
       await changeChannelCost(fixture.contractorId, 9999);
       await reapprove(prisma, fixture.contractorId, fixture.serviceId);
       const bookingAfterLaterChange = await prisma.booking.findUnique({ where: { id: bookingId }, select: { totalCents: true } });
-      const lineItemAfterLaterChange = await prisma.lineItem.findUnique({ where: { id: bookedLineItem!.id }, select: { computedPriceCents: true, answersSnapshot: true, resolvedEconomicBasis: true } });
+      const lineItemAfterLaterChange = await prisma.lineItem.findUnique({
+        where: { id: bookedLineItem!.id },
+        select: {
+          computedPriceCents: true, answersSnapshot: true, resolvedEconomicBasis: true,
+          resolvedComponentKeys: true, resolvedMaterialCostCents: true,
+        },
+      });
       ok("F. a cost change made AFTER booking leaves the booked Booking.totalCents unchanged",
         bookingAfterLaterChange?.totalCents === afterReapprovalCents,
         `at booking: ${afterReapprovalCents}c, after a further cost change: ${bookingAfterLaterChange?.totalCents}c`);
@@ -586,6 +664,16 @@ async function main() {
       ok("F. …while the booked LineItem's own resolvedEconomicBasis stays pinned to the ORIGINAL basis — the provenance a homeowner or auditor would trace is never silently rewritten to match a later approval",
         lineItemAfterLaterChange?.resolvedEconomicBasis === basisAtBooking,
         `at booking: ${basisAtBooking}, after a further cost change: ${lineItemAfterLaterChange?.resolvedEconomicBasis}`);
+      // THE MATERIAL/COMPONENT SNAPSHOTS SURVIVE TOO — a channel-cost change
+      // is exactly the kind of edit that could plausibly leak into these
+      // fields if they were ever re-read live instead of snapshotted; they
+      // must not.
+      ok("F. …and the booked resolvedComponentKeys survive the later cost change unchanged too",
+        JSON.stringify(lineItemAfterLaterChange?.resolvedComponentKeys) === JSON.stringify(bookedLineItem?.resolvedComponentKeys),
+        `at booking: ${JSON.stringify(bookedLineItem?.resolvedComponentKeys)}, after: ${JSON.stringify(lineItemAfterLaterChange?.resolvedComponentKeys)}`);
+      ok("F. …and the booked resolvedMaterialCostCents survives the later cost change unchanged too — not re-priced at the new $99.99 channel cost",
+        lineItemAfterLaterChange?.resolvedMaterialCostCents === bookedLineItem?.resolvedMaterialCostCents,
+        `at booking: ${bookedLineItem?.resolvedMaterialCostCents}c, after: ${lineItemAfterLaterChange?.resolvedMaterialCostCents}c`);
 
       await ctx.close();
     }
