@@ -23,6 +23,9 @@
  *   npx tsx scripts/verify-material-recipe-promotion-batch-1.ts
  */
 import { PrismaClient } from "@prisma/client";
+import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
@@ -30,6 +33,7 @@ import { destroyContractor } from "./_throwaway";
 import { loadEnv } from "./_env";
 
 loadEnv();
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
 
@@ -76,7 +80,25 @@ async function main() {
   await teardown();
   await sweepStale();
 
-  // ── 0. Route Assist / Routing V2 reserved keys genuinely don't exist here ──
+  // ── 0. This branch did not introduce, rename, redefine, delete or modify a
+  // Route Assist / Routing V2 shared contract.
+  //
+  // NOT the same claim as "these keys don't exist in this schema" — that was
+  // true but proved the wrong thing: absence on origin/main says nothing
+  // about what THIS branch's own diff did. The real claim is checked
+  // directly against the diff itself, against this branch's actual
+  // merge-base with origin/main (not a remembered SHA), restricted to the
+  // files a Route Assist/Routing V2 change would have to touch.
+  const mergeBase = execSync("git merge-base origin/main HEAD", { cwd: REPO_ROOT }).toString().trim();
+  const changedFiles = execSync(`git diff --name-only ${mergeBase}...HEAD`, { cwd: REPO_ROOT })
+    .toString().trim().split("\n").filter(Boolean);
+  const routeAssistPattern = /route-assist|routing-v2|routeResolver|materialTakeoff|quantityAnswerKey|surfaceRaceway|schema\.prisma$/i;
+  const touchesRouteAssist = changedFiles.filter((f) => routeAssistPattern.test(f));
+  ok(`0. this branch's diff against origin/main touches zero Route Assist / Routing V2 / shared-schema files`,
+    touchesRouteAssist.length === 0, JSON.stringify({ changedFiles, touchesRouteAssist }));
+
+  // Corroborating, not the headline claim: no reserved key exists in THIS
+  // database either, so there is nothing for a future merge to collide with.
   const reservedKeys = [
     "ELEC_ROUTE_SURFACE_MOUNTED", "SURFACE_ROUTE_FT", "SURFACE_ROUTE_INSIDE_CORNER",
     "SURFACE_ROUTE_OUTSIDE_CORNER", "SURFACE_ROUTE_FLAT_CORNER", "SURFACE_RACEWAY_CHANNEL",
@@ -84,7 +106,8 @@ async function main() {
   ];
   const reservedHits = await raw.canonicalMaterial.count({ where: { key: { in: reservedKeys } } })
     + await raw.canonicalComponent.count({ where: { key: { in: reservedKeys } } });
-  ok(`0. no Route Assist / Routing V2 reserved key exists in this schema — nothing to collide with`, reservedHits === 0, `${reservedHits} hit(s)`);
+  ok(`   ...and (corroborating only) no Route Assist reserved key exists in this database yet either`,
+    reservedHits === 0, `${reservedHits} hit(s)`);
 
   // ── 1. Elite's own ContractorMaterial costs were not touched by extraction ──
   const elite = await raw.contractor.findUniqueOrThrow({ where: { slug: ELITE_SLUG }, select: { id: true } });
