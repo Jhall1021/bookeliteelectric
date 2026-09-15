@@ -138,8 +138,8 @@ async function main() {
     "D  a capture that asked for a human auto-answers nothing");
   ok(answerFor(SURFACE_KEYS.feet, capture({ customerConfirmedRoute: false })) === null,
     "D  an unconfirmed route auto-answers nothing");
-  ok(answerFor(SURFACE_KEYS.feet, capture({ estimatedTotalRouteLengthFt: 18.5 })) === null,
-    "D  a fractional measurement is refused, not rounded into a range");
+  ok(answerFor(SURFACE_KEYS.feet, capture({ estimatedTotalRouteLengthFt: 14.625 })) === "14.625",
+    "D  fractional physical scope is preserved exactly, not rounded to a whole foot");
 
   console.log("\n  E  sameWall IS NEVER back_to_back\n");
   const sw = adaptRouteAssistResult(capture({ mode: "CONCEALED", sameWall: true }));
