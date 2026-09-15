@@ -56,6 +56,21 @@ export async function listVisualAssistTasks(
   return body.tasks;
 }
 
+/**
+ * Read the canonical answer map before a completed grouped capture auto-fills a
+ * later question. If the stored answer differs from the scan-derived value, the
+ * stored answer is newer/more specific intent and Route Assist must not replace
+ * it merely because an older capture still exists.
+ */
+export async function getGuidedFlowAnswerSnapshot(
+  fetchFn: FetchFn,
+  guidedFlowSessionId: string
+): Promise<Record<string, string>> {
+  const res = await fetchFn(`/api/guided-flow-sessions/${guidedFlowSessionId}`);
+  const body = await asJson<{ consumedAnswers?: Record<string, string> | null }>(res);
+  return body.consumedAnswers ?? {};
+}
+
 export type VisualAssistTaskCompletion = {
   id: string;
   status: string;
