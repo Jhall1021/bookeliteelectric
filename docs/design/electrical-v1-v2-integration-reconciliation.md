@@ -731,6 +731,133 @@ committed. **Also corrected in this pass**: a self-inflicted defect in §0.22
 itself — an earlier edit to this report had deleted the "## 1." section
 header immediately following it; restored here.
 
+### 0.24 (eighth pass) Three real correctness gaps closed in §0.23's own fixes — ambiguity handling, live-version recovery, and Routing V2 fidelity
+
+§0.23's three fixes were real, but each had a real gap of its own, found by
+direct code review rather than by this branch's own rehearsal — the
+rehearsals proved the fixes worked for the cases they tried, not that no
+other case existed. All three are closed here, with new rehearsals covering
+the specific case each gap missed.
+
+**1. Session migration still discarded answers, and could still crash on a
+partial migration.** §0.23's version logged an answer divergence and then
+abandoned the loser anyway — reporting a loss is not the same as not
+causing one. Fixed: a group where any two rows disagree on
+`consumedAnswers` is now AMBIGUOUS and left **completely untouched** — no
+row abandoned, no key backfilled for anyone in the group, not just the
+divergent pair — reported by every row's id and answers for a human to
+resolve. Separately, direct review found a real crash path §0.23's
+populated rehearsal never exercised: the winner was chosen by
+`lastActivityAt` alone, so a group mixing an old, still-unmigrated
+duplicate (key `null`) with a row the real application code had already
+created correctly (key already set) could pick the WRONG row as winner —
+and abandoning the correctly-keyed row without clearing its key (a hand-
+rolled update, not the real `abandonSession`) left that key attached to a
+now-ABANDONED row, so backfilling the actual winner with the identical key
+hit the `@unique` constraint and crashed, ending the run with every group
+before it migrated and every group after it untouched. Fixed two ways:
+winner selection now prefers a row that already carries the correct key
+over recency, and every abandon now calls the real `abandonSession` from
+`lib/guidedFlowSession.ts`, which always nulls the key. Rehearsed with six
+populated scenarios in one run: an ambiguous divergent-answer pair (left
+fully untouched, both rows confirmed still `ACTIVE` with `null` keys
+afterward), a plain safe duplicate, a duplicate with a live handoff, a
+duplicate with a pending visual-assist task (both unchanged from §0.23's
+already-correct handling), the exact existing-key crash scenario
+constructed directly — an older row pre-set to the correct key, a newer
+row left `null` — which resolved to the correctly-keyed row as winner with
+no crash, and one ordinary non-duplicate session. Re-run twice,
+idempotent.
+
+**2. Publication rollback was proven for a crash, not for a version that
+had already gone live — and the publisher still allowed overwriting a
+published version and dropped policy bindings.** §0.23's rollback
+rehearsal only ever tested a fault injected mid-transaction; it never
+proved the actual recovery path (§10.3: publish a corrective forward
+version) against a version that had already committed and gone live.
+Direct review also found `extract-template-service.ts` had no refusal at
+all against being re-run into an already-published version — silently
+`deleteMany` + recreating whatever was there — and never wrote
+`TemplatePolicyDefinition`/`templatePolicyDefinitionId`/`labelPattern` at
+all, meaning any policy-banded question (a real, existing pattern in this
+catalog — `dedicated_distance` on `dedicated-120v-circuit-outlet` is one)
+extracted through this tool would silently lose its band shape entirely.
+All three fixed and rehearsed:
+- **Overwrite refusal**: the tool now refuses to write into a version that
+  already publishes the same service key, requiring
+  `--i-know-this-overwrites-a-published-version` typed out deliberately —
+  the same discipline `extract-template-catalog.ts` already applies to a
+  full-catalog write. Rehearsed: re-running into an already-published
+  (version, key) pair refused by default; the same call with the flag
+  proceeded; a DIFFERENT service extracted into the SAME version was
+  correctly NOT refused, confirming the check is scoped to the (version,
+  key) pair, not the version alone.
+- **Policy bindings**: the tool now applies the identical band-pattern
+  substitution `extract-template-catalog.ts` already uses (shared from
+  `scripts/_extractCore.ts`'s `loadPolicies`, not re-authored) and writes
+  `TemplatePolicyDefinition` rows before the service that references them.
+  Rehearsed against `dedicated-120v-circuit-outlet`'s real
+  `dedicated_distance` question: the three distance-banded options
+  extracted with the exact pattern text (`"{b1} feet or less"`, `"{b1+1}
+  to {b2} feet"`, `"More than {b2} feet"`) and the correct
+  `templatePolicyDefinitionId`, confirmed by direct query against the
+  written rows; the fourth, non-banded "I'm not sure" option correctly
+  carried neither.
+- **Recovery after a version has already gone live**: rehearsed for real
+  this time. Confirmed `templateVersionSource` resolved
+  `dedicated-120v-circuit-outlet` from the (deliberately "bad", already
+  live) published version; edited the live source's `shortDescription` to
+  a distinguishable "corrected" value; extracted a NEW version for the
+  same key; confirmed `templateVersionSource` now resolves the corrected
+  content from the new version — and, in the same check, confirmed the
+  "bad" version's own row is completely unchanged, proving both halves of
+  the rollback plan empirically: the correction takes over, and the prior
+  version is never touched.
+All rehearsal versions and the temporary source edit were removed
+afterward; the database confirmed back to its single original
+`TemplateVersion`.
+
+**3. The adoption tool didn't carry the routing links, numeric
+constraints, or component bindings Routing V2 needs.** §0.23's adoption
+rehearsal proved a plain question-added and a wording conflict worked, but
+the write path it exercised only ever copied `label`/`routeAction`/photo
+fields — never `nextQuestionKey`/`rerouteServiceKey`/`referencedServiceKey`,
+never the question's or option's numeric bounds, never
+`AnswerOptionComponent` rows. An adopted Routing V2 question would have
+landed on a contractor's live tree with nowhere to route to, no way to
+validate a numeric answer against its own declared range, and no material
+consequence at all. Fixed: `template-update.ts` now resolves each routing
+key against the adopting contractor's own live tree (by `templateKey`
+first, falling back to `slug` — required for a tenant like Elite that IS a
+template's own source and carries no `templateKey`), carries every numeric
+field on both the question and the option, and creates
+`AnswerOptionComponent` rows from the template's own component bindings.
+An unresolvable routing target (its own destination not yet adopted) is
+written `null` and reported by name, never guessed at — this tool applies
+one change at a time by design, so a multi-question addition may need
+adopting in dependency order. Rehearsed against Elite's live tree (after
+the same one-time provenance backfill §0.23 established): a new question
+with a numeric range, an option with its own numeric bounds, a
+`nextQuestionKey` resolving to the REAL live `purpose` question (confirmed
+by exact id match, not just non-null), and a real canonical-component
+binding — every field landed correctly, confirmed by direct query. A
+second new question with an intentionally unresolvable
+`rerouteServiceKey` was correctly written `null` and reported, not
+guessed. Materials, disclaimers, photo groups and policy-banded label
+patterns are still not carried by this tool — named here, not silently
+dropped, since none of those were part of this specific correction.
+
+**Verification.** `npx tsc --noEmit` clean project-wide after all three
+fixes. All three browser-flow suites re-run clean against a fresh
+production build after every rehearsal in this pass. The local disposable
+database confirmed back to its exact baseline after each of the three
+gap-closing rehearsals independently (one `TemplateVersion`, three
+contractors, the same session counts throughout) — nothing from this
+pass's rehearsal work persists; only
+`prisma/migrate-guided-flow-session-active-key.ts`,
+`scripts/extract-template-service.ts`, `scripts/template-update.ts`, and
+this report are committed.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple
@@ -1364,19 +1491,28 @@ see §0.22 for the executed proof.
    `AVAILABLE`/`CONNECTED` handoff breaks whatever second device is
    mid-join on it, silently, and a discarded `consumedAnswers` payload
    different from the survivor's is real customer progress with no record
-   it ever existed. **Fixed**: a loser with a live handoff or a pending
-   visual-assist task is now left ACTIVE rather than abandoned, reported by
-   id and reason, for a human to resolve — the script has no product
-   answer for "which of two genuinely live sessions should win" and does
-   not invent one. Every abandoned loser whose answers differ from the
-   survivor's is now logged with both payloads shown, never silently
-   discarded without a trace, though nothing merges them — no merge
-   semantics exist anywhere in this codebase for two independently
-   progressed answer sets. Rehearsed twice consecutively: the first run
-   resolved the safe duplicate and reported the two unsafe ones by name;
-   the second run (idempotency check) reported the same two unsafe ones
-   again, unchanged, and did nothing further to the resolved one. All
-   rehearsal rows were then deleted, restoring this database's original
+   it ever existed. **Fixed, then corrected again (§0.24): a loser with a
+   live handoff or a pending visual-assist task is left ACTIVE rather than
+   abandoned, reported by id and reason; a group with genuinely divergent
+   answers is left COMPLETELY UNTOUCHED — no row abandoned, no key
+   backfilled for anyone in it, not merely logged before abandoning
+   anyway, which is what this section originally (and wrongly) described.**
+   The script has no product answer for "which of two genuinely live or
+   disagreeing sessions should win" and does not invent one for either
+   case. §0.24 also found and fixed a real crash path this rehearsal had
+   not yet exercised: choosing a winner by recency alone could pick a
+   still-unmigrated legacy row over one the real application code had
+   already correctly keyed, and abandoning the correctly-keyed loser
+   without clearing its key (not the real `abandonSession`) crashed the
+   whole run on the `@unique` constraint the moment the backfill tried to
+   give the actual winner that same key — ending the migration with every
+   group before the crash migrated and every group after it untouched.
+   Winner selection now prefers an already-correctly-keyed row over
+   recency, and every abandon now calls the real `abandonSession`, which
+   always nulls the key. Rehearsed with six populated scenarios,
+   including the exact crash constructed directly (an older correctly-
+   keyed row, a newer null-keyed duplicate) resolving safely with no
+   crash. Rehearsed twice consecutively for idempotency. All
    session count.
 3. **This exact script cannot be pointed at Neon, branch or production —
    this is not a policy, it is enforced code.**
@@ -1503,7 +1639,27 @@ Real adoption is a deliberate, later sequence:
      the service to unresolved (`materialCostResolved: false`,
      `publishedPriceApprovedAt: null`, `basePrice: null`) exactly as the
      tool's own safety net documents; `--adopt` on the conflicting change
-     correctly refused and left Elite's customization untouched. All
+     correctly refused and left Elite's customization untouched.
+     **CORRECTED (§0.24): that first rehearsal only proved label/wording
+     adoption — it did not prove the tool carries what Routing V2 actually
+     needs.** Direct review found `--adopt` never wrote
+     `nextQuestionKey`/`rerouteServiceKey`/`referencedServiceKey`, never
+     copied a question's or option's numeric bounds, and never created
+     `AnswerOptionComponent` rows — an adopted Routing V2 question would
+     have landed on a live tree with no route to anywhere, no numeric
+     validation, and no material consequence. Fixed: the tool now resolves
+     every routing key against the adopting contractor's own live tree
+     (falling back to `slug` for a tenant like Elite with no `templateKey`
+     at all) and carries every numeric and component field. Rehearsed
+     against Elite's live tree: a new question with a numeric range and an
+     option carrying its own numeric bounds, a `nextQuestionKey` that
+     resolved to the real live `purpose` question (confirmed by exact id
+     match), and a real canonical-component binding all landed correctly;
+     a second option's intentionally unresolvable `rerouteServiceKey` was
+     correctly written `null` and reported by name rather than guessed.
+     Materials, disclaimers, photo groups and policy-banded patterns are
+     still not carried by this tool — a named, open gap, not part of this
+     correction. All
      rehearsal writes (the backfill, the scratch DELTA, the adopted
      question, the customization test) were then reverted, restoring this
      database's exact baseline.
@@ -1577,14 +1733,34 @@ Real adoption is a deliberate, later sequence:
    because it is "not live yet" — it is live the instant `--apply` returns.
    The rehearsal write was removed afterward, restoring this database's
    original single-SNAPSHOT state.
-5. Decide `new-120v-outlet`'s `pricingMethod` on the template deliberately
+5. **Two more real gaps closed, and true recovery proven (§0.24), not
+   assumed from the crash-only proof in point 3 above.** The tool allowed
+   silently overwriting an already-published version for the same service
+   key with no refusal at all — fixed: it now refuses by default, requiring
+   `--i-know-this-overwrites-a-published-version` typed out deliberately,
+   rehearsed both ways (refused without the flag, proceeded with it, and
+   confirmed a DIFFERENT service extracted into the same version is never
+   caught by this check). It also never wrote policy bindings at all — a
+   real, existing policy-banded question (`dedicated_distance` on
+   `dedicated-120v-circuit-outlet`) extracted through this tool would have
+   silently lost its band shape; fixed by sharing the same band-pattern
+   logic `extract-template-catalog.ts` already uses, rehearsed against that
+   exact real question with the written rows confirmed by direct query.
+   Separately, §0.23's crash rehearsal proved recovery from an
+   *interrupted* publication, not from one that had already gone live —
+   §0.24 rehearsed the real case: a deliberately "bad" already-live version
+   was superseded by a corrective forward version for the same key, with
+   `templateVersionSource` confirmed to resolve the corrected content
+   afterward and the original "bad" version's own row confirmed completely
+   unchanged throughout.
+6. Decide `new-120v-outlet`'s `pricingMethod` on the template deliberately
    (`prisma/seed-routing-v2-pricing-method.ts`, or its real-catalog
    equivalent) — per its own docstring, this changes what a contractor
    provisioned FROM HERE ON receives, not any existing contractor's
    service. Elite's own real service does not change pricing method by
    this — no supported action retroactively promotes an EXISTING
    contractor's service (§0.9's own finding).
-6. Roll out to new contractors deliberately, not silently — this is
+7. Roll out to new contractors deliberately, not silently — this is
    `electrical-routing-v2-workstream`'s own "Stage 1B needs authorization"
    boundary, unchanged by anything in this reconciliation.
 

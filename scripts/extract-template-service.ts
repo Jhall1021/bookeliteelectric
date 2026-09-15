@@ -34,17 +34,45 @@
  *   --service <slug>   which service to extract
  *   --version <n>      template version to write into (created if absent)
  *   --apply            write; otherwise report only
+ *   --i-know-this-overwrites-a-published-version   required to write into a
+ *                      version that already carries a TemplateService for
+ *                      this exact key — see OVERWRITE REFUSAL below.
+ *
+ * OVERWRITE REFUSAL — a published version is immutable by default.
+ *
+ * `templateVersionSource` resolves whatever the latest SNAPSHOT-plus-DELTAs
+ * says the instant a version is written — there is no staging step, proven
+ * in this branch's own rehearsal (§0.22). That makes re-running this tool
+ * against an ALREADY-PUBLISHED version for the SAME service key a silent
+ * rewrite of content a fresh contractor may already have installed from,
+ * with no record that anything changed. This tool now refuses that by
+ * default — matching the insert-only convention this codebase already
+ * applies to `MaterialBaselineVersion` for the identical reason — and
+ * requires `--i-know-this-overwrites-a-published-version` typed out
+ * deliberately to proceed anyway. A correction belongs in a NEW version
+ * number (see the rollback plan, §10.3): the prior version stays exactly as
+ * it was, and `templateVersionSource` picks up the later, corrected DELTA
+ * for the same key automatically.
  */
 import { PrismaClient } from "@prisma/client";
 import { readFileSync, existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
 import { serviceFor } from "../prisma/_serviceTargets";
+import { loadPolicies } from "./_extractCore";
 
 loadEnv();
 const prisma = new PrismaClient();
 
 const TRADE = "electrical";
+/**
+ * Band definitions, shared with extract-template-catalog.ts rather than
+ * re-authored: a question banded there must mean the same thing here, and
+ * a second manifest would drift the moment one tool's copy was edited alone.
+ */
+const POLICIES = loadPolicies();
+/** Policy keys this extraction actually reaches — written once, at apply time. */
+const usedPolicies = new Set<string>();
 const arg = (n: string) => {
   const i = process.argv.indexOf(`--${n}`);
   return i >= 0 ? process.argv[i + 1] : undefined;
@@ -272,6 +300,21 @@ async function main() {
       const where = `${q.key}/${o.value}`;
       if (o.priceModifierCents) findings.push({ where, kind: "economics", detail: `priceModifierCents ${o.priceModifierCents} dropped` });
       if (o.overrideEstimatedMinutes !== null) findings.push({ where, kind: "economics", detail: `overrideEstimatedMinutes ${o.overrideEstimatedMinutes} dropped` });
+      // A band option's wording is a contractor decision, not missing copy —
+      // same rule extract-template-catalog.ts already applies. The template
+      // carries the SHAPE ("{b1} to {b2} feet") and leaves the numbers to the
+      // contractor; the label IS the pattern, deliberately not customer-ready,
+      // which is what keeps a service carrying one from publishing until a
+      // contractor resolves it. Checked BEFORE resolveCopy: a banded option's
+      // live wording is Elite's own already-resolved numbers ("10 to 20
+      // feet"), and running that through resolveCopy would authored-override
+      // or pass through a number that is specifically not template content.
+      const band = POLICIES.questions[q.key];
+      const pattern = band?.patterns[o.value];
+      if (pattern) {
+        usedPolicies.add(band!.policyKey);
+        findings.push({ where, kind: "policy", detail: `banded: "${o.label}" -> pattern "${pattern}" (policy ${band!.policyKey})` });
+      }
       return {
         value: o.value,
         routeAction: o.routeAction,
@@ -287,7 +330,9 @@ async function main() {
         // routes with no gate at all — restoration offered by someone who never
         // said they do it.
         requiresCapabilityKey: o.requiresCapabilityKey,
-        label: resolveCopy(`${q.key}/${o.value}`, "label", o.label),
+        label: pattern ?? resolveCopy(`${q.key}/${o.value}`, "label", o.label),
+        labelPattern: pattern ?? null,
+        policyKey: pattern ? band!.policyKey : null,
         order: oi,
         nextQuestionKey: o.nextQuestionId ? liveQuestions.find((x) => x.id === o.nextQuestionId)?.key ?? null : null,
         rerouteServiceKey: o.rerouteServiceId
@@ -325,11 +370,42 @@ async function main() {
     return { canonicalMaterialId: m.canonicalMaterialId!, quantity: isAllowance ? null : m.quantity, quantityIsPolicy: isAllowance, order: i };
   });
 
+  // Policies this service needs that no question introduces — the same
+  // service-level manifest entry extract-template-catalog.ts reads.
+  const servicePolicies = POLICIES.servicePolicies[svc.slug] ?? [];
+  for (const k of servicePolicies) usedPolicies.add(k);
+
   console.log("\n  FINDINGS");
   for (const f of findings) console.log(`    ${f.kind.padEnd(10)} ${f.where}\n        ${f.detail}`);
   if (!findings.length) console.log("    (none — suspicious for a real service; check the classification)");
 
   if (!apply) { console.log(`\n  Dry run — nothing written.\n`); await prisma.$disconnect(); return; }
+
+  const overwriteConfirmed = process.argv.includes("--i-know-this-overwrites-a-published-version");
+  const existingVersion = await prisma.templateVersion.findUnique({ where: { trade_version: { trade: TRADE, version } } });
+  if (existingVersion) {
+    const existingService = await prisma.templateService.findUnique({
+      where: { templateVersionId_key: { templateVersionId: existingVersion.id, key: svc.slug } },
+      select: { id: true },
+    });
+    if (existingService && !overwriteConfirmed) {
+      console.error(
+        `\n  REFUSED: ${TRADE} v${version} already publishes "${svc.slug}". A published version is\n` +
+        `  immutable by default — templateVersionSource resolves whatever is written the instant\n` +
+        `  it lands, with no staging step, so overwriting it silently rewrites what a contractor\n` +
+        `  may already have installed from.\n\n` +
+        `  Publish the correction as a NEW version instead (--version ${version + 1} or higher) —\n` +
+        `  templateVersionSource picks up the later DELTA for this same key automatically, and\n` +
+        `  the old version stays exactly as it was, which is what makes the correction recoverable.\n\n` +
+        `  If this overwrite is genuinely intended, pass --i-know-this-overwrites-a-published-version.\n`
+      );
+      await prisma.$disconnect();
+      process.exit(1);
+    }
+    if (existingService) {
+      console.log(`\n  OVERWRITING ${TRADE} v${version}'s existing "${svc.slug}" — confirmed with --i-know-this-overwrites-a-published-version.\n`);
+    }
+  }
 
   /**
    * ATOMIC PUBLICATION.
@@ -357,6 +433,29 @@ async function main() {
       // would give a contractor a single-service business.
       update: {}, create: { trade: TRADE, version, kind: "DELTA", notes: `extracted from ${slug}` },
     });
+
+    /**
+     * POLICY DEFINITIONS — written before the service, same order
+     * extract-template-catalog.ts already uses and for the same reason: an
+     * answer option referencing one cannot be created until it exists.
+     * Silently omitted here until now, which meant a banded question this
+     * tool extracted lost its band shape and its options' unresolved-pattern
+     * behavior entirely — the contractor lost the fact that a number was
+     * theirs to set, not the template's.
+     */
+    const policyIds = new Map<string, string>();
+    for (const key of [...usedPolicies].sort()) {
+      const def = POLICIES.definitions[key];
+      if (!def) throw new Error(`Policy "${key}" is referenced but not defined in ${`prisma/template/electrical.policies.json`}.`);
+      const row = await tx.templatePolicyDefinition.upsert({
+        where: { templateVersionId_key: { templateVersionId: tv.id, key } },
+        update: { type: def.type, unit: def.unit ?? null, boundaryCount: def.boundaryCount, prompt: def.prompt },
+        create: { templateVersionId: tv.id, key, type: def.type, unit: def.unit ?? null,
+                  boundaryCount: def.boundaryCount, prompt: def.prompt },
+      });
+      policyIds.set(key, row.id);
+    }
+
     await tx.templateService.deleteMany({ where: { templateVersionId: tv.id, key: svc.slug } });
     const ts = await tx.templateService.create({
       data: {
@@ -375,6 +474,7 @@ async function main() {
         // fixed in extract-template-catalog.ts, present here too until now.
         pricingMethod: svc.pricingMethod,
         materials: { create: materials },
+        policies: { create: servicePolicies.map((k) => ({ templatePolicyDefinitionId: policyIds.get(k)! })) },
       },
     });
     for (const q of questions) {
@@ -387,6 +487,8 @@ async function main() {
             value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
             numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
             requiresCapabilityKey: o.requiresCapabilityKey,
+            labelPattern: o.labelPattern,
+            templatePolicyDefinitionId: o.policyKey ? policyIds.get(o.policyKey) ?? null : null,
             nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
             referencedServiceKey: o.referencedServiceKey,
             requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
