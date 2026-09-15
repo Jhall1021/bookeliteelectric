@@ -20,12 +20,7 @@ const points: RoutePoint[] = [
 ];
 const segments: RouteSegment[] = [{ id: "segment", fromPointId: "source", toPointId: "destination" }];
 
-const semantics = buildFixtureVisibleSceneSemanticsV1({
-  captureImageIds,
-  sourcePointId: "source",
-  destinationPointId: "destination",
-  segmentId: "segment",
-});
+const semantics = buildFixtureVisibleSceneSemanticsV1({ captureImageIds, sourcePointId: "source", destinationPointId: "destination", segmentId: "segment" });
 check("fixture semantics build with three ordered sweep frames", semantics !== null);
 if (!semantics) process.exit(1);
 
@@ -39,7 +34,16 @@ check("proposal remains review-only", proposal.requiresHomeownerReview === true 
 
 const overlay = buildVisibleTrimRouteOverlayV1({ semantics, proposal });
 check("review proposal projects into frame-local overlays", overlay !== null && overlay.paths.length >= 2, JSON.stringify(overlay));
-check("overlay never mixes image IDs inside a frame path", overlay?.paths.every((path) => semantics.objects.filter((object) => path.stepKinds.length > 0 && object.imageId === path.imageId).length >= 0) === true);
+check(
+  "every overlay path stays on a durable capture image and has one point per step",
+  overlay?.paths.every((path) => captureImageIds.includes(path.imageId) && path.points.length === path.stepKinds.length && path.points.length > 0) === true,
+  JSON.stringify(overlay),
+);
+check(
+  "overlay paths preserve capture order",
+  overlay?.paths.map((path) => captureImageIds.indexOf(path.imageId)).every((order, index, all) => index === 0 || order > all[index - 1]) === true,
+  JSON.stringify(overlay?.paths),
+);
 
 const wrongOrder = { ...semantics, captureImageIds: [...captureImageIds].reverse() };
 const wrongOrderProblems = validateRouteAssistVisibleSceneSemanticsV1({ semantics: wrongOrder, expectedCaptureImageIds: captureImageIds, points, segments });
