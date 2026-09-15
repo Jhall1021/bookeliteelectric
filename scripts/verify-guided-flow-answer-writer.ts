@@ -39,16 +39,11 @@ async function queuedLocalEditsPreserveRemoteState() {
   };
 
   const writer = new GuidedFlowAnswerWriter(fetchFn, { id: "s1", version: 1 }, { a: "1" });
-  const first = writer.enqueue({
-    localBaseAnswers: { a: "1" },
-    attemptedAnswers: { a: "1", b: "2" },
-  });
-  // This second local edit was formed before the first network write necessarily
-  // finished, so its local snapshots do not know about `phoneOnly` yet.
-  const second = writer.enqueue({
-    localBaseAnswers: { a: "1", b: "2" },
-    attemptedAnswers: { a: "1", b: "2", c: "3" },
-  });
+  const first = writer.enqueueAnswerEdit("b", "2");
+  // This click happens before the first network write necessarily finishes.
+  // enqueueAnswerEdit snapshots the writer's canonical state at CLICK time,
+  // then enqueue() reconciles that edit again when it reaches the queue head.
+  const second = writer.enqueueAnswerEdit("c", "3");
 
   const firstResult = await first;
   const secondResult = await second;
@@ -59,12 +54,12 @@ async function queuedLocalEditsPreserveRemoteState() {
     JSON.stringify(firstResult)
   );
   check(
-    "queued second edit preserves remote answer it never saw locally",
+    "quick second local edit preserves remote answer it never saw at click time",
     secondResult.answers.b === "2" && secondResult.answers.c === "3" && secondResult.answers.phoneOnly === "yes",
     JSON.stringify(secondResult)
   );
   check(
-    "second request sent canonical remote state plus the new local delta",
+    "second request sent canonical remote state plus the new explicit local edit",
     requests.some((r) => {
       const a = r.consumedAnswers as Record<string, string> | undefined;
       return a?.b === "2" && a?.c === "3" && a?.phoneOnly === "yes";
@@ -79,7 +74,60 @@ async function queuedLocalEditsPreserveRemoteState() {
   );
 }
 
-async function queuedSameKeyConflictStopsBeforeNetwork() {
+async function explicitBackEditCanReplaceEarlierCanonicalAnswer() {
+  let calls = 0;
+  const fetchFn: GuidedFlowFetch = async (_input, init) => {
+    calls++;
+    const body = JSON.parse(String(init?.body));
+    return response(200, {
+      id: "s1",
+      version: calls + 2,
+      consumedAnswers: body.consumedAnswers,
+    });
+  };
+
+  // The server already knows route=16. The UI may have moved Back to the
+  // question and locally removed that key from its history snapshot, but a new
+  // explicit click is still an intentional edit of the canonical answer.
+  const writer = new GuidedFlowAnswerWriter(fetchFn, { id: "s1", version: 2 }, { route: "16", prior: "keep" });
+  const changed = await writer.enqueueAnswerEdit("route", "18");
+  check(
+    "an explicit answer after Back can replace the prior canonical value",
+    changed.persisted && changed.answers.route === "18" && changed.answers.prior === "keep",
+    JSON.stringify(changed)
+  );
+  check("Back edit required exactly one canonical write", calls === 1, String(calls));
+}
+
+async function snapshotIntentPersistsRerouteCarryWithoutInventingAuthority() {
+  const requests: Record<string, unknown>[] = [];
+  const fetchFn: GuidedFlowFetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    requests.push(body);
+    return response(200, {
+      id: "s1",
+      version: 2,
+      consumedAnswers: body.consumedAnswers,
+    });
+  };
+
+  const writer = new GuidedFlowAnswerWriter(fetchFn, { id: "s1", version: 1 }, { shared: "old" });
+  const result = await writer.enqueueSnapshotIntent({ shared: "new", carried_only: "yes" });
+  check(
+    "bounded reroute carry is expressed as intentional snapshot input",
+    result.persisted && result.answers.shared === "new" && result.answers.carried_only === "yes",
+    JSON.stringify(result)
+  );
+  check(
+    "snapshot intent preserves unrelated canonical answers while applying carried values",
+    requests.length === 1 &&
+      (requests[0].consumedAnswers as Record<string, string>)?.shared === "new" &&
+      (requests[0].consumedAnswers as Record<string, string>)?.carried_only === "yes",
+    JSON.stringify(requests)
+  );
+}
+
+async function staleQueuedWholeSnapshotStillFailsClosed() {
   let calls = 0;
   const fetchFn: GuidedFlowFetch = async (_input, init) => {
     calls++;
@@ -94,20 +142,23 @@ async function queuedSameKeyConflictStopsBeforeNetwork() {
   });
   check("first same-key edit persists normally", first.persisted && first.answers.route === "16", JSON.stringify(first));
 
-  // Simulate a queued edit that was authored from the old local base. By the
-  // time it reaches the queue head, canonical state is already 16.
+  // Retain the lower-level fail-closed proof for callers that deliberately use
+  // enqueue() with an old whole snapshot. UI question clicks should use
+  // enqueueAnswerEdit() instead.
   const second = await writer.enqueue({
     localBaseAnswers: { route: "14.6" },
     attemptedAnswers: { route: "18" },
   });
-  check("queued stale same-key edit is surfaced as conflict", second.conflictKeys.includes("route"), JSON.stringify(second));
-  check("queued stale same-key edit keeps canonical value", second.answers.route === "16", JSON.stringify(second));
+  check("stale queued whole-snapshot edit is surfaced as conflict", second.conflictKeys.includes("route"), JSON.stringify(second));
+  check("stale queued whole-snapshot edit keeps canonical value", second.answers.route === "16", JSON.stringify(second));
   check("preflight same-key conflict does not make another HTTP write", calls === 1, String(calls));
 }
 
 async function run() {
   await queuedLocalEditsPreserveRemoteState();
-  await queuedSameKeyConflictStopsBeforeNetwork();
+  await explicitBackEditCanReplaceEarlierCanonicalAnswer();
+  await snapshotIntentPersistsRerouteCarryWithoutInventingAuthority();
+  await staleQueuedWholeSnapshotStillFailsClosed();
   console.log(`\n${pass} passed, ${fail} failed\n`);
   process.exit(fail === 0 ? 0 : 1);
 }
