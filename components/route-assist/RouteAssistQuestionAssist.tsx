@@ -56,7 +56,7 @@ function autoUseMarker(sessionId: string, taskKey: string, questionKey: string):
   return `p2b:route-assist:auto-used:v1:${sessionId}:${taskKey}:${questionKey}`;
 }
 
-function markerExists(key: string): boolean {
+function storedMarkerExists(key: string): boolean {
   try {
     return sessionStorage.getItem(key) === "1";
   } catch {
@@ -64,13 +64,12 @@ function markerExists(key: string): boolean {
   }
 }
 
-function setMarker(key: string): void {
+function persistMarker(key: string): void {
   try {
     sessionStorage.setItem(key, "1");
   } catch {
-    // Storage is convenience, not authority. Without it the completed task can
-    // be reused again; the canonical Guided Flow answer persistence still owns
-    // the actual quote state.
+    // The component-level in-memory set still protects Back for this live flow.
+    // Storage only carries that protection across a component remount/reload.
   }
 }
 
@@ -79,6 +78,10 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
   const [open, setOpen] = useState(false);
   const [unusable, setUnusable] = useState(false);
   const autoAttemptedRef = useRef<string | null>(null);
+  // Always available even when sessionStorage is disabled/unavailable. This is
+  // what makes Back safe within the live Guided Flow rather than making that UX
+  // depend on browser storage policy.
+  const autoUsedRef = useRef<Set<string>>(new Set());
 
   const invocation = getRouteAssistInvocation(serviceSlug, question.key);
 
@@ -88,6 +91,23 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
     setOpen(false);
     setUnusable(false);
   }, [question.id]);
+
+  function alreadyAutoUsed(marker: string): boolean {
+    if (autoUsedRef.current.has(marker)) return true;
+    if (!storedMarkerExists(marker)) return false;
+    // Hydrate the in-memory guard so subsequent Back/forward movement does not
+    // keep consulting storage for a marker already established this session.
+    autoUsedRef.current.add(marker);
+    return true;
+  }
+
+  function markAutoUsed(marker: string): void {
+    // Set memory FIRST. `onResolved` immediately advances Guided Flow and can
+    // synchronously lead to a new render/question before a storage write is of
+    // any value. The in-memory guard is therefore the primary same-tab rule.
+    autoUsedRef.current.add(marker);
+    persistMarker(marker);
+  }
 
   /**
    * Resolve one already-persisted/captured RouteAssistResult through THIS
@@ -125,7 +145,7 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
     }
 
     if (markAsAutoUsed) {
-      setMarker(autoUseMarker(guidedFlowSessionId, invocation.taskKey, question.key));
+      markAutoUsed(autoUseMarker(guidedFlowSessionId, invocation.taskKey, question.key));
     }
     setUnusable(false);
     onResolved(resolved);
@@ -141,14 +161,14 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
    *
    * Crucially this still calls `onResolved`, i.e. GuidedFlowEngine's normal
    * handleAnswer path. That creates the ordinary history snapshot before each
-   * auto-filled question. The session marker above then makes Back stop on that
+   * auto-filled question. The marker above then makes Back stop on that
    * question instead of immediately auto-advancing it again.
    */
   useEffect(() => {
     if (!invocation || !guidedFlowSessionId || open) return;
 
     const marker = autoUseMarker(guidedFlowSessionId, invocation.taskKey, question.key);
-    if (markerExists(marker) || autoAttemptedRef.current === marker) return;
+    if (alreadyAutoUsed(marker) || autoAttemptedRef.current === marker) return;
     autoAttemptedRef.current = marker;
 
     let cancelled = false;
