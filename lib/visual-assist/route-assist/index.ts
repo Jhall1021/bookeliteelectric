@@ -22,6 +22,16 @@ export {
 export { classifyConcealedComplexity, suggestedAccessOpeningRange } from "./complexity";
 export { incompleteResult } from "./uncertainty";
 
+// Device-neutral capture capability. Ordinary browser camera/motion capture is
+// available without claiming metric authority; WORLD_GEOMETRY must be granted
+// explicitly by a calibrated provider/native bridge.
+export {
+  detectRouteAssistWebCaptureCapabilityV1,
+  withRouteAssistWorldGeometryV1,
+  type RouteAssistCaptureTierV1,
+  type RouteAssistCaptureCapabilityV1,
+} from "./captureCapability";
+
 // Room-scan / ordered-geometry surfaces. These remain upstream of canonical
 // Routing V2 binding: provider -> evidence -> reviewable candidates -> explicit
 // acceptance, never provider/evidence -> price.
