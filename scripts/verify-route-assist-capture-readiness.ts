@@ -55,12 +55,15 @@ await check("semantic provider is not called when recapture is required", async 
   let calls = 0;
   const provider: RouteAssistVisibleSceneProviderV1 = {
     providerKey: "readiness-proof",
-    async analyzeVisibleScene() { calls += 1; throw new Error("provider must not be called"); },
+    async analyze() { calls += 1; throw new Error("provider must not be called"); },
   };
   const result = await preparePersistedSweepForVisibleSceneReviewV1({
     handoff: handoff(2),
     provider,
     providerInput: {
+      version: 1,
+      mode: "SURFACE",
+      destinationType: "RECEPTACLE",
       points: [
         { id: "source", kind: "SOURCE", x: 0.1, y: 0.5, imageId: "graph" },
         { id: "destination", kind: "DESTINATION", x: 0.9, y: 0.5, imageId: "graph" },
