@@ -9,17 +9,35 @@ function check(label: string, condition: boolean, detail = "") {
 
 console.log("\nROUTE ASSIST HOMEOWNER DEMO SOURCE CONTRACT\n");
 
-const source = readFileSync("app/[site]/dev-fixtures/route-assist-demo/page.tsx", "utf8");
+const source = readFileSync("app/dev-fixtures/route-assist-demo/page.tsx", "utf8");
 
 check(
-  "demo is explicitly isolated as a dev fixture",
-  source.includes("dev-fixtures/route-assist-demo") === false &&
+  "demo is isolated outside the tenant/storefront database tree",
+  source.includes("RouteAssistDemoPage") &&
     source.includes("Demo") &&
     source.includes("no pricing, materials, booking, or production data is changed"),
 );
 check(
+  "homeowner places A and B rather than receiving pre-placed endpoints",
+  source.includes("handleRoomTap") &&
+    source.includes("Tap the existing outlet to place A") &&
+    source.includes("Now tap where you want the new outlet to place B"),
+);
+check(
+  "placed A/B coordinates become the canonical scan input graph",
+  source.includes('id: "source", x: source.x, y: source.y') &&
+    source.includes('id: "destination", x: destination.x, y: destination.y') &&
+    source.includes("useMemo<RouteAssistScanProviderInputV1 | null>"),
+);
+check(
   "demo uses the shared provider-to-review pipeline",
-  source.includes("prepareRouteAssistScanReviewV1(DEMO_PROVIDER, INPUT)"),
+  source.includes("prepareRouteAssistScanReviewV1(DEMO_PROVIDER, scanInput)"),
+);
+check(
+  "demo visibly traces the accepted route graph",
+  source.includes("<polyline") &&
+    source.includes("DOORWAY_TURN") &&
+    source.includes("Route Assist traced this path"),
 );
 check(
   "demo uses the reusable human review panel",
@@ -58,8 +76,8 @@ check(
     source.includes("mapped.routeLengthFt"),
 );
 check(
-  "homeowner can rescan before final confirmation",
-  source.includes('setStep("SETUP")') && source.includes("Rescan"),
+  "homeowner can reset and rescan before final confirmation",
+  source.includes("resetPoints") && source.includes("Rescan") && source.includes("Try another route"),
 );
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
