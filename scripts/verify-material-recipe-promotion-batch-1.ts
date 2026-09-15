@@ -17,8 +17,11 @@
  *   4. never touch Elite's own ContractorMaterial costs — extraction reads
  *      Elite's Service/ServiceMaterial tree, never writes it, and never
  *      reads or writes ContractorMaterial at all;
- *   5. never introduce a Route Assist / Routing V2 reserved key — none of
- *      those exist in this schema at all, verified directly.
+ *   5. never touch a Route Assist / Routing V2 shared contract — checked
+ *      directly against this branch's own diff against origin/main, not
+ *      against whether the reserved keys happen to exist in this schema
+ *      (they don't, on origin/main, but that fact alone proves nothing
+ *      about what THIS branch's diff did — see check 0's own comment).
  *
  *   npx tsx scripts/verify-material-recipe-promotion-batch-1.ts
  */
