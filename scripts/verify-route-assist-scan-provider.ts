@@ -76,12 +76,14 @@ function evidence(overrides: Partial<RouteAssistScanEvidenceV1> = {}): RouteAssi
 }
 
 async function run() {
+  let providerOwnedEvidence: RouteAssistScanEvidenceV1 | null = null;
   const coherentProvider: RouteAssistScanProviderV1 = {
     providerKey: "fake.world.v1",
     async analyze(input) {
       // Try to mutate detached provider input. The caller's graph must survive.
       (input.points[0] as { id: string }).id = "provider-mutated";
-      return evidence();
+      providerOwnedEvidence = evidence();
+      return providerOwnedEvidence;
     },
   };
 
@@ -93,6 +95,21 @@ async function run() {
     JSON.stringify(coherent.evidence?.segments[0].measuredLengthFt),
   );
   check("provider cannot mutate caller route graph", baseInput.points[0].id === "a", String(baseInput.points[0].id));
+
+  if (providerOwnedEvidence) {
+    providerOwnedEvidence.segments[0].segmentId = "provider-mutated-after-validation";
+    if (providerOwnedEvidence.segments[0].measuredLengthFt) {
+      providerOwnedEvidence.segments[0].measuredLengthFt.value = 99;
+      providerOwnedEvidence.segments[0].measuredLengthFt.confidence = 1;
+    }
+  }
+  check(
+    "provider cannot mutate validated evidence after the authority gate returns",
+    coherent.evidence?.segments[0].segmentId === "s1" &&
+      coherent.evidence?.segments[0].measuredLengthFt?.value === 5.125 &&
+      coherent.evidence?.segments[0].measuredLengthFt?.confidence === 0.01,
+    JSON.stringify(coherent.evidence?.segments[0]),
+  );
 
   const pipeline = await collectRouteAssistScanCandidatesV1(coherentProvider, baseInput);
   check("automatic scan pipeline stops with reviewable candidates", pipeline.evidence !== null && pipeline.candidates !== null, JSON.stringify(pipeline.problems));
