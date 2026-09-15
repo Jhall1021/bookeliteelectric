@@ -7,8 +7,19 @@ export type RouteAssistHttpVisibleSceneRequestV1 = {
   version: 1;
   mode: RouteAssistVisibleSceneProviderInputV1["mode"];
   destinationType: RouteAssistVisibleSceneProviderInputV1["destinationType"];
-  pointIds: string[];
-  segmentIds: string[];
+  /**
+   * Homeowner-placed image-plane intent. These coordinates help the provider
+   * locate the selected source/destination but are not metric geometry and do
+   * not become accepted Route Assist facts merely because they were sent.
+   */
+  pointAnchors: Array<{
+    pointId: string;
+    kind: RouteAssistVisibleSceneProviderInputV1["points"][number]["kind"];
+    imageId: string;
+    x: number;
+    y: number;
+  }>;
+  segments: Array<{ segmentId: string; fromPointId: string; toPointId: string }>;
   /** Ordered primary sweep image identities. */
   imageIds: string[];
   /** Supplemental recapture evidence remains separately labeled; no sweep adjacency is implied. */
@@ -58,8 +69,18 @@ export function createRouteAssistHttpVisibleSceneProviderV1(args: {
         version: 1,
         mode: input.mode,
         destinationType: input.destinationType,
-        pointIds: input.points.map((point) => point.id),
-        segmentIds: input.segments.map((segment) => segment.id),
+        pointAnchors: input.points.map((point) => ({
+          pointId: point.id,
+          kind: point.kind,
+          imageId: point.imageId,
+          x: point.x,
+          y: point.y,
+        })),
+        segments: input.segments.map((segment) => ({
+          segmentId: segment.id,
+          fromPointId: segment.fromPointId,
+          toPointId: segment.toPointId,
+        })),
         imageIds: [...input.captureArtifacts.imageIds],
         supplementalCaptureSets: canonicalSupplementalSets(input.supplementalCaptureSets),
         reviewCorrections: (input.reviewCorrections ?? []).map((correction) => ({ ...correction, point: { ...correction.point } })),
