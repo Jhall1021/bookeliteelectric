@@ -30,7 +30,7 @@ function confirmedSurfaceResult(destinationType: RouteAssistDestinationType = "R
     { id: "W4", x: 0.75, y: 0.5, imageId: "room", kind: "WAYPOINT", physicalTurn: "FLAT" },
     { id: "B", x: 0.95, y: 0.5, imageId: "room", kind: "DESTINATION" },
   ];
-  const lengths = [3.125, 2.5, 3, 2, 4]; // 14.625 raw; Phase-1 aggregate remains 14.6.
+  const lengths = [3.125, 2.5, 3, 2, 4]; // exact 14.625 physical route.
   const ids = ["A", "W1", "W2", "W3", "W4", "B"];
   const segments: RouteSegment[] = lengths.map((estimatedLengthFt, index) => ({
     id: `S${index + 1}`,
@@ -97,8 +97,8 @@ check(
 const valid = confirmedSurfaceResult();
 check("a domain-built confirmed result passes completion validation", isRouteAssistResultPayload(valid));
 check(
-  "current Route Assist aggregate preserves its established tenth-foot contract",
-  feet?.resolveAnswerValue(valid) === "14.6",
+  "Route Assist task result preserves exact fractional footage",
+  feet?.resolveAnswerValue(valid) === "14.625",
   String(feet?.resolveAnswerValue(valid))
 );
 check(
@@ -117,19 +117,20 @@ check(
   String(flat?.resolveAnswerValue(valid))
 );
 
-// Transport precision and capture precision are deliberately separate. The
-// adapter must not round a future canonical 14.625 measurement, while the
-// current Phase-1 result builder still aggregates manual/accepted segments to
-// a tenth. This synthetic payload is therefore NOT a valid persisted completion.
-const futurePrecisionProbe: RouteAssistResult = { ...valid, estimatedTotalRouteLengthFt: 14.625 };
 check(
-  "downstream Route Assist binding itself does not round 14.625",
-  feet?.resolveAnswerValue(futurePrecisionProbe) === "14.625",
-  String(feet?.resolveAnswerValue(futurePrecisionProbe))
+  "exact 14.625 aggregate remains a valid persisted completion",
+  valid.estimatedTotalRouteLengthFt === 14.625 && isRouteAssistResultPayload(valid),
+  String(valid.estimatedTotalRouteLengthFt)
+);
+const roundedAggregateLie: RouteAssistResult = { ...valid, estimatedTotalRouteLengthFt: 14.6 };
+check(
+  "a rounded 14.6 aggregate cannot masquerade as legs that total 14.625",
+  !isRouteAssistResultPayload(roundedAggregateLie)
 );
 check(
-  "14.625 cannot masquerade as a current valid task result before the capture precision gate changes",
-  !isRouteAssistResultPayload(futurePrecisionProbe)
+  "downstream Route Assist binding emits the exact accepted aggregate",
+  feet?.resolveAnswerValue(valid) === "14.625",
+  String(feet?.resolveAnswerValue(valid))
 );
 
 // Legacy image-space aggregates are NOT fitting authority. Deliberately lie in
@@ -180,7 +181,7 @@ for (const proof of endpointProofs) {
   );
   check(
     `${proof.service} accepts its own endpoint result`,
-    inv?.resolveAnswerValue(ownResult) === "14.6",
+    inv?.resolveAnswerValue(ownResult) === "14.625",
     String(inv?.resolveAnswerValue(ownResult))
   );
   const groupContext = inv ? getRouteAssistCaptureContextByTaskKey(proof.service, inv.taskKey) : null;
