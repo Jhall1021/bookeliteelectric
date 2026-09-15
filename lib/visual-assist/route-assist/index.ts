@@ -28,9 +28,11 @@ export { incompleteResult } from "./uncertainty";
 export {
   buildOrderedRouteGeometryV1,
   orderedGeometryFromResult,
+  exactPhysicalTurnCountsFromResult,
   type RouteAssistOrderedGeometryV1,
   type OrderedRouteSegmentV1,
   type OrderedRouteTransitionV1,
+  type ExactPhysicalTurnCountsV1,
 } from "./orderedGeometry";
 export {
   validateRouteAssistScanEvidenceV1,
