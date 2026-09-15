@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import RouteAssistCapture from "./RouteAssistCapture";
+import RouteAssistSmartCapture from "./RouteAssistSmartCapture";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 import {
   completeDeviceHandoff,
@@ -13,22 +13,18 @@ import {
 import { getRouteAssistCaptureContextByTaskKey } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
 import type { RouteAssistResult } from "@/lib/visual-assist/route-assist/types";
 
-/**
- * What a scanned Device Handoff QR code lands on — the phone's side of
- * docs/design/guided-flow-session-v1.md's cross-device flow. Resolves the
- * opaque token (never anything identifying in the URL itself — that's
- * `lib/device-handoff/token.ts`'s own structural guarantee), and on
- * success becomes a genuine second holder of the same anonymous session
- * (the resolve API sets this browser's own session cookie), then renders
- * the exact same capture UI a same-device customer would see.
- */
 type Props = { token: string; uploadPhoto: (file: File) => Promise<string> };
-
 type State =
   | { kind: "resolving" }
   | { kind: "invalid" }
   | { kind: "ready"; handoff: ResolvedHandoff }
   | { kind: "done"; continuationPath: string };
+
+function expectedModeForTaskKey(taskKey: string | null): "SURFACE" | "CONCEALED" | null {
+  if (taskKey === "surface_route_capture_v1") return "SURFACE";
+  if (taskKey === "concealed_route_feet") return "CONCEALED";
+  return null;
+}
 
 export default function HandoffLanding({ token, uploadPhoto }: Props) {
   const siteFetch = useSiteFetch();
@@ -49,38 +45,19 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
     setCompletionError(null);
     try {
       if (handoff.taskId) {
-        const completion = await completeVisualAssistTask(
-          siteFetch,
-          handoff.guidedFlowSessionId,
-          handoff.taskId,
-          result
-        );
-        // The endpoint returns the persisted first-winner result to every
-        // caller. We do not need to use its value on the phone yet (the desktop
-        // reads the canonical task), but we DO require that a canonical result
-        // exists before declaring this handoff complete.
-        if (completion.status !== "COMPLETED" || !completion.result) {
-          throw new Error("Route Assist task did not complete");
-        }
+        const completion = await completeVisualAssistTask(siteFetch, handoff.guidedFlowSessionId, handoff.taskId, result);
+        if (completion.status !== "COMPLETED" || !completion.result) throw new Error("Route Assist task did not complete");
       }
-
       await completeDeviceHandoff(siteFetch, handoff.handoffId);
       setState({ kind: "done", continuationPath: handoff.continuationPath });
     } catch {
-      // Leave the capture visible so the homeowner can retry confirmation. Do
-      // not tell the desktop TASK_COMPLETED when canonical task persistence is
-      // uncertain — that would let the two devices disagree about the route.
       setCompletionError("We couldn't save the route yet. Please try confirming it again.");
     }
   }
 
-  if (state.kind === "resolving") {
-    return <p className="mx-auto mt-16 max-w-md text-center text-slate-500">Connecting…</p>;
-  }
+  if (state.kind === "resolving") return <p className="mx-auto mt-16 max-w-md text-center text-slate-500">Connecting…</p>;
 
   if (state.kind === "invalid") {
-    // Neutral, per docs/design/device-handoff-v1.md's security section —
-    // never distinguishes expired/revoked/wrong-token from here.
     return (
       <div className="mx-auto mt-16 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
         <p className="text-sm font-medium text-slate-800">This link isn't valid or has expired.</p>
@@ -90,21 +67,10 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
   }
 
   if (state.kind === "ready") {
-    if (state.handoff.taskType !== "ROUTE_ASSIST") {
+    if (state.handoff.taskType !== "ROUTE_ASSIST" || !state.handoff.taskId) {
       return <p className="mx-auto mt-16 max-w-md text-center text-slate-500">Nothing to continue here yet.</p>;
     }
 
-    /**
-     * Real Guided Flow invocations create the task with a CAPTURE taskKey.
-     * That key is intentionally independent of question identity: one surface
-     * scan can feed feet + inside + outside + flat questions. Reconstruct only
-     * capture context by searching every registry invocation that shares this
-     * task identity and fail closed if they disagree.
-     *
-     * Null is retained only for the older dev fixture/legacy task shape that
-     * predates taskKey; it keeps that generic cross-device mechanism proof
-     * working without weakening keyed production handoffs.
-     */
     const captureContext = state.handoff.taskKey
       ? getRouteAssistCaptureContextByTaskKey(state.handoff.serviceSlug, state.handoff.taskKey)
       : null;
@@ -126,47 +92,28 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
 
     return (
       <div>
-        <RouteAssistCapture
+        <RouteAssistSmartCapture
+          guidedFlowSessionId={state.handoff.guidedFlowSessionId}
+          taskId={state.handoff.taskId}
           destinationType={resolvedContext.destinationType}
           sourceHint={resolvedContext.sourceHint}
           destinationHint={resolvedContext.destinationHint}
           onUploadPhoto={uploadPhoto}
           onComplete={(result) => handleComplete(state.handoff, result)}
+          expectedMode={expectedModeForTaskKey(state.handoff.taskKey)}
         />
-        {completionError && (
-          <p className="mx-auto mt-3 max-w-md text-center text-sm text-red-600">{completionError}</p>
-        )}
+        {completionError && <p className="mx-auto mt-3 max-w-md text-center text-sm text-red-600">{completionError}</p>}
       </div>
     );
   }
 
-  // done — the resolve endpoint already joined this phone to the desktop's
-  // anonymous session. Navigating into the ordinary service page therefore
-  // resumes the SAME Guided Flow via findOrCreateActiveSession(); there is no
-  // second mobile flow and no transfer payload to reconcile.
   return (
     <div className="mx-auto mt-16 flex max-w-md flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
       <p className="text-sm font-medium text-emerald-700">Route added ✓</p>
       <p className="text-sm text-slate-600">How would you like to continue?</p>
-      <button
-        type="button"
-        onClick={() => router.push(`${base}/${state.continuationPath}`)}
-        className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white"
-      >
-        Continue on this phone
-      </button>
-      <button
-        type="button"
-        onClick={() => setContinueChoice("desktop")}
-        className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-800"
-      >
-        Return to my computer
-      </button>
-      {continueChoice === "desktop" && (
-        <p className="text-xs text-slate-500">
-          You can close this tab — your computer will update automatically.
-        </p>
-      )}
+      <button type="button" onClick={() => router.push(`${base}/${state.continuationPath}`)} className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white">Continue on this phone</button>
+      <button type="button" onClick={() => setContinueChoice("desktop")} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-800">Return to my computer</button>
+      {continueChoice === "desktop" && <p className="text-xs text-slate-500">You can close this tab — your computer will update automatically.</p>}
     </div>
   );
 }
