@@ -270,7 +270,7 @@ export default function RouteAssistScanPreviewPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Accepted Route Assist graph</h2>
             <p className="mt-1 text-sm text-slate-500">
-              The graph is still unconfirmed. The normal Route Assist result builder currently rounds its aggregate total to a tenth of a foot.
+              The graph is still unconfirmed. Route Assist now preserves the accepted physical measurement exactly; later pricing/binding policy may apply its own precision rules.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4">
@@ -278,7 +278,7 @@ export default function RouteAssistScanPreviewPage() {
                 <div className="mt-1 text-lg font-semibold">{prepared?.review?.completeMeasuredRouteLengthFt ?? "—"} ft</div>
               </div>
               <div className="rounded-xl bg-slate-50 p-4">
-                <div className="text-xs text-slate-500">Current RouteAssistResult total</div>
+                <div className="text-xs text-slate-500">RouteAssistResult total</div>
                 <div className="mt-1 text-lg font-semibold">{draftResult.estimatedTotalRouteLengthFt ?? "—"} ft</div>
               </div>
             </div>
