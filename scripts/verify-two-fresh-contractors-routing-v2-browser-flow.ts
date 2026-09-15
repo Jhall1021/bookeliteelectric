@@ -43,6 +43,7 @@
 import { chromium, type Page } from "playwright";
 import { PrismaClient } from "@prisma/client";
 import { buildPricedDerivedContractor, removeFixture, fixtureSlug, changeChannelCost, reapprove } from "./_derivedStorefrontFixture";
+import { liveEndpointOf, resetRefusal } from "../lib/electrical/pilotScope";
 
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
@@ -197,6 +198,16 @@ async function proveTenant(
 async function main() {
   console.log(`\nTWO FRESH CONTRACTORS — Routing V2 through supported installation, never repaired\n`);
   console.log(`  ${BASE}  ·  ${SLUG_A}  ·  ${SLUG_B}\n`);
+
+  // EXECUTABLE, not just documented — same guard
+  // scripts/verify-derived-scheduling-browser.ts already uses, checked for
+  // BOTH contractors this script creates.
+  const identity = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" }, select: { key: true, neonEndpoint: true } });
+  const liveEndpoint = liveEndpointOf(process.env.DATABASE_URL ?? "");
+  for (const slug of [SLUG_A, SLUG_B]) {
+    const guard = resetRefusal({ slug, identity, liveEndpoint });
+    if (guard) { console.log(`  STOP: ${guard.code} — this suite runs on a rehearsal database only.`); process.exit(2); }
+  }
 
   await removeFixture(prisma, SLUG_A).catch(() => {});
   await removeFixture(prisma, SLUG_B).catch(() => {});

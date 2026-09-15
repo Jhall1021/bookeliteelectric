@@ -74,6 +74,7 @@
 import { chromium, type Page } from "playwright";
 import { PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
+import { liveEndpointOf } from "../lib/electrical/pilotScope";
 
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
@@ -168,6 +169,22 @@ async function buildFixture() {
 async function main() {
   console.log(`\nCROSS-DEVICE STALE QUEUE — a queued same-tab payload must not overwrite a genuinely different writer\n`);
   console.log(`  ${BASE}  ·  contractor ${CONTRACTOR_SLUG}  ·  PATCH delay ${PATCH_DELAY_MS}ms\n`);
+
+  // EXECUTABLE, not just documented. This contractor's slug predates the
+  // rv2-pilot-rehearsal-* convention scripts/_derivedStorefrontFixture.ts's
+  // own fixtures use, so lib/electrical/pilotScope.ts's resetRefusal (which
+  // requires that exact prefix) is the wrong check here — the identity
+  // check it makes underneath the slug check is reused directly instead.
+  const identity = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" }, select: { key: true, neonEndpoint: true } });
+  if (!identity) {
+    console.log(`  STOP: DATABASE_IDENTITY_UNKNOWN — this suite runs on a rehearsal database only.`);
+    process.exit(2);
+  }
+  const liveEndpoint = liveEndpointOf(process.env.DATABASE_URL ?? "");
+  if (identity.key === "price2book-production" && identity.neonEndpoint === liveEndpoint) {
+    console.log(`  STOP: PRODUCTION_DATABASE — this suite runs on a rehearsal database only.`);
+    process.exit(2);
+  }
 
   await teardown();
   const browser = await chromium.launch();
