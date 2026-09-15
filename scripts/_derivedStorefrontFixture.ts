@@ -71,6 +71,17 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
     const approved = await asTenant(cid, (db) => decideDerivedPricingApproval(db, { contractorId: cid, userId: null }, { action: "approve", serviceId: svc.id }));
     if (approved.status !== 200) throw new Error(`approval refused: ${JSON.stringify(approved.body)}`);
     approvedTotalCents = approved.body.approvedTotalCents as number;
+    // The qualification gate above the surface-route module can hand a
+    // homeowner off to "Dedicated Circuit & Outlet" ("What will this outlet
+    // power?" -> a specific large appliance) — a real, reachable answer, so
+    // activateService correctly refuses DEPENDENCY_UNAVAILABLE until that
+    // target is live too (lib/serviceActivation.ts's own ordering rule; a
+    // real Review & Launch would sequence the same way). That service is
+    // unrelated to what this fixture proves, so it is not priced or
+    // approved here — only marked active, the one fact the dependency check
+    // actually reads, so this proof's OWN service can reach the same
+    // activation state a real contractor's launch would reach.
+    await prisma.service.updateMany({ where: { contractorId: cid, slug: "dedicated-120v-circuit-outlet" }, data: { active: true } });
     const act = await activateService(prisma, cid, svc.id);
     if (!act.ok) throw new Error(`activation refused: ${JSON.stringify(act)}`);
   }

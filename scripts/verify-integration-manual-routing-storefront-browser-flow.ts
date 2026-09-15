@@ -114,6 +114,25 @@ async function answerChoice(page: Page, prompt: string, label: string) {
   }
 }
 
+/**
+ * The real qualification gate above the surface-route module — a fresh
+ * install's own `new-120v-outlet` asks these before it ever asks a route
+ * question, exactly as `elite-electric`'s does (this contractor's whole tree
+ * was installed from a template extracted off it). Every context below must
+ * answer this first; it is not part of `walkStraightRoute` because block D's
+ * Back navigation targets the FEET question specifically and never needs to
+ * re-answer it.
+ */
+async function qualifyForSurfaceRoute(page: Page) {
+  await answerChoice(page, "What will this outlet power?", "General use");
+  await answerChoice(
+    page,
+    "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
+    "No"
+  );
+  await answerChoice(page, "How would you like the wiring run?", "Surface-mounted channel on the wall");
+}
+
 /** feet -> inside -> outside -> flat -> surface -> obstacles, straight to a price. */
 async function walkStraightRoute(page: Page, feet: string) {
   await answerNumber(page, "How long is the route, in feet?", feet);
@@ -214,6 +233,7 @@ async function main() {
 
       await page.goto(targetUrl);
       await page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      await qualifyForSurfaceRoute(page);
       await walkStraightRoute(page, "20.5");
       await page.waitForSelector("text=Here's Your Price!");
       const displayed = await priceText(page);
@@ -248,19 +268,23 @@ async function main() {
 
       await page.goto(targetUrl);
       await page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      await qualifyForSurfaceRoute(page);
       await walkStraightRoute(page, "14.625");
       await page.waitForSelector("text=Here's Your Price!");
       const priceAt14625 = await priceText(page);
 
-      // Back through obstacles -> surface -> flat -> outside -> inside -> feet:
-      // 6 forward transitions were pushed (intro->feet's answer pushed "intro",
-      // feet's own answer pushed "inside_q", ... obstacles' answer pushed
-      // "obstacles_q" as the LAST entry) so 6 Back clicks from the price
-      // screen land back on the feet question itself.
-      for (let i = 0; i < 6; i++) {
+      // Back through obstacles -> surface -> flat -> outside -> inside ->
+      // feet, however many questions actually sit above feet on THIS
+      // contractor's tree (purpose/access/install-method, then the six
+      // surface-route questions) — clicked until the feet heading itself is
+      // reached, rather than a fixed count tied to one particular tree
+      // shape, which a qualification gate above the route module would
+      // silently throw off.
+      const feetHeading = page.getByRole("heading", { name: "How long is the route, in feet?", exact: true });
+      for (let i = 0; i < 15 && !(await feetHeading.count()); i++) {
         await page.getByRole("button", { name: "Back" }).click();
       }
-      await page.getByRole("heading", { name: "How long is the route, in feet?", exact: true }).waitFor();
+      await feetHeading.waitFor();
 
       // Re-answer with a genuinely different footage, then walk forward again.
       await page.getByRole("textbox").fill("20.5");
@@ -308,6 +332,7 @@ async function main() {
 
       await page.goto(targetUrl);
       await page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      await qualifyForSurfaceRoute(page);
       await answerNumber(page, "How long is the route, in feet?", "20.5");
       await answerNumber(page, "How many inside corners?", "0");
       await answerNumber(page, "How many outside corners?", "0");
@@ -342,6 +367,7 @@ async function main() {
 
       await page.goto(targetUrl);
       await page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      await qualifyForSurfaceRoute(page);
       await walkStraightRoute(page, "20.5");
       await page.waitForSelector("text=Here's Your Price!");
       const priceBeforeCostChange = await priceText(page);
@@ -411,12 +437,21 @@ async function main() {
       const bookedLineItem = await prisma.lineItem.findFirst({
         where: { serviceId: fixture.serviceId },
         orderBy: { id: "desc" },
-        select: { id: true, computedPriceCents: true },
+        select: { id: true, computedPriceCents: true, answersSnapshot: true },
       });
       const afterReapprovalCents = Math.round(parseFloat(priceAfterReapproval.replace(/[$,]/g, "")) * 100);
       ok("F. the re-added LineItem stores the NEW (post-reapproval) price, not the stale pre-change one",
         bookedLineItem?.computedPriceCents === afterReapprovalCents,
         `displayed ${priceAfterReapproval} (${afterReapprovalCents}c), stored ${bookedLineItem?.computedPriceCents}c`);
+      // The economic PROVENANCE of this booking — not just the price it
+      // settled on, but the customer's own answers that produced it — is
+      // what makes the price accountable rather than an unexplained number.
+      // Captured here, before any further economics change, so the
+      // provenance check below is a real before/after comparison.
+      const bookedAnswersAtBooking = JSON.stringify(bookedLineItem?.answersSnapshot);
+      ok("F. the booked LineItem records the actual answers that produced its price (SURFACE_KEYS.feet = 20.5)",
+        (bookedLineItem?.answersSnapshot as Record<string, unknown> | null)?.[SURFACE_KEYS.feet] === "20.5",
+        `got ${bookedAnswersAtBooking}`);
 
       // Continue all the way through NATIVE scheduling and a no-deposit
       // checkout to a REAL Booking — the gap the review named: this block
@@ -440,13 +475,21 @@ async function main() {
       await changeChannelCost(fixture.contractorId, 9999);
       await reapprove(prisma, fixture.contractorId, fixture.serviceId);
       const bookingAfterLaterChange = await prisma.booking.findUnique({ where: { id: bookingId }, select: { totalCents: true } });
-      const lineItemAfterLaterChange = await prisma.lineItem.findUnique({ where: { id: bookedLineItem!.id }, select: { computedPriceCents: true } });
+      const lineItemAfterLaterChange = await prisma.lineItem.findUnique({ where: { id: bookedLineItem!.id }, select: { computedPriceCents: true, answersSnapshot: true } });
       ok("F. a cost change made AFTER booking leaves the booked Booking.totalCents unchanged",
         bookingAfterLaterChange?.totalCents === afterReapprovalCents,
         `at booking: ${afterReapprovalCents}c, after a further cost change: ${bookingAfterLaterChange?.totalCents}c`);
       ok("F. …and leaves the booked LineItem.computedPriceCents unchanged too — a snapshot, never re-derived live",
         lineItemAfterLaterChange?.computedPriceCents === afterReapprovalCents,
         `at booking: ${afterReapprovalCents}c, after a further cost change: ${lineItemAfterLaterChange?.computedPriceCents}c`);
+      // ECONOMIC PROVENANCE, THE OTHER HALF: the price is one snapshot, but a
+      // price with no record of what it was priced FROM is unaccountable —
+      // an auditor, or a homeowner disputing a charge, needs the ANSWERS
+      // that justified it, not just the number. Both must survive a later
+      // economics change untouched, together.
+      ok("F. …and the booked LineItem's answersSnapshot is untouched too — the provenance, not just the price, is frozen",
+        JSON.stringify(lineItemAfterLaterChange?.answersSnapshot) === bookedAnswersAtBooking,
+        `at booking: ${bookedAnswersAtBooking}, after a further cost change: ${JSON.stringify(lineItemAfterLaterChange?.answersSnapshot)}`);
 
       await ctx.close();
     }
