@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import RouteAssistWithHandoff from "./RouteAssistWithHandoff";
 import { getRouteAssistInvocation } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
+import { listVisualAssistTasks } from "@/lib/routeAssistHandoffClient";
+import { useSiteFetch } from "@/components/site/SiteContext";
 import { uploadPhoto } from "@/lib/upload";
 import { selectNumericOption } from "@/lib/numericRouteRanges";
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
@@ -41,52 +43,149 @@ function isMobileViewport(): boolean {
   return width > 0 && width < 640;
 }
 
+/**
+ * A completed grouped capture may answer several consecutive canonical
+ * questions. Auto-use each answer exactly once in this browser session so the
+ * first forward walk is seamless, but Back remains trustworthy: returning to
+ * an auto-filled question does NOT immediately bounce forward again.
+ *
+ * This is UI bookkeeping only. Canonical answers still travel through
+ * GuidedFlowEngine's normal `handleAnswer` path and are persisted there.
+ */
+function autoUseMarker(sessionId: string, taskKey: string, questionKey: string): string {
+  return `p2b:route-assist:auto-used:v1:${sessionId}:${taskKey}:${questionKey}`;
+}
+
+function markerExists(key: string): boolean {
+  try {
+    return sessionStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setMarker(key: string): void {
+  try {
+    sessionStorage.setItem(key, "1");
+  } catch {
+    // Storage is convenience, not authority. Without it the completed task can
+    // be reused again; the canonical Guided Flow answer persistence still owns
+    // the actual quote state.
+  }
+}
+
 export default function RouteAssistQuestionAssist({ serviceSlug, question, guidedFlowSessionId, onResolved }: Props) {
+  const siteFetch = useSiteFetch();
   const [open, setOpen] = useState(false);
   const [unusable, setUnusable] = useState(false);
+  const autoAttemptedRef = useRef<string | null>(null);
 
   const invocation = getRouteAssistInvocation(serviceSlug, question.key);
-  if (!invocation || !guidedFlowSessionId) return null;
 
-  function handleComplete(result: RouteAssistResult) {
+  // A question prop change can reuse this same component instance. UI state
+  // belongs to the question, not to the component's position in the tree.
+  useEffect(() => {
     setOpen(false);
-    // The task/result is already persisted by RouteAssistWithHandoff
-    // regardless of what happens next — contractor context survives even
-    // when nothing here can safely use it.
-    const value = invocation!.resolveAnswerValue(result);
+    setUnusable(false);
+  }, [question.id]);
+
+  /**
+   * Resolve one already-persisted/captured RouteAssistResult through THIS
+   * question's authored contract. Returns true only when a real authored option
+   * was selected and handed back to Guided Flow.
+   */
+  function resolveForCurrentQuestion(result: RouteAssistResult, markAsAutoUsed: boolean): boolean {
+    if (!invocation || !guidedFlowSessionId) return false;
+
+    // The task/result is already persisted regardless of what happens next —
+    // contractor context survives even when nothing here can safely use it.
+    const value = invocation.resolveAnswerValue(result);
     if (value === null) {
       setUnusable(true);
-      return;
+      return false;
     }
 
+    let resolved: AnswerOptionDTO | null = null;
     // NUMBER questions do not author one option per possible numeric value.
     // They carry routing options (often a single `__number__` sentinel, or
     // explicit numeric ranges), while the customer's typed/measured number is
     // the answer value. Resolve Route Assist through the SAME numeric selector
     // QuestionStep and the server use, then substitute the measured value just
-    // as QuestionStep does. That keeps one routing authority and lets measured
-    // footage survive as footage rather than being mistaken for an option id.
+    // as QuestionStep does.
     if (question.inputType === "NUMBER") {
       const choice = selectNumericOption(question, value);
-      if (choice.kind !== "option") {
-        setUnusable(true);
-        return;
-      }
-      setUnusable(false);
-      onResolved({ ...choice.option, value });
-      return;
+      if (choice.kind === "option") resolved = { ...choice.option, value };
+    } else {
+      resolved = question.options.find((option) => option.value === value) ?? null;
     }
 
-    // Non-numeric mappings still resolve to one of the question's real authored
-    // option values. A mismatch is a configuration error, not something to
-    // guess through.
-    const option = question.options.find((o) => o.value === value);
-    if (!option) {
+    if (!resolved) {
       setUnusable(true);
-      return;
+      return false;
+    }
+
+    if (markAsAutoUsed) {
+      setMarker(autoUseMarker(guidedFlowSessionId, invocation.taskKey, question.key));
     }
     setUnusable(false);
-    onResolved(option);
+    onResolved(resolved);
+    return true;
+  }
+
+  /**
+   * GROUPED CAPTURE REUSE.
+   *
+   * When feet has already opened/completed the shared surface capture, the
+   * inside/outside/flat questions should not ask the homeowner to open Route
+   * Assist three more times. Reuse the same completed task once per question.
+   *
+   * Crucially this still calls `onResolved`, i.e. GuidedFlowEngine's normal
+   * handleAnswer path. That creates the ordinary history snapshot before each
+   * auto-filled question. The session marker above then makes Back stop on that
+   * question instead of immediately auto-advancing it again.
+   */
+  useEffect(() => {
+    if (!invocation || !guidedFlowSessionId || open) return;
+
+    const marker = autoUseMarker(guidedFlowSessionId, invocation.taskKey, question.key);
+    if (markerExists(marker) || autoAttemptedRef.current === marker) return;
+    autoAttemptedRef.current = marker;
+
+    let cancelled = false;
+    listVisualAssistTasks(siteFetch, guidedFlowSessionId)
+      .then((tasks) => {
+        if (cancelled) return;
+        const completed = tasks.find(
+          (task) =>
+            task.taskType === "ROUTE_ASSIST" &&
+            task.taskKey === invocation.taskKey &&
+            task.status === "COMPLETED" &&
+            task.result
+        );
+        if (!completed?.result) return;
+        resolveForCurrentQuestion(completed.result, true);
+      })
+      .catch(() => {
+        // Reuse is an enhancement. A read failure leaves the normal question
+        // and its explicit Route Assist button fully usable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // `siteFetch` is stable storefront context; resolveForCurrentQuestion is
+    // deliberately scoped to the current render/question.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guidedFlowSessionId, invocation?.taskKey, question.id, open]);
+
+  if (!invocation || !guidedFlowSessionId) return null;
+
+  function handleComplete(result: RouteAssistResult) {
+    setOpen(false);
+    // Mark the question that actually opened/confirmed the capture too. If the
+    // customer later presses Back into it, the completed task must not bounce
+    // them forward before they can change the answer.
+    resolveForCurrentQuestion(result, true);
   }
 
   if (!open) {
