@@ -2,43 +2,71 @@
 
 import { useEffect, useState } from "react";
 import RouteAssistCapture from "./RouteAssistCapture";
+import RouteAssistPlacementCapture from "./RouteAssistPlacementCapture";
 import { useSiteFetch } from "@/components/site/SiteContext";
 import {
   completeDeviceHandoff,
   completeVisualAssistTask,
+  listVisualAssistTasks,
   resolveDeviceHandoff,
   type ResolvedHandoff,
 } from "@/lib/routeAssistHandoffClient";
+import {
+  getRouteAssistInvocationByTaskKey,
+  type RouteAssistQuestionInvocation,
+} from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
 import type { RouteAssistResult } from "@/lib/visual-assist/route-assist/types";
 
-/**
- * What a scanned Device Handoff QR code lands on — the phone's side of
- * docs/design/guided-flow-session-v1.md's cross-device flow. Resolves the
- * opaque token (never anything identifying in the URL itself — that's
- * `lib/device-handoff/token.ts`'s own structural guarantee), and on
- * success becomes a genuine second holder of the same anonymous session
- * (the resolve API sets this browser's own session cookie), then renders
- * the exact same capture UI a same-device customer would see.
- */
 type Props = { token: string; uploadPhoto: (file: File) => Promise<string> };
 
 type State =
   | { kind: "resolving" }
   | { kind: "invalid" }
-  | { kind: "ready"; handoff: ResolvedHandoff }
+  | { kind: "ready"; handoff: ResolvedHandoff; invocation: RouteAssistQuestionInvocation | null }
   | { kind: "done" };
 
+/**
+ * Phone side of Device Handoff. The phone recovers the invocation from the
+ * task key that the desktop already authorized, so it receives exactly the
+ * same destination/capture semantics instead of the old hard-coded outlet
+ * hints.
+ */
 export default function HandoffLanding({ token, uploadPhoto }: Props) {
   const siteFetch = useSiteFetch();
   const [state, setState] = useState<State>({ kind: "resolving" });
   const [continueChoice, setContinueChoice] = useState<"phone" | "desktop" | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     resolveDeviceHandoff(siteFetch, token)
-      .then((handoff) => setState(handoff ? { kind: "ready", handoff } : { kind: "invalid" }))
-      .catch(() => setState({ kind: "invalid" }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+      .then(async (handoff) => {
+        if (!handoff || cancelled) {
+          if (!cancelled) setState({ kind: "invalid" });
+          return;
+        }
+
+        let invocation: RouteAssistQuestionInvocation | null = null;
+        if (handoff.taskId) {
+          try {
+            const tasks = await listVisualAssistTasks(siteFetch, handoff.guidedFlowSessionId);
+            const task = tasks.find((candidate) => candidate.id === handoff.taskId);
+            invocation = getRouteAssistInvocationByTaskKey(handoff.serviceSlug, task?.taskKey);
+          } catch {
+            // Fall back to legacy generic Route Assist below. A failure to
+            // recover optional display context must not invalidate the handoff.
+          }
+        }
+
+        if (!cancelled) setState({ kind: "ready", handoff, invocation });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ kind: "invalid" });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [siteFetch, token]);
 
   async function handleComplete(handoff: ResolvedHandoff, result: RouteAssistResult) {
     if (handoff.taskId) {
@@ -53,8 +81,6 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
   }
 
   if (state.kind === "invalid") {
-    // Neutral, per docs/design/device-handoff-v1.md's security section —
-    // never distinguishes expired/revoked/wrong-token from here.
     return (
       <div className="mx-auto mt-16 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
         <p className="text-sm font-medium text-slate-800">This link isn't valid or has expired.</p>
@@ -67,21 +93,36 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
     if (state.handoff.taskType !== "ROUTE_ASSIST") {
       return <p className="mx-auto mt-16 max-w-md text-center text-slate-500">Nothing to continue here yet.</p>;
     }
+
+    const invocation = state.invocation;
+    if (invocation?.captureKind === "PLACEMENT_LAYOUT") {
+      return (
+        <RouteAssistPlacementCapture
+          destinationType={invocation.destinationType}
+          sourceHint={invocation.sourceHint}
+          placementHint={invocation.placementHint ?? invocation.destinationHint}
+          minPlacements={invocation.minPlacements ?? 1}
+          maxPlacements={invocation.maxPlacements ?? 1}
+          onUploadPhoto={uploadPhoto}
+          onComplete={(result) => void handleComplete(state.handoff, result)}
+        />
+      );
+    }
+
     return (
       <RouteAssistCapture
-        destinationType="OTHER"
-        sourceHint="Tap the existing receptacle we'd start from."
-        destinationHint="Tap where you'd like the new device."
+        destinationType={invocation?.destinationType ?? "OTHER"}
+        sourceHint={invocation?.sourceHint ?? "Tap the existing receptacle or control we'd start from."}
+        destinationHint={invocation?.destinationHint ?? "Tap where you'd like the new device."}
         onUploadPhoto={uploadPhoto}
-        onComplete={(result) => handleComplete(state.handoff, result)}
+        onComplete={(result) => void handleComplete(state.handoff, result)}
       />
     );
   }
 
-  // done
   return (
     <div className="mx-auto mt-16 flex max-w-md flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-      <p className="text-sm font-medium text-emerald-700">Route added ✓</p>
+      <p className="text-sm font-medium text-emerald-700">Capture added ✓</p>
       <p className="text-sm text-slate-600">How would you like to continue?</p>
       <button
         type="button"
@@ -98,14 +139,11 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
         Return to my computer
       </button>
       {continueChoice === "desktop" && (
-        <p className="text-xs text-slate-500">
-          You can close this tab — your computer will update automatically.
-        </p>
+        <p className="text-xs text-slate-500">You can close this tab — your computer will update automatically.</p>
       )}
       {continueChoice === "phone" && (
         <p className="text-xs text-slate-500">
-          Continuing the same quote on this phone isn't wired up yet — that's the next slice, once a service's
-          question tree knows how to invoke Route Assist. Your route is already saved either way.
+          Your capture is saved to this quote. Return to the original quote screen to continue the existing Guided Pricing flow.
         </p>
       )}
     </div>
