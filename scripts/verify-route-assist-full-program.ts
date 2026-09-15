@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
 
 const scripts = [
   "verify-guided-flow-answer-reconcile.ts",
@@ -42,18 +44,26 @@ const scripts = [
 ] as const;
 
 for (const script of scripts) {
-  // Use the tsx CLI rather than `node --import tsx`: several focused proof
-  // scripts intentionally use top-level await, which the CLI runs as ESM but
-  // Node's loader path may transform as CJS in some build environments.
-  const result = spawnSync("npx", ["tsx", `scripts/${script}`], {
-    stdio: "inherit",
-    env: process.env,
-    shell: process.platform === "win32",
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    console.error(`Route Assist verifier failed: ${script}`);
-    process.exit(result.status ?? 1);
+  const sourcePath = join("scripts", script);
+  const tempPath = join("scripts", `.route-assist-full-proof-${basename(script, ".ts")}.mts`);
+  // The repository is CommonJS-classified, while a few focused verifiers use
+  // intentional top-level await. Copying only for execution to .mts gives every
+  // verifier consistent ESM semantics without changing its committed source or
+  // relative import base. The temporary file is always removed.
+  writeFileSync(tempPath, readFileSync(sourcePath, "utf8"), "utf8");
+  try {
+    const result = spawnSync("npx", ["tsx", tempPath], {
+      stdio: "inherit",
+      env: process.env,
+      shell: process.platform === "win32",
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      console.error(`Route Assist verifier failed: ${script}`);
+      process.exit(result.status ?? 1);
+    }
+  } finally {
+    rmSync(tempPath, { force: true });
   }
 }
 
