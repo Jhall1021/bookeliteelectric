@@ -83,10 +83,10 @@ function resolveOutletRunDistance(result: RouteAssistResult): string | null {
  * MEANS, so banding here would throw away the only thing the tree needs and
  * re-introduce the distance model V2 exists to replace.
  *
- * Everything numeric comes through the adapter, so the integer-only contract
- * and the "nothing is silently dropped" rule are applied in exactly one place.
- * An invalid measurement returns null — persist the capture for the
- * contractor, send the homeowner back to the plain question, never invent.
+ * Everything numeric comes through the adapter, so the "nothing is silently
+ * dropped" rule is applied in exactly one place. An invalid measurement
+ * returns null — persist the capture for the contractor, send the homeowner
+ * back to the plain question, never invent.
  *
  * MODE MUST AGREE WITH THE QUESTION. A surface capture may not answer a
  * concealed question and vice versa: they are different physical installs, and
@@ -123,8 +123,18 @@ function measuredFeetFor(
   };
 }
 
-/** Corner counts are already whole counts; the adapter still owns validation. */
-function measuredCount(pick: "insideCorners" | "outsideCorners") {
+/**
+ * Exact PHYSICAL turn counts only.
+ *
+ * `adaptRouteAssistResult` intentionally ignores the legacy 2-D
+ * insideCornersCount/outsideCornersCount aggregates. These fields become
+ * non-null only when Ordered Geometry V1 has explicit physicalTurn evidence
+ * at every interior waypoint, so zero is meaningful and an unresolved turn
+ * remains null rather than becoming an undercount.
+ */
+function measuredPhysicalTurnCount(
+  pick: "flatCorners" | "insideCorners" | "outsideCorners"
+) {
   return (result: RouteAssistResult): string | null => {
     if (!result.customerConfirmedRoute || result.needsContractorReview) return null;
     const { mapped, invalid } = adaptRouteAssistResult(result);
@@ -163,6 +173,7 @@ function forDestination(
 const V2_SURFACE_FEET = "surface_route_feet";
 const V2_SURFACE_INSIDE = "surface_inside_corner_count";
 const V2_SURFACE_OUTSIDE = "surface_outside_corner_count";
+const V2_SURFACE_FLAT = "surface_route_flat_corner_count";
 const V2_CONCEALED_FEET = "concealed_route_feet";
 
 /**
@@ -182,15 +193,10 @@ type SurfaceCaptureCopy = {
  * One shared surface-route primitive, parameterized only by the endpoint copy.
  *
  * `prisma/_surfaceRouteModule.ts` owns the physical route and exposes the same
- * feet / inside-corner / outside-corner questions for OUTLET, SWITCH and
- * FIXTURE_BOX endpoints. Route Assist mirrors that architecture here: one
- * capture contract reused by every service that consumes the shared module,
- * never cloned per-service routing logic.
- *
- * Flat turns are intentionally absent. Route Assist has explicit physical-turn
- * evidence in its domain, but the current aggregate adapter does not yet expose
- * an exact flat-turn count into Guided Flow. Until that is separately proven,
- * the homeowner answers the canonical flat-corner question normally.
+ * feet / inside-corner / outside-corner / flat-corner questions for OUTLET,
+ * SWITCH and FIXTURE_BOX endpoints. Route Assist mirrors that architecture
+ * here: one capture contract reused by every service that consumes the shared
+ * module, never cloned per-service routing logic.
  */
 function surfaceCaptureInvocations(copy: SurfaceCaptureCopy): Record<string, RouteAssistQuestionInvocation> {
   const common = {
@@ -207,13 +213,18 @@ function surfaceCaptureInvocations(copy: SurfaceCaptureCopy): Record<string, Rou
     },
     [V2_SURFACE_INSIDE]: {
       ...common,
-      actionLabel: "Count the inside corners with your phone.",
-      resolveAnswerValue: forDestination(copy.destinationType, measuredCount("insideCorners")),
+      actionLabel: "Identify the inside corners with your phone.",
+      resolveAnswerValue: forDestination(copy.destinationType, measuredPhysicalTurnCount("insideCorners")),
     },
     [V2_SURFACE_OUTSIDE]: {
       ...common,
-      actionLabel: "Count the outside corners with your phone.",
-      resolveAnswerValue: forDestination(copy.destinationType, measuredCount("outsideCorners")),
+      actionLabel: "Identify the outside corners with your phone.",
+      resolveAnswerValue: forDestination(copy.destinationType, measuredPhysicalTurnCount("outsideCorners")),
+    },
+    [V2_SURFACE_FLAT]: {
+      ...common,
+      actionLabel: "Identify the flat turns with your phone.",
+      resolveAnswerValue: forDestination(copy.destinationType, measuredPhysicalTurnCount("flatCorners")),
     },
   };
 }
