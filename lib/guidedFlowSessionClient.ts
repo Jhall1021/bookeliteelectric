@@ -10,8 +10,10 @@ export type GuidedFlowSessionRef = {
 
 export type GuidedFlowPersistResult = {
   session: GuidedFlowSessionRef;
-  /** Canonical server answers, plus any still-safe local edits not yet persisted. */
+  /** Answers the caller should use locally after this persistence attempt. */
   answers: GuidedFlowAnswerMap;
+  /** Exact answer snapshot known to be canonical on the server at `session.version`. */
+  canonicalAnswers: GuidedFlowAnswerMap;
   /** Same-key conflicts where server/current remains canonical. */
   conflictKeys: string[];
   /** True only when `answers` still contains safe local edits not yet accepted by the server. */
@@ -66,7 +68,7 @@ function sameAnswers(a: GuidedFlowAnswerMap, b: GuidedFlowAnswerMap): boolean {
  * first write is stale, the server's current snapshot is reconciled through the
  * canonical three-way helper. Only a clean MERGED result may be retried, and
  * then only when it actually contains a safe local edit absent from the server.
- * A same-key CONFLICT is returned immediately with the server value canonical.
+ * A same-key CONFLICT immediately re-aligns to the server's canonical state.
  * The original stale full snapshot is never blindly replayed.
  */
 export async function persistGuidedFlowAnswers(
@@ -81,9 +83,11 @@ export async function persistGuidedFlowAnswers(
   if (first.ok) {
     const version = firstBody?.version;
     if (typeof version !== "number") throw new Error("Guided Flow answer write returned no version");
+    const canonicalAnswers = firstBody?.consumedAnswers ?? attemptedAnswers;
     return {
       session: { id: session.id, version },
-      answers: firstBody?.consumedAnswers ?? attemptedAnswers,
+      answers: canonicalAnswers,
+      canonicalAnswers,
       conflictKeys: [],
       pendingLocalChanges: false,
       persisted: true,
@@ -104,7 +108,8 @@ export async function persistGuidedFlowAnswers(
   if (reconciliation.kind === "CONFLICT") {
     return {
       session: { id: session.id, version: current.version },
-      answers: reconciliation.answers,
+      answers: currentAnswers,
+      canonicalAnswers: currentAnswers,
       conflictKeys: reconciliation.conflictKeys,
       pendingLocalChanges: false,
       persisted: false,
@@ -114,7 +119,8 @@ export async function persistGuidedFlowAnswers(
   if (sameAnswers(reconciliation.answers, currentAnswers)) {
     return {
       session: { id: session.id, version: current.version },
-      answers: reconciliation.answers,
+      answers: currentAnswers,
+      canonicalAnswers: currentAnswers,
       conflictKeys: [],
       pendingLocalChanges: false,
       persisted: false,
@@ -127,9 +133,11 @@ export async function persistGuidedFlowAnswers(
   if (second.ok) {
     const version = secondBody?.version;
     if (typeof version !== "number") throw new Error("Guided Flow reconciled write returned no version");
+    const canonicalAnswers = secondBody?.consumedAnswers ?? reconciliation.answers;
     return {
       session: { id: session.id, version },
-      answers: secondBody?.consumedAnswers ?? reconciliation.answers,
+      answers: canonicalAnswers,
+      canonicalAnswers,
       conflictKeys: [],
       pendingLocalChanges: false,
       persisted: true,
@@ -156,7 +164,8 @@ export async function persistGuidedFlowAnswers(
   if (secondReconciliation.kind === "CONFLICT") {
     return {
       session: { id: session.id, version: latest.version },
-      answers: secondReconciliation.answers,
+      answers: latestAnswers,
+      canonicalAnswers: latestAnswers,
       conflictKeys: secondReconciliation.conflictKeys,
       pendingLocalChanges: false,
       persisted: false,
@@ -166,6 +175,7 @@ export async function persistGuidedFlowAnswers(
   return {
     session: { id: session.id, version: latest.version },
     answers: secondReconciliation.answers,
+    canonicalAnswers: latestAnswers,
     conflictKeys: [],
     pendingLocalChanges: !sameAnswers(secondReconciliation.answers, latestAnswers),
     persisted: false,
