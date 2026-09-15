@@ -1,4 +1,5 @@
 import type { RouteAssistVisibleSceneProviderInputV1, RouteAssistVisibleSceneProviderV1 } from "./visibleSceneProvider";
+import type { RouteAssistReviewCorrectionV1 } from "./routeReviewCorrection";
 import type { RouteAssistVisibleSceneSemanticsV1 } from "./visualSceneSemantics";
 
 export type RouteAssistHttpVisibleSceneRequestV1 = {
@@ -8,12 +9,15 @@ export type RouteAssistHttpVisibleSceneRequestV1 = {
   pointIds: string[];
   segmentIds: string[];
   imageIds: string[];
+  reviewCorrections: RouteAssistReviewCorrectionV1[];
 };
 
 export type RouteAssistHttpVisibleSceneTransportV1 = {
   /**
    * Network/SDK seam only. Server-side transport resolves authorized imageIds
    * to media; durable storage URLs never become part of the domain contract.
+   * Homeowner corrections are review intent only and must not be treated as
+   * accepted geometry or measurement authority by the transport/provider.
    */
   analyze(request: RouteAssistHttpVisibleSceneRequestV1): Promise<unknown>;
 };
@@ -21,15 +25,7 @@ export type RouteAssistHttpVisibleSceneTransportV1 = {
 function semanticsShape(value: unknown): RouteAssistVisibleSceneSemanticsV1 {
   if (!value || typeof value !== "object") throw new Error("invalid visible-scene payload");
   const candidate = value as Partial<RouteAssistVisibleSceneSemanticsV1>;
-  if (
-    candidate.version !== 1 ||
-    !Array.isArray(candidate.captureImageIds) ||
-    !Array.isArray(candidate.objects) ||
-    !Array.isArray(candidate.segmentObservations)
-  ) {
-    throw new Error("invalid visible-scene semantics shape");
-  }
-  // Full graph/image/provenance validation happens in the provider runner.
+  if (candidate.version !== 1 || !Array.isArray(candidate.captureImageIds) || !Array.isArray(candidate.objects) || !Array.isArray(candidate.segmentObservations)) throw new Error("invalid visible-scene semantics shape");
   return candidate as RouteAssistVisibleSceneSemanticsV1;
 }
 
@@ -48,6 +44,7 @@ export function createRouteAssistHttpVisibleSceneProviderV1(args: {
         pointIds: input.points.map((point) => point.id),
         segmentIds: input.segments.map((segment) => segment.id),
         imageIds: [...input.captureArtifacts.imageIds],
+        reviewCorrections: (input.reviewCorrections ?? []).map((correction) => ({ ...correction, point: { ...correction.point } })),
       });
       return semanticsShape(response);
     },
