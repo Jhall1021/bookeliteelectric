@@ -13,6 +13,8 @@ import { writeComponentLabor, writeMaterialCost, writeMaterialSystem, writePrici
 import { resolvePolicy } from "../lib/policyResolution";
 import { activateService } from "../lib/serviceActivation";
 import { decideDerivedPricingApproval } from "../lib/electrical/derivedPricingApproval";
+import { saveServicePricingInputs } from "../lib/servicePricingInputs";
+import { publishSuggestedPrice } from "../lib/pricePublication";
 import { resetPilotContractor } from "../lib/electrical/pilotReset";
 import { liveEndpointOf, PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
@@ -27,6 +29,14 @@ export const FIXTURE_COSTS: [string, number, number, string][] = [
   ["CONDUCTOR_THHN_12_UNGROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_GROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_EQUIPMENT_GROUND", 7417, 500, "ft"],
 ];
 const LABOR: [string, number][] = [["ELEC_ROUTE_SURFACE_MOUNTED", 0], ["SURFACE_ROUTE_FT", 0.02], ["OUTLET_EXTENSION_CORE", 0.6], ["SURFACE_DEVICE_BOX_OUTLET", 0.2]];
+
+// "Dedicated Circuit & Outlet"'s own materials — the canonical per-unit
+// reference costs prisma/seed-materials.ts already documents for these
+// exact keys (unitCostCents), not figures invented for this fixture.
+const DEDICATED_CIRCUIT_COSTS: [string, number, number, string][] = [
+  ["WIRE_14_2", 50, 1, "ft"], ["BREAKER_SINGLE_POLE", 800, 1, "each"], ["WALL_PLATE", 100, 1, "each"],
+  ["RECEPTACLE_STANDARD", 200, 1, "each"], ["BOX_OLD_WORK", 300, 1, "each"], ["CONSUMABLES_MEDIUM", 700, 1, "job"],
+];
 
 export function fixtureSlug(tag: string) {
   return `${PILOT_REHEARSAL_PREFIX}${tag}-${process.pid.toString(36)}`;
@@ -67,25 +77,61 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
     await asTenant(cid, (db) => writePricingSettingsField(db, { contractorId: cid }, { action: "set", field, value }));
   const svc = await prisma.service.findFirstOrThrow({ where: { contractorId: cid, slug: "new-120v-outlet" }, select: { id: true } });
   let approvedTotalCents: number | null = null;
+  let dedicatedCircuitServiceId: string | null = null;
   if (pricingStrategy === "FLAT_RATE") {
-    const approved = await asTenant(cid, (db) => decideDerivedPricingApproval(db, { contractorId: cid, userId: null }, { action: "approve", serviceId: svc.id }));
-    if (approved.status !== 200) throw new Error(`approval refused: ${JSON.stringify(approved.body)}`);
-    approvedTotalCents = approved.body.approvedTotalCents as number;
     // The qualification gate above the surface-route module can hand a
     // homeowner off to "Dedicated Circuit & Outlet" ("What will this outlet
     // power?" -> a specific large appliance) — a real, reachable answer, so
     // activateService correctly refuses DEPENDENCY_UNAVAILABLE until that
     // target is live too (lib/serviceActivation.ts's own ordering rule; a
-    // real Review & Launch would sequence the same way). That service is
-    // unrelated to what this fixture proves, so it is not priced or
-    // approved here — only marked active, the one fact the dependency check
-    // actually reads, so this proof's OWN service can reach the same
-    // activation state a real contractor's launch would reach.
-    await prisma.service.updateMany({ where: { contractorId: cid, slug: "dedicated-120v-circuit-outlet" }, data: { active: true } });
+    // real Review & Launch would sequence the same way, launching a
+    // dependency before what hands off to it). Taken through the SAME
+    // supported actions a real contractor's admin would use — entering
+    // crew-hours (Service.fieldLaborHours, the panel edit
+    // scripts/onboard-contractor-two.ts's own comment documents),
+    // publishing the derived suggestion, then activating — never a raw
+    // flag flip. Elite's own copy of this service uses 2.5 crew-hours; this
+    // fixture's copy uses the same, openly-reused figure, not a fabricated
+    // one.
+    //
+    // DONE BEFORE new-120v-outlet's OWN approval, not after: the derived-
+    // pricing basis fingerprint (lib/electrical/derivedPricingBasis.ts) is
+    // computed over ALL of the contractor's ContractorMaterial rows, not
+    // just the roles a given service's recipe actually reaches — so writing
+    // this dependency's material costs AFTER approving new-120v-outlet
+    // would immediately stale that approval's fingerprint, sending a
+    // perfectly ordinary straight route to REVIEW for reasons that have
+    // nothing to do with its own economics. Configuring every contractor-
+    // wide economic input first, then approving once, is what a real
+    // contractor's own setup would do too — nobody approves a price mid-
+    // configuration.
+    const dedicated = await prisma.service.findFirstOrThrow({
+      where: { contractorId: cid, slug: "dedicated-120v-circuit-outlet" }, select: { id: true } });
+    dedicatedCircuitServiceId = dedicated.id;
+    // Its own band question needs a real decision before it can publish —
+    // the same [30, 60] boundary scripts/onboard-contractor-two.ts already
+    // uses for this exact policy key, not a value invented for this fixture.
+    await asTenant(cid, (db) => resolvePolicy(db, cid, "panel_circuit_run.breakpoints", { boundaries: [30, 60] }));
+    for (const [roleKey, packagePriceCents, packageQuantity, packageUnit] of DEDICATED_CIRCUIT_COSTS) {
+      const r = await asTenant(cid, (db) => writeMaterialCost(db, { contractorId: cid }, { roleKey, packagePriceCents, packageQuantity, packageUnit }));
+      if (!r.ok) throw new Error(`dependency cost ${roleKey}: ${r.error}`);
+    }
+    await saveServicePricingInputs(prisma, dedicated.id, { fieldLaborHours: 2.5 });
+    const publishedDependency = await publishSuggestedPrice(prisma, cid, dedicated.id);
+    if (!publishedDependency.ok) throw new Error(`dependency publish refused: ${JSON.stringify(publishedDependency.refusal)}`);
+    const dependencyActivation = await activateService(prisma, cid, dedicated.id);
+    if (!dependencyActivation.ok) throw new Error(`dependency activation refused: ${JSON.stringify(dependencyActivation)}`);
+
+    // NOW approve new-120v-outlet — every contractor-wide economic input
+    // (this dependency's materials included) is already in its final state.
+    const approved = await asTenant(cid, (db) => decideDerivedPricingApproval(db, { contractorId: cid, userId: null }, { action: "approve", serviceId: svc.id }));
+    if (approved.status !== 200) throw new Error(`approval refused: ${JSON.stringify(approved.body)}`);
+    approvedTotalCents = approved.body.approvedTotalCents as number;
+
     const act = await activateService(prisma, cid, svc.id);
     if (!act.ok) throw new Error(`activation refused: ${JSON.stringify(act)}`);
   }
-  return { contractorId: cid, publicId: site.publicId, serviceId: svc.id, approvedTotalCents };
+  return { contractorId: cid, publicId: site.publicId, serviceId: svc.id, approvedTotalCents, dedicatedCircuitServiceId };
 }
 
 /** Re-approve the CURRENT economics through the server decision. */
