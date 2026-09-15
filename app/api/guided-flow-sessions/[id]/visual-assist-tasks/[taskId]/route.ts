@@ -29,11 +29,50 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const body = await req.json();
-    const updated = await db.guidedFlowVisualAssistTask.update({
-      where: { id: params.taskId },
-      data: { status: "COMPLETED", result: body.result ?? {}, completedAt: new Date() },
+    const body = await req.json().catch(() => null);
+    if (
+      !body ||
+      !Object.prototype.hasOwnProperty.call(body, "result") ||
+      body.result === null ||
+      typeof body.result !== "object" ||
+      Array.isArray(body.result)
+    ) {
+      return NextResponse.json({ error: "Missing or invalid result" }, { status: 400 });
+    }
+
+    /**
+     * FIRST ACCEPTED COMPLETION WINS.
+     *
+     * Desktop and phone can both legitimately finish the same canonical task.
+     * A read-then-update sequence lets both readers observe PENDING and makes
+     * the later write overwrite the earlier result. Put PENDING in the UPDATE
+     * predicate instead: only one concurrent caller can change the row.
+     *
+     * A losing/retried PATCH is idempotent. It receives the already-completed
+     * task and may continue, but it never replaces the canonical result.
+     */
+    const won = await db.guidedFlowVisualAssistTask.updateMany({
+      where: {
+        id: params.taskId,
+        guidedFlowSessionId: params.id,
+        status: "PENDING",
+      },
+      data: {
+        status: "COMPLETED",
+        result: body.result,
+        completedAt: new Date(),
+      },
     });
-    return NextResponse.json({ id: updated.id, status: updated.status });
+
+    const current = await db.guidedFlowVisualAssistTask.findUnique({ where: { id: params.taskId } });
+    if (!current || current.guidedFlowSessionId !== params.id) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      id: current.id,
+      status: current.status,
+      accepted: won.count === 1,
+    });
   });
 }
