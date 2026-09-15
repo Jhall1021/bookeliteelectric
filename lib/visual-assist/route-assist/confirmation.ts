@@ -1,15 +1,10 @@
 /**
- * §11 of the brief — the customer's response to the route overlay. Mirrors
- * ../confirmation.ts's shape (a decision, an audit record) at the
- * whole-route grain instead of per-field, since Route Assist confirms one
- * route, not a set of independently-scored fields.
+ * Whole-capture confirmation.
  *
- * `needsContractorReview` is decided in exactly one place: here. `result.ts`
- * always builds a fresh result with `customerConfirmedRoute: false,
- * needsContractorReview: true` — nothing is "clear" before the customer has
- * seen it. This function is what can lower that flag, and only on ACCEPTED,
- * and only when the route's own complexity doesn't independently require a
- * human look.
+ * A ROUTE capture confirms a proposed wiring path and therefore still applies
+ * concealed-route complexity review. A PLACEMENT_LAYOUT confirms only where
+ * the homeowner wants fixtures/devices; it makes no claim about the eventual
+ * wiring topology, so route complexity cannot invalidate the placement itself.
  */
 
 import type { RouteAssistConfirmationDecision } from "./taxonomy";
@@ -20,15 +15,16 @@ export function applyConfirmation(
   decision: RouteAssistConfirmationDecision
 ): RouteAssistResult {
   if (decision === "ACCEPTED") {
+    if (result.captureKind === "PLACEMENT_LAYOUT") {
+      return { ...result, customerConfirmedRoute: true, needsContractorReview: false };
+    }
+
     const complexityRequiresReview =
       result.mode === "CONCEALED" &&
       (result.concealedRouteComplexity === "COMPLEX" || result.concealedRouteComplexity === "UNCERTAIN");
     return { ...result, customerConfirmedRoute: true, needsContractorReview: complexityRequiresReview };
   }
-  // ADJUSTED and RETAKE both mean "not this yet" — the caller sends the
-  // customer back into capture. Recorded as unconfirmed either way; which
-  // one happened is in the audit record (decisionRecord), not on the result
-  // itself, since the result only needs to say whether it can be trusted.
+
   return { ...result, customerConfirmedRoute: false, needsContractorReview: true };
 }
 

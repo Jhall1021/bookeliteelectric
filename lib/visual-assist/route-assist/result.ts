@@ -1,13 +1,10 @@
 /**
  * The one function that turns a customer's placed-and-tagged geometry into
- * a `RouteAssistResult` — or refuses, per §22, with a `RouteAssistIncomplete`
- * and no partial result. Everything it calls is pure (geometry.ts,
- * complexity.ts, uncertainty.ts); this file's only job is composing them in
- * the right order and refusing early when a required point is missing.
+ * a `RouteAssistResult` — or refuses with a `RouteAssistIncomplete` and no
+ * partial result. Everything it calls is pure.
  *
- * `needsContractorReview` starts `true` on every fresh result, because
- * nothing is confirmed yet — see confirmation.ts, the only place that ever
- * lowers it.
+ * `needsContractorReview` starts true on every fresh result because nothing
+ * is trusted before the customer has seen and confirmed it.
  */
 
 import {
@@ -31,9 +28,6 @@ export function buildRouteAssistResult(input: RouteAssistCaptureInput): RouteAss
   if (!destination) return incompleteResult("DESTINATION_NOT_CLEAR");
 
   const route = orderRoute(input.points, input.segments);
-  // A branch, a dead end, or a disconnected graph isn't "the" route to
-  // guess at — refuse rather than pick a branch. See geometry.ts's
-  // orderRoute for exactly what disqualifies a graph.
   if (!route) return incompleteResult("MULTIPLE_POSSIBLE_ROUTES");
 
   const cornerList = corners(route);
@@ -71,6 +65,9 @@ export function buildRouteAssistResult(input: RouteAssistCaptureInput): RouteAss
     destinationType: input.destinationType,
     points: input.points,
     segments: input.segments,
+    captureKind: input.captureKind ?? "ROUTE",
+    placements: input.placements ?? [],
+    concealedAccessEvidence: input.concealedAccessEvidence ?? null,
     customerConfirmedRoute: false,
     estimatedTotalRouteLengthFt,
     sameWall,
@@ -82,9 +79,6 @@ export function buildRouteAssistResult(input: RouteAssistCaptureInput): RouteAss
     verticalTransitionsCount,
     wallToCeilingTransitionsCount: transitions.wallToCeiling,
     wallToFloorTransitionsCount: transitions.wallToFloor,
-    // Reserved for Phase 2 (assisted geometry) — see types.ts. Phase 1 has
-    // no signal distinct from a tagged doorway/window bypass or a corner,
-    // and reporting a nonzero count without one would be a guess.
     visibleObstacleDetoursCount: 0,
     concealedRouteComplexity,
     suggestedAccessOpeningsMin: accessRange?.min ?? null,

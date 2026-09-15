@@ -1,25 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RouteAssistWithHandoff from "./RouteAssistWithHandoff";
 import { getRouteAssistInvocation } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
 import { uploadPhoto } from "@/lib/upload";
+import { useSiteFetch } from "@/components/site/SiteContext";
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import type { RouteAssistResult } from "@/lib/visual-assist/route-assist/types";
 
-/**
- * The ONLY place GuidedFlow rendering touches Route Assist — and even here,
- * it doesn't know which service or question is involved. `GuidedFlowEngine`
- * renders this unconditionally next to every question; whether anything
- * appears is entirely decided by `getRouteAssistInvocation` (lib/visual-
- * assist/route-assist/guidedFlowInvocation.ts), a plain data lookup. Adding
- * a second service's invocation means adding an entry there, never a
- * conditional here or in QuestionStep.
- *
- * Optional and additive: the existing distance question (or whichever
- * question a future entry targets) renders exactly as before, unaffected,
- * whether or not the customer ever opens this.
- */
 type Props = {
   serviceSlug: string;
   question: QuestionDTO;
@@ -27,58 +15,120 @@ type Props = {
   onResolved: (option: AnswerOptionDTO) => void;
 };
 
-/**
- * A width of 0 means "not actually rendered yet" (a hidden pane, a
- * not-yet-laid-out frame) rather than "narrow" — treated as unknown, which
- * defaults to the desktop/handoff path. A wrong "mobile" guess strands a
- * desktop customer at a capture screen with no camera; a wrong "desktop"
- * guess just shows an actual phone a QR code, which still works.
- */
 function isMobileViewport(): boolean {
   if (typeof window === "undefined") return false;
   const width = window.innerWidth;
   return width > 0 && width < 640;
 }
 
-export default function RouteAssistQuestionAssist({ serviceSlug, question, guidedFlowSessionId, onResolved }: Props) {
+/**
+ * Route Assist remains additive to the authored question. Prior answers decide
+ * whether the camera experience is appropriate; the existing question is
+ * always still available as fallback.
+ */
+export default function RouteAssistQuestionAssist({
+  serviceSlug,
+  question,
+  guidedFlowSessionId,
+  onResolved,
+}: Props) {
+  const siteFetch = useSiteFetch();
   const [open, setOpen] = useState(false);
   const [unusable, setUnusable] = useState(false);
+  const [capturedOnly, setCapturedOnly] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answersLoaded, setAnswersLoaded] = useState(false);
 
-  const invocation = getRouteAssistInvocation(serviceSlug, question.key);
+  useEffect(() => {
+    let cancelled = false;
+    setAnswers({});
+    setAnswersLoaded(false);
+    setOpen(false);
+    setUnusable(false);
+    setCapturedOnly(false);
+
+    if (!guidedFlowSessionId) return () => { cancelled = true; };
+
+    // The Guided Flow mirrors answers to this same session asynchronously.
+    // Read more than once so a just-completed prior answer (the access answer
+    // that made Route Assist eligible) is not lost to a harmless network race.
+    const delays = [0, 200, 700];
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (const delay of delays) {
+      timers.push(
+        setTimeout(() => {
+          siteFetch(`/api/guided-flow-sessions/${guidedFlowSessionId}`)
+            .then((response) => (response.ok ? response.json() : null))
+            .then((body) => {
+              if (cancelled || !body) return;
+              if (body.consumedAnswers && typeof body.consumedAnswers === "object") {
+                setAnswers(body.consumedAnswers as Record<string, string>);
+              }
+              setAnswersLoaded(true);
+            })
+            .catch(() => {
+              if (!cancelled) setAnswersLoaded(true);
+            });
+        }, delay)
+      );
+    }
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
+  }, [guidedFlowSessionId, question.key, serviceSlug, siteFetch]);
+
+  const invocation = answersLoaded
+    ? getRouteAssistInvocation(serviceSlug, question.key, answers)
+    : null;
+
   if (!invocation || !guidedFlowSessionId) return null;
 
   function handleComplete(result: RouteAssistResult) {
     setOpen(false);
-    // The task/result is already persisted by RouteAssistWithHandoff
-    // regardless of what happens next — contractor context survives even
-    // when nothing here can safely use it.
+
+    if (invocation!.completionMode === "CAPTURE_ONLY") {
+      setCapturedOnly(true);
+      setUnusable(false);
+      return;
+    }
+
     const value = invocation!.resolveAnswerValue(result);
     if (value === null) {
       setUnusable(true);
       return;
     }
-    // The mapping's contract is "one of this question's real values" —
-    // resolved against the ACTUAL tree here, never assumed. A mismatch
-    // (a configuration error, not a customer-facing one) falls back to
-    // manual rather than guessing.
-    const option = question.options.find((o) => o.value === value);
+
+    const option = question.options.find((candidate) => candidate.value === value);
     if (!option) {
       setUnusable(true);
       return;
     }
+
     setUnusable(false);
+    setCapturedOnly(false);
     onResolved(option);
   }
 
   if (!open) {
     return (
       <div className="mt-3 text-center">
-        <button type="button" onClick={() => setOpen(true)} className="text-sm font-medium text-electric hover:underline">
-          {invocation.actionLabel}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-sm font-medium text-electric hover:underline"
+        >
+          {capturedOnly ? "Update the saved location" : invocation.actionLabel}
         </button>
+        {capturedOnly && (
+          <p className="mt-2 text-sm text-emerald-700">
+            Location saved. Answer the question above to continue your quote.
+          </p>
+        )}
         {unusable && (
           <p className="mt-2 text-sm text-slate-500">
-            That measurement wasn't clear enough to answer automatically. Pick the option above that's closest, or try again.
+            That capture wasn't clear enough to answer automatically. Pick the option above that's closest, or try again.
           </p>
         )}
       </div>
@@ -94,6 +144,10 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
         destinationType={invocation.destinationType}
         sourceHint={invocation.sourceHint}
         destinationHint={invocation.destinationHint}
+        captureKind={invocation.captureKind}
+        placementHint={invocation.placementHint}
+        minPlacements={invocation.minPlacements}
+        maxPlacements={invocation.maxPlacements}
         onUploadPhoto={uploadPhoto}
         onComplete={handleComplete}
       />

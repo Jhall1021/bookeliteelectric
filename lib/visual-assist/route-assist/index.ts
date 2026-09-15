@@ -21,3 +21,13 @@ export {
 } from "./geometry";
 export { classifyConcealedComplexity, suggestedAccessOpeningRange } from "./complexity";
 export { incompleteResult } from "./uncertainty";
+export {
+  buildOrderedRouteGeometryV1,
+  orderedGeometryFromResult,
+} from "./orderedGeometry";
+export {
+  validateRouteAssistScanEvidenceV1,
+  alignRouteAssistScanEvidenceV1,
+  isClearWorldGeometryObservation,
+} from "./scanEvidence";
+export { summarizeConcealedAccessEvidenceV1 } from "./concealedAccess";
