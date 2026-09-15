@@ -79,6 +79,12 @@ function knownSurface(surface: RouteSurface | null | undefined): RouteSurface | 
  * Returns null for the same cases `orderRoute()` refuses: branch, dead-end,
  * disconnected graph, cycle, or missing/ambiguous endpoints. No route is
  * guessed just to produce an ordered list.
+ *
+ * `orderRoute()` historically stopped once it reached DESTINATION. That is
+ * enough to draw the main path, but it is NOT enough for an exact physical
+ * takeoff: an orphaned waypoint/segment outside that walk would disappear.
+ * Ordered Geometry therefore additionally requires the A -> B walk to consume
+ * the entire persisted graph before it can become physical-fact authority.
  */
 export function buildOrderedRouteGeometryV1(
   points: RoutePoint[],
@@ -86,6 +92,7 @@ export function buildOrderedRouteGeometryV1(
 ): RouteAssistOrderedGeometryV1 | null {
   const route = orderRoute(points, segments);
   if (!route) return null;
+  if (route.points.length !== points.length || route.segments.length !== segments.length) return null;
 
   const orderedSegments: OrderedRouteSegmentV1[] = route.segments.map((segment, index) => ({
     index,
