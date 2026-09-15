@@ -31,9 +31,11 @@ function byPrimaryCaptureOrder(captureImageIds: string[], objects: RouteAssistVi
  * physical turns, fittings, material quantities, labor, or price.
  *
  * Source/destination/baseboard/doorway ordering comes ONLY from the primary
- * ordered sweep. Supplemental recapture objects may complete a coherent doorway
- * group (for example, a missing casing/top-trim view) but their image order is
- * never used as route order or room adjacency.
+ * ordered sweep. Objects detected in the SAME frame have no cross-object route
+ * order: object ids and image-space x/y are never used as room topology.
+ * Supplemental recapture objects may complete a coherent doorway group (for
+ * example, a missing casing/top-trim view) but their image order is never used
+ * as route order or room adjacency.
  */
 export function proposeVisibleTrimHuggingRouteV1(args: {
   semantics: RouteAssistVisibleSceneSemanticsV1;
@@ -45,17 +47,32 @@ export function proposeVisibleTrimHuggingRouteV1(args: {
   const problems = validateRouteAssistVisibleSceneSemanticsV1(args);
   if (problems.length) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems };
 
-  const ordered = byPrimaryCaptureOrder([...args.expectedCaptureImageIds], args.semantics.objects);
-  const source = ordered.find((object) => object.kind === "SOURCE_RECEPTACLE");
-  const destination = [...ordered].reverse().find((object) => object.kind === "DESTINATION_MARKER");
-  if (!source || !destination) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["visible source and destination anchors are both required in the primary sweep"] };
+  const captureImageIds = [...args.expectedCaptureImageIds];
+  const captureOrder = new Map(captureImageIds.map((id, index) => [id, index]));
+  const ordered = byPrimaryCaptureOrder(captureImageIds, args.semantics.objects);
+  const sources = ordered.filter((object) => object.kind === "SOURCE_RECEPTACLE");
+  const destinations = ordered.filter((object) => object.kind === "DESTINATION_MARKER");
+  if (sources.length !== 1 || destinations.length !== 1) {
+    return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["exactly one visible source and destination anchor are required in the primary sweep"] };
+  }
+  const source = sources[0];
+  const destination = destinations[0];
+  const sourceFrameIndex = captureOrder.get(source.imageId);
+  const destinationFrameIndex = captureOrder.get(destination.imageId);
+  if (sourceFrameIndex === undefined || destinationFrameIndex === undefined) {
+    return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["visible source and destination anchors are both required in the primary sweep"] };
+  }
 
-  const sourceIndex = ordered.indexOf(source); const destinationIndex = ordered.indexOf(destination);
-  const between = ordered.slice(Math.min(sourceIndex, destinationIndex), Math.max(sourceIndex, destinationIndex) + 1);
-  const baseboards = between.filter((object) => object.kind === "BASEBOARD_OR_TRIM");
+  const firstFrame = Math.min(sourceFrameIndex, destinationFrameIndex);
+  const lastFrame = Math.max(sourceFrameIndex, destinationFrameIndex);
+  const routeWindow = ordered.filter((object) => {
+    const index = captureOrder.get(object.imageId);
+    return index !== undefined && index >= firstFrame && index <= lastFrame;
+  });
+  const baseboards = routeWindow.filter((object) => object.kind === "BASEBOARD_OR_TRIM");
   if (!baseboards.length) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["no visible baseboard or trim continuity between source and destination"] };
 
-  const doorway = between.find((object) => object.kind === "DOORWAY");
+  const doorway = routeWindow.find((object) => object.kind === "DOORWAY");
   const steps: RouteAssistVisibleTrimRouteStepV1[] = [{ kind: "SOURCE", objectId: source.id, imageId: source.imageId }];
   const boundaries: RouteAssistTrimBoundaryV1[] = ["BASEBOARD"];
   steps.push({ kind: "BASEBOARD", objectId: baseboards[0].id, imageId: baseboards[0].imageId });
@@ -75,7 +92,8 @@ export function proposeVisibleTrimHuggingRouteV1(args: {
     steps.push({ kind: "DOOR_SIDE_UP", objectId: first.id, imageId: first.imageId }, { kind: "DOOR_TOP", objectId: top.id, imageId: top.imageId }, { kind: "DOOR_SIDE_DOWN", objectId: second.id, imageId: second.imageId });
     boundaries.push(group.entrySide === "LEFT" ? "DOOR_CASING_LEFT" : "DOOR_CASING_RIGHT", "DOOR_CASING_TOP", group.entrySide === "LEFT" ? "DOOR_CASING_RIGHT" : "DOOR_CASING_LEFT", "BASEBOARD");
     if (!isTrimHuggingDoorwayBypassV1(boundaries)) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems: ["doorway evidence does not form a trim-hugging bypass"] };
-    const afterDoor = baseboards[baseboards.length - 1]; if (afterDoor.id !== baseboards[0].id) steps.push({ kind: "BASEBOARD", objectId: afterDoor.id, imageId: afterDoor.imageId });
+    const afterDoor = baseboards[baseboards.length - 1];
+    if (afterDoor.id !== baseboards[0].id) steps.push({ kind: "BASEBOARD", objectId: afterDoor.id, imageId: afterDoor.imageId });
   }
 
   steps.push({ kind: "DESTINATION", objectId: destination.id, imageId: destination.imageId });
