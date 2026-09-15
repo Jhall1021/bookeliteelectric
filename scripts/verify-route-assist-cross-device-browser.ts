@@ -10,20 +10,21 @@
  *     --base http://localhost:3427 --service new-120v-outlet
  *
  * `?mode=handoff` on app/elite-electric/dev-fixtures/route-assist stands in for
- * "a service's Guided Flow question opened Route Assist." The fixture now
- * supplies the SAME grouped surface capture task identity used by the real
- * invocation registry (`surface_route_capture_v1`), so this proof exercises
- * task-key persistence and phone capture-context restoration rather than the
- * old null-key compatibility fallback.
+ * "a service's Guided Flow question opened Route Assist." The fixture supplies
+ * the SAME grouped surface capture task identity used by the real invocation
+ * registry (`surface_route_capture_v1`), so this proof exercises task-key
+ * persistence and phone capture-context restoration rather than the old
+ * null-key compatibility fallback.
  *
  * Proves, in order: desktop reaches the step and gets a QR; a genuinely
  * separate browser context (the phone) resolves that QR's actual URL and
- * joins the SAME GuidedFlowSession; the phone recovers the RECEPTACLE context
- * from the persisted grouped task key, completes A/waypoint/B and confirms;
- * the desktop — polling, no manual refresh — detects completion; and, checked
- * directly against the database rather than inferred from the UI, exactly one
- * GuidedFlowSession, one grouped GuidedFlowVisualAssistTask and one canonical
- * RouteAssistResult exist.
+ * joins the SAME GuidedFlowSession; after choosing surface mode and opening a
+ * photo, the phone sees the RECEPTACLE source hint recovered from the grouped
+ * task key; it completes A/waypoint/B and confirms; the desktop — polling, no
+ * manual refresh — detects completion; and, checked directly against the
+ * database rather than inferred from the UI, exactly one GuidedFlowSession,
+ * one grouped GuidedFlowVisualAssistTask and one canonical RouteAssistResult
+ * exist.
  *
  * UPLOAD SUBSTITUTION — see docs/design/route-assist-v1.md's cross-device
  * proof note. This development sandbox cannot complete a TLS connection to
@@ -82,6 +83,17 @@ async function uploadSyntheticPhoto(page: Page) {
 async function placeAndConfirmRoute(page: Page) {
   await page.click('[data-testid="mode-SURFACE"]');
   await uploadSyntheticPhoto(page);
+
+  // Source/destination hints appear only after the photo is loaded. Assert the
+  // registry-restored endpoint HERE, not on the initial MODE screen where no
+  // endpoint-specific copy is rendered yet.
+  const sourceStepText = await page.locator("main").innerText();
+  check(
+    "phone restored receptacle source context from grouped task identity",
+    /existing outlet/i.test(sourceStepText),
+    sourceStepText.slice(0, 400)
+  );
+
   const box = await page.locator('[data-testid="capture-image"]').boundingBox();
   if (!box) throw new Error("capture-image not found");
   const aX = box.x + box.width * 0.2;
@@ -148,11 +160,6 @@ async function main() {
   await phone.waitForSelector('[data-testid="mode-SURFACE"]', { timeout: 15000 });
   const phoneText = await phone.locator("main").innerText().catch(() => "");
   check("phone lands directly on the capture step (not an error page)", !phoneText.includes("isn't valid"), phoneText.slice(0, 240));
-  check(
-    "phone restored receptacle capture context from grouped task identity",
-    /new outlet|receptacle/i.test(phoneText),
-    phoneText.slice(0, 400)
-  );
 
   console.log("\n3. Phone captures A, a waypoint, B, and confirms");
   await placeAndConfirmRoute(phone);
