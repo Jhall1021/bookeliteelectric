@@ -162,7 +162,20 @@ export async function runRouteAssistScanProviderV1(
     };
   }
 
-  const evidence = providerEvidenceSnapshot(providerEvidence);
+  let evidence: RouteAssistScanEvidenceV1;
+  try {
+    evidence = providerEvidenceSnapshot(providerEvidence);
+  } catch {
+    // TypeScript cannot make a network/SDK response trustworthy at runtime.
+    // A provider adapter that returns null, missing arrays, or another malformed
+    // shape is bad evidence, not an exception that should escape into Route Assist.
+    return {
+      providerKey: provider.providerKey,
+      evidence: null,
+      problems: ["scan provider returned malformed evidence"],
+    };
+  }
+
   const validation = validateRouteAssistScanEvidenceV1(
     [...input.points],
     [...input.segments],
