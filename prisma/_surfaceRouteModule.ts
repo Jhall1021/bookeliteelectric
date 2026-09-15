@@ -19,7 +19,7 @@
  * homeowner describes the route.
  */
 import type { PrismaClient } from "@prisma/client";
-import { upsertQuestion } from "./_moduleHelpers";
+import { upsertQuestion, addNumericUnknownOption } from "./_moduleHelpers";
 import { componentIdByKey } from "./_componentHelpers";
 
 export type SurfaceEndpoint = "OUTLET" | "SWITCH" | "FIXTURE_BOX";
@@ -90,7 +90,7 @@ export async function attachSurfaceRouteModule(
 
   const qObstacles = await upsertQuestion(prisma, serviceId, {
     key: SURFACE_KEYS.obstacles,
-    prompt: "Does anything sit in the way along that route?",
+    prompt: "Is anything in the way?",
     helpText:
       "Look along the wall between the power source and the new spot. We're asking what you can " +
       "see — you don't need to know how it's built.",
@@ -100,7 +100,7 @@ export async function attachSurfaceRouteModule(
 
   const qSurface = await upsertQuestion(prisma, serviceId, {
     key: SURFACE_KEYS.surface,
-    prompt: "What is that wall surface?",
+    prompt: "What is the wall made of?",
     helpText: "If you're not certain, choose “I'm not sure” and we'll take a look.",
     inputType: "SINGLE_SELECT",
     order: entryOrder + 4,
@@ -108,10 +108,10 @@ export async function attachSurfaceRouteModule(
 
   const qOutside = await upsertQuestion(prisma, serviceId, {
     key: SURFACE_KEYS.outside,
-    prompt: "How many outside corners does the route turn around?",
+    prompt: "How many outside corners?",
     helpText:
-      "An outside corner is one the wiring wraps AROUND, like the external corner of a chimney " +
-      "breast. If there are none, enter 0.",
+      "Count where the route wraps around a projecting wall corner. Enter 0 if none. " +
+      "This is a physical corner, not a left or right bend in a picture.",
     // EXPLICIT, not defaulted: these bounds are part of the pricing contract.
     inputType: "NUMBER",
     numberMin: SURFACE_BOUNDS.corners.min,
@@ -133,10 +133,10 @@ export async function attachSurfaceRouteModule(
    */
   const qFlat = await upsertQuestion(prisma, serviceId, {
     key: SURFACE_KEYS.flat,
-    prompt: "How many times does the route turn a corner while staying on the same wall?",
+    prompt: "How many turns stay flat on the wall?",
     helpText:
-      "This is a turn that stays flat against the surface — the wiring changes direction but never " +
-      "leaves the wall, for example going along and then up. If there are none, enter 0.",
+      "Count 90-degree turns that stay on one flat wall, such as along then up. " +
+      "Do not count turns onto another wall. Enter 0 if none.",
     inputType: "NUMBER",
     numberMin: SURFACE_BOUNDS.corners.min,
     numberMax: SURFACE_BOUNDS.corners.max,
@@ -145,10 +145,10 @@ export async function attachSurfaceRouteModule(
 
   const qInside = await upsertQuestion(prisma, serviceId, {
     key: SURFACE_KEYS.inside,
-    prompt: "How many inside corners does the route turn into?",
+    prompt: "How many inside corners?",
     helpText:
-      "An inside corner is where two walls meet and the wiring turns INTO the corner. If there " +
-      "are none, enter 0.",
+      "Count where the route follows two walls into their recessed meeting corner. " +
+      "Enter 0 if none. The wall geometry determines this, not a bend in a picture.",
     inputType: "NUMBER",
     numberMin: SURFACE_BOUNDS.corners.min,
     numberMax: SURFACE_BOUNDS.corners.max,
@@ -157,19 +157,20 @@ export async function attachSurfaceRouteModule(
 
   const qFeet = await upsertQuestion(prisma, serviceId, {
     key: SURFACE_KEYS.feet,
-    prompt: "Roughly how many feet is that route?",
+    prompt: "How long is the route, in feet?",
     helpText:
-      "Pace it out or estimate along the wall from the power source to the new spot. A close " +
-      "estimate is fine — the electrician measures on the day.",
+      "Measure along the planned visible route from the power source to the new spot. " +
+      "Decimals are fine, such as 14.625. If you cannot establish the length, choose I’m not sure.",
     inputType: "NUMBER",
+    numberAllowsDecimal: true,
     numberMin: SURFACE_BOUNDS.feet.min,
     numberMax: SURFACE_BOUNDS.feet.max,
     order: entryOrder,
   });
 
   // ── options, front to back ──────────────────────────────────────────────
-  // A NUMBER question carries exactly one option; the resolver reads the typed
-  // value and takes options[0]. The option is what routing hangs off.
+  // A NUMBER question has one numeric option and an explicit unknown review
+  // option. The shared numeric selector validates the typed value first.
   const numberOption = async (questionId: string, nextQuestionId: string, label: string) =>
     prisma.answerOption.create({
       data: { questionId, label, value: "__number__", routeAction: "CONTINUE",
@@ -184,6 +185,7 @@ export async function attachSurfaceRouteModule(
   // and the resolver said so, which is the guard working.
   await numberOption(qOutside.id, qFlat.id, "Outside corner count");
   await numberOption(qFlat.id, qSurface.id, "Flat corner count");
+  for (const q of [qFeet, qInside, qOutside, qFlat]) await addNumericUnknownOption(prisma, q.id);
 
   // Mounting surface. Ordinary surfaces continue; anything we cannot fix a
   // method to from a homeowner's description goes to review rather than being

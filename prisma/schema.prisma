@@ -2485,6 +2485,8 @@ model Question {
   /// accepting any number a homeowner types.
   numberMin Int?
   numberMax Int?
+  /// Decimal measurements opt in; counts and existing questions remain whole-number.
+  numberAllowsDecimal Boolean @default(false)
 
   options         AnswerOption[]
   /// Help text that only applies under a condition.
@@ -2706,6 +2708,8 @@ model AnswerOption {
 
   numberAtLeast Int?
   numberAtMost  Int?
+  /// An explicit open lower edge: e.g. over 20 through 300, including 20.5.
+  numberAtLeastExclusive Boolean @default(false)
 
   @@index([questionId])
   @@map("answer_options")
@@ -4218,6 +4222,8 @@ model TemplateQuestion {
   /// tree. Fail-closed, but it would disable the service after provisioning.
   numberMin Int?
   numberMax Int?
+  /// Decimal measurements opt in; counts and existing questions remain whole-number.
+  numberAllowsDecimal Boolean @default(false)
 
   options TemplateAnswerOption[]
 
@@ -4267,6 +4273,8 @@ model TemplateAnswerOption {
 
   numberAtLeast Int?
   numberAtMost  Int?
+  /// An explicit open lower edge: e.g. over 20 through 300, including 20.5.
+  numberAtLeastExclusive Boolean @default(false)
 
   @@unique([templateQuestionId, value])
   @@map("template_answer_options")

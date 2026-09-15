@@ -194,7 +194,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
       inputType: q.inputType,
       // ROUTING V2 — the authored numeric contract, carried verbatim. The
       // client must never re-derive these from labels or from option order.
-      numberMin: q.numberMin,
+      numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin,
       numberMax: q.numberMax,
       conditionalHelp: q.conditionalHelp
         .map((h) => ({
@@ -218,7 +218,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         // edits to e.g. Elite Tilt Mount's price actually show up here.
         priceModifierCents: o.referencedService?.basePrice ?? o.priceModifierCents,
         nextQuestionId: o.nextQuestionId,
-        numberAtLeast: o.numberAtLeast,
+        numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast,
         numberAtMost: o.numberAtMost,
         routeAction: o.routeAction,
         rerouteServiceId: o.rerouteServiceId,

@@ -482,12 +482,12 @@ export async function installCatalog(
             key: string; prompt: string; helpText: string | null; inputType: never; order: number;
             /// ROUTING V2 — an authored range is required for a bound NUMBER
             /// question, so it must arrive with the question.
-            numberMin: number | null; numberMax: number | null;
+            numberAllowsDecimal?: boolean; numberMin: number | null; numberMax: number | null;
           };
           const created = await t.question.create({
             data: {
               serviceId: svc.id, key: qq.key, prompt: qq.prompt, helpText: qq.helpText,
-              inputType: qq.inputType, numberMin: qq.numberMin, numberMax: qq.numberMax,
+              inputType: qq.inputType, numberAllowsDecimal: qq.numberAllowsDecimal ?? false, numberMin: qq.numberMin, numberMax: qq.numberMax,
               order: qq.order,
               templateVersionId: fromVersionId, templateKey: qq.key,
             },
@@ -504,7 +504,7 @@ export async function installCatalog(
               /// ROUTING V2 numeric routing — see AnswerOption.numberAtLeast.
               /// An option whose range is lost stops matching, which turns a
               /// sound tree into a gap and refuses every answer in that span.
-              numberAtLeast: number | null; numberAtMost: number | null;
+              numberAtLeastExclusive?: boolean; numberAtLeast: number | null; numberAtMost: number | null;
               /// ROUTING V2 capability gate — what this route REQUIRES. The
               /// contractor's ContractorCapability says what they OFFER, and
               /// provisioning must never write that: a route being able to
@@ -546,7 +546,7 @@ export async function installCatalog(
               data: {
                 questionId: qId.get(qq.key)!, value: o.value, label: o.label,
                 routeAction: o.routeAction, order: o.order,
-                numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+                numberAtLeastExclusive: o.numberAtLeastExclusive ?? false, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
                 requiresCapabilityKey: o.requiresCapabilityKey,
                 nextQuestionId: o.nextQuestionKey ? qId.get(o.nextQuestionKey) ?? null : null,
                 rerouteServiceId: target?.id ?? null, referencedServiceId: ref?.id ?? null,

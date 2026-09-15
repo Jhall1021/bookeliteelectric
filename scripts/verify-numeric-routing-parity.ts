@@ -39,8 +39,8 @@ const ok = (c: boolean, label: string, detail = "") => {
 };
 
 type NumQ = {
-  key: string; numberMin: number | null; numberMax: number | null;
-  options: readonly { value: string; numberAtLeast: number | null; numberAtMost: number | null }[];
+  key: string; numberAllowsDecimal?: boolean; numberMin: number | null; numberMax: number | null;
+  options: readonly { value: string; numberAtLeast: number | null; numberAtMost: number | null; numberAtLeastExclusive?: boolean; photosBlockBooking?: boolean; routeAction?: string }[];
 };
 const name = (q: NumQ, n: string) => {
   const c = selectNumericOption(q, n);
@@ -96,7 +96,7 @@ async function main() {
   console.log("\n  B  SAME ANSWER, SAME OPTION, BOTH SIDES\n");
   // lower bound, interior, upper bound, next-range boundary, second interior,
   // question min, question max, below min, above max, non-integer.
-  const CASES = ["1", "10", "20", "21", "45", "300", "0", "301", "18.5", "-5"];
+  const CASES = ["1", "10", "20", "21", "45", "300", "0", "301", "18.5", "20.5", "20.0001", "__unknown__", "-5"];
   for (const n of CASES) {
     const client = name(dtoQ, n);
     const server = name(dbQ, n);
@@ -106,7 +106,7 @@ async function main() {
   console.log("\n  C  THE DEFECT ITSELF, NAMED\n");
   ok(dtoQ.options[0].value === "within",
     "C  options[0] really is `within` — order would have chosen it", dtoQ.options[0].value);
-  for (const [n, expect] of [["20", "within"], ["21", "beyond"], ["45", "beyond"]] as const) {
+  for (const [n, expect] of [["19.625", "within"], ["20", "within"], ["20.5", "beyond"], ["21", "beyond"], ["45", "beyond"]] as const) {
     ok(name(dtoQ, n) === `option:${expect}`,
       `C  ${n} ft selects \`${expect}\` on the CLIENT`, name(dtoQ, n));
   }

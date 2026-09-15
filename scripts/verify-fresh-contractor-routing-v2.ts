@@ -86,8 +86,8 @@ async function main() {
   console.log("  A  WHAT ARRIVED\n");
   const qs = await prisma.question.findMany({
     where: { serviceId: outlet.id },
-    select: { key: true, inputType: true, numberMin: true, numberMax: true,
-              options: { select: { value: true, numberAtLeast: true, numberAtMost: true,
+    select: { key: true, inputType: true, numberMin: true, numberMax: true, numberAllowsDecimal: true,
+              options: { select: { value: true, numberAtLeast: true, numberAtMost: true, numberAtLeastExclusive: true,
                                    requiresCapabilityKey: true,
                                    components: { select: { quantityAnswerKey: true } } } } },
   });
@@ -119,9 +119,13 @@ async function main() {
       `A  ${k} is NUMBER [${min}-${max}]`, `${q?.inputType} [${q?.numberMin}-${q?.numberMax}]`);
   }
 
+  for (const key of [ACCESSIBLE_KEYS.feet, SURFACE_KEYS.feet, FINISHED_KEYS.feet])
+    ok(byKey.get(key)?.numberAllowsDecimal === true, `${key}: decimal contract survived provisioning`);
+  for (const key of [SURFACE_KEYS.flat, SURFACE_KEYS.inside, SURFACE_KEYS.outside])
+    ok(byKey.get(key)?.numberAllowsDecimal === false, `${key}: fittings remain whole counts`);
   const feet = byKey.get(FINISHED_KEYS.feet);
-  const ranges = (feet?.options ?? []).map((o) => `${o.numberAtLeast}-${o.numberAtMost}`).sort();
-  ok(ranges.join(",") === "1-20,21-300",
+  const ranges = (feet?.options ?? []).filter(o=>o.numberAtLeast != null).map((o) => `${o.numberAtLeastExclusive ? ">" : ""}${o.numberAtLeast}-${o.numberAtMost}`).sort();
+  ok(ranges.join(",") === "1-20,>20-300",
     "A  the finished-wall envelope arrived as numeric ROUTING, not a price tier", ranges.join(","));
 
   const bound = qs.flatMap((q) => q.options).flatMap((o) => o.components).filter((c) => c.quantityAnswerKey);

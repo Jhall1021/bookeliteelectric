@@ -41,7 +41,7 @@ async function main() {
 
   console.log("  A  ACCESSIBLE CONCEALED: LENGTH IS A QUANTITY, NOT A CLASS\n");
   const recipes: Record<string, string> = {};
-  for (const feet of ["8", "18", "50", "120", "300"]) {
+  for (const feet of ["8", "14.625", "18", "50", "120", "300"]) {
     const r = await walk("rv2-fixture-accessible-outlet", { [ACCESSIBLE_KEYS.feet]: feet });
     ok(built(r), `A  ${feet} ft builds a deterministic physical recipe (status ${r.status})`,
       JSON.stringify(comps(r)));
@@ -64,7 +64,7 @@ async function main() {
   }
 
   console.log("\n  B  ACCESSIBLE CONCEALED: A BAD MEASUREMENT STILL CANNOT PRICE\n");
-  for (const [label, feet] of [["zero", "0"], ["negative", "-3"], ["decimal", "18.5"],
+  for (const [label, feet] of [["zero", "0"], ["negative", "-3"],
                                ["words", "fifty"], ["beyond the authored max", "301"]] as const) {
     const r = await walk("rv2-fixture-accessible-outlet", { [ACCESSIBLE_KEYS.feet]: feet });
     ok(!built(r), `B  ${label} builds no recipe (status ${r.status})`, JSON.stringify(comps(r)));

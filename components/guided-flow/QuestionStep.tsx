@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
-import { selectNumericOption } from "@/lib/numericRouteRanges";
+import { selectNumericOption, isNumericUnknownOption } from "@/lib/numericRouteRanges";
 import { formatCents } from "@/lib/flow-types";
 import { answerPriceDelta } from "@/lib/pricing";
 import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
@@ -47,28 +47,10 @@ export default function QuestionStep({ question, answers, accessBySlot, onAnswer
   if (question.inputType === "TEXT" || question.inputType === "NUMBER") {
     const typed = text.trim();
 
-    /**
-     * A NUMBER answer selects its own option. A TEXT answer does not.
-     *
-     * These shared one line — `question.options[0]` — under a comment saying a
-     * TEXT question has one option carrying the routing. That was true when it
-     * was written, and it stayed true for TEXT. It stopped being true for
-     * NUMBER the day numeric routing arrived, because a numeric-routing
-     * question has two or more options and options[0] is merely the first.
-     *
-     * The concrete cost: concealed_route_feet authors `within` (1–20, CONTINUE)
-     * ahead of `beyond` (21–300, PHOTO_REVIEW), so a homeowner typing 45 was
-     * walked into the wall-surface question here while resolveRoute sent the
-     * same answer to Guided Estimate. Option order decided the route, which is
-     * the one thing this primitive forbids.
-     *
-     * selectNumericOption is the SAME function the server resolver calls, from
-     * a module with no imports so the browser can reach it. A question whose
-     * options carry no numeric predicate still resolves to options[0] inside
-     * it, so every NUMBER question written before numeric routing behaves
-     * exactly as it did — including free-text answers like "8 x 8", which the
-     * legacy path returns before any digit check.
-     */
+    // Browser navigation and the server use the same numeric selector.
+    // Explicit decimal domains may use an open lower edge (over 20 feet).
+    // Bounded single-option questions validate too; only legacy unbounded
+    // dimensions preserve free text such as "8 x 8".
     const choice =
       question.inputType === "NUMBER" ? selectNumericOption(question, typed) : null;
     const route =
@@ -87,7 +69,8 @@ export default function QuestionStep({ question, answers, accessBySlot, onAnswer
 
     // Read from the authored options, not from `route` — which is null until a
     // NUMBER answer is valid.
-    const first = question.options[0];
+    const first = question.options.find(o => !isNumericUnknownOption(o));
+    const unknown = question.inputType === "NUMBER" ? question.options.find(isNumericUnknownOption) : undefined;
     const required = question.options.length > 0 && !first?.value?.startsWith("optional");
     return (
       <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
@@ -102,9 +85,14 @@ export default function QuestionStep({ question, answers, accessBySlot, onAnswer
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
+          aria-label={question.prompt}
+          inputMode={question.inputType === "NUMBER" && question.numberMin != null
+            ? question.numberAllowsDecimal ? "decimal" : "numeric" : undefined}
           rows={question.inputType === "NUMBER" ? 2 : 4}
           className="mt-4 w-full rounded-card border border-cardline px-4 py-3 text-sm focus:border-electric"
-          placeholder={question.inputType === "NUMBER" ? "e.g. 8 x 8" : "Type your answer here"}
+          placeholder={question.inputType === "NUMBER"
+            ? question.numberMin != null ? question.numberAllowsDecimal ? "e.g. 14.625" : "e.g. 2" : "e.g. 8 x 8"
+            : "Type your answer here"}
         />
 
         {refusal && (
@@ -120,6 +108,12 @@ export default function QuestionStep({ question, answers, accessBySlot, onAnswer
         >
           Continue
         </button>
+        {unknown && (
+          <button type="button" onClick={() => onAnswer(unknown)}
+            className="mt-2 w-full text-center text-sm text-slate hover:text-navy">
+            {unknown.label}
+          </button>
+        )}
         {!required && (
           <button
             onClick={() => route && onAnswer(route)}

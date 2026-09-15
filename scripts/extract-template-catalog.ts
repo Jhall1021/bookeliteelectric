@@ -129,6 +129,7 @@ async function buildOne(slug: string) {
     stats.questions++;
     return {
       key: q.key, prompt, helpText, inputType: q.inputType, order: qi,
+      numberMin: q.numberMin, numberMax: q.numberMax, numberAllowsDecimal: q.numberAllowsDecimal,
       options: q.options.map((o, oi) => {
         stats.options++;
         if (o.priceModifierCents) stats.economicsExcluded++;
@@ -154,6 +155,8 @@ async function buildOne(slug: string) {
 
         return {
           value: o.value, routeAction: o.routeAction, order: oi,
+          numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
+          requiresCapabilityKey: o.requiresCapabilityKey,
           labelPattern: pattern ?? null,
           policyKey: pattern ? band!.policyKey : null,
           // While unresolved the label IS the pattern. Deliberately not
@@ -168,7 +171,7 @@ async function buildOne(slug: string) {
           requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
           illustrationUrls: o.illustrationUrls,
           components: o.components.filter(c => c.canonicalComponentId).map(c => ({
-            canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity,
+            canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey,
             conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue })),
           disclaimers: o.conditionalDisclaimers.filter(d => d.contractorDisclaimer)
             .map(d => ({ canonicalDisclaimerId: d.contractorDisclaimer!.canonicalDisclaimerId })),
@@ -250,8 +253,11 @@ async function write(tvId: string, e: Extracted, policyIds: Map<string, string>)
     await prisma.templateQuestion.create({
       data: { templateServiceId: ts.id, key: q.key, prompt: q.prompt!, helpText: q.helpText,
         inputType: q.inputType, order: q.order,
+        numberMin: q.numberMin, numberMax: q.numberMax, numberAllowsDecimal: q.numberAllowsDecimal,
         options: { create: q.options.map(o => ({
           value: o.value, label: o.label!, routeAction: o.routeAction, order: o.order,
+          numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
+          requiresCapabilityKey: o.requiresCapabilityKey,
           labelPattern: o.labelPattern,
           templatePolicyDefinitionId: o.policyKey ? policyIds.get(o.policyKey) ?? null : null,
           nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,

@@ -66,7 +66,7 @@ async function main() {
   console.log("\nROUTING V2 — SHARED SURFACE-MOUNTED MODULE\n");
 
   console.log("  1-2  LENGTH IS A QUANTITY, AT ANY LENGTH\n");
-  for (const feet of ["8", "18", "40", "63"]) {
+  for (const feet of ["8", "14.625", "18", "40", "63"]) {
     const r = await walk(SLUGS.OUTLET, clear(feet));
     ok(qty(r, "SURFACE_ROUTE_FT") === Number(feet),
       `${feet} ft materializes SURFACE_ROUTE_FT x${feet}`, JSON.stringify(comps(r)));
@@ -96,7 +96,7 @@ async function main() {
   }
 
   console.log("\n  6  A NUMBER THAT CANNOT BE TRUSTED CANNOT PRICE\n");
-  for (const [label, feet] of [["zero feet", "0"], ["negative", "-4"], ["decimal", "12.5"],
+  for (const [label, feet] of [["zero feet", "0"], ["negative", "-4"],
                                ["words", "about twenty"], ["beyond the authored max", "5000"]] as const) {
     const r = await walk(SLUGS.OUTLET, clear(feet));
     ok(r.status === "INVALID", `6  ${label} does not price (status ${r.status})`,
