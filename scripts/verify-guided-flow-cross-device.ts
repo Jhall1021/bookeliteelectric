@@ -61,6 +61,39 @@ class Device {
   }
 }
 
+/**
+ * A structurally valid, customer-confirmed RouteAssistResult. This proof is
+ * about shared task persistence rather than geometry, but completion now
+ * correctly validates the real domain contract before a result can win.
+ */
+function confirmedRouteResult(feet: number) {
+  return {
+    mode: "SURFACE",
+    destinationType: "RECEPTACLE",
+    points: [],
+    segments: [],
+    customerConfirmedRoute: true,
+    estimatedTotalRouteLengthFt: feet,
+    sameWall: null,
+    wallTransitionsCount: 0,
+    insideCornersCount: 0,
+    outsideCornersCount: 0,
+    doorwayBypassesCount: 0,
+    windowBypassesCount: 0,
+    verticalTransitionsCount: 0,
+    wallToCeilingTransitionsCount: 0,
+    wallToFloorTransitionsCount: 0,
+    visibleObstacleDetoursCount: 0,
+    concealedRouteComplexity: null,
+    suggestedAccessOpeningsMin: null,
+    suggestedAccessOpeningsMax: null,
+    needsContractorReview: false,
+    captureArtifacts: { imageIds: [], overlayImageIds: [] },
+    customerNotes: null,
+    drywallAccessAllowed: null,
+  };
+}
+
 async function main() {
   const desktop = new Device("desktop");
   const phone = new Device("phone");
@@ -122,9 +155,9 @@ async function main() {
   const taskComplete = await phone.call(
     "PATCH",
     `/api/guided-flow-sessions/${sessionId}/visual-assist-tasks/${taskCreate.json.id}`,
-    { result: { mode: "SURFACE", estimatedTotalRouteLengthFt: 17 } }
+    { result: confirmedRouteResult(17) }
   );
-  check("phone completes it with a result", taskComplete.status === 200 && taskComplete.json.status === "COMPLETED");
+  check("phone completes it with a valid result", taskComplete.status === 200 && taskComplete.json.status === "COMPLETED");
   const desktopTaskRead = await desktop.call("GET", `/api/guided-flow-sessions/${sessionId}/visual-assist-tasks`);
   check(
     "desktop reads back the SAME canonical result — no separate desktop/mobile copy",
