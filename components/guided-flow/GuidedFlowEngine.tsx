@@ -263,16 +263,23 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // version`), not at the top level `version` this code checked for — a
   // real, separate bug, fixed here. On a genuine 409 this tab's local
   // version resyncs to what the OTHER writer wrote; it does NOT retry this
-  // tab's own payload on top of it. HONESTLY-STATED REMAINING LIMITATION:
-  // that un-sent local edit is not lost from THIS tab's own screen (the
-  // customer keeps seeing their own in-progress answers/note), but it is
-  // not automatically retried either — it reaches the server only if the
-  // customer's next action calls persistAnswers again. If nothing else
-  // does, a reload of this same tab would show the other writer's state,
-  // not this tab's un-sent edit. Automatically merging or re-asserting one
-  // writer's state over another's is exactly the failure mode this rule
-  // exists to avoid, so this stays a known limitation rather than a
-  // guessed-at fix.
+  // tab's own payload on top of it.
+  //
+  // THAT ALONE WAS STILL NOT ENOUGH. The in-flight request's own payload
+  // was correctly dropped on a 409, but the `finally` block below
+  // unconditionally sent whatever was NEXT in `pendingSaveRef` — a payload
+  // this tab may have queued from its OWN local state while that request
+  // was still in flight, built in total ignorance of what the other writer
+  // had just written. Auto-sending it, now that the version was resynced,
+  // would succeed (the version is current) and silently overwrite the other
+  // writer's newer answers with this tab's stale-relative-to-them ones —
+  // the exact failure mode the "do not overwrite" rule above exists to
+  // forbid, just one step later than the code was checking. A same-tab-only
+  // 409 can no longer happen at all (that is what the ordering above
+  // guarantees), so any 409 reaching this branch is guaranteed to be a
+  // different writer, and the fix is to drop the pending queue too: the
+  // next real user action builds a fresh payload on top of the version this
+  // tab just learned about, rather than one queued before it knew.
   function persistAnswers(newAnswers: Record<string, string>) {
     pendingSaveRef.current = newAnswers;
     runQueuedSave();
@@ -296,6 +303,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           setSession({ id: session.id, version: body.version });
         } else if (r.status === 409 && typeof body?.current?.version === "number") {
           setSession({ id: session.id, version: body.current.version });
+          // Drop anything already queued behind this request — see the
+          // comment above persistAnswers. It was built before this tab knew
+          // about the other writer's change, and auto-sending it now would
+          // overwrite that change rather than merely fail to see it.
+          pendingSaveRef.current = null;
         }
       })
       .catch(() => {
