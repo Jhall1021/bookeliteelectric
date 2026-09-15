@@ -4,6 +4,7 @@ import { useState } from "react";
 import RouteAssistWithHandoff from "./RouteAssistWithHandoff";
 import { getRouteAssistInvocation } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
 import { uploadPhoto } from "@/lib/upload";
+import { selectNumericOption } from "@/lib/numericRouteRanges";
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import type { RouteAssistResult } from "@/lib/visual-assist/route-assist/types";
 
@@ -57,10 +58,28 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
       setUnusable(true);
       return;
     }
-    // The mapping's contract is "one of this question's real values" —
-    // resolved against the ACTUAL tree here, never assumed. A mismatch
-    // (a configuration error, not a customer-facing one) falls back to
-    // manual rather than guessing.
+
+    // NUMBER questions do not author one option per possible numeric value.
+    // They carry routing options (often a single `__number__` sentinel, or
+    // explicit numeric ranges), while the customer's typed/measured number is
+    // the answer value. Resolve Route Assist through the SAME numeric selector
+    // QuestionStep and the server use, then substitute the measured value just
+    // as QuestionStep does. That keeps one routing authority and lets measured
+    // footage survive as footage rather than being mistaken for an option id.
+    if (question.inputType === "NUMBER") {
+      const choice = selectNumericOption(question, value);
+      if (choice.kind !== "option") {
+        setUnusable(true);
+        return;
+      }
+      setUnusable(false);
+      onResolved({ ...choice.option, value });
+      return;
+    }
+
+    // Non-numeric mappings still resolve to one of the question's real authored
+    // option values. A mismatch is a configuration error, not something to
+    // guess through.
     const option = question.options.find((o) => o.value === value);
     if (!option) {
       setUnusable(true);
