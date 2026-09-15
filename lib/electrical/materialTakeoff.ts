@@ -104,7 +104,9 @@ export type UnresolvedCode =
   | "MATERIAL_SYSTEM_NOT_SELECTED"
   | "GROUNDING_STRATEGY_NOT_ESTABLISHED"
   | "SUPPORT_TERMINUS_RULE_NOT_ESTABLISHED"
-  | "TERMINATION_ASSEMBLY_NOT_ESTABLISHED";
+  | "TERMINATION_ASSEMBLY_NOT_ESTABLISHED"
+  | "CONDUCTOR_COUNT_INVALID"
+  | "DUPLICATE_CONDUCTOR_FUNCTION";
 
 /**
  * RETIRED: CIRCUIT_AMPACITY_REQUIRED.
@@ -164,20 +166,50 @@ export type MaterialClassStatus = {
   unresolvedCodes: UnresolvedCode[];
 };
 
+export type ConductorFunctionRequirement = {
+  function: string;
+  role: string;
+  /**
+   * HOW MANY PHYSICALLY IDENTICAL CONDUCTORS THIS ONE FUNCTION NEEDS.
+   *
+   * A 240V circuit's two ungrounded (line) conductors are not two functions —
+   * they are one function, pulled twice, of the same role. `count` is how that
+   * is stated: a positive SAFE INTEGER (Number.isSafeInteger — excludes NaN,
+   * +/-Infinity, and any magnitude beyond 2^53-1 as well as zero, negatives,
+   * and fractions), multiplying `footPerConductor` for THIS entry only.
+   * Every caller before this field existed needed exactly one conductor per
+   * function, so `count: 1` reproduces every prior takeoff
+   * exactly — this is additive, not a behavior change for those callers.
+   *
+   * NOT a way to avoid naming a role per function — see the note below.
+   * `{ function: "ungrounded", role: X, count: 2 }` is two of product X.
+   * Two DIFFERENT functions still may not share a role; that collision is
+   * refused exactly as before, and count does not touch it.
+   */
+  count: number;
+};
+
 export type ConductorRequirement =
   | {
       known: true;
       /**
        * ONE ENTRY PER ELECTRICAL FUNCTION, EACH NAMING ITS OWN ROLE.
        *
-       * Not a single role with a count. ContractorMaterial is unique per
-       * (contractor, canonicalMaterial) and carries ONE activeSupplierLink, so
-       * a role resolves to exactly one purchasable product. Asking for
-       * "3 x CONDUCTOR_THHN_14" therefore asks for three of the SAME product —
-       * one wire — which cannot satisfy an ungrounded, a grounded and an
-       * equipment grounding conductor at once.
+       * Not a single role with a count across functions. ContractorMaterial is
+       * unique per (contractor, canonicalMaterial) and carries ONE
+       * activeSupplierLink, so a role resolves to exactly one purchasable
+       * product. Two DIFFERENT functions naming the same role would both
+       * resolve to that one product, silently satisfying an ungrounded, a
+       * grounded and an equipment grounding conductor with the same wire —
+       * still refused below, unchanged by the addition of `count`.
+       *
+       * A function may appear AT MOST ONCE. Multiplicity within one function
+       * belongs on that entry's `count`, never on a second entry for the same
+       * function — a repeated function is refused rather than merged, because
+       * silently summing two independently-declared counts could hide a
+       * caller bug behind a plausible-looking total.
        */
-      functions: { function: string; role: string }[];
+      functions: ConductorFunctionRequirement[];
       footPerConductor: number;
     }
   | { known: false; code: UnresolvedCode; reason: string };
@@ -358,26 +390,58 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
   } else {
     const { functions, footPerConductor } = input.conductors;
 
-    // A role resolves to ONE product. Two functions sharing a role would both
-    // resolve to that product, silently satisfying an ungrounded and a
-    // grounded conductor with the same wire.
+    // A function may be declared at most once. Multiplicity belongs on that
+    // one entry's `count` — a second entry for the same function is a caller
+    // bug, not a total to add up, so it is refused rather than merged.
+    const byFunction = new Map<string, ConductorFunctionRequirement[]>();
+    for (const f of functions) {
+      byFunction.set(f.function, [...(byFunction.get(f.function) ?? []), f]);
+    }
+    const duplicated = [...byFunction.entries()].filter(([, fs]) => fs.length > 1);
+    for (const [fn, fs] of duplicated) {
+      unresolved.push({
+        code: "DUPLICATE_CONDUCTOR_FUNCTION", role: fs[0].role,
+        reason: `${fn} is declared ${fs.length} times in this conductor requirement. Multiplicity belongs on one entry's count field, not on repeated entries for the same function — two independently declared entries cannot be safely summed into one quantity.`,
+      });
+    }
+
+    // Every count must be a purchasable whole number. `Number.isSafeInteger`
+    // rather than `Number.isInteger`: it already excludes NaN and +/-Infinity
+    // the same way, and additionally excludes a magnitude beyond 2^53-1 that
+    // floating point can no longer represent exactly — a count that large is
+    // not a real conductor count, but Number.isInteger would accept it.
+    const invalidCounts = functions.filter((f) => !Number.isSafeInteger(f.count) || f.count < 1);
+    for (const f of invalidCounts) {
+      unresolved.push({
+        code: "CONDUCTOR_COUNT_INVALID", role: f.role,
+        reason: `${f.function} conductor declares a count of ${f.count}, which is not a positive whole number a purchase can be built from. Conductors are discrete physical items pulled one at a time; a fractional, non-positive, non-finite, or unsafely large count cannot be purchased.`,
+      });
+    }
+
+    // A role resolves to ONE product. Two DIFFERENT functions sharing a role
+    // would both resolve to that product, silently satisfying an ungrounded
+    // and a grounded conductor with the same wire. A function already flagged
+    // as duplicated is excluded here so it is reported once, by the check
+    // above, rather than a second time as a role collision.
+    const duplicatedFunctions = new Set(duplicated.map(([fn]) => fn));
     const sharing = new Map<string, string[]>();
     for (const f of functions) {
+      if (duplicatedFunctions.has(f.function)) continue;
       sharing.set(f.role, [...(sharing.get(f.role) ?? []), f.function]);
     }
     const shared = [...sharing.entries()].filter(([, fns]) => fns.length > 1);
-    if (shared.length > 0) {
-      for (const [role, fns] of shared) {
-        unresolved.push({
-          code: "GROUNDING_SYSTEM_REQUIRED", role,
-          reason: `${fns.join(" and ")} both require ${role}, but a role resolves to a single contractor product — one wire cannot serve two electrical functions. Each function needs its own canonical role.`,
-        });
-      }
-    } else {
+    for (const [role, fns] of shared) {
+      unresolved.push({
+        code: "GROUNDING_SYSTEM_REQUIRED", role,
+        reason: `${fns.join(" and ")} both require ${role}, but a role resolves to a single contractor product — one wire cannot serve two electrical functions. Each function needs its own canonical role.`,
+      });
+    }
+
+    if (duplicated.length === 0 && invalidCounts.length === 0 && shared.length === 0) {
       for (const f of functions) {
         const req: PhysicalRequirement = {
-          role: f.role, quantity: footPerConductor, unit: "ft",
-          fromComponent: `${f.function} conductor`,
+          role: f.role, quantity: footPerConductor * f.count, unit: "ft",
+          fromComponent: f.count === 1 ? `${f.function} conductor` : `${f.count} × ${f.function} conductor`,
         };
         physical.push(req);
         resolvePurchase(req);
