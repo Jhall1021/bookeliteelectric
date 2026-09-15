@@ -209,20 +209,82 @@ export function verticalWallSegments(route: OrderedRoute): number {
   return count;
 }
 
+type DecimalParts = { units: bigint; scale: number };
+
+function decimalParts(value: number): DecimalParts | null {
+  if (!Number.isFinite(value)) return null;
+  const match = value.toString().match(/^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i);
+  if (!match) return null;
+
+  const sign = match[1] === "-" ? -1n : 1n;
+  const whole = match[2];
+  const fraction = match[3] ?? "";
+  const exponent = Number(match[4] ?? "0");
+  let units = BigInt(`${whole}${fraction}` || "0") * sign;
+  let scale = fraction.length - exponent;
+
+  if (scale < 0) {
+    units *= 10n ** BigInt(-scale);
+    scale = 0;
+  }
+  return { units, scale };
+}
+
+function decimalNumber(units: bigint, scale: number): number {
+  const negative = units < 0n;
+  const digits = (negative ? -units : units).toString();
+  if (scale === 0) return Number(`${negative ? "-" : ""}${digits}`);
+
+  const padded = digits.padStart(scale + 1, "0");
+  const split = padded.length - scale;
+  const text = `${negative ? "-" : ""}${padded.slice(0, split)}.${padded.slice(split)}`;
+  return Number(text);
+}
+
+/**
+ * Sum decimal-valued measurements according to the decimal values the caller
+ * supplied, rather than according to binary floating-point intermediates.
+ *
+ * This is NOT a business-precision rule: 14.625 remains 14.625, and no fixed
+ * number of decimals is imposed. It only prevents values such as 0.1 + 0.2
+ * from leaking out as 0.30000000000000004.
+ */
+function sumDecimalMeasurements(values: number[]): number {
+  let totalUnits = 0n;
+  let totalScale = 0;
+
+  for (const value of values) {
+    const part = decimalParts(value);
+    if (!part) return Number.NaN;
+
+    if (part.scale > totalScale) {
+      totalUnits *= 10n ** BigInt(part.scale - totalScale);
+      totalScale = part.scale;
+    }
+    const units = part.scale < totalScale
+      ? part.units * (10n ** BigInt(totalScale - part.scale))
+      : part.units;
+    totalUnits += units;
+  }
+
+  return decimalNumber(totalUnits, totalScale);
+}
+
 /**
  * Sum every segment's `estimatedLengthFt`, preserving the exact accepted
  * physical measurement. Returns `null` if any leg is unset.
  *
  * Rounding is presentation/pricing policy and must not happen in Route Assist's
  * observable-fact layer. A scan that established 14.625 ft stays 14.625 ft.
+ * Decimal arithmetic noise is normalized without imposing a decimal-place cap.
  */
 export function totalEstimatedLengthFt(route: OrderedRoute): number | null {
-  let total = 0;
+  const values: number[] = [];
   for (const segment of route.segments) {
     if (segment.estimatedLengthFt == null) return null;
-    total += segment.estimatedLengthFt;
+    values.push(segment.estimatedLengthFt);
   }
-  return total;
+  return sumDecimalMeasurements(values);
 }
 
 /**
