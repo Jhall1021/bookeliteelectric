@@ -1,5 +1,6 @@
 import { adaptRouteAssistResult } from "../lib/electrical/routeAssistAdapter";
 import { getRouteAssistInvocation } from "../lib/visual-assist/route-assist/guidedFlowInvocation";
+import { buildRouteAssistResult } from "../lib/visual-assist/route-assist/result";
 import type { RouteAssistResult } from "../lib/visual-assist/route-assist/types";
 
 let pass = 0;
@@ -15,12 +16,7 @@ function check(label: string, condition: boolean, detail = "") {
   }
 }
 
-/**
- * Synthetic trusted-domain probe. This intentionally does NOT claim to be a
- * valid persisted completion: current capture aggregation is still tenth-foot
- * precision. Its job is only to prove the downstream adapter/registry does not
- * round a future canonical fractional measurement once the precision gate opens.
- */
+/** Synthetic trusted-domain probe for downstream adapter/registry behavior. */
 function capture(overrides: Partial<RouteAssistResult> = {}): RouteAssistResult {
   return {
     mode: "SURFACE",
@@ -51,6 +47,30 @@ function capture(overrides: Partial<RouteAssistResult> = {}): RouteAssistResult 
 }
 
 console.log("\nROUTE ASSIST FRACTIONAL FOOTAGE\n");
+
+const built = buildRouteAssistResult({
+  mode: "SURFACE",
+  destinationType: "RECEPTACLE",
+  points: [
+    { id: "a", x: 0.1, y: 0.5, imageId: "img-1", kind: "SOURCE" },
+    { id: "w", x: 0.5, y: 0.5, imageId: "img-1", kind: "WAYPOINT" },
+    { id: "b", x: 0.9, y: 0.5, imageId: "img-1", kind: "DESTINATION" },
+  ],
+  segments: [
+    { id: "s1", fromPointId: "a", toPointId: "w", estimatedLengthFt: 5.125 },
+    { id: "s2", fromPointId: "w", toPointId: "b", estimatedLengthFt: 9.5 },
+  ],
+  drywallAccessAllowed: null,
+  captureArtifacts: { imageIds: ["img-1"], overlayImageIds: [] },
+});
+check("result builder returns a complete Route Assist result", !("reason" in built), JSON.stringify(built));
+if (!("reason" in built)) {
+  check(
+    "result builder preserves exact 14.625 ft aggregate",
+    built.estimatedTotalRouteLengthFt === 14.625,
+    String(built.estimatedTotalRouteLengthFt),
+  );
+}
 
 const fractional = adaptRouteAssistResult(capture());
 check(
