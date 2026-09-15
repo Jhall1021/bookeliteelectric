@@ -63,9 +63,9 @@ class Device {
 
 /**
  * A structurally AND semantically valid, customer-confirmed RouteAssistResult.
- * The completion endpoint now rebuilds the deterministic result from the graph,
- * so this fixture uses a real one-leg A -> B surface route instead of the old
- * empty graph that only happened to satisfy the JSON shape.
+ * The completion endpoint rebuilds the deterministic result from the graph, so
+ * this fixture uses a real one-leg A -> B surface route instead of the old empty
+ * graph that only happened to satisfy the JSON shape.
  */
 function confirmedRouteResult(feet: number) {
   return {
@@ -164,12 +164,41 @@ async function main() {
     taskType: "ROUTE_ASSIST",
   });
   check("phone creates a visual-assist task", taskCreate.status === 200, JSON.stringify(taskCreate.json));
-  const taskComplete = await phone.call(
+
+  const phoneWinner = await phone.call(
     "PATCH",
     `/api/guided-flow-sessions/${sessionId}/visual-assist-tasks/${taskCreate.json.id}`,
     { result: confirmedRouteResult(17) }
   );
-  check("phone completes it with a valid result", taskComplete.status === 200 && taskComplete.json.status === "COMPLETED");
+  check(
+    "phone's first valid completion wins",
+    phoneWinner.status === 200 &&
+      phoneWinner.json.status === "COMPLETED" &&
+      phoneWinner.json.accepted === true &&
+      phoneWinner.json.result?.estimatedTotalRouteLengthFt === 17,
+    JSON.stringify(phoneWinner.json)
+  );
+
+  // Simulate the desktop finishing the SAME task with a different but valid
+  // local capture after the phone already won. The write must be rejected as a
+  // replacement, AND the response must hand the desktop the canonical 17-ft
+  // winner so its UI cannot continue with its local losing 19-ft result.
+  const desktopLoser = await desktop.call(
+    "PATCH",
+    `/api/guided-flow-sessions/${sessionId}/visual-assist-tasks/${taskCreate.json.id}`,
+    { result: confirmedRouteResult(19) }
+  );
+  check(
+    "later desktop completion cannot replace the first winner",
+    desktopLoser.status === 200 && desktopLoser.json.accepted === false,
+    JSON.stringify(desktopLoser.json)
+  );
+  check(
+    "losing desktop is given the canonical phone result, not its local 19-ft result",
+    desktopLoser.json?.result?.estimatedTotalRouteLengthFt === 17,
+    JSON.stringify(desktopLoser.json?.result)
+  );
+
   const desktopTaskRead = await desktop.call("GET", `/api/guided-flow-sessions/${sessionId}/visual-assist-tasks`);
   check(
     "desktop reads back the SAME canonical result — no separate desktop/mobile copy",
