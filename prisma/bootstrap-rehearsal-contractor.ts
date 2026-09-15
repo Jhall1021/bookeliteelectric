@@ -47,13 +47,20 @@
  * Idempotent: re-running finds each row already there (by slug/unique
  * constraint) and reports it, writing nothing twice.
  *
- * NEVER RUN THIS AGAINST A SHARED OR PRODUCTION DATABASE. It exists only for
- * a disposable, task-owned database this session (or a future one) created
- * itself — see the companion doc for the full sequence this fits into.
+ * NEVER RUN THIS AGAINST A SHARED OR PRODUCTION DATABASE. Enforced, not just
+ * stated: `assertDisposableLocalDatabase()` below refuses to run unless BOTH
+ * (a) `DATABASE_URL` resolves to a loopback host, and (b) the connected
+ * database carries a `DatabaseIdentity` stamp (ADR-013,
+ * scripts/verify-database-identity.ts) whose `key` starts with `local-`.
+ * `import.meta.url === pathToFileURL(...)` below is an execution guard (is
+ * this the entrypoint, not an import) — it says nothing about which database
+ * the connected Prisma client points at, and was previously this script's
+ * only safety check. It stays, but it is not the database-target guard.
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { randomBytes } from "node:crypto";
+import { assertDisposableLocalDatabase } from "./_assertDisposableLocalDatabase";
 
 const prisma = new PrismaClient();
 const SLUG = "elite-electric";
@@ -61,6 +68,7 @@ const TEST_ZIP = process.env.REHEARSAL_TEST_ZIP ?? "07701";
 
 async function main() {
   console.log(`\nREHEARSAL BOOTSTRAP — ${SLUG}\n`);
+  await assertDisposableLocalDatabase(prisma);
 
   let contractor = await prisma.contractor.findUnique({ where: { slug: SLUG } });
   if (!contractor) {
