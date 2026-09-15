@@ -72,6 +72,7 @@ export {
   type RouteAssistScanReviewV1,
   type RouteAssistScanReviewAcceptanceBuild,
 } from "./scanReview";
+export { applyRouteAssistScanReviewSelectionV1 } from "./scanReviewAcceptance";
 export {
   applyAcceptedRouteAssistScanCandidatesV1,
   type RouteAssistScanCandidateAcceptanceV1,
