@@ -92,6 +92,7 @@ const candidates: RouteAssistScanCandidatesV1 = {
 const review = buildRouteAssistScanReviewV1(candidates);
 check("review preserves exact complete measured length", review.completeMeasuredRouteLengthFt === 14.625, JSON.stringify(review));
 check("review contains every reviewable candidate without confidence filtering", review.items.length === 7, JSON.stringify(review.items));
+check("review carries an exact deterministic value fingerprint", review.fingerprint.length > 0 && review.fingerprint.includes("5.125"), review.fingerprint);
 check(
   "low-confidence metric evidence remains reviewable",
   review.items.some((item) => item.id === "MEASURED_LENGTH:s1" && item.confidence === 0.01),
@@ -133,7 +134,7 @@ const applied = applyRouteAssistScanReviewSelectionV1(points, segments, candidat
   "MEASURED_LENGTH:s1",
   "PHYSICAL_TURN:w-turn",
   "OBSTACLE:w-door",
-]);
+], review.fingerprint);
 check("review IDs can be applied atomically against canonical candidates", applied.ok, JSON.stringify(applied));
 if (applied.ok) {
   check(
@@ -160,10 +161,42 @@ check(
   JSON.stringify({ points, segments }),
 );
 
-const unsupported = applyRouteAssistScanReviewSelectionV1(points, segments, candidates, ["OBSTACLE:w-opening"]);
+const changedCandidates: RouteAssistScanCandidatesV1 = {
+  ...candidates,
+  segments: candidates.segments.map((segment) =>
+    segment.segmentId === "s1"
+      ? { ...segment, measuredLengthFt: { value: 6, confidence: 0.01, basis: "WORLD_GEOMETRY" } }
+      : segment,
+  ),
+  completeMeasuredRouteLength: {
+    valueFt: 15.5,
+    segments: [
+      { segmentId: "s1", valueFt: 6, confidence: 0.01 },
+      { segmentId: "s2", valueFt: 9.5, confidence: 0.02 },
+    ],
+  },
+};
+const stale = applyRouteAssistScanReviewSelectionV1(
+  points,
+  segments,
+  changedCandidates,
+  ["MEASURED_LENGTH:s1"],
+  review.fingerprint,
+);
+check(
+  "same route ID with a changed value invalidates the old review selection",
+  !stale.ok && stale.problems.some((problem) => problem.includes("review changed")),
+  JSON.stringify(stale),
+);
+
+const unsupported = applyRouteAssistScanReviewSelectionV1(
+  points, segments, candidates, ["OBSTACLE:w-opening"], review.fingerprint,
+);
 check("unsupported evidence cannot be promoted by review selection", !unsupported.ok, JSON.stringify(unsupported));
 
-const unknown = applyRouteAssistScanReviewSelectionV1(points, segments, candidates, ["MEASURED_LENGTH:not-real"]);
+const unknown = applyRouteAssistScanReviewSelectionV1(
+  points, segments, candidates, ["MEASURED_LENGTH:not-real"], review.fingerprint,
+);
 check("unknown review item fails closed", !unknown.ok, JSON.stringify(unknown));
 
 const none = buildRouteAssistScanAcceptanceFromReviewV1(review, []);
