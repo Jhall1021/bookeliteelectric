@@ -108,11 +108,14 @@ export const CONDUCTOR_SPECIFICATION_UNESTABLISHED: ConductorRequirement = {
     "Every route reaching this takeoff is an everyday load tapped from an existing general-purpose branch circuit — the tree reroutes every other load type and every dedicated circuit — so one conductor specification can cover the whole envelope. That specification is the contractor's to configure once for the service, and none is configured, so no gauge and no conductor count is claimed.",
 };
 
-/** The three electrical functions a 120V branch extension needs. */
+/**
+ * The three electrical functions a 120V branch extension needs, one of each
+ * — count: 1 reproduces this fixture's behavior from before `count` existed.
+ */
 export const conductorFunctions = (gauge: "14" | "12" | "10") => [
-  { function: "ungrounded", role: `CONDUCTOR_THHN_${gauge}_UNGROUNDED` },
-  { function: "grounded", role: `CONDUCTOR_THHN_${gauge}_GROUNDED` },
-  { function: "equipment ground", role: `CONDUCTOR_THHN_${gauge}_EQUIPMENT_GROUND` },
+  { function: "ungrounded", role: `CONDUCTOR_THHN_${gauge}_UNGROUNDED`, count: 1 },
+  { function: "grounded", role: `CONDUCTOR_THHN_${gauge}_GROUNDED`, count: 1 },
+  { function: "equipment ground", role: `CONDUCTOR_THHN_${gauge}_EQUIPMENT_GROUND`, count: 1 },
 ];
 
 /**

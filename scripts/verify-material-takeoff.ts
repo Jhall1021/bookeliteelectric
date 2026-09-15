@@ -225,9 +225,9 @@ async function main() {
   // The seam, asserted rather than described: one role cannot serve two functions.
   const collapsed = mk({ components: straight, selections: selsFive, turnCount: 0,
     conductors: { known: true, footPerConductor: 31, functions: [
-      { function: "ungrounded", role: "CONDUCTOR_THHN_12_UNGROUNDED" },
-      { function: "grounded", role: "CONDUCTOR_THHN_12_UNGROUNDED" },
-      { function: "equipment ground", role: "CONDUCTOR_THHN_12_UNGROUNDED" }] } });
+      { function: "ungrounded", role: "CONDUCTOR_THHN_12_UNGROUNDED", count: 1 },
+      { function: "grounded", role: "CONDUCTOR_THHN_12_UNGROUNDED", count: 1 },
+      { function: "equipment ground", role: "CONDUCTOR_THHN_12_UNGROUNDED", count: 1 }] } });
   ok(collapsed.physicalRequirements.every((p) => !/CONDUCTOR/.test(p.role)),
     "G  three functions sharing ONE role produces no conductor requirement at all",
     JSON.stringify(collapsed.physicalRequirements.map((p) => p.role)));
@@ -264,8 +264,89 @@ async function main() {
   ok(buy(turnedKnown, CHANNEL) === undefined,
     "G2 …while the channel on that very route stays unresolved — CONTINUOUS vs SEGMENTED_BY_TURNS");
 
+  console.log("\n  G3  CONDUCTOR MULTIPLICITY — ONE FUNCTION, MORE THAN ONE CONDUCTOR\n");
+  // A 240V-shaped circuit needing two ungrounded (line) conductors of the same
+  // role is not two functions colliding on one role — it is one function
+  // pulled twice. `count` is how that is stated, and it must multiply the
+  // established per-conductor footage, nothing else.
+  const twoHotSel: ProductSelection =
+    { role: "CONDUCTOR_THHN_10_UNGROUNDED", packageQuantity: 500, packageUnit: "ft", packagePriceCents: 11900 };
+  const twoHotDivisibility = conductorDivisibility(["CONDUCTOR_THHN_10_UNGROUNDED"]);
+  const twoHot = mk({ components: straight, selections: [...selsFive, twoHotSel], turnCount: 0,
+    extraDivisibility: twoHotDivisibility,
+    conductors: { known: true, footPerConductor: 25, functions: [
+      { function: "ungrounded", role: "CONDUCTOR_THHN_10_UNGROUNDED", count: 2 }] } });
+  ok(phys(twoHot, "CONDUCTOR_THHN_10_UNGROUNDED") === 50,
+    "G3 two ungrounded conductors of one role -> 50 ft (25 ft x count 2), not 25",
+    String(phys(twoHot, "CONDUCTOR_THHN_10_UNGROUNDED")));
+  ok(twoHot.unresolvedRequirements.every((u) => u.code !== "GROUNDING_SYSTEM_REQUIRED" && u.code !== "DUPLICATE_CONDUCTOR_FUNCTION"),
+    "G3 a single function with count 2 is not mistaken for a role collision or a duplicate",
+    JSON.stringify(codes(twoHot)));
+  ok(buy(twoHot, "CONDUCTOR_THHN_10_UNGROUNDED")?.packages === 1,
+    "G3 …and the purchase resolves normally: 50 ft off a 500 ft spool is 1 package",
+    String(buy(twoHot, "CONDUCTOR_THHN_10_UNGROUNDED")?.packages));
+
+  // Fractional footage must survive the multiplication exactly — a measured
+  // route length is never an integer by assumption.
+  const fractionalTwoHot = mk({ components: straight, selections: [...selsFive, twoHotSel], turnCount: 0,
+    extraDivisibility: twoHotDivisibility,
+    conductors: { known: true, footPerConductor: 14.625, functions: [
+      { function: "ungrounded", role: "CONDUCTOR_THHN_10_UNGROUNDED", count: 2 }] } });
+  ok(phys(fractionalTwoHot, "CONDUCTOR_THHN_10_UNGROUNDED") === 14.625 * 2,
+    "G3 fractional footage x count stays exact — 14.625 ft x 2, not rounded",
+    String(phys(fractionalTwoHot, "CONDUCTOR_THHN_10_UNGROUNDED")));
+
+  // Invalid counts are refused, not coerced.
+  const invalidCountTakeoffs: MaterialTakeoff[] = [];
+  for (const bad of [0, -1, 1.5]) {
+    const invalid = mk({ components: straight, selections: [...selsFive, twoHotSel], turnCount: 0,
+      extraDivisibility: twoHotDivisibility,
+      conductors: { known: true, footPerConductor: 25, functions: [
+        { function: "ungrounded", role: "CONDUCTOR_THHN_10_UNGROUNDED", count: bad }] } });
+    invalidCountTakeoffs.push(invalid);
+    ok(invalid.physicalRequirements.every((p) => p.role !== "CONDUCTOR_THHN_10_UNGROUNDED"),
+      `G3 count ${bad} produces no physical conductor requirement at all`,
+      JSON.stringify(invalid.physicalRequirements.map((p) => p.role)));
+    ok(invalid.unresolvedRequirements.some((u) => u.code === "CONDUCTOR_COUNT_INVALID"),
+      `G3 count ${bad} is refused as CONDUCTOR_COUNT_INVALID, not silently floored or dropped`,
+      JSON.stringify(codes(invalid)));
+    ok(!invalid.purchaseComplete, `G3 count ${bad} leaves the takeoff incomplete`);
+  }
+
+  // A repeated function is a caller bug, not a total to sum. Declaring
+  // "ungrounded" twice — even at count 1 each — must not quietly become
+  // count 2; it is refused by name instead.
+  const duplicated = mk({ components: straight, selections: [...selsFive, twoHotSel], turnCount: 0,
+    extraDivisibility: twoHotDivisibility,
+    conductors: { known: true, footPerConductor: 25, functions: [
+      { function: "ungrounded", role: "CONDUCTOR_THHN_10_UNGROUNDED", count: 1 },
+      { function: "ungrounded", role: "CONDUCTOR_THHN_10_UNGROUNDED", count: 1 }] } });
+  ok(duplicated.physicalRequirements.every((p) => p.role !== "CONDUCTOR_THHN_10_UNGROUNDED"),
+    "G3 two entries for the same function produce no requirement — never silently merged to count 2",
+    JSON.stringify(duplicated.physicalRequirements.map((p) => p.role)));
+  ok(duplicated.unresolvedRequirements.some((u) => u.code === "DUPLICATE_CONDUCTOR_FUNCTION"),
+    "G3 the duplicate is named, not absorbed", JSON.stringify(codes(duplicated)));
+  ok(!duplicated.purchaseComplete, "G3 a duplicated function leaves the takeoff incomplete");
+
+  // Existing outlet behavior is unchanged: three DIFFERENT functions still may
+  // not share one role, exactly as before `count` existed. Re-run of the
+  // fixture at G, now with explicit count: 1, to prove the collision guard
+  // survives the extension.
+  ok(collapsed.unresolvedRequirements.some((u) => u.code === "GROUNDING_SYSTEM_REQUIRED"),
+    "G3 incompatible functions sharing a role are still refused after the multiplicity change",
+    JSON.stringify(codes(collapsed)));
+  ok(collapsed.unresolvedRequirements.every((u) => u.code !== "DUPLICATE_CONDUCTOR_FUNCTION"),
+    "G3 …and that refusal is the role collision, not mistaken for a duplicate function",
+    JSON.stringify(codes(collapsed)));
+
+  // The unresolved (known: false) path — an unestablished specification or an
+  // unresolved neutral requirement — is untouched by any of the above.
+  ok(spec?.code === "CONDUCTOR_SPECIFICATION_NOT_ESTABLISHED" && !spec?.role,
+    "G3 an unestablished specification is still reported at the whole-requirement level, unaffected by count");
+
   console.log("\n  H  COMPLETENESS INVARIANTS\n");
-  const all = [a5, a8, b, none, known, collapsed, turnedKnown];
+  const all = [a5, a8, b, none, known, collapsed, turnedKnown,
+    twoHot, fractionalTwoHot, duplicated, ...invalidCountTakeoffs];
   ok(all.every((t) => !(t.unresolvedRequirements.length > 0 && t.purchaseComplete)),
     "H1 no takeoff is ever complete while anything is unresolved");
   ok(all.every((t) => !(t.classStatuses.some((c) => c.status === "UNRESOLVED") && t.purchaseComplete)),

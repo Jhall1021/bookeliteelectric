@@ -211,12 +211,14 @@ export function deriveFromSystem(args: {
     const gauge = spec.choice;
     // Route length plus the DECLARED allowance at each of the two terminations.
     const footPerConductor = routeFeet + 2 * slack.measurement;
+    // A 120V branch extension needs exactly one of each function — count: 1
+    // reproduces this takeoff's behavior from before `count` existed.
     const functions = [
-      { function: "ungrounded", role: `CONDUCTOR_THHN_${gauge}_UNGROUNDED` },
-      { function: "grounded", role: `CONDUCTOR_THHN_${gauge}_GROUNDED` },
+      { function: "ungrounded", role: `CONDUCTOR_THHN_${gauge}_UNGROUNDED`, count: 1 },
+      { function: "grounded", role: `CONDUCTOR_THHN_${gauge}_GROUNDED`, count: 1 },
     ];
     if (grounding === "SEPARATE_EQUIPMENT_GROUNDING_CONDUCTOR") {
-      functions.push({ function: "equipment ground", role: `CONDUCTOR_THHN_${gauge}_EQUIPMENT_GROUND` });
+      functions.push({ function: "equipment ground", role: `CONDUCTOR_THHN_${gauge}_EQUIPMENT_GROUND`, count: 1 });
     }
     conductors = { known: true, functions, footPerConductor };
     for (const f of functions) extraDivisibility.push({ role: f.role, divisibility: "CONTINUOUS" });
