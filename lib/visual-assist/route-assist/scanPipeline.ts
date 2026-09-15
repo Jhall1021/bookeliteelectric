@@ -7,6 +7,7 @@ import {
   extractRouteAssistScanCandidatesV1,
   type RouteAssistScanCandidatesV1,
 } from "./scanCandidates";
+import { buildRouteAssistScanReviewV1, type RouteAssistScanReviewV1 } from "./scanReview";
 import type { RouteAssistScanEvidenceV1 } from "./scanEvidence";
 
 /**
@@ -25,6 +26,10 @@ export type RouteAssistScanCandidatePipelineV1 = {
   evidence: RouteAssistScanEvidenceV1 | null;
   candidates: RouteAssistScanCandidatesV1 | null;
   problems: string[];
+};
+
+export type RouteAssistScanReviewPipelineV1 = RouteAssistScanCandidatePipelineV1 & {
+  review: RouteAssistScanReviewV1 | null;
 };
 
 export async function collectRouteAssistScanCandidatesV1(
@@ -52,5 +57,20 @@ export async function collectRouteAssistScanCandidatesV1(
     evidence: providerRun.evidence,
     candidates: extraction.candidates,
     problems: extraction.problems,
+  };
+}
+
+/**
+ * Preview/UI entry point: run the entire automatic scan path and produce the
+ * review model a human can inspect. No review item is accepted here.
+ */
+export async function prepareRouteAssistScanReviewV1(
+  provider: RouteAssistScanProviderV1,
+  input: RouteAssistScanProviderInputV1,
+): Promise<RouteAssistScanReviewPipelineV1> {
+  const collected = await collectRouteAssistScanCandidatesV1(provider, input);
+  return {
+    ...collected,
+    review: collected.candidates ? buildRouteAssistScanReviewV1(collected.candidates) : null,
   };
 }
