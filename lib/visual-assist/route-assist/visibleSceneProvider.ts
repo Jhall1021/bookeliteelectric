@@ -77,6 +77,10 @@ function validateSupplementalCaptureSetsV1(input: RouteAssistVisibleSceneProvide
   return problems;
 }
 
+function supplementalImageIds(input: RouteAssistVisibleSceneProviderInputV1): string[] {
+  return (input.supplementalCaptureSets ?? []).flatMap((set) => set.supplementalImageIds);
+}
+
 function canonicalSupplementalSets(
   sets: readonly RouteAssistSupplementalCaptureSetV1[] | undefined,
 ): RouteAssistSupplementalCaptureSetV1[] | undefined {
@@ -148,6 +152,7 @@ export async function runRouteAssistVisibleSceneProviderV1(
   const problems = validateRouteAssistVisibleSceneSemanticsV1({
     semantics,
     expectedCaptureImageIds: input.captureArtifacts.imageIds,
+    authorizedSupplementalImageIds: supplementalImageIds(input),
     points: input.points,
     segments: input.segments,
   });
