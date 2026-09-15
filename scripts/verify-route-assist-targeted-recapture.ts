@@ -156,7 +156,7 @@ await check("supplemental photo chronology is erased before provider execution",
   assert.deepEqual(observed, ["supp-a", "supp-m", "supp-z"]);
 });
 
-await check("supplemental image cannot become a canonical scene-frame reference", async () => {
+await check("supplemental semantic evidence never joins canonical primary sweep ordering", async () => {
   const plan = planRouteAssistRecaptureV1({ issue: doorwayIssue, originalImageIds: primary });
   const set = buildRouteAssistSupplementalCaptureSetV1({ requestId: "scene-frame-proof", plan, supplementalImageIds: ["doorway-extra"] });
   assert.ok(set);
@@ -167,6 +167,10 @@ await check("supplemental image cannot become a canonical scene-frame reference"
       assert.ok(semantics);
       return {
         ...semantics,
+        // Supplemental images may carry semantic evidence, including a better
+        // view of an existing anchor, but never become members of the ordered
+        // primary sweep. Proposal logic separately requires primary anchors for
+        // topology/order.
         objects: semantics.objects.map((object, index) => index === 0 ? { ...object, imageId: "doorway-extra" } : object),
       };
     },
@@ -181,8 +185,10 @@ await check("supplemental image cannot become a canonical scene-frame reference"
     supplementalCaptureSets: [set],
     reviewCorrections: [],
   });
-  assert.equal(result.semantics, null);
-  assert.ok(result.problems.some((problem) => problem.includes("unknown image doorway-extra")));
+  assert.ok(result.semantics);
+  assert.deepEqual(result.semantics.captureImageIds, primary);
+  assert.equal(result.semantics.captureImageIds.includes("doorway-extra"), false);
+  assert.ok(result.semantics.objects.some((object) => object.imageId === "doorway-extra"));
 });
 
 await check("invalid supplemental provenance fails before provider execution", async () => {
