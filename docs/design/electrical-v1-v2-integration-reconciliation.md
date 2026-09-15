@@ -510,7 +510,119 @@ clean, `npx prisma generate` clean, a fresh production build, and all
 three of this branch's own browser-flow suites (32/22/6 checks) still pass
 unchanged.
 
-## 1. What was actually being combined
+### 0.22 (sixth pass) The release-mechanics corrections — migration order, template staging, rollback, Elite sequencing — checked against the actual code, and rehearsed
+
+The prior draft of §10 (schema/template/catalog adoption and rollback) made
+four factual errors, each corrected in place above rather than left as a
+separate document. This entry records what was actually run to establish
+each correction, so the corrected §10 is a rehearsed plan, not a rewritten
+guess.
+
+**Migration order (§10.1).** `prisma/migrate-guided-flow-session-active-key.ts`'s
+own docstring already stated the correct order; the prior draft had it
+backwards. Proven, not just read: on a throwaway local database pushed with
+`origin/main`'s pre-migration schema (no `activeSessionKey` column), running
+the backfill script failed immediately with Prisma's own `P2022` — "the
+column `guided_flow_sessions.activeSessionKey` does not exist." Pushing this
+branch's schema to the same database and re-running the identical script
+then succeeded cleanly (`0 duplicate ACTIVE session(s) resolved`, as
+expected against synthetic empty data). Also confirmed directly:
+`prisma/_assertDisposableLocalDatabase.ts`'s loopback-host check means this
+exact script cannot be pointed at Neon under any flag or environment
+variable — a real Neon backfill needs separate, reviewed tooling, not this
+script with its guard removed.
+
+**Template staging and version arithmetic (§10.2).** Reading
+`prisma/template/electrical-v3-provenance.json` (checked into this branch)
+established that production's real `electrical` template is already at
+SNAPSHOT v1 + DELTA v2 (`new-120v-outlet`) + DELTA v3 (Material Catalog
+Phase 1C, six services) — while this branch's own local rehearsal database
+has only ever carried the single v1 SNAPSHOT (confirmed by querying
+`TemplateVersion` directly). The prior draft's `--version 2` was the next
+number for this branch's local database, not for production, where 2 and 3
+are already taken — a real extraction must read the live number at the
+time, not use one written into a plan in advance. Reading
+`scripts/extract-template-service.ts` and `scripts/extract-template-catalog.ts`
+side by side established that production's real v2 and v3 were both written
+with the SERVICE tool (a per-service DELTA), never the CATALOG tool (a
+full-catalog SNAPSHOT replace) — confirmed by the provenance file's own
+`extractionMechanism.notInvoked` line. Rehearsed locally: extracting
+`new-120v-outlet` as a fresh DELTA against this branch's single-SNAPSHOT
+database left that SNAPSHOT's 74 services completely unchanged, and
+`templateVersionSource` with no `atVersion` (the real onboarding path)
+resolved the new DELTA's copy the instant it was written — no staging gate
+of any kind. The rehearsal write was then deleted, restoring the database's
+original single-SNAPSHOT state, confirmed by re-querying `TemplateVersion`
+afterward. Also confirmed directly: `extract-template-service.ts` — the
+tool actually used for both real production DELTAs — carries no
+database-identity or production-write guard anywhere in the file, unlike
+its catalog-tool sibling; this is recorded in the corrected §10.2 as a real,
+open gap, not one this pass builds a fix for.
+
+**Rollback mechanics (§10.3).** `docs/design/production-release-authority.md`'s
+own "Rollback" section, read directly, already states the real mechanism:
+promote the previous approved deployment id, recorded in the release log,
+with `vercel promote <id>` or the release command. Reading
+`scripts/release-production.ts`, `scripts/_releaseControl.ts` and
+`scripts/_releaseRun.ts` confirmed this is built into the release tooling
+as a first-class "recovery baseline" — every release's creation receipt
+records the outgoing deployment id and its alias mappings before the new
+deployment is created, specifically so it is available to promote back.
+`vercel.json`'s per-branch flag was confirmed to do something else
+entirely (block a future deployment trigger, not revert a running one).
+`TemplateVersion`'s own schema was inspected directly and carries no
+active/published/staged column at all — confirmed there is no way to
+"unpublish" a version, which is why the corrected rollback action is
+publishing a corrective version forward, never deleting the bad one, matching
+`MaterialBaselineVersion`'s own documented insert-only convention elsewhere
+in this schema.
+
+**Elite pricing/economics sequencing (§10.2, step 1).** No new rehearsal
+needed — this pass's own already-documented local finding (§6,
+`capture-hero-flow.ts`'s "no path that reaches a price" wall on Elite's own
+`new-120v-outlet`) is the evidence; §10.2 now states explicitly that
+preparing Elite's pricing method and economics happens ALONGSIDE the real
+tree migration, not after it, so the same wall does not reproduce on the
+live platform.
+
+**The two remaining test-detail fixes**, also part of this pass:
+
+- `assertDisposableLocalDatabase` is now called at the start of `main()` in
+  all three DB-mutating browser-flow scripts
+  (`verify-integration-manual-routing-storefront-browser-flow.ts`,
+  `verify-two-fresh-contractors-routing-v2-browser-flow.ts`,
+  `verify-cross-device-stale-queue-browser-flow.ts`), alongside — not
+  instead of — each script's existing `resetRefusal`/inline tenant-slug
+  guard. The two check different things: `assertDisposableLocalDatabase`
+  enforces the loopback-host-plus-stamped-identity rehearsal boundary
+  regardless of which contractor is involved; the pre-existing guards
+  enforce that the specific contractor slug being mutated is a designated
+  rehearsal tenant, never `elite-electric`/`brightpath-electric`. Neither
+  makes the other redundant.
+- `verify-integration-manual-routing-storefront-browser-flow.ts`'s block F
+  now proves the inspected `bookedLineItem` is the SAME row the completed
+  Booking's own Visit actually contains — `prisma.lineItem.findFirst({
+  where: { visitId: booking.visitId, serviceId } })` against the real
+  `Booking.visitId` captured after `bookNativeAppointment()` returns —
+  rather than resting on "most recent LineItem for this service," which was
+  a recency guess that happened to be correct in a suite with no concurrent
+  activity, not a proof.
+
+**Verification.** All three browser-flow scripts were re-run against a
+`next build && next start` production server on the local disposable
+database — twice each, consecutively, zero failures
+(storefront: 33 assertions; two-fresh-contractors: full pass including
+tenant isolation; cross-device: 6 assertions). Run against `next dev`
+first, the same suites were intermittently flaky at points unrelated to
+either fix — a repeated `POST /api/guided-flow-sessions` firing twice in
+quick succession pointed to React 18 Strict Mode's dev-only double effect
+invocation, a `next dev`-only artifact absent from a production build,
+which is why verification was completed against `next start` rather than
+chased further in dev mode; it is noted here as an observation for a future
+pass, not fixed, since it is unrelated to this round's two corrections and
+was never in scope. `npx tsc --noEmit` is clean project-wide throughout.
+
+
 
 Three branches, forked from **three different points of `main`**, not a simple
 two-way merge:
@@ -1108,81 +1220,229 @@ duplicates) and Routing V2's ~530-line schema addition (the surface-raceway
 and derived-pricing model family, including the `LineItem` provenance
 fields §0.9/§0.12/§0.15/§0.18 exercised).
 
-1. **Rehearse on a Neon branch, never production directly** — per
-   `production-neon-requires-explicit-approval`, every step here needs
-   explicit, in-conversation authorization; none of it is self-granted from
-   a prior approval.
-2. Run `prisma/migrate-guided-flow-session-active-key.ts` FIRST, against
-   the branch, and confirm it reports the real production row count of
-   pre-existing duplicate active sessions per contractor (its own backfill
-   target) — a nonzero, unexpected count there is a stop-and-look signal,
-   not something to push through.
-3. Apply the schema migration itself; re-run this branch's own `verify:full`
-   against the branch to confirm the new tables/columns behave as this
+**CORRECTED (§0.22): the order below was backwards in the prior draft of
+this plan, and step 2's tooling claim was checked against the actual script
+and found impossible as written.** Both corrected against
+`prisma/migrate-guided-flow-session-active-key.ts` and
+`prisma/_assertDisposableLocalDatabase.ts` directly, and rehearsed locally —
+see §0.22 for the executed proof.
+
+1. **`prisma db push` (the schema change) FIRST.** The backfill script's own
+   docstring states this order explicitly — a brand-new nullable column
+   starts NULL on every existing row, so the schema change alone is safe,
+   and only THEN does `activeSessionKey` exist for the backfill to write
+   into. Rehearsed locally (§0.22): running the backfill against a database
+   still on the pre-migration schema fails immediately with Prisma's own
+   `P2022` ("column ... does not exist"); running it again after `db push`
+   succeeds cleanly. The prior draft of this plan had these two steps
+   reversed.
+2. **This exact script cannot be pointed at Neon, branch or production —
+   this is not a policy, it is enforced code.**
+   `prisma/_assertDisposableLocalDatabase.ts`, which this script calls
+   before touching a row, checks `DATABASE_URL`'s host and calls
+   `process.exit(1)` on anything that is not `127.0.0.1` or `localhost`.
+   There is no flag or environment variable that bypasses this. So "rehearse
+   on a Neon branch, then run this backfill against the branch" — the prior
+   draft's step 1 — is not an instruction this script can execute; it is a
+   contradiction. Real adoption needs one of:
+   - a separate, reviewed, one-off migration script — following this
+     repository's own established precedent for a real Neon data migration
+     (`prisma/migrate-material-split-2026-08-24.ts` is the pattern: a
+     dated, one-off script written FOR that specific production change,
+     never intended to be run twice or reused as general tooling) — that
+     carries the same duplicate-resolution and backfill logic this script
+     already proves correct, but without the loopback refusal, still gated
+     by the same explicit, in-conversation authorization
+     `production-neon-requires-explicit-approval` requires for every step
+     of a real Neon operation; or
+   - confirming through some other channel (a Neon branch created and
+     inspected under that same explicit authorization) that production
+     carries no pre-existing duplicate ACTIVE sessions per
+     (contractor, session, service) triple, so the backfill has nothing to
+     do and only the additive schema change needs to reach Neon at all.
+   Neither is performed here; this plan names the fork in the road rather
+   than picking a branch of it, because picking one is exactly the kind of
+   production-consequential decision `production-neon-requires-explicit-
+   approval` reserves for explicit, in-conversation authorization.
+3. Re-run this branch's own `verify:full` against wherever the schema
+   change actually lands, to confirm the new tables/columns behave as this
    report already proved locally, now against a real (copy-on-write)
    production dataset shape.
-4. Both additions are purely additive (new tables, new nullable columns,
-   one new unique constraint on a backfilled column) — the existing
-   application code already deployed to production does not read or write
-   any of them, so applying the schema change alone, with no application
-   code change, is safe to do first and separately from anything else
-   below.
+4. Both schema additions are purely additive (new tables, new nullable
+   columns, one new unique constraint on a backfilled column) — the
+   existing application code already deployed to production does not read
+   or write any of them, so applying the schema change alone, with no
+   application code change, is safe to do first and separately from
+   anything else below.
 5. Only after a clean branch rehearsal, apply to production in a scheduled,
-   authorized window.
+   authorized window — the backfill via whichever real mechanism step 2
+   settles on, never via the disposable-local-only script this branch
+   actually ships.
 
 ### 10.2 Template and catalog adoption
 
 Local, disposable-database-only extraction (§0.8, §0.10) is explicitly not
 the same operation as adopting Routing V2 into the REAL production catalog.
+
+**CORRECTED (§0.22): the prior draft of this section understated how far
+along production's real template already is, named the wrong extraction
+tool, and got what "a new version" actually protects backwards.** All three
+corrected against `prisma/template/electrical-v3-provenance.json` (checked
+into this branch, and the authoritative record of a real production write),
+`scripts/extract-template-service.ts`, `scripts/extract-template-catalog.ts`,
+and `lib/templateProvisioning.ts` directly, plus a local rehearsal — see
+§0.22.
+
+**Production's real template state, as of this provenance record, is
+already past v1:**
+
+```
+electrical  SNAPSHOT v1  (75 services, Elite's full catalog)
+electrical  DELTA    v2  (new-120v-outlet)
+electrical  DELTA    v3  (Material Catalog Phase 1C — 6 services:
+                           new-video-doorbell-wiring, generator-inlet-interlock,
+                           240v-garage-outlet and its 3 prong-count siblings)
+```
+
+This branch's OWN local rehearsal database never reached that state — it
+carries only the single v1 SNAPSHOT this whole report's local proofs were
+built against (confirmed directly: `TemplateVersion.findMany` against
+`p2b_integration_seeded` returns exactly one row, `version: 1`). **Local
+rehearsal cannot exercise the actual version arithmetic a real extraction
+needs**, and the prior draft's `--version 2` was wrong for exactly that
+reason: it was the next number for THIS branch's local database, not for
+production, where 2 and 3 are already taken. The real next version must be
+read live from production at the moment of the real extraction
+(`MAX(version)` for `trade: "electrical"`, plus one), never assumed or
+hard-coded in a plan written before that moment.
+
 Real adoption is a deliberate, later sequence:
 
 1. Migrate the REAL Elite tenant's `new-120v-outlet` onto the surface-raceway
    tree (`prisma/seed-new-outlet-v2.ts`'s `migrateEliteOutletToV2`) — rehearsed
    on a Neon branch first, exactly as §10.1 describes, since this writes to
-   Elite's own `Question`/`AnswerOption` rows.
-2. Extract for real: `scripts/extract-template-catalog.ts --from
-   elite-electric --apply --i-know-this-writes-to-production` (§0.9's new
-   guard is the one thing standing between an accidental run and a real
-   write — it must be typed out deliberately). A human reviews the refusal
-   report first, per the tool's own existing design (ADR-014) — nothing
-   about this pass changes that review requirement.
-3. **Extract as a NEW version, not overwriting the current one.** Every
-   local run in this pass used the default `--version 1`, which upserts
-   THAT version's rows in place — fine for a disposable database with
-   nothing depending on version continuity, but a real adoption should pass
-   `--version 2` (or whatever the next real number is) so the CURRENT
-   production template stays exactly as it is unless and until the new
-   version is deliberately what `templateVersionSource` resolves to. This
-   is what makes a bad extraction recoverable without a database restore —
-   the prior version simply keeps being current.
-4. Decide `new-120v-outlet`'s `pricingMethod` on the template deliberately
+   Elite's own `Question`/`AnswerOption` rows. **Alongside this, not after
+   it**: prepare Elite's `pricingMethod` and economics for the tree it is
+   about to carry. This pass's own local finding (§6) is that Elite's
+   `new-120v-outlet` has no economics of its own once it carries the real
+   tree (`capture-hero-flow.ts`'s "no path that reaches a price" wall) —
+   migrating the tree onto the live platform without also preparing pricing
+   would reproduce that exact failure for Elite's real customers, not just
+   in this branch's disposable rehearsal.
+2. **Extract for real using `scripts/extract-template-service.ts`, per
+   service, writing a DELTA — the same tool production's own v2 and v3
+   already used, not `scripts/extract-template-catalog.ts`.** The catalog
+   tool's own docstring says what it does: it "REPLACES WHATEVER a live
+   TemplateVersion currently offers" — a full-catalog SNAPSHOT overwrite.
+   Running it against Elite's CURRENT live tree today would extract a
+   catalog that does NOT contain v3's Phase 1C recipe promotions, because
+   — per the provenance record's own "adoption status" — "zero contractor
+   Service rows carry v3 provenance": v3 was published straight to the
+   template layer and never adopted back onto Elite's own live rows.
+   `templateVersionSource`'s resolution only folds a DELTA whose version
+   exceeds the latest SNAPSHOT's version (`lib/templateProvisioning.ts`), so
+   publishing a fresh SNAPSHOT at, say, version 4 would make v3's own
+   `version: 3 > 4` comparison false — v3 would simply stop folding in, and
+   every contractor installing from that point on would silently receive a
+   catalog missing the Material Catalog Phase 1C work, with nothing in the
+   resolution path reporting that anything went missing. This is precisely
+   the "displace the material-catalog changes already delivered" risk this
+   correction round named. `extract-template-service.ts` writes a DELTA and
+   cannot cause it; a full-catalog re-SNAPSHOT is not what any real
+   adoption from here should do.
+3. **A real, currently-existing gap, named rather than fixed here:**
+   `extract-template-service.ts` carries no database-identity or
+   production-write guard of any kind — confirmed by direct inspection,
+   zero matches for `production`/`assertDisposable`/`i-know` anywhere in
+   the file. `extract-template-catalog.ts`'s equivalent guard
+   (`--i-know-this-writes-to-production`) does not exist on this tool. The
+   provenance record's own "governance" section already names the
+   consequence: v3's real `--apply` against production ran "before the
+   branch existed in git at all, let alone before review." Any future real
+   extraction via this tool needs the operator to verify `DATABASE_URL` and
+   environment by hand before `--apply`, or the tool needs the same guard
+   its sibling already has — recorded here as a real gap, not closed by
+   this pass, since building it is tooling work outside this correction's
+   scope.
+4. **What "a new version" actually protects, rehearsed locally (§0.22):**
+   extracting `new-120v-outlet` as a fresh DELTA (v2, against this branch's
+   own single-SNAPSHOT local database) left the existing v1 SNAPSHOT
+   completely unchanged — still 74 services, byte-for-byte — and
+   `templateVersionSource` with no `atVersion` (the real onboarding path)
+   resolved the NEW DELTA's copy immediately, with no staging step, the
+   moment it was written. A new version protects EXISTING content from
+   being overwritten; it does nothing to delay or gate when the new content
+   goes live. There is no version of this plan in which extracting is safe
+   because it is "not live yet" — it is live the instant `--apply` returns.
+   The rehearsal write was removed afterward, restoring this database's
+   original single-SNAPSHOT state.
+5. Decide `new-120v-outlet`'s `pricingMethod` on the template deliberately
    (`prisma/seed-routing-v2-pricing-method.ts`, or its real-catalog
    equivalent) — per its own docstring, this changes what a contractor
    provisioned FROM HERE ON receives, not any existing contractor's
    service. Elite's own real service does not change pricing method by
    this — no supported action retroactively promotes an EXISTING
    contractor's service (§0.9's own finding).
-5. Roll out to new contractors deliberately, not silently — this is
+6. Roll out to new contractors deliberately, not silently — this is
    `electrical-routing-v2-workstream`'s own "Stage 1B needs authorization"
    boundary, unchanged by anything in this reconciliation.
 
 ### 10.3 Rollback plan
 
-- **Code**: `vercel.json`'s per-branch `deploymentEnabled: false` is the
-  fastest lever and needs no data operation — it already covers this
-  branch and its three ancestors. The broader "controlled release" guard
-  (promote-only, receipt-bound, authorized in-conversation) is the
-  process-level control for an eventual real release; re-arming or
-  disarming it is a config change, not a migration.
-- **Template**: because §10.2 extracts as a NEW version rather than
-  overwriting, rolling back a bad extraction is choosing not to adopt the
-  new version — no data needs to be reverted. `templateVersionSource`
-  folds the latest SNAPSHOT plus any DELTAs; pinning `atVersion` to the
-  prior good version (the same mechanism `templateVersionSource`'s own
-  `atVersion` parameter already supports, used elsewhere in this codebase
-  for repairs and adoption testing) is the rollback action if a version
-  ever needs to be un-adopted after new contractors have already installed
-  from it.
+**CORRECTED (§0.22): both bullets below named the wrong mechanism in the
+prior draft.** `vercel.json`'s per-branch flag and `templateVersionSource`'s
+`atVersion` parameter were each checked directly and neither does what the
+prior draft claimed.
+
+- **Code**: NOT `vercel.json`'s per-branch `deploymentEnabled: false`. That
+  flag stops a NEW deployment from being triggered by a future push to this
+  branch — it does nothing to the build that is already running in
+  production. Confirmed by what that flag actually gates
+  (`docs/design/deployment-provenance-stage1.md`'s own Vercel facts) and by
+  how this repository's own release tooling defines rollback:
+  `docs/design/production-release-authority.md`'s "Rollback" section states
+  it plainly — "the previous approved deployment id is the last `previous`
+  in the release log; promote it with `vercel promote <id>` or through the
+  release command." `scripts/release-production.ts` builds this in as a
+  first-class mechanism, not an afterthought: every real release's creation
+  receipt (`recordCreation`) captures the OUTGOING production deployment id
+  and its alias mappings BEFORE the new deployment is even created
+  (`outgoingDeploymentId`, `outgoingAliases` — see the "recovery baseline"
+  language throughout `scripts/_releaseControl.ts` and
+  `scripts/_releaseRun.ts`), specifically so that id is available to
+  promote BACK if the new release turns out to be wrong.
+  `RECOVERY_REQUIRED` is the exact, already-implemented failure state this
+  system surfaces when a promotion's post-verification fails, and it hands
+  the operator this same recorded target. The rollback action is: promote
+  the recorded `outgoingDeploymentId` to production — the identical
+  `promoteDeployment`/phase-C mechanism a forward release already uses, run
+  once more, aimed at the prior id instead of the new one. Disabling this
+  branch's future deployments (the `vercel.json` flag) is worth doing so
+  nothing NEW ships from it by accident, but it is not the rollback lever
+  itself.
+- **Template**: NOT `atVersion`. Its own docstring (already quoted
+  correctly elsewhere in this report, §10.2's predecessor) says "for tests
+  and repairs only... onboarding never passes this" — confirmed again by
+  direct inspection this pass: no real onboarding code path reads it, so
+  pinning it changes nothing about what a real contractor installs.
+  Confirmed further by inspecting `TemplateVersion`'s own schema: there is
+  no `active`, `published`, or `staged` column at all — nothing exists to
+  "un-publish" a version once written. A SNAPSHOT or DELTA is immediately
+  and permanently the latest of its kind the moment `--apply` returns
+  (§10.2's own rehearsal proved the "immediately live" half of this; the
+  schema inspection proves the "permanently" half). The real rollback
+  action is to publish a CORRECTIVE version — a new DELTA (or, rarely, a
+  new SNAPSHOT) at the next version number, carrying the prior good
+  content — never to delete the bad `TemplateVersion` row. Deleting it
+  protects nothing already provisioned (a contractor who installed from it
+  holds their own copied, contractor-owned rows regardless — ADR-014,
+  provenance is a record, not a live link, exactly as §10.2 already
+  establishes) while destroying the only record of what was actually
+  published and when. This mirrors a convention this codebase already
+  holds elsewhere: `MaterialBaselineVersion` is documented "IMMUTABLE BY
+  CONVENTION... application code only ever INSERTS a new row — never
+  updates or deletes one," for the identical reason — rows already relied
+  upon may point at it.
 - **Schema**: both additions are purely additive (§10.1) — the safe
   rollback for application code is a deployment rollback to the prior
   release, which works cleanly against a schema that only ever ADDED

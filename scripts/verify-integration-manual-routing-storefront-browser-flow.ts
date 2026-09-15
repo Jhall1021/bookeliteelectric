@@ -79,6 +79,7 @@ import { PrismaClient } from "@prisma/client";
 import { buildPricedDerivedContractor, removeFixture, fixtureSlug, changeChannelCost, reapprove } from "./_derivedStorefrontFixture";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import { liveEndpointOf, resetRefusal } from "../lib/electrical/pilotScope";
+import { assertDisposableLocalDatabase } from "../prisma/_assertDisposableLocalDatabase";
 
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
@@ -204,10 +205,23 @@ async function main() {
   console.log(`\nINTEGRATION — manual Routing V2 completion through the real storefront\n`);
   console.log(`  ${BASE}  ·  contractor ${SLUG}\n`);
 
-  // EXECUTABLE, not just documented — this suite creates/prices/books real
-  // rows under a real contractor, and every prior "run on a disposable
-  // database only" instruction has been a paragraph in a comment. Same
-  // guard scripts/verify-derived-scheduling-browser.ts already uses.
+  // TWO GUARDS, DOING TWO DIFFERENT JOBS — belt and braces, not redundancy.
+  //
+  // assertDisposableLocalDatabase enforces the REHEARSAL BOUNDARY: this
+  // process must be talking to a loopback Postgres explicitly stamped
+  // "local-*", full stop. It says nothing about which contractor is being
+  // mutated — a legitimate local rehearsal database could still carry a
+  // copy of a real tenant's rows.
+  //
+  // resetRefusal enforces the TENANT boundary on top of that: even on a
+  // database this strict, SLUG must be a designated rehearsal contractor
+  // and never elite-electric/brightpath-electric. It was the only guard
+  // here before this pass — it is weaker than assertDisposableLocalDatabase
+  // on the DATABASE question (its own production check only refuses the one
+  // stamped production Neon endpoint by name, not "anything non-loopback"),
+  // so a Neon branch with a non-production identity would have passed it
+  // alone. It stays, because it is the only thing that ever checks SLUG.
+  await assertDisposableLocalDatabase(prisma);
   const identity = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" }, select: { key: true, neonEndpoint: true } });
   const guard = resetRefusal({ slug: SLUG, identity, liveEndpoint: liveEndpointOf(process.env.DATABASE_URL ?? "") });
   if (guard) { console.log(`  STOP: ${guard.code} — this suite runs on a rehearsal database only.`); process.exit(2); }
@@ -608,12 +622,26 @@ async function main() {
       // checkout to a REAL Booking — the gap the review named: this block
       // used to stop at the cart-stage LineItem and never actually booked.
       const bookingId = await bookNativeAppointment(page, "booking-proof@example.invalid");
-      const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { totalCents: true } });
+      const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { totalCents: true, visitId: true } });
       ok("F. checkout produced a real Booking row for the reapproved, correctly-priced attempt",
         !!booking, `bookingId ${bookingId}`);
       ok("F. the Booking's totalCents matches the reapproved price at the moment of booking",
         booking?.totalCents === afterReapprovalCents,
         `booking.totalCents ${booking?.totalCents}c, expected ${afterReapprovalCents}c`);
+      // THE LINK ITSELF — every check above trusted `bookedLineItem` on the
+      // strength of "most recent LineItem for this service", captured before
+      // any Booking existed to join through. Now that a real Booking does
+      // exist, walk the actual relation — Booking.visitId -> LineItem.visitId
+      // — and prove the row inspected above is the SAME row the completed
+      // Booking's own Visit actually contains, not a recency guess that
+      // happened to be right in a suite with no concurrent activity.
+      const lineItemViaBooking = await prisma.lineItem.findFirst({
+        where: { visitId: booking?.visitId, serviceId: fixture.serviceId },
+        select: { id: true },
+      });
+      ok("F. the LineItem inspected throughout this block IS the one the completed Booking's Visit actually contains — a real join, not an inference from recency",
+        !!booking?.visitId && lineItemViaBooking?.id === bookedLineItem?.id,
+        `inspected LineItem ${bookedLineItem?.id}, LineItem via Booking.visitId (${booking?.visitId}): ${lineItemViaBooking?.id}`);
 
       // THE SNAPSHOT PROOF the review specifically asked for: change the
       // economics AGAIN, now that the job is already booked and paid for (no

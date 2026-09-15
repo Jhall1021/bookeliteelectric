@@ -44,6 +44,7 @@ import { chromium, type Page } from "playwright";
 import { PrismaClient } from "@prisma/client";
 import { buildPricedDerivedContractor, removeFixture, fixtureSlug, changeChannelCost, reapprove } from "./_derivedStorefrontFixture";
 import { liveEndpointOf, resetRefusal } from "../lib/electrical/pilotScope";
+import { assertDisposableLocalDatabase } from "../prisma/_assertDisposableLocalDatabase";
 
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
@@ -199,9 +200,12 @@ async function main() {
   console.log(`\nTWO FRESH CONTRACTORS — Routing V2 through supported installation, never repaired\n`);
   console.log(`  ${BASE}  ·  ${SLUG_A}  ·  ${SLUG_B}\n`);
 
-  // EXECUTABLE, not just documented — same guard
-  // scripts/verify-derived-scheduling-browser.ts already uses, checked for
-  // BOTH contractors this script creates.
+  // TWO GUARDS: assertDisposableLocalDatabase enforces the REHEARSAL
+  // BOUNDARY (loopback host, stamped local-* identity) regardless of which
+  // contractor is involved; resetRefusal enforces the TENANT boundary on
+  // top of that, checked for BOTH contractors this script creates. See the
+  // longer note in verify-integration-manual-routing-storefront-browser-flow.ts.
+  await assertDisposableLocalDatabase(prisma);
   const identity = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" }, select: { key: true, neonEndpoint: true } });
   const liveEndpoint = liveEndpointOf(process.env.DATABASE_URL ?? "");
   for (const slug of [SLUG_A, SLUG_B]) {
