@@ -1,3 +1,8 @@
+import type {
+  RouteAssistCaptureImagePersisterV1,
+  RouteAssistLocalReviewFrameV1,
+  RouteAssistPersistedCaptureImageV1,
+} from "./captureHandoff";
 import type { RouteAssistRecaptureIssueV1 } from "./recaptureIssue";
 
 export type RouteAssistTargetedRecaptureFocusV1 =
@@ -79,6 +84,12 @@ export type RouteAssistSupplementalCaptureSetV1 = {
   supplementalImageIds: string[];
 };
 
+export type RouteAssistPersistedSupplementalCaptureV1 = {
+  version: 1;
+  captureSet: RouteAssistSupplementalCaptureSetV1;
+  persistedImages: RouteAssistPersistedCaptureImageV1[];
+};
+
 function uniqueNonEmpty(values: readonly string[]): boolean {
   return values.length > 0 && new Set(values).size === values.length && values.every((value) => value.length > 0);
 }
@@ -105,4 +116,52 @@ export function buildRouteAssistSupplementalCaptureSetV1(args: {
     primarySweepImageIds: [...args.plan.preserveOriginalImageIds],
     supplementalImageIds: [...args.supplementalImageIds],
   };
+}
+
+function persistedMatchesLocal(frame: RouteAssistLocalReviewFrameV1, persisted: RouteAssistPersistedCaptureImageV1): boolean {
+  return Boolean(
+    persisted.imageId === frame.imageId &&
+    persisted.imageUrl &&
+    persisted.mimeType === frame.mimeType &&
+    persisted.width === frame.width &&
+    persisted.height === frame.height &&
+    Number.isFinite(persisted.width) && persisted.width > 0 &&
+    Number.isFinite(persisted.height) && persisted.height > 0
+  );
+}
+
+/**
+ * Persist focused supplemental photos and bind their durable identities to a
+ * targeted recapture request. This adapter moves media only; it does not merge
+ * the photos into sweep order or create any physical route fact.
+ */
+export async function persistRouteAssistTargetedSupplementV1(args: {
+  requestId: string;
+  plan: RouteAssistRecapturePlanV1;
+  frames: readonly RouteAssistLocalReviewFrameV1[];
+  persister: RouteAssistCaptureImagePersisterV1;
+}): Promise<RouteAssistPersistedSupplementalCaptureV1 | null> {
+  if (args.plan.mode !== "TARGETED_SUPPLEMENT" || !args.frames.length) return null;
+  const frameIds = args.frames.map((frame) => frame.imageId);
+  if (!uniqueNonEmpty(frameIds)) return null;
+  const primary = new Set(args.plan.preserveOriginalImageIds);
+  if (frameIds.some((id) => primary.has(id))) return null;
+
+  const persistedImages: RouteAssistPersistedCaptureImageV1[] = [];
+  for (const frame of args.frames) {
+    let persisted: RouteAssistPersistedCaptureImageV1;
+    try { persisted = await args.persister.persist({ ...frame }); }
+    catch { return null; }
+    if (!persistedMatchesLocal(frame, persisted)) return null;
+    persistedImages.push({ ...persisted });
+  }
+
+  const captureSet = buildRouteAssistSupplementalCaptureSetV1({
+    requestId: args.requestId,
+    plan: args.plan,
+    supplementalImageIds: persistedImages.map((image) => image.imageId),
+  });
+  if (!captureSet) return null;
+
+  return { version: 1, captureSet, persistedImages };
 }
