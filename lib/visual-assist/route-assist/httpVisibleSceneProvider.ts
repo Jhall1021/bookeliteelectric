@@ -34,6 +34,18 @@ function semanticsShape(value: unknown): RouteAssistVisibleSceneSemanticsV1 {
   return candidate as RouteAssistVisibleSceneSemanticsV1;
 }
 
+function canonicalSupplementalSets(
+  sets: readonly RouteAssistSupplementalCaptureSetV1[] | undefined,
+): RouteAssistSupplementalCaptureSetV1[] {
+  return (sets ?? [])
+    .map((set) => ({
+      ...set,
+      primarySweepImageIds: [...set.primarySweepImageIds],
+      supplementalImageIds: [...set.supplementalImageIds].sort((a, b) => a.localeCompare(b)),
+    }))
+    .sort((a, b) => a.requestId.localeCompare(b.requestId));
+}
+
 /** Provider-neutral HTTP adapter for ordinary-camera semantic CV. */
 export function createRouteAssistHttpVisibleSceneProviderV1(args: {
   providerKey: string;
@@ -49,11 +61,7 @@ export function createRouteAssistHttpVisibleSceneProviderV1(args: {
         pointIds: input.points.map((point) => point.id),
         segmentIds: input.segments.map((segment) => segment.id),
         imageIds: [...input.captureArtifacts.imageIds],
-        supplementalCaptureSets: (input.supplementalCaptureSets ?? []).map((set) => ({
-          ...set,
-          primarySweepImageIds: [...set.primarySweepImageIds],
-          supplementalImageIds: [...set.supplementalImageIds],
-        })),
+        supplementalCaptureSets: canonicalSupplementalSets(input.supplementalCaptureSets),
         reviewCorrections: (input.reviewCorrections ?? []).map((correction) => ({ ...correction, point: { ...correction.point } })),
       });
       return semanticsShape(response);
