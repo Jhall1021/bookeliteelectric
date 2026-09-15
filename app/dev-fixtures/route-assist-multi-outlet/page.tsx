@@ -8,6 +8,8 @@ const DOOR_RIGHT_X = 0.66;
 const DOOR_HEADER_Y = 0.18;
 const MAX_NEW_OUTLETS = 5;
 
+type ProjectStep = "PLAN" | "SCAN_QUEUE";
+
 function endpointLetter(index: number): string {
   return String.fromCharCode("B".charCodeAt(0) + index);
 }
@@ -77,9 +79,13 @@ export default function RouteAssistMultiOutletDemoPage() {
   const [source, setSource] = useState<RouteAssistOutletEndpoint | null>(null);
   const [outlets, setOutlets] = useState<RouteAssistOutletEndpoint[]>([]);
   const [placingOutlet, setPlacingOutlet] = useState(true);
+  const [projectStep, setProjectStep] = useState<ProjectStep>("PLAN");
+  const [activeLegIndex, setActiveLegIndex] = useState(0);
   const legs = useMemo(() => source ? buildOrderedOutletLegs(source, outlets) : [], [source, outlets]);
+  const activeLeg = legs[activeLegIndex] ?? null;
 
   function handleRoomTap(event: MouseEvent<HTMLDivElement>) {
+    if (projectStep !== "PLAN") return;
     const rect = event.currentTarget.getBoundingClientRect();
     const point = {
       x: Math.max(0.04, Math.min(0.96, (event.clientX - rect.left) / rect.width)),
@@ -102,10 +108,67 @@ export default function RouteAssistMultiOutletDemoPage() {
     setPlacingOutlet(false);
   }
 
+  function continueToScan() {
+    if (legs.length === 0) return;
+    setActiveLegIndex(0);
+    setProjectStep("SCAN_QUEUE");
+  }
+
   function resetProject() {
     setSource(null);
     setOutlets([]);
     setPlacingOutlet(true);
+    setProjectStep("PLAN");
+    setActiveLegIndex(0);
+  }
+
+  if (projectStep === "SCAN_QUEUE" && source && activeLeg) {
+    return (
+      <main className="min-h-screen bg-warmwhite px-4 py-6" data-testid="route-assist-multi-outlet-scan-queue">
+        <div className="mx-auto w-full max-w-md">
+          <header className="mb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-electric">Price2Book</p>
+            <h1 className="mt-1 text-2xl font-bold text-navy">Scan your outlet routes</h1>
+            <p className="mt-2 text-sm leading-6 text-slate">We’ll scan each connection in order so every route keeps its own measurements and obstacles.</p>
+          </header>
+
+          <section className="rounded-2xl border border-cardline bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-electric">Next route</p>
+                <h2 className="mt-1 text-xl font-semibold text-navy">{activeLeg.fromEndpointId} → {activeLeg.toEndpointId}</h2>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate">Leg {activeLeg.ordinal} of {legs.length}</span>
+            </div>
+
+            <div className="mt-5">
+              <ProjectRoom source={source} outlets={outlets} placingOutlet={false} onTap={() => {}} />
+            </div>
+
+            <div className="mt-5 space-y-2" data-testid="route-assist-scan-leg-list">
+              {legs.map((leg, index) => (
+                <div key={leg.id} className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm ${index === activeLegIndex ? "bg-blue-50 text-navy" : "bg-slate-50 text-slate"}`}>
+                  <span><strong>{leg.fromEndpointId} → {leg.toEndpointId}</strong></span>
+                  <span className="text-xs">{index === activeLegIndex ? "Next" : index < activeLegIndex ? "Done" : "Waiting"}</span>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href="/dev-fixtures/route-assist-demo"
+              className="mt-5 block w-full rounded-xl bg-electric px-5 py-3.5 text-center text-sm font-semibold text-white shadow-sm"
+              data-testid="route-assist-start-leg-scan"
+            >
+              Start scan for {activeLeg.fromEndpointId} → {activeLeg.toEndpointId}
+            </a>
+
+            <button type="button" onClick={() => setProjectStep("PLAN")} className="mt-3 w-full text-xs font-semibold text-slate underline underline-offset-4">Back to outlet plan</button>
+          </section>
+
+          <p className="mt-4 text-center text-xs leading-5 text-slate-light">Demo note: the project queue is now connected. The next implementation step is preserving this project context through each live scan/review result instead of restarting the leg page.</p>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -135,7 +198,18 @@ export default function RouteAssistMultiOutletDemoPage() {
             <p className="mt-3 text-xs leading-5 text-slate-light">Each leg will use the normal Route Assist scan/review flow. Doorway geometry on A → B is not copied to later legs.</p>
           </div>}
 
-          <button type="button" onClick={resetProject} className="mt-5 w-full text-xs font-semibold text-slate underline underline-offset-4">Reset project</button>
+          {source && outlets.length > 0 && !placingOutlet && (
+            <button
+              type="button"
+              onClick={continueToScan}
+              className="mt-5 w-full rounded-xl bg-electric px-5 py-3.5 text-sm font-semibold text-white shadow-sm"
+              data-testid="route-assist-continue-to-scan"
+            >
+              Continue to scan {legs.length} {legs.length === 1 ? "route" : "routes"}
+            </button>
+          )}
+
+          <button type="button" onClick={resetProject} className="mt-4 w-full text-xs font-semibold text-slate underline underline-offset-4">Reset project</button>
         </section>
         <p className="mt-4 text-center text-xs leading-5 text-slate-light">Demo only: this page plans ordered Route Assist legs and does not calculate pricing, materials, or booking.</p>
       </div>
