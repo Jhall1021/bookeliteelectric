@@ -63,8 +63,8 @@ async function main() {
   const acceptedText = await page.locator("main").innerText();
   check("accepted graph still shows exact scan review total", acceptedText.includes("14.625 ft"), acceptedText.slice(-1200));
   check(
-    "current RouteAssistResult visibly exposes the tenth-foot aggregation gate",
-    acceptedText.includes("14.6 ft"),
+    "RouteAssistResult preserves the exact accepted physical measurement",
+    (acceptedText.match(/14\.625 ft/g) ?? []).length >= 2,
     acceptedText.slice(-1200),
   );
 
@@ -81,7 +81,7 @@ async function main() {
 
   if (mapped) {
     check("confirmed install method is surface", mapped.installMethod === "surface", mappedText);
-    check("current routed footage is 14.6 pending precision gate", mapped.routeLengthFt === 14.6, mappedText);
+    check("confirmed routed footage stays exact at 14.625", mapped.routeLengthFt === 14.625, mappedText);
     check("explicit physical turn becomes one flat fitting fact", mapped.flatCorners === 1, mappedText);
     check("inside fitting count is exact zero", mapped.insideCorners === 0, mappedText);
     check("outside fitting count is exact zero", mapped.outsideCorners === 0, mappedText);
