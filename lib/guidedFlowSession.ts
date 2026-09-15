@@ -20,7 +20,7 @@
  * guarded, and a reader can tell which one ran.
  */
 
-import type { PrismaClient, GuidedFlowSession, GuidedFlowSessionStatus } from "@prisma/client";
+import { Prisma, type PrismaClient, type GuidedFlowSession, type GuidedFlowSessionStatus } from "@prisma/client";
 
 export type FindOrCreateSessionInput = {
   contractorId: string;
@@ -29,28 +29,70 @@ export type FindOrCreateSessionInput = {
   serviceSlug: string;
 };
 
+function isUniqueViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+}
+
+/**
+ * The deterministic identity of "the ACTIVE session for this
+ * contractor+browser-session+service" — set on `activeSessionKey`
+ * (`prisma/schema.prisma`, `@unique`) only while a row is ACTIVE, and cleared
+ * back to `null` the moment it stops being ACTIVE (`completeSession`,
+ * `abandonSession` below). Exported so a caller proving the invariant holds —
+ * scripts/verify-concurrent-session-creation-browser-flow.ts — can compute
+ * the same key a race is expected to collide on, without duplicating the
+ * concatenation rule.
+ */
+export function buildActiveSessionKey(input: {
+  contractorId: string;
+  sessionId: string;
+  serviceId: string;
+}): string {
+  return `${input.contractorId}:${input.sessionId}:${input.serviceId}`;
+}
+
 /**
  * The active session for this browser+service, or a new one.
  *
- * "At most one ACTIVE session per contractor+session+service" is a
- * contract-phase invariant, same as Visit's "at most one OPEN visit per
- * contractor+session" (`prisma/schema.prisma`'s own comment on `Visit`) —
- * not a DB constraint Prisma can express as a partial unique. Enforced here
- * by finding before creating, inside the same call.
+ * "At most one ACTIVE session per contractor+session+service" is now a real
+ * database constraint, not just a contract-phase invariant enforced by
+ * finding before creating inside one call — that older approach (find, then
+ * create if nothing was found) has a race window between the two statements
+ * that two concurrent requests can both fall into, each finding nothing and
+ * each creating a row. It did: React Strict Mode's development-only double
+ * effect invocation reproduced it live twice in one rehearsal (see
+ * scripts/verify-back-navigation-config-browser-flow.ts's header), and
+ * nothing about the underlying race is specific to Strict Mode — two
+ * independent requests (a slow network retry, two tabs, a device-handoff
+ * join landing at nearly the same moment) can hit the identical window in
+ * production.
+ *
+ * `activeSessionKey` turns the invariant into a real partial-uniqueness
+ * constraint Postgres enforces: it holds `buildActiveSessionKey(...)` only
+ * while `status: "ACTIVE"`, and `null` otherwise, so completed/abandoned
+ * history never collides with a later session for the same triple (a plain
+ * `@@unique([contractorId, sessionId, serviceId])` would forbid that
+ * entirely, one column expresses "unique among ACTIVE rows" for free since
+ * Postgres never considers two NULLs equal).
+ *
+ * IDEMPOTENT BY CONSTRAINT, NOT BY CHECKING FIRST for the actual safety
+ * property — same idiom as `lib/depositRecording.ts`'s `recordCapture`. The
+ * `findUnique` below is purely a read-path optimization (resuming an
+ * existing session, by far the common case, skips a doomed insert attempt);
+ * the correctness comes from the `create` + unique-constraint + `P2002`
+ * catch, which is safe even if two calls reach this function at the exact
+ * same instant with no prior read at all. Whichever `create` the database
+ * commits first wins the row; the loser's `create` fails, and it fetches the
+ * winner by the same deterministic key — never retries its own create,
+ * never invents a second row.
  */
 export async function findOrCreateActiveSession(
   db: PrismaClient,
   input: FindOrCreateSessionInput
 ): Promise<GuidedFlowSession> {
-  const existing = await db.guidedFlowSession.findFirst({
-    where: {
-      contractorId: input.contractorId,
-      sessionId: input.sessionId,
-      serviceId: input.serviceId,
-      status: "ACTIVE",
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const activeSessionKey = buildActiveSessionKey(input);
+
+  const existing = await db.guidedFlowSession.findUnique({ where: { activeSessionKey } });
   if (existing) {
     // Touched, not modified — resuming a session is activity even before
     // the customer answers anything new.
@@ -59,15 +101,29 @@ export async function findOrCreateActiveSession(
       data: { lastActivityAt: new Date() },
     });
   }
-  return db.guidedFlowSession.create({
-    data: {
-      contractorId: input.contractorId,
-      sessionId: input.sessionId,
-      serviceId: input.serviceId,
-      serviceSlug: input.serviceSlug,
-      consumedAnswers: {},
-    },
-  });
+  try {
+    return await db.guidedFlowSession.create({
+      data: {
+        contractorId: input.contractorId,
+        sessionId: input.sessionId,
+        serviceId: input.serviceId,
+        serviceSlug: input.serviceSlug,
+        consumedAnswers: {},
+        activeSessionKey,
+      },
+    });
+  } catch (e) {
+    if (!isUniqueViolation(e)) throw e;
+    // Lost the race: another concurrent call committed its `create` for this
+    // exact key between our `findUnique` above and our own `create`. The
+    // constraint already decided who wins — fetch them rather than treating
+    // this as an error or attempting a second create.
+    const winner = await db.guidedFlowSession.findUniqueOrThrow({ where: { activeSessionKey } });
+    return db.guidedFlowSession.update({
+      where: { id: winner.id },
+      data: { lastActivityAt: new Date() },
+    });
+  }
 }
 
 export async function loadSession(db: PrismaClient, id: string): Promise<GuidedFlowSession | null> {
@@ -144,6 +200,11 @@ export async function completeSession(db: PrismaClient, input: CompleteSessionIn
       lineItemId: input.lineItemId ?? undefined,
       quoteId: input.quoteId ?? undefined,
       version: { increment: 1 },
+      // Frees the activeSessionKey slot immediately — a customer who starts
+      // this same service again (a second visit, a second line item) gets a
+      // fresh ACTIVE session for the same contractor+session+service rather
+      // than colliding with this now-COMPLETED history row.
+      activeSessionKey: null,
     },
   });
   if (result.count === 1) {
@@ -175,7 +236,7 @@ export function isEffectivelyAbandoned(session: Pick<GuidedFlowSession, "status"
 export async function abandonSession(db: PrismaClient, id: string): Promise<void> {
   await db.guidedFlowSession.updateMany({
     where: { id, status: "ACTIVE" },
-    data: { status: "ABANDONED", version: { increment: 1 } },
+    data: { status: "ABANDONED", version: { increment: 1 }, activeSessionKey: null },
   });
 }
 

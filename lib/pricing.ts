@@ -478,6 +478,27 @@ export type BranchContribution = {
   addScheduleMinutes?: number | null;
   priceModifierCents?: number;
   approvedComponentPriceCents?: number | null;
+  /**
+   * Set only when this answer sells another catalog item
+   * (AnswerOption.referencedServiceId) — e.g. "add Elite Tilt Mount" inside
+   * TV Installation.
+   *
+   *   a number   the referenced service's own live price (basePrice or
+   *              whileWeThereBasePrice, matching this visit's isPrimary the
+   *              same way the anchor price does) — ADDED on top of whatever
+   *              this answer's own components resolve to, never in place of
+   *              them, so a reference and a component recipe on the same
+   *              answer both count.
+   *   null       the reference could not be resolved — deleted, cross-tenant,
+   *              or never priced. Forces review REGARDLESS of what the
+   *              components below resolve to: a resolved component recipe
+   *              must not mask an unresolved reference, any more than the
+   *              reverse.
+   *   undefined  this answer isn't a reference at all. Every other answer in
+   *              the catalog. approvedComponentPriceCents/components behave
+   *              exactly as they did before this field existed.
+   */
+  referencedServicePriceCents?: number | null;
   components?: {
     quantity: number;
     /**
@@ -532,6 +553,50 @@ export type BranchContribution = {
     };
   }[];
 };
+
+/**
+ * Which of a referenced service's two prices applies — the WWT display/charge
+ * fix.
+ *
+ * An AnswerOption that sells another catalog item (referencedServiceId)
+ * carries that service's OWN primary and add-on prices separately (see
+ * AnswerOptionDTO in lib/flow-types.ts and how lib/routeResolver.ts resolves
+ * the identical pair server-side). Which one is correct for THIS branch
+ * depends on whether the current visit is an add-on — exactly the same fact
+ * that decides which of the SERVICE's own two prices is the anchor
+ * (`isAddOn ? whileWeThereBasePrice : basePrice`, in GuidedFlowEngine).
+ *
+ * This is the ONE place both client call sites resolve that pair into the
+ * single `referencedServicePriceCents` value `applyBranch`/`answerPriceDelta`
+ * actually consume — never read `referencedServicePrimaryCents`/
+ * `referencedServiceAddOnCents` directly and hand one of them to either
+ * function, which is exactly the bug this replaces: passing the DTO's
+ * primary-only field straight into `applyBranch` regardless of `isAddOn`
+ * showed a customer on an add-on visit a mount price the server would
+ * immediately recompute differently.
+ *
+ * `undefined` in means the option isn't a reference at all (every ordinary
+ * answer) and stays `undefined` out, leaving `approvedComponentPriceCents`/
+ * `components` to behave exactly as before this mechanism existed. A `null`
+ * for the SELECTED anchor — the reference didn't resolve, or resolved but
+ * has no price recorded for that specific anchor (e.g. no
+ * `whileWeThereBasePrice` set) — stays `null`, forcing review; it is never
+ * backfilled from the OTHER anchor's value, because a customer being quoted
+ * a standalone price while booking an add-on (or the reverse) is exactly
+ * the class of mismatch this whole mechanism exists to prevent.
+ */
+export function resolveReferencedServicePriceCents(
+  option: {
+    referencedServicePrimaryCents?: number | null;
+    referencedServiceAddOnCents?: number | null;
+  },
+  isAddOn: boolean
+): number | null | undefined {
+  const primary = option.referencedServicePrimaryCents;
+  const addOn = option.referencedServiceAddOnCents;
+  if (primary === undefined && addOn === undefined) return undefined;
+  return isAddOn ? (addOn ?? null) : (primary ?? null);
+}
 
 /** Fold one answer into the running configuration. Pure — returns a new object. */
 export function applyBranch(
@@ -658,7 +723,7 @@ export function applyBranch(
   }
 
   const answerOverride = branch.approvedComponentPriceCents;
-  const approved =
+  const componentsApproved =
     answerOverride !== null && answerOverride !== undefined
       ? answerOverride
       : selected.length > 0
@@ -666,6 +731,18 @@ export function applyBranch(
           ? null
           : componentPriceCents
         : 0;
+
+  // A referenced service's price composes with the components above rather
+  // than replacing them — an answer could in principle both attach a
+  // component recipe AND sell a referenced item, and neither may mask the
+  // other being unresolved.
+  const refPrice = branch.referencedServicePriceCents;
+  const approved =
+    refPrice === undefined
+      ? componentsApproved
+      : refPrice === null || componentsApproved === null
+        ? null
+        : componentsApproved + refPrice;
 
   assertAccessEquivalence(accessClass, accessBySlot);
 
@@ -809,6 +886,14 @@ export function answerPriceDelta(
     return { cents: null, needsReview: true };
   }
 
+  // An unresolved reference (AnswerOption.referencedServiceId with no
+  // resolvable price) means this preview can't show a number either — same
+  // rule as applyBranch, checked first so it can't be masked by components
+  // that DID resolve.
+  if (branch.referencedServicePriceCents === null) {
+    return { cents: null, needsReview: true };
+  }
+
   const override = branch.approvedComponentPriceCents;
   let componentCents = 0;
   if (override !== null && override !== undefined) {
@@ -820,6 +905,7 @@ export function answerPriceDelta(
       componentCents += p * Math.max(sel.quantity, 1);
     }
   }
+  componentCents += branch.referencedServicePriceCents ?? 0;
 
   // When the selected components are per-unit — additional recessed lights,
   // say — surface the unit rate too. The customer shouldn't have to divide to

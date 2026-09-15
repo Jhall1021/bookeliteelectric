@@ -47,6 +47,32 @@ export type AnswerOptionDTO = {
   // Null = no approved customer price for this branch's components, so the
   // route goes to review. Zero is a valid approved no-charge value.
   approvedComponentPriceCents: number | null;
+  /**
+   * Set only when this answer sells another catalog item
+   * (AnswerOption.referencedServiceId) — see lib/routeResolver.ts, which
+   * resolves the identical pair of fields the identical way when it decides
+   * what the customer is actually CHARGED.
+   *
+   * TWO fields, not one, because which one applies depends on whether this
+   * visit is an add-on — a fact the DTO layer doesn't know yet (isAddOn is
+   * decided client-side, from a separate /api/visit read, same as the
+   * anchor price itself) but the CALLER does by the time it builds a
+   * BranchContribution. See resolveReferencedServicePriceCents in
+   * lib/pricing.ts, the one place both client call sites (GuidedFlowEngine's
+   * evaluate(), QuestionStep's live preview) pick the matching one before
+   * calling applyBranch/answerPriceDelta — never pass this DTO's raw fields
+   * to either directly.
+   *
+   * Each field: a number is that service's own live price for that anchor.
+   * null means unresolved for that anchor specifically — either the
+   * reference itself couldn't be resolved (missing, or cross-tenant), or it
+   * resolved but this service has no price recorded for that anchor (e.g. a
+   * referenced service with no whileWeThereBasePrice set). Either way, must
+   * review, never price at zero. Both fields absent (undefined) for every
+   * ordinary, non-referencing answer.
+   */
+  referencedServicePrimaryCents?: number | null;
+  referencedServiceAddOnCents?: number | null;
   /** Set when this answer answers a route-access question. */
   accessClassification: "ACCESSIBLE" | "FINISHED" | "UNKNOWN" | null;
   /** WHICH access slot this answer establishes — G1. */

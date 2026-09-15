@@ -423,6 +423,7 @@ export default function HeroWalkthrough() {
                 question={currentQuestion}
                 answers={answersSoFar}
                 accessBySlot={accessBySlot}
+                isAddOn={false}
                 onAnswer={() => advance()}
               />
             )}

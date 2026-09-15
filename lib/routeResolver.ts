@@ -396,12 +396,46 @@ export function resolveRoute(
       };
     }
 
+    // An answer that sells another catalog item (AnswerOption.referencedServiceId
+    // — e.g. "add Elite Tilt Mount" inside TV Installation) prices from that
+    // service's own live price, not a frozen number on the answer itself —
+    // the storefront DTO (app/api/services/[slug]/route.ts) resolves the
+    // same field the same way, so what the customer SEES and what they're
+    // actually CHARGED can no longer disagree.
+    //
+    // `referencedServicePriceCents` is its own field on the branch — see
+    // BranchContribution in lib/pricing.ts — rather than folded into
+    // approvedComponentPriceCents: that field alone, with no components
+    // declared, resolves an explicit null to a plain 0 (a legitimate
+    // no-charge answer), which is exactly how this stayed free. Passing it
+    // separately lets applyBranch compose it correctly: add it when
+    // resolved, and force review — never mask, and never be masked by — an
+    // unapproved component on the same answer, in either direction.
+    //
+    // undefined when this option isn't a reference at all (every other
+    // answer in the catalog) so approvedComponentPriceCents/components below
+    // behave exactly as they always have.
+    const referencedServicePriceCents = !option.referencedServiceId
+      ? undefined
+      : option.referencedService && option.referencedService.contractorId === service.contractorId
+        ? // Same rule the anchor price itself uses: WWT when this is an
+          // add-on visit, standalone otherwise. Today's two referenced mounts
+          // happen to publish identical figures either way, but a future one
+          // need not.
+          (isPrimary ? option.referencedService.basePrice : option.referencedService.whileWeThereBasePrice)
+        : // Missing, or — should the write-time guard in the admin tree
+          // editor and template provisioning ever be bypassed — pointed at
+          // another tenant's row. Treated identically to "no usable price":
+          // never trusted, never silently free.
+          null;
+
     // applyBranch returns the new configuration directly — it isn't wrapped.
     config = applyBranch(
       config,
       {
         priceModifierCents: option.priceModifierCents,
         approvedComponentPriceCents: option.approvedComponentPriceCents,
+        referencedServicePriceCents,
         accessClassification: option.accessClassification,
         // G1. Absent on every row authored before scoped access, which the
         // column default resolves to PRIMARY — their existing meaning.

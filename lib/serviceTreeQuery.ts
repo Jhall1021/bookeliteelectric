@@ -46,6 +46,21 @@ export const RESOLUTION_TREE_INCLUDE = {
       options: {
         orderBy: { order: "asc" },
         include: {
+          // The referenced service's own live price, when this answer sells
+          // another catalog item rather than declaring its own modifier —
+          // see AnswerOption.referencedServiceId. Safe to traverse from a
+          // tenant-scoped root: a reference can only be written through the
+          // admin tree editor's guarded client, which resolves every linked
+          // id through that same contractor before it's ever stored (see
+          // app/api/admin/services/[serviceId]/tree/route.ts), so this
+          // relation can never point outside the tenant it's read from.
+          //
+          // basePrice/whileWeThereBasePrice — never economics beyond what a
+          // customer is charged. contractorId travels too, NOT to display,
+          // but so a caller can prove this row is the same tenant's rather
+          // than trusting the write-time guard alone (defense in depth: see
+          // lib/routeResolver.ts's tenant check on this field).
+          referencedService: { select: { basePrice: true, whileWeThereBasePrice: true, contractorId: true } },
           // Canonical roles only — platform data under a tenant-owned
           // root, which is safe. The contractor's figures arrive
           // separately, from their own tenant-rooted query.
