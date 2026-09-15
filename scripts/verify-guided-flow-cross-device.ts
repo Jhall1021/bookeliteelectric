@@ -62,16 +62,28 @@ class Device {
 }
 
 /**
- * A structurally valid, customer-confirmed RouteAssistResult. This proof is
- * about shared task persistence rather than geometry, but completion now
- * correctly validates the real domain contract before a result can win.
+ * A structurally AND semantically valid, customer-confirmed RouteAssistResult.
+ * The completion endpoint now rebuilds the deterministic result from the graph,
+ * so this fixture uses a real one-leg A -> B surface route instead of the old
+ * empty graph that only happened to satisfy the JSON shape.
  */
 function confirmedRouteResult(feet: number) {
   return {
     mode: "SURFACE",
     destinationType: "RECEPTACLE",
-    points: [],
-    segments: [],
+    points: [
+      { id: "A", x: 0.1, y: 0.5, imageId: "proof", kind: "SOURCE" },
+      { id: "B", x: 0.9, y: 0.5, imageId: "proof", kind: "DESTINATION" },
+    ],
+    segments: [
+      {
+        id: "S1",
+        fromPointId: "A",
+        toPointId: "B",
+        surface: "WALL",
+        estimatedLengthFt: feet,
+      },
+    ],
     customerConfirmedRoute: true,
     estimatedTotalRouteLengthFt: feet,
     sameWall: null,
@@ -88,7 +100,7 @@ function confirmedRouteResult(feet: number) {
     suggestedAccessOpeningsMin: null,
     suggestedAccessOpeningsMax: null,
     needsContractorReview: false,
-    captureArtifacts: { imageIds: [], overlayImageIds: [] },
+    captureArtifacts: { imageIds: ["proof"], overlayImageIds: [] },
     customerNotes: null,
     drywallAccessAllowed: null,
   };
