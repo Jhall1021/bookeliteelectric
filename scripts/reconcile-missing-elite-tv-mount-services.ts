@@ -31,13 +31,23 @@
  *   npx tsx scripts/reconcile-missing-elite-tv-mount-services.ts
  *   npx tsx scripts/reconcile-missing-elite-tv-mount-services.ts --apply
  *
- * NEVER run --apply against DATABASE_URL pointed at production without
- * explicit approval for THIS specific write. This script has no production
- * guard of its own — the human running it is the guard.
+ * GUARDED. --apply refuses unless DATABASE_URL is verified, by marker, to be
+ * the authoritative Price2Book production database ITSELF — not a branch of
+ * it, not something merely carrying its lineage. This is this Elite
+ * reconciliation's own gate, not a general-purpose production-vs-rehearsal
+ * switch: unlike scripts/publish-plumbing-template.ts (which defaults to
+ * refusing production and requires a launch flag to proceed, because its
+ * normal use is rehearsal), this script's only sanctioned target IS
+ * production, so it fails closed the other way — requiring production,
+ * refusing anything else. Reuses probe() from ./_lineage — the same marker
+ * authority verify-database-identity.ts and publish-plumbing-template.ts's
+ * own isProductionItself() are built on — rather than re-deriving identity
+ * logic here. Dry-run mode performs no check and stays read-only regardless.
  */
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { templateVersionSource } from "../lib/templateProvisioning";
+import { probe } from "./_lineage";
 import { loadEnv } from "./_env";
 
 loadEnv();
@@ -45,13 +55,39 @@ const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
 
 const CONTRACTOR_SLUG = "elite-electric";
+const EXPECTED_MARKER_KEY = "price2book-production";
 const TARGETS: { key: string; basePriceCents: number }[] = [
   { key: "articulating-tv-mount", basePriceCents: 14500 }, // $145.00
   { key: "tilt-tv-mount", basePriceCents: 9500 }, // $95.00
 ];
 
+/**
+ * Is DATABASE_URL the production database itself — not a branch of it? Same
+ * distinction scripts/_lineage.ts draws (a Neon branch inherits the marker
+ * verbatim, so the marker key alone proves nothing; the marker's OWN
+ * endpoint must match the one actually connected to).
+ */
+async function verifyProductionIdentityOrExit() {
+  const url = process.env.DATABASE_URL;
+  if (!url) { console.error("\n  DATABASE_URL is not set — refusing to apply.\n"); process.exit(1); }
+  const p = await probe(url!);
+  const isProduction = !!p.markerKey && p.markerKey === EXPECTED_MARKER_KEY && p.markerEndpoint === p.endpoint;
+  console.log(`  identity: endpoint=${p.endpoint} marker=${p.markerKey ?? "(none)"} stampedFor=${p.markerEndpoint ?? "(none)"}`);
+  if (!isProduction) {
+    console.error(
+      `\n  REFUSING --apply: DATABASE_URL (${p.endpoint}) is not verified as "${EXPECTED_MARKER_KEY}" itself.\n` +
+      `  ${!p.markerKey ? "No DatabaseIdentity marker present." : p.markerEndpoint !== p.endpoint
+        ? `Marker "${p.markerKey}" is stamped for ${p.markerEndpoint} — this looks like a branch/copy, not the original.`
+        : `Marker key is "${p.markerKey}", expected "${EXPECTED_MARKER_KEY}".`}\n`
+    );
+    process.exit(1);
+  }
+  console.log(`  ok: this is ${EXPECTED_MARKER_KEY} itself.\n`);
+}
+
 async function main() {
   console.log(`\nRECONCILE MISSING ELITE SERVICES   ${APPLY ? "APPLY" : "DRY RUN (--apply to write)"}\n`);
+  if (APPLY) await verifyProductionIdentityOrExit();
 
   const contractor = await prisma.contractor.findUniqueOrThrow({ where: { slug: CONTRACTOR_SLUG }, select: { id: true } });
 
