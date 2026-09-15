@@ -21,6 +21,12 @@ check(
     source.includes("selected,"),
 );
 check(
+  "review selection is bound to the exact values the customer reviewed",
+  source.includes("prepared.review.fingerprint") &&
+    /applyRouteAssistScanReviewSelectionV1\([\s\S]{0,260}selected,[\s\S]{0,120}prepared\.review\.fingerprint/.test(source),
+  "an old checkbox selection must not apply values from a later re-scan that reused the same route IDs",
+);
+check(
   "review checkboxes begin from an empty selection",
   source.includes('useState<string[]>([])') && source.includes("setSelected([])"),
 );
