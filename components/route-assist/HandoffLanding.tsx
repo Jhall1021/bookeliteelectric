@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import RouteAssistCapture from "./RouteAssistCapture";
-import { useSiteFetch } from "@/components/site/SiteContext";
+import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 import {
   completeDeviceHandoff,
   completeVisualAssistTask,
@@ -27,12 +28,14 @@ type State =
   | { kind: "resolving" }
   | { kind: "invalid" }
   | { kind: "ready"; handoff: ResolvedHandoff }
-  | { kind: "done" };
+  | { kind: "done"; continuationPath: string };
 
 export default function HandoffLanding({ token, uploadPhoto }: Props) {
   const siteFetch = useSiteFetch();
+  const base = useStorefrontBase();
+  const router = useRouter();
   const [state, setState] = useState<State>({ kind: "resolving" });
-  const [continueChoice, setContinueChoice] = useState<"phone" | "desktop" | null>(null);
+  const [continueChoice, setContinueChoice] = useState<"desktop" | null>(null);
   const [completionError, setCompletionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,7 +65,7 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
       }
 
       await completeDeviceHandoff(siteFetch, handoff.handoffId);
-      setState({ kind: "done" });
+      setState({ kind: "done", continuationPath: handoff.continuationPath });
     } catch {
       // Leave the capture visible so the homeowner can retry confirmation. Do
       // not tell the desktop TASK_COMPLETED when canonical task persistence is
@@ -137,14 +140,17 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
     );
   }
 
-  // done
+  // done — the resolve endpoint already joined this phone to the desktop's
+  // anonymous session. Navigating into the ordinary service page therefore
+  // resumes the SAME Guided Flow via findOrCreateActiveSession(); there is no
+  // second mobile flow and no transfer payload to reconcile.
   return (
     <div className="mx-auto mt-16 flex max-w-md flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
       <p className="text-sm font-medium text-emerald-700">Route added ✓</p>
       <p className="text-sm text-slate-600">How would you like to continue?</p>
       <button
         type="button"
-        onClick={() => setContinueChoice("phone")}
+        onClick={() => router.push(`${base}/${state.continuationPath}`)}
         className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white"
       >
         Continue on this phone
@@ -159,11 +165,6 @@ export default function HandoffLanding({ token, uploadPhoto }: Props) {
       {continueChoice === "desktop" && (
         <p className="text-xs text-slate-500">
           You can close this tab — your computer will update automatically.
-        </p>
-      )}
-      {continueChoice === "phone" && (
-        <p className="text-xs text-slate-500">
-          Continuing the same quote on this phone isn't wired up yet — your route is already saved either way.
         </p>
       )}
     </div>
