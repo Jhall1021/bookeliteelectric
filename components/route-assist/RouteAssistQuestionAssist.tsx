@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import RouteAssistWithHandoff from "./RouteAssistWithHandoff";
 import { getRouteAssistInvocation } from "@/lib/visual-assist/route-assist/guidedFlowInvocation";
-import { listVisualAssistTasks } from "@/lib/routeAssistHandoffClient";
+import {
+  getGuidedFlowAnswerSnapshot,
+  listVisualAssistTasks,
+} from "@/lib/routeAssistHandoffClient";
 import { useSiteFetch } from "@/components/site/SiteContext";
 import { uploadPhoto } from "@/lib/upload";
 import { selectNumericOption } from "@/lib/numericRouteRanges";
@@ -163,6 +166,14 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
    * handleAnswer path. That creates the ordinary history snapshot before each
    * auto-filled question. The marker above then makes Back stop on that
    * question instead of immediately auto-advancing it again.
+   *
+   * A persisted answer always outranks an older capture when they disagree.
+   * This matters after a homeowner uses Back to manually change an auto-filled
+   * fact and later reloads/continues on another device: the completed scan still
+   * exists, but it may not overwrite the newer manual choice. When the stored
+   * answer equals the scan value, reuse is idempotent and can safely bridge the
+   * generic NUMBER-resume gap until GuidedFlowEngine adopts the shared replay
+   * helper directly.
    */
   useEffect(() => {
     if (!invocation || !guidedFlowSessionId || open) return;
@@ -172,8 +183,11 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
     autoAttemptedRef.current = marker;
 
     let cancelled = false;
-    listVisualAssistTasks(siteFetch, guidedFlowSessionId)
-      .then((tasks) => {
+    Promise.all([
+      listVisualAssistTasks(siteFetch, guidedFlowSessionId),
+      getGuidedFlowAnswerSnapshot(siteFetch, guidedFlowSessionId),
+    ])
+      .then(([tasks, persistedAnswers]) => {
         if (cancelled) return;
         const completed = tasks.find(
           (task) =>
@@ -183,6 +197,22 @@ export default function RouteAssistQuestionAssist({ serviceSlug, question, guide
             task.result
         );
         if (!completed?.result) return;
+
+        const scanValue = invocation.resolveAnswerValue(completed.result);
+        if (scanValue === null) {
+          setUnusable(true);
+          return;
+        }
+
+        const persisted = persistedAnswers[question.key];
+        if (persisted !== undefined && persisted !== scanValue) {
+          // Newer/more specific customer intent wins. Mark this question as
+          // consumed for the old capture so a remount in this tab does not keep
+          // attempting to replace the manual answer.
+          markAutoUsed(marker);
+          return;
+        }
+
         resolveForCurrentQuestion(completed.result, true);
       })
       .catch(() => {
