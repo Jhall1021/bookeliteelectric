@@ -331,45 +331,74 @@ async function main() {
 
   if (!apply) { console.log(`\n  Dry run — nothing written.\n`); await prisma.$disconnect(); return; }
 
-  const tv = await prisma.templateVersion.upsert({
-    where: { trade_version: { trade: TRADE, version } },
-    // A DELTA: this extracts ONE service into a version, which is changes
-    // onto an earlier catalog rather than a catalog. Installing it as one
-    // would give a contractor a single-service business.
-    update: {}, create: { trade: TRADE, version, kind: "DELTA", notes: `extracted from ${slug}` },
-  });
-  await prisma.templateService.deleteMany({ where: { templateVersionId: tv.id, key: svc.slug } });
-  const ts = await prisma.templateService.create({
-    data: {
-      templateVersionId: tv.id, key: svc.slug, slug: svc.slug, name: svc.name,
-      shortDescription: svc.shortDescription, icon: svc.icon,
-      canonicalCategoryId: svc.contractorCategory!.canonicalCategoryId,
-      bookingType: svc.bookingType, photoState: svc.photoState,
-      isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
-      materials: { create: materials },
-    },
-  });
-  for (const q of questions) {
-    await prisma.templateQuestion.create({
+  /**
+   * ATOMIC PUBLICATION.
+   *
+   * Every write below used to run as its own round trip: upsert the version,
+   * delete the old copy of this service, create the new one, then one
+   * `templateQuestion.create` per question — sixteen or more separate
+   * statements for a real service. `templateVersionSource` reads whatever
+   * rows exist with no notion of "still being written", so a crash, a
+   * killed process or a lost connection between any two of those statements
+   * left a TemplateService with some questions and not others — a tree with
+   * options that route to a `nextQuestionKey` that was never created — fully
+   * visible to `installCatalog` and to any fresh contractor provisioning
+   * from this version in that window. `$transaction` makes the whole
+   * publication one all-or-nothing unit: either every question and option
+   * this service needs exists, or the deleteMany above the old copy never
+   * committed either and the previous, complete copy of this service is
+   * still what a contractor receives.
+   */
+  await prisma.$transaction(async (tx) => {
+    const tv = await tx.templateVersion.upsert({
+      where: { trade_version: { trade: TRADE, version } },
+      // A DELTA: this extracts ONE service into a version, which is changes
+      // onto an earlier catalog rather than a catalog. Installing it as one
+      // would give a contractor a single-service business.
+      update: {}, create: { trade: TRADE, version, kind: "DELTA", notes: `extracted from ${slug}` },
+    });
+    await tx.templateService.deleteMany({ where: { templateVersionId: tv.id, key: svc.slug } });
+    const ts = await tx.templateService.create({
       data: {
-        templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
-        inputType: q.inputType, numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin, numberMax: q.numberMax,
-        order: q.order,
-        options: { create: q.options.map((o) => ({
-          value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
-          numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
-          requiresCapabilityKey: o.requiresCapabilityKey,
-          nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
-          referencedServiceKey: o.referencedServiceKey,
-          requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
-          illustrationUrls: o.illustrationUrls,
-          components: { create: o.components },
-          disclaimers: { create: o.disclaimers },
-          photoGroups: { create: o.photoGroups },
-        })) },
+        templateVersionId: tv.id, key: svc.slug, slug: svc.slug, name: svc.name,
+        shortDescription: svc.shortDescription, icon: svc.icon,
+        canonicalCategoryId: svc.contractorCategory!.canonicalCategoryId,
+        bookingType: svc.bookingType, photoState: svc.photoState,
+        isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
+        // Which pricing engine a service resolves through — LEGACY_PUBLISHED
+        // vs. DERIVED_RESOLVED_SCOPE — is as structural a fact as bookingType,
+        // and was silently dropped here: every extraction through this tool
+        // wrote the schema default regardless of what the source actually
+        // was. A service whose source has moved to DERIVED_RESOLVED_SCOPE
+        // re-extracting as LEGACY_PUBLISHED would silently regress every
+        // future install of it — the exact defect §0.9 already found and
+        // fixed in extract-template-catalog.ts, present here too until now.
+        pricingMethod: svc.pricingMethod,
+        materials: { create: materials },
       },
     });
-  }
+    for (const q of questions) {
+      await tx.templateQuestion.create({
+        data: {
+          templateServiceId: ts.id, key: q.key, prompt: q.prompt, helpText: q.helpText,
+          inputType: q.inputType, numberAllowsDecimal: q.numberAllowsDecimal, numberMin: q.numberMin, numberMax: q.numberMax,
+          order: q.order,
+          options: { create: q.options.map((o) => ({
+            value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
+            numberAtLeastExclusive: o.numberAtLeastExclusive, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+            requiresCapabilityKey: o.requiresCapabilityKey,
+            nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
+            referencedServiceKey: o.referencedServiceKey,
+            requiredPhotoLabels: o.requiredPhotoLabels, photosBlockBooking: o.photosBlockBooking,
+            illustrationUrls: o.illustrationUrls,
+            components: { create: o.components },
+            disclaimers: { create: o.disclaimers },
+            photoGroups: { create: o.photoGroups },
+          })) },
+        },
+      });
+    }
+  });
   console.log(`\n  Extracted into ${TRADE} v${version}: ${questions.length} questions, ` +
               `${questions.flatMap((q) => q.options).length} options, ${materials.length} materials.\n`);
   await prisma.$disconnect();

@@ -622,7 +622,116 @@ chased further in dev mode; it is noted here as an observation for a future
 pass, not fixed, since it is unrelated to this round's two corrections and
 was never in scope. `npx tsc --noEmit` is clean project-wide throughout.
 
+### 0.23 (seventh pass) Four real implementation deliverables — atomic publication, its own rollback rehearsal, populated-session migration, and bounded existing-contractor adoption
 
+§0.22 corrected the release-mechanics plan's facts. It did not implement or
+rehearse the rollout mechanics themselves — three gaps were named without
+being closed: the backfill's "no duplicates" proof used an empty table, the
+proposed extraction tool's own atomicity and `pricingMethod` handling were
+never checked, and "migrate Elite's live tree first" was accepted as step 1
+without checking whether a bounded, reviewable alternative already existed.
+This pass closes all three with real code changes and real local rehearsals
+against populated data, not documentation alone.
+
+**1. Atomic publication — `scripts/extract-template-service.ts` fixed.**
+Direct inspection found two real defects in the tool §10.2 now designates
+for real adoption: `pricingMethod` was silently dropped (the identical
+defect §0.9 already found and fixed in `extract-template-catalog.ts`,
+never applied to this sibling), and its five-plus writes
+(`templateVersion.upsert`, `templateService.deleteMany`,
+`templateService.create`, one `templateQuestion.create` per question) ran
+as separate round trips with no transaction — a crash between any two of
+them left a partial `TemplateService` fully visible to
+`templateVersionSource`. Both fixed: the entire write path now runs inside
+one `prisma.$transaction`, and `pricingMethod` is read from the source and
+carried through.
+
+**2. Failure/rollback rehearsal — proven, not assumed.** A fault-injected
+copy of the fixed script (thrown after 3 of 16 questions, never committed —
+rehearsal-only) was run with `--apply` against a scratch version number on
+the local disposable database. Result, confirmed by direct query
+afterward: zero `TemplateVersion`, zero `TemplateService`, zero
+`TemplateQuestion` rows exist at that version — the transaction rolled
+back completely, including the version-upsert that ran first. The real
+(uninjected, committed) script was then run against the same scratch
+version and completed normally. A real before/after flip of the source
+service's `pricingMethod` (`LEGACY_PUBLISHED` -> `DERIVED_RESOLVED_SCOPE`
+-> extract -> confirm -> revert) proved the fixed tool carries the true
+value, not the schema default. All rehearsal rows were deleted afterward;
+`TemplateVersion` count confirmed back to exactly the original single v1
+SNAPSHOT.
+
+**3. Populated-session migration rehearsal — a real gap found and fixed in
+`prisma/migrate-guided-flow-session-active-key.ts`.** Four scenarios were
+populated directly (Elite's real contractor/service ids, scratch
+`sessionId`s prefixed for identification and cleanup): a duplicate ACTIVE
+pair with genuinely different `consumedAnswers`; a duplicate pair where the
+older row still carries a live `AVAILABLE`, unexpired `DeviceHandoff`; a
+duplicate pair where the older row still carries a `PENDING`
+`GuidedFlowVisualAssistTask`; and one ordinary non-duplicate session. Run
+against the original script, the two live-dependent losers would have been
+silently abandoned exactly like any other duplicate, and the answer
+divergence on the first pair went entirely unreported. Fixed: the script
+now queries every loser's `DeviceHandoff`/`GuidedFlowVisualAssistTask`
+rows up front, leaves any loser with a live handoff or pending task
+untouched and ACTIVE (reported by id and the specific dependent record),
+and logs both payloads whenever an abandoned loser's `consumedAnswers`
+differs from the survivor's — discarded, never silently, though nothing
+merges them, since no merge semantics exist anywhere in this codebase for
+two independently progressed answer sets. Rehearsed twice consecutively
+against the populated data: run one resolved the safe duplicate (reporting
+the divergence) and left the two unsafe ones ACTIVE by name; run two
+(idempotency) reported the identical two unsafe ones again, unchanged, and
+did nothing to the already-resolved one. All seven rehearsal session rows
+(and their cascaded handoff/task children) were deleted afterward; the
+database's real, pre-existing single ACTIVE session was confirmed
+untouched throughout.
+
+**4. Bounded existing-contractor adoption — a real gap found, and a real
+path proven, not invented.** §10.2's prior step 1 treated hand-editing
+Elite's live `Question`/`AnswerOption` rows as how canonical content gets
+prepared — bypassing `scripts/template-update.ts`, the one tool this
+codebase already has for a contractor to adopt a template change onto an
+already-installed service, bounded to one change at a time and refusing to
+overwrite a contractor's own customization. Running it against Elite
+unmodified confirmed why the prior draft never used it: it fails
+immediately with Prisma's own `P2025`, "No Service found," because
+`Service.templateKey` and `templateVersionId` are both `null` on Elite's
+live `new-120v-outlet` — a tenant that predates the template system and IS
+v1's own source, never something provisioned FROM a template. The fix
+rehearsed is a genuine, honest one-time backfill: `templateKey:
+"new-120v-outlet"`, `templateVersionId` set to v1's own `TemplateVersion.id`
+— true, since v1 literally is an extraction of this same tree. After that
+backfill, `template-update.ts --status` worked immediately: it correctly
+reported a genuinely new (rehearsal-only) question as adoptable and a
+wording change on a question Elite's live tree had been independently
+edited to differ on as a **CONFLICT** — "you have already changed this;
+yours is kept." `--adopt` on the adoptable change wrote it to Elite's live
+tree, structure only, and correctly reset the service to unresolved
+(`materialCostResolved: false`, `publishedPriceApprovedAt: null`,
+`basePrice: null`) exactly as the tool's own documented safety net
+describes; `--adopt` on the conflicting change correctly refused and left
+Elite's customization exactly as it was. Every rehearsal write — the
+backfilled provenance, the scratch template version, the adopted question,
+the wording-conflict test — was reverted afterward, confirmed by direct
+query: Elite's `new-120v-outlet` back to `templateKey`/`templateVersionId`
+both `null`, its original `basePrice` and resolved/approved state restored,
+its `purpose` question wording back to the real original, and exactly one
+`TemplateVersion` remaining in the database.
+
+**Verification.** `npx tsc --noEmit` clean project-wide after both code
+changes. The local disposable database was confirmed back to its exact
+pre-pass baseline after each of the four rehearsals independently (one
+`TemplateVersion`, three contractors, the same session count and the same
+single real ACTIVE session throughout) — nothing from this pass's rehearsal
+work persists in the database; only the two source-code fixes
+(`scripts/extract-template-service.ts`,
+`prisma/migrate-guided-flow-session-active-key.ts`) and this report are
+committed. **Also corrected in this pass**: a self-inflicted defect in §0.22
+itself — an earlier edit to this report had deleted the "## 1." section
+header immediately following it; restored here.
+
+## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple
 two-way merge:
@@ -1236,7 +1345,40 @@ see §0.22 for the executed proof.
    `P2022` ("column ... does not exist"); running it again after `db push`
    succeeds cleanly. The prior draft of this plan had these two steps
    reversed.
-2. **This exact script cannot be pointed at Neon, branch or production —
+2. **The backfill's own duplicate-handling was rehearsed with populated,
+   not synthetic-empty, data — and fixed (§0.23).** "No duplicates" was
+   never the interesting case: every pre-existing ACTIVE row, duplicate or
+   not, needs `activeSessionKey` written, and a duplicate group needs a
+   real decision about which row survives. The version of this script
+   rehearsed in §0.22 only ever ran against an empty table, which proved
+   the column-ordering claim but nothing about what happens with real
+   session data. Populated locally with four scenarios — a duplicate pair
+   with genuinely different `consumedAnswers`, a duplicate pair where the
+   loser still has a live (`AVAILABLE`, unexpired, or `CONNECTED`)
+   `DeviceHandoff` pointing at it, a duplicate pair where the loser still
+   has a `PENDING` `GuidedFlowVisualAssistTask`, and one ordinary
+   non-duplicate session — the ORIGINAL script blindly abandoned every
+   loser, including the two with a live handoff or task still pointing at
+   them, and reported nothing about the discarded answers. Both are real
+   correctness gaps, not hypothetical: an abandoned session with a live
+   `AVAILABLE`/`CONNECTED` handoff breaks whatever second device is
+   mid-join on it, silently, and a discarded `consumedAnswers` payload
+   different from the survivor's is real customer progress with no record
+   it ever existed. **Fixed**: a loser with a live handoff or a pending
+   visual-assist task is now left ACTIVE rather than abandoned, reported by
+   id and reason, for a human to resolve — the script has no product
+   answer for "which of two genuinely live sessions should win" and does
+   not invent one. Every abandoned loser whose answers differ from the
+   survivor's is now logged with both payloads shown, never silently
+   discarded without a trace, though nothing merges them — no merge
+   semantics exist anywhere in this codebase for two independently
+   progressed answer sets. Rehearsed twice consecutively: the first run
+   resolved the safe duplicate and reported the two unsafe ones by name;
+   the second run (idempotency check) reported the same two unsafe ones
+   again, unchanged, and did nothing further to the resolved one. All
+   rehearsal rows were then deleted, restoring this database's original
+   session count.
+3. **This exact script cannot be pointed at Neon, branch or production —
    this is not a policy, it is enforced code.**
    `prisma/_assertDisposableLocalDatabase.ts`, which this script calls
    before touching a row, checks `DATABASE_URL`'s host and calls
@@ -1264,17 +1406,17 @@ see §0.22 for the executed proof.
    than picking a branch of it, because picking one is exactly the kind of
    production-consequential decision `production-neon-requires-explicit-
    approval` reserves for explicit, in-conversation authorization.
-3. Re-run this branch's own `verify:full` against wherever the schema
+4. Re-run this branch's own `verify:full` against wherever the schema
    change actually lands, to confirm the new tables/columns behave as this
    report already proved locally, now against a real (copy-on-write)
    production dataset shape.
-4. Both schema additions are purely additive (new tables, new nullable
+5. Both schema additions are purely additive (new tables, new nullable
    columns, one new unique constraint on a backfilled column) — the
    existing application code already deployed to production does not read
    or write any of them, so applying the schema change alone, with no
    application code change, is safe to do first and separately from
    anything else below.
-5. Only after a clean branch rehearsal, apply to production in a scheduled,
+6. Only after a clean branch rehearsal, apply to production in a scheduled,
    authorized window — the backfill via whichever real mechanism step 2
    settles on, never via the disposable-local-only script this branch
    actually ships.
@@ -1318,17 +1460,61 @@ hard-coded in a plan written before that moment.
 
 Real adoption is a deliberate, later sequence:
 
-1. Migrate the REAL Elite tenant's `new-120v-outlet` onto the surface-raceway
-   tree (`prisma/seed-new-outlet-v2.ts`'s `migrateEliteOutletToV2`) — rehearsed
-   on a Neon branch first, exactly as §10.1 describes, since this writes to
-   Elite's own `Question`/`AnswerOption` rows. **Alongside this, not after
-   it**: prepare Elite's `pricingMethod` and economics for the tree it is
-   about to carry. This pass's own local finding (§6) is that Elite's
-   `new-120v-outlet` has no economics of its own once it carries the real
-   tree (`capture-hero-flow.ts`'s "no path that reaches a price" wall) —
-   migrating the tree onto the live platform without also preparing pricing
-   would reproduce that exact failure for Elite's real customers, not just
-   in this branch's disposable rehearsal.
+1. **CORRECTED (§0.23): changing Elite's live tree directly is not the first
+   step.** The prior draft treated "migrate Elite's real
+   `new-120v-outlet` onto the surface-raceway tree" as the way to prepare
+   canonical content — hand-editing a live tenant's own `Question`/
+   `AnswerOption` rows as if that were template authoring. It is not: it
+   conflates preparing CANONICAL content (a template concern) with
+   adopting it onto one contractor's live catalog (a per-contractor
+   concern), and it bypasses the one tool this codebase already has for
+   the second half — `scripts/template-update.ts` — entirely. The
+   corrected sequence separates them:
+   - **Prepare the canonical surface-raceway content in the template
+     layer directly** (authoring a new DELTA against a reviewed source —
+     not Elite's live rows — the same way v2 and v3 already added content
+     without touching any contractor's tree first), publishing it through
+     step 2 below.
+   - **Adopt it onto Elite (and any other already-provisioned contractor)
+     through `scripts/template-update.ts --status` / `--adopt <key>`** —
+     the SAME bounded, per-change, conflict-aware mechanism any other
+     contractor already uses to receive a template update, rather than a
+     one-off script rewriting Elite's rows directly.
+   - **One-time prerequisite, rehearsed (§0.23): Elite's own service
+     currently has no template provenance at all** —
+     `Service.templateKey`/`templateVersionId` are both `null` on Elite's
+     live `new-120v-outlet`, confirmed directly. This is not a defect to
+     patch around; it is the honest state of a tenant that predates the
+     template system and IS the source v1 was extracted from.
+     `template-update.ts` requires that provenance to find a contractor's
+     service at all (`findFirstOrThrow({ where: { templateKey: ... } })`)
+     — confirmed by running it against Elite unmodified: it fails
+     immediately with Prisma's own `P2025`, "No Service found." The
+     one-time fix is a genuine, honest backfill: set
+     `templateKey: "new-120v-outlet"` and `templateVersionId` to v1's own
+     `TemplateVersion.id` — a TRUE claim, since v1 literally IS an
+     extraction of this exact tree, not a fabricated link. Rehearsed
+     locally: after this one backfill, `template-update.ts --status`
+     against Elite works, correctly detects a genuinely new question as
+     adoptable and a wording change Elite had already customized as a
+     **CONFLICT** ("you have already changed this; yours is kept") rather
+     than silently overwriting it. `--adopt <key>` on the adoptable change
+     wrote it to Elite's live tree, structure only, and correctly reset
+     the service to unresolved (`materialCostResolved: false`,
+     `publishedPriceApprovedAt: null`, `basePrice: null`) exactly as the
+     tool's own safety net documents; `--adopt` on the conflicting change
+     correctly refused and left Elite's customization untouched. All
+     rehearsal writes (the backfill, the scratch DELTA, the adopted
+     question, the customization test) were then reverted, restoring this
+     database's exact baseline.
+   - **Alongside preparing the canonical content, not after it**: prepare
+     Elite's `pricingMethod` and economics for whatever tree it ends up
+     adopting. This pass's own local finding (§6) is that Elite's
+     `new-120v-outlet` has no economics of its own once it carries the real
+     tree (`capture-hero-flow.ts`'s "no path that reaches a price" wall) —
+     adopting the tree onto the live platform without also preparing
+     pricing would reproduce that exact failure for Elite's real
+     customers, not just in this branch's disposable rehearsal.
 2. **Extract for real using `scripts/extract-template-service.ts`, per
    service, writing a DELTA — the same tool production's own v2 and v3
    already used, not `scripts/extract-template-catalog.ts`.** The catalog
@@ -1350,19 +1536,34 @@ Real adoption is a deliberate, later sequence:
    correction round named. `extract-template-service.ts` writes a DELTA and
    cannot cause it; a full-catalog re-SNAPSHOT is not what any real
    adoption from here should do.
-3. **A real, currently-existing gap, named rather than fixed here:**
-   `extract-template-service.ts` carries no database-identity or
-   production-write guard of any kind — confirmed by direct inspection,
-   zero matches for `production`/`assertDisposable`/`i-know` anywhere in
-   the file. `extract-template-catalog.ts`'s equivalent guard
-   (`--i-know-this-writes-to-production`) does not exist on this tool. The
-   provenance record's own "governance" section already names the
-   consequence: v3's real `--apply` against production ran "before the
-   branch existed in git at all, let alone before review." Any future real
-   extraction via this tool needs the operator to verify `DATABASE_URL` and
-   environment by hand before `--apply`, or the tool needs the same guard
-   its sibling already has — recorded here as a real gap, not closed by
-   this pass, since building it is tooling work outside this correction's
+3. **Two real gaps in this exact tool, one now FIXED, one still open
+   (§0.23).** Direct inspection of `extract-template-service.ts` — the tool
+   step 2 designates for real adoption — found it dropped `pricingMethod`
+   silently (the identical defect §0.9 already found and fixed in its
+   catalog-tool sibling, never applied here) and wrote its five-plus
+   statements as separate round trips outside any transaction, so a crash
+   mid-publication left a partial `TemplateService` — some questions
+   present, others not — fully visible to any fresh install in that
+   window. **Both are fixed now, not merely named**: the write path is
+   wrapped in one `prisma.$transaction`, and `pricingMethod` is read and
+   carried through. Rehearsed locally (§0.23): a fault injected after 3 of
+   16 questions rolled back completely — zero `TemplateVersion`, zero
+   `TemplateService`, zero `TemplateQuestion` rows at that version,
+   confirmed by direct query — and a real before/after flip of the
+   source's `pricingMethod` proved the fixed tool carries the true value
+   rather than the schema default, the same proof style §0.9 used.
+   **Still open, not closed by this pass:** the tool carries no
+   database-identity or production-write guard of any kind — confirmed by
+   direct inspection, zero matches for `production`/`assertDisposable`/
+   `i-know` anywhere in the file. `extract-template-catalog.ts`'s
+   equivalent guard (`--i-know-this-writes-to-production`) does not exist
+   on this tool. The provenance record's own "governance" section already
+   names the consequence: v3's real `--apply` against production ran
+   "before the branch existed in git at all, let alone before review." Any
+   future real extraction via this tool needs the operator to verify
+   `DATABASE_URL` and environment by hand before `--apply`, or the tool
+   needs the same guard its sibling already has — recorded here as a real
+   gap, since building it is tooling work outside this correction's
    scope.
 4. **What "a new version" actually protects, rehearsed locally (§0.22):**
    extracting `new-120v-outlet` as a fresh DELTA (v2, against this branch's
