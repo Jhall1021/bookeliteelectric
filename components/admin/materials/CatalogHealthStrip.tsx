@@ -1,9 +1,14 @@
 /**
  * One quiet line of real catalog counts — replaces four large stat cards
  * that spent a whole row of vertical space on numbers a contractor mostly
- * skims past. Only the actionable count (needs a cost) gets amber weight;
- * everything else stays neutral so nothing competes with the material rows
- * below for attention.
+ * skims past. Only the actionable count gets amber weight; everything else
+ * stays neutral so nothing competes with the material rows below for
+ * attention.
+ *
+ * `needsAttention` is the same combined `statusBucket === "needs_attention"`
+ * count the filter dropdown already uses — it covers BOTH a missing price
+ * and a cost merely needing confirmation, so the label reads "need
+ * attention" rather than the narrower (and here inaccurate) "need a cost".
  */
 export function CatalogHealthStrip({
   total,
@@ -28,7 +33,7 @@ export function CatalogHealthStrip({
       <Dot />
       <span className={needsAttention > 0 ? "text-amber-700" : undefined}>
         <strong className={`font-semibold ${needsAttention > 0 ? "text-amber-700" : "text-navy"}`}>{needsAttention}</strong>{" "}
-        need{needsAttention === 1 ? "s" : ""} a cost
+        need{needsAttention === 1 ? "s" : ""} attention
       </span>
       <Dot />
       <span>

@@ -180,7 +180,7 @@ export function MaterialCostEditor({
               <input
                 value={packageUnit}
                 onChange={(e) => setPackageUnit(e.target.value)}
-                placeholder="e.g. 250 ft roll"
+                placeholder="e.g. ft roll"
                 className={field}
                 aria-label="Package description"
               />
