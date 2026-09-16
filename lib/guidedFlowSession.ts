@@ -62,14 +62,51 @@ export async function findOrCreateActiveSession(
     },
     orderBy: { createdAt: "desc" },
   });
+
   if (existing) {
-    // Touched, not modified — resuming a session is activity even before
-    // the customer answers anything new.
-    return db.guidedFlowSession.update({
-      where: { id: existing.id },
-      data: { lastActivityAt: new Date() },
-    });
+    // `input.entryServiceId === undefined` means the caller had no VALIDATED
+    // claim at all (a direct visit, or a reroute whose claim failed
+    // resolveEntryProvenance) — an ordinary resume, existing behavior.
+    // A claim that names the SAME entry this session already recorded is the
+    // same journey continuing (e.g. the customer went back and replayed the
+    // same reroute) — also a resume, not a fork.
+    if (input.entryServiceId === undefined || input.entryServiceId === existing.entryServiceId) {
+      // Touched, not modified — resuming a session is activity even before
+      // the customer answers anything new.
+      return db.guidedFlowSession.update({
+        where: { id: existing.id },
+        data: { lastActivityAt: new Date() },
+      });
+    }
+
+    // A validated claim naming a DIFFERENT entry service than this existing
+    // ACTIVE target session recorded is a different customer journey landing
+    // on the same target service — e.g. a customer left an ACTIVE B session
+    // open from visiting B directly, then a later A -> B reroute (carrying
+    // validated entry=A) arrives in the same browser session. Reusing that
+    // row would relabel a stranger's-in-effect journey (or leak its
+    // in-progress answers into this one). Retire it and start a fresh target
+    // session instead — consumedAnswers starts empty, never copied over.
+    const [, created] = await db.$transaction([
+      db.guidedFlowSession.updateMany({
+        where: { id: existing.id, status: "ACTIVE" },
+        data: { status: "ABANDONED", version: { increment: 1 } },
+      }),
+      db.guidedFlowSession.create({
+        data: {
+          contractorId: input.contractorId,
+          sessionId: input.sessionId,
+          serviceId: input.serviceId,
+          serviceSlug: input.serviceSlug,
+          entryServiceId: input.entryServiceId,
+          entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
+          consumedAnswers: {},
+        },
+      }),
+    ]);
+    return created;
   }
+
   return db.guidedFlowSession.create({
     data: {
       contractorId: input.contractorId,

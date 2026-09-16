@@ -218,6 +218,86 @@ async function main() {
     ok("the LineItem's tenant is still derived through Visit, exactly as before", visitOwner.contractorId === elite.id);
     ok("the entry-service reference is a nullable secondary field, not a required ownership column",
       true /* structural — confirmed by schema: entryServiceId is String? with onDelete SetNull, distinct from serviceId/visitId ownership */);
+
+    // ── 8. Pre-existing target session collision ──
+    //
+    // A customer visited B directly at some point (an ACTIVE B session,
+    // entry=B, already sitting there) and LATER, in the SAME browser
+    // session, visits A and reroutes into B carrying a validated entry=A
+    // claim. findOrCreateActiveSession's plain find-by-(contractor,
+    // session, service) would have handed back the old B row unchanged —
+    // silently relabeling a different customer journey as entry=A and, far
+    // worse, seeding it with whatever the old B journey had already
+    // answered. This is what the fork-on-mismatch branch exists to prevent.
+    console.log("\n8. Pre-existing target session collision");
+    const sessCollideId = sid("collide");
+    sessions.push(sessCollideId);
+
+    const oldB = await findOrCreateActiveSession(prisma, {
+      contractorId: elite.id, sessionId: sessCollideId, serviceId: svcB.id, serviceSlug: svcB.slug,
+    });
+    ok("directly starting B records entry=B", oldB.entryServiceId === svcB.id && oldB.status === "ACTIVE");
+    // Give the old B journey answers that must never appear in the new one.
+    await prisma.guidedFlowSession.update({
+      where: { id: oldB.id },
+      data: { consumedAnswers: { old_b_journey_only: "must_not_leak" } },
+    });
+
+    const collideA = await findOrCreateActiveSession(prisma, {
+      contractorId: elite.id, sessionId: sessCollideId, serviceId: svcA.id, serviceSlug: svcA.slug,
+    });
+    ok("starting A in the same browser session records its own entry=A", collideA.entryServiceId === svcA.id);
+
+    const claimedFromCollideA = { entryServiceId: collideA.entryServiceId, entryServiceSlug: collideA.entryServiceSlug };
+    const validatedForCollideB = await resolveEntryProvenance(prisma, elite.id, claimedFromCollideA);
+    ok("A -> B carries a validated entry=A claim", validatedForCollideB?.entryServiceId === svcA.id);
+
+    const newB = await findOrCreateActiveSession(prisma, {
+      contractorId: elite.id, sessionId: sessCollideId, serviceId: svcB.id, serviceSlug: svcB.slug,
+      entryServiceId: validatedForCollideB?.entryServiceId, entryServiceSlug: validatedForCollideB?.entryServiceSlug,
+    });
+    ok("resulting active B journey records entry=A, resolved=B", newB.entryServiceId === svcA.id && newB.serviceId === svcB.id,
+      `entry=${newB.entryServiceId} resolved=${newB.serviceId}`);
+    ok("the collision produced a genuinely different row, not the old one reused", newB.id !== oldB.id);
+
+    const oldBAfter = await prisma.guidedFlowSession.findUniqueOrThrow({ where: { id: oldB.id } });
+    ok("old B journey is not silently relabeled — still entry=B", oldBAfter.entryServiceId === svcB.id,
+      `got ${oldBAfter.entryServiceId}`);
+    ok("old B journey is retired (ABANDONED), not left ACTIVE alongside the new one", oldBAfter.status === "ABANDONED",
+      `got ${oldBAfter.status}`);
+
+    const newBAnswerKeys = Object.keys((newB.consumedAnswers as Record<string, unknown>) ?? {});
+    ok("old B answers do not leak into the A -> B journey", !newBAnswerKeys.includes("old_b_journey_only"),
+      JSON.stringify(newBAnswerKeys));
+
+    const visitCollide = await prisma.visit.create({ data: { contractorId: elite.id, sessionId: sessCollideId, status: "OPEN" } });
+    eliteVisits.push(visitCollide.id);
+    const liCollide = await stampedLineItem({ contractorId: elite.id, sessionId: sessCollideId, serviceId: svcB.id, visitId: visitCollide.id, answersSnapshot: {} });
+    ok("terminal LineItem for the collision journey records entry=A, resolved=B", liCollide.entryServiceId === svcA.id && liCollide.serviceId === svcB.id,
+      `entry=${liCollide.entryServiceId} resolved=${liCollide.serviceId}`);
+
+    const activeBForSession = await prisma.guidedFlowSession.findMany({
+      where: { contractorId: elite.id, sessionId: sessCollideId, serviceId: svcB.id, status: "ACTIVE" },
+    });
+    ok("no duplicate conflicting ACTIVE target sessions remain", activeBForSession.length === 1 && activeBForSession[0].id === newB.id,
+      `${activeBForSession.length} active row(s)`);
+
+    ok("both the retired and the new journey stayed on this same contractor (tenant isolation unchanged)",
+      oldBAfter.contractorId === elite.id && newB.contractorId === elite.id);
+
+    // ── 9. Same-entry hop/resume after a collision still resumes normally ──
+    console.log("\n9. Same-entry resume is unaffected by the collision fix");
+    const resumedB = await findOrCreateActiveSession(prisma, {
+      contractorId: elite.id, sessionId: sessCollideId, serviceId: svcB.id, serviceSlug: svcB.slug,
+      entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
+    });
+    ok("same entry (A) resumes the just-created B journey rather than forking again", resumedB.id === newB.id,
+      `resumed=${resumedB.id} expected=${newB.id}`);
+    const activeBAfterResume = await prisma.guidedFlowSession.findMany({
+      where: { contractorId: elite.id, sessionId: sessCollideId, serviceId: svcB.id, status: "ACTIVE" },
+    });
+    ok("still exactly one ACTIVE target session after the resume", activeBAfterResume.length === 1,
+      `${activeBAfterResume.length} active row(s)`);
   } finally {
     // ── cleanup ──
     console.log("\nCleanup");
