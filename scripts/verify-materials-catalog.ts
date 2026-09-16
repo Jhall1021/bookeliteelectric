@@ -42,6 +42,7 @@ const EXPECTED_CHANGED_FILES = new Set([
   "app/dashboard/materials/page.tsx",
   "app/api/admin/materials/route.ts",
   "scripts/verify-materials-catalog.ts",
+  "scripts/verify-materials-catalog-write-path.ts",
   "package.json",
 ]);
 
