@@ -2809,43 +2809,48 @@ Kept separate from this narrative report because it is a living,
 scannable rollout artifact (a release table, an ordered blocker list, a
 recommended first batch) rather than another numbered investigation pass.
 
-**REVISED twice after review.** The first correction separated the OLD
-`v2`/`v3` template-layer deltas — published before this branch existed in
-git — from this branch's own six audit-followthrough tree fixes (ceiling
-light/fan, replacement outlet, soundbar, dishwasher, dedicated circuit,
-garage outlet), and marked production-state claims UNVERIFIED unless
-directly quoted from a dated record. A second review found three more
-real mistakes in that correction, now fixed:
+**REVISED three times after review.** The first correction separated the
+OLD `v2`/`v3` template-layer deltas — published before this branch
+existed in git — from this branch's own six audit-followthrough tree
+fixes (ceiling light/fan, replacement outlet, soundbar, dishwasher,
+dedicated circuit, garage outlet), and marked production-state claims
+UNVERIFIED unless directly quoted from a dated record. The second
+correction added Routing V2's own shared-module scope, replaced a wrong
+"needs destructive deletion" conclusion with the correct "four of six
+fixes are already `option-revised`" finding, and fixed a wrong
+`bookingType` claim about garage outlet. A third review found two of
+that correction's own conclusions were imprecise, and one framing was
+still wrong:
 
-1. **Routing V2's own scope was still missing** — a shared reroute-
-   handoff module (`lib/rerouteHandoff.ts`, used by every service with a
-   `REROUTE_SERVICE`/`REROUTE_TROUBLESHOOTING` option), fractional
-   route-footage support, and a systematic uncertainty sentinel
-   (`__unknown__`). Real, already merged into this branch, scoped to
-   `new-120v-outlet`/`surface-mounted-outlet` and the device-module
-   services — but this is pre-existing Routing V2/PR #62 work, not new
-   audit-fix content, and its rollout is already tracked by §10.2.
-2. **"The tool needs a destructive question-removal capability" was the
-   wrong conclusion.** Routing V2's real pattern preserves a bypassed
-   question's row and reroutes the surviving option around it — which is
-   exactly `option-revised`, already supported. Tracing each fix's actual
-   required adoption operation found FOUR of the six (ceiling light/fan,
-   replacement outlet, dedicated circuit, dishwasher) need NO new tool
-   capability at all. Soundbar's routing half is the same; only its new
-   disclaimer field is genuinely untracked. Only garage outlet — a whole
-   tree reduced to zero questions, no surviving option to revise — is a
-   genuinely different shape, needing a narrow "reduce to zero questions"
-   capability, not a general deletion kind.
-3. **Garage outlet does not change `bookingType`** — that was already
-   `REMOTE_QUOTE` in the base catalog seed before either garage commit.
-   The fix only clears the tree; `GuidedFlowEngine`'s own generic
-   zero-question handling does the rest.
+1. **Ceiling light/fan's stated final route was wrong.** `option-revised`
+   was the right KIND of fix, but the target value ("resolves instantly")
+   was only an intermediate state — a LATER seed step
+   (`seed-lighting-control.ts`'s shared `rewireTerminalsInto`) actually
+   routes the fixed answer into the `lighting_control` module afterward.
+   The real final route CONTINUES into that module; it does not resolve
+   and skip it. Corrected with the exact before/after values and the
+   function that composes them.
+2. **Replacement outlet's target was stated too vaguely** — "drops the
+   `nextQuestionId` link" doesn't say what the option resolves to
+   afterward. `seedDeviceModule`'s own `proceed` logic computes an
+   explicit combined target (continue to the next surviving question, or
+   an explicit resolve if none exists) — for this specific service the
+   NUMBER was already right, but the manifest now states it as the
+   deterministic, per-service value the shared module actually computes,
+   not an ambiguous "cleared" field.
+3. **Routing V2 is integrated into this branch, not already in `main`.**
+   The prior correction filed its shared modules alongside the OLD,
+   already-shipped `v2`/`v3` content as "separately tracked, out of
+   scope." That's wrong — `main` has no Routing V2 at all; this branch is
+   what brings it in for the first time, so its shared reroute-handoff,
+   fractional-measurement, and uncertainty-sentinel modules are genuinely
+   part of THIS release's scope, with their own rollout readiness an open
+   question this manifest names but does not resolve.
 
-The manifest now also carries a complete, tagged inventory of all 75 real
-Electrical services (changed by the six fixes, changed by Routing V2's
-own scope, or untouched), and states plainly that no evidence in THIS
-BRANCH's own history shows any of the six fixes extracted into a real
-`TemplateVersion` — a claim about this repository's history, never about
-current production state. The pre-existing `v2`/`v3` material-catalog
-gap remains real, remains recorded, and remains historical content this
-branch did not create and is not this release's engineering task.
+The complete, tagged inventory of all 75 real Electrical services is
+unchanged, and the statement that no evidence in THIS BRANCH's own
+history shows any of the six fixes extracted into a real `TemplateVersion`
+remains a claim about this repository's history, never about current
+production state. The pre-existing `v2`/`v3` material-catalog gap remains
+real, remains recorded, and remains historical content this branch did
+not create and is not this release's engineering task.

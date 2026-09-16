@@ -4,32 +4,49 @@ Documentation and planning only. No code changes accompany this document,
 and no production access was used to produce it. Deployment stays
 disabled.
 
-**REVISED again after a second review round.** The prior version fixed
-the first two mistakes (conflating pre-existing `v2`/`v3` template
-content with this branch's own work; asserting unverifiable production
-state) but introduced three more, corrected here:
+**REVISED a third time after review.** The second revision fixed three
+mistakes (missing Routing V2 scope; a wrong deletion-capability
+conclusion; a wrong `bookingType` claim) but two of its own conclusions
+were themselves imprecise, and one framing was wrong. Fixed here:
 
-1. It was missing Routing V2's own scope — the shared reroute-handoff
-   module, fractional measurement support, and the systematic uncertainty
-   sentinel — treating the six audit-fix families as the whole release.
-2. It concluded "the adoption tool needs a destructive `question-removed`
-   capability" from "the tool cannot express a question deletion" without
-   checking what the ACTUAL required adoption operation is. Routing V2's
-   real pattern is to preserve the bypassed question's row and reroute
-   the surviving option around it — which turns out to already be
-   `option-revised`, a kind the tool already supports, for four of the
-   five deletion-shaped fixes. Only one (garage outlet) is genuinely
-   different in shape.
-3. It claimed the garage-outlet fix "changes `bookingType`." It does not
-   — `bookingType: REMOTE_QUOTE` was already set in the base catalog seed,
-   unrelated to either garage commit. The fix only clears the service's
-   question tree to zero.
+1. **Ceiling light/fan's "final" route was wrong.** §1 previously said
+   `existing_light_source`'s "No" answer resolves to `{routeAction:
+   RESOLVE_INSTANT}`. That is only the intermediate state `prisma/seed-
+   questions.ts`'s own commit (`cb8821a8`) leaves behind — a LATER seed
+   step, `seed-lighting-control.ts`'s shared `rewireTerminalsInto`
+   (`prisma/_moduleHelpers.ts:95-135`), runs afterward and converts every
+   `RESOLVE_INSTANT`/`RESOLVE_ADJUSTED` terminal answer on this service
+   into `{routeAction: CONTINUE, nextQuestionId: <lighting_control's
+   question>}`. The real final, fully-composed route CONTINUES into the
+   `lighting_control` module — it does not resolve instantly and skip it.
+   Documented precisely in §1a below.
+2. **Replacement outlet's target was stated too vaguely.** §1 previously
+   said the fix "drops the `nextQuestionId` link" — true but incomplete:
+   `seedDeviceModule`'s own `proceed` logic (`prisma/seed-device-and-
+   finish-modules.ts`) computes an EXPLICIT combined target — either
+   `{routeAction: CONTINUE, nextQuestionId: <next surviving question>}`
+   if one exists, or `{routeAction: RESOLVE_INSTANT, nextQuestionId:
+   null}` if none does — never an ambiguous "field cleared" state. For
+   `replace-standard-outlet` specifically, confirmed by reading its own
+   question list, `outlet_condition` was its only OTHER question, so the
+   explicit target IS `RESOLVE_INSTANT` — the earlier NUMBER was right,
+   the description of HOW it's determined was not. Documented precisely
+   in §1a below.
+3. **Routing V2 is integrated into THIS branch, not already in `main`.**
+   §3 previously filed its shared modules as "pre-existing, already-
+   merged... in the same category as `v2`/`v3`," separately tracked and
+   out of this release's scope. That is wrong: `main` does not have
+   Routing V2 at all — this branch is what brings it in for the first
+   time. Its shared physical-route modules (reroute-handoff, fractional
+   measurement, the uncertainty sentinel) are genuinely part of THIS
+   release's scope, not a separately-tracked, already-shipped bucket the
+   way `v2`/`v3` correctly are. §3 and the blocker list/first-batch
+   sections are corrected accordingly.
 
-The full Electrical catalog inventory (§4) is now complete rather than
-scoped only to the six audit fixes, and "no template version exists for
-these fixes" is stated as what THIS BRANCH's own git history shows —
-never as a claim about current production state, which this document has
-no way to check.
+The full Electrical catalog inventory (§4) is unchanged and remains
+complete, and "no template version exists for these fixes" remains
+stated as what THIS BRANCH's own git history shows — never a claim about
+current production state, which this document has no way to check.
 
 ## 1. PR #63's own tree/data changes — corrected, with the actual adoption operation each one needs
 
@@ -49,25 +66,68 @@ targets one legacy question for a real, literal delete
 but both are how Elite's OWN catalog gets authored, not a description of
 what an adoption action for a different contractor needs to do.**
 
-| Fix | Elite's own seed mechanism | What survives on an ADOPTING contractor's tree | The adoption operation this actually is | Tool support today |
+| Fix | Elite's own seed mechanism | What survives on an ADOPTING contractor's tree | The final, fully-composed adoption operation | Tool support today |
 |---|---|---|---|---|
-| Ceiling light/fan (`new-ceiling-light`, `new-ceiling-fan`) | `clearServiceTree` wipe; `switched_source` not recreated | The bypassed question's row, if it exists on that contractor's tree already, is simply left in place, unreferenced | A single `option-revised`: `existing_light_source`'s "No" answer, `{routeAction: CONTINUE, nextQuestionId: switched_source}` → `{routeAction: RESOLVE_INSTANT}` — one per service | **Already supported** |
-| Replacement outlet (`replace-standard-outlet`) | `SUPERSEDED_KEYS` targeted delete of `outlet_condition` | Same — left in place if present | A single `option-revised` on `device_replacement_reason`'s three continuing answers, dropping the `nextQuestionId` link to the now-superseded question | **Already supported** |
-| Dedicated circuit (`dedicated-120v-circuit-outlet`) | `clearServiceTree` wipe; `dedicated_panel_location` not recreated | Same | A single `option-revised` on `dedicated_distance`'s continuing answers: `nextQuestionId` changes to the finish-acknowledgement question directly; `routeAction` unchanged | **Already supported** |
-| Soundbar (`soundbar-installation`) | `clearTree` wipe; `soundbar_cable`/`soundbar_conceal` not recreated | Same | The routing half is an `option-revised` on `soundbar_power`'s "Yes" answer (`CONTINUE`→`RESOLVE_INSTANT`) — supported. It ALSO gains a `disclaimer: CUSTOMER_SUPPLIED` on that same option, and `AdoptedOptionProjection` has no disclaimer field at all | **Routing: supported. Disclaimer: not supported — a real, separate gap, unrelated to question deletion.** |
+| Ceiling light/fan (`new-ceiling-light`, `new-ceiling-fan`) | `clearServiceTree` wipe; `switched_source` not recreated | The bypassed question's row, if present, is left in place, unreferenced | A single `option-revised` per service: `existing_light_source`'s "No" answer, `{routeAction: CONTINUE, nextQuestionId: switched_source}` → `{routeAction: CONTINUE, nextQuestionId: lighting_control}` — see §1a. NOT a resolve; it continues into the shared control module. | **Already supported** |
+| Replacement outlet (`replace-standard-outlet`) | `SUPERSEDED_KEYS` targeted delete of `outlet_condition` | Same — left in place if present | A single `option-revised` on `device_replacement_reason`'s three continuing answers, to the EXPLICIT combined target `{routeAction: RESOLVE_INSTANT, nextQuestionId: null}` — computed by `seedDeviceModule`'s own `proceed` logic, not an ambiguous "cleared" field. See §1a. | **Already supported** |
+| Dedicated circuit (`dedicated-120v-circuit-outlet`) | `clearServiceTree` wipe; `dedicated_panel_location` not recreated | Same | A single `option-revised` on `dedicated_distance`'s continuing answers: `{routeAction: CONTINUE, nextQuestionId: dedicated_panel_location}` → `{routeAction: CONTINUE, nextQuestionId: <finish-acknowledgement question>}` | **Already supported** |
+| Soundbar (`soundbar-installation`) | `clearTree` wipe; `soundbar_cable`/`soundbar_conceal` not recreated | Same | The routing half is a single `option-revised` on `soundbar_power`'s "Yes" answer: `{routeAction: CONTINUE, nextQuestionId: soundbar_cable}` → `{routeAction: RESOLVE_INSTANT, nextQuestionId: null}` — confirmed no downstream module exists for this service (unlike ceiling light/fan), so RESOLVE_INSTANT genuinely is the real final state, not an intermediate one. It ALSO gains `disclaimer: CUSTOMER_SUPPLIED` on that same option, and `AdoptedOptionProjection` has no disclaimer field at all | **Routing: supported. Disclaimer: not supported — a real, separate gap, unrelated to question deletion.** |
 | Dishwasher (`dishwasher-electrical`) | none — wording only | n/a | A `wording-changed` on the question's prompt | **Already supported** |
 | Garage outlet (`240v-garage-outlet`) | `clearServiceTree` wipe, TWICE (`d841fdfc` added one question, `79329f74` removed it again); nothing recreated either time | An adopting contractor's own existing question(s) for this service would need to be REMOVED entirely — there is no surviving option to revise, because the whole tree goes to zero | **Not expressible as any existing `Change` kind — and not the same shape as the other four.** This needs a narrow, specific capability ("this service now has zero questions"), not a general destructive-delete kind. |
 
-**Corrected conclusion: four of these six fixes need NO new capability in
-`template-update.ts` at all** — they already reduce to `option-revised`/
-`wording-changed`, which the tool has supported and rehearsed (§0.28–
-§0.33) since before this manifest existed. Soundbar needs its disclaimer
-gap closed specifically, not a deletion capability. Only garage outlet is
-genuinely blocked by a missing capability, and that capability is much
-narrower than "support removing a question" — it is specifically "reduce
-an existing contractor's service to zero questions while its
-`bookingType` (already `REMOTE_QUOTE` here) does the rest," a shape none
-of the other five fixes share.
+### 1a. The final, fully-composed routes for the two corrected cases
+
+**Ceiling light/fan.** `existing_light_source`'s BOTH answers are terminal
+before this fix: "Yes" was already `RESOLVE_INSTANT`; "No" was `CONTINUE`
+→ `switched_source` (its own flat-fee question). `seed-lighting-
+control.ts`'s `rewireTerminalsInto` (`prisma/_moduleHelpers.ts:95-135`)
+runs LATER in provisioning order and rewrites EVERY
+`RESOLVE_INSTANT`/`RESOLVE_ADJUSTED` terminal answer on the service to
+`{routeAction: CONTINUE, nextQuestionId: <lighting_control question id>}`
+— so BEFORE this fix, "Yes" already continued into `lighting_control`,
+while "No" first passed through `switched_source` (charging its own flat
+fee) whose OWN answers were then ALSO rewired into `lighting_control`
+(charging the identical switch-leg work again through canonical
+components — the double-charge this fix closes). AFTER this fix,
+`switched_source` no longer exists, so "No" — like "Yes" already did — is
+picked up directly by `rewireTerminalsInto` and continues straight into
+`lighting_control` (question key `lighting_control`,
+`prisma/seed-lighting-control.ts:138`). **The real final route change is
+`nextQuestionId` moving from `switched_source` to `lighting_control`,
+`routeAction` staying `CONTINUE` throughout — not a resolve.** A single
+`option-revised` per service (new-ceiling-light, new-ceiling-fan) carries
+this correctly; `RESOLVE_INSTANT` was never the tool-relevant target.
+
+**Replacement outlet.** `seedDeviceModule` (`prisma/seed-device-and-
+finish-modules.ts`) computes `survivors` — every question on the service
+except the shared `DEVICE_KEY` question and anything in `SUPERSEDED_KEYS`
+— and then a `proceed` object applied to `device_replacement_reason`'s
+three qualifying answers: `handoff = survivors[0]`; `proceed = handoff ?
+{routeAction: CONTINUE, nextQuestionId: handoff.id} : {routeAction:
+RESOLVE_INSTANT, nextQuestionId: null}`. `replace-standard-outlet`'s ONLY
+other question was `outlet_condition` (confirmed by reading
+`seedReplaceStandardOutlet` directly — it creates exactly one question).
+Adding `outlet_condition` to `SUPERSEDED_KEYS` empties `survivors` for
+this specific service, so `handoff` is `undefined` and `proceed` resolves
+to the explicit `{routeAction: RESOLVE_INSTANT, nextQuestionId: null}` —
+matching the commit's own description, "now resolves directly, matching
+the other 8 structurally identical device-module services." **The
+target value is correct; what needed correcting was describing it as an
+explicit, deterministic combined-field state the shared module computes
+per-service, not as "clearing a link" with an implicit or unstated
+resulting `routeAction`.**
+
+**Corrected conclusion, unchanged in substance but now resting on the
+right routes: four of these six fixes need NO new capability in
+`template-update.ts` at all** — they reduce to `option-revised`/
+`wording-changed` writing an explicit, fully-determined target, which the
+tool has supported and rehearsed (§0.28–§0.33) since before this manifest
+existed. Soundbar needs its disclaimer gap closed specifically, not a
+deletion capability. Only garage outlet is genuinely blocked by a missing
+capability, and that capability is much narrower than "support removing a
+question" — it is specifically "reduce an existing contractor's service
+to zero questions while its `bookingType` (already `REMOTE_QUOTE` here)
+does the rest," a shape none of the other five fixes share.
 
 ## 2. Garage outlet: the `bookingType` correction
 
@@ -86,13 +146,19 @@ one real question (`d841fdfc`'s `garage_type`) to zero, and
 not any service-specific code — is what sends the customer straight to
 photo review from there.
 
-## 3. Routing V2's own scope — separate from the six audit fixes, but real, and part of what this branch ships
+## 3. Routing V2's own scope — genuinely part of this release, not a separately-tracked bucket
 
-Three components, all already present in this branch's git history, all
-coming from the separately-merged `PR #62` (fractional footage/takeoff)
-and `feat/electrical-routing-v2`/`audit/electrical-tree-finalization-v2`
-lines — not authored as part of the six audit fixes, but real content
-this integration branch carries:
+**Correction: `main` does not have Routing V2 at all.** This branch —
+via the merged `PR #62` (fractional footage/takeoff) and
+`feat/electrical-routing-v2`/`audit/electrical-tree-finalization-v2`
+lines — is what brings Routing V2 into existence for the first time.
+Unlike `v2`/`v3` (§6, real `TemplateVersion` deltas already published to
+production before this branch existed), Routing V2's shared modules have
+never shipped anywhere; they exist only in this branch's own code right
+now. That makes them part of THIS release's actual scope determination,
+not a separate, already-shipped concern to file alongside `v2`/`v3`. Three
+components, distinct from the six audit fixes (§1) but real content this
+branch's own merge carries:
 
 - **A shared reroute-handoff module** (`lib/rerouteHandoff.ts`, added in
   commit `4b6c341b`) — one serialize/consume shape now used by both
@@ -127,12 +193,16 @@ mechanics but are not part of what a real contractor's customers ever
 see, and do not belong in the "needs rollout" conversation the same way a
 live service does.
 
-This scope is tracked here because it is real and was missing from the
-prior draft, but it is **pre-existing, already-merged Routing V2 work**,
-in the same category as the `v2`/`v3` material-catalog content in §6 —
-not new audit-fix work this release introduces, and its own rollout
-status is already covered by §10.2's adoption sequence in the main
-reconciliation report.
+This scope is tracked here because it is real, was missing from the
+prior draft, and — unlike `v2`/`v3` (§6) — has not already shipped
+anywhere: it is part of what THIS release actually delivers. §10.2 in the
+main reconciliation report already documents the MECHANISM for rolling
+Routing V2 out (the adoption sequence, the rollback plan); it does not
+by itself answer which specific services/trees are ready now, which is
+this manifest's own job. That determination for Routing V2's shared
+modules specifically is carried into the blocker list (§7) rather than
+resolved here, since it is a different question from the six audit
+fixes' own adoption-operation analysis in §1.
 
 ## 4. Full Electrical catalog inventory
 
@@ -234,9 +304,13 @@ not create and is not responsible for shipping.
 6. **`extract-template-service.ts` still has no production-write guard**
    (§10.2 item 3 of the reconciliation report, unchanged) — blocks safely
    creating the `TemplateVersion` deltas Blocker 1 says don't exist yet.
-7. **Routing V2's own scope (§3) rollout status is a separate, already-
-   tracked question** — §10.2's adoption sequence in the main report,
-   not newly introduced here, and not conflated with the six audit fixes.
+7. **Routing V2's shared modules (§3) are part of this release but their
+   own rollout readiness has not been separately assessed here** — §10.2
+   gives the adoption MECHANISM; whether the reroute-handoff module,
+   fractional measurement support, and the uncertainty sentinel are
+   themselves ready to ship (versus needing their own review) is a real,
+   open question this manifest names but does not resolve, and should not
+   be assumed answered by the six audit fixes' own analysis in §1.
 8. **BrightPath's own state relative to any of this is unconfirmed.**
 9. **Standing items carried forward, not closed here:** session-migration
    note/dependent/new-group-member safety and the legacy-writer cutover;
@@ -269,9 +343,13 @@ already the most heavily-rehearsed path in this whole reconciliation
    (Blocker 2) built and rehearsed before it can be any batch at all —
    real, separate, follow-up engineering work, correctly scoped smaller
    than "support deleting questions" in general.
-5. **Routing V2's own scope (§3) and the pre-existing `v2`/`v3` content
-   (§6) are not part of this recommendation** — both are separate,
-   already-tracked decisions.
+5. **The pre-existing `v2`/`v3` content (§6) is not part of this
+   recommendation** — it is separate, already-shipped, and not this
+   release's task. **Routing V2's own shared-module scope (§3) IS part of
+   this release, but this manifest does not recommend a batch for it** —
+   its own readiness (beyond the mechanism §10.2 already documents) needs
+   its own assessment, not an assumption borrowed from the six audit
+   fixes' unrelated analysis.
 
 ---
 
