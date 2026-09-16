@@ -71,6 +71,14 @@ export async function POST(req: Request) {
   try {
     const run = await runRouteAssistVisibleSceneProviderV1(provider, input);
     if (!run.semantics) {
+      // Preview-only diagnostic: this route is already gated by
+      // isRouteAssistPreviewAllowedV1() above, so this never runs against
+      // real customer traffic. run.problems are validator problem strings
+      // (e.g. "unknown image id", shape/enum refusals) -- never the photo
+      // itself, the dataUrl, or anything provider-credential-shaped -- so
+      // logging them is safe and gives Vercel runtime logs the actual
+      // reason even when the phone UI can't be inspected directly.
+      console.error("Route Assist photo-first live interpretation: provider validation failed", run.problems);
       return NextResponse.json({ error: "Route Assist could not validate the provider's interpretation", problems: run.problems }, { status: 502 });
     }
     return NextResponse.json({ semantics: run.semantics }, { headers: { "Cache-Control": "no-store" } });

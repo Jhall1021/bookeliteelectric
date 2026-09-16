@@ -72,6 +72,7 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
   const [outcome, setOutcome] = useState<RouteAssistPhotoFirstOutcomeV1 | null>(null);
   const [interpreting, setInterpreting] = useState(false);
   const [interpretError, setInterpretError] = useState<string | null>(null);
+  const [interpretProblems, setInterpretProblems] = useState<string[] | null>(null);
   const [liveLegLabel, setLiveLegLabel] = useState<string | null>(null);
 
   async function openCamera() {
@@ -206,6 +207,7 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
     const built: RouteAssistPhotoFirstOutcomeV1 = { store, markers, legEscalations };
     setOutcome(built);
     setInterpretError(null);
+    setInterpretProblems(null);
     setStage("CONFIRMED");
     // Deliberately does NOT call onComplete/onEscalateToSweep yet -- with no
     // provider facts written, every leg is TARGETED_PHOTO_REQUIRED/REVIEW_
@@ -231,6 +233,7 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
 
     setInterpreting(true);
     setInterpretError(null);
+    setInterpretProblems(null);
     setLiveLegLabel(firstDestination.label);
     try {
       const response = await fetch("/api/dev-fixtures/route-assist-photo-first-interpret", {
@@ -247,6 +250,12 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
       const body = (await response.json().catch(() => null)) as { semantics?: RouteAssistVisibleSceneSemanticsV1; error?: string; problems?: string[] } | null;
       if (!response.ok || !body?.semantics) {
         setInterpretError(body?.error ?? "Route Assist could not interpret this photo.");
+        // Preview-only diagnostic: the server's validation problems (never
+        // the photo/dataUrl itself) shown verbatim underneath the generic
+        // error, so a real phone test isn't left guessing why the provider
+        // response was refused. This does not change validation behavior --
+        // problems were already returned by the endpoint, just not shown.
+        setInterpretProblems(Array.isArray(body?.problems) && body.problems.length > 0 ? body.problems : null);
         return;
       }
 
@@ -415,6 +424,18 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
                 {interpreting ? "Interpreting…" : "Interpret with Route Assist"}
               </button>
               {interpretError && <p className="text-sm text-red-600" data-testid="route-assist-photo-interpret-error">{interpretError}</p>}
+
+              {/* Preview-only diagnostic: the server's raw validation problems, verbatim, directly under the generic error. Never shown outside preview/dev -- this whole page is preview-gated. */}
+              {interpretProblems && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-900" data-testid="route-assist-photo-interpret-problems">
+                  <p className="font-semibold">Provider validation problems</p>
+                  <ul className="mt-1 flex flex-col gap-0.5">
+                    {interpretProblems.map((problem, index) => (
+                      <li key={index}>{problem}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Preview-only debug panel -- not the final homeowner UX. Shows exactly what the fact ledger currently holds for the leg being interpreted. */}
               {liveLegLabel && (
