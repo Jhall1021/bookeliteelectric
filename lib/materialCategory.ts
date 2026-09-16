@@ -56,6 +56,15 @@ const RULES: { test: (key: string) => boolean; category: MaterialCategory }[] = 
   { category: "Conduit & Raceway", test: (k) => k.includes("CONDUIT") },
   // Low-voltage signal/data/comms, ahead of the generic wire/cable rule so
   // CABLE_CAT6, CABLE_RG6 and WIRE_BELL_18_2 land here instead.
+  //
+  // TV_MOUNT_* joins this bucket rather than "Other": it's what a contractor
+  // sells alongside the CAT6/RG6 run behind a wall-mounted TV, not a role
+  // that fits any of the electrical categories above. The category keeps its
+  // "Low Voltage / Media" name rather than becoming "TV & Media" — that
+  // narrower name wouldn't cleanly cover DOORBELL_TRANSFORMER/WIRE_BELL_18_2
+  // (doorbell wiring, not TV or media) or LOW_VOLTAGE_RING/LOW_VOLTAGE_COVER
+  // (generic low-voltage box hardware, not TV/media-specific), both of which
+  // already live here.
   {
     category: "Low Voltage / Media",
     test: (k) =>
@@ -64,7 +73,8 @@ const RULES: { test: (key: string) => boolean; category: MaterialCategory }[] = 
       k.includes("RG6") ||
       k.startsWith("JACK_") ||
       k.startsWith("LOW_VOLTAGE") ||
-      k.includes("DOORBELL"),
+      k.includes("DOORBELL") ||
+      k.startsWith("TV_MOUNT"),
   },
   { category: "Wire & Cable", test: (k) => k.startsWith("WIRE_") || k.startsWith("CABLE_") },
   {
