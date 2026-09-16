@@ -246,6 +246,33 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Stamps basePrice/publishedPriceApprovedAt on a THROWAWAY service, created through the real sign-up pipeline and destroyed by the test, purely so the fixture is a real INSTANT service the admin question editor can open — this script proves the unsaved-changes navigation guard (Stay/Discard/Save-clears-dirty), not anything about pricing, and never touches the price again after creating it.",
   "scripts/verify-question-editor-save-integrity-browser-flow.ts":
     "Stamps basePrice/publishedPriceApprovedAt on two THROWAWAY services, created through the real sign-up pipeline and destroyed by the test, purely so the fixtures are real INSTANT services the admin question editor can open — this script proves the editor's save path (stable ids and routing across a second save with no reload, Save/Cancel staying available after deleting the last question), not anything about pricing, and never touches the price again after creating it.",
+  "scripts/reconcile-missing-elite-tv-mount-services.ts":
+    "A bounded, owner-approved reconciliation for the two known missing Elite " +
+    "services — articulating-tv-mount at $145.00 and tilt-tv-mount at $95.00 — " +
+    "not a general price publisher. It targets only those two named services " +
+    "and refuses (does not skip silently) if either already exists on the " +
+    "contractor. The figures it stamps are the ones the owner already approved " +
+    "for this reconciliation, never derived or invented at the point of " +
+    "writing. Guarded by production identity: --apply refuses unless " +
+    "DATABASE_URL is verified, by marker, to BE the authoritative production " +
+    "database itself, not a branch of it — the inverse of most guards on this " +
+    "list, deliberately, since this script exists to close a real gap in " +
+    "production and running it anywhere else should be a harmless dry run. " +
+    "Pre-existing on main from PR #72; unchanged by this PR.",
+  "scripts/verify-materials-catalog-write-path.ts":
+    "Seeds basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on " +
+    "THROWAWAY fixture services — never a real contractor's — so the " +
+    "Materials Catalog regression can prove the opposite of what a publisher " +
+    "does: that editing a material's cost through the catalog's unit-cost " +
+    "path and its package-cost path, both routed through the existing " +
+    "setContractorMaterialCost domain function, leaves a service's published " +
+    "price and approval untouched. It snapshots all three fields before " +
+    "either edit, performs the unit-cost edit and the package-cost edit, then " +
+    "re-reads and asserts every one of the three fields is byte-for-byte " +
+    "unchanged on every fixture service. The throwaway contractor and its " +
+    "fixture services are created and destroyed in a finally block; no real " +
+    "contractor's price is read or written. This is a non-mutation regression " +
+    "proof, not a publication authority — it approves nothing.",
 };
 
 function walk(dir: string, out: string[] = []): string[] {
