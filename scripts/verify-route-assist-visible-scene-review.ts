@@ -61,5 +61,44 @@ const duplicateObject = { ...semantics, objects: [...semantics.objects, { ...sem
 const duplicateProblems = validateRouteAssistVisibleSceneSemanticsV1({ semantics: duplicateObject, expectedCaptureImageIds: captureImageIds, points, segments });
 check("duplicate semantic object IDs are rejected", duplicateProblems.some((problem) => problem.includes("duplicate or empty id")), JSON.stringify(duplicateProblems));
 
+// --- CORNER contract correction ---------------------------------------------
+// Real phone test with doorway/around-corner geometry failed with "visible
+// scene object corner-1 references unknown point corner-anchor-1" -- correct
+// fail-closed behavior, but it exposed that the provider contract let (in
+// fact, per the JSON schema's required-but-nullable pointId field, nearly
+// invited) a CORNER object to carry a point reference at all. Nothing
+// downstream ever reads pointId for a CORNER (livePhotoFactAdapter locates
+// it purely by its image-space box), so the fix is Option B: CORNER must
+// never carry one, declared or not -- not just "the id must be declared."
+
+const cornerObject = (id: string, extra: { pointId?: string } = {}) => ({
+  id,
+  kind: "CORNER" as const,
+  imageId: captureImageIds[0],
+  confidence: 0.9,
+  box: { x: 0.4, y: 0.4, width: 0.1, height: 0.1 },
+  ...extra,
+});
+
+const cornerNoPointId = { ...semantics, objects: [...semantics.objects, cornerObject("corner-1")] };
+const cornerNoPointIdProblems = validateRouteAssistVisibleSceneSemanticsV1({ semantics: cornerNoPointId, expectedCaptureImageIds: captureImageIds, points, segments });
+check("1. a CORNER object with no pointId (the corrected provider contract) validates cleanly", cornerNoPointIdProblems.length === 0, JSON.stringify(cornerNoPointIdProblems));
+
+const cornerUndeclaredPointId = { ...semantics, objects: [...semantics.objects, cornerObject("corner-1", { pointId: "corner-anchor-1" })] };
+const cornerUndeclaredProblems = validateRouteAssistVisibleSceneSemanticsV1({ semantics: cornerUndeclaredPointId, expectedCaptureImageIds: captureImageIds, points, segments });
+check(
+  "2. the exact real-phone failure mode -- corner-1 referencing undeclared corner-anchor-1 -- still fails closed",
+  cornerUndeclaredProblems.some((problem) => problem.includes("corner-1") && problem.includes("must not reference a route point")),
+  JSON.stringify(cornerUndeclaredProblems),
+);
+
+const cornerDeclaredButIrrelevantPointId = { ...semantics, objects: [...semantics.objects, cornerObject("corner-2", { pointId: "source" })] };
+const cornerDeclaredProblems = validateRouteAssistVisibleSceneSemanticsV1({ semantics: cornerDeclaredButIrrelevantPointId, expectedCaptureImageIds: captureImageIds, points, segments });
+check(
+  "a CORNER is rejected even when it names a REAL declared point -- CORNER never anchors to any point, declared or not",
+  cornerDeclaredProblems.some((problem) => problem.includes("corner-2") && problem.includes("must not reference a route point")),
+  JSON.stringify(cornerDeclaredProblems),
+);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

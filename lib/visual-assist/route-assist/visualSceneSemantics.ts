@@ -151,8 +151,25 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
     if (!authorizedImageIds.has(object.imageId)) problems.push(`visible scene object ${object.id} references unknown image ${object.imageId}`);
     if (!validUnit(object.confidence)) problems.push(`visible scene object ${object.id} has invalid confidence`);
     if (!validBox(object.box)) problems.push(`visible scene object ${object.id} has invalid normalized box`);
-    if ((object.kind === "SOURCE_RECEPTACLE" || object.kind === "DESTINATION_MARKER") && (!object.pointId || !pointIds.has(object.pointId))) problems.push(`visible scene object ${object.id} must anchor to an existing route point`);
-    if (object.pointId && !pointIds.has(object.pointId)) problems.push(`visible scene object ${object.id} references unknown point ${object.pointId}`);
+    // CORRECTION: a real phone test with doorway/around-corner geometry
+    // produced a CORNER object carrying a pointId ("corner-anchor-1") that
+    // was never declared in the points collection -- a genuine provider/
+    // schema inconsistency, correctly rejected. But the fix isn't only "the
+    // id must be declared": per pointId's own doc comment above
+    // (RouteAssistVisibleSceneObjectV1), ONLY SOURCE_RECEPTACLE/DESTINATION_
+    // MARKER correspond to a homeowner-placed route point at all. Nothing
+    // downstream ever reads pointId for any other kind (livePhotoFactAdapter
+    // locates CORNER purely by its image-space box), so a non-anchor object
+    // carrying ANY pointId -- even one that happens to name a real declared
+    // point -- is itself the inconsistency, not just an undeclared value.
+    // Rejecting every non-anchor pointId closes that gap structurally
+    // rather than only catching the one value seen in the field.
+    const isRouteAnchorObjectKind = object.kind === "SOURCE_RECEPTACLE" || object.kind === "DESTINATION_MARKER";
+    if (isRouteAnchorObjectKind) {
+      if (!object.pointId || !pointIds.has(object.pointId)) problems.push(`visible scene object ${object.id} must anchor to an existing route point`);
+    } else if (object.pointId) {
+      problems.push(`visible scene object ${object.id} (${object.kind}) must not reference a route point -- only SOURCE_RECEPTACLE/DESTINATION_MARKER anchor to one`);
+    }
   }
 
   for (const observation of semantics.segmentObservations) {
