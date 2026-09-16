@@ -67,21 +67,28 @@ same already-rehearsed path as the six audit fixes.
 
 **Documentation step complete and accepted. The five-service local
 adoption rehearsal (§1b) is done, and its evidence gaps have since been
-corrected (16 Sep 2026).** All five services in the batch (ceiling
-light/fan, replacement outlet, dedicated circuit, dishwasher — the four
-audit fixes that reduce to `option-revised`/`wording-changed`) were
-rehearsed end-to-end against the CURRENT, unmodified `scripts/template-
-update.ts` — real BEFORE/TARGET `TemplateVersion`s composed by running
-this repo's own real seed code inside a disposable scratch database, a
-real throwaway contractor, real `--status`/`--adopt` calls, the composed
-final graph checked completely and systematically against the target, a
+corrected twice (16 Sep 2026, two passes).** All five services in the
+batch (ceiling light/fan, replacement outlet, dedicated circuit,
+dishwasher — the four audit fixes that reduce to
+`option-revised`/`wording-changed`) were rehearsed end-to-end against the
+CURRENT, unmodified `scripts/template-update.ts` — real BEFORE/TARGET
+`TemplateVersion`s composed by running this repo's own real seed code
+inside two uniquely-named, no-pre-drop disposable scratch databases, an
+uncustomized throwaway contractor that adopts ALL EIGHT real per-unit
+operations and is compared against target completely (not a subset), a
 real pricing-resolver proof that the switch-leg work is now charged
-exactly once, a genuine structural conflict refusing cleanly, a no-op
-rerun, and an unrelated tenant snapshotted before any adoption and
-confirmed unaffected. 329/329 checks passed; `npx tsc --noEmit` clean;
-the local disposable databases confirmed back to their exact baseline
-afterward. No adoption-tool code was touched. See §1b for the full
-result and its disclosed, documented simplifications.
+exactly once, a genuine structural conflict on a SEPARATE contractor
+refusing cleanly while that contractor's own real, never-re-approved
+partial progress is confirmed to stay unapproved, a no-op rerun, and an
+unrelated tenant snapshotted before any adoption and confirmed unaffected.
+602/602 checks passed; `npx tsc --noEmit` clean; the local disposable
+databases confirmed back to their exact baseline afterward; a deliberately
+injected setup failure confirmed cleanup leaves no owned artifacts behind.
+No adoption-tool code was touched. Whether a real contractor has any
+supported path to reapprove pricing after adopting is separately tracked
+as unproven and blocked (§7 Blocker 11) — not established by this
+rehearsal and not silently assumed. See §1b for the full result and its
+disclosed, documented simplifications.
 
 ## 1. PR #63's own tree/data changes — corrected, with the actual adoption operation each one needs
 
@@ -172,120 +179,173 @@ revisions; it does not establish live production readiness — no
 production access was used, and reaching an actual existing contractor's
 real catalog is a separate, later, explicitly-authorized step.**
 
-**Corrected 16 Sep 2026.** The first pass (commit `e63528a`) hand-authored
-its BEFORE/TARGET fixtures and, on review, was found to have gotten the
-real `lighting_control` module, the real before/after composition of
-`new-ceiling-light`/`new-ceiling-fan`, and its own graph/pricing evidence
-wrong in several independent ways: a fictional `existing_switched_light`
-routing, an invented option the real module does not have, no component
-bindings or pricing-resolver check at all, a "field-by-field" comparison
-that was really a handful of hand-picked assertions, an `isReachable`
-check that tested incoming edges rather than real traversal, and an
-UNRELATED tenant provisioned AFTER every adoption instead of before. The
-corrected verifier below replaces every one of those with real evidence;
-none of the underlying six audit-fix commits or `scripts/template-update.ts`
-changed.
+**Corrected twice — 16 Sep 2026 (two passes, same day).** The first pass
+(commit `e63528a`) hand-authored its BEFORE/TARGET fixtures and, on
+review, was found to have gotten the real `lighting_control` module, the
+real before/after composition of `new-ceiling-light`/`new-ceiling-fan`,
+and its own graph/pricing evidence wrong in several independent ways: a
+fictional `existing_switched_light` routing, an invented option the real
+module does not have, no component bindings or pricing-resolver check at
+all, a "field-by-field" comparison that was really a handful of
+hand-picked assertions, an `isReachable` check that tested incoming edges
+rather than real traversal, and an UNRELATED tenant provisioned AFTER
+every adoption instead of before. The second pass (`f0c345a`) fixed all
+of that by composing both fixtures from this repo's own real seed code,
+but on further review had four remaining gaps: it entangled the
+successful-batch proof with the conflict proof on one contractor (so
+`dedicated_distance/25_to_50` was never actually adopted, and the full
+target comparison silently excluded it); it called `approveService`
+directly before testing the conflict refusal, so "partial service states
+unapproved" was not actually demonstrated — the state was freshly
+re-approved moments before; its scratch-database cleanup dropped FIXED
+names with a pre-drop, which could destroy a database this run did not
+create; and its comparison covered only routing/component fields, not
+labels, photos, disclaimers, material links, or a genuine order check.
+This third pass fixes all four; none of the six real audit-fix commits or
+`scripts/template-update.ts` changed at any point.
 
-Checked in as `scripts/verify-audit-batch-adoption.ts` (329/329 checks,
-`npx tsc --noEmit` clean across the repo). BOTH `TemplateVersion`s are now
+Checked in as `scripts/verify-audit-batch-adoption.ts` (602/602 checks,
+`npx tsc --noEmit` clean across the repo). Both `TemplateVersion`s are
 built by running this repo's own, real, unmodified seed functions —
 `seedNewCeilingLight`/`seedNewCeilingFan`/`seedDeviceModule`/
 `seedDedicatedCircuit`/`seedApplianceElectrical`, plus the full
-`prisma/seed-lighting-control.ts` module — inside a brand-new, disposable
-local Postgres database the verifier creates and drops itself, never
+`prisma/seed-lighting-control.ts`, `prisma/seed-access-normalization.ts`
+and `prisma/seed-fixture-finish-ack.ts` modules — inside two brand-new,
+disposable local Postgres databases, named uniquely per run and created
+with no pre-drop, that this run creates and destroys itself, never
 against Elite's own rows in the shared rehearsal database. The BEFORE
 fixture's four differences from current HEAD are reverted on top of that
 real output using field values copied VERBATIM from `cb8821a8` and
-`d841fdfc`'s own diff hunks (never reconstructed from memory). Both
-fixtures are extracted per-service with the real
-`scripts/extract-template-service.ts` and migrated — by canonical KEY,
-never by raw id — into one combined `TemplateVersion` each (v500 BEFORE,
-v501 TARGET) in the shared rehearsal database, which is where a throwaway
-contractor is provisioned and exercised through REAL `--status`/`--adopt`
-calls. Confirmed for real, not merely reasoned about:
+`d841fdfc`'s own diff hunks (never reconstructed from memory).
+`prisma/seed-conditional-disclaimers.ts` is also attempted, in authoring
+order, since its own ATTACHMENTS/EXTERIOR_WALL_SERVICES tables name three
+of these five services directly — but its content is confirmed NOT
+included in either fixture: the run's own captured output shows it
+failing with the same pre-existing `CanonicalDisclaimer` gap already
+documented in `docs/design/electrical-decision-tree-audit-v1-rehearsal-
+bootstrap.md`'s "Known, expected failure" section (there is no path in
+this codebase to create a `CanonicalDisclaimer` row from nothing on a
+from-scratch database — `prisma/backfill-disclaimer-split-2026-08-27.ts`'s
+own `legacy` query has been hardcoded to `[]` since 28 Aug 2026). None of
+the three affected attachments carry routing, pricing, or components, so
+this does not affect the resolver, adoption-set, or reachability proofs —
+only the disclaimer-key comparison, which correctly shows empty sets on
+both sides rather than silently skipping the field. Both fixtures are
+extracted per-service with the real `scripts/extract-template-service.ts`
+and migrated — by canonical KEY, never by raw id — into one combined
+`TemplateVersion` each (v500 BEFORE, v501 TARGET) in the shared rehearsal
+database, where **three separate throwaway contractors** are provisioned
+and exercised through REAL `--status`/`--adopt` calls. Confirmed for
+real, not merely reasoned about:
 
-- The exact offered change set is 8 real per-unit operations, asserted as
-  a complete set (not a presence check for one entry among possibly
-  others): `existing_light_source/no` on both ceiling services;
-  `device_replacement_reason/{works_upgrading,intermittent,damaged}` on
-  replacement outlet; `dedicated_distance/{under_25,25_to_50}` on
-  dedicated circuit; the `appliance_power_present` wording change on
-  dishwasher. `existing_light_source/yes` is confirmed NOT a change on
-  either ceiling service — both fixtures' fully-composed live trees wire
-  it to `CONTINUE -> lighting_control` with no price modifier, closing the
-  gap the first pass's own uncomposed BEFORE fixture had introduced.
+- The exact, COMPLETE typed `--status` change set (every kind — question-
+  added/option-added/baseline-missing included, never filtered out before
+  the "exact" assertion) is 8 real per-unit operations on an
+  **uncustomized** adopter: `existing_light_source/no` on both ceiling
+  services; `device_replacement_reason/{works_upgrading,intermittent,
+  damaged}` on replacement outlet; `dedicated_distance/{under_25,
+  25_to_50}` on dedicated circuit; the `appliance_power_present` wording
+  change on dishwasher. `existing_light_source/yes` is confirmed NOT a
+  change on either ceiling service.
+- **All eight are adopted on this same uncustomized adopter** — including
+  `dedicated_distance/25_to_50`, which the prior pass never actually
+  adopted. The full target comparison and the reachability proof below
+  both cover every one of the eight with nothing excluded.
 - **Real pricing resolver proof, not a structural inference**:
   `lib/routeResolver.ts`'s actual `resolveRoute` — the same function
-  `/api/visit` charges from — was run against the throwaway contractor's
-  real, provisioned tree, with real `ContractorComponent` economics
-  (Elite's own canonical figures) and a real `PricingSettings` row. The
-  identical answer path priced at **$920.00 before** adopting
-  `existing_light_source/no` and **$695.00 after** — a **$225.00**
-  reduction, exactly the flat `switched_source/no` fee the fix removes.
-  The switch-leg component itself (`SWITCH_POWER_RUN_ACCESSIBLE`, $320)
-  contributes identically both times; only the double-counted flat fee
-  drops out.
-- Complete, systematic field-by-field comparison (every question TARGET
-  declares, every option under it, every field
-  `template-update.ts`'s own `AdoptedOptionProjection` tracks — routing,
-  numeric bounds, capability gate, and canonical components) against the
-  real TARGET `TemplateService`, for all five services — not a curated
-  subset of assertions.
-- Real graph traversal (this repo's own `findUnreachableQuestions`,
-  reused rather than reimplemented) from the tree's actual entry question
-  confirms `switched_source` (both ceiling services) and
-  `outlet_condition` (replacement outlet) are genuinely UNREACHABLE after
-  adoption — not merely "nothing points at them in isolation," but
-  actually unreachable by a walk from where a customer starts.
-  `dedicated_panel_location` is confirmed to REMAIN reachable, because
-  `dedicated_distance/25_to_50` was deliberately left un-adopted (see
-  below) and its own live `CONTINUE` into it is a genuine path.
-- Every one of the five multi/single-change services had pricing
-  invalidation (`materialCostResolved`/`publishedPriceApprovedAt`/
-  `basePrice` all reset) checked after EACH individual `--adopt` call —
-  three separate checks on replacement outlet's three changes, not one
-  check after the whole batch.
-- **Conflict protection, proven on a genuine conflict**: a real structural
-  customization (a component attached directly to
-  `dedicated_distance/25_to_50`, bypassing the tool) is confirmed reported
-  as a CONFLICT by `--status`, and an `--adopt` attempt against it is
-  SKIPPED — the full affected service (every question/option/component),
-  the approval TIMESTAMP specifically, and the `TemplateAdoptionReceipt`
-  count are all confirmed byte-identical before and after the skipped
-  attempt. `dedicated-120v-circuit-outlet` ends this run with one real
-  change adopted and one genuinely conflicted — a deliberately partial,
-  unapproved state, not a shortfall against the 8.
+  `/api/visit` charges from — priced the identical answer path at
+  **$920.00 before** adopting `existing_light_source/no` and **$695.00
+  after** — a **$225.00** reduction, exactly the flat `switched_source/no`
+  fee the fix removes. `SWITCH_POWER_RUN_ACCESSIBLE` ($320) contributes
+  identically both times; only the double-counted flat fee drops out.
+- **Complete, expanded comparison against TARGET** for all five services:
+  every question TARGET declares (prompt, helpText, inputType, numeric-
+  route fields, and relative ORDER among target's own questions — compared
+  by rank, not raw magnitude, since a retained historical question with no
+  target counterpart correctly shifts every later raw order number without
+  changing any real question's relative position) and every option under
+  it (routing, numeric bounds, capability gate, canonical components,
+  label, `labelPattern`, required photos, `photosBlockBooking`,
+  illustration URLs, material links, and disclaimer keys, each resolved by
+  canonical key and sorted before comparing) — not a curated subset.
+- Real graph traversal (this repo's own `findUnreachableQuestions`, reused
+  rather than reimplemented) confirms `switched_source` (both ceiling
+  services), `outlet_condition` (replacement outlet), AND, now that both
+  its real changes are adopted, `dedicated_panel_location` (dedicated
+  circuit) are all genuinely UNREACHABLE from the tree's real entry after
+  the full batch.
+- Every row's own id (every question and option, adopted, untouched, and
+  retained/orphaned alike, across all five services) is snapshotted before
+  the batch and confirmed IDENTICAL after — proof that adoption updates
+  rows in place and never deletes-and-recreates one, order-independent
+  (the snapshot comparison sorts object keys before comparing, closing a
+  real bug this pass found in its own first attempt at this check).
+- Component and price-modifier economics this run entered are re-verified
+  unchanged after the full batch — adoption does not collaterally disturb
+  pricing data it never touched.
+- Pricing invalidation (`materialCostResolved`/`publishedPriceApprovedAt`/
+  `basePrice` all reset) is checked after EACH individual `--adopt` call
+  in every multi-change service — three checks on replacement outlet,
+  two on dedicated circuit — never once after a whole batch.
 - Repeating an already-landed adoption (`existing_light_source/no`, a
-  second time) is a true no-op: `"no change matched"`, and the full
-  service snapshot is confirmed byte-identical before and after.
+  second time) is a true no-op: `"no change matched"`, full service
+  snapshot byte-identical before and after.
 - A second, completely unrelated throwaway tenant is provisioned and its
-  full state (all five services' complete question/option/component trees
-  plus receipts) snapshotted BEFORE any `--adopt` call runs against the
-  first tenant — not after, closing the first pass's own gap — then
-  re-snapshotted at the end and confirmed byte-identical.
-- Cleanup captures the actual pre-run `TemplateVersion`/`Contractor` sets
-  and confirms the exact same sets are restored afterward — not a bare
-  count — and the two scratch databases this run creates are dropped
-  unconditionally at the end.
+  full state snapshotted BEFORE any `--adopt` call runs against the first,
+  then re-snapshotted at the end and confirmed byte-identical.
+- **Conflict protection, on a THIRD, separate, single-purpose throwaway
+  contractor never touched by the successful batch above** — proving two
+  distinct things honestly, not conflating them: (1) a real structural
+  customization (a component attached directly to
+  `dedicated_distance/25_to_50`, bypassing the tool, on an option this
+  contractor never adopted) is reported as a CONFLICT and an `--adopt`
+  attempt against it is SKIPPED, with the full affected service and the
+  `TemplateAdoptionReceipt` count confirmed byte-identical before and
+  after; and (2) this contractor's one real adopted change
+  (`dedicated_distance/under_25`) was approved once, reset to unapproved
+  by that adopt, and **never re-approved afterward** — so its unapproved
+  state (`materialCostResolved`/`basePrice`/`publishedPriceApprovedAt`)
+  is confirmed to survive the skipped conflict adopt untouched, which is
+  what "real partial progress stays unapproved" actually means. This
+  contractor's own `dedicated_panel_location` is confirmed to REMAIN
+  reachable, since only one of its two real changes was ever adopted.
+- Cleanup: every scratch database and the temporary seed file are named
+  uniquely per run and created with no pre-drop; ownership of each is
+  recorded the instant it is created, before anything else happens to it;
+  the entire build/migrate/adopt sequence runs inside one try block whose
+  cleanup acts only on resources recorded as owned, continuing past any
+  individual failure and surfacing every one at the end rather than
+  swallowing it. A deliberately injected setup failure was run once during
+  this pass's own development to confirm cleanup leaves no owned artifacts
+  and touches nothing pre-existing — confirmed directly, not assumed.
+  Cleanup also captures the actual pre-run `TemplateVersion`/`Contractor`
+  sets and confirms the exact same sets are restored afterward, not a bare
+  count.
 
 **Disclosed simplifications** (documented at their own call sites in the
 verifier's file, not hidden): `materialCostResolved` is set directly for
-the services this rehearsal prices, rather than walked through the real
-material-onboarding flow — `lib/materialCost.ts`'s own
-`recomputeServiceMaterialCost` cannot flip it back to `true` for a service
-whose only materials are policy-quantity allowances (a genuine, separate
-gap in that path, reported here, not fixed, and not part of any of the
-six audit-fix commits). The flat `switched_source` price modifiers and
-every `ContractorComponent` economic figure are entered directly for the
-throwaway contractor using Elite's own real canonical figures (the same
-numbers `prisma/seed-lighting-control.ts`/`prisma/seed-dedicated-circuit.ts`
-already define) — templates never carry economics by design
-(`extract-template-service.ts` drops `priceModifierCents` explicitly), so
-a real contractor would enter these themselves during onboarding; nothing
-here is a reimplementation of pricing — every price reported is computed
-by the real `resolveRoute`. **No code, deletion tooling, or production
-access was used or is required by this rehearsal — it exercises
-`scripts/template-update.ts` exactly as committed.**
+every service this rehearsal prices or adopts, rather than walked through
+the real material-onboarding flow. **Whether a real contractor has ANY
+supported path to reapprove pricing after adopting one of these five
+services is UNPROVEN by this run and BLOCKED pending a focused check of
+that actual lifecycle** — see Blocker 11 in §7; this is recorded as open,
+not silently fixed and not declared irrelevant. What IS established:
+`lib/materialCost.ts`'s own `recomputeServiceMaterialCost` provably cannot
+flip `materialCostResolved` back to `true` for a service whose only
+materials are policy-quantity allowances — `requiredRolesFor()` excludes
+them entirely, so a service with zero structural materials is "ready"
+with nothing to resolve and the function returns early without writing.
+The flat `switched_source` price modifiers and every `ContractorComponent`
+economic figure this run enters directly use Elite's own real canonical
+figures (the same numbers `prisma/seed-lighting-control.ts`/
+`prisma/seed-dedicated-circuit.ts` already define) — templates never carry
+economics by design (`extract-template-service.ts` drops
+`priceModifierCents` explicitly), so a real contractor would enter these
+themselves during onboarding; nothing here is a reimplementation of
+pricing — every price reported is computed by the real `resolveRoute`.
+**No code, deletion tooling, or production access was used or is required
+by this rehearsal — it exercises `scripts/template-update.ts` exactly as
+committed.**
 
 ## 2. Garage outlet: the `bookingType` correction
 
@@ -478,7 +538,8 @@ not create and is not responsible for shipping.
    the six** (ceiling light/fan, replacement outlet, dedicated circuit,
    dishwasher): the ADOPTION OPERATION ITSELF is now locally demonstrated
    against the current, unmodified tool, including a real pricing-resolver
-   proof of the switch-leg fix specifically (329/329 checks,
+   proof of the switch-leg fix specifically (602/602 checks, all eight real
+   per-unit operations adopted and fully compared against target,
    `scripts/verify-audit-batch-adoption.ts`) — what remains is purely
    getting a real delta extracted, not any further tool-support question.
    Soundbar (its disclaimer field) and garage outlet (Blocker 2) are
@@ -520,6 +581,20 @@ not create and is not responsible for shipping.
     note/dependent/new-group-member safety and the legacy-writer cutover;
     full storefront/browser rehearsal beyond `new-120v-outlet`'s surface-
     mounted path (§7 item 3 of the reconciliation report).
+11. **Whether a real contractor has any supported path to reapprove
+    pricing after adopting one of these five services is UNPROVEN and
+    BLOCKED.** §1b's rehearsal forces `materialCostResolved` directly
+    because the real gate — `lib/materialCost.ts`'s
+    `recomputeServiceMaterialCost` — provably cannot flip it back to
+    `true` for a service whose only materials are policy-quantity
+    allowances (`requiredRolesFor()` excludes them entirely, so a service
+    with zero structural materials is "ready" with nothing to resolve and
+    the function returns early without writing). This is a real,
+    separate gap in the material-onboarding lifecycle, not part of any of
+    the six audit-fix commits and not fixed or worked around here — a
+    focused check of the actual supported reapproval lifecycle is needed
+    before claiming a real contractor can adopt one of these five changes
+    and get back to a bookable price through any supported path.
 
 ## 8. Recommended first rollout batch
 
@@ -529,16 +604,19 @@ all reduce to `option-revised`/`wording-changed`, already supported and
 already the most heavily-rehearsed path in this whole reconciliation
 (§0.28–§0.33) — **and, per §1b, now locally demonstrated end-to-end
 against the real, unmodified tool: a real BEFORE/TARGET pair composed
-from this repo's own real seed code, a real throwaway contractor, real
-`--status`/`--adopt` calls, the composed final graph verified completely
-and systematically against the target, a real pricing-resolver proof that
-the switch-leg work is now charged exactly once ($920.00 -> $695.00, a
-real $225.00 reduction), a genuine structural conflict refusing cleanly
-with a byte-identical before/after snapshot, a no-op rerun, and a
-completely unaffected unrelated tenant snapshotted before any adoption
-(329/329 checks). This is proof the OPERATION works, not proof it has
-reached any real contractor — that gap is entirely about extraction, not
-tool support.** The concrete next steps, in order:
+from this repo's own real seed code, a real throwaway contractor that
+adopts ALL EIGHT real per-unit operations and is compared against target
+completely, a real pricing-resolver proof that the switch-leg work is now
+charged exactly once ($920.00 -> $695.00, a real $225.00 reduction), a
+genuine structural conflict on a separate contractor refusing cleanly
+while that contractor's own real partial (never re-approved) progress is
+confirmed to stay unapproved, a no-op rerun, and a completely unaffected
+unrelated tenant snapshotted before any adoption (602/602 checks). This is
+proof the OPERATION works, not proof it has reached any real contractor —
+that gap is entirely about extraction, not tool support. It is also NOT
+proof a real contractor has a supported path to reapprove pricing after
+adopting — Blocker 11 keeps that open.** The concrete next steps, in
+order:
 
 1. **Confirm, with production access, whether Elite's live catalog
    already reflects any of these six fixes** — this document cannot do
