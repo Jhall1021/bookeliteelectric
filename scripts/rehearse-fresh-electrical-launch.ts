@@ -91,6 +91,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
+import { assertDisposableLocalDatabase } from "../prisma/_assertDisposableLocalDatabase";
 
 const RUN_ID = `${Date.now()}_${process.pid}`;
 const SCRATCH_HOST = "127.0.0.1";
@@ -104,6 +105,27 @@ function createScratchDatabase(name: string): void {
 }
 function dropScratchDatabase(name: string): void {
   execFileSync("psql", ["-h", SCRATCH_HOST, "-p", String(SCRATCH_PORT), "-U", SCRATCH_USER, "-d", "postgres", "-c", `DROP DATABASE IF EXISTS ${name};`], { stdio: "pipe" });
+}
+
+/**
+ * The one executable, documented way to end this run's ownership of a
+ * scratch database it left running for Phase 2 to use.
+ *
+ *   npx tsx scripts/rehearse-fresh-electrical-launch.ts --teardown <db-name>
+ *
+ * Before this existed, "left running for inspection" named no next step —
+ * an operator had to already know dropScratchDatabase()'s shape to end the
+ * run's ownership at all. Guarded by the same loopback-host check the
+ * disposable-database guard uses, so a copy-pasted db name from a stray
+ * clipboard entry cannot target anything but this local cluster.
+ */
+async function teardown(name: string): Promise<void> {
+  if (!/^p2b_freshlaunch_\d+_\d+$/.test(name)) {
+    console.error(`Refusing to drop "${name}" — does not look like a database this script created (expected p2b_freshlaunch_<run-id>).`);
+    process.exit(1);
+  }
+  dropScratchDatabase(name);
+  console.log(`Dropped ${name} on ${SCRATCH_HOST}:${SCRATCH_PORT}.`);
 }
 
 function run(file: string, args: string[] = [], opts: { allowFailure?: string } = {}): void {
@@ -296,9 +318,12 @@ async function applyBatch2fSurgeFix(): Promise<void> {
 }
 
 async function main() {
+  const teardownTarget = process.argv[2] === "--teardown" ? process.argv[3] : null;
+  if (teardownTarget) return teardown(teardownTarget);
+
   console.log(`Fresh Electrical launch rehearsal — run ${RUN_ID}\n`);
   createScratchDatabase(DB_NAME);
-  console.log(`Scratch database created: ${DB_NAME}`);
+  console.log(`Scratch database created on ${SCRATCH_HOST}:${SCRATCH_PORT}: ${DB_NAME}`);
 
   try {
     execFileSync("npx", ["prisma", "db", "push", "--skip-generate", "--accept-data-loss"], { stdio: "inherit", env: { ...process.env, DATABASE_URL: DB_URL } });
@@ -307,6 +332,17 @@ async function main() {
       "--expect", `local-freshlaunch-${RUN_ID}`, "--project", "local-disposable-not-neon",
       "--note", "fresh Electrical launch rehearsal, disposable, dropped at end of run",
     ], { stdio: "inherit", env: { ...process.env, DATABASE_URL: DB_URL } });
+
+    // Same guard every other rehearsal script in this repo uses before
+    // mutating a database outside the seed/migrate chain — belt-and-braces
+    // alongside the loopback host literal above, so this script fails the
+    // same way the others do if it is ever pointed somewhere else by mistake.
+    const identityCheck = new PrismaClient({ datasources: { db: { url: DB_URL } } });
+    try {
+      await assertDisposableLocalDatabase(identityCheck);
+    } finally {
+      await identityCheck.$disconnect();
+    }
 
     await bootstrapContractor();
     await addMissingCoverRaised4sRole();
@@ -365,8 +401,12 @@ async function main() {
     run("prisma/seed-routing-v2-policies.ts");
     run("prisma/seed-routing-v2-pricing-method.ts");
 
-    console.log(`\nDone. Scratch database ${DB_NAME} left running for inspection.`);
-    console.log(`DATABASE_URL="${DB_URL}"`);
+    console.log(`\nDone. Scratch database ${DB_NAME} (${SCRATCH_HOST}:${SCRATCH_PORT}) left running for Phase 2.`);
+    console.log(`Run Phase 2 against it: DATABASE_URL is exported for this process only, so export it yourself:`);
+    console.log(`  export DATABASE_URL="postgresql://${SCRATCH_USER}@${SCRATCH_HOST}:${SCRATCH_PORT}/${DB_NAME}?schema=public"`);
+    console.log(`  npx tsx scripts/rehearse-fresh-electrical-launch-phase2.ts`);
+    console.log(`When finished, end this run's ownership of it:`);
+    console.log(`  npx tsx scripts/rehearse-fresh-electrical-launch.ts --teardown ${DB_NAME}`);
   } catch (e) {
     console.error("\nFAILED — dropping scratch database before exiting.\n");
     dropScratchDatabase(DB_NAME);

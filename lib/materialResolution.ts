@@ -57,17 +57,31 @@ export type RequiredRole = {
   canonicalMaterialId: string;
   key: string;
   name: string;
-  quantity: number;
+  /**
+   * Null exactly when `quantityIsPolicy` is true and the contractor has not
+   * yet declared their own allowance for this role on this service — see
+   * ServiceMaterial.quantity's own doc comment. A missing role with a null
+   * quantity is unresolved for that reason alone; its cost is never even
+   * looked up, because there is nothing yet to multiply it by.
+   */
+  quantity: number | null;
+  quantityIsPolicy: boolean;
 };
 
-export type ResolvedRole = RequiredRole & {
+export type ResolvedRole = Omit<RequiredRole, "quantity"> & {
+  quantity: number;
   unitCostCents: number;
   contractorMaterialId: string;
 };
 
+/** Why one required role did not resolve — never both at once. */
+export type MissingReason = "NO_QUANTITY" | "NO_COST";
+
+export type MissingRole = RequiredRole & { reason: MissingReason };
+
 export type MaterialReadiness =
   | { ready: true; roles: ResolvedRole[]; totalCents: number }
-  | { ready: false; missing: RequiredRole[]; resolved: ResolvedRole[] };
+  | { ready: false; missing: MissingRole[]; resolved: ResolvedRole[] };
 
 export class MaterialResolutionError extends Error {}
 
@@ -88,6 +102,7 @@ export async function requiredRolesFor(
     orderBy: { order: "asc" },
     select: {
       quantity: true,
+      quantityIsPolicy: true,
       canonicalMaterialId: true,
       canonicalMaterial: { select: { id: true, key: true, name: true } },
     },
@@ -109,6 +124,7 @@ export async function requiredRolesFor(
       key: r.canonicalMaterial.key,
       name: r.canonicalMaterial.name,
       quantity: r.quantity,
+      quantityIsPolicy: r.quantityIsPolicy,
     });
   }
   return roles;
@@ -167,19 +183,28 @@ export async function assessMaterialReadiness(
   // allowance is a hand-entered figure and there is nothing to resolve.
   if (required.length === 0) return { ready: true, roles: [], totalCents: 0 };
 
+  // A policy role with no declared quantity yet is unresolved before its cost
+  // is even worth looking up — there is nothing yet to multiply a cost by,
+  // and looking it up anyway would let a resolved cost on an undeclared
+  // allowance masquerade as progress.
+  const undeclared = required.filter((r) => r.quantity === null);
+  const quantified = required.filter(
+    (r): r is RequiredRole & { quantity: number } => r.quantity !== null
+  );
+
   const costs = await contractorCostsFor(
     db,
     contractorId,
-    required.map((r) => r.canonicalMaterialId)
+    quantified.map((r) => r.canonicalMaterialId)
   );
 
   const resolved: ResolvedRole[] = [];
-  const missing: RequiredRole[] = [];
+  const missing: MissingRole[] = undeclared.map((r) => ({ ...r, reason: "NO_QUANTITY" }));
 
-  for (const role of required) {
+  for (const role of quantified) {
     const cost = costs.get(role.canonicalMaterialId);
     if (!cost) {
-      missing.push(role);
+      missing.push({ ...role, reason: "NO_COST" });
       continue;
     }
     resolved.push({ ...role, ...cost });
@@ -204,16 +229,21 @@ export async function assessMaterialReadiness(
  *
  * Names the roles rather than counting them — "needs a cost for CABLE_CAT6"
  * is actionable, "3 materials unpriced" sends someone hunting.
+ *
+ * "No cost entered" is only true of the NO_COST roles. A NO_QUANTITY role has
+ * no cost gap yet — it has no declared allowance — and saying "no cost" there
+ * would send a contractor to enter a price that cannot clear the block, which
+ * is exactly the silent-looking dead end this distinction exists to avoid.
  */
-export function describeMissing(missing: RequiredRole[]): string {
+export function describeMissing(missing: MissingRole[]): string {
   if (missing.length === 0) return "";
-  const names = missing.map((m) => `${m.name} (${m.key})`);
-  if (names.length === 1) return `no cost entered for ${names[0]}`;
-  if (names.length <= 3) return `no cost entered for ${names.join(", ")}`;
-  return (
-    `no cost entered for ${names.slice(0, 3).join(", ")} ` +
-    `and ${names.length - 3} more`
-  );
+  const phraseFor = (m: MissingRole) =>
+    m.reason === "NO_QUANTITY"
+      ? `no allowance set for ${m.name} (${m.key})`
+      : `no cost entered for ${m.name} (${m.key})`;
+  if (missing.length === 1) return phraseFor(missing[0]);
+  if (missing.length <= 3) return missing.map(phraseFor).join("; ");
+  return `${missing.slice(0, 3).map(phraseFor).join("; ")}; and ${missing.length - 3} more`;
 }
 
 // ---------------------------------------------------------------------------
@@ -308,18 +338,20 @@ export async function activationMaterialRoles(
   for (const o of options) {
     if (!priceable(o)) continue;
 
-    // Branch-selected base material — AnswerOption -> Material.
+    // Branch-selected base material — AnswerOption -> Material. Always a
+    // fixed quantity: AnswerOptionMaterial carries no policy flag of its own.
     for (const m of o.materials) {
       if (!m.canonicalMaterial) continue;
       const { id, key, name } = m.canonicalMaterial;
-      if (!byId.has(id)) byId.set(id, { canonicalMaterialId: id, key, name, quantity: m.quantity });
+      if (!byId.has(id)) byId.set(id, { canonicalMaterialId: id, key, name, quantity: m.quantity, quantityIsPolicy: false });
     }
 
-    // Material consumed by a component this branch selects.
+    // Material consumed by a component this branch selects. Same: fixed,
+    // never policy-quantity.
     for (const c of o.components) {
       for (const m of c.canonicalComponent?.materials ?? []) {
         const { id, key, name } = m.canonicalMaterial;
-        if (!byId.has(id)) byId.set(id, { canonicalMaterialId: id, key, name, quantity: m.quantity });
+        if (!byId.has(id)) byId.set(id, { canonicalMaterialId: id, key, name, quantity: m.quantity, quantityIsPolicy: false });
       }
     }
   }

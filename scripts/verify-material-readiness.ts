@@ -81,6 +81,7 @@ const GFCI_QTY = [1, 1, 1, 2, 1];
 const gfciRecipe = GFCI_ROLES.map((r, i) => ({
   serviceId: "svc_gfci",
   quantity: GFCI_QTY[i],
+  quantityIsPolicy: false,
   canonicalMaterialId: r.id,
   canonicalMaterial: r,
   order: i,
@@ -192,14 +193,71 @@ async function main() {
 
   console.log("\nADMIN MESSAGING\n");
   {
-    const one = describeMissing([{ canonicalMaterialId: "x", key: "CABLE_CAT6", name: "Cat6 cable", quantity: 1 }]);
+    const one = describeMissing([{ canonicalMaterialId: "x", key: "CABLE_CAT6", name: "Cat6 cable", quantity: 1, quantityIsPolicy: false, reason: "NO_COST" }]);
     ok(one.includes("CABLE_CAT6") && one.includes("Cat6 cable"),
        "names the role and its key, so it's actionable");
+    ok(one.includes("no cost entered"), "a NO_COST role is described as missing a cost");
     ok(describeMissing([]) === "", "nothing missing says nothing");
     const many = describeMissing(
-      ["A", "B", "C", "D", "E"].map((k) => ({ canonicalMaterialId: k, key: k, name: k, quantity: 1 }))
+      ["A", "B", "C", "D", "E"].map((k) => ({ canonicalMaterialId: k, key: k, name: k, quantity: 1, quantityIsPolicy: false, reason: "NO_COST" as const }))
     );
     ok(many.includes("and 2 more"), "a long list is truncated rather than dumped");
+    const quantityMissing = describeMissing([{ canonicalMaterialId: "y", key: "CONSUMABLES_SMALL", name: "Consumables", quantity: null, quantityIsPolicy: true, reason: "NO_QUANTITY" }]);
+    ok(quantityMissing.includes("no allowance set") && !quantityMissing.includes("no cost entered"),
+       "a NO_QUANTITY role is described as missing an allowance, never as missing a cost");
+  }
+
+  console.log("\nPOLICY-QUANTITY ROLES — undeclared before undercosted\n");
+  {
+    // CONSUMABLES_SMALL is a policy-quantity role: installCatalog links it
+    // with quantity: null until the contractor declares their own allowance.
+    // A structural role (RECEPTACLE) sits alongside it, exactly like
+    // replace-standard-outlet's real mixed recipe.
+    const mixedRecipe = [
+      { serviceId: "svc_mixed", quantity: 1, quantityIsPolicy: false,
+        canonicalMaterialId: "cm_recep", canonicalMaterial: role("cm_recep", "RECEPTACLE_STANDARD", "Standard receptacle"), order: 0 },
+      { serviceId: "svc_mixed", quantity: null, quantityIsPolicy: true,
+        canonicalMaterialId: "cm_cons", canonicalMaterial: role("cm_cons", "CONSUMABLES_SMALL", "Consumables"), order: 1 },
+    ];
+    const costs = [
+      { contractorId: ELITE, canonicalMaterialId: "cm_recep", unitCostCents: 200, id: "m1", active: true },
+      { contractorId: ELITE, canonicalMaterialId: "cm_cons", unitCostCents: 300, id: "m2", active: true },
+    ];
+
+    {
+      // Every cost entered, quantity still undeclared: must NOT report ready.
+      // This is the exact defect the fresh-launch rehearsal found — a service
+      // reporting materialCostResolved: true while silently excluding a
+      // policy role's cost from the total.
+      const db = makeDb({ serviceMaterials: mixedRecipe, contractorMaterials: costs });
+      const r = await assessMaterialReadiness(db, "svc_mixed", ELITE);
+      ok(!r.ready, "a costed-but-unquantified policy role blocks readiness even though every OTHER role is fully resolved");
+      if (!r.ready) {
+        ok(r.missing.length === 1 && r.missing[0].key === "CONSUMABLES_SMALL", "names the undeclared role");
+        ok(r.missing[0].reason === "NO_QUANTITY", "the reason is NO_QUANTITY, not NO_COST — its cost IS entered");
+        ok(r.resolved.length === 1 && r.resolved[0].key === "RECEPTACLE_STANDARD", "the structural role still resolves independently");
+      }
+    }
+    {
+      // Quantity declared: now genuinely ready, and the total includes BOTH
+      // roles exactly once — 1 x $2.00 + 1 x $3.00 = $5.00, not $2.00.
+      const declared = mixedRecipe.map((m) => (m.quantityIsPolicy ? { ...m, quantity: 1 } : m));
+      const db = makeDb({ serviceMaterials: declared, contractorMaterials: costs });
+      const r = await assessMaterialReadiness(db, "svc_mixed", ELITE);
+      ok(r.ready, "declaring the policy quantity resolves the service");
+      ok(r.ready && r.totalCents === 500, "the total includes the policy role's cost — not silently dropped",
+         r.ready ? `got ${r.totalCents}` : "");
+    }
+    {
+      // Quantity declared but cost missing: NO_COST, not NO_QUANTITY — the
+      // two reasons are never confused in either direction.
+      const declared = mixedRecipe.map((m) => (m.quantityIsPolicy ? { ...m, quantity: 1 } : m));
+      const noCost = costs.filter((c) => c.canonicalMaterialId !== "cm_cons");
+      const db = makeDb({ serviceMaterials: declared, contractorMaterials: noCost });
+      const r = await assessMaterialReadiness(db, "svc_mixed", ELITE);
+      ok(!r.ready, "a declared-but-uncosted policy role still blocks readiness");
+      ok(!r.ready && r.missing[0].reason === "NO_COST", "and its reason is NO_COST once the quantity is no longer the gap");
+    }
   }
 }
 

@@ -124,9 +124,21 @@ async function answerChoice(page: Page, prompt: string, label: string) {
  * answer this first; it is not part of `walkStraightRoute` because block D's
  * Back navigation targets the FEET question specifically and never needs to
  * re-answer it.
+ *
+ * TWO questions, not one — a prior version of this asked a single retired
+ * "What will this outlet power?" (`purpose`, prisma/seed-questions.ts).
+ * prisma/seed-outlet-power-source.ts runs after that seed in every chain
+ * that includes it and explicitly deletes `purpose` ("Two questions asking
+ * nearly the same thing is worse than either alone, so the older one goes"),
+ * replacing it with these two real ones: `outlet_load_type` ("What will you
+ * be plugging in?", "Everyday things" continues) then `outlet_power_source`
+ * ("How would you like it powered?", "From the nearest outlet" continues
+ * into `below_above_access`). See lib/electrical/onboardingPilotReadiness.ts's
+ * PILOT_ANSWERS for the same correction at the function-level.
  */
 async function qualifyForSurfaceRoute(page: Page) {
-  await answerChoice(page, "What will this outlet power?", "General use");
+  await answerChoice(page, "What will you be plugging in?", "Everyday things");
+  await answerChoice(page, "How would you like it powered?", "From the nearest outlet");
   await answerChoice(
     page,
     "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
@@ -307,7 +319,10 @@ async function main() {
 
       await page.goto(targetUrl);
       await page.getByRole("button", { name: /Check My Price|Start/ }).click();
-      await answerChoice(page, "What will this outlet power?", "A specific large appliance");
+      // The real reroute-triggering answer on the current, non-retired
+      // question — see qualifyForSurfaceRoute's own comment for why this is
+      // `outlet_load_type`, not the deleted `purpose`.
+      await answerChoice(page, "What will you be plugging in?", "A fridge, freezer, or window air conditioner");
 
       await page.getByRole("heading", { name: "Based on your answer, you actually need a different service", exact: true }).waitFor();
       const continueButton = page.getByRole("button", { name: /Continue to/ });
@@ -381,11 +396,11 @@ async function main() {
 
       // Back through obstacles -> surface -> flat -> outside -> inside ->
       // feet, however many questions actually sit above feet on THIS
-      // contractor's tree (purpose/access/install-method, then the six
-      // surface-route questions) — clicked until the feet heading itself is
-      // reached, rather than a fixed count tied to one particular tree
-      // shape, which a qualification gate above the route module would
-      // silently throw off.
+      // contractor's tree (outlet_load_type/outlet_power_source/access/
+      // install-method, then the six surface-route questions) — clicked
+      // until the feet heading itself is reached, rather than a fixed count
+      // tied to one particular tree shape, which a qualification gate above
+      // the route module would silently throw off.
       const feetHeading = page.getByRole("heading", { name: "How long is the route, in feet?", exact: true });
       for (let i = 0; i < 15 && !(await feetHeading.count()); i++) {
         await page.getByRole("button", { name: "Back" }).click();

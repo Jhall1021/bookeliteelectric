@@ -72,17 +72,28 @@ export const PILOT_ROUTE = { feet: 31, inside: 0, outside: 0, flat: 0 };
  * missing product. One definition, shared by the page, the readiness route
  * and the suites, so they cannot drift onto different routes.
  *
- * `purpose: "general_use"` — not `outlet_load_type: "everyday"`. The
- * qualification question was redesigned in `prisma/seed-questions.ts`
- * ("don't ask the customer to self-classify into a pricing tier they can't
- * articulate") well after this constant was written, and this never followed
- * the rename: a `new-120v-outlet` installed from a template extracted off a
- * currently-seeded contractor has `purpose`/`general_use`, not
- * `outlet_load_type`/`everyday`, and the old key was simply never read,
- * leaving the route unqualified before it ever reached the install method.
+ * `outlet_load_type: "everyday"` and `outlet_power_source: "tap_existing"` —
+ * NOT `purpose: "general_use"`. A prior correction here had the rename
+ * backwards. `prisma/seed-questions.ts` creates `purpose` first, but
+ * `prisma/seed-outlet-power-source.ts` runs after it in every real seed chain
+ * that includes it and explicitly RETIRES `purpose` — its own comment: "Two
+ * questions asking nearly the same thing is worse than either alone, so the
+ * older one goes rather than being routed around" — deleting the question
+ * outright and replacing it with these two: `outlet_load_type` ("What will
+ * you be plugging in?", `everyday` continues to `outlet_power_source`, every
+ * other answer reroutes or reviews) then `outlet_power_source` ("How would
+ * you like it powered?", `tap_existing` continues into `below_above_access`,
+ * `dedicated` reroutes). `purpose` is the one no longer read; answering it
+ * left the route unqualified before it ever reached `below_above_access`,
+ * which is what made every derived-pricing rehearsal that walks answers
+ * through `resolveRoute` (rather than handing `loadSurfaceTakeoff` a
+ * component list directly) fail before it ever reached the surface-raceway
+ * module — including, precisely, an apparent SURFACE_RACEWAY_JOINT refusal
+ * that was actually an empty component list one qualification question
+ * upstream of any material at all.
  */
 export const PILOT_ANSWERS: Record<string, string> = {
-  purpose: "general_use",
+  outlet_load_type: "everyday", outlet_power_source: "tap_existing",
   below_above_access: "no_access", outlet_install_method: "surface",
   [SURFACE_KEYS.feet]: String(PILOT_ROUTE.feet), [SURFACE_KEYS.inside]: "0",
   [SURFACE_KEYS.outside]: "0", [SURFACE_KEYS.flat]: "0",

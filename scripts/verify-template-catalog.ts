@@ -134,7 +134,10 @@ async function main() {
       where: { service: { contractorId: elite.id } }, select: { canonicalMaterialId: true, quantity: true } });
     const eliteQty = new Map(eliteMats.map((m) => [m.canonicalMaterialId, m.quantity]));
     const leakedQty = got.flatMap((s) => s.materials).filter((m) =>
-      /WIRE|CABLE|CONSUMABLE/i.test("") ? false : eliteQty.get(m.canonicalMaterialId) === m.quantity && m.quantity > 1);
+      // A null quantity is an undeclared policy allowance, never a leaked
+      // job-specific figure — nothing to compare here, so it cannot match.
+      m.quantity !== null &&
+      (/WIRE|CABLE|CONSUMABLE/i.test("") ? false : eliteQty.get(m.canonicalMaterialId) === m.quantity && m.quantity > 1));
     ok(leakedQty.length === 0, "no allowance quantity matches Elite's", `${leakedQty.length} match`);
 
     // 6 — no disclaimer text

@@ -14,14 +14,26 @@ its own remaining items (Blocker 11 especially) are carried forward as
 **deferred**, not as release blockers for a fresh launch. See
 `docs/design/electrical-fresh-launch-reset-manifest.md` for the fresh-launch
 rehearsal this superseding direction asked for: a real, from-scratch build
-of the composed Electrical catalog (including, for the first time, Routing
-V2's shared modules actually extracted into the template layer), a real
-fresh-contractor provisioning proof, and a precise account of which parts of
-"materials → pricing → approval → activation → manual price → native
-booking" are proven versus still open. Blocker 11 (materialCostResolved has
-no supported path for a policy-quantity-only service) is the SAME gap in
-both documents — confirmed again there against a genuinely fresh install,
-with a real, named refusal code, not just reasoned about.
+of the composed Electrical catalog (including Routing V2's shared modules
+extracted into the template layer), a real fresh-contractor provisioning
+proof, and a precise account of which parts of "materials → pricing →
+approval → activation → manual price → native booking" are proven versus
+still open. **Blocker 11 UPDATE (16 Sep 2026, later the same day):**
+`materialCostResolved` having no supported path for a policy-quantity-only
+service was confirmed again there against a genuinely fresh install, with a
+real, named refusal code, not just reasoned about — and has SINCE BEEN
+FIXED there, at the lifecycle level (`installCatalog` links every role,
+costed/quantified or not; `assessMaterialReadiness` distinguishes an
+undeclared quantity from an uncosted role), not worked around. Fixing it
+also surfaced and fixed a quieter, more dangerous sibling defect in the
+SAME mechanism: a mixed structural/policy recipe could resolve
+`materialCostResolved: true` while silently excluding the policy role's
+cost from the total. Both are demonstrated fixed, live, in
+`docs/design/electrical-fresh-launch-reset-manifest.md` §5. The raw-SQL
+override this document's §7 describes (`scripts/onboard-contractor-two.ts`)
+still exists on that real, separate, already-onboarded contractor — fixing
+the ENGINE does not retroactively rewrite BrightPath's own onboarding
+history, which is out of this task's scope.
 
 **REVISED a third time after review.** The second revision fixed three
 mistakes (missing Routing V2 scope; a wrong deletion-capability

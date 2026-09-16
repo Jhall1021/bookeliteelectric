@@ -1477,7 +1477,21 @@ model ServiceMaterial {
   canonicalMaterial   CanonicalMaterial? @relation(fields: [canonicalMaterialId], references: [id], onDelete: Restrict)
 
   /// Supports fractional quantities — 2 ft of cable, half a box of staples.
-  quantity Float @default(1)
+  ///
+  /// Null exactly when `quantityIsPolicy` is true and the contractor has not
+  /// yet declared their own allowance for this role on THIS service — the
+  /// same "null means undecided, zero is a decision" contract
+  /// TemplateServiceMaterial.quantity documents. Provisioning links the role
+  /// either way (see installCatalog), so the row existing is never itself a
+  /// claim that the quantity is known; requiredRolesFor treats a null
+  /// quantity as unresolved before it ever asks about cost.
+  quantity Float?
+  /// True when this service's amount of the role is a contractor allowance
+  /// rather than a fixed property of the job — mirrors
+  /// TemplateServiceMaterial.quantityIsPolicy, carried onto the contractor's
+  /// own row so readiness can tell "no quantity decided yet" apart from "no
+  /// cost entered yet" without a second lookup.
+  quantityIsPolicy Boolean @default(false)
   order    Int   @default(0)
 
   /// Retained while materialId still exists. Postgres treats NULLs as
@@ -4368,10 +4382,19 @@ model TemplateAnswerOption {
 /// `quantity` is null when the amount is a CONTRACTOR ALLOWANCE rather than a
 /// property of the job — 25 ft of wire "included" is a policy
 /// (POLICY[new_outlet.standard_run_ft]); one receptacle is the job. Null means
-/// the contractor must decide, and provisioning creates NO link for it: the
-/// material key lands in Service.unresolvedMaterialKeys instead, so nothing
-/// publishes until they set their own figure. Zero is never used as a stand-in
-/// for unknown, because zero is itself a decision.
+/// the contractor must decide.
+///
+/// Provisioning links the role on the contractor's own ServiceMaterial row
+/// EITHER WAY, carrying `quantityIsPolicy` onto it and copying `quantity` only
+/// when it is fixed. Leaving the role unlinked used to be how "the contractor
+/// hasn't decided yet" was recorded — and it was the reason recomputing a
+/// service's cost with SOME roles resolved and this one still undecided could
+/// clear `materialCostResolved` to true anyway: requiredRolesFor only sees
+/// linked roles, so an unlinked policy role was invisible to it rather than
+/// blocking. Linking it with `quantity: null` makes it a required role that
+/// readiness sees and refuses on, exactly like an unlinked-cost role, until
+/// the contractor sets their own figure. Zero is never used as a stand-in for
+/// unknown, because zero is itself a decision.
 model TemplateServiceMaterial {
   id                  String            @id @default(cuid())
   templateServiceId   String

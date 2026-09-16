@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 import { withContractor } from "../lib/tenantRoute";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import { writeComponentLabor, writeMaterialCost, writeMaterialSystem, writePricingSettingsField } from "../lib/admin/onboardingActions";
+import { declarePolicyMaterialQuantity } from "../lib/materialCost";
 import { resolvePolicy } from "../lib/policyResolution";
 import { activateService } from "../lib/serviceActivation";
 import { decideDerivedPricingApproval } from "../lib/electrical/derivedPricingApproval";
@@ -116,11 +117,39 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
       const r = await asTenant(cid, (db) => writeMaterialCost(db, { contractorId: cid }, { roleKey, packagePriceCents, packageQuantity, packageUnit }));
       if (!r.ok) throw new Error(`dependency cost ${roleKey}: ${r.error}`);
     }
+    // WIRE_14_2 and CONSUMABLES_MEDIUM are policy-quantity roles on this
+    // service — a cost alone cannot resolve them (lib/templateProvisioning.ts
+    // links every role, costed or not, so readiness refuses on an undeclared
+    // allowance exactly like an uncosted one). Declared here through the same
+    // real path a contractor's Materials panel uses, at real figures:
+    // 50 ft is this service's own documented standard-run allowance
+    // (prisma/seed-dedicated-circuit.ts: "POLICY[dedicated_circuit.
+    // standard_run_ft]: 50"), and 1 job matches CONSUMABLES_MEDIUM's own
+    // package unit ("job") — one job's worth of consumables per job, not a
+    // number invented for this fixture.
+    for (const [roleKey, quantity] of [["WIRE_14_2", 50], ["CONSUMABLES_MEDIUM", 1]] as const) {
+      const role = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: roleKey } });
+      await asTenant(cid, (db) => declarePolicyMaterialQuantity(db, dedicated.id, role.id, quantity));
+    }
     await saveServicePricingInputs(prisma, dedicated.id, { fieldLaborHours: 2.5 });
     const publishedDependency = await publishSuggestedPrice(prisma, cid, dedicated.id);
     if (!publishedDependency.ok) throw new Error(`dependency publish refused: ${JSON.stringify(publishedDependency.refusal)}`);
     const dependencyActivation = await activateService(prisma, cid, dedicated.id);
     if (!dependencyActivation.ok) throw new Error(`dependency activation refused: ${JSON.stringify(dependencyActivation)}`);
+
+    // new-120v-outlet's own outlet_load_type question reroutes its "ev"
+    // answer to Level 2 EV Charger Installation when the contractor offers
+    // it (prisma/seed-outlet-power-source.ts) — a second real prerequisite,
+    // invisible until PILOT_ANSWERS actually reached this question. It is a
+    // REMOTE_QUOTE service with no materials and no fixed price ever
+    // promised (prisma/seed-labor-hours.ts: "QUOTE: null is the correct
+    // value... established per job when the office builds the fixed
+    // price"), so it activates on its own, through the same real function,
+    // with nothing to configure first.
+    const evCharger = await prisma.service.findFirstOrThrow({
+      where: { contractorId: cid, slug: "level-2-ev-charger" }, select: { id: true } });
+    const evActivation = await activateService(prisma, cid, evCharger.id);
+    if (!evActivation.ok) throw new Error(`level-2-ev-charger activation refused: ${JSON.stringify(evActivation)}`);
 
     // NOW approve new-120v-outlet — every contractor-wide economic input
     // (this dependency's materials included) is already in its final state.

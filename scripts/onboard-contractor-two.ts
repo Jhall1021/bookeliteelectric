@@ -199,8 +199,18 @@ async function main() {
     });
     let total = 0;
     for (const l of links) {
+      // A null quantity is an undeclared policy allowance — installCatalog
+      // now links that role too (see lib/templateProvisioning.ts), where it
+      // used not to be linked at all. This raw-SQL bootstrap already force-
+      // sets materialCostResolved above rather than going through the real
+      // resolution lifecycle, so its own total here was already best-effort;
+      // skipping an undeclared role keeps that total from throwing rather
+      // than making it correct. The real fix is not extending the override —
+      // it is a contractor declaring the allowance through the ordinary
+      // supported quantity-edit path this script does not use.
+      if (l.quantity === null || !l.canonicalMaterialId) continue;
       const cm = await raw.contractorMaterial.findUnique({
-        where: { contractorId_canonicalMaterialId: { contractorId: c.id, canonicalMaterialId: l.canonicalMaterialId! } },
+        where: { contractorId_canonicalMaterialId: { contractorId: c.id, canonicalMaterialId: l.canonicalMaterialId } },
         select: { unitCostCents: true },
       });
       if (cm) total += Math.round(cm.unitCostCents * l.quantity);

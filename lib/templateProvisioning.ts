@@ -352,8 +352,6 @@ export async function installCatalog(
           quantityIsPolicy: boolean; canonicalMaterialId: string; quantity: number | null;
           order: number; canonicalMaterial: { key: string };
         }[];
-        const structural = mats.filter((m) => !m.quantityIsPolicy);
-        const unresolved = mats.filter((m) => m.quantityIsPolicy).map((m) => m.canonicalMaterial.key);
 
         const svc = await t.service.create({
           data: {
@@ -386,62 +384,77 @@ export async function installCatalog(
             // its default of false: a provisioned catalog is a set of
             // possibilities, not a set of commitments.
             active: false,
-            materialCostResolved: unresolved.length === 0,
-            unresolvedMaterialKeys: unresolved,
+            // Corrected below once every role is linked and readiness has
+            // actually been asked — a service is never created claiming
+            // resolution it has not earned.
+            materialCostResolved: mats.length === 0,
+            unresolvedMaterialKeys: [],
           },
           select: { id: true },
         });
 
         /**
-         * STRUCTURE IS INSTALLED WHETHER OR NOT IT IS COSTED YET.
+         * EVERY ROLE IS LINKED, WHETHER OR NOT IT IS COSTED OR QUANTIFIED YET.
          *
-         * This used to skip the link when the contractor had no cost — and
-         * record the key in unresolvedMaterialKeys anyway. That is backwards,
-         * and it was a trap rather than a conservatism: with no link,
-         * requiredRolesFor() sees nothing, assessMaterialReadiness reports
-         * "ready, 0 roles", recomputeServiceMaterialCost exits early as "not
-         * itemized", and the key can NEVER be cleared. Entering the cost
-         * afterwards changed nothing. Three of six Plumbing starter services
-         * were permanently unlaunchable this way, while Guided Setup went on
-         * telling the contractor to enter a cost they had already entered.
+         * This used to skip the link entirely for an uncosted structural role
+         * — and record the key in unresolvedMaterialKeys anyway. That was
+         * backwards, and it was a trap rather than a conservatism: with no
+         * link, requiredRolesFor() sees nothing, assessMaterialReadiness
+         * reports "ready, 0 roles", recomputeServiceMaterialCost exits early
+         * as "not itemized", and the key can NEVER be cleared. Entering the
+         * cost afterwards changed nothing. Three of six Plumbing starter
+         * services were permanently unlaunchable this way, while Guided Setup
+         * went on telling the contractor to enter a cost they had already
+         * entered.
          *
-         * The rule the fix restores:
+         * A policy-quantity role had the SAME defect one layer up: it was
+         * never linked at all, so requiredRolesFor() could not see it either
+         * — a service whose only unresolved role was a policy quantity could
+         * recompute its OTHER roles' costs, find nothing linked to refuse on,
+         * and report materialCostResolved: true while silently pricing
+         * without the policy role's cost. Linking it too, with `quantity:
+         * null`, closes that the same way the structural fix did: readiness
+         * sees the role and refuses on it — for the right reason, "no
+         * allowance set" rather than "no cost entered" — until the contractor
+         * declares their own figure through the ordinary quantity-edit path.
+         *
+         * The rule the fix restores, now for both cases:
          *
          *   PROVISIONING owns structure and provenance — this service consumes
-         *   this role, in this quantity. A fact about the canonical catalog,
-         *   and it persists.
+         *   this role, in this quantity (or "the contractor decides", for a
+         *   policy role). A fact about the canonical catalog, and it persists.
          *
          *   READINESS owns whether the current combination can make a pricing
          *   promise. A question about contractor state RIGHT NOW, derived on
          *   every read, never captured at install time.
          *
-         * A ServiceMaterial row carries no money, so linking an uncosted role
-         * is safe: assessMaterialReadiness refuses before anything is totalled.
+         * A ServiceMaterial row carries no money, so linking an uncosted or
+         * unquantified role is safe: assessMaterialReadiness refuses before
+         * anything is totalled.
          */
-        for (const m of structural) {
+        for (const m of mats) {
           await t.serviceMaterial.create({
             data: {
               serviceId: svc.id, canonicalMaterialId: m.canonicalMaterialId,
-              quantity: m.quantity!, order: m.order,
+              quantity: m.quantityIsPolicy ? null : m.quantity!,
+              quantityIsPolicy: m.quantityIsPolicy,
+              order: m.order,
             },
           });
         }
 
         // DERIVED, not captured. The authority readiness uses later is asked
-        // now, so the first state and every later state are computed the same
-        // way. `unresolved` is the policy-quantity case and is a different
-        // blocker: the contractor owes a QUANTITY, not a cost, and there is no
-        // link to derive it from.
-        const readiness = await assessMaterialReadiness(t, svc.id, contractorId);
-        const stillUnresolved = [
-          ...unresolved,
-          ...(readiness.ready ? [] : readiness.missing.map((r) => r.key)),
-        ];
-        stillUnresolved.forEach((k) => unresolvedRoles.add(k));
-        if (stillUnresolved.length > 0) {
+        // now, so the first state and every later state are computed the
+        // same way — one readiness question covers both an uncosted role and
+        // an undeclared policy quantity, distinguished only in the reason it
+        // reports.
+        if (mats.length > 0) {
+          const readiness = await assessMaterialReadiness(t, svc.id, contractorId);
+          const stillUnresolved = readiness.ready ? [] : readiness.missing.map((r) => r.key);
+          stillUnresolved.forEach((k) => unresolvedRoles.add(k));
           await t.service.update({
             where: { id: svc.id },
-            data: { unresolvedMaterialKeys: stillUnresolved, materialCostResolved: false },
+            data: { unresolvedMaterialKeys: stillUnresolved, materialCostResolved: stillUnresolved.length === 0 },
           });
         }
 
@@ -598,18 +611,17 @@ export async function installCatalog(
             }
 
             /**
-             * Branch material — ALWAYS linked, priced or not.
+             * Branch material — ALWAYS linked, priced or not. Same rule
+             * ServiceMaterial above now follows too: the total is never
+             * broken by an uncosted or unquantified row, because
+             * assessMaterialReadiness refuses on it before it is summed
+             * rather than the row being withheld to protect the sum.
              *
-             * Deliberately unlike the component and ServiceMaterial rules
-             * above, which skip what the contractor has not costed. Those feed
-             * a TOTAL, and a row with no cost would break the sum, so an
-             * uncosted role goes to unresolvedMaterialKeys instead.
-             *
-             * AnswerOptionMaterial feeds no total. It is structure — this
-             * branch consumes this role — and the cost is looked up at
-             * activation. Skipping the unpriced ones would delete the only
-             * evidence the branch needs anything, which is precisely the
-             * invisibility this primitive was added to end.
+             * AnswerOptionMaterial feeds no total of its own — it is
+             * structure, this branch consumes this role — and the cost is
+             * looked up at activation. Skipping the unpriced ones would
+             * delete the only evidence the branch needs anything, which is
+             * precisely the invisibility this primitive was added to end.
              */
             for (const m of o.materials) {
               await t.answerOptionMaterial.create({

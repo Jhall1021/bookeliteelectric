@@ -140,9 +140,13 @@ export async function activationRefusal(
       code: "MATERIALS_UNRESOLVED",
       message:
         keys.length > 0
-          ? `This service can't go live yet — no cost has been entered for ${keys.join(", ")}. ` +
-            `Add those costs and try again.`
-          : `This service can't go live yet — one of the materials it needs has no cost recorded.`,
+          // Deliberately "set up" rather than "cost entered": one of these
+          // keys can be a policy-quantity role with no declared allowance yet
+          // — a different gap than a missing cost, and this list does not say
+          // which is which for each key.
+          ? `This service can't go live yet — ${keys.join(", ")} still ${keys.length === 1 ? "needs" : "need"} to be set up. ` +
+            `Finish entering its cost and, if it's a policy allowance, its quantity, then try again.`
+          : `This service can't go live yet — one of the materials it needs is not fully set up.`,
       unresolvedMaterialKeys: keys,
     };
   }

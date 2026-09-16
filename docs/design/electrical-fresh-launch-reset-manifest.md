@@ -163,72 +163,140 @@ catalog, not something this task fixes.
 
 ## 5. The launch-critical route: what is proven, and what is not
 
-Run for real this session via `scripts/rehearse-fresh-electrical-launch-
-phase2.ts`, against the v1 SNAPSHOT from §1-2, on three separate fresh
-contractors — never a raw `materialCostResolved`/`basePrice` write:
+**REVISED — a prior pass of this section was wrong about two things: it
+called `replace-standard-outlet` "PROVEN end-to-end" when its own
+`materialCostResolved: true` was silently excluding a policy material's
+cost from the total, and it reported the DERIVED path as an unresolved
+materials-catalog gap when the real cause was a stale qualification answer
+one layer above any material at all. Both are now fixed, at the root, and
+re-proven. See `CHANGELOG` note in each subsection for exactly what moved.**
 
-**LEGACY_PUBLISHED, zero structural materials** (`dishwasher-electrical`) —
-**BLOCKED, confirmed precisely.** `writeMaterialCost` (the real, supported
-onboarding function — it internally triggers
-`lib/materialCost.ts`'s `recomputeServiceMaterialCost`) cannot resolve
-`materialCostResolved` here: `requiredRolesFor()` reads only `ServiceMaterial`
-rows, and `installCatalog` never links a policy-quantity-only material at
-all (§1's own comment: "a policy-quantity material gets NO link at all").
-`activateService` refuses with a real, named code:
-`MATERIALS_UNRESOLVED` — "no cost has been entered for CONSUMABLES_SMALL."
-This is the SAME gap `scripts/onboard-contractor-two.ts` (BrightPath's own,
-real onboarding script) hits and works around with a raw SQL
-`UPDATE services SET "materialCostResolved" = true, "unresolvedMaterialKeys"
-= '{}'` — confirming this is a genuine product gap, not a rehearsal
-artifact. **This almost certainly affects every one of Batch 2E's 13
-services** (the ones whose entire recipe is exactly one policy-quantity
-line) and any other service shaped the same way — not verified exhaustively
-for all 13, but the mechanism is identical for each.
+Run for real via `scripts/rehearse-fresh-electrical-launch-phase2.ts`,
+against a v1 SNAPSHOT built by `scripts/rehearse-fresh-electrical-launch.ts`,
+on real fresh contractors — never a raw `materialCostResolved`/`basePrice`
+write:
+
+**THE LIFECYCLE FIX, underneath every result below.**
+`installCatalog` (`lib/templateProvisioning.ts`) used to link a
+policy-quantity role's `ServiceMaterial` row ONLY once a cost existed for
+it — for a wholly policy-quantity service like `dishwasher-electrical`,
+that meant no link ever, so `requiredRolesFor()` saw nothing and
+`recomputeServiceMaterialCost` reported "not itemized" forever. For a MIXED
+recipe like `replace-standard-outlet`, it was worse and quieter: the
+STRUCTURAL roles resolved, `materialCostResolved` flipped to `true`, and
+the POLICY role's cost — entered, real, ignored — never reached the total.
+`ServiceMaterial` now gets a `quantityIsPolicy` column mirroring
+`TemplateServiceMaterial`'s, `installCatalog` links every role unconditionally
+(quantity `null` for an undeclared policy allowance), and
+`lib/materialResolution.ts`'s `assessMaterialReadiness` treats a null
+quantity as unresolved — with its own reason (`NO_QUANTITY`, distinct from
+`NO_COST`) — before it ever looks up a cost. Declaring the allowance goes
+through the SAME action that already existed for this
+(`app/api/admin/materials/route.ts`'s "quantity" action was unreachable for
+a policy role only because the row never existed; nothing new was built),
+now backed by one shared function, `lib/materialCost.ts`'s
+`declarePolicyMaterialQuantity`. Demonstrated for both shapes in Phase 2:
+undeclared-but-costed correctly blocks, declaring resolves the total
+exactly once (no silent omission), a later cost edit recomputes correctly,
+and one tenant's declaration never moves another's total.
+
+**LEGACY_PUBLISHED, zero structural materials** (`dishwasher-electrical`)
+— **NOW PROVEN, through the fixed lifecycle.** `writeMaterialCost` entering
+the cost, then declaring the quantity, resolves `materialCostResolved:
+true` with the correct $3.00 total. `activateService` additionally needed
+`dedicated-120v-circuit-outlet` launched first — a real
+`REROUTE_SERVICE` dependency (a fixed-appliance load always reroutes there)
+invisible until this run's own dependency ordering was worked out; launched
+through the same real materials → labor → price → activation lifecycle,
+at real figures (`WIRE_14_2` 50 ft matches this service's own documented
+`POLICY[dedicated_circuit.standard_run_ft]: 50`; `CONSUMABLES_MEDIUM` 1 job
+matches its own package unit). **This almost certainly affects every one of
+Batch 2E's 13 services** (the ones whose entire recipe is exactly one
+policy-quantity line) and any other service shaped the same way — not
+re-verified exhaustively for all 13, but the mechanism, and the fix, is
+identical for each.
 
 **LEGACY_PUBLISHED, has structural materials** (`replace-standard-outlet`)
-— **PROVEN end-to-end, real functions only.** `writeMaterialCost` for its 2
-structural roles (`RECEPTACLE_STANDARD`, `WALL_PLATE`) plus its 1 policy
-role (`CONSUMABLES_SMALL`) correctly resolves `materialCostResolved: true`.
-`saveServicePricingInputs` → `publishSuggestedPrice` → `activateService` all
-succeed (once `electrical-troubleshooting`, its real
+— **PROVEN end-to-end, correctly this time.** A prior pass called this
+proven while its `materialCostCents` ($3.00) silently excluded
+`CONSUMABLES_SMALL`'s cost — the mixed-recipe defect above, on this exact
+service. Now: `writeMaterialCost` for its 2 structural roles
+(`RECEPTACLE_STANDARD`, `WALL_PLATE`) plus its 1 policy role
+(`CONSUMABLES_SMALL`) leaves readiness correctly BLOCKED until the policy
+quantity is declared; declaring it resolves to the correct $6.00 total, not
+$3.00. `saveServicePricingInputs` → `publishSuggestedPrice` →
+`activateService` all succeed (once `electrical-troubleshooting`, its real
 `REROUTE_TROUBLESHOOTING` dependency, is activated first — itself needing
 `fieldLaborHours` set, since `prisma/seed-content-fixes.ts` deliberately
 leaves that service's pricing for a human to approve, by its own comment).
-`lib/routeResolver.ts`'s real `resolveRoute` then prices a real customer
-answer path (`device_replacement_reason: "works_upgrading"`) to
-`PRICED, $255.00`.
+A subsequent cost edit (`CONSUMABLES_SMALL` $3.00 → $5.00) moves the total
+by exactly the $2.00 delta, once. `lib/routeResolver.ts`'s real
+`resolveRoute` then prices a real customer answer path
+(`device_replacement_reason: "works_upgrading"`) to `PRICED, $255.00`.
 
 **DERIVED_RESOLVED_SCOPE (Routing V2)** (`new-120v-outlet`) —
-**UNRESOLVED, precisely diagnosed, not routed around.** Reusing
-`scripts/_derivedStorefrontFixture.ts`'s own `buildPricedDerivedContractor`
-— an existing, otherwise-proven function other suites already rely on —
-against this rehearsal's freshly-extracted catalog refuses at the approval
-step: `NOT_READY_TO_APPROVE` / `NO_CONTRACTOR_PRODUCT (SURFACE_RACEWAY_
-JOINT)`. Diagnosed as far as this session went: the `ContractorMaterial`
-row for that role IS created correctly (real `packageQuantity`/
-`packagePriceCents`, confirmed by direct query), and zero
-`CanonicalComponentMaterial` rows reference the role at all — so the
-requirement is not an ordinary component-recipe line but something in
-`lib/electrical/materialTakeoff.ts`'s own segmentation-based joint
-calculation. Resolving all three of `new-120v-outlet`'s policies —
-including `surface_raceway.offcut_reuse`, which the shared fixture itself
-never resolves (a second, separate real gap this session's fresh extraction
-surfaced, independent of the joint issue) — does not clear it. Root cause
-not found in the time available; reported as unproven rather than forced.
+**NOW PROVEN — the "raceway-joint" refusal was never a materials-catalog
+gap.** A prior pass reported `NOT_READY_TO_APPROVE` /
+`NO_CONTRACTOR_PRODUCT (SURFACE_RACEWAY_JOINT)` and could not find why the
+correctly-formed `ContractorMaterial` row for that role wasn't reaching the
+takeoff. Traced this session from contractor product entry through the
+actual loaded takeoff input, per the bounded task's own instruction: the
+root cause was one layer upstream of any material at all.
+`lib/electrical/onboardingPilotReadiness.ts`'s `PILOT_ANSWERS` answered a
+RETIRED question (`purpose: "general_use"`) instead of the two real,
+current ones — a PRIOR correction to this same constant had the rename
+backwards. `prisma/seed-questions.ts` creates `purpose` first, but
+`prisma/seed-outlet-power-source.ts` runs after it in every seed chain that
+includes it (this run's own SEED_STEPS included) and explicitly DELETES
+`purpose`, replacing it with `outlet_load_type` ("What will you be plugging
+in?", `everyday` continues) then `outlet_power_source` ("How would you
+like it powered?", `tap_existing` continues). Answering a question that no
+longer exists made `resolveRoute` return `INVALID` before it ever reached
+the surface-raceway module — `config.components` came back empty,
+`loadSurfaceTakeoff` never saw a channel purchase, and the joint's "not
+established" reason was reporting a route that was never walked. Fixed by
+correcting `PILOT_ANSWERS` itself (full citation trail in its own doc
+comment). That fix surfaced two further, narrow, now-fixed gaps once the
+route was actually walked: `scripts/_derivedStorefrontFixture.ts`'s
+dependency service (`dedicated-120v-circuit-outlet`) has the same two
+policy-quantity roles as above, now declared at the same real figures; and
+`new-120v-outlet`'s own `outlet_load_type` "ev" answer reroutes to Level 2
+EV Charger Installation, a second real prerequisite, now activated first
+(trivially — a `REMOTE_QUOTE` service with no materials and no fixed price
+ever promised, per `prisma/seed-labor-hours.ts`'s own comment). Approved at
+**$760.00** and activated through the real `decideDerivedPricingApproval` →
+`activateService` path, on a genuinely fresh contractor built from this
+run's own extracted catalog.
 
-**Manual homeowner price** — proven for the LEGACY path above via the real
-`resolveRoute`. Not reached for the DERIVED path, since activation itself
-did not complete.
+**Manual homeowner price** — proven for the LEGACY path via the real
+`resolveRoute`, and for the DERIVED path via the real approved economics
+above ($760.00).
 
-**Native no-deposit booking** — **NOT ATTEMPTED this session.** The real
-booking path (`app/api/checkout/route.ts`) is a 679-line HTTP route
-handler coupled to cookie sessions, site routing, and the deposit/Stripe
-flow — not a plain function callable without a running server. Proving it
-for real means the same dev-server-plus-Playwright pattern this branch's
-own `scripts/verify-integration-manual-routing-storefront-browser-flow.ts`
-already uses, which this session did not have time to also stand up
-against the fresh catalog. This is the one piece of "materials -> ... ->
-native no-deposit booking" this manifest does NOT claim to have proven.
+**Native no-deposit booking** — **NOW PROVEN**, reusing this branch's own
+production-build browser harness,
+`scripts/verify-integration-manual-routing-storefront-browser-flow.ts`
+(35/35 checks), against a `next build && next start` server pointed at
+this same freshly-extracted catalog — not `next dev`, whose slower
+hydration/HMR-related re-renders produced a real click-timing flake against
+the two-question qualification gate that a production build does not have.
+That harness needed one fix of its own: it hardcoded the same retired
+`purpose` question `PILOT_ANSWERS` did (`qualifyForSurfaceRoute`'s "What
+will this outlet power?" / "General use"), now answering the real two
+questions instead. Proven, on this fresh catalog: the manual fractional
+footage route (14.625 ft, then 20.5 ft via Back-and-re-answer, byte-for-byte
+matching a direct answer); the displayed price equalling the stored
+`LineItem.computedPriceCents`; a turned route (one flat corner) correctly
+landing on review rather than a guessed price; a stale-priced "Add to My
+Visit" refused with `409 REVIEW_REQUIRED` and no `LineItem` created; office
+reapproval producing a genuinely different price; NATIVE scheduling and a
+no-deposit checkout to a real `Booking` row, with `totalCents` matching the
+reapproved price; and — after the economics change again post-booking —
+the booked `Booking.totalCents`, `LineItem.computedPriceCents`,
+`answersSnapshot`, `resolvedEconomicBasis`, `resolvedComponentKeys` and
+`resolvedMaterialCostCents` all staying pinned to the ORIGINAL basis,
+untouched by the later change. This is the "materials -> ... -> native
+no-deposit booking" chain this manifest can now claim, in full, for the
+DERIVED path.
 
 ## 6. Target identity checks (before ANY reset — local or, later, real)
 
@@ -320,43 +388,91 @@ contractor can be installed from a genuinely composed catalog reflecting
 all six real audit fixes plus the real material-catalog batches (yes, 77 of
 82 services). Whether the LEGACY_PUBLISHED launch-critical route (materials
 → pricing → approval → activation → manual price) has ANY supported path
-for a service with real structural materials (yes, proven end to end).
+for a service with real structural materials (yes, proven end to end, and
+correctly totaled — see below). Whether `materialCostResolved` has a
+supported resolution path for a policy-quantity-only recipe (yes — fixed,
+at the lifecycle level, in `installCatalog`/`assessMaterialReadiness`, not
+worked around). Whether a mixed structural/policy recipe can silently
+under-price by dropping the policy role's cost while still reporting
+readiness (this was happening; now fixed, and demonstrated blocked-then-
+resolved-then-recomputed-correctly for both a policy-only and a mixed
+recipe, on two contractors, to confirm neither's declaration moves the
+other's total). Whether the DERIVED_RESOLVED_SCOPE path can reach real
+approval and activation on a fresh catalog (yes — root-caused to a stale
+qualification answer above the materials layer entirely, fixed, and now
+approved at $760.00). Whether the full "materials → pricing → approval →
+activation → manual price → native no-deposit booking" chain is proven
+end to end, through a real browser, on this fresh catalog (yes — 35/35
+checks, reusing the existing production-build harness).
 
 **Stays open, precisely bounded:**
-1. `materialCostResolved` has no supported resolution path for a service
-   whose entire recipe is policy-quantity-only — confirmed via a real,
-   named refusal code (`MATERIALS_UNRESOLVED`), and via `scripts/onboard-
-   contractor-two.ts`'s own raw-SQL workaround for the identical gap on a
-   real contractor. See `docs/design/electrical-v1-v2-release-manifest.md`
-   §7 Blocker 11 (same underlying gap, now confirmed against a genuinely
-   fresh install rather than only reasoned about).
-2. The DERIVED_RESOLVED_SCOPE path's `NO_CONTRACTOR_PRODUCT
-   (SURFACE_RACEWAY_JOINT)` refusal against a freshly-extracted catalog —
-   root cause not found; needs a focused look at `lib/electrical/
-   materialTakeoff.ts`'s segmentation-based joint calculation specifically.
-3. v4's (`electrical-panel-replacement`) provenance discrepancy between
+1. v4's (`electrical-panel-replacement`) provenance discrepancy between
    project memory ("merged") and git history (never merged, source branch
-   439 files stale) — needs Joshua's clarification, not resolved either way
-   here.
-4. 5 services need authored wording-manifest entries before they can enter
-   any template version at all (§3) — a content decision, not a technical
-   one.
-5. Disclaimers cannot be seeded on any from-scratch database (§4) — a
-   pre-existing, already-documented gap, unrelated to this task.
-6. Native no-deposit booking — not attempted this session (§5); needs a
-   dev-server-plus-browser pass against a fresh catalog, following the
-   existing pattern in `scripts/verify-integration-manual-routing-
-   storefront-browser-flow.ts`.
+   439 files stale) — Joshua has since clarified the intended definition
+   from the source branch's own two added scripts (PANEL_MAIN_BREAKER ×1;
+   BREAKER_SINGLE_POLE, BREAKER_DOUBLE_POLE, CONSUMABLES_MEDIUM as
+   unresolved policy quantities; no assumed grounding-electrode/service-
+   entrance work; 200A upgrade stays deferred) — carried into this manifest
+   as the intended recipe, not yet built into the extracted template itself.
+2. 5 services need authored wording-manifest entries before they can enter
+   any template version at all (§3) — a content decision, explicitly
+   deferred to a later catalog-completion slice, not this task's.
+3. Disclaimers cannot be seeded on any from-scratch database (§4) — a
+   pre-existing, already-documented gap, also deferred to that slice.
+4. `scripts/onboard-contractor-two.ts` (BrightPath's real second-contractor
+   onboarding) still carries its raw-SQL `materialCostResolved`/
+   `unresolvedMaterialKeys` override — it proved the engine gap this task
+   fixed, but the override itself was never removed, since BrightPath is a
+   real, separate, already-onboarded tenant outside this task's fresh-
+   launch scope. Its manual recompute loop was made null-quantity-safe
+   (skips an undeclared role rather than throwing) so it keeps compiling
+   against the new schema, but the override remains the antipattern, not a
+   second real resolution path.
+5. The schema change this task required (`ServiceMaterial.quantityIsPolicy`,
+   `ServiceMaterial.quantity` now nullable) has been applied only to this
+   run's own disposable scratch databases, per this task's standing rule.
+   It has NOT been applied to the shared `p2b_integration_seeded` rehearsal
+   cluster other sessions on this branch use — `npx prisma db push` against
+   a database other sessions actively read and write is a coordinated,
+   shared-state change outside this bounded task's authority. Two existing
+   verify scripts this session updated for the new behavior
+   (`scripts/verify-material-recipe-promotion-batch-1.ts`,
+   `scripts/verify-template-catalog.ts`) will fail against that database
+   with `P2022: column "quantityIsPolicy" does not exist` until that
+   migration is applied there — a real, expected consequence of a real
+   schema change, not a defect in either script.
 
 ## 11. Local evidence trail
 
 - `scripts/rehearse-fresh-electrical-launch.ts` — Phase 1, builds and
-  extracts the fresh catalog. Run this session: 77/82 services extracted,
-  exit 0.
+  extracts the fresh catalog. Latest run: 77/82 services extracted, exit 0,
+  against `p2b_freshlaunch_1789577038606_34745` (dropped via this script's
+  own `--teardown` at the end of this session — ownership and teardown are
+  now both executable, not just described).
 - `scripts/rehearse-fresh-electrical-launch-phase2.ts` — Phase 2, the
-  launch-critical-route proof. Run this session: exit 1 (3 genuine,
-  precisely-diagnosed findings — §5 — not script defects; `npx tsc --noEmit`
-  clean for both files).
-- Both scripts create and destroy their own uniquely-named, no-pre-drop
-  scratch databases; neither touches `p2b_integration_seeded` or any other
-  shared or production database.
+  launch-critical-route proof, including the policy-quantity lifecycle
+  demonstrations (policy-only, mixed, subsequent edit, cross-tenant
+  isolation) and the DERIVED path. Latest run: **exit 0, 15/15 checks
+  passed** (a prior run this session, before the fixes below, was exit 1 —
+  1 of 15 checks failing on a real, since-fixed dependency-ordering gap for
+  `dishwasher-electrical`).
+- `scripts/verify-integration-manual-routing-storefront-browser-flow.ts` —
+  the native no-deposit booking proof, run against a REAL `next build &&
+  next start` server (not `next dev` — see §5) pointed at this same fresh
+  catalog. Latest run: **exit 0, 35/35 checks passed** (an initial dev-mode
+  run hit a click-timing flake unrelated to this task's fixes; the
+  production build did not reproduce it).
+- `scripts/verify-material-readiness.ts` — the pure-logic suite for
+  `lib/materialResolution.ts`, no database. Extended this session with a
+  dedicated "POLICY-QUANTITY ROLES" section proving the NO_QUANTITY/NO_COST
+  distinction, the silent-omission regression, and resolution-once-declared,
+  independent of any live database. All checks pass, including the
+  pre-existing ones.
+- `npx tsc --noEmit` clean across the whole repository after every change in
+  this round, not just the files touched.
+- All three scratch-database-driving scripts (Phase 1, Phase 2, the browser
+  flow) create and destroy only their own uniquely-named, no-pre-drop
+  scratch databases or reuse one already stamped `local-*`; none touches
+  `p2b_integration_seeded` or any other shared or production database.
+  `p2b_freshlaunch_1789577038606_34745` was dropped at the end of this
+  session; nothing was left running.

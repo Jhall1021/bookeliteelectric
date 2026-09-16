@@ -447,11 +447,14 @@ export async function assessOnboarding(
     }
   }
   for (const [role, slugs] of [...roleToServices].sort()) {
-    // Material costs are edited on a service's Materials panel; there is no
-    // role-level surface yet. Naming one service that uses the role keeps the
-    // link actionable without pretending a page exists.
+    // Material costs AND policy-quantity allowances are both edited on a
+    // service's Materials panel; there is no role-level surface yet, and no
+    // way from here to tell which of the two is still missing for every
+    // affected service — "set up" covers both without claiming the wrong
+    // one. Naming one service that uses the role keeps the link actionable
+    // without pretending a page exists.
     findings["pricing-foundation"].push(b("MATERIAL_COST_UNRESOLVED",
-      `You haven't told us what ${role} costs you — ${slugs.length} service${slugs.length === 1 ? "" : "s"} need${slugs.length === 1 ? "s" : ""} it, including ${slugs[0]}.`,
+      `You haven't finished setting up ${role} — ${slugs.length} service${slugs.length === 1 ? "" : "s"} need${slugs.length === 1 ? "s" : ""} it, including ${slugs[0]}.`,
       { href: "/dashboard/services", materialKey: role, affectedServiceSlugs: slugs }));
   }
   // ASKS THE QUESTION, rather than naming the key.

@@ -183,8 +183,11 @@ export async function GET(req: Request) {
           name: cost?.nameOverride ?? i.canonicalMaterial?.name ?? null,
           unit: i.canonicalMaterial?.unit ?? null,
           quantity: i.quantity,
+          quantityIsPolicy: i.quantityIsPolicy,
           unitCostCents: cost?.unitCostCents ?? null,
-          lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null,
+          // Null quantity means an undeclared policy allowance — there is no
+          // line total to show yet, cost entered or not.
+          lineTotalCents: cost && i.quantity !== null ? Math.round(cost.unitCostCents * i.quantity) : null,
           unpriced: !cost,
           costSource: cost?.costSource ?? null,
           costConfidence: cost?.costConfidence ?? null,

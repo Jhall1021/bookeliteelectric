@@ -348,6 +348,67 @@ export async function recomputeAllServiceMaterialCosts(
   return results;
 }
 
+export type DeclareQuantityResult = {
+  serviceMaterialId: string;
+  key: string;
+  quantity: number;
+  changed: boolean;
+  recompute: RecomputeResult | null;
+};
+
+/**
+ * Declare a contractor's own quantity for one policy-quantity role on one
+ * service — the allowance a fixed recipe cannot supply, because it is a
+ * decision about how THIS contractor works ("we include 50 ft of run"), not a
+ * property of the canonical job the way a receptacle count is.
+ *
+ * THE ONE PLACE THIS WRITE HAPPENS, for the same reason
+ * setContractorMaterialCost is the one place a cost changes: the admin
+ * "quantity" action (app/api/admin/materials/route.ts), a guided-setup
+ * wizard, and a rehearsal fixture must not each grow their own copy of
+ * "update the row, then remember to recompute" — the second half is exactly
+ * what a fresh-launch rehearsal found missing from a raw-SQL onboarding
+ * shortcut elsewhere in this codebase.
+ *
+ * Refuses a STRUCTURAL role's quantity outright. That number is the
+ * template's, fixed at provisioning — this function exists for the opposite
+ * case, and calling it on a fixed recipe line is a caller bug, not a
+ * contractor decision to honor.
+ */
+export async function declarePolicyMaterialQuantity(
+  db: PrismaClient,
+  serviceId: string,
+  canonicalMaterialId: string,
+  quantity: number
+): Promise<DeclareQuantityResult> {
+  const row = await db.serviceMaterial.findFirstOrThrow({
+    where: { serviceId, canonicalMaterialId },
+    select: { id: true, quantity: true, quantityIsPolicy: true, canonicalMaterial: { select: { key: true } } },
+  });
+  if (!row.quantityIsPolicy) {
+    throw new MaterialCostError(
+      `${row.canonicalMaterial?.key ?? canonicalMaterialId} on service ${serviceId} is not a policy-quantity ` +
+        `role — its quantity is fixed by the template, not a contractor's to declare.`
+    );
+  }
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    throw new MaterialCostError(`Quantity must be a non-negative number, got ${quantity}.`);
+  }
+
+  const changed = row.quantity !== quantity;
+  if (changed) {
+    await db.serviceMaterial.update({ where: { id: row.id }, data: { quantity } });
+  }
+  // Recomputed unconditionally, not just when changed: the FIRST declaration
+  // of a previously-null quantity can leave the number itself unchanged from
+  // a caller's point of view (there was no prior value to compare against),
+  // but readiness always needs asking again now that a role that used to be
+  // undeclared may no longer be.
+  const recompute = await recomputeServiceMaterialCost(db, serviceId);
+
+  return { serviceMaterialId: row.id, key: row.canonicalMaterial?.key ?? canonicalMaterialId, quantity, changed, recompute };
+}
+
 /**
  * Clear a service's legacy material multiplier because it has been ITEMIZED.
  *
