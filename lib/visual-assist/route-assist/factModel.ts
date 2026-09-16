@@ -273,3 +273,24 @@ export function lockRouteAssistFactV1(store: RouteAssistFactStoreV1, type: Route
   if (!existing || existing.state === "LOCKED") return null;
   return { version: 1, facts: { ...store.facts, [factId]: { ...existing, state: "LOCKED" } } };
 }
+
+/**
+ * Removes specific fact rows entirely -- a deletion, never an unlock.
+ * writeRouteAssistFactV1's LOCKED refusal is completely untouched by this:
+ * a removed factId simply does not exist afterward, so a later write for it
+ * goes through the exact same provenance/value-shape/lock checks as a
+ * brand-new fact would. Every fact NOT named here keeps its state exactly
+ * as it was, LOCKED or OPEN.
+ *
+ * This is a capture/session LIFECYCLE operation -- "these specific facts no
+ * longer describe the current evidence cycle" -- never a way for a caller
+ * to bypass a lock check on a fact it still wants to treat as authoritative.
+ * The caller decides which factIds constitute a stale evidence cycle; this
+ * function only knows how to drop rows, not which ones matter.
+ */
+export function removeRouteAssistFactsV1(store: RouteAssistFactStoreV1, factIds: readonly string[]): RouteAssistFactStoreV1 {
+  if (factIds.length === 0) return store;
+  const nextFacts = { ...store.facts };
+  for (const factId of factIds) delete nextFacts[factId];
+  return { version: 1, facts: nextFacts };
+}

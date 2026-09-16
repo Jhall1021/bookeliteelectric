@@ -1,4 +1,6 @@
 import {
+  removeRouteAssistFactsV1,
+  routeAssistFactIdV1,
   writeRouteAssistFactV1,
   type RouteAssistFactStoreV1,
   type RouteAssistFactTypeV1,
@@ -165,6 +167,58 @@ function objectCenterX(object: RouteAssistVisibleSceneObjectV1): number {
 
 function isBetweenAnchorsV1(object: RouteAssistVisibleSceneObjectV1, imageId: string, minX: number, maxX: number): boolean {
   return object.imageId === imageId && objectCenterX(object) >= minX && objectCenterX(object) <= maxX;
+}
+
+const ROUTE_ASSIST_LEG_SCOPED_PHOTO_EVIDENCE_TYPES_V1: readonly RouteAssistFactTypeV1[] = ["WALL_PLANE", "BASEBOARD_CONTINUITY", "WINDOW", "VISIBLE_OBSTACLE"];
+const ROUTE_ASSIST_CORNER_SCOPED_PHOTO_EVIDENCE_TYPES_V1: readonly RouteAssistFactTypeV1[] = ["CORNER_PRESENCE", "CORNER_KIND", "TRANSITION_VISUALLY_CONNECTED", "TRANSITION_CONTINUATION_IN_FRAME"];
+const ROUTE_ASSIST_DOORWAY_SCOPED_PHOTO_EVIDENCE_TYPES_V1: readonly RouteAssistFactTypeV1[] = ["DOORWAY_PRESENCE", "DOORWAY_LEFT_CASING", "DOORWAY_TOP_CASING", "DOORWAY_RIGHT_CASING", "DOORWAY_ENTRY_SIDE"];
+
+/**
+ * CAPTURE/INTERPRETATION LIFECYCLE BOUNDARY: starts a fresh evidence cycle
+ * for one leg by dropping every fact THIS adapter itself could have
+ * written for a PRIOR photo of the same leg -- before a caller applies a
+ * NEW photo's semantics.
+ *
+ * A real phone test hit exactly the gap this closes: interpreting a second
+ * photo for the same leg in one session reused the same legScopeId/
+ * doorwayScopeId/cornerScopeId as the first, so every fact the first photo
+ * had locked (WALL_PLANE, CORNER_PRESENCE, BASEBOARD_CONTINUITY,
+ * ANCHOR_OBJECT_MATCH, ...) refused the second photo's writes with
+ * REFUSED_LOCKED -- leaving a mixture of stale locked state and whatever
+ * new evidence happened to land on still-open facts, not a clean
+ * reinterpretation.
+ *
+ * This is a DELETION at the capture-lifecycle boundary, not a change to
+ * lock semantics: removeRouteAssistFactsV1 (factModel.ts) drops rows
+ * entirely, so writeRouteAssistFactV1's LOCKED refusal is completely
+ * unchanged and still applies to every fact NOT named here, and to a caller
+ * that reapplies WITHOUT calling this reset first (see
+ * verify-route-assist-live-photo-interpretation.ts's "re-applying the
+ * adapter to an already-interpreted leg is refused" test, which stays
+ * exactly as strict as before -- this function is an explicit, deliberate
+ * signal that a new evidence cycle is starting, never an implicit one).
+ *
+ * SOURCE_ANCHOR/DESTINATION_ANCHOR (the homeowner's own placements) are
+ * never touched -- they are a different fact TYPE than ANCHOR_OBJECT_MATCH
+ * even though they share the same scopeId ("A", "B", ...), and homeowner
+ * intent must survive reinterpretation exactly as before.
+ */
+export function resetRouteAssistLegPhotoEvidenceV1(args: {
+  store: RouteAssistFactStoreV1;
+  legScopeId: string;
+  sourcePointId: string;
+  destinationPointId: string;
+}): RouteAssistFactStoreV1 {
+  const doorwayScopeId = routeAssistFeatureInstanceScopeIdV1("doorway", args.legScopeId, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1);
+  const cornerScopeId = routeAssistFeatureInstanceScopeIdV1("corner", args.legScopeId, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1);
+  const factIds = [
+    ...ROUTE_ASSIST_LEG_SCOPED_PHOTO_EVIDENCE_TYPES_V1.map((type) => routeAssistFactIdV1(type, args.legScopeId)),
+    ...ROUTE_ASSIST_CORNER_SCOPED_PHOTO_EVIDENCE_TYPES_V1.map((type) => routeAssistFactIdV1(type, cornerScopeId)),
+    ...ROUTE_ASSIST_DOORWAY_SCOPED_PHOTO_EVIDENCE_TYPES_V1.map((type) => routeAssistFactIdV1(type, doorwayScopeId)),
+    routeAssistFactIdV1("ANCHOR_OBJECT_MATCH", args.sourcePointId),
+    routeAssistFactIdV1("ANCHOR_OBJECT_MATCH", args.destinationPointId),
+  ];
+  return removeRouteAssistFactsV1(args.store, factIds);
 }
 
 /**

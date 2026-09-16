@@ -8,7 +8,7 @@ import {
   type RouteAssistFactStoreV1,
 } from "@/lib/visual-assist/route-assist/factModel";
 import { evaluateRouteAssistPhotoEscalationV1, type RouteAssistCaptureEscalationResultV1 } from "@/lib/visual-assist/route-assist/captureEscalation";
-import { applyRouteAssistLiveVisibleSceneFactsV1 } from "@/lib/visual-assist/route-assist/livePhotoFactAdapter";
+import { applyRouteAssistLiveVisibleSceneFactsV1, resetRouteAssistLegPhotoEvidenceV1 } from "@/lib/visual-assist/route-assist/livePhotoFactAdapter";
 import { routeAssistFeatureInstanceScopeIdV1, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1 } from "@/lib/visual-assist/route-assist/routeFeatureScope";
 import type { RouteAssistVisibleSceneSemanticsV1 } from "@/lib/visual-assist/route-assist/visualSceneSemantics";
 import {
@@ -260,8 +260,23 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
       }
 
       const leg = legScopeId(firstDestination.label);
-      const application = applyRouteAssistLiveVisibleSceneFactsV1({
+      // CAPTURE/INTERPRETATION LIFECYCLE BOUNDARY: this leg's own
+      // photo-derived evidence (WALL_PLANE, CORNER_PRESENCE, transition/
+      // doorway/baseboard facts, ANCHOR_OBJECT_MATCH) is dropped before
+      // applying THIS interpretation's semantics -- a fresh evidence cycle
+      // every time this runs, whether this is genuinely the first photo for
+      // this leg (a no-op; nothing exists yet to drop) or a repeat
+      // interpretation after an earlier one already locked facts here. The
+      // homeowner's own SOURCE_ANCHOR/DESTINATION_ANCHOR are a different
+      // fact type and are never touched by this reset.
+      const resetStore = resetRouteAssistLegPhotoEvidenceV1({
         store: outcome.store,
+        legScopeId: leg,
+        sourcePointId: "A",
+        destinationPointId: firstDestination.label,
+      });
+      const application = applyRouteAssistLiveVisibleSceneFactsV1({
+        store: resetStore,
         semantics: body.semantics,
         legScopeId: leg,
         sourcePointId: "A",

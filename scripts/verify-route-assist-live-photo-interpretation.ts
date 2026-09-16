@@ -23,9 +23,9 @@
  * Run: npx tsx scripts/verify-route-assist-live-photo-interpretation.ts
  */
 import assert from "node:assert/strict";
-import { emptyRouteAssistFactStoreV1, writeRouteAssistFactV1, type RouteAssistFactStoreV1 } from "../lib/visual-assist/route-assist/factModel";
+import { emptyRouteAssistFactStoreV1, getRouteAssistFactV1, writeRouteAssistFactV1, type RouteAssistFactStoreV1 } from "../lib/visual-assist/route-assist/factModel";
 import { evaluateRouteAssistPhotoEscalationV1 } from "../lib/visual-assist/route-assist/captureEscalation";
-import { applyRouteAssistLiveVisibleSceneFactsV1 } from "../lib/visual-assist/route-assist/livePhotoFactAdapter";
+import { applyRouteAssistLiveVisibleSceneFactsV1, resetRouteAssistLegPhotoEvidenceV1 } from "../lib/visual-assist/route-assist/livePhotoFactAdapter";
 import { routeAssistFeatureInstanceScopeIdV1 } from "../lib/visual-assist/route-assist/routeFeatureScope";
 import { runRouteAssistVisibleSceneProviderV1, type RouteAssistVisibleSceneProviderInputV1, type RouteAssistVisibleSceneProviderV1 } from "../lib/visual-assist/route-assist/visibleSceneProvider";
 import type { RouteAssistVisibleDoorwayGroupV1, RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV1 } from "../lib/visual-assist/route-assist/visualSceneSemantics";
@@ -534,6 +534,126 @@ async function main() {
     assert.ok(second.problems.length > 0, "expected at least one REFUSED_LOCKED problem on re-application");
     const entrySide = second.store.facts[`DOORWAY_ENTRY_SIDE:${DOORWAY_1}`];
     assert.equal(entrySide.value.kind === "ENUM" && entrySide.value.value, "LEFT", "original LEFT must survive, not be overwritten to RIGHT");
+  });
+
+  // --- CAPTURE/INTERPRETATION LIFECYCLE BOUNDARY -----------------------------
+  // Real phone evidence: interpreting a SECOND photo for the same leg in one
+  // session reused the same legScopeId/doorwayScopeId/cornerScopeId as the
+  // first, so the first photo's locked facts (WALL_PLANE, CORNER_PRESENCE,
+  // BASEBOARD_CONTINUITY, ANCHOR_OBJECT_MATCH, ...) refused the second
+  // photo's writes with REFUSED_LOCKED. resetRouteAssistLegPhotoEvidenceV1
+  // now runs before the second application, at the UI's own capture
+  // lifecycle boundary (RouteAssistPhotoCapture.tsx) -- these tests exercise
+  // the same boundary directly.
+
+  await check("12. [reset boundary] a first photo interpretation locks its derived facts normally, exactly as before this correction", async () => {
+    const run = await runPipeline(completeSimpleDoorwaySemantics("LEFT"));
+    const store = anchorsPlaced();
+    const resetFirst = resetRouteAssistLegPhotoEvidenceV1({ store, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B" });
+    const first = applyRouteAssistLiveVisibleSceneFactsV1({ store: resetFirst, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(first.problems.length, 0);
+    assert.equal(first.store.facts[`WALL_PLANE:${LEG}`]?.state, "LOCKED");
+    assert.equal(first.store.facts[`DOORWAY_ENTRY_SIDE:${DOORWAY_1}`]?.state, "LOCKED");
+  });
+
+  await check("13. [reset boundary] a second photo interpretation, with the reset applied first, produces NO locked-rewrite errors", async () => {
+    const runOne = await runPipeline(completeSimpleDoorwaySemantics("LEFT"));
+    const store = anchorsPlaced();
+    const first = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: runOne.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(first.problems.length, 0);
+
+    const runTwo = await runPipeline(completeSimpleDoorwaySemantics("RIGHT"));
+    const resetForSecondPhoto = resetRouteAssistLegPhotoEvidenceV1({ store: first.store, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B" });
+    const second = applyRouteAssistLiveVisibleSceneFactsV1({ store: resetForSecondPhoto, semantics: runTwo.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(second.problems.length, 0, JSON.stringify(second.problems));
+  });
+
+  await check("14. [reset boundary] homeowner A/B anchors remain intact, still locked at their original placement, across reinterpretation", async () => {
+    const runOne = await runPipeline(completeSimpleDoorwaySemantics("LEFT"));
+    const store = anchorsPlaced();
+    const originalSourceAnchor = store.facts["SOURCE_ANCHOR:A"];
+    const originalDestinationAnchor = store.facts["DESTINATION_ANCHOR:B"];
+    const first = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: runOne.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+
+    const runTwo = await runPipeline(completeSimpleDoorwaySemantics("RIGHT"));
+    const resetForSecondPhoto = resetRouteAssistLegPhotoEvidenceV1({ store: first.store, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B" });
+    const second = applyRouteAssistLiveVisibleSceneFactsV1({ store: resetForSecondPhoto, semantics: runTwo.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+
+    assert.deepEqual(second.store.facts["SOURCE_ANCHOR:A"], originalSourceAnchor, "the homeowner's own source anchor must be byte-for-byte unchanged");
+    assert.deepEqual(second.store.facts["DESTINATION_ANCHOR:B"], originalDestinationAnchor, "the homeowner's own destination anchor must be byte-for-byte unchanged");
+  });
+
+  await check("15. [reset boundary] old photo-derived facts do not contaminate the second result -- the second photo's own value wins cleanly, not a leftover from the first", async () => {
+    const runOne = await runPipeline(completeSimpleDoorwaySemantics("LEFT"));
+    const store = anchorsPlaced();
+    const first = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: runOne.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const firstEntrySide = first.store.facts[`DOORWAY_ENTRY_SIDE:${DOORWAY_1}`];
+    assert.equal(firstEntrySide.value.kind === "ENUM" && firstEntrySide.value.value, "LEFT");
+
+    const runTwo = await runPipeline(completeSimpleDoorwaySemantics("RIGHT"));
+    const resetForSecondPhoto = resetRouteAssistLegPhotoEvidenceV1({ store: first.store, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B" });
+    assert.equal(resetForSecondPhoto.facts[`DOORWAY_ENTRY_SIDE:${DOORWAY_1}`], undefined, "the reset must remove the first photo's entry-side conclusion entirely before the second photo is applied");
+    const second = applyRouteAssistLiveVisibleSceneFactsV1({ store: resetForSecondPhoto, semantics: runTwo.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const secondEntrySide = second.store.facts[`DOORWAY_ENTRY_SIDE:${DOORWAY_1}`];
+    assert.equal(secondEntrySide.value.kind === "ENUM" && secondEntrySide.value.value, "RIGHT", "the second photo's own RIGHT conclusion must win cleanly, with no trace of the first photo's LEFT");
+  });
+
+  await check("16. [reset boundary] a second interpretation can produce genuinely different, valid values from the first -- CORNER_PRESENCE flips from true to false across reinterpretation", async () => {
+    const cornerFirst = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+    const runOne = await runPipeline(cornerFirst);
+    const store = anchorsPlaced();
+    const first = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: runOne.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const firstCorner = first.store.facts[`CORNER_PRESENCE:${CORNER_1}`];
+    assert.equal(firstCorner.value.kind === "BOOLEAN" && firstCorner.value.value, true);
+
+    // Second photo shows the SAME wall with no corner at all (a straight run).
+    const runTwo = await runPipeline(completeSimpleDoorwaySemantics("LEFT"));
+    const resetForSecondPhoto = resetRouteAssistLegPhotoEvidenceV1({ store: first.store, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B" });
+    const second = applyRouteAssistLiveVisibleSceneFactsV1({ store: resetForSecondPhoto, semantics: runTwo.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(second.problems.length, 0, JSON.stringify(second.problems));
+    const secondCorner = second.store.facts[`CORNER_PRESENCE:${CORNER_1}`];
+    assert.equal(secondCorner.value.kind === "BOOLEAN" && secondCorner.value.value, false, "the second photo's own conclusion (no corner) must be free to differ from the first (corner present)");
+  });
+
+  await check("17. [reset boundary] re-interpreting the SAME photo's semantics twice, with the reset applied each time, is deterministic -- identical resulting fact values both times", async () => {
+    const semantics = completeSimpleDoorwaySemantics("LEFT");
+
+    const runOnce = async () => {
+      const run = await runPipeline(semantics);
+      const store = anchorsPlaced();
+      const resetStore = resetRouteAssistLegPhotoEvidenceV1({ store, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B" });
+      const application = applyRouteAssistLiveVisibleSceneFactsV1({ store: resetStore, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+      assert.equal(application.problems.length, 0);
+      return evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    };
+
+    const firstResult = await runOnce();
+    const secondResult = await runOnce();
+    assert.deepEqual(firstResult, secondResult, "the same photo interpreted twice, each through its own fresh evidence cycle, must produce identical escalation results");
+  });
+
+  await check("18. [reset boundary] atomic fact lock protection is unchanged OUTSIDE the reset boundary -- skipping the reset still refuses a second application fact-by-fact, exactly like test 11", async () => {
+    const runOne = await runPipeline(completeSimpleDoorwaySemantics("LEFT"));
+    const store = anchorsPlaced();
+    const resetForFirstPhoto = resetRouteAssistLegPhotoEvidenceV1({ store, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B" });
+    const first = applyRouteAssistLiveVisibleSceneFactsV1({ store: resetForFirstPhoto, semantics: runOne.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(first.problems.length, 0);
+
+    // Deliberately WITHOUT calling resetRouteAssistLegPhotoEvidenceV1 again --
+    // a caller that skips the lifecycle boundary must still be refused,
+    // proving the reset is what changed, not the underlying lock semantics.
+    const runTwo = await runPipeline(completeSimpleDoorwaySemantics("RIGHT"));
+    const secondWithoutReset = applyRouteAssistLiveVisibleSceneFactsV1({ store: first.store, semantics: runTwo.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.ok(secondWithoutReset.problems.length > 0, "skipping the reset must still be refused fact-by-fact");
+    const entrySide = secondWithoutReset.store.facts[`DOORWAY_ENTRY_SIDE:${DOORWAY_1}`];
+    assert.equal(entrySide.value.kind === "ENUM" && entrySide.value.value, "LEFT", "without the reset, the original LEFT must still survive untouched");
+  });
+
+  await check("19. [reset boundary] resetting a leg that has never been interpreted at all is a harmless no-op", async () => {
+    const store = anchorsPlaced();
+    const resetStore = resetRouteAssistLegPhotoEvidenceV1({ store, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B" });
+    assert.deepEqual(resetStore, store, "resetting a leg with no prior photo evidence must not change the store at all");
+    assert.equal(getRouteAssistFactV1(resetStore, "SOURCE_ANCHOR", "A")?.state, "LOCKED", "homeowner anchors remain untouched");
   });
 
   console.log(`\nRoute Assist live photo interpretation verification: ${passed} passed, 0 failed.`);
