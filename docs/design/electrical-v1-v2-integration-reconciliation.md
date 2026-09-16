@@ -1209,6 +1209,115 @@ disposable database confirmed back to its exact baseline afterward — only
 `prisma/migrate-guided-flow-session-active-key.ts`,
 `scripts/template-update.ts`, and this report are committed in this pass.
 
+### 0.29 (thirteenth pass) The catalog adoption/restoration sequence, run for real end-to-end — and a genuine gap §10.3's plan did not anticipate: a corrective version cannot walk an already-adopted contractor back to it
+
+§10.2 and §10.3 had each been rehearsed in fragments — one gap at a time,
+against fixture-scale changes — but never as one continuous sequence:
+adopt a real template change onto Elite's live tree, discover it was
+wrong, publish the corrective version §10.3 names as the real rollback
+mechanism, and confirm the correction actually reaches the contractor who
+already adopted the mistake. Running that full sequence for real, rather
+than reasoning about it from the code, is what surfaced this pass's
+finding.
+
+**Setup, using the real tools at every step, not a shortcut.** Elite's
+`new-120v-outlet` was given its usual one-time provenance backfill
+(`templateKey`/`templateVersionId` → v1 — Elite is v1's own source and
+otherwise carries `null`/`null`). A scratch `TemplateVersion 2` (DELTA)
+was published with `concealed_route_feet`'s `beyond` option's
+`numberAtLeast` accidentally dropped from 20 to 5 — a plausible real
+mistake, not a contrived one. `--status` reported it as a clean,
+non-conflicting `option-revised` change; `--adopt` wrote it to Elite's
+live tree exactly as designed. A real `Visit`/`LineItem` was then created
+representing a customer who booked under that bad 5-foot threshold —
+`resolvedEconomicBasis`, `answersSnapshot`, `computedPriceCents`, and
+`resolvedMaterialCostCents` all pinned, the same fields block F of
+`verify-integration-manual-routing-storefront-browser-flow.ts` already
+proves immutable against a later cost change.
+
+**The mistake was then "discovered," and a corrective `TemplateVersion 3`
+published** — per §10.3's own stated mechanism: a new DELTA at the next
+version number, never mutating or deleting v2's row. Deliberately a
+*third* value (18), not a blind revert to v1's original 20, since a real
+correction is rarely a byte-for-byte restoration. Re-running `--status`
+against Elite was expected, on a first reading of §10.3, to offer this
+correction the same way any other template update reaches a contractor.
+It did not:
+
+```
+~ option    concealed_route_feet/beyond  CONFLICT — you have already changed this option; yours is kept
+```
+
+`--adopt` refused with the standard conflict message and wrote nothing.
+**The reason is structural, not a bug in this pass's fix:**
+`template-update.ts`'s `detect()` diffs `from` (the version the
+contractor was ORIGINALLY provisioned from — `svc.templateVersionId`,
+which no adoption ever updates) against `newest`. It never diffs the
+CONTRACTOR'S CURRENT LIVE VALUE against `newest`. The moment Elite's live
+`beyond` diverged from `from` — for ANY reason, including a previous
+auto-adoption of a value this same tool wrote — every later template
+change to that field is indistinguishable from a contractor's own
+deliberate customization, and `--adopt` has no override for a conflict at
+all. **A second, worse sub-case was confirmed too:** a corrective
+`TemplateVersion 4` publishing the EXACT original value (20, matching
+`from` byte-for-byte) produced no conflict and no report of any kind —
+`--status` printed `nothing to adopt`, since `routableShapeEqual(wasOpt,
+o)` is true and the loop never even reaches the live-value comparison.
+Elite's live tree, still at the bad 5, is not mentioned at all in this
+case — a quieter failure than the conflict, not a better one.
+
+**Everything else about §10.3's stated invariants held, confirmed by
+direct query after both corrective versions:** `TemplateVersion 2`'s own
+row still reads `numberAtLeast: 5` — the exact value it was published
+with, never mutated, never deleted, matching the "publish forward, never
+delete the bad row" rule literally. The booked `LineItem`'s
+`resolvedEconomicBasis`, `answersSnapshot`, `computedPriceCents`, and
+`resolvedMaterialCostCents` were all still exactly what they were at
+booking time, untouched by either corrective publish — booking safety
+holds across a template-version rollback exactly as §10.3 claims. A
+FRESH contractor's install-time resolution
+(`templateService.findFirst({ orderBy: { templateVersion: { version:
+"desc" } } })`, the same query `templateVersionSource` performs) correctly
+returned `TemplateVersion 4`'s corrected value (20) — a new install today
+gets the fix. **Elite's own live tree, queried in the same breath, was
+still at 5.** The corrective version protects every contractor who has
+not yet adopted the mistake; it does nothing at all for the one who
+already has, and gives no signal — short of `--status` returning a
+CONFLICT that reads identically to a legitimate customization — that this
+is the situation the tool is in.
+
+**This is a real, named gap in the restoration story, not something this
+pass fixes.** §10.3 states plainly that "the real rollback action is to
+publish a CORRECTIVE version," and that claim is correct for every
+contractor who has not yet adopted the bad content — proven directly
+above. It does not cover the contractor who has, and `template-update.ts`
+has no mechanism to distinguish "this option diverged because a
+contractor customized it on purpose" from "this option diverged because a
+previous run of this exact tool wrote a value that later turned out to be
+wrong" — both currently look identical to `detect()`, and the second case
+is the one a corrective publish exists to fix. Closing it is a real design
+decision (a provenance marker recording which changes were tool-adopted
+versus contractor-authored; a `--force` path for a CONFLICT that
+originated from this tool's own prior write; some other shape entirely) —
+left named, not designed or built here, consistent with this report's
+standing practice of naming what direct execution reveals rather than
+redesigning speculatively.
+
+All rehearsal state was reverted and confirmed by direct query back to
+this pass's exact starting baseline: the booked `Visit`/`LineItem`
+deleted; `beyond`'s `numberAtLeast` restored to 20; Elite's service
+provenance restored to `null`/`null` and its pricing fields
+(`materialCostResolved`, `publishedPriceApprovedAt`, `basePrice`) restored
+to their exact pre-rehearsal values; `TemplateVersion`s 2, 3, and 4
+deleted, leaving exactly the one `TemplateVersion` (v1) this branch's
+local database has carried throughout.
+
+**Verification.** No code changed in this pass — the finding is a report
+addition only, so `tsc`/build/browser-flow re-verification is unchanged
+from §0.28 immediately above. The local disposable database confirmed
+back to its exact baseline by direct query; only this report is committed
+in this pass.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple
