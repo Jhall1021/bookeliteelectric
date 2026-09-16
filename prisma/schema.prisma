@@ -2068,11 +2068,18 @@ model Service {
 
   questions                 Question[]
   pricingRules              PricingRule[]
-  lineItems                 LineItem[]
-  quotes                    Quote[]
+  lineItems                 LineItem[]     @relation("LineItemResolvedService")
+  quotes                    Quote[]        @relation("QuoteResolvedService")
   // Answer options elsewhere in the catalog that dynamically price
   // themselves off THIS service (see AnswerOption.referencedServiceId).
   referencedByAnswerOptions AnswerOption[] @relation("AnswerOptionReferencedService")
+  // PROVENANCE ONLY — the storefront listing a customer entered through,
+  // when it differs from the service that actually owns scope/pricing (a
+  // REROUTE_SERVICE alias). Never an ownership path: LineItem/Quote tenancy
+  // is still derived the same way it always was (LineItem through Visit).
+  // Same secondary-reference pattern as referencedByAnswerOptions above.
+  entryForLineItems         LineItem[]     @relation("LineItemEntryService")
+  entryForQuotes            Quote[]        @relation("QuoteEntryService")
 
   // Slug is unique PER CONTRACTOR, not globally. A bare `slug @unique` meant
   // only one contractor on the whole platform could own "replace-standard-
@@ -2437,18 +2444,33 @@ model GuidedFlowSession {
   /// serviceSlug/serviceName snapshot fields.
   serviceSlug String
 
+  /// PROVENANCE ONLY — the storefront service the customer FIRST selected,
+  /// before any REROUTE_SERVICE handoff. Defaults to serviceId/serviceSlug
+  /// at creation (a direct flow's entry IS its resolved service); on a
+  /// rerouted target session, set once at creation from the handoff payload
+  /// and never touched again — a later reroute forwards the CURRENT
+  /// session's own entryServiceId, not its serviceId, so an A -> B -> C
+  /// chain keeps recording A throughout. Deliberately scalar, not a
+  /// relation: this row is ephemeral session state (abandoned after
+  /// ABANDONED_AFTER_MS), not a durable record needing FK integrity — the
+  /// durable copies live on LineItem/Quote. Every write must still validate
+  /// the id belongs to this same contractorId before it is trusted; see
+  /// lib/guidedFlowSession.ts.
+  entryServiceId   String?
+  entryServiceSlug String?
+
   /// Same shape as LineItem.answersSnapshot / Quote.answersSnapshot — the
   /// existing vocabulary, captured earlier, not a new one.
   consumedAnswers Json    @default("{}")
   customerNote    String?
 
-  status GuidedFlowSessionStatus @default(ACTIVE)
+  status  GuidedFlowSessionStatus @default(ACTIVE)
   /// Optimistic concurrency. Every write supplies the version it read; a
   /// write against a stale version is rejected (updateMany count === 0),
   /// never silently overwritten. New idiom for this codebase — no existing
   /// version-based concurrency pattern to copy — but the standard Prisma
   /// one, not a novel invention.
-  version Int @default(0)
+  version Int                     @default(0)
 
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -2497,7 +2519,7 @@ model GuidedFlowVisualAssistTask {
   taskType VisualAssistTaskType
   /// Caller-assigned, opaque to this model — e.g. which question/step in
   /// the tree asked for this task. Display only.
-  taskKey String?
+  taskKey  String?
 
   status VisualAssistTaskStatus @default(PENDING)
   /// The canonical result once COMPLETED — e.g. a RouteAssistResult JSON.
@@ -2557,10 +2579,27 @@ model LineItem {
   id              String  @id @default(cuid())
   visitId         String
   visit           Visit   @relation(fields: [visitId], references: [id])
+  // THE canonical/resolved service — owns scope, pricing, materials. Tenancy
+  // is derived through Visit, never through this relation directly.
   serviceId       String
-  service         Service @relation(fields: [serviceId], references: [id])
+  service         Service @relation("LineItemResolvedService", fields: [serviceId], references: [id])
   isPrimary       Boolean @default(true) // false = While We're There add-on
   answersSnapshot Json
+
+  /// PROVENANCE ONLY — the storefront service/listing the customer actually
+  /// selected, before any REROUTE_SERVICE handoff. Equal to serviceId/
+  /// serviceSlug for a direct (non-rerouted) flow. Never overwritten by an
+  /// intermediate hop in an A -> B -> C chain — always the FIRST service.
+  ///
+  /// A secondary reference, not an ownership path: this must never be read
+  /// for tenant scoping, pricing, or material resolution — serviceId/Visit
+  /// remain the sole authority for all of that. SetNull on delete (rather
+  /// than Restrict/Cascade) because losing the origin listing later must
+  /// never destroy a historical LineItem; the slug snapshot alone still
+  /// answers "what did the customer click" even if the id goes null.
+  entryServiceId   String?
+  entryServiceSlug String?
+  entryService     Service? @relation("LineItemEntryService", fields: [entryServiceId], references: [id], onDelete: SetNull)
 
   /// NULL means the price isn't settled yet — the customer hit a branch we
   /// can't price from answers alone, and the office quotes it from photos.
@@ -2721,16 +2760,27 @@ model Quote {
   id               String      @id @default(cuid())
   customerId       String
   customer         Customer    @relation(fields: [customerId], references: [id])
+  // THE canonical/resolved service — owns scope, pricing, materials.
   serviceId        String
-  service          Service     @relation(fields: [serviceId], references: [id])
+  service          Service     @relation("QuoteResolvedService", fields: [serviceId], references: [id])
   answersSnapshot  Json
   status           QuoteStatus @default(SUBMITTED)
   quotedPriceCents Int?
+
+  /// PROVENANCE ONLY — same meaning and same rules as LineItem.entryServiceId/
+  /// entryServiceSlug: the storefront listing first selected, preserved
+  /// across any REROUTE_SERVICE hop, never treated as pricing/tenant
+  /// authority. A rerouted flow that terminates in contractor review (no
+  /// LineItem, PHOTO_REVIEW/REMOTE_QUOTE) still needs this — Quote is the
+  /// other terminal artifact, not just LineItem.
+  entryServiceId   String?
+  entryServiceSlug String?
+  entryService     Service?  @relation("QuoteEntryService", fields: [entryServiceId], references: [id], onDelete: SetNull)
   // Decided at approval time, not at submission — larger jobs may require one.
   depositRequired  Boolean?
   depositCents     Int?
   photos           Photo[]
-  createdAt        DateTime    @default(now())
+  createdAt        DateTime  @default(now())
   quotedAt         DateTime?
   approvedAt       DateTime?
 

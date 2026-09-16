@@ -27,6 +27,17 @@ export type FindOrCreateSessionInput = {
   sessionId: string;
   serviceId: string;
   serviceSlug: string;
+  /**
+   * Entry-service provenance CARRIED FORWARD from a reroute handoff —
+   * already validated by the caller (see `resolveEntryProvenance` below)
+   * against this same contractorId. Omit for a direct, non-rerouted entry:
+   * a brand-new session then defaults its own entry to its own resolved
+   * service, which is exactly what "entry == resolved for a direct flow"
+   * means. Only consulted when CREATING a session — an existing session's
+   * entry provenance is never overwritten by a later find.
+   */
+  entryServiceId?: string;
+  entryServiceSlug?: string;
 };
 
 /**
@@ -51,23 +62,96 @@ export async function findOrCreateActiveSession(
     },
     orderBy: { createdAt: "desc" },
   });
+
   if (existing) {
-    // Touched, not modified — resuming a session is activity even before
-    // the customer answers anything new.
-    return db.guidedFlowSession.update({
-      where: { id: existing.id },
-      data: { lastActivityAt: new Date() },
-    });
+    // `input.entryServiceId === undefined` means the caller had no VALIDATED
+    // claim at all (a direct visit, or a reroute whose claim failed
+    // resolveEntryProvenance) — an ordinary resume, existing behavior.
+    // A claim that names the SAME entry this session already recorded is the
+    // same journey continuing (e.g. the customer went back and replayed the
+    // same reroute) — also a resume, not a fork.
+    if (input.entryServiceId === undefined || input.entryServiceId === existing.entryServiceId) {
+      // Touched, not modified — resuming a session is activity even before
+      // the customer answers anything new.
+      return db.guidedFlowSession.update({
+        where: { id: existing.id },
+        data: { lastActivityAt: new Date() },
+      });
+    }
+
+    // A validated claim naming a DIFFERENT entry service than this existing
+    // ACTIVE target session recorded is a different customer journey landing
+    // on the same target service — e.g. a customer left an ACTIVE B session
+    // open from visiting B directly, then a later A -> B reroute (carrying
+    // validated entry=A) arrives in the same browser session. Reusing that
+    // row would relabel a stranger's-in-effect journey (or leak its
+    // in-progress answers into this one). Retire it and start a fresh target
+    // session instead — consumedAnswers starts empty, never copied over.
+    const [, created] = await db.$transaction([
+      db.guidedFlowSession.updateMany({
+        where: { id: existing.id, status: "ACTIVE" },
+        data: { status: "ABANDONED", version: { increment: 1 } },
+      }),
+      db.guidedFlowSession.create({
+        data: {
+          contractorId: input.contractorId,
+          sessionId: input.sessionId,
+          serviceId: input.serviceId,
+          serviceSlug: input.serviceSlug,
+          entryServiceId: input.entryServiceId,
+          entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
+          consumedAnswers: {},
+        },
+      }),
+    ]);
+    return created;
   }
+
   return db.guidedFlowSession.create({
     data: {
       contractorId: input.contractorId,
       sessionId: input.sessionId,
       serviceId: input.serviceId,
       serviceSlug: input.serviceSlug,
+      // Direct flow: entry IS the resolved service. Rerouted target: the
+      // caller already validated these against contractorId (see
+      // resolveEntryProvenance) — falls back to serviceId/serviceSlug when
+      // absent or invalid, never left null on a real row.
+      entryServiceId: input.entryServiceId ?? input.serviceId,
+      entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
       consumedAnswers: {},
     },
   });
+}
+
+export type EntryProvenanceCandidate = {
+  entryServiceId?: string | null;
+  entryServiceSlug?: string | null;
+};
+
+/**
+ * Validate a CLAIMED entry-service id/slug (arriving via the client-writable
+ * sessionStorage handoff — never trusted as-is) against a real, active
+ * service belonging to THIS contractor.
+ *
+ * Fails safe: any mismatch, missing id, or inactive/foreign service returns
+ * `null` rather than throwing, so the caller's own fallback (the target
+ * session's own serviceId/serviceSlug) takes over silently. A tampered or
+ * cross-contractor id must never surface as an error that leaks whether a
+ * given id exists elsewhere — it just looks like "no provenance claimed".
+ */
+export async function resolveEntryProvenance(
+  db: PrismaClient,
+  contractorId: string,
+  candidate: EntryProvenanceCandidate
+): Promise<{ entryServiceId: string; entryServiceSlug: string } | null> {
+  if (!candidate.entryServiceId) return null;
+  const service = await db.service.findFirst({
+    where: { id: candidate.entryServiceId, contractorId, active: true },
+    select: { id: true, slug: true },
+  });
+  if (!service) return null;
+  return { entryServiceId: service.id, entryServiceSlug: service.slug };
 }
 
 export async function loadSession(db: PrismaClient, id: string): Promise<GuidedFlowSession | null> {

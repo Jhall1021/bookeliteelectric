@@ -107,6 +107,14 @@ export async function POST(req: Request) {
 
   const visit = await findOrCreateOpenVisit(db, site.contractorId, sessionId);
 
+  // Entry-service PROVENANCE ONLY — same server-side lookup as POST
+  // /api/visit, same reasoning: never accepted from the request body, no
+  // session simply means nothing to stamp, never affects pricing/eligibility.
+  const guidedFlowSession = await db.guidedFlowSession.findFirst({
+    where: { contractorId: site.contractorId, sessionId, serviceId, status: "ACTIVE" },
+    select: { entryServiceId: true, entryServiceSlug: true },
+  });
+
   // Line item and quote are created together — a quote with no line item
   // leaves the customer wondering where their request went, and a line item
   // with no quote is an unpriced row nobody is working on.
@@ -123,6 +131,8 @@ export async function POST(req: Request) {
       data: {
         visitId: visit.id,
         serviceId,
+        entryServiceId: guidedFlowSession?.entryServiceId ?? null,
+        entryServiceSlug: guidedFlowSession?.entryServiceSlug ?? null,
         isPrimary: isFirst,
         answersSnapshot: answersSnapshot ?? {},
         // Unpriced until the office says otherwise.
@@ -137,6 +147,8 @@ export async function POST(req: Request) {
       data: {
         customerId: customer.id,
         serviceId,
+        entryServiceId: guidedFlowSession?.entryServiceId ?? null,
+        entryServiceSlug: guidedFlowSession?.entryServiceSlug ?? null,
         visitId: visit.id,
         lineItemId: li.id,
         answersSnapshot: answersSnapshot ?? {},
