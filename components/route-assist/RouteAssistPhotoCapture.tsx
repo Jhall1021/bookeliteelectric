@@ -398,6 +398,9 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
                     Destination {liveLegLabel}: {getRouteAssistFactV1(outcome.store, "DESTINATION_ANCHOR", liveLegLabel)?.state === "LOCKED" ? "locked" : "not placed"}
                   </li>
                   <li>Wall plane: {factRowLabel("BOOLEAN", legScopeId(liveLegLabel), "WALL_PLANE")}</li>
+                  <li>Corner / transition: {factRowLabel("BOOLEAN", routeAssistFeatureInstanceScopeIdV1("corner", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "CORNER_PRESENCE")}</li>
+                  <li>Transition connected: {factRowLabel("BOOLEAN", routeAssistFeatureInstanceScopeIdV1("corner", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "TRANSITION_VISUALLY_CONNECTED")}</li>
+                  <li>Transition continuation in frame: {factRowLabel("BOOLEAN", routeAssistFeatureInstanceScopeIdV1("corner", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "TRANSITION_CONTINUATION_IN_FRAME")}</li>
                   <li>Doorway: {factRowLabel("presence", routeAssistFeatureInstanceScopeIdV1("doorway", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "DOORWAY_PRESENCE")}</li>
                   <li>Left casing: {factRowLabel("presence", routeAssistFeatureInstanceScopeIdV1("doorway", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "DOORWAY_LEFT_CASING")}</li>
                   <li>Top casing: {factRowLabel("presence", routeAssistFeatureInstanceScopeIdV1("doorway", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "DOORWAY_TOP_CASING")}</li>

@@ -76,6 +76,23 @@ function completeSimpleDoorwaySemantics(): RouteAssistVisibleSceneSemanticsV1 {
   };
 }
 
+/**
+ * PRODUCT CORRECTION fixtures: a visible corner/plane transition, with
+ * baseboard on both sides of it (near source and near destination) and no
+ * doorway -- kept doorway-free so these tests isolate the corner/transition
+ * logic from the doorway logic already covered above.
+ */
+function cornerSemantics(args: { nearSideBaseboard: boolean; farSideBaseboard: boolean; includeDestinationMarker: boolean }): RouteAssistVisibleSceneSemanticsV1 {
+  const objects: RouteAssistVisibleSceneSemanticsV1["objects"] = [
+    { id: "src", kind: "SOURCE_RECEPTACLE", imageId: IMAGE, confidence: 0.97, box: box(0.09), pointId: "A" },
+    { id: "corner", kind: "CORNER", imageId: IMAGE, confidence: 0.92, box: box(0.45) },
+  ];
+  if (args.includeDestinationMarker) objects.push({ id: "dst", kind: "DESTINATION_MARKER", imageId: IMAGE, confidence: 0.96, box: box(0.85), pointId: "B" });
+  if (args.nearSideBaseboard) objects.push({ id: "bb-near", kind: "BASEBOARD_OR_TRIM", imageId: IMAGE, confidence: 0.95, box: box(0.25) });
+  if (args.farSideBaseboard) objects.push({ id: "bb-far", kind: "BASEBOARD_OR_TRIM", imageId: IMAGE, confidence: 0.95, box: box(0.65) });
+  return { version: 1, captureImageIds: [IMAGE], objects, segmentObservations: [] };
+}
+
 function fixtureProvider(semantics: RouteAssistVisibleSceneSemanticsV1): RouteAssistVisibleSceneProviderV1 {
   return { providerKey: "fixture.test", async analyze() { return semantics; } };
 }
@@ -220,17 +237,50 @@ check("8. a doorway visible but missing its top casing (no doorwayGroup formed) 
   assert.ok(escalation.missingFactTypes.includes("DOORWAY_LEFT_CASING"));
 });
 
-// --- 9: confirmed corner produces SWEEP_REQUIRED ---------------------------
+// --- 9a/9b/9c: PRODUCT CORRECTION -- a visible transition is not itself an
+// escalation. Replaces the old "any corner forces SWEEP_REQUIRED" test.
 
-check("9. a CORNER object between the anchors forces SWEEP_REQUIRED via the live pipeline end to end", async () => {
-  const withCorner = completeSimpleDoorwaySemantics();
-  withCorner.objects = [...withCorner.objects, { id: "bend", kind: "CORNER", imageId: IMAGE, confidence: 0.9, box: box(0.5) }];
-  const run = await runPipeline(withCorner);
+check("9a. a visible corner + both adjoining surfaces (baseboard near AND far side) + a confirmed destination reaches PHOTO_SUFFICIENT, not SWEEP_REQUIRED", async () => {
+  const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true });
+  const run = await runPipeline(semantics);
+  assert.ok(run.semantics, JSON.stringify(run.problems));
+  const store = anchorsPlaced();
+  const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+  assert.equal(application.problems.length, 0);
+  const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
+  const continuation = application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`];
+  assert.equal(connected.value.kind === "BOOLEAN" && connected.value.value, true);
+  assert.equal(continuation.value.kind === "BOOLEAN" && continuation.value.value, true);
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "PHOTO_SUFFICIENT");
+});
+
+check("9b. a corner with baseboard on only ONE side (the other side's surface is not sufficiently visible) yields TARGETED_PHOTO_REQUIRED, not SWEEP_REQUIRED", async () => {
+  const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: false, includeDestinationMarker: true });
+  const run = await runPipeline(semantics);
   assert.ok(run.semantics);
   const store = anchorsPlaced();
   const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
-  const corner = application.store.facts[`CORNER_PRESENCE:${CORNER_1}`];
-  assert.equal(corner.value.kind === "BOOLEAN" && corner.value.value, true);
+  const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
+  assert.equal(connected.value.kind === "BOOLEAN" && connected.value.value, false);
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  assert.deepEqual(escalation.missingFactTypes, ["TRANSITION_VISUALLY_CONNECTED"]);
+});
+
+check("9c. a corner where the destination cannot be independently confirmed beyond it (route leaves the visible/established scene) forces SWEEP_REQUIRED", async () => {
+  // Both adjoining surfaces ARE visible (baseboard both sides), but the
+  // provider cannot identify a DESTINATION_MARKER matching the homeowner's
+  // own destination anchor -- exactly "the destination lies beyond what
+  // the image establishes." Genuinely structural: no additional targeted
+  // photo of THIS image fixes a marker that was never found in it.
+  const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: false });
+  const run = await runPipeline(semantics);
+  assert.ok(run.semantics);
+  const store = anchorsPlaced();
+  const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+  const continuation = application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`];
+  assert.equal(continuation.value.kind === "BOOLEAN" && continuation.value.value, false);
   const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
   assert.equal(escalation.escalation, "SWEEP_REQUIRED");
 });

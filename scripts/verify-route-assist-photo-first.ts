@@ -141,11 +141,48 @@ check("a fully-resolved, same-plane, no-doorway leg resolves to PHOTO_SUFFICIENT
   assert.equal(result.escalation, "PHOTO_SUFFICIENT");
 });
 
-// --- 6: a visible corner/plane transition forces escalation ----------------
+// --- 6: a visible corner/plane transition is not itself an escalation ------
+// PRODUCT CORRECTION: a visible plane transition is NOT automatically an
+// escalation. Only an unresolved transition -- specifically one whose
+// continuation leaves this photo's frame -- forces SWEEP_REQUIRED. A
+// transition with no connectivity/continuation facts written yet is simply
+// unresolved LOCALLY, same as a missing casing, so it's TARGETED_PHOTO_
+// REQUIRED, not SWEEP_REQUIRED.
 
-check("[correction] confirmed corner (CORNER_PRESENCE=true) forces SWEEP_REQUIRED even with no other facts written", () => {
+check("[correction] a confirmed corner with NO connectivity facts yet written is TARGETED_PHOTO_REQUIRED, not an automatic SWEEP_REQUIRED", () => {
   let store = anchorsPlaced();
   store = writeFact(store, "CORNER_PRESENCE", CORNER_1, { kind: "BOOLEAN", value: true });
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  assert.ok(escalation.missingFactTypes.includes("TRANSITION_VISUALLY_CONNECTED"));
+  assert.ok(escalation.missingFactTypes.includes("TRANSITION_CONTINUATION_IN_FRAME"));
+});
+
+check("[correction] a corner whose transition is confirmed visually connected AND whose continuation is confirmed in-frame is treated like a straight run (may still reach PHOTO_SUFFICIENT)", () => {
+  let store = anchorsPlaced();
+  store = writeFact(store, "CORNER_PRESENCE", CORNER_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "TRANSITION_VISUALLY_CONNECTED", CORNER_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "TRANSITION_CONTINUATION_IN_FRAME", CORNER_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "BASEBOARD_CONTINUITY", LEG, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "DOORWAY_PRESENCE", DOORWAY_1, { kind: "BOOLEAN", value: false });
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "PHOTO_SUFFICIENT");
+});
+
+check("[correction] a corner whose transition is confirmed NOT visually connected (locally obscured) is TARGETED_PHOTO_REQUIRED, not SWEEP_REQUIRED", () => {
+  let store = anchorsPlaced();
+  store = writeFact(store, "CORNER_PRESENCE", CORNER_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "TRANSITION_VISUALLY_CONNECTED", CORNER_1, { kind: "BOOLEAN", value: false });
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  assert.deepEqual(escalation.missingFactTypes, ["TRANSITION_VISUALLY_CONNECTED"]);
+});
+
+check("[correction] a corner whose continuation is confirmed OFF-frame forces SWEEP_REQUIRED -- the one case that genuinely needs cross-view topology", () => {
+  let store = anchorsPlaced();
+  store = writeFact(store, "CORNER_PRESENCE", CORNER_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "TRANSITION_VISUALLY_CONNECTED", CORNER_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "TRANSITION_CONTINUATION_IN_FRAME", CORNER_1, { kind: "BOOLEAN", value: false });
   const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
   assert.equal(escalation.escalation, "SWEEP_REQUIRED");
 });
@@ -178,10 +215,11 @@ check("[correction] missing (never-written) baseboard continuity also yields TAR
   assert.deepEqual(escalation.missingFactTypes, ["BASEBOARD_CONTINUITY"]);
 });
 
-check("even with a false/missing baseboard, a real corner still wins and forces SWEEP_REQUIRED (structural break outranks a local gap)", () => {
+check("[correction] a genuinely off-frame transition (TRANSITION_CONTINUATION_IN_FRAME=false) still outranks a merely-missing baseboard -- structural beats local", () => {
   let store = anchorsPlaced();
   store = writeFact(store, "BASEBOARD_CONTINUITY", LEG, { kind: "BOOLEAN", value: false });
   store = writeFact(store, "CORNER_PRESENCE", CORNER_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "TRANSITION_CONTINUATION_IN_FRAME", CORNER_1, { kind: "BOOLEAN", value: false });
   const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
   assert.equal(escalation.escalation, "SWEEP_REQUIRED");
 });

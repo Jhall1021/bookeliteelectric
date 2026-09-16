@@ -51,16 +51,20 @@ function booleanValue(fact: ReturnType<typeof getRouteAssistFactV1>): boolean | 
  * Rule order matters and is deliberate:
  *   1. Both anchors must exist at all -- nothing else can be evaluated
  *      without them, and this is not itself an escalation decision.
- *   2. A GENUINELY STRUCTURAL route/plane break -- a real corner, or the
- *      route being confirmed off one continuous wall plane -- always wins,
- *      because no additional still photo fixes it. Nothing else forces
- *      SWEEP_REQUIRED: an incomplete/obscured baseboard is a framing problem
- *      a targeted photo can often resolve (cropping, furniture, occlusion),
- *      not evidence the route itself leaves this photo's frustum, so it was
- *      moved out of this tier -- see the correction-pass note below.
- *   3. Otherwise, any genuinely missing or unresolved LOCAL fact means
+ *   2. A visible plane transition (CORNER_PRESENCE=true) is NOT itself an
+ *      escalation signal -- see the PRODUCT CORRECTION note below. Only a
+ *      transition that genuinely leaves this photo's frustum (TRANSITION_
+ *      CONTINUATION_IN_FRAME=false) forces SWEEP_REQUIRED; a transition
+ *      that's merely locally obscured (TRANSITION_VISUALLY_CONNECTED=false)
+ *      is TARGETED_PHOTO_REQUIRED; a fully resolved transition falls
+ *      through to the same local-fact checks as a straight run.
+ *   3. With NO transition present, WALL_PLANE=false still forces
+ *      SWEEP_REQUIRED unchanged from before -- an unexplained plane break
+ *      with no identified transition to resolve it is exactly the
+ *      structural case this rule exists for.
+ *   4. Otherwise, any genuinely missing or unresolved LOCAL fact means
  *      TARGETED_PHOTO_REQUIRED, naming exactly what's missing.
- *   4. Only when nothing is missing and nothing structural was found does
+ *   5. Only when nothing is missing and nothing structural was found does
  *      this return PHOTO_SUFFICIENT.
  *
  * Doorway/corner facts are read at the leg's PRIMARY feature instance
@@ -69,14 +73,21 @@ function booleanValue(fact: ReturnType<typeof getRouteAssistFactV1>): boolean | 
  * here, only the identity scheme that will let it be added without a fact
  * model change.
  *
- * CORRECTION PASS: BASEBOARD_CONTINUITY previously forced SWEEP_REQUIRED
- * when false, on the theory that a broken baseboard meant the route left
- * the wall. That over-escalated real cases: cropping, furniture, and simple
- * occlusion can make a baseboard look discontinuous in one photo without
- * the underlying route being unsupported. BASEBOARD_CONTINUITY now only
- * ever contributes to TARGETED_PHOTO_REQUIRED (missing OR false both mean
- * "ask for a look at that specific stretch"); only CORNER_PRESENCE and
- * WALL_PLANE can force SWEEP_REQUIRED.
+ * CORRECTION PASS (baseboard): BASEBOARD_CONTINUITY previously forced
+ * SWEEP_REQUIRED when false, on the theory that a broken baseboard meant
+ * the route left the wall. That over-escalated real cases: cropping,
+ * furniture, and simple occlusion can make a baseboard look discontinuous
+ * in one photo without the underlying route being unsupported. BASEBOARD_
+ * CONTINUITY now only ever contributes to TARGETED_PHOTO_REQUIRED.
+ *
+ * PRODUCT CORRECTION (corner): CORNER_PRESENCE=true previously forced
+ * SWEEP_REQUIRED unconditionally, on the theory that any plane change means
+ * the route leaves what one photo can show. That's also over-escalation: a
+ * fully visible connected transition (`A outlet -> wall 1 -> visible inside
+ * corner -> wall 2 -> B outlet`, all in one frame) is exactly the kind of
+ * case photo-first exists to resolve without a sweep. See factModel.ts's
+ * TRANSITION_VISUALLY_CONNECTED/TRANSITION_CONTINUATION_IN_FRAME for what
+ * now actually decides this.
  */
 export function evaluateRouteAssistPhotoEscalationV1(args: {
   store: RouteAssistFactStoreV1;
@@ -92,19 +103,37 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
 
   const doorwayScopeId = routeAssistFeatureInstanceScopeIdV1("doorway", args.legScopeId, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1);
   const cornerScopeId = routeAssistFeatureInstanceScopeIdV1("corner", args.legScopeId, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1);
+  const missing: RouteAssistFactTypeV1[] = [];
 
   const corner = getRouteAssistFactV1(args.store, "CORNER_PRESENCE", cornerScopeId);
-  if (booleanValue(corner) === true) {
-    return { escalation: "SWEEP_REQUIRED", reason: "the route crosses a corner into another wall plane; a single photo cannot represent that", missingFactTypes: [] };
-  }
+  const cornerConfirmed = booleanValue(corner) === true;
 
-  const wallPlane = getRouteAssistFactV1(args.store, "WALL_PLANE", args.legScopeId);
-  if (booleanValue(wallPlane) === false) {
-    return { escalation: "SWEEP_REQUIRED", reason: "source and destination are not on one continuous supported wall/trim plane", missingFactTypes: [] };
+  if (cornerConfirmed) {
+    const continuationInFrame = getRouteAssistFactV1(args.store, "TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId);
+    if (booleanValue(continuationInFrame) === false) {
+      return { escalation: "SWEEP_REQUIRED", reason: "the route continues beyond the visible transition in a way this photo cannot establish; sequential cross-view topology is genuinely needed", missingFactTypes: [] };
+    }
+    const visuallyConnected = getRouteAssistFactV1(args.store, "TRANSITION_VISUALLY_CONNECTED", cornerScopeId);
+    if (booleanValue(visuallyConnected) === false) {
+      return { escalation: "TARGETED_PHOTO_REQUIRED", reason: "a visible transition exists but is not clearly connected in this photo (occlusion/framing); a closer look at that transition may resolve it", missingFactTypes: ["TRANSITION_VISUALLY_CONNECTED"] };
+    }
+    if (!continuationInFrame) missing.push("TRANSITION_CONTINUATION_IN_FRAME");
+    if (!visuallyConnected) missing.push("TRANSITION_VISUALLY_CONNECTED");
+    if (missing.length > 0) {
+      return { escalation: "TARGETED_PHOTO_REQUIRED", reason: `a visible transition exists but is not yet fully characterized: ${missing.join(", ")}`, missingFactTypes: missing };
+    }
+    // Both confirmed true: the transition is fully resolved from this one
+    // photo. Fall through to the same local-fact checks a straight,
+    // transition-free run would go through -- WALL_PLANE is not consulted
+    // here, since a resolved transition legitimately means the route is
+    // NOT one flat plane, which is no longer itself a problem.
+  } else {
+    const wallPlane = getRouteAssistFactV1(args.store, "WALL_PLANE", args.legScopeId);
+    if (booleanValue(wallPlane) === false) {
+      return { escalation: "SWEEP_REQUIRED", reason: "source and destination are not on one continuous supported wall/trim plane, and no visible transition was identified to explain the break", missingFactTypes: [] };
+    }
+    if (!wallPlane) missing.push("WALL_PLANE");
   }
-
-  const missing: RouteAssistFactTypeV1[] = [];
-  if (!wallPlane) missing.push("WALL_PLANE");
 
   const baseboard = getRouteAssistFactV1(args.store, "BASEBOARD_CONTINUITY", args.legScopeId);
   if (!baseboard || booleanValue(baseboard) === false) missing.push("BASEBOARD_CONTINUITY");
@@ -124,5 +153,11 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
     return { escalation: "TARGETED_PHOTO_REQUIRED", reason: `route is locally understandable but missing: ${missing.join(", ")}`, missingFactTypes: missing };
   }
 
-  return { escalation: "PHOTO_SUFFICIENT", reason: "source and destination are on one supported wall plane with continuous baseboard and no unresolved local facts", missingFactTypes: [] };
+  return {
+    escalation: "PHOTO_SUFFICIENT",
+    reason: cornerConfirmed
+      ? "source and destination are connected by a fully visible, resolved transition, with continuous baseboard and no unresolved local facts"
+      : "source and destination are on one supported wall plane with continuous baseboard and no unresolved local facts",
+    missingFactTypes: [],
+  };
 }

@@ -28,6 +28,35 @@ import type { RouteAssistDestinationType } from "./taxonomy";
  * all write into through the same one refusal rule.
  */
 
+/**
+ * TRANSITION_VISUALLY_CONNECTED / TRANSITION_CONTINUATION_IN_FRAME --
+ * product correction: a visible plane transition (a corner, and later a
+ * wall/ceiling transition) is not itself an escalation signal. CORNER_
+ * PRESENCE only says a transition exists; these two facts say whether it's
+ * resolvable from THIS photo, deliberately kept separate rather than
+ * folded into CORNER_PRESENCE's own meaning:
+ *
+ *   TRANSITION_VISUALLY_CONNECTED -- both surfaces the transition joins, and
+ *     the route immediately before/after it, are visible and connected in
+ *     this one photo. False means something LOCAL is obscured (furniture,
+ *     framing, cropping) -- captureEscalation.ts treats false here as
+ *     TARGETED_PHOTO_REQUIRED, the same as an obscured baseboard.
+ *
+ *   TRANSITION_CONTINUATION_IN_FRAME -- the route's continuation beyond the
+ *     transition, toward the destination, remains observable in this photo
+ *     rather than requiring a separate/disconnected view. False here is
+ *     structural -- no additional still photo fixes it -- so it forces
+ *     SWEEP_REQUIRED, the way CORNER_PRESENCE alone used to.
+ *
+ * Scoped at the same corner-instance id CORNER_PRESENCE uses
+ * (routeFeatureScope.ts), not folded into a new taxonomy value on
+ * CORNER_KIND -- CORNER_KIND still names the physical geometry (inside/
+ * outside/flat); these two name whether THIS photo resolves it. Naming them
+ * around "transition" rather than "corner" is deliberate: the same two
+ * facts should describe a future wall-to-ceiling transition without
+ * redesign, though building that specific case is explicitly out of scope
+ * for this correction.
+ */
 export const ROUTE_ASSIST_FACT_TYPES_V1 = [
   "SOURCE_ANCHOR",
   "DESTINATION_ANCHOR",
@@ -40,6 +69,8 @@ export const ROUTE_ASSIST_FACT_TYPES_V1 = [
   "DOORWAY_ENTRY_SIDE",
   "CORNER_PRESENCE",
   "CORNER_KIND",
+  "TRANSITION_VISUALLY_CONNECTED",
+  "TRANSITION_CONTINUATION_IN_FRAME",
   "WINDOW",
   "VISIBLE_OBSTACLE",
   "ANCHOR_OBJECT_MATCH",
@@ -101,6 +132,8 @@ const ROUTE_ASSIST_FACT_VALUE_KIND_BY_TYPE_V1: Record<RouteAssistFactTypeV1, Rou
   DOORWAY_ENTRY_SIDE: "ENUM",
   CORNER_PRESENCE: "BOOLEAN",
   CORNER_KIND: "ENUM",
+  TRANSITION_VISUALLY_CONNECTED: "BOOLEAN",
+  TRANSITION_CONTINUATION_IN_FRAME: "BOOLEAN",
   WINDOW: "OBJECT_REF",
   VISIBLE_OBSTACLE: "OBJECT_REF",
   ANCHOR_OBJECT_MATCH: "ANCHOR_MATCH",

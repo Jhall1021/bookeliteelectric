@@ -39,6 +39,23 @@ import type { RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV
  * rather than asked of the model twice — a single still photo either shows
  * a plane change between the anchors or it doesn't; asking for both
  * separately would let a model self-contradict for no benefit.
+ *
+ * PRODUCT CORRECTION: when a CORNER object IS found, this adapter also
+ * derives TRANSITION_VISUALLY_CONNECTED and TRANSITION_CONTINUATION_IN_
+ * FRAME (factModel.ts) rather than leaving evaluateRouteAssistPhotoEscalationV1
+ * to treat every corner as an automatic sweep. Both are derived from
+ * signals the schema already carries -- no new provider-facing field was
+ * added for this correction:
+ *   - TRANSITION_VISUALLY_CONNECTED: true only if a BASEBOARD_OR_TRIM
+ *     object exists on BOTH the source-side and destination-side of the
+ *     corner's own position. Real, checkable evidence of a connected run,
+ *     not a guess.
+ *   - TRANSITION_CONTINUATION_IN_FRAME: true only if a DESTINATION_MARKER
+ *     matching the homeowner's own destination anchor was independently
+ *     identified by the provider -- the same signal ANCHOR_OBJECT_MATCH
+ *     already uses, reused rather than re-derived, since "the model can
+ *     independently confirm the destination side" is exactly what
+ *     "continuation is observable" means for a single photo.
  */
 const ROUTE_ASSIST_LIVE_PHOTO_FACT_TYPES_V1: ReadonlySet<RouteAssistFactTypeV1> = new Set([
   "WALL_PLANE",
@@ -50,6 +67,8 @@ const ROUTE_ASSIST_LIVE_PHOTO_FACT_TYPES_V1: ReadonlySet<RouteAssistFactTypeV1> 
   "DOORWAY_ENTRY_SIDE",
   "CORNER_PRESENCE",
   "CORNER_KIND",
+  "TRANSITION_VISUALLY_CONNECTED",
+  "TRANSITION_CONTINUATION_IN_FRAME",
   "WINDOW",
   "VISIBLE_OBSTACLE",
   "ANCHOR_OBJECT_MATCH",
@@ -124,12 +143,26 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
   const doorwayScopeId = routeAssistFeatureInstanceScopeIdV1("doorway", args.legScopeId, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1);
   const cornerScopeId = routeAssistFeatureInstanceScopeIdV1("corner", args.legScopeId, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1);
 
+  // Computed early: TRANSITION_CONTINUATION_IN_FRAME (below) reuses this
+  // exact match rather than re-deriving it.
+  const destinationMatch = args.semantics.objects.find((object) => object.kind === "DESTINATION_MARKER" && object.pointId === args.destinationPointId);
+
   const cornerObject = args.semantics.objects.find((object) => object.kind === "CORNER" && between(object));
   write("CORNER_PRESENCE", cornerScopeId, { kind: "BOOLEAN", value: Boolean(cornerObject) }, cornerObject ? [cornerObject.imageId] : [args.imageId]);
   write("WALL_PLANE", args.legScopeId, { kind: "BOOLEAN", value: !cornerObject }, [args.imageId]);
 
   const baseboardObjects = args.semantics.objects.filter((object) => object.kind === "BASEBOARD_OR_TRIM" && between(object));
   write("BASEBOARD_CONTINUITY", args.legScopeId, { kind: "BOOLEAN", value: baseboardObjects.length > 0 }, baseboardObjects.length ? baseboardObjects.map((o) => o.imageId) : [args.imageId]);
+
+  if (cornerObject) {
+    const cornerX = objectCenterX(cornerObject);
+    const nearSide = { lo: Math.min(args.sourceAnchor.x, cornerX), hi: Math.max(args.sourceAnchor.x, cornerX) };
+    const farSide = { lo: Math.min(cornerX, args.destinationAnchor.x), hi: Math.max(cornerX, args.destinationAnchor.x) };
+    const nearConnected = baseboardObjects.some((object) => { const x = objectCenterX(object); return x >= nearSide.lo && x <= nearSide.hi; });
+    const farConnected = baseboardObjects.some((object) => { const x = objectCenterX(object); return x >= farSide.lo && x <= farSide.hi; });
+    write("TRANSITION_VISUALLY_CONNECTED", cornerScopeId, { kind: "BOOLEAN", value: nearConnected && farConnected }, [cornerObject.imageId]);
+    write("TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId, { kind: "BOOLEAN", value: Boolean(destinationMatch) }, destinationMatch ? [destinationMatch.imageId] : [args.imageId]);
+  }
 
   const windowObjects = args.semantics.objects.filter((object) => object.kind === "WINDOW" && between(object));
   if (windowObjects.length) write("WINDOW", args.legScopeId, { kind: "OBJECT_REF", objectId: windowObjects[0].id, imageId: windowObjects[0].imageId }, [windowObjects[0].imageId]);
@@ -169,7 +202,6 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
   const sourceMatch = args.semantics.objects.find((object) => object.kind === "SOURCE_RECEPTACLE" && object.pointId === args.sourcePointId);
   if (sourceMatch) write("ANCHOR_OBJECT_MATCH", args.sourcePointId, { kind: "ANCHOR_MATCH", objectId: sourceMatch.id, imageId: sourceMatch.imageId, matchesPlacement: true }, [sourceMatch.imageId]);
 
-  const destinationMatch = args.semantics.objects.find((object) => object.kind === "DESTINATION_MARKER" && object.pointId === args.destinationPointId);
   if (destinationMatch) write("ANCHOR_OBJECT_MATCH", args.destinationPointId, { kind: "ANCHOR_MATCH", objectId: destinationMatch.id, imageId: destinationMatch.imageId, matchesPlacement: true }, [destinationMatch.imageId]);
 
   return { store, problems };
