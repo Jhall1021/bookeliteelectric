@@ -136,6 +136,22 @@ function withResolvedDoorway(semantics: RouteAssistVisibleSceneSemanticsV1): Rou
   };
 }
 
+/**
+ * Appends an EXPLICIT provider assertion that no doorway/opening crosses
+ * this leg's own visible route segment -- the new
+ * segmentObservations[].noDoorwayOnSegment signal (visualSceneSemantics.ts)
+ * this correction pass adds. Deliberately a SEPARATE segmentObservation
+ * from whatever the fixture already built (rather than mutating an
+ * existing one), so a test can add or withhold this signal independently
+ * of corner/transition coherence.
+ */
+function withExplicitNoDoorway(semantics: RouteAssistVisibleSceneSemanticsV1, confidence = 0.9): RouteAssistVisibleSceneSemanticsV1 {
+  return {
+    ...semantics,
+    segmentObservations: [...semantics.segmentObservations, { segmentId: LEG, imageId: IMAGE, objectIds: [], confidence, noDoorwayOnSegment: true }],
+  };
+}
+
 function fixtureProvider(semantics: RouteAssistVisibleSceneSemanticsV1): RouteAssistVisibleSceneProviderV1 {
   return { providerKey: "fixture.test", async analyze() { return semantics; } };
 }
@@ -783,6 +799,78 @@ async function main() {
     const store = anchorsPlaced();
     const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
     assert.equal(application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`], undefined, "a window's mere presence must not manufacture a connection that was never coherently traced");
+  });
+
+  // --- EXPLICIT-NEGATIVE DOORWAY CORRECTION ----------------------------------
+  // Real phone evidence: a clean furniture/corner/window scene resolved
+  // CORNER_PRESENCE/TRANSITION_VISUALLY_CONNECTED/TRANSITION_CONTINUATION_
+  // IN_FRAME/BASEBOARD_CONTINUITY correctly, yet still returned TARGETED_
+  // PHOTO_REQUIRED -- because no DOORWAY object meant DOORWAY_PRESENCE
+  // stayed OPEN (correct, absence isn't proof), but the evaluator still
+  // requires SOME resolution for it, and the schema had no way for the
+  // provider to affirmatively assert a doorway-free segment. These fixtures
+  // exercise the new segmentObservations[].noDoorwayOnSegment signal.
+
+  await check("28. [explicit-negative doorway] an explicit, sufficiently confident \"no doorway on this segment\" assertion writes DOORWAY_PRESENCE=false -- with no DOORWAY object anywhere in the scene", async () => {
+    const flatWall = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: false });
+    flatWall.objects = flatWall.objects.filter((object) => object.kind !== "CORNER");
+    const semantics = withExplicitNoDoorway(flatWall);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const doorwayPresence = application.store.facts[`DOORWAY_PRESENCE:${DOORWAY_1}`];
+    assert.equal(doorwayPresence?.value.kind === "BOOLEAN" && doorwayPresence.value.value, false, "an explicit, confident no-doorway assertion for this segment must write false");
+  });
+
+  await check("29. [explicit-negative doorway] the IDENTICAL fixture WITHOUT the explicit assertion leaves DOORWAY_PRESENCE OPEN -- object omission alone still proves nothing", async () => {
+    const flatWall = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: false });
+    flatWall.objects = flatWall.objects.filter((object) => object.kind !== "CORNER");
+    const run = await runPipeline(flatWall);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`DOORWAY_PRESENCE:${DOORWAY_1}`], undefined, "the same scene, minus the explicit assertion, must leave this fact OPEN rather than false");
+  });
+
+  await check("30. [explicit-negative doorway] explicit no-doorway + a fully resolved corner (coherent segment, baseboard, continuation) reaches PHOTO_SUFFICIENT WITHOUT fabricating a doorway -- the real regression this pass fixes", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+    const semantics = withExplicitNoDoorway(cornerBase);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const doorwayPresence = application.store.facts[`DOORWAY_PRESENCE:${DOORWAY_1}`];
+    assert.equal(doorwayPresence?.value.kind === "BOOLEAN" && doorwayPresence.value.value, false);
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "PHOTO_SUFFICIENT", JSON.stringify(escalation));
+  });
+
+  await check("31. [explicit-negative doorway] a REAL doorway object always wins over a (contradictory) explicit no-doorway assertion -- DOORWAY_PRESENCE=true and casing/entry-side logic proceed exactly as before", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+    const withDoorway = withResolvedDoorway(cornerBase);
+    const semantics = withExplicitNoDoorway(withDoorway);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const doorwayPresence = application.store.facts[`DOORWAY_PRESENCE:${DOORWAY_1}`];
+    assert.equal(doorwayPresence?.value.kind === "BOOLEAN" && doorwayPresence.value.value, true, "a genuinely detected DOORWAY object must win over any conflicting explicit no-doorway assertion");
+    const entrySide = application.store.facts[`DOORWAY_ENTRY_SIDE:${DOORWAY_1}`];
+    assert.equal(entrySide?.value.kind === "ENUM" && entrySide.value.value, "LEFT", "existing casing/entry-side derivation is unaffected");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "PHOTO_SUFFICIENT");
+  });
+
+  await check("32. [explicit-negative doorway] a no-doorway assertion BELOW the confidence floor is not \"sufficiently supported\" -- leaves DOORWAY_PRESENCE OPEN, not false", async () => {
+    const flatWall = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: false });
+    flatWall.objects = flatWall.objects.filter((object) => object.kind !== "CORNER");
+    const semantics = withExplicitNoDoorway(flatWall, 0.4);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`DOORWAY_PRESENCE:${DOORWAY_1}`], undefined, "a low-confidence assertion is exactly the ambiguous/insufficient-quality case that must stay OPEN, not become a false claim");
   });
 
   console.log(`\nRoute Assist live photo interpretation verification: ${passed} passed, 0 failed.`);

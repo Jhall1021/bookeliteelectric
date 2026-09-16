@@ -83,6 +83,19 @@ export type RouteAssistVisibleSegmentObservationV1 = {
   /** Visible scene objects relevant to reviewing this existing graph segment. */
   objectIds: string[];
   confidence: number;
+  /**
+   * EXPLICIT provider assertion that this segment's visible route was
+   * inspected end to end and no doorway/opening crosses it -- never a
+   * default, and never inferred elsewhere from a missing DOORWAY object.
+   * Absence of an object proves nothing; this field exists so a provider
+   * can instead make an affirmative claim ABOUT the segment itself,
+   * carried by this same observation's own segmentId/confidence, exactly
+   * like every other structural assertion this schema already makes. A
+   * provider that cannot confidently assess doorway absence (off-frame
+   * route, occlusion, ambiguous topology, insufficient image quality)
+   * must leave this unset rather than guess.
+   */
+  noDoorwayOnSegment?: boolean | null;
 };
 
 /**

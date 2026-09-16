@@ -127,10 +127,29 @@ import type { RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV
  * DOORWAY object found is not proof no doorway exists -- a model miss,
  * framing, or occlusion looks identical to a genuinely doorway-free wall.
  * This adapter writes DOORWAY_PRESENCE=true only when a DOORWAY object is
- * actually found; otherwise it leaves the fact OPEN rather than writing
- * false. A future provider-supported explicit negative signal (e.g.
- * NO_DOORWAY_PRESENT) could justify writing false; today's schema has no
- * such signal.
+ * actually found.
+ *
+ * EXPLICIT-NEGATIVE CORRECTION: object omission alone can now never write
+ * false for DOORWAY_PRESENCE either, but the schema DOES now carry the
+ * negative signal the doc comment above once said didn't exist:
+ * segmentObservations[].noDoorwayOnSegment (visualSceneSemantics.ts) --
+ * the provider's own explicit claim that it inspected this exact route
+ * segment end to end and confirmed no doorway/opening crosses it, carried
+ * by that observation's own segmentId/confidence rather than inferred from
+ * what's missing elsewhere. DOORWAY_PRESENCE=false is written ONLY when a
+ * segmentObservation for this leg's own segment sets noDoorwayOnSegment
+ * to exactly `true` at or above CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1
+ * confidence -- the same coherence/confidence discipline every other
+ * structural assertion in this adapter already requires, so "sufficiently
+ * supported" means the identical thing it means everywhere else here.
+ * Omission (no DOORWAY object, no doorway-related object at all) and an
+ * explicit negative (noDoorwayOnSegment: true) remain two DIFFERENT
+ * signals that can never be confused for each other: the first produces
+ * nothing (OPEN), the second alone can produce false. A provider that
+ * genuinely cannot make this specific assessment (route partly off-frame,
+ * occlusion, ambiguous topology, insufficient quality) is expected to
+ * leave noDoorwayOnSegment null, in which case this fact stays OPEN
+ * exactly as it did before this correction.
  */
 const CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 = 0.75;
 const ROUTE_ASSIST_LIVE_PHOTO_FACT_TYPES_V1: ReadonlySet<RouteAssistFactTypeV1> = new Set([
@@ -370,20 +389,31 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
     // Casing/entry-side facts stay unwritten -- OPEN/missing, not a guess --
     // which is exactly what drives evaluateRouteAssistPhotoEscalationV1 to
     // TARGETED_PHOTO_REQUIRED rather than this adapter deciding that itself.
+  } else if (
+    args.semantics.segmentObservations.some((observation) =>
+      observation.segmentId === args.legScopeId &&
+      observation.noDoorwayOnSegment === true &&
+      observation.confidence >= CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1,
+    )
+  ) {
+    // EXPLICIT-NEGATIVE CORRECTION: this is the ONLY path that can write
+    // DOORWAY_PRESENCE=false. It fires solely on the provider's own
+    // explicit, sufficiently confident claim that it inspected this exact
+    // route segment and found no doorway -- never merely because no
+    // DOORWAY object happened to be found (that case falls through to the
+    // comment below and stays OPEN, exactly as before this correction).
+    write("DOORWAY_PRESENCE", doorwayScopeId, { kind: "BOOLEAN", value: false }, [args.imageId]);
   }
-  // CORRECTION: no DOORWAY object being found used to be written as a
-  // strong negative (false) on the theory that the provider having nothing
-  // to report proves no doorway exists. It doesn't -- a model miss,
-  // framing, or occlusion looks identical to a genuinely doorway-free
-  // wall, and this adapter has no way to tell them apart from absence
-  // alone. DOORWAY_PRESENCE is therefore left unwritten (OPEN) whenever no
-  // DOORWAY object is found, exactly like every other absence-based
-  // inference this correction pass removes -- evaluateRouteAssistPhoto
-  // EscalationV1 already treats an open DOORWAY_PRESENCE the same as a
-  // missing one, asking for a targeted photo rather than concluding either
-  // way on no evidence. A future explicit provider-supported negative
-  // signal (e.g. NO_DOORWAY_PRESENT) could justify writing false; today's
-  // schema has no such signal.
+  // Neither a DOORWAY object NOR a sufficiently confident explicit
+  // no-doorway assertion for this segment: object omission alone is not
+  // proof no doorway exists -- a model miss, framing, or occlusion looks
+  // identical to a genuinely doorway-free wall, and this adapter has no
+  // way to tell them apart from absence alone. DOORWAY_PRESENCE is
+  // therefore left unwritten (OPEN) here, exactly like every other
+  // absence-based inference this adapter refuses to make --
+  // evaluateRouteAssistPhotoEscalationV1 already treats an open DOORWAY_
+  // PRESENCE the same as a missing one, asking for a targeted photo rather
+  // than concluding either way on no evidence.
 
   const sourceMatch = args.semantics.objects.find((object) => object.kind === "SOURCE_RECEPTACLE" && object.pointId === args.sourcePointId);
   if (sourceMatch) write("ANCHOR_OBJECT_MATCH", args.sourcePointId, { kind: "ANCHOR_MATCH", objectId: sourceMatch.id, imageId: sourceMatch.imageId, matchesPlacement: true }, [sourceMatch.imageId]);
