@@ -154,7 +154,9 @@
  * when already correct) gated on `status: "ACTIVE"` and the exact
  * `version` this run read, so either kind of concurrent change moves the
  * version or the status and aborts the whole group before any loser is
- * touched — checked FIRST, before any loser's own guard runs.
+ * touched — checked FIRST, before any loser's own guard runs. The WRITE is
+ * unconditional; the VERSION INCREMENT it carries is not — see NOT
+ * WRITE-FREE, JUST REPEATABLE below.
  *
  * EXIT CODE. Exits 1 — not 0 — whenever any group was left blocked OR
  * skipped for concurrent activity. A migration with outstanding groups is
@@ -164,11 +166,24 @@
  * it safely could, N groups still need you." Zero is reserved for the case
  * where every group was either already fine or safely resolved.
  *
- * Idempotent: a second run finds no duplicate groups and every
- * `activeSessionKey` already set, and reports zero changes and exits 0 —
- * except any BLOCKED group, which is reported again, unchanged, and exits
- * 1 again, until a human resolves it. That repetition is intended, not a
- * bug.
+ * NOT WRITE-FREE, JUST REPEATABLE. A second run finds no duplicate groups
+ * and every `activeSessionKey` already set, and reports zero changes
+ * (`abandonedCount`/`backfilledCount` both stay 0) and exits 0 — except any
+ * BLOCKED group, which is reported again, unchanged, and exits 1 again,
+ * until a human resolves it. That repetition is intended, not a bug. But
+ * "reports zero changes" is not the same claim as "writes nothing": every
+ * already-correctly-keyed winner still has its `updateMany` issued on every
+ * rerun — that write is what the unconditional recheck above actually is.
+ * `version` itself is only incremented when the key needed to move, so a
+ * rerun that changes nothing observable also leaves every winner's
+ * `version` untouched — an earlier version of this fix incremented it
+ * unconditionally too, which would have meant a live customer's own
+ * in-flight `updateSessionAnswers`/`completeSession` call could fail with
+ * `STALE_VERSION` for no reason connected to their own session, purely
+ * because this script happened to run in between. That could never lose
+ * data — `updateSessionAnswers`'s own contract already treats
+ * `STALE_VERSION` as "reload and reapply," never a silent overwrite — but
+ * it was still an avoidable side effect, not a real cost of the guard.
  *
  * NEVER RUN THIS AGAINST A SHARED OR PRODUCTION DATABASE — see
  * prisma/_assertDisposableLocalDatabase.ts, enforced below, not just
@@ -283,7 +298,7 @@ async function main() {
         ];
         console.log(`  ⚠ BLOCKED group (${key}) — left completely untouched; no row abandoned, no key backfilled, for anyone in this group:`);
         for (const reason of reasons) console.log(`      - ${reason}`);
-        for (const r of rows) console.log(`      ${r.id} (lastActivityAt ${r.lastActivityAt.toISOString()}): ${JSON.stringify(r.consumedAnswers)}`);
+        for (const r of rows) console.log(`      ${r.id} (lastActivityAt ${r.lastActivityAt.toISOString()})`);
         continue; // the whole group, not just the row(s) that triggered it
       }
     }
@@ -320,16 +335,32 @@ async function main() {
         //   its losers to make room for a session that is already over is
         //   exactly backwards.
         //
-        // The guard below writes `activeSessionKey: key` unconditionally
-        // (a no-op value when it was already correct) and requires
-        // `status: "ACTIVE"` and the exact `version` this run read, so
-        // EITHER concurrent change — an answer update or a completion —
-        // moves the version or the status and makes this updateMany match
-        // zero rows, which aborts the whole group before any loser is
-        // touched.
+        // The guard below always issues this `updateMany`, gated on
+        // `status: "ACTIVE"` and the exact `version` this run read — an
+        // UPDATE statement takes a row lock for the rest of this
+        // transaction regardless of whether the values it writes actually
+        // differ from what is already there, so this is what makes EITHER
+        // concurrent change — an answer update or a completion — move the
+        // version or the status and make this updateMany match zero rows,
+        // aborting the whole group before any loser is touched.
+        //
+        // `version` itself is only incremented when the key actually needs
+        // to change. An earlier version of this fix always incremented it,
+        // even for the common case of a winner that already carried the
+        // correct key — meaning every rerun of this script bumped every
+        // already-correct winner's version for no reason a caller of
+        // `updateSessionAnswers`/`completeSession` could see, purely as a
+        // side effect of this script re-verifying it. That is not what
+        // "idempotent" should mean: bumping a real optimistic-concurrency
+        // counter is a genuine write, and this script's own re-verification
+        // is not a reason to make a live customer's next in-flight save use
+        // a version they can no longer match. The guard's WHERE clause and
+        // its row lock are unconditional either way — only the increment is
+        // conditional on the key needing to move.
+        const winnerNeedsKey = winner.activeSessionKey !== key;
         const winnerResult = await tx.guidedFlowSession.updateMany({
           where: { id: winner.id, status: "ACTIVE", version: winner.version },
-          data: { activeSessionKey: key, version: { increment: 1 } },
+          data: winnerNeedsKey ? { activeSessionKey: key, version: { increment: 1 } } : { activeSessionKey: key },
         });
         if (winnerResult.count !== 1) throw new ConcurrentActivityError(winner.id);
 

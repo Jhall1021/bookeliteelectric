@@ -1318,6 +1318,222 @@ from §0.28 immediately above. The local disposable database confirmed
 back to its exact baseline by direct query; only this report is committed
 in this pass.
 
+### 0.30 (fourteenth pass) Bounded per-change adoption baselines close §0.29's gap for real, and the option-revised transaction is finally race-free across its own write, not just its read
+
+Two deliverables from the corrected design direction given after §0.29: a
+durable, per-question/per-option adoption baseline that lets a contractor
+who already adopted a bad value actually receive a later correction — the
+exact gap §0.29 named and left open — and a real fix for the remaining
+`option-revised` concurrency gap, which turned out to be worse on direct
+inspection than the eleventh/twelfth passes' own fix left it: rereading
+inside a transaction and then writing separately, unconditionally, never
+actually closed the window between them.
+
+**1. Bounded per-change adoption baselines — a new `TemplateAdoptionReceipt`
+table, and a genuine three-way comparison.** §0.29 found that
+`template-update.ts` compared each unit's live value against the version
+the CONTRACTOR was originally provisioned from, never against what this
+tool itself had most recently written for that specific unit — so a
+corrective template version either read as a false CONFLICT (if it
+differed from the original) or was silently never offered at all (if it
+exactly restored the original). Fixed with three named values, computed
+per independently-adoptable unit (a question's wording; one option's
+routing/numeric/canonical-component projection) rather than once per
+service:
+
+```
+B  the last canonical projection actually ACCEPTED for this unit
+L  the current LIVE projection on this contractor's tree
+T  the intended projection from the composed TARGET template
+```
+
+`L == T` is idempotent (nothing reported, nothing written — not the tree,
+not a receipt, not the price reset — on a repeated adoption). `T == B`
+means no upstream change since what was accepted, so nothing is reported
+regardless of `L` — a contractor's own independent customization, if any,
+is simply theirs, with no competing template content to weigh it against.
+`L == B` (and `T != B`) is a safe, offered adoption. Anything else is a
+CONFLICT: the contractor's value has drifted from what was accepted AND
+the template has moved, and this tool cannot tell whether that drift was
+deliberate, so it never guesses.
+
+`B` comes from a new `TemplateAdoptionReceipt` row — `serviceId`,
+`unitKind` ("question"/"option"), `unitKey`, the accepted projection
+stored in the TEMPLATE's own key-based shape (never this contractor's
+resolved, tenant-specific ids), the source `TemplateVersion`, and an
+append-only `priorReceiptId` naming the receipt it superseded, matching
+this codebase's existing immutable-by-convention version records
+(`MaterialBaselineVersion`, `TemplateVersion` itself) rather than
+overwriting history in place. For a unit never individually adopted
+through this tool, `B` falls back to whichever version `Question`/
+`AnswerOption`'s OWN `templateVersionId` names — a column
+`lib/templateProvisioning.ts` already stamps at provisioning time for
+every real contractor, confirmed by direct inspection — or the service's
+own provisioning version for a row stamped before that column existed
+(Elite, backfilled once, explicitly, in §0.23). Neither fallback is an
+inference from context: both are recorded facts from an already-reviewed,
+already-accepted action, never a guess drawn from "this contractor happens
+to be the version's own extraction source."
+
+**Rehearsed as six proofs, checked in as
+`scripts/verify-template-adoption-baselines.ts` — a durable regression,
+not a deleted scratch copy — against real published `TemplateVersion`
+deltas and a real provisioned throwaway contractor (35 checks, 0
+failures):**
+
+1. Adopt a distinct corrective version after a bad one, then repeat the
+   same `--adopt` call: the second call is a true no-op — nothing written
+   to the tree, no new receipt, `"no change matched"`.
+2. Adopt a bad v2, then a corrective v3 that EXACTLY restores v1's
+   original value: offered and applied — `B` is v2, not v1, so `T != B`
+   holds even though `T == v1`, closing the exact gap §0.29 found. (A
+   companion check inside the same block also confirms the OTHER §0.29
+   sub-case: when the "correction" is published to a version the
+   contractor never adopted anything from, `T == B` correctly reports
+   nothing — this only ever mattered for a unit that had already drifted,
+   which is precisely what a receipt now remembers.)
+3. A contractor's own direct edit after adopting one version, followed by
+   a further template correction: reported and refused as a CONFLICT,
+   with the contractor's value, the service's pricing fields, and the
+   receipt itself (still pointing at the original acceptance) all
+   confirmed untouched by the refusal.
+4. One published version revises two units at once; adopting only one
+   leaves the other's own baseline, and its own independently-reported
+   CONFLICT, completely unaffected — proven within a single version
+   rather than inferred from separate rounds not interacting.
+5. A fault injected between the tree write and the receipt/price-reset
+   (the same technique as §0.9/§0.23/§0.24): the whole transaction rolls
+   back — the option's value, its receipt, and its pricing fields all
+   confirmed unchanged, then the same adoption re-run cleanly once the
+   fault is removed.
+6. A real `Visit`/`LineItem`/`Booking` booked under one adopted value
+   survives a LATER correction byte-for-byte — `answersSnapshot`,
+   `computedPriceCents`, `resolvedEconomicBasis`, `resolvedMaterialCostCents`
+   on the `LineItem`, and `totalCents` on the linked `Booking` — while a
+   SECOND, freshly-provisioned contractor, installed after the correction
+   with no version pin, receives the corrected content immediately.
+
+One test-authoring mistake surfaced and was fixed during this rehearsal,
+not in the tool itself: an early version of proof #1's assertion compared
+the receipt created by a v4 adoption directly against the v2 receipt,
+skipping over the v3 exact-revert adoption that happened in between in
+this same fixture's timeline — corrected to compare each receipt against
+its own immediate predecessor.
+
+**2. The `option-revised` transaction is now race-free across its own
+write, not only its read.** Direct review of the twelfth pass's own fix,
+prompted by this round's instruction, found it did not actually close the
+window it was written to close: it re-read the option fresh, ran the
+comparison, and only THEN issued a separate, unconditioned
+`tx.answerOption.update(...)` — a contractor edit landing in the gap
+between that read and that write would have been silently overwritten,
+because the write itself never re-verified anything at the moment it
+actually ran. Re-reading inside a transaction does not, by itself, prevent
+a different transaction's write from landing after that read; only a lock
+— or an atomic conditioned write, which `option-revised`'s comparison
+cannot fully express in one statement because it spans a second table's
+worth of component rows — actually closes a gap like this. A second,
+separate defect in the same fix: `liveOptionMatchesFrom`'s own internal
+key-resolution queries (`resolveQuestionId`/`resolveServiceId`) ran through
+the module-level, un-transacted `prisma` client, not the transaction's own
+`tx` — so even the "fresh, in-transaction" check was not fully inside the
+transaction's own consistency boundary, lock or no lock.
+
+Fixed with `SELECT ... FOR UPDATE`, taken on the option's own row AND on
+its existing `AnswerOptionComponent` rows, as the FIRST thing the
+transaction does — before the fresh comparison, before either write — and
+every one of `resolveServiceId`/`resolveQuestionId`/`resolveOptionLinks`/
+`liveOptionMatchesFrom` now takes an explicit database client parameter,
+so the safety check inside a transaction actually runs through that
+transaction throughout, not just at its outermost call.
+
+Rehearsed with the delay placed exactly where the instruction named it —
+AFTER the final check, BEFORE the write, inside the lock — using a real
+throwaway contractor and a real published delta:
+
+- A concurrent writer's plain `updateMany` targeting the SAME option,
+  timed to land during that exact window, measurably BLOCKED for the
+  remainder of the adopting transaction (waited 5.3s of an 8s injected
+  delay) rather than landing unnoticed; once the adopting transaction
+  committed, the concurrent writer's own update proceeded and applied —
+  visible in the final state, never silently lost — while the receipt this
+  pass created correctly recorded the truthful, point-in-time content this
+  tool itself had just adopted, unaffected by what happened to the row a
+  moment later.
+- A second, complementary scenario — the concurrent edit already landed
+  and committed BEFORE the adopting run even started — was reconfirmed
+  refusing cleanly with the baseline receipt unchanged, exactly as the
+  eleventh/twelfth passes established; the redesign did not regress it.
+
+(This rehearsal's first attempt at the "during the lock" scenario hit
+Prisma's own default 5-second interactive-transaction timeout, since the
+injected 8-second delay exceeds it — a property of the rehearsal's
+artificial delay, not of the real code, which never sleeps mid-transaction.
+Fixed by raising the timeout on the rehearsal's own delayed copy only.)
+
+**3. The session-migration winner's guard no longer bumps `version` for
+no reason.** Direct review of the twelfth pass's own fix found the winner's
+`updateMany` always incremented `version`, even for the common case of an
+already-correctly-keyed winner where nothing about the row actually needed
+to change — meaning every rerun of this maintenance script bumped every
+already-correct winner's version, purely as a side effect of re-verifying
+it, with no change a caller of `updateSessionAnswers`/`completeSession`
+could see. That was never a data-loss risk (`updateSessionAnswers`'s own
+contract already treats a resulting `STALE_VERSION` as "reload and
+reapply," never a silent overwrite) but it was an avoidable side effect
+dressed up as free reverification, and this report's own §0.28 called the
+mechanism "idempotent when the key was already correct" without
+qualifying that a real write — and a real version bump — still happened
+underneath that word. Fixed: the guard's `updateMany` — its `where`
+clause, and the row lock any UPDATE statement takes for the rest of the
+transaction regardless of whether its values actually change — still runs
+unconditionally, every time; only the `version: { increment: 1 } }`
+portion of its `data` is now conditional on the key actually needing to
+move. Rehearsed: an already-correctly-keyed singleton's `version` was
+confirmed UNCHANGED after a full migration run (previously it would have
+advanced by one for no reason), and both of the twelfth pass's own
+concurrency proofs — a concurrent answer change, a concurrent completion —
+were re-run and still correctly abort their whole group, confirming the
+narrower fix did not weaken the guard itself.
+
+Also removed in this pass, on the same review: a BLOCKED group's log line
+that printed every disagreeing row's full `consumedAnswers` payload
+directly to console output — potentially real customer answer content,
+logged for no diagnostic reason the surrounding "N ACTIVE rows carry
+DIFFERENT answers" summary line does not already state. The per-row log
+now names only the row id and its `lastActivityAt`; an operator who needs
+the actual answer content to resolve a blocked group queries the database
+directly.
+
+All rehearsal state was reverted and confirmed by direct query: the
+throwaway contractors and their services/questions/options destroyed
+(receipts cascade-deleted with their service); every scratch
+`TemplateVersion` this pass published deleted, leaving exactly the one
+baseline `TemplateVersion`; the booked `Visit`/`LineItem`/`Booking` and
+their supporting `Customer`/`ArrivalWindow`/`ServiceArea` rows deleted; the
+session-migration rehearsal's fixture rows deleted.
+
+**Verification.** `npx tsc --noEmit` clean project-wide. Rebuilt
+(`next build`) and re-ran all three of this branch's own browser-flow
+suites against that production build — `verify-cross-device-stale-queue-
+browser-flow.ts` (6/6), `verify-two-fresh-contractors-routing-v2-browser-
+flow.ts` (22/22), `verify-integration-manual-routing-storefront-browser-
+flow.ts` (33/33) — all clean, zero failures, none of which exercise
+either modified script directly; they stand as this branch's regression
+guard, not as this pass's own proof. The new checked-in
+`scripts/verify-template-adoption-baselines.ts` passed 35/35 on its own.
+The local disposable database confirmed back to its exact baseline
+(one `TemplateVersion`, zero `TemplateAdoptionReceipt` rows, the standing
+three contractors) by direct query afterward. Files committed in this
+pass: `prisma/schema.prisma` (the new `TemplateAdoptionReceipt` model,
+additive only), `prisma/migrate-guided-flow-session-active-key.ts`,
+`scripts/template-update.ts`, the new
+`scripts/verify-template-adoption-baselines.ts`, and this report. The
+schema change was applied to the local disposable database with
+`prisma db push`, the same mechanism every prior schema change on this
+branch has used; no migration against Neon or any shared database is part
+of this pass.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple

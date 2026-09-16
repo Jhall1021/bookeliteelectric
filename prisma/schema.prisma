@@ -2397,6 +2397,7 @@ model Service {
   pricingRules              PricingRule[]
   lineItems                 LineItem[]
   quotes                    Quote[]
+  adoptionReceipts          TemplateAdoptionReceipt[]
   // Answer options elsewhere in the catalog that dynamically price
   // themselves off THIS service (see AnswerOption.referencedServiceId).
   referencedByAnswerOptions AnswerOption[] @relation("AnswerOptionReferencedService")
@@ -4171,9 +4172,71 @@ model TemplateVersion {
 
   services TemplateService[]
   policies TemplatePolicyDefinition[]
+  adoptionReceipts TemplateAdoptionReceipt[]
 
   @@unique([trade, version])
   @@map("template_versions")
+}
+
+/// ADR-014 restoration — the bounded per-change adoption baseline.
+///
+/// `Question.templateVersionId`/`AnswerOption.templateVersionId` record only
+/// a POINTER to the version a row was LAST TOUCHED at; they say nothing about
+/// what content was actually accepted there, and overwriting them on the next
+/// adoption loses that history entirely. This table is the durable record
+/// `scripts/template-update.ts` actually compares against: for one
+/// independently-adoptable unit (a question's wording, or one option's
+/// routing/numeric/canonical-component projection) on one contractor's
+/// service, the exact canonical projection that was accepted, which template
+/// version it came from, and — append-only, never overwritten — the receipt
+/// it superseded.
+///
+/// SCOPED TO THE UNIT, NEVER THE WHOLE SERVICE. Advancing `Service`'s own
+/// provenance after adopting ONE question would falsely claim every other
+/// question and option on the service was reviewed against the same version,
+/// when nothing about them changed. Each unit keeps its own history; adopting
+/// one never touches another's.
+///
+/// `acceptedProjection` is stored in the TEMPLATE's own key-based shape
+/// (`nextQuestionKey`/`rerouteServiceKey`/`referencedServiceKey` for an
+/// option, `prompt` for a question) — the same shape `TemplateOption`
+/// already uses — never this contractor's resolved, tenant-specific row ids.
+/// That is what makes it directly comparable to both a later template
+/// version's own projection and, after resolving its keys through THIS
+/// contractor's live tree, to what is actually live.
+model TemplateAdoptionReceipt {
+  id        String  @id @default(cuid())
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  /// "question" or "option" — the two kinds `template-update.ts` currently
+  /// tracks. A bare unitKey cannot disambiguate on its own (nothing stops a
+  /// question key and an option's compound key from coinciding in an
+  /// unrelated string sense), so this is explicit rather than inferred from
+  /// the key's shape.
+  unitKind String
+  /// Stable identity of the unit: a question's own `key`, or
+  /// `"<questionKey>/<optionValue>"` for an option — the same compound form
+  /// `templateKey` already uses on `AnswerOption` rows.
+  unitKey  String
+
+  acceptedProjection Json
+
+  sourceTemplateVersionId String
+  sourceTemplateVersion   TemplateVersion @relation(fields: [sourceTemplateVersionId], references: [id])
+
+  /// Append-only history — this receipt's own predecessor, if any. Never
+  /// mutated after creation; superseding a receipt always means creating a
+  /// new row, exactly like this codebase's other immutable-by-convention
+  /// version records (`MaterialBaselineVersion`, `TemplateVersion` itself).
+  priorReceiptId String?                  @unique
+  priorReceipt   TemplateAdoptionReceipt? @relation("ReceiptHistory", fields: [priorReceiptId], references: [id])
+  supersededBy   TemplateAdoptionReceipt? @relation("ReceiptHistory")
+
+  createdAt DateTime @default(now())
+
+  @@index([serviceId, unitKind, unitKey, createdAt])
+  @@map("template_adoption_receipts")
 }
 
 /// A service concept. `key` is the stable identity ACROSS versions — v1 and v2
