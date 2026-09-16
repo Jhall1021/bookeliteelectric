@@ -656,6 +656,98 @@ async function main() {
     assert.equal(getRouteAssistFactV1(resetStore, "SOURCE_ANCHOR", "A")?.state, "LOCKED", "homeowner anchors remain untouched");
   });
 
+  // --- PROVIDER-GUIDANCE CORRECTION ------------------------------------------
+  // The evaluator and adapter are UNCHANGED in this pass -- the fix is
+  // entirely in aiGatewayVisibleScene.ts's prompt, which now tells the
+  // provider (a) to report each visible baseboard/trim FRAGMENT rather than
+  // withholding all of them when furniture breaks the run, (b) that movable
+  // furniture is a local occlusion, not proof of a structural break, and a
+  // wall plane/corner/connection may still be reported from what's visible
+  // above/around it, (c) exactly how confident a segmentObservation must be
+  // (0.75+) to assert real connectivity rather than mere co-occurrence, and
+  // (d) to still withhold that assertion -- via a low/omitted confidence or
+  // an explicit quality issue -- when the corner is hidden, an adjoining
+  // wall isn't visible, continuation leaves the frame, or a permanent
+  // obstruction makes the structural path genuinely ambiguous. Since the
+  // real network call can't be exercised here (no AI Gateway credentials in
+  // this environment -- see rehearse-route-assist-live-photo-interpretation.ts),
+  // these fixtures stand in for a PROVIDER that followed the new guidance,
+  // proving the existing (unmodified) pipeline handles that output exactly
+  // as intended on both the positive and fail-closed sides.
+
+  await check("20. [provider guidance] a well-guided provider reporting baseboard FRAGMENTS on both sides of the corner (furniture interrupts the run, but doesn't erase it) + a confident segment tie + a resolved doorway reaches PHOTO_SUFFICIENT", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+    const semantics = withResolvedDoorway(cornerBase);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const baseboard = application.store.facts[`BASEBOARD_CONTINUITY:${LEG}`];
+    const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
+    const continuation = application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`];
+    assert.equal(baseboard?.value.kind === "BOOLEAN" && baseboard.value.value, true, "reporting even fragmentary baseboard is enough to confirm continuity");
+    assert.equal(connected?.value.kind === "BOOLEAN" && connected.value.value, true);
+    assert.equal(continuation?.value.kind === "BOOLEAN" && continuation.value.value, true);
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "PHOTO_SUFFICIENT", JSON.stringify(escalation));
+  });
+
+  await check("21. [provider guidance] a flat, no-corner wall with baseboard ENTIRELY hidden by furniture (zero baseboard fragments reported) still gets WALL_PLANE=true -- baseboard remaining unknown must not suppress this separate wall-topology observation", async () => {
+    const semantics = cornerSemantics({ nearSideBaseboard: false, farSideBaseboard: false, includeDestinationMarker: true, coherentSegment: false });
+    semantics.objects = semantics.objects.filter((object) => object.kind !== "CORNER"); // a genuinely flat run: no corner at all
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const wallPlane = application.store.facts[`WALL_PLANE:${LEG}`];
+    const baseboard = application.store.facts[`BASEBOARD_CONTINUITY:${LEG}`];
+    assert.equal(wallPlane?.value.kind === "BOOLEAN" && wallPlane.value.value, true, "no corner at all must still confirm one continuous wall plane, independent of baseboard visibility");
+    assert.equal(baseboard?.value.kind === "BOOLEAN" && baseboard.value.value, false, "baseboard is honestly reported as not confirmed when genuinely hidden -- this is fine on its own and does not corrupt WALL_PLANE");
+  });
+
+  await check("22. [provider guidance] baseboard remaining unknown (zero fragments reported) does not, by itself, block a resolved corner's transition facts -- only the segment-coherence signal matters for those", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: false, farSideBaseboard: false, includeDestinationMarker: true, coherentSegment: true });
+    const run = await runPipeline(cornerBase);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
+    assert.equal(connected?.value.kind === "BOOLEAN" && connected.value.value, true, "TRANSITION_VISUALLY_CONNECTED depends on segment coherence, not on baseboard being confirmed");
+  });
+
+  await check("23. [provider guidance] a well-guided provider correctly withholds the segmentObservation when the corner itself is not confidently established -- no positive structural connection is manufactured", async () => {
+    const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: false });
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`], undefined, "no segmentObservation tying the corner in means no positive connection, regardless of how much baseboard is visible");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  });
+
+  await check("24. [provider guidance] a well-guided provider correctly does not match a destination marker when the continuation genuinely leaves the frame -- no positive in-frame continuation is manufactured", async () => {
+    const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: false, coherentSegment: true });
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`], undefined, "no destination match means no positive continuation claim, regardless of segment confidence elsewhere");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  });
+
+  await check("25. [provider guidance] a permanent structural obstruction (a provider-flagged quality issue) remains fail-closed even with baseboard fragments visible and an otherwise-coherent segment", async () => {
+    const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true, qualityIssue: true });
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`], undefined, "a flagged quality issue withholds the positive connection even with fragments visible and a coherent segment");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  });
+
   console.log(`\nRoute Assist live photo interpretation verification: ${passed} passed, 0 failed.`);
   console.log("(Existing photo-first and hardening/sweep suites still passing unchanged -- run separately; see the implementation report.)");
 }
