@@ -65,6 +65,19 @@ own routing fields (routeAction, reroute keys, option numeric bounds,
 canonical components) remain fully supported on both add and revise, the
 same already-rehearsed path as the six audit fixes.
 
+**Documentation step complete and accepted. The five-service local
+adoption rehearsal (§1b) is done.** Four of the six audit fixes (ceiling
+light/fan, replacement outlet, dedicated circuit, dishwasher) were
+rehearsed end-to-end against the CURRENT, unmodified `scripts/template-
+update.ts` — real BEFORE/TARGET `TemplateVersion`s built from verified
+field values, a real throwaway contractor, real `--status`/`--adopt`
+calls, the composed final graph checked field-by-field, a genuine
+conflict, a no-op rerun, and an unaffected unrelated tenant. 42/42 checks
+passed; `npx tsc --noEmit` clean; the local disposable database confirmed
+back to its exact baseline afterward. No adoption-tool code was touched.
+See §1b for the full result and its two disclosed, documented
+simplifications.
+
 ## 1. PR #63's own tree/data changes — corrected, with the actual adoption operation each one needs
 
 Found by reading the actual seed-file commits and diffs, and by tracing
@@ -145,6 +158,78 @@ capability, and that capability is much narrower than "support removing a
 question" — it is specifically "reduce an existing contractor's service
 to zero questions while its `bookingType` (already `REMOTE_QUOTE` here)
 does the rest," a shape none of the other five fixes share.
+
+### 1b. LOCALLY DEMONSTRATED — five-service rehearsal against the CURRENT tool, no code changes
+
+**Status: locally demonstrated on the disposable rehearsal database. This
+proves the tool's SUPPORT for these five services' actual required
+revisions; it does not establish live production readiness — no
+production access was used, and reaching an actual existing contractor's
+real catalog is a separate, later, explicitly-authorized step.**
+
+Checked in as `scripts/verify-audit-batch-adoption.ts` (42/42 checks,
+`npx tsc --noEmit` clean). Two real, disposable `TemplateVersion`s were
+built from field values taken VERBATIM from the real authoring source —
+`cb8821a8` and `d841fdfc`'s own diff lines, and the current content of
+`prisma/seed-questions.ts`, `prisma/seed-lighting-control.ts`, `prisma/
+seed-device-and-finish-modules.ts`, `prisma/seed-dedicated-circuit.ts`,
+and `prisma/seed-appliance-services.ts` — never run against Elite's own
+rows (every one of those functions resolves via `serviceSlugKey`, hard-
+coded to Elite's contractor id; this rehearsal builds the verified
+content directly instead). A throwaway contractor was provisioned from
+the BEFORE version, exercised through REAL `--status`/`--adopt` calls
+(not direct edits standing in for adoption), and the composed final graph
+was compared field-by-field against the TARGET version. Confirmed for
+real, not merely reasoned about:
+
+- Ceiling light/fan (both services): `existing_light_source`'s "No"
+  answer now continues DIRECTLY into `lighting_control` — the exact
+  §1a-corrected route, not a resolve. `switched_source`'s own row is
+  RETAINED (never deleted) and confirmed UNREACHABLE from the live entry
+  point. `lighting_control`'s own downstream dimmer branch remains intact
+  and reachable, proving the fix retains the whole module, not just its
+  entry question.
+- Replacement outlet: all three qualifying answers (`works_upgrading`/
+  `intermittent`/`damaged`) terminate EXPLICITLY
+  (`{routeAction: RESOLVE_INSTANT, nextQuestionId: null}`), while the
+  three `REROUTE_TROUBLESHOOTING` diagnostic exits are reported as
+  completely unchanged by adopting the other three. `outlet_condition`'s
+  row is retained and unreachable.
+- Dedicated circuit: `dedicated_distance`'s continuing answers now hand
+  off directly to `dedicated_finish_ack`, which RETAINS both its real
+  answers untouched. `dedicated_panel_location`'s row is retained and
+  unreachable.
+- Dishwasher: ONLY the prompt changed — routing
+  (`has_power`/`no_power`/`unsure`, including the real
+  `REROUTE_SERVICE`→`dedicated-120v-circuit-outlet` link) is confirmed
+  identical before and after.
+- Every one of the five adoptions correctly invalidated a pre-set pricing
+  approval (`materialCostResolved`/`publishedPriceApprovedAt`/`basePrice`
+  all reset) — checked individually for all five, not inspected once and
+  assumed for the rest.
+- A genuine contractor customization (a direct edit to an already-adopted
+  answer, bypassing the tool) correctly produces a CONFLICT against a
+  further template correction, refuses with zero collateral change to the
+  customization, zero collateral pricing change, and zero effect on a
+  sibling service on the SAME contractor.
+- Repeating an already-landed adoption is a true no-op (`"no change
+  matched"`, nothing written).
+- A second, completely unrelated throwaway tenant, provisioned from the
+  same BEFORE version but never touched by any `--adopt` call, still
+  shows the pre-fix route — no cross-tenant leakage.
+
+**Disclosed simplifications** (documented in the verifier's own file
+docstring, not hidden): `lighting_control`'s real module is seven
+questions; this rehearsal builds two (the control question and its
+dimmer branch) — enough to prove the actual claim needed (the fix routes
+into the module and the module's own downstream consequence is reached),
+not full fidelity to every intermediate access question. Dedicated
+circuit's unchanged upstream questions (`dedicated_equipment`/
+`dedicated_route_access`) are collapsed to one representative path each;
+full fidelity is kept on the three questions the fix actually touches.
+**No code, deletion tooling, or production access was used or is required
+by this rehearsal — it exercises `scripts/template-update.ts` exactly as
+committed.**
 
 ## 2. Garage outlet: the `bookingType` correction
 
@@ -333,7 +418,14 @@ not create and is not responsible for shipping.
 
 1. **None of the six audit fixes (§1) have a real `TemplateVersion` delta
    to adopt from yet**, per this branch's own history (§5). This blocks
-   all six regardless of tool capability.
+   all six regardless of tool capability. **Narrowed by §1b for four of
+   the six** (ceiling light/fan, replacement outlet, dedicated circuit,
+   dishwasher): the ADOPTION OPERATION ITSELF is now locally demonstrated
+   against the current, unmodified tool (42/42 checks,
+   `scripts/verify-audit-batch-adoption.ts`) — what remains is purely
+   getting a real delta extracted, not any further tool-support question.
+   Soundbar (its disclaimer field) and garage outlet (Blocker 2) are
+   unaffected by this narrowing.
 2. **Garage outlet needs a narrow, specific "reduce to zero questions"
    adoption capability that does not exist today** — genuinely distinct
    from the other five fixes, which need no new capability at all (§1).
@@ -378,19 +470,26 @@ not create and is not responsible for shipping.
 ceiling light/fan, replacement outlet, dedicated circuit, and dishwasher
 all reduce to `option-revised`/`wording-changed`, already supported and
 already the most heavily-rehearsed path in this whole reconciliation
-(§0.28–§0.33). The concrete next steps, in order:
+(§0.28–§0.33) — **and, per §1b, now locally demonstrated end-to-end
+against the real, unmodified tool: a real BEFORE/TARGET pair, a real
+throwaway contractor, real `--status`/`--adopt` calls, the composed
+final graph verified field-by-field, a genuine conflict refusing cleanly,
+a no-op rerun, and a completely unaffected unrelated tenant (42/42
+checks). This is proof the OPERATION works, not proof it has reached any
+real contractor — that gap is entirely about extraction, not tool
+support.** The concrete next steps, in order:
 
 1. **Confirm, with production access, whether Elite's live catalog
    already reflects any of these six fixes** — this document cannot do
    this step, and it determines whether the rest of this list means
    anything yet.
 2. **Extract a real `TemplateVersion` delta for the four
-   already-supported fixes** (ceiling light/fan — two services —
-   replacement outlet, dedicated circuit, dishwasher) via `extract-
-   template-service.ts`, once its missing production-write guard (Blocker
-   6) is addressed or an operator accepts that risk deliberately. This is
-   the recommended first real batch, and it needs no new engineering in
-   `template-update.ts` at all.
+   already-supported, now locally-demonstrated fixes** (ceiling light/fan
+   — two services — replacement outlet, dedicated circuit, dishwasher)
+   via `extract-template-service.ts`, once its missing production-write
+   guard (Blocker 6) is addressed or an operator accepts that risk
+   deliberately. This is the recommended first real batch, and — per §1b
+   — it needs no new engineering in `template-update.ts` at all.
 3. **Soundbar** can follow once its disclaimer field is either added to
    `AdoptedOptionProjection` or handled by a one-off reviewed script for
    that one field — its routing half is already batch-1-ready.
