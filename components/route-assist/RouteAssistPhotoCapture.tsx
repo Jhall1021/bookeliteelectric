@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   emptyRouteAssistFactStoreV1,
   getRouteAssistFactV1,
@@ -80,15 +80,41 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      // Deliberately does NOT touch videoRef here: the <video> element only
+      // mounts once stage flips to CAMERA_OPEN, so videoRef.current is still
+      // null at this exact point -- assigning srcObject here was the root
+      // cause of the black preview. The effect below, keyed on stage,
+      // attaches the stream once the element actually exists.
       setStage("CAMERA_OPEN");
     } catch {
       setCameraError("We couldn’t open the camera. Check camera permission and try again.");
     }
   }
+
+  // Attaches the already-acquired stream to the <video> element only after
+  // it has mounted (stage === "CAMERA_OPEN"), rather than racing the mount.
+  // Cleanup stops the stream on unmount or if CAMERA_OPEN is left any way
+  // other than takePhoto() (which already stops+nulls streamRef.current
+  // itself first) -- the streamRef.current === stream guard makes that a
+  // no-op on the takePhoto path, since the ref no longer points at this
+  // stream by the time this cleanup runs.
+  useEffect(() => {
+    if (stage !== "CAMERA_OPEN") return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    video.srcObject = stream;
+    video.play().catch(() => {
+      setCameraError("We couldn’t start the camera preview. Check camera permission and try again.");
+    });
+    return () => {
+      if (streamRef.current === stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      if (video) video.srcObject = null;
+    };
+  }, [stage]);
 
   async function takePhoto() {
     const video = videoRef.current;
