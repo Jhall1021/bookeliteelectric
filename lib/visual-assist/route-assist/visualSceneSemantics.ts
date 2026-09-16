@@ -1,4 +1,5 @@
 import type { RoutePoint, RouteSegment } from "./types";
+import { isRouteAssistPreviewAllowedV1 } from "./previewGate";
 import {
   ROUTE_ASSIST_VISIBLE_SCENE_QUALITY_ISSUES_V1,
   type RouteAssistVisibleSceneQualityIssueV1,
@@ -118,6 +119,23 @@ function validBox(box: RouteAssistNormalizedImageBoxV1): boolean {
 }
 
 /**
+ * Preview-only diagnostic detail, never a behavior change: the validator
+ * itself still just rejects an invalid box outright -- no clamping,
+ * repairing, or coercion. This only decides what the PROBLEM STRING says.
+ * A real doorway/around-corner phone test hit repeated "invalid normalized
+ * box" rejections with no way to tell, from Vercel runtime logs alone,
+ * whether the provider was slightly overshooting x+width, slightly
+ * overshooting y+height, or using an entirely different coordinate scale
+ * (pixels, 0..100, 0..1000). Outside preview/dev this stays the original,
+ * bare production-facing message -- no numbers, nothing new to depend on.
+ */
+function boxDiagnosticSuffixV1(box: RouteAssistNormalizedImageBoxV1): string {
+  if (!isRouteAssistPreviewAllowedV1()) return "";
+  const n = (value: number) => (Number.isFinite(value) ? Math.round(value * 10_000) / 10_000 : String(value));
+  return `: x=${n(box.x)}, y=${n(box.y)}, width=${n(box.width)}, height=${n(box.height)}`;
+}
+
+/**
  * Fail closed before semantic CV output can be used by any route-review adapter.
  * Primary sweep order stays separate from authorized supplemental evidence.
  * Supplemental images may support object/quality observations, but their array
@@ -150,7 +168,7 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
     if (!(ROUTE_ASSIST_VISIBLE_SCENE_OBJECT_KINDS_V1 as readonly string[]).includes(object.kind)) problems.push(`visible scene object ${object.id || "<empty>"} has unknown kind: ${String(object.kind)}`);
     if (!authorizedImageIds.has(object.imageId)) problems.push(`visible scene object ${object.id} references unknown image ${object.imageId}`);
     if (!validUnit(object.confidence)) problems.push(`visible scene object ${object.id} has invalid confidence`);
-    if (!validBox(object.box)) problems.push(`visible scene object ${object.id} has invalid normalized box`);
+    if (!validBox(object.box)) problems.push(`visible scene object ${object.id} has invalid normalized box${boxDiagnosticSuffixV1(object.box)}`);
     // CORRECTION: a real phone test with doorway/around-corner geometry
     // produced a CORNER object carrying a pointId ("corner-anchor-1") that
     // was never declared in the points collection -- a genuine provider/

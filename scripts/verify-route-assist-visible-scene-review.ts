@@ -3,6 +3,7 @@ import { validateRouteAssistVisibleSceneSemanticsV1 } from "../lib/visual-assist
 import { proposeVisibleTrimHuggingRouteV1 } from "../lib/visual-assist/route-assist/visibleTrimRouteProposal";
 import { buildVisibleTrimRouteOverlayV1 } from "../lib/visual-assist/route-assist/visibleTrimRouteOverlay";
 import type { RoutePoint, RouteSegment } from "../lib/visual-assist/route-assist/types";
+import type { RouteAssistNormalizedImageBoxV1, RouteAssistVisibleSceneObjectV1 } from "../lib/visual-assist/route-assist/visualSceneSemantics";
 
 let pass = 0;
 let fail = 0;
@@ -99,6 +100,114 @@ check(
   cornerDeclaredProblems.some((problem) => problem.includes("corner-2") && problem.includes("must not reference a route point")),
   JSON.stringify(cornerDeclaredProblems),
 );
+
+// --- Box-bounds correction ---------------------------------------------
+// After the CORNER fix, the same doorway/around-corner phone test got
+// farther and failed with "visible scene object doorway-1 has invalid
+// normalized box" (and the same for its three casings) -- correct
+// fail-closed behavior on a box exceeding the image. validBox() itself is
+// UNCHANGED here: still rejects outright, no clamping/repairing/coercing.
+// What's new is (a) a concrete, testable box contract in the provider
+// prompt (aiGatewayVisibleScene.ts) instead of the vague "keep boxes
+// inside image bounds", and (b) a preview-only diagnostic suffix on the
+// same problem string carrying the actual numbers, so a real violation
+// says WHICH field overshot instead of just that something did.
+
+function boxTestObject(id: string, box: RouteAssistNormalizedImageBoxV1, kind: RouteAssistVisibleSceneObjectV1["kind"] = "DOORWAY"): RouteAssistVisibleSceneObjectV1 {
+  return { id, kind, imageId: captureImageIds[0], confidence: 0.9, box };
+}
+function boxProblems(objects: RouteAssistVisibleSceneObjectV1[]): string[] {
+  return validateRouteAssistVisibleSceneSemanticsV1({ semantics: { ...semantics!, objects: [...semantics!.objects, ...objects] }, expectedCaptureImageIds: captureImageIds, points, segments });
+}
+
+const validBoxProblems = boxProblems([boxTestObject("box-valid", { x: 0.25, y: 0.1, width: 0.3, height: 0.7 })]);
+check("1. a valid normalized box passes", validBoxProblems.length === 0, JSON.stringify(validBoxProblems));
+
+const overshootXProblems = boxProblems([boxTestObject("box-overshoot-x", { x: 0.8, y: 0.1, width: 0.3, height: 0.1 })]);
+check(
+  "2. x + width > 1 fails",
+  overshootXProblems.some((problem) => problem.includes("box-overshoot-x") && problem.includes("invalid normalized box")),
+  JSON.stringify(overshootXProblems),
+);
+
+const overshootYProblems = boxProblems([boxTestObject("box-overshoot-y", { x: 0.1, y: 0.8, width: 0.1, height: 0.3 })]);
+check(
+  "3. y + height > 1 fails",
+  overshootYProblems.some((problem) => problem.includes("box-overshoot-y") && problem.includes("invalid normalized box")),
+  JSON.stringify(overshootYProblems),
+);
+
+const negativeProblems = boxProblems([
+  boxTestObject("box-negative-x", { x: -0.1, y: 0.1, width: 0.2, height: 0.2 }),
+  boxTestObject("box-negative-y", { x: 0.1, y: -0.1, width: 0.2, height: 0.2 }),
+]);
+check(
+  "4. negative x or y fails",
+  negativeProblems.some((problem) => problem.includes("box-negative-x")) && negativeProblems.some((problem) => problem.includes("box-negative-y")),
+  JSON.stringify(negativeProblems),
+);
+
+const nonPositiveExtentProblems = boxProblems([
+  boxTestObject("box-zero-width", { x: 0.1, y: 0.1, width: 0, height: 0.2 }),
+  boxTestObject("box-negative-height", { x: 0.1, y: 0.1, width: 0.2, height: -0.1 }),
+]);
+check(
+  "5. width or height <= 0 fails",
+  nonPositiveExtentProblems.some((problem) => problem.includes("box-zero-width")) && nonPositiveExtentProblems.some((problem) => problem.includes("box-negative-height")),
+  JSON.stringify(nonPositiveExtentProblems),
+);
+
+const edgeTouchingProblems = boxProblems([boxTestObject("box-edge-touching", { x: 0.7, y: 0.1, width: 0.3, height: 0.2 })]);
+check(
+  "6. an edge-touching box where x + width === 1 passes",
+  edgeTouchingProblems.length === 0,
+  JSON.stringify(edgeTouchingProblems),
+);
+
+// 7. The exact real-phone shape: a doorway plus its three casings, each
+// overshooting the image bounds the same way a real provider response did.
+const doorwayComplexProblems = boxProblems([
+  boxTestObject("doorway-1", { x: 0.55, y: 0.1, width: 0.5, height: 0.6 }, "DOORWAY"),
+  boxTestObject("left-casing-1", { x: 0.5, y: 0.1, width: 0.55, height: 0.6 }, "DOOR_SIDE_CASING"),
+  boxTestObject("right-casing-1", { x: 0.6, y: 0.1, width: 0.45, height: 0.6 }, "DOOR_SIDE_CASING"),
+  boxTestObject("top-casing-1", { x: 0.5, y: -0.05, width: 0.5, height: 0.2 }, "DOOR_TOP_CASING"),
+]);
+check(
+  "7. malformed doorway/casing boxes (the exact real-phone shapes) still fail closed",
+  ["doorway-1", "left-casing-1", "right-casing-1", "top-casing-1"].every((id) => doorwayComplexProblems.some((problem) => problem.includes(id) && problem.includes("invalid normalized box"))),
+  JSON.stringify(doorwayComplexProblems),
+);
+
+// Preview-only diagnostic suffix: numbers appear under the preview gate,
+// and the production-facing message stays exactly as bare as before
+// otherwise -- proving this is a diagnostic addition, not a behavior or
+// contract change for any non-preview caller.
+{
+  const savedVercelEnv = process.env.VERCEL_ENV;
+  try {
+    process.env.VERCEL_ENV = "preview";
+    const previewProblems = boxProblems([boxTestObject("box-overshoot-preview", { x: 0.8, y: 0.1, width: 0.3, height: 0.1 })]);
+    check(
+      "preview-only diagnostic: the problem string includes the actual box numbers under the preview gate",
+      previewProblems.some((problem) => problem.includes("box-overshoot-preview") && problem.includes("x=") && problem.includes("width=")),
+      JSON.stringify(previewProblems),
+    );
+  } finally {
+    process.env.VERCEL_ENV = savedVercelEnv;
+  }
+
+  const savedNodeEnv = process.env.NODE_ENV;
+  process.env.VERCEL_ENV = "production";
+  try { (process.env as Record<string, string>).NODE_ENV = "production"; } catch { /* read-only in some Node builds */ }
+  const productionProblems = boxProblems([boxTestObject("box-overshoot-production", { x: 0.8, y: 0.1, width: 0.3, height: 0.1 })]);
+  check(
+    "outside preview/dev, the box problem stays exactly the original bare message -- no numbers exposed to a non-preview caller",
+    productionProblems.some((problem) => problem === "visible scene object box-overshoot-production has invalid normalized box"),
+    JSON.stringify(productionProblems),
+  );
+  process.env.VERCEL_ENV = savedVercelEnv;
+  try { (process.env as Record<string, string>).NODE_ENV = savedNodeEnv ?? ""; } catch { /* read-only in some Node builds */ }
+}
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
