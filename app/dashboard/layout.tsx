@@ -7,6 +7,7 @@ const PRIMARY: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: "home", exact: true },
   { href: "/dashboard/setup", label: "Guided setup", icon: "checklist" },
   { href: "/dashboard/services", label: "Services & Pricing", icon: "wrench" },
+  { href: "/dashboard/materials", label: "Materials", icon: "tag" },
   { href: "/dashboard/quotes", label: "Photo Review", icon: "camera" },
   { href: "/dashboard/bookings", label: "Bookings", icon: "calendar" },
   { href: "/dashboard/design", label: "Storefront", icon: "storefront" },

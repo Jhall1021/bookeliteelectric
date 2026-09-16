@@ -102,5 +102,6 @@ export const NAV_ICONS = {
   home: HomeIcon, checklist: ChecklistIcon, wrench: WrenchIcon, camera: CameraIcon,
   calendar: CalendarIcon, storefront: StorefrontIcon, settings: SettingsIcon,
   users: UsersIcon, clipboard: ClipboardIcon, attention: AlertTriangleIcon,
+  tag: TagIcon,
 } as const;
 export type NavIconKey = keyof typeof NAV_ICONS;
