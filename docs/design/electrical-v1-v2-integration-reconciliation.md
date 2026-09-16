@@ -2798,3 +2798,21 @@ prior draft claimed.
   itself — cannot retroactively alter an already-booked price, its
   answers, or its economic basis. Whatever is rolled back, existing
   bookings hold exactly what they held before.
+
+## 11. The release manifest
+
+§10.2's adoption sequence and §0.29–§0.33's bounded per-change baseline
+fix are the MECHANISM; which real services actually need to move through
+it, and what each one's own structural/policy/material/disclaimer/photo
+contract requires of that mechanism, is tracked as its own document —
+[`electrical-v1-v2-release-manifest.md`](electrical-v1-v2-release-manifest.md).
+Kept separate from this narrative report because it is a living,
+scannable rollout artifact (a release table, an ordered blocker list, a
+recommended first batch) rather than another numbered investigation pass.
+Its single most consequential finding: `scripts/template-update.ts`
+cannot detect or write materials, disclaimers, photo groups, or
+policy-banded label patterns at all, and the real, already-published `v3`
+delta's entire content IS a materials/policy-role assignment — meaning
+none of `v3`'s six services can move through `--status`/`--adopt` as the
+tool exists today, a materially different conclusion from "the bad-value
+restoration bug is fixed, so adoption is ready."
