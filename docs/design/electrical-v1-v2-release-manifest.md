@@ -48,6 +48,23 @@ complete, and "no template version exists for these fixes" remains
 stated as what THIS BRANCH's own git history shows — never a claim about
 current production state, which this document has no way to check.
 
+**Routing-correction discussion closed; one further mapping added
+(§3a).** The routing corrections above are accepted. The remaining task
+was narrowly scoped: map Routing V2's own required fields to what
+`scripts/template-update.ts` actually supports. Confirmed directly in the
+tool's own types: a question's numeric settings
+(`numberAllowsDecimal`/`numberMin`/`numberMax`) are carried when a
+question is added fresh, but `AdoptedQuestionProjection` — the entire
+type the tool uses to detect and adopt a change to a question that
+already exists — is `{ prompt: string }` alone. Updating an EXISTING
+question to accept fractional footage is therefore invisible to
+`--status` and has no adoption path today, a real, narrow gap distinct
+from both the missing zero-question capability (§1, garage outlet) and
+the missing materials/disclaimer/photo/policy support (§6). Routing V2's
+own routing fields (routeAction, reroute keys, option numeric bounds,
+canonical components) remain fully supported on both add and revise, the
+same already-rehearsed path as the six audit fixes.
+
 ## 1. PR #63's own tree/data changes — corrected, with the actual adoption operation each one needs
 
 Found by reading the actual seed-file commits and diffs, and by tracing
@@ -204,6 +221,34 @@ modules specifically is carried into the blocker list (§7) rather than
 resolved here, since it is a different question from the six audit
 fixes' own adoption-operation analysis in §1.
 
+### 3a. Routing V2's required fields, mapped to what adoption actually supports
+
+Confirmed by reading `scripts/template-update.ts`'s own types and write
+paths directly (`AdoptedOptionProjection`/`AdoptedQuestionProjection`,
+lines 218-227; the `question-added` write, lines 578-597).
+
+| Routing V2 mechanism | Field(s) it needs | Carried when ADDING a new question/option | Carried when REVISING an existing one |
+|---|---|---|---|
+| Fractional route-footage support | `Question.numberAllowsDecimal`, `numberMin`, `numberMax` | **Yes** — `question-added`'s write explicitly includes all three (`numberAllowsDecimal: tq.numberAllowsDecimal, numberMin: tq.numberMin, numberMax: tq.numberMax`) | **No.** `AdoptedQuestionProjection` — the ENTIRE type `detect()`/`wording-changed` uses for an existing question, for both comparison and the stored receipt — is `{ prompt: string }`. No numeric field is compared, detected, or written for a question that already exists on the contractor's tree. **This is the confirmed distinction**: a template change that turns on `numberAllowsDecimal` for a question a contractor already has (rather than one being added fresh) is completely invisible to `--status` and has no adoption path at all today — a narrower, separate gap from the missing `question-removed`/zero-question capability already named in §1, and specific to Routing V2's own numeric-question needs. |
+| Reroute-handoff module | `AnswerOption.routeAction` (`REROUTE_SERVICE`/`REROUTE_TROUBLESHOOTING`), `rerouteServiceKey` | Yes | **Yes** — both are already part of `AdoptedOptionProjection` and have been the tool's most-rehearsed path (§0.28–§0.33). The module itself adds no new schema field; it changes how a REROUTE answer's payload is serialized at REQUEST time, not what `template-update.ts` needs to carry. **No gap.** |
+| Uncertainty sentinel (`__unknown__`) | An ordinary `AnswerOption` (`value: "__unknown__"`, `routeAction: "PHOTO_REVIEW"`, `photosBlockBooking: true`, no numeric bounds of its own — `lib/numericRouteRanges.ts:74-75`) | **Yes, if added as a genuinely new option** — `option-added`'s write includes `photosBlockBooking` (`resolveOptionLinks`, line 372) | **Not applicable as a revision** — this is a brand-new answer VALUE on a question, which is always `option-added`, never `option-revised` (there is no "rename this option's value" operation either). One real, narrower note found in the same pass: `photosBlockBooking` itself — needed to keep an existing PHOTO_REVIEW option's booking-gate behavior correct — is present in `TemplateOption` but is NOT part of `AdoptedOptionProjection`, so it is one more field, alongside the question-level numeric settings, that `option-revised` cannot detect or write if it ever needed to change on an option that already exists. |
+
+**Net finding for Routing V2 specifically: its ROUTING fields (routeAction,
+reroute keys, numeric option bounds, canonical components) are fully
+carried on both add and revise, the same well-rehearsed path as the six
+audit fixes (§1). Its QUESTION-LEVEL numeric settings
+(`numberAllowsDecimal`/`numberMin`/`numberMax`) are carried only when a
+question is newly added, never when an existing one is revised — a real,
+narrow, separate capability gap, distinct from both the missing
+`question-removed`/zero-question kind (§1, garage outlet) and the
+missing materials/disclaimer/photo-group/policy support (§6, the
+pre-existing `v2`/`v3` content).** Whether this gap actually blocks
+anything in THIS release depends on whether Routing V2's fractional
+support needs to reach an already-adopted contractor's EXISTING numeric
+question, versus only ever applying to numeric questions added fresh —
+this manifest has not traced that specific case and does not assert
+either way.
+
 ## 4. Full Electrical catalog inventory
 
 75 confirmed real services (66 from `prisma/seed.ts`'s `CATALOG` array,
@@ -311,11 +356,21 @@ not create and is not responsible for shipping.
    themselves ready to ship (versus needing their own review) is a real,
    open question this manifest names but does not resolve, and should not
    be assumed answered by the six audit fixes' own analysis in §1.
-8. **BrightPath's own state relative to any of this is unconfirmed.**
-9. **Standing items carried forward, not closed here:** session-migration
-   note/dependent/new-group-member safety and the legacy-writer cutover;
-   full storefront/browser rehearsal beyond `new-120v-outlet`'s surface-
-   mounted path (§7 item 3 of the reconciliation report).
+8. **A question's numeric settings (`numberAllowsDecimal`/`numberMin`/
+   `numberMax`) are carried when the question is added fresh, but cannot
+   be detected or written for a question that already exists** (§3a) —
+   confirmed directly in `AdoptedQuestionProjection`'s own type (`{
+   prompt: string }`, nothing else). Distinct from Blocker 2 (garage
+   outlet's whole-tree removal) and from §6's materials/disclaimer/photo/
+   policy gap — this one is specific to Routing V2's own fractional-
+   measurement work reaching a question a contractor already has, rather
+   than one added new. A related, smaller note found in the same pass:
+   `photosBlockBooking` is tracked on add but not on revise either.
+9. **BrightPath's own state relative to any of this is unconfirmed.**
+10. **Standing items carried forward, not closed here:** session-migration
+    note/dependent/new-group-member safety and the legacy-writer cutover;
+    full storefront/browser rehearsal beyond `new-120v-outlet`'s surface-
+    mounted path (§7 item 3 of the reconciliation report).
 
 ## 8. Recommended first rollout batch
 
@@ -349,7 +404,12 @@ already the most heavily-rehearsed path in this whole reconciliation
    this release, but this manifest does not recommend a batch for it** —
    its own readiness (beyond the mechanism §10.2 already documents) needs
    its own assessment, not an assumption borrowed from the six audit
-   fixes' unrelated analysis.
+   fixes' unrelated analysis. Its own routing fields (routeAction, reroute
+   keys, option numeric bounds) are fully supported on both add and
+   revise (§3a); its question-level numeric settings are only supported
+   on add, a real, narrow gap (§3a, Blocker 8) that needs its own decision
+   before any existing-question fractional-measurement update could be
+   adopted through this tool.
 
 ---
 
