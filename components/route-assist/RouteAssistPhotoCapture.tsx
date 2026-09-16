@@ -364,11 +364,23 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
           <div
             id="route-assist-photo-surface"
             onPointerDown={stage === "PLACING_MARKERS" ? placeMarker : undefined}
-            className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-black"
+            // CORRECTION: this surface must represent the exact full captured
+            // image, at its own native aspect ratio -- not a hard-coded 4:3
+            // crop window. A/B marker coordinates are normalized against
+            // THIS element's bounding box (normalizedPoint/startDrag above),
+            // and the provider receives the full uncropped photo, so any
+            // mismatch between this box's aspect ratio and the photo's own
+            // silently shifts every marker relative to what the provider
+            // actually sees. Setting the exact aspect ratio here means the
+            // image (object-contain, no cropping) fills it edge-to-edge with
+            // no letterboxing at any capture ratio, so no separate crop-
+            // coordinate translation layer is ever needed.
+            style={{ aspectRatio: `${photo.width} / ${photo.height}` }}
+            className="relative w-full overflow-hidden rounded-xl bg-black"
             data-testid="route-assist-photo-surface"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.dataUrl} alt="Captured work area" className="pointer-events-none h-full w-full object-cover" />
+            <img src={photo.dataUrl} alt="Captured work area" className="pointer-events-none h-full w-full object-contain" />
             {markers.map((marker) => (
               <button
                 key={marker.id}

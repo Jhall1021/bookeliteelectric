@@ -24,9 +24,21 @@ import type { RouteAssistVisibleSceneProviderV1 } from "./visibleSceneProvider";
  * homeowner media into signed URLs is a server-side storage concern this
  * module knows nothing about -- the caller (the API route) resolves it once
  * and hands it to this factory.
+ *
+ * `onProviderError` is an optional diagnostic escape hatch, not a behavior
+ * change: runRouteAssistVisibleSceneProviderV1 still wraps provider.analyze
+ * in its own try/catch and still discards the real error into the same
+ * generic "visible scene provider failed without producing semantics"
+ * problem it always has -- that stays production-safe. This callback just
+ * gets a look at the actual thrown error, synchronously, before this
+ * function rethrows it unchanged, so a preview-only caller can capture the
+ * real reason (an AI Gateway HTTP status, a timeout, malformed JSON, ...)
+ * for its own diagnostics without the runner itself ever behaving
+ * differently.
  */
 export function createRouteAssistAiGatewayVisibleSceneProviderV1(args: {
   media: readonly RouteAssistAiGatewayMediaV1[];
+  onProviderError?: (error: unknown) => void;
 }): RouteAssistVisibleSceneProviderV1 {
   return {
     providerKey: "price2book.route-assist.ai-gateway.v1",
@@ -51,7 +63,12 @@ export function createRouteAssistAiGatewayVisibleSceneProviderV1(args: {
         supplementalCaptureSets: [...(input.supplementalCaptureSets ?? [])],
         reviewCorrections: [...(input.reviewCorrections ?? [])],
       };
-      return analyzeRouteAssistVisibleSceneWithAiGatewayV1({ request, media: args.media });
+      try {
+        return await analyzeRouteAssistVisibleSceneWithAiGatewayV1({ request, media: args.media });
+      } catch (error) {
+        args.onProviderError?.(error);
+        throw error;
+      }
     },
   };
 }
