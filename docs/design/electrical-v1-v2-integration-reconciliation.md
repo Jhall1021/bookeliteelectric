@@ -1643,6 +1643,74 @@ this pass: `scripts/template-update.ts` and
 `scripts/verify-template-adoption-baselines.ts` only — no schema change
 in this pass.
 
+### 0.32 (sixteenth pass) The catalog rollout rehearsal, repeated against Elite's real tree — the exact gap §0.29 found is now closed
+
+§0.29 ran the full adoption/restoration sequence against Elite's real
+`new-120v-outlet` and found that a corrective template version could not
+walk Elite back to correct content once it had already adopted a bad one
+— the correction read as a false `CONFLICT` and `--adopt` refused,
+leaving Elite permanently stuck. §0.30/§0.31 fixed the mechanism (bounded
+per-change receipts) and proved it generically against a throwaway
+contractor. This pass repeats §0.29's OWN scenario, unchanged, against
+Elite's real tree, to confirm the fix closes the specific gap that was
+found there — not just a fresh fixture built to be easy.
+
+**Identical setup to §0.29:** Elite's `new-120v-outlet` given its usual
+one-time, explicit provenance backfill (`templateKey`/`templateVersionId`
+→ v1); a scratch `TemplateVersion 2` published with `concealed_route_feet`
+`beyond`'s `numberAtLeast` dropped from 20 to 5 (the same accidental bad
+publish); adopted via `--adopt` exactly as before. A real `Visit`/
+`LineItem`/`Booking` was booked under that bad value, capturing
+`resolvedEconomicBasis`/`answersSnapshot`/`computedPriceCents`. A
+corrective `TemplateVersion 3` was then published with a third, distinct
+value (18 — neither v1's original 20 nor v2's bad 5), identical in shape
+to §0.29's own corrective version.
+
+**Where §0.29 found a `CONFLICT` and a refusal, this pass found neither:**
+
+```
+~ option    concealed_route_feet/beyond  (routing/numeric/component shape changed)
+...
+adopted "concealed_route_feet/beyond" — structure only.
+```
+
+`--status` offered the correction cleanly and `--adopt` applied it.
+Confirmed by direct query afterward: Elite's live `beyond` now reads 18 —
+Elite is genuinely walked back to the correction, the exact outcome §0.29
+found impossible. Every other invariant §0.29 already established still
+holds, reconfirmed here rather than assumed: `TemplateVersion 2`'s own row
+still reads `numberAtLeast: 5`, untouched; the booked `LineItem`'s pinned
+fields are byte-for-byte what they were at booking time; and the new
+`TemplateAdoptionReceipt` for `beyond` correctly records the v3 adoption
+(`sourceTemplateVersionId` pointing at v3, `acceptedProjection` holding
+exactly v3's shape with no stray fields — the same receipt shape §0.31's
+fix makes trustworthy).
+
+All rehearsal state was reverted and confirmed by direct query back to
+this pass's exact starting baseline: the booked `Visit`/`LineItem`/
+`Booking` and their `Customer`/`ArrivalWindow`/`ServiceArea` deleted; the
+`TemplateAdoptionReceipt` for `beyond` deleted; `beyond`'s `numberAtLeast`
+restored to 20 and its own `templateKey`/`templateVersionId` restored to
+`null`; Elite's service provenance restored to `null`/`null` and its
+pricing fields restored to their exact pre-rehearsal values;
+`TemplateVersion`s 2 and 3 deleted, leaving exactly the one baseline
+`TemplateVersion`.
+
+**Verification.** No code changed in this pass — a rehearsal confirming
+the fix, not introducing one — so `tsc`/build/browser-flow re-verification
+is unchanged from §0.31 immediately above. The local disposable database
+confirmed back to its exact baseline by direct query; nothing is
+committed in this pass beyond this report entry.
+
+**Where this leaves §10.2/§10.3.** The bounded per-change adoption
+baseline was the one piece of the real catalog rollout plan this branch
+had not yet proven end-to-end against Elite's own tree; it now has been,
+twice — once showing the gap (§0.29), once showing it closed (this pass).
+The remaining named gaps in §10.2 (materials/disclaimers/photo groups not
+yet carried by this tool; no production-write guard on
+`extract-template-service.ts`) are unchanged by this work and remain what
+they were: real, open, and out of this correction's bounded scope.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple
