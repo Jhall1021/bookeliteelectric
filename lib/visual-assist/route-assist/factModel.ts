@@ -74,7 +74,65 @@ export type RouteAssistFactValueV1 =
   | { kind: "ANCHOR"; point: RouteAssistAnchorPointV1; markerType: RouteAssistDestinationType }
   | { kind: "BOOLEAN"; value: boolean }
   | { kind: "OBJECT_REF"; objectId: string; imageId: string }
-  | { kind: "ENUM"; value: string };
+  | { kind: "ENUM"; value: string }
+  /**
+   * ANCHOR_OBJECT_MATCH's explicit shape: what the provider believes it sees
+   * near a homeowner's already-placed anchor, and whether it looks like a
+   * match -- never a point, never a replacement for the anchor itself.
+   */
+  | { kind: "ANCHOR_MATCH"; objectId: string; imageId: string; matchesPlacement: boolean };
+
+/**
+ * Which RouteAssistFactValueV1.kind each fact type accepts. A provider
+ * response naming the right fact type but the wrong value kind (e.g. a
+ * string handed to DOORWAY_PRESENCE, which is BOOLEAN-only) fails
+ * writeRouteAssistFactV1 before it ever reaches the ledger -- this is a
+ * schema check, not a convention the caller is trusted to follow.
+ */
+const ROUTE_ASSIST_FACT_VALUE_KIND_BY_TYPE_V1: Record<RouteAssistFactTypeV1, RouteAssistFactValueV1["kind"]> = {
+  SOURCE_ANCHOR: "ANCHOR",
+  DESTINATION_ANCHOR: "ANCHOR",
+  WALL_PLANE: "BOOLEAN",
+  BASEBOARD_CONTINUITY: "BOOLEAN",
+  DOORWAY_PRESENCE: "BOOLEAN",
+  DOORWAY_LEFT_CASING: "OBJECT_REF",
+  DOORWAY_TOP_CASING: "OBJECT_REF",
+  DOORWAY_RIGHT_CASING: "OBJECT_REF",
+  DOORWAY_ENTRY_SIDE: "ENUM",
+  CORNER_PRESENCE: "BOOLEAN",
+  CORNER_KIND: "ENUM",
+  WINDOW: "OBJECT_REF",
+  VISIBLE_OBSTACLE: "OBJECT_REF",
+  ANCHOR_OBJECT_MATCH: "ANCHOR_MATCH",
+};
+
+/**
+ * Closed sets for the two ENUM-kind fact types. Same discipline as the sweep
+ * tier's ROUTE_ASSIST_VISIBLE_DOORWAY_ENTRY_SIDES_V1/object-kind checks
+ * (visualSceneSemantics.ts) -- reused verbatim for entry side rather than
+ * re-derived, since it's the same physical fact under a different capture
+ * tier. CORNER_KIND's set names the same inside/outside/flat vocabulary
+ * already used elsewhere in this codebase's raceway-fitting discussion.
+ */
+export const ROUTE_ASSIST_DOORWAY_ENTRY_SIDE_VALUES_V1 = ["LEFT", "RIGHT", "UNRESOLVED"] as const;
+export const ROUTE_ASSIST_CORNER_KIND_VALUES_V1 = ["INSIDE", "OUTSIDE", "FLAT"] as const;
+
+const ROUTE_ASSIST_FACT_ENUM_VALUES_V1: Partial<Record<RouteAssistFactTypeV1, readonly string[]>> = {
+  DOORWAY_ENTRY_SIDE: ROUTE_ASSIST_DOORWAY_ENTRY_SIDE_VALUES_V1,
+  CORNER_KIND: ROUTE_ASSIST_CORNER_KIND_VALUES_V1,
+};
+
+function routeAssistFactValueProblemV1(type: RouteAssistFactTypeV1, value: RouteAssistFactValueV1): string | null {
+  const expectedKind = ROUTE_ASSIST_FACT_VALUE_KIND_BY_TYPE_V1[type];
+  if (value.kind !== expectedKind) return `${type} requires a ${expectedKind} value, got ${value.kind}`;
+  if (value.kind === "ENUM") {
+    const allowed = ROUTE_ASSIST_FACT_ENUM_VALUES_V1[type];
+    if (allowed && !(allowed as readonly string[]).includes(value.value)) {
+      return `${type} does not allow enum value "${value.value}" (allowed: ${allowed.join(", ")})`;
+    }
+  }
+  return null;
+}
 
 export type RouteAssistFactV1 = {
   version: 1;
@@ -123,15 +181,22 @@ export type RouteAssistFactWriteInputV1 = {
 export type RouteAssistFactWriteResultV1 =
   | { outcome: "WRITTEN"; store: RouteAssistFactStoreV1; factId: string }
   | { outcome: "REFUSED_LOCKED"; store: RouteAssistFactStoreV1; factId: string; problem: string }
-  | { outcome: "REFUSED_PROVENANCE"; store: RouteAssistFactStoreV1; problem: string };
+  | { outcome: "REFUSED_PROVENANCE"; store: RouteAssistFactStoreV1; problem: string }
+  | { outcome: "REFUSED_VALUE_SHAPE"; store: RouteAssistFactStoreV1; problem: string };
 
 /**
- * The one write path into the fact store. Two refusals, both structural:
+ * The one write path into the fact store. Three refusals, all structural:
  *
  * 1. PROVENANCE: a homeowner-only fact type with non-homeowner provenance is
  *    refused before anything else is inspected -- there is no value this
  *    call could carry that would make it acceptable.
- * 2. LOCKED: an existing LOCKED fact at this factId is refused before the
+ * 2. VALUE_SHAPE: the fact type's own required value kind (and, for the two
+ *    closed-enum types, the enum's own allowed set) is checked before the
+ *    value ever reaches the ledger. A provider response with the right fact
+ *    name but the wrong value kind -- a string where DOORWAY_PRESENCE needs
+ *    a boolean, an unrecognized entry side -- is refused here, not detected
+ *    later by whatever reads the fact back out.
+ * 3. LOCKED: an existing LOCKED fact at this factId is refused before the
  *    incoming value is even compared against it. This is deliberately not a
  *    "does the new value match the old one, and if not reject" check -- that
  *    shape is a drift DETECTOR, and the whole point of this function is that
@@ -140,6 +205,11 @@ export type RouteAssistFactWriteResultV1 =
 export function writeRouteAssistFactV1(store: RouteAssistFactStoreV1, input: RouteAssistFactWriteInputV1): RouteAssistFactWriteResultV1 {
   if (HOMEOWNER_ONLY_FACT_TYPES.has(input.type) && input.provenance.source !== "HOMEOWNER_PLACEMENT") {
     return { outcome: "REFUSED_PROVENANCE", store, problem: `${input.type} may only be written by homeowner placement, not ${input.provenance.source}` };
+  }
+
+  const valueProblem = routeAssistFactValueProblemV1(input.type, input.value);
+  if (valueProblem) {
+    return { outcome: "REFUSED_VALUE_SHAPE", store, problem: valueProblem };
   }
 
   const factId = routeAssistFactIdV1(input.type, input.scopeId);

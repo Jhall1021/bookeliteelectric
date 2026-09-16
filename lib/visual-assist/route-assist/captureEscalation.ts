@@ -1,4 +1,5 @@
 import { getRouteAssistFactV1, type RouteAssistFactStoreV1, type RouteAssistFactTypeV1 } from "./factModel";
+import { ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1, routeAssistFeatureInstanceScopeIdV1 } from "./routeFeatureScope";
 
 /**
  * Deterministic capture-tier outcomes for one source->destination leg.
@@ -50,13 +51,32 @@ function booleanValue(fact: ReturnType<typeof getRouteAssistFactV1>): boolean | 
  * Rule order matters and is deliberate:
  *   1. Both anchors must exist at all -- nothing else can be evaluated
  *      without them, and this is not itself an escalation decision.
- *   2. A structural "this cannot be a photo" signal (a real corner, or an
- *      explicitly broken plane/baseboard) always wins over any missing-fact
- *      count, because no additional still photo fixes it.
- *   3. Otherwise, any genuinely missing LOCAL fact means TARGETED_PHOTO_
- *      REQUIRED, naming exactly what's missing.
+ *   2. A GENUINELY STRUCTURAL route/plane break -- a real corner, or the
+ *      route being confirmed off one continuous wall plane -- always wins,
+ *      because no additional still photo fixes it. Nothing else forces
+ *      SWEEP_REQUIRED: an incomplete/obscured baseboard is a framing problem
+ *      a targeted photo can often resolve (cropping, furniture, occlusion),
+ *      not evidence the route itself leaves this photo's frustum, so it was
+ *      moved out of this tier -- see the correction-pass note below.
+ *   3. Otherwise, any genuinely missing or unresolved LOCAL fact means
+ *      TARGETED_PHOTO_REQUIRED, naming exactly what's missing.
  *   4. Only when nothing is missing and nothing structural was found does
  *      this return PHOTO_SUFFICIENT.
+ *
+ * Doorway/corner facts are read at the leg's PRIMARY feature instance
+ * (routeFeatureScope.ts) -- this function still only ever considers one
+ * doorway and one corner per leg; multi-instance routing is not implemented
+ * here, only the identity scheme that will let it be added without a fact
+ * model change.
+ *
+ * CORRECTION PASS: BASEBOARD_CONTINUITY previously forced SWEEP_REQUIRED
+ * when false, on the theory that a broken baseboard meant the route left
+ * the wall. That over-escalated real cases: cropping, furniture, and simple
+ * occlusion can make a baseboard look discontinuous in one photo without
+ * the underlying route being unsupported. BASEBOARD_CONTINUITY now only
+ * ever contributes to TARGETED_PHOTO_REQUIRED (missing OR false both mean
+ * "ask for a look at that specific stretch"); only CORNER_PRESENCE and
+ * WALL_PLANE can force SWEEP_REQUIRED.
  */
 export function evaluateRouteAssistPhotoEscalationV1(args: {
   store: RouteAssistFactStoreV1;
@@ -70,7 +90,10 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
     return { escalation: "REVIEW_REQUIRED", reason: "source and destination anchors must both be placed before this leg can be evaluated", missingFactTypes: [] };
   }
 
-  const corner = getRouteAssistFactV1(args.store, "CORNER_PRESENCE", args.legScopeId);
+  const doorwayScopeId = routeAssistFeatureInstanceScopeIdV1("doorway", args.legScopeId, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1);
+  const cornerScopeId = routeAssistFeatureInstanceScopeIdV1("corner", args.legScopeId, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1);
+
+  const corner = getRouteAssistFactV1(args.store, "CORNER_PRESENCE", cornerScopeId);
   if (booleanValue(corner) === true) {
     return { escalation: "SWEEP_REQUIRED", reason: "the route crosses a corner into another wall plane; a single photo cannot represent that", missingFactTypes: [] };
   }
@@ -80,24 +103,21 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
     return { escalation: "SWEEP_REQUIRED", reason: "source and destination are not on one continuous supported wall/trim plane", missingFactTypes: [] };
   }
 
-  const baseboard = getRouteAssistFactV1(args.store, "BASEBOARD_CONTINUITY", args.legScopeId);
-  if (booleanValue(baseboard) === false) {
-    return { escalation: "SWEEP_REQUIRED", reason: "no visible continuous baseboard/trim between source and destination in this photo", missingFactTypes: [] };
-  }
-
   const missing: RouteAssistFactTypeV1[] = [];
   if (!wallPlane) missing.push("WALL_PLANE");
-  if (!baseboard) missing.push("BASEBOARD_CONTINUITY");
 
-  const doorwayPresence = getRouteAssistFactV1(args.store, "DOORWAY_PRESENCE", args.legScopeId);
+  const baseboard = getRouteAssistFactV1(args.store, "BASEBOARD_CONTINUITY", args.legScopeId);
+  if (!baseboard || booleanValue(baseboard) === false) missing.push("BASEBOARD_CONTINUITY");
+
+  const doorwayPresence = getRouteAssistFactV1(args.store, "DOORWAY_PRESENCE", doorwayScopeId);
   if (!doorwayPresence) {
     missing.push("DOORWAY_PRESENCE");
   } else if (booleanValue(doorwayPresence) === true) {
     for (const casingType of DOORWAY_CASING_TYPES) {
-      if (!getRouteAssistFactV1(args.store, casingType, args.legScopeId)) missing.push(casingType);
+      if (!getRouteAssistFactV1(args.store, casingType, doorwayScopeId)) missing.push(casingType);
     }
-    const casingsResolved = DOORWAY_CASING_TYPES.every((casingType) => getRouteAssistFactV1(args.store, casingType, args.legScopeId));
-    if (casingsResolved && !getRouteAssistFactV1(args.store, "DOORWAY_ENTRY_SIDE", args.legScopeId)) missing.push("DOORWAY_ENTRY_SIDE");
+    const casingsResolved = DOORWAY_CASING_TYPES.every((casingType) => getRouteAssistFactV1(args.store, casingType, doorwayScopeId));
+    if (casingsResolved && !getRouteAssistFactV1(args.store, "DOORWAY_ENTRY_SIDE", doorwayScopeId)) missing.push("DOORWAY_ENTRY_SIDE");
   }
 
   if (missing.length > 0) {
