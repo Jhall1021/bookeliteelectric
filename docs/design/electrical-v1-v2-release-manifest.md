@@ -49,6 +49,23 @@ fresh-launch-reset-manifest.md` §4. It now carries through extraction onto
 `AdoptedOptionProjection` gap for the OLD inline field remains true of that
 frozen tool and is not reopened by this fix.
 
+**DISCLAIMER AUTHORING GAP — ALSO CLOSED (16 Sep 2026, following round).**
+The catalog-completion round above bootstrapped `CanonicalDisclaimer` rows
+and carried the resulting `TemplateAnswerOptionDisclaimer` links through
+extraction — but `installCatalog` still correctly left every fresh
+contractor's real `AnswerOptionDisclaimer` attachment unlinked until they
+authored their own `ContractorDisclaimer` text, and nothing in the app could
+create that row: the only writes to it anywhere in the codebase were
+one-time seed scripts. That gap is now closed — `lib/disclaimerAuthoring.ts`,
+`app/api/admin/disclaimers/route.ts`, and a new Disclaimers section on
+`/dashboard/policies` — and proven end to end, real browser, real session:
+`scripts/verify-disclaimer-authoring-browser-flow.ts`, 8/8 checks. See
+`docs/design/electrical-fresh-launch-reset-manifest.md` §4/§10/§11, including
+four separate, pre-existing, NOT-fixed gaps that proof surfaced in
+`installCatalog` itself (published price, band-policy labels, component
+price approval, access classification — none carried to a fresh install
+today).
+
 **REVISED a third time after review.** The second revision fixed three
 mistakes (missing Routing V2 scope; a wrong deletion-capability
 conclusion; a wrong `bookingType` claim) but two of its own conclusions

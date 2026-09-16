@@ -59,6 +59,13 @@ const DISCLAIMERS = [
   {
     key: "EXTERIOR_WALL_CONTINGENCY_OUTLET",
     name: "Exterior wall contingency — new outlet",
+    // Neutral concept explanation, for a CONTRACTOR authoring their OWN
+    // wording against it — never shown to a homeowner, and deliberately
+    // carries no dollar figure: Elite's $125/$190 are Elite's own added
+    // cost for the contingency, not a universal fact every contractor's
+    // wording must repeat.
+    description:
+      "An exterior wall may need a small opening to route the wiring, discovered on site rather than known in advance. State your own added cost if that happens (it can differ for a short vs. a longer run) and whether patching or painting is included.",
     accessClass: "ACCESSIBLE" as const,
     text:
       "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $125 for a run under 10 feet or $190 for a longer one, and patching and painting aren't included. We'll show you what we're looking at and confirm before doing anything.",
@@ -67,6 +74,8 @@ const DISCLAIMERS = [
   {
     key: "EXTERIOR_WALL_CONTINGENCY_SWITCHLEG",
     name: "Exterior wall contingency — switch leg",
+    description:
+      "Same concept as the outlet's exterior-wall contingency, for a new switch leg run instead: state your own added cost and whether patching or painting is included.",
     accessClass: "ACCESSIBLE" as const,
     text:
       "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $135 for a run under 10 feet or $200 for a longer one, and patching and painting aren't included. We'll show you and confirm before doing anything.",
@@ -75,6 +84,8 @@ const DISCLAIMERS = [
   {
     key: "EXTERIOR_WALL_CONTINGENCY_DEDICATED",
     name: "Exterior wall contingency — dedicated circuit",
+    description:
+      "Same concept again, for a dedicated circuit run: this service has no banded finished price to name a figure against, so state what happens (a real look, a real price) rather than a dollar amount.",
     accessClass: "ACCESSIBLE" as const,
     // No banded finished price on this service, so no figure can honestly be
     // named. Says what happens instead of inventing a number.
@@ -87,6 +98,8 @@ const DISCLAIMERS = [
     // module's existing-light option.
     key: "TAP_EXISTING_FIXTURE_FINISHED",
     name: "Tapping an existing fixture — finished ceiling",
+    description:
+      "With no open space above a finished ceiling, tapping power at an existing fixture to feed a new one needs an opening at each fixture, not just the new one. State that plainly — the fixture covers only some of it.",
     accessClass: "FINISHED" as const,
     text:
       "Because there's no open space above this ceiling, we'll need to make an opening at the existing light as well as at the new one to make that connection. The fixture covers some of it, but not always all.",
@@ -95,6 +108,8 @@ const DISCLAIMERS = [
   {
     key: "DISTANCE_HELP_FINISHED",
     name: "Distance question — finished route",
+    description:
+      "Guidance for estimating a route distance once the customer has said there's no attic or basement — the default help text's own mention of one would read as nonsense here.",
     accessClass: "FINISHED" as const,
     text:
       "Measure roughly the path the wire would take through the walls — not the straight line across the room.",
@@ -113,6 +128,8 @@ const DISCLAIMERS = [
     // a template may assume for every contractor.
     key: "CUSTOMER_SUPPLIED_EQUIPMENT",
     name: "Customer-supplied equipment — condition and access",
+    description:
+      "State what you expect the customer to have ready (complete, undamaged, any mounting hardware) before your crew arrives, and that additional work found on site will be explained and priced before proceeding.",
     accessClass: null,
     text:
       "Please have your equipment on hand, complete and undamaged, with any required mounting hardware. If the equipment or the existing conditions turn out to need additional work, we'll explain the options and give you the price before proceeding.",
@@ -152,8 +169,8 @@ async function bootstrapCanonicalDisclaimers() {
   for (const d of DISCLAIMERS) {
     const canonical = await prisma.canonicalDisclaimer.upsert({
       where: { key: d.key },
-      update: { name: d.name, accessClass: d.accessClass },
-      create: { key: d.key, name: d.name, accessClass: d.accessClass },
+      update: { name: d.name, description: d.description, accessClass: d.accessClass },
+      create: { key: d.key, name: d.name, description: d.description, accessClass: d.accessClass },
       select: { id: true },
     });
     await prisma.contractorDisclaimer.upsert({
@@ -229,10 +246,13 @@ async function main() {
   await bootstrapCanonicalDisclaimers();
 
   for (const d of DISCLAIMERS) {
+    // Explicit fields, not `create: d` — the DEPRECATED ConditionalDisclaimer
+    // model has no `description` column, and `d` now carries one for the
+    // real CanonicalDisclaimer bootstrap above.
     await prisma.conditionalDisclaimer.upsert({
       where: { key: d.key },
       update: { name: d.name, text: d.text, accessClass: d.accessClass, notes: d.notes },
-      create: d,
+      create: { key: d.key, name: d.name, text: d.text, accessClass: d.accessClass, notes: d.notes },
     });
   }
   console.log(`  ✓ ${DISCLAIMERS.length} conditional disclaimers defined`);

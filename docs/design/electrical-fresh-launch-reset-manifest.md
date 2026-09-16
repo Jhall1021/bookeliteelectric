@@ -218,6 +218,23 @@ contractor authors their own wording, not ours"), and reports the gap
 honestly via `InstallResult.disclaimersToAuthor` (8, this run) rather than
 silently attaching Elite's wording for them.
 
+**Closed in the following round.** Nothing in the app could actually create
+that `ContractorDisclaimer` row — the only writes to that model anywhere in
+the codebase were one-time seed scripts, never app code, so the gap above
+was permanent for any real contractor, not just a fresh-install artifact.
+`lib/disclaimerAuthoring.ts` (`pendingContractorDisclaimers` /
+`authorContractorDisclaimer`), `app/api/admin/disclaimers/route.ts`, and
+`components/admin/DisclaimerList.tsx` (wired into the existing
+`/dashboard/policies` page, mirroring `PolicyList`'s own shape) now close
+it: a contractor sees the neutral `CanonicalDisclaimer.description` guidance
+for each unresolved concept — never another contractor's dollar amounts or
+promises — writes their own wording, and saving it atomically attaches that
+wording to every one of their own installed `AnswerOption` rows the
+template says needs it, without reinstalling anything. Proven end-to-end,
+real browser, real session, real save, real homeowner render, by
+`scripts/verify-disclaimer-authoring-browser-flow.ts` (8/8 checks — see
+§11).
+
 ## 5. The launch-critical route: what is proven, and what is not
 
 **REVISED — a prior pass of this section was wrong about two things: it
@@ -436,7 +453,7 @@ canonical layer that a fresh `installCatalog` reads from.
   exist before `installCatalog` runs — `templateVersionSource` throws
   `findFirstOrThrow` otherwise.
 - A fresh `installCatalog()` for a new contractor from this rehearsal's v1
-  SNAPSHOT installs 77 services, ALL `active: false`, ALL
+  SNAPSHOT installs 82 services (not the stale 77 — see §3/§4), ALL `active: false`, ALL
   `materialCostResolved` reflecting whether every one of that service's
   STRUCTURAL materials already has a cost (none will, for a genuinely new
   contractor) — §5's findings apply per-service, individually, not as a
@@ -498,6 +515,11 @@ extraction and fresh installation (yes — §4). Whether the intended
 `electrical-panel-replacement` recipe can be built from PR #67's narrow
 source evidence without merging its stale branch or running its historical
 mutator (yes — §3/§11, `scripts/finalize-panel-replacement-recipe.ts`).
+Whether a fresh contractor can actually author their own disclaimer wording
+and have it reach a real homeowner — not just show up as a counted, unmet
+requirement — (yes, closed in the following round: `lib/disclaimerAuthoring.ts`
++ the `/dashboard/policies` Disclaimers section + `PATCH
+/api/admin/disclaimers`, proven 8/8 — §4/§11).
 
 **Superseded by this round, removed from "stays open":** the prior list's
 items 1–3 (panel-recipe provenance/not-yet-built, the 5 omitted services,
@@ -547,28 +569,103 @@ project memory's accuracy, not a blocker to anything in this manifest.
    outlet service itself. Whether that one-sided coverage is intended or
    its own separate gap is a Routing V2 product question, outside this
    task's scope to decide.
+5. **Four real gaps in `installCatalog`/template extraction, found while
+   proving the disclaimer-authoring lifecycle end-to-end (§4), none touched
+   by this task** — each is a field or decision only ever set on Elite's
+   live data by a one-time manual edit or backfill script, never carried
+   forward to a fresh install, and each currently means a fresh contractor's
+   guided flow silently forces photo-review (or shows a broken label)
+   instead of pricing normally, for MANY services, until someone notices and
+   fixes it by hand the same way Elite's own data was fixed:
+   - **`Service.basePrice`/`whileWeThereBasePrice`** — null on the template
+     for services whose Elite row was priced by a later manual admin edit,
+     never synced back (confirmed on `soundbar-installation`,
+     `replace-range-hood`, `fan-replacing-light`; likely broader). A
+     contractor who never re-publishes these prices gets `LEGACY_PUBLISHED`
+     services that force `PUBLISHED_REVIEW` (photo-review) on every answer,
+     from the first question.
+   - **Band-policy labels** — `AnswerOption.labelPattern` (e.g. `"{b1} feet
+     or less"`) ships unrendered until the contractor answers the matching
+     `ContractorPolicyValue` via `/dashboard/policies` (`lib/policyResolution.ts`
+     — a real, working, ALREADY-EXISTING mechanism; this is a "nobody's
+     required to use it yet" gap, not a missing feature).
+   - **`AnswerOptionComponent` price approval** — some branches (e.g.
+     `new-ceiling-light`'s `attic_access/no_access`, the FINISHED-access
+     path) reference a `CanonicalComponent` with no way, anywhere in the
+     app, for a contractor to approve a customer price for it —
+     `approvedComponentPriceCents` is null on Elite's OWN live row too, so
+     this branch forces photo-review for every contractor today, not just a
+     fresh install. Same class of gap as the disclaimer-authoring one this
+     task closed, but for components, and NOT closed by this task.
+   - **`AnswerOption.accessClassification`** — null on every fresh-install
+     option; only ever set by the one-time, hand-run
+     `prisma/seed-access-normalization.ts`, never as part of
+     `installCatalog`. Until it runs, FINISHED-vs-ACCESSIBLE branches (what
+     `TAP_EXISTING_FIXTURE_FINISHED` itself keys off) never actually
+     diverge for a fresh contractor.
+
+   `scripts/verify-disclaimer-authoring-browser-flow.ts`'s own fixture
+   works around all four by hand (`buildFixture`'s own comments name each
+   one) precisely BECAUSE none has a supported fix at the `installCatalog`
+   level — real, separate, pre-existing gaps a real onboarding flow will
+   need to close, not blockers to the disclaimer-authoring work this task
+   was scoped to.
 
 **Next concrete Preview/release steps, in order:**
-1. Coordinate the `ServiceMaterial`/`TemplateServiceMaterial` schema
-   migration onto `p2b_integration_seeded` with whoever else is using it —
-   the one piece of this work that is shared-state, not owned-database.
+
+Every script this manifest cites (`rehearse-fresh-electrical-launch*.ts`,
+`verify-catalog-completion.ts`, `verify-disclaimer-authoring-browser-flow.ts`,
+etc.) opens with `assertDisposableLocalDatabase` — a loopback-host,
+`local-`-prefixed identity check — and refuses to run at all against
+anything else. They cannot simply be pointed at Neon by changing
+`DATABASE_URL`; a real Preview run needs an environment-compatible
+initialization plan that swaps that guard for a Neon-branch-scoped
+equivalent (the same production-identity re-verification pattern §6 already
+cites for `scripts/extract-template-catalog.ts` and `scripts/_lineage.ts`),
+without weakening what either guard actually checks.
+
+1. Preview verification (step 3 below) does not wait on step 1a. Coordinating
+   the `ServiceMaterial`/`TemplateServiceMaterial` schema migration onto the
+   SHARED `p2b_integration_seeded` cluster is real work, owed to whoever else
+   reads and writes that cluster — but it is not a prerequisite for THIS
+   task's own Preview branch, which is owned, disposable, and can carry the
+   same migration independently. Shared local-cluster synchronization is a
+   parallel obligation, not a mandatory gate, whenever a session's own owned
+   resources (its own Neon branch, its own scratch database) already suffice
+   for what it's verifying.
+   1a. Separately, still coordinate that same migration onto
+       `p2b_integration_seeded` with whoever else is using it, on its own
+       timeline — real shared-state work, just not one this task's Preview
+       step is blocked behind.
 2. Decide `electrical-panel-replacement`'s launch status explicitly: it now
-   installs with its intended, honest recipe (1 resolved line, 3 unresolved
-   policy quantities, no assumed grounding work) — it is NOT priced or
-   activatable until a real contractor declares those 3 allowances and
-   costs through the supported lifecycle this task already proved works
-   (§5's policy-material demonstration covers the mechanism; nobody has
-   walked this SPECIFIC service through it yet).
+   installs with its intended, honest recipe — `PANEL_MAIN_BREAKER` at a
+   STRUCTURAL quantity fixed at 1 by the template (a known count, not a
+   resolved contractor COST — no line here has an approved price), plus 3
+   unresolved policy quantities, and no assumed grounding work — so the
+   whole service is NOT priced or activatable until a real contractor
+   declares those 3 allowances and costs, and separately approves
+   `PANEL_MAIN_BREAKER`'s own cost, through the supported lifecycle this
+   task already proved works (§5's policy-material demonstration covers the
+   mechanism; nobody has walked this SPECIFIC service through it yet). No
+   new fixed pricing for the panel has been authorized or published by this
+   task or any prior round — the recipe is structural only.
 3. A real, credentialed operator runs Phase 1 + Phase 2 +
-   `scripts/verify-catalog-completion.ts` against a fresh Neon branch (never
-   production directly) to confirm this local proof holds off this
-   machine's disposable Postgres.
+   `scripts/verify-catalog-completion.ts` + the disclaimer-authoring proof
+   against a fresh, OWNED Neon branch (never production directly), each
+   script adapted per the environment-compatible initialization plan above —
+   to confirm this local proof holds off this machine's disposable Postgres.
 4. Review this manifest's §6–§9 (target identity, tenant-record clearing
    order, schema prerequisites, recovery snapshot) against that Neon
    branch's actual state before any live reset is authorized.
 5. Only after 1–4: the actual production reset and Preview deployment,
    each requiring its own explicit, in-conversation authorization, per this
    task's standing rule — nothing in this manifest authorizes either.
+
+**Deferred cleanup, not active-customer blockers:** items 1 and 3 in "stays
+open" above (BrightPath's `onboard-contractor-two.ts` raw-SQL override, and
+the orphaned `EXTERIOR_WALL_CONTINGENCY_SWITCHLEG` disclaimer definition) are
+both pre-existing, both noted, and neither blocks a real contractor's launch
+today — they're work to schedule, not conditions to clear first.
 
 ## 11. Local evidence trail
 
@@ -626,8 +723,9 @@ project memory's accuracy, not a blocker to anything in this manifest.
     for this round specifically: all 5 restored services install with the
     intended neutral wording and live policy definitions (not Elite's
     hardcoded figures); `electrical-panel-replacement` installs with
-    exactly the intended 4-line recipe (`PANEL_MAIN_BREAKER` resolved x1;
-    `BREAKER_SINGLE_POLE`/`BREAKER_DOUBLE_POLE`/`CONSUMABLES_MEDIUM`
+    exactly the intended 4-line recipe (`PANEL_MAIN_BREAKER` at its
+    structural quantity of 1 — a known count, not a resolved contractor
+    cost; `BREAKER_SINGLE_POLE`/`BREAKER_DOUBLE_POLE`/`CONSUMABLES_MEDIUM`
     unresolved policy; `GROUND_ROD`/`GROUND_CLAMP`/`WIRE_GROUND_6` genuinely
     absent); `CUSTOMER_SUPPLIED_EQUIPMENT` carries through extraction onto
     `soundbar-installation`; `device_on_exterior_wall` exists on a fresh
@@ -636,11 +734,38 @@ project memory's accuracy, not a blocker to anything in this manifest.
     booking route's own branch — is confirmed byte-for-byte unchanged.
     **28/28 checks passed.** Not a repeat of the full booking suite, per
     this round's own instruction to reuse existing evidence.
-- All six scratch-database-driving scripts across this whole engagement
+- `scripts/verify-disclaimer-authoring-browser-flow.ts` (new) — the
+  disclaimer-authoring lifecycle proof (§4): two real, verified, signed-up
+  contractor accounts, one fully installed (82 services) and one bare; a
+  real save through `/dashboard/policies`'s new Disclaimers section; the
+  real `PATCH /api/admin/disclaimers` route; a real homeowner browser
+  reading the real storefront. Covers CUSTOMER_SUPPLIED_EQUIPMENT
+  (accessClass null, proven on `replace-range-hood`) and
+  TAP_EXISTING_FIXTURE_FINISHED (accessClass FINISHED, proven on
+  `fan-replacing-light`, since its first-listed dependent —
+  `new-ceiling-light` — hits the pre-existing component-price-approval gap
+  in item 5 above even on Elite's own live data): unresolved -> neutral
+  guidance shown, never Elite's wording or dollar amounts -> contractor
+  saves their own text -> atomic attachment to every one of their own
+  installed answer options -> homeowner sees it on the applicable branch,
+  not the inapplicable one -> a second, separate contractor's own write
+  never reaches the first contractor's storefront or rows. **8/8 checks
+  passed**, on its own scratch database
+  (`p2b_freshlaunch_1789583817643_51447`, reused from this round's Phase 1
+  rebuild above, dropped at the end of the run) — required three targeted,
+  documented fixture completions (§10 item 5) to reach services whose
+  guided flow a fresh install cannot otherwise complete, and one real fix:
+  `lib/disclaimerAuthoring.ts`'s actual attachment write was refused outright
+  by `lib/tenantGuard.ts`'s `DerivedCreateError` on first run
+  (`AnswerOptionDisclaimer` has no `contractorId` to stamp) — resolved by
+  proving ownership through the guarded client, then writing through the
+  unguarded one inside its own transaction, exactly the pattern
+  `lib/tenantWrites.ts` (ADR-010) already documents for this class of model.
+- All seven scratch-database-driving scripts across this whole engagement
   (Phase 1, Phase 2, the native-booking browser flow, the quantity-input
-  browser flow, and this round's catalog-completion rebuild + focused
-  proof) create and destroy only their own uniquely-named, no-pre-drop
-  scratch databases or reuse one already stamped `local-*`; none touches
-  `p2b_integration_seeded` or any other shared or production database.
-  Every scratch database this round created was dropped at the end of its
-  own run; nothing was left running.
+  browser flow, this round's catalog-completion rebuild + focused proof, and
+  the disclaimer-authoring lifecycle proof) create and destroy only their
+  own uniquely-named, no-pre-drop scratch databases or reuse one already
+  stamped `local-*`; none touches `p2b_integration_seeded` or any other
+  shared or production database. Every scratch database this round created
+  was dropped at the end of its own run; nothing was left running.

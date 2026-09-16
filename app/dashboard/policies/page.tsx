@@ -1,6 +1,8 @@
 import { withAdminContractor } from "@/lib/adminContext";
 import { policiesFor } from "@/lib/policyResolution";
+import { pendingContractorDisclaimers } from "@/lib/disclaimerAuthoring";
 import PolicyList from "@/components/admin/PolicyList";
+import DisclaimerList from "@/components/admin/DisclaimerList";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +13,17 @@ export const dynamic = "force-dynamic";
  * electrician knows how long a run has to be. Those numbers were collected at
  * install as unresolved rows and there was nowhere to fill them in, so the
  * band answers a homeowner reads stayed as patterns: "{b1} feet or less".
+ *
+ * Disclaimers are the same shape of gap, one section down: a canonical
+ * concept — an exterior wall may need an opening, an existing fixture on a
+ * finished ceiling needs two — arrives structurally at install, but the
+ * actual sentence a homeowner reads is this contractor's own words
+ * (ADR-009), and nothing wrote it for them.
  */
 export default async function PoliciesPage() {
-  const policies = await withAdminContractor((db, ctx) => policiesFor(db, ctx.contractorId));
+  const [policies, disclaimers] = await withAdminContractor((db, ctx) =>
+    Promise.all([policiesFor(db, ctx.contractorId), pendingContractorDisclaimers(db, ctx.contractorId)])
+  );
   const unresolved = policies.filter((p) => !p.resolved).length;
   const resolved = policies.length - unresolved;
 
@@ -58,6 +68,19 @@ export default async function PoliciesPage() {
         </div>
         <div className="p-5 sm:p-6">
           <PolicyList policies={policies} />
+        </div>
+      </section>
+
+      <section className="mt-6 overflow-hidden rounded-card border border-cardline bg-white shadow-card">
+        <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
+          <h2 className="font-display text-lg font-bold text-navy">Disclaimers</h2>
+          <p className="mt-1 text-sm text-slate">
+            Some answers need a sentence explaining what applies — written by you, not assumed. Nothing shows to a
+            homeowner until you write it.
+          </p>
+        </div>
+        <div className="p-5 sm:p-6">
+          <DisclaimerList disclaimers={disclaimers} />
         </div>
       </section>
     </div>
