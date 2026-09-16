@@ -259,6 +259,26 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "list, deliberately, since this script exists to close a real gap in " +
     "production and running it anywhere else should be a harmless dry run. " +
     "Pre-existing on main from PR #72; unchanged by this PR.",
+  "scripts/apply-dedicated-circuit-entry-aliases.ts":
+    "A bounded, two-service reconciliation, not a general price publisher. " +
+    "It targets only sump-pump-dedicated-circuit and " +
+    "freezer-fridge-dedicated-circuit -- both pre-seeded dormant placeholder " +
+    "rows this script ADOPTS (activates, adds their one-question tree) " +
+    "rather than creates from scratch. It never invents, derives, or " +
+    "independently approves a price: basePrice and publishedPriceApprovedAt " +
+    "are copied verbatim from the canonical dedicated-120v-circuit-outlet " +
+    "service's own already-approved figure and timestamp, and the script " +
+    "refuses outright if that canonical price is absent. It also refuses if " +
+    "either alias's existing category does not match the canonical " +
+    "service's. The mirrored price is needed only because " +
+    "GuidedFlowEngine.evaluate()'s existing ordering checks lib/pricing.ts's " +
+    "customerPrice() mustReview flag before looking at an answer's " +
+    "routeAction at all, and a null basePrice forces mustReview " +
+    "unconditionally -- which would otherwise silently pre-empt these " +
+    "aliases' REROUTE_SERVICE branch before it ever routes anywhere. " +
+    "Whether that evaluate()/customerPrice() ordering itself should change " +
+    "is a separate, undecided follow-up; this script works within the " +
+    "existing behavior rather than changing it.",
   "scripts/verify-materials-catalog-write-path.ts":
     "Seeds basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on " +
     "THROWAWAY fixture services — never a real contractor's — so the " +
