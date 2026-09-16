@@ -16,7 +16,7 @@ const RESPONSE_SCHEMA = {
         type: "object",
         properties: {
           id: { type: "string" },
-          kind: { type: "string", enum: ["SOURCE_RECEPTACLE", "DESTINATION_MARKER", "BASEBOARD_OR_TRIM", "DOORWAY", "DOOR_SIDE_CASING", "DOOR_TOP_CASING", "WINDOW", "VISIBLE_OBSTACLE"] },
+          kind: { type: "string", enum: ["SOURCE_RECEPTACLE", "DESTINATION_MARKER", "BASEBOARD_OR_TRIM", "DOORWAY", "DOOR_SIDE_CASING", "DOOR_TOP_CASING", "WINDOW", "VISIBLE_OBSTACLE", "CORNER"] },
           imageId: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
           box: {
@@ -92,6 +92,7 @@ function providerPrompt(request: RouteAssistHttpVisibleSceneRequestV1, media: re
     "Return captureImageIds EXACTLY in the primary order supplied below, including IDs for frames you are not shown. Object and observation imageId values may use only image IDs actually supplied as media.",
     "The homeowner's source and destination taps are intent anchors, not metric geometry. Use them to identify the corresponding visible source receptacle and destination marker. SOURCE_RECEPTACLE and DESTINATION_MARKER objects must use the exact pointId from the supplied anchors.",
     "Identify visible baseboard/trim continuity and relevant doorways/windows between source and destination. For a doorway bypass, create a doorway group only when the doorway, physical left casing, physical right casing, and top casing are visibly supportable as one coherent doorway. entrySide means the physical casing reached first when traveling from source toward destination. If that cannot be established, use UNRESOLVED.",
+    "If the wall visibly changes plane/direction (a corner) anywhere between source and destination, report one CORNER object at that location. If the route between source and destination stays on one continuous visible wall plane with no such bend, do not report a CORNER object at all.",
     "Use normalized image boxes x/y/width/height in [0,1]. Keep boxes inside image bounds. Confidence is evidentiary only.",
     "If a doorway is visible but both side casings and top casing are not sufficiently supported, report DOORWAY_CONTEXT_INCOMPLETE rather than inventing missing trim. If source/destination or route context is unclear, report the corresponding quality issue.",
     "Do not encode route footage or turn counts. This output is only visible-scene semantics for homeowner review.",

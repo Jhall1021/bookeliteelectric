@@ -21,7 +21,17 @@ export type RouteAssistVisibleSceneObjectKindV1 =
   | "DOOR_SIDE_CASING"
   | "DOOR_TOP_CASING"
   | "WINDOW"
-  | "VISIBLE_OBSTACLE";
+  | "VISIBLE_OBSTACLE"
+  /**
+   * Additive for the photo-first tier: a visible wall-plane change (the wall
+   * bends/turns) between the homeowner's source and destination anchors.
+   * Sweep never looks for this kind, so its addition here changes nothing
+   * about sweep's existing consumption of this shared schema -- it only
+   * gives the photo-first fact adapter (livePhotoFactAdapter.ts) a real
+   * signal to derive CORNER_PRESENCE/WALL_PLANE from, instead of asking the
+   * model to self-report two logically-coupled facts redundantly.
+   */
+  | "CORNER";
 
 /**
  * Closed set for runtime validation, mirroring
@@ -40,6 +50,7 @@ export const ROUTE_ASSIST_VISIBLE_SCENE_OBJECT_KINDS_V1 = [
   "DOOR_TOP_CASING",
   "WINDOW",
   "VISIBLE_OBSTACLE",
+  "CORNER",
 ] as const satisfies readonly RouteAssistVisibleSceneObjectKindV1[];
 
 /** Closed set for runtime validation of RouteAssistVisibleDoorwayGroupV1.entrySide. */

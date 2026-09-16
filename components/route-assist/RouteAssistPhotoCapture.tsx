@@ -3,10 +3,14 @@
 import { useRef, useState } from "react";
 import {
   emptyRouteAssistFactStoreV1,
+  getRouteAssistFactV1,
   writeRouteAssistFactV1,
   type RouteAssistFactStoreV1,
 } from "@/lib/visual-assist/route-assist/factModel";
 import { evaluateRouteAssistPhotoEscalationV1, type RouteAssistCaptureEscalationResultV1 } from "@/lib/visual-assist/route-assist/captureEscalation";
+import { applyRouteAssistLiveVisibleSceneFactsV1 } from "@/lib/visual-assist/route-assist/livePhotoFactAdapter";
+import { routeAssistFeatureInstanceScopeIdV1, ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1 } from "@/lib/visual-assist/route-assist/routeFeatureScope";
+import type { RouteAssistVisibleSceneSemanticsV1 } from "@/lib/visual-assist/route-assist/visualSceneSemantics";
 import {
   nextRouteAssistPhotoMarkerLabelV1,
   placeRouteAssistPhotoMarkerV1,
@@ -19,6 +23,7 @@ import {
 import type { RouteAssistDestinationType } from "@/lib/visual-assist/route-assist/taxonomy";
 
 type Stage = "READY" | "CAMERA_OPEN" | "PLACING_MARKERS" | "CONFIRMED";
+const LIVE_PROVIDER_KEY = "price2book.route-assist.photo-first-preview.v1";
 
 type MarkerTypeChoice = { value: RouteAssistDestinationType; label: string };
 const MARKER_TYPE_CHOICES: MarkerTypeChoice[] = [
@@ -28,7 +33,7 @@ const MARKER_TYPE_CHOICES: MarkerTypeChoice[] = [
 ];
 const DEFAULT_MARKER_TYPE: RouteAssistDestinationType = "RECEPTACLE";
 
-type RouteAssistPhotoV1 = { imageId: string; objectUrl: string; width: number; height: number };
+type RouteAssistPhotoV1 = { imageId: string; dataUrl: string; width: number; height: number };
 
 export type RouteAssistPhotoFirstOutcomeV1 = {
   store: RouteAssistFactStoreV1;
@@ -65,6 +70,9 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
   const [pendingMarkerType, setPendingMarkerType] = useState<RouteAssistDestinationType>(DEFAULT_MARKER_TYPE);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<RouteAssistPhotoFirstOutcomeV1 | null>(null);
+  const [interpreting, setInterpreting] = useState(false);
+  const [interpretError, setInterpretError] = useState<string | null>(null);
+  const [liveLegLabel, setLiveLegLabel] = useState<string | null>(null);
 
   async function openCamera() {
     setCameraError(null);
@@ -91,12 +99,16 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
     const context = canvas.getContext("2d");
     if (!context) return;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
-    if (!blob) return;
+    // A data URL (rather than a blob object URL) so the same captured photo
+    // can be both rendered here AND sent inline to the preview-only
+    // interpretation endpoint below -- this proof deliberately reuses the
+    // existing dev-fixtures inline-image convention rather than adding an
+    // R2 upload path for a slice that's explicitly not production-facing.
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
-    setPhoto({ imageId: `photo-first-${Date.now()}`, objectUrl: URL.createObjectURL(blob), width: canvas.width, height: canvas.height });
+    setPhoto({ imageId: `photo-first-${Date.now()}`, dataUrl, width: canvas.width, height: canvas.height });
     setMarkers([]);
     setStage("PLACING_MARKERS");
   }
@@ -167,12 +179,97 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
 
     const built: RouteAssistPhotoFirstOutcomeV1 = { store, markers, legEscalations };
     setOutcome(built);
+    setInterpretError(null);
     setStage("CONFIRMED");
-    if (Object.values(legEscalations).some((result) => result.escalation === "SWEEP_REQUIRED")) {
-      onEscalateToSweep();
-      return;
+    // Deliberately does NOT call onComplete/onEscalateToSweep yet -- with no
+    // provider facts written, every leg is TARGETED_PHOTO_REQUIRED/REVIEW_
+    // REQUIRED trivially (nothing has been observed), which would be a
+    // meaningless "result" to hand upward. The real result for this proof
+    // comes only after interpretWithLiveProvider below actually runs the
+    // photo through the provider.
+  }
+
+  /**
+   * Sends the confirmed photo + A/B anchors to the preview-only live
+   * interpretation endpoint, applies the returned (server-validated)
+   * semantics to the fact store via livePhotoFactAdapter, and re-evaluates
+   * escalation for the leg. Only the FIRST destination is interpreted --
+   * this proof's demo case is a single A->B leg; multi-destination live
+   * interpretation is not implemented here (see the report's Open Issues).
+   */
+  async function interpretWithLiveProvider() {
+    if (!photo || !outcome) return;
+    const firstDestination = markers.find((marker) => marker.role === "DESTINATION");
+    const source = markers.find((marker) => marker.role === "SOURCE");
+    if (!firstDestination || !source) return;
+
+    setInterpreting(true);
+    setInterpretError(null);
+    setLiveLegLabel(firstDestination.label);
+    try {
+      const response = await fetch("/api/dev-fixtures/route-assist-photo-first-interpret", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageId: photo.imageId,
+          dataUrl: photo.dataUrl,
+          sourceAnchor: { x: source.x, y: source.y },
+          destinationAnchor: { x: firstDestination.x, y: firstDestination.y },
+          destinationType: firstDestination.markerType,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as { semantics?: RouteAssistVisibleSceneSemanticsV1; error?: string; problems?: string[] } | null;
+      if (!response.ok || !body?.semantics) {
+        setInterpretError(body?.error ?? "Route Assist could not interpret this photo.");
+        return;
+      }
+
+      const leg = legScopeId(firstDestination.label);
+      const application = applyRouteAssistLiveVisibleSceneFactsV1({
+        store: outcome.store,
+        semantics: body.semantics,
+        legScopeId: leg,
+        sourcePointId: "A",
+        destinationPointId: firstDestination.label,
+        imageId: photo.imageId,
+        sourceAnchor: { x: source.x, y: source.y },
+        destinationAnchor: { x: firstDestination.x, y: firstDestination.y },
+        providerKey: LIVE_PROVIDER_KEY,
+      });
+      if (application.problems.length) {
+        setInterpretError(application.problems.join("; "));
+      }
+
+      const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: leg, sourceScopeId: "A", destinationScopeId: firstDestination.label });
+      const nextOutcome: RouteAssistPhotoFirstOutcomeV1 = {
+        store: application.store,
+        markers,
+        legEscalations: { ...outcome.legEscalations, [firstDestination.label]: escalation },
+      };
+      setOutcome(nextOutcome);
+
+      if (escalation.escalation === "SWEEP_REQUIRED") {
+        onEscalateToSweep();
+      } else if (escalation.escalation === "PHOTO_SUFFICIENT") {
+        onComplete(nextOutcome);
+      }
+      // TARGETED_PHOTO_REQUIRED/REVIEW_REQUIRED/WORLD_GEOMETRY_REQUIRED: shown
+      // in the debug panel below; this proof does not build the targeted-
+      // recapture UI those states hand off to.
+    } catch (error) {
+      setInterpretError(error instanceof Error ? error.message : "Route Assist could not reach the interpretation endpoint.");
+    } finally {
+      setInterpreting(false);
     }
-    onComplete(built);
+  }
+
+  function factRowLabel(kind: "BOOLEAN" | "presence", scopeId: string, type: Parameters<typeof getRouteAssistFactV1>[1]): string {
+    const fact = outcome ? getRouteAssistFactV1(outcome.store, type, scopeId) : null;
+    if (!fact) return "not yet observed";
+    if (fact.value.kind === "BOOLEAN") return fact.value.value ? "confirmed" : "not confirmed";
+    if (fact.value.kind === "ENUM") return fact.value.value.toLowerCase();
+    if (fact.value.kind === "OBJECT_REF") return "confirmed";
+    return "recorded";
   }
 
   const { role: nextRole, label: nextLabel } = nextRouteAssistPhotoMarkerLabelV1(markers);
@@ -236,7 +333,7 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
             data-testid="route-assist-photo-surface"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.objectUrl} alt="Captured work area" className="pointer-events-none h-full w-full object-cover" />
+            <img src={photo.dataUrl} alt="Captured work area" className="pointer-events-none h-full w-full object-cover" />
             {markers.map((marker) => (
               <button
                 key={marker.id}
@@ -281,13 +378,44 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
           )}
 
           {stage === "CONFIRMED" && outcome && (
-            <ul className="flex flex-col gap-1 text-sm text-slate-600" data-testid="route-assist-photo-escalation-summary">
-              {Object.entries(outcome.legEscalations).map(([label, result]) => (
-                <li key={label}>
-                  A → {label}: {result.escalation}
-                </li>
-              ))}
-            </ul>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={interpretWithLiveProvider}
+                disabled={interpreting}
+                className="rounded-xl bg-electric px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
+                data-testid="route-assist-photo-interpret"
+              >
+                {interpreting ? "Interpreting…" : "Interpret with Route Assist"}
+              </button>
+              {interpretError && <p className="text-sm text-red-600" data-testid="route-assist-photo-interpret-error">{interpretError}</p>}
+
+              {/* Preview-only debug panel -- not the final homeowner UX. Shows exactly what the fact ledger currently holds for the leg being interpreted. */}
+              {liveLegLabel && (
+                <ul className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700" data-testid="route-assist-photo-debug-panel">
+                  <li>Source A: {getRouteAssistFactV1(outcome.store, "SOURCE_ANCHOR", "A")?.state === "LOCKED" ? "locked" : "not placed"}</li>
+                  <li>
+                    Destination {liveLegLabel}: {getRouteAssistFactV1(outcome.store, "DESTINATION_ANCHOR", liveLegLabel)?.state === "LOCKED" ? "locked" : "not placed"}
+                  </li>
+                  <li>Wall plane: {factRowLabel("BOOLEAN", legScopeId(liveLegLabel), "WALL_PLANE")}</li>
+                  <li>Doorway: {factRowLabel("presence", routeAssistFeatureInstanceScopeIdV1("doorway", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "DOORWAY_PRESENCE")}</li>
+                  <li>Left casing: {factRowLabel("presence", routeAssistFeatureInstanceScopeIdV1("doorway", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "DOORWAY_LEFT_CASING")}</li>
+                  <li>Top casing: {factRowLabel("presence", routeAssistFeatureInstanceScopeIdV1("doorway", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "DOORWAY_TOP_CASING")}</li>
+                  <li>Right casing: {factRowLabel("presence", routeAssistFeatureInstanceScopeIdV1("doorway", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "DOORWAY_RIGHT_CASING")}</li>
+                  <li>Entry side: {factRowLabel("presence", routeAssistFeatureInstanceScopeIdV1("doorway", legScopeId(liveLegLabel), ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1), "DOORWAY_ENTRY_SIDE")}</li>
+                  <li>Baseboard continuity: {factRowLabel("BOOLEAN", legScopeId(liveLegLabel), "BASEBOARD_CONTINUITY")}</li>
+                  <li className="mt-1 font-semibold">Result: {outcome.legEscalations[liveLegLabel]?.escalation ?? "REVIEW_REQUIRED"}</li>
+                </ul>
+              )}
+
+              <ul className="flex flex-col gap-1 text-sm text-slate-600" data-testid="route-assist-photo-escalation-summary">
+                {Object.entries(outcome.legEscalations).map(([label, result]) => (
+                  <li key={label}>
+                    A → {label}: {result.escalation}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}
