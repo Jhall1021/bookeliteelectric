@@ -4,6 +4,25 @@ Documentation and planning only. No code changes accompany this document,
 and no production access was used to produce it. Deployment stays
 disabled.
 
+**SUPERSEDED IN PART, 16 Sep 2026 — FRESH-LAUNCH DIRECTION.** Per Joshua's
+explicit instruction (PR #63, and `CLAUDE.md`'s own recorded standing rule):
+Price2Book has no active contractors, Elite is inactive too, and existing
+contractor/test data is not a preservation requirement. The existing-
+contractor adoption project this document mostly covers (§1-§8 below) is
+**stopped, not expanded further** — its completed work stays completed, and
+its own remaining items (Blocker 11 especially) are carried forward as
+**deferred**, not as release blockers for a fresh launch. See
+`docs/design/electrical-fresh-launch-reset-manifest.md` for the fresh-launch
+rehearsal this superseding direction asked for: a real, from-scratch build
+of the composed Electrical catalog (including, for the first time, Routing
+V2's shared modules actually extracted into the template layer), a real
+fresh-contractor provisioning proof, and a precise account of which parts of
+"materials → pricing → approval → activation → manual price → native
+booking" are proven versus still open. Blocker 11 (materialCostResolved has
+no supported path for a policy-quantity-only service) is the SAME gap in
+both documents — confirmed again there against a genuinely fresh install,
+with a real, named refusal code, not just reasoned about.
+
 **REVISED a third time after review.** The second revision fixed three
 mistakes (missing Routing V2 scope; a wrong deletion-capability
 conclusion; a wrong `bookingType` claim) but two of its own conclusions
