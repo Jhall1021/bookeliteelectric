@@ -1711,6 +1711,118 @@ yet carried by this tool; no production-write guard on
 `extract-template-service.ts`) are unchanged by this work and remain what
 they were: real, open, and out of this correction's bounded scope.
 
+### 0.33 (seventeenth pass) The component encoding's last defect — a delimiter that was not actually a delimiter — found by direct review of §0.31's own fix, and the same defect caught a second time inside the verifier's own test helper
+
+§0.31 fixed `componentsEqual` by replacing `JSON.stringify(c)` (unstable
+across a `jsonb` round trip) with a string built by joining the five
+canonical fields with `|`. Direct review of that fix, not a new rehearsal,
+found it swapped one real bug for a smaller but still real one: `|` is not
+an escaped delimiter, and mapping `null` to `""` before joining erases the
+distinction between a real `null` and a real empty string. Two distinct
+five-field tuples can join to the identical string —
+`conditionAnswerKey: "a|b", conditionAnswerValue: "c"` and
+`conditionAnswerKey: "a", conditionAnswerValue: "b|c"`, all other fields
+equal, both join to `"...a|b|c|..."`. Nothing in either field's type or
+the database schema rules a `|` character out.
+
+**Fixed: `componentKey` now builds a fixed-order JSON ARRAY —
+`JSON.stringify([canonicalComponentId, quantity, conditionAnswerKey,
+conditionAnswerValue, quantityAnswerKey])` — and sorts those array
+encodings for the set comparison, never a hand-joined string.** An array
+serializes by POSITION, not by object key, so `jsonb`'s lack of key-order
+preservation (which only ever applies to objects) never applies here, and
+`JSON.stringify` escapes every string element and represents `null` as
+the literal `null` — never conflated with `""` — so no two distinct
+5-tuples can produce the same encoding.
+
+**The same class of bug was then found a SECOND time, inside this
+verifier's own `sameComponents` helper, while adding the direct receipt
+round-trip check below.** `sameComponents` sorted an array of raw
+component objects by `canonicalComponentId` and compared them with a
+plain `JSON.stringify` on each object — the exact pattern §0.31's own fix
+had already identified as unsafe, reintroduced one layer up because the
+helper was written before the receipt-round-trip case existed to expose
+it. Caught immediately: comparing `finalReceiptComponents` (read straight
+out of a `jsonb` column, no guaranteed key order) against
+`finalComponents` (built via this file's own `comp()` helper, a fixed key
+order) failed on values that were genuinely identical. Fixed the same
+way: `sameComponents` now normalizes each component through the identical
+fixed-order-array encoding before comparing, immune to the source
+object's own key order regardless of which side of a comparison a raw
+`jsonb`-sourced object lands on.
+
+**Five focused regressions added to the checked-in verifier (Block F),
+each isolating exactly one dimension the six-proof suite did not target:**
+
+1. A condition-only change (adding `conditionAnswerKey`/
+   `conditionAnswerValue` to an otherwise-unchanged component) is detected
+   and adopts correctly, and the condition-bearing projection survives its
+   own receipt's `jsonb` round trip immediately afterward.
+2. THE COLLISION ITSELF: a component whose five fields the OLD `|`-joined
+   encoding would have produced BYTE-FOR-BYTE IDENTICAL to #1's — proof
+   #1's `conditionAnswerKey: "collision|test", conditionAnswerValue: "c"`
+   against this one's `conditionAnswerKey: "collision", conditionAnswerValue:
+   "test|c"` — is still correctly detected as a real, different, offered
+   change under the fixed array encoding.
+3. `conditionAnswerKey` reverted to `null` — an ordinary distinct change,
+   staged specifically to set up proof #4 with a clean null-vs-"" pair.
+4. NULL VERSUS EMPTY STRING: `conditionAnswerKey` changing from `null` to
+   `""`, every other field held identical, is detected as a real, offered
+   change — the old `?? ""` encoding would have mapped both to the same
+   segment and reported nothing to adopt.
+5. A `quantityAnswerKey`-only change (the fifth field, exercised alone for
+   the first time in this suite) is detected and adopts correctly, and a
+   direct query of the receipt's own stored `acceptedProjection.components`
+   — read back out of `jsonb` and compared against the live row — confirms
+   all five fields, including the empty-string `conditionAnswerKey`,
+   survive the round trip intact.
+
+**Other corrections made on the same review, all in the verifier:**
+
+- Every component-set assertion throughout the suite (not only Block F)
+  now compares all FIVE canonical fields via a `comp()` builder that
+  defaults the three condition/quantity fields to `null` explicitly,
+  rather than comparing only `canonicalComponentId`/`quantity` and leaving
+  `conditionAnswerKey`/`conditionAnswerValue`/`quantityAnswerKey`
+  unchecked.
+- The pricing-untouched assertions in the conflict-refusal (Block B) and
+  fault-rollback (Block D) proofs now compare `publishedPriceApprovedAt`'s
+  actual timestamp value, not merely whether the other two pricing fields
+  moved — a refusal that somehow re-stamped the approval time to "now"
+  while leaving `materialCostResolved`/`basePrice` alone would previously
+  have passed.
+- Block E's language no longer claims the booked `LineItem`/`Booking` are
+  unchanged "byte-for-byte": they are directly inserted fixtures standing
+  in for a booking, not a live checkout run, and the assertion only ever
+  compared five named `LineItem` fields and one `Booking` field. The
+  wording now says exactly that.
+- Block E's fixture-id tracking no longer assigns one combined object only
+  after all six inserts (`ServiceArea`, `ArrivalWindow`, `Customer`,
+  `Visit`, `LineItem`, `Booking`) succeed — an exception partway through
+  previously left every row created before it untracked and therefore
+  never cleaned up. Each id is now recorded the instant its own row is
+  created, and the `finally` block deletes whichever ids actually exist,
+  in FK-safe order, regardless of how far the `try` block got.
+- No cleanup failure — a fixture row, a scratch `TemplateVersion` — is
+  silently swallowed by a bare `.catch(() => {})` any more; every cleanup
+  delete is now wrapped so a failure reports as a FAILED check instead of
+  letting the run claim exact restoration it did not actually verify.
+
+64/64 checks pass (up from 51 — 13 new checks: 5 encoding regressions,
+their own direct assertions, and the strengthened pricing/component
+checks on existing proofs). All rehearsal state confirmed back to exact
+baseline (one `TemplateVersion`, zero `TemplateAdoptionReceipt` rows, the
+standing three contractors) by direct query.
+
+**Verification.** `npx tsc --noEmit` clean project-wide.
+`scripts/verify-template-adoption-baselines.ts` passed 64/64. Per this
+round's own guidance, no production build or browser-flow re-run was
+needed for this encoding-only correction — neither modified file touches
+a live request path, and the prior passes already reconfirmed the full
+suite against the receipt/locking mechanism this fix sits inside. Files
+committed in this pass: `scripts/template-update.ts` and
+`scripts/verify-template-adoption-baselines.ts` only — no schema change.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple

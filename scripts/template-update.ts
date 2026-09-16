@@ -260,21 +260,36 @@ const liveComponents = (cs: { canonicalComponentId: string | null; quantity: num
     .map(pickComponentFields);
 
 /**
- * A component's comparable identity as a single, FIELD-ORDER-FIXED string —
- * never `JSON.stringify(c)` on the object itself. `JSON.stringify` prints
- * keys in the object's own insertion order, which is stable for a POJO
- * built in-process (every `pickComponentFields` call in the same run
- * produces the same order) but is NOT stable once a projection has round-
- * tripped through a `TemplateAdoptionReceipt.acceptedProjection` — Postgres
- * `jsonb` does not preserve original key order, so the identical value read
- * back from a receipt can print its keys in a different order than the one
- * freshly computed from a live row or a template. Two genuinely equal
- * components would then compare as different — the exact failure mode a
- * receipt-backed baseline introduces that an in-memory-only comparison
- * never could.
+ * A component's comparable identity as a FIXED-ORDER JSON ARRAY, never
+ * `JSON.stringify(c)` on the object itself and never a hand-joined
+ * delimited string.
+ *
+ * `JSON.stringify(c)` prints an object's keys in its own insertion order,
+ * which is stable for a POJO built in-process (every `pickComponentFields`
+ * call in the same run produces the same order) but is NOT stable once a
+ * projection has round-tripped through a `TemplateAdoptionReceipt.
+ * acceptedProjection` — Postgres `jsonb` does not preserve original OBJECT
+ * key order, so the identical value read back from a receipt can print its
+ * keys in a different order than the one freshly computed from a live row
+ * or a template. An earlier version of this function fixed that by joining
+ * the five fields with `|` into one string — which reintroduced a
+ * different bug: `|` is not an escaped delimiter, so two GENUINELY
+ * DIFFERENT components can join to the identical string (`conditionAnswerKey:
+ * "a|b", conditionAnswerValue: "c"` joins identically to `conditionAnswerKey:
+ * "a", conditionAnswerValue: "b|c"`, all other fields equal), and mapping
+ * `null` to `""` before joining also collapsed a real `null` and a real
+ * empty string into the same encoding. Neither field's type nor the
+ * database schema rules either string out.
+ *
+ * A JSON ARRAY has neither problem: array elements serialize by POSITION,
+ * not by key, so `jsonb`'s lack of key-order preservation — which only
+ * ever applies to OBJECTS — never applies here; and `JSON.stringify`
+ * escapes every string element and represents `null` as the literal
+ * `null`, never conflated with `""`, so no two distinct 5-tuples can ever
+ * produce the same array serialization.
  */
 const componentKey = (c: TemplateOption["components"][number]): string =>
-  `${c.canonicalComponentId}|${c.quantity}|${c.conditionAnswerKey ?? ""}|${c.conditionAnswerValue ?? ""}|${c.quantityAnswerKey ?? ""}`;
+  JSON.stringify([c.canonicalComponentId, c.quantity, c.conditionAnswerKey, c.conditionAnswerValue, c.quantityAnswerKey]);
 
 const componentsEqual = (a: TemplateOption["components"], b: TemplateOption["components"]): boolean => {
   const norm = (cs: TemplateOption["components"]) => cs.map(componentKey).sort();
