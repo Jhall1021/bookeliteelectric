@@ -47,39 +47,52 @@ import type { RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV
  * signals the schema already carries -- no new provider-facing field was
  * added for this correction.
  *
- * CONSERVATIVE-EVIDENCE CORRECTION: these two facts are NOT written true
- * merely because a plausible object exists somewhere nearby. "Baseboard
- * object exists on both sides" and "a destination marker was found" are
- * real signals, but on their own they are existence checks, not proof the
- * objects are part of one connected, visible run -- baseboard can appear on
- * both sides of a corner while the actual connecting section is occluded;
- * a destination marker can be visible while the physical link from the
- * corner to it is not established. So this adapter now additionally
- * requires COHERENCE: an explicit segmentObservation for this leg's own
- * segment, at or above CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1
- * confidence, whose objectIds tie the corner together with the specific
- * near/far-side objects being relied on -- the same discipline doorwayGroups
- * already uses (an explicit, structured tie, not co-occurrence). Per fact:
+ * CONSERVATIVE-EVIDENCE CORRECTION: TRANSITION_VISUALLY_CONNECTED and
+ * TRANSITION_CONTINUATION_IN_FRAME are NOT written true merely because a
+ * plausible object exists somewhere nearby. "Baseboard object exists on
+ * both sides" and "a destination marker was found" are real signals, but
+ * on their own they are existence checks, not proof the objects are part
+ * of one connected, visible run -- baseboard can appear on both sides of a
+ * corner while the actual connecting section is occluded; a destination
+ * marker can be visible while the physical link from the corner to it is
+ * not established. So this adapter requires COHERENCE: an explicit
+ * segmentObservation for this leg's own segment, at or above
+ * CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 confidence, whose objectIds tie
+ * the corner together with the specific near/far-side objects being relied
+ * on -- the same discipline doorwayGroups already uses (an explicit,
+ * structured tie, not co-occurrence). Per fact:
  *   - TRUE only when that coherent, confident tie exists.
  *   - FALSE only on strong, direct STRUCTURAL negative evidence that the
- *     schema can actually express as a real absence. Today that exists for
- *     TRANSITION_VISUALLY_CONNECTED (no baseboard/trim object found
- *     anywhere on one side at all -- a genuinely checkable absence). It
- *     does NOT exist for TRANSITION_CONTINUATION_IN_FRAME: "no
- *     DESTINATION_MARKER object was matched" is not proof the route leaves
- *     the visible scene, only that this adapter didn't find one -- a model
- *     miss, ambiguous evidence, or insufficient recognition would look
- *     identical. Since false deterministically forces SWEEP_REQUIRED
- *     (captureEscalation.ts), writing it on absence-of-evidence over-
- *     escalates a usable photo. This adapter therefore never writes false
- *     for TRANSITION_CONTINUATION_IN_FRAME; it will if a future perception
- *     schema adds a real off-frame/structural signal for it.
- *   - Otherwise UNWRITTEN (OPEN): objects exist (or a match is simply
- *     missing), but nothing PROVES a confident claim either way. Ambiguous,
- *     and left that way rather than promoted to true or manufactured as
- *     false -- evaluateRouteAssistPhotoEscalationV1 then correctly asks for
- *     a targeted photo instead of proceeding on a heuristic or escalating
- *     to a sweep it hasn't earned.
+ *     schema can actually express as a real absence. As of this pass,
+ *     NEITHER transition fact has such a signal: a missing baseboard
+ *     detection on one side (TRANSITION_VISUALLY_CONNECTED) can be a
+ *     provider miss, crop/occlusion, a route segment that legitimately
+ *     doesn't use baseboard there, or a connection supported by other
+ *     geometry -- it does not prove the transition is disconnected, the
+ *     same way "no DESTINATION_MARKER object was matched"
+ *     (TRANSITION_CONTINUATION_IN_FRAME, corrected in an earlier pass)
+ *     does not prove the route leaves the visible scene. Since false
+ *     deterministically forces an escalation (TARGETED_PHOTO_REQUIRED or
+ *     SWEEP_REQUIRED -- captureEscalation.ts), writing it on absence-of-
+ *     evidence over-escalates a usable photo. This adapter therefore never
+ *     writes false for either transition fact today; it will again if a
+ *     future perception schema adds a real structural negative signal for
+ *     one of them.
+ *   - Otherwise UNWRITTEN (OPEN): objects exist (or are simply missing),
+ *     but nothing PROVES a confident claim either way. Ambiguous, and left
+ *     that way rather than promoted to true or manufactured as false --
+ *     evaluateRouteAssistPhotoEscalationV1 then correctly asks for a
+ *     targeted photo instead of proceeding on a heuristic or escalating to
+ *     a sweep it hasn't earned.
+ *
+ * DOORWAY_PRESENCE follows the exact same principle: a photo with no
+ * DOORWAY object found is not proof no doorway exists -- a model miss,
+ * framing, or occlusion looks identical to a genuinely doorway-free wall.
+ * This adapter writes DOORWAY_PRESENCE=true only when a DOORWAY object is
+ * actually found; otherwise it leaves the fact OPEN rather than writing
+ * false. A future provider-supported explicit negative signal (e.g.
+ * NO_DOORWAY_PRESENT) could justify writing false; today's schema has no
+ * such signal.
  */
 const CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 = 0.75;
 const ROUTE_ASSIST_LIVE_PHOTO_FACT_TYPES_V1: ReadonlySet<RouteAssistFactTypeV1> = new Set([
@@ -192,16 +205,26 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
       requiredObjectIds.every((id) => observation.objectIds.includes(id)),
     );
 
-    if (nearBaseboard.length === 0 || farBaseboard.length === 0) {
-      // Strong negative: no baseboard/trim object found anywhere on at
-      // least one side. A real, checkable absence, not ambiguity.
-      write("TRANSITION_VISUALLY_CONNECTED", cornerScopeId, { kind: "BOOLEAN", value: false }, [cornerObject.imageId]);
-    } else if (coherentSegment([cornerObject.id, nearBaseboard[0].id, farBaseboard[0].id])) {
+    // CORRECTION: a missing baseboard detection on one side used to be
+    // written as a strong negative (false), on the theory that "no
+    // baseboard/trim object found on that side at all" proves the
+    // transition is visually disconnected. It doesn't -- a miss can
+    // equally be a provider miss, crop/occlusion, a route segment that
+    // legitimately doesn't run along baseboard there, or a connection
+    // supported by other geometry entirely. The perception schema has no
+    // distinct signal that actually proves the adjoining route is
+    // disconnected/occluded, so this adapter no longer manufactures false
+    // for this fact at all -- only the positive coherent-evidence case
+    // below is confident enough to write anything but leave it open.
+    const nearBaseboardId = nearBaseboard[0]?.id;
+    const farBaseboardId = farBaseboard[0]?.id;
+    if (nearBaseboardId && farBaseboardId && coherentSegment([cornerObject.id, nearBaseboardId, farBaseboardId])) {
       write("TRANSITION_VISUALLY_CONNECTED", cornerScopeId, { kind: "BOOLEAN", value: true }, [cornerObject.imageId, nearBaseboard[0].imageId, farBaseboard[0].imageId]);
     }
-    // else: baseboard exists on both sides, but nothing ties the corner and
-    // both sides together as one confident, coherent observation --
-    // ambiguous. Left unwritten (OPEN) rather than promoted to true.
+    // else: baseboard is missing on a side, or exists on both sides but
+    // nothing ties the corner and both sides together as one confident,
+    // coherent observation -- ambiguous either way. Left unwritten (OPEN)
+    // rather than promoted to true or demoted to false.
 
     // CORRECTION: a missing destinationMatch used to be written as a strong
     // negative (false) on the theory that "no destination object found at
@@ -260,9 +283,20 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
     // Casing/entry-side facts stay unwritten -- OPEN/missing, not a guess --
     // which is exactly what drives evaluateRouteAssistPhotoEscalationV1 to
     // TARGETED_PHOTO_REQUIRED rather than this adapter deciding that itself.
-  } else {
-    write("DOORWAY_PRESENCE", doorwayScopeId, { kind: "BOOLEAN", value: false }, [args.imageId]);
   }
+  // CORRECTION: no DOORWAY object being found used to be written as a
+  // strong negative (false) on the theory that the provider having nothing
+  // to report proves no doorway exists. It doesn't -- a model miss,
+  // framing, or occlusion looks identical to a genuinely doorway-free
+  // wall, and this adapter has no way to tell them apart from absence
+  // alone. DOORWAY_PRESENCE is therefore left unwritten (OPEN) whenever no
+  // DOORWAY object is found, exactly like every other absence-based
+  // inference this correction pass removes -- evaluateRouteAssistPhoto
+  // EscalationV1 already treats an open DOORWAY_PRESENCE the same as a
+  // missing one, asking for a targeted photo rather than concluding either
+  // way on no evidence. A future explicit provider-supported negative
+  // signal (e.g. NO_DOORWAY_PRESENT) could justify writing false; today's
+  // schema has no such signal.
 
   const sourceMatch = args.semantics.objects.find((object) => object.kind === "SOURCE_RECEPTACLE" && object.pointId === args.sourcePointId);
   if (sourceMatch) write("ANCHOR_OBJECT_MATCH", args.sourcePointId, { kind: "ANCHOR_MATCH", objectId: sourceMatch.id, imageId: sourceMatch.imageId, matchesPlacement: true }, [sourceMatch.imageId]);

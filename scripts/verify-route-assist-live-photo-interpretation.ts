@@ -222,6 +222,21 @@ async function main() {
     assert.equal(corner.value.kind === "BOOLEAN" && corner.value.value, false);
   });
 
+  await check("6b. CORRECTION: no DOORWAY object found anywhere in frame leaves DOORWAY_PRESENCE unwritten (OPEN), not FALSE -- absence is not proof no doorway exists", async () => {
+    const doorwayFree = completeSimpleDoorwaySemantics();
+    doorwayFree.objects = doorwayFree.objects.filter((object) => !["DOORWAY", "DOOR_SIDE_CASING", "DOOR_TOP_CASING"].includes(object.kind));
+    doorwayFree.segmentObservations = [];
+    doorwayFree.doorwayGroups = [];
+    const run = await runPipeline(doorwayFree);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`DOORWAY_PRESENCE:${DOORWAY_1}`], undefined, "a photo with no DOORWAY object found must leave DOORWAY_PRESENCE OPEN, not write false");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED", "an unconfirmed doorway asks for a targeted photo rather than either concluding sufficiency or a sweep");
+    assert.ok(escalation.missingFactTypes.includes("DOORWAY_PRESENCE"));
+  });
+
   // --- 7: doorway casing facts use the correct doorway instance scope -------
 
   await check("7. doorway casing facts are written at the doorway INSTANCE scope, not the bare leg scope", async () => {
@@ -251,8 +266,27 @@ async function main() {
   // --- 9a/9b/9c/9d: PRODUCT CORRECTION -- a visible transition is not itself
   // an escalation, and positive transition facts require coherent evidence.
 
-  await check("9a. a visible corner + both adjoining surfaces, tied together by one coherent, confident segment observation, + a confirmed destination reaches PHOTO_SUFFICIENT", async () => {
-    const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+  await check("9a. a visible corner + both adjoining surfaces, tied together by one coherent, confident segment observation, + a confirmed destination + a fully resolved doorway reaches PHOTO_SUFFICIENT (the real doorway/around-corner shape this correction pass targets)", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+    // CORRECTION: DOORWAY_PRESENCE can now only ever be written true or left
+    // OPEN (never a manufactured false -- see livePhotoFactAdapter.ts), so a
+    // leg can no longer reach PHOTO_SUFFICIENT by relying on "no doorway
+    // object found" to confirm doorway absence. This fixture adds a real,
+    // fully-resolved doorway alongside the corner evidence -- exactly the
+    // combined doorway/around-corner shape the real phone evidence for this
+    // correction described -- to prove the combined case still reaches
+    // PHOTO_SUFFICIENT when every fact is genuinely, coherently established.
+    const semantics: RouteAssistVisibleSceneSemanticsV1 = {
+      ...cornerBase,
+      objects: [
+        ...cornerBase.objects,
+        { id: "door", kind: "DOORWAY", imageId: IMAGE, confidence: 0.94, box: box(0.72, 0.12) },
+        { id: "left", kind: "DOOR_SIDE_CASING", imageId: IMAGE, confidence: 0.93, box: box(0.71) },
+        { id: "top", kind: "DOOR_TOP_CASING", imageId: IMAGE, confidence: 0.93, box: box(0.72) },
+        { id: "right", kind: "DOOR_SIDE_CASING", imageId: IMAGE, confidence: 0.93, box: box(0.82) },
+      ],
+      doorwayGroups: [{ id: "dg-9a", doorwayObjectId: "door", leftCasingObjectId: "left", topCasingObjectId: "top", rightCasingObjectId: "right", entrySide: "LEFT" }],
+    };
     const run = await runPipeline(semantics);
     assert.ok(run.semantics, JSON.stringify(run.problems));
     const store = anchorsPlaced();
@@ -280,17 +314,24 @@ async function main() {
     assert.ok(escalation.missingFactTypes.includes("TRANSITION_CONTINUATION_IN_FRAME"));
   });
 
-  await check("9c. a corner with baseboard on only ONE side (a real, checkable absence on the other) is confidently written FALSE, yielding TARGETED_PHOTO_REQUIRED, not SWEEP_REQUIRED", async () => {
+  await check("9c. CORRECTION: a corner with baseboard on only ONE side leaves TRANSITION_VISUALLY_CONNECTED unwritten (OPEN), not FALSE -- a missing baseboard detection on one side can be a provider miss, occlusion, or a route that legitimately doesn't use baseboard there, not proof of disconnection", async () => {
+    // Both nearBaseboardId and farBaseboard being present is now required
+    // even to consider writing anything for this fact -- a missing side no
+    // longer manufactures false the way it used to (see
+    // livePhotoFactAdapter.ts's CORRECTION comment on TRANSITION_VISUALLY_
+    // CONNECTED). The evaluator still reaches TARGETED_PHOTO_REQUIRED here,
+    // exactly the same terminal outcome as before this correction -- what
+    // changed is that the FACT ITSELF is now honestly left open instead of
+    // a fabricated false.
     const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: false, includeDestinationMarker: true, coherentSegment: false });
     const run = await runPipeline(semantics);
     assert.ok(run.semantics);
     const store = anchorsPlaced();
     const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
-    const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
-    assert.equal(connected.value.kind === "BOOLEAN" && connected.value.value, false);
+    assert.equal(application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`], undefined, "a missing baseboard detection on one side must leave the fact OPEN, not write false");
     const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
-    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
-    assert.deepEqual(escalation.missingFactTypes, ["TRANSITION_VISUALLY_CONNECTED"]);
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED", "still asks for a targeted photo, not SWEEP_REQUIRED");
+    assert.ok(escalation.missingFactTypes.includes("TRANSITION_VISUALLY_CONNECTED"));
   });
 
   await check("9d. CORRECTION: a corner where the provider cannot independently match a DESTINATION_MARKER leaves TRANSITION_CONTINUATION_IN_FRAME unwritten (OPEN), not FALSE -- a missed match is not proof the route leaves the frame, so it must not force a sweep", async () => {
@@ -315,22 +356,18 @@ async function main() {
     assert.ok(escalation.missingFactTypes.includes("TRANSITION_CONTINUATION_IN_FRAME"));
   });
 
-  await check("9e. even when baseboard is visible on only the NEAR side (a real, checkable absence still fires TRANSITION_VISUALLY_CONNECTED=false), a merely-unmatched destination on the far side does not additionally get written false -- the two facts fail independently on their own evidence", async () => {
+  await check("9e. baseboard visible on only the NEAR side AND a merely-unmatched destination on the far side: both transition facts independently stay OPEN, neither manufactured as false, and the evaluator names both", async () => {
     const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: false, includeDestinationMarker: false, coherentSegment: false });
     const run = await runPipeline(semantics);
     assert.ok(run.semantics);
     const store = anchorsPlaced();
     const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
-    const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
-    assert.equal(connected.value.kind === "BOOLEAN" && connected.value.value, false);
+    assert.equal(application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`], undefined, "missing far-side baseboard must leave this OPEN, not false");
     assert.equal(application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`], undefined);
     const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
     assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
-    // The evaluator short-circuits on visuallyConnected=false before ever
-    // consulting continuation (captureEscalation.ts), so only the fact with
-    // real negative evidence is named here -- confirming the corrected
-    // adapter didn't smuggle a false continuation write in alongside it.
-    assert.deepEqual(escalation.missingFactTypes, ["TRANSITION_VISUALLY_CONNECTED"]);
+    assert.ok(escalation.missingFactTypes.includes("TRANSITION_VISUALLY_CONNECTED"));
+    assert.ok(escalation.missingFactTypes.includes("TRANSITION_CONTINUATION_IN_FRAME"));
   });
 
   // --- 10a/10b/10c: doorway entry side reachability -------------------------
