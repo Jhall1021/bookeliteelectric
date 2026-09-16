@@ -16,13 +16,26 @@
  *
  * THE ONE PLACE THIS WRITE HAPPENS
  *
- * `authorContractorDisclaimer` is atomic and does both halves in one
- * transaction — the `ContractorDisclaimer` row and every applicable
- * `AnswerOptionDisclaimer` link — for the same reason
- * `declarePolicyMaterialQuantity` is atomic: a fault between "wording saved"
- * and "wording attached" must not leave a contractor's homeowner-facing
- * catalog in a state where the text exists but is not actually attached
- * anywhere.
+ * `authorContractorDisclaimer` is atomic and does all three in one
+ * transaction — the `ContractorDisclaimer` row, every applicable
+ * `AnswerOptionDisclaimer` link, and clearing the concept's key from every
+ * `Service.unresolvedDisclaimerKeys` it was blocking — for the same reason
+ * `declarePolicyMaterialQuantity` is atomic: a fault partway through must not
+ * leave a contractor's homeowner-facing catalog in a state where the text
+ * exists but is not actually attached, or attached but still reported as
+ * blocking activation.
+ *
+ * REUSES TEMPLATE RESOLUTION, DOES NOT REIMPLEMENT IT
+ *
+ * `currentDisclaimerRequirements` below calls `templateVersionSource` (the
+ * same snapshot+delta fold `installCatalog` and Guided Setup already use)
+ * rather than querying every `TemplateAnswerOptionDisclaimer` row that has
+ * ever existed for a matching service key. An earlier version did the
+ * latter, and it meant a disclaimer requirement retired by a later template
+ * DELTA — no longer part of the CURRENT catalog for this trade — could still
+ * surface as "pending" for a contractor whose live rows never carried it,
+ * because the query never asked which version was current, only whether a
+ * key ever matched.
  *
  * NEVER Elite's words. `CanonicalDisclaimer.description` is the neutral
  * concept explanation a contractor authors against — see its own schema
@@ -33,6 +46,7 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { platformDb } from "./tenantRoute";
+import { templateVersionSource } from "./templateProvisioning";
 
 export type PendingDisclaimer = {
   key: string;
@@ -49,6 +63,62 @@ export type PendingDisclaimer = {
   offeredDependentSlugs: string[];
 };
 
+type DisclaimerRequirement = {
+  canonicalDisclaimerId: string;
+  serviceKey: string;
+  questionKey: string;
+  optionValue: string;
+};
+
+/**
+ * Every disclaimer requirement the CURRENT catalog actually states, across
+ * every trade this contractor is enrolled in.
+ *
+ * `templateVersionSource(trade).load()` already folds the latest SNAPSHOT
+ * with every later DELTA the same way `installCatalog` does — this reuses
+ * that fold instead of a bespoke "any TemplateService with this key, any
+ * version, ever" query, which is what let a retired attachment leak into
+ * today's requirements (see this file's own header).
+ */
+async function currentDisclaimerRequirements(
+  db: PrismaClient,
+  contractorId: string
+): Promise<DisclaimerRequirement[]> {
+  const trades = await db.contractorTrade.findMany({
+    where: { contractorId },
+    select: { tradeKey: true },
+  });
+
+  const requirements: DisclaimerRequirement[] = [];
+  for (const { tradeKey } of trades) {
+    let catalog: Awaited<ReturnType<ReturnType<typeof templateVersionSource>["load"]>>;
+    try {
+      catalog = await templateVersionSource(db, tradeKey).load();
+    } catch {
+      continue; // no published catalog for this trade — nothing to require
+    }
+    for (const raw of catalog.services) {
+      const s = raw as unknown as { key: string; questions: unknown[] };
+      for (const rawQ of s.questions ?? []) {
+        const q = rawQ as unknown as { key: string; options: unknown[] };
+        for (const rawO of q.options ?? []) {
+          const o = rawO as unknown as {
+            value: string;
+            disclaimers: { canonicalDisclaimerId: string }[];
+          };
+          for (const d of o.disclaimers ?? []) {
+            requirements.push({
+              canonicalDisclaimerId: d.canonicalDisclaimerId,
+              serviceKey: s.key, questionKey: q.key, optionValue: o.value,
+            });
+          }
+        }
+      }
+    }
+  }
+  return requirements;
+}
+
 /**
  * Every canonical disclaimer concept this contractor's OWN installed catalog
  * actually reaches, authored or not — "a contractor returning to setup must
@@ -63,26 +133,27 @@ export async function pendingContractorDisclaimers(
     where: { contractorId, templateKey: { not: null } },
     select: { slug: true, offered: true, templateKey: true },
   });
-  const templateServiceKeys = services.map((s) => s.templateKey).filter((k): k is string => k !== null);
-  if (templateServiceKeys.length === 0) return [];
+  const templateServiceKeys = new Set(
+    services.map((s) => s.templateKey).filter((k): k is string => k !== null)
+  );
+  if (templateServiceKeys.size === 0) return [];
 
-  const links = await db.templateAnswerOptionDisclaimer.findMany({
-    where: { templateAnswerOption: { templateQuestion: { templateService: { key: { in: templateServiceKeys } } } } },
-    select: {
-      canonicalDisclaimer: { select: { id: true, key: true, name: true, description: true, accessClass: true } },
-      templateAnswerOption: {
-        select: {
-          templateQuestion: { select: { templateService: { select: { key: true } } } },
-        },
-      },
-    },
+  const requirements = (await currentDisclaimerRequirements(db, contractorId))
+    .filter((r) => templateServiceKeys.has(r.serviceKey));
+  if (requirements.length === 0) return [];
+
+  const canonicals = await db.canonicalDisclaimer.findMany({
+    where: { id: { in: [...new Set(requirements.map((r) => r.canonicalDisclaimerId))] } },
+    select: { id: true, key: true, name: true, description: true, accessClass: true },
   });
+  const canonicalById = new Map(canonicals.map((c) => [c.id, c]));
 
   const byKey = new Map<string, { name: string; description: string | null; accessClass: string | null; serviceKeys: Set<string> }>();
-  for (const l of links) {
-    const c = l.canonicalDisclaimer;
+  for (const r of requirements) {
+    const c = canonicalById.get(r.canonicalDisclaimerId);
+    if (!c) continue; // referenced canonical row no longer exists — nothing to author against
     const entry = byKey.get(c.key) ?? { name: c.name, description: c.description, accessClass: c.accessClass, serviceKeys: new Set<string>() };
-    entry.serviceKeys.add(l.templateAnswerOption.templateQuestion.templateService.key);
+    entry.serviceKeys.add(r.serviceKey);
     byKey.set(c.key, entry);
   }
   if (byKey.size === 0) return [];
@@ -115,8 +186,10 @@ export type AuthorDisclaimerResult =
 /**
  * Save a contractor's own wording for one canonical disclaimer concept, and
  * attach it — atomically — to every one of THIS contractor's own answer
- * options the template says needs it. Never reinstalls the catalog; never
- * touches a row belonging to another contractor.
+ * options the CURRENT template says needs it, clearing it from every
+ * service's `unresolvedDisclaimerKeys` in the same transaction. Never
+ * reinstalls the catalog; never touches a row belonging to another
+ * contractor.
  *
  * Idempotent and safe to call again later to REVISE the wording: existing
  * attachments are left alone (the join is keyed by role, not re-created),
@@ -139,8 +212,8 @@ export async function authorContractorDisclaimer(
     return { ok: false, code: "UNKNOWN_DISCLAIMER", message: `No disclaimer concept "${canonicalDisclaimerKey}".` };
   }
 
-  // Every TEMPLATE row that needs this concept, resolved down to THIS
-  // contractor's own installed rows only — the same structural mapping
+  // Every CURRENT template row that needs this concept, resolved down to
+  // THIS contractor's own installed rows only — the same structural mapping
   // installCatalog itself uses (Service/Question/AnswerOption.templateKey),
   // never a foreign row.
   //
@@ -148,25 +221,15 @@ export async function authorContractorDisclaimer(
   // (lib/tenantWrites.ts): AnswerOption is a derived-owned model three hops
   // from its contractorId, so a guarded find is what proves each id belongs
   // to the active contractor before it is ever used as a write target.
-  const links = await db.templateAnswerOptionDisclaimer.findMany({
-    where: { canonicalDisclaimerId: canonical.id },
-    select: {
-      templateAnswerOption: {
-        select: {
-          value: true,
-          templateQuestion: { select: { key: true, templateService: { select: { key: true } } } },
-        },
-      },
-    },
-  });
+  const requirements = (await currentDisclaimerRequirements(db, contractorId))
+    .filter((r) => r.canonicalDisclaimerId === canonical.id);
 
   const provenAnswerOptionIds: string[] = [];
-  for (const link of links) {
-    const opt = link.templateAnswerOption;
+  for (const r of requirements) {
     const answerOption = await db.answerOption.findFirst({
       where: {
-        value: opt.value,
-        question: { templateKey: opt.templateQuestion.key, service: { contractorId, templateKey: opt.templateQuestion.templateService.key } },
+        value: r.optionValue,
+        question: { templateKey: r.questionKey, service: { contractorId, templateKey: r.serviceKey } },
       },
       select: { id: true },
     });
@@ -176,10 +239,10 @@ export async function authorContractorDisclaimer(
   // The actual write. AnswerOptionDisclaimer has no contractorId to stamp —
   // the guard throws DerivedCreateError on a direct create for exactly that
   // reason — so this runs on the UNGUARDED client, safe only because every
-  // id above was just proven through the guarded one. Both halves (the
-  // wording and every attachment) commit in one transaction: a fault between
-  // "wording saved" and "wording attached" must not leave the text existing
-  // but unattached anywhere.
+  // id above was just proven through the guarded one. All three parts —
+  // the wording, every attachment, and clearing the readiness block — commit
+  // in one transaction: a fault partway through must not leave the text
+  // existing but unattached, or attached but still reported as blocking.
   const attached = await platformDb.$transaction(async (tx) => {
     const cd = await tx.contractorDisclaimer.upsert({
       where: { contractorId_canonicalDisclaimerId: { contractorId, canonicalDisclaimerId: canonical.id } },
@@ -197,8 +260,32 @@ export async function authorContractorDisclaimer(
       });
       count++;
     }
+
+    await clearDisclaimerKeyFromServices(tx as unknown as PrismaClient, contractorId, canonicalDisclaimerKey);
+
     return count;
   });
 
   return { ok: true, key: canonicalDisclaimerKey, attached };
+}
+
+/**
+ * Drop the key from every service that was waiting on it — same shape as
+ * lib/policyResolution.ts's clearKeyFromServices, for the same reason:
+ * unresolvedDisclaimerKeys is a list on the service rather than a join, so
+ * clearing is a read-modify-write, scoped to this contractor's services, and
+ * only ever removes the one key a service waiting on two concepts still
+ * needs the other.
+ */
+async function clearDisclaimerKeyFromServices(db: PrismaClient, contractorId: string, key: string) {
+  const affected = await db.service.findMany({
+    where: { contractorId, unresolvedDisclaimerKeys: { has: key } },
+    select: { id: true, unresolvedDisclaimerKeys: true },
+  });
+  for (const s of affected) {
+    await db.service.update({
+      where: { id: s.id },
+      data: { unresolvedDisclaimerKeys: s.unresolvedDisclaimerKeys.filter((k) => k !== key) },
+    });
+  }
 }

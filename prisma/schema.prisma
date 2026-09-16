@@ -2314,6 +2314,19 @@ model Service {
   /// Defaults empty so every existing Elite service is unaffected.
   unresolvedPolicyKeys String[]
 
+  /// Canonical disclaimer keys a homeowner-reachable answer on this service
+  /// needs that the contractor has not authored yet — same contract as
+  /// unresolvedPolicyKeys: set once at installCatalog from the template's own
+  /// TemplateAnswerOptionDisclaimer links, cleared one key at a time when
+  /// lib/disclaimerAuthoring.ts's authorContractorDisclaimer saves that
+  /// concept's wording. Non-empty blocks activation (lib/serviceActivation.ts)
+  /// because the storefront would otherwise show nothing where a required
+  /// disclosure belongs — not a missing label pattern, but a missing sentence
+  /// entirely.
+  ///
+  /// Defaults empty so every existing Elite service is unaffected.
+  unresolvedDisclaimerKeys String[]
+
   /// ADR-018 — TIME_AND_MATERIALS estimate bounds, in CREW-HOURS.
   ///
   /// Contractor calibration, not canonical trade knowledge. How long a job
@@ -4372,6 +4385,21 @@ model TemplateAnswerOption {
   numberAtMost  Int?
   /// An explicit open lower edge: e.g. over 20 through 300, including 20.5.
   numberAtLeastExclusive Boolean @default(false)
+
+  /// What this answer means for wiring access, if it's an access answer —
+  /// see AnswerOption.accessClassification, which this mirrors.
+  ///
+  /// Missing here until 17 Sep 2026: extraction never copied the live
+  /// column, installCatalog had nothing to read, and a fresh contractor's
+  /// FINISHED/ACCESSIBLE branches never actually diverged — every one of
+  /// them installed with `accessClassification: null`, silently. Elite's own
+  /// live catalog was correct only because a one-time backfill script
+  /// (prisma/seed-access-normalization.ts) was run against it by hand, once,
+  /// and never as part of provisioning.
+  accessClassification AccessClassification?
+
+  /// WHERE this access classification applies — see AnswerOption.accessSlot.
+  accessSlot String @default("PRIMARY")
 
   @@unique([templateQuestionId, value])
   @@map("template_answer_options")

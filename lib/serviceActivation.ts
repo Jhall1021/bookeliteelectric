@@ -22,12 +22,13 @@ import { pilotRefusalMessage } from "./electrical/pilotRefusal";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
-      | "POLICY_UNRESOLVED" | "DEPENDENCY_UNAVAILABLE"
+      | "POLICY_UNRESOLVED" | "DISCLAIMER_UNRESOLVED" | "DEPENDENCY_UNAVAILABLE"
       | "DERIVED_PRICING_NOT_APPROVED"
       | "PILOT_STRATEGY_NOT_SUPPORTED" | "PILOT_STRATEGY_UNKNOWN";
   message: string;
   unresolvedMaterialKeys?: string[];
   unresolvedPolicyKeys?: string[];
+  unresolvedDisclaimerKeys?: string[];
   /** Slugs the contractor must launch first, when the refusal is a dependency. */
   missingPrerequisites?: string[];
   /**
@@ -64,6 +65,7 @@ export async function activationRefusal(
       id: true, slug: true, active: true, bookingType: true,
       publishedPriceApprovedAt: true, materialCostResolved: true,
       unresolvedMaterialKeys: true, unresolvedPolicyKeys: true,
+      unresolvedDisclaimerKeys: true,
       pricingMethod: true,
     },
   });
@@ -204,6 +206,29 @@ export async function activationRefusal(
         `answers are written from ${policies.join(", ")}, and that hasn't been decided. ` +
         `Until it is, the choices would read as "{b1} feet or less".`,
       unresolvedPolicyKeys: policies,
+    };
+  }
+
+  // A MISSING SENTENCE, not a missing number.
+  //
+  // Same class of gap as the label-pattern check above, one step worse: a
+  // band policy leaves a placeholder a homeowner can still read as text.
+  // installCatalog skips a required AnswerOptionDisclaimer link entirely
+  // until the contractor authors their own ContractorDisclaimer (ADR-009),
+  // so an unresolved one is a disclosure that reads as nothing at all —
+  // silence where the homeowner needed to be told what applies. Set once at
+  // install (lib/templateProvisioning.ts) from the template's own
+  // TemplateAnswerOptionDisclaimer links, and cleared one key at a time by
+  // lib/disclaimerAuthoring.ts's authorContractorDisclaimer.
+  const disclaimers = service.unresolvedDisclaimerKeys ?? [];
+  if (disclaimers.length > 0) {
+    return {
+      code: "DISCLAIMER_UNRESOLVED",
+      message:
+        `This service can't go live yet — an answer a homeowner can reach needs a ` +
+        `disclosure (${disclaimers.join(", ")}) you haven't written yet. Add your own ` +
+        `wording for it in Setup before this can go live.`,
+      unresolvedDisclaimerKeys: disclaimers,
     };
   }
 

@@ -180,12 +180,30 @@ export async function resolvePolicy(
     };
   }
 
-  // Every option whose pattern reads this policy, across every service this
-  // contractor owns. Found by pattern rather than by a stored link, because
-  // the pattern is what actually decides whether a label has a hole in it.
+  // Every option whose pattern reads THIS policy, across every service this
+  // contractor owns.
+  //
+  // Scoped by policyKey, not just by the service's unresolvedPolicyKeys: a
+  // service can carry TWO OR MORE band policies (fan-replacing-light needs
+  // both fixture_work_height.breakpoints and switch_leg_run.breakpoints), and
+  // unresolvedPolicyKeys says only "this SERVICE still owes an answer for
+  // key", not "this OPTION's pattern belongs to key". An earlier version
+  // matched on `labelPattern: { not: null }` plus that service-level flag
+  // alone, on the theory that renderBandLabel's own boundary-count mismatch
+  // would throw and skip anything belonging to a different policy — true
+  // only when the two policies need a DIFFERENT number of boundaries.
+  // fixture_work_height needs 3, switch_leg_run needs 2, and every
+  // fixture_work_height option whose pattern references at most 2 of its 3
+  // boundaries (b1, b1+1..b2) rendered successfully against switch_leg_run's
+  // OWN boundaries instead — resolving switch_leg_run silently overwrote
+  // fixture_height's already-correct labels with the wrong policy's numbers.
+  // AnswerOption.policyKey is the stored link installCatalog already writes;
+  // reading it is what actually decides whether a label belongs to THIS
+  // policy, not a coincidence of how many holes its pattern happens to have.
   const options = await db.answerOption.findMany({
     where: {
       labelPattern: { not: null },
+      policyKey: key,
       question: { service: { contractorId, unresolvedPolicyKeys: { has: key } } },
     },
     select: { id: true, labelPattern: true },

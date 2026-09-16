@@ -165,6 +165,12 @@ async function buildOne(slug: string) {
           value: o.value, routeAction: o.routeAction, order: oi,
           numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
           requiresCapabilityKey: o.requiresCapabilityKey,
+          // What this answer means for wiring access — carried verbatim so a
+          // fresh install's FINISHED/ACCESSIBLE branches actually diverge
+          // instead of installing with accessClassification: null on every
+          // row (the gap prisma/seed-access-normalization.ts's one-time,
+          // Elite-only backfill was covering for).
+          accessClassification: o.accessClassification, accessSlot: o.accessSlot,
           labelPattern: pattern ?? null,
           policyKey: pattern ? band!.policyKey : null,
           // While unresolved the label IS the pattern. Deliberately not
@@ -294,6 +300,7 @@ async function write(tvId: string, e: Extracted, policyIds: Map<string, string>)
           value: o.value, label: o.label!, routeAction: o.routeAction, order: o.order,
           numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
           requiresCapabilityKey: o.requiresCapabilityKey,
+          accessClassification: o.accessClassification, accessSlot: o.accessSlot,
           labelPattern: o.labelPattern,
           templatePolicyDefinitionId: o.policyKey ? policyIds.get(o.policyKey) ?? null : null,
           nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,

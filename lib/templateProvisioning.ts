@@ -302,6 +302,14 @@ export async function installCatalog(
       const t = tx as unknown as PrismaClient;
       let disclaimersToAuthor = 0;
       const unresolvedRoles = new Set<string>();
+      // CanonicalDisclaimer carries no economics and no contractorId — a
+      // platform lookup, read once, to turn each unauthored link's bare
+      // canonicalDisclaimerId into the KEY unresolvedDisclaimerKeys actually
+      // stores (the same shape unresolvedMaterialKeys/unresolvedPolicyKeys
+      // already use: name the decision, not a count).
+      const canonicalDisclaimerKeyById = new Map(
+        (await t.canonicalDisclaimer.findMany({ select: { id: true, key: true } })).map((c) => [c.id, c.key])
+      );
 
       // Unresolved, not zero.
       for (const d of catalog.policies.values()) {
@@ -488,6 +496,9 @@ export async function installCatalog(
             .filter((sp) => LABEL_WRITING_POLICY_TYPES.has(sp.templatePolicyDefinition.type))
             .map((sp) => sp.templatePolicyDefinition.key)
         );
+        // Same contract, for disclaimers: a homeowner-reachable answer on
+        // THIS service needs a concept this contractor has not authored yet.
+        const unresolvedDisclaimers = new Set<string>();
         const qId = new Map<string, string>();
         const questions = s.questions as unknown as Record<string, never>[];
 
@@ -525,6 +536,10 @@ export async function installCatalog(
               /// require drywall restoration is not a claim that this
               /// contractor does it.
               requiresCapabilityKey: string | null;
+              /// What this answer means for wiring access — see
+              /// AnswerOption.accessClassification/accessSlot, which this
+              /// carries forward verbatim.
+              accessClassification: never | null; accessSlot: string | null;
               nextQuestionKey: string | null; rerouteServiceKey: string | null;
               referencedServiceKey: string | null; requiredPhotoLabels: string[];
               photosBlockBooking: boolean; illustrationUrls: string[];
@@ -562,6 +577,7 @@ export async function installCatalog(
                 routeAction: o.routeAction, order: o.order,
                 numberAtLeastExclusive: o.numberAtLeastExclusive ?? false, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
                 requiresCapabilityKey: o.requiresCapabilityKey,
+                accessClassification: o.accessClassification, accessSlot: o.accessSlot ?? "PRIMARY",
                 nextQuestionId: o.nextQuestionKey ? qId.get(o.nextQuestionKey) ?? null : null,
                 rerouteServiceId: target?.id ?? null, referencedServiceId: ref?.id ?? null,
                 requiredPhotoLabels: o.requiredPhotoLabels,
@@ -646,7 +662,12 @@ export async function installCatalog(
                 },
                 select: { id: true },
               });
-              if (!authored) { disclaimersToAuthor++; continue; }
+              if (!authored) {
+                disclaimersToAuthor++;
+                const key = canonicalDisclaimerKeyById.get(d.canonicalDisclaimerId);
+                if (key) unresolvedDisclaimers.add(key);
+                continue;
+              }
               await t.answerOptionDisclaimer.create({
                 data: { answerOptionId: ao.id, contractorDisclaimerId: authored.id },
               });
@@ -660,10 +681,13 @@ export async function installCatalog(
           }
         }
 
-        if (unresolvedPolicies.size) {
+        if (unresolvedPolicies.size || unresolvedDisclaimers.size) {
           await t.service.update({
             where: { id: svc.id },
-            data: { unresolvedPolicyKeys: [...unresolvedPolicies].sort() },
+            data: {
+              unresolvedPolicyKeys: [...unresolvedPolicies].sort(),
+              unresolvedDisclaimerKeys: [...unresolvedDisclaimers].sort(),
+            },
           });
         }
       }
