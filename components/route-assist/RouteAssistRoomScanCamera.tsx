@@ -79,6 +79,34 @@ export default function RouteAssistRoomScanCamera({ sourceLabel, destinationLabe
     return frame;
   }
 
+  /**
+   * Finishing the scan needs a genuinely live frame, not "one more periodic
+   * sample" — those are different requests. appendFrame()'s MAX_SWEEP_FRAMES
+   * cap exists to bound ongoing sampling during SCANNING; it has no business
+   * deciding whether the homeowner's own "I reached the destination" tap gets
+   * a fresh photo. On a normal-paced or careful sweep that runs past the cap
+   * (12 frames x 900ms = ~10.8s, well within what the on-screen copy invites),
+   * appendFrame() silently refuses and finishScan() previously fell back to
+   * whatever frame was captured last — up to ~10.8s stale — as the exact
+   * image the homeowner then taps to place the destination anchor. This
+   * bypasses only the cap, never the underlying capture/contiguity logic: the
+   * frame still gets the next sequential `sequence` number, so
+   * captureHandoff.ts's contiguity check (frame.sequence === index) still
+   * holds for a 13th-or-later frame exactly as it does for the first 12.
+   */
+  async function appendFinalFrame(): Promise<RouteAssistBrowserFrameV1 | null> {
+    const video = videoRef.current;
+    const sequence = sweepFramesRef.current.length;
+    if (!video) return null;
+    const frame = await frameFromVideo(video, sequence);
+    if (!frame) return null;
+    if (sweepFramesRef.current.length !== sequence) { URL.revokeObjectURL(frame.objectUrl); return null; }
+    objectUrlsRef.current.push(frame.objectUrl);
+    sweepFramesRef.current.push(frame);
+    setFrameCount(sweepFramesRef.current.length);
+    return frame;
+  }
+
   async function sampleSweepFrame() {
     if (samplingPromiseRef.current) return samplingPromiseRef.current;
     const run = appendFrame().then(() => undefined).finally(() => { if (samplingPromiseRef.current === run) samplingPromiseRef.current = null; });
@@ -110,7 +138,7 @@ export default function RouteAssistRoomScanCamera({ sourceLabel, destinationLabe
     if (finishingRef.current || !sourceAnchor) return;
     finishingRef.current = true; setFinishing(true); stopSweepTimer();
     if (samplingPromiseRef.current) await samplingPromiseRef.current;
-    const finalFrame = await appendFrame() ?? sweepFramesRef.current[sweepFramesRef.current.length - 1] ?? null;
+    const finalFrame = await appendFinalFrame() ?? sweepFramesRef.current[sweepFramesRef.current.length - 1] ?? null;
     if (!finalFrame) { setCameraError("We couldn’t capture the end of the route. Try the scan again."); finishingRef.current = false; setFinishing(false); return; }
     streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;

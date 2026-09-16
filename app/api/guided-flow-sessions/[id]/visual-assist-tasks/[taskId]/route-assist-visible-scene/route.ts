@@ -7,6 +7,9 @@ import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { loadSession } from "@/lib/guidedFlowSession";
 import { analyzeRouteAssistVisibleSceneWithAiGatewayV1 } from "@/lib/visual-assist/route-assist/aiGatewayVisibleScene";
 import type { RouteAssistHttpVisibleSceneRequestV1 } from "@/lib/visual-assist/route-assist/httpVisibleSceneProvider";
+import { isRouteAssistPreviewAllowedV1 } from "@/lib/visual-assist/route-assist/previewGate";
+import { validateRouteAssistVisibleSceneSemanticsV1, type RouteAssistVisibleSceneSemanticsV1 } from "@/lib/visual-assist/route-assist/visualSceneSemantics";
+import type { RoutePoint, RouteSegment } from "@/lib/visual-assist/route-assist/types";
 
 export type RouteAssistVisibleSceneMediaBindingV1 = {
   imageId: string;
@@ -30,6 +33,53 @@ function requiredImageIds(request: RouteAssistHttpVisibleSceneRequestV1): string
 }
 
 /**
+ * Validate provider output at the boundary that actually matters.
+ *
+ * Both provider paths below previously trusted the raw response and returned
+ * it straight to the browser — the real semantic validator only ran later,
+ * client-side, after the trust boundary had already been crossed. This
+ * reconstructs the minimal RoutePoint/RouteSegment shapes the validator needs
+ * for its point-anchor check from what the request already carries; it does
+ * not fetch or assume anything beyond this one request's body.
+ */
+function validatedSemanticsOrNull(
+  raw: unknown,
+  request: RouteAssistHttpVisibleSceneRequestV1,
+): RouteAssistVisibleSceneSemanticsV1 | null {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as Partial<RouteAssistVisibleSceneSemanticsV1>;
+  if (
+    candidate.version !== 1 ||
+    !Array.isArray(candidate.captureImageIds) ||
+    !Array.isArray(candidate.objects) ||
+    !Array.isArray(candidate.segmentObservations)
+  ) {
+    return null;
+  }
+  const semantics = candidate as RouteAssistVisibleSceneSemanticsV1;
+  const points: RoutePoint[] = request.pointAnchors.map((anchor) => ({
+    id: anchor.pointId,
+    x: anchor.x,
+    y: anchor.y,
+    imageId: anchor.imageId,
+    kind: anchor.kind,
+  }));
+  const segments: RouteSegment[] = request.segments.map((segment) => ({
+    id: segment.segmentId,
+    fromPointId: segment.fromPointId,
+    toPointId: segment.toPointId,
+  }));
+  const problems = validateRouteAssistVisibleSceneSemanticsV1({
+    semantics,
+    expectedCaptureImageIds: request.imageIds,
+    authorizedSupplementalImageIds: request.supplementalCaptureSets.flatMap((set) => set.supplementalImageIds),
+    points,
+    segments,
+  });
+  return problems.length === 0 ? semantics : null;
+}
+
+/**
  * Server-side provider gateway for ordinary-camera Route Assist semantics.
  *
  * The browser supplies opaque imageId -> private mediaRef bindings. This route
@@ -46,6 +96,11 @@ export async function POST(
   req: Request,
   { params }: { params: { id: string; taskId: string } },
 ) {
+  // Route Assist's live camera-to-vision-model path is preview-only today —
+  // see previewGate.ts. Nothing below this line may run against real
+  // customer traffic until that is a deliberate, separate decision.
+  if (!isRouteAssistPreviewAllowedV1()) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   let site;
   try { site = await requireSiteFromRequest(req); }
   catch { return NextResponse.json({ error: "Unknown storefront." }, { status: 404 }); }
@@ -111,7 +166,12 @@ export async function POST(
     const providerUrl = process.env.ROUTE_ASSIST_VISIBLE_SCENE_PROVIDER_URL;
     if (!providerUrl) {
       try {
-        const semantics = await analyzeRouteAssistVisibleSceneWithAiGatewayV1({ request, media: signedMedia });
+        const raw = await analyzeRouteAssistVisibleSceneWithAiGatewayV1({ request, media: signedMedia });
+        const semantics = validatedSemanticsOrNull(raw, request);
+        if (!semantics) {
+          console.error("Route Assist built-in semantic provider returned semantics that failed validation");
+          return NextResponse.json({ error: "Route Assist semantic provider returned invalid data" }, { status: 502 });
+        }
         return NextResponse.json(semantics, { headers: { "Cache-Control": "no-store" } });
       } catch (error) {
         console.error("Route Assist built-in semantic provider failed", error instanceof Error ? error.message : error);
@@ -144,8 +204,9 @@ export async function POST(
       if (!providerResponse.ok) {
         return NextResponse.json({ error: "Route Assist semantic provider failed" }, { status: 502 });
       }
-      const semantics = await providerResponse.json().catch(() => null);
-      if (!semantics || typeof semantics !== "object") {
+      const raw = await providerResponse.json().catch(() => null);
+      const semantics = validatedSemanticsOrNull(raw, request);
+      if (!semantics) {
         return NextResponse.json({ error: "Route Assist semantic provider returned invalid data" }, { status: 502 });
       }
       return NextResponse.json(semantics);

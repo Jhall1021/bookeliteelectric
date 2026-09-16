@@ -43,6 +43,8 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
   handoff: RouteAssistSweepCaptureHandoffV1;
   provider: RouteAssistVisibleSceneProviderV1;
   providerInput: Omit<RouteAssistVisibleSceneProviderInputV1, "captureArtifacts">;
+  /** The last accepted REVIEW_REQUIRED proposal for this scan session, if any — see proposeVisibleTrimHuggingRouteV1's previousProposal for why this matters. */
+  previousProposal?: Pick<RouteAssistVisibleTrimRouteProposalV1, "status" | "trimBoundaries"> | null;
 }): Promise<RouteAssistVisibleSceneReviewPipelineV1> {
   const frames = [...args.handoff.persistedFrames].sort((a, b) => a.sequence - b.sequence);
   if (!frames.length) return failed(args.provider.providerKey, "persisted sweep contains no frames");
@@ -113,6 +115,7 @@ export async function preparePersistedSweepForVisibleSceneReviewV1(args: {
     authorizedSupplementalImageIds: supplements,
     points: args.providerInput.points,
     segments: args.providerInput.segments,
+    previousProposal: args.previousProposal,
   });
   if (proposal.status !== "REVIEW_REQUIRED") {
     return {

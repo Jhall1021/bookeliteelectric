@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { analyzeRouteAssistVisibleSceneWithAiGatewayV1 } from "@/lib/visual-assist/route-assist/aiGatewayVisibleScene";
 import type { RouteAssistHttpVisibleSceneRequestV1 } from "@/lib/visual-assist/route-assist/httpVisibleSceneProvider";
+import { isRouteAssistPreviewAllowedV1 } from "@/lib/visual-assist/route-assist/previewGate";
 
 export const runtime = "nodejs";
 
@@ -9,12 +10,8 @@ type Body = {
   images?: Array<{ imageId?: unknown; dataUrl?: unknown }>;
 };
 
-function isPreviewAllowed(): boolean {
-  return process.env.VERCEL_ENV === "preview" || process.env.NODE_ENV === "development";
-}
-
 export async function POST(req: Request) {
-  if (!isPreviewAllowed()) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!isRouteAssistPreviewAllowedV1()) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => null) as Body | null;
   const request = body?.request;

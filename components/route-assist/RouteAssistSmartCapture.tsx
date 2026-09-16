@@ -116,6 +116,15 @@ export default function RouteAssistSmartCapture({
     nextCorrections?: RouteAssistReviewCorrectionV1[];
     nextSupplements?: SupplementalState[];
     priorOverlay?: RouteAssistVisibleTrimRouteOverlayV1 | null;
+    /**
+     * The last accepted REVIEW_REQUIRED proposal for THIS scan session, so a
+     * correction/recapture round that re-runs the provider from scratch
+     * can't silently contradict an already-accepted doorway conclusion.
+     * Explicitly `null` on a brand-new scan (handleRoomCapture) — a fresh
+     * handoff has no continuity with whatever `review` still held from
+     * before, e.g. a prior scan that was discarded for a full re-sweep.
+     */
+    previousProposal?: RouteAssistVisibleSceneReviewPipelineV1["proposal"] | null;
   } = {}) {
     const activeHandoff = args.nextHandoff ?? handoff;
     const activeGraph = args.nextGraph ?? graph;
@@ -149,6 +158,7 @@ export default function RouteAssistSmartCapture({
         supplementalCaptureSets: activeSupplements.map((supplement) => supplement.persisted.captureSet),
         reviewCorrections: activeCorrections,
       },
+      previousProposal: args.previousProposal ?? null,
     }).catch(() => null);
 
     if (!result) {
@@ -225,7 +235,7 @@ export default function RouteAssistSmartCapture({
     }
     const nextSupplements = [...supplements, { persisted, capturedAt: capture.capturedAt }];
     setSupplements(nextSupplements);
-    await analyze({ nextSupplements, priorOverlay: review?.overlay ?? null });
+    await analyze({ nextSupplements, priorOverlay: review?.overlay ?? null, previousProposal: review?.proposal ?? null });
   }
 
   async function addCorrection(next: { imageId: string; kind: RouteAssistReviewCorrectionKindV1; point: { x: number; y: number } }) {
@@ -249,14 +259,14 @@ export default function RouteAssistSmartCapture({
     }
     setCorrections(proposed);
     setAdjusting(false);
-    await analyze({ nextCorrections: proposed, priorOverlay: review?.overlay ?? null });
+    await analyze({ nextCorrections: proposed, priorOverlay: review?.overlay ?? null, previousProposal: review?.proposal ?? null });
   }
 
   async function undoCorrection() {
     const next = undoLatestRouteAssistReviewCorrectionV1(corrections);
     setCorrections(next);
     setAdjusting(false);
-    await analyze({ nextCorrections: next, priorOverlay: review?.overlay ?? null });
+    await analyze({ nextCorrections: next, priorOverlay: review?.overlay ?? null, previousProposal: review?.proposal ?? null });
   }
 
   function completeManual(result: RouteAssistResult) {

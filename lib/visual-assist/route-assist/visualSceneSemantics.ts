@@ -23,6 +23,28 @@ export type RouteAssistVisibleSceneObjectKindV1 =
   | "WINDOW"
   | "VISIBLE_OBSTACLE";
 
+/**
+ * Closed set for runtime validation, mirroring
+ * ROUTE_ASSIST_VISIBLE_SCENE_QUALITY_ISSUES_V1's pattern below. Without this,
+ * an unrecognized/hallucinated kind value passes validation, then silently
+ * fails every downstream `=== "..."` filter and vanishes rather than failing
+ * closed — a provider defect that looks like a customer-facing "no evidence"
+ * result instead of the schema violation it actually is.
+ */
+export const ROUTE_ASSIST_VISIBLE_SCENE_OBJECT_KINDS_V1 = [
+  "SOURCE_RECEPTACLE",
+  "DESTINATION_MARKER",
+  "BASEBOARD_OR_TRIM",
+  "DOORWAY",
+  "DOOR_SIDE_CASING",
+  "DOOR_TOP_CASING",
+  "WINDOW",
+  "VISIBLE_OBSTACLE",
+] as const satisfies readonly RouteAssistVisibleSceneObjectKindV1[];
+
+/** Closed set for runtime validation of RouteAssistVisibleDoorwayGroupV1.entrySide. */
+export const ROUTE_ASSIST_VISIBLE_DOORWAY_ENTRY_SIDES_V1 = ["LEFT", "RIGHT", "UNRESOLVED"] as const;
+
 export type RouteAssistNormalizedImageBoxV1 = {
   x: number;
   y: number;
@@ -114,6 +136,7 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
   for (const object of semantics.objects) {
     if (!object.id || objectIds.has(object.id)) problems.push(`visible scene object has duplicate or empty id: ${object.id || "<empty>"}`); else objectIds.add(object.id);
     objectById.set(object.id, object);
+    if (!(ROUTE_ASSIST_VISIBLE_SCENE_OBJECT_KINDS_V1 as readonly string[]).includes(object.kind)) problems.push(`visible scene object ${object.id || "<empty>"} has unknown kind: ${String(object.kind)}`);
     if (!authorizedImageIds.has(object.imageId)) problems.push(`visible scene object ${object.id} references unknown image ${object.imageId}`);
     if (!validUnit(object.confidence)) problems.push(`visible scene object ${object.id} has invalid confidence`);
     if (!validBox(object.box)) problems.push(`visible scene object ${object.id} has invalid normalized box`);
@@ -140,6 +163,11 @@ export function validateRouteAssistVisibleSceneSemanticsV1(args: {
     if (top?.kind !== "DOOR_TOP_CASING") problems.push(`doorway group ${group.id} top casing must reference a DOOR_TOP_CASING object`);
     if (right?.kind !== "DOOR_SIDE_CASING") problems.push(`doorway group ${group.id} right casing must reference a DOOR_SIDE_CASING object`);
     if (new Set([group.doorwayObjectId, group.leftCasingObjectId, group.topCasingObjectId, group.rightCasingObjectId]).size !== 4) problems.push(`doorway group ${group.id} must reference four distinct scene objects`);
+    // Fail closed, not fail open: an unrecognized entrySide must never reach
+    // the trim-route proposal, which treats anything not literally "LEFT" as
+    // "RIGHT" — a real physical guess rather than the UNRESOLVED review state
+    // a malformed value should produce.
+    if (!(ROUTE_ASSIST_VISIBLE_DOORWAY_ENTRY_SIDES_V1 as readonly string[]).includes(group.entrySide)) problems.push(`doorway group ${group.id} has unknown entrySide: ${String(group.entrySide)}`);
   }
 
   const qualityIssueCodes = new Set<string>();

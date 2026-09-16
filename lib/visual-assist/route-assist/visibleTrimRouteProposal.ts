@@ -18,6 +18,38 @@ export type RouteAssistVisibleTrimRouteProposalV1 = {
   problems: string[];
 };
 
+/**
+ * Whether this proposal found a doorway on the source->destination route and,
+ * if so, which casing the traversal reaches first — the one durable fact a
+ * later review round must not silently contradict.
+ *
+ * Derived from trimBoundaries rather than object ids on purpose: every field
+ * of proposeVisibleTrimHuggingRouteV1's args comes from a FRESH provider call
+ * each time this function runs (see visibleSceneReviewPipeline.ts), so a
+ * scene object's `id` has no reason to be the same string across two separate
+ * calls even when the physical scene hasn't changed. trimBoundaries is
+ * already the semantic, id-independent summary this function produces, so
+ * comparing on it (rather than inventing a second summary) is the smallest
+ * way to get an id-independent signature.
+ */
+export type RouteAssistDoorwayTopologySignatureV1 = { hasDoorway: boolean; entrySide: "LEFT" | "RIGHT" | null };
+
+export function routeAssistDoorwayTopologySignatureV1(
+  proposal: Pick<RouteAssistVisibleTrimRouteProposalV1, "status" | "trimBoundaries">,
+): RouteAssistDoorwayTopologySignatureV1 {
+  if (proposal.status !== "REVIEW_REQUIRED") return { hasDoorway: false, entrySide: null };
+  if (proposal.trimBoundaries[1] === "DOOR_CASING_LEFT") return { hasDoorway: true, entrySide: "LEFT" };
+  if (proposal.trimBoundaries[1] === "DOOR_CASING_RIGHT") return { hasDoorway: true, entrySide: "RIGHT" };
+  return { hasDoorway: false, entrySide: null };
+}
+
+function doorwayTopologyDriftedV1(
+  previous: RouteAssistDoorwayTopologySignatureV1,
+  next: RouteAssistDoorwayTopologySignatureV1,
+): boolean {
+  return previous.hasDoorway !== next.hasDoorway || previous.entrySide !== next.entrySide;
+}
+
 function byPrimaryCaptureOrder(captureImageIds: string[], objects: RouteAssistVisibleSceneObjectV1[]): RouteAssistVisibleSceneObjectV1[] {
   const order = new Map(captureImageIds.map((id, index) => [id, index]));
   return objects
@@ -43,6 +75,17 @@ export function proposeVisibleTrimHuggingRouteV1(args: {
   authorizedSupplementalImageIds?: readonly string[];
   points: readonly RoutePoint[];
   segments: readonly RouteSegment[];
+  /**
+   * The last REVIEW_REQUIRED proposal accepted for this same scan session, if
+   * any. Every review round re-runs the provider from scratch over all
+   * primary + supplemental evidence (see visibleSceneReviewPipeline.ts), so
+   * nothing otherwise stops an unrelated correction/recapture round from
+   * quietly returning a different doorway conclusion for the exact same
+   * physical doorway. When supplied, a new REVIEW_REQUIRED result whose
+   * doorway topology disagrees with this one fails closed instead of silently
+   * overwriting an already-accepted fact.
+   */
+  previousProposal?: Pick<RouteAssistVisibleTrimRouteProposalV1, "status" | "trimBoundaries"> | null;
 }): RouteAssistVisibleTrimRouteProposalV1 {
   const problems = validateRouteAssistVisibleSceneSemanticsV1(args);
   if (problems.length) return { version: 1, status: "INSUFFICIENT_VISIBLE_EVIDENCE", steps: [], trimBoundaries: [], requiresHomeownerReview: true, problems };
@@ -97,5 +140,22 @@ export function proposeVisibleTrimHuggingRouteV1(args: {
   }
 
   steps.push({ kind: "DESTINATION", objectId: destination.id, imageId: destination.imageId });
-  return { version: 1, status: "REVIEW_REQUIRED", steps, trimBoundaries: boundaries, requiresHomeownerReview: true, problems: [] };
+  const result: RouteAssistVisibleTrimRouteProposalV1 = { version: 1, status: "REVIEW_REQUIRED", steps, trimBoundaries: boundaries, requiresHomeownerReview: true, problems: [] };
+
+  if (args.previousProposal) {
+    const previousSignature = routeAssistDoorwayTopologySignatureV1(args.previousProposal);
+    const nextSignature = routeAssistDoorwayTopologySignatureV1(result);
+    if (doorwayTopologyDriftedV1(previousSignature, nextSignature)) {
+      return {
+        version: 1,
+        status: "INSUFFICIENT_VISIBLE_EVIDENCE",
+        steps: [],
+        trimBoundaries: [],
+        requiresHomeownerReview: true,
+        problems: ["doorway topology from this review does not match a previously accepted conclusion for this scan; this needs homeowner review rather than silently replacing what was already established"],
+      };
+    }
+  }
+
+  return result;
 }
