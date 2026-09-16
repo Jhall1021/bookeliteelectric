@@ -6,13 +6,24 @@
  * sump-pump-dedicated-circuit and freezer-fridge-dedicated-circuit already
  * exist as inactive, tree-less rows — the same "known future work" pattern
  * as the still-dormant electric-fireplace-circuit sibling. This script does
- * NOT create a service from scratch: it refuses, before any write, if either
- * row is missing. Its only job is to activate the two known rows and give
- * each exactly one question with exactly one answer ("the tiny alias
- * question and one customer click" — approved shape, mirroring the live
+ * NOT create a service from scratch: it refuses if either row is missing.
+ * Its only job is to activate the two known rows and give each exactly one
+ * question with exactly one answer ("the tiny alias question and one
+ * customer click" — approved shape, mirroring the live
  * dishwasher-electrical -> dedicated-120v-circuit-outlet precedent) whose
  * REROUTE_SERVICE branch sends the customer into the existing canonical
  * dedicated-120v-circuit-outlet tree.
+ *
+ * TWO PHASES: PREFLIGHT BOTH, THEN WRITE BOTH ATOMICALLY.
+ *
+ * Every check for BOTH aliases — the row exists, its category matches the
+ * canonical service's — runs to completion before either alias is written.
+ * Interleaving validate-then-write per alias meant a problem with the SECOND
+ * alias was discovered only after the FIRST had already been modified, which
+ * is a partial write wearing a clean refusal's clothes. The two writes
+ * themselves then run inside one `prisma.$transaction`, so a failure on
+ * either one rolls both back — there is no state where one alias is adopted
+ * and the other is not.
  *
  * THE PRESET FACT IS CARRIED BY VOCABULARY, NOT BY A NEW MECHANISM.
  *
@@ -138,12 +149,25 @@ async function main() {
     throw new Error("refusing: canonical service has no basePrice to mirror");
   }
 
+  // ── PHASE 1: PREFLIGHT, BOTH ALIASES, NO WRITES YET ─────────────────────
+  //
+  // Load and validate EVERY alias before touching either one. Interleaving
+  // validate-then-write per alias meant a missing or mismatched SECOND alias
+  // was discovered only after the FIRST had already been modified — a
+  // partial adoption disguised as a clean refusal. Collecting every load
+  // into `loaded` first, and throwing out of this loop before phase 2 ever
+  // starts, means either alias failing preflight guarantees NEITHER alias
+  // has been written.
+  type Loaded = {
+    alias: AliasSpec;
+    existing: { id: string; questions: { id: string }[] };
+  };
+  const loaded: Loaded[] = [];
   for (const alias of ALIASES) {
     const existing = await prisma.service.findFirst({
       where: { contractorId: contractor.id, slug: alias.slug },
       select: {
-        id: true, active: true, offered: true, basePrice: true,
-        categoryId: true, contractorCategoryId: true,
+        id: true, categoryId: true, contractorCategoryId: true,
         questions: { select: { id: true } },
       },
     });
@@ -152,49 +176,64 @@ async function main() {
     // already-known pre-seeded row; it is not a general "make this alias
     // exist somehow" tool. A missing row means the seed data this script was
     // written against has changed — that is a decision for a person, not
-    // something to paper over by inventing a fresh Service here. Fail closed,
-    // before any write, naming exactly what is missing.
+    // something to paper over by inventing a fresh Service here.
     if (!existing) {
       throw new Error(
         `refusing: no pre-seeded Service row found for slug "${alias.slug}" on contractor "${CONTRACTOR_SLUG}". ` +
           `This script only adopts the existing dormant placeholder row (same pattern as electric-fireplace-circuit) ` +
-          `— it does not create one from scratch. Nothing was written.`
+          `— it does not create one from scratch. This is phase 1 (preflight): nothing has been written for ` +
+          `either alias yet.`
+      );
+    }
+    if (existing.categoryId !== canonical.categoryId || existing.contractorCategoryId !== canonical.contractorCategoryId) {
+      throw new Error(
+        `refusing: ${alias.slug}'s existing category does not match the canonical service's category. ` +
+          `This is phase 1 (preflight): nothing has been written for either alias yet.`
       );
     }
 
-    // ADOPT the pre-seeded dormant row (same placeholder pattern as
-    // electric-fireplace-circuit) rather than creating a duplicate.
-    // Everything else already on the row — name, shortDescription,
-    // category — is left exactly as it was.
-    if (existing.categoryId !== canonical.categoryId || existing.contractorCategoryId !== canonical.contractorCategoryId) {
-      throw new Error(`refusing: ${alias.slug}'s existing category does not match the canonical service's category`);
-    }
-
-    await prisma.service.update({
-      where: { id: existing.id },
-      data: {
-        active: true,
-        offered: true,
-        basePrice: canonical.basePrice,
-        publishedPriceApprovedAt: canonical.publishedPriceApprovedAt,
-        ...(existing.questions.length === 0
-          ? { questions: { create: [{
-              key: "dedicated_equipment",
-              prompt: alias.questionPrompt,
-              inputType: "SINGLE_SELECT",
-              order: 1,
-              options: { create: [{
-                label: alias.answerLabel, value: alias.equipmentValue,
-                routeAction: "REROUTE_SERVICE", rerouteServiceId: canonical.id, order: 1,
-              }] },
-            }] } }
-          : {}),
-      },
-    });
-    console.log(`  ok    adopted ${alias.slug} (${existing.id}): active/offered/basePrice set` +
-      (existing.questions.length === 0 ? ", tree added" : " (tree already present, left untouched)"));
+    loaded.push({ alias, existing: { id: existing.id, questions: existing.questions } });
   }
 
+  // ── PHASE 2: ADOPT BOTH ATOMICALLY ──────────────────────────────────────
+  //
+  // One transaction for both updates. Either both succeed or the database
+  // shows neither was touched — a failure partway through (a dropped
+  // connection, a constraint violation on the second write) rolls the first
+  // one back too, rather than leaving one alias adopted and the other not.
+  const summaries: string[] = [];
+  await prisma.$transaction(async (tx) => {
+    for (const { alias, existing } of loaded) {
+      await tx.service.update({
+        where: { id: existing.id },
+        data: {
+          active: true,
+          offered: true,
+          basePrice: canonical.basePrice,
+          publishedPriceApprovedAt: canonical.publishedPriceApprovedAt,
+          ...(existing.questions.length === 0
+            ? { questions: { create: [{
+                key: "dedicated_equipment",
+                prompt: alias.questionPrompt,
+                inputType: "SINGLE_SELECT",
+                order: 1,
+                options: { create: [{
+                  label: alias.answerLabel, value: alias.equipmentValue,
+                  routeAction: "REROUTE_SERVICE", rerouteServiceId: canonical.id, order: 1,
+                }] },
+              }] } }
+            : {}),
+        },
+      });
+      summaries.push(`  ok    adopted ${alias.slug} (${existing.id}): active/offered/basePrice set` +
+        (existing.questions.length === 0 ? ", tree added" : " (tree already present, left untouched)"));
+    }
+  });
+
+  // Only printed once the transaction has actually committed — a summary
+  // logged from inside the callback would be misleading if a LATER
+  // statement in the same transaction then failed and rolled everything back.
+  for (const line of summaries) console.log(line);
   console.log("\nDone.\n");
 }
 
