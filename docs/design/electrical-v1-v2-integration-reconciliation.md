@@ -2809,26 +2809,43 @@ Kept separate from this narrative report because it is a living,
 scannable rollout artifact (a release table, an ordered blocker list, a
 recommended first batch) rather than another numbered investigation pass.
 
-**REVISED after review.** The first version conflated two different
-things: the OLD `v2`/`v3` template-layer deltas — published before this
-branch existed in git, unrelated to this branch's own commits — with
-"this PR's intended changes," while omitting the six real tree/data fixes
-this branch's own audit-followthrough commits actually make (ceiling
+**REVISED twice after review.** The first correction separated the OLD
+`v2`/`v3` template-layer deltas — published before this branch existed in
+git — from this branch's own six audit-followthrough tree fixes (ceiling
 light/fan, replacement outlet, soundbar, dishwasher, dedicated circuit,
-garage outlet). It also stated conclusions about CURRENT production
-adoption state that no evidence available to this document can establish.
-The corrected manifest separates the two properly and marks every
-production-state claim explicitly UNVERIFIED unless it is a direct quote
-from a dated, checked-in record.
+garage outlet), and marked production-state claims UNVERIFIED unless
+directly quoted from a dated record. A second review found three more
+real mistakes in that correction, now fixed:
 
-Its most consequential finding is now sharper than "materials/policy
-support is missing": `scripts/template-update.ts`'s `Change` union has no
-`question-removed` kind at all — a gap independent of, and more
-fundamental than, the missing materials/disclaimer/photo-group/policy
-support — and five of this release's six actual fixes are question
-deletions. Only the dishwasher fix (wording-only, no deletion) is
-positioned to go through the existing adoption path in principle, and
-even that needs a real `TemplateVersion` delta extracted for it first,
-which does not yet exist. The pre-existing `v2`/`v3` material-catalog
-gap is still real and still recorded, but it is historical content this
+1. **Routing V2's own scope was still missing** — a shared reroute-
+   handoff module (`lib/rerouteHandoff.ts`, used by every service with a
+   `REROUTE_SERVICE`/`REROUTE_TROUBLESHOOTING` option), fractional
+   route-footage support, and a systematic uncertainty sentinel
+   (`__unknown__`). Real, already merged into this branch, scoped to
+   `new-120v-outlet`/`surface-mounted-outlet` and the device-module
+   services — but this is pre-existing Routing V2/PR #62 work, not new
+   audit-fix content, and its rollout is already tracked by §10.2.
+2. **"The tool needs a destructive question-removal capability" was the
+   wrong conclusion.** Routing V2's real pattern preserves a bypassed
+   question's row and reroutes the surviving option around it — which is
+   exactly `option-revised`, already supported. Tracing each fix's actual
+   required adoption operation found FOUR of the six (ceiling light/fan,
+   replacement outlet, dedicated circuit, dishwasher) need NO new tool
+   capability at all. Soundbar's routing half is the same; only its new
+   disclaimer field is genuinely untracked. Only garage outlet — a whole
+   tree reduced to zero questions, no surviving option to revise — is a
+   genuinely different shape, needing a narrow "reduce to zero questions"
+   capability, not a general deletion kind.
+3. **Garage outlet does not change `bookingType`** — that was already
+   `REMOTE_QUOTE` in the base catalog seed before either garage commit.
+   The fix only clears the tree; `GuidedFlowEngine`'s own generic
+   zero-question handling does the rest.
+
+The manifest now also carries a complete, tagged inventory of all 75 real
+Electrical services (changed by the six fixes, changed by Routing V2's
+own scope, or untouched), and states plainly that no evidence in THIS
+BRANCH's own history shows any of the six fixes extracted into a real
+`TemplateVersion` — a claim about this repository's history, never about
+current production state. The pre-existing `v2`/`v3` material-catalog
+gap remains real, remains recorded, and remains historical content this
 branch did not create and is not this release's engineering task.
