@@ -26,6 +26,45 @@ import type { PrismaClient } from "@prisma/client";
 import { assessMaterialReadiness } from "./materialResolution";
 import { QUESTION_ORDER } from "./serviceTreeQuery";
 
+/**
+ * Which questions a homeowner can actually reach, walking `nextQuestionKey`
+ * edges forward from the tree's own entry point (lowest `order`).
+ *
+ * A row EXISTING in a service's structure is not the same as a homeowner ever
+ * seeing it. `prisma/seed-new-outlet-v2.ts`'s own stated policy for a
+ * question it drops is "rewired out, not deleted" — the row (and anything
+ * attached to it, like a required disclaimer) stays in the catalog as a
+ * historical record, with nothing left pointing to it. Treating every row as
+ * reachable would block a service's activation, or list a disclaimer as
+ * "pending", over a requirement no real answer path can ever produce.
+ *
+ * Shared by installCatalog (below, over the CATALOG being installed) and
+ * lib/disclaimerAuthoring.ts (over one contractor's own originating
+ * TemplateService) — one implementation, not two that can drift.
+ */
+export function reachableQuestionKeys(
+  questions: readonly {
+    key: string;
+    order: number;
+    options: readonly { nextQuestionKey: string | null }[];
+  }[]
+): Set<string> {
+  if (questions.length === 0) return new Set();
+  const byKey = new Map(questions.map((q) => [q.key, q]));
+  const entry = questions.reduce((a, b) => (b.order < a.order ? b : a));
+  const reachable = new Set<string>();
+  const stack = [entry.key];
+  while (stack.length > 0) {
+    const key = stack.pop()!;
+    if (reachable.has(key)) continue;
+    reachable.add(key);
+    for (const o of byKey.get(key)?.options ?? []) {
+      if (o.nextQuestionKey && byKey.has(o.nextQuestionKey)) stack.push(o.nextQuestionKey);
+    }
+  }
+  return reachable;
+}
+
 /** One service as the platform defines it, before any contractor economics. */
 export type CanonicalService = Record<string, unknown>;
 
@@ -498,9 +537,16 @@ export async function installCatalog(
         );
         // Same contract, for disclaimers: a homeowner-reachable answer on
         // THIS service needs a concept this contractor has not authored yet.
+        // "Reachable" is load-bearing here, not decorative: a question a
+        // later seed step rewires out (see reachableQuestionKeys' own doc)
+        // still exists in this catalog, with its disclaimer link intact, and
+        // must not block activation over an answer path nothing produces.
         const unresolvedDisclaimers = new Set<string>();
         const qId = new Map<string, string>();
         const questions = s.questions as unknown as Record<string, never>[];
+        const reachableKeys = reachableQuestionKeys(
+          questions as unknown as { key: string; order: number; options: { nextQuestionKey: string | null }[] }[]
+        );
 
         for (const q of questions) {
           const qq = q as unknown as {
@@ -551,7 +597,12 @@ export async function installCatalog(
                 /// list, not a spread — a binding dropped here degrades to
                 /// static quantity 1 and prices a 31-foot route as one foot,
                 /// with no error anywhere.
-                quantityAnswerKey: string | null }[];
+                quantityAnswerKey: string | null;
+                /// Mutually-exclusive access variants — see
+                /// AnswerOptionComponent.conditionAccessClass. Dropped here,
+                /// both variants install unconditioned and a route selects
+                /// both pieces of mutually exclusive work at once.
+                conditionAccessClass: never | null; conditionAccessSlot: string | null }[];
               disclaimers: { canonicalDisclaimerId: string }[];
               materials: { canonicalMaterialId: string; quantity: number; order: number }[];
               photoGroups: { photoGroupId: string }[];
@@ -622,6 +673,8 @@ export async function installCatalog(
                   quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey,
                   conditionAnswerKey: c.conditionAnswerKey,
                   conditionAnswerValue: c.conditionAnswerValue,
+                  conditionAccessClass: c.conditionAccessClass,
+                  conditionAccessSlot: c.conditionAccessSlot ?? "PRIMARY",
                 },
               });
             }
@@ -665,7 +718,7 @@ export async function installCatalog(
               if (!authored) {
                 disclaimersToAuthor++;
                 const key = canonicalDisclaimerKeyById.get(d.canonicalDisclaimerId);
-                if (key) unresolvedDisclaimers.add(key);
+                if (key && reachableKeys.has(qq.key)) unresolvedDisclaimers.add(key);
                 continue;
               }
               await t.answerOptionDisclaimer.create({

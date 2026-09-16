@@ -569,47 +569,74 @@ project memory's accuracy, not a blocker to anything in this manifest.
    outlet service itself. Whether that one-sided coverage is intended or
    its own separate gap is a Routing V2 product question, outside this
    task's scope to decide.
-5. **Four real gaps in `installCatalog`/template extraction, found while
-   proving the disclaimer-authoring lifecycle end-to-end (§4), none touched
-   by this task** — each is a field or decision only ever set on Elite's
-   live data by a one-time manual edit or backfill script, never carried
-   forward to a fresh install, and each currently means a fresh contractor's
-   guided flow silently forces photo-review (or shows a broken label)
-   instead of pricing normally, for MANY services, until someone notices and
-   fixes it by hand the same way Elite's own data was fixed:
-   - **`Service.basePrice`/`whileWeThereBasePrice`** — null on the template
-     for services whose Elite row was priced by a later manual admin edit,
-     never synced back (confirmed on `soundbar-installation`,
-     `replace-range-hood`, `fan-replacing-light`; likely broader). A
-     contractor who never re-publishes these prices gets `LEGACY_PUBLISHED`
-     services that force `PUBLISHED_REVIEW` (photo-review) on every answer,
-     from the first question.
-   - **Band-policy labels** — `AnswerOption.labelPattern` (e.g. `"{b1} feet
-     or less"`) ships unrendered until the contractor answers the matching
-     `ContractorPolicyValue` via `/dashboard/policies` (`lib/policyResolution.ts`
-     — a real, working, ALREADY-EXISTING mechanism; this is a "nobody's
-     required to use it yet" gap, not a missing feature).
-   - **`AnswerOptionComponent` price approval** — some branches (e.g.
-     `new-ceiling-light`'s `attic_access/no_access`, the FINISHED-access
-     path) reference a `CanonicalComponent` with no way, anywhere in the
-     app, for a contractor to approve a customer price for it —
-     `approvedComponentPriceCents` is null on Elite's OWN live row too, so
-     this branch forces photo-review for every contractor today, not just a
-     fresh install. Same class of gap as the disclaimer-authoring one this
-     task closed, but for components, and NOT closed by this task.
-   - **`AnswerOption.accessClassification`** — null on every fresh-install
-     option; only ever set by the one-time, hand-run
-     `prisma/seed-access-normalization.ts`, never as part of
-     `installCatalog`. Until it runs, FINISHED-vs-ACCESSIBLE branches (what
-     `TAP_EXISTING_FIXTURE_FINISHED` itself keys off) never actually
-     diverge for a fresh contractor.
-
-   `scripts/verify-disclaimer-authoring-browser-flow.ts`'s own fixture
-   works around all four by hand (`buildFixture`'s own comments name each
-   one) precisely BECAUSE none has a supported fix at the `installCatalog`
-   level — real, separate, pre-existing gaps a real onboarding flow will
-   need to close, not blockers to the disclaimer-authoring work this task
-   was scoped to.
+5. **CORRECTED, 18 Sep 2026 — the original "four gaps" here overstated two
+   of them and has since closed a third.** Reviewed and precisely restated:
+   - **`Service.basePrice`/`whileWeThereBasePrice` unpublished** — NOT a
+     gap. A contractor who has not published a price for a service SHOULD
+     see `PUBLISHED_REVIEW` (photo-review) rather than a price nobody
+     approved — that is `lib/pricePublication.ts` and `lib/serviceActivation.ts`
+     working exactly as designed. `scripts/verify-disclaimer-authoring-
+     browser-flow.ts`'s own fixture now publishes real prices for its two
+     priced dependents through the actual supported path
+     (`saveServicePricingInputs` then `publishSuggestedPrice` — never a
+     direct `basePrice` write), the same two calls the real admin panel
+     makes.
+   - **Band-policy labels** (`AnswerOption.labelPattern`, e.g. `"{b1} feet
+     or less"`) — NOT a gap either, for the same reason: `lib/policyResolution.ts`'s
+     `resolvePolicy` is a real, working, already-supported mechanism, and an
+     unresolved policy correctly refuses both price publication and
+     activation until the contractor answers it. Resolving it DID surface a
+     real, separate bug this round: `resolvePolicy` matched every
+     label-pattern option on a service still owing SOME policy an answer,
+     not only the options belonging to the SPECIFIC policy being resolved —
+     so a service needing two different band policies
+     (`fan-replacing-light` needs both `fixture_work_height.breakpoints`
+     and `switch_leg_run.breakpoints`) could have the first policy's
+     already-correct labels silently overwritten with the second policy's
+     boundaries. Fixed by scoping the query on `AnswerOption.policyKey`,
+     the stored link `installCatalog` already writes.
+   - **`AnswerOption.accessClassification` — CLOSED this round.** Added to
+     `TemplateAnswerOption` (previously absent entirely), wired through
+     extraction and `installCatalog`. A parallel gap on the COMPONENT side
+     — `TemplateAnswerOptionComponent` lacked `conditionAccessClass`/
+     `conditionAccessSlot` too, so `switched_outlet`'s two mutually
+     exclusive lighting-conversion components (one ACCESSIBLE, one
+     FINISHED — `prisma/seed-lighting-control.ts`) installed unconditioned,
+     both applying on every answer regardless of actual access — is ALSO
+     closed. Both proven: `scripts/verify-access-conditional-components.ts`
+     (pure resolver logic — only the matching variant selects, UNKNOWN
+     fails closed, a non-PRIMARY slot stays scoped) and a direct install
+     check confirming the live `AnswerOptionComponent` rows carry the
+     condition.
+   - **`AnswerOptionComponent` price approval — STILL open, not touched.**
+     Some branches (e.g. `new-ceiling-light`'s `attic_access/no_access`,
+     its own FINISHED-access path) reference a `CanonicalComponent` with no
+     way, anywhere in the app, for a contractor to approve a customer price
+     for it — `approvedComponentPriceCents` is null on Elite's OWN live row
+     too, so this branch forces photo-review for every contractor today,
+     not just a fresh install. Same class of gap the disclaimer-authoring
+     work closed, but for components — a missing authoring surface, not a
+     working mechanism nobody has used yet. Needs a concrete authority
+     trace (who sets it, what model, what UI) before it becomes its own
+     implementation task; not attempted here.
+   - **`lib/disclaimerAuthoring.ts`'s own requirement derivation — CORRECTED
+     twice this round.** First (76cae3a) from "any `TemplateService` with a
+     matching key, any version, ever" (leaked a retired attachment) to "the
+     current snapshot+delta fold" — itself then found wrong in the OTHER
+     direction: publishing a later template change with no adoption run
+     could hide a requirement a contractor's own installed rows still carry,
+     or introduce one they never installed. Now bound to each service's own
+     recorded `templateVersionId` — the exact originating definition, never
+     "whatever is current" — intersected with real graph reachability (a
+     question nothing points to, per the tree's own "rewired out, not
+     deleted" policy, blocks nothing and shows nowhere) and the surviving
+     live `AnswerOption` graph. Proven by
+     `scripts/verify-disclaimer-template-version-fold.ts`'s three scenarios:
+     a superseded version's requirement doesn't leak, an unreachable
+     requirement doesn't block while a reachable one does (and every
+     reachable target attaches before the blocker clears), and a version
+     published AFTER install doesn't change what an already-installed
+     contractor is shown.
 
 **Next concrete Preview/release steps, in order:**
 
@@ -761,11 +788,45 @@ today — they're work to schedule, not conditions to clear first.
   proving ownership through the guarded client, then writing through the
   unguarded one inside its own transaction, exactly the pattern
   `lib/tenantWrites.ts` (ADR-010) already documents for this class of model.
-- All seven scratch-database-driving scripts across this whole engagement
+- `scripts/verify-access-conditional-components.ts` (new) — pure resolver
+  logic, no database at all: `applyBranch` (lib/pricing.ts) selects only the
+  ACCESSIBLE-conditioned or only the FINISHED-conditioned variant of a
+  mutually-exclusive component pair, never both; an UNKNOWN classification
+  selects neither (fails closed); a component conditioned on a non-PRIMARY
+  slot (`INDOOR_EQUIPMENT`) is not selected merely because PRIMARY happens
+  to match, and IS selected once that same slot is the one actually
+  established. **5/5 checks passed.** Confirmed separately, against a real
+  fresh install: `TemplateAnswerOptionComponent.conditionAccessClass`/
+  `conditionAccessSlot` (new fields) carry `switched_outlet`'s two real
+  conditioned components (`prisma/seed-lighting-control.ts`) through
+  extraction and installation unchanged.
+- `scripts/verify-disclaimer-template-version-fold.ts` (rewritten, three
+  scenarios, against a fresh scratch database
+  `p2b_freshlaunch_1789596377920_75885`, dropped at the end of the run):
+  a superseded template version's requirement does not leak into a
+  contractor's pending list; an unreachable retained question's disclosure
+  neither blocks activation nor appears as pending while a reachable one
+  does both, and a save attaches every reachable target (not just one)
+  before the blocker clears; a TemplateVersion published AFTER a contractor
+  already installed neither hides what they actually have nor introduces a
+  requirement they never installed. **9/9 checks passed.**
+- `scripts/verify-disclaimer-authoring-browser-flow.ts` re-run against the
+  same fresh scratch database, unchanged in intent, to confirm the
+  provenance/reachability rewrite of `lib/disclaimerAuthoring.ts` breaks
+  nothing it already proved: **14/14 checks passed** (the multi-tenant
+  browser context's own guided-flow session legitimately resumes mid-tree
+  on a repeat visit rather than restarting — the helper that walks the
+  range-hood question tree was made tolerant of that instead of assuming a
+  fresh start every call, a test-only fix, not an app behavior change).
+- `scripts/verify-catalog-completion.ts` re-run against the same database:
+  **28/28 checks passed**, no regression from this round's schema or
+  `installCatalog` changes.
+- All nine scratch-database-driving scripts across this whole engagement
   (Phase 1, Phase 2, the native-booking browser flow, the quantity-input
-  browser flow, this round's catalog-completion rebuild + focused proof, and
-  the disclaimer-authoring lifecycle proof) create and destroy only their
-  own uniquely-named, no-pre-drop scratch databases or reuse one already
+  browser flow, the catalog-completion rebuild + focused proof, the
+  disclaimer-authoring lifecycle proof, and this round's version-fold +
+  access-conditional-component proofs) create and destroy only their own
+  uniquely-named, no-pre-drop scratch databases or reuse one already
   stamped `local-*`; none touches `p2b_integration_seeded` or any other
   shared or production database. Every scratch database this round created
   was dropped at the end of its own run; nothing was left running.

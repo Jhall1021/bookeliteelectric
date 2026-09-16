@@ -186,7 +186,12 @@ async function buildOne(slug: string) {
           illustrationUrls: o.illustrationUrls,
           components: o.components.filter(c => c.canonicalComponentId).map(c => ({
             canonicalComponentId: c.canonicalComponentId!, quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey,
-            conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue })),
+            conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+            // Mutually-exclusive access variants (e.g. switched_outlet's two
+            // lighting-conversion components — prisma/seed-lighting-control.ts)
+            // depend on this surviving extraction, or both variants install
+            // unconditioned and a route selects both at once.
+            conditionAccessClass: c.conditionAccessClass, conditionAccessSlot: c.conditionAccessSlot })),
           disclaimers: o.conditionalDisclaimers.filter(d => d.contractorDisclaimer)
             .map(d => ({ canonicalDisclaimerId: d.contractorDisclaimer!.canonicalDisclaimerId })),
           photoGroups: o.photoGroups.map(g => ({ photoGroupId: g.photoGroupId })),

@@ -4449,12 +4449,37 @@ model TemplateAnswerOptionComponent {
   conditionAnswerKey     String?
   conditionAnswerValue   String?
 
+  /// What this component means for wiring access, if it's an access-
+  /// conditioned variant — see AnswerOptionComponent.conditionAccessClass,
+  /// which this mirrors.
+  ///
+  /// Missing here until 18 Sep 2026, on the mistaken theory (see the old
+  /// note above quantityAnswerKey) that this model was a deliberate subset
+  /// with "no access classification" — but prisma/seed-lighting-control.ts
+  /// attaches TWO components to the SAME answer, one conditioned ACCESSIBLE
+  /// and one FINISHED (switched_outlet's lighting conversion; the switch-leg
+  /// distance answers), specifically so mutually exclusive work is actually
+  /// conditional. Extraction never copied the live column and installCatalog
+  /// had nothing to write, so both variants installed unconditioned — a
+  /// fresh contractor's route selected BOTH pieces of mutually exclusive
+  /// work on every answer, regardless of actual access.
+  conditionAccessClass AccessClassification?
+
+  /// WHERE this access condition applies — see AnswerOptionComponent.conditionAccessSlot.
+  conditionAccessSlot String @default("PRIMARY")
+
   /// ROUTING V2 — see AnswerOptionComponent.quantityAnswerKey.
   ///
-  /// This model is a deliberate SUBSET of the live one (no access
-  /// classification), so a new field does NOT arrive here by analogy. It is
-  /// listed explicitly in lib/templateProvisioning.ts, and a binding dropped in
-  /// provisioning degrades to static quantity 1 with no error anywhere.
+  /// CORRECTION, 18 Sep 2026: this model was believed a deliberate SUBSET of
+  /// the live one, with "no access classification" cited as the reason a new
+  /// field would not arrive here by analogy — see conditionAccessClass above,
+  /// which is exactly that field, added because the theory was wrong. The
+  /// subset framing stands for whatever the live model still carries that
+  /// this one genuinely has no use for; it was never a rule that every field
+  /// added to the live model should be assumed absent here without checking
+  /// whether real seed content actually needs it. quantityAnswerKey itself is
+  /// listed explicitly in lib/templateProvisioning.ts, and a binding dropped
+  /// in provisioning degrades to static quantity 1 with no error anywhere.
   quantityAnswerKey String?
 
   @@unique([templateAnswerOptionId, canonicalComponentId])

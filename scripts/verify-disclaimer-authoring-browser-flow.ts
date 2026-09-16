@@ -309,19 +309,38 @@ async function main() {
     // replace-range-hood has a real published basePrice and reaches its
     // dependent option through an ordinary CONTINUE chain, so the proof
     // walks that one instead.
+    const HOOD_BACKSPLASH_HEADING = "Will the new hood use the same mounting spot, or do we need to drill or cut into the backsplash or wall?";
+    const HOOD_STEPS: [string, string][] = [
+      ["Is there a range hood there now?", "Yes, there's one there now"],
+      ["Does the current hood work — fan and light?", "Yes, it works"],
+      ["How does the current hood vent?", "Out through the wall"],
+      ["Is the new hood about the same size and type, going in the same spot?", "Yes, same size and same spot"],
+    ];
+    const headingVisible = async (page: Page, name: string, timeout: number) => {
+      try { await page.getByRole("heading", { name, exact: true }).waitFor({ timeout }); return true; }
+      catch { return false; }
+    };
     const reachHoodBacksplashQuestion = async () => {
       await a.page.goto(`${BASE}/${SLUG_A}/services/x/replace-range-hood`, { waitUntil: "networkidle" });
       await a.page.getByRole("button", { name: /Check My Price|Start/ }).click();
+      // This is called more than once against the SAME browser context, and
+      // GuidedFlowSession legitimately resumes a contractor's own homeowner
+      // session wherever it last left off (including straight to this exact
+      // question) rather than restarting at the first one — so this walks
+      // forward from wherever the session actually is instead of assuming a
+      // fresh start every time.
+      for (const [prompt, label] of HOOD_STEPS) {
+        if (await headingVisible(a.page, HOOD_BACKSPLASH_HEADING, 1500)) return;
+        if (await headingVisible(a.page, prompt, 5000)) {
+          await a.page.getByRole("button", { name: label, exact: false }).first().click();
+        }
+      }
       try {
-        await answerChoice(a.page, "Is there a range hood there now?", "Yes, there's one there now");
-        await answerChoice(a.page, "Does the current hood work — fan and light?", "Yes, it works");
+        await a.page.getByRole("heading", { name: HOOD_BACKSPLASH_HEADING, exact: true }).waitFor();
       } catch (e) {
         console.log(`  DIAGNOSTIC — hood flow page body after failure:\n${await a.page.innerText("body")}`);
         throw e;
       }
-      await answerChoice(a.page, "How does the current hood vent?", "Out through the wall");
-      await answerChoice(a.page, "Is the new hood about the same size and type, going in the same spot?", "Yes, same size and same spot");
-      await a.page.getByRole("heading", { name: "Will the new hood use the same mounting spot, or do we need to drill or cut into the backsplash or wall?", exact: true }).waitFor();
     };
     await reachHoodBacksplashQuestion();
     const beforeText = await a.page.innerText("body").catch(() => "");
