@@ -170,17 +170,31 @@ const SEED_STEPS: string[] = [
   "prisma/seed-tv-installation.ts",
   "prisma/seed-access-normalization.ts",
   "prisma/seed-fixture-finish-ack.ts",
-  // Known, expected failure — see FIXTURE_SEED docstring in
-  // scripts/verify-audit-batch-adoption.ts for the full evidence trail:
-  // no path in this codebase creates a CanonicalDisclaimer row from nothing
-  // on a from-scratch database.
+
+  // Not in seed-all.ts's STEPS at all. seed-appliance-services.ts runs
+  // BEFORE __CONDITIONAL_DISCLAIMERS__ below, deliberately: it (re)builds
+  // soundbar-installation's and replace-range-hood's trees from scratch via
+  // clearTree(), which would silently discard any AnswerOptionDisclaimer
+  // attached to them by a disclaimer step that ran first. The bootstrap
+  // fixed the "no CanonicalDisclaimer from nothing" gap noted below; the
+  // real seed-chain ordering still has to respect which files rebuild a
+  // tree versus which attach onto one already built.
+  "prisma/seed-appliance-services.ts",
+
+  // Previously a known, expected failure — see FIXTURE_SEED docstring in
+  // scripts/verify-audit-batch-adoption.ts for the full evidence trail: no
+  // path in this codebase created a CanonicalDisclaimer row from nothing on
+  // a from-scratch database. seed-conditional-disclaimers.ts now bootstraps
+  // its own CanonicalDisclaimer + Elite ContractorDisclaimer rows from its
+  // own already-reviewed, checked-in DISCLAIMERS text before attaching them
+  // — including CUSTOMER_SUPPLIED_EQUIPMENT, replacing the inline
+  // AnswerOption.disclaimer soundbar-installation and replace-range-hood
+  // used to carry.
   "__CONDITIONAL_DISCLAIMERS__",
   "prisma/seed-content-fixes.ts",
   "prisma/seed-labor-hours.ts",
   "prisma/seed-dedicated-circuit-labor.ts",
 
-  // Not in seed-all.ts's STEPS at all:
-  "prisma/seed-appliance-services.ts",
   "prisma/seed-phase-f-material-roles.ts",
   "prisma/seed-phase-f-role-redesign.ts",
   "prisma/seed-phase-f-material-costs.ts",
@@ -378,7 +392,9 @@ async function main() {
 
     for (const step of SEED_STEPS) {
       if (step === "__CONDITIONAL_DISCLAIMERS__") {
-        run("prisma/seed-conditional-disclaimers.ts", [], { allowFailure: "pre-existing CanonicalDisclaimer gap, documented" });
+        // No longer tolerated as a known failure — see the bootstrap this
+        // file's own docstring and the SEED_STEPS comment above describe.
+        run("prisma/seed-conditional-disclaimers.ts");
         continue;
       }
       const args = NEEDS_APPLY.has(step) ? ["--apply"] : [];
@@ -396,6 +412,9 @@ async function main() {
 
     console.log("\n--- Full-catalog extraction: v1 SNAPSHOT ---");
     run("scripts/extract-template-catalog.ts", ["--from", "elite-electric", "--apply"]);
+
+    console.log("\n--- electrical-panel-replacement: intended final recipe (narrow correction) ---");
+    run("scripts/finalize-panel-replacement-recipe.ts", ["--apply"]);
 
     console.log("\n--- Routing V2 template patches (mutate the just-created v1 SNAPSHOT in place) ---");
     run("prisma/seed-routing-v2-policies.ts");

@@ -76,6 +76,14 @@
       "label": "I'd rather someone take a look first",
       "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
     },
+    "generator-inlet-interlock/inlet_location": {
+      "helpText": "Your price includes a standard length of wiring between the two, set during your electrician's own setup.",
+      "reason": "Elite's help text read 'Our standard price includes about 10 feet of wiring between the two.' 10 feet is Elite's own included-run allowance for the WIRE_10_3 material this service consumes (prisma/seed-generator-inlet.ts's INCLUDED_RUN_FT), a policy-quantity role every contractor declares their own figure for through supported setup — not a universal trade fact. The underlying allowance is not erased: it stays a real, per-contractor material quantity; only the specific number is no longer hardcoded into copy shipped to every contractor."
+    },
+    "hot-tub-spa-electrical/spa_distance": {
+      "helpText": "Your price includes a standard length of wiring, set during your electrician's own setup.",
+      "reason": "Elite's help text read 'Our standard price includes about 25 feet of wiring.' Same pattern as generator-inlet-interlock/inlet_location: 25 feet is Elite's own spa_circuit_run.breakpoints boundary (electrical.policies.json), which also supplies the near/far answer-option wording via the band pattern mechanism, so the underlying distance decision is retained as a real, per-contractor policy rather than erased."
+    },
     "new-120v-outlet/outlet_finish_ack": {
       "helpText": "With no attic, basement or drop ceiling to work through, the wiring for this outlet has to be fished through finished walls.\n\nYour electrician will likely need to make one or more openings in the drywall or plaster to get the cable across. We keep them small and put them where they're least visible, but on a finished wall they usually can't be avoided entirely.\n\nThat's why we asked about attic and basement access — an open route usually means no openings at all and less time on site.",
       "reason": "Elite's paragraph combined a physical fact with a scope promise. That fishing a cable through finished walls or ceilings requires access openings — and that an open route above or below usually avoids them — is true of the work whoever performs it, so it is kept in full. The paragraph excluding patching, sanding, painting, wallpaper and trim 'unless we've put it in writing' is the contractor's terms, not the trade's, and moves to their own disclaimer (ADR-009). Discarding the universal fact along with the policy would have thrown away real trade knowledge."
@@ -143,6 +151,14 @@
     "replace-bathroom-exhaust-fan/(service)": {
       "label": "Replace Bathroom Exhaust Fan",
       "reason": "Elite's name was 'Replace Bathroom Exhaust Fan — We Supply the Fan'. That is Elite choosing to stock fans; a contractor who does not would inherit a false promise in their own service name. Neutralizing the title does NOT delete the question — see bathroom_fan.supply_arrangement in electrical.policies.json, which keeps it as an unresolved contractor decision."
+    },
+    "replace-bathroom-exhaust-fan/fan_package": {
+      "helpText": "A light version costs a little more, both to buy and to fit.",
+      "reason": "Elite's help text read 'We supply the fan. A light version costs a little more to fit as well as to buy.' The first sentence restates the same 'we supply the fan' policy already captured, separately and by name, by bathroom_fan.supply_arrangement — repeating it here as a flat statement would assert it for a contractor who supplies nothing. The real physical/cost fact — a light fixture costs more, in both purchase and labor — is universal and is kept."
+    },
+    "replace-bathroom-exhaust-fan-with-light/(service)": {
+      "label": "Replace Bathroom Exhaust Fan with Light",
+      "reason": "Elite's name was 'Replace Bathroom Exhaust Fan with Light — We Supply the Fan' (scripts/build-fan-packages.ts). Same rename as replace-bathroom-exhaust-fan/(service) above, for the identical reason: the supply-arrangement policy already captures who supplies the fixture, by name, as an unresolved contractor decision — the service name may not assert one answer to it for every contractor."
     },
     "tv-install-existing-location/mount_type/articulating": {
       "label": "Full-motion mount supplied by your electrician",

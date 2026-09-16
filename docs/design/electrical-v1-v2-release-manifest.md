@@ -35,6 +35,20 @@ still exists on that real, separate, already-onboarded contractor — fixing
 the ENGINE does not retroactively rewrite BrightPath's own onboarding
 history, which is out of this task's scope.
 
+**SOUNDBAR'S DISCLAIMER GAP — CLOSED (16 Sep 2026, catalog-completion
+round).** This document's own line "Soundbar's new disclaimer field is
+untracked" and its table entry calling the `disclaimer: CUSTOMER_SUPPLIED`
+inline field on `soundbar_power`'s "Yes" answer "not supported — a real,
+separate gap" (§ tables above) describe the state as of the adoption
+project's own analysis, now stale. That inline text is the SAME
+`CUSTOMER_SUPPLIED` string `replace-range-hood` also carried, moved to a
+real canonical disclaimer (`CUSTOMER_SUPPLIED_EQUIPMENT`) alongside this
+round's other disclaimer-bootstrap work — see `docs/design/electrical-
+fresh-launch-reset-manifest.md` §4. It now carries through extraction onto
+`soundbar-installation` in the fresh template; the adoption-project's own
+`AdoptedOptionProjection` gap for the OLD inline field remains true of that
+frozen tool and is not reopened by this fix.
+
 **REVISED a third time after review.** The second revision fixed three
 mistakes (missing Routing V2 scope; a wrong deletion-capability
 conclusion; a wrong `bookingType` claim) but two of its own conclusions

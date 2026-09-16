@@ -101,7 +101,69 @@ const DISCLAIMERS = [
     notes:
       "The default help text mentions the basement or attic, which reads as nonsense once the customer has said there isn't one.",
   },
+  {
+    // Was the inline AnswerOption.disclaimer on replace-range-hood's
+    // hood_backsplash/same_mounting and soundbar-installation's
+    // soundbar_power/yes (prisma/seed-appliance-services.ts's
+    // CUSTOMER_SUPPLIED constant, verbatim) — moved to a canonical
+    // disclaimer for the same reason TAP_EXISTING_FIXTURE_FINISHED replaced
+    // accessFinishedDisclaimer: two customer-supplied-equipment answers
+    // saying the identical sentence is how they drift apart, and per
+    // ADR-009 this text is Elite's own policy statement, not universal copy
+    // a template may assume for every contractor.
+    key: "CUSTOMER_SUPPLIED_EQUIPMENT",
+    name: "Customer-supplied equipment — condition and access",
+    accessClass: null,
+    text:
+      "Please have your equipment on hand, complete and undamaged, with any required mounting hardware. If the equipment or the existing conditions turn out to need additional work, we'll explain the options and give you the price before proceeding.",
+    notes: "Verbatim from prisma/seed-appliance-services.ts's CUSTOMER_SUPPLIED constant.",
+  },
 ];
+
+/**
+ * Where the customer-supplied-equipment disclaimer attaches. Both are real,
+ * checked-in answer options that carried the identical text inline before
+ * this bootstrap — see the DISCLAIMERS entry above.
+ */
+const CUSTOMER_SUPPLIED_ATTACHMENTS: { slug: string; questionKey: string; answerValue: string }[] = [
+  { slug: "soundbar-installation", questionKey: "soundbar_power", answerValue: "yes" },
+  { slug: "replace-range-hood", questionKey: "hood_backsplash", answerValue: "same_mounting" },
+];
+
+/**
+ * The bootstrap this file always needed and never had: creating the
+ * CanonicalDisclaimer + Elite ContractorDisclaimer pair `attach()` requires,
+ * from THIS file's own already-reviewed, checked-in `text` — never invented,
+ * never a blanket placeholder. Idempotent, like the rest of this file.
+ *
+ * WHY THIS BELONGS HERE AND NOT A SEPARATE MIGRATION
+ *
+ * `text` is Elite's own wording, authored in this file, for concepts this
+ * file alone defines and attaches. A separate bootstrap script would be a
+ * second place that could drift from the DISCLAIMERS array it exists to
+ * serve. `prisma/backfill-disclaimer-split-2026-08-27.ts` is the historical
+ * reason this could not simply run once and be forgotten — that migration's
+ * own `legacy` query has been hardcoded to `[]` since 28 August 2026 (a
+ * later schema change removed the back-relations it needed), so nothing in
+ * this codebase created a CanonicalDisclaimer from nothing until now.
+ */
+async function bootstrapCanonicalDisclaimers() {
+  const contractorId = await eliteContractorId(prisma);
+  for (const d of DISCLAIMERS) {
+    const canonical = await prisma.canonicalDisclaimer.upsert({
+      where: { key: d.key },
+      update: { name: d.name, accessClass: d.accessClass },
+      create: { key: d.key, name: d.name, accessClass: d.accessClass },
+      select: { id: true },
+    });
+    await prisma.contractorDisclaimer.upsert({
+      where: { contractorId_canonicalDisclaimerId: { contractorId, canonicalDisclaimerId: canonical.id } },
+      update: { text: d.text, notes: d.notes },
+      create: { contractorId, canonicalDisclaimerId: canonical.id, text: d.text, notes: d.notes },
+    });
+  }
+  console.log(`  ✓ ${DISCLAIMERS.length} canonical disclaimer(s) bootstrapped for Elite`);
+}
 
 /**
  * Where each applies. The exterior-wall question itself is created here too —
@@ -164,6 +226,8 @@ const HELP_ATTACHMENTS: { questionKey: string; disclaimerKey: string }[] = [
 ];
 
 async function main() {
+  await bootstrapCanonicalDisclaimers();
+
   for (const d of DISCLAIMERS) {
     await prisma.conditionalDisclaimer.upsert({
       where: { key: d.key },
@@ -195,6 +259,30 @@ async function main() {
     attached++;
   }
   console.log(`  ✓ ${attached} answer(s) now use the shared finished-ceiling text`);
+
+  // --- attach the customer-supplied-equipment disclaimer -----------------
+  // Runs after prisma/seed-appliance-services.ts in the real seed chain
+  // (that file's clearTree() would otherwise discard this attachment) —
+  // see SEED_STEPS's own ordering comment in scripts/rehearse-fresh-
+  // electrical-launch.ts.
+  let customerSuppliedAttached = 0;
+  for (const a of CUSTOMER_SUPPLIED_ATTACHMENTS) {
+    const q = await prisma.question.findFirst({
+      where: { key: a.questionKey, service: { slug: a.slug } },
+      include: { options: true },
+    });
+    const opt = q?.options.find((o) => o.value === a.answerValue);
+    if (!opt) {
+      console.log(`  – ${a.slug}/${a.questionKey}/${a.answerValue} not found`);
+      continue;
+    }
+    await attach(opt.id, "CUSTOMER_SUPPLIED_EQUIPMENT");
+    // Retires the inline copy the same way the finished-ceiling attachment
+    // above retires accessFinishedDisclaimer — one source for one sentence.
+    await prisma.answerOption.update({ where: { id: opt.id }, data: { disclaimer: null } });
+    customerSuppliedAttached++;
+  }
+  console.log(`  ✓ ${customerSuppliedAttached} answer(s) now use the shared customer-supplied-equipment text`);
 
   // --- exterior-wall contingency ----------------------------------------
   for (const s of EXTERIOR_WALL_SERVICES) {

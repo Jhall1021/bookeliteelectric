@@ -305,8 +305,18 @@ export async function POST(req: Request) {
           if (!row.canonicalMaterialId) {
             return NextResponse.json({ error: "This material line has no canonical role to declare a quantity for." }, { status: 400 });
           }
-          await declarePolicyMaterialQuantity(db, row.serviceId, row.canonicalMaterialId, quantity);
-          const { totalCents } = await afterRecipeChange(db, row.serviceId);
+          // declarePolicyMaterialQuantity already recomputes atomically, in
+          // the same transaction as the quantity write — a second call to
+          // recomputeServiceMaterialCost via afterRecipeChange would just
+          // read the identical figure back a moment later. Only the
+          // multiplier clear is still needed here: it is a distinct,
+          // idempotent side effect afterRecipeChange also performs, not a
+          // second recompute.
+          const declared = await declarePolicyMaterialQuantity(db, row.serviceId, row.canonicalMaterialId, quantity);
+          await clearLegacyMultiplierOnItemize(db, row.serviceId);
+          const totalCents = declared.recompute?.afterCents
+            ?? (await db.service.findUnique({ where: { id: row.serviceId }, select: { materialCostCents: true } }))?.materialCostCents
+            ?? 0;
           return NextResponse.json({ ok: true, totalCents });
         }
 

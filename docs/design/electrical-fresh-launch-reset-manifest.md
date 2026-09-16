@@ -118,48 +118,105 @@ launch.ts`'s own `SEED_STEPS` constant — reproduced in summary:
 **Never run:** `prisma/seed-pricing-inputs.ts` (own header: "RETIRED — DO NOT
 RUN," would reverse the Aug 2026 pricing reconciliation).
 
-Result, run for real this session: **77 of 82 Elite services extracted**
-into a fresh electrical v1 SNAPSHOT — 227 questions, 789 answer options, 7
-policy definitions the contractor must answer, 0 disclaimer concepts (see
-§4). 5 services refused for genuine, named wording/policy decisions (§3).
+12. `scripts/finalize-panel-replacement-recipe.ts --apply` — the intended
+    `electrical-panel-replacement` recipe correction (§3 below), run
+    immediately after extraction, against whatever `TemplateVersion` the
+    extraction just created.
 
-## 3. Services NOT written into the fresh template, and why
+**Catalog completion, same day.** §3 and §4 below described real gaps as of
+the prior run (77/82 services, 0 disclaimer concepts). Both are now closed;
+this section's numbers are the corrected, current ones.
 
-`scripts/extract-template-catalog.ts`'s own refusal categories — none
-invented, none silently worked around:
+Result, run for real this session: **82 of 82 Elite services extracted**
+into a fresh electrical v1 SNAPSHOT — 229 questions, 792 answer options, 10
+policy definitions the contractor must answer, 8 disclaimer concepts. 0
+services refused; 0 unresolved wording classifications remain.
 
-- **POLICY THRESHOLD OR ALLOWANCE (6 items)** — `generator-inlet-interlock`,
-  `hot-tub-spa-electrical` (x3), `under-cabinet-led-lighting` (x2) name a
-  specific number in customer-facing copy (e.g. "about 10 feet") that needs
-  an authored, generic wording-manifest entry
-  (`prisma/template/electrical.wording.json`) before it can become template
-  content. Writing that wording is a genuine content-authorship decision,
-  not a mechanical one — deliberately not made in this rehearsal.
-- **AMBIGUOUS SCOPE WORDING (2 items)** — `replace-bathroom-exhaust-fan`'s
-  `fan_package` help text and `replace-bathroom-exhaust-fan-with-light`'s
-  own service label both state contractor policy ("we supply the fan") in a
-  way the extractor requires an authored, contractor-neutral rewrite for.
-  Same reasoning as above.
+## 3. The five previously-omitted services — restored
 
-These 5 refusals block exactly `generator-inlet-interlock`,
-`hot-tub-spa-electrical`, `under-cabinet-led-lighting`,
-`replace-bathroom-exhaust-fan`, and `replace-bathroom-exhaust-fan-with-light`
-from the extracted template — 77 of 82 services, not fewer, and not more.
+`scripts/extract-template-catalog.ts`'s two refusal categories, both closed
+by authoring real `prisma/template/electrical.wording.json` and
+`electrical.policies.json` entries — never by erasing the underlying scope
+decision:
 
-## 4. Disclaimers: a confirmed, pre-existing, out-of-scope gap
+- **POLICY THRESHOLD OR ALLOWANCE (6 findings, 3 services).**
+  `generator-inlet-interlock`'s `inlet_location` help text and `hot-tub-
+  spa-electrical`'s `spa_distance` help text each named Elite's own
+  included-wire-footage figure ("about 10 feet" / "about 25 feet") in plain
+  prose — rewritten to a neutral sentence that states the same real fact
+  (a standard length is included, set during setup) without hardcoding
+  Elite's number. `hot-tub-spa-electrical`'s `spa_distance` near/far
+  answer options and `under-cabinet-led-lighting`'s `uc_length`
+  standard/long options named the same figures in their LABELS — these
+  became real band policies (`spa_circuit_run.breakpoints`,
+  `under_cabinet_run.breakpoints` in `electrical.policies.json`, boundary
+  count 1 each), the same mechanism `switch_leg_run.breakpoints` etc.
+  already used, so a fresh contractor answers with their OWN distance, not
+  Elite's. `generator-inlet-interlock`'s `inlet_location` options
+  ("On the same wall..." / "Somewhere further...") were already neutral and
+  needed no policy — only its help text did.
+- **AMBIGUOUS SCOPE WORDING (2 findings, 2 services).**
+  `replace-bathroom-exhaust-fan`'s `fan_package` help text ("We supply the
+  fan. A light version costs a little more...") restated the same
+  supply-arrangement policy `bathroom_fan.supply_arrangement` already
+  tracks by name — rewritten to keep only the real, universal cost fact (a
+  light costs more to buy AND to fit) and drop the "we supply" assertion.
+  `replace-bathroom-exhaust-fan-with-light`'s own service name ("...with
+  Light — We Supply the Fan") got the identical rename its sibling service
+  already had, for the identical reason.
 
-`prisma/seed-conditional-disclaimers.ts` is attempted in this rehearsal's own
-seed order (its own `ATTACHMENTS`/`EXTERIOR_WALL_SERVICES` tables name
-`new-ceiling-light`, `new-ceiling-fan`, and `dedicated-120v-circuit-outlet`
-directly) but fails with the same `CanonicalDisclaimer` gap already
-documented in `docs/design/electrical-decision-tree-audit-v1-rehearsal-
-bootstrap.md`'s "Known, expected failure" section: no code path in this
-repo creates a `CanonicalDisclaimer` row from nothing on a from-scratch
-database (`prisma/backfill-disclaimer-split-2026-08-27.ts`'s own `legacy`
-query has been hardcoded to `[]` since 28 Aug 2026). Confirmed again by this
-session's own run, not assumed. The extracted template therefore carries
-**0 disclaimer concepts** — a real, reportable gap in the fresh-launch
-catalog, not something this task fixes.
+All five now install with their real routing, material roles and policy
+flags intact — proven directly, not inferred, in `scripts/verify-catalog-
+completion.ts` (§11).
+
+## 4. Disclaimers — bootstrapped, and now genuinely attached
+
+`prisma/seed-conditional-disclaimers.ts` used to fail on every from-scratch
+database: no code path created the `CanonicalDisclaimer` row its own
+`attach()` requires (`prisma/backfill-disclaimer-split-2026-08-27.ts`'s
+`legacy` query has been hardcoded to `[]` since 28 Aug 2026). That file now
+bootstraps its own `CanonicalDisclaimer` + Elite `ContractorDisclaimer` rows
+from its own already-reviewed, checked-in `DISCLAIMERS` text before
+attaching them — never an invented placeholder, never a blanket substitute.
+Six canonical disclaimers, all from real, existing content:
+
+- The four exterior-wall-contingency / tap-existing-fixture / distance-help
+  disclaimers this file already defined and tried to attach.
+- **`CUSTOMER_SUPPLIED_EQUIPMENT`** — the "customer-supplied audit"
+  disclaimer, added this pass: was an inline `AnswerOption.disclaimer`
+  string, verbatim, on both `replace-range-hood`'s
+  `hood_backsplash/same_mounting` and **`soundbar-installation`'s
+  `soundbar_power/yes`** — moved to a canonical disclaimer for the same
+  reason `TAP_EXISTING_FIXTURE_FINISHED` replaced its own per-answer
+  copies: one source for one sentence, per ADR-009. `prisma/seed-appliance-
+  services.ts` no longer carries the inline text; the attachment now runs
+  from `seed-conditional-disclaimers.ts`, which has to run AFTER
+  `seed-appliance-services.ts` in the real chain (that file's own
+  `clearTree()` would otherwise discard the attachment) — SEED_STEPS was
+  reordered accordingly.
+
+**A real, useful side effect, not part of this task's original ask:**
+bootstrapping let `seed-conditional-disclaimers.ts` run to completion for
+the first time on any from-scratch database, which means the
+`device_on_exterior_wall` question it creates on `new-120v-outlet` and
+`dedicated-120v-circuit-outlet` now exists in the fresh template too — never
+before this round. On `new-120v-outlet` specifically this question is
+immediately superseded: `prisma/seed-new-outlet-v2.ts`'s own
+`RETIRED_OUTLET_QUESTIONS` list names `device_on_exterior_wall` explicitly
+(alongside `outlet_run_distance` and `finished_space_both_sides`) and runs
+afterward, rewiring the `below_above_access/has_access` branch into
+Routing V2's own module instead — "rewired out, not deleted," that file's
+own stated policy, confirmed directly: the row exists, its answer options
+are empty, nothing routes to it. The branch that matters for the proven
+booking route, `below_above_access/no_access`, is untouched by any of this
+— confirmed directly, not assumed (§11).
+
+On a fresh contractor install, none of these six disclaimers attach yet —
+`installCatalog` correctly leaves `AnswerOptionDisclaimer` unlinked until
+the contractor authors their OWN `ContractorDisclaimer` text (ADR-009: "the
+contractor authors their own wording, not ours"), and reports the gap
+honestly via `InstallResult.disclaimersToAuthor` (8, this run) rather than
+silently attaching Elite's wording for them.
 
 ## 5. The launch-critical route: what is proven, and what is not
 
@@ -413,41 +470,48 @@ deliberately never used).
 **Closes:** whether Routing V2's shared modules can be extracted into the
 template layer at all (yes — done, verified). Whether a fresh, uncustomized
 contractor can be installed from a genuinely composed catalog reflecting
-all six real audit fixes plus the real material-catalog batches (yes, 77 of
-82 services). Whether the LEGACY_PUBLISHED launch-critical route (materials
-→ pricing → approval → activation → manual price) has ANY supported path
-for a service with real structural materials (yes, proven end to end, and
-correctly totaled — see below). Whether `materialCostResolved` has a
-supported resolution path for a policy-quantity-only recipe (yes — fixed,
-at the lifecycle level, in `installCatalog`/`assessMaterialReadiness`, not
-worked around). Whether a mixed structural/policy recipe can silently
-under-price by dropping the policy role's cost while still reporting
-readiness (this was happening; now fixed, and demonstrated blocked-then-
-resolved-then-recomputed-correctly for both a policy-only and a mixed
-recipe, on two contractors, to confirm neither's declaration moves the
-other's total). Whether the DERIVED_RESOLVED_SCOPE path can reach real
-approval and activation on a fresh catalog (yes — root-caused to a stale
-qualification answer above the materials layer entirely, fixed, and now
-approved at $760.00). Whether the full "materials → pricing → approval →
-activation → manual price → native no-deposit booking" chain is proven
-end to end, through a real browser, on this fresh catalog (yes — 35/35
-checks, reusing the existing production-build harness).
+all six real audit fixes plus the real material-catalog batches (yes — now
+**all 82 of 82 services**, not 77; see §3/§4). Whether the LEGACY_PUBLISHED
+launch-critical route (materials → pricing → approval → activation →
+manual price) has ANY supported path for a service with real structural
+materials (yes, proven end to end, and correctly totaled — see below).
+Whether `materialCostResolved` has a supported resolution path for a
+policy-quantity-only recipe (yes — fixed, at the lifecycle level, in
+`installCatalog`/`assessMaterialReadiness`, not worked around). Whether a
+mixed structural/policy recipe can silently under-price by dropping the
+policy role's cost while still reporting readiness (this was happening; now
+fixed, and demonstrated blocked-then-resolved-then-recomputed-correctly for
+both a policy-only and a mixed recipe, on two contractors, to confirm
+neither's declaration moves the other's total). Whether the
+DERIVED_RESOLVED_SCOPE path can reach real approval and activation on a
+fresh catalog (yes — root-caused to a stale qualification answer above the
+materials layer entirely, fixed, and now approved at $760.00). Whether the
+full "materials → pricing → approval → activation → manual price → native
+no-deposit booking" chain is proven end to end, through a real browser, on
+this fresh catalog (yes — 35/35 checks, reusing the existing production-
+build harness; unaffected by this round's catalog-completion changes,
+confirmed directly rather than assumed — §3/§4/§11). Whether the five
+previously-omitted services can be restored without erasing the real scope
+decisions behind them (yes — §3). Whether canonical disclaimers can be
+bootstrapped from real, reviewed, checked-in content and carried through
+extraction and fresh installation (yes — §4). Whether the intended
+`electrical-panel-replacement` recipe can be built from PR #67's narrow
+source evidence without merging its stale branch or running its historical
+mutator (yes — §3/§11, `scripts/finalize-panel-replacement-recipe.ts`).
+
+**Superseded by this round, removed from "stays open":** the prior list's
+items 1–3 (panel-recipe provenance/not-yet-built, the 5 omitted services,
+and the disclaimer gap) are closed, per §3/§4 above and the direct proof in
+§11. Panel-history discrepancy itself (project memory said PR #67
+"merged"; git history says it never was, and its source branch is 439
+files stale against `main`) is not something this task resolves — Joshua's
+own clarification settled the SCOPE question (use the branch's two added
+files as narrow evidence, never the branch itself), which is what got
+built; the merge-history discrepancy is a separate, standing fact about
+project memory's accuracy, not a blocker to anything in this manifest.
 
 **Stays open, precisely bounded:**
-1. v4's (`electrical-panel-replacement`) provenance discrepancy between
-   project memory ("merged") and git history (never merged, source branch
-   439 files stale) — Joshua has since clarified the intended definition
-   from the source branch's own two added scripts (PANEL_MAIN_BREAKER ×1;
-   BREAKER_SINGLE_POLE, BREAKER_DOUBLE_POLE, CONSUMABLES_MEDIUM as
-   unresolved policy quantities; no assumed grounding-electrode/service-
-   entrance work; 200A upgrade stays deferred) — carried into this manifest
-   as the intended recipe, not yet built into the extracted template itself.
-2. 5 services need authored wording-manifest entries before they can enter
-   any template version at all (§3) — a content decision, explicitly
-   deferred to a later catalog-completion slice, not this task's.
-3. Disclaimers cannot be seeded on any from-scratch database (§4) — a
-   pre-existing, already-documented gap, also deferred to that slice.
-4. `scripts/onboard-contractor-two.ts` (BrightPath's real second-contractor
+1. `scripts/onboard-contractor-two.ts` (BrightPath's real second-contractor
    onboarding) still carries its raw-SQL `materialCostResolved`/
    `unresolvedMaterialKeys` override — it proved the engine gap this task
    fixed, but the override itself was never removed, since BrightPath is a
@@ -456,7 +520,7 @@ checks, reusing the existing production-build harness).
    (skips an undeclared role rather than throwing) so it keeps compiling
    against the new schema, but the override remains the antipattern, not a
    second real resolution path.
-5. The schema change this task required (`ServiceMaterial.quantityIsPolicy`,
+2. The schema change this task required (`ServiceMaterial.quantityIsPolicy`,
    `ServiceMaterial.quantity` now nullable) has been applied only to this
    run's own disposable scratch databases, per this task's standing rule.
    It has NOT been applied to the shared `p2b_integration_seeded` rehearsal
@@ -469,14 +533,52 @@ checks, reusing the existing production-build harness).
    with `P2022: column "quantityIsPolicy" does not exist` until that
    migration is applied there — a real, expected consequence of a real
    schema change, not a defect in either script.
+3. `EXTERIOR_WALL_CONTINGENCY_SWITCHLEG` is defined in
+   `prisma/seed-conditional-disclaimers.ts`'s own `DISCLAIMERS` array (and
+   now bootstrapped as a real canonical disclaimer, like its siblings) but
+   is not referenced by any `ATTACHMENTS`/`EXTERIOR_WALL_SERVICES` entry —
+   a pre-existing, orphaned definition this task found but did not create
+   and was not asked to wire up. Noted, not touched.
+4. On `new-120v-outlet` specifically, `device_on_exterior_wall` (created by
+   the now-working disclaimer bootstrap) is immediately superseded by
+   `seed-new-outlet-v2.ts`'s own retirement of it — confirmed by design,
+   not a defect (§4) — so the exterior-wall contingency disclosure is live
+   only on `dedicated-120v-circuit-outlet` in this fresh catalog, not on the
+   outlet service itself. Whether that one-sided coverage is intended or
+   its own separate gap is a Routing V2 product question, outside this
+   task's scope to decide.
+
+**Next concrete Preview/release steps, in order:**
+1. Coordinate the `ServiceMaterial`/`TemplateServiceMaterial` schema
+   migration onto `p2b_integration_seeded` with whoever else is using it —
+   the one piece of this work that is shared-state, not owned-database.
+2. Decide `electrical-panel-replacement`'s launch status explicitly: it now
+   installs with its intended, honest recipe (1 resolved line, 3 unresolved
+   policy quantities, no assumed grounding work) — it is NOT priced or
+   activatable until a real contractor declares those 3 allowances and
+   costs through the supported lifecycle this task already proved works
+   (§5's policy-material demonstration covers the mechanism; nobody has
+   walked this SPECIFIC service through it yet).
+3. A real, credentialed operator runs Phase 1 + Phase 2 +
+   `scripts/verify-catalog-completion.ts` against a fresh Neon branch (never
+   production directly) to confirm this local proof holds off this
+   machine's disposable Postgres.
+4. Review this manifest's §6–§9 (target identity, tenant-record clearing
+   order, schema prerequisites, recovery snapshot) against that Neon
+   branch's actual state before any live reset is authorized.
+5. Only after 1–4: the actual production reset and Preview deployment,
+   each requiring its own explicit, in-conversation authorization, per this
+   task's standing rule — nothing in this manifest authorizes either.
 
 ## 11. Local evidence trail
 
 - `scripts/rehearse-fresh-electrical-launch.ts` — Phase 1, builds and
-  extracts the fresh catalog. Latest run: 77/82 services extracted, exit 0,
-  against `p2b_freshlaunch_1789577038606_34745` (dropped via this script's
-  own `--teardown` at the end of this session — ownership and teardown are
-  now both executable, not just described).
+  extracts the fresh catalog. A prior run this same day (against
+  `p2b_freshlaunch_1789577038606_34745`, dropped via this script's own
+  `--teardown` — the run that proved ownership/teardown are executable, not
+  just described) extracted 77 of 82 services, before this round's catalog-
+  completion work. **Superseded by the 82/82 run recorded under "Catalog
+  completion" below**, the current, accurate count.
 - `scripts/rehearse-fresh-electrical-launch-phase2.ts` — Phase 2, the
   launch-critical-route proof, including the policy-quantity lifecycle
   demonstrations (policy-only, mixed, subsequent edit, cross-tenant
@@ -511,10 +613,34 @@ checks, reusing the existing production-build harness).
   an injected-fault atomicity proof (quantity and cache roll back together,
   then a clean retry succeeds), and a real authenticated cross-tenant
   request refused with zero state change.
-- All four scratch-database-driving scripts (Phase 1, Phase 2, the native-
-  booking browser flow, and this quantity-input browser flow) create and
-  destroy only their own uniquely-named, no-pre-drop scratch databases or
-  reuse one already stamped `local-*`; none touches `p2b_integration_seeded`
-  or any other shared or production database. Every scratch database this
-  round created was dropped at the end of its own run; nothing was left
-  running.
+- **Catalog completion, run for real this session, against a fresh scratch
+  database (`p2b_freshlaunch_1789581848644_43235`, dropped at the end of
+  the run):**
+  - Phase 1 (`scripts/rehearse-fresh-electrical-launch.ts`): **82 of 82
+    services extracted**, 0 refused, 229 questions, 792 answer options, 10
+    policy definitions, 8 disclaimer concepts. Exit 0.
+  - Phase 2 (`scripts/rehearse-fresh-electrical-launch-phase2.ts`), re-run
+    against this same catalog to confirm no regression: exit 0, all checks
+    passed, including the DERIVED path approved at $760.00 — unchanged.
+  - `scripts/verify-catalog-completion.ts` (new) — the affected-paths proof
+    for this round specifically: all 5 restored services install with the
+    intended neutral wording and live policy definitions (not Elite's
+    hardcoded figures); `electrical-panel-replacement` installs with
+    exactly the intended 4-line recipe (`PANEL_MAIN_BREAKER` resolved x1;
+    `BREAKER_SINGLE_POLE`/`BREAKER_DOUBLE_POLE`/`CONSUMABLES_MEDIUM`
+    unresolved policy; `GROUND_ROD`/`GROUND_CLAMP`/`WIRE_GROUND_6` genuinely
+    absent); `CUSTOMER_SUPPLIED_EQUIPMENT` carries through extraction onto
+    `soundbar-installation`; `device_on_exterior_wall` exists on a fresh
+    install for the first time and is confirmed retired-by-design on
+    `new-120v-outlet`, while `below_above_access/no_access` — the proven
+    booking route's own branch — is confirmed byte-for-byte unchanged.
+    **28/28 checks passed.** Not a repeat of the full booking suite, per
+    this round's own instruction to reuse existing evidence.
+- All six scratch-database-driving scripts across this whole engagement
+  (Phase 1, Phase 2, the native-booking browser flow, the quantity-input
+  browser flow, and this round's catalog-completion rebuild + focused
+  proof) create and destroy only their own uniquely-named, no-pre-drop
+  scratch databases or reuse one already stamped `local-*`; none touches
+  `p2b_integration_seeded` or any other shared or production database.
+  Every scratch database this round created was dropped at the end of its
+  own run; nothing was left running.

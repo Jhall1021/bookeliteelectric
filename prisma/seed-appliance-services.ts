@@ -24,8 +24,13 @@ import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
-const CUSTOMER_SUPPLIED =
-  "Please have your equipment on hand, complete and undamaged, with any required mounting hardware. If the equipment or the existing conditions turn out to need additional work, we'll explain the options and give you the price before proceeding.";
+// The inline disclaimer this constant used to carry on both answer options
+// below is now CUSTOMER_SUPPLIED_EQUIPMENT, a canonical disclaimer attached
+// by prisma/seed-conditional-disclaimers.ts (verbatim, same text) — one
+// source for one sentence, same reason TAP_EXISTING_FIXTURE_FINISHED
+// replaced its own per-answer copies. That step runs AFTER this file in the
+// real seed chain (this file's clearTree() would otherwise discard the
+// attachment), so nothing here re-creates the inline text on a re-run.
 
 async function clearTree(serviceId: string) {
   const qs = await prisma.question.findMany({ where: { serviceId } });
@@ -158,7 +163,7 @@ async function seedRangeHood() {
       { questionId: q4.id, label: "No, it's different", value: "different", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: [] },
       { questionId: q4.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: [] },
 
-      { questionId: q5.id, label: "Same spot — nothing needs cutting", value: "same_mounting", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: CUSTOMER_SUPPLIED },
+      { questionId: q5.id, label: "Same spot — nothing needs cutting", value: "same_mounting", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: q5.id, label: "We'd need to cut or drill the backsplash or wall", value: "needs_cutting", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: [] },
       { questionId: q5.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: [] },
     ],
@@ -253,7 +258,7 @@ export async function seedSoundbar() {
       // PriceConfirmationCard now offers (GuidedFlowEngine — a generic
       // field, not special-cased to this service) rather than two more
       // mandatory screens whose answers never changed the price or the route.
-      { questionId: q4.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: CUSTOMER_SUPPLIED },
+      { questionId: q4.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: q4.id, label: "No", value: "no", routeAction: "REROUTE_SERVICE", rerouteServiceId: outlet?.id ?? null, order: 2, requiredPhotoLabels: [] },
       { questionId: q4.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: [] },
     ],
