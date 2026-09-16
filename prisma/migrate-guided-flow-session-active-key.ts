@@ -136,6 +136,26 @@
  * activity rather than silently resolved from stale data. Other groups in
  * the same run are unaffected; each group's transaction is independent.
  *
+ * THE WINNER IS RECHECKED UNCONDITIONALLY, NOT ONLY WHEN ITS KEY CHANGES.
+ * The first version of this fix only guarded the winner's version inside
+ * `if (winner.activeSessionKey !== key)` — so a winner that already
+ * carried the correct key (the common case: a row the real application
+ * code already created and keyed properly) was NEVER reverified before
+ * this transaction abandoned its losers. Two concurrent changes to that
+ * winner would have gone undetected: its `consumedAnswers` moving (a real
+ * customer answering another question, making the "all rows agree"
+ * decision this group was resolved under stale) and the winner
+ * COMPLETING (`completeSession` nulls `activeSessionKey` and sets
+ * `status: "COMPLETED"` the instant a real booking lands, so a winner that
+ * finished between the read and this transaction is no longer even
+ * ACTIVE — abandoning its losers to make room for an already-finished
+ * session is backwards). The winner's guard is now unconditional: this
+ * transaction always writes `activeSessionKey: key` to it (a no-op value
+ * when already correct) gated on `status: "ACTIVE"` and the exact
+ * `version` this run read, so either kind of concurrent change moves the
+ * version or the status and aborts the whole group before any loser is
+ * touched — checked FIRST, before any loser's own guard runs.
+ *
  * EXIT CODE. Exits 1 — not 0 — whenever any group was left blocked OR
  * skipped for concurrent activity. A migration with outstanding groups is
  * not a completed migration, and a caller checking only the exit code (a
@@ -278,19 +298,47 @@ async function main() {
 
     try {
       await prisma.$transaction(async (tx) => {
+        // THE WINNER IS RECHECKED FIRST, UNCONDITIONALLY — even when it
+        // already carries the correct key and this write changes nothing
+        // about it. An earlier version only guarded the winner's version
+        // INSIDE the `if (winner.activeSessionKey !== key)` branch — so a
+        // winner that already had the right key (the common,
+        // already-keyed-by-real-application-code case) was NEVER
+        // reverified before this transaction abandoned its losers. Two
+        // ways that was wrong, neither hypothetical:
+        //
+        //   the winner's `consumedAnswers` changed concurrently (a real
+        //   customer answering another question) between this run's read
+        //   and this transaction — the "all rows agree" decision this
+        //   group was resolved under is now stale, and abandoning losers
+        //   on the strength of it discards real progress nobody re-checked;
+        //
+        //   the winner COMPLETED concurrently — `completeSession` sets
+        //   `status: "COMPLETED"` and nulls `activeSessionKey` the instant
+        //   a real booking lands. A winner that finished between the read
+        //   and this transaction is no longer even ACTIVE, and abandoning
+        //   its losers to make room for a session that is already over is
+        //   exactly backwards.
+        //
+        // The guard below writes `activeSessionKey: key` unconditionally
+        // (a no-op value when it was already correct) and requires
+        // `status: "ACTIVE"` and the exact `version` this run read, so
+        // EITHER concurrent change — an answer update or a completion —
+        // moves the version or the status and makes this updateMany match
+        // zero rows, which aborts the whole group before any loser is
+        // touched.
+        const winnerResult = await tx.guidedFlowSession.updateMany({
+          where: { id: winner.id, status: "ACTIVE", version: winner.version },
+          data: { activeSessionKey: key, version: { increment: 1 } },
+        });
+        if (winnerResult.count !== 1) throw new ConcurrentActivityError(winner.id);
+
         for (const loser of losers) {
           const result = await tx.guidedFlowSession.updateMany({
             where: { id: loser.id, status: "ACTIVE", version: loser.version },
             data: { status: "ABANDONED", activeSessionKey: null, version: { increment: 1 } },
           });
           if (result.count !== 1) throw new ConcurrentActivityError(loser.id);
-        }
-        if (winner.activeSessionKey !== key) {
-          const result = await tx.guidedFlowSession.updateMany({
-            where: { id: winner.id, version: winner.version },
-            data: { activeSessionKey: key, version: { increment: 1 } },
-          });
-          if (result.count !== 1) throw new ConcurrentActivityError(winner.id);
         }
       });
     } catch (e) {

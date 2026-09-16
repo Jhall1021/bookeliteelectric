@@ -1100,6 +1100,115 @@ local disposable database confirmed back to its exact baseline (one
 — only `scripts/template-update.ts` and this report are committed in this
 pass.
 
+### 0.28 (twelfth pass) Two concurrency guards that only fire on the common case — an unconditional winner recheck, and a stale-adoption-target guard with no version column to lean on
+
+Both named directly, not found by re-reading a diff: the winner recheck gap
+in `migrate-guided-flow-session-active-key.ts`, and the missing
+between-`detect()`-and-write guard in `template-update.ts`. Both rehearsed
+with the same technique used throughout this branch for genuine
+concurrency proofs — copy the target script, inject a `setTimeout` delay
+at the exact point after its read and before its write, run it in the
+background, and race a real concurrent writer against it during the delay
+window.
+
+**1. The session-migration winner was only rechecked when its key was
+already wrong.** `migrate-guided-flow-session-active-key.ts`'s per-group
+transaction guarded the winner's `status`/`version` with an `updateMany`
+— but only inside `if (winner.activeSessionKey !== key)`. The common case
+is a winner that is ALREADY correctly keyed from a previous run, and for
+that row the guard never ran at all: its losers could be abandoned around
+it in the same transaction without the winner itself ever being
+reverified as still `ACTIVE` at the version this run read. A winner whose
+answers changed, or who completed (`completeSession`, which nulls
+`activeSessionKey` and flips `status` to `COMPLETED`), moments before this
+script's read would still have its losers abandoned — the exact
+"abandon other rows out from under a session that just changed"
+regression this branch has guarded against since the tenth pass, reopened
+for the one case that guard never covered. Fixed: the winner's
+`updateMany({ where: { id: winner.id, status: "ACTIVE", version: winner.version }, data: { activeSessionKey: key, version: { increment: 1 } } })`
+now runs unconditionally, first, before any loser is touched — idempotent
+when the key was already correct, and a real `ConcurrentActivityError`
+(rolling back the whole group's transaction, losers included) the moment
+it is not. Rehearsed: two groups, each with a winner already carrying the
+correct `activeSessionKey` and one identical-answer loser with none — the
+shape the old code let straight through unguarded. During an 8-second
+injected delay, a concurrent writer called the real
+`updateSessionAnswers` on one group's winner (a genuine answer change) and
+the real `completeSession` on the other's. Both groups were reported
+`⚠ SKIPPED … changed concurrently`, the script exited 1, and a direct
+query afterward confirmed both losers untouched — still `ACTIVE`,
+`activeSessionKey: null`, never abandoned — while each winner correctly
+reflected the concurrent write that raced it (the changed answers with
+`version` incremented; `status: "COMPLETED"` with `activeSessionKey`
+nulled).
+
+**2. `template-update.ts` had no guard against a contractor's edit landing
+between `detect()`'s read and the later write.** `detect()` runs once, at
+the very start of the process, and decides `conflict: false` from that
+single read; the actual write for `option-revised` and `wording-changed`
+happens later, after resolving routing links (a round trip per link) —
+a real, if narrow, window in which a contractor using the live admin UI
+could edit the exact same question or option. Neither `Question` nor
+`AnswerOption` carries a `version` or `updatedAt` column, so there is no
+optimistic-concurrency counter to condition a write on the way the
+session migration conditions on `GuidedFlowSession.version` — confirmed
+by direct schema inspection. Fixed with a manual compare-and-swap instead
+of a counter: `option-revised` re-fetches the live option fresh inside the
+transaction, immediately before writing, and re-runs the SAME
+`liveOptionMatchesFrom` comparison `detect()` already trusted against that
+fresh read — a live row that no longer matches the `from`-version shape
+throws a new `StaleAdoptionTargetError`, caught once, reported as a clean
+refusal, and rolled back with nothing written. `wording-changed`'s guard
+is simpler and needs no extra read: its `updateMany`'s own `where` clause
+now requires `prompt: ch.from` — the exact value `detect()` saw — so a
+live prompt that has since moved matches zero rows, and `count !== 1`
+throws the same error. Rehearsed both, against Elite's real
+`concealed_route_feet` question and its `beyond` option (stamped with
+Elite's usual temporary provenance backfill and a scratch `TemplateVersion
+997` carrying one wording change and one option revision, both
+non-conflicting): with the delay injected right after `detect()` returns,
+a concurrent writer changed the live question's prompt for the
+wording-changed run, and the live option's `numberAtLeast` for the
+option-revised run. Both adoptions printed the new
+`REFUSED: … changed since it was inspected` message and exited 1. Direct
+query afterward confirmed nothing the tool would have written landed —
+the question prompt stayed at the concurrent writer's value, the option's
+`numberAtLeast` stayed at the concurrent writer's value (not the
+template's), and the service's `materialCostResolved`/
+`publishedPriceApprovedAt`/`basePrice` were untouched, proving the price
+reset never ran either — the whole transaction rolled back, not a partial
+write. (An earlier attempt at the wording-changed rehearsal scoped the
+concurrent writer's `updateMany` by `key` alone, which matched five rows
+across three other contractors sharing the same template question key —
+caught before it mattered, since the disposable database absorbs it
+either way, but both the writer script and the fixture's provenance
+backfill were corrected to scope by this contractor's own `serviceId`
+before the kept rehearsal ran.)
+
+All rehearsal state was reverted and confirmed by direct query: both
+session-migration groups' four fixture rows deleted; the option's
+`numberAtLeast` restored to 20; Elite's `new-120v-outlet` service's
+`templateKey`/`templateVersionId` restored to `null` (their true original
+— an earlier, failed setup attempt in this same pass had already stamped
+them before erroring, so the value this pass's own setup script first read
+back was not the real baseline); the scratch `TemplateVersion 997` and its
+`TemplateService` deleted.
+
+**Verification.** `npx tsc --noEmit` clean project-wide. Rebuilt
+(`next build`) and re-ran all three of this branch's own browser-flow
+suites against that production build: `verify-cross-device-stale-queue-
+browser-flow.ts` (6/6), `verify-two-fresh-contractors-routing-v2-browser-
+flow.ts` (22/22), `verify-integration-manual-routing-storefront-browser-
+flow.ts` (33/33) — all clean, zero failures. Neither modified script sits
+on a path any of these three suites exercises directly; they stand as the
+branch's regression guard, not as this pass's concurrency proof — that
+proof is the delay-injection rehearsals above, using the real production
+functions (`updateSessionAnswers`, `completeSession`,
+`liveOptionMatchesFrom`) rather than a simplified stand-in. The local
+disposable database confirmed back to its exact baseline afterward — only
+`prisma/migrate-guided-flow-session-active-key.ts`,
+`scripts/template-update.ts`, and this report are committed in this pass.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple

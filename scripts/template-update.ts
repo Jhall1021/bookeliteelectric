@@ -72,6 +72,28 @@
  * either the whole adoption — structure and unresolved-pricing stamp
  * together — commits, or none of it does.
  *
+ * STALE ADOPTION TARGET — RECHECKED IMMEDIATELY BEFORE WRITING, NOT ONLY
+ * ONCE IN `detect()`. `detect()` runs at the very start of this process and
+ * decides `conflict: false` from a single read; the actual write happens
+ * later, after resolving routing links (a round trip per link). A
+ * contractor using the live admin UI can edit the SAME question or option
+ * in that gap — a real, if narrow, window every time this tool runs, and
+ * unrelated to how far apart `--status` and `--adopt` are run as separate
+ * invocations, since `detect()` reruns fresh at the start of EACH one.
+ * Neither `Question` nor `AnswerOption` carries a `version` or `updatedAt`
+ * column, so there is no optimistic-concurrency counter to condition a
+ * write on the way `migrate-guided-flow-session-active-key.ts` conditions
+ * its writes on `GuidedFlowSession.version`. Instead, immediately before
+ * writing, this tool re-runs the SAME comparison `detect()` already
+ * trusted, against a FRESH read, inside the same transaction as the write:
+ * `option-revised` re-checks the live option still matches the `from`
+ * version's shape (`liveOptionMatchesFrom`, the identical function
+ * `detect()` used), and `wording-changed`'s own write is guarded by
+ * requiring the live prompt still equal `ch.from` in its own `where`
+ * clause. Either check finding the live tree has moved refuses the whole
+ * write — nothing is written — rather than silently overwriting an edit
+ * nobody re-verified.
+ *
  * STILL NOT CARRIED, NAMED RATHER THAN SILENTLY DROPPED: materials
  * (AnswerOptionMaterial), disclaimers, photo groups, and policy-banded
  * label patterns. None of these were named in this correction; carrying
@@ -85,6 +107,16 @@ import { loadEnv } from "./_env";
 loadEnv();
 const prisma = new PrismaClient();
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined; };
+
+/**
+ * Thrown when the live tree no longer matches what `detect()` inspected —
+ * a contractor editing the SAME question or option between this process's
+ * own `detect()` read and the write further down. Never caught anywhere
+ * but the one place that reports it and lets the transaction roll back.
+ */
+class StaleAdoptionTargetError extends Error {
+  constructor(public readonly what: string) { super(`${what} changed since it was inspected`); }
+}
 
 type Change =
   | { kind: "question-added"; key: string; prompt: string }
@@ -398,6 +430,8 @@ async function main() {
     if (ch.kind === "option-revised") {
       const tq = newer.questions.find((q) => q.key === ch.questionKey)!;
       const to = (tq.options as unknown as TemplateOption[]).find((o) => o.value === ch.value)!;
+      const wasQ = older.questions.find((q) => q.key === ch.questionKey)!;
+      const wasOpt = (wasQ.options as unknown as TemplateOption[]).find((o) => o.value === ch.value)!;
       const mineQ = await prisma.question.findFirstOrThrow({ where: { serviceId: svc.id, key: ch.questionKey } });
       const mine = await prisma.answerOption.findFirstOrThrow({ where: { questionId: mineQ.id, value: ch.value } });
       const problems: string[] = [];
@@ -408,39 +442,90 @@ async function main() {
         console.error(`\n  Nothing was written. Adopt the missing target(s) first, then retry this change.\n`);
         await prisma.$disconnect(); process.exit(1);
       }
-      await prisma.$transaction(async (tx) => {
-        // CANONICAL COMPONENTS ONLY. liveOptionMatchesFrom / componentsEqual
-        // above only ever compared canonical-linked rows (liveComponents()
-        // filters out anything with canonicalComponentId: null) — a
-        // contractor's own noncanonical component link (the legacy
-        // `componentId` field, pointing at JobComponent) is invisible to
-        // that check and was never part of what "conflict" or "safe to
-        // revise" meant here. Deleting EVERY component on the option,
-        // scoped only by answerOptionId, deleted those noncanonical links
-        // right along with the canonical ones the check actually
-        // inspected — a real contractor customization destroyed by a
-        // write whose own safety check had no way to see it. Scoped now to
-        // exactly what the check compared: canonical-linked rows only.
-        await tx.answerOptionComponent.deleteMany({ where: { answerOptionId: mine.id, canonicalComponentId: { not: null } } });
-        await tx.answerOption.update({
-          where: { id: mine.id },
-          data: {
-            routeAction: data.routeAction,
-            nextQuestionId: data.nextQuestionId, rerouteServiceId: data.rerouteServiceId, referencedServiceId: data.referencedServiceId,
-            numberAtLeast: data.numberAtLeast, numberAtMost: data.numberAtMost, numberAtLeastExclusive: data.numberAtLeastExclusive,
-            requiresCapabilityKey: data.requiresCapabilityKey,
-            components: { create: components },
-          },
+      try {
+        await prisma.$transaction(async (tx) => {
+          // RECHECKED AGAINST THE LIVE TREE, INSIDE THIS TRANSACTION,
+          // IMMEDIATELY BEFORE WRITING — not just once, back in detect().
+          // AnswerOption carries no version or updatedAt column, so there
+          // is no optimistic-concurrency counter to guard on the way
+          // migrate-guided-flow-session-active-key.ts guards `version`.
+          // The re-check instead re-runs the SAME conflict comparison
+          // detect() already trusted, against a FRESH read: if a
+          // contractor edited this exact option in the gap between
+          // detect()'s read (at the very top of this process) and this
+          // write — routing, numeric bounds, capability gate, or its
+          // canonical components — it no longer matches `wasOpt`, and
+          // this throws rather than overwriting an edit nobody re-checked.
+          const freshMine = await tx.answerOption.findUniqueOrThrow({ where: { id: mine.id }, include: { components: true } });
+          const stillMatchesFrom = await liveOptionMatchesFrom(svc.contractorId, svc.id, wasOpt, {
+            routeAction: freshMine.routeAction, nextQuestionId: freshMine.nextQuestionId, rerouteServiceId: freshMine.rerouteServiceId,
+            referencedServiceId: freshMine.referencedServiceId, numberAtLeast: freshMine.numberAtLeast, numberAtMost: freshMine.numberAtMost,
+            numberAtLeastExclusive: freshMine.numberAtLeastExclusive, requiresCapabilityKey: freshMine.requiresCapabilityKey,
+            components: liveComponents(freshMine.components),
+          });
+          if (!stillMatchesFrom) throw new StaleAdoptionTargetError(`option ${ch.questionKey}/${ch.value}`);
+
+          // CANONICAL COMPONENTS ONLY. liveOptionMatchesFrom / componentsEqual
+          // above only ever compared canonical-linked rows (liveComponents()
+          // filters out anything with canonicalComponentId: null) — a
+          // contractor's own noncanonical component link (the legacy
+          // `componentId` field, pointing at JobComponent) is invisible to
+          // that check and was never part of what "conflict" or "safe to
+          // revise" meant here. Deleting EVERY component on the option,
+          // scoped only by answerOptionId, deleted those noncanonical links
+          // right along with the canonical ones the check actually
+          // inspected — a real contractor customization destroyed by a
+          // write whose own safety check had no way to see it. Scoped now to
+          // exactly what the check compared: canonical-linked rows only.
+          await tx.answerOptionComponent.deleteMany({ where: { answerOptionId: mine.id, canonicalComponentId: { not: null } } });
+          await tx.answerOption.update({
+            where: { id: mine.id },
+            data: {
+              routeAction: data.routeAction,
+              nextQuestionId: data.nextQuestionId, rerouteServiceId: data.rerouteServiceId, referencedServiceId: data.referencedServiceId,
+              numberAtLeast: data.numberAtLeast, numberAtMost: data.numberAtMost, numberAtLeastExclusive: data.numberAtLeastExclusive,
+              requiresCapabilityKey: data.requiresCapabilityKey,
+              components: { create: components },
+            },
+          });
+          await resetPricing(tx); // SAME transaction — see ATOMICITY.
         });
-        await resetPricing(tx); // SAME transaction — see ATOMICITY.
-      });
+      } catch (e) {
+        if (e instanceof StaleAdoptionTargetError) {
+          console.error(`\n  REFUSED: ${e.what} — a contractor edit landed on it between inspection and this write.\n` +
+            `  Nothing was written. Run --status again to see its current state before retrying.\n`);
+          await prisma.$disconnect(); process.exit(1);
+        }
+        throw e;
+      }
       applied++;
     }
     if (ch.kind === "wording-changed") {
-      await prisma.$transaction(async (tx) => {
-        await tx.question.updateMany({ where: { serviceId: svc.id, key: ch.questionKey }, data: { prompt: ch.to } });
-        await resetPricing(tx); // SAME transaction — see ATOMICITY.
-      });
+      try {
+        await prisma.$transaction(async (tx) => {
+          // GUARDED BY THE EXACT PROMPT `detect()` SAW, NOT JUST A BLIND
+          // UPDATE. `ch.from` is the "from"-version prompt this change was
+          // computed against — the same value that made `conflict: false`
+          // true (the live prompt matched it at detect() time). Requiring
+          // it again here, inside the write's own `where`, means a
+          // contractor who edited this exact question's wording between
+          // detect()'s read and this write makes the match zero rows
+          // rather than silently overwriting their edit.
+          const result = await tx.question.updateMany({
+            where: { serviceId: svc.id, key: ch.questionKey, prompt: ch.from },
+            data: { prompt: ch.to },
+          });
+          if (result.count !== 1) throw new StaleAdoptionTargetError(`question ${ch.questionKey}`);
+          await resetPricing(tx); // SAME transaction — see ATOMICITY.
+        });
+      } catch (e) {
+        if (e instanceof StaleAdoptionTargetError) {
+          console.error(`\n  REFUSED: ${e.what} — a contractor edit landed on it between inspection and this write.\n` +
+            `  Nothing was written. Run --status again to see its current state before retrying.\n`);
+          await prisma.$disconnect(); process.exit(1);
+        }
+        throw e;
+      }
       applied++;
     }
   }
