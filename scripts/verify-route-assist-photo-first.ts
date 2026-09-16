@@ -422,6 +422,19 @@ function fullyResolvedDoorwayLeg(entrySide: "LEFT" | "RIGHT" | "UNRESOLVED"): Ro
   return store;
 }
 
+/** Same as fullyResolvedDoorwayLeg, but with baseboard continuity independently controlled, to prove the doorway-bypass rule below. */
+function fullyResolvedDoorwayLegWithBaseboard(entrySide: "LEFT" | "RIGHT" | "UNRESOLVED", baseboard: "true" | "false" | "missing"): RouteAssistFactStoreV1 {
+  let store = anchorsPlaced();
+  store = writeFact(store, "WALL_PLANE", LEG, { kind: "BOOLEAN", value: true });
+  if (baseboard !== "missing") store = writeFact(store, "BASEBOARD_CONTINUITY", LEG, { kind: "BOOLEAN", value: baseboard === "true" });
+  store = writeFact(store, "DOORWAY_PRESENCE", DOORWAY_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "DOORWAY_LEFT_CASING", DOORWAY_1, { kind: "OBJECT_REF", objectId: "left", imageId: IMAGE });
+  store = writeFact(store, "DOORWAY_TOP_CASING", DOORWAY_1, { kind: "OBJECT_REF", objectId: "top", imageId: IMAGE });
+  store = writeFact(store, "DOORWAY_RIGHT_CASING", DOORWAY_1, { kind: "OBJECT_REF", objectId: "right", imageId: IMAGE });
+  store = writeFact(store, "DOORWAY_ENTRY_SIDE", DOORWAY_1, { kind: "ENUM", value: entrySide });
+  return store;
+}
+
 check("[correction] a fully-cased doorway with entrySide=LEFT reaches PHOTO_SUFFICIENT", () => {
   const store = fullyResolvedDoorwayLeg("LEFT");
   const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
@@ -441,6 +454,81 @@ check("[correction] a fully-cased doorway with entrySide=UNRESOLVED does NOT rea
   const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
   assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
   assert.deepEqual(escalation.missingFactTypes, ["DOORWAY_ENTRY_SIDE"]);
+});
+
+// --- [PRODUCT CORRECTION] a fully resolved doorway bypass substitutes for
+// baseboard continuity across the opening -----------------------------------
+// A real doorway physically interrupts baseboard continuity by construction:
+// the trim run at a doorway opening legitimately goes wall/trim -> side
+// casing -> top casing -> opposite side casing -> wall/trim, not an unbroken
+// run of baseboard. Requiring BASEBOARD_CONTINUITY unconditionally, even once
+// the doorway and every casing are fully resolved, forced TARGETED_PHOTO_
+// REQUIRED on a leg a real phone test showed was actually fully
+// characterized. This is an ALTERNATIVE local-trim path, not a global
+// relaxation -- an ordinary wall route (no doorway, or one not yet fully
+// characterized) still requires baseboard continuity exactly as before.
+
+function legWithWallPlane(baseboard: "true" | "false" | "missing"): RouteAssistFactStoreV1 {
+  let store = anchorsPlaced();
+  store = writeFact(store, "WALL_PLANE", LEG, { kind: "BOOLEAN", value: true });
+  if (baseboard !== "missing") store = writeFact(store, "BASEBOARD_CONTINUITY", LEG, { kind: "BOOLEAN", value: baseboard === "true" });
+  return store;
+}
+
+check("[doorway bypass] 1. no doorway + baseboard true reaches PHOTO_SUFFICIENT", () => {
+  let store = legWithWallPlane("true");
+  store = writeFact(store, "DOORWAY_PRESENCE", DOORWAY_1, { kind: "BOOLEAN", value: false });
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "PHOTO_SUFFICIENT");
+});
+
+check("[doorway bypass] 2a. no doorway + baseboard false yields TARGETED_PHOTO_REQUIRED naming BASEBOARD_CONTINUITY", () => {
+  let store = legWithWallPlane("false");
+  store = writeFact(store, "DOORWAY_PRESENCE", DOORWAY_1, { kind: "BOOLEAN", value: false });
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  assert.deepEqual(escalation.missingFactTypes, ["BASEBOARD_CONTINUITY"]);
+});
+
+check("[doorway bypass] 2b. no doorway + baseboard missing (never written) also yields TARGETED_PHOTO_REQUIRED naming BASEBOARD_CONTINUITY", () => {
+  let store = legWithWallPlane("missing");
+  store = writeFact(store, "DOORWAY_PRESENCE", DOORWAY_1, { kind: "BOOLEAN", value: false });
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  assert.deepEqual(escalation.missingFactTypes, ["BASEBOARD_CONTINUITY"]);
+});
+
+check("[doorway bypass] 3. a fully resolved doorway (all three casings + resolved entry side) with baseboard EXPLICITLY FALSE still reaches PHOTO_SUFFICIENT -- the doorway/casing path substitutes for continuity across the opening", () => {
+  const store = fullyResolvedDoorwayLegWithBaseboard("LEFT", "false");
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "PHOTO_SUFFICIENT", JSON.stringify(escalation));
+});
+
+check("[doorway bypass] 4. a fully resolved doorway with baseboard MISSING (never written) also reaches PHOTO_SUFFICIENT -- the bypass makes the requirement inapplicable, not merely satisfied by a false value", () => {
+  const store = fullyResolvedDoorwayLegWithBaseboard("RIGHT", "missing");
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "PHOTO_SUFFICIENT", JSON.stringify(escalation));
+});
+
+check("[doorway bypass] 5. a doorway missing ONE casing, with baseboard false, is NOT a fully resolved bypass -- yields TARGETED_PHOTO_REQUIRED naming both the missing casing AND BASEBOARD_CONTINUITY", () => {
+  let store = legWithWallPlane("false");
+  store = writeFact(store, "DOORWAY_PRESENCE", DOORWAY_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "DOORWAY_LEFT_CASING", DOORWAY_1, { kind: "OBJECT_REF", objectId: "left", imageId: IMAGE });
+  store = writeFact(store, "DOORWAY_RIGHT_CASING", DOORWAY_1, { kind: "OBJECT_REF", objectId: "right", imageId: IMAGE });
+  // DOORWAY_TOP_CASING deliberately not written.
+  store = writeFact(store, "DOORWAY_ENTRY_SIDE", DOORWAY_1, { kind: "ENUM", value: "LEFT" });
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  assert.ok(escalation.missingFactTypes.includes("DOORWAY_TOP_CASING"));
+  assert.ok(escalation.missingFactTypes.includes("BASEBOARD_CONTINUITY"));
+});
+
+check("[doorway bypass] 6. a doorway with all three casings but an UNRESOLVED entry side, with baseboard false, is NOT a fully resolved bypass -- yields TARGETED_PHOTO_REQUIRED naming both DOORWAY_ENTRY_SIDE AND BASEBOARD_CONTINUITY", () => {
+  const store = fullyResolvedDoorwayLegWithBaseboard("UNRESOLVED", "false");
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  assert.ok(escalation.missingFactTypes.includes("DOORWAY_ENTRY_SIDE"));
+  assert.ok(escalation.missingFactTypes.includes("BASEBOARD_CONTINUITY"));
 });
 
 console.log(`\nRoute Assist photo-first verification: ${passed} passed, 0 failed.`);

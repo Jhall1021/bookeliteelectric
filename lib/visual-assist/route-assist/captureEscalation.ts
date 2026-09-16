@@ -104,6 +104,23 @@ function doorwayEntrySideResolved(fact: ReturnType<typeof getRouteAssistFactV1>)
  * case photo-first exists to resolve without a sweep. See factModel.ts's
  * TRANSITION_VISUALLY_CONNECTED/TRANSITION_CONTINUATION_IN_FRAME for what
  * now actually decides this.
+ *
+ * PRODUCT CORRECTION (doorway bypass is an ALTERNATIVE local-trim path, not
+ * an additional requirement on top of baseboard): a real doorway physically
+ * interrupts baseboard continuity by construction -- the trim run at a
+ * doorway opening legitimately goes wall/trim -> side casing -> top casing
+ * -> opposite side casing -> wall/trim, not wall/trim -> [gap] -> wall/trim.
+ * Requiring BASEBOARD_CONTINUITY=true (or even just written) UNCONDITIONALLY,
+ * even once the doorway and every casing are fully resolved, forced
+ * TARGETED_PHOTO_REQUIRED on a leg that was actually completely
+ * characterized. A fully resolved doorway bypass -- DOORWAY_PRESENCE=true,
+ * all three casings present, and DOORWAY_ENTRY_SIDE resolved to LEFT/RIGHT
+ * -- now substitutes for baseboard continuity across the opening: once that
+ * bypass is established, BASEBOARD_CONTINUITY no longer independently
+ * contributes to `missing`, regardless of its own value. This is an
+ * ALTERNATIVE path, not a global relaxation: an ordinary wall route (no
+ * doorway, or a doorway not yet fully characterized) still requires
+ * baseboard continuity exactly as before.
  */
 export function evaluateRouteAssistPhotoEscalationV1(args: {
   store: RouteAssistFactStoreV1;
@@ -151,10 +168,11 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
     if (!wallPlane) missing.push("WALL_PLANE");
   }
 
-  const baseboard = getRouteAssistFactV1(args.store, "BASEBOARD_CONTINUITY", args.legScopeId);
-  if (!baseboard || booleanValue(baseboard) === false) missing.push("BASEBOARD_CONTINUITY");
-
+  // Doorway resolution is computed BEFORE the baseboard check below, because
+  // a fully resolved doorway bypass changes whether baseboard continuity is
+  // even required for this leg -- see the PRODUCT CORRECTION note above.
   const doorwayPresence = getRouteAssistFactV1(args.store, "DOORWAY_PRESENCE", doorwayScopeId);
+  let fullyResolvedDoorwayBypass = false;
   if (!doorwayPresence) {
     missing.push("DOORWAY_PRESENCE");
   } else if (booleanValue(doorwayPresence) === true) {
@@ -162,7 +180,18 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
       if (!getRouteAssistFactV1(args.store, casingType, doorwayScopeId)) missing.push(casingType);
     }
     const casingsResolved = DOORWAY_CASING_TYPES.every((casingType) => getRouteAssistFactV1(args.store, casingType, doorwayScopeId));
-    if (casingsResolved && !doorwayEntrySideResolved(getRouteAssistFactV1(args.store, "DOORWAY_ENTRY_SIDE", doorwayScopeId))) missing.push("DOORWAY_ENTRY_SIDE");
+    const entrySideResolved = doorwayEntrySideResolved(getRouteAssistFactV1(args.store, "DOORWAY_ENTRY_SIDE", doorwayScopeId));
+    if (casingsResolved && !entrySideResolved) missing.push("DOORWAY_ENTRY_SIDE");
+    fullyResolvedDoorwayBypass = casingsResolved && entrySideResolved;
+  }
+
+  // A fully resolved doorway bypass substitutes for baseboard continuity
+  // across the opening -- the trim run legitimately leaves the baseboard
+  // plane there. Otherwise, the existing requirement is unchanged: missing
+  // or explicitly false baseboard continuity means TARGETED_PHOTO_REQUIRED.
+  if (!fullyResolvedDoorwayBypass) {
+    const baseboard = getRouteAssistFactV1(args.store, "BASEBOARD_CONTINUITY", args.legScopeId);
+    if (!baseboard || booleanValue(baseboard) === false) missing.push("BASEBOARD_CONTINUITY");
   }
 
   if (missing.length > 0) {
@@ -172,8 +201,8 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
   return {
     escalation: "PHOTO_SUFFICIENT",
     reason: cornerConfirmed
-      ? "source and destination are connected by a fully visible, resolved transition, with continuous baseboard and no unresolved local facts"
-      : "source and destination are on one supported wall plane with continuous baseboard and no unresolved local facts",
+      ? "source and destination are connected by a fully visible, resolved transition, with a fully visible supported wall/trim path and no unresolved local facts"
+      : "source and destination are connected by a fully visible supported wall/trim path with no unresolved local facts",
     missingFactTypes: [],
   };
 }
