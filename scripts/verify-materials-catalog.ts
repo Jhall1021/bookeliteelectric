@@ -39,6 +39,11 @@ const EXPECTED_CHANGED_FILES = new Set([
   "app/dashboard/layout.tsx",
   "components/ui/icons.tsx",
   "components/admin/MaterialsCatalogClient.tsx",
+  "components/admin/materials/CatalogHealthStrip.tsx",
+  "components/admin/materials/CatalogToolbar.tsx",
+  "components/admin/materials/MaterialCostEditor.tsx",
+  "components/admin/materials/MaterialRow.tsx",
+  "components/admin/materials/format.ts",
   "app/dashboard/materials/page.tsx",
   "app/api/admin/materials/route.ts",
   "scripts/verify-materials-catalog.ts",
@@ -87,6 +92,11 @@ function staticChecks() {
   const newFiles = [
     "lib/materialCatalog.ts",
     "components/admin/MaterialsCatalogClient.tsx",
+    "components/admin/materials/CatalogHealthStrip.tsx",
+    "components/admin/materials/CatalogToolbar.tsx",
+    "components/admin/materials/MaterialCostEditor.tsx",
+    "components/admin/materials/MaterialRow.tsx",
+    "components/admin/materials/format.ts",
     "app/dashboard/materials/page.tsx",
   ];
   for (const f of newFiles) {
