@@ -748,6 +748,43 @@ async function main() {
     assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
   });
 
+  // --- PROVIDER-GUIDANCE CLARIFICATION: a window (or other normal
+  // architectural feature) on the destination-side wall does not break
+  // continuity on its own -- the real-phone photo had destination B on a
+  // wall below a window, which the provider was apparently treating as a
+  // reason to hesitate. TRANSITION_CONTINUATION_IN_FRAME's derivation in
+  // livePhotoFactAdapter.ts is UNCHANGED: it never inspects WINDOW objects
+  // at all, so a window's mere presence was already inert to it -- these
+  // fixtures prove that directly, on both sides (a window doesn't block a
+  // genuine connection, and a window doesn't manufacture one either).
+
+  await check("26. [provider guidance] a WINDOW object near the destination does not prevent TRANSITION_CONTINUATION_IN_FRAME from resolving true when the destination-side wall is otherwise coherently traced", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+    const semantics: RouteAssistVisibleSceneSemanticsV1 = {
+      ...cornerBase,
+      objects: [...cornerBase.objects, { id: "window-near-b", kind: "WINDOW", imageId: IMAGE, confidence: 0.9, box: box(0.78, 0.1) }],
+    };
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const continuation = application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`];
+    assert.equal(continuation?.value.kind === "BOOLEAN" && continuation.value.value, true, "a window near the destination must not, by itself, withhold a genuinely traced connection");
+  });
+
+  await check("27. [provider guidance] a WINDOW object near the destination does not manufacture TRANSITION_CONTINUATION_IN_FRAME=true on its own -- the connection still needs to be genuinely, coherently traced", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: false });
+    const semantics: RouteAssistVisibleSceneSemanticsV1 = {
+      ...cornerBase,
+      objects: [...cornerBase.objects, { id: "window-near-b", kind: "WINDOW", imageId: IMAGE, confidence: 0.9, box: box(0.78, 0.1) }],
+    };
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`], undefined, "a window's mere presence must not manufacture a connection that was never coherently traced");
+  });
+
   console.log(`\nRoute Assist live photo interpretation verification: ${passed} passed, 0 failed.`);
   console.log("(Existing photo-first and hardening/sweep suites still passing unchanged -- run separately; see the implementation report.)");
 }
