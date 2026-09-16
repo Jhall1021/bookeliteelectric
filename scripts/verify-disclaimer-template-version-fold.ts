@@ -37,6 +37,29 @@
  * adds one they never installed. `installedDisclaimerRequirements` must
  * report exactly what v1 gave this contractor, regardless of what the
  * catalog says today.
+ *
+ * SCENARIO 4 — the LIVE tree, not the template, decides reachability
+ *
+ * `installedDisclaimerRequirements` walks this contractor's own live
+ * Question/AnswerOption rows (real ids, real routeAction/nextQuestionId),
+ * consulting the originating template ONLY to say which canonical concept a
+ * live-reachable answer needs — never to decide reachability itself. Three
+ * things proven together, because a fix that gets one right and another
+ * wrong is not a fix:
+ *
+ *   - A TERMINAL option (RESOLVE_INSTANT) that still carries a
+ *     nextQuestionKey value is never followed, at install time. "term"
+ *     below points at "orphan_q" and orphan_q's own disclosure never counts.
+ *   - A LIVE REWIRE that removes the only path to an originally-reachable
+ *     question (an admin edit, simulated directly — no tree-editing UI is
+ *     built or exercised here) drops its disclosure from pending/write
+ *     targets, even though the ORIGINATING TEMPLATE still calls it
+ *     reachable.
+ *   - A LIVE REWIRE that creates a new path to an originally-UNREACHABLE
+ *     question picks up its disclosure, even though the template never
+ *     considered it reachable — the template is only ever consulted for
+ *     WHICH concept applies, so its own stale reachability opinion cannot
+ *     suppress a real live path.
  */
 import { PrismaClient } from "@prisma/client";
 import { preflight, installCatalog, templateVersionSource } from "../lib/templateProvisioning";
@@ -258,6 +281,102 @@ async function scenarioProvenanceAfterLaterPublish() {
   await teardownTrade(TRADE, CONTRACTOR_SLUG, CATEGORY_SLUG, [ORIGINAL_KEY, NEW_KEY]);
 }
 
+// ── Scenario 4 — the LIVE tree, not the template, decides reachability ────
+async function scenarioLiveRewire() {
+  const TRADE = `test_rewire_${RUN}`;
+  const SERVICE_KEY = `rewire_service_${RUN}`;
+  const CATEGORY_SLUG = `rewire-category-${RUN}`;
+  const CONTRACTOR_SLUG = `rewire-contractor-${RUN}`;
+  const REACHABLE_KEY = `TEST_REWIRE_REACHABLE_${RUN}`;
+  const RETIRED_KEY = `TEST_REWIRE_RETIRED_${RUN}`;
+
+  await teardownTrade(TRADE, CONTRACTOR_SLUG, CATEGORY_SLUG, [REACHABLE_KEY, RETIRED_KEY]);
+
+  const category = await prisma.canonicalCategory.create({ data: { slug: CATEGORY_SLUG, name: "Rewire Test Category" }, select: { id: true } });
+  const reachableConcept = await prisma.canonicalDisclaimer.create({ data: { key: REACHABLE_KEY, name: "Reachable-today concept" }, select: { id: true } });
+  const retiredConcept = await prisma.canonicalDisclaimer.create({ data: { key: RETIRED_KEY, name: "Retired-at-install concept" }, select: { id: true } });
+
+  await prisma.templateVersion.create({
+    data: {
+      trade: TRADE, version: 1, kind: "SNAPSHOT",
+      services: {
+        create: [{
+          key: SERVICE_KEY, slug: SERVICE_KEY, name: "Rewire Test Service",
+          canonicalCategoryId: category.id, bookingType: "INSTANT", photoState: "NONE",
+          questions: {
+            create: [
+              { key: "entry", prompt: "Start?", inputType: "SINGLE_SELECT", order: 0,
+                options: { create: [{ value: "go", label: "Go", routeAction: "CONTINUE", order: 0, nextQuestionKey: "mid_q" }] } },
+              {
+                key: "mid_q", prompt: "Mid question?", inputType: "SINGLE_SELECT", order: 1,
+                options: {
+                  create: [
+                    // The only live path to far_q, at install time.
+                    { value: "cont", label: "Continue", routeAction: "CONTINUE", order: 0, nextQuestionKey: "far_q" },
+                    // TERMINAL, but still carries a nextQuestionKey value —
+                    // must never be followed, here or at install time.
+                    { value: "term", label: "Terminal", routeAction: "RESOLVE_INSTANT", order: 1, nextQuestionKey: "orphan_q" },
+                  ],
+                },
+              },
+              { key: "far_q", prompt: "Far question?", inputType: "SINGLE_SELECT", order: 2,
+                options: { create: [{ value: "done", label: "Done", routeAction: "RESOLVE_INSTANT", order: 0, disclaimers: { create: [{ canonicalDisclaimerId: reachableConcept.id }] } }] } },
+              // Nothing CONTINUEs here at install time — only "term"'s
+              // terminal, non-followed nextQuestionKey points at it.
+              { key: "orphan_q", prompt: "Orphan question?", inputType: "SINGLE_SELECT", order: 3,
+                options: { create: [{ value: "x", label: "X", routeAction: "RESOLVE_INSTANT", order: 0, disclaimers: { create: [{ canonicalDisclaimerId: retiredConcept.id }] } }] } },
+            ],
+          },
+        }],
+      },
+    },
+  });
+
+  const contractor = await prisma.contractor.create({ data: { slug: CONTRACTOR_SLUG, name: "Rewire Test Contractor", active: true, countryCode: "US" }, select: { id: true } });
+  await prisma.contractorTrade.create({ data: { contractorId: contractor.id, tradeKey: TRADE } });
+  const pf = await preflight(prisma, contractor.id, templateVersionSource(prisma, TRADE));
+  if (!pf.ok) throw new Error(`preflight refused: ${pf.message}`);
+  await installCatalog(prisma, contractor.id, pf.catalog);
+
+  const svc = await prisma.service.findFirstOrThrow({ where: { slug: SERVICE_KEY, contractorId: contractor.id }, select: { id: true, unresolvedDisclaimerKeys: true } });
+  ok("4a. at install, the reachable concept is required and the terminal option's dangling link to orphan_q is not followed",
+    svc.unresolvedDisclaimerKeys.includes(REACHABLE_KEY) && !svc.unresolvedDisclaimerKeys.includes(RETIRED_KEY),
+    JSON.stringify(svc.unresolvedDisclaimerKeys));
+
+  const pendingAtInstall = await pendingContractorDisclaimers(prisma, contractor.id);
+  ok("4b. pendingContractorDisclaimers agrees before any live rewire",
+    pendingAtInstall.some((d) => d.key === REACHABLE_KEY) && !pendingAtInstall.some((d) => d.key === RETIRED_KEY),
+    JSON.stringify(pendingAtInstall.map((d) => d.key)));
+
+  // Simulate a live tree edit directly (no tree-editing UI exercised here):
+  // rewire "cont" to stop continuing, which removes the ONLY live path to
+  // far_q — even though the ORIGINATING TEMPLATE still calls it reachable.
+  const midQ = await prisma.question.findFirstOrThrow({ where: { templateKey: "mid_q", serviceId: svc.id }, select: { id: true } });
+  const contOption = await prisma.answerOption.findFirstOrThrow({ where: { templateKey: "mid_q/cont", questionId: midQ.id }, select: { id: true } });
+  await prisma.answerOption.update({ where: { id: contOption.id }, data: { routeAction: "RESOLVE_INSTANT", nextQuestionId: null } });
+
+  const pendingAfterRemoval = await pendingContractorDisclaimers(prisma, contractor.id);
+  ok("4c. a live rewire that removes the only path to far_q drops its disclosure from pending, despite the template's own opinion",
+    !pendingAfterRemoval.some((d) => d.key === REACHABLE_KEY), JSON.stringify(pendingAfterRemoval.map((d) => d.key)));
+
+  // Simulate a SECOND live rewire: point "term" onward to orphan_q for
+  // real. orphan_q's disclosure was never reachable at install — the fix
+  // must not have cached that opinion anywhere; it has to be live today.
+  const termOption = await prisma.answerOption.findFirstOrThrow({ where: { templateKey: "mid_q/term", questionId: midQ.id }, select: { id: true } });
+  const orphanQ = await prisma.question.findFirstOrThrow({ where: { templateKey: "orphan_q", serviceId: svc.id }, select: { id: true } });
+  await prisma.answerOption.update({ where: { id: termOption.id }, data: { routeAction: "CONTINUE", nextQuestionId: orphanQ.id } });
+
+  const pendingAfterRewire = await pendingContractorDisclaimers(prisma, contractor.id);
+  ok("4d. a live rewire that creates a new path to orphan_q picks up its template-defined disclosure",
+    pendingAfterRewire.some((d) => d.key === RETIRED_KEY), JSON.stringify(pendingAfterRewire.map((d) => d.key)));
+
+  const authored = await authorContractorDisclaimer(prisma, contractor.id, RETIRED_KEY, "Real wording, now that this question is actually live.");
+  ok("4e. and it is a real write target — saving actually attaches it",
+    authored.ok && authored.attached === 1, JSON.stringify(authored));
+
+  await teardownTrade(TRADE, CONTRACTOR_SLUG, CATEGORY_SLUG, [REACHABLE_KEY, RETIRED_KEY]);
+}
+
 async function main() {
   console.log(`\nDISCLAIMER AUTHORING — PROVENANCE + REACHABILITY FOCUSED PROOFS\n`);
   await assertDisposableLocalDatabase(prisma);
@@ -265,6 +384,7 @@ async function main() {
   await scenarioSupersededVersion();
   await scenarioReachability();
   await scenarioProvenanceAfterLaterPublish();
+  await scenarioLiveRewire();
 
   console.log(`\n${fail === 0 ? "ALL CHECKS PASSED" : `${fail} CHECK(S) FAILED`}\n`);
   await prisma.$disconnect();
@@ -279,6 +399,7 @@ main().catch(async (e) => {
   await teardownTrade(`test_fold_${RUN}`, `fold-contractor-${RUN}`, `fold-category-${RUN}`, [`TEST_FOLD_RETIRED_${RUN}`, `TEST_FOLD_CURRENT_${RUN}`]).catch(() => {});
   await teardownTrade(`test_reach_${RUN}`, `reach-contractor-${RUN}`, `reach-category-${RUN}`, [`TEST_REACH_${RUN}`, `TEST_UNREACH_${RUN}`]).catch(() => {});
   await teardownTrade(`test_pub_${RUN}`, `pub-contractor-${RUN}`, `pub-category-${RUN}`, [`TEST_PUB_ORIGINAL_${RUN}`, `TEST_PUB_NEW_${RUN}`]).catch(() => {});
+  await teardownTrade(`test_rewire_${RUN}`, `rewire-contractor-${RUN}`, `rewire-category-${RUN}`, [`TEST_REWIRE_REACHABLE_${RUN}`, `TEST_REWIRE_RETIRED_${RUN}`]).catch(() => {});
   await prisma.$disconnect();
   process.exit(1);
 });

@@ -20,8 +20,16 @@
  * pure function over plain data, so this proves the RESOLVER's own
  * selection logic directly rather than through a fixture that could hide a
  * mismatch between the two.
+ *
+ * CORRECTED 19 Sep 2026 — the UNKNOWN case originally claimed "fails closed"
+ * from selecting zero components alone, which is not evidence of anything: a
+ * branch with no conditioned components ALSO selects zero, and prices fine.
+ * It now asserts the actual signal (`awaitingComponentApproval`, driven by
+ * applyBranch's own `declaredButUnmatched`) against `customerPrice` with an
+ * otherwise-real published anchor, so the claim is "the customer-facing
+ * price verdict refuses", not "an array happened to be empty".
  */
-import { applyBranch, startDisplayConfiguration, type JobConfiguration, type BranchContribution } from "../lib/pricing";
+import { applyBranch, startDisplayConfiguration, customerPrice, type JobConfiguration, type BranchContribution } from "../lib/pricing";
 import type { AccessClass, AccessSlot } from "../lib/accessSlots";
 
 let fail = 0;
@@ -62,15 +70,30 @@ for (const [accessValue, expected] of [
     keys.length === 1 && keys[0] === expected, JSON.stringify(keys));
 }
 
-// ── UNKNOWN fails closed: neither variant is a safe guess ──────────────────
+// ── UNKNOWN fails closed: the real signal, not just an empty selection ─────
+//
+// Zero selected components is NOT itself proof of anything — a branch that
+// legitimately has no conditioned components ALSO selects zero, and prices
+// fine. What actually distinguishes "nothing to match" from "something was
+// declared and none of it matched" is applyBranch's own `declaredButUnmatched`
+// (lib/pricing.ts): components WERE declared here, UNKNOWN matched neither,
+// and that forces `awaitingComponentApproval` regardless of what else the
+// branch would otherwise price. Asserted against customerPrice with an
+// otherwise-real, non-null published anchor — proving the signal reaches the
+// actual customer-facing verdict rather than an internal flag nothing reads.
 {
   let cfg = baseConfig();
   cfg = applyBranch(cfg, { accessClassification: "UNKNOWN" });
   cfg = applyBranch(cfg, {
     components: [component("ACCESSIBLE_VARIANT", "ACCESSIBLE"), component("FINISHED_VARIANT", "FINISHED")],
   });
-  ok("UNKNOWN established selects NEITHER variant — fails closed rather than guessing",
+  ok("UNKNOWN established selects neither declared variant",
     selectedKeys(cfg).length === 0, JSON.stringify(selectedKeys(cfg)));
+  ok("...and that specifically forces awaitingComponentApproval (declaredButUnmatched), not merely 'nothing to add'",
+    cfg.awaitingComponentApproval === true, JSON.stringify({ awaitingComponentApproval: cfg.awaitingComponentApproval }));
+  const priced = customerPrice(cfg, 25000); // a real, otherwise-sufficient published anchor
+  ok("...and customerPrice actually refuses (mustReview, no total) rather than silently pricing the base alone",
+    priced.mustReview === true && priced.totalCents === null, JSON.stringify(priced));
 }
 
 // ── A non-PRIMARY slot stays scoped to itself ──────────────────────────────

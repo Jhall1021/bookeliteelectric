@@ -50,18 +50,34 @@
  * each service already recorded, the same way every other provenance-scoped
  * read in this codebase does.
  *
- * REAL GRAPH REACHABILITY, NOT JUST "THE ROW EXISTS"
+ * REAL GRAPH REACHABILITY — OVER THE LIVE TREE, NOT THE TEMPLATE
  *
- * A requirement only counts when `lib/templateProvisioning.ts`'s
- * `reachableQuestionKeys` — a real forward walk of `nextQuestionKey` edges
- * from the tree's entry point, the same one `installCatalog` uses for its
- * own `unresolvedDisclaimerKeys` — says a homeowner can actually reach the
- * question, AND the corresponding live `AnswerOption` still exists. A
- * question a later seed step "rewires out" (its own stated policy: "rewired
- * out, not deleted") stays in the template as a historical record with
- * nothing left pointing to it; a disclaimer attached under it must not block
- * activation, appear as "pending", or count as satisfied by a save that
- * reached zero real targets.
+ * `installedDisclaimerRequirements` walks THIS CONTRACTOR'S OWN LIVE
+ * `Question`/`AnswerOption` rows — their real ids, their real
+ * `routeAction`/`nextQuestionId` — through `lib/templateProvisioning.ts`'s
+ * shared `reachableQuestionKeys`, the same forward-walk `installCatalog`
+ * uses at install time. The originating TemplateService (per-service
+ * provenance, above) is consulted ONLY to look up which canonical concept a
+ * given, ALREADY-live-reachable answer needs — never to decide reachability
+ * itself.
+ *
+ * CORRECTED 19 Sep 2026 — an earlier version walked the ORIGINATING
+ * TEMPLATE tree for reachability and then merely checked that a live
+ * `AnswerOption` row existed. That is not the same claim as "the LIVE tree
+ * can actually reach this row": the admin tree editor
+ * (`app/api/admin/services/[serviceId]/tree/route.ts`) can rewire a live
+ * service's own `nextQuestionId`/`routeAction` after install, independently
+ * of the template. A question the template considered reachable but the
+ * live tree has since rewired around would still have required wording; a
+ * question the template never considered reachable (retired at extraction
+ * time) but the live tree has since rewired A PATH TO would have been
+ * missed entirely, even though its template-defined disclosure still
+ * exists and now applies for real.
+ *
+ * The walk itself also had to stop at a TERMINAL answer — see
+ * `reachableQuestionKeys`'s own correction note; a retained `nextQuestionKey`
+ * on a `RESOLVE_INSTANT`/`PHOTO_REVIEW`/etc. answer is never actually
+ * followed by a homeowner and must not be followed here either.
  *
  * NEVER Elite's words. `CanonicalDisclaimer.description` is the neutral
  * concept explanation a contractor authors against — see its own schema
@@ -116,47 +132,65 @@ async function installedDisclaimerRequirements(
 
   const requirements: DisclaimerRequirement[] = [];
   for (const svc of services) {
-    // The EXACT originating definition — not the newest one, not any one
-    // that ever matched this key. A service whose recorded version has since
-    // been deleted (should not normally happen; template rows are platform
-    // history) simply requires nothing further from this read.
+    // THE LIVE TREE — this contractor's own CURRENT Question/AnswerOption
+    // rows, which may have diverged from the template since install (the
+    // admin tree editor can rewire routeAction/nextQuestionId directly).
+    // Keyed by real database id, not a template string key — there is no
+    // template involved in this walk at all.
+    const liveQuestions = await db.question.findMany({
+      where: { serviceId: svc.id },
+      select: {
+        id: true, order: true,
+        options: { select: { id: true, routeAction: true, nextQuestionId: true, templateKey: true } },
+      },
+    });
+    const reachableQuestionIds = reachableQuestionKeys(
+      liveQuestions.map((q) => ({
+        key: q.id, order: q.order,
+        options: q.options.map((o) => ({ routeAction: o.routeAction, nextQuestionKey: o.nextQuestionId })),
+      }))
+    );
+
+    // Every LIVE-reachable answer option, indexed by the template identity
+    // it was installed from (`${questionKey}/${optionValue}` —
+    // installCatalog's own stamp). A live-authored option with no
+    // templateKey at all (a contractor's own custom addition) carries no
+    // template disclosure requirement and is simply absent from this map.
+    const liveByTemplateKey = new Map<string, string>();
+    for (const q of liveQuestions) {
+      if (!reachableQuestionIds.has(q.id)) continue;
+      for (const o of q.options) {
+        if (o.templateKey) liveByTemplateKey.set(o.templateKey, o.id);
+      }
+    }
+    if (liveByTemplateKey.size === 0) continue;
+
+    // THE ORIGINATING TEMPLATE — the exact version this service's structure
+    // came from, consulted ONLY to answer "which canonical concept does
+    // templateKey X need", never to decide reachability.
     const templateService = await db.templateService.findFirst({
       where: { key: svc.templateKey as string, templateVersionId: svc.templateVersionId as string },
       select: {
         questions: {
           select: {
-            key: true, order: true,
-            options: {
-              select: {
-                value: true, nextQuestionKey: true,
-                disclaimers: { select: { canonicalDisclaimerId: true } },
-              },
-            },
+            key: true,
+            options: { select: { value: true, disclaimers: { select: { canonicalDisclaimerId: true } } } },
           },
         },
       },
     });
     if (!templateService) continue;
 
-    const reachable = reachableQuestionKeys(templateService.questions);
     for (const q of templateService.questions) {
-      if (!reachable.has(q.key)) continue;
       for (const o of q.options) {
         if (o.disclaimers.length === 0) continue;
-        // Intersected with the surviving LIVE graph: the template said this
-        // answer exists and is reachable, but only a real installed row is
-        // ever a write target or counts toward "this concept is pending
-        // here."
-        const liveOption = await db.answerOption.findFirst({
-          where: { value: o.value, question: { templateKey: q.key, serviceId: svc.id } },
-          select: { id: true },
-        });
-        if (!liveOption) continue;
+        const liveAnswerOptionId = liveByTemplateKey.get(`${q.key}/${o.value}`);
+        if (!liveAnswerOptionId) continue; // not live-reachable today, whatever the template originally intended
         for (const d of o.disclaimers) {
           requirements.push({
             canonicalDisclaimerId: d.canonicalDisclaimerId,
             serviceId: svc.id, serviceSlug: svc.slug, serviceOffered: svc.offered,
-            liveAnswerOptionId: liveOption.id,
+            liveAnswerOptionId,
           });
         }
       }

@@ -91,6 +91,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { assertDisposableLocalDatabase } from "../prisma/_assertDisposableLocalDatabase";
 
 const RUN_ID = `${Date.now()}_${process.pid}`;
@@ -128,10 +129,17 @@ async function teardown(name: string): Promise<void> {
   console.log(`Dropped ${name} on ${SCRATCH_HOST}:${SCRATCH_PORT}.`);
 }
 
-function run(file: string, args: string[] = [], opts: { allowFailure?: string } = {}): void {
+/**
+ * Exported so scripts/init-preview-database.ts can run the SAME ordered
+ * construction chain against a DIFFERENT target — a real Preview branch's
+ * own database, never this script's own local scratch one — without
+ * re-deriving or re-typing the step list. `databaseUrl` defaults to this
+ * script's own scratch DB so every existing call site below is unchanged.
+ */
+export function run(file: string, args: string[] = [], opts: { allowFailure?: string } = {}, databaseUrl: string = DB_URL): void {
   console.log(`\n--- ${file} ${args.join(" ")} ---`);
   try {
-    execFileSync("npx", ["tsx", file, ...args], { stdio: "inherit", env: { ...process.env, DATABASE_URL: DB_URL } });
+    execFileSync("npx", ["tsx", file, ...args], { stdio: "inherit", env: { ...process.env, DATABASE_URL: databaseUrl } });
   } catch (e) {
     if (opts.allowFailure) {
       console.log(`  (nonzero exit — treated as tolerable: ${opts.allowFailure})`);
@@ -150,7 +158,7 @@ function run(file: string, args: string[] = [], opts: { allowFailure?: string } 
  * without it (confirmed by reading their own PhotoGroup lookups), which
  * seed-all.ts's own use elsewhere has apparently never surfaced.
  */
-const SEED_STEPS: string[] = [
+export const SEED_STEPS: string[] = [
   "prisma/seed.ts",
   "prisma/seed-questions.ts",
   "prisma/seed-pricing-settings.ts",
@@ -248,8 +256,62 @@ const SEED_STEPS: string[] = [
   // markup, $250 minimum). Its own header says "RETIRED — DO NOT RUN."
 ];
 
-async function bootstrapContractor(): Promise<void> {
-  const p = new PrismaClient({ datasources: { db: { url: DB_URL } } });
+/**
+ * Some seed files exit non-zero to REPORT a finding worth a human decision
+ * (e.g. a service that graduated off the QUOTE list with no recorded
+ * crew-hours) rather than to signal a broken setup step — tolerated here
+ * since none of them are part of this run's own scope. Exported alongside
+ * SEED_STEPS/NEEDS_APPLY so a second entry point runs the identical chain.
+ */
+export const TOLERATE_NONZERO: Record<string, string> = {
+  "prisma/seed-labor-hours.ts": "reports pre-existing findings (e.g. level-2-ev-charger's missing hours) unrelated to this run's scope",
+};
+
+/**
+ * The whole "Phase F" material-role/cost effort defaults to report-only
+ * (dry run) and requires an explicit --apply to write anything — confirmed
+ * by grepping every file below for its own `argv.includes("--apply")`
+ * check. Every other seed file in SEED_STEPS writes unconditionally.
+ */
+export const NEEDS_APPLY = new Set([
+  "prisma/seed-phase-f-material-roles.ts",
+  "prisma/seed-phase-f-role-redesign.ts",
+  "prisma/seed-phase-f-material-costs.ts",
+  "prisma/seed-phase-f-costs-round2.ts",
+  "prisma/seed-video-doorbell-wiring.ts",
+  "prisma/seed-generator-inlet.ts",
+  "prisma/seed-hot-tub-spa.ts",
+  "prisma/seed-panel-replacement.ts",
+  "prisma/seed-200a-service-upgrade.ts",
+  "prisma/seed-240v-garage-outlet.ts",
+  "prisma/seed-under-cabinet-lighting.ts",
+  "scripts/add-equipment-roles.ts",
+  "scripts/build-fan-packages.ts",
+]);
+
+/**
+ * Every step AFTER the seed chain, in order — the panel-recipe correction,
+ * the two Batch fixes, and full-catalog extraction into a fresh
+ * TemplateVersion. Exported as data (not re-invoked from main() below) so
+ * scripts/init-preview-database.ts can run the SAME sequence, in the SAME
+ * order, against a different target, without retyping it and risking drift.
+ */
+export type PostSeedStep =
+  | { kind: "run"; file: string; args?: string[]; label: string }
+  | { kind: "batch2fSurgeFix"; label: string };
+
+export const POST_SEED_STEPS: PostSeedStep[] = [
+  { kind: "batch2fSurgeFix", label: "Batch 2F (v6) surge-protection fix" },
+  { kind: "run", file: "scripts/add-consumables-recipes.ts", args: ["--apply"], label: "Batch 2E (v5): add-consumables-recipes.ts --apply" },
+  { kind: "run", file: "prisma/repair-trees.ts", label: "repair-trees.ts (sanity check before extraction)" },
+  { kind: "run", file: "scripts/extract-template-catalog.ts", args: ["--from", "elite-electric", "--apply"], label: "Full-catalog extraction: v1 SNAPSHOT" },
+  { kind: "run", file: "scripts/finalize-panel-replacement-recipe.ts", args: ["--apply"], label: "electrical-panel-replacement: intended final recipe (narrow correction)" },
+  { kind: "run", file: "prisma/seed-routing-v2-policies.ts", label: "Routing V2 template patches (mutate the just-created v1 SNAPSHOT in place) — policies" },
+  { kind: "run", file: "prisma/seed-routing-v2-pricing-method.ts", label: "Routing V2 template patches (mutate the just-created v1 SNAPSHOT in place) — pricing method" },
+];
+
+export async function bootstrapContractor(databaseUrl: string = DB_URL): Promise<void> {
+  const p = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   await p.contractor.upsert({
     where: { slug: "elite-electric" },
     update: {},
@@ -279,8 +341,8 @@ async function bootstrapContractor(): Promise<void> {
  * magnitude), not a new pattern and not hidden: $3.50, matching
  * BOX_SURFACE_4S's own $2.67 for the box it covers.
  */
-async function addMissingCoverRaised4sRole(): Promise<void> {
-  const p = new PrismaClient({ datasources: { db: { url: DB_URL } } });
+export async function addMissingCoverRaised4sRole(databaseUrl: string = DB_URL): Promise<void> {
+  const p = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   try {
     const elite = await p.contractor.findUniqueOrThrow({ where: { slug: "elite-electric" }, select: { id: true } });
     let role = await p.canonicalMaterial.findUnique({ where: { key: "COVER_RAISED_4S" } });
@@ -315,8 +377,8 @@ async function addMissingCoverRaised4sRole(): Promise<void> {
  * roles.ts + scripts/build-fan-packages.ts, run earlier in SEED_STEPS — not
  * a bare ServiceMaterial insert.
  */
-async function applyBatch2fSurgeFix(): Promise<void> {
-  const p = new PrismaClient({ datasources: { db: { url: DB_URL } } });
+export async function applyBatch2fSurgeFix(databaseUrl: string = DB_URL): Promise<void> {
+  const p = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   try {
     const surge = await p.service.findFirstOrThrow({ where: { slug: "whole-house-surge-protection" } });
     const generic = await p.canonicalMaterial.findUniqueOrThrow({ where: { key: "BREAKER_DOUBLE_POLE" } });
@@ -361,35 +423,6 @@ async function main() {
     await bootstrapContractor();
     await addMissingCoverRaised4sRole();
 
-    // Some seed files exit non-zero to REPORT a finding worth a human
-    // decision (e.g. a service that graduated off the QUOTE list with no
-    // recorded crew-hours) rather than to signal a broken setup step —
-    // tolerated here since none of them are part of this run's own scope.
-    const TOLERATE_NONZERO: Record<string, string> = {
-      "prisma/seed-labor-hours.ts": "reports pre-existing findings (e.g. level-2-ev-charger's missing hours) unrelated to this run's scope",
-    };
-
-    // The whole "Phase F" material-role/cost effort defaults to report-only
-    // (dry run) and requires an explicit --apply to write anything —
-    // confirmed by grepping every file below for its own `argv.includes(
-    // "--apply")` check. Every other seed file in SEED_STEPS writes
-    // unconditionally.
-    const NEEDS_APPLY = new Set([
-      "prisma/seed-phase-f-material-roles.ts",
-      "prisma/seed-phase-f-role-redesign.ts",
-      "prisma/seed-phase-f-material-costs.ts",
-      "prisma/seed-phase-f-costs-round2.ts",
-      "prisma/seed-video-doorbell-wiring.ts",
-      "prisma/seed-generator-inlet.ts",
-      "prisma/seed-hot-tub-spa.ts",
-      "prisma/seed-panel-replacement.ts",
-      "prisma/seed-200a-service-upgrade.ts",
-      "prisma/seed-240v-garage-outlet.ts",
-      "prisma/seed-under-cabinet-lighting.ts",
-      "scripts/add-equipment-roles.ts",
-      "scripts/build-fan-packages.ts",
-    ]);
-
     for (const step of SEED_STEPS) {
       if (step === "__CONDITIONAL_DISCLAIMERS__") {
         // No longer tolerated as a known failure — see the bootstrap this
@@ -401,24 +434,11 @@ async function main() {
       run(step, args, TOLERATE_NONZERO[step] ? { allowFailure: TOLERATE_NONZERO[step] } : {});
     }
 
-    console.log("\n--- Batch 2F (v6) surge-protection fix ---");
-    await applyBatch2fSurgeFix();
-
-    console.log("\n--- Batch 2E (v5): add-consumables-recipes.ts --apply ---");
-    run("scripts/add-consumables-recipes.ts", ["--apply"]);
-
-    console.log("\n--- repair-trees.ts (sanity check before extraction) ---");
-    run("prisma/repair-trees.ts");
-
-    console.log("\n--- Full-catalog extraction: v1 SNAPSHOT ---");
-    run("scripts/extract-template-catalog.ts", ["--from", "elite-electric", "--apply"]);
-
-    console.log("\n--- electrical-panel-replacement: intended final recipe (narrow correction) ---");
-    run("scripts/finalize-panel-replacement-recipe.ts", ["--apply"]);
-
-    console.log("\n--- Routing V2 template patches (mutate the just-created v1 SNAPSHOT in place) ---");
-    run("prisma/seed-routing-v2-policies.ts");
-    run("prisma/seed-routing-v2-pricing-method.ts");
+    for (const step of POST_SEED_STEPS) {
+      console.log(`\n--- ${step.label} ---`);
+      if (step.kind === "batch2fSurgeFix") await applyBatch2fSurgeFix();
+      else run(step.file, step.args ?? []);
+    }
 
     console.log(`\nDone. Scratch database ${DB_NAME} (${SCRATCH_HOST}:${SCRATCH_PORT}) left running for Phase 2.`);
     console.log(`Run Phase 2 against it: DATABASE_URL is exported for this process only, so export it yourself:`);
@@ -433,4 +453,16 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// Entrypoint guard — scripts/init-preview-database.ts imports this module's
+// SEED_STEPS/NEEDS_APPLY/POST_SEED_STEPS/run/bootstrapContractor/
+// addMissingCoverRaised4sRole/applyBatch2fSurgeFix for its own, different
+// target. Without this, importing them for their exports also ran this
+// file's own main() as a side effect — creating and half-seeding an
+// UNWANTED scratch database the importer never asked for and had no
+// reference to, discovered exactly that way while rehearsing that script.
+// Same pattern scripts/add-equipment-roles.ts, scripts/add-consumables-
+// recipes.ts and scripts/build-fan-packages.ts already use for the same
+// reason — they are RUN() as sub-steps of this very file's own main().
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}

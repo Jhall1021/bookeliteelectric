@@ -27,26 +27,42 @@ import { assessMaterialReadiness } from "./materialResolution";
 import { QUESTION_ORDER } from "./serviceTreeQuery";
 
 /**
- * Which questions a homeowner can actually reach, walking `nextQuestionKey`
- * edges forward from the tree's own entry point (lowest `order`).
+ * Which questions a homeowner can actually reach, walking forward from the
+ * tree's own entry point (lowest `order`) exactly the way the real Guided
+ * Flow does: only a `CONTINUE` answer ever advances to another question.
+ *
+ * CORRECTED 19 Sep 2026 — the first version followed ANY non-null
+ * `nextQuestionKey`/`nextQuestionId` regardless of `routeAction`. Every
+ * other route action (`RESOLVE_INSTANT`, `RESOLVE_ADJUSTED`, `PHOTO_REVIEW`,
+ * `REMOTE_QUOTE`, `REROUTE_SERVICE`, `REROUTE_TROUBLESHOOTING`) is terminal
+ * in the real resolver (`lib/routeResolver.ts`'s own `terminal` check plus
+ * its two early REROUTE returns) — a homeowner who picks that answer never
+ * advances, even if the row still carries a value in that column from
+ * before it was made terminal, or was never cleared. Following it anyway
+ * could mark a question "reachable" that no real path can produce.
  *
  * A row EXISTING in a service's structure is not the same as a homeowner ever
- * seeing it. `prisma/seed-new-outlet-v2.ts`'s own stated policy for a
- * question it drops is "rewired out, not deleted" — the row (and anything
- * attached to it, like a required disclaimer) stays in the catalog as a
- * historical record, with nothing left pointing to it. Treating every row as
- * reachable would block a service's activation, or list a disclaimer as
- * "pending", over a requirement no real answer path can ever produce.
+ * seeing it, for the same reason. `prisma/seed-new-outlet-v2.ts`'s own stated
+ * policy for a question it drops is "rewired out, not deleted" — the row
+ * (and anything attached to it, like a required disclaimer) stays in the
+ * catalog as a historical record, with nothing left pointing to it. Treating
+ * every row as reachable would block a service's activation, or list a
+ * disclaimer as "pending", over a requirement no real answer path can ever
+ * produce.
  *
- * Shared by installCatalog (below, over the CATALOG being installed) and
- * lib/disclaimerAuthoring.ts (over one contractor's own originating
- * TemplateService) — one implementation, not two that can drift.
+ * Generic over the identifier type on purpose: `installCatalog` below walks
+ * the TEMPLATE being installed, keyed by its string `key` (nothing has an id
+ * yet); `lib/disclaimerAuthoring.ts` walks a contractor's own LIVE
+ * Question/AnswerOption rows, keyed by their real database `id` (`key`
+ * doubles as "whatever this graph's node identifier is called" — it is
+ * never interpreted as a template key here). One traversal, not two that
+ * can drift on what "reachable" means.
  */
 export function reachableQuestionKeys(
   questions: readonly {
     key: string;
     order: number;
-    options: readonly { nextQuestionKey: string | null }[];
+    options: readonly { routeAction: string; nextQuestionKey: string | null }[];
   }[]
 ): Set<string> {
   if (questions.length === 0) return new Set();
@@ -59,7 +75,9 @@ export function reachableQuestionKeys(
     if (reachable.has(key)) continue;
     reachable.add(key);
     for (const o of byKey.get(key)?.options ?? []) {
-      if (o.nextQuestionKey && byKey.has(o.nextQuestionKey)) stack.push(o.nextQuestionKey);
+      if (o.routeAction === "CONTINUE" && o.nextQuestionKey && byKey.has(o.nextQuestionKey)) {
+        stack.push(o.nextQuestionKey);
+      }
     }
   }
   return reachable;
@@ -545,7 +563,7 @@ export async function installCatalog(
         const qId = new Map<string, string>();
         const questions = s.questions as unknown as Record<string, never>[];
         const reachableKeys = reachableQuestionKeys(
-          questions as unknown as { key: string; order: number; options: { nextQuestionKey: string | null }[] }[]
+          questions as unknown as { key: string; order: number; options: { routeAction: string; nextQuestionKey: string | null }[] }[]
         );
 
         for (const q of questions) {
