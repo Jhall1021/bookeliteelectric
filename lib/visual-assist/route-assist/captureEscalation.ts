@@ -42,6 +42,22 @@ function booleanValue(fact: ReturnType<typeof getRouteAssistFactV1>): boolean | 
 }
 
 /**
+ * CORRECTION: a resolved DOORWAY_ENTRY_SIDE fact is not the same as a
+ * PHYSICALLY resolved entry side. UNRESOLVED is a real, valid closed-set
+ * value (visualSceneSemantics.ts) -- the provider's honest way of saying it
+ * saw the doorway but couldn't determine which casing comes first. Treating
+ * mere presence of the fact as satisfying the requirement let a doorway
+ * reach PHOTO_SUFFICIENT with a genuinely unresolved entry side, which is
+ * exactly the fail-open shape the hardening pass eliminated at the schema
+ * level (entrySide validation) without eliminating it here, one layer up.
+ * Only LEFT/RIGHT count as resolved; UNRESOLVED is treated identically to
+ * the fact being missing entirely.
+ */
+function doorwayEntrySideResolved(fact: ReturnType<typeof getRouteAssistFactV1>): boolean {
+  return Boolean(fact && fact.value.kind === "ENUM" && (fact.value.value === "LEFT" || fact.value.value === "RIGHT"));
+}
+
+/**
  * Evaluate one leg (one source anchor, one destination anchor) against the
  * facts written so far. A leg is identified by `legScopeId` -- the scope
  * under which WALL_PLANE/CORNER_PRESENCE/doorway/baseboard facts for THIS
@@ -146,7 +162,7 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
       if (!getRouteAssistFactV1(args.store, casingType, doorwayScopeId)) missing.push(casingType);
     }
     const casingsResolved = DOORWAY_CASING_TYPES.every((casingType) => getRouteAssistFactV1(args.store, casingType, doorwayScopeId));
-    if (casingsResolved && !getRouteAssistFactV1(args.store, "DOORWAY_ENTRY_SIDE", doorwayScopeId)) missing.push("DOORWAY_ENTRY_SIDE");
+    if (casingsResolved && !doorwayEntrySideResolved(getRouteAssistFactV1(args.store, "DOORWAY_ENTRY_SIDE", doorwayScopeId))) missing.push("DOORWAY_ENTRY_SIDE");
   }
 
   if (missing.length > 0) {

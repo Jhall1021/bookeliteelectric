@@ -401,4 +401,46 @@ check("[correction] a malformed value is refused even when provenance would othe
   assert.equal(attempt.outcome, "REFUSED_VALUE_SHAPE");
 });
 
+// --- [Fix 1] doorway entry side must be genuinely RESOLVED, not merely PRESENT ---
+// CORRECTION: the evaluator previously only checked that a DOORWAY_ENTRY_SIDE
+// fact existed at all. UNRESOLVED is a real, valid closed-set value (a
+// provider's honest "I saw the doorway but couldn't tell which casing comes
+// first"), so a fact existing with that value is not the same as the entry
+// side being resolved. These three tests hold the rest of one leg's facts
+// identical -- full doorway, all three casings, no corner -- and vary only
+// DOORWAY_ENTRY_SIDE's value.
+
+function fullyResolvedDoorwayLeg(entrySide: "LEFT" | "RIGHT" | "UNRESOLVED"): RouteAssistFactStoreV1 {
+  let store = anchorsPlaced();
+  store = writeFact(store, "WALL_PLANE", LEG, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "BASEBOARD_CONTINUITY", LEG, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "DOORWAY_PRESENCE", DOORWAY_1, { kind: "BOOLEAN", value: true });
+  store = writeFact(store, "DOORWAY_LEFT_CASING", DOORWAY_1, { kind: "OBJECT_REF", objectId: "left", imageId: IMAGE });
+  store = writeFact(store, "DOORWAY_TOP_CASING", DOORWAY_1, { kind: "OBJECT_REF", objectId: "top", imageId: IMAGE });
+  store = writeFact(store, "DOORWAY_RIGHT_CASING", DOORWAY_1, { kind: "OBJECT_REF", objectId: "right", imageId: IMAGE });
+  store = writeFact(store, "DOORWAY_ENTRY_SIDE", DOORWAY_1, { kind: "ENUM", value: entrySide });
+  return store;
+}
+
+check("[correction] a fully-cased doorway with entrySide=LEFT reaches PHOTO_SUFFICIENT", () => {
+  const store = fullyResolvedDoorwayLeg("LEFT");
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "PHOTO_SUFFICIENT");
+});
+
+check("[correction] a fully-cased doorway with entrySide=RIGHT also reaches PHOTO_SUFFICIENT", () => {
+  const store = fullyResolvedDoorwayLeg("RIGHT");
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "PHOTO_SUFFICIENT");
+});
+
+check("[correction] a fully-cased doorway with entrySide=UNRESOLVED does NOT reach PHOTO_SUFFICIENT -- fails closed to TARGETED_PHOTO_REQUIRED naming DOORWAY_ENTRY_SIDE, not silently coerced to a real side", () => {
+  const store = fullyResolvedDoorwayLeg("UNRESOLVED");
+  const entrySide = store.facts[`DOORWAY_ENTRY_SIDE:${DOORWAY_1}`];
+  assert.equal(entrySide.value.kind === "ENUM" && entrySide.value.value, "UNRESOLVED", "the fact itself is written as UNRESOLVED, not refused or coerced");
+  const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+  assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  assert.deepEqual(escalation.missingFactTypes, ["DOORWAY_ENTRY_SIDE"]);
+});
+
 console.log(`\nRoute Assist photo-first verification: ${passed} passed, 0 failed.`);

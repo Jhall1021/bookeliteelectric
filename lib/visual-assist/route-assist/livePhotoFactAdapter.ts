@@ -45,18 +45,33 @@ import type { RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV
  * FRAME (factModel.ts) rather than leaving evaluateRouteAssistPhotoEscalationV1
  * to treat every corner as an automatic sweep. Both are derived from
  * signals the schema already carries -- no new provider-facing field was
- * added for this correction:
- *   - TRANSITION_VISUALLY_CONNECTED: true only if a BASEBOARD_OR_TRIM
- *     object exists on BOTH the source-side and destination-side of the
- *     corner's own position. Real, checkable evidence of a connected run,
- *     not a guess.
- *   - TRANSITION_CONTINUATION_IN_FRAME: true only if a DESTINATION_MARKER
- *     matching the homeowner's own destination anchor was independently
- *     identified by the provider -- the same signal ANCHOR_OBJECT_MATCH
- *     already uses, reused rather than re-derived, since "the model can
- *     independently confirm the destination side" is exactly what
- *     "continuation is observable" means for a single photo.
+ * added for this correction.
+ *
+ * CONSERVATIVE-EVIDENCE CORRECTION: these two facts are NOT written true
+ * merely because a plausible object exists somewhere nearby. "Baseboard
+ * object exists on both sides" and "a destination marker was found" are
+ * real signals, but on their own they are existence checks, not proof the
+ * objects are part of one connected, visible run -- baseboard can appear on
+ * both sides of a corner while the actual connecting section is occluded;
+ * a destination marker can be visible while the physical link from the
+ * corner to it is not established. So this adapter now additionally
+ * requires COHERENCE: an explicit segmentObservation for this leg's own
+ * segment, at or above CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1
+ * confidence, whose objectIds tie the corner together with the specific
+ * near/far-side objects being relied on -- the same discipline doorwayGroups
+ * already uses (an explicit, structured tie, not co-occurrence). Three
+ * outcomes per fact, deliberately:
+ *   - TRUE only when that coherent, confident tie exists.
+ *   - FALSE only on strong, direct NEGATIVE evidence (no baseboard object
+ *     found anywhere on one side at all; no destination marker found at
+ *     all) -- an absence is itself real, checkable evidence, not ambiguity.
+ *   - Otherwise UNWRITTEN (OPEN): objects exist, but nothing ties them
+ *     together into one confident claim. Ambiguous, and left that way
+ *     rather than promoted to true -- evaluateRouteAssistPhotoEscalationV1
+ *     then correctly asks for a targeted photo instead of proceeding on a
+ *     heuristic.
  */
+const CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 = 0.75;
 const ROUTE_ASSIST_LIVE_PHOTO_FACT_TYPES_V1: ReadonlySet<RouteAssistFactTypeV1> = new Set([
   "WALL_PLANE",
   "BASEBOARD_CONTINUITY",
@@ -158,10 +173,37 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
     const cornerX = objectCenterX(cornerObject);
     const nearSide = { lo: Math.min(args.sourceAnchor.x, cornerX), hi: Math.max(args.sourceAnchor.x, cornerX) };
     const farSide = { lo: Math.min(cornerX, args.destinationAnchor.x), hi: Math.max(cornerX, args.destinationAnchor.x) };
-    const nearConnected = baseboardObjects.some((object) => { const x = objectCenterX(object); return x >= nearSide.lo && x <= nearSide.hi; });
-    const farConnected = baseboardObjects.some((object) => { const x = objectCenterX(object); return x >= farSide.lo && x <= farSide.hi; });
-    write("TRANSITION_VISUALLY_CONNECTED", cornerScopeId, { kind: "BOOLEAN", value: nearConnected && farConnected }, [cornerObject.imageId]);
-    write("TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId, { kind: "BOOLEAN", value: Boolean(destinationMatch) }, destinationMatch ? [destinationMatch.imageId] : [args.imageId]);
+    const nearBaseboard = baseboardObjects.filter((object) => { const x = objectCenterX(object); return x >= nearSide.lo && x <= nearSide.hi; });
+    const farBaseboard = baseboardObjects.filter((object) => { const x = objectCenterX(object); return x >= farSide.lo && x <= farSide.hi; });
+
+    const coherentSegment = (requiredObjectIds: string[]) => args.semantics.segmentObservations.some((observation) =>
+      observation.segmentId === args.legScopeId &&
+      observation.confidence >= CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 &&
+      requiredObjectIds.every((id) => observation.objectIds.includes(id)),
+    );
+
+    if (nearBaseboard.length === 0 || farBaseboard.length === 0) {
+      // Strong negative: no baseboard/trim object found anywhere on at
+      // least one side. A real, checkable absence, not ambiguity.
+      write("TRANSITION_VISUALLY_CONNECTED", cornerScopeId, { kind: "BOOLEAN", value: false }, [cornerObject.imageId]);
+    } else if (coherentSegment([cornerObject.id, nearBaseboard[0].id, farBaseboard[0].id])) {
+      write("TRANSITION_VISUALLY_CONNECTED", cornerScopeId, { kind: "BOOLEAN", value: true }, [cornerObject.imageId, nearBaseboard[0].imageId, farBaseboard[0].imageId]);
+    }
+    // else: baseboard exists on both sides, but nothing ties the corner and
+    // both sides together as one confident, coherent observation --
+    // ambiguous. Left unwritten (OPEN) rather than promoted to true.
+
+    if (!destinationMatch) {
+      // Strong negative: the provider could not independently identify a
+      // destination-marker object matching the homeowner's own anchor at
+      // all -- "the destination lies beyond what the image establishes."
+      write("TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId, { kind: "BOOLEAN", value: false }, [args.imageId]);
+    } else if (farBaseboard.length > 0 && coherentSegment([cornerObject.id, farBaseboard[0].id, destinationMatch.id])) {
+      write("TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId, { kind: "BOOLEAN", value: true }, [cornerObject.imageId, farBaseboard[0].imageId, destinationMatch.imageId]);
+    }
+    // else: a destination marker exists somewhere in frame, but nothing
+    // ties the corner, the far-side trim, and the destination together as
+    // one connected observation -- ambiguous, left unwritten.
   }
 
   const windowObjects = args.semantics.objects.filter((object) => object.kind === "WINDOW" && between(object));
@@ -182,12 +224,15 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
       if (left) write("DOORWAY_LEFT_CASING", doorwayScopeId, { kind: "OBJECT_REF", objectId: left.id, imageId: left.imageId }, [left.imageId]);
       if (top) write("DOORWAY_TOP_CASING", doorwayScopeId, { kind: "OBJECT_REF", objectId: top.id, imageId: top.imageId }, [top.imageId]);
       if (right) write("DOORWAY_RIGHT_CASING", doorwayScopeId, { kind: "OBJECT_REF", objectId: right.id, imageId: right.imageId }, [right.imageId]);
-      // UNRESOLVED is a real, valid closed-set value -- writing it locks the
-      // fact as "resolved to unresolved," which correctly still leaves the
-      // evaluator's DOORWAY_ENTRY_SIDE requirement satisfied (present) even
-      // though the physical side itself remains unknown; escalation for a
-      // genuinely unresolved entry side is a product decision outside this
-      // proof's scope, not something this adapter should decide by omission.
+      // UNRESOLVED is a real, valid closed-set value, and this adapter still
+      // writes it faithfully -- it is not this module's job to decide
+      // whether an unresolved entry side is good enough. CORRECTION: it used
+      // to be, incidentally, because the evaluator only checked whether this
+      // fact existed at all, so writing UNRESOLVED-as-locked was enough to
+      // satisfy the requirement without the physical side ever being known.
+      // evaluateRouteAssistPhotoEscalationV1 now checks the VALUE
+      // (doorwayEntrySideResolved: only LEFT/RIGHT count), so an honestly
+      // reported UNRESOLVED correctly still drives TARGETED_PHOTO_REQUIRED.
       write("DOORWAY_ENTRY_SIDE", doorwayScopeId, { kind: "ENUM", value: group.entrySide }, [doorwayObject.imageId]);
     }
     // No group found: the doorway is visible but not sufficiently
