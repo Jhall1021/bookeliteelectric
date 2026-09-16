@@ -7,6 +7,7 @@ import {
   recomputeServiceMaterialCost,
   recomputeServicesUsingRole,
   clearLegacyMultiplierOnItemize,
+  declarePolicyMaterialQuantity,
   deriveUnitCost,
   impliedPackagePriceCents,
   MaterialCostError,
@@ -291,6 +292,24 @@ export async function POST(req: Request) {
 
         const row = await db.serviceMaterial.findUnique({ where: { id } });
         if (!row) return NextResponse.json({ error: "Material line not found" }, { status: 404 });
+
+        // A POLICY role's quantity is a contractor's declared allowance, not
+        // a structural recipe edit — it goes through the shared, ATOMIC
+        // declarePolicyMaterialQuantity (quantity write + readiness/total
+        // recompute in one transaction), the same authority a wizard or a
+        // rehearsal fixture uses. A structural role keeps the ordinary direct
+        // edit below: its quantity is the template's own recipe figure, an
+        // admin correcting it is curating that recipe, not declaring an
+        // allowance, and there is no separate "undeclared" state to guard.
+        if (row.quantityIsPolicy) {
+          if (!row.canonicalMaterialId) {
+            return NextResponse.json({ error: "This material line has no canonical role to declare a quantity for." }, { status: 400 });
+          }
+          await declarePolicyMaterialQuantity(db, row.serviceId, row.canonicalMaterialId, quantity);
+          const { totalCents } = await afterRecipeChange(db, row.serviceId);
+          return NextResponse.json({ ok: true, totalCents });
+        }
+
         await db.serviceMaterial.update({ where: { id }, data: { quantity } });
         const { totalCents } = await afterRecipeChange(db, row.serviceId);
         return NextResponse.json({ ok: true, totalCents });

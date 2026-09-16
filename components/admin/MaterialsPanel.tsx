@@ -21,7 +21,14 @@ type Item = {
   key: string | null;
   name: string | null;
   unit: string | null;
-  quantity: number;
+  /**
+   * Null exactly when this is a policy-quantity role (`quantityIsPolicy`)
+   * and the contractor has not yet declared their own allowance — never a
+   * stand-in for zero, which is itself a real, distinct decision.
+   */
+  quantity: number | null;
+  /** True when this role's amount is a contractor allowance, not a fixed template recipe quantity. */
+  quantityIsPolicy: boolean;
   unitCostCents: number | null;
   lineTotalCents: number | null;
   unpriced: boolean;
@@ -102,6 +109,13 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
   const markup = !hasUnpriced && directTotal > 0 ? effectiveMaterialMarkup(directTotal) : null;
   const sellTotal = !hasUnpriced ? calculateMaterialSellCents(directTotal) : null;
 
+  // Two different gaps, not one — a role can be costed but not yet
+  // quantified (a policy allowance) or quantified but not yet costed, and
+  // the incomplete-state copy below must name the actual one rather than
+  // always blaming cost.
+  const missingCost = items.filter((i) => i.unpriced);
+  const missingQuantity = items.filter((i) => i.quantityIsPolicy && i.quantity === null);
+
   const field = "rounded-card border border-cardline px-3 py-2 text-sm focus:border-electric";
 
   if (loading) {
@@ -128,13 +142,17 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
         </p>
       ) : (
         <div className="mt-4 divide-y divide-cardline rounded-card border border-cardline">
-          {items.map((i) => (
+          {items.map((i) => {
+            const needsQuantity = i.quantityIsPolicy && i.quantity === null;
+            return (
             <div key={i.id} className="flex items-center gap-3 p-3">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm text-navy">{i.name ?? i.key ?? "Material"}</div>
-                <div className={`text-xs ${i.unpriced ? "text-amber-700" : "text-slate"}`}>
+                <div className={`text-xs ${i.unpriced || needsQuantity ? "text-amber-700" : "text-slate"}`}>
                   {i.unitCostCents === null
                     ? "Cost not set for your company"
+                    : needsQuantity
+                    ? `${formatCents(i.unitCostCents)} per ${i.unit ?? "unit"} — set your own allowance`
                     : `${formatCents(i.unitCostCents)} per ${i.unit ?? "unit"}`}
                 </div>
               </div>
@@ -142,12 +160,19 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
                 type="number"
                 step="0.01"
                 min="0"
-                defaultValue={i.quantity}
+                defaultValue={i.quantity ?? ""}
+                placeholder={needsQuantity ? "amount" : undefined}
                 onBlur={(e) => {
-                  const q = Number(e.target.value);
+                  const raw = e.target.value.trim();
+                  // Blank preserves "not yet declared" — never invent a zero
+                  // just because the field was left, or never touched, on
+                  // blur. An explicit "0" is a real, different decision and
+                  // is sent exactly like any other typed number below.
+                  if (raw === "") return;
+                  const q = Number(raw);
                   if (!Number.isFinite(q) || q < 0) {
                     setError("Quantity must be zero or more.");
-                    e.target.value = String(i.quantity);
+                    e.target.value = i.quantity === null ? "" : String(i.quantity);
                     return;
                   }
                   if (q !== i.quantity) send({ action: "quantity", id: i.id, quantity: q });
@@ -167,7 +192,8 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
                 ×
               </button>
             </div>
-          ))}
+            );
+          })}
 
           <div className="flex items-center justify-between bg-warmwhite p-3">
             <div className="text-sm text-slate">
@@ -186,9 +212,17 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
         </div>
       )}
 
-      {hasUnpriced && (
+      {missingCost.length > 0 && (
         <p className="mt-2 rounded-card border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
           At least one part does not have a cost for your company. Price2Book will not treat this material package as fully priced until every item has a cost.
+        </p>
+      )}
+
+      {missingQuantity.length > 0 && (
+        <p className="mt-2 rounded-card border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          At least one part is an allowance you set yourself — enter how much you
+          include ({missingQuantity.map((i) => i.name ?? i.key).join(", ")})
+          before this package is fully priced.
         </p>
       )}
 

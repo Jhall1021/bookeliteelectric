@@ -368,18 +368,39 @@ export type DeclareQuantityResult = {
  * wizard, and a rehearsal fixture must not each grow their own copy of
  * "update the row, then remember to recompute" — the second half is exactly
  * what a fresh-launch rehearsal found missing from a raw-SQL onboarding
- * shortcut elsewhere in this codebase.
+ * shortcut elsewhere in this codebase. (A prior version of this comment
+ * claimed the admin route already went through here. It did not — the route
+ * still updated the row and recomputed on its own, in two separate
+ * statements. Fixed alongside making this atomic, below.)
  *
  * Refuses a STRUCTURAL role's quantity outright. That number is the
  * template's, fixed at provisioning — this function exists for the opposite
  * case, and calling it on a fixed recipe line is a caller bug, not a
  * contractor decision to honor.
+ *
+ * ATOMIC, for the same reason setContractorMaterialCost is: the update and
+ * the recompute were two independent statements, so a fault between them —
+ * a dropped connection, a crashed process — could leave a declared quantity
+ * with a cache that was never told about it, indistinguishable later from
+ * the silent-omission defect this whole mechanism exists to prevent.
+ * Requires a top-level `PrismaClient`, not a `Prisma.TransactionClient`, for
+ * the same reason: nesting `$transaction` inside an existing transaction is
+ * not something Prisma supports, and every real caller already passes a
+ * guarded top-level client.
  */
 export async function declarePolicyMaterialQuantity(
   db: PrismaClient,
   serviceId: string,
   canonicalMaterialId: string,
-  quantity: number
+  quantity: number,
+  /**
+   * TEST SEAM ONLY. Invoked with the transaction client immediately after
+   * the quantity update, before the recompute — lets a verifier force a
+   * fault between the two writes and prove the whole transaction rolls back
+   * together, rather than asserting it from reading the code. No production
+   * caller passes this; default is untouched.
+   */
+  injectFaultAfterQuantityUpdate?: (tx: Prisma.TransactionClient) => Promise<void>
 ): Promise<DeclareQuantityResult> {
   const row = await db.serviceMaterial.findFirstOrThrow({
     where: { serviceId, canonicalMaterialId },
@@ -396,15 +417,19 @@ export async function declarePolicyMaterialQuantity(
   }
 
   const changed = row.quantity !== quantity;
-  if (changed) {
-    await db.serviceMaterial.update({ where: { id: row.id }, data: { quantity } });
-  }
-  // Recomputed unconditionally, not just when changed: the FIRST declaration
-  // of a previously-null quantity can leave the number itself unchanged from
-  // a caller's point of view (there was no prior value to compare against),
-  // but readiness always needs asking again now that a role that used to be
-  // undeclared may no longer be.
-  const recompute = await recomputeServiceMaterialCost(db, serviceId);
+
+  const recompute = await db.$transaction(async (tx) => {
+    if (changed) {
+      await tx.serviceMaterial.update({ where: { id: row.id }, data: { quantity } });
+    }
+    if (injectFaultAfterQuantityUpdate) await injectFaultAfterQuantityUpdate(tx);
+    // Recomputed unconditionally, not just when changed: the FIRST
+    // declaration of a previously-null quantity can leave the number itself
+    // unchanged from a caller's point of view (there was no prior value to
+    // compare against), but readiness always needs asking again now that a
+    // role that used to be undeclared may no longer be.
+    return recomputeServiceMaterialCost(tx, serviceId);
+  });
 
   return { serviceMaterialId: row.id, key: row.canonicalMaterial?.key ?? canonicalMaterialId, quantity, changed, recompute };
 }

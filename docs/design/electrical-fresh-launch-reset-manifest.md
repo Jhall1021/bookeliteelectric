@@ -190,15 +190,43 @@ the POLICY role's cost — entered, real, ignored — never reached the total.
 (quantity `null` for an undeclared policy allowance), and
 `lib/materialResolution.ts`'s `assessMaterialReadiness` treats a null
 quantity as unresolved — with its own reason (`NO_QUANTITY`, distinct from
-`NO_COST`) — before it ever looks up a cost. Declaring the allowance goes
-through the SAME action that already existed for this
-(`app/api/admin/materials/route.ts`'s "quantity" action was unreachable for
-a policy role only because the row never existed; nothing new was built),
-now backed by one shared function, `lib/materialCost.ts`'s
-`declarePolicyMaterialQuantity`. Demonstrated for both shapes in Phase 2:
-undeclared-but-costed correctly blocks, declaring resolves the total
-exactly once (no silent omission), a later cost edit recomputes correctly,
-and one tenant's declaration never moves another's total.
+`NO_COST`) — before it ever looks up a cost. Demonstrated for both shapes in
+Phase 2: undeclared-but-costed correctly blocks, declaring resolves the
+total exactly once (no silent omission), a later cost edit recomputes
+correctly, and one tenant's declaration never moves another's total.
+
+**CORRECTION, same day: the contractor-facing input seam was not actually
+closed.** This section originally claimed declaring the allowance "goes
+through the SAME action that already existed for this... now backed by"
+`lib/materialCost.ts`'s new `declarePolicyMaterialQuantity`. That claim was
+false — checked, not just asserted, and found wrong. Two real gaps
+remained in this exact head:
+
+- `components/admin/MaterialsPanel.tsx` typed a `ServiceMaterial`'s quantity
+  as `number` and converted it on blur with `Number(e.target.value)`. An
+  untouched, blank policy-quantity field is `Number("")`, which is `0` —
+  finite and non-negative, so nothing caught it — and that invented zero was
+  POSTed as a real declaration the moment a contractor's cursor left the
+  field. Its incomplete-state copy also always named a missing COST, even
+  when the only real gap was an undeclared allowance.
+- `app/api/admin/materials/route.ts`'s "quantity" action never called
+  `declarePolicyMaterialQuantity` at all — it still updated the row and
+  recomputed in two separate statements, the exact pre-fix shape. The
+  helper's own doc comment asserted it backed this endpoint; it did not, and
+  the comment was corrected alongside the code.
+
+Fixed for real this time: the UI now treats blank as "leave unanswered" (no
+request sent) and an explicit `"0"` as a genuine, distinguishable
+declaration; the incomplete banner separately names roles missing a cost
+and roles missing an allowance; the route's "quantity" action routes a
+policy role through `declarePolicyMaterialQuantity` (a structural role's
+edit is unchanged); and that function is now atomic — the quantity write
+and the readiness/total recompute are one `$transaction`, proven with an
+injected fault that leaves both the quantity and the cached total rolled
+back together. All proven live, through a real signed-up admin account, a
+real browser, and the real API route — including a real, authenticated
+cross-tenant request refused with no state change — in
+`scripts/verify-materials-panel-quantity-browser-flow.ts` (20/20 checks).
 
 **LEGACY_PUBLISHED, zero structural materials** (`dishwasher-electrical`)
 — **NOW PROVEN, through the fixed lifecycle.** `writeMaterialCost` entering
@@ -470,9 +498,23 @@ checks, reusing the existing production-build harness).
   pre-existing ones.
 - `npx tsc --noEmit` clean across the whole repository after every change in
   this round, not just the files touched.
-- All three scratch-database-driving scripts (Phase 1, Phase 2, the browser
-  flow) create and destroy only their own uniquely-named, no-pre-drop
-  scratch databases or reuse one already stamped `local-*`; none touches
-  `p2b_integration_seeded` or any other shared or production database.
-  `p2b_freshlaunch_1789577038606_34745` was dropped at the end of this
-  session; nothing was left running.
+- `scripts/verify-materials-panel-quantity-browser-flow.ts` — the
+  contractor-facing quantity-input correction (see the CORRECTION note in
+  §5): a real signed-up admin account, a real browser driving
+  `components/admin/MaterialsPanel.tsx` itself, and the real
+  `/api/admin/materials` route. **20/20 checks passed**, on its own
+  disposable scratch database (`p2b_materialsui_<run-id>`, uniquely
+  fixture-scoped canonical roles prefixed `TEST_QTY_<run>_`, dropped at the
+  end of the run) — covering the blank-blur guard, the explicit-zero
+  distinction, the corrected incomplete-state messaging, policy-only and
+  mixed-recipe block-then-resolve-then-recompute, a later edit's recompute,
+  an injected-fault atomicity proof (quantity and cache roll back together,
+  then a clean retry succeeds), and a real authenticated cross-tenant
+  request refused with zero state change.
+- All four scratch-database-driving scripts (Phase 1, Phase 2, the native-
+  booking browser flow, and this quantity-input browser flow) create and
+  destroy only their own uniquely-named, no-pre-drop scratch databases or
+  reuse one already stamped `local-*`; none touches `p2b_integration_seeded`
+  or any other shared or production database. Every scratch database this
+  round created was dropped at the end of its own run; nothing was left
+  running.
